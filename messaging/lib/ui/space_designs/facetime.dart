@@ -35,6 +35,29 @@ const _wide = 760.0;
 /// Your picture-in-picture in the top corner.
 const _pipPhone = Size(100, 136), _pipWide = Size(212, 132);
 
+/// The gap between tiles, and a computer's inset from the window's edges (the side column of tiles and your picture
+/// above it share it, so they line up).
+const _gap = 10.0, _wideInset = 24.0;
+
+/// The words this design shows that [SpaceWords] has no entry for (space_design.dart is shared by all six designs;
+/// these are FaceTime's own).
+abstract final class _Words {
+  static const waiting = 'Waiting for others…', justYou = 'Just you', micLocked = 'Mic locked', closeChat = 'Close chat';
+  static const muted = 'Muted', speaking = 'Speaking', audioOnly = 'Audio only', cameraStarting = 'Camera starting…';
+  static String people(int n) => n == 1 ? justYou : '$n people';
+  static String yourMic({required bool muted, required bool talking}) => muted ? 'You\'re muted' : (talking ? 'You\'re speaking' : 'Your mic is on');
+  static String state(SpacePerson p, {required bool talking}) => p.muted ? muted : (p.video ? cameraStarting : (talking ? speaking : audioOnly));
+}
+
+/// A computer's side column of tiles beside the featured one, for [rest] people in an [inner] width: one column of
+/// tiles, or two once there are more than four. Your picture-in-picture takes a cell's width, so it sits right above
+/// the column.
+({int cols, double width, double cell}) _sideColumn(double inner, int rest) {
+  final cols = rest > 4 ? 2 : 1;
+  final width = math.min(inner * 0.34, cols * _pipWide.width + (cols - 1) * _gap);
+  return (cols: cols, width: width, cell: (width - _gap * (cols - 1)) / cols);
+}
+
 class _FaceTimeCallState extends State<FaceTimeCall> {
   bool _chat = false;
 
@@ -44,12 +67,56 @@ class _FaceTimeCallState extends State<FaceTimeCall> {
   void _toggleChat() => setState(() => _chat = !_chat);
 
   @override
+  void initState() {
+    super.initState();
+    widget.call.levels.addListener(_levelsChanged);
+    _featured = _loudestOther();
+  }
+
+  @override
+  void didUpdateWidget(FaceTimeCall old) {
+    super.didUpdateWidget(old);
+    if (old.call.levels != widget.call.levels) {
+      old.call.levels.removeListener(_levelsChanged);
+      widget.call.levels.addListener(_levelsChanged);
+    }
+    _featured = _loudestOther() ?? _featured;
+  }
+
+  @override
+  void dispose() {
+    widget.call.levels.removeListener(_levelsChanged);
+    super.dispose();
+  }
+
+  String? _loudestOther() {
+    final loud = widget.call.loudest(widget.call.levels.value);
+    return loud == null || loud.me ? null : loud.id;
+  }
+
+  void _levelsChanged() {
+    final id = _loudestOther();
+    if (id != null && id != _featured) setState(() => _featured = id);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final call = widget.call;
     final pad = MediaQuery.paddingOf(context);
     return LayoutBuilder(builder: (context, box) {
       final wide = box.maxWidth >= _wide;
-      final panel = wide && _chat ? math.min(380.0, box.maxWidth * 0.32) : 0.0;
+      // The chat's panel on a computer, and how far the stage narrows for it: the same width, so nothing sits under it.
+      final panelWidth = wide ? math.min(380.0, box.maxWidth * 0.32) : 0.0;
+      final panel = _chat ? panelWidth : 0.0;
+      final others = call.others;
+      final inset = wide ? _wideInset : 12.0;
+      // With several others on a computer your picture takes the side column's width, right above it.
+      var pip = wide ? _pipWide : _pipPhone;
+      if (wide && others.length > 1) {
+        final cell = _sideColumn(box.maxWidth - panel - _wideInset * 2, others.length - 1).cell;
+        if (cell < pip.width) pip = Size(cell, cell * _pipWide.height / _pipWide.width);
+      }
+      final hasPip = others.isNotEmpty || call.me.video;
       return ColoredBox(
         color: _stageInk,
         child: Stack(children: [
@@ -65,15 +132,14 @@ class _FaceTimeCallState extends State<FaceTimeCall> {
               Positioned.fill(
                 child: ValueListenableBuilder<Map<String, double>>(
                   valueListenable: call.levels,
-                  builder: (context, now, _) => _stage(context, now, wide, pad),
+                  builder: (context, now, _) => _stage(context, now, wide, pad, pip),
                 ),
               ),
-              if (call.others.isNotEmpty || call.me.video)
-                Positioned(top: pad.top + 12, right: 12, child: _Pip(call: call, wide: wide)),
+              if (hasPip) Positioned(top: pad.top + 12, right: inset, child: _Pip(call: call, size: pip, wide: wide)),
               Positioned(
                 top: pad.top + 12,
-                left: 12,
-                right: call.others.isNotEmpty || call.me.video ? 12 + (wide ? _pipWide : _pipPhone).width + 12 : 12,
+                left: inset,
+                right: hasPip ? inset + pip.width + 12 : inset,
                 child: Align(alignment: Alignment.topLeft, child: _Header(call: call)),
               ),
               Positioned(
@@ -90,8 +156,8 @@ class _FaceTimeCallState extends State<FaceTimeCall> {
               curve: Curves.easeOutCubic,
               top: 0,
               bottom: 0,
-              right: _chat ? 0 : -400,
-              width: math.max(panel, 380),
+              right: _chat ? 0 : -panelWidth - 2,
+              width: panelWidth,
               child: _ChatPanel(call: call, onClose: _toggleChat, pad: pad, side: true),
             )
           else ...[
@@ -101,7 +167,11 @@ class _FaceTimeCallState extends State<FaceTimeCall> {
               child: AnimatedOpacity(
                 opacity: _chat ? 1 : 0,
                 duration: const Duration(milliseconds: 220),
-                child: GestureDetector(onTap: _toggleChat, child: const SizedBox.expand(child: ColoredBox(color: Color(0x66000000)))),
+                child: GestureDetector(
+                  key: const ValueKey('ft-chat-scrim'),
+                  onTap: _toggleChat,
+                  child: const SizedBox.expand(child: ColoredBox(color: Color(0x66000000))),
+                ),
               ),
             ),
             AnimatedPositioned(
@@ -119,17 +189,13 @@ class _FaceTimeCallState extends State<FaceTimeCall> {
     });
   }
 
-  Widget _stage(BuildContext context, Map<String, double> now, bool wide, EdgeInsets pad) {
+  Widget _stage(BuildContext context, Map<String, double> now, bool wide, EdgeInsets pad, Size pip) {
     final call = widget.call;
     final others = call.others;
     if (others.isEmpty) return _Alone(call: call, now: now, wide: wide);
-    if (others.length == 1) return _Solo(call: call, person: others.first, talking: call.isTalking(others.first, now), wide: wide);
-
-    final loud = call.loudest(now);
-    if (loud != null && !loud.me) _featured = loud.id;
+    if (others.length == 1) return _Solo(call: call, person: others.first, talking: call.isTalking(others.first, now), wide: wide, pad: pad);
     final featured = others.firstWhere((p) => p.id == _featured, orElse: () => others.first);
-    _featured = featured.id;
-    return _Mosaic(call: call, featured: featured, now: now, wide: wide, pad: pad);
+    return _Mosaic(call: call, featured: featured, now: now, wide: wide, pad: pad, pip: pip);
   }
 }
 
@@ -201,9 +267,11 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final n = call.people.length;
-    final sub = [n == 1 ? 'Just you' : '$n people', call.clock(DateTime.now())].join('  ·  ');
+    final sub = [_Words.people(n), call.clock(DateTime.now())].join('  ·  ');
+    // A darker glass than the controls', so the green badge and the white words hold on a pale wash too.
     return _Glass(
       radius: 18,
+      tint: const Color(0x73101014),
       padding: const EdgeInsets.fromLTRB(10, 9, 16, 10),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Container(
@@ -224,7 +292,7 @@ class _Header extends StatelessWidget {
                 const SizedBox(width: 8),
                 const AppIcon(Lucide.lock, size: 11, wash: false, color: _soft),
                 const SizedBox(width: 3),
-                Text('Mic locked', style: pageText(t, t.fontSize('xs'), color: _soft)),
+                Text(_Words.micLocked, style: pageText(t, t.fontSize('xs'), color: _soft)),
               ],
             ]),
           ]),
@@ -260,16 +328,16 @@ class _Alone extends StatelessWidget {
             const SizedBox(height: 48),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Text('Waiting for others…', textAlign: TextAlign.center, style: pageText(t, t.fontSize('xl'), weight: 'semibold', color: _white)),
+              child: Text(_Words.waiting, textAlign: TextAlign.center, style: pageText(t, t.fontSize('xl'), weight: 'semibold', color: _white)),
             ),
             const SizedBox(height: 6),
             Row(mainAxisSize: MainAxisSize.min, children: [
               AppIcon(call.muted ? LucideMore.micOff : Lucide.mic, size: 14, wash: false, color: talking ? _white : _soft),
               const SizedBox(width: 6),
-              Text(call.muted ? 'You\'re muted' : (talking ? 'You\'re speaking' : 'Your mic is on'), style: pageText(t, t.fontSize('sm'), color: _soft)),
+              Text(_Words.yourMic(muted: call.muted, talking: talking), style: pageText(t, t.fontSize('sm'), color: _soft)),
             ]),
             const SizedBox(height: 22),
-            _GlassPill(icon: Lucide.userPlus, label: SpaceWords.invite, onPressed: call.onInvite == null ? null : () => call.onInvite!(context)),
+            _GlassPill(icon: Lucide.share2, label: SpaceWords.invite, onPressed: call.onInvite == null ? null : () => call.onInvite!(context)),
             SizedBox(height: wide ? 60 : 150),
           ]),
         ),
@@ -313,19 +381,21 @@ class _GlassPill extends StatelessWidget {
   }
 }
 
-/// One other in the call: they fill the screen.
+/// One other in the call: they fill the screen, their name (and mute) over their picture as FaceTime shows it.
 class _Solo extends StatelessWidget {
-  const _Solo({required this.call, required this.person, required this.talking, required this.wide});
+  const _Solo({required this.call, required this.person, required this.talking, required this.wide, required this.pad});
   final SpaceCall call;
   final SpacePerson person;
   final bool talking;
   final bool wide;
+  final EdgeInsets pad;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final picture = person.stream != null;
     final onPerson = call.onPerson == null ? null : () => call.onPerson!(context, person);
+    const shadow = [Shadow(color: Color(0x99000000), blurRadius: 8)];
     return GlacierPressable(
       onPressed: onPerson,
       onLongPress: onPerson,
@@ -343,10 +413,34 @@ class _Solo extends StatelessWidget {
                 const SizedBox(height: 22),
                 Text(person.name, style: pageText(t, t.fontSize('xl'), weight: 'semibold', color: _white)),
                 const SizedBox(height: 4),
-                Text(person.muted ? 'Muted' : (person.video ? 'Camera starting…' : (talking ? 'Speaking' : 'Audio only')), style: pageText(t, t.fontSize('sm'), color: _soft)),
+                Text(_Words.state(person, talking: talking), style: pageText(t, t.fontSize('sm'), color: _soft)),
                 SizedBox(height: wide ? 40 : 120),
               ]),
             ),
+          ),
+        // A soft shade at the top, under the header card and your picture, so they hold on any picture or wash.
+        const IgnorePointer(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: FractionallySizedBox(
+              heightFactor: 0.3,
+              widthFactor: 1,
+              child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0x40000000), Color(0x00000000)]))),
+            ),
+          ),
+        ),
+        if (picture)
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: pad.bottom + (wide ? 124 : 180),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Flexible(child: Text(person.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'semibold', color: _white).copyWith(shadows: shadow))),
+              if (person.muted) ...[
+                const SizedBox(width: 8),
+                const AppIcon(LucideMore.micOff, size: 16, wash: false, color: _white),
+              ],
+            ]),
           ),
         // FaceTime's speaking glow, round the edge of the screen.
         IgnorePointer(
@@ -362,12 +456,15 @@ class _Solo extends StatelessWidget {
 
 /// Several others: floating rounded tiles, the featured one (whoever talks) big, the rest smaller beside it.
 class _Mosaic extends StatelessWidget {
-  const _Mosaic({required this.call, required this.featured, required this.now, required this.wide, required this.pad});
+  const _Mosaic({required this.call, required this.featured, required this.now, required this.wide, required this.pad, required this.pip});
   final SpaceCall call;
   final SpacePerson featured;
   final Map<String, double> now;
   final bool wide;
   final EdgeInsets pad;
+
+  /// Your picture's size in the corner: a computer's side column starts under it, as wide as it.
+  final Size pip;
 
   @override
   Widget build(BuildContext context) {
@@ -378,23 +475,23 @@ class _Mosaic extends StatelessWidget {
         decoration: const BoxDecoration(color: Color(0x99000000)),
         child: LayoutBuilder(builder: (context, box) {
           // Room under the header and above the controls.
-          const gap = 10.0;
+          const gap = _gap;
           // On a phone the tiles start under your picture in the corner; on a computer only the side column does.
-          final top = pad.top + (wide ? 92 : 12 + _pipPhone.height + 12);
-          final sideTop = pad.top + 12 + _pipWide.height + 12;
+          final top = pad.top + (wide ? 92 : 12 + pip.height + 12);
+          final sideTop = pad.top + 12 + pip.height + 12;
           final bottom = pad.bottom + (wide ? 120 : 172);
-          final left = wide ? 24.0 : 12.0;
+          final left = wide ? _wideInset : 12.0;
           final w = box.maxWidth - left * 2;
           final h = math.max(0.0, box.maxHeight - top - bottom);
           final rects = <String, Rect>{};
           if (wide) {
             // The featured tile on the left, the rest in a grid on the right.
-            final cols = rest.length > 4 ? 2 : 1;
+            final side = _sideColumn(w, rest.length);
+            final cols = side.cols;
             final rows = math.max(1, (rest.length / cols).ceil());
-            final sideW = math.min(w * 0.34, cols * 220.0);
-            final bigW = w - sideW - gap;
+            final bigW = w - side.width - gap;
             rects[featured.id] = Rect.fromLTWH(left, top, bigW, h);
-            final cellW = (sideW - gap * (cols - 1)) / cols;
+            final cellW = side.cell;
             final sideH = math.max(0.0, box.maxHeight - sideTop - bottom);
             final cellH = math.max(0.0, math.min((sideH - gap * (rows - 1)) / rows, cellW * 0.9));
             final used = rows * cellH + (rows - 1) * gap;
@@ -475,8 +572,17 @@ class _Tile extends StatelessWidget {
           borderRadius: BorderRadius.circular(radius - 1),
           child: Stack(fit: StackFit.expand, children: [
             if (person.video)
-              // Video on but no picture yet (and always in a test): their face on a darker wash, a camera mark below.
-              SpaceVideo(call: call, person: person, faceSize: faceSize, fallback: Stack(fit: StackFit.expand, children: [const ColoredBox(color: Color(0xFF1C1C1F)), Center(child: _Monogram(call: call, person: person, size: faceSize, talking: talking))]))
+              // Video on but no picture yet (and always in a test): their face on their own wash, a shade darker, and a
+              // camera mark by the name.
+              SpaceVideo(
+                call: call,
+                person: person,
+                faceSize: faceSize,
+                fallback: DecoratedBox(
+                  decoration: BoxDecoration(gradient: _washFor(context, person.name)),
+                  child: ColoredBox(color: const Color(0x2E000000), child: Center(child: _Monogram(call: call, person: person, size: faceSize, talking: talking))),
+                ),
+              )
             else
               face,
             if (label)
@@ -512,16 +618,17 @@ class _Tile extends StatelessWidget {
 
 /// You, in the corner: your picture (or face), glowing white as you speak.
 class _Pip extends StatelessWidget {
-  const _Pip({required this.call, required this.wide});
+  const _Pip({required this.call, required this.size, required this.wide});
   final SpaceCall call;
+  final Size size;
   final bool wide;
 
   @override
   Widget build(BuildContext context) => ValueListenableBuilder<Map<String, double>>(
         valueListenable: call.levels,
         builder: (context, now, _) => SizedBox(
-          width: (wide ? _pipWide : _pipPhone).width,
-          height: (wide ? _pipWide : _pipPhone).height,
+          width: size.width,
+          height: size.height,
           child: _Tile(call: call, person: call.me, talking: call.isTalking(call.me, now), radius: 18, faceSize: wide ? 56 : 48),
         ),
       );
@@ -636,7 +743,7 @@ class _ChatPanel extends StatelessWidget {
                 Expanded(child: Text(SpaceWords.chat, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink')))),
                 GlacierPressable(
                   onPressed: onClose,
-                  semanticLabel: 'Close chat',
+                  semanticLabel: _Words.closeChat,
                   builder: (context, _) => Container(
                     width: 30,
                     height: 30,
