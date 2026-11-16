@@ -121,6 +121,63 @@ abstract class InboxNetwork extends ChangeNotifier {
   /// Marks [chatId] read, there as here.
   Future<void> markRead(String chatId);
 
+  // --- archiving and deleting (Matt, 2026-11-15: "if possible proxy the archive and delete messages too, if we can't
+  // actually delete telegram messages add them to a ignore or archive list") -------------------------------------------
+  // A network that can do these itself does them there (Telegram's archive, its Delete); one that can't keeps them
+  // in a list of Ghost's own on this device, so they are gone from here all the same.
+
+  /// The chats the list shows: [chats] without those in Ghost's own lists (archived or deleted here).
+  List<InboxChat> get shownChats {
+    final gone = {...localList('archived'), ...localList('deleted')};
+    return gone.isEmpty ? chats : [for (final c in chats) if (!gone.contains(c.id)) c];
+  }
+
+  /// The chats archived: the network's own archive, or Ghost's list for it.
+  List<InboxChat> get archivedChats {
+    final kept = localList('archived');
+    return kept.isEmpty ? const [] : [for (final c in chats) if (kept.contains(c.id)) c];
+  }
+
+  /// Moves [chatId] into the archive, or out of it.
+  Future<void> archive(String chatId, bool archived) async {
+    setLocal('archived', chatId, archived);
+    notifyListeners();
+  }
+
+  /// Deletes [chatId] for this account: there where the network allows it, else left out of Ghost from now on.
+  Future<void> deleteChat(String chatId) async {
+    setLocal('deleted', chatId, true);
+    notifyListeners();
+  }
+
+  /// Whether [message] can be deleted for everyone in the chat, not only for this account.
+  bool canDeleteForEveryone(String chatId, InboxMessage message) => false;
+
+  /// Deletes [messageId] in [chatId]: for this account, or for everyone where [forEveryone] and allowed.
+  Future<void> deleteMessage(String chatId, String messageId, {bool forEveryone = false}) async {
+    setLocal('deleted_msg_$chatId', messageId, true);
+    notifyListeners();
+  }
+
+  /// [chatId]'s messages without those Ghost's own list leaves out.
+  List<InboxMessage> shownMessages(String chatId) {
+    final gone = localList('deleted_msg_$chatId');
+    final all = messagesOf(chatId);
+    return gone.isEmpty ? all : [for (final m in all) if (!gone.contains(m.id)) m];
+  }
+
+  /// Where Ghost's own lists are kept: the app's preferences on this device, given as the network starts.
+  AppState? listStore;
+
+  /// One of Ghost's own lists for this network ("archived", "deleted", "deleted_msg_<chat>").
+  Set<String> localList(String what) => (listStore?.choice('inbox_${id}_$what', '') ?? '').split('\u001f').where((x) => x.isNotEmpty).toSet();
+
+  void setLocal(String what, String item, bool on) {
+    final s = localList(what);
+    on ? s.add(item) : s.remove(item);
+    listStore?.set('inbox_${id}_$what', s.join('\u001f'));
+  }
+
   /// The chat opened in the app: kept fresh more often while it is shown. Null when none is.
   set watching(String? chatId);
 
@@ -170,6 +227,7 @@ class Inbox {
   Future<void> start(AppState app) async {
     for (final n in networks) {
       if (n.soon) continue;
+      n.listStore = app;
       try {
         await n.start(app);
       } catch (e) {

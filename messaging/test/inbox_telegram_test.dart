@@ -151,7 +151,8 @@ void main() {
     td.answer = (r) => switch (r['@type']) {
           'getMe' => {'@type': 'user', 'id': 1, 'first_name': 'Matt'},
           // Three lots of chats, then none left.
-          'loadChats' => ++loads <= 3 ? {'@type': 'ok'} : {'@type': 'error', 'code': 404, 'message': 'Not Found'},
+          'loadChats' when (r['chat_list'] as Map)['@type'] == 'chatListMain' => ++loads <= 3 ? {'@type': 'ok'} : {'@type': 'error', 'code': 404, 'message': 'Not Found'},
+          'loadChats' => {'@type': 'error', 'code': 404, 'message': 'Not Found'},
           _ => {'@type': 'ok'},
         };
     final tg = Telegram(apiId: 12345, apiHash: 'hash', folder: '/tmp/tg', transport: () async => td);
@@ -161,7 +162,9 @@ void main() {
     for (var i = 0; i < 12; i++) {
       await settle();
     }
-    expect(td.types.where((t) => t == 'loadChats').length, 4, reason: 'asked again until there were no more');
+    final lists = [for (final r in td.sent) if (r['@type'] == 'loadChats') (r['chat_list'] as Map)['@type']];
+    expect(lists.where((l) => l == 'chatListMain').length, 4, reason: 'asked again until there were no more');
+    expect(lists, contains('chatListArchive'), reason: 'and the archive');
 
     Map<String, Object?> chat(int id, String title, int date, String order, {Map<String, Object?>? small}) => {
           '@type': 'updateNewChat',
@@ -189,6 +192,58 @@ void main() {
     await settle();
     expect(tg.chats.first.avatar, '/data/tg/photos/55.jpg');
     expect(td.sent.where((r) => r['@type'] == 'downloadFile').length, 1, reason: 'asked for once');
+    tg.dispose();
+  });
+
+  // Matt, 2026-11-15: "if possible proxy the archive and delete messages too".
+  test('archiving and deleting go to Telegram itself', () async {
+    final td = FakeTd();
+    td.answer = (r) => r['@type'] == 'getMe' ? {'@type': 'user', 'id': 1, 'first_name': 'Matt'} : (r['@type'] == 'loadChats' ? {'@type': 'error', 'code': 404, 'message': 'Not Found'} : {'@type': 'ok'});
+    final tg = Telegram(apiId: 12345, apiHash: 'hash', folder: '/tmp/tg', transport: () async => td);
+    await tg.start(AppState());
+    await tg.begin();
+    td.auth('authorizationStateReady');
+    for (var i = 0; i < 6; i++) {
+      await settle();
+    }
+    Map<String, Object?> chat(int id, String title, String list, {Map<String, Object?> type = const {'@type': 'chatTypePrivate', 'user_id': 7}}) => {
+          '@type': 'updateNewChat',
+          'chat': {
+            'id': id, 'title': title, 'type': type,
+            'positions': [
+              {'list': {'@type': list}, 'order': '5'},
+            ],
+            'last_message': {'id': 1, 'chat_id': id, 'is_outgoing': false, 'date': 1763200000, 'content': {'@type': 'messageText', 'text': {'text': 'hi'}}},
+          },
+        };
+    td.say(chat(10, 'Jo Park', 'chatListMain'));
+    td.say(chat(20, 'Old crew', 'chatListArchive', type: const {'@type': 'chatTypeBasicGroup', 'basic_group_id': 2}));
+    await settle();
+    expect(tg.chats.map((c) => c.title), ['Jo Park']);
+    expect(tg.archivedChats.map((c) => c.title), ['Old crew'], reason: 'Telegram\'s archive is Ghost\'s Archived');
+
+    await tg.archive('10', true);
+    final add = td.sent.lastWhere((r) => r['@type'] == 'addChatToList');
+    expect(add['chat_id'], 10);
+    expect((add['chat_list'] as Map)['@type'], 'chatListArchive');
+
+    await tg.deleteChat('20');
+    expect(td.types, containsAllInOrder(['leaveChat', 'deleteChatHistory']), reason: 'a group is left, then its history goes');
+    final del = td.sent.lastWhere((r) => r['@type'] == 'deleteChatHistory');
+    expect(del['remove_from_chat_list'], true);
+    expect(del['revoke'], false);
+    expect(tg.archivedChats, isEmpty);
+
+    // A message: for this account, or for everyone where Telegram allows it.
+    td.say({'@type': 'updateNewMessage', 'message': {'id': 77, 'chat_id': 10, 'is_outgoing': true, 'date': 1763200100, 'can_be_deleted_for_all_users': true, 'content': {'@type': 'messageText', 'text': {'text': 'oops'}}}});
+    await settle();
+    final oops = tg.messagesOf('10').single;
+    expect(tg.canDeleteForEveryone('10', oops), isTrue);
+    await tg.deleteMessage('10', '77', forEveryone: true);
+    final dm = td.sent.lastWhere((r) => r['@type'] == 'deleteMessages');
+    expect(dm['message_ids'], [77]);
+    expect(dm['revoke'], true);
+    expect(tg.messagesOf('10'), isEmpty);
     tg.dispose();
   });
 
