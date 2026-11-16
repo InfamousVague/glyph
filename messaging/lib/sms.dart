@@ -1115,8 +1115,19 @@ class Sms {
     while (_parts.length > _partsKept) {
       _parts.remove(_parts.keys.first);
     }
+    // Not there yet is not kept: a picture you sent can be asked for before its file is (Google Messages tells of the
+    // message before the phone has kept its copy), and was then blank for as long as the app was open (Matt,
+    // 2026-11-16: "the preview of the image I sent never loads").
+    bytes.then((b) {
+      if (b == null && identical(_parts[id], bytes)) _parts.remove(id);
+    }, onError: (_) {
+      if (identical(_parts[id], bytes)) _parts.remove(id);
+    });
     return bytes;
   }
+
+  /// A picture held here before the phone has it: a message drawn while it is sending (lib/ui/thread.dart).
+  void holdPart(int id, Future<Uint8List?> bytes) => _parts[id] = bytes;
 
   // --- voice messages (android/.../Voice.kt) -------------------------------------------------------------------
 

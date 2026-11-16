@@ -401,14 +401,27 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   void _settlePending(List<Message> list) {
     final now = DateTime.now();
     _pending.removeWhere((p) =>
-        now.difference(p.date) > const Duration(minutes: 2) ||
-        list.any((m) => m.outgoing && m.body.trim() == p.body && !m.date.isBefore(p.date.subtract(const Duration(minutes: 1)))));
+        // A picture message takes longer than words to reach the phone's list.
+        now.difference(p.date) > Duration(minutes: p.attachments.isEmpty ? 2 : 5) ||
+        list.any((m) =>
+            m.outgoing &&
+            m.body.trim() == p.body &&
+            (p.attachments.isEmpty || m.attachments.isNotEmpty) &&
+            !m.date.isBefore(p.date.subtract(const Duration(minutes: 1)))));
   }
 
-  /// [body] drawn at once as your newest message, sending.
-  Message _showPending(String body) {
+  /// [body], and the pictures [files], drawn at once as your newest message, sending (Matt, 2026-11-16, of a picture
+  /// sent: it "takes a long time to even appear in chat in the first place").
+  Message _showPending(String body, {List<String> files = const []}) {
     final now = DateTime.now();
-    final m = Message(id: -now.microsecondsSinceEpoch, kind: 'pending', address: '', body: body, date: now, outgoing: true, state: 'sending');
+    final held = <Attachment>[];
+    // The pictures as the composer showed them (Sms.photo of each one picked), held under numbers of their own.
+    for (final (i, uri) in files.indexed) {
+      final id = -(now.microsecondsSinceEpoch % 1000000000) * 10 - i;
+      Sms.instance.holdPart(id, Sms.instance.photo(uri));
+      held.add(Attachment(id: id, type: 'image/jpeg', name: uri.split('/').last));
+    }
+    final m = Message(id: -now.microsecondsSinceEpoch, kind: 'pending', address: '', body: body, date: now, outgoing: true, state: 'sending', attachments: held);
     setState(() {
       _pending.insert(0, m);
       _folded = Folded(messages: [m, ..._folded.messages], reactions: _folded.reactions);
@@ -426,10 +439,10 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     if ((body.isEmpty && _attachments.isEmpty) || _sending) return;
     final to = _people.map((p) => p.address).toList();
     if (to.isEmpty) return;
-    final pending = body.isEmpty ? null : _showPending(body);
+    final files = List<String>.of(_attachments);
+    final pending = body.isEmpty && files.isEmpty ? null : _showPending(body, files: files);
     setState(() => _sending = true);
     HapticFeedback.lightImpact();
-    final files = List<String>.of(_attachments);
     _text.clear();
     _attachments.clear();
     _draftSave?.cancel();
