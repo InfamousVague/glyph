@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/gestures.dart';
@@ -198,6 +199,41 @@ void main() {
       expect(_button('Conversation settings'), findsOneWidget, reason: 'a conversation has its own settings on a computer too');
       // Calling is the phone's alone; and beside the list there is nowhere to go back to.
       expect(_button('Call'), findsNothing);
+
+      // A picture on the clipboard is pasted into the message field as an attachment; with none, words paste as ever
+      // (Matt, 2026-11-16: "add the ability to paste images into the chatbar on desktop").
+      if (!dark) {
+        final picture = File('${dir.path}/pasted.png')..writeAsBytesSync(base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='));
+        String? onClipboard = picture.path;
+        final messenger = tester.binding.defaultBinaryMessenger;
+        messenger.setMockMethodCallHandler(const MethodChannel('ghost_desktop/system'), (call) async => call.method == 'pasteImage' ? onClipboard : null);
+        messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async => call.method == 'Clipboard.getData' ? {'text': 'pasted words'} : null);
+        addTearDown(() {
+          messenger.setMockMethodCallHandler(const MethodChannel('ghost_desktop/system'), null);
+          messenger.setMockMethodCallHandler(SystemChannels.platform, null);
+        });
+        Future<void> paste() async {
+          final modifier = Platform.isMacOS ? LogicalKeyboardKey.metaLeft : LogicalKeyboardKey.controlLeft;
+          await tester.sendKeyDownEvent(modifier);
+          await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
+          await tester.sendKeyUpEvent(modifier);
+          for (var i = 0; i < 6; i++) {
+            await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+            await tester.pump(const Duration(milliseconds: 40));
+          }
+        }
+
+        final field = find.byType(EditableText).last;
+        await tester.showKeyboard(field);
+        await tester.pump();
+        await paste();
+        expect(find.bySemanticsLabel('Remove picture'), findsOneWidget, reason: 'the copied picture is attached');
+        expect(tester.widget<EditableText>(field).controller.text, isNot(contains('pasted words')));
+        onClipboard = null;
+        await paste();
+        expect(tester.widget<EditableText>(field).controller.text, contains('pasted words'), reason: 'with no picture, words paste');
+        expect(find.bySemanticsLabel('Remove picture'), findsOneWidget);
+      }
       expect(_button('Back'), findsNothing);
       // The navigation pill at the sidebar's foot (Ghost.md's dock, laid along): a new chat, the messages, the
       // archive with how many are in it, Settings. Messages is the one shown; a ring has no words but its tip.

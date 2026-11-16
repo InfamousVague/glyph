@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
 
@@ -49,6 +50,25 @@ class MacPlatform {
       return [for (final p in (await _system.invokeMethod<List>('pickPictures', {'most': most})) ?? const []) '$p'];
     } catch (_) {
       return const [];
+    }
+  }
+
+  /// A picture on the clipboard as a file to send: an image file copied, or a copied picture written out (Mac:
+  /// DeskChannels.swift, Windows: clipboard.cpp). Null where there is none. Windows hands a copied picture over as
+  /// a BMP, which a phone may not send: it is made a PNG here.
+  static Future<String?> pasteImage() async {
+    try {
+      final path = await _system.invokeMethod<String>('pasteImage');
+      if (path == null || !path.toLowerCase().endsWith('.bmp')) return path;
+      final codec = await ui.instantiateImageCodec(await File(path).readAsBytes());
+      final frame = await codec.getNextFrame();
+      final png = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+      if (png == null) return null;
+      final out = File('${path.substring(0, path.length - 4)}.png');
+      await out.writeAsBytes(png.buffer.asUint8List(png.offsetInBytes, png.lengthInBytes));
+      return out.path;
+    } catch (_) {
+      return null;
     }
   }
 
