@@ -1251,7 +1251,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                   else
                   editing
                       ? IconTap(icon: Lucide.check, label: 'Save edit', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _saveEdit : null)
-                      : IconTap(icon: Lucide.send, label: 'Send', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _send : null),
+                      : IconTap(icon: Lucide.arrowUp, label: 'Send', filled: true, size: 19, box: t.lenOf('2.25rem'), onPressed: canSend ? _send : null),
                 ];
             return ComposerBox(
               field: field,

@@ -19,7 +19,7 @@ class _Box extends StatelessWidget {
   Widget build(BuildContext context) => ValueListenableBuilder<bool>(valueListenable: typingNow, builder: (context, typing, _) => _inner(typing));
 
   Widget _inner(bool typing) {
-    final send = IconTap(icon: Lucide.send, label: 'Send', filled: true, size: 16, box: 36, onPressed: typing ? () {} : null);
+    final send = IconTap(icon: Lucide.arrowUp, label: 'Send', filled: true, size: 16, box: 36, onPressed: typing ? () {} : null);
     final mic = IconTap(icon: Lucide.mic, label: 'Mic', size: 19, box: 36, onPressed: () {});
     final sticker = IconTap(icon: Lucide.sticker, label: 'Stickers', size: 19, box: 36, onPressed: () {});
     return RepaintBoundary(

@@ -357,7 +357,7 @@ class _HangoutChatState extends State<HangoutChat> {
             padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2) + widget.bottom + MediaQuery.paddingOf(context).bottom * (widget.bottom > 0 ? 1 : 0)),
             child: mayWrite
                 ? Builder(builder: (context) {
-                    final send = IconTap(icon: Lucide.send, label: 'Send', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: _text.text.trim().isEmpty ? null : _send);
+                    final send = IconTap(icon: Lucide.arrowUp, label: 'Send', filled: true, size: 19, box: t.lenOf('2.25rem'), onPressed: _text.text.trim().isEmpty ? null : _send);
                     return ComposerBox(
                       typing: _typing,
                       ends: [send],
