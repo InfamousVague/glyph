@@ -594,12 +594,41 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                                         padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), NavPill.inset(t)),
                                         child: Center(child: CallDock(session: Voice.instance.session!)),
                                       )
-                                    : ScaleTransition(
-                                        key: const ValueKey('pill-scale'),
-                                        scale: _pillScale,
-                                        alignment: docked ? Alignment.bottomRight : Alignment.bottomCenter,
-                                        child: _pill(upright: docked),
-                                      ),
+                                    : docked
+                                        ? ScaleTransition(
+                                            key: const ValueKey('pill-scale'),
+                                            scale: _pillScale,
+                                            alignment: Alignment.bottomRight,
+                                            child: _pill(upright: true),
+                                          )
+                                        // Laid along the list's foot it keeps the list's width as it grows smaller:
+                                        // laid out wider by as much as it is scaled down, so the room round it stays
+                                        // the same on its sides as under it (Matt, 2026-11-16: "make the navbar width
+                                        // fit the full sidebar ... make the space on the left and right even to the
+                                        // space on the bottom").
+                                        : LayoutBuilder(
+                                            key: const ValueKey('pill-scale'),
+                                            builder: (context, box) => AnimatedBuilder(
+                                              animation: _pillScale,
+                                              child: _pill(upright: false),
+                                              builder: (context, pill) {
+                                                final k = _pillScale.value;
+                                                final tall = NavPill.clearance(t) - NavPill.inset(t);
+                                                return SizedBox(
+                                                  width: box.maxWidth,
+                                                  height: tall * k,
+                                                  child: OverflowBox(
+                                                    minWidth: box.maxWidth / k,
+                                                    maxWidth: box.maxWidth / k,
+                                                    minHeight: tall,
+                                                    maxHeight: tall,
+                                                    alignment: Alignment.bottomCenter,
+                                                    child: Transform.scale(scale: k, alignment: Alignment.bottomCenter, child: pill),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ),
                               ),
                             ),
                           ),

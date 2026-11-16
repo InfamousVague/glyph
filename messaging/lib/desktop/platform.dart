@@ -124,10 +124,35 @@ class MacPlatform {
 
   /// Where the sound being played has got to, as the Mac says it (DeskSound.swift `heard`): handed to [heard].
   static void listenToVoice(void Function(Map state) heard) {
+    _heard = heard;
+    _listen();
+  }
+
+  static void Function(Map state)? _heard;
+  static void Function(String? token, bool sandbox)? _pushToken;
+
+  /// One listener for all the native side tells (a channel has room for one): the voice being played, and the
+  /// iPhone's push token.
+  static void _listen() {
     _system.setMethodCallHandler((call) async {
-      if (call.method == 'voice' && call.arguments is Map) heard(call.arguments as Map);
+      final a = call.arguments;
+      if (call.method == 'voice' && a is Map) _heard?.call(a);
+      if (call.method == 'pushToken' && a is Map) _pushToken?.call(a['token'] as String?, a['sandbox'] != false);
       return null;
     });
+  }
+
+  /// An iPhone asks once whether it may show notifications, then for Apple's token for this install (Matt,
+  /// 2026-11-16: "Yes, wake-ups"; ios/Runner/DeskChannels.swift `pushRegister`). The token comes later, to
+  /// [onToken], whenever iOS gives it (each start, and when it changes); null when Apple would not give one.
+  static Future<bool> pushRegister(void Function(String? token, bool sandbox) onToken) async {
+    _pushToken = onToken;
+    _listen();
+    try {
+      return await _system.invokeMethod<bool>('pushRegister') ?? false;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// A picture of where a video starts and how long it runs (macos/Runner/DeskVideo.swift), from its bytes.
