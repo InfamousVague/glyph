@@ -1777,7 +1777,12 @@ void main() {
     final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
     installSettingsStyles(sheet);
     await _shoot(tester, sheet, const AppShell(), '1-conversations', dark: false);
-    double scale() => tester.widget<ScaleTransition>(find.byKey(const ValueKey('pill-scale'))).scale.value;
+    // Laid along the foot it is a Transform kept the list's width (shell.dart), stood up a ScaleTransition.
+    double scale() {
+      final w = tester.widget(find.byKey(const ValueKey('pill-scale')));
+      if (w is ScaleTransition) return w.scale.value;
+      return tester.widget<Transform>(find.descendant(of: find.byKey(const ValueKey('pill-scale')), matching: find.byType(Transform)).first).transform.storage[0];
+    }
     expect(scale(), 1.0);
     final ringWhole = tester.getSize(find.byKey(const ValueKey('nav-messages')));
     // The person scrolls down: the pill grows smaller, and stays so while the list is still.
