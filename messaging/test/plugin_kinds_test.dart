@@ -10,7 +10,7 @@ import 'package:ghost_messaging/plugins/registry.dart';
 /// like tree trimming, gutter cleaning, buying the house, etc".
 String? kindOf(String text, {bool contact = false, bool? outgoing}) {
   const plugin = KindsPlugin();
-  final tags = plugin.classifiers.first(MessageFacts(thread: 1, senders: const ['+15559870001'], text: text, contact: contact, outgoing: outgoing));
+  final tags = plugin.tuned.first(MessageFacts(thread: 1, senders: const ['+15559870001'], text: text, contact: contact, outgoing: outgoing), PluginPrefs.none);
   return tags.isEmpty ? null : tags.single.detail;
 }
 
@@ -159,7 +159,7 @@ void main() {
     });
     final facts = MessageFacts.conversation(c);
     expect(facts.text, startsWith('Hi Matthew'));
-    final tags = const KindsPlugin().classifiers.first(facts);
+    final tags = const KindsPlugin().tuned.first(facts, PluginPrefs.none);
     expect(tags.single.detail, 'sales');
     expect(kindOf('Do you want a quick price estimate on new health plans in IL? Reply STOP to opt out'), 'sales');
     expect(kindOf('Want a free gutter service quote?'), 'sales');

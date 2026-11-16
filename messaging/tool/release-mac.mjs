@@ -47,6 +47,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, s
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { telegramDefines } from './telegram-defines.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // The site's address since 2026-11-15 (tool/deploy-site.mjs); /opt/ghost-sms-* keep their names on the box.
@@ -130,7 +131,12 @@ if (!read('security', ['find-identity', '-v', '-p', 'codesigning']).includes(`"$
 // DeepFilterNet for calls (native/voicefx/deepfilter), built fresh so the app carries it; without it, RNNoise alone.
 say('> Building DeepFilterNet for calls');
 run('sh', [join(ROOT, 'native/voicefx/deepfilter/build.sh')], { cwd: ROOT });
-run('flutter', ['build', 'macos', '--release', `--build-name=${versionName}`, `--build-number=${versionCode}`], { cwd: ROOT });
+// TDLib for the Telegram inbox (lib/inbox/telegram.dart), built from Telegram's source, and the app id.
+say('> TDLib for the Telegram inbox');
+run('sh', [join(ROOT, 'tool/build-tdlib.sh'), 'mac'], { cwd: ROOT });
+const telegram = telegramDefines();
+say(telegram.said);
+run('flutter', ['build', 'macos', '--release', `--build-name=${versionName}`, `--build-number=${versionCode}`, ...telegram.args], { cwd: ROOT });
 const built = join(ROOT, 'build/macos/Build/Products/Release', APP);
 if (!existsSync(join(built, 'Contents/Info.plist'))) fail(`No app at ${built}.`);
 
@@ -154,6 +160,24 @@ if (existsSync(sidecarSource)) {
 } else {
   say('  (no Google Messages sidecar: its source is not published yet, sidecar/gmessages/SOURCE_URL)');
 }
+
+// The Signal helper (sidecar/signal, AGPL-3.0; lib/inbox/signal.dart), in Contents/Helpers beside the Google Messages
+// one, Apple silicon only (on an Intel Mac Signal says it isn't in this build); signed with the rest below.
+const signalSource = join(ROOT, 'sidecar/signal/SOURCE_URL');
+const signalHelper = join(app, 'Contents/Helpers/signal-sidecar');
+if (existsSync(signalSource)) {
+  say('> Building the Signal helper');
+  run('sh', [join(ROOT, 'tool/build-signalsidecar.sh'), 'mac'], { cwd: ROOT });
+  mkdirSync(join(app, 'Contents/Helpers'), { recursive: true });
+  run('ditto', [join(ROOT, 'build/signal-sidecar/mac/signal-sidecar'), signalHelper]);
+  run('ditto', [join(ROOT, 'sidecar/signal/LICENSE'), join(app, 'Contents/Resources/signal-sidecar-LICENSE.txt')]);
+  run('ditto', [signalSource, join(app, 'Contents/Resources/signal-sidecar-SOURCE.txt')]);
+}
+
+// TDLib in Contents/Frameworks, where lib/inbox/td_json.dart opens it; signed with the rest below. Apple silicon
+// only: on an Intel Mac Telegram says it isn't in this build.
+mkdirSync(join(app, 'Contents/Frameworks'), { recursive: true });
+run('ditto', [join(ROOT, 'build/tdlib/mac/libtdjson.dylib'), join(app, 'Contents/Frameworks/libtdjson.dylib')]);
 
 const plist = JSON.parse(read('plutil', ['-convert', 'json', '-o', '-', join(app, 'Contents/Info.plist')]) || '{}');
 if (plist.CFBundleIdentifier !== BUNDLE_ID) fail(`The app's id is ${plist.CFBundleIdentifier}, not ${BUNDLE_ID}.`);
@@ -190,6 +214,7 @@ if (existsSync(frameworks)) {
   }
 }
 if (existsSync(helper)) sign(helper);
+if (existsSync(signalHelper)) sign(signalHelper);
 sign(app, ['--entitlements', entitlements]);
 
 const verified = spawnSync('codesign', ['--verify', '--deep', '--strict', app], { encoding: 'utf8' });
@@ -247,6 +272,9 @@ if (has('notarize')) {
 const zip = join(OUT, ZIP);
 run('ditto', ['-c', '-k', '--keepParent', app, zip]);
 const bytes = readFileSync(zip);
+// Under 200 MB, Signal's helper and all (Matt, 2026-11-16: "it's okay as long as our app bundle stays under 200mb").
+if (bytes.length > 200 * 1048576) fail(`The Mac app's zip is ${(bytes.length / 1048576).toFixed(1)} MB: over 200 MB. Nothing was published.`);
+say(`  the zip is ${(bytes.length / 1048576).toFixed(1)} MB`);
 const info = {
   version: versionName,
   versionCode,

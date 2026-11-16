@@ -74,15 +74,22 @@ class MemoryStore implements PluginStore {
 }
 
 class _Prefs implements PluginPrefs {
-  const _Prefs(this.store, this.prefix);
+  const _Prefs(this.store, this.prefix, {this.tunes = false});
   final PluginStore store;
   final String prefix;
+
+  /// The plugin has a tuned classifier: a change is told to [PluginRegistry.switches].
+  final bool tunes;
 
   @override
   String? get(String key) => store.read('$prefix$key');
 
   @override
-  void set(String key, String value) => store.write('$prefix$key', value);
+  void set(String key, String value) {
+    if (store.read('$prefix$key') == value) return;
+    store.write('$prefix$key', value);
+    if (tunes) store.write(PluginRegistry.tunedKey, '${(int.tryParse(store.read(PluginRegistry.tunedKey) ?? '') ?? 0) + 1}');
+  }
 
   @override
   bool flag(String key, {bool fallback = true}) {
@@ -161,12 +168,14 @@ class BoundIncoming {
 class _Entry {
   _Entry(this.plugin)
       : classifiers = List.of(plugin.classifiers),
+        tuned = List.of(plugin.tuned),
         sections = [for (final s in plugin.sections) PluginSection(plugin, s)],
         slots = List.of(plugin.slots),
         incoming = List.of(plugin.incoming),
         settings = List.of(plugin.settings);
   final GhostPlugin plugin;
   final List<Classifier> classifiers;
+  final List<TunedClassifier> tuned;
   final List<PluginSection> sections;
   final List<SlotFill> slots;
   final List<IncomingRule> incoming;
@@ -216,10 +225,14 @@ class PluginRegistry {
 
   /// Which plugins are on, as a mark that changes only when one is switched. What the classifiers said of a
   /// conversation holds until it does: they are given none of the person's other choices.
-  String switches(PluginStore store) => [for (final e in _entries) isOn(e.plugin, store) ? '1' : '0'].join();
+  /// A tuned classifier is told its plugin's choices ([TunedClassifier]): any of them changing is a change here too.
+  String switches(PluginStore store) => '${[for (final e in _entries) isOn(e.plugin, store) ? '1' : '0'].join()}:${store.read(tunedKey) ?? ''}';
+
+  /// Bumped whenever a plugin's own choice changes, for [switches].
+  static const tunedKey = 'plugins_tuned';
 
   /// The plugin's own choices, kept under its name (`plugin_<id>_<key>`).
-  PluginPrefs prefsOf(GhostPlugin plugin, PluginStore store) => _Prefs(store, 'plugin_${plugin.id}_');
+  PluginPrefs prefsOf(GhostPlugin plugin, PluginStore store) => _Prefs(store, 'plugin_${plugin.id}_', tunes: _entries.any((e) => identical(e.plugin, plugin) && e.tuned.isNotEmpty));
 
   /// The rows a plugin gives its card on Settings › Plugins.
   List<PluginSetting> settingsOf(GhostPlugin plugin) => [for (final e in _entries) if (identical(e.plugin, plugin)) ...e.settings];
@@ -243,6 +256,12 @@ class PluginRegistry {
     for (final e in _on(store)) {
       for (final classifier in e.classifiers) {
         final tags = _ask(e.plugin, const <Tag>[], () => classifier(facts));
+        if (tags.isNotEmpty) (found ??= []).addAll(tags);
+      }
+      if (e.tuned.isEmpty) continue;
+      final prefs = prefsOf(e.plugin, store);
+      for (final classifier in e.tuned) {
+        final tags = _ask(e.plugin, const <Tag>[], () => classifier(facts, prefs));
         if (tags.isNotEmpty) (found ??= []).addAll(tags);
       }
     }

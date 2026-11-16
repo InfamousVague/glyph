@@ -30,7 +30,101 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
-- **Google Messages on the computer** (0.7.25, not released; `lib/desktop/gm_web.dart`, `sidecar/gmessages`; Matt,
+- **Signal: group names, and sends that say why they stall** (0.7.42, not released; `sidecar/signal/main.go`,
+  `lib/inbox/signal.dart`; Matt, 2026-11-16: "Sending signal messages get stuck on sending... and the group titles
+  are not coming through", then "It says bad state signal took too long to answer").
+  - Group names: the app asked for groups once, on linking, when the helper's store has none (a group is known only
+    from its first message, which carries its key), so every group stayed "Signal group". The helper now looks a
+    group up the first time a message from it arrives and says a `group` event (title, members, picture); the app
+    also asks for groups again when the connection comes back, at most once a minute.
+  - Sends: the app waited 30 s for a send while the helper allowed itself 90, so the app gave up first and the
+    message sat on sending with "took too long". The helper now gives a send 60 s and the app waits 75, so the
+    helper's own error arrives and the message is marked failed with it. The helper logs each request and each send's
+    stages with their times to `signal.log` beside its store and to standard error, which the app now passes to the
+    Developer log (its own lines and signalmeow's warnings only; no message's words). Why Signal itself is slow to
+    take a message is not known yet: the next stuck send says where in that log.
+- **Telegram on a computer, approved by the phone** (0.7.46; `lib/inbox/telegram.dart`,
+  `lib/ui/inbox_ui.dart`, the desk link's `telegram` request; Matt, 2026-11-16: "It seems i have to setup signal and
+  telegram on each device is it possible to proxy through thr phone", then "Build the Telegram phone sign-in approval").
+  On a computer paired with a phone that is signed in to Telegram, Telegram's sign-in starts with "Sign in with your
+  phone": the computer asks TDLib for a login link (requestQrCodeAuthentication, the same link Telegram's QR code
+  holds), sends it over the sealed desk link, and the phone approves it with confirmQrCodeAuthentication. The computer
+  gets a Telegram session of its own, so no number and no code; it is listed in Telegram's Devices like any other. The
+  phone approves only a `tg://login?token=` link and only when it is signed in; anything else is refused before
+  Telegram is asked. A phone without this (older than 0.7.46) answers "Update Ghost Messaging on your phone"; the
+  number sign-in stays beneath. Signal is not proxied yet. Tests: inbox_telegram_test, DeskSessionTest.
+- **Telegram's and Signal's contacts in Contacts, and which way to write** (0.7.42, not released; `lib/inbox/people.dart`,
+  `lib/ui/contacts.dart`; Matt, 2026-11-16: "Show telegram and signal contacts when linked with icons to show which
+  each is and filters, where contacts can be messages on multiple platforms as which you like to use when stating a
+  conversation"). Once linked, Telegram's contacts (TDLib's getContacts, kept in step by updateUser, their photos
+  brought down) and Signal's (its contact sync, without the person themself) are in Contacts with the phone's. One row
+  is one person: matched by number (its last ten digits), or, where one side has none, by the same full name of two
+  words or more that names nobody else; two different numbers are two people. Each row ends with a mark for each way
+  to write: text (or Ghost's tick for a friend), Telegram, Signal. Filters: All, Phone, and each linked network. A
+  press on someone with one way goes straight there; with more, "Message … with" asks, each with its mark and who on
+  that network (handle or number). A Telegram chat is made with createPrivateChat; a Signal one is the person's ACI
+  and is in the list from its first message; either opens with the person's name and face (InboxChatScreen's
+  fallback). A number known from Telegram or Signal can be texted too. Tests: inbox_people_test, inbox_screens_test
+  (16-inbox-contacts), inbox_telegram_test, inbox_signal_test.
+- **Set up RCS, and Ghost's notifications in place of Google Messages'** (0.7.29; `lib/ui/rcs_setup.dart`,
+  GmBridge.kt; Matt, 2026-11-15: "add a button under messages settings to setup RCS if on an android phone and walk
+  the user through how to enable the rcs sidecar"; "we should have a way to make the app work without needing to be
+  the default sms app so it can work in tandem and I can turn off notifications from google messages or hide them and
+  proxy everything through ghost"). Settings › Messages › Set up RCS walks through six steps, each ticked as Android
+  says: Google Messages installed, made the default, RCS chats on in it, Ghost allowed texts, notification access,
+  Google Messages' notifications set to Silent; then how to pair a computer (Settings › Google Messages there). When
+  Google Messages becomes the default, Android takes Ghost's SMS permissions back and the walkthrough opens at its
+  texts page, carrying on with the same steps (`rcs_setup`). Beside Google Messages, each of its message
+  notifications is hidden as it comes and Ghost's own shown (Settings › Notifications, `gm_proxy`, on by default);
+  replying from Ghost's goes back through Google Messages. Never hidden where Ghost may not post notifications.
+  Google Messages' own must stay allowed (Silent): they are what Ghost reads. Checked on an emulator: Google
+  Messages' notification gone, Ghost's shown, a reply from it sent through Google Messages.
+- **Google Messages set up by Google account, in one place** (0.7.33; `lib/gm/google_signin.dart`,
+  `lib/gm/google_signin_flow.dart`, sidecar `pair_google`; Matt, 2026-11-15: "it seems they removed the ability to do
+  it with the QR code"; "Please make setting up google messages a onboarding flow that is all in one place. It should
+  also needs to if possible prompt to open the link incognito"). Google has replaced Device pairing's QR scanner with
+  Google-account pairing where Google Messages is signed in to an account (mautrix-gmessages: "it appears Google has
+  killed it"). Settings › Google Messages on a computer, and Settings › Messages › Google Messages connection on the
+  phone, walk through it: sign in at Google's account chooser (coming back to messages.google.com/web/config) in a
+  private window (the computer opens one: Firefox first, since Chrome may bind the sign-in to itself, then Chrome,
+  Edge, Brave, Vivaldi; Safari has no switch, so the link is copied), copy the "config" request as cURL from the
+  developer tools, paste it, tap the emoji Ghost shows when Google Messages on the phone asks. The helper keeps the
+  cookies in its session (saved every few minutes, as Google changes them); the private window is closed after, not
+  signed out. The QR way stays as Pair with a QR code instead. The phone's browser has no developer tools, so on the
+  phone steps 1 and 2 are done on a computer. Checked: Google refuses fake cookies with a readable reason, a paste
+  missing cookies is caught first; real pairing not yet.
+- **A guide to the Google Messages helper on a Mac or PC** (0.7.30; `lib/ui/gm_guide_screen.dart`; Matt,
+  2026-11-15: "Tell me how to setup the sidecar on mac and PC in a guide found in settings I'll habe it run on my PC
+  always"). Settings › Messages › On a Mac or PC on the phone, and Settings › Google Messages on a computer: get the
+  app, pair it with the phone, pair Google Messages by its QR code, keep it running (the desktop apps quit when their
+  window closes and don't start at login yet, so: minimise; Windows' shell:startup shortcut; the Mac's Login Items;
+  stay awake), and the one-session rule with the phone's own connection.
+- **Google Messages' web connection on the phone** (0.7.30; `GmWeb.kt`, `lib/ui/gm_web_screen.dart`,
+  `site/pair`; Matt, 2026-11-15: "Can you build the on phone google messages connection too?"). The sidecar built for
+  Android (`tool/build-gmsidecar.sh android`, libgmsidecar.so, run from the app's native library folder) runs in the
+  app's process, started by the notification listener (which Android keeps) and the app. What it hears goes into the
+  bridge's database, so the list, conversations, Ghost's notifications, replies and a paired computer all have it:
+  RCS and texts, pictures (brought down on demand), reactions, and delivered and read marks (blue double check).
+  Sending, pictures included, and marking read go through it when connected; else the notification bridge as before.
+  Google Messages' notifications can then be off altogether. Pairing: the phone cannot scan its own screen, so
+  Settings › Messages › Google Messages connection shares a link (gogho.st/pair/#secret) to open on another screen;
+  the secret gives a room on the relay and its key, the phone says each new QR code there sealed, and the page draws
+  it (the relay sees ciphertext; the secret never leaves the link). Google Messages keeps one web session: the phone's
+  takes it back (`--takeover`) and a computer whose sidecar is pushed off shows the phone's conversations through
+  the phone. Also: pictures sent beside Google Messages without the connection go to its compose with the words.
+  Checked on the arm64 emulator: the helper runs, gets a pairing code from Google, and the page (served locally,
+  against the live relay) drew it. Not checked: pairing with a real phone, and everything after it.
+- **Which of Google Messages' notifications still make a sound** (0.7.29; GmBridge.kt `noteChannel`; Matt,
+  2026-11-15: "investigate silencing google messages notifications so we only see thr ones coming through ghost
+  instead"; "Let's do our best given these options and push out an update"). Android lets no ordinary app change
+  another's notification settings, and a notification is heard before Ghost can take it away, so the person silences
+  Google Messages. Ghost records the channel each of its message notifications comes on (a listener is shown each
+  one's settings): its "Incoming messages", and any conversation given a sound of its own, which overrides that one.
+  The RCS guide's last step lists the ones still loud, each with a button to its own page in Android's settings, and
+  ticks itself once all are quiet (as of each channel's last message). Your read receipts already go out through
+  Google Messages' Mark as read; their delivered and read marks are not in notifications, so they need the on-phone
+  Google Messages connection (not built).
+- **Google Messages on the computer** (0.7.29, the sidecar in the Mac and Windows apps; `lib/desktop/gm_web.dart`, `sidecar/gmessages`; Matt,
   2026-11-15: "Yes, mautrix sidecar"). Settings › Google Messages on the Mac or Windows pairs the computer with Google
   Messages by a QR code, as messages.google.com is, and every conversation there joins the desktop's list: RCS and
   texts, history, pictures, reactions (shown under the words). A phone conversation with the same people is shown
@@ -393,6 +487,12 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   link as it does a picture's, and keeps them in a file only while the picture is made or the window is open (its
   folder in the temporary directory is removed as the app opens and quits). One no picture can be made of (a kind
   the device cannot read) is still named, and can still be tried. Sending a video is not part of this.
+  - **Ghost's own player on the phone** (0.7.36; `lib/ui/video_screen.dart`, `videoFile` in `Video.kt`; Matt,
+    2026-11-15: "id like a video player built with glacier UI right now it looks like a very old android core system
+    player"). On black, a round frosted back button with who sent it, and a frosted dock: play/pause, where it has got
+    to, a scrubber, its length, mute. A tap shows or hides the controls (they go by themselves after 3 s while it
+    plays); a double tap either side skips 10 s. Played by `video_player` (ExoPlayer) from a file: the MMS part copied
+    into the cache, or the one Google Messages' helper brought down. The Mac keeps its own window.
 - **What a computer may ask of the phone** (0.7.4; Matt, 2026-11-14: "the desktop app should get all featues
   its missing from mobile", and of the Mac's message field "an emoji picker, file upload, voice memo and sticker
   selector"). The link carries what the phone's screens do: deleting, editing, sending a picture message again,
@@ -570,12 +670,48 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   - **Pages** (`lib/ui/hangout_screen.dart`): a hangout opens its page: who is here, Join voice, and the chat. In the
     call a toggle switches between people and chat. Roles show beside names; press and hold someone for their role,
     Mute for everyone, Remove and Ban, as your role allows. The shield opens Roles and permissions.
+  - **Layout** (Matt, 2026-11-15: "When opening a hangout the left side should show the chat with some space below
+    reserved for the navbar controls, the voice on desktop should show up on the left side with the right side reserved
+    for chat, when a video starts split the right side 50/50 showing the videos above the chat"). A hangout opened from
+    the list is in the list's place, its composer and dock standing above the pill (`HangoutScreen.inSidebar`). Beside
+    the list (a computer, the Fold open) the call is the people and the dock there, and the pane is the chat
+    (`HangoutStage`), whose top half becomes the videos (`CallVideos`) once anyone turns one on.
+    Then (Matt: "clicking on a voice chat should show me the chat in the normal spot and connected participants with a
+    "join" button ... hide the default navbar when in a hangout and show the call controls where it was"): a hangout
+    pressed in the list opens where a conversation opens (`Voice.view`, VoiceScreen), with who is connected and Join
+    voice at its top. In its call beside the pane, the people take the list's place (`HangoutPeople`) and the call's
+    dock stands where the pill was; the pill comes back on leaving.
+  - **Called "spaces" now** (Matt, 2026-11-15, picking from suggested names: "Space"). Everything people read says
+    space: the Spaces tab and page, New space on the new button, Space settings, Delete space, Remove from space,
+    a group's Group space, the walkthrough's calls page (re-voiced), the landing page and the join page ("Join a
+    space"). Code names (`VoiceChannel`, `HangoutRoom`, `hangout_screen.dart`) and what goes over the wire ("hangout
+    room", the roster's signed "ghost-hangout" text, link format) stay as they were, so links and rosters keep working.
+  - **Menu and settings** (Matt: "a context menu to open settings for hangouts and manage permissions and such as well
+    as delete the hangouts"): hold or right-click a hangout's row for Open, Settings and permissions, Copy invite link,
+    Share with friends and Delete hangout (asked first; `showHangoutMenu`). Its settings page
+    (`HangoutSettingsScreen`) is the link, sharing, the owner, the roles and permissions, and Delete.
   - **The browser** (site/join): the same chat beside the call, role tags, and the same rules. It checks rosters
     itself (P-256 by WebCrypto; tool/voicebench/roster_check.mjs checks rosters the app signed) and leaves when
     removed or banned. tool/voicebench/join_test.mjs covers the chat both ways and history for a latecomer.
   - **Not yet:** a moderator's mute is held only while they are in the hangout; Matt's phone and computer are two
     people to a hangout (the computer has its own key), so a hangout made on one makes the other a member until the
     owner makes it an admin; the site's join page needs `tool/deploy-site.mjs` to go live.
+- **Friends by username on Android: iPhones and Android phones text each other** (not released; Matt, 2026-11-15:
+  "Yes, Android next").
+  - Android's store of texts has no room for someone with no number, so a friend by username's conversation is kept
+    in Dart (`lib/standalone/chats.dart`, `UsernameChats`, the same store the iPhone uses) and `OverlayCalls`
+    (`lib/standalone/overlay.dart`) stands in front of the phone's channel: what is about an `@username`, or a
+    conversation or row it keeps (ids from 2^40), is answered there; the list, contacts search and encryption states
+    are the phone's with these added; everything else goes to the phone. `Sms.remote` stays false behind it
+    (`PhoneSide`).
+  - android Buddies.peers gives a friend who said yes the address `@username`, so `Friends` carries their words.
+    A message from them is notified by `Notifier.chat` (Android's own notifications see only its store). No phone
+    call button for them, and no wake text (they have no number).
+  - Checked live, Android emulator and iPhone Simulator over the relay: a request each way, a message each way,
+    delivered, shown in the open conversation and in the list beside texts.
+  - Not yet: a paired computer does not see these conversations (it asks the phone's Android side); a message the
+    relay passes to a connection that has just died is lost, as for any friend (nothing is sent again without an
+    answer); a closed or backgrounded app hears them only when it connects again.
 - **Ghost Messaging on iPhone, without SMS** (not released; Matt, 2026-11-15: "port the app to work on iOS as well,
   investigate if we can within apples rules make a bridge for messaging through RCS like we're doing with mautrix on
   android and if not we'll want to roll a version of the app that works without sms"; "it's unlikely the user will
@@ -603,7 +739,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   iconography for each step, mimick this on the setup of Ghost Messaging"). `lib/onboarding`: each page a band of
   vivid colour with its sign and four drifting glass tiles (band.dart, Ghost.md's `HueBand` by way of Ghost
   Keyboard), a title, its words, and its step; dots and the Next button take the page's colour.
-  - **Six pages, Ghost as one messenger** (0.7.27, not released; Matt, 2026-11-15: "Rework the onboarding to be a bit
+  - **Six pages, Ghost as one messenger** (0.7.27; Matt, 2026-11-15: "Rework the onboarding to be a bit
     shorter and have it focus on the fact that ghost is an all in one messenger look at branding from things like
     discord telegram etc and find our own voice amoung those"): Everyone, in one place · Start with your texts ·
     Texts and chats, side by side · Drop in, out loud · On every screen · You're in (a look, then "Say hi"). The

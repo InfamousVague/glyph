@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'kept_lists.dart';
 import 'package:flutter/services.dart';
 
 /// A person in a conversation: their number (or email address, for an MMS) and what the phone's contacts know of them.
@@ -291,8 +292,36 @@ class MmsAttempt {
   String get line => '${ok ? 'worked' : 'failed'}: $detail (${at.toIso8601String().substring(0, 16).replaceFirst('T', ' ')})';
 }
 
+/// One of Google Messages' notification channels, as it was when a notification last came on it (android GmBridge):
+/// its "Incoming messages", or a conversation's own, which overrides that one.
+class GmChannel {
+  const GmChannel({required this.id, required this.name, required this.loud, required this.popup, this.conversation, this.title});
+  final String id;
+  final String name;
+
+  /// Makes a sound (importance Default or more); [popup] also shows over the screen (High).
+  final bool loud;
+  final bool popup;
+  final String? conversation;
+
+  /// The conversation's title where the channel is one conversation's.
+  final String? title;
+
+  factory GmChannel.from(Map m) => GmChannel(
+        id: '${m['id']}',
+        name: '${m['name'] ?? m['id']}',
+        loud: m['loud'] == true,
+        popup: m['popup'] == true,
+        conversation: m['conversation'] as String?,
+        title: m['title'] as String?,
+      );
+
+  /// How it reads in a list: a conversation's by the conversation.
+  String get label => conversation != null ? (title ?? name) : name;
+}
+
 class SmsStatus {
-  const SmsStatus({required this.isDefault, required this.contacts, required this.notifications, required this.phone, this.gmInstalled = false, this.bridge = false, this.sms = false});
+  const SmsStatus({required this.isDefault, required this.contacts, required this.notifications, required this.phone, this.gmInstalled = false, this.bridge = false, this.sms = false, this.gmDefault = false});
   final bool isDefault;
   final bool contacts;
   final bool notifications;
@@ -303,6 +332,9 @@ class SmsStatus {
   final bool gmInstalled;
   final bool bridge;
   final bool sms;
+
+  /// Google Messages is the default SMS app now (RCS works only there).
+  final bool gmDefault;
 
   /// Ghost beside Google Messages, not the default: its RCS chats come through its notifications.
   bool get beside => !isDefault && bridge && sms;
@@ -318,6 +350,7 @@ class SmsStatus {
         gmInstalled: m['gmInstalled'] == true,
         bridge: m['bridge'] == true,
         sms: m['sms'] == true,
+        gmDefault: m['gmDefault'] == true,
       );
 }
 
@@ -449,8 +482,11 @@ class UpdateState {
 
 /// What a notification or another app asked to open.
 class OpenRequest {
-  const OpenRequest({this.thread, this.addresses = const [], this.body, this.computers = false, this.pairing});
+  const OpenRequest({this.thread, this.addresses = const [], this.body, this.computers = false, this.pairing, this.inbox});
   final int? thread;
+
+  /// A chat on Signal or Telegram (`network:chat`), from its notification (lib/inbox/alerts.dart).
+  final String? inbox;
   final List<String> addresses;
   final String? body;
 
@@ -465,6 +501,7 @@ class OpenRequest {
         body: m['body'] as String?,
         computers: m['desk'] == true,
         pairing: m['pair'] as String?,
+        inbox: m['inbox'] as String?,
       );
 }
 
@@ -534,6 +571,10 @@ abstract class SmsCalls {
 /// Calls that reach the phone from somewhere else (a computer's link), where what can be asked depends on the phone
 /// at the other end: an older Ghost Messaging there does less. [caps] names what it does beyond the first few
 /// (android DeskCalls.CAPS), so a screen offers only what will work ([Sms.can]).
+/// Calls answered on the Android phone itself, though not straight by its channel: what keeps the phone's friends by
+/// username in Dart in front of it (lib/standalone/overlay.dart). [Sms.remote] stays false behind one.
+abstract class PhoneSide {}
+
 abstract class CapableCalls {
   Set<String> get caps;
 }
@@ -616,7 +657,11 @@ class Sms {
 
   /// These screens are not on the Android phone: no texts here, so what only the phone can do is not offered. True on
   /// a computer and on an iPhone, paired or not.
-  static bool get remote => _calls is! _ChannelCalls;
+  static bool get remote => !(_calls is _ChannelCalls || _calls is PhoneSide);
+
+  /// The calls as they are answered now: the phone's channel, or what stands in front of it (lib/standalone).
+  // ignore: unnecessary_getters_setters
+  static SmsCalls get calls => _calls;
 
   /// An iPhone of its own (lib/standalone; Matt, 2026-11-15: "roll a version of the app that works without sms"):
   /// no phone to ask, so the routes, the relay server's directory, friends by username and calls run here, as they do
@@ -634,7 +679,10 @@ class Sms {
   /// with says it does for one (`deleteMessage`, `editMessage`, `sendPictures`, `sendVoice`, `sendSticker`, …).
   static bool can(String what) {
     final calls = _calls;
-    if (calls is _ChannelCalls) return true;
+    // The phone itself, straight by its channel or behind what keeps its friends by username (lib/standalone/overlay.dart):
+    // everything. Missing the second hid Add an attachment, Stickers and the microphone on every Android phone from
+    // 71d8d197e (Matt, 2026-11-15: "Im missing the button to send picture and videos to people").
+    if (calls is _ChannelCalls || calls is PhoneSide) return true;
     return calls is CapableCalls && (calls as CapableCalls).caps.contains(what);
   }
 
@@ -644,6 +692,48 @@ class Sms {
 
   /// Where the app's own update stands, each time it moves (android/.../Updater.kt).
   final updates = StreamController<UpdateState>.broadcast();
+
+  /// The call notification's Leave was pressed (android CallService.kt).
+  final leaveCall = StreamController<void>.broadcast();
+
+  /// A call in a space began or ended: on the phone, its service keeps it going with the screen locked.
+  Future<void> callStarted(String name, {bool video = false}) async {
+    if (remote) return;
+    try {
+      await _calls.invokeMethod('callStarted', {'name': name, 'video': video});
+    } catch (_) {}
+  }
+
+  Future<void> callEnded() async {
+    if (remote) return;
+    try {
+      await _calls.invokeMethod('callEnded');
+    } catch (_) {}
+  }
+
+  /// A new message on Signal or Telegram (lib/inbox/alerts.dart): a notification that opens the chat.
+  Future<void> notifyInbox(String key, {required String network, required String title, required String body, bool group = false}) async {
+    if (remote || !Platform.isAndroid) return;
+    try {
+      await _calls.invokeMethod('notifyInbox', {'key': key, 'network': network, 'title': title, 'body': body, 'group': group});
+    } catch (_) {}
+  }
+
+  Future<void> cancelInbox(String key) async {
+    if (remote || !Platform.isAndroid) return;
+    try {
+      await _calls.invokeMethod('cancelInbox', {'key': key});
+    } catch (_) {}
+  }
+
+  /// The networks signed in ([names]; none to stop): Android keeps Ghost running, connected to them, while there are
+  /// any (android NetworksService.kt).
+  Future<void> keepNetworks(List<String> names) async {
+    if (remote || !Platform.isAndroid) return;
+    try {
+      await _calls.invokeMethod('keepNetworks', {'names': names});
+    } catch (_) {}
+  }
 
   /// The person's choices were changed from Android's side (a chat background someone shared): read them again.
   final prefsChanged = StreamController<void>.broadcast();
@@ -670,6 +760,7 @@ class Sms {
       if (m['type'] == 'open') opens.add(OpenRequest.from(m));
       if (m['type'] == 'update') updates.add(UpdateState.from(m));
       if (m['type'] == 'prefs') prefsChanged.add(null);
+      if (m['type'] == 'leaveCall') leaveCall.add(null);
       if (m['type'] == 'desk') computersChanged.add(null);
       if (m['type'] == 'voice') voice.add(VoicePlayback.from(m));
       if (m['type'] == 'voiceFull') voiceFull.add(null);
@@ -765,6 +856,28 @@ class Sms {
   /// Beside Google Messages: Android's page for notification access, opened at Ghost (android GmBridge.kt).
   Future<void> openBridgeAccess() => _calls.invokeMethod<bool>('bridgeAccess');
 
+  /// Opens Google Messages, or its Play Store page where it is not on the phone.
+  Future<void> openGm() => _calls.invokeMethod<bool>('openGm');
+
+  /// Google Messages' notification channels as Ghost last saw them (android GmBridge.channelList), loudest first.
+  Future<List<GmChannel>> gmChannels() async =>
+      [for (final c in ((await _calls.invokeMethod<List>('gmChannels')) ?? const [])) GmChannel.from(c as Map)];
+
+  /// The on-phone Google Messages connection (android GmWeb.kt): how it stands, pairing (a QR code to show on another
+  /// screen) and unpairing.
+  Future<Map<String, Object?>> gmWebState() async => ((await _calls.invokeMethod<Map>('gmWebState')) ?? const {}).cast<String, Object?>();
+  Future<Map<String, Object?>> gmWebPair() async => ((await _calls.invokeMethod<Map>('gmWebPair')) ?? const {}).cast<String, Object?>();
+  /// Pairs the phone's connection by Google account, from a signed-in browser's cookies (lib/gm/google_signin.dart).
+  Future<Map<String, Object?>> gmWebPairGoogle(Map<String, String> cookies) async =>
+      ((await _calls.invokeMethod<Map>('gmWebPairGoogle', {'cookies': cookies})) ?? const {}).cast<String, Object?>();
+  Future<Map<String, Object?>> gmWebUnpair() async => ((await _calls.invokeMethod<Map>('gmWebUnpair')) ?? const {}).cast<String, Object?>();
+
+  /// Android's settings for one of Google Messages' channels.
+  Future<void> openGmChannel(GmChannel c) => _calls.invokeMethod<bool>('openGmChannel', {'id': c.id, 'conversation': c.conversation});
+
+  /// Android's notification settings for Google Messages, to make them silent (Ghost then shows its own).
+  Future<void> openGmNotifications() => _calls.invokeMethod<bool>('openGmNotifications');
+
   /// Beside Google Messages: reading the SMS database and sending texts, asked for.
   Future<SmsStatus> requestSms() async => SmsStatus.from((await _calls.invokeMethod<Map>('requestSms')) ?? const {});
   Future<SmsStatus> requestPermissions() async => SmsStatus.from(await _calls.invokeMethod('requestPermissions') as Map);
@@ -840,8 +953,10 @@ class Sms {
 
   /// Tries again to bring down a picture message that could not be ([Message.state] `pending_download`).
   Future<void> retryDownload(Message m) => _calls.invokeMethod('retryDownload', {'id': m.id});
-  Future<void> deleteThread(int thread) => _calls.invokeMethod('deleteThread', {'thread': thread});
-  Future<void> deleteThreads(List<int> threads) => _calls.invokeMethod('deleteThreads', {'threads': threads});
+  // Deleted beside Google Messages, a conversation or text may be one Ghost only leaves out: that list is kept on the
+  // account too (lib/kept_lists.dart).
+  Future<void> deleteThread(int thread) => _calls.invokeMethod('deleteThread', {'thread': thread}).then((_) => KeptLists.instance.changed());
+  Future<void> deleteThreads(List<int> threads) => _calls.invokeMethod('deleteThreads', {'threads': threads}).then((_) => KeptLists.instance.changed());
 
   /// Coming from another texting app: what can be seen (null where Android will not say), and the ways out.
   Future<Arriving> arriving() async {
@@ -859,7 +974,7 @@ class Sms {
   Future<void> openAppInfo() => _calls.invokeMethod('openAppInfo');
   Future<void> openDefaultApps() => _calls.invokeMethod('openDefaultApps');
   Future<void> openRcsOff() => _calls.invokeMethod('openRcsOff');
-  Future<void> deleteMessage(Message m) => _calls.invokeMethod('deleteMessage', {'kind': m.kind, 'id': m.id});
+  Future<void> deleteMessage(Message m) => _calls.invokeMethod('deleteMessage', {'kind': m.kind, 'id': m.id}).then((_) => KeptLists.instance.changed());
   Future<void> editMessage(Message m, String body) => _calls.invokeMethod('editMessage', {'kind': m.kind, 'id': m.id, 'body': body});
   Future<void> archive(int thread, bool archived) => _calls.invokeMethod('archive', {'thread': thread, 'archived': archived});
   /// Gives the conversation a name on this phone, or takes it away with an empty one: a group's.
@@ -1000,8 +1115,19 @@ class Sms {
     while (_parts.length > _partsKept) {
       _parts.remove(_parts.keys.first);
     }
+    // Not there yet is not kept: a picture you sent can be asked for before its file is (Google Messages tells of the
+    // message before the phone has kept its copy), and was then blank for as long as the app was open (Matt,
+    // 2026-11-16: "the preview of the image I sent never loads").
+    bytes.then((b) {
+      if (b == null && identical(_parts[id], bytes)) _parts.remove(id);
+    }, onError: (_) {
+      if (identical(_parts[id], bytes)) _parts.remove(id);
+    });
     return bytes;
   }
+
+  /// A picture held here before the phone has it: a message drawn while it is sending (lib/ui/thread.dart).
+  void holdPart(int id, Future<Uint8List?> bytes) => _parts[id] = bytes;
 
   // --- voice messages (android/.../Voice.kt) -------------------------------------------------------------------
 
@@ -1069,11 +1195,48 @@ class Sms {
   }
 
   /// Plays the video [a]: the whole screen on the phone, a window of its own on a computer.
+  /// On the phone: the video as a file the app's own player opens (android Video.kt videoFile); null where it can't be had.
+  Future<String?> videoFile(Attachment a) => _calls.invokeMethod<String>('videoFile', {'part': a.id, 'ending': a.ending});
+
   Future<void> playVideo(Attachment a) => _calls.invokeMethod('videoPlay', {'part': a.id, 'type': a.type, 'ending': a.ending, 'name': a.name});
 
   /// Opens the computer's own panel of emoji, which types what is chosen where the cursor is. A phone's keyboard has
   /// its own, so this is a computer's alone ([remote]).
   Future<void> emojiPanel() => _calls.invokeMethod('emoji');
+
+  /// The conversations (with when each was deleted) and texts deleted beside Google Messages that Android kept: Ghost's
+  /// own lists, kept on the account too (lib/kept_lists.dart). Nothing on a computer.
+  Future<Map<String, Object?>> hiddenLists() async {
+    if (remote) return const {};
+    try {
+      return ((await _calls.invokeMethod<Map>('hiddenLists')) ?? const {}).cast<String, Object?>();
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// Joins [threads] and [msgs] from the account into those lists; true where any was new.
+  Future<bool> addHiddenLists(Map<String, int> threads, List<String> msgs) async {
+    if (remote) return false;
+    try {
+      return (await _calls.invokeMethod<bool>('addHiddenLists', {'threads': threads, 'msgs': msgs})) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Any files, pictures and videos among them (a Telegram chat's +): their content addresses on the phone, paths on a
+  /// computer.
+  Future<List<String>> pickFiles() async => [for (final u in (await _calls.invokeMethod<List>('pickFiles')) ?? const []) u as String];
+
+  /// A picked file's path on this device: a phone's content address copied into the app's cache, a path as it is.
+  Future<String> cacheCopy(String picked) async => picked.startsWith('content:') ? (await _calls.invokeMethod<String>('cacheCopy', {'uri': picked}))! : picked;
+
+  /// Ends the recording and gives its file, for a network's chat to send.
+  Future<String> finishVoice() async => ((await _calls.invokeMethod('voiceFinish')) as Map)['path'] as String;
+
+  /// Opens a file in whichever app reads its kind.
+  Future<void> openFile(String path, {String? name}) => _calls.invokeMethod('openFile', {'path': path, 'name': name});
 
   Future<List<String>> pickImages() async => [for (final u in (await _calls.invokeMethod<List>('pickImages')) ?? const []) u as String];
 
@@ -1084,6 +1247,11 @@ class Sms {
   /// the verification process".
   /// On a computer: the phone's voice channels, and a channel made here given to it (lib/voice/channels.dart;
   /// android DartAsk "voice").
+  /// On a computer: what the phone's Telegram is asked (its status, approving this computer's login link: lib/inbox/
+  /// telegram.dart answerComputer; android DartAsk "telegram").
+  Future<Map<String, dynamic>> telegram(Map<String, Object?> what) async =>
+      Map<String, dynamic>.from((await _calls.invokeMethod<Map>('telegram', {'what': what})) ?? const {});
+
   Future<Map<String, dynamic>> voiceSync(Map<String, Object?> what) async =>
       Map<String, dynamic>.from((await _calls.invokeMethod<Map>('voice', {'what': what})) ?? const {});
 

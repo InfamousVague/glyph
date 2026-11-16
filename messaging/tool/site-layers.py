@@ -101,6 +101,49 @@ PIECES = {
 }
 
 
+# How the exploded view lifts the conversation (Matt: "everything seems a bit jumbled and some text bubbles are
+# duplicated"). Seen tipped back, a piece lifted higher slides up the screen; so the lift grows toward the top (the bar
+# highest, the composer lowest) and every row slides away from the one under it, never onto it: the screen fans open
+# like a staircase. A reaction sits a hair over its own bubble, so it stays on its corner.
+PLANE = {
+    "x-header": 2.1,
+    "x-link": 1.9, "x-place": 1.75,
+    "x-out1": 1.5, "x-out2": 1.5, "x-heart": 1.55, "x-ticks": 1.35,
+    "x-in": 1.2, "x-laugh": 1.25,
+    "x-emoji": 1.0, "x-chips": 0.85,
+    "x-compose": 0.65,
+}
+SCREEN = (824, 1784)
+
+
+def stack_markup():
+    """The hero's layers as HTML, each placed where its piece sits on the screen, in both themes (data-light,
+    data-dark: left, top and width in percent), for site/index.html between its STACK markers."""
+    lines = []
+    for name, plane in PLANE.items():
+        spots = {}
+        for theme in THEMES:
+            l, t, r, _ = PIECES[theme][name]
+            spots[theme] = f"{100 * l / SCREEN[0]:.2f},{100 * t / SCREEN[1]:.2f},{100 * (r - l) / SCREEN[0]:.2f}"
+        l, t, w = spots["dark"].split(",")
+        lines.append(
+            f'          <div class="layer" style="--z:{plane};left:{l}%;top:{t}%;width:{w}%" data-light="{spots["light"]}" data-dark="{spots["dark"]}">'
+            f'<img src="/shots/{name}-dark.webp" data-shot="{name}" alt=""></div>'
+        )
+    return "\n".join(lines)
+
+
+def write_stack():
+    page = ROOT / "site" / "index.html"
+    html = page.read_text()
+    a, b = "<!-- STACK -->", "<!-- /STACK -->"
+    if a in html and b in html:
+        head, rest = html.split(a, 1)
+        _, tail = rest.split(b, 1)
+        page.write_text(f"{head}{a}\n{stack_markup()}\n          {b}{tail}")
+        print("ok site/index.html: the exploded view's layers")
+
+
 def main():
     global BG, NEAR
     for theme, (bg, near) in THEMES.items():
@@ -121,6 +164,11 @@ def main():
         # Settings › Voice and video from its Volume section down: the boost, Music mode, noise suppression.
         save(Image.open(SHOTS / f"19-voice-settings-{theme}.png").convert("RGB").crop((0, 590, 824, 2200)), "voice-settings", theme)
 
+        # Other networks among the texts (Telegram's chats with their badge), and a Telegram chat from its top down to
+        # before its picture, which the screen test leaves loading.
+        save(Image.open(SHOTS / f"16-inbox-list-{theme}.png").convert("RGB").crop((0, 0, 824, 1170)), "inbox-list", theme)
+        save(Image.open(SHOTS / f"16-inbox-chat-{theme}.png").convert("RGB").crop((0, 0, 824, 925)), "inbox-chat", theme)
+
         # Whole screens, for the sections below the hero.
         for src, name in (("2-thread", "thread"), ("20-layout-tabs", "list"), ("21-hangout", "hangout"), ("11-frame-wide-thread", "wide"), ("21-hangout-chat", "hangout-chat")):
             path = SHOTS / f"{src}-{theme}.png"
@@ -130,3 +178,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    write_stack()

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Join a hangout · Ghost Messaging</title>
-<meta name="description" content="Join a Ghost Messaging hangout from your browser: voice and video, sealed between the people in it.">
+<title>Join a space · Ghost Messaging</title>
+<meta name="description" content="Join a Ghost Messaging space from your browser: voice and video, sealed between the people in it.">
 <meta name="robots" content="noindex">
 <link rel="icon" type="image/png" href="/icon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -104,13 +104,13 @@
 
   <!-- Not a hangout link. -->
   <section id="bad" class="center" hidden>
-    <h1>This link isn't a hangout</h1>
+    <h1>This link isn't a space</h1>
     <p class="sub">Ask whoever sent it for the whole link: it ends with a long string of letters and numbers after a #.</p>
   </section>
 
   <!-- Before joining: who is here, your name, your microphone and camera. -->
   <section id="lobby" hidden>
-    <h1 id="title">Hangout</h1>
+    <h1 id="title">Space</h1>
     <p class="sub" id="here">Connecting…</p>
     <div class="lobby">
       <div class="preview" id="preview"><div class="face" id="preview-face">?</div></div>
@@ -129,7 +129,7 @@
         <button class="primary" id="join">Join</button>
       </div>
       <p class="error" id="lobby-error" hidden></p>
-      <p class="note">What's said here goes between the people in the hangout, sealed with a key from this link. Our server only helps you find each other.</p>
+      <p class="note">What's said here goes between the people in the space, sealed with a key from this link. Our server only helps you find each other.</p>
     </div>
   </section>
 
@@ -137,7 +137,7 @@
   <section id="call" hidden style="display:flex;flex-direction:column;flex:1">
     <div class="row" style="justify-content:space-between">
       <div>
-        <h1 id="call-title" style="margin-top:1.25rem">Hangout</h1>
+        <h1 id="call-title" style="margin-top:1.25rem">Space</h1>
         <p class="sub" id="call-here" style="margin:0"></p>
       </div>
       <button class="quiet" id="copy">Copy link</button>
@@ -164,7 +164,7 @@
 
   <!-- Left. -->
   <section id="left" class="center" hidden>
-    <h1 id="left-title">You left the hangout</h1>
+    <h1 id="left-title">You left the space</h1>
     <p class="sub" id="left-why">It stays open: come back any time with the same link.</p>
     <button class="primary" id="rejoin">Join again</button>
   </section>
@@ -283,7 +283,7 @@ function paint() {
     hangout.leave();
     chat.close();
     $('left-title').textContent = chat.putOut;
-    $('left-why').textContent = chat.putOut.includes('banned') ? 'You can’t come back to this hangout.' : 'You can come back with the same link.';
+    $('left-why').textContent = chat.putOut.includes('banned') ? 'You can’t come back to this space.' : 'You can come back with the same link.';
     $('rejoin').hidden = chat.putOut.includes('banned');
     show('left');
     return;

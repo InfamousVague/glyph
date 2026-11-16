@@ -20,6 +20,9 @@ import 'background_picker.dart';
 import '../desktop/platform.dart' show computerWord;
 import '../voice/voice_settings.dart';
 import 'common.dart';
+import 'gm_guide_screen.dart';
+import 'gm_web_screen.dart';
+import 'rcs_setup.dart';
 import 'voice_pane.dart';
 import 'computers.dart';
 import 'conversations.dart';
@@ -291,7 +294,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.7.27';
+const appVersion = '0.7.48';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -318,7 +321,7 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
     ]),
     PaneSection(
       title: 'Bubbles',
-      footer: Text('The colour of your own bubbles in every conversation. Ghost is Ghost Keyboard\'s teal, Ink is the page\'s own black and white${palette ? ', and Wallpaper is the accent Android takes from this phone\'s wallpaper' : ''}. A conversation can have a colour of its own, from the cog at its top.'),
+      footer: Text('The colour of your own bubbles in every conversation. Ghost is Ghost Keyboard\'s teal, Ink is the page\'s own black and white${palette ? ', and Wallpaper is the accent Android takes from this phone\'s wallpaper' : ''}. A conversation can have a colour of its own, from the cog at its top.${Sms.remote ? '' : ' Ghost Keyboard offers the same colours for its enter key and keeps in step: choose one here or there and both change.'}'),
       children: [
         SettingRow(
           icon: _icon(Lucide.messageSquare),
@@ -424,12 +427,48 @@ List<Widget> _effects(BuildContext context, SettingsModel m) {
 List<Widget> _messages(BuildContext context, SettingsModel m) {
   final app = m.app;
   return [
+    // RCS through Google Messages, on the phone (lib/ui/rcs_setup.dart; Matt, 2026-11-15: "add a button under messages
+    // settings to setup RCS if on an android phone and walk the user through how to enable the rcs sidecar").
+    if (!Sms.remote)
+      PaneSection(title: 'RCS', children: [
+        SettingRow(
+          icon: _icon(Lucide.messageSquare),
+          label: m.status?.beside ?? false ? 'RCS is on, through Google Messages' : 'Set up RCS',
+          hint: Text(m.status?.beside ?? false
+              ? 'Ghost works beside Google Messages: RCS chats and texts in Ghost, Ghost\'s notifications. Open to check each step.'
+              : 'Typing dots, read receipts, full-size pictures and group chats over the internet, through Google Messages. A few steps, one at a time.'),
+          onPress: () => push(context, (_) => const RcsSetupScreen()),
+        ),
+        // Google Messages' web connection on the phone (lib/ui/gm_web_screen.dart; Matt, 2026-11-15: "Can you build the
+        // on phone google messages connection too?").
+        SettingRow(
+          icon: _icon(Lucide.link),
+          label: 'Google Messages connection',
+          hint: const Text('Pictures, reactions and read marks for RCS chats in Ghost, without Google Messages\' notifications. Paired once with another screen\'s help.'),
+          onPress: () => push(context, (_) => const GmWebScreen()),
+        ),
+        // The same on a Mac or a PC, kept running (lib/ui/gm_guide_screen.dart; Matt, 2026-11-15: "Tell me how to setup
+        // the sidecar on mac and PC in a guide found in settings").
+        SettingRow(
+          icon: _icon(Lucide.laptop),
+          label: 'On a Mac or PC',
+          hint: const Text('How to run the Google Messages helper on your computer, and keep it running.'),
+          onPress: () => push(context, (_) => const GmGuideScreen()),
+        ),
+      ]),
     PaneSection(title: 'Writing', children: [
       SettingRow(
         icon: _icon(LucideMore.keyboard),
         label: 'Enter sends',
         hint: const Text('The keyboard\'s Enter key sends the message. Off, it starts a new line.'),
         control: GlacierSwitch(checked: app.enterSends, onCheckedChange: (v) => app.setFlag('enter_sends', v), ariaLabel: 'Enter sends'),
+      ),
+      // Turned off by "Delete, and don't ask again" on the question a slide asks (lib/ui/inbox_ui.dart deleteAskOff).
+      SettingRow(
+        icon: _icon(Lucide.trash2),
+        label: 'Ask before a slide deletes',
+        hint: const Text('A conversation slid all the way asks first. Off, it is deleted straight away.'),
+        control: GlacierSwitch(checked: app.flag('delete_ask', fallback: true), onCheckedChange: (v) => app.setFlag('delete_ask', v), ariaLabel: 'Ask before a slide deletes'),
       ),
     ]),
     // Summaries of unread conversations by the phone's own model (lib/summaries.dart; Matt, 2026-11-14: "Use a local
@@ -541,6 +580,27 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
         ),
       ],
     ),
+    // Beside Google Messages (android GmBridge.kt; Matt, 2026-11-15: "I can turn off notifications from google messages
+    // or hide them and proxy everything through ghost").
+    if (m.status?.beside ?? false)
+      PaneSection(
+        title: 'Beside Google Messages',
+        footer: const Text('Keep Google Messages\' notifications allowed (set them to Silent): Ghost reads them to see RCS chats. Turned off completely, Ghost sees nothing new.'),
+        children: [
+          SettingRow(
+            icon: _icon(Lucide.bell),
+            label: 'Ghost\'s notifications in place of Google Messages\'',
+            hint: const Text('Each Google Messages notification is hidden as it comes and Ghost shows its own. Replying from it goes through Google Messages, as RCS where the chat is RCS.'),
+            control: GlacierSwitch(checked: app.flag('gm_proxy', fallback: true), onCheckedChange: (v) => app.setFlag('gm_proxy', v), ariaLabel: 'Ghost\'s notifications in place of Google Messages\''),
+          ),
+          SettingRow(
+            icon: _icon(LucideMore.vibrate),
+            label: 'Make Google Messages\' silent',
+            hint: const Text('Which of its notifications still make a sound, as of their last message, each with the way to silence it: its Incoming messages, and any conversation with a sound of its own.'),
+            onPress: () => push(context, (_) => const RcsSetupScreen()),
+          ),
+        ],
+      ),
   ];
 }
 

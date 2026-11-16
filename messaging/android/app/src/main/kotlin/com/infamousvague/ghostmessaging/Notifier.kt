@@ -117,14 +117,17 @@ object Notifier {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
-    fun incoming(context: Context, thread: Long) {
-        if (thread < 0) return
-        if (MainActivity.openThread == thread && MainActivity.inFront) return
+    /** Shows [thread]'s unread messages; true where a notification is up for it (GmListener waits on this). */
+    fun incoming(context: Context, thread: Long): Boolean {
+        // -1 is "the list", never a conversation. A bridged conversation below that (GmBridge) is notified like any.
+        if (thread == -1L) return false
+        // Open on the screen now: nothing to notify, and nothing is missed.
+        if (MainActivity.openThread == thread && MainActivity.inFront) return true
         val store = Store(context)
-        if (store.isMuted(thread)) return
+        if (store.isMuted(thread)) return true
         val people = store.threadPeople(thread)
         val unread = store.messages(thread, 8).filter { !(it["outgoing"] as Boolean) && !(it["read"] as Boolean) }.reversed()
-        if (unread.isEmpty()) { cancel(context, thread); return }
+        if (unread.isEmpty()) { cancel(context, thread); return false }
         val ui = context.getSharedPreferences("ui", Context.MODE_PRIVATE)
         val previews = ui.getString("notif_preview", "on") != "off"
         val group = people.size > 1
@@ -194,7 +197,7 @@ object Notifier {
         }
         builder.addAction(reply).addAction(read)
         val n = builder.build()
-        try { manager(context).notify(thread.toInt(), n) } catch (_: SecurityException) {}
+        return try { manager(context).notify(thread.toInt(), n); true } catch (_: SecurityException) { false }
     }
 
     private const val CHANNEL_QUIET = "quiet"
@@ -253,6 +256,66 @@ object Notifier {
             .setColor(0xFF4F5BD5.toInt())
             .build()
         try { manager(context).notify(thread.toInt(), n) } catch (_: SecurityException) {}
+    }
+
+    /**
+     * A friend by username wrote (lib/standalone/overlay.dart): their name and words, opening the conversation.
+     * Their words are kept in Dart, not Android's store, so this is told them rather than reading them itself. Not
+     * while that conversation is on the screen; "New message" where previews are off.
+     */
+    fun chat(context: Context, thread: Long, who: String, body: String) {
+        if (MainActivity.openThread == thread && MainActivity.inFront) return
+        val previews = context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("notif_preview", "on") != "off"
+        val sender = Person.Builder().setName(who).setKey(who).build()
+        val style = Notification.MessagingStyle(Person.Builder().setName("You").build())
+            .addMessage(Notification.MessagingStyle.Message(if (previews) body else "New message", System.currentTimeMillis(), sender))
+        val n = Notification.Builder(context, CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_ghost)
+            .setStyle(style)
+            .setContentIntent(open(context, thread))
+            .setAutoCancel(true)
+            .setCategory(Notification.CATEGORY_MESSAGE)
+            .setColor(0xFF4F5BD5.toInt())
+            .setGroup(GROUP)
+            .build()
+        try { manager(context).notify(thread.toInt(), n) } catch (_: SecurityException) {}
+    }
+
+    /** The tag a Signal or Telegram chat's notification is shown under, apart from the texts' (numbered by thread). */
+    private const val INBOX_TAG = "inbox"
+    const val EXTRA_INBOX = "inbox"
+
+    /**
+     * A new message on Signal or Telegram (lib/inbox/alerts.dart; Matt, 2026-11-16): the chat's name and its newest
+     * words, with the network's name under them; a press opens the chat. [key] is `network:chat`. Dart decides
+     * whether to notify (not muted, not spam, not on the screen); "New message" where previews are off.
+     */
+    fun inbox(context: Context, key: String, network: String, title: String, body: String, group: Boolean) {
+        val previews = context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("notif_preview", "on") != "off"
+        val who = Person.Builder().setName(title).setKey(key).build()
+        val style = Notification.MessagingStyle(Person.Builder().setName("You").build())
+            .addMessage(Notification.MessagingStyle.Message(if (previews) body.ifBlank { "New message" } else "New message", System.currentTimeMillis(), who))
+        if (group) style.setConversationTitle(title).setGroupConversation(true)
+        val open = PendingIntent.getActivity(context, key.hashCode(), Intent(context, MainActivity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            putExtra(EXTRA_INBOX, key)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val n = Notification.Builder(context, CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_ghost)
+            .setStyle(style)
+            .setSubText(network)
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .setCategory(Notification.CATEGORY_MESSAGE)
+            .setColor(0xFF4F5BD5.toInt())
+            .setGroup(GROUP)
+            .build()
+        try { manager(context).notify(INBOX_TAG, key.hashCode(), n) } catch (_: SecurityException) {}
+    }
+
+    fun cancelInbox(context: Context, key: String) {
+        context.getSystemService(NotificationManager::class.java).cancel(INBOX_TAG, key.hashCode())
     }
 
     fun cancel(context: Context, thread: Long) {

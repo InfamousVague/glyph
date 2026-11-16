@@ -191,6 +191,8 @@ class Store(private val context: Context) {
         val pinned = threadFlags("pinned")
         val muted = threadFlags("muted")
         val drafts = drafts()
+        val hidden = hiddenThreads()
+        val standIns = rcsStandIns()
         // Android's blocked list, read once: asking it about each conversation's number is a call to Android apiece.
         val blocked = blockedKeys()
         readCanonical()
@@ -215,6 +217,11 @@ class Store(private val context: Context) {
                     val group = groups[id]
                     val recipients = if (group != null) Groups.people(context, group) else recipientsOf(if (iRec >= 0) c.getString(iRec) else null)
                     val date = if (iDate >= 0) c.getLong(iDate) else 0L
+                    // Deleted beside Google Messages, and nothing newer since (hideThread).
+                    if (hidden[id]?.let { date <= it } == true) return null
+                    // An RCS group's stand-in, already found to be a group the bridge shows (withBridge).
+                    val standIn = group == null && recipients.isNotEmpty() && recipients.all(::isRcsStandIn)
+                    if (standIn && id in standIns) return null
                     val summary = E2e.preview(context, if (group != null) null else recipients.singleOrNull(), if (iSnip >= 0) c.getString(iSnip) ?: "" else "").let { if (BackgroundWire.valueIn(it) != null) "Chat background" else it }
                     val people = recipients.map { contact(it) }
                     return mapOf(
@@ -237,7 +244,7 @@ class Store(private val context: Context) {
                         "archived" to archived.contains(id),
                         "pinned" to pinned.contains(id),
                         "muted" to muted.contains(id),
-                        "name" to (group?.optString("name")?.takeIf { it.isNotBlank() } ?: threadName(id)),
+                        "name" to (group?.optString("name")?.takeIf { it.isNotBlank() } ?: threadName(id) ?: if (standIn) rcsGroupName(recipients) else null),
                         "draft" to drafts[id.toString()],
                         "blocked" to (group == null && recipients.size == 1 && E2e.norm(recipients[0]) in blocked),
                     )
@@ -281,8 +288,10 @@ class Store(private val context: Context) {
         out.forEachIndexed { i, row -> at[row["id"] as Long] = i }
         val archived = archivedThreads(); val pinned = threadFlags("pinned"); val muted = threadFlags("muted")
         var added = false
+        val hidden = hiddenThreads()
         for (b in bridged.distinctBy { it.thread }) {
             if (only != null && b.thread !in only) continue
+            if (hidden[b.thread]?.let { b.time <= it } == true) continue
             val i = at[b.thread]
             if (i != null) {
                 val row = out[i]
@@ -304,7 +313,68 @@ class Store(private val context: Context) {
             )
             added = true
         }
+        // An RCS group as Android's database has it: Google Messages keeps it there under one made-up address
+        // (…@rcs.google.com), so it would be listed a second time, as a chat with a long code for its number (Matt,
+        // 2026-11-16: "some RCS chats are being duplicated with a number that has a huge string when I'm in a group
+        // chat"). The address names the group's RCS id, not its people, so it is matched to the bridge's group by its
+        // newest message, and the match is kept: from then on it is never listed.
+        val groups = bridged.filter { it.group }
+        if (groups.isNotEmpty()) {
+            val learned = HashMap<Long, Long>()
+            val iter = out.listIterator()
+            val unreadIn = HashSet<Long>()
+            while (iter.hasNext()) {
+                val row = iter.next()
+                @Suppress("UNCHECKED_CAST") val people = row["people"] as List<Map<String, Any?>>
+                if (people.isEmpty() || !people.all { (it["address"] as? String)?.let(::isRcsStandIn) == true }) continue
+                val words = (row["snippet"] as? String)?.trim().orEmpty()
+                val date = row["date"] as Long
+                val match = groups.firstOrNull { g -> g.thread != row["id"] && g.text.trim() == words && words.isNotEmpty() && kotlin.math.abs(g.time - date) <= 10 * 60_000L }
+                    ?: continue
+                learned[row["id"] as Long] = match.thread
+                if (row["unread"] == true) unreadIn += match.thread
+                iter.remove()
+            }
+            if (learned.isNotEmpty()) {
+                keepRcsStandIns(learned)
+                out.forEachIndexed { i, row -> if (row["id"] in unreadIn && row["unread"] != true) out[i] = row + mapOf("unread" to true) }
+            }
+        }
         if (added) out.sortByDescending { it["date"] as Long }
+    }
+
+    /** Google Messages' address for an RCS group (not a business's, which is …@bot.rcs.google.com). */
+    private fun isRcsStandIn(address: String): Boolean =
+        address.endsWith("@rcs.google.com", ignoreCase = true) && !address.endsWith("@bot.rcs.google.com", ignoreCase = true)
+
+    /** RCS groups' stand-in threads found to be the bridge's groups: stand-in thread to the group's thread. */
+    private fun rcsStandIns(): Map<Long, Long> = try {
+        val o = org.json.JSONObject(prefs.getString("rcs_standins", "{}")!!)
+        o.keys().asSequence().associate { it.toLong() to o.getLong(it) }
+    } catch (_: Exception) { emptyMap() }
+
+    private fun keepRcsStandIns(found: Map<Long, Long>) {
+        val o = try { org.json.JSONObject(prefs.getString("rcs_standins", "{}")!!) } catch (_: Exception) { org.json.JSONObject() }
+        for ((k, v) in found) o.put("$k", v)
+        prefs.edit().putString("rcs_standins", o.toString()).apply()
+    }
+
+    /**
+     * What a stand-in is called where no group matches it: the group's name where its address carries one (base32 of
+     * "name␟owner␟id"), else "Group chat"; never the code.
+     */
+    private fun rcsGroupName(addresses: List<String>): String {
+        val code = addresses.first().substringBefore('@').uppercase().trimEnd('=')
+        val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+        val bytes = java.io.ByteArrayOutputStream()
+        var buffer = 0; var bits = 0
+        for (ch in code) {
+            val v = alphabet.indexOf(ch); if (v < 0) return "Group chat"
+            buffer = (buffer shl 5) or v; bits += 5
+            if (bits >= 8) { bits -= 8; bytes.write((buffer shr bits) and 0xff) }
+        }
+        val name = try { bytes.toString("UTF-8").split('\u001f').firstOrNull()?.replace('+', ' ')?.trim() } catch (_: Exception) { null }
+        return name?.takeIf { it.isNotEmpty() && it.none { c -> c.isISOControl() } } ?: "Group chat"
     }
 
     /** The numbers on Android's blocked list, as conversations are told apart by them ([E2e.norm]). */
@@ -535,6 +605,7 @@ class Store(private val context: Context) {
             }
         }
         withBridgedMessages(thread, out, limit)
+        hiddenMessages().takeIf { it.isNotEmpty() }?.let { gone -> out.removeAll { "${it["kind"]}:${it["id"]}" in gone } }
         out.sortByDescending { it["date"] as Long }
         val originals = originals()
         val marked = if (originals.isEmpty()) out else out.map { m ->
@@ -595,7 +666,7 @@ class Store(private val context: Context) {
         return out
     }
 
-    fun readPart(partId: Long): ByteArray? = try {
+    fun readPart(partId: Long): ByteArray? = if (GmWeb.isPart(partId)) GmWeb.part(context, partId) else try {
         resolver.openInputStream(Uri.parse("content://mms/part/$partId"))?.use { it.readBytes() }
     } catch (_: Exception) { null }
 
@@ -815,10 +886,27 @@ class Store(private val context: Context) {
         for (m in bridged) {
             val words = m.text.trim()
             if (have.any { it.first == m.out && it.second == words && kotlin.math.abs(it.third - m.time) < 180_000 }) continue
+            // From the on-phone connection (GmWeb): its pictures, its delivered and read marks, and reactions.
+            val parts = m.media?.let { j ->
+                try {
+                    val a = org.json.JSONArray(j)
+                    (0 until a.length()).map { i -> a.getJSONObject(i).let { p -> mapOf("id" to p.getLong("id"), "type" to p.optString("type"), "name" to p.optString("name").ifBlank { null }) } }
+                } catch (_: Exception) { emptyList() }
+            } ?: emptyList()
+            val status = m.status ?: ""
+            val state = when {
+                !m.out -> "received"
+                status.contains("fail") || status.contains("error") || status.contains("canceled") -> "failed"
+                status.contains("sending") || status.contains("yet_to_send") || status.contains("resending") -> "sending"
+                status.contains("display") || status.contains("read") -> "read"
+                status.contains("delivered") -> "delivered"
+                else -> "sent"
+            }
             out += mapOf(
-                "id" to m.id, "kind" to "rcs", "address" to (m.address ?: m.sender ?: ""), "body" to m.text, "encrypted" to false,
-                "notice" to null, "date" to m.time, "outgoing" to m.out, "state" to if (m.out) "sent" else "received",
-                "read" to (m.out || m.read), "via" to "gm", "sender" to m.sender,
+                "id" to m.id, "kind" to "rcs", "address" to (m.address ?: m.sender ?: ""),
+                "body" to if (m.reactions.isNullOrBlank()) m.text else "${m.text}\n${m.reactions}", "encrypted" to false,
+                "notice" to null, "date" to m.time, "outgoing" to m.out, "state" to state,
+                "read" to (m.out || m.read), "via" to "gm", "sender" to m.sender, "parts" to parts,
             )
         }
     }
@@ -845,7 +933,33 @@ class Store(private val context: Context) {
      * conversation they say they are in, and if they are still there after that the screen is told, not left
      * showing "deleted" over something that was not.
      */
+    /**
+     * Conversations deleted while Ghost is not the default SMS app, each with the time it was deleted at: left out of
+     * the list until something newer arrives in them. Android lets only the default SMS app delete texts.
+     */
+    fun hiddenThreads(): Map<Long, Long> = try {
+        val o = org.json.JSONObject(prefs.getString("hidden_threads", "{}")!!)
+        o.keys().asSequence().mapNotNull { k -> k.toLongOrNull()?.let { it to o.getLong(k) } }.toMap()
+    } catch (_: Exception) { emptyMap() }
+
+    private fun hideThread(thread: Long) {
+        val o = try { org.json.JSONObject(prefs.getString("hidden_threads", "{}")!!) } catch (_: Exception) { org.json.JSONObject() }
+        o.put(thread.toString(), System.currentTimeMillis())
+        prefs.edit().putString("hidden_threads", o.toString()).apply()
+    }
+
     fun deleteThread(thread: Long) {
+        // Beside Google Messages, where Android lets only it delete texts (Matt, 2026-11-15: "I also need to be able to
+        // proxy deleting conversations when ghost is not the default messaging app"): Google Messages deletes it,
+        // through its web connection where Ghost is paired with it (GmWeb), which deletes it from Android's store and
+        // every device; and Ghost leaves it out of its list until something newer arrives, paired or not.
+        if (!GmBridge.isDefault(context)) {
+            GmWeb.deleteThread(thread)
+            hideThread(thread)
+            try { GmBridge.Db.get(context).forget(thread) } catch (_: Exception) {}
+            snippets.remove(thread)
+            return
+        }
         try { GmBridge.Db.get(context).forget(thread) } catch (_: Exception) {}
         // Only the bridge's (an RCS chat Google Messages showed): nothing of Android's to delete.
         if (thread < 0) return
@@ -861,9 +975,54 @@ class Store(private val context: Context) {
     }
 
     /** Deletes one message, and says so if Android did not: asked by its own address, then by its number. */
+    /** Messages deleted beside Google Messages that Android would not let go of: left out of the list ("kind:id"). */
+    fun hiddenMessages(): Set<String> = prefs.getStringSet("hidden_msgs", emptySet())!!
+
+    /**
+     * Joins [threads] (each with when it was deleted) and [msgs] from the Ghost account into the lists here
+     * (lib/kept_lists.dart): the later time for a conversation in both. True where any was new.
+     */
+    fun addHidden(threads: Map<Long, Long>, msgs: Collection<String>): Boolean {
+        val o = try { org.json.JSONObject(prefs.getString("hidden_threads", "{}")!!) } catch (_: Exception) { org.json.JSONObject() }
+        var added = false
+        for ((t, at) in threads) {
+            if (o.optLong(t.toString(), 0L) < at) { o.put(t.toString(), at); added = true }
+        }
+        val before = hiddenMessages()
+        if (!before.containsAll(msgs)) added = true
+        prefs.edit().putString("hidden_threads", o.toString()).putStringSet("hidden_msgs", before + msgs).apply()
+        return added
+    }
+
+    private fun hideMessage(kind: String, id: Long) {
+        prefs.edit().putStringSet("hidden_msgs", hiddenMessages() + "$kind:$id").apply()
+    }
+
     fun deleteMessage(kind: String, id: Long) {
-        // One the bridge read from Google Messages (GmBridge): forgotten here; Google Messages keeps its own.
-        if (kind == "rcs") { GmBridge.Db.get(context).forgetMessage(id); return }
+        // One the bridge read from Google Messages (GmBridge): deleted in Google Messages where Ghost is paired with
+        // its web connection (Matt, 2026-11-15: "if possible proxy the archive and delete messages too"), and
+        // forgotten here either way.
+        if (kind == "rcs") {
+            val db = GmBridge.Db.get(context)
+            db.gmIdOf(id)?.let { GmWeb.deleteMessage(it) }
+            db.forgetMessage(id)
+            return
+        }
+        // Beside Google Messages Android lets only it delete texts: Google Messages deletes its copy (found by the
+        // same words and time) where Ghost is paired, and Ghost leaves the text out of its list either way.
+        if (!GmBridge.isDefault(context) && kind == "sms") {
+            try {
+                resolver.query(Telephony.Sms.CONTENT_URI, arrayOf("thread_id", "body", "type", "date"), "_id = ?", arrayOf("$id"), null)?.use { c ->
+                    if (c.moveToFirst()) {
+                        val out = c.getInt(2) != Telephony.Sms.MESSAGE_TYPE_INBOX
+                        GmBridge.Db.get(context).gmIdLike(c.getLong(0), c.getString(1) ?: "", out, c.getLong(3))?.let { GmWeb.deleteMessage(it) }
+                    }
+                }
+            } catch (_: Exception) {}
+            hideMessage(kind, id)
+            return
+        }
+        if (!GmBridge.isDefault(context)) { hideMessage(kind, id); return }
         val all = if (kind == "mms") Telephony.Mms.CONTENT_URI else Telephony.Sms.CONTENT_URI
         var gone = try { resolver.delete(Uri.withAppendedPath(all, id.toString()), null, null) } catch (e: Exception) { android.util.Log.w("GhostMessaging", "delete message", e); 0 }
         if (gone == 0) {
@@ -1010,6 +1169,9 @@ class Store(private val context: Context) {
     fun archivedThreads(): Set<Long> = prefs.getStringSet("archived", emptySet())!!.mapNotNull { it.toLongOrNull() }.toSet()
 
     fun setArchived(thread: Long, archived: Boolean) {
+        // Archived in Google Messages too, where Ghost is paired with its web connection (Matt, 2026-11-15: "if
+        // possible proxy the archive and delete messages too"), so the two keep the same archive.
+        if (!GmBridge.isDefault(context)) Thread { GmWeb.archiveThread(thread, archived) }.start()
         val s = prefs.getStringSet("archived", emptySet())!!.toMutableSet()
         if (archived) s += thread.toString() else s -= thread.toString()
         prefs.edit().putStringSet("archived", s).apply()

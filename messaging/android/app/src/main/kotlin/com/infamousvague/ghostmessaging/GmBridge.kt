@@ -18,6 +18,7 @@ import android.provider.Settings
 import android.provider.Telephony
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -57,6 +58,78 @@ object GmBridge {
     fun isInstalled(context: Context): Boolean = try {
         context.packageManager.getPackageInfo(PACKAGE, 0); true
     } catch (_: Exception) { false }
+
+    /** Opens Google Messages, or its page in the Play Store where it is not on the phone (Settings › Messages › RCS). */
+    fun open(context: Context): Boolean {
+        val launch = context.packageManager.getLaunchIntentForPackage(PACKAGE)?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val target = launch ?: Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$PACKAGE")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return try { context.startActivity(target); true } catch (_: Exception) {
+            try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$PACKAGE")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true } catch (_: Exception) { false }
+        }
+    }
+
+    /** Android's notification settings for Google Messages, where its notifications are made silent. */
+    fun openNotificationSettings(context: Context): Boolean = try {
+        context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, PACKAGE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true
+    } catch (_: Exception) { false }
+
+    // --- how loud Google Messages is (Matt, 2026-11-15: "investigate silencing google messages notifications so we only
+    // see thr ones coming through ghost instead"; then "Let's do our best given these options and push out an update").
+    //
+    // No app but the system's own, or a companion device's, may change another app's notification settings, and a
+    // notification is heard before Ghost can take it away. So the person makes Google Messages silent; Ghost watches
+    // the channel each of its message notifications comes on (a listener is shown each one's settings) and says which
+    // still make a sound or pop up: its "Incoming messages" and any conversation given a channel of its own, which
+    // overrides that one. As of the last notification on each: a change is seen when the next one comes.
+
+    private fun channels(context: Context) = context.getSharedPreferences("gm_channels", Context.MODE_PRIVATE)
+
+    /** What [sbn]'s channel is set to, kept by the channel's id. */
+    fun noteChannel(context: Context, channel: android.app.NotificationChannel?, title: String?) {
+        channel ?: return
+        val o = org.json.JSONObject()
+            .put("id", channel.id)
+            .put("name", channel.name?.toString() ?: channel.id)
+            .put("importance", channel.importance)
+            .put("sound", channel.sound != null)
+            .put("vibrate", channel.shouldVibrate())
+            .put("conversation", channel.conversationId ?: org.json.JSONObject.NULL)
+            .put("title", title ?: org.json.JSONObject.NULL)
+            .put("seen", System.currentTimeMillis())
+        channels(context).edit().putString(channel.id, o.toString()).apply()
+    }
+
+    /**
+     * The channels seen, loudest first: each with whether it still alerts. Alerting is importance Default or more
+     * (a sound, or a pop-up at High); Low and below come in silently.
+     */
+    fun channelList(context: Context): List<Map<String, Any?>> = channels(context).all.values.mapNotNull { v ->
+        try {
+            val o = org.json.JSONObject(v as String)
+            val importance = o.getInt("importance")
+            mapOf(
+                "id" to o.getString("id"), "name" to o.getString("name"), "importance" to importance,
+                "loud" to (importance >= android.app.NotificationManager.IMPORTANCE_DEFAULT),
+                "popup" to (importance >= android.app.NotificationManager.IMPORTANCE_HIGH),
+                "conversation" to o.optString("conversation").takeIf { it.isNotEmpty() && it != "null" },
+                "title" to o.optString("title").takeIf { it.isNotEmpty() && it != "null" },
+                "seen" to o.getLong("seen"),
+            )
+        } catch (_: Exception) { null }
+    }.sortedWith(compareByDescending<Map<String, Any?>> { it["importance"] as Int }.thenBy { it["name"] as String })
+
+    /** Android's settings for one of Google Messages' channels (a conversation's own, or "Incoming messages"). */
+    fun openChannel(context: Context, id: String, conversation: String?): Boolean {
+        val exact = Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, PACKAGE)
+            .putExtra(Settings.EXTRA_CHANNEL_ID, id)
+            .apply { if (conversation != null) putExtra(Settings.EXTRA_CONVERSATION_ID, conversation) }
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return try { context.startActivity(exact); true } catch (_: Exception) { openNotificationSettings(context) }
+    }
+
+    /** Whether Google Messages is the default SMS app now. */
+    fun isGmDefault(context: Context): Boolean = Telephony.Sms.getDefaultSmsPackage(context) == PACKAGE
 
     /** A conversation's way to answer, kept while Google Messages keeps it: its Reply and its Mark as read. */
     class Actions(val reply: PendingIntent, val input: RemoteInput, val read: PendingIntent?)
@@ -105,7 +178,9 @@ object GmBridge {
             if (address != null) addresses += address
             heard += Heard(text, time, if (out) null else senderName, address, out)
         }
-        if (heard.isEmpty()) return null
+        // Every message hidden (a one-time code, Android 15+): the conversation is still read, so Ghost can notify
+        // from Android's own copy of the text.
+        if (heard.isEmpty() && messages.isEmpty()) return null
         // One to one, with no address from the people in it: the title may be the number itself.
         if (addresses.isEmpty() && !group && title != null) ContactKey.of(title)?.let { addresses += ContactKey.main(title) }
         // One to one: whoever is not you is the one other person.
@@ -154,17 +229,34 @@ object GmBridge {
 
     // --- keeping what was read -----------------------------------------------------------------------------------------
 
-    /** What a notification said, kept; true when anything was new. */
-    fun heard(context: Context, sbn: StatusBarNotification): Boolean {
-        val r = read(context, sbn) ?: return false
+    /** What reading a notification came to: its thread, whether anything was new, and whether a new one is theirs. */
+    data class Kept(val thread: Long, val fresh: Boolean, val incoming: Boolean, val hidden: Boolean)
+
+    /** What a notification said, kept; null for one that is not a conversation. */
+    fun heard(context: Context, sbn: StatusBarNotification): Kept? {
+        val r = read(context, sbn) ?: return null
         actionsOf(sbn.notification)?.let { actions[r.conv] = it }
         val db = Db.get(context)
         val thread = threadFor(context, r)
         db.keepConversation(r, thread)
         var fresh = false
-        for (m in r.messages) if (db.keepMessage(r.conv, m)) fresh = true
-        return fresh
+        var incoming = false
+        for (m in r.messages) if (db.keepMessage(r.conv, m)) { fresh = true; if (!m.out) incoming = true }
+        return Kept(thread, fresh, incoming, hidden = r.messages.isEmpty())
     }
+
+    /**
+     * Ghost's notifications in place of Google Messages' (Matt, 2026-11-15: "make the app work without needing to be
+     * the default sms app so it can work in tandem and I can turn off notifications from google messages or hide them
+     * and proxy everything through ghost"). On unless turned off in Settings › Notifications (`gm_proxy`).
+     *
+     * Google Messages' own must stay allowed (silent is best): they are what Ghost reads. Each of its message
+     * notifications is taken away as it comes and Ghost's own put up, whose Reply goes back through Google Messages.
+     */
+    fun proxying(context: Context): Boolean =
+        !isDefault(context) && context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("gm_proxy", "on") != "off" &&
+            // Never hidden where Ghost could not show its own: the person would be told of nothing at all.
+            context.getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled()
 
     /**
      * The conversation's thread in Android's database where its people are known: the same thread its texts are in,
@@ -178,6 +270,13 @@ object GmBridge {
         }
         return syntheticThread(r.conv)
     }
+
+    /** The thread of the text Android was given most recently, within two minutes of [at]; null where none. */
+    fun justArrived(context: Context, at: Long): Long? = try {
+        context.contentResolver.query(
+            Telephony.Sms.Inbox.CONTENT_URI, arrayOf("thread_id", "date"), "date >= ?", arrayOf("${at - 120_000}"), "date DESC LIMIT 1",
+        )?.use { c -> if (c.moveToFirst()) c.getLong(0) else null }
+    } catch (_: Exception) { null }
 
     /** A thread number of the bridge's own, below zero so it is never one of Android's. */
     fun syntheticThread(conv: String): Long = -1L - (conv.hashCode().toLong() and 0x7fffffffL)
@@ -216,6 +315,9 @@ object GmBridge {
     fun sendBeside(context: Context, addresses: List<String>, body: String, attachments: List<String>): Long {
         val db = Db.get(context)
         val conv = convFor(db, addresses)
+        // 0. The on-phone connection (GmWeb), where it is connected and has this conversation: words and pictures,
+        //    as Google Messages would send them.
+        if (conv != null && GmWeb.knows(conv.conv) && GmWeb.send(conv.conv, body, attachments.mapNotNull { a -> fileOf(context, a)?.let { Triple(it, kindOf(context, a), nameOf(context, a)) } })) return conv.thread
         if (conv != null && attachments.isEmpty() && reply(context, conv.conv, body)) return conv.thread
         val numbers = addresses.filter { ContactKey.of(it) != null }
         if (numbers.size == 1 && addresses.size == 1 && attachments.isEmpty()) {
@@ -224,9 +326,30 @@ object GmBridge {
             if (parts.size > 1) sms.sendMultipartTextMessage(numbers[0], null, parts, null, null) else sms.sendTextMessage(numbers[0], null, body, null, null)
             return try { Telephony.Threads.getOrCreateThreadId(context, setOf(numbers[0])) } catch (_: Exception) { conv?.thread ?: -1L }
         }
-        context.startActivity(composeIntent(if (numbers.isNotEmpty()) numbers else addresses, body))
+        context.startActivity(composeIntent(context, if (numbers.isNotEmpty()) numbers else addresses, body, attachments))
         return conv?.thread ?: -1L
     }
+
+    /** What a chosen file is, as Android says (`image/jpeg`, `video/mp4`), or by its ending. */
+    private fun kindOf(context: Context, uri: String): String? = try {
+        if (uri.startsWith("/")) android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(File(uri).extension.lowercase())
+        else context.contentResolver.getType(Uri.parse(uri))
+    } catch (_: Exception) { null }
+
+    /** A chosen file's own name, as the picker gave it. */
+    private fun nameOf(context: Context, uri: String): String? = try {
+        if (uri.startsWith("/")) File(uri).name
+        else context.contentResolver.query(Uri.parse(uri), arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+    } catch (_: Exception) { null }
+
+    /** A picture chosen to send (a content address, or a file), as a file the helper can read. */
+    private fun fileOf(context: Context, uri: String): String? = try {
+        if (uri.startsWith("/")) uri else {
+            val f = File(File(context.cacheDir, "gmsend").apply { mkdirs() }, "${System.currentTimeMillis()}-${uri.hashCode().toUInt()}")
+            context.contentResolver.openInputStream(Uri.parse(uri))?.use { inp -> f.outputStream().use { inp.copyTo(it) } }
+            f.absolutePath
+        }
+    } catch (_: Exception) { null }
 
     /** The bridged conversation [addresses] are: the same people, or, for one known only by its title, that title. */
     private fun convFor(db: Db, addresses: List<String>): Conv? {
@@ -237,34 +360,142 @@ object GmBridge {
         }
     }
 
-    /** Marks [conv] read in Google Messages too, where it offers that. */
+    /** Marks [conv] read in Google Messages too: through the on-phone connection, or its notification's Mark as read. */
     fun markRead(context: Context, conv: String) {
+        GmWeb.read(conv)
         try { actions[conv]?.read?.send() } catch (_: Exception) {}
     }
 
-    /** Google Messages' compose page with [to] and [text] filled in: for what the bridge cannot send itself. */
-    fun composeIntent(to: List<String>, text: String): Intent =
-        Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + to.joinToString(";") { Uri.encode(it) }))
+    /**
+     * Google Messages' compose page with [to] and [text] filled in, and the pictures with them (Matt, 2026-11-15: "Does
+     * this also proxy videos and images"): for what the bridge cannot send itself.
+     */
+    fun composeIntent(context: Context, to: List<String>, text: String, attachments: List<String> = emptyList()): Intent {
+        if (attachments.isEmpty()) {
+            return Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + to.joinToString(";") { Uri.encode(it) }))
+                .putExtra("sms_body", text).setPackage(PACKAGE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        // A file of the app's own is handed over by the app's provider, which serves its MMS folder.
+        val uris = ArrayList(attachments.map { a ->
+            if (!a.startsWith("/")) Uri.parse(a) else {
+                val copy = File(MmsFileProvider.dir(context), "share-${File(a).name}")
+                File(a).copyTo(copy, overwrite = true)
+                MmsFileProvider.uriFor(context, copy)
+            }
+        })
+        val types = uris.map { context.contentResolver.getType(it) ?: "image/*" }.distinct()
+        return Intent(if (uris.size == 1) Intent.ACTION_SEND else Intent.ACTION_SEND_MULTIPLE)
+            .setType(types.singleOrNull() ?: "*/*")
+            .apply { if (uris.size == 1) putExtra(Intent.EXTRA_STREAM, uris[0]) else putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris) }
+            .putExtra("address", to.joinToString(";"))
             .putExtra("sms_body", text)
+            .putExtra(Intent.EXTRA_TEXT, text)
             .setPackage(PACKAGE)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
 
     // --- the database ------------------------------------------------------------------------------------------------
 
     /** The bridge's own small database: conversations Google Messages showed, and their messages. */
-    class Db private constructor(context: Context) : SQLiteOpenHelper(context, "gm_bridge.db", null, 1) {
+    class Db private constructor(context: Context) : SQLiteOpenHelper(context, "gm_bridge.db", null, 3) {
         companion object {
             @Volatile private var one: Db? = null
             fun get(context: Context): Db = one ?: synchronized(this) { one ?: Db(context.applicationContext).also { one = it } }
         }
 
+        // Written ahead (WAL), so the helper's thread and the list's reads do not wait on each other. Set the
+        // way Android allows: a PRAGMA that answers is refused by execSQL ("Queries can be performed using
+        // SQLiteDatabase query or rawQuery methods only"), which stopped every send in 0.7.30.
+        init { setWriteAheadLoggingEnabled(true) }
+
         override fun onCreate(db: SQLiteDatabase) {
             db.execSQL("CREATE TABLE conv (conv TEXT PRIMARY KEY, thread INTEGER, title TEXT, grp INTEGER, addresses TEXT, updated INTEGER)")
             db.execSQL("CREATE TABLE msg (id INTEGER PRIMARY KEY AUTOINCREMENT, conv TEXT, text TEXT, time INTEGER, sender TEXT, address TEXT, out INTEGER, read INTEGER DEFAULT 0, UNIQUE(conv, time, text, out))")
             db.execSQL("CREATE INDEX msg_conv ON msg(conv, time)")
+            onUpgrade(db, 1, 3)
         }
 
-        override fun onUpgrade(db: SQLiteDatabase, old: Int, new: Int) {}
+        override fun onUpgrade(db: SQLiteDatabase, old: Int, new: Int) {
+            // 2: Google Messages' own id for a message, its status, pictures and reactions, from the on-phone
+            // connection (GmWeb.kt); a picture's way to be brought down, by the number the screens know it by.
+            if (old < 2) {
+                db.execSQL("ALTER TABLE msg ADD COLUMN gm_id TEXT")
+                db.execSQL("ALTER TABLE msg ADD COLUMN status TEXT")
+                db.execSQL("ALTER TABLE msg ADD COLUMN media TEXT")
+                db.execSQL("ALTER TABLE msg ADD COLUMN reactions TEXT")
+                db.execSQL("CREATE UNIQUE INDEX msg_gm ON msg(gm_id)")
+                db.execSQL("CREATE TABLE part (id INTEGER PRIMARY KEY, media TEXT, key TEXT, mime TEXT, name TEXT)")
+            }
+            // 3: a picture's small copy (Google Messages' thumbnail), brought down where the picture itself can't be.
+            if (old < 3) {
+                db.execSQL("ALTER TABLE part ADD COLUMN thumb TEXT")
+                db.execSQL("ALTER TABLE part ADD COLUMN thumb_key TEXT")
+            }
+        }
+
+
+        /** A conversation as the on-phone connection reads it: by Google Messages' own id. */
+        /** The conversations kept for [thread], by Google Messages' (or the notification's) own id. */
+        fun webConvsOf(thread: Long): List<String> = readableDatabase.rawQuery("SELECT conv FROM conv WHERE thread = ?", arrayOf(thread.toString())).use { c ->
+            buildList { while (c.moveToNext()) add(c.getString(0)) }
+        }
+
+        fun keepWebConversation(conv: String, thread: Long, title: String?, group: Boolean, addresses: List<String>) {
+            writableDatabase.insertWithOnConflict("conv", null, ContentValues().apply {
+                put("conv", conv); put("thread", thread); put("title", title); put("grp", if (group) 1 else 0)
+                put("addresses", addresses.joinToString("\u001f")); put("updated", System.currentTimeMillis())
+            }, SQLiteDatabase.CONFLICT_REPLACE)
+        }
+
+        /**
+         * A message as the on-phone connection reads it, by Google Messages' own id: kept once, its status and
+         * reactions brought up to date when it comes again. A copy the notification bridge already kept (the same
+         * words, the same side, within three minutes, in a conversation of the same thread) becomes this one.
+         * True where it is new.
+         */
+        fun keepWebMessage(conv: String, thread: Long, gmId: String, text: String, time: Long, sender: String?, address: String?, out: Boolean, status: String, media: String?, reactions: String?, read: Boolean): Boolean {
+            val db = writableDatabase
+            val update = ContentValues().apply { put("status", status); put("reactions", reactions); if (media != null) put("media", media); if (read) put("read", 1) }
+            if (db.update("msg", update, "gm_id = ?", arrayOf(gmId)) > 0) return false
+            db.rawQuery(
+                "SELECT m.id FROM msg m JOIN conv c ON c.conv = m.conv WHERE c.thread = ? AND m.gm_id IS NULL AND m.out = ? AND m.text = ? AND ABS(m.time - ?) < 180000 LIMIT 1",
+                arrayOf("$thread", if (out) "1" else "0", text, "$time"),
+            ).use { c ->
+                if (c.moveToFirst()) {
+                    db.update("msg", ContentValues(update).apply { put("gm_id", gmId); put("conv", conv); put("time", time) }, "id = ?", arrayOf("${c.getLong(0)}"))
+                    return false
+                }
+            }
+            val id = db.insertWithOnConflict("msg", null, ContentValues(update).apply {
+                put("conv", conv); put("gm_id", gmId); put("text", text); put("time", time); put("sender", sender); put("address", address)
+                put("out", if (out) 1 else 0); put("read", if (out || read) 1 else 0)
+            }, SQLiteDatabase.CONFLICT_IGNORE)
+            return id != -1L
+        }
+
+        fun keepPart(id: Long, media: String, key: String, mime: String, name: String?, thumb: String? = null, thumbKey: String? = null) {
+            writableDatabase.insertWithOnConflict("part", null, ContentValues().apply {
+                put("id", id); put("media", media); put("key", key); put("mime", mime); put("name", name); put("thumb", thumb); put("thumb_key", thumbKey)
+            }, SQLiteDatabase.CONFLICT_REPLACE)
+        }
+
+        /** A picture's thumbnail and its key, where Google Messages gave one. */
+        fun thumbOf(id: Long): Pair<String, String>? = readableDatabase.rawQuery("SELECT thumb, thumb_key FROM part WHERE id = ?", arrayOf("$id")).use { c ->
+            if (c.moveToFirst() && !c.getString(0).isNullOrBlank()) c.getString(0) to (c.getString(1) ?: "") else null
+        }
+
+        fun part(id: Long): Triple<String, String, String>? = readableDatabase.rawQuery("SELECT media, key, mime FROM part WHERE id = ?", arrayOf("$id")).use { c ->
+            if (c.moveToFirst()) Triple(c.getString(0), c.getString(1), c.getString(2)) else null
+        }
+
+        /** The newest message of [conv] Google Messages knows by its id: what marking it read goes as far as. */
+        fun newestWebId(conv: String): String? = readableDatabase.rawQuery("SELECT gm_id FROM msg WHERE conv = ? AND gm_id IS NOT NULL ORDER BY time DESC LIMIT 1", arrayOf(conv)).use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        }
+
+        fun webConversations(): Set<String> = readableDatabase.rawQuery("SELECT DISTINCT conv FROM msg WHERE gm_id IS NOT NULL", null).use { c ->
+            buildSet { while (c.moveToNext()) add(c.getString(0)) }
+        }
 
         fun keepConversation(r: Read, thread: Long) {
             writableDatabase.insertWithOnConflict("conv", null, ContentValues().apply {
@@ -298,10 +529,10 @@ object GmBridge {
         }
 
         fun messagesOfThread(thread: Long, limit: Int): List<Msg> = readableDatabase.rawQuery(
-            "SELECT m.id, m.conv, m.text, m.time, m.sender, m.address, m.out, m.read FROM msg m JOIN conv c ON c.conv = m.conv WHERE c.thread = ? ORDER BY m.time DESC LIMIT ?",
+            "SELECT m.id, m.conv, m.text, m.time, m.sender, m.address, m.out, m.read, m.status, m.media, m.reactions FROM msg m JOIN conv c ON c.conv = m.conv WHERE c.thread = ? ORDER BY m.time DESC LIMIT ?",
             arrayOf("$thread", "$limit"),
         ).use { c ->
-            buildList { while (c.moveToNext()) add(Msg(c.getLong(0), c.getString(1), c.getString(2), c.getLong(3), c.getString(4), c.getString(5), c.getInt(6) == 1, c.getInt(7) == 1)) }
+            buildList { while (c.moveToNext()) add(Msg(c.getLong(0), c.getString(1), c.getString(2), c.getLong(3), c.getString(4), c.getString(5), c.getInt(6) == 1, c.getInt(7) == 1, c.getString(8), c.getString(9), c.getString(10))) }
         }
 
         fun convOfThread(thread: Long): String? = readableDatabase.rawQuery("SELECT conv FROM conv WHERE thread = ? ORDER BY updated DESC LIMIT 1", arrayOf("$thread")).use { c -> if (c.moveToFirst()) c.getString(0) else null }
@@ -309,6 +540,15 @@ object GmBridge {
         fun markRead(thread: Long) {
             writableDatabase.execSQL("UPDATE msg SET read = 1 WHERE conv IN (SELECT conv FROM conv WHERE thread = ?)", arrayOf(thread))
         }
+
+        /** Google Messages' own id of the bridge's message [id]. */
+        fun gmIdOf(id: Long): String? = readableDatabase.rawQuery("SELECT gm_id FROM msg WHERE id = ?", arrayOf("$id")).use { c -> if (c.moveToFirst()) c.getString(0) else null }
+
+        /** Google Messages' own id of a text in [thread]: the same words, the same side, within three minutes. */
+        fun gmIdLike(thread: Long, text: String, out: Boolean, time: Long): String? = readableDatabase.rawQuery(
+            "SELECT m.gm_id FROM msg m JOIN conv c ON c.conv = m.conv WHERE c.thread = ? AND m.gm_id IS NOT NULL AND m.out = ? AND m.text = ? AND ABS(m.time - ?) < 180000 ORDER BY ABS(m.time - ?) LIMIT 1",
+            arrayOf("$thread", if (out) "1" else "0", text, "$time", "$time"),
+        ).use { c -> if (c.moveToFirst()) c.getString(0) else null }
 
         fun forgetMessage(id: Long) {
             writableDatabase.delete("msg", "id = ?", arrayOf("$id"))
@@ -321,7 +561,7 @@ object GmBridge {
     }
 
     data class Conv(val conv: String, val thread: Long, val title: String?, val group: Boolean, val addresses: List<String>, val text: String, val time: Long, val out: Boolean, val unread: Int)
-    data class Msg(val id: Long, val conv: String, val text: String, val time: Long, val sender: String?, val address: String?, val out: Boolean, val read: Boolean)
+    data class Msg(val id: Long, val conv: String, val text: String, val time: Long, val sender: String?, val address: String?, val out: Boolean, val read: Boolean, val status: String? = null, val media: String? = null, val reactions: String? = null)
 }
 
 /**
@@ -331,10 +571,48 @@ object GmBridge {
 class GmListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (sbn.packageName != GmBridge.PACKAGE) return
+        val context = applicationContext
         try {
-            if (GmBridge.heard(applicationContext, sbn)) Bus.changed(-1)
+            val kept = GmBridge.heard(context, sbn)
+            if (kept?.fresh == true) Bus.changed(-1)
+            // How loud the channel it came on is (the guide's last step, Settings › Notifications).
+            if (sbn.notification.category == Notification.CATEGORY_MESSAGE) noteRanking(sbn)
+            if (!GmBridge.proxying(context)) return
+            if (sbn.notification.category != Notification.CATEGORY_MESSAGE) return
+            val summary = sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY != 0
+            // The group's summary goes once none of its conversations' notifications is left up.
+            if (summary) {
+                if ((activeNotifications ?: emptyArray()).none { it.packageName == GmBridge.PACKAGE && it.key != sbn.key && it.notification.flags and Notification.FLAG_GROUP_SUMMARY == 0 && it.notification.category == Notification.CATEGORY_MESSAGE }) cancelNotification(sbn.key)
+                return
+            }
+            if (kept == null) return
+            // Ghost's own first; Google Messages' taken away only once it is up (Matt, 2026-11-15, a code text that
+            // showed nowhere: Ghost had taken Google Messages' away and had nothing of its own yet). A text Android
+            // hid from the bridge (a code) is read from Android's database, which Google Messages may write a moment
+            // after notifying: asked again for a few seconds. With the on-phone connection up, it notifies (GmWeb).
+            val key = sbn.key
+            Thread {
+                var shown = GmWeb.connected
+                if (!shown && (kept.incoming || kept.hidden)) {
+                    for (wait in longArrayOf(250, 750, 1500, 2500, 4000)) {
+                        Thread.sleep(wait)
+                        // A hidden text hides its conversation's name too, so the bridge could not tell which thread it
+                        // is: the text Android has just been given, the newest received in the last two minutes, is it.
+                        val thread = if (kept.thread >= 0 || !kept.hidden) kept.thread else GmBridge.justArrived(context, sbn.postTime) ?: continue
+                        shown = try { Notifier.incoming(context, thread) } catch (e: Exception) {
+                            DevLog.add(context, "bridge", "Ghost's notification could not be shown: ${e.javaClass.simpleName}: ${e.message}"); false
+                        }
+                        if (shown) break
+                    }
+                } else if (!kept.incoming && !kept.hidden) {
+                    // An update to one already shown (a reply of yours shown back): Ghost's stands as it is.
+                    shown = true
+                }
+                if (shown) try { cancelNotification(key) } catch (_: Exception) {}
+                else DevLog.add(context, "bridge", "Google Messages' notification left up: Ghost had nothing to show for it")
+            }.start()
         } catch (e: Exception) {
-            DevLog.add(applicationContext, "bridge", "A Google Messages notification could not be read: ${e.javaClass.simpleName}")
+            DevLog.add(context, "bridge", "A Google Messages notification could not be read: ${e.javaClass.simpleName}")
         }
     }
 
@@ -361,12 +639,24 @@ class GmListener : NotificationListenerService() {
         watcher = null
     }
 
+    private fun noteRanking(sbn: StatusBarNotification) {
+        try {
+            val r = Ranking()
+            if (!currentRanking.getRanking(sbn.key, r)) return
+            val title = sbn.notification.extras?.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE) ?: sbn.notification.extras?.getCharSequence(Notification.EXTRA_TITLE)
+            GmBridge.noteChannel(applicationContext, r.channel, title?.toString())
+        } catch (_: Exception) {}
+    }
+
     override fun onListenerConnected() {
         watch()
+        // The on-phone Google Messages connection, kept running while Android keeps this listener (GmWeb).
+        if (GmWeb.hasSession(applicationContext)) GmWeb.start(applicationContext)
+        for (sbn in activeNotifications ?: emptyArray()) if (sbn.packageName == GmBridge.PACKAGE && sbn.notification.category == Notification.CATEGORY_MESSAGE) noteRanking(sbn)
         // What Google Messages shows now, read as the bridge starts (after a restart, or access just given).
         try {
             var fresh = false
-            for (sbn in activeNotifications ?: emptyArray()) if (sbn.packageName == GmBridge.PACKAGE && GmBridge.heard(applicationContext, sbn)) fresh = true
+            for (sbn in activeNotifications ?: emptyArray()) if (sbn.packageName == GmBridge.PACKAGE && GmBridge.heard(applicationContext, sbn)?.fresh == true) fresh = true
             if (fresh) Bus.changed(-1)
         } catch (_: Exception) {}
     }

@@ -5,10 +5,13 @@ import android.app.role.RoleManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import java.io.File
 import android.os.Handler
 import android.os.Looper
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.FlutterEngineCache
+import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import java.util.concurrent.Executors
@@ -22,6 +25,15 @@ class MainActivity : FlutterActivity() {
     companion object {
         @Volatile var openThread: Long = -1
         @Volatile var inFront = false
+
+        /** The one Flutter engine, kept past the screen so Signal and Telegram stay connected (NetworksService). */
+        private const val ENGINE = "main"
+
+        /**
+         * Dart's end of `ghost_messaging/events`, kept with the engine: a screen made again over a running engine is
+         * not listened to afresh, so it speaks through the sink the first one was given.
+         */
+        @Volatile private var sharedEvents: EventChannel.EventSink? = null
         private const val ROLE_REQUEST = 41
         private const val PERMS_REQUEST = 42
         private const val PICK_REQUEST = 43
@@ -45,7 +57,9 @@ class MainActivity : FlutterActivity() {
         override fun onChange(selfChange: Boolean) { if (::store.isInitialized) { store.contactsChanged(); Desk.contactsChanged(); Bus.changed(-1) } }
     }
     private val main = Handler(Looper.getMainLooper())
-    private var events: EventChannel.EventSink? = null
+    private var events: EventChannel.EventSink?
+        get() = sharedEvents
+        set(v) { sharedEvents = v }
     private var pendingOpen: Map<String, Any?>? = null
     private var updateListener: ((Updater.State) -> Unit)? = null
     private var roleResult: MethodChannel.Result? = null
@@ -55,11 +69,30 @@ class MainActivity : FlutterActivity() {
     private var micResult: MethodChannel.Result? = null
     private lateinit var store: Store
 
+    /**
+     * One engine for the app's life, not the screen's (Matt, 2026-11-16, on Signal and Telegram messages while Ghost is
+     * out of sight: "Yes, build them"): Dart, and with it Signal's helper and Telegram's TDLib, goes on when Android
+     * closes the screen (swiped away from Recents), for as long as NetworksService keeps the process. A screen opened
+     * again takes up the running app where it was.
+     */
+    override fun provideFlutterEngine(context: android.content.Context): FlutterEngine {
+        FlutterEngineCache.getInstance().get(ENGINE)?.let { return it }
+        return FlutterEngine(context.applicationContext).also {
+            it.dartExecutor.executeDartEntrypoint(DartExecutor.DartEntrypoint.createDefault())
+            FlutterEngineCache.getInstance().put(ENGINE, it)
+        }
+    }
+
+    override fun shouldDestroyEngineWithHost(): Boolean = false
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         store = Store(applicationContext)
         try { contentResolver.registerContentObserver(android.provider.ContactsContract.Contacts.CONTENT_URI, true, contactsWatcher) } catch (_: Exception) {}
-        pendingOpen = openRequest(intent)
+        // Over an engine already running (the screen closed and opened again, by a notification): Dart has asked for
+        // its first open request long ago, so what this screen was opened for is told as an event.
+        val asked = openRequest(intent)
+        if (sharedEvents != null && asked != null) main.post { sharedEvents?.success(mapOf("type" to "open") + asked) } else pendingOpen = asked
         // The computers this phone is paired with (Desk.kt): the service that keeps it reachable by them runs while
         // there is one, and is started here if Android stopped it since.
         DeskService.sync(applicationContext)
@@ -70,6 +103,7 @@ class MainActivity : FlutterActivity() {
                 events = sink
                 Bus.listener = { thread -> events?.success(mapOf("type" to "changed", "thread" to thread)) }
                 Bus.prefsListener = { events?.success(mapOf("type" to "prefs")) }
+                CallService.onLeave = { runOnUiThread { events?.success(mapOf("type" to "leaveCall")) } }
                 Desk.listener = { events?.success(mapOf("type" to "desk")) }
                 Voice.listener = { state -> main.post { events?.success(state) } }
                 // A data text for the app's routes (NetSms.kt): to Dart, which opens it.
@@ -79,6 +113,9 @@ class MainActivity : FlutterActivity() {
             }
             override fun onCancel(arguments: Any?) { events = null; Bus.listener = null; Bus.prefsListener = null; Desk.listener = null; Voice.listener = null; NetSms.listener = null; updateListener?.let { Updater.removeListener(it) }; updateListener = null }
         })
+
+        // The on-phone Google Messages connection, where one was paired (GmWeb.kt).
+        if (GmWeb.hasSession(applicationContext)) GmWeb.start(applicationContext)
 
         // The microphone's processing in calls (VoiceFx.kt).
         VoiceFx.register(messenger)
@@ -108,6 +145,19 @@ class MainActivity : FlutterActivity() {
                 "requestDefault" -> requestDefault(result)
                 // Beside Google Messages (GmBridge): Android's page for notification access, and the SMS permissions.
                 "bridgeAccess" -> { startActivity(GmBridge.accessIntent(this)); result.success(true) }
+                "openGm" -> result.success(GmBridge.open(this))
+                "openGmNotifications" -> result.success(GmBridge.openNotificationSettings(this))
+                "gmChannels" -> result.success(GmBridge.channelList(this))
+                // The on-phone Google Messages connection (GmWeb.kt): how it stands, pairing, unpairing.
+                "gmWebState" -> { if (GmWeb.available(this)) GmWeb.start(applicationContext); result.success(GmWeb.state(this)) }
+                "gmWebPair" -> bg { GmWeb.start(applicationContext); GmWeb.pair(); GmWeb.state(applicationContext) }
+                "gmWebUnpair" -> bg { GmWeb.unpair(); GmWeb.state(applicationContext) }
+                "gmWebPairGoogle" -> bg {
+                    GmWeb.start(applicationContext)
+                    val why = GmWeb.pairGoogle(call.argument<Map<String, String>>("cookies") ?: emptyMap())
+                    GmWeb.state(applicationContext) + mapOf("error" to why)
+                }
+                "openGmChannel" -> result.success(GmBridge.openChannel(this, call.argument<String>("id")!!, call.argument<String>("conversation")))
                 "requestSms" -> requestSms(result)
                 "requestPermissions" -> requestPermissions(result)
                 "openRequest" -> { result.success(pendingOpen); pendingOpen = null }
@@ -166,12 +216,20 @@ class MainActivity : FlutterActivity() {
                 "voiceLength" -> on(pictures) { Voice.length(applicationContext, call.argument<Number>("part")!!.toLong()) }
                 // A video in a message (Video.kt): a picture of where it starts and how long it runs, and playing it.
                 "videoPreview" -> on(pictures) { Video.preview(applicationContext, call.argument<Number>("part")!!.toLong()) }
+                "videoFile" -> on(pictures) { videoFile(applicationContext, call.argument<Number>("part")!!.toLong(), call.argument<String>("ending")) }
                 "videoPlay" -> {
                     startActivity(Intent(this, VideoActivity::class.java).putExtra(VideoActivity.PART, call.argument<Number>("part")!!.toLong()))
                     result.success(null)
                 }
                 // Try again, on a picture message that could not be brought down (Store.insertMmsNotice).
                 "retryDownload" -> bg { MmsPushReceiver.retry(applicationContext, call.argument<Number>("id")!!.toLong()); null }
+                // A friend by username wrote (lib/standalone/overlay.dart keeps their words in Dart): said as a
+                // text from a contact would be, unless that conversation is on the screen.
+                "notifyChat" -> bg {
+                    Notifier.chat(applicationContext, call.argument<Number>("thread")!!.toLong(), call.argument<String>("who") ?: "", call.argument<String>("body") ?: "")
+                    null
+                }
+                "cancelChat" -> bg { Notifier.cancel(applicationContext, call.argument<Number>("thread")!!.toLong()); null }
                 "markRead" -> bg {
                     val t = call.argument<Number>("thread")!!.toLong()
                     store.markRead(t); Notifier.cancel(applicationContext, t); null
@@ -275,9 +333,46 @@ class MainActivity : FlutterActivity() {
                 "photo" -> on(pictures) { store.photo(call.argument<String>("uri")!!) }
                 "part" -> on(pictures) { store.readPart(call.argument<Number>("id")!!.toLong()) }
                 "pickImages" -> pickImages(result)
+                // Telegram's attachments (lib/inbox/telegram.dart): any file, pictures and videos among them; a picked
+                // one copied to a file of this app's own, which TDLib sends from; a recording ended as a file; and a
+                // file that came opened in whichever app reads it.
+                "pickFiles" -> pickImages(result, any = true)
+                // A helper of the app's, by its name, in the native libraries Android unpacks (the Signal helper,
+                // libsignalsidecar.so): its path where it is there.
+                "helperPath" -> result.success(java.io.File(applicationInfo.nativeLibraryDir, "lib${call.argument<String>("name")}.so").takeIf { it.exists() }?.path)
+                // A call in a space (CallService.kt): going on with the phone locked, until it ends.
+                "callStarted" -> { CallService.start(this, call.argument<String>("name") ?: "", call.argument<Boolean>("video") ?: false); result.success(null) }
+                "callEnded" -> { CallService.stop(this); result.success(null) }
+                // Signal and Telegram (lib/inbox/alerts.dart): a new message's notification, taken away once read, and
+                // the service that keeps them connected while there are any signed in.
+                "notifyInbox" -> bg {
+                    Notifier.inbox(applicationContext, call.argument<String>("key")!!, call.argument<String>("network") ?: "", call.argument<String>("title") ?: "",
+                        call.argument<String>("body") ?: "", call.argument<Boolean>("group") ?: false)
+                    null
+                }
+                "cancelInbox" -> bg { Notifier.cancelInbox(applicationContext, call.argument<String>("key")!!); null }
+                "keepNetworks" -> { NetworksService.keep(applicationContext, call.argument<List<String>>("names").orEmpty()); result.success(null) }
+                // Ghost's own lists of what was deleted beside Google Messages, kept on the account too (lib/kept_lists.dart).
+                "hiddenLists" -> bg { mapOf("threads" to store.hiddenThreads().mapKeys { it.key.toString() }, "msgs" to store.hiddenMessages().toList()) }
+                "addHiddenLists" -> bg {
+                    val threads = (call.argument<Map<String, Number>>("threads") ?: emptyMap()).mapNotNull { (k, v) -> k.toLongOrNull()?.let { it to v.toLong() } }.toMap()
+                    val added = store.addHidden(threads, call.argument<List<String>>("msgs") ?: emptyList())
+                    if (added) Bus.changed(-1)
+                    added
+                }
+                "cacheCopy" -> bg { cacheCopy(Uri.parse(call.argument<String>("uri")!!)) }
+                "voiceFinish" -> bg {
+                    val recorded = Voice.stop() ?: throw IllegalStateException("That was too short to send")
+                    val out = File(File(cacheDir, "outgoing").apply { mkdirs() }, recorded.first.name)
+                    recorded.first.copyTo(out, overwrite = true); recorded.first.delete()
+                    mapOf("path" to out.path, "millis" to recorded.second)
+                }
+                "openFile" -> bg { openFile(File(call.argument<String>("path")!!), call.argument<String>("name")); null }
                 "setOpenThread" -> {
                     openThread = call.argument<Number>("thread")?.toLong() ?: -1
                     if (openThread >= 0) Notifier.cancel(applicationContext, openThread)
+                    // Ghost Keyboard wears the open conversation's colour (AccentSync.now).
+                    AccentSync.nowChanged(this)
                     result.success(null)
                 }
                 "dial" -> {
@@ -358,6 +453,9 @@ class MainActivity : FlutterActivity() {
                 "prefs" ->result.success(getSharedPreferences("ui", MODE_PRIVATE).all.mapValues { it.value.toString() })
                 "setPref" -> {
                     getSharedPreferences("ui", MODE_PRIVATE).edit().putString(call.argument<String>("key")!!, call.argument<String>("value")).apply()
+                    // Your bubbles' colour: stamped, and Ghost Keyboard told, to keep the two in step (AccentSync.kt).
+                    if (call.argument<String>("key") == "bubble") AccentSync.chosen(this)
+                    else if (call.argument<String>("key")?.startsWith("bubble_") == true) AccentSync.nowChanged(this)
                     result.success(null)
                 }
                 // Paired computers (Desk.kt, docs/desktop.md): the list, a pairing being made, and how each connects.
@@ -404,6 +502,9 @@ class MainActivity : FlutterActivity() {
     override fun onResume() {
         super.onResume()
         inFront = true
+        // Ghost Keyboard's colour, if chosen there since, and watched while in front (AccentSync.kt).
+        io.execute { AccentSync.pull(this) }
+        accentWatch = AccentSync.watch(this)
         main.removeCallbacks(focusChecks)
         focusChecks.run()
         // Picture messages announced and never fetched are asked for again as the app comes forward.
@@ -419,13 +520,17 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
-        DartAsk.channel = null
+        // The engine goes on without the screen (provideFlutterEngine): what a computer asks of Dart still reaches it.
         try { contentResolver.unregisterContentObserver(contactsWatcher) } catch (_: Exception) {}
         super.onDestroy()
     }
+    private var accentWatch: android.database.ContentObserver? = null
+
     override fun onPause() {
         super.onPause()
         inFront = false
+        AccentSync.unwatch(this, accentWatch)
+        accentWatch = null
         main.removeCallbacks(focusChecks)
         // The microphone is open only while the person is recording with the app in front: leaving throws the
         // recording away, and the screen is told so.
@@ -453,6 +558,8 @@ class MainActivity : FlutterActivity() {
         intent ?: return null
         val thread = intent.getLongExtra(Notifier.EXTRA_THREAD, -1)
         if (thread >= 0) return mapOf("thread" to thread)
+        // A Signal or Telegram message's notification (Notifier.inbox): its chat.
+        intent.getStringExtra(Notifier.EXTRA_INBOX)?.let { return mapOf("inbox" to it) }
         // The "Paired with …" notification: Settings › Computers.
         if (intent.getBooleanExtra("desk", false)) return mapOf("desk" to true)
         // A computer's pairing link, opened by the phone's camera or anything else: the pairing page, which asks
@@ -551,6 +658,7 @@ class MainActivity : FlutterActivity() {
             // whether the SMS database may be read and texts sent (granted by asking, when Ghost is not the default).
             "gmInstalled" to GmBridge.isInstalled(this),
             "bridge" to GmBridge.hasAccess(this),
+            "gmDefault" to GmBridge.isGmDefault(this),
             "sms" to (granted(Manifest.permission.READ_SMS) && granted(Manifest.permission.SEND_SMS)),
         )
     }
@@ -580,10 +688,31 @@ class MainActivity : FlutterActivity() {
         requestPermissions(missing.toTypedArray(), PERMS_REQUEST)
     }
 
-    private fun pickImages(result: MethodChannel.Result) {
+    /** A picked file, by its content address, copied into this app's cache under its own name: its path. */
+    private fun cacheCopy(uri: Uri): String {
+        val name = contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        }?.replace('/', '_') ?: "file-${System.currentTimeMillis()}"
+        val out = File(File(cacheDir, "outgoing").apply { mkdirs() }, name)
+        contentResolver.openInputStream(uri)!!.use { input -> out.outputStream().use { input.copyTo(it) } }
+        return out.path
+    }
+
+    /** Opens [file] in the app that reads its kind, through the provider MMS files go by. */
+    private fun openFile(file: File, name: String?) {
+        val shown = File(MmsFileProvider.dir(this), (name ?: file.name).replace('/', '_'))
+        if (shown.path != file.path) file.copyTo(shown, overwrite = true)
+        val ext = shown.extension.lowercase()
+        val type = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
+        val i = Intent(Intent.ACTION_VIEW).setDataAndType(MmsFileProvider.uriFor(this, shown), type)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        runOnUiThread { try { startActivity(Intent.createChooser(i, "Open with").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e: Exception) { DevLog.add(this, "files", "open: ${e.message}") } }
+    }
+
+    private fun pickImages(result: MethodChannel.Result, any: Boolean = false) {
         pickResult = result
         val i = Intent(Intent.ACTION_GET_CONTENT).apply {
-            type = "image/*"
+            type = if (any) "*/*" else "image/*"
             addCategory(Intent.CATEGORY_OPENABLE)
             putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
         }

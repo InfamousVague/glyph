@@ -414,7 +414,8 @@ class LinkCalls implements SmsCalls, CapableCalls {
   /// into the list, and what is asked of one of them is answered by it, not the phone.
   Future<dynamic> _call(String method, Map<String, dynamic> a) async {
     final gm = GmWeb.instance;
-    if (!gm.paired) return _phoneCall(method, a);
+    // Not paired, or another session (the phone's) has Google Messages for now: the phone's list has it all.
+    if (!gm.paired || gm.inactive) return _phoneCall(method, a);
     final thread = (a['thread'] as num?)?.toInt();
     final ours = thread != null && gm.owns(thread);
     switch (method) {
@@ -556,6 +557,14 @@ class LinkCalls implements SmsCalls, CapableCalls {
       // handed over in pieces first ([_handOver]).
       case 'pickImages':
         return MacPlatform.pickPictures();
+      // A Telegram chat's + and a file it was sent (lib/ui/inbox_ui.dart): chosen and opened on the computer itself,
+      // which runs its own Telegram.
+      case 'pickFiles':
+        return MacPlatform.pickPictures(most: 10);
+      case 'openFile':
+        final path = '${a['path']}';
+        await Process.run(Platform.isWindows ? 'explorer' : 'open', [path]);
+        return null;
       case 'emoji':
         await MacPlatform.emoji();
         return null;
@@ -772,9 +781,13 @@ class LinkCalls implements SmsCalls, CapableCalls {
         } on LinkDown {
           return null;
         }
+      case 'telegram':
+        // The phone's Telegram approves this computer's sign-in (lib/inbox/telegram.dart answerComputer).
+        if (!_caps.contains('telegram')) throw const PhoneError('Update Ghost Messaging on your phone to sign in to Telegram through it.');
+        return link.request('telegram', a, const Duration(seconds: 40));
       case 'voice':
         // The phone's voice channels, kept in step with this computer's (lib/voice/channels.dart).
-        if (!_caps.contains('voice')) throw const PhoneError('Update Ghost Messaging on your phone to see its voice channels here.');
+        if (!_caps.contains('voice')) throw const PhoneError('Update Ghost Messaging on your phone to see its spaces here.');
         return link.request('voice', a, const Duration(seconds: 15));
       case 'me':
         // Settings › Me's number, verified through the phone (Me.followPhone); a code takes the phone a while.

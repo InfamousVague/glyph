@@ -152,7 +152,7 @@ try {
   const c = await ctxA.newPage();
   await c.goto(url.split('#')[0] + '#nope');
   await c.waitForSelector('#bad:not([hidden])');
-  console.log('ok a broken link says it isn\'t a hangout');
+  console.log('ok a broken link says it isn\'t a space');
 } catch (e) {
   failed = true;
   console.log('x', e.message);

@@ -4,7 +4,9 @@ import 'package:glacier/glacier.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
+import '../app_state.dart';
 import '../sms.dart';
+import 'rcs_setup.dart';
 
 /// The walkthrough's "your texts" step (lib/onboarding/onboarding.dart): Android lets only the default SMS app send
 /// and keep texts, so the one thing to do is choose Ghost, or use it beside Google Messages.
@@ -108,6 +110,15 @@ class _TextsStepState extends State<TextsStep> with WidgetsBindingObserver {
         AppIcon(Lucide.circleCheck, size: 20, color: widget.hue),
         SizedBox(width: t.space(2)),
         Expanded(child: Text(s.isDefault ? 'Ghost is your texting app.' : 'Ghost is working beside Google Messages.', style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('app-ink')))),
+      ]);
+    }
+    // Setting up RCS from Settings, Google Messages made the default on the way: the same steps carried on here
+    // (lib/ui/rcs_setup.dart), and this step is done once Ghost is beside it.
+    if (AppState.of(context).flag('rcs_setup', fallback: false)) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+        Text('Finish setting up RCS', style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
+        SizedBox(height: t.space(3)),
+        RcsSteps(onDone: widget.onDone),
       ]);
     }
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [

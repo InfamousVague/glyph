@@ -33,7 +33,7 @@ async function open(key, sealed) {
 export function readLink(fragment) {
   const m = /^#?([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?$/.exec(fragment ?? '');
   if (!m) return null;
-  let name = 'Hangout';
+  let name = 'Space';
   try { if (m[2]) name = dec.decode(Uint8Array.from(atob(m[2].replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0))) || name; } catch (_) {}
   return { seed: m[1], name, owner: m[3] ?? '' };
 }
@@ -454,7 +454,7 @@ export class Chat {
     this.name = name;
     this.guest = guest;
     this.username = username;
-    if (this.roster.banned(this.me)) this.putOut = 'You were banned from this hangout.';
+    if (this.roster.banned(this.me)) this.putOut = 'You were banned from this space.';
     this.hub.say({ join: this.room, token: this.token });
   }
 
@@ -536,12 +536,12 @@ export class Chat {
       const next = new Roster(m.r, this.owner, this.ownerId);
       if ((m.r?.v ?? 0) > r.version && (await next.trusted())) {
         this.roster = next;
-        if (next.banned(this.me)) this.putOut = 'You were banned from this hangout.';
+        if (next.banned(this.me)) this.putOut = 'You were banned from this space.';
         this.keep();
         this.change();
       }
     }
     else if (m.t === 'mute') { if (r.can(from, 'muteOthers') && r.outranks(from, m.who)) { m.on ? this.heldMutes.add(m.who) : this.heldMutes.delete(m.who); this.change(); } }
-    else if (m.t === 'kick') { if (r.can(from, 'removeMembers') && r.outranks(from, this.me)) { this.putOut = r.banned(this.me) ? 'You were banned from this hangout.' : 'You were removed from this hangout.'; this.change(); } }
+    else if (m.t === 'kick') { if (r.can(from, 'removeMembers') && r.outranks(from, this.me)) { this.putOut = r.banned(this.me) ? 'You were banned from this space.' : 'You were removed from this space.'; this.change(); } }
   }
 }

@@ -12,7 +12,7 @@ const Map<String, String> narration = {
   'welcome': 'Hi, I\'m Ghost. Your texts, your friends, your groups and your calls, all in one quiet app. No more juggling five messengers to reach the people you care about.',
   'texts': 'Ghost starts with every text you already have. Make it your texting app, or keep Google Messages and Ghost works right beside it. Nothing is lost either way.',
   'together': 'Friends who have Ghost get more: chats over the internet, locked so only your phones can read them, with reactions, stickers and groups. Everyone else still gets a text, in the same conversation.',
-  'calls': 'Every group has a voice channel that\'s always open. Drop in when you\'re free, slip out when you\'re not. Share a link, and anyone can join from a browser.',
+  'calls': 'Every group has a space that\'s always open. Drop in when you\'re free, slip out when you\'re not. Share a link, and anyone can join from a browser.',
   'everywhere': 'Ghost is on your Mac and your Windows computer, too. Scan a code once, and your conversations follow you, sent from your own number.',
   'start': 'That\'s Ghost. Pick a look, then go say hi to someone.',
 };

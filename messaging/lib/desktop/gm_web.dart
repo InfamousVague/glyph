@@ -35,11 +35,18 @@ class GmWeb extends ChangeNotifier {
   bool paired = false;
   bool connected = false;
 
+  /// Another web session has Google Messages for now (the phone's own connection, android GmWeb.kt, which takes it
+  /// back whenever it is taken): this computer then shows what the phone has, through the phone.
+  bool inactive = false;
+
   /// The phone's number as Google Messages says it, once connected.
   String phone = '';
 
   /// While pairing: the QR code to show, a fresh one every half minute; null otherwise.
   String? qr;
+
+  /// While pairing by Google account: the emoji to tap in Google Messages on the phone.
+  String? emoji;
 
   /// Why pairing or the session ended, where it did.
   String? problem;
@@ -182,13 +189,26 @@ class GmWeb extends ChangeNotifier {
       case 'qr':
         qr = '${said['url']}';
         notifyListeners();
+      case 'emoji':
+        emoji = '${said['emoji']}';
+        notifyListeners();
       case 'paired':
         qr = null;
+        emoji = null;
         paired = true;
         problem = null;
         notifyListeners();
+        // How it stands at once, and again until it says connected (libgm sends no ready signal of its own now).
+        unawaited(refresh());
+        unawaited(() async {
+          for (var i = 0; i < 8 && paired && !connected; i++) {
+            await Future<void>.delayed(const Duration(seconds: 15));
+            await refresh();
+          }
+        }());
       case 'pair_failed':
         qr = null;
+        emoji = null;
         problem = '${said['why']}';
         notifyListeners();
       case 'unpaired':
@@ -198,6 +218,14 @@ class GmWeb extends ChangeNotifier {
         problem = '${said['why']}';
         notifyListeners();
         changed.add(-1);
+      case 'inactive':
+        inactive = true;
+        notifyListeners();
+        changed.add(-1);
+      case 'active':
+        inactive = false;
+        notifyListeners();
+        unawaited(refresh());
       case 'phone':
         problem = said['responding'] == true ? null : 'Your phone isn\'t answering Google Messages';
         notifyListeners();
@@ -237,6 +265,20 @@ class GmWeb extends ChangeNotifier {
     await ask('pair');
   }
 
+  /// Pairs by Google account, from a signed-in browser's cookies (lib/gm/google_signin.dart): an "emoji" to tap on
+  /// the phone follows, then "paired". The words of why not, or null once asked.
+  Future<String?> pairGoogle(Map<String, String> cookies) async {
+    problem = null;
+    emoji = null;
+    notifyListeners();
+    try {
+      await ask('pair_google', {'cookies': cookies});
+      return null;
+    } catch (e) {
+      return '$e';
+    }
+  }
+
   Future<void> unpair() async {
     await ask('unpair');
     paired = false;
@@ -274,10 +316,16 @@ class GmWeb extends ChangeNotifier {
   /// Who a conversation is with, not counting the person: the key a phone's conversation is matched to it by.
   static String peopleKey(Iterable<String> addresses) => (addresses.map(_digits).toSet().toList()..sort()).join(',');
 
-  List<Map<String, dynamic>> _others(Map<String, dynamic> c) => [
-        for (final p in (c['people'] as List? ?? const []))
-          if ((p as Map)['me'] != true) p.cast<String, dynamic>(),
-      ];
+  /// Who a conversation is with, not counting you: you are not always marked as you, so also the one the conversation
+  /// sends from (Matt, 2026-11-15: a person's chat shown twice, once as a group of them and him).
+  List<Map<String, dynamic>> _others(Map<String, dynamic> c) {
+    final outgoing = '${c['outgoing'] ?? ''}';
+    final seen = <String>{};
+    return [
+      for (final p in (c['people'] as List? ?? const []))
+        if ((p as Map)['me'] != true && (outgoing.isEmpty || '${p['id']}' != outgoing) && seen.add(_digits('${p['number'] ?? ''}'))) p.cast<String, dynamic>(),
+    ];
+  }
 
   String keyOf(Map<String, dynamic> c) => peopleKey(_others(c).map((p) => '${p['number'] ?? ''}'));
 

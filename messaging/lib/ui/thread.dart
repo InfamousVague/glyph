@@ -25,6 +25,8 @@ import '../sms.dart';
 import '../stickers.dart';
 import 'chat_settings.dart';
 import 'common.dart';
+import 'composer_box.dart';
+import 'poof.dart';
 import 'shell.dart';
 import 'voice_screen.dart';
 import '../voice/voice.dart';
@@ -80,6 +82,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
 
   /// What [_messages] draws as: reaction texts folded onto their messages, your corrections onto your edits.
   Folded _folded = const Folded(messages: [], reactions: {});
+
+  /// Messages sent from here and not yet back from the phone, drawn at once as sending (Matt, 2026-11-15:
+  /// "optimistically render a sent message bubble so it appears instantly"); each goes once the phone's own copy is
+  /// read ([_settlePending]), or once it fails, or after two minutes.
+  final List<Message> _pending = [];
   Set<String> _corrected = const {};
 
   /// The message being edited in the composer, and what the composer held before.
@@ -116,6 +123,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   Group? get _ghost => Groups.instance.ofThread(widget.thread);
   String? _groupId;
   bool get _isGhost => _ghost != null || _groupId != null;
+
+  /// Written to by username (`@name`, lib/standalone): words alone go that way, no pictures, stickers or voice yet.
+  bool get _byName => _people.isNotEmpty && _people.every((p) => p.address.startsWith('@'));
 
   /// Why nothing can be written here, where nothing can: a group this phone has left, or one seen from a computer.
   String? get _closed {
@@ -354,16 +364,18 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final list = await Sms.instance.messages(widget.thread, limit: asked);
     if (!mounted) return;
     final edits = foldCorrections(list);
+    final folded = _foldOn ? foldReactions(edits.messages) : Folded(messages: edits.messages, reactions: const {});
     setState(() {
       _messages = list;
       // As many as were asked for: there may be more behind them.
       _older = list.length >= asked;
-      _folded = _foldOn ? foldReactions(edits.messages) : Folded(messages: edits.messages, reactions: const {});
+      _settlePending(list);
+      _folded = _pending.isEmpty ? folded : Folded(messages: [..._pending, ...folded.messages], reactions: folded.reactions);
       _corrected = edits.corrected;
     });
     _playReactions();
     // A message that came or went while the conversation is open sets off its effect, once.
-    final newest = _folded.messages.isEmpty ? null : _folded.messages.first;
+    final newest = folded.messages.isEmpty ? null : folded.messages.first;
     if (newest != null && _newestKey != null && newest.key != _newestKey && newest.state != 'failed') _playFor(newest);
     _newestKey = newest?.key ?? '';
     if (markRead && list.any((m) => !m.outgoing)) Sms.instance.markRead(widget.thread);
@@ -384,14 +396,53 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     return d(a).isNotEmpty ? d(a) == d(b) : a == b;
   }
 
+  /// Drops from [_pending] each message the phone's [list] now has (your own, the same words, from a minute before it
+  /// on), and any two minutes old.
+  void _settlePending(List<Message> list) {
+    final now = DateTime.now();
+    _pending.removeWhere((p) =>
+        // A picture message takes longer than words to reach the phone's list.
+        now.difference(p.date) > Duration(minutes: p.attachments.isEmpty ? 2 : 5) ||
+        list.any((m) =>
+            m.outgoing &&
+            m.body.trim() == p.body &&
+            (p.attachments.isEmpty || m.attachments.isNotEmpty) &&
+            !m.date.isBefore(p.date.subtract(const Duration(minutes: 1)))));
+  }
+
+  /// [body], and the pictures [files], drawn at once as your newest message, sending (Matt, 2026-11-16, of a picture
+  /// sent: it "takes a long time to even appear in chat in the first place").
+  Message _showPending(String body, {List<String> files = const []}) {
+    final now = DateTime.now();
+    final held = <Attachment>[];
+    // The pictures as the composer showed them (Sms.photo of each one picked), held under numbers of their own.
+    for (final (i, uri) in files.indexed) {
+      final id = -(now.microsecondsSinceEpoch % 1000000000) * 10 - i;
+      Sms.instance.holdPart(id, Sms.instance.photo(uri));
+      held.add(Attachment(id: id, type: 'image/jpeg', name: uri.split('/').last));
+    }
+    final m = Message(id: -now.microsecondsSinceEpoch, kind: 'pending', address: '', body: body, date: now, outgoing: true, state: 'sending', attachments: held);
+    setState(() {
+      _pending.insert(0, m);
+      _folded = Folded(messages: [m, ..._folded.messages], reactions: _folded.reactions);
+    });
+    return m;
+  }
+
+  void _dropPending(Message m) {
+    if (!_pending.remove(m)) return;
+    setState(() => _folded = Folded(messages: _folded.messages.where((x) => x.key != m.key).toList(), reactions: _folded.reactions));
+  }
+
   Future<void> _send() async {
     final body = _text.text.trim();
     if ((body.isEmpty && _attachments.isEmpty) || _sending) return;
     final to = _people.map((p) => p.address).toList();
     if (to.isEmpty) return;
+    final files = List<String>.of(_attachments);
+    final pending = body.isEmpty && files.isEmpty ? null : _showPending(body, files: files);
     setState(() => _sending = true);
     HapticFeedback.lightImpact();
-    final files = List<String>.of(_attachments);
     _text.clear();
     _attachments.clear();
     _draftSave?.cancel();
@@ -407,6 +458,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         if (!byRoute) await Sms.instance.send(to, body, attachments: files);
       }
     } catch (e) {
+      if (pending != null && mounted) _dropPending(pending);
       if (mounted) {
         // What was to be sent is put back, pictures too: nothing went.
         _text.text = body;
@@ -611,7 +663,31 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   /// A long press on a message. [at] is where its bubble is on the screen: the reactions, the screen effects and
   /// what else can be done come up beside it (lib/ui/message_popover.dart). A line that is no bubble (a key, a
   /// background) has the sheet from the foot of the screen.
+  /// Messages going in a puff, deleted once it has gone off ([_gone]).
+  final Set<String> _poofing = {};
+
+  /// A message's puff has gone off: gone from the screen, and deleted; put back, with why, if Android would not.
+  Future<void> _gone(Message m) async {
+    final before = _messages;
+    setState(() {
+      _poofing.remove(m.key);
+      _messages = _messages?.where((x) => x.key != m.key).toList();
+      _folded = Folded(messages: _folded.messages.where((x) => x.key != m.key).toList(), reactions: _folded.reactions);
+    });
+    try {
+      await Sms.instance.deleteMessage(m);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _messages = before);
+        toast(context, 'Couldn\'t delete: ${_said(e)}', tone: GlacierToastTone.danger);
+      }
+    }
+    _load();
+  }
+
   void _messageMenu(Message m, [Rect? at]) {
+    // One drawn before the phone has it (_pending) has nothing on the phone to act on yet.
+    if (m.kind == 'pending') return;
     final canReact = m.state != 'sending' && m.state != 'waiting' && m.state != 'failed' && m.state != 'pending_download' && m.state != 'downloading' && m.notice == null;
     final mine = {for (final r in _folded.reactions[m.key] ?? const <Reaction>[]) if (r.by.isEmpty) r.emoji};
     final choices = [
@@ -627,22 +703,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       // The plugins' own lines (remind me about this, and the like).
       if (m.notice == null) ..._plugins.message(context, m),
       if (Sms.can('deleteMessage'))
-        Choice('Delete message', Lucide.trash2, () async {
-          // Gone from the screen at once; put back, with why, if Android would not delete it.
-          final before = _messages;
-          setState(() {
-            _messages = _messages?.where((x) => x.key != m.key).toList();
-            _folded = Folded(messages: _folded.messages.where((x) => x.key != m.key).toList(), reactions: _folded.reactions);
-          });
-          try {
-            await Sms.instance.deleteMessage(m);
-          } catch (e) {
-            if (mounted) {
-              setState(() => _messages = before);
-              toast(context, 'Couldn\'t delete: ${_said(e)}', tone: GlacierToastTone.danger);
-            }
-          }
-          _load();
+        // At once, nothing asked (Matt, 2026-11-15: "Don't ask for confirmation when deleting a message and show a poof
+        // animation when one is deleted"): the bubble goes in a puff (Poof), then the message is deleted (_gone).
+        Choice('Delete message', Lucide.trash2, () {
+          HapticFeedback.lightImpact();
+          setState(() => _poofing.add(m.key));
         }, danger: true),
     ];
     if (at == null) {
@@ -716,7 +781,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final g = _ghost;
     if (g == null) return;
     final told = await Voice.instance.ring(g);
-    if (mounted) toast(context, told == 0 ? 'Nobody could be rung right now. You\'re in the channel for them.' : 'Calling ${g.name}');
+    if (mounted) toast(context, told == 0 ? 'Nobody could be rung right now. You\'re in the group\'s space for them.' : 'Calling ${g.name}');
     await _voice(VoiceChannel.ofGroup(g.id, g.name));
   }
 
@@ -765,7 +830,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       ),
       actions: [
         ..._plugins.header(context, newest: _messages?.firstOrNull),
-        if (!remote && !_group && _people.isNotEmpty)
+        // A phone call needs a number: a friend by username (`@name`, lib/standalone) has none.
+        if (!remote && !_group && _people.isNotEmpty && !_people.first.address.startsWith('@'))
           IconTap(icon: Lucide.phone, label: 'Call', onPressed: () => const MethodChannel('ghost_messaging/sms').invokeMethod('dial', {'address': _people.first.address})),
         // A group of friends' voice and video channel, open to hop in and out of, and calling the whole group into it
         // (Matt, 2026-11-14: "allow for group chat video and voice calls to hop in the voice and video channel at any
@@ -776,7 +842,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
             builder: (context, _) {
               final c = VoiceChannel.ofGroup(_ghost!.id, _ghost!.name);
               final n = Voice.instance.inChannel(c).length;
-              return IconTap(icon: LucideMore.headphones, label: n == 0 ? 'Voice channel' : 'Voice channel, $n in it', onPressed: () => _voice(c));
+              return IconTap(icon: LucideMore.headphones, label: n == 0 ? 'Group space' : 'Group space, $n in it', onPressed: () => _voice(c));
             },
           ),
           IconTap(icon: LucideMore.phoneCall, label: 'Call the group', onPressed: _callGroup),
@@ -863,7 +929,12 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           ),
         ));
       }
-      items.add(_Bubble(
+      items.add(Poof(
+        key: ValueKey('poof-${m.key}'),
+        gone: _poofing.contains(m.key),
+        side: m.outgoing ? AxisDirection.right : AxisDirection.left,
+        onDone: () => _gone(m),
+        child: _Bubble(
         message: m,
         sender: _group && !m.outgoing && firstOfRun ? (_senders[m.address]?.label ?? m.address) : null,
         senderPerson: _group && !m.outgoing ? _senders[m.address] : null,
@@ -896,7 +967,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         onBackground: !background.isNone,
         busy: busy,
         thread: widget.thread,
-      ));
+      )));
       if (older == null || !_sameDay(older.date, m.date)) items.add(_DayHeading(date: m.date, busy: busy));
     }
     if (msgs.isEmpty) {
@@ -962,7 +1033,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final canSend = editing ? _text.text.trim().isNotEmpty : (_text.text.trim().isNotEmpty || _attachments.isNotEmpty) && !_sending;
     final isMms = !_isGhost && (_group || _attachments.isNotEmpty);
     // Nothing written and nothing attached: the microphone stands where Send would, to record a voice message.
-    final voiceOffered = Sms.can('sendVoice') && !_isGhost && !editing && _people.isNotEmpty && _text.text.isEmpty && _attachments.isEmpty;
+    final voiceOffered = Sms.can('sendVoice') && !_isGhost && !_byName && !editing && _people.isNotEmpty && _text.text.isEmpty && _attachments.isEmpty;
     // A sealed text goes as `ghost:e1:` and base64 of its bytes with 28 more (E2eCrypto.seal): longer than what was
     // typed, and plain letters whatever was typed.
     final sealed = _e2e.on && !isMms;
@@ -1117,23 +1188,17 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               note: _e2e.on ? 'Voice messages aren\'t encrypted. This goes as an ordinary message.' : null,
             )
           else
-          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            if (Sms.can('sendPictures') && !_isGhost) IconTap(icon: Lucide.plus, label: 'Add an attachment', onPressed: editing || _attachments.length >= 5 ? null : _attach),
-            SizedBox(width: t.space(1)),
-            Expanded(
-              // The field with Send inside it, at its end: a smaller disc that keeps to the bottom as the text grows.
-              child: Container(
-                constraints: BoxConstraints(minHeight: t.lenOf('2.75rem')),
-                padding: EdgeInsets.only(left: t.space(4), right: t.lenOf('0.25rem'), top: t.lenOf('0.25rem'), bottom: t.lenOf('0.25rem')),
-                decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.lenOf('1.375rem'))),
-                child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Expanded(
-                    // One line of words sits on the middle of the button beside it: the row is as tall as the button
-                    // at least, and the words are centred in it, with a line box the same above and below the
-                    // letters (the face's own leaves more below, which is what sat the words low).
-                    // Any tap on the words' place asks for the keyboard: a Listener, so it hears the tap whatever
-                    // else takes it.
-                    child: Listener(
+          // The field, with everything in its box (Matt, 2026-11-15: "Put the plus symbol inside thr compose input and
+          // animate them below when typijg just like this screenshot"): empty, Add an attachment at its start and the
+          // stickers and microphone at its end; once there are words they have the whole width and the buttons slide
+          // into a row under them, Send at its end. The words' field keeps its place in the tree whichever way it is
+          // laid out, so the keyboard stays up as it changes.
+          Builder(builder: (context) {
+            final typing = _text.text.isNotEmpty || editing;
+            final plus = Sms.can('sendPictures') && !_isGhost && !_byName
+                ? IconTap(icon: Lucide.plus, label: 'Add an attachment', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: editing || _attachments.length >= 5 ? null : _attach)
+                : null;
+            final field = Listener(
                       behavior: HitTestBehavior.translucent,
                       onPointerDown: (e) => _fieldDown = e.position,
                       onPointerUp: (e) {
@@ -1175,11 +1240,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                       ]),
                     ),
                       ),
-                    )),
-                  ),
-                  // A computer's own emoji (Matt, 2026-11-14: "Add an emoji picker, file upload, voice memo and sticker
-                  // selector to the desktop app as well"): the Mac's "Emoji & Symbols", which types where the cursor
-                  // is, so the cursor is put in the field first. A phone's keyboard has its own.
+                    ));
+            List<Widget> ends() => [
                   if (Sms.remote)
                     IconTap(
                       icon: LucideMore.smile,
@@ -1194,7 +1256,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                       },
                     ),
                   // Stickers, while nothing is being written: once there are words the room is theirs.
-                  if (Sms.can('sendSticker') && !_isGhost && !editing && _text.text.isEmpty && _attachments.isEmpty)
+                  if (Sms.can('sendSticker') && !_isGhost && !_byName && !editing && _text.text.isEmpty && _attachments.isEmpty)
                     IconTap(icon: Lucide.sticker, label: 'Stickers', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _sending ? null : _sticker),
                   SizedBox(width: t.space(1)),
                   if (voiceOffered)
@@ -1202,12 +1264,22 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                   else
                   editing
                       ? IconTap(icon: Lucide.check, label: 'Save edit', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _saveEdit : null)
-                      : IconTap(icon: Lucide.send, label: 'Send', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _send : null),
-                ]),
-              ),
-            ),
-            SizedBox(width: t.space(1)),
-          ]),
+                      : IconTap(icon: Lucide.arrowUp, label: 'Send', filled: true, size: 19, box: t.lenOf('2.25rem'), onPressed: canSend ? _send : null),
+                ];
+            return ComposerBox(
+              field: field,
+              typing: typing,
+              plus: plus,
+              ends: ends(),
+              below: [
+                // The microphone beside Send while words are written (Matt, 2026-11-15: "Put the microphone for sending
+                // voice memos there too"): a voice message goes on its own, and the words stay in the field.
+                if (Sms.can('sendVoice') && !_isGhost && !_byName && !editing && _people.isNotEmpty)
+                  IconTap(icon: Lucide.mic, label: 'Record a voice message', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _sending ? null : _record),
+                ...ends(),
+              ],
+            );
+          }),
           if (!isMms && !editing && parts > 1)
             Padding(
               padding: EdgeInsets.only(top: t.space(1), right: t.space(3)),
@@ -1573,8 +1645,12 @@ class _Bubble extends StatelessWidget {
         children: [
           if (sender != null)
             Padding(
-              padding: EdgeInsets.only(left: (group ? faceSize + t.space(2) : 0) + t.space(3), bottom: 2),
-              child: OnBackground(busy: busy, child: Text(sender!, style: pageText(t, t.fontSize('xs'), weight: 'medium', color: t.color('app-ink-3')))),
+              // On the same left edge as the time under the bubble (Matt, 2026-11-16: "Make sure the username and the
+              // timestamp are aligned on the same left side of the bubble").
+              padding: EdgeInsets.only(left: (group ? faceSize + t.space(2) : 0) + t.space(2), bottom: 2),
+              // A sender's name over their bubble in the app's primary colour (Matt, 2026-11-16: "Make the names of people above
+              // chat bubbles the primary color"): the accent chosen in Settings, as the read ticks are.
+              child: OnBackground(busy: busy, child: Text(sender!, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent')))),
             ),
           Row(
             mainAxisAlignment: out ? MainAxisAlignment.end : MainAxisAlignment.start,
@@ -1620,7 +1696,9 @@ class _Bubble extends StatelessWidget {
                       size: 14,
                       strokeWidth: 2.4,
                       wash: false,
-                      color: m.state == 'read' ? t.colorOf('#4f5bd5') : t.color('app-ink-3'),
+                      // Read in the app's accent, the colour chosen for your bubbles (Matt, 2026-11-15: "The read
+                      // checkmarks should be the same color as the apps selected primary color").
+                      color: m.state == 'read' ? t.color('app-accent') : t.color('app-ink-3'),
                     ),
                   ),
                 ],

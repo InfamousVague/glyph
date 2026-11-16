@@ -8,6 +8,7 @@ import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
+import 'video_screen.dart';
 import 'voice.dart' show voiceClock, voiceProblem;
 
 /// A video in the conversation (Matt, 2026-11-14: "mp4 files are not loading it just shows up as a string of text
@@ -49,7 +50,25 @@ class _VideoBubbleState extends State<VideoBubble> {
     if (_starting) return;
     setState(() => _starting = true);
     try {
-      await Sms.instance.playVideo(widget.video);
+      if (Sms.remote) {
+        // A computer plays it in a window of its own (macos/Runner/DeskVideo.swift).
+        await Sms.instance.playVideo(widget.video);
+      } else {
+        // The phone: the app's own player (lib/ui/video_screen.dart), from a file of it.
+        final path = await Sms.instance.videoFile(widget.video);
+        if (!mounted) return;
+        if (path == null) {
+          toast(context, 'This video couldn\'t be opened.', tone: GlacierToastTone.danger);
+          return;
+        }
+        await Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(
+          opaque: true,
+          transitionDuration: const Duration(milliseconds: 200),
+          reverseTransitionDuration: const Duration(milliseconds: 160),
+          pageBuilder: (context, _, _) => VideoScreen(path: path),
+          transitionsBuilder: (context, a, _, child) => FadeTransition(opacity: a, child: child),
+        ));
+      }
     } catch (e) {
       if (mounted) toast(context, voiceProblem(e), tone: GlacierToastTone.danger);
     } finally {

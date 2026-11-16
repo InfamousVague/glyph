@@ -6,9 +6,9 @@ import 'package:flutter/foundation.dart';
 
 import '../desktop/platform.dart';
 import '../friends/buddies.dart';
-import '../friends/friends.dart';
 import '../net/crypto.dart';
 import '../sms.dart';
+import 'chats.dart';
 
 /// Ghost Messaging on an iPhone of its own (Matt, 2026-11-15: "investigate if we can within apples rules make a
 /// bridge for messaging through RCS like we're doing with mautrix on android and if not we'll want to roll a version
@@ -29,7 +29,9 @@ import '../sms.dart';
 /// - **The conversations** are kept in a file of this app's (`standalone.json`): what was written and what came, and
 ///   each conversation's read, archived, pinned and muted.
 class StandaloneCalls implements SmsCalls {
-  StandaloneCalls(this.dir, {this.keychain = true});
+  StandaloneCalls(this.dir, {this.keychain = true}) {
+    chats = UsernameChats(save: _save, buddies: () => _buddyList);
+  }
 
   final Directory dir;
 
@@ -41,17 +43,15 @@ class StandaloneCalls implements SmsCalls {
   NetKeys? _keys;
   Map<String, String> _prefs = {};
   String _buddies = '[]';
-  final Map<int, _Thread> _threads = {};
-  int _nextRow = 1;
 
-  /// The thread open on the screen: what comes into it is not unread.
-  int _open = -1;
+  /// The conversations: every one an iPhone has is with a friend by username.
+  late final UsernameChats chats;
 
   File get _file => File('${dir.path}/standalone.json');
   File get _keyFile => File('${dir.path}/identity.key');
 
   /// The address a friend by username is spoken of by: `@` and their username.
-  static String addressOf(String username) => '@$username';
+  static String addressOf(String username) => UsernameChats.addressOf(username);
 
   /// Where an iPhone keeps it: the app's Application Support folder, which iOS keeps and backs up. iOS gives a Flutter
   /// app no HOME, so the container is found from its tmp folder, which is in it.
@@ -79,11 +79,7 @@ class StandaloneCalls implements SmsCalls {
       final j = jsonDecode(await _file.readAsString()) as Map;
       _prefs = {for (final e in ((j['prefs'] as Map?) ?? const {}).entries) '${e.key}': '${e.value}'};
       _buddies = (j['buddies'] as String?) ?? '[]';
-      _nextRow = (j['next'] as num?)?.toInt() ?? 1;
-      for (final t in (j['threads'] as List?) ?? const []) {
-        final thread = _Thread.fromJson(t as Map);
-        _threads[thread.id] = thread;
-      }
+      chats.load(j);
     } catch (_) {}
     _keys = await _identity();
   }
@@ -106,12 +102,7 @@ class StandaloneCalls implements SmsCalls {
   Future<void> _last = Future.value();
 
   void _save() {
-    final text = jsonEncode({
-      'prefs': _prefs,
-      'buddies': _buddies,
-      'next': _nextRow,
-      'threads': [for (final t in _threads.values) t.toJson()],
-    });
+    final text = jsonEncode({'prefs': _prefs, 'buddies': _buddies, ...chats.toJson()});
     _last = _last.catchError((_) {}).then((_) async {
       final temp = File('${_file.path}.new');
       await temp.writeAsString(text, flush: true);
@@ -123,124 +114,12 @@ class StandaloneCalls implements SmsCalls {
   @visibleForTesting
   Future<void> flushed() => _last;
 
-  // --- friends by username ---------------------------------------------------------------------------------------
-
   List<Buddy> get _buddyList {
     try {
       return [for (final j in jsonDecode(_buddies) as List) ?Buddy.fromJson(j)];
     } catch (_) {
       return const [];
     }
-  }
-
-  Buddy? _buddyAt(String address) {
-    if (!address.startsWith('@')) return null;
-    final name = address.substring(1).toLowerCase();
-    for (final b in _buddyList) {
-      if (b.username.toLowerCase() == name) return b;
-    }
-    return null;
-  }
-
-  /// Those the routes reach, as android Buddies.peers has them: friends who said yes, and those asked or asking, so
-  /// a sealed yes can be opened.
-  List<Map<String, Object>> _peers() {
-    final keys = _keys;
-    if (keys == null) return const [];
-    final out = <Map<String, Object>>[];
-    for (final b in _buddyList) {
-      if (b.state != 'yes' && b.state != 'asked' && b.state != 'invited') continue;
-      final pub = _decode(b.key);
-      if (pub == null || pub.length != 33 || NetCrypto.idOf(pub) != b.id) continue;
-      final pair = NetCrypto.conversationKey(keys, pub);
-      if (pair == null) continue;
-      out.add({'id': b.id, 'address': b.state == 'yes' ? addressOf(b.username) : '', 'key': NetCrypto.netKey(pair)});
-    }
-    return out;
-  }
-
-  static Uint8List? _decode(String b64) {
-    try {
-      return base64Decode(b64);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  /// Where things stand with each friend, as the phone's encryption record has it: on, and friends.
-  List<Map<String, Object?>> _states() => [
-        for (final b in _buddyList)
-          if (b.state == 'yes')
-            {'address': addressOf(b.username), 'state': 'on', 'friend': 'yes', 'hasGhost': true, 'person': _person(addressOf(b.username))},
-      ];
-
-  Map<String, Object?> _person(String address) {
-    final b = _buddyAt(address);
-    return {'address': address, 'name': b == null ? null : (b.name.isEmpty ? '@${b.username}' : b.name)};
-  }
-
-  // --- the conversations -----------------------------------------------------------------------------------------
-
-  /// The thread with [address], made where there is none.
-  _Thread _threadWith(String address) {
-    for (final t in _threads.values) {
-      if (t.address.toLowerCase() == address.toLowerCase()) return t;
-    }
-    var id = (address.toLowerCase().hashCode & 0x3fffffff) | 1;
-    while (_threads.containsKey(id)) {
-      id = (id + 2) & 0x3fffffff;
-    }
-    final made = _Thread(id: id, address: address);
-    _threads[id] = made;
-    return made;
-  }
-
-  _Row? _row(int id) {
-    for (final t in _threads.values) {
-      for (final r in t.rows) {
-        if (r.id == id) return r;
-      }
-    }
-    return null;
-  }
-
-  _Thread? _threadOfRow(int id) {
-    for (final t in _threads.values) {
-      if (t.rows.any((r) => r.id == id)) return t;
-    }
-    return null;
-  }
-
-  void _changed(int thread) {
-    _save();
-    Sms.instance.changes.add(thread);
-  }
-
-  Map<String, Object?> _conversation(_Thread t) {
-    final last = t.rows.isEmpty ? null : t.rows.last;
-    return {
-      'id': t.id,
-      'date': (last?.at ?? t.made),
-      'people': [_person(t.address)],
-      'snippet': last == null ? '' : (last.out ? 'You: ${last.body}' : last.body),
-      'unread': t.unread,
-      'error': last?.state == 'failed',
-      'archived': t.archived,
-      'pinned': t.pinned,
-      'muted': t.muted,
-      'blocked': false,
-      'draft': t.draft,
-      'encrypted': true,
-    };
-  }
-
-  List<_Thread> _sorted({bool archived = false}) {
-    final list = [
-      for (final t in _threads.values)
-        if (t.archived == archived && (t.rows.isNotEmpty || t.draft != null)) t,
-    ];
-    list.sort((a, b) => (b.rows.isEmpty ? b.made : b.rows.last.at).compareTo(a.rows.isEmpty ? a.made : a.rows.last.at));
-    return list;
   }
 
   // --- the calls ---------------------------------------------------------------------------------------------------
@@ -252,6 +131,7 @@ class StandaloneCalls implements SmsCalls {
   }
 
   Future<Object?> _answer(String method, Map a) async {
+    int thread() => (a['thread'] as num).toInt();
     switch (method) {
       // Who this iPhone is, and who it reaches.
       case 'netIdentity':
@@ -260,7 +140,7 @@ class StandaloneCalls implements SmsCalls {
       case 'netSign':
         return NetCrypto.sign(_keys!, (a['message'] as List).cast<int>());
       case 'netPeers':
-        return _peers();
+        return UsernameChats.peersOf(_buddyList, _keys!);
       case 'buddiesKeep':
         _buddies = (a['json'] as String?) ?? '[]';
         _save();
@@ -269,157 +149,88 @@ class StandaloneCalls implements SmsCalls {
       case 'buddiesKept':
         return _buddies;
       case 'e2eList':
-        return _states();
+        return chats.states();
       case 'e2e':
         final address = '${a['address']}';
-        return _states().firstWhere((s) => s['address'] == address, orElse: () => {'address': address, 'state': 'none'});
+        return chats.states().firstWhere((s) => s['address'] == address, orElse: () => {'address': address, 'state': 'none'});
       case 'friendSet':
         return null;
 
       // What friends write, kept here ([Friends] by the routes).
       case 'netTextOut':
-        final t = _threadWith('${a['address']}');
-        final row = _Row(id: _nextRow++, body: '${a['body']}', at: DateTime.now().millisecondsSinceEpoch, out: true, state: 'sending');
-        t.rows.add(row);
-        t.draft = null;
-        _changed(t.id);
-        return row.id;
+        return chats.textOut('${a['address']}', '${a['body']}');
       case 'netTextState':
-        final row = _row((a['id'] as num).toInt());
-        if (row != null) {
-          row.state = '${a['state']}';
-          _changed(_threadOfRow(row.id)!.id);
-        }
+        chats.textState((a['id'] as num).toInt(), '${a['state']}');
         return null;
       case 'netTextDrop':
-        final id = (a['id'] as num).toInt();
-        final t = _threadOfRow(id);
-        if (t != null) {
-          t.rows.removeWhere((r) => r.id == id);
-          _changed(t.id);
-        }
+        chats.dropRow((a['id'] as num).toInt());
         return null;
       case 'netTextIn':
-        final t = _threadWith('${a['address']}');
-        t.rows.add(_Row(id: _nextRow++, body: '${a['body']}', at: (a['at'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch, out: false, state: 'received'));
-        if (t.id != _open) t.unread = true;
-        _changed(t.id);
+        chats.textIn('${a['address']}', '${a['body']}', (a['at'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch);
         return null;
 
       // The list and a conversation.
       case 'conversations':
-        return [for (final t in _sorted()) _conversation(t)];
+        return [for (final t in chats.sorted()) chats.conversation(t)];
       case 'conversationsPage':
         // `pinned` asks for the pinned ones as well as the newest, as Android's does (pinnedToo): they head the list
         // however old they are.
-        final all = _sorted(archived: a['archived'] == true);
+        final all = chats.sorted(archived: a['archived'] == true);
         final offset = (a['offset'] as num?)?.toInt() ?? 0, limit = (a['limit'] as num?)?.toInt() ?? 0;
         final page = limit <= 0 ? all.skip(offset).toList() : all.skip(offset).take(limit).toList();
         if (a['pinned'] == true && offset == 0) page.addAll(all.where((t) => t.pinned && !page.contains(t)));
         final next = limit > 0 && offset + limit < all.length ? offset + limit : null;
-        return {'items': [for (final t in page) _conversation(t)], 'next': next};
+        return {'items': [for (final t in page) chats.conversation(t)], 'next': next};
       case 'conversation':
-        final t = _threads[(a['thread'] as num).toInt()];
-        return t == null ? null : _conversation(t);
+        final t = chats.threads[thread()];
+        return t == null ? null : chats.conversation(t);
       case 'archivedCount':
-        return _sorted(archived: true).length;
+        return chats.sorted(archived: true).length;
       case 'messages':
-        final t = _threads[(a['thread'] as num).toInt()];
-        if (t == null) return const [];
-        final limit = (a['limit'] as num?)?.toInt() ?? 0;
-        final rows = limit > 0 && t.rows.length > limit ? t.rows.sublist(t.rows.length - limit) : t.rows;
-        return [
-          for (final r in rows.reversed)
-            {'id': r.id, 'kind': 'sms', 'address': t.address, 'body': r.body, 'date': r.at, 'outgoing': r.out, 'state': r.state, 'encrypted': true, 'via': 'net'},
-        ];
+        return chats.messages(thread(), (a['limit'] as num?)?.toInt() ?? 0);
       case 'people':
-        final t = _threads[(a['thread'] as num).toInt()];
-        return t == null ? const [] : [_person(t.address)];
+        final t = chats.threads[thread()];
+        return t == null ? const [] : [chats.person(t.address)];
       case 'threadFor':
         final addresses = ((a['addresses'] as List?) ?? const []).map((x) => '$x').toList();
         if (addresses.length != 1) return -1;
-        final t = _threadWith(addresses.first);
+        final t = chats.threadWith(addresses.first);
         _save();
         return t.id;
       case 'send':
-        // To a friend by username: by the routes ([Friends.sendText] keeps it here as it goes). Pictures and groups
-        // are not yet carried this way.
         final addresses = ((a['addresses'] as List?) ?? const []).map((x) => '$x').toList();
-        final body = '${a['body'] ?? ''}';
-        if (addresses.length != 1 || body.isEmpty) throw StateError('Only words to one friend can be sent from this iPhone yet');
-        final t = _threadWith(addresses.first);
-        if (!await Friends.instance.sendText(addresses.first, body)) {
-          t.rows.add(_Row(id: _nextRow++, body: body, at: DateTime.now().millisecondsSinceEpoch, out: true, state: 'failed'));
-          _changed(t.id);
-        }
-        return t.id;
+        if (addresses.length != 1) throw StateError('Only words to one friend can be sent from this iPhone yet');
+        return chats.send(addresses.first, '${a['body'] ?? ''}');
       case 'markRead':
-        final t = _threads[(a['thread'] as num).toInt()];
-        if (t != null && t.unread) {
-          t.unread = false;
-          _changed(t.id);
-        }
+        chats.markRead(thread());
         return null;
       case 'setOpenThread':
-        _open = (a['thread'] as num?)?.toInt() ?? -1;
+        chats.open = (a['thread'] as num?)?.toInt() ?? -1;
         return null;
       case 'deleteThread':
-        _threads.remove((a['thread'] as num).toInt());
-        _changed(-1);
+        chats.delete([thread()]);
         return null;
       case 'deleteThreads':
-        for (final id in (a['threads'] as List? ?? const [])) {
-          _threads.remove((id as num).toInt());
-        }
-        _changed(-1);
+        chats.delete([for (final id in (a['threads'] as List? ?? const [])) (id as num).toInt()]);
         return null;
       case 'deleteMessage':
-        final id = (a['id'] as num).toInt();
-        final t = _threadOfRow(id);
-        if (t != null) {
-          t.rows.removeWhere((r) => r.id == id);
-          _changed(t.id);
-        }
+        chats.deleteRow((a['id'] as num).toInt());
         return null;
       case 'archive':
-        final t = _threads[(a['thread'] as num).toInt()];
-        if (t != null) {
-          t.archived = a['archived'] == true;
-          _changed(t.id);
-        }
+        chats.archive(thread(), a['archived'] == true);
         return null;
       case 'threadFlag':
-        final t = _threads[(a['thread'] as num).toInt()];
-        if (t != null) {
-          final on = a['on'] == true;
-          switch (a['name']) {
-            case 'pinned':
-              t.pinned = on;
-            case 'muted':
-              t.muted = on;
-          }
-          _changed(t.id);
-        }
+        chats.flag('${a['name']}', thread(), a['on'] == true);
         return null;
       case 'draft':
-        return _threads[(a['thread'] as num).toInt()]?.draft;
+        return chats.draft(thread());
       case 'setDraft':
-        final t = _threads[(a['thread'] as num).toInt()];
-        if (t != null) {
-          final text = '${a['text'] ?? ''}';
-          t.draft = text.isEmpty ? null : text;
-          _save();
-        }
+        chats.setDraft(thread(), '${a['text'] ?? ''}');
         return null;
       case 'contact':
-        return _person('${a['address']}');
+        return chats.person('${a['address']}');
       case 'searchContacts':
-        final q = '${a['query'] ?? ''}'.toLowerCase().replaceAll('@', '');
-        return [
-          for (final b in _buddyList)
-            if (b.state == 'yes' && (q.isEmpty || b.username.toLowerCase().contains(q) || b.name.toLowerCase().contains(q)))
-              {'name': b.name.isEmpty ? '@${b.username}' : b.name, 'address': addressOf(b.username)},
-        ];
+        return chats.search('${a['query'] ?? ''}');
 
       // The app's choices, kept with the rest.
       case 'prefs':
@@ -455,57 +266,6 @@ class StandaloneCalls implements SmsCalls {
     // Everything else is the Android phone's alone (texts, MMS, the default app, its updates): nothing here.
     return null;
   }
-}
-
-class _Thread {
-  _Thread({required this.id, required this.address, int? made}) : made = made ?? DateTime.now().millisecondsSinceEpoch;
-  final int id;
-  final String address;
-  final int made;
-  final List<_Row> rows = [];
-  bool unread = false;
-  bool archived = false;
-  bool pinned = false;
-  bool muted = false;
-  String? draft;
-
-  Map<String, Object?> toJson() => {
-        'id': id,
-        'a': address,
-        'm': made,
-        'u': unread,
-        'ar': archived,
-        'p': pinned,
-        'mu': muted,
-        'd': draft,
-        'rows': [for (final r in rows) r.toJson()],
-      };
-
-  factory _Thread.fromJson(Map j) {
-    final t = _Thread(id: (j['id'] as num).toInt(), address: '${j['a']}', made: (j['m'] as num?)?.toInt());
-    t.unread = j['u'] == true;
-    t.archived = j['ar'] == true;
-    t.pinned = j['p'] == true;
-    t.muted = j['mu'] == true;
-    t.draft = j['d'] as String?;
-    for (final r in (j['rows'] as List?) ?? const []) {
-      t.rows.add(_Row.fromJson(r as Map));
-    }
-    return t;
-  }
-}
-
-class _Row {
-  _Row({required this.id, required this.body, required this.at, required this.out, required this.state});
-  final int id;
-  final String body;
-  final int at;
-  final bool out;
-  String state;
-
-  Map<String, Object?> toJson() => {'i': id, 'b': body, 't': at, 'o': out, 's': state};
-
-  factory _Row.fromJson(Map j) => _Row(id: (j['i'] as num).toInt(), body: '${j['b']}', at: (j['t'] as num).toInt(), out: j['o'] == true, state: '${j['s']}');
 }
 
 /// Sets the app up as an iPhone of its own, before anything is drawn: the calls answered here, and the routes,

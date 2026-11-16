@@ -30,6 +30,7 @@ import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner
 import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
 import 'package:ghost_messaging/voice/hangout.dart';
 import 'package:ghost_messaging/voice/roles.dart';
+import 'package:ghost_messaging/ui/composer_box.dart';
 import 'package:ghost_messaging/ui/hangout_screen.dart';
 import 'package:ghost_messaging/ui/ripple_avatar.dart';
 import 'package:ghost_messaging/ui/voice_screen.dart';
@@ -50,6 +51,13 @@ import 'package:ghost_messaging/ui/compose.dart';
 import 'package:ghost_messaging/ui/computers.dart';
 import 'package:ghost_messaging/ui/contacts.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
+import 'package:ghost_messaging/ui/gm_guide_screen.dart';
+import 'package:ghost_messaging/ui/gm_web_screen.dart';
+import 'package:ghost_messaging/ui/rcs_setup.dart';
+import 'package:ghost_messaging/ui/video_screen.dart';
+import 'package:video_player_platform_interface/video_player_platform_interface.dart';
+
+import 'support/fake_video.dart';
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/ui/nav_bar.dart';
 import 'package:ghost_messaging/ui/new_group.dart';
@@ -257,6 +265,10 @@ void _answerChannel() {
     switch (call.method) {
       case 'status':
         return _statusSaid;
+      case 'gmChannels':
+        return _gmChannels;
+      case 'gmWebState':
+        return _gmWeb;
       case 'conversations':
         return _conversations;
       case 'conversationsPage':
@@ -387,9 +399,16 @@ void _answerChannel() {
             // As a video comes from an iPhone as a picture message: 320 by 240, under a megabyte.
             ? {'picture': File('assets/stickers/party/03.webp').readAsBytesSync(), 'millis': 12400, 'width': 640, 'height': 360, 'videoWidth': 320, 'videoHeight': 240, 'bytes': 912384}
             : {'picture': null, 'millis': 0, 'width': 0, 'height': 0};
+      // A text sent: the phone's thread for it.
+      case 'send':
+        return 1;
       case 'videoPlay':
         _videosPlayed.add((args['part'] as num).toInt());
         return null;
+      // The phone's own player (lib/ui/video_screen.dart) opens the video as a file.
+      case 'videoFile':
+        _videosPlayed.add((args['part'] as num).toInt());
+        return '/tmp/video-${args['part']}.mp4';
       // Voice messages: how long each runs, and a recording that hears a voice rise and fall.
       case 'voiceLength':
         return switch ((args['part'] as num).toInt()) { 911 => 7400, 913 => 41000, _ => 23000 };
@@ -481,6 +500,12 @@ Future<Fetched> _fakeSites(Uri url) async {
   return (status: 404, body: '');
 }
 
+/// The on-phone Google Messages connection as it stands (android GmWeb.state): there, not paired, unless a test says.
+Map<String, Object?> _gmWeb = const {'available': true, 'running': true, 'paired': false, 'connected': false};
+
+/// Google Messages' notification channels as Ghost saw them (android GmBridge.channelList): none, unless a test says.
+List<Map<String, Object?>> _gmChannels = const [];
+
 /// What the phone says of itself (SmsStatus): the default SMS app, unless a test says otherwise.
 Map<String, Object> _statusSaid = const {'isDefault': true, 'contacts': true, 'notifications': false, 'phone': true};
 
@@ -490,6 +515,42 @@ void main() {
     Embeds.fetch = _fakeSites;
   });
   setUpAll(_fonts);
+  // Delete, and don't ask again (Matt, 2026-11-16: "Add a "don't ask again" on the confirmation for sliding to delete
+  // message groups"): chosen once, a conversation slid all the way is deleted with no question.
+  testWidgets('a slide to delete asks, until Don\'t ask again', (tester) async {
+    tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
+    tester.view.devicePixelRatio = 2.0;
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    await _shoot(tester, sheet, const AppShell(), 'x-delete-ask', dark: false);
+    Future<void> slideAway(String who) async {
+      final g = await tester.startGesture(tester.getCenter(find.text(who)));
+      await g.moveBy(const Offset(-30, 0));
+      await g.moveBy(const Offset(-330, 0));
+      await tester.pump(const Duration(milliseconds: 200));
+      await g.up();
+      await _settle(tester);
+    }
+
+    _asked.clear();
+    await slideAway('Dad');
+    expect(find.textContaining('Delete every message with Dad'), findsOneWidget);
+    expect(find.text('Delete, and don\'t ask again'), findsOneWidget);
+    await tester.tap(find.text('Delete, and don\'t ask again'));
+    await _settle(tester);
+    expect(_asked.where((a) => a.startsWith('deleteThread')), hasLength(1));
+    final app = AppState.of(tester.element(find.byType(ConversationRow).first));
+    expect(app.flag('delete_ask', fallback: true), isFalse);
+    await tester.pump(const Duration(seconds: 6));
+    await _settle(tester);
+    _asked.clear();
+    await slideAway('Priya Natarajan');
+    expect(find.textContaining('Delete every message with'), findsNothing, reason: 'no question once told not to ask');
+    expect(_asked.where((a) => a.startsWith('deleteThread')), hasLength(1));
+  });
+
   testWidgets('screens', (tester) async {
     tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
     tester.view.devicePixelRatio = 2.0;
@@ -635,10 +696,16 @@ void main() {
       expect(find.text(shrunkNote), findsOneWidget);
       // One no picture can be made of is still named, and can still be tried.
       expect(find.text('9864ade8-2512-4c3f-83b2-8d46dbb76b14.webm'), findsOneWidget);
-      await tester.tap(players.first);
-      await _settle(tester);
-      await tester.tap(players.last);
-      await _settle(tester);
+      // Each opens Ghost's own player (Matt: "id like a video player built with glacier UI"), closed again by its back button.
+      VideoPlayerPlatform.instance = FakeVideoPlayer();
+      for (final p in [players.first, players.last]) {
+        await tester.tap(p);
+        await _settle(tester);
+        expect(find.byType(VideoScreen), findsOneWidget);
+        await tester.tap(find.byWidgetPredicate((w) => w is GlacierPressable && w.semanticLabel == 'Back').last);
+        await _settle(tester);
+        expect(find.byType(VideoScreen), findsNothing);
+      }
       expect(_videosPlayed.toSet(), {921, 922});
       // Voice messages: each drawn as a player that says how long it runs; the microphone stands where Send would.
       await _shoot(tester, sheet, const ThreadScreen(thread: 4, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '2-thread-voice', dark: dark);
@@ -681,10 +748,10 @@ void main() {
       await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Discard the recording'));
       await _settle(tester);
       expect(mic, findsOneWidget);
-      // Words written: Send is back where the microphone stood.
+      // Words written: Send at the end of the row under them, the microphone beside it.
       await tester.enterText(find.byType(EditableText), 'On my way');
       await _settle(tester);
-      expect(mic, findsNothing);
+      expect(mic, findsOneWidget);
       expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send'), findsOneWidget);
       await _shoot(tester, sheet, ThreadScreen(thread: 2, people: [for (final p in _conversations[1]['people'] as List) Person.from(p as Map)]), '3-group', dark: dark);
       await _shoot(tester, sheet, const ComposeScreen(), '4-compose', dark: dark);
@@ -834,6 +901,58 @@ void main() {
       await _shootAgain(tester, '0-guide-2-texts-beside', dark: dark);
       expect(find.text('Or keep Google Messages, and RCS'), findsOneWidget);
       expect(find.text('Use beside Google Messages'), findsOneWidget);
+      // Setting up RCS from Settings › Messages (lib/ui/rcs_setup.dart; Matt, 2026-11-15: "add a button under messages
+      // settings to setup RCS if on an android phone and walk the user through how to enable the rcs sidecar"): from
+      // Ghost the default, Google Messages the next thing to make so; and part way, Google Messages the default.
+      _statusSaid = const {'isDefault': true, 'contacts': true, 'notifications': true, 'phone': true, 'gmInstalled': true, 'sms': true, 'bridge': false, 'gmDefault': false};
+      await _shoot(tester, sheet, const RcsSetupScreen(), '19-rcs-setup', dark: dark);
+      expect(find.text('Open Default apps'), findsOneWidget);
+      expect(find.text('Google Messages is the default SMS app'), findsOneWidget);
+      _statusSaid = const {'isDefault': false, 'contacts': true, 'notifications': true, 'phone': true, 'gmInstalled': true, 'sms': true, 'bridge': false, 'gmDefault': true};
+      await _shoot(tester, sheet, const RcsSetupScreen(), '19-rcs-setup-partway', dark: dark, prefs: const {'rcs_on_chosen': 'on'});
+      expect(find.text('Open notification access'), findsOneWidget);
+      // The last step, Google Messages' "Incoming messages" and one conversation of its own still loud (Matt,
+      // 2026-11-15: "investigate silencing google messages notifications so we only see thr ones coming through
+      // ghost instead").
+      _statusSaid = const {'isDefault': false, 'contacts': true, 'notifications': true, 'phone': true, 'gmInstalled': true, 'sms': true, 'bridge': true, 'gmDefault': true};
+      _gmChannels = const [
+        {'id': 'bugle_default_channel', 'name': 'Incoming messages', 'importance': 4, 'loud': true, 'popup': true, 'conversation': null, 'title': null},
+        {'id': 'c-437', 'name': 'Mo', 'importance': 4, 'loud': true, 'popup': true, 'conversation': '437', 'title': 'Mo'},
+        {'id': 'bugle_misc_channel', 'name': 'Other notifications', 'importance': 2, 'loud': false, 'popup': false, 'conversation': null, 'title': null},
+      ];
+      await _shoot(tester, sheet, const RcsSetupScreen(), '19-rcs-setup-loud', dark: dark, prefs: const {'rcs_on_chosen': 'on'});
+      await tester.scrollUntilVisible(find.text('Silence Mo'), 200, scrollable: find.byType(Scrollable).first);
+      await _shootAgain(tester, '19-rcs-setup-loud', dark: dark);
+      expect(find.text('Silence Incoming messages'), findsOneWidget);
+      expect(find.text('Silence Other notifications'), findsNothing, reason: 'quiet already');
+      _gmChannels = const [];
+      // The on-phone Google Messages connection (lib/ui/gm_web_screen.dart; Matt, 2026-11-15: "Can you build the on
+      // phone google messages connection too?"): not paired, then paired and connected.
+      _gmWeb = const {'available': true, 'running': true, 'paired': false, 'connected': false};
+      await _shoot(tester, sheet, const GmWebScreen(), '19-gm-web', dark: dark);
+      // Google-account pairing, all in one place (Matt, 2026-11-15: "Please make setting up google messages a
+      // onboarding flow that is all in one place"): the steps, the paste box, and the QR way kept below.
+      expect(find.text('Sign in to Google in a private window'), findsOneWidget);
+      expect(find.text('Copy the link'), findsOneWidget);
+      // The emoji, once Google has it: the last step alone.
+      _gmWeb = const {'available': true, 'running': true, 'paired': false, 'connected': false, 'emoji': '🦊'};
+      await _shoot(tester, sheet, const GmWebScreen(), '19-gm-web-emoji', dark: dark);
+      expect(find.text('🦊'), findsOneWidget);
+      _gmWeb = const {'available': true, 'running': true, 'paired': true, 'connected': true, 'phone': '+1 555-123-0000'};
+      await _shoot(tester, sheet, const GmWebScreen(), '19-gm-web-paired', dark: dark);
+      expect(find.text('Connected'), findsOneWidget);
+      // The guide to running it on a Mac or PC (Matt, 2026-11-15: "Tell me how to setup the sidecar on mac and PC in a
+      // guide found in settings").
+      await _shoot(tester, sheet, const GmGuideScreen(), '19-gm-guide', dark: dark);
+      expect(find.text('1. Get the app'), findsOneWidget);
+      // The app's own video player (lib/ui/video_screen.dart; Matt, 2026-11-15: "id like a video player built with
+      // glacier UI right now it looks like a very old android core system player"), the stand-in engine at 0:42 of 2:40.
+      VideoPlayerPlatform.instance = FakeVideoPlayer();
+      await _shoot(tester, sheet, const VideoScreen(path: '/tmp/none.mp4', title: 'Maya Chen'), '21-video', dark: dark);
+      expect(find.text('2:40'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 4));
+      _gmWeb = const {'available': true, 'running': true, 'paired': false, 'connected': false};
       // Ghost is the texting app: each page after, in turn.
       _statusSaid = const {'isDefault': true, 'contacts': false, 'notifications': false, 'phone': true};
       await _shoot(tester, sheet, const Onboarding(), '0-guide-1-welcome', dark: dark);
@@ -1139,7 +1258,8 @@ void main() {
       expect(find.text('Message'), findsOneWidget);
       expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Add an attachment'), findsNothing);
       await tester.enterText(find.byType(EditableText).first, 'Hike on Saturday?');
-      await tester.pump();
+      // Send slides in under the words as they are typed.
+      await _settle(tester);
       await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send'));
       await _settle(tester);
       expect(mine.rows.values.single, (group: made.id, words: 'Hike on Saturday?', state: 'sent'));
@@ -1274,6 +1394,13 @@ void main() {
       expect(send, findsOneWidget);
       final disc = find.descendant(of: send, matching: find.byType(Container)).evaluate().map((e) => (e.widget as Container).decoration).whereType<BoxDecoration>().map((d) => d.color?.toARGB32()).toList();
       expect(disc, contains(0xFF0A84FF), reason: 'Send wears the bubble colour');
+      // Sent, it is drawn at once as sending, before the phone has answered (Matt, 2026-11-15: "optimistically render a
+      // sent message bubble so it appears instantly").
+      await tester.tap(send);
+      await tester.pump();
+      expect(find.text('On my way', findRichText: true), findsOneWidget, reason: 'the bubble, the composer emptied');
+      expect(find.byWidgetPredicate((w) => w is Semantics && w.properties.label == 'sending'), findsWidgets);
+      await _settle(tester);
       // And every other colour is as it was (Matt, of 0.7.15: "make sure this next update brings back all the
       // colors to the app, they're missing from virtually every place where we had colors before on all the message
       // avatars and settings sections"): a face keeps its own colour, and so does each section of Settings.
@@ -1301,7 +1428,7 @@ void main() {
     _answerChannel();
     final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
     installSettingsStyles(sheet);
-    final hangout = VoiceChannel.make('Hangout'), study = VoiceChannel.make('Study room');
+    final hangout = VoiceChannel.make('Friday space'), study = VoiceChannel.make('Study room');
     final v = Voice.instance;
     v.own = [hangout, study];
     // Maya is talking, and so, a little, is this phone.
@@ -1324,10 +1451,10 @@ void main() {
     });
     for (final dark in [false, true]) {
       await _shoot(tester, sheet, const VoiceScreen(), '19-voice', dark: dark);
-      expect(find.text('Hangout'), findsWidgets);
+      expect(find.text('Friday space'), findsWidgets);
       // In a call the page is the call alone: who is in it and the dock (Matt, 2026-11-15: "I want the call screen to
       // be super simple too just a list of chatters and the call controls").
-      expect(find.text('Channels'.toUpperCase()), findsNothing);
+      expect(find.text('Spaces'.toUpperCase()), findsNothing);
       expect(find.text('Study room'), findsNothing);
       // A list of who is there, faces rippling while they talk, and no squares: nobody has video on (Matt,
       // 2026-11-15: "make the voice chats a list of participants don't show the squares unless someone turns on
@@ -1427,13 +1554,23 @@ void main() {
       await _shootAgain(tester, '21-hangout-chat', dark: dark);
       expect(find.text('Bring snacks 🍿'), findsOneWidget);
       expect(find.text('Maya Chen'), findsOneWidget, reason: 'her two messages under her name once');
-      expect(find.byType(GlacierInput), findsOneWidget);
+      // The same composer as every conversation, and no call controls over the chat (Matt, 2026-11-15: "Use the same
+      // compose input on spaces ... when we switch to chat please don't show the call controls").
+      expect(find.byType(ComposerBox), findsOneWidget);
+      expect(find.byType(CallDock), findsNothing);
       // Writing one.
       await tester.enterText(find.byType(EditableText), 'Two minutes');
-      await tester.tap(find.bySemanticsLabel('Send'));
+      await _settle(tester);
+      await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send'));
       await _settle(tester);
       expect(room.messages.map((m) => m.text), contains('Two minutes'));
       expect(find.text('Two minutes'), findsOneWidget);
+      // Back to the people: the call's controls again.
+      await tester.tap(find.bySemanticsLabel('People'));
+      await _settle(tester);
+      expect(find.byType(CallDock), findsOneWidget);
+      await tester.tap(find.bySemanticsLabel('Chat'));
+      await _settle(tester);
       // Back to the people; press and hold Sam: as owner, his role, mute for everyone, remove, ban.
       await tester.tap(find.bySemanticsLabel('People'));
       await _settle(tester);
@@ -1441,7 +1578,7 @@ void main() {
       await _settle(tester);
       await _shootAgain(tester, '21-hangout-person', dark: dark);
       expect(find.text('Mute for everyone'), findsOneWidget);
-      expect(find.text('Remove from hangout'), findsOneWidget);
+      expect(find.text('Remove from space'), findsOneWidget);
       expect(find.text('Ban'), findsOneWidget);
       await tester.tap(find.bySemanticsLabel('Mute Sam for everyone'));
       await _settle(tester);
@@ -1467,6 +1604,91 @@ void main() {
       room.roster = Roster.first(channel.owner).next(assigned: {'a': Role.moderator});
       room.messages = seeded;
       store.keepMessages(channel.chatRoom, seeded);
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
+  // Matt, 2026-11-15: "When opening a hangout the left side should show the chat with some space below reserved for the
+  // navbar controls, the voice on desktop should show up on the left side with the right side reserved for chat, when a
+  // video starts split the right side 50/50 showing the videos above the chat".
+  testWidgets('a hangout\'s layout: room for the pill under its chat; wide, the people beside the list and the chat in the pane', (tester) async {
+    tester.view.devicePixelRatio = 2.0;
+    tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    final keys = NetKeys.generate();
+    final channel = VoiceChannel.make('Friday hang', owner: NetCrypto.hex(keys.public));
+    final route = _IdRoute(keys.id);
+    final store = MemoryHangoutStore();
+    final now = DateTime(2026, 11, 15, 19, 40).millisecondsSinceEpoch;
+    store.keepMessages(channel.chatRoom, [
+      HangoutMessage(id: '1', from: 'a', name: 'Maya Chen', text: 'Starting the movie in 10, hop in', at: now),
+      HangoutMessage(id: '2', from: keys.id, name: 'Me', text: 'Saving you a seat', at: now + 90000),
+    ]);
+    final room = HangoutRoom(channel: channel, route: route, name: 'Me', signer: KeysSigner(keys), store: store);
+    final v = Voice.instance;
+    v.own = [channel];
+    v.putHangout(room);
+    addTearDown(() {
+      v.session = null;
+      v.own = [];
+      v.clearHangouts();
+    });
+    for (final dark in [false, true]) {
+      // A phone: the hangout opened where a conversation opens (over the list, no pill under it), its composer at the
+      // foot, who is connected and Join at its top.
+      tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
+      v.view(channel);
+      await _shoot(tester, sheet, const VoiceScreen(), '22-hangout-open', dark: dark);
+      expect(find.byType(HangoutScreen), findsOneWidget);
+      expect(find.text('Join voice'), findsOneWidget);
+      final composer = tester.getRect(find.byType(ComposerBox));
+      expect(892 - composer.bottom, lessThan(32 + 40), reason: 'no room kept for a pill that isn\'t there');
+      v.view(null);
+
+      // Wide, in the call: the people and the dock in the list's place, the chat in the pane.
+      tester.view.physicalSize = const Size(1280 * 2.0, 800 * 2.0);
+      v.session = VoiceSession(channel: channel, route: route, media: _NoMedia({'a': 0.4}), name: 'Me')
+        ..members['a'] = const VoiceMember('a', name: 'Maya Chen', username: 'maya')
+        ..members['b'] = const VoiceMember('b', name: 'Sam', muted: true);
+      await _shoot(tester, sheet, const AppShell(), '22-hangout-wide', dark: dark);
+      final shell = tester.state<AppShellState>(find.byType(AppShell));
+      shell.go('voice');
+      await _settle(tester);
+      await _shootAgain(tester, '22-hangout-wide', dark: dark);
+      expect(find.byType(HangoutStage), findsOneWidget, reason: 'the pane is the chat');
+      expect(find.byType(HangoutPeople), findsOneWidget, reason: 'the people in the list\'s place');
+      final people = tester.getRect(find.byType(CallPanel)), chat = tester.getRect(find.byType(HangoutChat));
+      expect(people.right, lessThanOrEqualTo(chat.left), reason: 'voice on the left, chat on the right');
+      expect(find.text('Saving you a seat'), findsOneWidget);
+      // The pill is put away; the call's buttons stand where it was.
+      expect(find.byType(NavPill), findsNothing);
+      expect(find.byType(CallBanner), findsNothing);
+      final dock = tester.getRect(find.byType(CallDock));
+      expect(800 - dock.bottom, lessThan(32 + 40), reason: 'at the foot, where the pill stood');
+      expect(dock.right, lessThanOrEqualTo(people.right + 40), reason: 'in the list\'s column');
+      v.session = null;
+      // A hangout's menu (Matt, 2026-11-15: "there also needs to be a context menu to open settings for hangouts and
+      // manage permissions and such as well as delete the hangouts on desktop"): its settings, link, sharing, delete.
+      tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
+      await _shoot(tester, sheet, const VoiceScreen(), '22-hangout-menu', dark: dark);
+      await tester.tap(find.bySemanticsLabel('Space options'));
+      await _settle(tester);
+      await _shootAgain(tester, '22-hangout-menu', dark: dark);
+      expect(find.text('Settings and permissions'), findsOneWidget);
+      expect(find.text('Copy invite link'), findsOneWidget);
+      expect(find.text('Delete space'), findsOneWidget);
+      await tester.tap(find.text('Settings and permissions'));
+      await _settle(tester);
+      await _shootAgain(tester, '22-hangout-settings', dark: dark);
+      expect(find.byType(RolesScreen), findsOneWidget);
+      expect(find.text('Copy invite link'), findsOneWidget);
+      // Further down: the role new people get, and deleting it.
+      await tester.scrollUntilVisible(find.text('Delete space'), 300, scrollable: find.byType(Scrollable).last);
+      expect(find.text('Join as'), findsOneWidget);
+      expect(find.text('Delete space'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     }
   });
@@ -1730,7 +1952,7 @@ void main() {
       // closes it.
       await tester.tap(ring('new'));
       await _settle(tester);
-      expect(find.text('Voice call'), findsOneWidget);
+      expect(find.text('New space'), findsOneWidget);
       await tester.tap(find.text('New chat').hitTestable().last);
       await _settle(tester);
       expect(find.byType(ComposeScreen), findsOneWidget);
@@ -2072,3 +2294,6 @@ class _NoMedia implements VoiceMedia {
   @override
   void setPeerMuted(String id, bool muted) {}
 }
+
+/// The tokens the screen on show is drawn with.
+Tokens _tokensOf(WidgetTester tester) => tester.element(find.byType(HangoutChat).first).tokens;

@@ -1,0 +1,93 @@
+import 'package:flutter/foundation.dart';
+
+import 'inbox.dart';
+import 'scams.dart';
+
+/// One notification for a chat on another network.
+@immutable
+class InboxAlert {
+  const InboxAlert({required this.key, required this.network, required this.title, required this.body, this.group = false, this.count = 1});
+
+  /// `network:chat`: the notification's own name, and what a press on it opens (lib/main.dart).
+  final String key;
+
+  /// The network's name ("Signal"), shown under the chat's.
+  final String network;
+  final String title;
+  final String body;
+  final bool group;
+  final int count;
+}
+
+/// Notifications for new Signal and Telegram messages, and the phone kept connected to them while Ghost is out of
+/// sight (Matt, 2026-11-16, on "Ghost doesn't notify you about Signal messages yet": "Yes, build them").
+///
+/// Each signed-in network's list is watched: a chat whose unread count rises, whose newest message is not this
+/// account's and is newer than the watching began, is notified, unless it is muted on the network, looks like spam
+/// (scams.dart), is archived or deleted here ([InboxNetwork.shownChats]), or is open on the screen. A chat read to
+/// nothing has its notification taken away. What was unread before Ghost started watching is never notified: the
+/// chats a network loads as it starts, and the messages Signal holds for it while it was closed, are not news.
+class InboxAlerts {
+  InboxAlerts({required this.notify, required this.cancel, required this.keepAlive, required this.inFront, DateTime Function()? now}) : _now = now ?? DateTime.now;
+
+  final void Function(InboxAlert alert) notify;
+  final void Function(String key) cancel;
+
+  /// The names of the networks signed in, as they change: Android keeps Ghost running while there are any.
+  final void Function(List<String> names) keepAlive;
+
+  /// Whether Ghost is on the screen.
+  final bool Function() inFront;
+  final DateTime Function() _now;
+
+  /// The chat on the screen (`network:chat`), set by its page (lib/ui/inbox_ui.dart): not notified while Ghost is in
+  /// front.
+  static String? showing;
+
+  /// The app's own, once watching (lib/main.dart).
+  static InboxAlerts? instance;
+
+  final _unread = <String, Map<String, int>>{};
+  final _since = <String, DateTime>{};
+  List<String> _alive = const [];
+
+  void watch(Inbox inbox) {
+    for (final n in inbox.networks) {
+      if (n.soon) continue;
+      n.addListener(() => check(n, inbox));
+      check(n, inbox);
+    }
+  }
+
+  /// Looks at [n]'s list as it is now.
+  @visibleForTesting
+  void check(InboxNetwork n, Inbox inbox) {
+    final alive = [for (final r in inbox.ready) r.name];
+    if (!listEquals(alive, _alive)) {
+      _alive = alive;
+      keepAlive(alive);
+    }
+    if (n.state != InboxState.ready) {
+      _unread.remove(n.id);
+      _since.remove(n.id);
+      return;
+    }
+    final since = _since[n.id] ??= _now();
+    final before = _unread[n.id];
+    final chats = n.shownChats;
+    _unread[n.id] = {for (final c in chats) c.id: c.unread};
+    if (before == null) return;
+    for (final c in chats) {
+      final key = '${n.id}:${c.id}';
+      final was = before[c.id] ?? 0;
+      if (c.unread == 0) {
+        if (was > 0) cancel(key);
+        continue;
+      }
+      if (c.unread <= was || c.lastFromMe || c.muted || !c.date.isAfter(since)) continue;
+      if (scamOf(c) != null) continue;
+      if (showing == key && inFront()) continue;
+      notify(InboxAlert(key: key, network: n.name, title: c.title, body: c.snippet, group: c.group, count: c.unread));
+    }
+  }
+}

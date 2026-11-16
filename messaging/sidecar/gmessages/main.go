@@ -11,10 +11,19 @@
 //	{"id":7,"op":"read","conv":"…","msg":"…"}       → {}
 //	{"id":8,"op":"media","media":"…","key":"<base64>","path":"…"} → {"path":"…"}
 //	{"id":9,"op":"unpair"}                          → {}
+//	{"id":11,"op":"send_media","conv":"…","path":"…","text":"…"} → {"tmp":"…"} (a picture or video, with words)
+//	{"id":12,"op":"pair_google","cookies":{"SID":"…",…}} → {} then events "emoji" (tap it in Google Messages on the
+//	                                                phone) and "paired", or "pair_failed": Google-account pairing, which
+//	                                                is what Google Messages offers now that QR pairing is gone.
+//	{"id":10,"op":"activate"}                       → {} (this becomes Google Messages' active web session)
 //
 // Answers: {"id":1,"ok":{…}} or {"id":1,"error":"…"}. Events, unasked: {"ev":"ready"}, {"ev":"qr","url":"…"},
 // {"ev":"paired"}, {"ev":"message","data":message}, {"ev":"conversation","data":conversation},
-// {"ev":"phone","responding":bool}, {"ev":"unpaired","why":"…"}.
+// {"ev":"phone","responding":bool}, {"ev":"unpaired","why":"…"}, {"ev":"inactive"} (another web session, on a
+// computer or messages.google.com, took over: Google Messages has one active at a time) and {"ev":"active"}.
+//
+// With --takeover (Ghost on the phone, which owns the session) an inactive session takes itself back after a short
+// wait, as mautrix-gmessages' bridge does.
 package main
 
 import (
@@ -26,6 +35,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,11 +61,15 @@ type request struct {
 	Remove bool   `json:"remove"`
 	Media  string `json:"media"`
 	Key    string `json:"key"`
-	Path   string `json:"path"`
+	Path    string            `json:"path"`
+	Mime    string            `json:"mime"`
+	Name    string            `json:"name"`
+	Cookies map[string]string `json:"cookies"`
 }
 
 var (
-	dir     string
+	dir      string
+	takeover bool
 	log     zerolog.Logger
 	out     = json.NewEncoder(os.Stdout)
 	outLock sync.Mutex
@@ -84,6 +98,7 @@ func event(name string, data any) {
 
 func main() {
 	flag.StringVar(&dir, "dir", "", "where the session is kept")
+	flag.BoolVar(&takeover, "takeover", false, "take the active session back when another takes it")
 	flag.Parse()
 	if dir == "" {
 		fmt.Fprintln(os.Stderr, "--dir is needed")
@@ -97,6 +112,16 @@ func main() {
 		connect()
 	}
 	event("ready", nil)
+	// A Google-account session's cookies change as Google answers: kept every few minutes as well as at events.
+	go func() {
+		for range time.Tick(5 * time.Minute) {
+			mu.Lock()
+			if auth != nil {
+				saveSession()
+			}
+			mu.Unlock()
+		}
+	}()
 	scan := bufio.NewScanner(os.Stdin)
 	scan.Buffer(make([]byte, 1<<20), 8<<20)
 	for scan.Scan() {
@@ -148,10 +173,13 @@ func saveSession() {
 func connect() {
 	cli = libgm.NewClient(auth, nil, log, exhttp.SensibleClientSettings)
 	cli.SetEventHandler(onEvent)
+	c := cli
 	go func() {
-		if err := cli.Connect(context.Background()); err != nil {
+		if err := c.Connect(context.Background()); err != nil {
 			log.Err(err).Msg("connect")
+			return
 		}
+		event("connected", nil)
 	}()
 }
 
@@ -181,6 +209,24 @@ func onEvent(raw any) {
 		event("message", message(evt.Message))
 	case *gmproto.Message:
 		event("message", message(evt))
+	case *gmproto.UserAlertEvent:
+		switch evt.GetAlertType() {
+		case gmproto.AlertType_BROWSER_INACTIVE:
+			event("inactive", nil)
+			if takeover {
+				go func() {
+					time.Sleep(10 * time.Second)
+					if c, err := client(); err == nil {
+						_ = c.SetActiveSession(context.Background())
+					}
+				}()
+			}
+		case gmproto.AlertType_BROWSER_ACTIVE:
+			// libgm sends no ClientReady any more: this alert is what says the session is up (mautrix-gmessages'
+			// bridge treats it so too). Ghost reads "connected" and fetches the conversations.
+			event("active", nil)
+			event("connected", nil)
+		}
 	case *events.PhoneNotResponding:
 		say(map[string]any{"ev": "phone", "responding": false})
 	case *events.PhoneRespondingAgain:
@@ -241,6 +287,8 @@ func do(r request) (any, error) {
 		return map[string]any{"paired": cli != nil && cli.IsLoggedIn(), "connected": cli != nil && cli.IsConnected(), "phone": phone}, nil
 	case "pair":
 		return nil, pair()
+	case "pair_google":
+		return nil, pairGoogle(r.Cookies)
 	case "unpair":
 		c, err := client()
 		if err != nil {
@@ -293,35 +341,39 @@ func do(r request) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		mu.Lock()
-		cv := convs[r.Conv]
-		mu.Unlock()
-		if cv == nil {
-			if cv, err = c.GetConversation(ctx, r.Conv); err != nil {
-				return nil, err
-			}
-		}
-		tmp := fmt.Sprintf("tmp_%d", time.Now().UnixNano())
-		req := &gmproto.SendMessageRequest{
-			ConversationID: r.Conv,
-			MessagePayload: &gmproto.MessagePayload{
-				TmpID:          tmp,
-				ConversationID: r.Conv,
-				ParticipantID:  cv.DefaultOutgoingID,
-				TmpID2:         tmp,
-				MessageInfo:    []*gmproto.MessageInfo{{Data: &gmproto.MessageInfo_MessageContent{MessageContent: &gmproto.MessageContent{Content: r.Text}}}},
-			},
-			SIMPayload: simFor(cv.DefaultOutgoingID).GetSIMData().GetSIMPayload(),
-			TmpID:      tmp,
-		}
-		resp, err := c.SendMessage(ctx, req)
+		return sendInfo(ctx, c, r.Conv, []*gmproto.MessageInfo{{Data: &gmproto.MessageInfo_MessageContent{MessageContent: &gmproto.MessageContent{Content: r.Text}}}})
+	case "send_media":
+		c, err := client()
 		if err != nil {
 			return nil, err
 		}
-		if resp.GetStatus() != gmproto.SendMessageResponse_SUCCESS {
-			return nil, fmt.Errorf("Google Messages did not send it (%s)", resp.GetStatus())
+		data, err := os.ReadFile(r.Path)
+		if err != nil {
+			return nil, err
 		}
-		return map[string]any{"tmp": tmp}, nil
+		// The kind the app says it is (Android's own word for the picked file), else read from its first bytes; and its
+		// own name, so the other side's app shows it as what it is.
+		mime := r.Mime
+		if mime == "" || mime == "application/octet-stream" {
+			mime = http.DetectContentType(data)
+		}
+		name := r.Name
+		if name == "" {
+			name = filepath.Base(r.Path)
+		}
+		uploaded, err := c.UploadMedia(ctx, data, name, mime)
+		if err != nil {
+			return nil, err
+		}
+		info := []*gmproto.MessageInfo{{Data: &gmproto.MessageInfo_MediaContent{MediaContent: uploaded}}}
+		if r.Text != "" {
+			info = append(info, &gmproto.MessageInfo{Data: &gmproto.MessageInfo_MessageContent{MessageContent: &gmproto.MessageContent{Content: r.Text}}})
+		}
+		if _, err := sendInfo(ctx, c, r.Conv, info); err != nil {
+			return nil, err
+		}
+		// The uploaded file's id: the app keeps its own copy as that picture, so its preview never waits on a download.
+		return map[string]any{"media": uploaded.GetMediaID(), "mime": mime}, nil
 	case "react":
 		c, err := client()
 		if err != nil {
@@ -345,6 +397,45 @@ func do(r request) (any, error) {
 			SIMPayload:   sim.GetSIMData().GetSIMPayload(),
 		})
 		return nil, err
+	case "activate":
+		c, err := client()
+		if err != nil {
+			return nil, err
+		}
+		return nil, c.SetActiveSession(ctx)
+	// A conversation archived or brought back (remove), as messages.google.com's Archive does.
+	case "archive_conv":
+		c, err := client()
+		if err != nil {
+			return nil, err
+		}
+		status := gmproto.ConversationStatus_ARCHIVED
+		if r.Remove {
+			status = gmproto.ConversationStatus_ACTIVE
+		}
+		_, err = c.UpdateConversation(ctx, &gmproto.UpdateConversationRequest{
+			ConversationID: r.Conv,
+			Data: &gmproto.UpdateConversationRequest_UpdateData{UpdateData: &gmproto.UpdateConversationData{
+				ConversationID: r.Conv,
+				Data:           &gmproto.UpdateConversationData_Status{Status: status},
+			}},
+		})
+		return nil, err
+	// One message deleted, as messages.google.com's Delete does.
+	case "delete_msg":
+		c, err := client()
+		if err != nil {
+			return nil, err
+		}
+		_, err = c.DeleteMessage(ctx, r.Msg)
+		return nil, err
+	// A conversation deleted, as messages.google.com's Delete does: from the phone and every device.
+	case "delete_conv":
+		c, err := client()
+		if err != nil {
+			return nil, err
+		}
+		return nil, c.DeleteConversation(ctx, r.Conv, "")
 	case "read":
 		c, err := client()
 		if err != nil {
@@ -380,6 +471,33 @@ func do(r request) (any, error) {
 		return map[string]any{"path": r.Path}, nil
 	}
 	return nil, fmt.Errorf("unknown op %q", r.Op)
+}
+
+// sendInfo sends [info] (words, a picture) to [conv], from the SIM and participant the conversation sends from.
+func sendInfo(ctx context.Context, c *libgm.Client, conv string, info []*gmproto.MessageInfo) (any, error) {
+	mu.Lock()
+	cv := convs[conv]
+	mu.Unlock()
+	if cv == nil {
+		var err error
+		if cv, err = c.GetConversation(ctx, conv); err != nil {
+			return nil, err
+		}
+	}
+	tmp := fmt.Sprintf("tmp_%d", time.Now().UnixNano())
+	resp, err := c.SendMessage(ctx, &gmproto.SendMessageRequest{
+		ConversationID: conv,
+		MessagePayload: &gmproto.MessagePayload{TmpID: tmp, ConversationID: conv, ParticipantID: cv.DefaultOutgoingID, TmpID2: tmp, MessageInfo: info},
+		SIMPayload:     simFor(cv.DefaultOutgoingID).GetSIMData().GetSIMPayload(),
+		TmpID:          tmp,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if resp.GetStatus() != gmproto.SendMessageResponse_SUCCESS {
+		return nil, fmt.Errorf("Google Messages did not send it (%s)", resp.GetStatus())
+	}
+	return map[string]any{"tmp": tmp}, nil
 }
 
 // simFor is the SIM a conversation sends from: the one whose participant is its outgoing one, else the first.
@@ -458,6 +576,71 @@ func pair() error {
 		c.Disconnect()
 	}()
 	return nil
+}
+
+// pairGoogle pairs by the person's Google account, from the cookies of a browser signed in to it (messages.google.com
+// /web/config, in a private window): Google Messages on the phone shows emoji, and the person taps the one this says
+// ("emoji"). Then the session, cookies and all, is kept and the client connected ("paired").
+func pairGoogle(cookies map[string]string) error {
+	need := []string{"SID", "HSID", "SSID", "OSID", "APISID", "SAPISID"}
+	for _, n := range need {
+		if cookies[n] == "" {
+			return fmt.Errorf("the sign-in is missing the %s cookie: copy the whole request again", n)
+		}
+	}
+	mu.Lock()
+	if pairing != nil {
+		pairing()
+	}
+	if cli != nil {
+		cli.Disconnect()
+	}
+	a := libgm.NewAuthData()
+	a.SetCookies(cookies)
+	c := libgm.NewClient(a, nil, log, exhttp.SensibleClientSettings)
+	c.SetEventHandler(onEvent)
+	ctx, cancel := context.WithCancel(context.Background())
+	pairing = cancel
+	mu.Unlock()
+	go func() {
+		defer cancel()
+		err := c.DoGaiaPairing(ctx, func(emoji string) {
+			say(map[string]any{"ev": "emoji", "emoji": emoji})
+		})
+		if err != nil {
+			c.Disconnect()
+			say(map[string]any{"ev": "pair_failed", "why": gaiaWhy(err)})
+			return
+		}
+		mu.Lock()
+		auth, cli = a, c
+		saveSession()
+		mu.Unlock()
+		event("paired", nil)
+		// Connected as soon as libgm's own reconnect is up, whether or not its alert comes (it may have come already).
+		go func() {
+			for i := 0; i < 30; i++ {
+				time.Sleep(time.Second)
+				if c.IsConnected() && c.IsLoggedIn() {
+					event("connected", nil)
+					return
+				}
+			}
+		}()
+	}()
+	return nil
+}
+
+// gaiaWhy is a Google-account pairing's failure in words a person can act on.
+func gaiaWhy(err error) string {
+	switch {
+	case errors.Is(err, libgm.ErrNoDevicesFound):
+		return "Google found no phone with Google Messages signed in to this account"
+	case errors.Is(err, context.Canceled):
+		return "Pairing was stopped"
+	default:
+		return "Google didn't accept the pairing (" + err.Error() + "). Sign in again in a new private window and copy the request again."
+	}
 }
 
 func conversation(c *gmproto.Conversation) map[string]any {

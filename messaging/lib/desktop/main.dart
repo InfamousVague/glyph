@@ -20,6 +20,8 @@ import 'store.dart';
 import 'ui/shell.dart';
 import '../ui/update_banner.dart';
 import 'ui/wizard.dart';
+import '../inbox/inbox.dart';
+import '../ui/inbox_ui.dart';
 import 'gm_web.dart';
 import 'updates.dart';
 
@@ -69,6 +71,9 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   await link.start();
   // Voice channels (lib/voice): the computer's own connection to the hub, made once it has a channel.
   unawaited(Voice.instance.start(state));
+  // Telegram's and Bluesky's chats (lib/inbox): the computer signs in to them itself, as their own apps do.
+  addInboxSettings();
+  unawaited(Inbox.instance.start(state));
   // The app's own updates: asked of the Mac's half, looked for now and every few hours. Never awaited: the app
   // opens whether or not the site answers.
   // A Mac swaps in the Mac's zip; Windows runs the new installer from gogho.st, silently, on Restart to update.

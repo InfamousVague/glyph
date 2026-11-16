@@ -48,8 +48,10 @@ object Video {
      */
     fun preview(context: Context, part: Long): Map<String, Any?> {
         val m = MediaMetadataRetriever()
+        // One from Google Messages' connection (GmWeb) is a file in the cache, brought down first; the rest are MMS parts.
+        val uri = if (GmWeb.isPart(part)) (GmWeb.file(context, part)?.let { Uri.fromFile(it) } ?: return mapOf("picture" to null, "millis" to 0L, "width" to 0, "height" to 0)) else Uri.parse("content://mms/part/$part")
         return try {
-            m.setDataSource(context.applicationContext, Uri.parse("content://mms/part/$part"))
+            m.setDataSource(context.applicationContext, uri)
             val millis = m.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
             val (videoWidth, videoHeight) = turned(
                 m.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0,
@@ -57,7 +59,8 @@ object Video {
                 m.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0,
             )
             val bytes = try {
-                context.applicationContext.contentResolver.openFileDescriptor(Uri.parse("content://mms/part/$part"), "r")?.use { it.statSize } ?: 0L
+                if (uri.scheme == "file") java.io.File(uri.path!!).length()
+                else context.applicationContext.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
             } catch (e: Exception) { 0L }
             // The first frame that can be drawn by itself: where the video starts, or just after.
             val frame = try { m.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) } catch (e: Exception) { null }
@@ -81,6 +84,24 @@ object Video {
             try { m.release() } catch (_: Exception) {}
         }
     }
+}
+
+/**
+ * A message's video as a file the app's own player can open (lib/ui/video_screen.dart): one from Google Messages'
+ * connection is its cached file (GmWeb); an MMS part is copied to the cache once. Null where it cannot be had.
+ * Blocks: never on the main thread.
+ */
+fun videoFile(context: Context, part: Long, ending: String?): String? {
+    if (GmWeb.isPart(part)) return GmWeb.file(context, part)?.absolutePath
+    val dir = java.io.File(context.cacheDir, "videos").apply { mkdirs() }
+    val safe = (ending ?: "mp4").filter { it.isLetterOrDigit() }.ifEmpty { "mp4" }
+    val f = java.io.File(dir, "$part.$safe")
+    if (!f.exists() || f.length() == 0L) {
+        try {
+            context.contentResolver.openInputStream(Uri.parse("content://mms/part/$part"))?.use { inp -> f.outputStream().use { inp.copyTo(it) } } ?: return null
+        } catch (_: Exception) { f.delete(); return null }
+    }
+    return f.absolutePath
 }
 
 /**
@@ -119,6 +140,29 @@ class VideoActivity : Activity() {
             }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
             true
         }
-        video.setVideoURI(Uri.parse("content://mms/part/$part"))
+        if (!GmWeb.isPart(part)) {
+            video.setVideoURI(Uri.parse("content://mms/part/$part"))
+            return
+        }
+        // From Google Messages' connection: brought down first (a moment, for a long one), then played from the file.
+        val waiting = TextView(this).apply {
+            text = "Getting the video…"
+            setTextColor(Color.WHITE)
+            textSize = 16f
+            gravity = Gravity.CENTER
+        }
+        root.addView(waiting, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        Thread {
+            val f = GmWeb.file(applicationContext, part)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                if (f == null) {
+                    waiting.text = "This video couldn't be brought down from Google Messages."
+                } else {
+                    root.removeView(waiting)
+                    video.setVideoURI(Uri.fromFile(f))
+                }
+            }
+        }.start()
     }
 }

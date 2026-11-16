@@ -243,7 +243,7 @@ void main() {
       await tester.tap(_nav('New chat'));
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.text('New group'), findsOneWidget);
-      expect(find.text('Voice call'), findsOneWidget);
+      expect(find.text('New space'), findsOneWidget);
       // The sheet slides up from the foot.
       await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.text('New chat').hitTestable().last);
@@ -413,9 +413,20 @@ void main() {
       expect(find.text('Up to date'), findsWidgets);
       // Google Messages on the computer (lib/desktop/gm_web.dart; Matt, 2026-11-15: "Yes, mautrix sidecar"): its
       // QR code to scan, while pairing.
-      final gm = GmWeb.instance
-        ..carried = true
-        ..qr = 'https://support.google.com/messages/?p=web_computer#?c=CjQKIGV4YW1wbGUtcGFpcmluZy1rZXktZm9yLWEtcGljdHVyZQ';
+      final gm = GmWeb.instance..carried = true;
+      // Not paired: Google-account pairing, all in one place (Matt, 2026-11-15: "Please make setting up google messages
+      // a onboarding flow that is all in one place. It should also needs to if possible prompt to open the link
+      // incognito").
+      await shoot('8-settings-gmessages-setup', paired('local'), dark: dark, then: () async {
+        await tester.tap(_nav('Settings'));
+        for (var i = 0; i < 8; i++) {
+          await tester.pump(const Duration(milliseconds: 60));
+        }
+        await section('Google Messages');
+      });
+      expect(find.text('Open in a private window'), findsOneWidget);
+      expect(find.text('Pair with a QR code instead'), findsOneWidget);
+      gm.qr = 'https://support.google.com/messages/?p=web_computer#?c=CjQKIGV4YW1wbGUtcGFpcmluZy1rZXktZm9yLWEtcGljdHVyZQ';
       await shoot('8-settings-gmessages', paired('local'), dark: dark, then: () async {
         await tester.tap(_nav('Settings'));
         for (var i = 0; i < 8; i++) {

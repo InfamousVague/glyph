@@ -1,0 +1,978 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+
+import '../app_state.dart';
+import '../desktop/store.dart';
+import 'inbox.dart';
+import 'td_json.dart';
+
+/// Telegram, as a Telegram app: TDLib (Telegram's own client library, lib/inbox/td_json.dart) signed in to the
+/// person's account, its private chats and groups in a tab of the list, and replies sent from here.
+///
+/// Signing in is Telegram's own: a phone number, the code Telegram sends to the person's other Telegram apps (or by
+/// text), and the two-step password where the account has one. TDLib keeps the session in its database in this app's
+/// own folder; nothing about it leaves the device but to Telegram.
+///
+/// A Telegram app needs an app id and hash of its own, registered at my.telegram.org (Telegram's API terms: one per
+/// developer; never the sample ones). They are given to the build (`--dart-define=TELEGRAM_API_ID=…` and
+/// `TELEGRAM_API_HASH`, which tool/release.mjs and tool/release-mac.mjs read from ~/.config/ghostmessaging/telegram.env)
+/// and are never in the repository. Without them, or without the library in the app, Telegram is [InboxState.unavailable].
+class Telegram extends InboxNetwork {
+  Telegram({this.transport, this.apiId = const int.fromEnvironment('TELEGRAM_API_ID'), this.apiHash = const String.fromEnvironment('TELEGRAM_API_HASH'), this.folder});
+
+  /// A stand-in for TDLib, in tests. Null: TDLib itself, once [start] finds it.
+  final Future<TdTransport?> Function()? transport;
+  final int apiId;
+  final String apiHash;
+
+  /// Where TDLib keeps its database. Null: this app's own folder.
+  final String? folder;
+
+  @override
+  String get id => 'telegram';
+  @override
+  String get name => 'Telegram';
+
+  TdTransport? _td;
+  StreamSubscription<Map<String, Object?>>? _sub;
+  AppState? _app;
+  InboxState _state = InboxState.unavailable;
+  InboxStep _step = InboxStep.none;
+  String? _error, _account, _passwordHint, _codeWhere;
+  int _asked = 0;
+  final Map<String, Completer<Map<String, Object?>>> _waiting = {};
+
+  /// What TDLib has said of each chat and user, by id.
+  final Map<int, Map<String, Object?>> _chatsById = {};
+  final Map<int, int> _order = {};
+  final Map<int, String> _users = {};
+  final Map<String, List<InboxMessage>> _messages = {};
+  final Set<String> _exhausted = {};
+  List<InboxChat> _chats = const [];
+  String? _watching;
+
+  @override
+  InboxState get state => _state;
+  @override
+  InboxStep get step => _step;
+  @override
+  String? get error => _error;
+  @override
+  String? get account => _account;
+  @override
+  List<InboxChat> get chats => _chats;
+  @override
+  List<InboxMessage> messagesOf(String chatId) => _messages[chatId] ?? const [];
+
+  /// The hint for the two-step password, where Telegram has one.
+  String? get passwordHint => _passwordHint;
+
+  /// Where the code was sent ("your Telegram app", "a text to …"), once asked.
+  String? get codeWhere => _codeWhere;
+
+  // --- signed in by the phone (Matt, 2026-11-16: "Build the Telegram phone sign-in approval"; before that, "It seems i
+  // have to setup signal and telegram on each device is it possible to proxy through thr phone") ---------------------
+  // A computer asks Telegram for a login link (requestQrCodeAuthentication), the phone's own signed-in session approves
+  // it (confirmQrCodeAuthentication), and the computer has a session of its own: no number, no code. The link goes
+  // from the computer to the phone over their sealed link (Sms.telegram on the computer, [answerComputer] on the phone).
+
+  /// The login link Telegram gave this device to be approved elsewhere, while it waits (tg://login?token=…).
+  String? get loginLink => _loginLink;
+  String? _loginLink;
+  Completer<String>? _linkWanted;
+
+  /// Asks Telegram for a login link for this device, to be approved by another device signed in to the account; the
+  /// link, or a [StateError] with Telegram's reason. Telegram renews the link every half minute while it waits.
+  Future<String> askLoginLink() async {
+    if (_td == null) await begin();
+    final wanted = _linkWanted = Completer<String>();
+    final r = await _ask({'@type': 'requestQrCodeAuthentication', 'other_user_ids': const <int>[]});
+    if (r['@type'] == 'error') {
+      _linkWanted = null;
+      throw StateError(_plain(r));
+    }
+    return wanted.future.timeout(const Duration(seconds: 20), onTimeout: () => throw StateError('Telegram didn\'t give a login link'));
+  }
+
+  /// On the phone: approves [link] (another device's login link) with this signed-in session. Null when approved, or
+  /// why not.
+  Future<String?> approveLogin(String link) async {
+    if (_state != InboxState.ready) return 'Telegram isn\'t signed in on your phone.';
+    if (!RegExp(r'^tg://login\?token=[A-Za-z0-9_\-=]+$').hasMatch(link.trim())) return 'That isn\'t a Telegram login link.';
+    final r = await _ask({'@type': 'confirmQrCodeAuthentication', 'link': link.trim()});
+    return r['@type'] == 'session' ? null : (r['@type'] == 'error' ? _plain(r) : 'Telegram didn\'t approve it.');
+  }
+
+  /// On the phone: what its paired computer asks of its Telegram (android DartAsk "telegram"). `status`: whether it is
+  /// signed in, and as whom. `approve`: approves the computer's login link.
+  Future<Object?> answerComputer(Map<String, Object?> args) async {
+    final what = (args['what'] as Map?)?.cast<String, Object?>() ?? args;
+    switch (what['dir']) {
+      case 'status':
+        return {'ready': _state == InboxState.ready, 'account': _account};
+      case 'approve':
+        final why = await approveLogin('${what['link'] ?? ''}');
+        if (why != null) throw StateError(why);
+        return {'approved': true};
+    }
+    throw StateError('The phone does not do that for a computer.');
+  }
+
+  /// Whether this build can run Telegram at all: it has an app id, and (on a Mac or Android) the library.
+  bool get configured => apiId != 0 && apiHash.isNotEmpty;
+
+  @override
+  Future<void> start(AppState app) async {
+    _app = app;
+    if (!configured) return;
+    // TDLib is started only for someone who began signing in: until then the app does not load it at all.
+    if (!app.flag('tg_used', fallback: false)) {
+      _state = InboxState.signedOut;
+      notifyListeners();
+      return;
+    }
+    await _open();
+  }
+
+  /// Begins signing in (or, after an app restart, carries on where it was).
+  Future<void> begin() async {
+    if (!configured) {
+      _state = InboxState.unavailable;
+      _error = 'Telegram isn\'t in this build of the app.';
+      notifyListeners();
+      return;
+    }
+    _app?.setFlag('tg_used', true);
+    _error = null;
+    if (_td == null) {
+      await _open();
+    } else {
+      notifyListeners();
+    }
+  }
+
+  Future<void> _open() async {
+    if (_td != null) return;
+    final td = await (transport ?? TdJson.start)();
+    if (td == null) {
+      _state = InboxState.unavailable;
+      _error = 'Telegram isn\'t in this build of the app.';
+      notifyListeners();
+      return;
+    }
+    _td = td;
+    _sub = td.received.listen(_received);
+    _state = InboxState.signingIn;
+    notifyListeners();
+    // Asking for the state makes TDLib say it (updateAuthorizationState follows).
+    td.send({'@type': 'getAuthorizationState'});
+  }
+
+  // --- signing in ----------------------------------------------------------------------------------------------------
+
+  Future<void> sendPhone(String phone) => _auth({'@type': 'setAuthenticationPhoneNumber', 'phone_number': phone.trim()});
+  Future<void> sendCode(String code) => _auth({'@type': 'checkAuthenticationCode', 'code': code.trim()});
+  Future<void> sendPassword(String password) => _auth({'@type': 'checkAuthenticationPassword', 'password': password});
+
+  Future<void> _auth(Map<String, Object?> request) async {
+    _error = null;
+    notifyListeners();
+    final r = await _ask(request);
+    if (r['@type'] == 'error') {
+      _error = _plain(r);
+      notifyListeners();
+    }
+  }
+
+  @override
+  Future<void> signOut() async {
+    final td = _td;
+    _app?.setFlag('tg_used', false);
+    if (td != null && _state == InboxState.ready) {
+      await _ask({'@type': 'logOut'}).timeout(const Duration(seconds: 10), onTimeout: () => const {});
+    }
+    _forget();
+    _state = configured ? InboxState.signedOut : InboxState.unavailable;
+    _step = InboxStep.none;
+    notifyListeners();
+  }
+
+  void _forget() {
+    _chatsById.clear();
+    _order.clear();
+    _users.clear();
+    _messages.clear();
+    _exhausted.clear();
+    _chats = const [];
+    _account = null;
+    _contactIds.clear();
+  }
+
+  void _authState(Map<String, Object?> s) {
+    _step = InboxStep.none;
+    switch (s['@type']) {
+      case 'authorizationStateWaitTdlibParameters':
+        _parameters();
+        return;
+      case 'authorizationStateWaitPhoneNumber':
+        _state = InboxState.signingIn;
+        _step = InboxStep.phone;
+      case 'authorizationStateWaitCode':
+        _state = InboxState.signingIn;
+        _step = InboxStep.code;
+        final info = s['code_info'] as Map?;
+        _codeWhere = switch ((info?['type'] as Map?)?['@type']) {
+          'authenticationCodeTypeTelegramMessage' => 'your Telegram app on another device',
+          'authenticationCodeTypeSms' || 'authenticationCodeTypeSmsWord' || 'authenticationCodeTypeSmsPhrase' => 'a text to ${info?['phone_number'] ?? 'your phone'}',
+          'authenticationCodeTypeCall' => 'a phone call',
+          'authenticationCodeTypeFragment' => 'Fragment',
+          'authenticationCodeTypeFirebaseAndroid' || 'authenticationCodeTypeFirebaseIos' => 'a text to ${info?['phone_number'] ?? 'your phone'}',
+          _ => 'Telegram',
+        };
+      case 'authorizationStateWaitPassword':
+        _state = InboxState.signingIn;
+        _step = InboxStep.password;
+        final hint = (s['password_hint'] as String?)?.trim();
+        _passwordHint = hint == null || hint.isEmpty ? null : hint;
+      case 'authorizationStateWaitEmailAddress' || 'authorizationStateWaitEmailCode' || 'authorizationStateWaitRegistration':
+        _state = InboxState.signingIn;
+        _step = InboxStep.phone;
+        _error = 'Finish setting up this account in Telegram\'s own app first, then sign in here.';
+      case 'authorizationStateWaitOtherDeviceConfirmation':
+        // A login link to be approved by another device (askLoginLink): renewed by Telegram while it waits.
+        _state = InboxState.signingIn;
+        _step = InboxStep.elsewhere;
+        _error = null;
+        _loginLink = s['link'] as String?;
+        final wanted = _linkWanted;
+        if (wanted != null && !wanted.isCompleted && _loginLink != null) wanted.complete(_loginLink);
+      case 'authorizationStateReady':
+        _state = InboxState.ready;
+        _error = null;
+        _ready();
+      case 'authorizationStateLoggingOut' || 'authorizationStateClosing':
+        _state = InboxState.signingIn;
+      case 'authorizationStateClosed':
+        // TDLib closes for good after a log out: a new client is made for the next sign-in.
+        _sub?.cancel();
+        _td?.close();
+        _td = null;
+        _forget();
+        _state = configured ? InboxState.signedOut : InboxState.unavailable;
+    }
+    notifyListeners();
+  }
+
+  void _parameters() {
+    final dir = folder ?? _folder();
+    _td?.send({
+      '@type': 'setTdlibParameters',
+      'use_test_dc': false,
+      'database_directory': '$dir/db',
+      'files_directory': '$dir/files',
+      'database_encryption_key': '',
+      'use_file_database': false,
+      'use_chat_info_database': true,
+      'use_message_database': true,
+      'use_secret_chats': false,
+      'api_id': apiId,
+      'api_hash': apiHash,
+      'system_language_code': 'en',
+      'device_model': Platform.isMacOS ? 'Mac' : 'Android',
+      'system_version': Platform.operatingSystemVersion,
+      'application_version': const String.fromEnvironment('FLUTTER_BUILD_NAME', defaultValue: 'Ghost Messaging'),
+    });
+  }
+
+  /// This app's own folder: Android's private data folder (the cache folder's parent), the Mac's support folder.
+  static String _folder() {
+    if (Platform.isAndroid) return '${Directory.systemTemp.parent.path}/files/tdlib';
+    return '${DeskStore.defaultDir().path}/tdlib';
+  }
+
+  void _ready() {
+    _ask({'@type': 'getMe'}).then((me) {
+      if (me['@type'] != 'user') return;
+      final name = [me['first_name'], me['last_name']].whereType<String>().where((s) => s.isNotEmpty).join(' ');
+      final usernames = (me['usernames'] as Map?)?['active_usernames'] as List?;
+      _account = usernames != null && usernames.isNotEmpty ? '@${usernames.first}' : (name.isEmpty ? null : name);
+      notifyListeners();
+    });
+    unawaited(_loadAll());
+    unawaited(_loadContacts());
+  }
+
+  // --- contacts (Matt, 2026-11-16: "Show telegram and signal contacts when linked") ---------------------------------
+
+  /// The users in this account's Telegram contacts.
+  final Set<int> _contactIds = {};
+
+  /// Telegram's contact list; each user comes as updateUser, and any not yet heard of is asked for.
+  Future<void> _loadContacts() async {
+    final r = await _ask({'@type': 'getContacts'});
+    if (r['@type'] != 'users') return;
+    _contactIds
+      ..clear()
+      ..addAll([for (final x in (r['user_ids'] as List? ?? const [])) (x as num).toInt()]);
+    for (final id in _contactIds.toList()) {
+      if (_people.containsKey(id)) continue;
+      final u = await _ask({'@type': 'getUser', 'user_id': id});
+      if (u['@type'] == 'user') _people[id] = u;
+    }
+    notifyListeners();
+  }
+
+  @override
+  List<InboxContact> get contacts {
+    final out = <InboxContact>[];
+    for (final id in _contactIds) {
+      final u = _people[id];
+      if (u == null || id == 777000 || _bots.contains(id)) continue;
+      final name = [u['first_name'], u['last_name']].whereType<String>().where((s) => s.trim().isNotEmpty).join(' ').trim();
+      final phone = '${u['phone_number'] ?? ''}'.replaceAll(RegExp(r'\D'), '');
+      final usernames = (u['usernames'] as Map?)?['active_usernames'] as List?;
+      out.add(InboxContact(
+        network: this.id,
+        id: '$id',
+        name: name.isEmpty ? (usernames != null && usernames.isNotEmpty ? '@${usernames.first}' : 'Someone') : name,
+        number: phone.isEmpty ? null : '+$phone',
+        avatar: _userPhoto(u),
+        handle: usernames != null && usernames.isNotEmpty ? '@${usernames.first}' : null,
+      ));
+    }
+    out.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return out;
+  }
+
+  /// A user's picture as a file on this device, asked for the first time it is wanted.
+  String? _userPhoto(Map u) {
+    final small = ((u['profile_photo'] as Map?)?['small'] as Map?);
+    if (small == null) return null;
+    final local = small['local'] as Map?;
+    final path = local?['path'] as String?;
+    if (local?['is_downloading_completed'] == true && path != null && path.isNotEmpty) return path;
+    final file = (small['id'] as num?)?.toInt();
+    if (file != null && _photosAsked.add(file)) {
+      _td?.send({'@type': 'downloadFile', 'file_id': file, 'priority': 1, 'offset': 0, 'limit': 0, 'synchronous': false});
+    }
+    return null;
+  }
+
+  @override
+  Future<String?> chatWith(InboxContact contact) async {
+    final user = int.tryParse(contact.id);
+    if (user == null || _state != InboxState.ready) return null;
+    final r = await _ask({'@type': 'createPrivateChat', 'user_id': user, 'force': false});
+    return r['@type'] == 'chat' ? '${r['id']}' : null;
+  }
+
+  /// Every chat, not only the first hundred (Matt, 2026-11-15: "import telegram chats sorted by most recent with the
+  /// profile pictures and all"): TDLib is asked for more until it says there are none (a 404).
+  Future<void> _loadAll() async {
+    for (var i = 0; i < 50; i++) {
+      final r = await _ask({'@type': 'loadChats', 'chat_list': {'@type': 'chatListMain'}, 'limit': 100});
+      if (r['@type'] == 'error') break;
+    }
+    // And Telegram's archive, which Ghost's Archived page shows among archived texts.
+    for (var i = 0; i < 20; i++) {
+      final r = await _ask({'@type': 'loadChats', 'chat_list': {'@type': 'chatListArchive'}, 'limit': 100});
+      if (r['@type'] == 'error') break;
+    }
+  }
+
+  /// The file ids of chats' pictures asked for, so each is asked for once.
+  final Set<int> _photosAsked = {};
+
+  /// The chat's picture as a file on this device, once TDLib has brought it down; asked for the first time it is seen.
+  String? _photo(Map<String, Object?> c) {
+    final small = ((c['photo'] as Map?)?['small'] as Map?);
+    if (small == null) return null;
+    final local = small['local'] as Map?;
+    final path = local?['path'] as String?;
+    if (local?['is_downloading_completed'] == true && path != null && path.isNotEmpty) return path;
+    final file = (small['id'] as num?)?.toInt();
+    if (file != null && _photosAsked.add(file)) {
+      _td?.send({'@type': 'downloadFile', 'file_id': file, 'priority': 1, 'offset': 0, 'limit': 0, 'synchronous': false});
+    }
+    return null;
+  }
+
+  /// A file TDLib brought down: the chats whose picture it is take it.
+  void _fileUpdated(Map file) {
+    final fileId = (file['id'] as num?)?.toInt();
+    if (fileId == null || (file['local'] as Map?)?['is_downloading_completed'] != true) return;
+    var changed = false;
+    for (final e in _chatsById.entries.toList()) {
+      final photo = e.value['photo'] as Map?;
+      if ((((photo?['small'] as Map?)?['id']) as num?)?.toInt() != fileId) continue;
+      _chatsById[e.key] = {...e.value, 'photo': {...photo!, 'small': file}};
+      changed = true;
+    }
+    if (changed) _rebuild();
+    // And the contacts whose picture it is.
+    var people = false;
+    for (final e in _people.entries.toList()) {
+      final photo = e.value['profile_photo'] as Map?;
+      if ((((photo?['small'] as Map?)?['id']) as num?)?.toInt() != fileId) continue;
+      _people[e.key] = {...e.value, 'profile_photo': {...photo!, 'small': file}};
+      people = true;
+    }
+    if (people && !changed) notifyListeners();
+  }
+
+  // --- chats and messages --------------------------------------------------------------------------------------------
+
+  void _received(Map<String, Object?> m) {
+    final extra = m['@extra'];
+    if (extra is String && _waiting.containsKey(extra)) {
+      _waiting.remove(extra)!.complete(m);
+      return;
+    }
+    switch (m['@type']) {
+      case 'updateAuthorizationState':
+        _authState((m['authorization_state'] as Map).cast<String, Object?>());
+      case 'updateUser':
+        final u = m['user'] as Map;
+        _people[(u['id'] as num).toInt()] = u;
+        // Added to or taken out of this account's contacts, in Telegram or here.
+        if (u['is_contact'] == true) {
+          if (_contactIds.add((u['id'] as num).toInt()) && _state == InboxState.ready) notifyListeners();
+        } else if (_contactIds.remove((u['id'] as num).toInt())) {
+          notifyListeners();
+        }
+        // A label of Telegram's, or a contact made, changes how that person's chat is judged (lib/inbox/scams.dart).
+        if (_chatsById.isNotEmpty) _rebuild();
+        if ((u['type'] as Map?)?['@type'] == 'userTypeBot') _bots.add((u['id'] as num).toInt());
+        final name = [u['first_name'], u['last_name']].whereType<String>().where((s) => s.isNotEmpty).join(' ');
+        _users[(u['id'] as num).toInt()] = name.isEmpty ? 'Someone' : name;
+      case 'updateNewChat':
+        final c = (m['chat'] as Map).cast<String, Object?>();
+        final id = (c['id'] as num).toInt();
+        _chatsById[id] = c;
+        for (final p in (c['positions'] as List? ?? const [])) {
+          _position(id, p as Map);
+        }
+        _rebuild();
+      case 'updateChatTitle':
+        _patch(m, {'title': m['title']});
+      case 'updateChatPhoto':
+        _patch(m, {'photo': m['photo']});
+      case 'updateChatActionBar':
+        _patch(m, {'action_bar': m['action_bar']});
+      case 'updateChatNotificationSettings':
+        _patch(m, {'notification_settings': m['notification_settings']});
+      case 'updateFile':
+        _fileUpdated(m['file'] as Map);
+        _messageFile(m['file'] as Map);
+      case 'updateChatLastMessage':
+        _patch(m, {'last_message': m['last_message']});
+        for (final p in (m['positions'] as List? ?? const [])) {
+          _position((m['chat_id'] as num).toInt(), p as Map);
+        }
+        _rebuild();
+      case 'updateChatPosition':
+        _position((m['chat_id'] as num).toInt(), m['position'] as Map);
+        _rebuild();
+      case 'updateChatReadInbox':
+        _patch(m, {'unread_count': m['unread_count']});
+      case 'updateNewMessage':
+        final msg = (m['message'] as Map).cast<String, Object?>();
+        _add('${msg['chat_id']}', [_message(msg)]);
+      case 'updateMessageSendSucceeded':
+        final msg = (m['message'] as Map).cast<String, Object?>();
+        final chat = '${msg['chat_id']}';
+        final old = '${m['old_message_id']}';
+        _messages[chat] = [for (final x in messagesOf(chat)) if (x.id != old) x];
+        _add(chat, [_message(msg)]);
+      case 'updateMessageSendFailed':
+        final msg = (m['message'] as Map).cast<String, Object?>();
+        final chat = '${msg['chat_id']}';
+        final old = '${m['old_message_id']}';
+        _messages[chat] = [for (final x in messagesOf(chat)) x.id == old ? InboxMessage(id: x.id, text: x.text, date: x.date, mine: true, state: 'failed') : x];
+        _error = _plain(m['error'] as Map? ?? const {});
+        notifyListeners();
+      case 'updateDeleteMessages':
+        if (m['is_permanent'] == true) {
+          final chat = '${m['chat_id']}';
+          final gone = {for (final i in (m['message_ids'] as List? ?? const [])) '$i'};
+          _messages[chat] = [for (final x in messagesOf(chat)) if (!gone.contains(x.id)) x];
+          notifyListeners();
+        }
+    }
+  }
+
+  void _patch(Map<String, Object?> m, Map<String, Object?> fields) {
+    final id = (m['chat_id'] as num).toInt();
+    final c = _chatsById[id];
+    if (c == null) return;
+    _chatsById[id] = {...c, ...fields};
+    _rebuild();
+  }
+
+  void _position(int chat, Map p) {
+    final list = (p['list'] as Map?)?['@type'];
+    final orders = switch (list) { 'chatListMain' => _order, 'chatListArchive' => _archOrder, _ => null };
+    if (orders == null) return;
+    final order = int.tryParse('${p['order']}') ?? 0;
+    if (order == 0) {
+      orders.remove(chat);
+    } else {
+      orders[chat] = order;
+    }
+    if (list == 'chatListMain') {
+      if (p['is_pinned'] == true && order != 0) {
+        _pinned.add(chat);
+      } else {
+        _pinned.remove(chat);
+      }
+    }
+  }
+
+  /// What TDLib said of each user: whether a contact, and whether Telegram marks them a scam or a fake.
+  final Map<int, Map> _people = {};
+
+  /// What Telegram itself says of a private chat's account, in words: its scam and fake labels.
+  String? _flagOf(int? user) {
+    final u = user == null ? null : _people[user];
+    if (u == null) return null;
+    final v = u['verification_status'] as Map?;
+    if (u['is_scam'] == true || v?['is_scam'] == true) return 'Telegram marks this account as a scam';
+    if (u['is_fake'] == true || v?['is_fake'] == true) return 'Telegram marks this account as a fake';
+    return null;
+  }
+
+  /// The users that are bots, which sign-in codes may come from as Telegram's own account's do.
+  final Set<int> _bots = {};
+
+  /// Pinned chats in the main list.
+  final Set<int> _pinned = {};
+
+  @override
+  Future<void> pin(String chatId, bool pinned) async {
+    final r = await _ask({'@type': 'toggleChatIsPinned', 'chat_list': {'@type': 'chatListMain'}, 'chat_id': int.parse(chatId), 'is_pinned': pinned});
+    if (r['@type'] == 'error') _error = _plain(r);
+    notifyListeners();
+  }
+
+  /// The chats in Telegram's own archive, by their order there.
+  final Map<int, int> _archOrder = {};
+  List<InboxChat> _archived = const [];
+
+  @override
+  List<InboxChat> get archivedChats => _archived;
+
+  bool _writable(int id) {
+    final type = (_chatsById[id]?['type'] as Map?);
+    if (type == null) return false;
+    return !(type['@type'] == 'chatTypeSupergroup' && type['is_channel'] == true);
+  }
+
+  /// Into Telegram's archive, or back to the main list, as Telegram's own Archive does.
+  @override
+  Future<void> archive(String chatId, bool archived) async {
+    final r = await _ask({'@type': 'addChatToList', 'chat_id': int.parse(chatId), 'chat_list': {'@type': archived ? 'chatListArchive' : 'chatListMain'}});
+    if (r['@type'] == 'error') _error = _plain(r);
+    notifyListeners();
+  }
+
+  /// Deleted for this account, as Telegram's Delete chat does: a group is left first, then its history goes.
+  @override
+  Future<void> deleteChat(String chatId) async {
+    final id = int.parse(chatId);
+    final type = (_chatsById[id]?['type'] as Map?)?['@type'];
+    if (type == 'chatTypeBasicGroup' || type == 'chatTypeSupergroup') await _ask({'@type': 'leaveChat', 'chat_id': id});
+    final r = await _ask({'@type': 'deleteChatHistory', 'chat_id': id, 'remove_from_chat_list': true, 'revoke': false});
+    if (r['@type'] == 'error') {
+      _error = _plain(r);
+    } else {
+      _order.remove(id);
+      _archOrder.remove(id);
+      _messages.remove(chatId);
+      _rebuild();
+    }
+    notifyListeners();
+  }
+
+  /// The messages Telegram says can be deleted for everyone.
+  final Set<String> _forAll = {};
+
+  @override
+  bool canDeleteForEveryone(String chatId, InboxMessage message) => _forAll.contains('$chatId/${message.id}');
+
+  @override
+  Future<void> deleteMessage(String chatId, String messageId, {bool forEveryone = false}) async {
+    final r = await _ask({'@type': 'deleteMessages', 'chat_id': int.parse(chatId), 'message_ids': [int.parse(messageId)], 'revoke': forEveryone});
+    if (r['@type'] == 'error') {
+      _error = _plain(r);
+    } else {
+      _messages[chatId] = [for (final x in messagesOf(chatId)) if (x.id != messageId) x];
+    }
+    notifyListeners();
+  }
+
+  /// The chats the list shows: those in the main list that can be written in (private chats and groups, not
+  /// channels), the newest first, as they stand among the texts.
+  void _rebuild() {
+    final ids = _order.keys.where(_writable).toList();
+    _chats = [for (final id in ids) _chat(_chatsById[id]!)]..sort((a, b) => b.date.compareTo(a.date));
+    _archived = [for (final id in _archOrder.keys.where((id) => _writable(id) && !_order.containsKey(id))) _chat(_chatsById[id]!)]..sort((a, b) => b.date.compareTo(a.date));
+    notifyListeners();
+  }
+
+  InboxChat _chat(Map<String, Object?> c) {
+    final last = c['last_message'] as Map?;
+    final type = (c['type'] as Map?)?['@type'];
+    return InboxChat(
+      network: id,
+      id: '${c['id']}',
+      title: (c['title'] as String?)?.trim().isNotEmpty == true ? c['title'] as String : 'Telegram',
+      date: last == null ? DateTime.fromMillisecondsSinceEpoch(0) : DateTime.fromMillisecondsSinceEpoch(((last['date'] as num?) ?? 0).toInt() * 1000),
+      snippet: last == null ? '' : _text(last),
+      unread: (c['unread_count'] as num?)?.toInt() ?? 0,
+      group: type == 'chatTypeBasicGroup' || type == 'chatTypeSupergroup',
+      lastFromMe: last?['is_outgoing'] == true,
+      avatar: _photo(c),
+      pinned: _pinned.contains(c['id']),
+      // Someone not a contact who wrote first: Telegram offers to report them (its action bar); or not a contact at all.
+      stranger: type == 'chatTypePrivate' &&
+          (const {'chatActionBarReportSpam', 'chatActionBarReportAddBlock'}.contains((c['action_bar'] as Map?)?['@type']) ||
+              _people[((c['type'] as Map)['user_id'] as num?)?.toInt()]?['is_contact'] == false),
+      cold: type == 'chatTypePrivate' && const {'chatActionBarReportSpam', 'chatActionBarReportAddBlock'}.contains((c['action_bar'] as Map?)?['@type']),
+      flag: type == 'chatTypePrivate' ? _flagOf(((c['type'] as Map)['user_id'] as num?)?.toInt()) : null,
+      // Muted in Telegram for now: no notification from Ghost either. A chat on Telegram's default for its kind is not
+      // taken as muted (the default is rarely muted, and is not kept per chat).
+      muted: _muted(c['notification_settings'] as Map?),
+      // Telegram's own account (777000, which sends its sign-in codes) and bots.
+      service: type == 'chatTypePrivate' && (((c['type'] as Map)['user_id'] as num?)?.toInt() == 777000 || _bots.contains(((c['type'] as Map)['user_id'] as num?)?.toInt())),
+    );
+  }
+
+  static bool _muted(Map? settings) => settings != null && settings['use_default_mute_for'] != true && ((settings['mute_for'] as num?) ?? 0) > 0;
+
+  InboxMessage _message(Map<String, Object?> m) {
+    if (m['can_be_deleted_for_all_users'] == true) _forAll.add('${m['chat_id']}/${m['id']}');
+    final sender = m['sender_id'] as Map?;
+    final user = (sender?['user_id'] as num?)?.toInt();
+    final sending = (m['sending_state'] as Map?)?['@type'];
+    final media = _media(m['content'] as Map? ?? const {});
+    for (final x in media) {
+      _fileUsers.putIfAbsent(x.fileId, () => {}).add('${m['chat_id']}');
+      if (x.thumbId != null) _fileUsers.putIfAbsent(x.thumbId!, () => {}).add('${m['chat_id']}');
+    }
+    return InboxMessage(
+      id: '${m['id']}',
+      // A picture's or a file's words are its caption alone: the picture itself is drawn.
+      text: media.isEmpty ? _text(m) : ((((m['content'] as Map?)?['caption'] as Map?)?['text'] as String?) ?? '').trim(),
+      media: media,
+      date: DateTime.fromMillisecondsSinceEpoch(((m['date'] as num?) ?? 0).toInt() * 1000),
+      mine: m['is_outgoing'] == true,
+      sender: user == null ? '' : (_users[user] ?? ''),
+      state: sending == 'messageSendingStatePending' ? 'sending' : (sending == 'messageSendingStateFailed' ? 'failed' : 'sent'),
+    );
+  }
+
+  // --- attachments (Matt, 2026-11-15: "Is it possible to send and receive attachments through telegram too?") --------
+
+  /// The chats each file is in, so a file brought down reaches the messages holding it.
+  final Map<int, Set<String>> _fileUsers = {};
+  final Map<int, String> _files = {};
+  final Set<int> _filesAsked = {};
+
+  static int? _fileId(Map? f) => (f?['id'] as num?)?.toInt();
+
+  /// TDLib's file as far as this device has it: its path once it is whole here.
+  String? _localOf(Map? f) {
+    final local = f?['local'] as Map?;
+    final path = local?['path'] as String?;
+    return local?['is_downloading_completed'] == true && path != null && path.isNotEmpty ? path : null;
+  }
+
+  /// A message's pictures, videos, sounds and files.
+  List<InboxMedia> _media(Map c) {
+    InboxMedia one(String kind, Map? file, {String? name, Map? dims, int duration = 0, Map? thumb}) {
+      final id = _fileId(file)!;
+      final path = _localOf(file) ?? _files[id];
+      if (path != null) _files[id] = path;
+      final thumbFile = thumb?['file'] as Map?;
+      final thumbId = _fileId(thumbFile);
+      return InboxMedia(
+        kind: kind, fileId: id, path: path, name: name, size: ((file?['size'] ?? file?['expected_size']) as num?)?.toInt() ?? 0,
+        width: (dims?['width'] as num?)?.toInt() ?? 0, height: (dims?['height'] as num?)?.toInt() ?? 0, duration: duration,
+        thumbId: thumbId, thumbPath: thumbId == null ? null : (_localOf(thumbFile) ?? _files[thumbId]),
+      );
+    }
+
+    switch (c['@type']) {
+      case 'messagePhoto':
+        final sizes = ((c['photo'] as Map?)?['sizes'] as List? ?? const []).cast<Map>();
+        if (sizes.isEmpty) return const [];
+        // The largest no wider than 1280: sharp on a phone without bringing the original down.
+        final fit = sizes.where((x) => ((x['width'] as num?) ?? 0) <= 1280).toList();
+        final size = (fit.isEmpty ? sizes : fit).last;
+        return [one('photo', size['photo'] as Map?, dims: size)];
+      case 'messageVideo':
+        final v = c['video'] as Map;
+        return [one('video', v['video'] as Map?, name: v['file_name'] as String?, dims: v, duration: (v['duration'] as num?)?.toInt() ?? 0, thumb: v['thumbnail'] as Map?)];
+      case 'messageAnimation':
+        final v = c['animation'] as Map;
+        return [one('video', v['animation'] as Map?, name: v['file_name'] as String?, dims: v, duration: (v['duration'] as num?)?.toInt() ?? 0, thumb: v['thumbnail'] as Map?)];
+      case 'messageVideoNote':
+        final v = c['video_note'] as Map;
+        return [one('video', v['video'] as Map?, dims: {'width': v['length'], 'height': v['length']}, duration: (v['duration'] as num?)?.toInt() ?? 0, thumb: v['thumbnail'] as Map?)];
+      case 'messageSticker':
+        final st = c['sticker'] as Map;
+        // A still sticker is a picture; an animated one is not drawn here yet.
+        if ((st['format'] as Map?)?['@type'] != 'stickerFormatWebp') return const [];
+        return [one('photo', st['sticker'] as Map?, dims: st)];
+      case 'messageDocument':
+        final d = c['document'] as Map;
+        return [one('file', d['document'] as Map?, name: d['file_name'] as String?, thumb: d['thumbnail'] as Map?)];
+      case 'messageAudio':
+        final a = c['audio'] as Map;
+        return [one('audio', a['audio'] as Map?, name: (a['title'] as String?)?.trim().isNotEmpty == true ? a['title'] as String : a['file_name'] as String?, duration: (a['duration'] as num?)?.toInt() ?? 0)];
+      case 'messageVoiceNote':
+        final a = c['voice_note'] as Map;
+        return [one('audio', a['voice'] as Map?, name: 'Voice message', duration: (a['duration'] as num?)?.toInt() ?? 0)];
+    }
+    return const [];
+  }
+
+  /// A file whole on this device: the messages holding it take its path, and whoever waits for it is answered.
+  void _messageFile(Map file) {
+    final id = _fileId(file);
+    final path = _localOf(file);
+    if (id == null || path == null) return;
+    _files[id] = path;
+    final chats = _fileUsers[id];
+    if (chats == null) return;
+    for (final chat in chats) {
+      final held = _messages[chat];
+      if (held == null) continue;
+      _messages[chat] = [
+        for (final m in held)
+          m.media.any((x) => x.fileId == id || x.thumbId == id)
+              ? InboxMessage(id: m.id, text: m.text, date: m.date, mine: m.mine, sender: m.sender, state: m.state, media: [for (final x in m.media) x.withPath(id, path)])
+              : m,
+      ];
+    }
+    notifyListeners();
+  }
+
+  @override
+  bool get canSendFiles => true;
+
+  @override
+  void wantFile(int fileId) {
+    if (_files.containsKey(fileId) || !_filesAsked.add(fileId)) return;
+    _td?.send({'@type': 'downloadFile', 'file_id': fileId, 'priority': 16, 'offset': 0, 'limit': 0, 'synchronous': false});
+  }
+
+  @override
+  Future<String?> fileOf(int fileId) async {
+    final known = _files[fileId];
+    if (known != null) return known;
+    // Waited for whole: a video may take a while.
+    final r = await _ask({'@type': 'downloadFile', 'file_id': fileId, 'priority': 32, 'offset': 0, 'limit': 0, 'synchronous': true}, wait: const Duration(minutes: 5));
+    if (r['@type'] != 'file') {
+      _error = _plain(r);
+      notifyListeners();
+      return null;
+    }
+    _messageFile(r);
+    return _localOf(r);
+  }
+
+  /// What a file is sent as, by its name: a picture, a video, or a file as it is.
+  static String kindOf(String path) {
+    final ext = path.split('.').last.toLowerCase();
+    if (const {'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif', 'bmp'}.contains(ext)) return ext == 'gif' ? 'animation' : 'photo';
+    if (const {'mp4', 'mov', 'm4v', 'webm', 'mkv', '3gp'}.contains(ext)) return 'video';
+    return 'file';
+  }
+
+  @override
+  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false}) async {
+    if (_state != InboxState.ready) return;
+    for (final (i, path) in paths.indexed) {
+      final words = i == paths.length - 1 && caption.trim().isNotEmpty ? {'caption': {'@type': 'formattedText', 'text': caption.trim()}} : const <String, Object?>{};
+      final file = {'@type': 'inputFileLocal', 'path': path};
+      final content = voice
+          // Ghost records AAC in .m4a; Telegram's voice messages are Opus, so it goes as a sound named for what it is.
+          ? {'@type': 'inputMessageAudio', 'audio': file, 'title': 'Voice message', ...words}
+          : switch (kindOf(path)) {
+              'photo' => {'@type': 'inputMessagePhoto', 'photo': file, ...words},
+              'animation' => {'@type': 'inputMessageAnimation', 'animation': file, ...words},
+              'video' => {'@type': 'inputMessageVideo', 'video': file, 'supports_streaming': true, ...words},
+              _ => {'@type': 'inputMessageDocument', 'document': file, ...words},
+            };
+      final r = await _ask({'@type': 'sendMessage', 'chat_id': int.parse(chatId), 'input_message_content': content}, wait: const Duration(minutes: 2));
+      if (r['@type'] == 'message') {
+        _add(chatId, [_message(r)]);
+      } else {
+        _error = _plain(r);
+        notifyListeners();
+        return;
+      }
+    }
+  }
+
+  /// A message's words, or what it is where it has none to show (a picture, a voice message…).
+  static String _text(Map m) {
+    final c = m['content'] as Map? ?? const {};
+    String caption(String what) {
+      final t = ((c['caption'] as Map?)?['text'] as String?)?.trim();
+      return t == null || t.isEmpty ? what : '$what: $t';
+    }
+
+    return switch (c['@type']) {
+      'messageText' => ((c['text'] as Map?)?['text'] as String?) ?? '',
+      'messagePhoto' => caption('Photo'),
+      'messageVideo' => caption('Video'),
+      'messageAnimation' => caption('GIF'),
+      'messageDocument' => caption('File'),
+      'messageAudio' => caption('Audio'),
+      'messageVoiceNote' => caption('Voice message'),
+      'messageVideoNote' => 'Video message',
+      'messageSticker' => '${(c['sticker'] as Map?)?['emoji'] ?? ''} Sticker'.trim(),
+      'messageLocation' || 'messageVenue' => 'Location',
+      'messageContact' => 'Contact',
+      'messagePoll' => 'Poll',
+      'messageCall' => 'Call',
+      _ => 'Message',
+    };
+  }
+
+  void _add(String chat, List<InboxMessage> got) {
+    final held = {for (final m in messagesOf(chat)) m.id: m};
+    for (final m in got) {
+      held[m.id] = m;
+    }
+    _messages[chat] = held.values.toList()..sort((a, b) => a.date.compareTo(b.date));
+    notifyListeners();
+  }
+
+  @override
+  Future<void> load(String chatId, {bool older = false}) async {
+    if (_state != InboxState.ready) return;
+    final held = messagesOf(chatId);
+    if (older && _exhausted.contains(chatId)) return;
+    var from = older && held.isNotEmpty ? int.tryParse(held.first.id) ?? 0 : 0;
+    // TDLib may answer with fewer than asked (often one, the first time): asked again from the oldest got, a few
+    // times, so a chat opens with a screenful.
+    var got = 0;
+    for (var round = 0; round < 4 && got < 30; round++) {
+      final r = await _ask({'@type': 'getChatHistory', 'chat_id': int.parse(chatId), 'from_message_id': from, 'offset': 0, 'limit': 50, 'only_local': false});
+      if (r['@type'] != 'messages') break;
+      final list = [for (final m in (r['messages'] as List? ?? const [])) (m as Map).cast<String, Object?>()];
+      if (list.isEmpty) {
+        _exhausted.add(chatId);
+        break;
+      }
+      _add(chatId, [for (final m in list) _message(m)]);
+      got += list.length;
+      from = (list.last['id'] as num).toInt();
+    }
+  }
+
+  /// Whether [chatId] may have messages before the oldest held.
+  bool hasOlder(String chatId) => !_exhausted.contains(chatId);
+
+  @override
+  Future<void> send(String chatId, String text) async {
+    text = text.trim();
+    if (text.isEmpty || _state != InboxState.ready) return;
+    final r = await _ask({
+      '@type': 'sendMessage',
+      'chat_id': int.parse(chatId),
+      'input_message_content': {
+        '@type': 'inputMessageText',
+        'text': {'@type': 'formattedText', 'text': text},
+      },
+    });
+    if (r['@type'] == 'message') {
+      _add(chatId, [_message(r)]);
+    } else {
+      _error = _plain(r);
+      notifyListeners();
+    }
+  }
+
+  @override
+  Future<void> markRead(String chatId) async {
+    if (_state != InboxState.ready) return;
+    final id = int.parse(chatId);
+    final ids = [for (final m in messagesOf(chatId)) if (!m.mine) int.tryParse(m.id)].whereType<int>().toList();
+    // A chat never opened has no messages here: its newest message seen reads the whole chat, as Telegram counts it
+    // (Mark all as read in the list).
+    final last = ((_chatsById[id]?['last_message'] as Map?)?['id'] as num?)?.toInt();
+    if (ids.isEmpty && last != null) ids.add(last);
+    if (ids.isEmpty) return;
+    _td?.send({'@type': 'viewMessages', 'chat_id': id, 'message_ids': ids.length > 100 ? ids.sublist(ids.length - 100) : ids, 'force_read': true});
+    // Unread no longer, here at once.
+    final c = _chatsById[id];
+    if (c != null && (c['unread_count'] as num? ?? 0) > 0) {
+      _chatsById[id] = {...c, 'unread_count': 0};
+      _rebuild();
+    }
+  }
+
+  @override
+  set watching(String? chatId) {
+    final was = _watching;
+    _watching = chatId;
+    if (_state != InboxState.ready) return;
+    // An open chat is told to TDLib, so its updates come and reading it counts as read.
+    if (was != null && was != chatId) _td?.send({'@type': 'closeChat', 'chat_id': int.parse(was)});
+    if (chatId != null && chatId != was) _td?.send({'@type': 'openChat', 'chat_id': int.parse(chatId)});
+  }
+
+  Future<Map<String, Object?>> _ask(Map<String, Object?> request, {Duration wait = const Duration(seconds: 30)}) {
+    final td = _td;
+    if (td == null) return Future.value(const {'@type': 'error', 'message': 'Telegram isn\'t running'});
+    final key = 'q${++_asked}';
+    final done = Completer<Map<String, Object?>>();
+    _waiting[key] = done;
+    td.send({...request, '@extra': key});
+    return done.future.timeout(wait, onTimeout: () {
+      _waiting.remove(key);
+      return const {'@type': 'error', 'message': 'Telegram took too long to answer'};
+    });
+  }
+
+  /// An error from TDLib, in words for the page.
+  static String _plain(Map e) {
+    final said = '${e['message'] ?? ''}';
+    return switch (said) {
+      'PHONE_NUMBER_INVALID' => 'That phone number isn\'t one Telegram knows. Include the country code, like +1.',
+      'PHONE_CODE_INVALID' => 'That code isn\'t right.',
+      'PHONE_CODE_EXPIRED' => 'That code has run out. Ask for a new one.',
+      'PASSWORD_HASH_INVALID' => 'That password isn\'t right.',
+      'PHONE_NUMBER_BANNED' => 'Telegram has banned this number.',
+      'API_ID_INVALID' || 'API_ID_PUBLISHED_FLOOD' => 'This build\'s Telegram app id was refused.',
+      'CHAT_WRITE_FORBIDDEN' || 'USER_IS_BLOCKED' => 'You can\'t write in this chat.',
+      _ when said.startsWith('Too Many Requests') || said.startsWith('FLOOD_WAIT') => 'Telegram asks to wait before trying again.',
+      _ => said.isEmpty ? 'Telegram said no.' : said,
+    };
+  }
+
+  bool _disposed = false;
+
+  /// Answers still coming after the app let go of it (a sign-out, a test's end) change nothing.
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _sub?.cancel();
+    _td?.close();
+    super.dispose();
+  }
+}
+
+@visibleForTesting
+String telegramPlain(Map e) => Telegram._plain(e);

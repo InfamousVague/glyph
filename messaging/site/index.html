@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ghost Messaging: high-quality text, voice and video in one app</title>
-<meta name="description" content="Ghost Messaging: high-quality text, voice and video in one app. Encrypted chats, 510 kb/s voice with noise suppression, 4K video calls, on your phone and your computer.">
+<meta name="description" content="Ghost Messaging: high-quality text, voice and video in one app. Your texts, Telegram and Signal in one list, encrypted chats, 510 kb/s voice with noise suppression and 4K video calls, on your phone and your computer.">
 <link rel="canonical" href="https://gogho.st/">
 <link rel="icon" type="image/png" href="/icon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -12,7 +12,9 @@
 <meta property="og:title" content="Ghost Messaging">
 <meta property="og:description" content="High-quality text, voice and video in one app, on your phone and your computer.">
 <meta property="og:url" content="https://gogho.st/">
-<meta property="og:image" content="https://gogho.st/art/og.png">
+<meta property="og:image" content="https://gogho.st/art/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <!--
   The site (Matt, 2026-11-15): "redo the website with vivid colors and iconography inspired by the competition like
@@ -22,13 +24,14 @@
   and "rework the header to be something about high quality text, voice and video in one app".
   - Every picture of the app is the app: tool/site-layers.py cuts the screen tests' own pictures (test/shots) into
     site/shots/. The hero lifts one conversation apart into its layers.
-  - The pictures under /art/ are Matt's to make (Desktop/ghost-messaging-art-prompts.md); until one is there, its spot
-    shows the drawn ghost.
+  - The pictures under /art/ are Matt's (made from Desktop/ghost-messaging-art-prompts.md; "gogho.st assets has been
+    added to desktop wire them"), sized by tool/site-art.py.
   - Icons are Lucide's (ISC licence), inline. No fonts or scripts from anywhere else.
 -->
 <script>
   // The theme before anything is drawn: dark unless this visitor chose light (the toggle in the bar).
-  try { if (localStorage.getItem('theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch (_) {}
+  // A link ending #light shows the light page without changing what this visitor chose.
+  try { if (location.hash === '#light' || localStorage.getItem('theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch (_) {}
 </script>
 <style>
   /* Dark by default (Matt, 2026-11-15: "I really like this direction but want to have a dark mode that's used by
@@ -73,8 +76,9 @@
   /* --- top bar --- */
   header.bar { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(16px) saturate(1.2); -webkit-backdrop-filter: blur(16px) saturate(1.2); background: color-mix(in srgb, var(--bg) 78%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--rule) 70%, transparent); }
   header.bar .wrap { display: flex; align-items: center; gap: 1rem; height: 4rem; }
-  .brand { display: flex; align-items: center; gap: .6rem; font-weight: 800; letter-spacing: -.02em; text-decoration: none; font-size: 1.1rem; }
-  .brand img { width: 2.1rem; height: 2.1rem; border-radius: .65rem; }
+  .brand { display: flex; align-items: center; gap: .6rem; font-weight: 800; letter-spacing: -.02em; text-decoration: none; font-size: 1.1rem; white-space: nowrap; }
+  @media (max-width: 400px) { .brand { font-size: 1rem; gap: .45rem; } header.bar .cta { padding: .5rem .9rem; } }
+  .brand img { width: 2.1rem; height: 2.1rem; border-radius: .6rem; box-shadow: 0 0 0 1px var(--logo-rule, rgba(255,255,255,.14)); }
   nav.links { display: flex; gap: 1.5rem; margin-left: auto; font-weight: 600; font-size: .95rem; color: var(--ink-2); }
   nav.links a { text-decoration: none; }
   nav.links a:hover { color: var(--teal-2); }
@@ -113,13 +117,13 @@
   .fit { transform: scale(var(--fit, 1)); }
   .stack { --gap: 0px; --rx: 0deg; --rz: 0deg; position: relative; width: 300px; height: 650px; transform-style: preserve-3d; transform: rotateX(var(--rx)) rotateZ(var(--rz)); transition: transform 1.4s cubic-bezier(.2, .8, .2, 1); }
   .stack.open { --rx: 46deg; --rz: -27deg; }
-  .plate { position: absolute; inset: 0; border-radius: 34px; background: linear-gradient(180deg, var(--plate-1), var(--plate-2)); box-shadow: 0 0 0 1px var(--rule), 0 40px 70px -20px rgba(0, 0, 0, .45), 0 0 60px -10px var(--glow-a); }
+  .plate { position: absolute; inset: 0; transform: translateZ(calc(var(--gap) * .5)); transition: transform 1.4s cubic-bezier(.2, .8, .2, 1); border-radius: 34px; background: linear-gradient(180deg, var(--plate-1), var(--plate-2)); box-shadow: 0 0 0 1px var(--rule), 0 40px 70px -20px rgba(0, 0, 0, .45), 0 0 60px -10px var(--glow-a); }
   .plate::after { /* a phone's edge, under the plate */ content: ""; position: absolute; inset: -9px; border-radius: 42px; background: linear-gradient(135deg, var(--edge-1), var(--edge-2)); transform: translateZ(-14px); box-shadow: 0 50px 80px -30px rgba(0, 0, 0, .5); }
   .layer { position: absolute; transform: translateZ(calc(var(--gap) * var(--z))); transition: transform 1.4s cubic-bezier(.2, .8, .2, 1); filter: var(--lift); will-change: transform; }
   .layer img { width: 100%; height: auto; }
   .stack:not(.open) .layer { filter: none; }
   .glow { position: absolute; width: 36rem; height: 36rem; border-radius: 50%; background: radial-gradient(circle, var(--glow-a), transparent 62%); filter: blur(10px); }
-  .mascot { position: absolute; width: 7.5rem; right: 3%; top: 4%; filter: drop-shadow(0 18px 24px rgba(8, 70, 64, .22)); animation: bob 6s ease-in-out infinite; z-index: 2; }
+  .mascot { position: absolute; width: 9.5rem; right: 1%; top: 2%; filter: drop-shadow(0 18px 24px rgba(8, 70, 64, .22)); animation: bob 6s ease-in-out infinite; z-index: 2; }
   @keyframes bob { 50% { transform: translateY(-10px); } }
   .tag { position: absolute; z-index: 3; display: flex; align-items: center; gap: .5rem; background: var(--tag-bg); backdrop-filter: blur(8px); border: 1px solid var(--rule); border-radius: 999px; padding: .45rem .8rem .45rem .5rem; font-size: .82rem; font-weight: 700; box-shadow: var(--shadow); opacity: 0; transform: translateY(8px); transition: opacity .6s ease, transform .6s ease; }
   .tag span.t { width: 1.6rem; height: 1.6rem; border-radius: 50%; display: grid; place-items: center; background: var(--mist); color: var(--teal-2); }
@@ -144,7 +148,23 @@
   .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; margin-top: 3rem; }
   @media (max-width: 900px) { .trio { grid-template-columns: 1fr; max-width: 26rem; margin-left: auto; margin-right: auto; } }
   .pillar { background: var(--paper); border: 1px solid var(--rule); border-radius: 2rem; box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column; }
-  .pillar .text { padding: 1.6rem 1.6rem 1.2rem; }
+  .pillar .text { padding: 1.6rem 1.6rem 1.2rem; position: relative; }
+  .pillar .peek { position: absolute; right: 1rem; top: .9rem; width: 4.2rem; filter: drop-shadow(0 8px 12px rgba(0, 0, 0, .25)); }
+  .pillar h3, .pillar p { padding-right: 3.6rem; }
+  .card .art { width: 4.4rem; height: 4.4rem; object-fit: contain; margin: -.4rem 0 .5rem -.3rem; filter: drop-shadow(0 8px 12px rgba(0, 0, 0, .22)); }
+  /* The ghostly spot icons (art/icon-*.webp, tool/site-art.py), the inbox scene and the install steps' icons. */
+  .inbox-art { display: block; width: min(30rem, 86%); margin: 1.6rem auto -1rem; filter: drop-shadow(0 22px 30px rgba(0, 0, 0, .3)); }
+  .install b .inst { width: 2.1rem; height: 2.1rem; object-fit: contain; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .3)); }
+  /* Wisps of mist behind the hero and the dark band at the foot: faint, and in the dark theme alone (white on white is
+     nothing). */
+  .hero::before, .final::before { content: ""; position: absolute; inset: 0; background: url(/art/wisps.webp) no-repeat; pointer-events: none; }
+  .hero::before { background-position: 85% 20%; background-size: min(90rem, 150%) auto; opacity: .28;
+    /* Kept off the words on the left and faded out before the hero's foot, so it has no edge. */
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 45%), linear-gradient(180deg, #000 60%, transparent 100%);
+    -webkit-mask-composite: source-in; mask-image: linear-gradient(90deg, transparent 0%, #000 45%), linear-gradient(180deg, #000 60%, transparent 100%); mask-composite: intersect; }
+  .final::before { background-position: 30% 70%; background-size: min(80rem, 180%) auto; opacity: .35; }
+  :root[data-theme="light"] .hero::before { opacity: 0; }
+  .hero .wrap, .final > * { position: relative; }
   .pillar h3 { display: flex; align-items: center; gap: .6rem; margin: 0 0 .4rem; font-size: 1.35rem; letter-spacing: -.025em; }
   .pillar h3 span { width: 2.3rem; height: 2.3rem; border-radius: .8rem; display: grid; place-items: center; background: var(--mist); color: var(--teal-2); }
   .pillar p { margin: 0; color: var(--ink-2); font-size: .98rem; }
@@ -164,28 +184,46 @@
   .chips { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.6rem; }
   .chip { display: inline-flex; align-items: center; gap: .45rem; padding: .5rem .85rem; border-radius: 999px; background: var(--paper); border: 1px solid var(--rule); font-weight: 650; font-size: .9rem; }
   .chip svg.i { width: 1.05rem; height: 1.05rem; color: var(--teal); }
-  .duo { position: relative; height: 34rem; }
+  .duo { position: relative; height: 38rem; }
+  .duo .scene { position: absolute; left: 50%; bottom: -1rem; width: 82%; transform: translateX(-50%); filter: drop-shadow(0 24px 30px rgba(0, 0, 0, .35)); z-index: 2; border-radius: 0; box-shadow: none; }
   .duo img { position: absolute; width: 15.5rem; border-radius: 1.8rem; box-shadow: 0 0 0 1px var(--rule), 0 30px 60px -20px rgba(8, 70, 64, .35); }
   .duo .a { left: 6%; top: 0; transform: rotate(-5deg); }
   .duo .b { right: 6%; top: 3rem; transform: rotate(4deg); }
-  @media (max-width: 520px) { .duo { height: 27rem; } .duo img { width: 12rem; } .duo .a { left: 0; } .duo .b { right: 0; } }
+  @media (max-width: 520px) { .duo { height: 31rem; } .duo img { width: 12rem; } .duo .a { left: 0; } .duo .b { right: 0; } .duo .scene { width: 96%; } }
 
-  /* one inbox */
-  .inbox { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 2.5rem; }
-  @media (max-width: 900px) { .inbox { grid-template-columns: 1fr; } }
-  .stepcard { background: var(--paper); border: 1px solid var(--rule); border-radius: 1.6rem; padding: 1.4rem; box-shadow: var(--shadow); position: relative; }
-  .stepcard .when { display: inline-block; font-size: .72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; padding: .2rem .6rem; border-radius: 999px; margin-bottom: .8rem; }
-  .now { background: var(--mist); color: var(--teal-2); }
-  .soon { background: var(--soon-bg); color: var(--soon-fg); }
-  .later { background: var(--later-bg); color: var(--later-fg); }
-  .stepcard h3 { margin: 0 0 .35rem; font-size: 1.12rem; }
-  .stepcard p { margin: 0; color: var(--ink-2); font-size: .95rem; }
-  .bubbles { display: flex; gap: .45rem; margin-top: 1rem; }
-  .bubbles span { width: 2.2rem; height: 2.2rem; border-radius: .75rem; display: grid; place-items: center; background: var(--bg); border: 1px dashed var(--rule); color: var(--ink-3); }
-  .bubbles span.on { background: var(--mist); border: 1px solid var(--sea); color: var(--teal-2); }
-  .bubbles svg.i { width: 1.05rem; height: 1.05rem; }
+  /* one inbox: other networks among the texts */
+  .nets { display: grid; grid-template-columns: .9fr 1.1fr; gap: 3rem; align-items: center; margin-top: 3rem; }
+  @media (max-width: 900px) { .nets { grid-template-columns: 1fr; gap: 2rem; } }
+  .netshots { position: relative; height: 32rem; }
+  .netshots img { position: absolute; width: 17rem; border-radius: 1.8rem; box-shadow: var(--ring), 0 30px 60px -20px rgba(0, 0, 0, .45); }
+  .netshots .a { left: 0; top: 0; transform: rotate(-3deg); }
+  .netshots .b { right: 0; bottom: 0; transform: rotate(3deg); }
+  @media (max-width: 520px) { .netshots { height: 26rem; } .netshots img { width: 13rem; } }
+  .netcards { display: grid; gap: 1rem; }
+  .netcard { background: var(--paper); border: 1px solid var(--rule); border-radius: 1.6rem; padding: 1.4rem 1.5rem; box-shadow: var(--shadow); }
+  .nethead { display: flex; align-items: center; gap: .85rem; margin-bottom: .9rem; }
+  .nethead h3 { margin: 0; font-size: 1.25rem; letter-spacing: -.02em; }
+  .nethead .where { font-size: .82rem; color: var(--ink-3); font-weight: 600; }
+  .badge { width: 2.6rem; height: 2.6rem; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--b); box-shadow: 0 8px 18px -8px var(--b); flex: none; }
+  .badge svg.i { width: 1.25rem; height: 1.25rem; }
+  .netcard ul { list-style: none; padding: 0; margin: 0 0 .9rem; display: grid; gap: .45rem; }
+  .netcard li { display: flex; gap: .55rem; align-items: flex-start; color: var(--ink-2); font-size: .96rem; }
+  .netcard li svg.i { width: 1.05rem; height: 1.05rem; color: var(--teal); margin-top: .2rem; }
+  .netcard .how { margin: 0; font-size: .9rem; color: var(--ink-3); border-top: 1px solid var(--rule); padding-top: .8rem; }
+  .netcard .how b { color: var(--ink-2); }
+  .netrow { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin-top: 3rem; }
+  .net { display: inline-flex; align-items: center; gap: .45rem; padding: .5rem .9rem; border-radius: 999px; font-weight: 650; font-size: .9rem; border: 1px solid var(--rule); }
+  .net svg.i { width: 1rem; height: 1rem; }
+  .net.on { background: var(--mist); color: var(--ink); }
+  .net.on svg.i { color: var(--teal); }
+  .net.soon { background: transparent; color: var(--ink-3); border-style: dashed; }
+  .netnote { display: flex; gap: .6rem; align-items: flex-start; max-width: 46rem; margin: 1.4rem auto 0; color: var(--ink-3); font-size: .9rem; }
+  .netnote svg.i { width: 1.1rem; height: 1.1rem; color: var(--teal); margin-top: .15rem; }
 
   /* desktop */
+  .deskart { position: relative; }
+  .deskart .scene { position: absolute; right: -2rem; bottom: -3.5rem; width: 46%; filter: drop-shadow(0 22px 28px rgba(0, 0, 0, .35)); }
+  @media (max-width: 520px) { .deskart .scene { right: -.5rem; bottom: -2.5rem; width: 52%; } }
   .window { background: var(--paper); border: 1px solid var(--rule); border-radius: 1.4rem; box-shadow: 0 40px 80px -30px rgba(8, 70, 64, .35); overflow: hidden; }
   .window .chrome { display: flex; gap: .4rem; padding: .7rem .9rem; border-bottom: 1px solid var(--rule); background: var(--chrome); }
   .window .chrome i { width: .7rem; height: .7rem; border-radius: 50%; }
@@ -197,6 +235,7 @@
   .steps b { color: var(--ink); }
 
   /* privacy */
+  .privacy-art { width: min(17rem, 70%); margin: 0 auto 1rem; filter: drop-shadow(0 22px 30px rgba(0, 0, 0, .3)); }
   .seal { width: 5rem; height: 5rem; margin: 0 auto 1.3rem; border-radius: 1.6rem; display: grid; place-items: center; color: var(--teal-2); background: linear-gradient(180deg, var(--seal-top), var(--mist)); border: 1px solid var(--sea); box-shadow: 0 18px 36px -14px rgba(22, 163, 155, .45); }
   .seal svg.i { width: 2.2rem; height: 2.2rem; }
 
@@ -207,7 +246,7 @@
   .final .get { justify-content: center; }
   .final a.dl.main { background: #fff; color: var(--deep); }
   .final a.dl.alt { background: rgba(255, 255, 255, .1); color: #fff; border-color: rgba(255, 255, 255, .28); box-shadow: none; }
-  .final .mascot-end { width: 6.5rem; margin: 0 auto 1rem; filter: drop-shadow(0 16px 24px rgba(0, 30, 28, .35)); }
+  .final .mascot-end { width: 9rem; margin: 0 auto 1rem; filter: drop-shadow(0 16px 24px rgba(0, 30, 28, .35)); }
   .install { max-width: 46rem; margin: 2.5rem auto 0; text-align: left; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); }
   .install div { background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .18); border-radius: 1.3rem; padding: 1.1rem 1.2rem; font-size: .93rem; }
   .install b { display: flex; align-items: center; gap: .5rem; margin-bottom: .35rem; font-size: 1rem; }
@@ -246,6 +285,10 @@
     <symbol id="i-zap" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></symbol>
     <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
     <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></symbol>
+    <symbol id="i-at" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></symbol>
     <!-- The drawn ghost: what a picture's spot shows until Matt's picture is there. -->
     <symbol id="ghost" viewBox="0 0 120 130"><path fill="#fff" stroke="#cfeee7" stroke-width="2" d="M60 4C30 4 10 27 10 58v62c0 3 3.5 4.6 5.8 2.6l9-8 9.4 8.6a4 4 0 0 0 5.4 0l9.6-8.6 9.6 8.6a4 4 0 0 0 5.4 0l9.6-8.6 9.6 8.6a4 4 0 0 0 5.4 0l9.4-8.6 9 8c2.3 2 5.8.4 5.8-2.6V58C110 27 90 4 60 4Z"/><ellipse cx="44" cy="56" rx="7.5" ry="10" fill="#0d2322"/><ellipse cx="76" cy="56" rx="7.5" ry="10" fill="#0d2322"/><circle cx="46.5" cy="52" r="2.6" fill="#fff"/><circle cx="78.5" cy="52" r="2.6" fill="#fff"/><ellipse cx="34" cy="74" rx="7" ry="4" fill="#8fe0d4" opacity=".9"/><ellipse cx="86" cy="74" rx="7" ry="4" fill="#8fe0d4" opacity=".9"/><path d="M52 74c4 4 12 4 16 0" stroke="#0d2322" stroke-width="3.5" fill="none" stroke-linecap="round"/></symbol>
   </defs>
@@ -271,7 +314,7 @@
     <div>
       <span class="pill"><b id="now">New</b>Your all-in-one messenger</span>
       <h1>High-quality text, voice and video. <em>In one app.</em></h1>
-      <p class="lede">Messages with reactions and effects that land. Voice at 510 kb/s stereo with noise suppression that clears the room. Video up to 4K. Chats and calls with friends are end-to-end encrypted, on your phone and your computer, with more of your messengers joining over time.</p>
+      <p class="lede">Messages with reactions and effects that land. Voice at 510 kb/s stereo with noise suppression that clears the room. Video up to 4K. Your Telegram and Signal chats sit right beside your texts, and chats and calls with friends are end-to-end encrypted, on your phone and your computer.</p>
       <div class="get">
         <a class="dl main" href="/ghost-messaging.apk" data-feed="apk"><svg class="i"><use href="#i-phone"/></svg><span>Download for Android<small data-version="apk">Free, straight from us</small></span></a>
         <a class="dl alt" href="/ghost-messaging-mac.zip" data-feed="mac" hidden><svg class="i"><use href="#i-laptop"/></svg><span>Mac<small data-version="mac"></small></span></a>
@@ -284,28 +327,26 @@
       <div class="glow"></div>
       <img class="mascot" src="/art/mascot-hero.webp" alt="" onerror="this.outerHTML='<svg class=&quot;mascot&quot; viewBox=&quot;0 0 120 130&quot;><use href=&quot;#ghost&quot;/></svg>'">
       <div class="fit" id="fit">
-        <!-- One conversation from the app (test/shots/2-thread-light.png), in its own layers, each where it sits on
-             the 824 x 1784 screen; --z is how far it lifts. -->
+        <!-- One conversation from the app (test/shots/2-thread-*.png) in three planes: the bubbles, the bar and the
+             composer above them, the reactions just over their bubbles. Written by tool/site-layers.py. -->
         <div class="stack" id="stack">
           <div class="plate"></div>
-          <div class="layer" style="--z:2;left:0;top:2.47%;width:100%"><img src="/shots/x-header-dark.webp" data-shot="x-header" alt=""></div>
-          <div class="layer" style="--z:3;left:2.43%;top:9.75%;width:78.2%"><img src="/shots/x-link-dark.webp" data-shot="x-link" alt=""></div>
-          <div class="layer" style="--z:2;left:5.58%;top:19.28%;width:74%"><img src="/shots/x-place-dark.webp" data-shot="x-place" alt=""></div>
-          <div class="layer" style="--z:4;left:19.9%;top:32.17%;width:77.9%"><img src="/shots/x-out1-dark.webp" data-shot="x-out1" alt=""></div>
-          <div class="layer" style="--z:4;left:51%;top:39.74%;width:46.8%"><img src="/shots/x-out2-dark.webp" data-shot="x-out2" alt=""></div>
-          <div class="layer" style="--z:7;left:53.4%;top:44.62%;width:7.3%"><img src="/shots/x-heart-dark.webp" data-shot="x-heart" alt=""></div>
-          <div class="layer" style="--z:1;left:63.1%;top:47.42%;width:34%"><img src="/shots/x-ticks-dark.webp" data-shot="x-ticks" alt=""></div>
-          <div class="layer" style="--z:3;left:2.43%;top:51.57%;width:78.2%"><img src="/shots/x-in-dark.webp" data-shot="x-in" alt=""></div>
-          <div class="layer" style="--z:7;left:70.6%;top:59.3%;width:7.5%"><img src="/shots/x-laugh-dark.webp" data-shot="x-laugh" alt=""></div>
-          <div class="layer" style="--z:5;left:4.1%;top:68.5%;width:24%"><img src="/shots/x-emoji-dark.webp" data-shot="x-emoji" alt=""></div>
-          <div class="layer" style="--z:3;left:2.43%;top:77.47%;width:60.2%"><img src="/shots/x-chips-dark.webp" data-shot="x-chips" alt=""></div>
-          <div class="layer" style="--z:9;left:3.4%;top:83.6%;width:77.8%"><img src="/shots/x-callbar-dark.webp" data-shot="x-callbar" alt=""></div>
-          <div class="layer" style="--z:4;left:2.43%;top:91.7%;width:95.4%"><img src="/shots/x-compose-dark.webp" data-shot="x-compose" alt=""></div>
+<!-- STACK -->
+          <div class="layer" style="--z:2.1;left:0.00%;top:2.47%;width:100.00%" data-light="0.00,2.47,100.00" data-dark="0.00,2.47,100.00"><img src="/shots/x-header-dark.webp" data-shot="x-header" alt=""></div>
+          <div class="layer" style="--z:1.9;left:2.43%;top:10.20%;width:78.16%" data-light="2.43,9.75,78.16" data-dark="2.43,10.20,78.16"><img src="/shots/x-link-dark.webp" data-shot="x-link" alt=""></div>
+          <div class="layer" style="--z:1.75;left:5.58%;top:19.73%;width:74.03%" data-light="5.58,19.28,74.03" data-dark="5.58,19.73,74.03"><img src="/shots/x-place-dark.webp" data-shot="x-place" alt=""></div>
+          <div class="layer" style="--z:1.5;left:19.90%;top:32.51%;width:77.91%" data-light="19.90,32.17,77.91" data-dark="19.90,32.51,77.91"><img src="/shots/x-out1-dark.webp" data-shot="x-out1" alt=""></div>
+          <div class="layer" style="--z:1.5;left:51.46%;top:40.02%;width:46.36%" data-light="50.97,39.74,46.84" data-dark="51.46,40.02,46.36"><img src="/shots/x-out2-dark.webp" data-shot="x-out2" alt=""></div>
+          <div class="layer" style="--z:1.55;left:53.88%;top:44.51%;width:7.28%" data-light="53.40,44.62,7.28" data-dark="53.88,44.51,7.28"><img src="/shots/x-heart-dark.webp" data-shot="x-heart" alt=""></div>
+          <div class="layer" style="--z:1.35;left:63.11%;top:47.42%;width:33.98%" data-light="63.11,47.42,33.98" data-dark="63.11,47.42,33.98"><img src="/shots/x-ticks-dark.webp" data-shot="x-ticks" alt=""></div>
+          <div class="layer" style="--z:1.2;left:2.43%;top:51.68%;width:78.16%" data-light="2.43,51.57,78.16" data-dark="2.43,51.68,78.16"><img src="/shots/x-in-dark.webp" data-shot="x-in" alt=""></div>
+          <div class="layer" style="--z:1.25;left:70.63%;top:59.30%;width:7.52%" data-light="70.63,59.30,7.52" data-dark="70.63,59.30,7.52"><img src="/shots/x-laugh-dark.webp" data-shot="x-laugh" alt=""></div>
+          <div class="layer" style="--z:1.0;left:4.13%;top:68.50%;width:24.03%" data-light="4.13,68.50,24.03" data-dark="4.13,68.50,24.03"><img src="/shots/x-emoji-dark.webp" data-shot="x-emoji" alt=""></div>
+          <div class="layer" style="--z:0.85;left:2.43%;top:77.47%;width:60.19%" data-light="2.43,77.47,60.19" data-dark="2.43,77.47,60.19"><img src="/shots/x-chips-dark.webp" data-shot="x-chips" alt=""></div>
+          <div class="layer" style="--z:0.65;left:2.43%;top:91.70%;width:95.39%" data-light="2.43,91.70,95.39" data-dark="2.43,91.70,95.39"><img src="/shots/x-compose-dark.webp" data-shot="x-compose" alt=""></div>
+          <!-- /STACK -->
         </div>
       </div>
-      <div class="tag t1"><span class="t"><svg class="i"><use href="#i-heart"/></svg></span>Reactions that land</div>
-      <div class="tag t2"><span class="t"><svg class="i"><use href="#i-phones"/></svg></span>Voice channels, always open</div>
-      <div class="tag t3"><span class="t"><svg class="i"><use href="#i-lock"/></svg></span>Sealed end to end</div>
     </div>
   </div>
 </div>
@@ -314,32 +355,32 @@
   <div class="wrap center">
     <span class="kicker">One app instead of three</span>
     <h2>Chat, talk and see each other, <em>without switching apps.</em></h2>
-    <p class="sub">Your texts, your friends and your calls live together. Start in a chat, jump into the group's voice channel, turn video on, and the conversation is all still in one place.</p>
+    <p class="sub">Your texts, your friends and your calls live together. Start in a chat, jump into the group's space, turn video on, and the conversation is all still in one place.</p>
   </div>
   <div class="wrap trio">
     <div class="pillar">
-      <div class="text"><h3><span><svg class="i"><use href="#i-msgs"/></svg></span>Messages</h3><p>Texts and picture messages, plus encrypted chats with friends on Ghost. Reactions, effects, stickers, groups with names and faces.</p></div>
+      <div class="text"><img class="peek" src="/art/boo-messages.webp" alt="" loading="lazy"><h3><span><svg class="i"><use href="#i-msgs"/></svg></span>Messages</h3><p>Texts and picture messages, plus encrypted chats with friends on Ghost. Reactions, effects, stickers, groups with names and faces.</p></div>
       <div class="shot"><img src="/shots/list-dark.webp" data-shot="list" alt="The conversation list" loading="lazy"></div>
     </div>
     <div class="pillar">
-      <div class="text"><h3><span><svg class="i"><use href="#i-phones"/></svg></span>Voice</h3><p>Every group has a channel that's always open: see who's in, drop in, drop out. Share a hangout by link and anyone can join.</p></div>
-      <div class="shot"><img src="/shots/hangout-dark.webp" data-shot="hangout" alt="A hangout with four people" loading="lazy"></div>
+      <div class="text"><img class="peek" src="/art/boo-calls.webp" alt="" loading="lazy"><h3><span><svg class="i"><use href="#i-phones"/></svg></span>Voice</h3><p>Every group has a space that's always open: see who's in, drop in, drop out. Share a space by link and anyone can join.</p></div>
+      <div class="shot"><img src="/shots/hangout-dark.webp" data-shot="hangout" alt="A space with four people" loading="lazy"></div>
     </div>
     <div class="pillar">
-      <div class="text"><h3><span><svg class="i"><use href="#i-video"/></svg></span>Video</h3><p>Turn your camera on in any call, up to 4K. Noise suppression keeps fans, keyboards and traffic out, and your mic can go to 200%.</p></div>
+      <div class="text"><img class="peek" src="/art/icon-video.webp" alt="" loading="lazy"><h3><span><svg class="i"><use href="#i-video"/></svg></span>Video</h3><p>Turn your camera on in any call, up to 4K. Noise suppression keeps fans, keyboards and traffic out, and your mic can go to 200%.</p></div>
       <div class="shot"><img src="/shots/voice-settings-dark.webp" data-shot="voice-settings" alt="Voice and video settings" loading="lazy"></div>
     </div>
   </div>
   <div class="wrap">
     <div class="grid">
-      <div class="card"><div class="tile"><svg class="i"><use href="#i-heart"/></svg></div><h3>Reactions that land</h3><p>A ❤️ from an iPhone or a Pixel sits on the message it was for, not in a line of its own.</p></div>
-      <div class="card"><div class="tile"><svg class="i"><use href="#i-spark"/></svg></div><h3>Effects</h3><p>Balloons for "Happy birthday", confetti for "Congrats", lasers for "pew pew", ghosts for "Boo".</p></div>
-      <div class="card"><div class="tile"><svg class="i"><use href="#i-users"/></svg></div><h3>Friends by username</h3><p>Pick a username, add friends by theirs, and make groups you can call all at once.</p></div>
-      <div class="card"><div class="tile"><svg class="i"><use href="#i-key"/></svg></div><h3>Codes, sorted</h3><p>One-time codes get their own tab with the company's logo, ready to copy.</p></div>
-      <div class="card"><div class="tile"><svg class="i"><use href="#i-msg"/></svg></div><h3>Sorted for you</h3><p>Needs a reply, sales and spam each find their own tab, so what matters comes first.</p></div>
-      <div class="card"><div class="tile"><svg class="i"><use href="#i-smile"/></svg></div><h3>Your emoji</h3><p>The phone's own, Noto, Twemoji, OpenMoji or a clean outline set. Stickers too.</p></div>
-      <div class="card"><div class="tile"><svg class="i"><use href="#i-check2"/></svg></div><h3>Ticks</h3><p>Sent, delivered and read. Pictures retry by themselves and tell you why.</p></div>
-      <div class="card"><div class="tile"><svg class="i"><use href="#i-zap"/></svg></div><h3>Keeps itself current</h3><p>Small updates, often, on every device. No store needed.</p></div>
+      <div class="card"><img class="art" src="/art/icon-reactions.webp" alt="" loading="lazy"><h3>Reactions that land</h3><p>A ❤️ from an iPhone or a Pixel sits on the message it was for, not in a line of its own.</p></div>
+      <div class="card"><img class="art" src="/art/scene-effects.webp" alt="" loading="lazy"><h3>Effects</h3><p>Balloons for "Happy birthday", confetti for "Congrats", lasers for "pew pew", ghosts for "Boo".</p></div>
+      <div class="card"><img class="art" src="/art/icon-friends.webp" alt="" loading="lazy"><h3>Friends by username</h3><p>Pick a username, add friends by theirs, and make groups you can call all at once.</p></div>
+      <div class="card"><img class="art" src="/art/boo-codes.webp" alt="" loading="lazy"><h3>Codes, sorted</h3><p>One-time codes get their own tab with the company's logo, ready to copy.</p></div>
+      <div class="card"><img class="art" src="/art/icon-sorted.webp" alt="" loading="lazy"><h3>Sorted for you</h3><p>Sales and spam each find their own tab, and codes theirs, so the people you talk to come first.</p></div>
+      <div class="card"><img class="art" src="/art/icon-emoji.webp" alt="" loading="lazy"><h3>Your emoji</h3><p>The phone's own, Noto, Twemoji, OpenMoji or a clean outline set. Stickers too.</p></div>
+      <div class="card"><img class="art" src="/art/icon-ticks.webp" alt="" loading="lazy"><h3>Ticks</h3><p>Sent, delivered and read. Pictures retry by themselves and tell you why.</p></div>
+      <div class="card"><img class="art" src="/art/icon-updates.webp" alt="" loading="lazy"><h3>Keeps itself current</h3><p>Small updates, often, on every device. No store needed.</p></div>
     </div>
   </div>
 </section>
@@ -349,7 +390,7 @@
     <div>
       <span class="kicker"><svg class="i" style="width:1rem;height:1rem"><use href="#i-phones"/></svg>Voice and video</span>
       <h2>Talk like you're <em>in the same room.</em></h2>
-      <p class="sub">Voice channels stay open in every group, so talking is as easy as texting. Hangouts get a link anyone can open, in the app or straight from a browser, and a chat beside the call.</p>
+      <p class="sub">Every group has a space that stays open, so talking is as easy as texting. Spaces get a link anyone can open, in the app or straight from a browser, and a chat beside the call.</p>
       <div class="chips">
         <span class="chip"><svg class="i"><use href="#i-video"/></svg>Up to 4K video</span>
         <span class="chip"><svg class="i"><use href="#i-wave"/></svg>RNNoise and DeepFilterNet noise suppression</span>
@@ -362,6 +403,7 @@
     <div class="duo" aria-hidden="true">
       <img class="a" src="/shots/hangout-dark.webp" data-shot="hangout" alt="" loading="lazy">
       <img class="b" src="/shots/hangout-chat-dark.webp" data-shot="hangout-chat" alt="" loading="lazy">
+      <img class="scene" src="/art/scene-calls.webp" alt="" loading="lazy">
     </div>
   </div>
 </section>
@@ -369,26 +411,65 @@
 <section id="inbox">
   <div class="wrap center">
     <span class="kicker"><svg class="i" style="width:1rem;height:1rem"><use href="#i-inbox"/></svg>One inbox</span>
-    <h2>All your messengers, <em>in one place.</em></h2>
-    <p class="sub">Ghost Messaging is built to be the one app you open. It already handles your texts and your friends on Ghost, and it's bringing your other messengers in, one at a time, so every conversation shows up in one list.</p>
+    <h2>Telegram and Signal, <em>right beside your texts.</em></h2>
+    <p class="sub">Sign in once and your Telegram and Signal chats join your texts in one list, newest first, each marked with its network. Read them, answer them and send pictures without switching apps.</p>
+    <img class="inbox-art" src="/art/scene-inbox.webp" alt="" loading="lazy">
   </div>
-  <div class="wrap inbox">
-    <div class="stepcard"><span class="when now">Today</span><h3>Texts and Ghost chats</h3><p>SMS and picture messages through your carrier, and encrypted chats, calls and groups with friends on Ghost.</p><div class="bubbles"><span class="on"><svg class="i"><use href="#i-msg"/></svg></span><span class="on"><svg class="i"><use href="#i-lock"/></svg></span><span class="on"><svg class="i"><use href="#i-phones"/></svg></span></div></div>
-    <div class="stepcard"><span class="when soon">Next</span><h3>RCS chats, everywhere</h3><p>Works beside Google Messages on your phone today, so RCS keeps arriving. Next, your RCS conversations right in Ghost's list on your computer.</p><div class="bubbles"><span class="on"><svg class="i"><use href="#i-msgs"/></svg></span><span><svg class="i"><use href="#i-laptop"/></svg></span></div></div>
-    <div class="stepcard"><span class="when later">After that</span><h3>Your other messengers</h3><p>More networks, bridged in one by one, so you can stop switching between apps to keep up with people.</p><div class="bubbles"><span><svg class="i"><use href="#i-plus"/></svg></span><span><svg class="i"><use href="#i-plus"/></svg></span><span><svg class="i"><use href="#i-plus"/></svg></span></div></div>
+  <div class="wrap nets">
+    <div class="netshots" aria-hidden="true">
+      <img class="a" src="/shots/inbox-list-dark.webp" data-shot="inbox-list" alt="" loading="lazy">
+      <img class="b" src="/shots/inbox-chat-dark.webp" data-shot="inbox-chat" alt="" loading="lazy">
+    </div>
+    <div class="netcards">
+      <div class="netcard">
+        <div class="nethead"><span class="badge" style="--b:#2aabee"><svg class="i"><use href="#i-send"/></svg></span><div><h3>Telegram</h3><span class="where">Android · Mac</span></div></div>
+        <ul>
+          <li><svg class="i"><use href="#i-check"/></svg>Your private chats and groups, with their pictures, in the same list as your texts</li>
+          <li><svg class="i"><use href="#i-check"/></svg>Photos, videos, voice messages and files, both ways</li>
+          <li><svg class="i"><use href="#i-check"/></svg>Swipe to archive or delete, done on Telegram itself</li>
+          <li><svg class="i"><use href="#i-check"/></svg>Telegram's sign-in codes land in your Codes tab, and the spam filter checks strangers' chats</li>
+        </ul>
+        <p class="how"><b>How you connect:</b> sign in with your Telegram number, the code Telegram sends you and your two-step password if you have one. It runs on Telegram's own client library, TDLib.</p>
+      </div>
+      <div class="netcard">
+        <div class="nethead"><span class="badge" style="--b:#3a76f0"><svg class="i"><use href="#i-msg"/></svg></span><div><h3>Signal</h3><span class="where">Android · Mac with Apple silicon</span></div></div>
+        <ul>
+          <li><svg class="i"><use href="#i-check"/></svg>Messages and groups, with replies and reactions</li>
+          <li><svg class="i"><use href="#i-check"/></svg>Pictures, read receipts and deletes, both ways</li>
+          <li><svg class="i"><use href="#i-check"/></svg>Your Signal contacts' names and faces</li>
+          <li><svg class="i"><use href="#i-check"/></svg>Still end-to-end encrypted, with Signal's own protocol</li>
+        </ul>
+        <p class="how"><b>How you connect:</b> Ghost links as another device, as Signal Desktop does: in Signal on your phone, open Settings › Linked devices and scan the code. Signal gives a new device no history, so you'll see messages from then on.</p>
+      </div>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="netrow" aria-label="Networks">
+      <span class="net on"><svg class="i"><use href="#i-msg"/></svg>Texts and picture messages</span>
+      <span class="net on"><svg class="i"><use href="#i-lock"/></svg>Ghost chats</span>
+      <span class="net on"><svg class="i"><use href="#i-msgs"/></svg>RCS, through Google Messages</span>
+      <span class="net on"><svg class="i"><use href="#i-send"/></svg>Telegram</span>
+      <span class="net on"><svg class="i"><use href="#i-msg"/></svg>Signal</span>
+      <span class="net soon"><svg class="i"><use href="#i-cloud"/></svg>Bluesky · soon</span>
+      <span class="net soon"><svg class="i"><use href="#i-at"/></svg>Mastodon · soon</span>
+    </div>
+    <p class="netnote"><svg class="i"><use href="#i-shield"/></svg><span>Each network runs on your own device and talks straight to its own servers. Your chats, codes and sign-ins never pass through ours. The Signal helper is built on the open-source mautrix-signal and Signal's libsignal, and its source is published with every release (AGPL). Telegram and Signal aren't on Windows yet, and their calls aren't included: messages only.</span></p>
   </div>
 </section>
 
 <section id="desktop">
   <div class="wrap split">
-    <div class="window" aria-hidden="true">
-      <div class="chrome"><i></i><i></i><i></i></div>
-      <img src="/shots/wide-dark.webp" data-shot="wide" alt="" loading="lazy">
+    <div class="deskart" aria-hidden="true">
+      <div class="window">
+        <div class="chrome"><i></i><i></i><i></i></div>
+        <img src="/shots/wide-dark.webp" data-shot="wide" alt="" loading="lazy">
+      </div>
+      <img class="scene" src="/art/scene-desktop.webp" alt="" loading="lazy">
     </div>
     <div>
       <span class="kicker"><svg class="i" style="width:1rem;height:1rem"><use href="#i-laptop"/></svg>On your computer</span>
       <h2>Everything, on <em>the big screen.</em></h2>
-      <p class="sub">Ghost Messaging for Mac and Windows shows every conversation, sends texts through your phone (sealed between the two), and joins calls and hangouts itself.</p>
+      <p class="sub">Ghost Messaging for Mac and Windows shows every conversation, sends texts through your phone (sealed between the two), and joins calls and spaces itself.</p>
       <ol class="steps">
         <li><span><b>Download for Mac or Windows.</b> On a Mac, open the zip and drag it to Applications. On Windows, run the installer (Windows asks once, as it does for any new app).</span></li>
         <li><span><b>Pair with your phone.</b> On your phone open Settings › Computers and scan the code the computer shows.</span></li>
@@ -400,15 +481,15 @@
 
 <section id="privacy">
   <div class="wrap center">
-    <div class="seal"><svg class="i"><use href="#i-shield"/></svg></div>
+    <img class="privacy-art" src="/art/scene-privacy.webp" alt="" loading="lazy">
     <span class="kicker">Private by default</span>
     <h2>Nothing goes <em>where it shouldn't.</em></h2>
     <p class="sub">No account to make. What travels through our server between friends is sealed on your device first, so the server passes it along and can't read it.</p>
   </div>
   <div class="wrap grid">
-    <div class="card"><div class="tile"><svg class="i"><use href="#i-lock"/></svg></div><h3>Sealed end to end</h3><p>Chats between Ghost users, your computer's link to your phone, and calls are encrypted on the devices themselves.</p></div>
-    <div class="card"><div class="tile"><svg class="i"><use href="#i-user"/></svg></div><h3>No account</h3><p>Your number stays on your phone. A username and linked accounts are yours to turn on, and to remove.</p></div>
-    <div class="card"><div class="tile"><svg class="i"><use href="#i-msg"/></svg></div><h3>Texts stay texts</h3><p>SMS and picture messages go through your carrier as they always have. Nothing is copied to us.</p></div>
+    <div class="card"><img class="art" src="/art/icon-sealed.webp" alt="" loading="lazy"><h3>Sealed end to end</h3><p>Chats between Ghost users, your computer's link to your phone, and calls are encrypted on the devices themselves.</p></div>
+    <div class="card"><img class="art" src="/art/icon-no-account.webp" alt="" loading="lazy"><h3>No account</h3><p>Your number stays on your phone. A username and linked accounts are yours to turn on, and to remove.</p></div>
+    <div class="card"><img class="art" src="/art/icon-texts.webp" alt="" loading="lazy"><h3>Texts stay texts</h3><p>SMS and picture messages go through your carrier as they always have. Nothing is copied to us.</p></div>
   </div>
 </section>
 
@@ -422,8 +503,8 @@
     <a class="dl alt" href="/ghost-messaging-setup.exe" data-feed="windows" hidden><svg class="i"><use href="#i-monitor"/></svg><span>Download for Windows<small data-version="windows"></small></span></a>
   </div>
   <div class="install">
-    <div><b><svg class="i"><use href="#i-phone"/></svg>On Android</b><ol><li>Download the APK on your phone and open it. Allow your browser to install apps if Android asks.</li><li>Open Ghost Messaging and choose "Set as default SMS app", or let it work beside your current one.</li></ol></div>
-    <div><b><svg class="i"><use href="#i-laptop"/></svg>On a computer</b><ol><li>Download for Mac or Windows and install it.</li><li>On your phone, Settings › Computers, and pair.</li></ol></div>
+    <div><b><img class="inst" src="/art/icon-install-phone.webp" alt="" loading="lazy">On Android</b><ol><li>Download the APK on your phone and open it. Allow your browser to install apps if Android asks.</li><li>Open Ghost Messaging and choose "Set as default SMS app", or let it work beside your current one.</li></ol></div>
+    <div><b><img class="inst" src="/art/icon-install-computer.webp" alt="" loading="lazy">On a computer</b><ol><li>Download for Mac or Windows and install it.</li><li>On your phone, Settings › Computers, and pair.</li></ol></div>
   </div>
 </div>
 
@@ -458,6 +539,11 @@
   const shots = () => {
     const light = root.dataset.theme === 'light';
     for (const img of document.querySelectorAll('img[data-shot]')) img.src = '/shots/' + img.dataset.shot + (light ? '' : '-dark') + '.webp';
+    // Each piece sits a few pixels differently in the app's light and dark screens (tool/site-layers.py).
+    for (const layer of document.querySelectorAll('.layer[data-light]')) {
+      const [l, t, w] = (light ? layer.dataset.light : layer.dataset.dark).split(',');
+      Object.assign(layer.style, { left: l + '%', top: t + '%', width: w + '%' });
+    }
     mode.setAttribute('aria-label', light ? 'Switch to dark mode' : 'Switch to light mode');
     document.querySelector('meta[name="theme-color"]').content = light ? '#f4fbf9' : '#050c0b';
   };
@@ -478,16 +564,21 @@
   const open = () => {
     stack.classList.add('open');
     stage.classList.add('open');
-    stack.style.setProperty("--gap", "30px");
+    stack.style.setProperty("--gap", "40px");
   };
-  if (still) open(); else setTimeout(open, 500);
+  // It opens once every layer has arrived (or after 2.5 s at most), so no piece pops in halfway through.
+  if (still) open();
+  else {
+    const ready = [...stack.querySelectorAll('img')].map((img) => (img.complete ? Promise.resolve() : img.decode().catch(() => {})));
+    Promise.race([Promise.all(ready), new Promise((r) => setTimeout(r, 2500))]).then(() => setTimeout(open, 250));
+  }
   if (!still) {
     addEventListener('scroll', () => {
       if (!stack.classList.contains('open')) return;
       const more = Math.min(1, scrollY / 500);
       stack.style.transition = 'none';
       for (const l of stack.querySelectorAll('.layer')) l.style.transition = 'none';
-      stack.style.setProperty('--gap', (30 + more * 20).toFixed(1) + 'px');
+      stack.style.setProperty('--gap', (40 + more * 20).toFixed(1) + 'px');
     }, { passive: true });
   }
 </script>

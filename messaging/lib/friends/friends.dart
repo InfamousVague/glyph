@@ -355,6 +355,8 @@ class Friends extends ChangeNotifier {
   /// their phone says a message is waiting (android Friends.woken). It is a text on this phone's plan, so it goes
   /// at most every [wakeEvery] a person.
   void _wake(Peer peer) {
+    // A friend by username has no number to text (lib/standalone): the relay server keeps it until they come.
+    if ((peer.address ?? '').startsWith('@')) return;
     final last = _woke[peer.id];
     if (last != null && DateTime.now().difference(last) < wakeEvery) return;
     _woke[peer.id] = DateTime.now();

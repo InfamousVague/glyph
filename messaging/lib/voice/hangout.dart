@@ -64,7 +64,7 @@ class HangoutRoom extends ChangeNotifier {
   Future<void> open() async {
     if (opened) return;
     opened = true;
-    putOut = roster.banned.contains(me) ? 'You were banned from this hangout.' : null;
+    putOut = roster.banned.contains(me) ? 'You were banned from this space.' : null;
     _subs.add(route.packets.where((p) => p.room == channel.chatRoom).listen((p) => _heard(p.from, p.bytes)));
     _subs.add(route.events.where((e) => e.room == channel.chatRoom).listen(_event));
     final there = await route.join(channel.chatRoom, channel.chatToken);
@@ -247,7 +247,7 @@ class HangoutRoom extends ChangeNotifier {
     roster = r;
     store.keepRoster(channel.chatRoom, r);
     if (r.banned.contains(me)) {
-      putOut = 'You were banned from this hangout.';
+      putOut = 'You were banned from this space.';
     }
     onRoster?.call(r);
     notifyListeners();
@@ -330,7 +330,7 @@ class HangoutRoom extends ChangeNotifier {
         if (roster.can(from, Perm.muteOthers) && roster.outranks(from, '${m['who']}')) _applyMute('${m['who']}', m['on'] == true);
       case 'kick':
         if (roster.can(from, Perm.removeMembers) && roster.outranks(from, me)) {
-          putOut = roster.banned.contains(me) ? 'You were banned from this hangout.' : 'You were removed from this hangout.';
+          putOut = roster.banned.contains(me) ? 'You were banned from this space.' : 'You were removed from this space.';
           onRoster?.call(roster);
           notifyListeners();
         }

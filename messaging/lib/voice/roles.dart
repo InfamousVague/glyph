@@ -19,8 +19,8 @@ import '../net/crypto.dart';
 enum Perm {
   speak('Speak', 'Be heard in voice'),
   video('Video', 'Turn on their camera'),
-  chat('Send messages', 'Write in the hangout\'s chat'),
-  invite('Invite', 'Copy the hangout\'s link for others'),
+  chat('Send messages', 'Write in the space\'s chat'),
+  invite('Invite', 'Copy the space\'s link for others'),
   muteOthers('Mute others', 'Mute someone for everyone'),
   removeMembers('Remove people', 'Put someone out; they can come back'),
   ban('Ban', 'Keep someone out for good'),

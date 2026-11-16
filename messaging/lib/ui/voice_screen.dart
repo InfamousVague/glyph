@@ -40,7 +40,13 @@ class VoiceScreen extends StatelessWidget {
         // In a call, the page is the call and nothing else: who is in it, and its buttons in the dock (Matt,
         // 2026-11-15: "I want the call screen to be super simple too just a list of chatters and the call controls").
         // A hangout's call is its page: the people or the chat, its roles (lib/ui/hangout_screen.dart).
+        // Beside the list on a wide screen the people are in the list's place (HangoutScreen there) and this side is
+        // the hangout's chat, with its videos above it once anyone turns one on (HangoutStage).
+        if (s != null && s.channel.hangout && AppShell.wideOf(context)) return HangoutStage(key: ValueKey('stage-${s.channel.room}'), channel: s.channel);
         if (s != null && s.channel.hangout) return HangoutScreen(key: ValueKey('hangout-${s.channel.room}'), channel: s.channel);
+        // A hangout pressed in the list: its chat where a conversation would be, who is in it and Join at its top.
+        final seen = v.viewing;
+        if (s == null && seen != null && v.channels.any((c) => c.seed == seen.seed)) return HangoutScreen(key: ValueKey('hangout-${seen.room}'), channel: seen);
         if (s != null) {
           return GhostPage(
             title: s.channel.name,
@@ -58,15 +64,15 @@ class VoiceScreen extends StatelessWidget {
           );
         }
         return GhostPage(
-          title: 'Voice',
-          actions: [IconTap(icon: Lucide.plus, label: 'New channel', onPressed: () => push(context, (_) => const NewChannelScreen()))],
+          title: 'Spaces',
+          actions: [IconTap(icon: Lucide.plus, label: 'New space', onPressed: () => push(context, (_) => const NewChannelScreen()))],
           body: ListView(
             padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             children: [
               if (v.channels.isEmpty)
-                SettingsCallout(child: const Text('Every group of friends has a voice channel. Make one of your own with + and share it with friends you added by username.'))
+                SettingsCallout(child: const Text('Every group of friends has a space. Make one of your own with + and share it with friends you added by username.'))
               else
-                PaneSection(title: 'Channels', children: [for (final c in v.channels) _ChannelRow(channel: c)]),
+                PaneSection(title: 'Spaces', children: [for (final c in v.channels) _ChannelRow(channel: c)]),
             ],
           ),
         );
@@ -107,12 +113,8 @@ class _ChannelRow extends StatelessWidget implements PaneRow {
           ? null
           : IconTap(
               icon: Lucide.ellipsis,
-              label: 'Channel options',
-              onPressed: () => showChoices(context, title: channel.name, choices: [
-                Choice('Copy invite link', Lucide.link, () => copyInvite(context, channel)),
-                Choice('Share with friends', Lucide.share2, () => push(context, (_) => ShareChannelScreen(channel: channel))),
-                Choice('Remove channel', Lucide.trash2, () => v.forget(channel), danger: true),
-              ]),
+              label: 'Space options',
+              onPressed: () => showHangoutMenu(context, channel),
             ),
     );
   }
@@ -128,8 +130,12 @@ void copyInvite(BuildContext context, VoiceChannel c) {
 /// unless someone turns on video"): a picture for each who has video on, then everyone as a list, each face rippling
 /// while they talk.
 class CallPanel extends StatelessWidget {
-  const CallPanel({super.key, required this.session});
+  const CallPanel({super.key, required this.session, this.videos = true});
   final VoiceSession session;
+
+  /// With the pictures of whoever has video on above the people; off where they are shown elsewhere (CallVideos,
+  /// the pane beside a hangout's people on a wide screen).
+  final bool videos;
 
   @override
   Widget build(BuildContext context) {
@@ -150,7 +156,7 @@ class CallPanel extends StatelessWidget {
         // A hangout's: each person's role beside their name, where it is not the one everyone starts with.
         final room = v.hangoutFor(session.channel);
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          if (withVideo.isNotEmpty) ...[
+          if (videos && withVideo.isNotEmpty) ...[
             LayoutBuilder(builder: (context, box) {
               final across = withVideo.length == 1 ? 1 : (box.maxWidth / 240).floor().clamp(2, 4);
               final w = (box.maxWidth - t.space(2) * (across - 1)) / across;
@@ -196,6 +202,59 @@ class CallPanel extends StatelessWidget {
                     ]),
                   )),
               ])),
+        ]);
+      },
+    );
+  }
+}
+
+/// The pictures of whoever in [session] has video on, filling the space given: one alone, two to four two across,
+/// more three across (Matt, 2026-11-15: "when a video starts split the right side 50/50 showing the videos above the
+/// chat"). Nothing where nobody has video on ([any]).
+class CallVideos extends StatelessWidget {
+  const CallVideos({super.key, required this.session});
+  final VoiceSession session;
+
+  /// Whether anyone in [session] has video on now, this device included.
+  static bool any(VoiceSession session) {
+    final media = Voice.instance.media;
+    if (media?.localVideo.value != null) return true;
+    return session.members.values.any((m) => m.video && media?.remote.value[m.id] != null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final v = Voice.instance;
+    final media = v.media;
+    return ListenableBuilder(
+      listenable: Listenable.merge([session, ?media?.remote, ?media?.localVideo]),
+      builder: (context, _) {
+        final tiles = <({String name, MediaStream stream, bool muted, bool me})>[
+          if (media?.localVideo.value case final mine?) (name: 'You', stream: mine, muted: session.muted || session.deafened, me: true),
+          for (final m in session.members.values)
+            if (m.video && media?.remote.value[m.id] != null) (name: m.guest ? '${v.nameOf(m.id)} (guest)' : v.nameOf(m.id), stream: media!.remote.value[m.id]!, muted: m.muted, me: false),
+        ];
+        if (tiles.isEmpty) return const SizedBox.shrink();
+        final across = tiles.length == 1 ? 1 : (tiles.length <= 4 ? 2 : 3);
+        final rows = (tiles.length / across).ceil();
+        final gap = t.space(2);
+        return Column(children: [
+          for (var r = 0; r < rows; r++) ...[
+            if (r > 0) SizedBox(height: gap),
+            Expanded(
+              child: Row(children: [
+                for (var c = 0; c < across; c++) ...[
+                  if (c > 0) SizedBox(width: gap),
+                  Expanded(
+                    child: r * across + c < tiles.length
+                        ? _Tile(name: tiles[r * across + c].name, muted: tiles[r * across + c].muted, stream: tiles[r * across + c].stream, mirror: tiles[r * across + c].me)
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ]),
+            ),
+          ],
         ]);
       },
     );
@@ -388,7 +447,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
     final t = context.tokens;
     final friends = Buddies.instance.friends;
     return GhostPage(
-      title: 'Voice call',
+      title: 'New space',
       body: SettingsPaneScope(
         finder: SettingsFinder(),
         child: StatefulBuilder(
@@ -396,12 +455,12 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
             padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             children: [
               PaneSection(title: 'Name', children: [
-                SettingRowBox(child: GlacierInput(controller: _name, placeholder: 'Hangout', ariaLabel: 'Channel name', autoFocus: true, autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md)),
+                SettingRowBox(child: GlacierInput(controller: _name, placeholder: 'Space name', ariaLabel: 'Space name', autoFocus: true, autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md)),
               ]),
               SizedBox(height: t.space(6)),
               PaneSection(
                 title: 'Share with',
-                description: Text(friends.isEmpty ? 'Add friends by username (Settings › Me › Friends) to share channels with them.' : 'They can see who\'s in it and hop in any time.'),
+                description: Text(friends.isEmpty ? 'Add friends by username (Settings › Me › Friends) to share spaces with them.' : 'They can see who\'s in it and hop in any time.'),
                 children: [
                   for (final f in friends)
                     SettingRow(
@@ -533,9 +592,19 @@ class VoiceRow extends StatelessWidget {
         : live
             ? inIt.map(v.nameOf).join(', ')
             : 'Nobody here · hop in any time';
-    return GlacierPressable(
+    // Held, or pressed with the other button: a hangout's menu (Matt, 2026-11-15: "there also needs to be a context
+    // menu to open settings for hangouts and manage permissions and such as well as delete the hangouts").
+    void menu() {
+      if (channel.hangout) showHangoutMenu(context, channel, onOpen: onPress);
+    }
+
+    return GestureDetector(
+      behavior: HitTestBehavior.deferToChild,
+      onLongPress: channel.hangout ? menu : null,
+      onSecondaryTap: channel.hangout ? menu : null,
+      child: GlacierPressable(
       onPressed: onPress,
-      semanticLabel: '${channel.name}, voice channel, ${live ? '${inIt.length} in it' : 'nobody in it'}',
+      semanticLabel: '${channel.name}, space, ${live ? '${inIt.length} in it' : 'nobody in it'}',
       builder: (context, state) => Padding(
         padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')),
         child: Container(
@@ -575,6 +644,7 @@ class VoiceRow extends StatelessWidget {
           ]),
         ),
       ),
+    ),
     );
   }
 }

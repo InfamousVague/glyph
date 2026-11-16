@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
@@ -328,7 +329,9 @@ class IconTap extends StatelessWidget {
       builder: (context, state) {
         final off = onPressed == null;
         // A filled disc (Send) wears the app's accent: the bubble colour chosen everywhere (lib/accent.dart).
-        final ink = filled ? t.color('app-on-accent') : (color ?? t.color(state.pressed ? 'app-ink-3' : 'app-ink'));
+        // Off, it is grey with a grey icon, no colour at all until there is something to send (Matt, 2026-11-15: "on the
+        // send button it should be gray with no colored icon until the message has text").
+        final ink = filled ? (off ? t.color('app-ink-3') : t.color('app-on-accent')) : (color ?? t.color(state.pressed ? 'app-ink-3' : 'app-ink'));
         return GlacierFocusRing(
           visible: state.focused,
           radius: box,
@@ -341,7 +344,7 @@ class IconTap extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: filled
-                    ? (off ? t.color('app-ink-4') : t.color('app-accent'))
+                    ? (off ? t.color('app-paper-3') : t.color('app-accent'))
                     : (state.pressed ? t.color('app-paper-3') : const Color(0x00000000)),
               ),
               alignment: Alignment.center,
@@ -430,6 +433,14 @@ class _Face extends StatelessWidget {
               : Text(letters, style: pageText(t, size * 0.38, weight: 'semibold', color: settingsHue(t))),
         );
         if (person.photo == null) return fallback;
+        // A picture of a chat on another network (lib/inbox): a file Telegram brought down, or Bluesky's address.
+        final photo = person.photo!;
+        if (photo.startsWith('/')) {
+          return ClipOval(child: Image.file(File(photo), width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, errorBuilder: (_, _, _) => fallback));
+        }
+        if (photo.startsWith('https://')) {
+          return ClipOval(child: Image.network(photo, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, errorBuilder: (_, _, _) => fallback));
+        }
         return FutureBuilder<Uint8List?>(
           future: Sms.instance.photo(person.photo!),
           builder: (context, snap) {
@@ -515,11 +526,17 @@ Future<void> showChoices(BuildContext context, {String? title, Widget? header, r
 }
 
 class Choice {
-  const Choice(this.label, this.icon, this.onPress, {this.danger = false});
+  const Choice(this.label, this.icon, this.onPress, {this.danger = false, this.mark, this.hint});
   final String label;
   final LucideIcon icon;
   final VoidCallback onPress;
   final bool danger;
+
+  /// Drawn in the icon's place: a network's own mark (lib/ui/contacts.dart's "Message … with").
+  final Widget? mark;
+
+  /// A second line under the label.
+  final String? hint;
 }
 
 class _ChoiceSheet extends StatelessWidget {
@@ -566,10 +583,17 @@ class _ChoiceSheet extends StatelessWidget {
                         child: Padding(
                           padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(3)),
                           child: Row(children: [
-                            AppIcon(c.icon, size: 20, color: ink),
+                            c.mark ?? AppIcon(c.icon, size: 20, color: ink),
                             SizedBox(width: t.space(3)),
                             // A long line wraps rather than running off the sheet.
-                            Flexible(child: Text(c.label, style: pageText(t, t.fontSize('md'), weight: 'medium', color: ink))),
+                            Flexible(
+                              child: c.hint == null
+                                  ? Text(c.label, style: pageText(t, t.fontSize('md'), weight: 'medium', color: ink))
+                                  : Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                                      Text(c.label, style: pageText(t, t.fontSize('md'), weight: 'medium', color: ink)),
+                                      Text(c.hint!, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+                                    ]),
+                            ),
                           ]),
                         ),
                       );

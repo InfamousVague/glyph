@@ -108,17 +108,38 @@ class ListPlugins {
   List<Conversation>? _sortedOf;
   int _sortedTags = -1;
   int _sortedStamp = -1;
+  int _sortedChats = 0;
   Sorted _sorted = Sorted.none;
 
-  /// Sorts [all] into sections. Worked out again only when the list, some conversation's tags or a plugin's choices
-  /// have changed.
-  Sorted sort(List<Conversation>? all) {
+  /// Each chat on another network sorted with the texts (Signal's, Telegram's), by its key (`network:chat`): the
+  /// section it is in, null for none.
+  Map<String, PluginSection?> _chatAt = const {};
+  final _chatTags = <String, (String, TagSet)>{};
+
+  /// What each chat on another network said of itself when last sorted, by its number ([chatThread]): so "Move to
+  /// Spam" and "Not spam" file a chat as they file a conversation of texts.
+  final _chatFacts = <int, MessageFacts>{};
+
+  /// A number for a chat on another network as the plugins know a conversation: never one of Android's (which are
+  /// above nothing) nor the bridge's own (just below).
+  static int chatThread(String key) => -(1 << 40) - (key.hashCode & 0x3fffffff);
+
+  /// Sorts [all] into sections, and [chats] (Signal's and Telegram's, each its key, what it says of itself, whether it
+  /// is unread) with them (Matt, 2026-11-16: "Filters should apply to all chats including telegram and signal make
+  /// sure the filters are processing all chats"). Worked out again only when the list, the chats, some conversation's
+  /// tags or a plugin's choices have changed.
+  Sorted sort(List<Conversation>? all, {List<({String key, MessageFacts facts})> chats = const []}) {
     final store = _store;
-    if (store == null || all == null) return _sorted = Sorted.none;
-    if (identical(all, _sortedOf) && _sortedTags == tags.version && _sortedStamp == store.stamp) return _sorted;
+    if (store == null || all == null) {
+      _chatAt = const {};
+      return _sorted = Sorted.none;
+    }
+    final chatsSeen = Object.hashAll([for (final c in chats) Object.hash(c.key, c.facts.text, c.facts.unread, c.facts.contact, c.facts.outgoing)]);
+    if (identical(all, _sortedOf) && _sortedTags == tags.version && _sortedStamp == store.stamp && _sortedChats == chatsSeen) return _sorted;
     _sortedOf = all;
     _sortedTags = tags.version;
     _sortedStamp = store.stamp;
+    _sortedChats = chatsSeen;
     final sections = registry.sections(store);
     // With no section there is nothing to sort, unless a plugin that is now off left conversations muted.
     if (sections.isEmpty && store.read(mutedKey) == null) return _sorted = Sorted.none;
@@ -142,8 +163,54 @@ class ListPlugins {
       }
     }
     _settle(at, listed);
-    final others = all.where((c) => !c.archived && at[c.id] == null).length;
+    var others = all.where((c) => !c.archived && at[c.id] == null).length;
+    // The other networks' chats, by what their newest message says, as a text is by its.
+    final chatAt = <String, PluginSection?>{};
+    // What a chat was tagged holds while its words and the plugins' choices do.
+    final switches = registry.switches(store);
+    _chatFacts.clear();
+    for (final c in chats) {
+      _chatFacts[c.facts.thread] = c.facts;
+      final seen = '$switches\u0000${c.facts.text}';
+      final had = _chatTags[c.key];
+      final tagged = had != null && had.$1 == seen ? had.$2 : registry.classify(c.facts, store);
+      _chatTags[c.key] = (seen, tagged);
+      final s = registry.sectionOf(c.facts, tagged, store, among: sections);
+      chatAt[c.key] = s;
+      if (s == null) {
+        others++;
+        continue;
+      }
+      counts[s.id] = (counts[s.id] ?? 0) + 1;
+      if (c.facts.unread) {
+        unread.add(s.id);
+        unreadCounts[s.id] = (unreadCounts[s.id] ?? 0) + 1;
+      }
+    }
+    _chatAt = chatAt;
     return _sorted = Sorted(at, [for (final s in sections) if (counts.containsKey(s.id)) s], counts, unread, others: others, unreadCounts: unreadCounts);
+  }
+
+  /// The section a chat on another network was sorted into ([sort]); null for none.
+  PluginSection? sectionOfChat(String key) => _chatAt[key];
+
+  /// Whether the chat [key] is shown in [section] as [pick] shows a conversation: a section's own, the hidden kinds'
+  /// view, or the main list without what is taken out of it or hidden by the filter.
+  bool showsChat(String key, String? section, {required bool searching}) {
+    final s = _chatAt[key];
+    if (section == hiddenView) return _hidden(s);
+    if (section != null) return s?.id == section;
+    if (searching) return true;
+    return s == null ? othersShown() : !_leaves(s);
+  }
+
+  /// Whether the chat [key] is kept out of its network's own tab: a kind the filter hides, Spam, or a section that
+  /// takes what it has out of the main list (Matt, 2026-11-16: "Fix the filtering a bit more this message got
+  /// through"). A search finds it all the same.
+  bool hidesChat(String key, {required bool searching}) {
+    if (searching) return false;
+    final s = _chatAt[key];
+    return s != null && _leaves(s);
   }
 
   /// What the list shows in place of a section: every conversation of a kind the filter hides ("N hidden · Show").
@@ -216,7 +283,7 @@ class ListPlugins {
   }
 
   /// How many conversations each section has, and which have something unread: for what the plugins put over the
-  /// list (Your day).
+  /// list.
   Map<String, int> get counts => _sorted.counts;
   Set<String> get unreadSections => _sorted.unread;
 
@@ -255,6 +322,16 @@ class ListPlugins {
     if (store == null || s == null) return null;
     final look = registry.look(s, MessageFacts.conversation(c), tags.of(c.id), store);
     return look == null ? null : (look, _Host(this, s.plugin, context));
+  }
+
+  /// The plugin [id]'s host, to run its actions with from a row that is not a conversation of texts (a Telegram chat
+  /// in Codes); null where it is not on.
+  PluginHost? hostFor(BuildContext context, String id) {
+    final store = _store;
+    if (store == null) return null;
+    final plugin = registry.plugins.where((p) => p.id == id).firstOrNull;
+    if (plugin == null || !registry.isOn(plugin, store)) return null;
+    return _Host(this, plugin, context);
   }
 
   /// The lines the plugins add to the menu a conversation's long press brings up.
@@ -401,7 +478,16 @@ class _Host implements PluginHost {
   @override
   void move(int thread, String? section) {
     final facts = list.tags.facts(thread);
-    if (facts != null) list.registry.move(facts, list.tags.of(thread), section, list._store!);
+    if (facts != null) {
+      list.registry.move(facts, list.tags.of(thread), section, list._store!);
+      return;
+    }
+    // A chat on another network.
+    final chat = list._chatFacts[thread];
+    if (chat == null) return;
+    final key = list._chatAt.keys.firstWhere((k) => ListPlugins.chatThread(k) == thread, orElse: () => '');
+    final tags = list._chatTags[key]?.$2 ?? TagSet.none;
+    list.registry.move(chat, tags, section, list._store!);
   }
 
   /// The list has nothing being written.

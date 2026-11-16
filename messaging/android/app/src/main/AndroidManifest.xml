@@ -33,6 +33,12 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
+    <!-- A voice or video call in a space going on with the phone locked (CallService.kt). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <uses-feature android:name="android.hardware.telephony" android:required="true" />
@@ -172,8 +178,20 @@
 
         <!-- Keeps the phone reachable by the computers it is paired with, while there is one. "Remote messaging" is
              Android's kind of foreground service for carrying texts to another of the person's own devices. -->
+        <!-- A call in a space, going on with the phone locked (CallService.kt). -->
+        <service
+            android:name=".CallService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|mediaPlayback|camera" />
+
         <service
             android:name=".DeskService"
+            android:exported="false"
+            android:foregroundServiceType="remoteMessaging" />
+
+        <!-- Signal and Telegram kept connected while Ghost is out of sight (NetworksService.kt). -->
+        <service
+            android:name=".NetworksService"
             android:exported="false"
             android:foregroundServiceType="remoteMessaging" />
 
@@ -209,6 +227,12 @@
             android:authorities="${applicationId}.codes"
             android:exported="true" />
 
+        <!-- Your bubbles' colour, for Ghost Keyboard alone, to keep the two in step (AccentSync.kt). -->
+        <provider
+            android:name=".AccentProvider"
+            android:authorities="${applicationId}.accent"
+            android:exported="true" />
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
@@ -217,6 +241,8 @@
     <queries>
         <!-- Ghost Keyboard, so Settings can say whether it is on this phone. -->
         <package android:name="com.infamousvague.devkeyboard" />
+        <!-- Its colour, kept in step with your bubbles' (AccentSync.kt). -->
+        <provider android:authorities="com.infamousvague.devkeyboard.accent" />
         <!-- The texting apps people come from (Arriving.kt): whether one is on the phone, its name, and its settings
              page, to say what to turn off there before switching. -->
         <package android:name="com.google.android.apps.messaging" />

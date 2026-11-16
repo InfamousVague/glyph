@@ -11,10 +11,14 @@ import '../art/lucide.g.dart';
 import '../kit/fold.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
+import '../inbox/scams.dart';
+import '../plugins/codes.dart' show CodesPlugin;
+import '../plugins/spam.dart' show SpamPlugin;
 import '../plugins/list.dart';
+import '../plugins/plugin.dart' show MessageFacts, PluginAction, PluginHost, RowLook;
 import '../art/lucide_more.dart';
 import '../plugins/registry.dart' show PluginSection;
-import '../plugins/ui.dart' show FilterButton, MarkAllRead;
+import '../plugins/ui.dart' show FilterButton, MarkAllRead, PluginRow;
 import '../reactions.dart';
 import '../sms.dart';
 import '../summaries.dart';
@@ -28,6 +32,8 @@ import 'compose.dart';
 import 'settings.dart';
 import 'shell.dart';
 import 'swipe_actions.dart';
+import 'inbox_ui.dart';
+import '../inbox/inbox.dart';
 import 'thread.dart';
 
 /// Home: every conversation, the newest first, with a search over names, numbers and the last message.
@@ -136,6 +142,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // A summary made comes into its row; who is in a voice channel comes into its.
     Summaries.instance.addListener(_summed);
     Voice.instance.addListener(_summed);
+    // Telegram's and Bluesky's chats (lib/inbox): each signed-in network is a tab, and its chats come into it.
+    _inbox.addListener(_summed);
     _load();
     _look();
     _changes = Sms.instance.changes.stream.listen((_) {
@@ -145,6 +153,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     });
   }
 
+  final Listenable _inbox = Inbox.instance.changes;
+
   void _summed() {
     if (mounted) setState(() {});
   }
@@ -153,6 +163,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   void dispose() {
     Summaries.instance.removeListener(_summed);
     Voice.instance.removeListener(_summed);
+    _inbox.removeListener(_summed);
     _shell?.closed.removeListener(_back);
     _plugins.dispose();
     _changes?.cancel();
@@ -274,6 +285,116 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     }
   }
 
+  /// The main list with Telegram's and Bluesky's chats among the texts, newest first, after the pinned conversations
+  /// (Matt, 2026-11-15: "Id like the telegram chats to be mixed into the normal text messages (same with bluesky) just
+  /// add a telegram icon in thr corner of the bubble"). While older texts are still being read, a chat older than the
+  /// oldest text held waits for them, so the list does not jump.
+  List<Object> _mixed(List<Conversation> shown) {
+    // Codes: a Telegram sign-in code is there among the texted ones (Matt, 2026-11-15: "proxy telegram codes through to
+    // the codes tab as well"); any other section is the texts' own.
+    final codes = !widget.archived && _codesHost != null;
+    // Spam: a chat that looks like a scam is in Spam with spam texts, while the spam filter is on (lib/inbox/scams.dart;
+    // Matt, 2026-11-15: "i also want spam filters on them to work and cut out fake romance scams and other telegram
+    // scams").
+    final spam = !widget.archived && _spamHost != null;
+    String? spamOf(InboxChat c) => spam && !(Inbox.instance.named(c.network)?.localList('notspam').contains(c.id) ?? false) ? scamOf(c) : null;
+    final q = _query.toLowerCase();
+    // Every other kind the filters sort, as a text is (ListPlugins.sort's chats; Matt, 2026-11-16: "Filters should
+    // apply to all chats including telegram and signal").
+    bool sorted(InboxChat c) => widget.archived || _plugins.showsChat('${c.network}:${c.id}', _section, searching: q.isNotEmpty);
+    // In the archive, the networks' archived chats among the archived texts.
+    final chats = [
+      for (final n in Inbox.instance.ready)
+        for (final c in widget.archived ? n.archivedChats : n.shownChats)
+          if ((q.isEmpty || c.title.toLowerCase().contains(q) || c.snippet.toLowerCase().contains(q)) &&
+              switch (_section) {
+                CodesPlugin.section => (codes && inboxCode(c) != null) || sorted(c),
+                SpamPlugin.section => spamOf(c) != null || sorted(c),
+                _ => !(codes && inboxCode(c) != null) && spamOf(c) == null && sorted(c),
+              })
+            c,
+    ];
+    if (chats.isEmpty) return shown;
+    if (_section != null) {
+      return ([for (final c in shown) (c.date, c as Object), for (final c in chats) (c.date, c as Object)]..sort((a, b) => b.$1.compareTo(a.$1))).map((e) => e.$2).toList();
+    }
+    bool pinnedChat(InboxChat c) => Inbox.instance.named(c.network)?.isPinned(c) ?? false;
+    final pinned = <(DateTime, Object)>[for (final c in shown) if (c.pinned) (c.date, c), for (final c in chats) if (pinnedChat(c)) (c.date, c)]..sort((a, b) => b.$1.compareTo(a.$1));
+    final rest = [for (final c in shown) if (!c.pinned) c];
+    final oldest = _more && rest.isNotEmpty ? rest.last.date : null;
+    final waiting = [for (final c in chats) if (!pinnedChat(c) && (oldest == null || !c.date.isBefore(oldest))) c];
+    final merged = <(DateTime, Object)>[for (final c in rest) (c.date, c), for (final c in waiting) (c.date, c)]
+      ..sort((a, b) => b.$1.compareTo(a.$1));
+    return [for (final m in pinned) m.$2, for (final m in merged) m.$2];
+  }
+
+  /// What each signed-in network's chat says of itself, for the filters to sort it with the texts: its newest message,
+  /// whether whoever wrote is a contact, a group, unread, muted, and whether the newest message is this account's.
+  List<({String key, MessageFacts facts})> _chatFacts() => [
+        for (final n in Inbox.instance.ready)
+          for (final c in n.shownChats)
+            (
+              key: '${c.network}:${c.id}',
+              facts: MessageFacts(
+                thread: ListPlugins.chatThread('${c.network}:${c.id}'),
+                senders: [c.title],
+                text: c.snippet,
+                contact: !c.stranger && !c.service,
+                group: c.group,
+                date: c.date,
+                unread: c.unread > 0,
+                muted: c.muted,
+                outgoing: c.lastFromMe,
+              ),
+            ),
+      ];
+
+  /// The spam filter's host while it is on: chats that look like scams go to Spam.
+  PluginHost? get _spamHost => widget.archived ? null : _plugins.hostFor(context, SpamPlugin.section);
+
+  /// A chat in Spam: why it is there, and Not spam to put it back for good.
+  Widget _inboxSpamRow(InboxChat chat, InboxNetwork network, String why, PluginHost host) {
+    final c = Conversation(
+      id: -(chat.id.hashCode & 0x3fffffff) - 1,
+      date: chat.date,
+      people: [Person(address: '${chat.network}:${chat.id}', name: chat.title, photo: chat.avatar)],
+      snippet: chat.snippet,
+      unread: chat.unread > 0,
+      error: false,
+      archived: false,
+    );
+    final back = PluginAction(label: 'Not spam', icon: Lucide.check, run: (host) {
+      network.setLocal('notspam', chat.id, true);
+      host.say('Moved to Messages');
+    });
+    return PluginRow(conversation: c, look: RowLook(caption: why, word: back), host: host, onPress: () => openInboxChat(context, network, chat), onLongPress: () => openInboxChat(context, network, chat));
+  }
+
+  /// The Codes plugin's host while it is on: Telegram's codes go to its tab, and are copied by it.
+  PluginHost? get _codesHost => widget.archived ? null : _plugins.hostFor(context, CodesPlugin.section);
+
+  /// A Telegram chat in Codes, drawn as a texted code is: the code large, a tap or the button copies it.
+  Widget _inboxCodeRow(InboxChat chat, InboxNetwork network, String code, PluginHost host) {
+    final copy = PluginAction(
+      label: 'Copy $code',
+      icon: Lucide.copy,
+      run: (host) async {
+        host.copy(code, say: 'Copied $code');
+        await network.markRead(chat.id);
+      },
+    );
+    final c = Conversation(
+      id: -(chat.id.hashCode & 0x3fffffff) - 1,
+      date: chat.date,
+      people: [Person(address: '${chat.network}:${chat.id}', name: chat.title, photo: chat.avatar)],
+      snippet: chat.snippet,
+      unread: chat.unread > 0,
+      error: false,
+      archived: false,
+    );
+    return PluginRow(conversation: c, look: RowLook(value: code, end: copy, tap: copy, title: network.name), host: host, onPress: () => openInboxChat(context, network, chat), onLongPress: () => openInboxChat(context, network, chat));
+  }
+
   List<Conversation> get _shown {
     // Pinned conversations first, each group newest first (the order they arrive in).
     final held = (_all ?? const <Conversation>[]).where((c) => c.archived == widget.archived).toList();
@@ -311,8 +432,16 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// Hops into [c] and shows it.
   Future<void> _openVoice(VoiceChannel c) async {
     // A hangout opens its page: its chat, who is in it, and a way into voice (lib/ui/hangout_screen.dart).
+    // In the conversation's place (Matt, 2026-11-15: "clicking on a voice chat should show me the chat in the normal
+    // spot and connected participants with a "join" button").
     if (c.hangout && Voice.instance.session?.channel.room != c.room) {
-      push(context, (_) => HangoutScreen(channel: c));
+      final shell = AppShell.maybeOf(context);
+      if (shell != null) {
+        Voice.instance.view(c);
+        shell.go('voice');
+      } else {
+        push(context, (_) => HangoutScreen(channel: c));
+      }
       return;
     }
     try {
@@ -345,7 +474,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // where calls are.
     final voices = Voice.instance.channels;
     final tabs = _plugins.tabs(_section, (section) => setState(() => _section = section), onMenu: _tabMenu, extra: [
-      (id: voiceTab, icon: LucideMore.headphones, label: 'Voice', count: voices.where(Voice.instance.live).length),
+      (id: voiceTab, icon: LucideMore.headphones, label: 'Spaces', count: voices.where(Voice.instance.live).length),
     ]);
     final kinds = _plugins.kinds;
     if (tabs == null && kinds.isEmpty) return null;
@@ -445,6 +574,19 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// Marks every unread conversation of a tab as read: from the button beside the tabs, or a tab's own menu.
   Future<void> _markAllRead(String? section) async {
     final unread = _of(section).where((c) => c.unread).toList();
+    // The chats from Telegram and the rest that are in this tab, read there too (Matt, 2026-11-15: "Marking all as read
+    // should do the same for telegram chats").
+    final saved = _section;
+    _section = section;
+    final chats = [for (final o in _mixed(const [])) if (o is InboxChat && o.unread > 0) o];
+    _section = saved;
+    for (final c in chats) {
+      unawaited(Inbox.instance.named(c.network)?.markRead(c.id));
+    }
+    if (unread.isEmpty && chats.isNotEmpty) {
+      toast(context, '${chats.length} marked as read');
+      return;
+    }
     if (unread.isEmpty) {
       toast(context, 'Nothing is unread in ${_plugins.tabName(section)}');
       return;
@@ -464,7 +606,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     if (!mounted) return;
     toast(
       context,
-      failed == 0 ? '${_count(unread.length)} marked as read' : '${unread.length - failed} marked as read; $failed could not be',
+      failed == 0 ? '${_count(unread.length + chats.length)} marked as read' : '${unread.length + chats.length - failed} marked as read; $failed could not be',
       tone: failed == 0 ? GlacierToastTone.neutral : GlacierToastTone.danger,
     );
   }
@@ -472,7 +614,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// A tab's menu (Matt, 2026-11-14: "add a right click menu for the codes and messages tabs"): a press with the
   /// other button on it, or a long press where there is no other button.
   void _tabMenu(String? section) {
-    if (section == voiceTab) return;
+    if (section == voiceTab || inboxOfTab(section) != null) return;
     final all = _of(section);
     final unread = all.where((c) => c.unread).length;
     final name = _plugins.tabName(section);
@@ -584,24 +726,33 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     }
   }
 
-  void _confirmDelete(Conversation c) {
+  /// Asks before deleting [c], unless it was [slid] and "Don't ask again" was chosen once (deleteAskOff).
+  void _confirmDelete(Conversation c, {bool slid = false}) {
     // A swipe can ask for this where the menu would not offer it: a computer paired with a phone that is behind.
     if (!Sms.can('deleteThreads')) {
       toast(context, 'Update Ghost Messaging on your phone to delete from here.');
       return;
     }
+    Future<void> delete() async {
+      try {
+        await Sms.instance.deleteThread(c.id);
+        // Gone from the list at once, where it used to stay until every conversation had been read again.
+        if (mounted) setState(() => _all = _all?.where((x) => x.id != c.id).toList());
+        if (mounted) toast(context, 'Conversation deleted');
+      } catch (e) {
+        if (mounted) toast(context, 'Couldn\'t delete: ${e is PlatformException ? (e.message ?? e.code) : e}', tone: GlacierToastTone.danger);
+      }
+      _load();
+    }
+
+    final app = AppState.of(context);
+    if (slid && deleteAskOff(app)) {
+      delete();
+      return;
+    }
     showChoices(context, title: 'Delete every message with ${c.title}? This can\'t be undone.', choices: [
-      Choice('Delete', Lucide.trash2, () async {
-        try {
-          await Sms.instance.deleteThread(c.id);
-          // Gone from the list at once, where it used to stay until every conversation had been read again.
-          if (mounted) setState(() => _all = _all?.where((x) => x.id != c.id).toList());
-          if (mounted) toast(context, 'Conversation deleted');
-        } catch (e) {
-          if (mounted) toast(context, 'Couldn\'t delete: ${e is PlatformException ? (e.message ?? e.code) : e}', tone: GlacierToastTone.danger);
-        }
-        _load();
-      }, danger: true),
+      Choice('Delete', Lucide.trash2, delete, danger: true),
+      if (slid) dontAskAgainChoice(app, delete),
     ]);
   }
 
@@ -672,14 +823,27 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       _plugins.shown = (k) => ListPlugins.kindShown(app, k);
       _plugins.othersShown = () => ListPlugins.othersShownFor(app);
     }
-    final sorted = _plugins.sort(widget.archived ? null : _all);
+    final sorted = _plugins.sort(widget.archived ? null : _all, chats: widget.archived ? const [] : _chatFacts());
     final voices = widget.archived ? const <VoiceChannel>[] : _voices();
-    if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0) && !(_section == voiceTab && !widget.archived)) _section = null;
+    final inbox = widget.archived ? null : inboxOfTab(_section);
+    if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0) && !(_section == voiceTab && !widget.archived) && inbox?.state != InboxState.ready) _section = null;
     final shown = _shown;
-    // What the list holds: conversations, or the voice channels in their tab.
-    final List<Object> rows = _section == voiceTab ? voices : shown;
+    // What the list holds: conversations, the voice channels in their tab, or a network's chats in its.
+    final List<Object> rows = inbox != null && inbox.state == InboxState.ready
+        // A network's own tab leaves out what the filters hide from Messages, as Messages does (Matt, 2026-11-16: "Fix
+        // the filtering a bit more this message got through"); a search finds it.
+        ? [
+            for (final c in inbox.chats)
+              if ((_query.isEmpty || c.title.toLowerCase().contains(_query.toLowerCase()) || c.snippet.toLowerCase().contains(_query.toLowerCase())) &&
+                  !_plugins.hidesChat('${c.network}:${c.id}', searching: _query.isNotEmpty) &&
+                  (_spamHost == null || _query.isNotEmpty || (Inbox.instance.named(c.network)?.localList('notspam').contains(c.id) ?? false) || scamOf(c) == null))
+                c,
+          ]
+        : _section == voiceTab
+            ? voices
+            : _mixed(shown);
     // Android's own count, where it has answered: the ones held are not all of them until the read ends.
-    final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length);
+    final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length) + Inbox.instance.ready.fold<int>(0, (n, net) => n + net.archivedChats.length);
     // Older conversations still arriving: said at the foot of the list, and in place of "Nothing found".
     final more = _more && !widget.archived;
     final gutter = t.space(4);
@@ -703,12 +867,14 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           action: SettingsEmptyAction('Try again', _load),
         ),
       ]);
+    } else if (rows.isEmpty && inbox != null) {
+      body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [inboxEmpty(context, inbox)]);
     } else if (rows.isEmpty && _section == voiceTab) {
       body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
         SettingsEmpty(
           icon: AppIcon(LucideMore.headphones, size: 28, color: t.color('app-ink-3')),
-          title: 'No voice channels yet',
-          body: const Text('Every group of friends has one. Start your own with the new button, then share it with friends or by a link.'),
+          title: 'No spaces yet',
+          body: const Text('Every group of friends has its own space. Start one with the new button, then share it with friends or by a link.'),
         ),
       ]);
     } else if (rows.isEmpty) {
@@ -746,6 +912,40 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
             return _RcsNotice(app: _arriving.app, onFix: () => _settings('android'), onDismiss: () => app.setFlag('rcs_notice', false));
           }
           final at = i - extras;
+          if (at < rows.length && rows[at] is InboxChat) {
+            final chat = rows[at] as InboxChat;
+            final network = inbox ?? Inbox.instance.named(chat.network);
+            if (network == null) return const SizedBox.shrink();
+            final code = _section == CodesPlugin.section ? inboxCode(chat) : null;
+            final codesHost = code == null ? null : _codesHost;
+            final why = _section == SpamPlugin.section ? scamOf(chat) : null;
+            final spamHost = why == null ? null : _spamHost;
+            final pinned = network.isPinned(chat);
+            // Slid as a conversation of texts is (Matt, 2026-11-15: "Don't use a press and hold menu on telegram chats
+            // use the same slide solution normal messages use"): left archives, further deletes (asked first), right
+            // pins, each on the network itself where it can.
+            return SwipeActions(
+              key: ValueKey('swipe-inbox-${chat.network}-${chat.id}'),
+              enabled: !_selecting,
+              archiveLabel: widget.archived ? 'Unarchive' : 'Archive',
+              archiveIcon: widget.archived ? Lucide.archiveRestore : Lucide.archive,
+              pinLabel: pinned ? 'Unpin' : 'Pin',
+              pinIcon: pinned ? Lucide.pinOff : Lucide.pin,
+              onArchive: () => network.archive(chat.id, !widget.archived),
+              onDelete: () => confirmInboxDelete(context, network, chat, slid: true),
+              onPin: () => network.pin(chat.id, !pinned),
+              card: (inset: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')), radius: t.lenOf('1rem')),
+              child: code != null && codesHost != null
+                  ? _inboxCodeRow(chat, network, code, codesHost)
+                  : why != null && spamHost != null
+                  ? _inboxSpamRow(chat, network, why, spamHost)
+                  : InboxChatRow(
+                      key: ValueKey('inbox-${chat.network}-${chat.id}'),
+                      chat: chat,
+                      onPress: () => openInboxChat(context, network, chat),
+                    ),
+            );
+          }
           if (at < rows.length && rows[at] is VoiceChannel) {
             final v = rows[at] as VoiceChannel;
             return VoiceRow(key: ValueKey('voice-${v.room}'), channel: v, onPress: () => _openVoice(v));
@@ -767,8 +967,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               pinLabel: c.pinned ? 'Unpin' : 'Pin',
               pinIcon: c.pinned ? Lucide.pinOff : Lucide.pin,
               onArchive: () => _archive(c),
-              onDelete: () => _confirmDelete(c),
+              onDelete: () => _confirmDelete(c, slid: true),
               onPin: () => _pin(c),
+              // The cards' shape, as ConversationRow and PluginRow draw it: the actions show inside it.
+              card: (inset: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')), radius: t.lenOf('1rem')),
               child: look != null
                   ? PluginRow(conversation: c, look: look.$1, host: look.$2, selecting: _selecting, selected: selected, onPress: () => _selecting ? _toggle(c) : _open(c), onLongPress: () => _selecting ? _toggle(c) : _menu(c))
                   : ConversationRow(
@@ -987,8 +1189,11 @@ class _RcsNotice extends StatelessWidget {
 /// One conversation in the list: its face, its name, its last words and when. The Mac's list (lib/desktop) draws its
 /// rows with it too.
 class ConversationRow extends StatelessWidget {
-  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false, this.summary});
+  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false, this.summary, this.badge});
   final Conversation conversation;
+
+  /// A mark on the face's corner: the network a chat from Telegram or Bluesky is on (lib/ui/inbox_ui.dart).
+  final Widget? badge;
 
   /// What its unread texts come to, in a line, by the phone's own model (lib/summaries.dart): shown in place of the
   /// last words, marked as a summary.
@@ -1040,6 +1245,22 @@ class ConversationRow extends StatelessWidget {
                     ),
                     alignment: Alignment.center,
                     child: selected ? const AppIcon(Lucide.check, size: 22, strokeWidth: 2.6, wash: false, color: Color(0xFFFFFFFF)) : null,
+                  )
+                else if (badge != null)
+                  SizedBox.square(
+                    dimension: face,
+                    child: Stack(clipBehavior: Clip.none, children: [
+                      Avatar(people: c.people, size: face),
+                      Positioned(
+                        right: -3,
+                        bottom: -3,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(shape: BoxShape.circle, color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2')),
+                          child: badge,
+                        ),
+                      ),
+                    ]),
                   )
                 else
                   Avatar(people: c.people, size: face),
