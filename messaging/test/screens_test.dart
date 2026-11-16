@@ -515,6 +515,42 @@ void main() {
     Embeds.fetch = _fakeSites;
   });
   setUpAll(_fonts);
+  // Delete, and don't ask again (Matt, 2026-11-16: "Add a "don't ask again" on the confirmation for sliding to delete
+  // message groups"): chosen once, a conversation slid all the way is deleted with no question.
+  testWidgets('a slide to delete asks, until Don\'t ask again', (tester) async {
+    tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
+    tester.view.devicePixelRatio = 2.0;
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    await _shoot(tester, sheet, const AppShell(), 'x-delete-ask', dark: false);
+    Future<void> slideAway(String who) async {
+      final g = await tester.startGesture(tester.getCenter(find.text(who)));
+      await g.moveBy(const Offset(-30, 0));
+      await g.moveBy(const Offset(-330, 0));
+      await tester.pump(const Duration(milliseconds: 200));
+      await g.up();
+      await _settle(tester);
+    }
+
+    _asked.clear();
+    await slideAway('Dad');
+    expect(find.textContaining('Delete every message with Dad'), findsOneWidget);
+    expect(find.text('Delete, and don\'t ask again'), findsOneWidget);
+    await tester.tap(find.text('Delete, and don\'t ask again'));
+    await _settle(tester);
+    expect(_asked.where((a) => a.startsWith('deleteThread')), hasLength(1));
+    final app = AppState.of(tester.element(find.byType(ConversationRow).first));
+    expect(app.flag('delete_ask', fallback: true), isFalse);
+    await tester.pump(const Duration(seconds: 6));
+    await _settle(tester);
+    _asked.clear();
+    await slideAway('Priya Natarajan');
+    expect(find.textContaining('Delete every message with'), findsNothing, reason: 'no question once told not to ask');
+    expect(_asked.where((a) => a.startsWith('deleteThread')), hasLength(1));
+  });
+
   testWidgets('screens', (tester) async {
     tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
     tester.view.devicePixelRatio = 2.0;

@@ -463,6 +463,13 @@ List<Widget> _messages(BuildContext context, SettingsModel m) {
         hint: const Text('The keyboard\'s Enter key sends the message. Off, it starts a new line.'),
         control: GlacierSwitch(checked: app.enterSends, onCheckedChange: (v) => app.setFlag('enter_sends', v), ariaLabel: 'Enter sends'),
       ),
+      // Turned off by "Delete, and don't ask again" on the question a slide asks (lib/ui/inbox_ui.dart deleteAskOff).
+      SettingRow(
+        icon: _icon(Lucide.trash2),
+        label: 'Ask before a slide deletes',
+        hint: const Text('A conversation slid all the way asks first. Off, it is deleted straight away.'),
+        control: GlacierSwitch(checked: app.flag('delete_ask', fallback: true), onCheckedChange: (v) => app.setFlag('delete_ask', v), ariaLabel: 'Ask before a slide deletes'),
+      ),
     ]),
     // Summaries of unread conversations by the phone's own model (lib/summaries.dart; Matt, 2026-11-14: "Use a local
     // AI to summarize unread message conversations like apple does").

@@ -703,24 +703,33 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     }
   }
 
-  void _confirmDelete(Conversation c) {
+  /// Asks before deleting [c], unless it was [slid] and "Don't ask again" was chosen once (deleteAskOff).
+  void _confirmDelete(Conversation c, {bool slid = false}) {
     // A swipe can ask for this where the menu would not offer it: a computer paired with a phone that is behind.
     if (!Sms.can('deleteThreads')) {
       toast(context, 'Update Ghost Messaging on your phone to delete from here.');
       return;
     }
+    Future<void> delete() async {
+      try {
+        await Sms.instance.deleteThread(c.id);
+        // Gone from the list at once, where it used to stay until every conversation had been read again.
+        if (mounted) setState(() => _all = _all?.where((x) => x.id != c.id).toList());
+        if (mounted) toast(context, 'Conversation deleted');
+      } catch (e) {
+        if (mounted) toast(context, 'Couldn\'t delete: ${e is PlatformException ? (e.message ?? e.code) : e}', tone: GlacierToastTone.danger);
+      }
+      _load();
+    }
+
+    final app = AppState.of(context);
+    if (slid && deleteAskOff(app)) {
+      delete();
+      return;
+    }
     showChoices(context, title: 'Delete every message with ${c.title}? This can\'t be undone.', choices: [
-      Choice('Delete', Lucide.trash2, () async {
-        try {
-          await Sms.instance.deleteThread(c.id);
-          // Gone from the list at once, where it used to stay until every conversation had been read again.
-          if (mounted) setState(() => _all = _all?.where((x) => x.id != c.id).toList());
-          if (mounted) toast(context, 'Conversation deleted');
-        } catch (e) {
-          if (mounted) toast(context, 'Couldn\'t delete: ${e is PlatformException ? (e.message ?? e.code) : e}', tone: GlacierToastTone.danger);
-        }
-        _load();
-      }, danger: true),
+      Choice('Delete', Lucide.trash2, delete, danger: true),
+      if (slid) dontAskAgainChoice(app, delete),
     ]);
   }
 
@@ -892,7 +901,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               pinLabel: pinned ? 'Unpin' : 'Pin',
               pinIcon: pinned ? Lucide.pinOff : Lucide.pin,
               onArchive: () => network.archive(chat.id, !widget.archived),
-              onDelete: () => confirmInboxDelete(context, network, chat),
+              onDelete: () => confirmInboxDelete(context, network, chat, slid: true),
               onPin: () => network.pin(chat.id, !pinned),
               card: (inset: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')), radius: t.lenOf('1rem')),
               child: code != null && codesHost != null
@@ -927,7 +936,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               pinLabel: c.pinned ? 'Unpin' : 'Pin',
               pinIcon: c.pinned ? Lucide.pinOff : Lucide.pin,
               onArchive: () => _archive(c),
-              onDelete: () => _confirmDelete(c),
+              onDelete: () => _confirmDelete(c, slid: true),
               onPin: () => _pin(c),
               // The cards' shape, as ConversationRow and PluginRow draw it: the actions show inside it.
               card: (inset: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')), radius: t.lenOf('1rem')),
