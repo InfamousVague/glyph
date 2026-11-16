@@ -188,14 +188,17 @@ class DiscordServers extends ChangeNotifier {
     }
   }
 
-  /// The link to add the bot to a server, or null where the service doesn't say (not set up yet, or unreachable).
-  Future<String?> inviteUrl() async {
+  /// The bot's own invite: Ghost Messaging's Discord application (the one account linking uses), able only to see
+  /// channels. Used where the service can't be asked.
+  static const knownInvite = 'https://discord.com/oauth2/authorize?client_id=1571262060967366837&scope=bot%20applications.commands&permissions=1024';
+
+  /// The link to add the bot to a server: as the service says, or the app's own where it can't be reached.
+  Future<String> inviteUrl() async {
     try {
       final r = await _call('GET', '/invite');
-      return r['_status'] == 200 && r['url'] is String ? r['url'] as String : null;
-    } catch (_) {
-      return null;
-    }
+      if (r['_status'] == 200 && r['url'] is String) return r['url'] as String;
+    } catch (_) {}
+    return knownInvite;
   }
 
   /// Links the server whose `/ghost link` gave [code]. Its name, or throws with words for the person.
@@ -208,7 +211,12 @@ class DiscordServers extends ChangeNotifier {
     } catch (_) {
       throw const DiscordProblem('The Discord bot couldn\'t be reached. Try again in a moment.');
     }
-    if (r['_status'] == 404) throw const DiscordProblem('That code isn\'t right, or it has run out. Type /ghost link again for a new one.');
+    // Only the bot's own answer means the code is wrong; any other "not found" is the web server, with the bot out of
+    // reach (Matt, 2026-11-16: "it's saying invalid code even for valid codes", before gogho.st/discord reached it).
+    if (r['_status'] == 404 && r['error'] == 'unknown code') throw const DiscordProblem('That code isn\'t right, or it has run out. Type /ghost link again for a new one.');
+    if (r['_status'] == 410) throw const DiscordProblem('The bot isn\'t in that server any more. Add it again, then type /ghost link.');
+    if (r['_status'] == 503) throw const DiscordProblem('The Discord bot is starting up. Try again in a moment.');
+    if (r['_status'] is int && r['error'] == null && r['token'] == null) throw const DiscordProblem('The Discord bot couldn\'t be reached. Try again in a moment.');
     if (r['_status'] == 429) throw const DiscordProblem('Too many tries. Wait a minute and try again.');
     final g = r['guild'];
     if (r['_status'] != 200 || r['token'] is! String || g is! Map || g['id'] is! String || g['name'] is! String) {

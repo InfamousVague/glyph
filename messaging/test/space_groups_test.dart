@@ -135,6 +135,12 @@ void main() {
       expect(await d.inviteUrl(), contains('permissions=1024'));
       await expectLater(d.claim('nope'), throwsA(isA<DiscordProblem>().having((p) => p.words, 'words', contains('6 letters'))));
       await expectLater(d.claim('ZZZ999'), throwsA(isA<DiscordProblem>().having((p) => p.words, 'words', contains('run out'))));
+      // A "not found" from something other than the bot (the web server, before it passes /discord on) is not a
+      // wrong code.
+      final real = d.base;
+      d.base = 'http://127.0.0.1:${bot.server.port}/elsewhere';
+      await expectLater(d.claim('ABC234'), throwsA(isA<DiscordProblem>().having((p) => p.words, 'words', contains('couldn\'t be reached'))));
+      d.base = real;
       expect(await d.claim(' abc-234 '), 'Night Owls', reason: 'spaces, dashes and case forgiven');
       await d.refresh();
       final link = d.links.single;

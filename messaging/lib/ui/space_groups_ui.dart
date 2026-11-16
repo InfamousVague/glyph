@@ -263,16 +263,13 @@ class AddDiscordScreen extends StatefulWidget {
 class _AddDiscordScreenState extends State<AddDiscordScreen> {
   final _code = TextEditingController();
   String? _invite, _problem;
-  bool _asked = false, _busy = false;
+  bool _busy = false;
 
   @override
   void initState() {
     super.initState();
     DiscordServers.instance.inviteUrl().then((url) {
-      if (mounted) setState(() {
-        _invite = url;
-        _asked = true;
-      });
+      if (mounted) setState(() => _invite = url);
     });
   }
 
@@ -317,9 +314,8 @@ class _AddDiscordScreenState extends State<AddDiscordScreen> {
               SettingRow(
                 icon: AppIcon(Lucide.userPlus, size: 18),
                 label: 'Add the bot to your server',
-                hint: Text(_invite != null ? 'Opens Discord' : (_asked ? 'The Discord bot isn\'t set up yet' : 'Asking the bot…')),
-                disabled: _invite == null,
-                onPress: _invite == null ? null : () => Sms.instance.openLink(_invite!),
+                hint: const Text('Opens Discord. Skip this if the bot is already there.'),
+                onPress: () => Sms.instance.openLink(_invite ?? DiscordServers.knownInvite),
               ),
             ],
           ),
