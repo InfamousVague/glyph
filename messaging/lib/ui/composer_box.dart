@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -8,10 +9,15 @@ import '../kit/settings_type.dart';
 /// same composer for telegram").
 ///
 /// Empty, [plus] sits at its start and [ends] at its end, on the words' line; once there are words ([typing]) they
-/// take the whole width and the buttons slide into a row under them: [plus] at its start, [below] at its end (Matt,
+/// take the whole width and the buttons go to a row under them: [plus] at its start, [below] at its end (Matt,
 /// 2026-11-15: "Put the plus symbol inside thr compose input and animate them below when typijg just like this
-/// screenshot"). [field] keeps its place in the tree whichever way it is laid out, so the keyboard stays up.
-class ComposerBox extends StatelessWidget {
+/// screenshot").
+///
+/// The buttons are held to the box's bottom corners, and the box grows by a row under the words, so they travel
+/// straight down with it and back up (Matt, 2026-11-15: "the buttons don't slide straight down they move out
+/// first"); the words' room widens to the box's edges as they go. [field] keeps its place in the tree throughout,
+/// so the keyboard stays up.
+class ComposerBox extends StatefulWidget {
   const ComposerBox({super.key, required this.field, required this.typing, this.plus, this.ends = const [], this.below = const []});
   final Widget field;
   final bool typing;
@@ -19,55 +25,101 @@ class ComposerBox extends StatelessWidget {
   final List<Widget> ends;
   final List<Widget> below;
 
-  static const move = Duration(milliseconds: 200);
+  static const move = Duration(milliseconds: 220);
+  static const curve = Curves.easeOutCubic;
+
+  @override
+  State<ComposerBox> createState() => _ComposerBoxState();
+}
+
+class _ComposerBoxState extends State<ComposerBox> {
+  /// How wide the buttons beside the words are, as last laid out: the room the words leave them on one line.
+  double _plusWidth = 0, _endsWidth = 0;
+
+  void _measured(bool plus, Size size) {
+    final w = size.width;
+    if (plus ? _plusWidth == w : _endsWidth == w) return;
+    // Told during layout: taken up for the next frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => plus ? _plusWidth = w : _endsWidth = w);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final plus = this.plus;
-    Widget slot(bool shown, Widget child) => ClipRect(child: AnimatedSize(duration: move, curve: Curves.easeOutCubic, child: shown ? child : const SizedBox(width: 0)));
+    final typing = widget.typing;
+    final plus = widget.plus;
+    final row = t.lenOf('2.25rem');
+    final gap = t.space(1);
+    final words = t.space(3);
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: t.space(1)),
       child: Container(
         constraints: BoxConstraints(minHeight: t.lenOf('2.75rem')),
         padding: EdgeInsets.all(t.lenOf('0.25rem')),
         decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.lenOf('1.375rem'))),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            slot(!typing && plus != null, plus ?? const SizedBox(width: 0)),
-            Expanded(
-              child: AnimatedPadding(
-                duration: move,
-                curve: Curves.easeOutCubic,
-                padding: EdgeInsets.only(left: !typing && plus != null ? t.space(1) : t.space(3), right: typing || ends.isEmpty ? t.space(3) : 0),
-                child: field,
+        child: Stack(children: [
+          Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            AnimatedPadding(
+              duration: ComposerBox.move,
+              curve: ComposerBox.curve,
+              padding: EdgeInsets.only(
+                left: typing || plus == null ? words : _plusWidth + gap,
+                right: typing || widget.ends.isEmpty ? words : _endsWidth,
               ),
+              child: widget.field,
             ),
-            slot(!typing, Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: ends)),
+            // The row the buttons come down into.
+            AnimatedContainer(duration: ComposerBox.move, curve: ComposerBox.curve, height: typing ? row + gap : 0),
           ]),
-          ClipRect(
-            child: AnimatedSize(
-              duration: move,
-              curve: Curves.easeOutCubic,
-              alignment: Alignment.topCenter,
-              child: !typing
-                  ? const SizedBox(width: double.infinity)
-                  : TweenAnimationBuilder<double>(
-                      key: const ValueKey('composer-tools'),
-                      tween: Tween(begin: 0, end: 1),
-                      duration: move,
-                      curve: Curves.easeOutCubic,
-                      builder: (context, v, child) => Opacity(opacity: v, child: Transform.translate(offset: Offset(0, (1 - v) * -8), child: child)),
-                      child: Padding(
-                        padding: EdgeInsets.only(top: t.space(1)),
-                        child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [?plus, const Spacer(), ...below]),
-                      ),
+          if (plus != null) Positioned(left: 0, bottom: 0, child: _Measure(onSize: (s) => _measured(true, s), child: plus)),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: AnimatedSwitcher(
+              duration: ComposerBox.move,
+              // The buttons going fade out in the first half and the ones coming in fade in over the second, so the
+              // two sets are never drawn over each other.
+              switchInCurve: const Interval(0.5, 1, curve: Curves.easeOut),
+              switchOutCurve: const Interval(0.5, 1, curve: Curves.easeIn),
+              layoutBuilder: (current, previous) => Stack(alignment: Alignment.bottomRight, children: [...previous, ?current]),
+              child: typing
+                  ? Row(key: const ValueKey('below'), mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: widget.below)
+                  : _Measure(
+                      key: const ValueKey('ends'),
+                      onSize: (s) => _measured(false, s),
+                      child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: widget.ends),
                     ),
             ),
           ),
         ]),
       ),
     );
+  }
+}
+
+/// Says the size its child was laid out at.
+class _Measure extends SingleChildRenderObjectWidget {
+  const _Measure({super.key, required this.onSize, super.child});
+  final ValueChanged<Size> onSize;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderMeasure(onSize);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderMeasure renderObject) => renderObject.onSize = onSize;
+}
+
+class _RenderMeasure extends RenderProxyBox {
+  _RenderMeasure(this.onSize);
+  ValueChanged<Size> onSize;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    onSize(size);
   }
 }
 
