@@ -26,6 +26,8 @@ import 'friends/friends.dart';
 import 'friends/groups.dart';
 import 'net/net.dart';
 import 'voice/channels.dart';
+import 'voice/discord.dart';
+import 'voice/space_groups.dart';
 import 'sounds.dart';
 import 'sms.dart';
 import 'ui/computers.dart';
@@ -246,6 +248,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       // The interface sounds (lib/sounds.dart) read the person's choices from here.
       Sounds.instance.start(app);
       Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => Groups.instance.start()).then((_) => Voice.instance.start(app));
+      // Spaces' groups, and Discord servers linked into Spaces (lib/voice/space_groups.dart, lib/voice/discord.dart).
+      SpaceGroups.instance.start(app);
+      DiscordServers.instance.start(app);
       // Telegram's and Bluesky's chats (lib/inbox), each started where it was signed in before, and their Settings.
       addInboxSettings();
       Inbox.instance.start(app);

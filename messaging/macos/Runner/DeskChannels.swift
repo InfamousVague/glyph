@@ -36,6 +36,8 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
       // emoji, and a voice message to record and to play (DeskSound.swift).
       case "pickPictures":
         result(DeskChannels.pickPictures(most: args["most"] as? Int ?? 5))
+      case "pasteImage":
+        result(DeskChannels.pasteImage())
       case "emoji":
         // The Mac's own "Emoji & Symbols": what is chosen there is typed into the field the cursor is in.
         NSApp.orderFrontCharacterPalette(nil)
@@ -85,6 +87,28 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
   // MARK: Choosing pictures
 
   /// The Mac's own panel for choosing files, for pictures: the paths chosen, none where it was put away.
+  /// A picture on the clipboard, for pasting into the message field (Matt, 2026-11-16: "add the ability to paste
+  /// images into the chatbar on desktop"): the path of an image file copied in the Finder, or a copied picture (a
+  /// screenshot, an image copied from a page) written as a PNG to this run's folder. Nil where there is none, and
+  /// the field pastes words as it always has.
+  static func pasteImage() -> String? {
+    let board = NSPasteboard.general
+    if let urls = board.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL],
+       let file = urls.first(where: { (try? $0.resourceValues(forKeys: [.contentTypeKey]).contentType?.conforms(to: .image)) == true }) {
+      return file.path
+    }
+    guard let image = (board.readObjects(forClasses: [NSImage.self], options: nil) as? [NSImage])?.first,
+          let tiff = image.tiffRepresentation,
+          let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]),
+          let url = try? DeskVideo.place(named: "pasted-\(UUID().uuidString).png") else { return nil }
+    do {
+      try png.write(to: url)
+      return url.path
+    } catch {
+      return nil
+    }
+  }
+
   private static func pickPictures(most: Int) -> [String] {
     let panel = NSOpenPanel()
     panel.title = "Choose pictures"

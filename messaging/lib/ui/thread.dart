@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert' show utf8;
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
@@ -10,6 +11,7 @@ import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
 import '../app_state.dart';
+import '../desktop/platform.dart' show MacPlatform;
 import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
 import '../backgrounds.dart';
@@ -362,6 +364,10 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     }
   }
 
+  /// The first message unread as the chat was opened (a group's), and whether that has been looked for yet.
+  String? _firstNewKey;
+  bool _newKnown = false;
+
   Future<void> _load({bool markRead = false}) async {
     _loadE2e();
     final asked = _limit;
@@ -382,6 +388,14 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final newest = folded.messages.isEmpty ? null : folded.messages.first;
     if (newest != null && _newestKey != null && newest.key != _newestKey && newest.state != 'failed') _playFor(newest);
     _newestKey = newest?.key ?? '';
+    // Where the unread began as the group chat was opened, before it is marked read: the New messages divider stays
+    // above it while the chat is open (NewMessagesDivider).
+    if (markRead && !_newKnown) {
+      _newKnown = true;
+      // Looked for in every chat: who is in it may not be known yet, and the divider is drawn for a group alone.
+      final firstNew = list.where((m) => !m.outgoing && !m.read).lastOrNull;
+      if (firstNew != null) setState(() => _firstNewKey = firstNew.key);
+    }
     if (markRead && list.any((m) => !m.outgoing)) Sms.instance.markRead(widget.thread);
     if (_group) {
       for (final m in list) {
@@ -545,6 +559,18 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (mounted) setState(() => _sending = false);
       _load();
     }
+  }
+
+  /// A picture on the computer's clipboard (a screenshot, an image copied, an image file copied) is added as one
+  /// chosen with the picker would be; with none, the words on it are pasted as they always were.
+  Future<void> _paste() async {
+    final picture = _attachments.length < 5 ? await MacPlatform.pasteImage() : null;
+    if (!mounted) return;
+    if (picture != null) {
+      setState(() => _attachments.add(picture));
+      return;
+    }
+    _field.currentState?.pasteText(SelectionChangedCause.keyboard);
   }
 
   Future<void> _attach() async {
@@ -977,6 +1003,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         busy: busy,
         thread: widget.thread,
       )));
+      if (_group && m.key == _firstNewKey) items.add(Padding(key: const ValueKey('new-messages'), padding: EdgeInsets.symmetric(horizontal: t.space(3)), child: const NewMessagesDivider()));
       if (older == null || !_sameDay(older.date, m.date)) items.add(_DayHeading(date: m.date, busy: busy));
     }
     if (msgs.isEmpty) {
@@ -1344,7 +1371,16 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                       child: Stack(children: [
                         if (_text.text.isEmpty)
                           IgnorePointer(child: Text(_isGhost ? 'Message' : isMms ? 'Picture message' : (sealed ? 'Encrypted message' : 'Text message'), style: composerText.copyWith(color: t.color('app-ink-3')), strutStyle: composerStrut, textHeightBehavior: _evenLeading)),
-                        EditableText(
+                        // On a computer the paste keys bring in a picture on the clipboard first, then words as ever
+                        // (Matt, 2026-11-16: "add the ability to paste images into the chatbar on desktop"). Nearer the
+                        // field than the app's own text shortcuts, so these are the ones used.
+                        Shortcuts(
+                          shortcuts: Sms.remote
+                              ? {SingleActivator(LogicalKeyboardKey.keyV, meta: Platform.isMacOS, control: !Platform.isMacOS): const _PasteIntent()}
+                              : const <ShortcutActivator, Intent>{},
+                          child: Actions(
+                            actions: {_PasteIntent: CallbackAction<_PasteIntent>(onInvoke: (_) => _paste())},
+                            child: EditableText(
                           key: _field,
                           controller: _text,
                           focusNode: _focus,
@@ -1365,6 +1401,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                           textCapitalization: TextCapitalization.sentences,
                           selectionControls: emptyTextSelectionControls,
                           contextMenuBuilder: (context, state) => _contextMenu(context, state),
+                        ),
+                          ),
                         ),
                       ]),
                     ),
@@ -2184,4 +2222,9 @@ class _NotSent implements Exception {
   final String why;
   @override
   String toString() => why;
+}
+
+/// The paste keys in the message field on a computer (_ThreadScreenState._paste).
+class _PasteIntent extends Intent {
+  const _PasteIntent();
 }

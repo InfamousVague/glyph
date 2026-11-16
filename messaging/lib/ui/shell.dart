@@ -17,6 +17,7 @@ import '../art/lucide_more.dart';
 import 'voice_screen.dart';
 import 'hangout_screen.dart';
 import 'space_designs/space_design.dart';
+import 'space_groups_ui.dart';
 import '../voice/channels.dart';
 import 'compose.dart';
 import 'dialup/dialup.dart';
@@ -355,6 +356,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
           Choice('New chat', Lucide.messageSquarePlus, () => compose()),
           Choice('New group', Lucide.users, () => show(const NewGroupScreen(key: ValueKey('new-group')), showing: 'new')),
           Choice('New space', LucideMore.headphones, () => show(const NewChannelScreen(key: ValueKey('new-voice')), showing: 'new')),
+          // A Discord server's voice channels as a group of spaces (lib/ui/space_groups_ui.dart).
+          Choice('Add a Discord server', Lucide.link, () => show(const AddDiscordScreen(key: ValueKey('add-discord')), showing: 'new')),
         ]);
       case 'contacts':
         contacts();

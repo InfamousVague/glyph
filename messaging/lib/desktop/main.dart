@@ -18,6 +18,8 @@ import 'link/link.dart';
 import 'platform.dart';
 import 'remote.dart';
 import '../voice/channels.dart';
+import '../voice/discord.dart';
+import '../voice/space_groups.dart';
 import 'store.dart';
 import 'ui/shell.dart';
 import '../ui/update_banner.dart';
@@ -75,6 +77,8 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // The interface sounds (lib/sounds.dart) read the person's choices from here.
   Sounds.instance.start(state);
   unawaited(Voice.instance.start(state));
+  SpaceGroups.instance.start(state);
+  DiscordServers.instance.start(state);
   // Telegram's and Bluesky's chats (lib/inbox): the computer signs in to them itself, as their own apps do.
   addInboxSettings();
   unawaited(Inbox.instance.start(state));

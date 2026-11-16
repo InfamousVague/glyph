@@ -29,7 +29,7 @@ import '../sounds.dart';
 /// from the source, and no browser or phone engine sends uncompressed sound or picture.
 @immutable
 class VoiceChannel {
-  const VoiceChannel({required this.seed, required this.name, this.group, this.mine = false, this.owner = ''});
+  const VoiceChannel({required this.seed, required this.name, this.group, this.mine = false, this.owner = '', this.discord});
 
   /// 32 bytes in hex: everything else comes from it.
   final String seed;
@@ -40,6 +40,10 @@ class VoiceChannel {
 
   /// Made on this phone.
   final bool mine;
+
+  /// Bridged to a Discord voice channel (lib/voice/discord.dart, messaging/discord/): `<guild>/<channel>`. The bridge
+  /// is a member of the space and carries its sound and chat to and from Discord, so it is not end-to-end encrypted.
+  final String? discord;
 
   /// The public key (33 bytes in hex) of the install that made it: the hangout's owner, who decides its roles
   /// (lib/voice/roles.dart). Empty for a group's channel and for hangouts made before roles.
@@ -65,7 +69,7 @@ class VoiceChannel {
   /// A hangout (not a group's channel): it has a chat and roles.
   bool get hangout => group == null;
 
-  VoiceChannel copyWith({bool? mine}) => VoiceChannel(seed: seed, name: name, group: group, mine: mine ?? this.mine, owner: owner);
+  VoiceChannel copyWith({bool? mine}) => VoiceChannel(seed: seed, name: name, group: group, mine: mine ?? this.mine, owner: owner, discord: discord);
 
   Map<String, Object> toJson() => {'s': seed, 'n': name, if (mine) 'm': 1, if (owner.isNotEmpty) 'o': owner};
 
@@ -150,6 +154,20 @@ abstract class VoiceMedia {
   VoicePeer peer(String id, {required void Function(Map<String, dynamic> candidate) onCandidate});
 }
 
+/// Someone in a Discord voice channel a space is bridged to, as the bridge says (voice room message 'dc').
+@immutable
+class DiscordPerson {
+  const DiscordPerson({required this.id, required this.name, this.speaking = false, this.muted = false, this.deafened = false, this.bot = false});
+  final String id;
+  final String name;
+  final bool speaking, muted, deafened, bot;
+
+  static DiscordPerson? fromJson(Object? j) {
+    if (j is! Map || j['id'] is! String || j['name'] is! String) return null;
+    return DiscordPerson(id: j['id'] as String, name: j['name'] as String, speaking: j['speaking'] == true, muted: j['muted'] == true, deafened: j['deafened'] == true, bot: j['bot'] == true);
+  }
+}
+
 /// Someone in the call, as they said they are.
 @immutable
 class VoiceMember {
@@ -191,6 +209,14 @@ class VoiceSession extends ChangeNotifier {
   final String name;
 
   final Map<String, VoiceMember> members = {};
+
+  /// Where the space is bridged to Discord: everyone in the Discord voice channel, as the bridge last said ('dc'), and
+  /// the bridge's own id (a member, not shown as a person).
+  List<DiscordPerson> discordPeople = const [];
+  String? bridgeId;
+
+  /// The Discord people's talking as levels (`dc:<id>`), for their faces to ripple as everyone's do.
+  final ValueNotifier<Map<String, double>> discordLevels = ValueNotifier(const {});
 
   /// Who is not answered at all (a hangout's banned: lib/voice/hangout.dart).
   bool Function(String id)? refuse;
@@ -320,6 +346,12 @@ class VoiceSession extends ChangeNotifier {
       return;
     }
     switch (m['t']) {
+      case 'dc':
+        // The bridge to Discord saying who is in the Discord voice channel, and who is talking there.
+        bridgeId = from;
+        discordPeople = [for (final p in (m['people'] as List? ?? const [])) ?DiscordPerson.fromJson(p)];
+        discordLevels.value = {for (final p in discordPeople) 'dc:${p.id}': p.speaking && !p.muted ? 0.5 : 0.0};
+        notifyListeners();
       case 'me':
         final had = members[from] ?? VoiceMember(from);
         members[from] = had.copyWith(name: '${m['n'] ?? ''}', muted: m['m'] == true, video: m['v'] == true, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null);

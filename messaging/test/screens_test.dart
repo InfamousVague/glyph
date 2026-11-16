@@ -163,7 +163,7 @@ List<Map<String, Object?>> _messages(int thread) {
   if (thread == 6) {
     // Encryption is on with Sam: one text of his came sealed, then two came without it.
     return [
-      {'id': 73, 'kind': 'sms', 'address': '+15551230013', 'body': 'You there?', 'date': _ago(minutes: 1), 'outgoing': false, 'state': 'received', 'read': true},
+      {'id': 73, 'kind': 'sms', 'address': '+15551230013', 'body': 'You there?', 'date': _ago(minutes: 1), 'outgoing': false, 'state': 'received', 'read': false},
       {'id': 72, 'kind': 'sms', 'address': '+15551230013', 'body': 'New phone, who dis', 'date': _ago(minutes: 3), 'outgoing': false, 'state': 'received', 'read': true},
       {'id': 71, 'kind': 'sms', 'address': '+15551230013', 'body': 'See you Friday', 'date': _ago(days: 1), 'outgoing': false, 'state': 'received', 'read': true, 'encrypted': true},
     ];
@@ -199,10 +199,10 @@ List<Map<String, Object?>> _messages(int thread) {
       // One that did not go, with why (android MmsWhy.kt).
       {'id': 16, 'kind': 'mms', 'address': '', 'body': 'Trailhead at 9', 'date': _ago(minutes: 47), 'outgoing': true, 'state': 'failed', 'read': true, 'parts': [], 'why': 'mobile data is off. Picture messages need it, even on Wi-Fi'},
       {'id': 15, 'kind': 'mms', 'address': '', 'body': '', 'date': _ago(minutes: 48), 'outgoing': true, 'state': 'sent', 'read': true, 'parts': [{'id': 902, 'type': 'image/png', 'name': 'ghost-sticker-party-03.png'}]},
-      {'id': 14, 'kind': 'mms', 'address': '+15551230002', 'body': '', 'date': _ago(minutes: 49), 'outgoing': false, 'state': 'received', 'read': true, 'parts': [{'id': 901, 'type': 'image/png', 'name': 'ghost-sticker-sweet-01.png'}]},
-      {'id': 13, 'kind': 'mms', 'address': '+15551230004', 'body': '👍 to "Hike this weekend?"', 'date': _ago(minutes: 50), 'outgoing': false, 'state': 'received', 'read': true, 'parts': []},
-      {'id': 12, 'kind': 'mms', 'address': '+15551230003', 'body': 'Liked “Hike this weekend?”', 'date': _ago(minutes: 51), 'outgoing': false, 'state': 'received', 'read': true, 'parts': []},
-      {'id': 11, 'kind': 'mms', 'address': '+15551230003', 'body': 'Look at this view 🏔️', 'date': _ago(minutes: 52), 'outgoing': false, 'state': 'received', 'read': true, 'parts': []},
+      {'id': 14, 'kind': 'mms', 'address': '+15551230002', 'body': '', 'date': _ago(minutes: 49), 'outgoing': false, 'state': 'received', 'read': false, 'parts': [{'id': 901, 'type': 'image/png', 'name': 'ghost-sticker-sweet-01.png'}]},
+      {'id': 13, 'kind': 'mms', 'address': '+15551230004', 'body': '👍 to "Hike this weekend?"', 'date': _ago(minutes: 50), 'outgoing': false, 'state': 'received', 'read': false, 'parts': []},
+      {'id': 12, 'kind': 'mms', 'address': '+15551230003', 'body': 'Liked “Hike this weekend?”', 'date': _ago(minutes: 51), 'outgoing': false, 'state': 'received', 'read': false, 'parts': []},
+      {'id': 11, 'kind': 'mms', 'address': '+15551230003', 'body': 'Look at this view 🏔️', 'date': _ago(minutes: 52), 'outgoing': false, 'state': 'received', 'read': false, 'parts': []},
       {'id': 10, 'kind': 'mms', 'address': '', 'body': 'Saturday works for me', 'date': _ago(hours: 1), 'outgoing': true, 'state': 'read', 'read': true, 'parts': []},
       {'id': 9, 'kind': 'mms', 'address': '+15551230004', 'body': 'Same, any time after noon', 'date': _ago(hours: 1, minutes: 5), 'outgoing': false, 'state': 'received', 'read': true, 'parts': []},
       {'id': 8, 'kind': 'mms', 'address': '+15551230002', 'body': 'Hike this weekend?', 'date': _ago(hours: 1, minutes: 8), 'outgoing': false, 'state': 'received', 'read': true, 'parts': []},
@@ -674,6 +674,7 @@ void main() {
       _plainOff = false;
       const sam = [Person(address: '+15551230013', name: 'Sam Rivera')];
       await _shoot(tester, sheet, const ThreadScreen(thread: 6, people: sam), '2-thread-plain-warning', dark: dark);
+      expect(find.byKey(const ValueKey('new-messages')), findsNothing, reason: 'a chat with one person has no divider');
       expect(find.textContaining('last 2 texts came without encryption'), findsOneWidget);
       final turnOff = find.byWidgetPredicate((w) => w is GlacierPressable && w.semanticLabel == 'Turn off');
       expect(turnOff, findsOneWidget);
@@ -759,6 +760,12 @@ void main() {
       expect(mic, findsOneWidget);
       expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send'), findsOneWidget);
       await _shoot(tester, sheet, ThreadScreen(thread: 2, people: [for (final p in _conversations[1]['people'] as List) Person.from(p as Map)]), '3-group', dark: dark);
+      // Where the unread began as the group was opened (Matt, 2026-11-16: "Add a "new messages" divider like discord has
+      // for all group chats"): above the oldest of the four not read, under what came before.
+      expect(find.byKey(const ValueKey('new-messages')), findsOneWidget);
+      final divider = tester.getRect(find.byKey(const ValueKey('new-messages')));
+      expect(divider.bottom, lessThanOrEqualTo(tester.getTopLeft(find.textContaining('Look at this view')).dy));
+      expect(divider.top, greaterThanOrEqualTo(tester.getBottomLeft(find.text('Saturday works for me')).dy));
       await _shoot(tester, sheet, const ComposeScreen(), '4-compose', dark: dark);
       // A conversation keeps all its room: the card is the list's alone.
       _updateWaiting = true;

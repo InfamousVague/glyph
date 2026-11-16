@@ -14,9 +14,13 @@
 //	{"id":9,"op":"react","to":"…","author":"…","ts":…,"emoji":"👍","remove":false} → null
 //	{"id":10,"op":"delete","to":"…","ts":…}                  → null
 //	{"id":11,"op":"download","pointer":{…},"path":"…"}       → null once written
+//	{"id":12,"op":"who","aci":"…"}                           → {"aci","name","number","avatar"}: the person's Signal profile fetched where nothing names them
+//	{"id":13,"op":"group_info","to":"<group id>"}            → the group in full (groupInfo): title, description, picture, timer, members with roles, who may do what
+//	{"id":14,"op":"group_update","to":"…","change":{…}}      → the group in full once changed: any of title, description, avatar (a picture's path, "" none), timer (seconds, 0 off), add, remove, admin, unadmin (ACIs), announcements_only, edit_info and add_members ("members" or "admins"), leave
 //
 // Answers: {"id":1,"ok":true,"result":…} or {"id":1,"ok":false,"error":"…"}. Events, unasked, each with "ev": ready,
-// qr, linked, link_failed, connected, disconnected, message, receipt, reaction, deleted, contacts, unlinked.
+// qr, linked, link_failed, connected, disconnected, message, receipt, reaction, deleted, contacts, unlinked, and
+// name ({"aci","name","number","avatar"}: someone who wrote with nothing naming them, once their profile is fetched).
 package main
 
 import (
@@ -100,6 +104,25 @@ type request struct {
 	Emoji   string          `json:"emoji"`
 	Remove  bool            `json:"remove"`
 	Pointer json.RawMessage `json:"pointer"`
+	ACI     string          `json:"aci"`
+	Change  *groupEdit      `json:"change"`
+}
+
+// groupEdit is a change to a group the person asks for (Matt, 2026-11-16: "Add them to a drawer when pressing and
+// holding on the group name add support for all supported featues"): each field left out is left as it is.
+type groupEdit struct {
+	Title             *string  `json:"title"`
+	Description       *string  `json:"description"`
+	Avatar            *string  `json:"avatar"`
+	Timer             *uint32  `json:"timer"`
+	Add               []string `json:"add"`
+	Remove            []string `json:"remove"`
+	Admin             []string `json:"admin"`
+	Unadmin           []string `json:"unadmin"`
+	AnnouncementsOnly *bool    `json:"announcements_only"`
+	EditInfo          *string  `json:"edit_info"`
+	AddMembers        *string  `json:"add_members"`
+	Leave             bool     `json:"leave"`
 }
 
 var (
@@ -385,7 +408,7 @@ func do(r request) (any, error) {
 	// A send is given a minute, under the app's own wait (lib/inbox/signal.dart), so what went wrong is said to it
 	// rather than the app giving up first; a download or an upload has longer.
 	limit := 60 * time.Second
-	if r.Op == "download" || r.Op == "send_media" {
+	if r.Op == "download" || r.Op == "send_media" || r.Op == "group_update" {
 		limit = 170 * time.Second
 	}
 	ctx, cancel := context.WithTimeout(bg(), limit)
@@ -413,12 +436,37 @@ func do(r request) (any, error) {
 			return nil, err
 		}
 		return contacts(ctx, c)
+	case "who":
+		c, err := client()
+		if err != nil {
+			return nil, err
+		}
+		aci, err := uuid.Parse(r.ACI)
+		if err != nil {
+			return nil, errors.New("who: no aci")
+		}
+		return who(ctx, c, aci)
 	case "groups":
 		c, err := client()
 		if err != nil {
 			return nil, err
 		}
 		return groups(ctx, c)
+	case "group_info":
+		c, err := client()
+		if err != nil {
+			return nil, err
+		}
+		return groupInfo(ctx, c, r.To)
+	case "group_update":
+		c, err := client()
+		if err != nil {
+			return nil, err
+		}
+		if r.Change == nil {
+			return nil, errors.New("no change asked for")
+		}
+		return updateGroup(ctx, c, r.To, r.Change)
 	case "send":
 		c, err := client()
 		if err != nil {
@@ -871,9 +919,58 @@ func contacts(ctx context.Context, c *signalmeow.Client) ([]map[string]any, erro
 		if r.ACI == uuid.Nil || r.ACI == c.Store.ACI {
 			continue
 		}
+		// Nothing naming them here (the phone's contact sync often has no name, and only a profile key): their
+		// Signal profile, fetched with that key (Matt, 2026-11-16: "signal messages are not being properly tied to a
+		// username or group name").
+		if recipientName(r) == "" && r.Profile.Key != (libsignalgo.ProfileKey{}) {
+			if fetched, err := c.ContactByACI(ctx, r.ACI); err == nil && fetched != nil {
+				r = fetched
+			}
+		}
 		list = append(list, contact(ctx, c, r))
 	}
 	return list, nil
+}
+
+// who is [aci] as the app shows them: from the store, and from their Signal profile where the store names them not.
+func who(ctx context.Context, c *signalmeow.Client, aci uuid.UUID) (map[string]any, error) {
+	r, err := c.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, uuid.Nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r == nil || recipientName(r) == "" {
+		if fetched, err := c.ContactByACI(ctx, aci); err == nil && fetched != nil {
+			r = fetched
+		} else if err != nil {
+			log.Debug().Err(err).Str("aci", aci.String()).Msg("profile not fetched")
+		}
+	}
+	if r == nil {
+		return map[string]any{"aci": aci.String(), "name": "", "number": "", "avatar": nil}, nil
+	}
+	return contact(ctx, c, r), nil
+}
+
+// announceName fetches the profile of someone who wrote with nothing naming them, once a run, off the receive loop,
+// and tells the app the name it found ("name" event).
+func announceName(c *signalmeow.Client, aci uuid.UUID) {
+	key := "name:" + aci.String()
+	announcedMu.Lock()
+	if announced[key] {
+		announcedMu.Unlock()
+		return
+	}
+	announced[key] = true
+	announcedMu.Unlock()
+	go func() {
+		ctx, cancel := context.WithTimeout(bg(), 30*time.Second)
+		defer cancel()
+		m, err := who(ctx, c, aci)
+		if err != nil || m["name"] == "" {
+			return
+		}
+		event("name", m)
+	}()
 }
 
 func groups(ctx context.Context, c *signalmeow.Client) ([]map[string]any, error) {
@@ -930,6 +1027,192 @@ func describeGroup(ctx context.Context, c *signalmeow.Client, id string) (map[st
 		}
 	}
 	return map[string]any{"id": id, "title": g.Title, "members": members, "avatar": nullable(avatar)}, nil
+}
+
+// access is who may do something in a group, in the app's words: "members" or "admins" ("anyone" for an invite link
+// that needs no approval, which the app shows as members).
+func access(a signalmeow.AccessControl) string {
+	switch a {
+	case signalmeow.AccessControl_ADMINISTRATOR:
+		return "admins"
+	case signalmeow.AccessControl_ANY:
+		return "anyone"
+	default:
+		return "members"
+	}
+}
+
+func accessOf(s string) (*signalmeow.AccessControl, error) {
+	switch s {
+	case "admins":
+		a := signalmeow.AccessControl_ADMINISTRATOR
+		return &a, nil
+	case "members":
+		a := signalmeow.AccessControl_MEMBER
+		return &a, nil
+	}
+	return nil, fmt.Errorf("who may do it is \"members\" or \"admins\", not %q", s)
+}
+
+// groupInfo is group [id] in full, for the app's group drawer: describeGroup's, and its description, disappearing
+// timer, each member with their name, number and role, those invited and those asking to join, who may change its
+// details and add people, whether only admins may write, and whether you are an admin.
+func groupInfo(ctx context.Context, c *signalmeow.Client, id string) (map[string]any, error) {
+	out, err := describeGroup(ctx, c, id)
+	if err != nil {
+		return nil, err
+	}
+	g, _, err := c.RetrieveGroupByID(ctx, types.GroupIdentifier(id), 0)
+	if err != nil {
+		return nil, err
+	}
+	person := func(aci uuid.UUID) map[string]any {
+		m := map[string]any{"aci": aci.String(), "name": "", "number": "", "me": aci == c.Store.ACI}
+		if r, err := c.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, uuid.Nil, nil); err == nil && r != nil {
+			m["name"], m["number"] = recipientName(r), r.E164
+		}
+		return m
+	}
+	members := make([]map[string]any, 0, len(g.Members))
+	admin := false
+	for _, m := range g.Members {
+		p := person(m.ACI)
+		p["admin"] = m.Role == signalmeow.GroupMember_ADMINISTRATOR
+		if m.ACI == c.Store.ACI && m.Role == signalmeow.GroupMember_ADMINISTRATOR {
+			admin = true
+		}
+		members = append(members, p)
+	}
+	pending := make([]map[string]any, 0, len(g.PendingMembers))
+	for _, m := range g.PendingMembers {
+		if m.ServiceID.Type == libsignalgo.ServiceIDTypeACI {
+			pending = append(pending, person(m.ServiceID.UUID))
+		}
+	}
+	requesting := make([]map[string]any, 0, len(g.RequestingMembers))
+	for _, m := range g.RequestingMembers {
+		requesting = append(requesting, person(m.ACI))
+	}
+	editInfo, addMembers := "members", "members"
+	if g.AccessControl != nil {
+		editInfo, addMembers = access(g.AccessControl.Attributes), access(g.AccessControl.Members)
+	}
+	out["description"] = g.Description
+	out["timer"] = g.DisappearingMessagesDuration
+	out["people"] = members
+	out["pending"] = pending
+	out["requesting"] = requesting
+	out["admin"] = admin
+	out["edit_info"] = editInfo
+	out["add_members"] = addMembers
+	out["announcements_only"] = g.AnnouncementsOnly
+	out["terminated"] = g.Terminated
+	if link, err := g.GetInviteLink(); err == nil {
+		out["invite_link"] = link
+	}
+	return out, nil
+}
+
+// updateGroup makes the change [e] to group [id] on Signal, where everyone in it sees it, and answers with the group
+// as it is then. Signal refuses what the group's rules do not let you do (only admins may rename it, say).
+func updateGroup(ctx context.Context, c *signalmeow.Client, id string, e *groupEdit) (map[string]any, error) {
+	gid := types.GroupIdentifier(id)
+	gc := &signalmeow.GroupChange{}
+	aci := func(s string) (*uuid.UUID, error) {
+		u, err := uuid.Parse(s)
+		if err != nil {
+			return nil, fmt.Errorf("not a Signal id: %q", s)
+		}
+		return &u, nil
+	}
+	if e.Title != nil {
+		t := strings.TrimSpace(*e.Title)
+		if t == "" {
+			return nil, errors.New("a group needs a name")
+		}
+		gc.ModifyTitle = &t
+	}
+	if e.Description != nil {
+		d := strings.TrimSpace(*e.Description)
+		gc.ModifyDescription = &d
+	}
+	if e.Avatar != nil {
+		path := ""
+		if *e.Avatar != "" {
+			data, err := os.ReadFile(*e.Avatar)
+			if err != nil {
+				return nil, fmt.Errorf("the picture: %w", err)
+			}
+			if path, err = c.UploadGroupAvatar(ctx, data, gid, ""); err != nil {
+				return nil, fmt.Errorf("the picture did not upload: %w", err)
+			}
+		}
+		gc.ModifyAvatar = &path
+	}
+	if e.Timer != nil {
+		gc.ModifyDisappearingMessagesDuration = e.Timer
+	}
+	for _, s := range e.Add {
+		u, err := aci(s)
+		if err != nil {
+			return nil, err
+		}
+		gc.AddMembers = append(gc.AddMembers, &signalmeow.AddMember{GroupMember: signalmeow.GroupMember{ACI: *u, Role: signalmeow.GroupMember_DEFAULT}})
+	}
+	for _, s := range e.Remove {
+		u, err := aci(s)
+		if err != nil {
+			return nil, err
+		}
+		gc.DeleteMembers = append(gc.DeleteMembers, u)
+	}
+	for _, s := range e.Admin {
+		u, err := aci(s)
+		if err != nil {
+			return nil, err
+		}
+		gc.ModifyMemberRoles = append(gc.ModifyMemberRoles, &signalmeow.RoleMember{ACI: *u, Role: signalmeow.GroupMember_ADMINISTRATOR})
+	}
+	for _, s := range e.Unadmin {
+		u, err := aci(s)
+		if err != nil {
+			return nil, err
+		}
+		gc.ModifyMemberRoles = append(gc.ModifyMemberRoles, &signalmeow.RoleMember{ACI: *u, Role: signalmeow.GroupMember_DEFAULT})
+	}
+	if e.AnnouncementsOnly != nil {
+		gc.ModifyAnnouncementsOnly = e.AnnouncementsOnly
+	}
+	if e.EditInfo != nil {
+		a, err := accessOf(*e.EditInfo)
+		if err != nil {
+			return nil, err
+		}
+		gc.ModifyAttributesAccess = a
+	}
+	if e.AddMembers != nil {
+		a, err := accessOf(*e.AddMembers)
+		if err != nil {
+			return nil, err
+		}
+		gc.ModifyMemberAccess = a
+	}
+	if e.Leave {
+		me := c.Store.ACI
+		gc.DeleteMembers = append(gc.DeleteMembers, &me)
+	}
+	if _, err := c.UpdateGroup(ctx, gc, gid); err != nil {
+		return nil, err
+	}
+	if e.Leave {
+		return map[string]any{"id": id, "left": true}, nil
+	}
+	g, err := groupInfo(ctx, c, id)
+	if err != nil {
+		return nil, err
+	}
+	event("group", g)
+	return g, nil
 }
 
 // senderName is a sender's name from what the store knows, without asking Signal.
@@ -1009,6 +1292,12 @@ func chatEvent(c *signalmeow.Client, evt *events.ChatEvent) {
 	// loop (Matt, 2026-11-16: "the group titles are not coming through"). The app asks for groups once, on linking,
 	// when the store has none yet: a group is known only from its first message, which carries its key.
 	if group {
+		// A change to the group by someone (its name, picture, people, timer): told again, as it now is.
+		if len(dm.GetGroupV2().GetGroupChange()) > 0 {
+			announcedMu.Lock()
+			delete(announced, chat)
+			announcedMu.Unlock()
+		}
 		announceGroup(c, chat)
 	}
 	switch {
@@ -1036,8 +1325,21 @@ func message(c *signalmeow.Client, chat string, group bool, sender uuid.UUID, dm
 			media = append(media, m)
 		}
 	}
+	name := senderName(c, sender)
+	// Someone nothing here names yet: their profile fetched, and the name told to the app as it comes. In a chat of
+	// two the one written with is the chat itself, also when the message is this account's own from another device.
+	if name == "" && sender != c.Store.ACI {
+		announceName(c, sender)
+	}
+	if !group {
+		if other, err := uuid.Parse(chat); err == nil && other != c.Store.ACI && other != sender {
+			if r, err := c.Store.RecipientStore.LoadAndUpdateRecipient(bg(), other, uuid.Nil, nil); err == nil && recipientName(r) == "" {
+				announceName(c, other)
+			}
+		}
+	}
 	m := map[string]any{
-		"chat": chat, "group": group, "from": sender.String(), "name": senderName(c, sender),
+		"chat": chat, "group": group, "from": sender.String(), "name": name,
 		"mine": sender == c.Store.ACI, "ts": dm.GetTimestamp(), "text": dm.GetBody(), "media": media,
 	}
 	if q := dm.GetQuote(); q != nil {

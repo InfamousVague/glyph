@@ -40,7 +40,7 @@ const DOMAIN = 'gogho.st';
 // in app and everything to point through that domain instead of the ghost-sms one also point that domain to the
 // website"). It still answers what copies installed before the move ask of it - their updates and the relay - and
 // the relay's sign-in pages (/link/*, whose addresses Discord, X and Telegram were given); anything else there goes
-// to the same address on gogho.st.
+// to the same address on gogho.st. /discord/* answers on both names (the Discord presence bot, tool/deploy-discord.mjs).
 const OLD = 'ghost-sms.com';
 const args = process.argv.slice(2);
 const withCaddy = args.includes('--caddy');
@@ -77,6 +77,12 @@ ${DOMAIN} {
 	handle @relay {
 		reverse_proxy 127.0.0.1:18787
 	}
+	# The Discord presence bot (discord/, tool/deploy-discord.mjs): a linked Discord server's voice channels and who
+	# is in them, for the app's spaces. Passed on with the /discord prefix kept; the port is that script's PORT.
+	@discord path /discord /discord/*
+	handle @discord {
+		reverse_proxy 127.0.0.1:18788
+	}
 	handle {
 		root * ${SITE}
 		header Cache-Control "no-cache"
@@ -99,6 +105,10 @@ ${OLD} {
 	@relay path /hub /relay/* /link/*
 	handle @relay {
 		reverse_proxy 127.0.0.1:18787
+	}
+	@discord path /discord /discord/*
+	handle @discord {
+		reverse_proxy 127.0.0.1:18788
 	}
 	handle {
 		redir https://${DOMAIN}{uri} permanent

@@ -307,4 +307,37 @@ void main() {
     expect(v.removed(other.seed), isTrue);
     expect((await v.answerDesk({'op': 'add', 's': other.seed, 'n': other.name}) as Map)['gone'], isTrue);
   });
+
+  // Matt, 2026-11-16: "I want the bot to connect and act as my voice": a space bridged to Discord has the bridge as a
+  // member, which says who is in the Discord voice channel and who is talking there.
+  test('the bridge to Discord says who is in the Discord channel; the session keeps them, and their talking', () async {
+    final hub = _Hub();
+    final c = VoiceChannel.make('General');
+    final me = VoiceSession(channel: c, route: _Route(hub, 'me-id'), media: _Media(), name: 'Me');
+    final bridge = _Route(hub, 'bridge-id');
+    await bridge.join(c.room, c.token);
+    await me.join();
+    await _settle();
+    void say(Map<String, Object?> what) => bridge.send(c.room, NetCrypto.seal(c.key, utf8.encode(jsonEncode(what))));
+    say({'t': 'me', 'n': 'Discord', 'm': false, 'v': false});
+    say({
+      't': 'dc',
+      'people': [
+        {'id': 'u1', 'name': 'Alex', 'speaking': true, 'muted': false, 'deafened': false, 'bot': false},
+        {'id': 'u2', 'name': 'Sam', 'speaking': false, 'muted': true, 'deafened': false, 'bot': false},
+        {'id': 'b', 'name': 'Some bot', 'bot': true},
+      ],
+    });
+    await _settle();
+    expect(me.bridgeId, 'bridge-id');
+    expect(me.discordPeople.map((p) => p.name), ['Alex', 'Sam', 'Some bot']);
+    expect(me.discordLevels.value['dc:u1'], greaterThan(0.04), reason: 'talking in Discord ripples here');
+    expect(me.discordLevels.value['dc:u2'], 0, reason: 'muted is not talking');
+    // A later word replaces it.
+    say({'t': 'dc', 'people': [{'id': 'u2', 'name': 'Sam', 'speaking': true}]});
+    await _settle();
+    expect(me.discordPeople.single.name, 'Sam');
+    expect(me.discordLevels.value.keys, ['dc:u2']);
+    await me.leave();
+  });
 }

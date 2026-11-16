@@ -359,6 +359,34 @@ class _RenderHeaderMark extends RenderBox {
   }
 }
 
+/// Where the messages not yet read begin, in a group chat (Matt, 2026-11-16: "Add a "new messages" divider like
+/// discord has for all group chats across telegram signal and RCS"): a thin red line across, and a small red "New"
+/// at its end. It marks where they began as the chat was opened, and stays there while it is open.
+class NewMessagesDivider extends StatelessWidget {
+  const NewMessagesDivider({super.key});
+
+  static const red = Color(0xFFDD3A30);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Semantics(
+      label: 'New messages',
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: t.space(2)),
+        child: Row(children: [
+          Expanded(child: Container(height: 1, color: red)),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: 1),
+            decoration: BoxDecoration(color: red, borderRadius: BorderRadius.circular(t.radius('sm'))),
+            child: ExcludeSemantics(child: Text('New', style: pageText(t, t.fontSize('xs'), weight: 'bold', color: const Color(0xFFFFFFFF), height: 1.3))),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
 /// The app's logo: the white ghost that is a speech bubble, on black, as the icon on the home screen has it
 /// (assets/art/ghost-mark.png, cut from the icon by tool/app_icon.py). Black in either theme, since the mark is white.
 class GhostLogo extends StatelessWidget {

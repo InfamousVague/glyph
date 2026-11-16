@@ -41,6 +41,9 @@ class Telegram extends InboxNetwork {
   InboxState _state = InboxState.unavailable;
   InboxStep _step = InboxStep.none;
   String? _error, _account, _passwordHint, _codeWhere;
+
+  /// This account's own user id, from getMe.
+  int? _meId;
   int _asked = 0;
   final Map<String, Completer<Map<String, Object?>>> _waiting = {};
 
@@ -295,6 +298,7 @@ class Telegram extends InboxNetwork {
   void _ready() {
     _ask({'@type': 'getMe'}).then((me) {
       if (me['@type'] != 'user') return;
+      _meId = (me['id'] as num?)?.toInt();
       final name = [me['first_name'], me['last_name']].whereType<String>().where((s) => s.isNotEmpty).join(' ');
       final usernames = (me['usernames'] as Map?)?['active_usernames'] as List?;
       _account = usernames != null && usernames.isNotEmpty ? '@${usernames.first}' : (name.isEmpty ? null : name);
@@ -899,6 +903,110 @@ class Telegram extends InboxNetwork {
     }
   }
 
+  /// A Telegram group in full, for its drawer: getChat, this account's own standing in it, and the group's full info
+  /// and members (a basic group's all, a supergroup's 200 most recent). A channel is not a group.
+  @override
+  Future<GroupDetails?> groupDetails(String chatId) async {
+    if (_state != InboxState.ready) return null;
+    final id = int.tryParse(chatId);
+    if (id == null) return null;
+    final chat = await _ask({'@type': 'getChat', 'chat_id': id});
+    if (chat['@type'] == 'error') throw StateError(_plain(chat));
+    final type = chat['type'] as Map? ?? const {};
+    final basic = type['@type'] == 'chatTypeBasicGroup';
+    final superGroup = type['@type'] == 'chatTypeSupergroup' && type['is_channel'] != true;
+    if (!basic && !superGroup) return null;
+    _meId ??= ((await _ask({'@type': 'getMe'}))['id'] as num?)?.toInt();
+    final mine = _meId == null ? const <String, Object?>{} : await _ask({'@type': 'getChatMember', 'chat_id': id, 'member_id': {'@type': 'messageSenderUser', 'user_id': _meId}});
+    final Map full;
+    final List members;
+    if (basic) {
+      full = await _ask({'@type': 'getBasicGroupFullInfo', 'basic_group_id': type['basic_group_id']});
+      members = full['members'] as List? ?? const [];
+    } else {
+      full = await _ask({'@type': 'getSupergroupFullInfo', 'supergroup_id': type['supergroup_id']});
+      final got = await _ask({'@type': 'getSupergroupMembers', 'supergroup_id': type['supergroup_id'], 'filter': {'@type': 'supergroupMembersFilterRecent'}, 'offset': 0, 'limit': 200});
+      members = got['members'] as List? ?? const [];
+    }
+    final people = <Map<String, Object?>>[];
+    for (final raw in members) {
+      final m = raw as Map;
+      final user = ((m['member_id'] as Map?)?['user_id'] as num?)?.toInt();
+      final status = '${(m['status'] as Map?)?['@type']}';
+      if (user == null || status == 'chatMemberStatusLeft' || status == 'chatMemberStatusBanned') continue;
+      var u = _people[user];
+      if (u == null) {
+        final got = await _ask({'@type': 'getUser', 'user_id': user});
+        if (got['@type'] == 'user') u = _people[user] = got;
+      }
+      people.add({
+        'id': '$user',
+        'name': u == null ? (_users[user] ?? 'Someone') : [u['first_name'], u['last_name']].whereType<String>().where((x) => x.trim().isNotEmpty).join(' ').trim(),
+        'number': u?['phone_number'],
+        'status': status,
+        'me': user == _meId,
+      });
+    }
+    return telegramGroupDetails(
+      chat: chat,
+      mine: (mine['status'] as Map?) ?? const {},
+      description: '${full['description'] ?? ''}',
+      inviteLink: ((full['invite_link'] as Map?)?['invite_link']) as String?,
+      people: people,
+      photo: chats.where((c) => c.id == chatId).firstOrNull?.avatar,
+    );
+  }
+
+  /// Changes a Telegram group on Telegram, a request to TDLib for each part, stopping at the first Telegram refuses.
+  @override
+  Future<GroupDetails?> changeGroup(String chatId, GroupChange change) async {
+    if (_state != InboxState.ready) throw StateError('Telegram isn\'t connected');
+    final id = int.parse(chatId);
+    Future<void> ask(Map<String, Object?> request) async {
+      final got = await _ask(request, wait: const Duration(minutes: 2));
+      if (got['@type'] == 'error') throw StateError(_plain(got));
+    }
+
+    Map<String, Object?> who(String user) => {'@type': 'messageSenderUser', 'user_id': int.parse(user)};
+    if (change.leave) {
+      await ask({'@type': 'leaveChat', 'chat_id': id});
+      return null;
+    }
+    if (change.title != null) await ask({'@type': 'setChatTitle', 'chat_id': id, 'title': change.title!.trim()});
+    if (change.description != null) await ask({'@type': 'setChatDescription', 'chat_id': id, 'description': change.description!.trim()});
+    if (change.photo != null) {
+      await ask({
+        '@type': 'setChatPhoto',
+        'chat_id': id,
+        'photo': change.photo!.isEmpty ? null : {'@type': 'inputChatPhotoStatic', 'photo': {'@type': 'inputFileLocal', 'path': change.photo}},
+      });
+    }
+    if (change.timer != null) await ask({'@type': 'setChatMessageAutoDeleteTime', 'chat_id': id, 'message_auto_delete_time': change.timer});
+    for (final u in change.add) {
+      await ask({'@type': 'addChatMember', 'chat_id': id, 'user_id': int.parse(u), 'forward_limit': 100});
+    }
+    for (final u in change.remove) {
+      await ask({'@type': 'setChatMemberStatus', 'chat_id': id, 'member_id': who(u), 'status': {'@type': 'chatMemberStatusLeft'}});
+    }
+    for (final u in change.admin) {
+      await ask({'@type': 'setChatMemberStatus', 'chat_id': id, 'member_id': who(u), 'status': {'@type': 'chatMemberStatusAdministrator', 'custom_title': '', 'can_be_edited': true, 'rights': telegramAdminRights}});
+    }
+    for (final u in change.unadmin) {
+      await ask({'@type': 'setChatMemberStatus', 'chat_id': id, 'member_id': who(u), 'status': {'@type': 'chatMemberStatusMember'}});
+    }
+    if (change.announcementsOnly != null || change.editInfoAdminsOnly != null || change.addPeopleAdminsOnly != null) {
+      final chat = await _ask({'@type': 'getChat', 'chat_id': id});
+      final permissions = telegramPermissions(
+        (chat['permissions'] as Map?)?.cast<String, Object?>() ?? const {},
+        announcementsOnly: change.announcementsOnly,
+        editInfoAdminsOnly: change.editInfoAdminsOnly,
+        addPeopleAdminsOnly: change.addPeopleAdminsOnly,
+      );
+      await ask({'@type': 'setChatPermissions', 'chat_id': id, 'permissions': permissions});
+    }
+    return groupDetails(chatId);
+  }
+
   @override
   Future<void> markRead(String chatId) async {
     if (_state != InboxState.ready) return;
@@ -976,3 +1084,70 @@ class Telegram extends InboxNetwork {
 
 @visibleForTesting
 String telegramPlain(Map e) => Telegram._plain(e);
+
+/// What a member made admin from Ghost may do: as Telegram's apps give a new admin, short of adding admins.
+const telegramAdminRights = <String, Object?>{
+  '@type': 'chatAdministratorRights',
+  'can_manage_chat': true,
+  'can_change_info': true,
+  'can_delete_messages': true,
+  'can_invite_users': true,
+  'can_restrict_members': true,
+  'can_pin_messages': true,
+  'can_manage_video_chats': true,
+  'can_promote_members': false,
+};
+
+/// A group's permissions (TDLib's chatPermissions) with the drawer's rules changed: only admins write (every way of
+/// sending turned off for members), only admins change its details, only admins add people.
+Map<String, Object?> telegramPermissions(Map<String, Object?> now, {bool? announcementsOnly, bool? editInfoAdminsOnly, bool? addPeopleAdminsOnly}) {
+  final p = <String, Object?>{...now, '@type': 'chatPermissions'};
+  if (announcementsOnly != null) {
+    for (final k in [...p.keys]) {
+      if (k.startsWith('can_send_')) p[k] = !announcementsOnly;
+    }
+    p['can_send_basic_messages'] = !announcementsOnly;
+  }
+  if (editInfoAdminsOnly != null) p['can_change_info'] = !editInfoAdminsOnly;
+  if (addPeopleAdminsOnly != null) p['can_invite_users'] = !addPeopleAdminsOnly;
+  return p;
+}
+
+/// A Telegram group in the drawer's words: from getChat ([chat]), this account's chatMemberStatus in it ([mine]), its
+/// full info and its members (each `id`, `name`, `number`, `status`, `me`).
+GroupDetails telegramGroupDetails({required Map chat, required Map mine, String description = '', String? inviteLink, List<Map<String, Object?>> people = const [], String? photo}) {
+  final perms = (chat['permissions'] as Map?) ?? const {};
+  final status = '${mine['@type']}';
+  final owner = status == 'chatMemberStatusCreator';
+  final rights = (mine['rights'] as Map?) ?? const {};
+  final admin = owner || status == 'chatMemberStatusAdministrator';
+  bool right(String k) => owner || (admin && rights[k] == true);
+  return GroupDetails(
+    title: '${chat['title'] ?? ''}'.trim().isEmpty ? 'Telegram group' : '${chat['title']}'.trim(),
+    description: description,
+    photo: photo,
+    timer: (chat['message_auto_delete_time'] as num?)?.toInt() ?? 0,
+    people: [
+      for (final p in people)
+        GroupPerson(
+          id: '${p['id']}',
+          name: '${p['name'] ?? ''}'.trim().isEmpty ? 'Someone' : '${p['name']}'.trim(),
+          number: '${p['number'] ?? ''}'.isEmpty ? null : '+${p['number']}'.replaceFirst('++', '+'),
+          admin: p['status'] == 'chatMemberStatusAdministrator' || p['status'] == 'chatMemberStatusCreator',
+          owner: p['status'] == 'chatMemberStatusCreator',
+          me: p['me'] == true,
+        ),
+    ],
+    admin: admin,
+    editInfoAdminsOnly: perms['can_change_info'] != true,
+    addPeopleAdminsOnly: perms['can_invite_users'] != true,
+    announcementsOnly: perms['can_send_basic_messages'] == false,
+    inviteLink: inviteLink,
+    supports: GroupFeature.values.toSet(),
+    canEditInfo: right('can_change_info') || perms['can_change_info'] == true,
+    canAddPeople: right('can_invite_users') || perms['can_invite_users'] == true,
+    canRemovePeople: right('can_restrict_members'),
+    canSetAdmins: right('can_promote_members'),
+    canChangeRules: right('can_restrict_members'),
+  );
+}

@@ -2,6 +2,7 @@
 
 #include "voice_fx.h"
 #include "sounds.h"
+#include "clipboard.h"
 
 #include <optional>
 
@@ -32,6 +33,8 @@ bool FlutterWindow::OnCreate() {
   RegisterVoiceFx(flutter_controller_->engine()->messenger());
   // The interface sounds (sounds.cpp).
   RegisterSounds(flutter_controller_->engine()->messenger());
+  // A picture on the clipboard, for the message field (clipboard.cpp).
+  RegisterClipboard(flutter_controller_->engine()->messenger());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
