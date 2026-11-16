@@ -69,6 +69,22 @@ void main() {
     expect(gm.owns(7), isFalse);
   });
 
+  test('you are not counted among a conversation\'s people when not marked as you, but are the one it sends from', () {
+    // Matt, 2026-11-15: "i see two chats for message DMs ... then one that is the person and me in a group".
+    gm.conversations['c3'] = {
+      ...conv('c3', [{'id': 'p9', 'name': 'Riley', 'number': '+15551112222'}], time: 9000),
+      'people': [
+        {'id': 'me1', 'name': 'Matt', 'number': '+15550000000', 'me': false},
+        {'id': 'p9', 'name': 'Riley', 'number': '+15551112222', 'me': false},
+      ],
+    };
+    final row = gm.row(gm.conversations['c3']!);
+    expect(row['people'], [{'address': '+15551112222', 'name': 'Riley'}], reason: 'one to one, not a group with yourself');
+    expect(gm.convFor(['+15551112222']), 'c3');
+    final folded = gm.fold([{'id': 5, 'date': 1, 'people': [{'address': '(555) 111-2222'}], 'snippet': 'texts with Riley', 'group': null}]);
+    expect(folded.where((c) => (c as Map)['snippet'] == 'texts with Riley'), isEmpty, reason: 'the phone\'s copy is the same conversation');
+  });
+
   test('not paired, the phone\'s list stands as it is', () {
     gm.paired = false;
     final phone = [{'id': 7, 'date': 1, 'people': const [], 'snippet': 'x'}];

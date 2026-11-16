@@ -316,10 +316,16 @@ class GmWeb extends ChangeNotifier {
   /// Who a conversation is with, not counting the person: the key a phone's conversation is matched to it by.
   static String peopleKey(Iterable<String> addresses) => (addresses.map(_digits).toSet().toList()..sort()).join(',');
 
-  List<Map<String, dynamic>> _others(Map<String, dynamic> c) => [
-        for (final p in (c['people'] as List? ?? const []))
-          if ((p as Map)['me'] != true) p.cast<String, dynamic>(),
-      ];
+  /// Who a conversation is with, not counting you: you are not always marked as you, so also the one the conversation
+  /// sends from (Matt, 2026-11-15: a person's chat shown twice, once as a group of them and him).
+  List<Map<String, dynamic>> _others(Map<String, dynamic> c) {
+    final outgoing = '${c['outgoing'] ?? ''}';
+    final seen = <String>{};
+    return [
+      for (final p in (c['people'] as List? ?? const []))
+        if ((p as Map)['me'] != true && (outgoing.isEmpty || '${p['id']}' != outgoing) && seen.add(_digits('${p['number'] ?? ''}'))) p.cast<String, dynamic>(),
+    ];
+  }
 
   String keyOf(Map<String, dynamic> c) => peopleKey(_others(c).map((p) => '${p['number'] ?? ''}'));
 
