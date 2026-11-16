@@ -317,7 +317,7 @@ object GmBridge {
         val conv = convFor(db, addresses)
         // 0. The on-phone connection (GmWeb), where it is connected and has this conversation: words and pictures,
         //    as Google Messages would send them.
-        if (conv != null && GmWeb.knows(conv.conv) && GmWeb.send(conv.conv, body, attachments.mapNotNull { fileOf(context, it) })) return conv.thread
+        if (conv != null && GmWeb.knows(conv.conv) && GmWeb.send(conv.conv, body, attachments.mapNotNull { a -> fileOf(context, a)?.let { Triple(it, kindOf(context, a), nameOf(context, a)) } })) return conv.thread
         if (conv != null && attachments.isEmpty() && reply(context, conv.conv, body)) return conv.thread
         val numbers = addresses.filter { ContactKey.of(it) != null }
         if (numbers.size == 1 && addresses.size == 1 && attachments.isEmpty()) {
@@ -329,6 +329,18 @@ object GmBridge {
         context.startActivity(composeIntent(context, if (numbers.isNotEmpty()) numbers else addresses, body, attachments))
         return conv?.thread ?: -1L
     }
+
+    /** What a chosen file is, as Android says (`image/jpeg`, `video/mp4`), or by its ending. */
+    private fun kindOf(context: Context, uri: String): String? = try {
+        if (uri.startsWith("/")) android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(File(uri).extension.lowercase())
+        else context.contentResolver.getType(Uri.parse(uri))
+    } catch (_: Exception) { null }
+
+    /** A chosen file's own name, as the picker gave it. */
+    private fun nameOf(context: Context, uri: String): String? = try {
+        if (uri.startsWith("/")) File(uri).name
+        else context.contentResolver.query(Uri.parse(uri), arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+    } catch (_: Exception) { null }
 
     /** A picture chosen to send (a content address, or a file), as a file the helper can read. */
     private fun fileOf(context: Context, uri: String): String? = try {

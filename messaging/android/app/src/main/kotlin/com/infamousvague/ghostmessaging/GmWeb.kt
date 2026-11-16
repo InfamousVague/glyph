@@ -233,7 +233,12 @@ object GmWeb {
         val ending = android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: "bin"
         val f = File(File(context.cacheDir, "gmmedia").apply { mkdirs() }, "$id.$ending")
         if (!f.exists() || f.length() == 0L) {
-            try { ask("media", mapOf("media" to media, "key" to key, "path" to f.absolutePath), seconds = 180) } catch (_: Exception) { return null }
+            // Kept from sending under another ending (the kind Google Messages says may differ from the one sent).
+            File(context.cacheDir, "gmmedia").listFiles { x -> x.nameWithoutExtension == "$id" && x.length() > 0 }?.firstOrNull()?.let { return it }
+            try { ask("media", mapOf("media" to media, "key" to key, "path" to f.absolutePath), seconds = 180) } catch (e: Exception) {
+                DevLog.add(context, "gmweb", "picture $id not brought down: ${e.message}")
+                return null
+            }
         }
         return if (f.exists() && f.length() > 0) f else null
     }
@@ -241,11 +246,26 @@ object GmWeb {
     /** Whether [conv] is one this connection knows: what is sent to it goes this way. */
     fun knows(conv: String) = connected && threads.containsKey(conv)
 
-    /** Sends words, and pictures by their paths, to [conv]. */
-    fun send(conv: String, text: String, files: List<String> = emptyList()): Boolean = try {
+    /** A sent file, kept as the picture Google Messages names [media]: where [file] would bring it down to. */
+    private fun keepSent(media: String, mime: String?, from: File) {
+        try {
+            val ending = android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: "bin"
+            val to = File(File(app.cacheDir, "gmmedia").apply { mkdirs() }, "${partId(media)}.$ending")
+            if (!to.exists()) from.copyTo(to)
+        } catch (e: Exception) { DevLog.add(app, "gmweb", "sent copy: ${e.message}") }
+    }
+
+    /** Sends words, and files (each its path, its kind and its name), to [conv]. */
+    fun send(conv: String, text: String, files: List<Triple<String, String?, String?>> = emptyList()): Boolean = try {
         if (files.isEmpty()) ask("send", mapOf("conv" to conv, "text" to text))
         else {
-            for ((i, f) in files.withIndex()) ask("send_media", mapOf("conv" to conv, "path" to f, "text" to if (i == files.lastIndex) text else ""), seconds = 180)
+            for ((i, f) in files.withIndex()) {
+                val (path, mime, name) = f
+                val r = ask("send_media", mapOf("conv" to conv, "path" to path, "mime" to mime, "name" to name, "text" to if (i == files.lastIndex) text else ""), seconds = 180)
+                // Your own picture or video, as its preview: this phone's copy kept where the download would have put it
+                // (Matt, 2026-11-15: "Outbound picture and video messages are not loading the preview").
+                r.optString("media").ifBlank { null }?.let { keepSent(it, r.optString("mime").ifBlank { mime }, File(path)) }
+            }
         }
         true
     } catch (e: Exception) {
