@@ -1157,23 +1157,17 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               note: _e2e.on ? 'Voice messages aren\'t encrypted. This goes as an ordinary message.' : null,
             )
           else
-          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            if (Sms.can('sendPictures') && !_isGhost && !_byName) IconTap(icon: Lucide.plus, label: 'Add an attachment', onPressed: editing || _attachments.length >= 5 ? null : _attach),
-            SizedBox(width: t.space(1)),
-            Expanded(
-              // The field with Send inside it, at its end: a smaller disc that keeps to the bottom as the text grows.
-              child: Container(
-                constraints: BoxConstraints(minHeight: t.lenOf('2.75rem')),
-                padding: EdgeInsets.only(left: t.space(4), right: t.lenOf('0.25rem'), top: t.lenOf('0.25rem'), bottom: t.lenOf('0.25rem')),
-                decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.lenOf('1.375rem'))),
-                child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Expanded(
-                    // One line of words sits on the middle of the button beside it: the row is as tall as the button
-                    // at least, and the words are centred in it, with a line box the same above and below the
-                    // letters (the face's own leaves more below, which is what sat the words low).
-                    // Any tap on the words' place asks for the keyboard: a Listener, so it hears the tap whatever
-                    // else takes it.
-                    child: Listener(
+          // The field, with everything in its box (Matt, 2026-11-15: "Put the plus symbol inside thr compose input and
+          // animate them below when typijg just like this screenshot"): empty, Add an attachment at its start and the
+          // stickers and microphone at its end; once there are words they have the whole width and the buttons slide
+          // into a row under them, Send at its end. The words' field keeps its place in the tree whichever way it is
+          // laid out, so the keyboard stays up as it changes.
+          Builder(builder: (context) {
+            final typing = _text.text.isNotEmpty || editing;
+            final plus = Sms.can('sendPictures') && !_isGhost && !_byName
+                ? IconTap(icon: Lucide.plus, label: 'Add an attachment', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: editing || _attachments.length >= 5 ? null : _attach)
+                : null;
+            final field = Listener(
                       behavior: HitTestBehavior.translucent,
                       onPointerDown: (e) => _fieldDown = e.position,
                       onPointerUp: (e) {
@@ -1215,11 +1209,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                       ]),
                     ),
                       ),
-                    )),
-                  ),
-                  // A computer's own emoji (Matt, 2026-11-14: "Add an emoji picker, file upload, voice memo and sticker
-                  // selector to the desktop app as well"): the Mac's "Emoji & Symbols", which types where the cursor
-                  // is, so the cursor is put in the field first. A phone's keyboard has its own.
+                    ));
+            List<Widget> ends() => [
                   if (Sms.remote)
                     IconTap(
                       icon: LucideMore.smile,
@@ -1243,11 +1234,49 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                   editing
                       ? IconTap(icon: Lucide.check, label: 'Save edit', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _saveEdit : null)
                       : IconTap(icon: Lucide.send, label: 'Send', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _send : null),
+                ];
+            const move = Duration(milliseconds: 200);
+            Widget slot(bool shown, Widget child) => ClipRect(child: AnimatedSize(duration: move, curve: Curves.easeOutCubic, child: shown ? child : const SizedBox(width: 0)));
+            return Padding(
+              padding: EdgeInsets.symmetric(horizontal: t.space(1)),
+              child: Container(
+                constraints: BoxConstraints(minHeight: t.lenOf('2.75rem')),
+                padding: EdgeInsets.all(t.lenOf('0.25rem')),
+                decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.lenOf('1.375rem'))),
+                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    slot(!typing && plus != null, plus ?? const SizedBox(width: 0)),
+                    Expanded(child: AnimatedPadding(duration: move, curve: Curves.easeOutCubic, padding: EdgeInsets.only(left: !typing && plus != null ? t.space(1) : t.space(3), right: typing ? t.space(3) : 0), child: field)),
+                    slot(!typing, Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: ends())),
+                  ]),
+                  ClipRect(
+                    child: AnimatedSize(
+                      duration: move,
+                      curve: Curves.easeOutCubic,
+                      alignment: Alignment.topCenter,
+                      child: !typing
+                          ? const SizedBox(width: double.infinity)
+                          : TweenAnimationBuilder<double>(
+                              key: const ValueKey('composer-tools'),
+                              tween: Tween(begin: 0, end: 1),
+                              duration: move,
+                              curve: Curves.easeOutCubic,
+                              builder: (context, v, child) => Opacity(opacity: v, child: Transform.translate(offset: Offset(0, (1 - v) * -8), child: child)),
+                              child: Padding(
+                                padding: EdgeInsets.only(top: t.space(1)),
+                                child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                                  ?plus,
+                                  const Spacer(),
+                                  ...ends(),
+                                ]),
+                              ),
+                            ),
+                    ),
+                  ),
                 ]),
               ),
-            ),
-            SizedBox(width: t.space(1)),
-          ]),
+            );
+          }),
           if (!isMms && !editing && parts > 1)
             Padding(
               padding: EdgeInsets.only(top: t.space(1), right: t.space(3)),
