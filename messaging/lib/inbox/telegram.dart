@@ -504,6 +504,7 @@ class Telegram extends InboxNetwork {
       stranger: type == 'chatTypePrivate' &&
           (const {'chatActionBarReportSpam', 'chatActionBarReportAddBlock'}.contains((c['action_bar'] as Map?)?['@type']) ||
               _people[((c['type'] as Map)['user_id'] as num?)?.toInt()]?['is_contact'] == false),
+      cold: type == 'chatTypePrivate' && const {'chatActionBarReportSpam', 'chatActionBarReportAddBlock'}.contains((c['action_bar'] as Map?)?['@type']),
       flag: type == 'chatTypePrivate' ? _flagOf(((c['type'] as Map)['user_id'] as num?)?.toInt()) : null,
       // Telegram's own account (777000, which sends its sign-in codes) and bots.
       service: type == 'chatTypePrivate' && (((c['type'] as Map)['user_id'] as num?)?.toInt() == 777000 || _bots.contains(((c['type'] as Map)['user_id'] as num?)?.toInt())),
