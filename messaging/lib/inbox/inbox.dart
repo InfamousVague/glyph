@@ -4,6 +4,7 @@ import '../app_state.dart';
 import '../kept_lists.dart';
 import 'bluesky.dart';
 import 'mastodon.dart';
+import 'signal.dart';
 import 'telegram.dart';
 
 /// Direct messages from other networks, read and answered in Ghost (Matt, 2026-11-15: "Let's build in telegram and
@@ -280,7 +281,9 @@ class Inbox {
   // "coming soon"").
   // Mastodon is built and tested, and offered later too (Matt, 2026-11-15: "Wire up mastadon and bluesky and have them
   // set as coming soon until we get the API keys setup").
-  static Inbox get instance => _instance ??= Inbox._([Telegram(), Bluesky(soon: true), Mastodon(soon: true)]);
+  // Signal through mautrix-signal, built and Coming soon until it is proven (Matt, 2026-11-15: "Lets wire it up for
+  // signal through the mautrix").
+  static Inbox get instance => _instance ??= Inbox._([Telegram(), Bluesky(soon: true), Mastodon(soon: true), Signal(soon: true)]);
 
   /// Stand-ins for a test of a screen; null puts the app's own back.
   @visibleForTesting
