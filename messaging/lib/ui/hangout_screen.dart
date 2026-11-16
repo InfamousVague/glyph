@@ -22,6 +22,7 @@ import 'poof.dart';
 import 'nav_bar.dart';
 import 'ripple_avatar.dart';
 import 'shell.dart';
+import 'space_designs/space_design.dart';
 import 'voice_screen.dart';
 
 /// A hangout: its chat, who is in it, and its call (Matt, 2026-11-15: "add a chat to hangouts so the whole group can
@@ -71,8 +72,11 @@ class _HangoutScreenState extends State<HangoutScreen> {
       if (mounted) toast(context, 'Couldn\'t join: ${e is StateError ? e.message : e}', tone: GlacierToastTone.danger);
       return;
     }
+    if (!mounted) return;
+    // One of the developer designs: the call opens as its page (lib/ui/space_designs).
+    if (openSpaceCall(context)) return;
     // Beside the list: the chat (and the videos) go to the pane, the people stay here (HangoutStage).
-    if (mounted && AppShell.wideOf(context)) AppShell.maybeOf(context)?.go('voice');
+    if (AppShell.wideOf(context)) AppShell.maybeOf(context)?.go('voice');
   }
 
   @override

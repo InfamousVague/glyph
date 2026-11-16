@@ -25,6 +25,7 @@ import '../summaries.dart';
 import 'common.dart';
 import 'voice_screen.dart';
 import 'hangout_screen.dart';
+import 'space_designs/space_design.dart';
 import '../voice/voice.dart';
 import '../voice/channels.dart';
 import 'update_banner.dart';
@@ -431,6 +432,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   /// Hops into [c] and shows it.
   Future<void> _openVoice(VoiceChannel c) async {
+    // In its call already, with a developer design chosen: its page (lib/ui/space_designs).
+    if (Voice.instance.session?.channel.room == c.room && openSpaceCall(context)) return;
     // A hangout opens its page: its chat, who is in it, and a way into voice (lib/ui/hangout_screen.dart).
     // In the conversation's place (Matt, 2026-11-15: "clicking on a voice chat should show me the chat in the normal
     // spot and connected participants with a "join" button").
@@ -571,15 +574,30 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     ];
   }
 
-  /// Marks every unread conversation of a tab as read: from the button beside the tabs, or a tab's own menu.
-  Future<void> _markAllRead(String? section) async {
-    final unread = _of(section).where((c) => c.unread).toList();
-    // The chats from Telegram and the rest that are in this tab, read there too (Matt, 2026-11-15: "Marking all as read
-    // should do the same for telegram chats").
+  /// The texts of a tab that are unread: none in a network's own tab, which holds that network's chats alone.
+  List<Conversation> _unreadTexts(String? section) => inboxOfTab(section) != null || section == voiceTab ? const [] : _of(section).where((c) => c.unread).toList();
+
+  /// The Telegram, Signal and other chats of a tab that are unread: a network's own tab's, or those among the texts
+  /// of any other (Matt, 2026-11-15: "Marking all as read should do the same for telegram chats"; 2026-11-16: "The
+  /// mark read button should work for telegram and signal as well as standard messages").
+  List<InboxChat> _unreadChats(String? section) {
+    if (widget.archived || section == voiceTab) return const [];
+    final network = inboxOfTab(section);
+    if (network != null) return network.state == InboxState.ready ? [for (final c in network.shownChats) if (c.unread > 0) c] : const [];
     final saved = _section;
     _section = section;
-    final chats = [for (final o in _mixed(const [])) if (o is InboxChat && o.unread > 0) o];
-    _section = saved;
+    try {
+      return [for (final o in _mixed(const [])) if (o is InboxChat && o.unread > 0) o];
+    } finally {
+      _section = saved;
+    }
+  }
+
+  /// Marks every unread conversation of a tab as read, texts and chats alike: from the button at the title row's
+  /// end, or a tab's own menu.
+  Future<void> _markAllRead(String? section) async {
+    final unread = _unreadTexts(section);
+    final chats = _unreadChats(section);
     for (final c in chats) {
       unawaited(Inbox.instance.named(c.network)?.markRead(c.id));
     }
@@ -588,7 +606,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       return;
     }
     if (unread.isEmpty) {
-      toast(context, 'Nothing is unread in ${_plugins.tabName(section)}');
+      toast(context, 'Nothing is unread in ${inboxOfTab(section)?.name ?? _plugins.tabName(section)}');
       return;
     }
     // Shown at once: the dots go as the button is let go, not as the phone gets round to each.
@@ -614,7 +632,15 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// A tab's menu (Matt, 2026-11-14: "add a right click menu for the codes and messages tabs"): a press with the
   /// other button on it, or a long press where there is no other button.
   void _tabMenu(String? section) {
-    if (section == voiceTab || inboxOfTab(section) != null) return;
+    if (section == voiceTab) return;
+    final network = inboxOfTab(section);
+    if (network != null) {
+      final unread = _unreadChats(section).length;
+      showChoices(context, title: '${network.name} · ${unread == 0 ? 'nothing unread' : '$unread unread'}', choices: [
+        Choice('Mark all as read', Lucide.checkCheck, () => _markAllRead(section)),
+      ]);
+      return;
+    }
     final all = _of(section);
     final unread = all.where((c) => c.unread).length;
     final name = _plugins.tabName(section);
@@ -1053,7 +1079,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           // to the right of the messages title row instead of next to the filter").
           Padding(
             padding: EdgeInsets.only(left: t.space(1)),
-            child: MarkAllRead(unread: _of(_section).where((c) => c.unread).length, onPress: () => _markAllRead(_section)),
+            child: MarkAllRead(unread: _unreadTexts(_section).length + _unreadChats(_section).length, onPress: () => _markAllRead(_section)),
           ),
           // Shown alone, with no frame and so no pill: the two it would hold.
           if (!framed) IconTap(icon: Lucide.messageSquarePlus, label: 'New message', onPressed: _compose),
