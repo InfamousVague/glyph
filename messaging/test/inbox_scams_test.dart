@@ -1,0 +1,40 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/inbox/inbox.dart';
+import 'package:ghost_messaging/inbox/scams.dart';
+
+/// Scams in chats on Telegram and the rest (lib/inbox/scams.dart; Matt, 2026-11-15: "i also want spam filters on them
+/// to work and cut out fake romance scams and other telegram scams").
+void main() {
+  final now = DateTime(2026, 11, 15);
+  InboxChat chat(String text, {bool stranger = true, bool group = false, String? flag, bool mine = false}) =>
+      InboxChat(network: 'telegram', id: '1', title: 'Someone', date: now, snippet: text, stranger: stranger, group: group, flag: flag, lastFromMe: mine);
+
+  test('the scams strangers send are caught', () {
+    for (final text in [
+      'Hello dear, how are you today?',
+      'Sorry, wrong number. But you seem nice, can we be friends?',
+      'Hi handsome 😊 my friend gave me your contact',
+      'I made 40% daily profit with this USDT trading platform, let me show you',
+      'Telegram Support: your account will be banned unless you verify your account',
+      'Congratulations, you have won a Premium giveaway! Claim your prize here',
+      'Can you buy me a Steam card? I will pay you back',
+      'Remote job offer: earn \$300 a day, no experience needed',
+    ]) {
+      expect(scamOf(chat(text)), isNotNull, reason: text);
+    }
+    expect(scamOf(chat('Hello dear, I am looking for a serious relationship')), contains('a romance opener'));
+  });
+
+  test('ordinary chats are left alone, and so is anything from a contact or a group', () {
+    for (final text in ['are you coming tonight?', 'Hi! It\'s Maya from the climbing gym', 'thanks for the invoice, paid', 'the meeting moved to 3']) {
+      expect(scamOf(chat(text)), isNull, reason: text);
+    }
+    expect(scamOf(chat('Hello dear, how are you?', stranger: false)), isNull, reason: 'a contact');
+    expect(scamOf(chat('daily profit with USDT', group: true)), isNull, reason: 'a group');
+    expect(scamOf(chat('hello dear', mine: true)), isNull, reason: 'your own words');
+  });
+
+  test('an account Telegram marks a scam or a fake is caught whatever it says', () {
+    expect(scamOf(chat('hi', stranger: false, flag: 'Telegram marks this account as a scam')), 'Telegram marks this account as a scam');
+  });
+}

@@ -11,7 +11,9 @@ import '../art/lucide.g.dart';
 import '../kit/fold.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
+import '../inbox/scams.dart';
 import '../plugins/codes.dart' show CodesPlugin;
+import '../plugins/spam.dart' show SpamPlugin;
 import '../plugins/list.dart';
 import '../plugins/plugin.dart' show PluginAction, PluginHost, RowLook;
 import '../art/lucide_more.dart';
@@ -291,13 +293,24 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // Codes: a Telegram sign-in code is there among the texted ones (Matt, 2026-11-15: "proxy telegram codes through to
     // the codes tab as well"); any other section is the texts' own.
     final codes = !widget.archived && _codesHost != null;
-    if (_section != null && !(codes && _section == CodesPlugin.section)) return shown;
+    // Spam: a chat that looks like a scam is in Spam with spam texts, while the spam filter is on (lib/inbox/scams.dart;
+    // Matt, 2026-11-15: "i also want spam filters on them to work and cut out fake romance scams and other telegram
+    // scams").
+    final spam = !widget.archived && _spamHost != null;
+    String? spamOf(InboxChat c) => spam && !(Inbox.instance.named(c.network)?.localList('notspam').contains(c.id) ?? false) ? scamOf(c) : null;
+    if (_section != null && !(codes && _section == CodesPlugin.section) && !(spam && _section == SpamPlugin.section)) return shown;
     final q = _query.toLowerCase();
     // In the archive, the networks' archived chats among the archived texts.
     final chats = [
       for (final n in Inbox.instance.ready)
         for (final c in widget.archived ? n.archivedChats : n.shownChats)
-          if ((q.isEmpty || c.title.toLowerCase().contains(q) || c.snippet.toLowerCase().contains(q)) && (codes && inboxCode(c) != null) == (_section == CodesPlugin.section)) c,
+          if ((q.isEmpty || c.title.toLowerCase().contains(q) || c.snippet.toLowerCase().contains(q)) &&
+              switch (_section) {
+                CodesPlugin.section => codes && inboxCode(c) != null,
+                SpamPlugin.section => spamOf(c) != null,
+                _ => !(codes && inboxCode(c) != null) && spamOf(c) == null,
+              })
+            c,
     ];
     if (chats.isEmpty) return shown;
     if (_section != null) {
@@ -311,6 +324,27 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final merged = <(DateTime, Object)>[for (final c in rest) (c.date, c), for (final c in waiting) (c.date, c)]
       ..sort((a, b) => b.$1.compareTo(a.$1));
     return [for (final m in pinned) m.$2, for (final m in merged) m.$2];
+  }
+
+  /// The spam filter's host while it is on: chats that look like scams go to Spam.
+  PluginHost? get _spamHost => widget.archived ? null : _plugins.hostFor(context, SpamPlugin.section);
+
+  /// A chat in Spam: why it is there, and Not spam to put it back for good.
+  Widget _inboxSpamRow(InboxChat chat, InboxNetwork network, String why, PluginHost host) {
+    final c = Conversation(
+      id: -(chat.id.hashCode & 0x3fffffff) - 1,
+      date: chat.date,
+      people: [Person(address: '${chat.network}:${chat.id}', name: chat.title, photo: chat.avatar)],
+      snippet: chat.snippet,
+      unread: chat.unread > 0,
+      error: false,
+      archived: false,
+    );
+    final back = PluginAction(label: 'Not spam', icon: Lucide.check, run: (host) {
+      network.setLocal('notspam', chat.id, true);
+      host.say('Moved to Messages');
+    });
+    return PluginRow(conversation: c, look: RowLook(caption: why, word: back), host: host, onPress: () => openInboxChat(context, network, chat), onLongPress: () => openInboxChat(context, network, chat));
   }
 
   /// The Codes plugin's host while it is on: Telegram's codes go to its tab, and are copied by it.
@@ -517,6 +551,19 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// Marks every unread conversation of a tab as read: from the button beside the tabs, or a tab's own menu.
   Future<void> _markAllRead(String? section) async {
     final unread = _of(section).where((c) => c.unread).toList();
+    // The chats from Telegram and the rest that are in this tab, read there too (Matt, 2026-11-15: "Marking all as read
+    // should do the same for telegram chats").
+    final saved = _section;
+    _section = section;
+    final chats = [for (final o in _mixed(const [])) if (o is InboxChat && o.unread > 0) o];
+    _section = saved;
+    for (final c in chats) {
+      unawaited(Inbox.instance.named(c.network)?.markRead(c.id));
+    }
+    if (unread.isEmpty && chats.isNotEmpty) {
+      toast(context, '${chats.length} marked as read');
+      return;
+    }
     if (unread.isEmpty) {
       toast(context, 'Nothing is unread in ${_plugins.tabName(section)}');
       return;
@@ -536,7 +583,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     if (!mounted) return;
     toast(
       context,
-      failed == 0 ? '${_count(unread.length)} marked as read' : '${unread.length - failed} marked as read; $failed could not be',
+      failed == 0 ? '${_count(unread.length + chats.length)} marked as read' : '${unread.length + chats.length - failed} marked as read; $failed could not be',
       tone: failed == 0 ? GlacierToastTone.neutral : GlacierToastTone.danger,
     );
   }
@@ -831,6 +878,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
             if (network == null) return const SizedBox.shrink();
             final code = _section == CodesPlugin.section ? inboxCode(chat) : null;
             final codesHost = code == null ? null : _codesHost;
+            final why = _section == SpamPlugin.section ? scamOf(chat) : null;
+            final spamHost = why == null ? null : _spamHost;
             final pinned = network.isPinned(chat);
             // Slid as a conversation of texts is (Matt, 2026-11-15: "Don't use a press and hold menu on telegram chats
             // use the same slide solution normal messages use"): left archives, further deletes (asked first), right
@@ -848,6 +897,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               card: (inset: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')), radius: t.lenOf('1rem')),
               child: code != null && codesHost != null
                   ? _inboxCodeRow(chat, network, code, codesHost)
+                  : why != null && spamHost != null
+                  ? _inboxSpamRow(chat, network, why, spamHost)
                   : InboxChatRow(
                       key: ValueKey('inbox-${chat.network}-${chat.id}'),
                       chat: chat,

@@ -308,6 +308,9 @@ class Telegram extends InboxNetwork {
         _authState((m['authorization_state'] as Map).cast<String, Object?>());
       case 'updateUser':
         final u = m['user'] as Map;
+        _people[(u['id'] as num).toInt()] = u;
+        // A label of Telegram's, or a contact made, changes how that person's chat is judged (lib/inbox/scams.dart).
+        if (_chatsById.isNotEmpty) _rebuild();
         if ((u['type'] as Map?)?['@type'] == 'userTypeBot') _bots.add((u['id'] as num).toInt());
         final name = [u['first_name'], u['last_name']].whereType<String>().where((s) => s.isNotEmpty).join(' ');
         _users[(u['id'] as num).toInt()] = name.isEmpty ? 'Someone' : name;
@@ -323,6 +326,8 @@ class Telegram extends InboxNetwork {
         _patch(m, {'title': m['title']});
       case 'updateChatPhoto':
         _patch(m, {'photo': m['photo']});
+      case 'updateChatActionBar':
+        _patch(m, {'action_bar': m['action_bar']});
       case 'updateFile':
         _fileUpdated(m['file'] as Map);
         _messageFile(m['file'] as Map);
@@ -388,6 +393,19 @@ class Telegram extends InboxNetwork {
         _pinned.remove(chat);
       }
     }
+  }
+
+  /// What TDLib said of each user: whether a contact, and whether Telegram marks them a scam or a fake.
+  final Map<int, Map> _people = {};
+
+  /// What Telegram itself says of a private chat's account, in words: its scam and fake labels.
+  String? _flagOf(int? user) {
+    final u = user == null ? null : _people[user];
+    if (u == null) return null;
+    final v = u['verification_status'] as Map?;
+    if (u['is_scam'] == true || v?['is_scam'] == true) return 'Telegram marks this account as a scam';
+    if (u['is_fake'] == true || v?['is_fake'] == true) return 'Telegram marks this account as a fake';
+    return null;
   }
 
   /// The users that are bots, which sign-in codes may come from as Telegram's own account's do.
@@ -482,6 +500,11 @@ class Telegram extends InboxNetwork {
       lastFromMe: last?['is_outgoing'] == true,
       avatar: _photo(c),
       pinned: _pinned.contains(c['id']),
+      // Someone not a contact who wrote first: Telegram offers to report them (its action bar); or not a contact at all.
+      stranger: type == 'chatTypePrivate' &&
+          (const {'chatActionBarReportSpam', 'chatActionBarReportAddBlock'}.contains((c['action_bar'] as Map?)?['@type']) ||
+              _people[((c['type'] as Map)['user_id'] as num?)?.toInt()]?['is_contact'] == false),
+      flag: type == 'chatTypePrivate' ? _flagOf(((c['type'] as Map)['user_id'] as num?)?.toInt()) : null,
       // Telegram's own account (777000, which sends its sign-in codes) and bots.
       service: type == 'chatTypePrivate' && (((c['type'] as Map)['user_id'] as num?)?.toInt() == 777000 || _bots.contains(((c['type'] as Map)['user_id'] as num?)?.toInt())),
     );
@@ -738,9 +761,20 @@ class Telegram extends InboxNetwork {
   @override
   Future<void> markRead(String chatId) async {
     if (_state != InboxState.ready) return;
+    final id = int.parse(chatId);
     final ids = [for (final m in messagesOf(chatId)) if (!m.mine) int.tryParse(m.id)].whereType<int>().toList();
+    // A chat never opened has no messages here: its newest message seen reads the whole chat, as Telegram counts it
+    // (Mark all as read in the list).
+    final last = ((_chatsById[id]?['last_message'] as Map?)?['id'] as num?)?.toInt();
+    if (ids.isEmpty && last != null) ids.add(last);
     if (ids.isEmpty) return;
-    _td?.send({'@type': 'viewMessages', 'chat_id': int.parse(chatId), 'message_ids': ids.length > 100 ? ids.sublist(ids.length - 100) : ids, 'force_read': true});
+    _td?.send({'@type': 'viewMessages', 'chat_id': id, 'message_ids': ids.length > 100 ? ids.sublist(ids.length - 100) : ids, 'force_read': true});
+    // Unread no longer, here at once.
+    final c = _chatsById[id];
+    if (c != null && (c['unread_count'] as num? ?? 0) > 0) {
+      _chatsById[id] = {...c, 'unread_count': 0};
+      _rebuild();
+    }
   }
 
   @override

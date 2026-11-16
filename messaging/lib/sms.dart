@@ -689,6 +689,24 @@ class Sms {
   /// Where the app's own update stands, each time it moves (android/.../Updater.kt).
   final updates = StreamController<UpdateState>.broadcast();
 
+  /// The call notification's Leave was pressed (android CallService.kt).
+  final leaveCall = StreamController<void>.broadcast();
+
+  /// A call in a space began or ended: on the phone, its service keeps it going with the screen locked.
+  Future<void> callStarted(String name, {bool video = false}) async {
+    if (remote) return;
+    try {
+      await _calls.invokeMethod('callStarted', {'name': name, 'video': video});
+    } catch (_) {}
+  }
+
+  Future<void> callEnded() async {
+    if (remote) return;
+    try {
+      await _calls.invokeMethod('callEnded');
+    } catch (_) {}
+  }
+
   /// The person's choices were changed from Android's side (a chat background someone shared): read them again.
   final prefsChanged = StreamController<void>.broadcast();
 
@@ -714,6 +732,7 @@ class Sms {
       if (m['type'] == 'open') opens.add(OpenRequest.from(m));
       if (m['type'] == 'update') updates.add(UpdateState.from(m));
       if (m['type'] == 'prefs') prefsChanged.add(null);
+      if (m['type'] == 'leaveCall') leaveCall.add(null);
       if (m['type'] == 'desk') computersChanged.add(null);
       if (m['type'] == 'voice') voice.add(VoicePlayback.from(m));
       if (m['type'] == 'voiceFull') voiceFull.add(null);
