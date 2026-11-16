@@ -254,10 +254,32 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
         final (mineBg, mineInk) = myBubble(t, app);
         return GhostPage(
           title: chat?.title ?? _n.name,
-          titleWidget: Row(mainAxisSize: MainAxisSize.min, children: [
-            inboxMark(_n, size: 16),
+          // Laid out as a conversation of texts' header is (lib/ui/thread.dart): the face, the name, a line under it;
+          // the network's logo on the face's corner is the one difference (Matt, 2026-11-15: "Use the same header
+          // layout for telegram chats that we use for normal messages only difference should be the telegram icon").
+          titleWidget: Row(children: [
+            SizedBox.square(
+              dimension: t.lenOf('2.1rem'),
+              child: Stack(clipBehavior: Clip.none, children: [
+                Avatar(people: [Person(address: '${_n.id}:${widget.chatId}', name: chat?.title ?? _n.name, photo: chat?.avatar)], size: t.lenOf('2.1rem')),
+                Positioned(
+                  right: -3,
+                  bottom: -3,
+                  child: Container(
+                    padding: const EdgeInsets.all(1.5),
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: t.color('glacier-bg')),
+                    child: inboxMark(_n, size: 14, badge: true),
+                  ),
+                ),
+              ]),
+            ),
             SizedBox(width: t.space(2)),
-            Flexible(child: Text(chat?.title ?? _n.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'semibold'))),
+            Expanded(
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(chat?.title ?? _n.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold')),
+                Text(chat?.group == true ? '${_n.name} group' : _n.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+              ]),
+            ),
           ]),
           footer: Padding(
             padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2) + MediaQuery.paddingOf(context).bottom),
