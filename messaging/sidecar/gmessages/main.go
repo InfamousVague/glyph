@@ -62,6 +62,8 @@ type request struct {
 	Media  string `json:"media"`
 	Key    string `json:"key"`
 	Path    string            `json:"path"`
+	Mime    string            `json:"mime"`
+	Name    string            `json:"name"`
 	Cookies map[string]string `json:"cookies"`
 }
 
@@ -349,8 +351,17 @@ func do(r request) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		mime := http.DetectContentType(data)
-		uploaded, err := c.UploadMedia(ctx, data, filepath.Base(r.Path), mime)
+		// The kind the app says it is (Android's own word for the picked file), else read from its first bytes; and its
+		// own name, so the other side's app shows it as what it is.
+		mime := r.Mime
+		if mime == "" || mime == "application/octet-stream" {
+			mime = http.DetectContentType(data)
+		}
+		name := r.Name
+		if name == "" {
+			name = filepath.Base(r.Path)
+		}
+		uploaded, err := c.UploadMedia(ctx, data, name, mime)
 		if err != nil {
 			return nil, err
 		}
@@ -358,7 +369,11 @@ func do(r request) (any, error) {
 		if r.Text != "" {
 			info = append(info, &gmproto.MessageInfo{Data: &gmproto.MessageInfo_MessageContent{MessageContent: &gmproto.MessageContent{Content: r.Text}}})
 		}
-		return sendInfo(ctx, c, r.Conv, info)
+		if _, err := sendInfo(ctx, c, r.Conv, info); err != nil {
+			return nil, err
+		}
+		// The uploaded file's id: the app keeps its own copy as that picture, so its preview never waits on a download.
+		return map[string]any{"media": uploaded.GetMediaID(), "mime": mime}, nil
 	case "react":
 		c, err := client()
 		if err != nil {

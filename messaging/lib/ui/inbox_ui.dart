@@ -299,7 +299,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
                 // layout as messages"): + at its start, the microphone while it is empty, Send once there is something.
                 final files = _n.canSendFiles;
                 final canSend = (_text.text.trim().isNotEmpty || _files.isNotEmpty) && !_sendingFiles;
-                final send = IconTap(icon: Lucide.send, label: 'Send', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _send : null);
+                final send = IconTap(icon: Lucide.arrowUp, label: 'Send', filled: true, size: 19, box: t.lenOf('2.25rem'), onPressed: canSend ? _send : null);
                 final mic = IconTap(icon: Lucide.mic, label: 'Record a voice message', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _record);
                 final voice = files && !Sms.remote;
                 if (_recording != null) {

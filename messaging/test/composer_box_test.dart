@@ -13,7 +13,7 @@ class _Box extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final send = IconTap(icon: Lucide.send, label: 'Send', filled: true, size: 16, box: 36, onPressed: typing ? () {} : null);
+    final send = IconTap(icon: Lucide.arrowUp, label: 'Send', filled: true, size: 16, box: 36, onPressed: typing ? () {} : null);
     final mic = IconTap(icon: Lucide.mic, label: 'Mic', size: 19, box: 36, onPressed: () {});
     return Align(
       alignment: Alignment.bottomCenter,
