@@ -22,13 +22,17 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart' as me;
 import '../sms.dart';
+import '../links.dart' show MessageLink;
 import '../plugins/codes.dart' show signInCode;
+import '../plugins/embeds.dart' show EmbedCard, EmbedsPlugin;
+import '../plugins/registry.dart' show AppStore, PluginRegistry;
 import 'common.dart';
 import 'composer_box.dart';
 import 'poof.dart';
 import 'video_screen.dart';
 import 'voice.dart' show VoiceRecorder, voiceProblem;
 import 'conversations.dart' show ConversationRow;
+import 'thread.dart' show LinkedText;
 import 'me.dart' show NetworkMark;
 import 'settings.dart';
 import 'shell.dart';
@@ -446,6 +450,20 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
   }
 }
 
+/// The Link previews plugin's cards for the links in [text] (lib/plugins/embeds.dart), while it is on: two at most.
+List<Widget> _linkCards(BuildContext context, String text) {
+  if (text.isEmpty) return const [];
+  final registry = PluginRegistry.instance;
+  final plugin = registry.plugins.whereType<EmbedsPlugin>().firstOrNull;
+  if (plugin == null) return const [];
+  final store = AppStore(AppState.of(context));
+  if (!registry.isOn(plugin, store)) return const [];
+  final others = registry.prefsOf(plugin, store).flag('others');
+  final links = MessageLink.find(text).map((l) => l.address).toSet().take(2);
+  final t = context.tokens;
+  return [for (final url in links) Padding(padding: EdgeInsets.only(top: t.space(1)), child: EmbedCard(url: url, others: others))];
+}
+
 class _InboxBubble extends StatelessWidget {
   const _InboxBubble({super.key, required this.network, required this.message, required this.group, required this.first, required this.last, required this.mineBg, required this.mineInk});
   final InboxNetwork network;
@@ -489,11 +507,15 @@ class _InboxBubble extends StatelessWidget {
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                 for (final x in m.media) Padding(padding: EdgeInsets.only(bottom: m.text.isEmpty ? 0 : t.space(2)), child: InboxMediaView(network: network, media: x, ink: m.mine ? mineInk : t.color('app-ink'))),
-                if (m.text.isNotEmpty) Text(m.text, style: pageText(t, t.fontSize('md'), color: m.mine ? mineInk : t.color('app-ink'), height: 1.3)),
+                // Links underlined and opened by a press, as in a conversation of texts (Matt, 2026-11-16: "links are
+                // not expanding or clickable on telegram and signal chats").
+                if (m.text.isNotEmpty) LinkedText(m.text, ink: m.mine ? mineInk : t.color('app-ink'), style: pageText(t, t.fontSize('md'), color: m.mine ? mineInk : t.color('app-ink'), height: 1.3)),
               ]),
             ),
           ),
         ),
+        // And a card for each, while Link previews is on: the plugin's own, as under a text.
+        ..._linkCards(context, m.text),
         if (last || failed)
           Padding(
             padding: EdgeInsets.only(top: 2, left: t.space(2), right: t.space(2)),
