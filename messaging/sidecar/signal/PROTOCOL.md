@@ -20,7 +20,7 @@ Every request has `id` (a number the app picks) and `op`. Each is answered by on
 | `contacts` | | `[{"aci": "<uuid>", "name": "…", "number": "+1…", "avatar": "<path or null>"}]` (from Signal's contact sync and profiles) |
 | `groups` | | `[{"id": "<group id, base64>", "title": "…", "members": ["<aci>", …], "avatar": "<path or null>"}]` |
 | `send` | `to` (an ACI uuid, or a group id), `text`, optional `quote` (`{"ts": <ms>, "author": "<aci>"}`) | `{"ts": <ms the message was sent at>}` |
-| `send_media` | `to`, `path`, `mime`, `name`, optional `text` (the caption) | `{"ts": <ms>}` |
+| `send_media` | `to`, `path`, `mime`, `name`, optional `text` (the caption) | `{"ts": <ms>, "pointer": {…}}`: the attachment pointer sent, with its key |
 | `read` | `to`, `author` (aci), `ts` (list of message times) | `null`: read receipts sent |
 | `react` | `to`, `author`, `ts`, `emoji`, `remove` | `null` |
 | `delete` | `to`, `ts` | `null`: deleted for everyone (your own message) |

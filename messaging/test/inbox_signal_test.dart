@@ -45,6 +45,58 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async => null);
   });
 
+  test('a picture sent is shown from a copy kept here after a restart, never fetched with a pointer that has no key', () async {
+    // Matt, 2026-11-16: a picture sent on Signal showed "Bad state: the attachment has no key".
+    final dir = Directory.systemTemp.createTempSync('signal');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final picked = File('${dir.path}/picked.jpg')..writeAsBytesSync([1, 2, 3]);
+    final helper = FakeHelper()..linked = true;
+    var withPointer = true;
+    helper.answer = (r) => switch (r['op']) {
+          'send_media' => {'ts': 1763200600000 + helper.asked.length, if (withPointer) 'pointer': {'cdnKey': 'k9', 'key': 'a2V5'}},
+          _ => null,
+        };
+    final s = Signal(link: () async => helper, folder: dir.path);
+    await s.start(AppState());
+    await settle();
+    expect(s.state, InboxState.ready);
+    await s.sendFiles('aci-jo', [picked.path], caption: 'Testing images');
+    withPointer = false;
+    await s.sendFiles('aci-jo', [picked.path]);
+    picked.deleteSync();
+    s.flush();
+    s.dispose();
+
+    final again = FakeHelper()..linked = true;
+    final s2 = Signal(link: () async => again, folder: dir.path);
+    await s2.start(AppState());
+    await settle();
+    final sent = s2.messagesOf('aci-jo');
+    expect(sent.map((m) => m.text), ['Testing images', '']);
+    // The copy kept in Signal's folder, though the picked file is gone.
+    final path = await s2.fileOf(sent[0].media.single.fileId);
+    expect(path, isNotNull);
+    expect(File(path!).readAsBytesSync(), [1, 2, 3]);
+    expect(again.asked.where((r) => r['op'] == 'download'), isEmpty);
+    // With the copy gone too, the one sent with Signal's pointer is fetched with it; the one without asks for nothing and
+    // says nothing.
+    File(path).deleteSync();
+    File((await s2.fileOf(sent[1].media.single.fileId))!).deleteSync();
+    final s3helper = FakeHelper()..linked = true;
+    s2.flush();
+    s2.dispose();
+    final s3 = Signal(link: () async => s3helper, folder: dir.path);
+    await s3.start(AppState());
+    await settle();
+    final again3 = s3.messagesOf('aci-jo');
+    await s3.fileOf(again3[0].media.single.fileId);
+    expect(s3helper.asked.where((r) => r['op'] == 'download').single['pointer'], {'cdnKey': 'k9', 'key': 'a2V5'});
+    expect(await s3.fileOf(again3[1].media.single.fileId), isNull);
+    expect(s3helper.asked.where((r) => r['op'] == 'download'), hasLength(1));
+    expect(s3.error, isNull);
+    s3.dispose();
+  });
+
   test('linked by the QR code; a message comes, is kept, answered, read and deleted; kept across a restart', () async {
     final dir = Directory.systemTemp.createTempSync('signal');
     addTearDown(() => dir.deleteSync(recursive: true));
