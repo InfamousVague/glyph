@@ -16,6 +16,7 @@ import 'inbox_ui.dart' show inboxMark, openInboxChat;
 import 'new_group.dart';
 import 'shell.dart';
 import 'thread.dart';
+import 'add_friend_drawer.dart';
 import 'username_friends.dart';
 
 /// The address book (Matt, 2026-11-14: "add an address book icon"): the phone's contacts, searched by name or
@@ -241,7 +242,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
       body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
           padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(2)),
-          child: GlacierSearchField(placeholder: 'Search contacts', size: GlacierFieldSize.md, onValueChange: _typed),
+          // Add, beside the search, opens the drawer that finds friends by username, and has a username chosen first
+          // where there is none (lib/ui/add_friend_drawer.dart; Matt, 2026-11-16: "move the Add button to the side of
+          // search and have it open a drawer"). On the phone, whose friends they are.
+          child: Row(children: [
+            Expanded(child: GlacierSearchField(placeholder: 'Search contacts', size: GlacierFieldSize.md, onValueChange: _typed)),
+            if (!Sms.paired) ...[SizedBox(width: t.space(2)), const AddFriendButton()],
+          ]),
         ),
         // A filter for each linked network with contacts, beside All and Phone; none until one is linked.
         ListenableBuilder(

@@ -606,7 +606,7 @@ class _Controls extends StatelessWidget {
           onPressed: call.videoLocked ? null : call.onVideo,
         )),
         side(_RoundButton(icon: SpaceWords.deafenIcon(call), label: SpaceWords.deafen(call), on: call.deafened, onPressed: call.onDeafen)),
-        SizedBox(width: 128, child: _MicButton(call: call)),
+        SizedBox(width: 104, child: _MicButton(call: call)),
         side(_RoundButton(icon: LucideMore.messageCircle, label: SpaceWords.chat, on: chatOpen, onPressed: onChat)),
         side(_RoundButton(icon: Lucide.x, label: SpaceWords.leave, danger: true, onPressed: call.onLeave)),
       ]),
@@ -636,7 +636,7 @@ class _RoundButton extends StatelessWidget {
           final mark = danger ? const Color(0xFFFFFFFF) : (on ? t.color('app-paper') : t.color('app-ink'));
           return Padding(
             // Level with the middle of the microphone button.
-            padding: const EdgeInsets.only(top: 45),
+            padding: const EdgeInsets.only(top: (_MicButton.box - 50) / 2),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               AnimatedScale(
                 scale: state.pressed ? 0.94 : 1,
@@ -666,11 +666,16 @@ class _MicButton extends StatelessWidget {
   const _MicButton({required this.call});
   final SpaceCall call;
 
-  static const size = 96.0;
+  /// Only a little bigger than the buttons beside it (50) (Matt, 2026-11-16: "make the mic on button only slightly
+  /// bigger than the other icons").
+  static const size = 60.0;
 
   /// The ripples are drawn round a hidden face of this size, so that the rings, which run from its edge out to 1.85
-  /// times its radius (63 px), show as a band round the 96 px button and stay inside the 128 px slot and 140 px box.
-  static const ringFace = 68.0;
+  /// times its radius (40 px), show as a band round the 60 px button and stay inside its 88 px box.
+  static const ringFace = 43.0;
+
+  /// The box the button and its rings stand in; the buttons beside it are centred on it ([_RoundButton]).
+  static const box = 88.0;
 
   @override
   Widget build(BuildContext context) {
@@ -688,7 +693,7 @@ class _MicButton extends StatelessWidget {
       semanticLabel: locked || deaf ? title : SpaceWords.mute(call),
       builder: (context, state) => Column(mainAxisSize: MainAxisSize.min, children: [
         SizedBox(
-          height: 140,
+          height: box,
           child: Center(
             child: Stack(alignment: Alignment.center, children: [
               // The app's ripples, the face under them hidden by the button.
@@ -711,14 +716,13 @@ class _MicButton extends StatelessWidget {
                     border: live ? null : Border.all(color: locked ? t.color('app-ink-4') : t.color('app-rule'), width: locked ? 1.5 : 1),
                   ),
                   alignment: Alignment.center,
-                  child: AppIcon(icon, size: locked ? 32 : 38, wash: false, color: live ? const Color(0xFFFFFFFF) : t.color(locked ? 'app-ink-3' : 'app-ink')),
+                  child: AppIcon(icon, size: locked ? 22 : 26, wash: false, color: live ? const Color(0xFFFFFFFF) : t.color(locked ? 'app-ink-3' : 'app-ink')),
                 ),
               ),
             ]),
           ),
         ),
-        const SizedBox(height: 4),
-        ExcludeSemantics(child: Text(title, maxLines: locked ? 2 : 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: pageText(t, t.fontSize(locked ? 'sm' : 'md'), weight: 'bold', color: live ? green : t.color('app-ink')))),
+        ExcludeSemantics(child: Text(title, maxLines: locked ? 2 : 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), weight: 'bold', color: live ? green : t.color('app-ink')))),
         ExcludeSemantics(child: Text(hint, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3')))),
       ]),
     );

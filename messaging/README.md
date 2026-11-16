@@ -644,6 +644,11 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   Kept on purpose: `@group.ghost-sms.com` in a group's address (a name phones store and send, not a link), and the
   relay's sign-in callbacks (`GHOST_PUBLIC_URL`), until gogho.st's callback addresses are added at Discord, X and
   Telegram. The folders on the box keep their names (/opt/ghost-sms-*).
+- **Add a friend from a drawer beside Contacts' search** (0.8.1, not released; Matt, 2026-11-16: "move the Add button
+  to the side of search and have it open a drawer to search and add users as well as setup username if hasn't been
+  done already"). A round Add beside the search opens it: without a username of your own it asks for one first; with
+  one it looks up an @username as it is typed (whole names only, never listed by their start) and offers Add, or
+  Accept where they asked you (lib/ui/add_friend_drawer.dart). The requests and friends stay at the top of Contacts.
 - **Mark all read covers Telegram and Signal** (0.8.0, not released; Matt, 2026-11-16: "The mark read button should
   work for telegram and signal as well as standard messages"). The button counts the tab's unread chats from every
   network with its unread texts, so it is no longer grey when only chats are unread, and reads them all; a network's
@@ -742,8 +747,29 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     (`HubCarrier.nudge`, `Net.resume`, main.dart's lifecycle).
   - Checked by tests (a route that swallows a message, a restart in between, a local relay dropped and back); the
     iOS Simulator keeps a backgrounded app's connection alive, so the dead connection itself was not reproduced live.
-  - Not yet: groups of friends are not sent again (Groups.sendText); a closed app is still only reached when it
-    opens (push notifications for iPhone, a background connection for Android, would wake it).
+  - Not yet: groups of friends are not sent again (Groups.sendText). A closed app is woken by the entry above.
+- **A closed app woken when a friend writes** (not released; Matt, 2026-11-16: "Yes, wake-ups", "Check every ~15
+  min"). What friends by username write waits on the relay server while the app is closed; now the app hears of it.
+  - **iPhone**: after the welcome the app asks once whether it may show notifications, and says Apple's push token
+    over its hub connection on every sign-in (`lib/standalone/wake.dart`, `HubCarrier.push`, `Net.setPush`,
+    ios/Runner `pushRegister`, `Runner.entitlements` with `aps-environment`). When a packet is held for it the relay
+    server asks Apple to show "New message", at most once a minute (relay/lib/pushes.dart: `pushes.json`, an ES256
+    token signed with the relay's own P-256, sent by `curl --http2`; a token Apple no longer knows is forgotten).
+    The notification says only that something came.
+  - **Android**: Android's own JobScheduler, about every fifteen minutes (no Google services, no library): signs in to
+    the hub only to look (`HubPeek.kt`; the hub's `peek`, which says how much is held and hands over and takes
+    nothing) and shows "New message" when more is held than it last said. Not while the app is open or with no
+    friend by username. The hub's greeting says `peek: true`; a hub that does not is not signed in to, since an
+    older one would hand everything over to the look.
+  - **Needs, to go live**: the relay deployed (`tool/deploy-relay.mjs`), and for iPhone an APNs key from the Apple
+    Developer account (Keys › +, Apple Push Notifications service: the .p8 file and its key id; Push Notifications
+    on the App ID) set on the box as `GHOST_APNS_KEY_FILE`, `GHOST_APNS_KEY_ID`, `GHOST_APNS_TEAM_ID=F6ZAL7ANAD`.
+    Without the key the relay keeps tokens and sends nothing.
+  - Checked: relay tests (a look counts without handing over, a look leaves the app's own connection be, a token
+    kept, forgotten and rate-limited, the JWT checked with the key's public half, a real openssl-made .p8 read), app
+    tests against a local hub (`push_wake_test.dart`), Android's look against a written-out hub and a real local
+    relay (`HubPeekTest`), and the iPhone Simulator asking and getting an 80-byte token from Apple. Not yet seen: a
+    real notification arriving (needs the key and the deploy).
 - **Friends by username on Android: iPhones and Android phones text each other** (not released; Matt, 2026-11-15:
   "Yes, Android next").
   - Android's store of texts has no room for someone with no number, so a friend by username's conversation is kept

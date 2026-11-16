@@ -8,6 +8,7 @@ import 'package:ghost_messaging/friends/buddies.dart';
 import 'package:ghost_messaging/me/me.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/packet.dart';
+import 'package:ghost_messaging/ui/add_friend_drawer.dart';
 import 'package:ghost_messaging/ui/username_friends.dart';
 
 /// Friends by username (lib/friends/buddies.dart). Matt, 2026-11-14: "create a profile and username under "me" to
@@ -191,32 +192,67 @@ void main() {
       expect(a.friends.single.username, 'sam', reason: 'Maya hears the yes');
     });
 
-    testWidgets('asking by @username from the field; nobody by that name is said so', (tester) async {
+    Future<void> drawer(WidgetTester tester, Buddies b, Me m) async {
+      final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+      await tester.pumpWidget(WidgetsApp(
+        color: const Color(0xFF4F5BD5),
+        pageRouteBuilder: <T>(RouteSettings s, WidgetBuilder w) => PageRouteBuilder<T>(settings: s, pageBuilder: (c, _, _) => w(c)),
+        builder: (context, child) => GlacierTheme(sheet: sheet, attrs: const {'platform': 'mobile'}, child: GlacierToastProvider(child: child!)),
+        home: AddFriendDrawer(buddies: b, me: m),
+      ));
+      await tester.pump();
+    }
+
+    /// Types [words] into the drawer and lets the look-up (a short wait, then the server) answer.
+    Future<void> type(WidgetTester tester, String words) async {
+      await tester.enterText(find.byType(EditableText), words);
+      await tester.pump(const Duration(milliseconds: 400));
+      await settle(tester);
+    }
+
+    // Matt, 2026-11-16: "move the Add button to the side of search and have it open a drawer to search and add users
+    // as well as setup username if hasn't been done already".
+    testWidgets('the drawer looks a username up as it is typed, and Add asks them', (tester) async {
       final world = _World();
       final a = Buddies(_Port(world, 'maya')), b = Buddies(_Port(world, 'sam'));
       await tester.runAsync(() async {
         await a.start();
         await b.start();
       });
-      await show(tester, a, await tester.runAsync(() => me('maya')) as Me);
-      await tester.enterText(find.byType(EditableText), '@nobody');
-      await tester.tap(find.byKey(const ValueKey('add-friend')));
+      await drawer(tester, a, await tester.runAsync(() => me('maya')) as Me);
+      expect(find.text('Add a friend'), findsOneWidget);
+      await type(tester, '@nobody');
+      expect(find.text('Nobody has this username'), findsOneWidget);
+      expect(find.byKey(const ValueKey('add-found')), findsNothing);
+      await type(tester, '@maya');
+      expect(find.text('That\'s you'), findsOneWidget);
+      await type(tester, '@sam');
+      expect(find.text('On Ghost Messaging'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('add-found')));
       await settle(tester);
-      expect(find.textContaining('Nobody has the username @nobody'), findsOneWidget);
-      await tester.enterText(find.byType(EditableText), '@sam');
-      await tester.tap(find.byKey(const ValueKey('add-friend')));
-      await settle(tester);
-      expect(find.text('Waiting for them'), findsOneWidget);
-      expect(find.text('@sam'), findsOneWidget);
+      expect(find.text('Friend request sent'), findsOneWidget);
       expect(b.requests.single.username, 'maya', reason: 'Sam sees the request');
+      await tester.pump(const Duration(seconds: 7));
     });
 
-    testWidgets('without a username of your own it says to choose one first', (tester) async {
+    testWidgets('without a username of your own the drawer has one chosen first', (tester) async {
+      final b = Buddies(_Port(_World(), 'maya'));
+      await tester.runAsync(b.start);
+      await drawer(tester, b, await tester.runAsync(() => me(null)) as Me);
+      expect(find.text('Choose your username'), findsOneWidget);
+      expect(find.byKey(const ValueKey('username-field')), findsOneWidget);
+      expect(find.text('Add a friend'), findsNothing);
+      await tester.enterText(find.byType(EditableText), 'x');
+      await tester.tap(find.byKey(const ValueKey('claim-username')));
+      await tester.pump();
+      expect(find.textContaining('3 to 20 letters'), findsOneWidget);
+    });
+
+    testWidgets('the list keeps the requests and friends, and no field of its own', (tester) async {
       final b = Buddies(_Port(_World(), 'maya'));
       await tester.runAsync(b.start);
       await show(tester, b, await tester.runAsync(() => me(null)) as Me);
-      expect(find.text('Add friends by username'), findsOneWidget);
-      expect(find.byKey(const ValueKey('add-friend-field')), findsNothing);
+      expect(find.byType(EditableText), findsNothing);
     });
   });
 }

@@ -2,6 +2,7 @@ import Flutter
 import PhotosUI
 import Security
 import UIKit
+import UserNotifications
 import UniformTypeIdentifiers
 
 /// The Mac's DeskChannels.swift (macos/Runner), for the iPhone (Matt, 2026-11-15: "port the app to work on iOS"): what
@@ -15,6 +16,23 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
   private var sink: FlutterEventSink?
   private var browser: NetServiceBrowser?
   private var services: [NetService] = []
+
+  /// Apple's token for this install, as hex, told to the app (nil: Apple would not give one), with whether it is
+  /// Apple's sandbox: a build from Xcode is, one from TestFlight or the App Store is not.
+  func pushToken(_ token: Data?) {
+    let hex = token.map { $0.map { String(format: "%02x", $0) }.joined() }
+    system.invokeMethod("pushToken", arguments: ["token": hex as Any, "sandbox": DeskChannels.pushSandbox])
+  }
+
+  /// Whether this build's pushes go through Apple's sandbox: its provisioning profile says (`aps-environment`), and
+  /// with none (the Simulator) it is the sandbox.
+  static let pushSandbox: Bool = {
+    guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
+          let data = try? Data(contentsOf: url) else { return true }
+    let text = String(decoding: data, as: UTF8.self)
+    guard let key = text.range(of: "<key>aps-environment</key>") else { return true }
+    return !text[key.upperBound...].prefix(80).contains("production")
+  }()
 
   init(messenger: FlutterBinaryMessenger) {
     system = FlutterMethodChannel(name: "ghost_desktop/system", binaryMessenger: messenger)
@@ -39,6 +57,15 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
       // emoji, and a voice message to record and to play (DeskSound.swift).
       case "pickPictures":
         self?.pickPictures(most: args["most"] as? Int ?? 5) { result($0) }
+      // Waking the app while it is closed (lib/standalone/wake.dart): asked once, then Apple's token comes to
+      // AppDelegate, which hands it to [pushToken].
+      case "pushRegister":
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+          DispatchQueue.main.async {
+            if granted { UIApplication.shared.registerForRemoteNotifications() }
+            result(granted)
+          }
+        }
       case "emoji":
         // The iPhone's keyboard has its own emoji key.
         result(nil)

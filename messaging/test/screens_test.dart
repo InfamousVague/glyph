@@ -1472,7 +1472,7 @@ void main() {
       v.own = [];
     });
     for (final dark in [false, true]) {
-      await _shoot(tester, sheet, const VoiceScreen(), '19-voice', dark: dark);
+      await _shoot(tester, sheet, const VoiceScreen(), '19-voice', dark: dark, prefs: const {'dev_space_design': 'standard'});
       expect(find.text('Friday space'), findsWidgets);
       // In a call the page is the call alone: who is in it and the dock (Matt, 2026-11-15: "I want the call screen to
       // be super simple too just a list of chatters and the call controls").
@@ -1566,7 +1566,7 @@ void main() {
     });
     for (final dark in [false, true]) {
       // In the call: the people, each with their role where it is not Member; the owner marked.
-      await _shoot(tester, sheet, const VoiceScreen(), '21-hangout', dark: dark);
+      await _shoot(tester, sheet, const VoiceScreen(), '21-hangout', dark: dark, prefs: const {'dev_space_design': 'standard'});
       expect(find.byType(HangoutScreen), findsOneWidget);
       expect(find.text('Owner'), findsOneWidget);
       expect(find.text('Moderator'), findsOneWidget);

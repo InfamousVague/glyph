@@ -21,6 +21,7 @@ import 'shell.dart';
 import 'nav_bar.dart';
 import 'ripple_avatar.dart';
 import 'hangout_screen.dart';
+import 'space_designs/space_design.dart';
 
 /// Voice channels (Matt, 2026-11-14: "always open voice channels that you can jump in and out at any time and you can
 /// see who's connected and also toggle video on and off"): each channel with who is in it, a press to hop in, and,
@@ -42,6 +43,9 @@ class VoiceScreen extends StatelessWidget {
         // A hangout's call is its page: the people or the chat, its roles (lib/ui/hangout_screen.dart).
         // Beside the list on a wide screen the people are in the list's place (HangoutScreen there) and this side is
         // the hangout's chat, with its videos above it once anyone turns one on (HangoutStage).
+        // On a narrow phone with a design chosen, the design is the call page (space_design.dart).
+        final design = inlineSpaceCall(context, s);
+        if (design != null) return design;
         if (s != null && s.channel.hangout && AppShell.wideOf(context)) return HangoutStage(key: ValueKey('stage-${s.channel.room}'), channel: s.channel);
         if (s != null && s.channel.hangout) return HangoutScreen(key: ValueKey('hangout-${s.channel.room}'), channel: s.channel);
         // A hangout pressed in the list: its chat where a conversation would be, who is in it and Join at its top.
