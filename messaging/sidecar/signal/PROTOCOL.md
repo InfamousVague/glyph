@@ -17,7 +17,7 @@ Every request has `id` (a number the app picks) and `op`. Each is answered by on
 | `status` | | `{"linked": bool, "connected": bool, "aci": "<uuid>", "number": "+1…", "name": "…"}` |
 | `link` | `name` (the device name Signal shows, "Ghost Messaging") | `null` at once; then `qr` and `linked` / `link_failed` events |
 | `unlink` | | `null`; forgets everything |
-| `contacts` | | `[{"aci": "<uuid>", "name": "…", "number": "+1…", "avatar": "<path or null>"}]` (from Signal's contact sync and profiles) |
+| `contacts` | | `[{"aci": "<uuid>", "name": "…", "number": "+1…", "avatar": "<path or null>"}]` (from Signal's contact sync, and their Signal profile where the sync names them not) |
 | `groups` | | `[{"id": "<group id, base64>", "title": "…", "members": ["<aci>", …], "avatar": "<path or null>"}]` |
 | `send` | `to` (an ACI uuid, or a group id), `text`, optional `quote` (`{"ts": <ms>, "author": "<aci>"}`) | `{"ts": <ms the message was sent at>}` |
 | `send_media` | `to`, `path`, `mime`, `name`, optional `text` (the caption) | `{"ts": <ms>, "pointer": {…}}`: the attachment pointer sent, with its key |
@@ -25,6 +25,7 @@ Every request has `id` (a number the app picks) and `op`. Each is answered by on
 | `react` | `to`, `author`, `ts`, `emoji`, `remove` | `null` |
 | `delete` | `to`, `ts` | `null`: deleted for everyone (your own message) |
 | `download` | `pointer` (an attachment as an event gave it: the JSON object, or that object as a string), `path` | `null` once written to `path` |
+| `who` | `aci` | `{"aci", "name", "number", "avatar"}`: the person as the store has them, and from their Signal profile (fetched with the profile key a message carried) where nothing names them; `name` empty where Signal has none |
 
 ## Events (stdout), one JSON object a line, each with `ev`
 
@@ -40,6 +41,7 @@ Every request has `id` (a number the app picks) and `op`. Each is answered by on
 | `reaction` | `chat`, `from`, `target_ts`, `target_author`, `emoji`, `remove` |
 | `deleted` | `chat`, `target_ts` (deleted for everyone by its author) |
 | `contacts` | `list`: the same list as the `contacts` op (Signal's contact sync, as it arrives; avatars come with the op) |
+| `name` | `aci`, `name`, `number`, `avatar`: someone who wrote with nothing naming them, once their profile is fetched (once a run each) |
 | `unlinked` | Signal removed this device |
 
 Signal keeps no history for a new linked device: the app keeps what arrives from linking on.

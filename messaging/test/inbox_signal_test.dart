@@ -245,4 +245,107 @@ void main() {
     expect(keep({'level': 'debug', 'trace': true, 'time': '2026-11-16T21:04:41Z', 'response_status': 401, 'message': 'DEBUG: message send response data'}),
         '2026-11-16T21:04:41Z debug DEBUG: message send response data response_status=401');
   });
+
+  // Matt, 2026-11-16: "signal messages are not being properly tied to a username or group name" (a chat showed
+  // "signal:45de8397-…"): the phone's contact sync often names nobody and gives no number, so an empty name was kept
+  // and the row fell back to the chat's address.
+  group('names', () {
+    late Directory dir;
+    setUp(() => dir = Directory.systemTemp.createTempSync('signal-names'));
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    Map<String, Object?> msg(String chat, String from, {bool group = false, bool mine = false, String name = '', int ts = 1763200000000}) =>
+        {'ev': 'message', 'chat': chat, 'group': group, 'from': from, 'name': name, 'mine': mine, 'ts': ts, 'text': 'hi', 'media': const []};
+
+    test('a person nothing names is asked about (their Signal profile), and called by it', () async {
+      final helper = FakeHelper()..linked = true;
+      helper.answer = (r) => switch (r['op']) {
+            'contacts' => [
+                {'aci': 'aci-jo', 'name': '', 'number': '', 'avatar': null},
+              ],
+            'groups' => const [],
+            'who' => r['aci'] == 'aci-jo' ? {'aci': 'aci-jo', 'name': 'Jo Park', 'number': '', 'avatar': null} : {'aci': r['aci'], 'name': '', 'number': ''},
+            _ => null,
+          };
+      final s = Signal(link: () async => helper, folder: dir.path);
+      await s.start(AppState());
+      await settle();
+      // Only this account's own message so far: nothing in the message names Jo.
+      helper.event(msg('aci-jo', 'aci-me', mine: true));
+      await settle();
+      await settle();
+      expect(helper.asked.where((r) => r['op'] == 'who').map((r) => r['aci']), contains('aci-jo'));
+      expect(s.chats.single.title, 'Jo Park');
+      s.dispose();
+    });
+
+    test('an empty name is never a name: the number, else "Signal contact"', () async {
+      final helper = FakeHelper()..linked = true;
+      helper.answer = (r) => switch (r['op']) {
+            'contacts' => [
+                {'aci': 'aci-sam', 'name': '', 'number': '+15550100123', 'avatar': null},
+              ],
+            'groups' => const [],
+            'who' => {'aci': r['aci'], 'name': '', 'number': ''},
+            _ => null,
+          };
+      final s = Signal(link: () async => helper, folder: dir.path);
+      await s.start(AppState());
+      await settle();
+      helper.event(msg('aci-sam', 'aci-sam', ts: 1));
+      helper.event(msg('aci-nobody', 'aci-nobody', ts: 2));
+      await settle();
+      await settle();
+      final titles = {for (final c in s.chats) c.id: c.title};
+      expect(titles['aci-sam'], '+15550100123');
+      expect(titles['aci-nobody'], 'Signal contact');
+      expect(titles.values.any((t) => t.isEmpty || t.startsWith('aci-')), isFalse);
+      s.dispose();
+    });
+
+    test('the helper\'s "name" event names a person as their profile comes; a group keeps its title', () async {
+      final helper = FakeHelper()..linked = true;
+      helper.answer = (r) => switch (r['op']) {
+            'contacts' || 'groups' => const [],
+            'who' => {'aci': r['aci'], 'name': '', 'number': ''},
+            _ => null,
+          };
+      final s = Signal(link: () async => helper, folder: dir.path);
+      await s.start(AppState());
+      await settle();
+      helper.event(msg('aci-riley', 'aci-riley', ts: 1));
+      helper.event(msg('grp-1', 'aci-riley', group: true, ts: 2));
+      helper.event({'ev': 'group', 'id': 'grp-1', 'title': 'Weekend crew', 'members': ['aci-riley'], 'avatar': null});
+      await settle();
+      expect({for (final c in s.chats) c.id: c.title}, {'aci-riley': 'Signal contact', 'grp-1': 'Weekend crew'});
+      helper.event({'ev': 'name', 'aci': 'aci-riley', 'name': 'Riley Fox', 'number': '', 'avatar': null});
+      await settle();
+      expect({for (final c in s.chats) c.id: c.title}, {'aci-riley': 'Riley Fox', 'grp-1': 'Weekend crew'});
+      // And the group's messages say who wrote them.
+      await s.load('grp-1');
+      expect(s.messagesOf('grp-1').single.sender, 'Riley Fox');
+      s.dispose();
+    });
+
+    test('an empty name kept by an older build is dropped, and the person asked about again', () async {
+      File('${dir.path}/chats.json').writeAsStringSync(jsonEncode({
+        'chats': {'aci-jo': {'unread': 0, 'last': 5}},
+        'messages': {'aci-jo': [{'ts': 5, 'from': 'aci-jo', 'mine': false, 'text': 'hey', 'media': [], 'state': 'received'}]},
+        'names': {'aci-jo': ''},
+        'groups': [],
+      }));
+      final helper = FakeHelper()..linked = true;
+      helper.answer = (r) => switch (r['op']) {
+            'contacts' || 'groups' => const [],
+            'who' => {'aci': 'aci-jo', 'name': 'Jo Park', 'number': '', 'avatar': null},
+            _ => null,
+          };
+      final s = Signal(link: () async => helper, folder: dir.path);
+      await s.start(AppState());
+      await settle();
+      await settle();
+      expect(s.chats.single.title, 'Jo Park');
+      s.dispose();
+    });
+  });
 }
