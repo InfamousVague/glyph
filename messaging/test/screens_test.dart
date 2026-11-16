@@ -711,10 +711,10 @@ void main() {
       await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Discard the recording'));
       await _settle(tester);
       expect(mic, findsOneWidget);
-      // Words written: Send is back where the microphone stood.
+      // Words written: Send at the end of the row under them, the microphone beside it.
       await tester.enterText(find.byType(EditableText), 'On my way');
       await _settle(tester);
-      expect(mic, findsNothing);
+      expect(mic, findsOneWidget);
       expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send'), findsOneWidget);
       await _shoot(tester, sheet, ThreadScreen(thread: 2, people: [for (final p in _conversations[1]['people'] as List) Person.from(p as Map)]), '3-group', dark: dark);
       await _shoot(tester, sheet, const ComposeScreen(), '4-compose', dark: dark);

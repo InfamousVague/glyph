@@ -1267,6 +1267,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                                 child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                                   ?plus,
                                   const Spacer(),
+                                  // The microphone beside Send while words are written (Matt, 2026-11-15: "Put the
+                                  // microphone for sending voice memos there too"): a voice message goes on its own,
+                                  // and the words stay in the field.
+                                  if (Sms.can('sendVoice') && !_isGhost && !_byName && !editing && _people.isNotEmpty)
+                                    IconTap(icon: Lucide.mic, label: 'Record a voice message', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _sending ? null : _record),
                                   ...ends(),
                                 ]),
                               ),
