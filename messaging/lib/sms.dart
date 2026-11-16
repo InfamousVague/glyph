@@ -180,7 +180,12 @@ class Message {
     this.notice,
     this.why,
     this.via,
+    this.read = true,
   });
+
+  /// Whether it had been read when it was read from the phone: an incoming one not yet looked at is false. Where the
+  /// phone does not say (an older one), it is taken as read, so nothing is marked new that is not.
+  final bool read;
   final int id;
   final String kind;
   final String address;
@@ -227,6 +232,7 @@ class Message {
         notice: m['notice'] as String?,
         why: m['why'] as String?,
         via: m['via'] as String?,
+        read: m['read'] != false,
       );
 }
 

@@ -202,6 +202,7 @@ class Signal extends InboxNetwork {
       }
       notifyListeners();
     } catch (_) {}
+    await _nameChats();
   }
 
   void _takeContacts(List list) {
@@ -209,11 +210,43 @@ class Signal extends InboxNetwork {
       final m = c as Map;
       final aci = m['aci'] as String?;
       if (aci == null) continue;
-      final name = (m['name'] as String?)?.trim();
-      _names[aci] = name == null || name.isEmpty ? ((m['number'] as String?) ?? 'Someone') : name;
-      _avatars[aci] = m['avatar'] as String?;
+      _takeName(m);
       final number = (m['number'] as String?)?.trim();
       _contacts[aci] = number == null || number.isEmpty ? null : number;
+    }
+  }
+
+  /// Someone's name, as the helper found it (contact sync, or their Signal profile: sidecar/signal `who`). An empty
+  /// name is no name: it never stands in for one (Matt, 2026-11-16: "signal messages are not being properly tied to a
+  /// username or group name", when a chat showed its ACI).
+  void _takeName(Map m) {
+    final aci = m['aci'] as String?;
+    if (aci == null) return;
+    final name = (m['name'] as String?)?.trim();
+    if (name != null && name.isNotEmpty) _names[aci] = name;
+    if (m['avatar'] is String) _avatars[aci] = m['avatar'] as String;
+    final number = (m['number'] as String?)?.trim();
+    if (number != null && number.isNotEmpty) _numbers[aci] = number;
+  }
+
+  /// Numbers by ACI, where Signal gives one: what a chat is called when nothing names the person.
+  final Map<String, String> _numbers = {};
+
+  /// The chats of two asked about this run (`who`), so each is asked once.
+  final Set<String> _askedWho = {};
+
+  /// Asks the helper who each person written with is, where nothing here names them yet.
+  Future<void> _nameChats() async {
+    for (final chat in _chats.keys.toList()) {
+      if (_groups.contains(chat) || (_names[chat]?.isNotEmpty ?? false) || !_askedWho.add(chat)) continue;
+      try {
+        final got = await _ask('who', {'aci': chat});
+        if (got is Map) {
+          _takeName(got);
+          notifyListeners();
+          _save();
+        }
+      } catch (_) {}
     }
   }
 
@@ -230,6 +263,50 @@ class Signal extends InboxNetwork {
         for (final e in _contacts.entries)
           if (e.key != _aci) InboxContact(network: id, id: e.key, name: _names[e.key] ?? e.value ?? 'Someone', number: e.value, avatar: _avatars[e.key]),
       ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+  /// A Signal group in full (sidecar/signal group_info), for its drawer.
+  @override
+  Future<GroupDetails?> groupDetails(String chatId) async {
+    if (_state != InboxState.ready || !_groups.contains(chatId)) return null;
+    final m = await _ask('group_info', {'to': chatId}) as Map?;
+    if (m == null) return null;
+    _takeGroup(m);
+    return signalGroupDetails(m, names: _names);
+  }
+
+  /// Changes a Signal group on Signal (sidecar/signal group_update): everyone in it sees the change.
+  @override
+  Future<GroupDetails?> changeGroup(String chatId, GroupChange change) async {
+    if (_state != InboxState.ready) throw StateError('Signal isn\'t connected');
+    if (change.isEmpty) return groupDetails(chatId);
+    final m = await _ask('group_update', {
+      'to': chatId,
+      'change': {
+        if (change.title != null) 'title': change.title,
+        if (change.description != null) 'description': change.description,
+        if (change.photo != null) 'avatar': change.photo,
+        if (change.timer != null) 'timer': change.timer,
+        if (change.add.isNotEmpty) 'add': change.add,
+        if (change.remove.isNotEmpty) 'remove': change.remove,
+        if (change.admin.isNotEmpty) 'admin': change.admin,
+        if (change.unadmin.isNotEmpty) 'unadmin': change.unadmin,
+        if (change.announcementsOnly != null) 'announcements_only': change.announcementsOnly,
+        if (change.editInfoAdminsOnly != null) 'edit_info': change.editInfoAdminsOnly! ? 'admins' : 'members',
+        if (change.addPeopleAdminsOnly != null) 'add_members': change.addPeopleAdminsOnly! ? 'admins' : 'members',
+        if (change.leave) 'leave': true,
+      },
+    }) as Map?;
+    if (change.leave || m == null || m['left'] == true) {
+      _chats.remove(chatId);
+      _messages.remove(chatId);
+      _save();
+      notifyListeners();
+      return null;
+    }
+    _takeGroup(m);
+    notifyListeners();
+    return signalGroupDetails(m, names: _names);
+  }
 
   /// A chat with someone on Signal is named by their ACI: it is in the list from the first message sent.
   @override
@@ -264,6 +341,11 @@ class Signal extends InboxNetwork {
         notifyListeners();
       case 'contacts':
         _takeContacts((m['list'] as List?) ?? const []);
+        notifyListeners();
+      case 'name':
+        // Someone who wrote with nothing naming them, once the helper fetched their Signal profile.
+        _takeName(m);
+        _save();
         notifyListeners();
       case 'group':
         // A group first heard from: its name, as the groups op gives it (sidecar/signal announceGroup).
@@ -314,7 +396,9 @@ class Signal extends InboxNetwork {
       'state': m['mine'] == true ? 'sent' : 'received',
     });
     list.sort((a, b) => (a['ts'] as int).compareTo(b['ts'] as int));
+    final fresh = !_chats.containsKey(chat);
     final c = _chats.putIfAbsent(chat, () => {'unread': 0});
+    if (fresh && !group && (_names[chat]?.isEmpty ?? true)) unawaited(_nameChats());
     c['last'] = ts;
     if (m['mine'] != true) c['unread'] = ((c['unread'] as int?) ?? 0) + 1;
     _save();
@@ -322,6 +406,15 @@ class Signal extends InboxNetwork {
   }
 
   // --- the chats and their messages, as the screens have them -----------------------------------------------------
+
+  /// What a chat is called: the group's title or the person's name; else their number; else plainly what it is. Never
+  /// the ACI or the group's id.
+  String _titleOf(String chat, bool group) {
+    final name = _names[chat]?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    if (group) return 'Signal group';
+    return _numbers[chat] ?? _contacts[chat] ?? 'Signal contact';
+  }
 
   @override
   List<InboxChat> get chats {
@@ -333,7 +426,7 @@ class Signal extends InboxNetwork {
       out.add(InboxChat(
         network: id,
         id: e.key,
-        title: _names[e.key] ?? (group ? 'Signal group' : 'Signal'),
+        title: _titleOf(e.key, group),
         date: DateTime.fromMillisecondsSinceEpoch((e.value['last'] as int?) ?? 0),
         snippet: last == null ? '' : _snippet(last),
         unread: (e.value['unread'] as int?) ?? 0,
@@ -542,7 +635,11 @@ class Signal extends InboxNetwork {
       final all = jsonDecode(_file.readAsStringSync()) as Map;
       (all['chats'] as Map? ?? const {}).forEach((k, v) => _chats['$k'] = (v as Map).cast<String, Object?>());
       (all['messages'] as Map? ?? const {}).forEach((k, v) => _messages['$k'] = [for (final m in v as List) (m as Map).cast<String, Object?>()]);
-      (all['names'] as Map? ?? const {}).forEach((k, v) => _names['$k'] = '$v');
+      (all['names'] as Map? ?? const {}).forEach((k, v) {
+        // Kept by builds that took an empty name for one: dropped, so the chat is asked about again.
+        if (v is String && v.trim().isNotEmpty) _names['$k'] = v;
+      });
+      (all['numbers'] as Map? ?? const {}).forEach((k, v) => _numbers['$k'] = '$v');
       _groups.addAll((all['groups'] as List? ?? const []).map((g) => '$g'));
     } catch (_) {}
   }
@@ -554,7 +651,7 @@ class Signal extends InboxNetwork {
       try {
         _file.parent.createSync(recursive: true);
         final tmp = File('${_file.path}.tmp');
-        tmp.writeAsStringSync(jsonEncode({'chats': _chats, 'messages': _messages, 'names': _names, 'groups': _groups.toList()}));
+        tmp.writeAsStringSync(jsonEncode({'chats': _chats, 'messages': _messages, 'names': _names, 'numbers': _numbers, 'groups': _groups.toList()}));
         tmp.renameSync(_file.path);
       } catch (_) {}
     });
@@ -568,7 +665,7 @@ class Signal extends InboxNetwork {
       _saving = Timer(Duration.zero, () {});
       try {
         _file.parent.createSync(recursive: true);
-        _file.writeAsStringSync(jsonEncode({'chats': _chats, 'messages': _messages, 'names': _names, 'groups': _groups.toList()}));
+        _file.writeAsStringSync(jsonEncode({'chats': _chats, 'messages': _messages, 'names': _names, 'numbers': _numbers, 'groups': _groups.toList()}));
       } catch (_) {}
     }
   }
@@ -581,7 +678,7 @@ class Signal extends InboxNetwork {
     _waiting[id] = done;
     link.say({'id': id, 'op': op, ...args});
     // Longer than the helper gives each (sidecar/signal's do: a minute, three for files), so its own reason arrives.
-    final wait = switch (op) { 'download' || 'send_media' => 190, 'send' || 'react' || 'delete' || 'read' || 'groups' => 75, _ => 30 };
+    final wait = switch (op) { 'download' || 'send_media' || 'group_update' => 190, 'send' || 'react' || 'delete' || 'read' || 'groups' || 'group_info' => 75, _ => 30 };
     return done.future.timeout(Duration(seconds: wait), onTimeout: () {
       _waiting.remove(id);
       throw StateError('Signal took too long to answer');
@@ -680,4 +777,47 @@ class _ProcessLink implements SignalLink {
 
 extension on String {
   String ifEmpty(String other) => isEmpty ? other : this;
+}
+
+/// A Signal group as the helper's group_info gives it (sidecar/signal groupInfo), in the drawer's words. A member with
+/// no name in their profile is named as the app names them elsewhere ([names], by ACI), else by their number.
+GroupDetails signalGroupDetails(Map m, {Map<String, String> names = const {}}) {
+  GroupPerson person(Object? raw) {
+    final p = raw as Map;
+    final aci = '${p['aci']}';
+    final number = (p['number'] as String?)?.trim();
+    final name = (p['name'] as String?)?.trim();
+    return GroupPerson(
+      id: aci,
+      name: name != null && name.isNotEmpty ? name : (names[aci] ?? (number != null && number.isNotEmpty ? number : 'Someone on Signal')),
+      number: number == null || number.isEmpty ? null : number,
+      admin: p['admin'] == true,
+      me: p['me'] == true,
+    );
+  }
+
+  final admin = m['admin'] == true;
+  final editInfoAdminsOnly = m['edit_info'] == 'admins';
+  final addPeopleAdminsOnly = m['add_members'] == 'admins';
+  return GroupDetails(
+    title: '${m['title'] ?? ''}'.trim().isEmpty ? 'Signal group' : '${m['title']}'.trim(),
+    description: '${m['description'] ?? ''}',
+    photo: m['avatar'] as String?,
+    timer: (m['timer'] as num?)?.toInt() ?? 0,
+    people: [for (final p in (m['people'] as List? ?? const [])) person(p)],
+    pending: [for (final p in (m['pending'] as List? ?? const [])) person(p)],
+    requesting: [for (final p in (m['requesting'] as List? ?? const [])) person(p)],
+    admin: admin,
+    editInfoAdminsOnly: editInfoAdminsOnly,
+    addPeopleAdminsOnly: addPeopleAdminsOnly,
+    announcementsOnly: m['announcements_only'] == true,
+    inviteLink: m['invite_link'] as String?,
+    supports: GroupFeature.values.toSet(),
+    canEditInfo: admin || !editInfoAdminsOnly,
+    canAddPeople: admin || !addPeopleAdminsOnly,
+    // Signal lets only admins remove people, make admins and change the rules.
+    canRemovePeople: admin,
+    canSetAdmins: admin,
+    canChangeRules: admin,
+  );
 }

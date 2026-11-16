@@ -68,7 +68,7 @@ object Sounds {
     fun messageIn(context: Context) {
         val ui = context.getSharedPreferences("ui", Context.MODE_PRIVATE)
         if (ui.getString("sounds", "on") == "off") return
-        val take = ui.getString("sound_message", "2") ?: "2"
+        val take = ui.getString("sound_message", "4") ?: "4"
         try {
             // Read whole rather than by file descriptor, which needs the file stored uncompressed in the APK.
             val bytes = context.assets.open("flutter_assets/assets/sounds/message-in-$take.wav").use { it.readBytes() }

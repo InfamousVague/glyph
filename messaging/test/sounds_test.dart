@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
@@ -69,14 +71,14 @@ void main() {
   test('a new message and ringing at full loudness, the rest at a third; the choices played; off is silent', () async {
     final app = AppState();
     final s = Sounds.instance..start(app);
-    expect((s.message, s.ring, s.quiet, s.on), ('2', '2', 33, true));
+    expect((s.message, s.ring, s.quiet, s.on), ('4', '2', 33, true));
     s.play(UiSound.mute);
     s.play(UiSound.messageIn);
     await Future<void>.delayed(const Duration(milliseconds: 200));
-    expect([for (final c in played) (c.arguments as Map)['name']], ['mute', 'message-in-2']);
+    expect([for (final c in played) (c.arguments as Map)['name']], ['mute', 'message-in-4']);
     final mute = await rootBundle.load('assets/sounds/mute.wav');
     expect((played.first.arguments as Map)['bytes'], isNot(mute.buffer.asUint8List()), reason: 'scaled down');
-    final message = await rootBundle.load('assets/sounds/message-in-2.wav');
+    final message = await rootBundle.load('assets/sounds/message-in-4.wav');
     expect((played.last.arguments as Map)['bytes'], message.buffer.asUint8List(), reason: 'as it is');
 
     played.clear();
@@ -96,5 +98,17 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 100));
     expect(played, isEmpty);
     s.setOn(true);
+  });
+
+  // Matt, 2026-11-16: "use muted-bell-low".
+  test('the muted bell is the message sound: chosen once for everyone, and a later choice of theirs stays', () async {
+    final app = AppState()..set('sound_message', '2');
+    final s = Sounds.instance..start(app);
+    expect(s.message, '4', reason: 'a sound chosen before is moved to the muted bell, once');
+    expect(Sounds.messageChoices.first.label, 'Muted bell');
+    s.setMessage('3');
+    Sounds.instance.start(app);
+    expect(s.message, '3', reason: 'started again, the choice made since stays');
+    expect(File('android/app/src/main/res/raw/notify_message_4.ogg').lengthSync(), greaterThan(1000), reason: 'its notification sound on Android');
   });
 }

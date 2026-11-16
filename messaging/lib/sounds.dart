@@ -50,7 +50,7 @@ enum UiSound {
   bool get loud => this == messageIn || this == ringIn;
 }
 
-/// One of the three choices for the message sound or for ringing.
+/// One of the choices for the message sound or for ringing.
 class SoundChoice {
   const SoundChoice(this.id, this.label);
   final String id;
@@ -63,8 +63,13 @@ class Sounds {
 
   static const _channel = MethodChannel('ghost/sound');
 
-  /// The three message sounds and the three rings, by the take they are.
-  static const messageChoices = [SoundChoice('1', 'Ripple'), SoundChoice('2', 'Glass'), SoundChoice('3', 'Breeze')];
+  /// The message sounds and the three rings, by the take they are.
+  /// Muted bell, the fourth, is the one used (Matt, 2026-11-16: "use muted-bell-low", of the mellower set he asked for:
+  /// "all of the sounds are too sharp and harsh, i want a more mellow sound like discord and other apps have").
+  static const messageChoices = [SoundChoice('4', 'Muted bell'), SoundChoice('1', 'Ripple'), SoundChoice('2', 'Glass'), SoundChoice('3', 'Breeze')];
+
+  /// The message sound until one is chosen.
+  static const messageDefault = '4';
   static const ringChoices = [SoundChoice('1', 'Chime'), SoundChoice('2', 'Lantern'), SoundChoice('3', 'Halo')];
 
   /// The loudness of every sound but ringing and a new message, unless changed: a third.
@@ -74,12 +79,19 @@ class Sounds {
   final Map<String, Uint8List> _files = {};
   UiSound? _looping;
 
-  void start(AppState app) => _app = app;
+  void start(AppState app) {
+    _app = app;
+    // Once, whatever was chosen before: the muted bell, as Matt asked. Chosen again in Settings › Sounds it stays.
+    if (app.choice('sound_message_bell', '') != 'done') {
+      app.set('sound_message', messageDefault);
+      app.set('sound_message_bell', 'done');
+    }
+  }
 
   bool get on => _app?.flag('sounds', fallback: true) ?? true;
   void setOn(bool v) => _app?.setFlag('sounds', v);
 
-  String get message => _app?.choice('sound_message', '2') ?? '2';
+  String get message => _app?.choice('sound_message', messageDefault) ?? messageDefault;
   String get ring => _app?.choice('sound_ring', '2') ?? '2';
 
   /// The loudness of the quieter sounds, 0 to 100.

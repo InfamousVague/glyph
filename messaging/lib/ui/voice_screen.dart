@@ -21,6 +21,7 @@ import 'shell.dart';
 import 'nav_bar.dart';
 import 'ripple_avatar.dart';
 import 'hangout_screen.dart';
+import 'space_groups_ui.dart';
 import 'space_designs/space_design.dart';
 import 'space_invite.dart';
 
@@ -573,13 +574,21 @@ class VoiceRow extends StatelessWidget {
     // Held, or pressed with the other button: a hangout's menu (Matt, 2026-11-15: "there also needs to be a context
     // menu to open settings for hangouts and manage permissions and such as well as delete the hangouts").
     void menu() {
-      if (channel.hangout) showHangoutMenu(context, channel, onOpen: onPress);
+      if (channel.hangout) {
+        showHangoutMenu(context, channel, onOpen: onPress);
+      } else {
+        // A group's own space: it can still be put in one of the Spaces tab's groups.
+        showChoices(context, title: channel.name, choices: [
+          Choice('Open', LucideMore.headphones, onPress),
+          Choice('Move to group…', Lucide.folder, () => pickSpaceGroup(context, channel)),
+        ]);
+      }
     }
 
     return GestureDetector(
       behavior: HitTestBehavior.deferToChild,
-      onLongPress: channel.hangout ? menu : null,
-      onSecondaryTap: channel.hangout ? menu : null,
+      onLongPress: menu,
+      onSecondaryTap: menu,
       child: GlacierPressable(
       onPressed: onPress,
       semanticLabel: '${channel.name}, space, ${live ? '${inIt.length} in it' : 'nobody in it'}',
