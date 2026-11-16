@@ -82,12 +82,15 @@ class NavPill extends StatelessWidget {
     // The pill runs the sidebar's width and its rings stand evenly along it, the first and the last at its ends
     // (Matt, 2026-11-14: "Evenly space the icons across the bottom of the sidebar instead of condensing them to the
     // center").
+    // In from the sidebar's sides by what it stands up from its foot, so the room round it is the same on all three
+    // (Matt, 2026-11-16: "make the navbar width fit the full sidebar and justify the space between evenly and make
+    // the space on the left and right even to the space on the bottom").
     final rings = [
       for (final item in items)
         _Ring(key: ValueKey('nav-${item.id}'), item: item, shown: item.id == active, upright: upright, onPressed: () => onSelect(item.id)),
     ];
     return Padding(
-      padding: upright ? EdgeInsets.symmetric(horizontal: _railRoom(t), vertical: inset(t)) : EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), inset(t)),
+      padding: upright ? EdgeInsets.symmetric(horizontal: _railRoom(t), vertical: inset(t)) : EdgeInsets.fromLTRB(inset(t), 0, inset(t), inset(t)),
       child: SizedBox(
         width: upright ? null : double.infinity,
         child: Semantics(

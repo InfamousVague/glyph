@@ -208,6 +208,13 @@ void main() {
       // A computer keeps the pill laid along its sidebar's foot: stood up at the right is a wide phone's.
       expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isFalse);
       expect(find.byKey(const ValueKey('shell-rail')), findsNothing);
+      // The sidebar's width, with the same room on its left, its right and under it (Matt, 2026-11-16: "make the
+      // navbar width fit the full sidebar ... make the space on the left and right even to the space on the bottom").
+      final glass = tester.getRect(find.descendant(of: find.byType(NavPill), matching: find.byType(ClipRRect)).first);
+      final column = tester.getRect(find.byKey(const ValueKey('shell-side')));
+      final under = column.bottom - glass.bottom;
+      expect(glass.left - column.left, closeTo(under, 0.5));
+      expect(column.right - glass.right, closeTo(under, 0.5));
       // Archive shows the archived ones, and Messages the others again.
       await tester.tap(_nav('Archive'));
       await tester.pump(const Duration(milliseconds: 400));
@@ -232,7 +239,7 @@ void main() {
       final middle = tester.getCenter(_nav('Contacts')).dx;
       // On a computer the pill rests at the smaller size, as Ghost.md's desktop dock does (Matt, 2026-11-15: "just like
       // ghost markdown does match the sizes"), held to the foot's middle.
-      expect(tester.widget<ScaleTransition>(find.byKey(const ValueKey('pill-scale'))).scale.value, closeTo(pillScrolledScale, 0.001));
+      expect(tester.widget<Transform>(find.descendant(of: find.byKey(const ValueKey('pill-scale')), matching: find.byType(Transform)).first).transform.storage[0], closeTo(pillScrolledScale, 0.001));
       expect(first, lessThan(90));
       expect(last, greaterThan(250));
       expect(middle, closeTo((first + last) / 2, 0.6));

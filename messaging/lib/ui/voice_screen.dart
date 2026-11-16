@@ -22,6 +22,7 @@ import 'nav_bar.dart';
 import 'ripple_avatar.dart';
 import 'hangout_screen.dart';
 import 'space_designs/space_design.dart';
+import 'space_invite.dart';
 
 /// Voice channels (Matt, 2026-11-14: "always open voice channels that you can jump in and out at any time and you can
 /// see who's connected and also toggle video on and off"): each channel with who is in it, a press to hop in, and,
@@ -56,7 +57,7 @@ class VoiceScreen extends StatelessWidget {
             title: s.channel.name,
             actions: [
               // A hangout's, not a group's: a group's channel is its members' alone.
-              if (s.channel.group == null) IconTap(icon: Lucide.link, label: 'Copy invite link', onPressed: () => copyInvite(context, s.channel)),
+              if (s.channel.group == null) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, s.channel)),
             ],
             body: Stack(children: [
               ListView(
@@ -428,9 +429,9 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
     final v = Voice.instance;
     final c = await v.make(_name.text);
     final friends = [for (final f in Buddies.instance.friends) if (_with.contains(f.id)) f];
-    if (friends.isNotEmpty) await v.share(c, friends);
+    final missed = friends.isEmpty ? const <Buddy>[] : await v.share(c, friends);
     if (!mounted) return;
-    toast(context, friends.isEmpty ? '${c.name} made' : '${c.name} shared with ${friends.length}');
+    toast(context, friends.isEmpty ? '${c.name} made' : '${c.name} shared with ${friends.length - missed.length}${missed.isEmpty ? '' : '; couldn\'t reach ${missed.map((f) => f.shown).join(', ')}'}');
     // A call, started: in it at once, its page in this one's place.
     try {
       await v.join(c);
@@ -484,40 +485,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
   }
 }
 
-/// Shares a channel of yours with more friends.
-class ShareChannelScreen extends StatelessWidget {
-  const ShareChannelScreen({super.key, required this.channel});
-  final VoiceChannel channel;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final friends = Buddies.instance.friends;
-    return GhostPage(
-      title: 'Share ${channel.name}',
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8)),
-        children: [
-          PaneSection(children: [
-            if (friends.isEmpty) SettingRow(label: 'No friends added by username yet', disabled: true),
-            for (final f in friends)
-              SettingRow(
-                icon: AppIcon(Lucide.userRound, size: 18),
-                label: f.shown,
-                value: const Text('Share'),
-                onPress: () async {
-                  await Voice.instance.share(channel, [f]);
-                  if (context.mounted) toast(context, 'Shared with ${f.shown}');
-                },
-              ),
-          ]),
-        ],
-      ),
-    );
-  }
-}
-
-/// A group calling: shown over everything until joined or put away.
+/// A group calling, or a friend's invite into a space: shown over everything until joined or put away.
 class RingCard extends StatelessWidget {
   const RingCard({super.key});
 
@@ -543,18 +511,24 @@ class RingCard extends StatelessWidget {
                   child: Padding(
                     padding: EdgeInsets.all(t.space(3)),
                     child: Row(children: [
-                      AppIcon(LucideMore.phoneCall, size: 22, wash: false, color: t.color('app-paper')),
+                      AppIcon(r.invite ? Lucide.userPlus : LucideMore.phoneCall, size: 22, wash: false, color: t.color('app-paper')),
                       SizedBox(width: t.space(3)),
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                          Text(r.channel.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'bold', color: t.color('app-paper'))),
-                          Text('${r.from} is calling the group', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-paper'))),
+                          Text(r.invite ? '${r.from} invited you to ${r.channel.name}' : r.channel.name, maxLines: r.invite ? 2 : 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'bold', color: t.color('app-paper'))),
+                          Text(r.invite ? 'Now in your spaces' : '${r.from} is calling the group', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-paper'))),
                         ]),
                       ),
                       IconTap(icon: Lucide.x, label: 'Not now', color: t.color('app-paper'), onPressed: v.dismissRing),
                       SizedBox(width: t.space(1)),
                       GlacierPressable(
-                        onPressed: () => v.join(r.channel),
+                        onPressed: () async {
+                          try {
+                            await v.join(r.channel);
+                          } catch (e) {
+                            if (context.mounted) toast(context, 'Couldn\'t join: $e', tone: GlacierToastTone.danger);
+                          }
+                        },
                         semanticLabel: 'Join',
                         builder: (context, state) => Container(
                           padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(2)),

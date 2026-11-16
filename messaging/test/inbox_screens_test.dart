@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/gestures.dart' show TapGestureRecognizer;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,7 +9,9 @@ import 'package:ghost_messaging/inbox/bluesky.dart';
 import 'package:ghost_messaging/inbox/inbox.dart';
 import 'package:ghost_messaging/inbox/telegram.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
+import 'package:ghost_messaging/plugins/embeds.dart' show EmbedCard;
 import 'package:ghost_messaging/plugins/ui.dart' show MarkAllRead;
+import 'package:ghost_messaging/ui/thread.dart' show LinkedText;
 import 'package:ghost_messaging/ui/common.dart' show IconTap, clock;
 import 'package:ghost_messaging/ui/composer_box.dart';
 import 'package:ghost_messaging/ui/contacts.dart';
@@ -466,5 +469,38 @@ void main() {
     await settle(tester);
     expect(telegram.read, ['10']);
     expect(signal.read, ['s1']);
+  });
+
+  testWidgets('a link in a Signal or Telegram message is underlined, opens when pressed, and gets its card', (tester) async {
+    // Matt, 2026-11-16: "links are not expanding or clickable on telegram and signal chats".
+    final opened = <String>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async {
+      if (call.method == 'openLink') {
+        opened.add((call.arguments as Map)['url'] as String);
+        return true;
+      }
+      return null;
+    });
+    final sheet = await loadSheet(tester);
+    final at = now.subtract(const Duration(minutes: 5));
+    final signal = FakeNetwork('signal', 'Signal', [
+      InboxChat(network: 'signal', id: 's1', title: 'Ana', date: at, snippet: 'look'),
+    ], {
+      's1': [InboxMessage(id: '1', text: 'look at https://example.com/menu tonight', date: at, mine: false)],
+    });
+    await _shoot(tester, sheet, InboxChatScreen(network: signal, chatId: 's1'), 'x-inbox-link', dark: false);
+    expect(find.byType(LinkedText), findsOneWidget);
+    expect(find.byType(EmbedCard), findsOneWidget, reason: 'Link previews is on as the app ships');
+    // The press on the link: its span's recognizer, as a tap on those words runs it.
+    final rich = tester.widgetList<RichText>(find.descendant(of: find.byType(LinkedText), matching: find.byType(RichText))).first;
+    TapGestureRecognizer? tap;
+    rich.text.visitChildren((span) {
+      if (span is TextSpan && span.recognizer is TapGestureRecognizer) tap = span.recognizer as TapGestureRecognizer;
+      return tap == null;
+    });
+    expect(tap, isNotNull, reason: 'the link is pressable');
+    tap!.onTap!();
+    await tester.pump();
+    expect(opened.single, contains('example.com/menu'));
   });
 }

@@ -19,6 +19,7 @@ import '../hangout_screen.dart';
 import '../ripple_avatar.dart';
 import '../settings.dart';
 import '../shell.dart';
+import '../space_invite.dart';
 import '../voice_screen.dart';
 import 'discord.dart';
 import 'facetime.dart';
@@ -151,6 +152,10 @@ class SpaceCall {
     this.chatBuilder,
   });
 
+  /// Whether this device may invite people into [channel]'s call: never a group's (its members' alone, and it has no
+  /// [room]), and in a space with roles only where this device's role may invite.
+  static bool mayInvite(VoiceChannel channel, HangoutRoom? room) => channel.group == null && (room == null || room.can(Perm.invite));
+
   /// The call [Voice] is in, as it stands now; null when there is none. [minimize] puts the page away.
   static SpaceCall? live({VoidCallback? minimize}) {
     final v = Voice.instance;
@@ -204,7 +209,7 @@ class SpaceCall {
       onMinimize: minimize,
       onPerson: (context, p) => showPerson(context, s, p.id, p.name),
       onSettings: room == null ? null : (context) => push(context, (_) => RolesScreen(room: room, settings: true)),
-      onInvite: room != null && !room.can(Perm.invite) ? null : (context) => copyInvite(context, s.channel),
+      onInvite: mayInvite(s.channel, room) ? (context) => showSpaceInvite(context, s.channel) : null,
       onDevices: (context) => push(context, (_) => const SettingsSectionScreen('voice')),
       chatBuilder: room == null ? null : ({double bottom = 0}) => HangoutChat(room: room, bottom: bottom),
     );
