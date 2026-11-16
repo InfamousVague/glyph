@@ -172,6 +172,9 @@ void main() {
     final h = await SpaceHarness.load(tester);
     addTearDown(tester.view.reset);
     final semantics = tester.ensureSemantics();
+    // A tap that misses (a button covered or off the window) fails the test rather than warning.
+    WidgetController.hitTestWarningShouldBeFatal = true;
+    addTearDown(() => WidgetController.hitTestWarningShouldBeFatal = false);
     // Each window size, with no panel, then Participants, then Chat open: nothing may overflow.
     for (final size in const [Size(720, 800), Size(760, 800), Size(800, 800), Size(900, 800), Size(1000, 800), Size(1024, 800), Size(1100, 800), Size(1280, 800)]) {
       // A name of its own each time, so each size starts afresh (with no panel open).
@@ -180,6 +183,8 @@ void main() {
       await tester.tap(find.bySemanticsLabel('Participants'));
       await tester.pump();
       expect(tester.takeException(), isNull, reason: '$size, participants');
+      // Afresh again: where the panel lies over the meeting it covers the toolbar's Chat button.
+      await h.shoot(tester, ZoomCall(call: h.call()), 'space-zoom-check-size-${size.width.round()}-chat', size: size);
       await tester.tap(find.bySemanticsLabel('Chat').first);
       await tester.pump();
       expect(tester.takeException(), isNull, reason: '$size, chat');
