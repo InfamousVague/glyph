@@ -69,7 +69,8 @@ class _TelegramCallState extends State<TelegramCall> {
         color: _Tg.backdrop,
         child: LayoutBuilder(builder: (context, box) {
           final wide = box.maxWidth >= 760 && box.maxHeight >= 480;
-          final chat = _chat ?? wide;
+          // Docked beside the voice chat by default only where both fit at a comfortable width.
+          final chat = _chat ?? (wide && box.maxWidth >= 920);
           void toggleChat() => setState(() => _chat = !chat);
           if (wide) return _computer(context, call, box, chat, toggleChat);
           return _phone(context, call, media, chat, toggleChat);
@@ -119,12 +120,15 @@ class _TelegramCallState extends State<TelegramCall> {
           ),
           child: ClipRRect(borderRadius: radius, child: child),
         );
+    // The voice chat grows from 440 to 540 with the window, the chat beside it up to 440.
+    final voice = (box.maxWidth - 64 - (chat ? 16 + 360 : 0)).clamp(440.0, 540.0);
+    final side = math.min(440.0, box.maxWidth - voice - 80);
     return Center(
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        panel(440, ColoredBox(color: _Tg.sheet, child: _VoicePanel(call: call, chatOpen: chat, onChat: toggleChat, bottom: 0))),
+        panel(voice, ColoredBox(color: _Tg.sheet, child: _VoicePanel(call: call, chatOpen: chat, onChat: toggleChat, bottom: 0, compact: true))),
         if (chat) ...[
           const SizedBox(width: 16),
-          panel(math.min(420, box.maxWidth - 440 - 64), _ChatPanel(call: call, onClose: toggleChat, bottom: 0)),
+          panel(side, _ChatPanel(call: call, onClose: toggleChat, bottom: 0)),
         ],
       ]),
     );
@@ -133,12 +137,15 @@ class _TelegramCallState extends State<TelegramCall> {
 
 /// The voice chat itself: header, the people, the buttons. Holds the header's menu.
 class _VoicePanel extends StatefulWidget {
-  const _VoicePanel({required this.call, required this.chatOpen, required this.onChat, required this.bottom, this.grabber = false});
+  const _VoicePanel({required this.call, required this.chatOpen, required this.onChat, required this.bottom, this.grabber = false, this.compact = false});
   final SpaceCall call;
   final bool chatOpen;
   final VoidCallback onChat;
   final double bottom;
   final bool grabber;
+
+  /// Rows a little tighter, as on a computer's shorter panel.
+  final bool compact;
 
   @override
   State<_VoicePanel> createState() => _VoicePanelState();
@@ -155,16 +162,16 @@ class _VoicePanelState extends State<_VoicePanel> {
         if (widget.grabber) const _Grabber(),
         _Header(call: call, onMenu: () => setState(() => _menu = !_menu), menuOpen: _menu),
         Expanded(
-          // The list fades under the buttons rather than stopping at a line.
+          // The list fades under the buttons (over its last 20px) rather than stopping at a line.
           child: ShaderMask(
             blendMode: BlendMode.dstIn,
-            shaderCallback: (r) => const LinearGradient(
+            shaderCallback: (r) => LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0x00FFFFFF)],
-              stops: [0, 0.9, 1],
+              colors: const [Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0x00FFFFFF)],
+              stops: [0, r.height <= 40 ? 0.5 : 1 - 20 / r.height, 1],
             ).createShader(r),
-            child: _People(call: call),
+            child: _People(call: call, compact: widget.compact),
           ),
         ),
         _Controls(call: call, chatOpen: widget.chatOpen, onChat: widget.onChat, bottom: widget.bottom),
@@ -182,12 +189,13 @@ class _VoicePanelState extends State<_VoicePanel> {
 }
 
 class _Grabber extends StatelessWidget {
-  const _Grabber();
+  const _Grabber({this.color = const Color(0x33FFFFFF)});
+  final Color color;
 
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(top: 8, bottom: 2),
-        child: Container(width: 36, height: 4, decoration: BoxDecoration(color: const Color(0x33FFFFFF), borderRadius: BorderRadius.circular(2))),
+        child: Container(width: 36, height: 4, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
       );
 }
 
@@ -215,20 +223,26 @@ class _Header extends StatelessWidget {
             Text('$name · $n ${n == 1 ? 'participant' : 'participants'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: _Tg.ink2)),
           ]),
         ),
-        _IconButton(icon: Lucide.ellipsisVertical, label: 'More: invite, devices, settings', onPressed: onMenu, on: menuOpen),
+        _IconButton(icon: Lucide.ellipsisVertical, label: _menuLabel, onPressed: onMenu, on: menuOpen),
         const SizedBox(width: 10),
       ]),
     );
   }
 }
 
+/// The header menu's words for a screen reader: what it holds.
+final _menuLabel = 'More: ${[SpaceWords.invite, SpaceWords.devices, SpaceWords.settings, SpaceWords.leave].join(', ').toLowerCase()}';
+
 /// A round icon in the header, its words for a screen reader.
 class _IconButton extends StatelessWidget {
-  const _IconButton({required this.icon, required this.label, required this.onPressed, this.on = false});
+  const _IconButton({required this.icon, required this.label, required this.onPressed, this.on = false, this.ink});
   final LucideIcon icon;
   final String label;
   final VoidCallback? onPressed;
   final bool on;
+
+  /// The icon's colour on a light ground (its circle a wash of it); white on the navy otherwise.
+  final Color? ink;
 
   @override
   Widget build(BuildContext context) => Opacity(
@@ -239,9 +253,9 @@ class _IconButton extends StatelessWidget {
           builder: (context, state) => Container(
             width: 38,
             height: 38,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: on || state.hovered ? const Color(0x24FFFFFF) : const Color(0x14FFFFFF)),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: (ink ?? _Tg.ink).withValues(alpha: on || state.hovered ? 0.14 : 0.08)),
             alignment: Alignment.center,
-            child: AppIcon(icon, size: 20, wash: false, color: _Tg.ink),
+            child: AppIcon(icon, size: 20, wash: false, color: ink ?? _Tg.ink),
           ),
         ),
       );
@@ -329,8 +343,9 @@ class _MenuRow extends StatelessWidget {
 
 /// Video tiles two across, "Invite members", then everyone in a list.
 class _People extends StatelessWidget {
-  const _People({required this.call});
+  const _People({required this.call, this.compact = false});
   final SpaceCall call;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -338,11 +353,17 @@ class _People extends StatelessWidget {
     final videos = call.withVideo;
     final alone = call.others.isEmpty;
     final roster = call.room?.roster;
-    return ListView(
+    final rowPad = compact ? 7.0 : 10.0;
+    return LayoutBuilder(builder: (context, box) {
+      // The video gives way to the list: its tiles shrink (to no less than 84 a row) so everyone in the call fits
+      // under them where the panel is short.
+      final list = 48 + call.people.length * (46 + rowPad * 2 + 1) + 16 + 12;
+      final room = box.maxHeight - list;
+      return ListView(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
       children: [
         if (videos.isNotEmpty) ...[
-          _VideoGrid(call: call, people: videos),
+          _VideoGrid(call: call, people: videos, room: room),
           const SizedBox(height: 12),
         ],
         Container(
@@ -352,7 +373,7 @@ class _People extends StatelessWidget {
             _InviteRow(onPressed: call.onInvite == null ? null : () => call.onInvite!(context)),
             for (final p in call.people) ...[
               Container(height: 1, margin: const EdgeInsets.only(left: 72), color: _Tg.rule),
-              _PersonRow(call: call, person: p, role: p.roleLabel(roster)),
+              _PersonRow(call: call, person: p, role: p.roleLabel(roster), pad: rowPad),
             ],
           ]),
         ),
@@ -378,6 +399,7 @@ class _People extends StatelessWidget {
         ],
       ],
     );
+    });
   }
 }
 
@@ -415,10 +437,11 @@ class _InviteRow extends StatelessWidget {
 }
 
 class _PersonRow extends StatelessWidget {
-  const _PersonRow({required this.call, required this.person, required this.role});
+  const _PersonRow({required this.call, required this.person, required this.role, this.pad = 10});
   final SpaceCall call;
   final SpacePerson person;
   final String? role;
+  final double pad;
 
   @override
   Widget build(BuildContext context) {
@@ -435,7 +458,7 @@ class _PersonRow extends StatelessWidget {
           final level = p.muted ? 0.0 : (now[p.id] ?? 0);
           return Container(
             color: state.hovered || state.pressed ? const Color(0x0CFFFFFF) : null,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: EdgeInsets.symmetric(horizontal: 14, vertical: pad),
             child: Row(children: [
               _Face(key: ValueKey('tg-face-${p.id}'), name: p.me ? (p.name.isEmpty ? 'You' : p.name) : p.name, level: level, size: 46),
               const SizedBox(width: 12),
@@ -505,15 +528,31 @@ class _Face extends StatefulWidget {
 }
 
 class _FaceState extends State<_Face> with SingleTickerProviderStateMixin {
-  late final AnimationController _time = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400));
+  late final AnimationController _time = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400))..addListener(_step);
   double _strength = 0;
+  Duration _last = Duration.zero;
 
   bool get _talking => widget.level > SpaceCall.talking;
+  double get _want => _talking ? (0.4 + widget.level * 1.5).clamp(0.0, 1.0) : 0.0;
 
   @override
   void initState() {
     super.initState();
     _follow();
+  }
+
+  /// Eases the blob toward the voice once a tick, by the time since the last (so it is the same at any frame rate);
+  /// stops the clock once a quiet blob has gone.
+  void _step() {
+    final now = _time.lastElapsedDuration ?? Duration.zero;
+    final dt = now < _last ? 0.0 : (now - _last).inMicroseconds / 1e6;
+    _last = now;
+    final want = _want;
+    _strength += (want - _strength) * _ease(want > _strength ? 0.3 : 0.08, dt);
+    if (want == 0 && _strength < 0.02) {
+      _strength = 0;
+      _time.stop();
+    }
   }
 
   @override
@@ -523,8 +562,10 @@ class _FaceState extends State<_Face> with SingleTickerProviderStateMixin {
   }
 
   void _follow() {
-    if (_talking && !_time.isAnimating) _time.repeat();
-    if (!_talking && _strength < 0.02 && _time.isAnimating) _time.stop();
+    if (_talking && !_time.isAnimating) {
+      _last = Duration.zero;
+      _time.repeat();
+    }
   }
 
   @override
@@ -536,7 +577,6 @@ class _FaceState extends State<_Face> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final want = _talking ? (0.4 + widget.level * 1.5).clamp(0.0, 1.0) : 0.0;
     final colors = _Tg.faces[widget.name.codeUnits.fold<int>(0, (a, b) => a + b) % _Tg.faces.length];
     final words = widget.name.replaceAll('@', '').trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
     final letters = words.isEmpty ? '?' : (words.first.characters.first + (words.length > 1 ? words[1].characters.first : '')).toUpperCase();
@@ -545,8 +585,6 @@ class _FaceState extends State<_Face> with SingleTickerProviderStateMixin {
       child: AnimatedBuilder(
         animation: _time,
         builder: (context, _) {
-          _strength += (want - _strength) * (want > _strength ? 0.3 : 0.08);
-          if (_strength < 0.02 && want == 0 && _time.isAnimating) WidgetsBinding.instance.addPostFrameCallback((_) => mounted ? _follow() : null);
           return CustomPaint(
             painter: _Blob(time: _time.value, strength: _strength, color: const Color(0xFF6FF0B4), second: _Tg.blue, radius: widget.size / 2, spread: 0.32),
             child: Container(
@@ -563,6 +601,9 @@ class _FaceState extends State<_Face> with SingleTickerProviderStateMixin {
     );
   }
 }
+
+/// The share of the way to close in [dt] seconds for an easing that closes [perFrame] of it each 60th of a second.
+double _ease(double perFrame, double dt) => 1 - math.pow(1 - perFrame, dt * 60).toDouble();
 
 /// A soft, wobbling blob of colour behind a circle of [radius]: two layers, the outer fainter, growing with
 /// [strength] (0 to 1). Telegram's speaking avatars and its big microphone button wear one.
@@ -609,21 +650,28 @@ class _Blob extends CustomPainter {
 
 /// Everyone with video on, two across (one alone, or the last of an odd number, across the whole width).
 class _VideoGrid extends StatelessWidget {
-  const _VideoGrid({required this.call, required this.people});
+  const _VideoGrid({required this.call, required this.people, required this.room});
   final SpaceCall call;
   final List<SpacePerson> people;
+
+  /// The height the list leaves for the grid; its rows shrink to fit it, to no less than 84 each.
+  final double room;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, box) {
       const gap = 8.0;
       final half = (box.maxWidth - gap) / 2;
+      final rows = (people.length + 1) ~/ 2;
+      final fit = math.max(84.0, (room - gap * (rows - 1)) / rows);
+      final pair = math.min(half * 0.82, fit);
+      final wide = math.min(math.min(box.maxWidth * 9 / 16, 200.0), fit);
       return Wrap(spacing: gap, runSpacing: gap, children: [
         for (var i = 0; i < people.length; i++)
           if (people.length.isOdd && i == people.length - 1)
-            SizedBox(width: box.maxWidth, height: math.min(box.maxWidth * 9 / 16, 200), child: _VideoTile(call: call, person: people[i]))
+            SizedBox(width: box.maxWidth, height: wide, child: _VideoTile(call: call, person: people[i]))
           else
-            SizedBox(width: half, height: half * 0.82, child: _VideoTile(call: call, person: people[i])),
+            SizedBox(width: half, height: pair, child: _VideoTile(call: call, person: people[i])),
       ]);
     });
   }
@@ -765,8 +813,23 @@ class _MicButton extends StatefulWidget {
 }
 
 class _MicButtonState extends State<_MicButton> with SingleTickerProviderStateMixin {
-  late final AnimationController _time = AnimationController(vsync: this, duration: const Duration(milliseconds: 3200))..repeat();
+  late final AnimationController _time = AnimationController(vsync: this, duration: const Duration(milliseconds: 3200))
+    ..addListener(_step)
+    ..repeat();
   double _strength = 0.3;
+  Duration _last = Duration.zero;
+
+  /// Always breathing a little; swelling with your voice while live. Eased once a tick, by the time since the last.
+  void _step() {
+    final call = widget.call;
+    final live = !call.muted && !call.deafened && !call.micLocked;
+    final level = live ? (call.levels.value['me'] ?? 0) : 0.0;
+    final want = live && level > SpaceCall.talking ? (0.55 + level * 1.2).clamp(0.0, 1.0) : (live ? 0.35 : 0.22);
+    final now = _time.lastElapsedDuration ?? Duration.zero;
+    final dt = now < _last ? 0.0 : (now - _last).inMicroseconds / 1e6;
+    _last = now;
+    _strength += (want - _strength) * _ease(0.12, dt);
+  }
 
   @override
   void dispose() {
@@ -780,6 +843,8 @@ class _MicButtonState extends State<_MicButton> with SingleTickerProviderStateMi
     final call = widget.call;
     final locked = call.micLocked;
     final live = !call.muted && !call.deafened && !locked;
+    // Deafened, the button undeafens: hearing comes back first (and your voice with it, unless you muted too).
+    final deaf = call.deafened && !locked;
     const size = 96.0;
     return ValueListenableBuilder<Map<String, double>>(
       valueListenable: call.levels,
@@ -793,11 +858,11 @@ class _MicButtonState extends State<_MicButton> with SingleTickerProviderStateMi
                 : speaking
                     ? const [_Tg.green, _Tg.greenDeep]
                     : const [Color(0xFF5BB0FF), _Tg.blueDeep];
-        final title = locked ? 'Muted by a moderator' : (live ? 'You\'re live' : 'Unmute');
-        final hint = locked ? 'You can listen' : (live ? 'Tap to mute' : 'Tap to speak');
+        final title = locked ? 'Muted by a moderator' : (deaf ? SpaceWords.deafen(call) : (live ? 'You\'re live' : 'Unmute'));
+        final hint = locked ? 'You can listen' : (deaf ? (call.muted ? 'Tap to listen' : 'Tap to listen and speak') : (live ? 'Tap to mute' : 'Tap to speak'));
         return GlacierPressable(
-          onPressed: locked ? null : call.onMute,
-          semanticLabel: locked ? title : SpaceWords.mute(call),
+          onPressed: locked ? null : (deaf ? call.onDeafen : call.onMute),
+          semanticLabel: locked || deaf ? title : SpaceWords.mute(call),
           builder: (context, state) => Column(mainAxisSize: MainAxisSize.min, children: [
             SizedBox(
               height: 118,
@@ -805,9 +870,6 @@ class _MicButtonState extends State<_MicButton> with SingleTickerProviderStateMi
                 child: AnimatedBuilder(
                   animation: _time,
                   builder: (context, child) {
-                    // Always breathing a little; swelling with your voice while live.
-                    final want = speaking ? (0.55 + level * 1.2).clamp(0.0, 1.0) : (live ? 0.35 : 0.22);
-                    _strength += (want - _strength) * 0.12;
                     return CustomPaint(
                       painter: _Blob(time: _time.value, strength: _strength, color: colors.first, second: colors.last, radius: size / 2, spread: 0.24),
                       child: child,
@@ -826,7 +888,7 @@ class _MicButtonState extends State<_MicButton> with SingleTickerProviderStateMi
                         boxShadow: [BoxShadow(color: colors.last.withValues(alpha: 0.4), blurRadius: 24)],
                       ),
                       alignment: Alignment.center,
-                      child: AppIcon(live ? Lucide.mic : LucideMore.micOff, size: 38, wash: false, color: _Tg.ink),
+                      child: AppIcon(deaf ? LucideMore.headphoneOff : (live ? Lucide.mic : LucideMore.micOff), size: 38, wash: false, color: _Tg.ink),
                     ),
                   ),
                 ),
@@ -854,27 +916,36 @@ class _ChatPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final name = call.channel.name.isEmpty ? 'Space' : call.channel.name;
-    final paper = t.color('glacier-bg');
+    // The app's chat (its bubbles, its composer) is drawn from the app's theme, so the panel round it follows that
+    // theme too: on the voice chat's navy in dark, and in light one light sheet, header and body alike, rather than a
+    // navy header over a white body.
+    final dark = t.isDark;
+    final paper = dark ? _Tg.chat : t.color('glacier-bg');
+    final ink = dark ? _Tg.ink : t.color('app-ink');
+    final ink2 = dark ? _Tg.ink2 : t.color('app-ink-3');
     return ColoredBox(
-      color: paper.computeLuminance() < 0.1 ? _Tg.chat : paper,
+      color: paper,
       child: Column(children: [
         Container(
-          color: _Tg.sheet,
+          decoration: BoxDecoration(
+            color: dark ? _Tg.sheet : paper,
+            border: dark ? null : Border(bottom: BorderSide(color: t.color('app-ink-4').withValues(alpha: 0.35))),
+          ),
           child: Column(children: [
-            if (grabber) const _Grabber(),
+            if (grabber) _Grabber(color: dark ? const Color(0x33FFFFFF) : t.color('app-ink-4')),
             SizedBox(
               height: 56,
               child: Row(children: [
                 const SizedBox(width: 16),
-                const AppIcon(LucideMore.messageCircle, size: 20, wash: false, color: _Tg.blue),
+                AppIcon(LucideMore.messageCircle, size: 20, wash: false, color: dark ? _Tg.blue : _Tg.blueDeep),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Text(SpaceWords.chat, maxLines: 1, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: _Tg.ink)),
-                    Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: _Tg.ink2)),
+                    Text(SpaceWords.chat, maxLines: 1, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: ink)),
+                    Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: ink2)),
                   ]),
                 ),
-                _IconButton(icon: Lucide.x, label: 'Close chat', onPressed: onClose),
+                _IconButton(icon: Lucide.x, label: 'Close chat', onPressed: onClose, ink: dark ? null : ink),
                 const SizedBox(width: 10),
               ]),
             ),

@@ -52,11 +52,11 @@ void main() {
     await tap('Minimise');
     await tap('Invite members');
     await tap('Maya Chen');
-    await tap('More: invite, devices, settings');
+    await tap('More: invite, devices, settings, leave');
     await tap('Settings');
-    await tap('More: invite, devices, settings');
+    await tap('More: invite, devices, settings, leave');
     await tap('Devices');
-    await tap('More: invite, devices, settings');
+    await tap('More: invite, devices, settings, leave');
     await tap('Invite');
     expect(log, ['mute', 'video', 'deafen', 'leave', 'minimize', 'invite', 'person a', 'settings', 'devices', 'invite']);
 
@@ -79,6 +79,29 @@ void main() {
     await tester.tap(find.text('Muted by a moderator'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(log, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    semantics.dispose();
+  });
+
+  testWidgets('deafened, the big button undeafens rather than muting you', (tester) async {
+    final h = await SpaceHarness.load(tester);
+    addTearDown(tester.view.reset);
+    final semantics = tester.ensureSemantics();
+    final log = <String>[];
+    await h.shoot(tester, TelegramCall(call: h.call(log: log, deafened: true)), 'space-telegram-deafened');
+    expect(find.text('Undeafen'), findsWidgets);
+    expect(find.text('Tap to listen and speak'), findsOneWidget);
+    expect(find.text('Unmute'), findsNothing);
+    await tester.tap(find.text('Tap to listen and speak'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(log, ['deafen']);
+    // The words a screen reader hears are the ones on the button.
+    expect(find.bySemanticsLabel('Undeafen'), findsNWidgets(2));
+    expect(find.bySemanticsLabel('Mute'), findsNothing);
+
+    // Muted as well, undeafening brings back hearing only, and says so.
+    await h.shoot(tester, TelegramCall(call: h.call(log: log, deafened: true, muted: true)), 'space-telegram-deafened-muted');
+    expect(find.text('Tap to listen'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     semantics.dispose();
   });
