@@ -58,6 +58,24 @@ void main() {
     expect(quoteMatches('Hello', 'Hello there'), isFalse);
   });
 
+  // Google Messages quotes a message without its emoji (Matt, 2026-11-15: "Reactions are not being properly parsed on
+  // the RCS version").
+  test('quoteMatches: a quote without the emoji the message has', () {
+    expect(quoteMatches('Lmao i knew we had two!', 'Lmao i knew we had two! 😂'), isTrue);
+    expect(quoteMatches('On my way', '🚗 On my way 💨'), isTrue);
+    expect(quoteMatches('Lmao', 'Lmao i knew we had two! 😂'), isFalse);
+    expect(quoteMatches('😂', '😂😂'), isFalse, reason: 'emoji alone are not matched with the emoji left out');
+  });
+
+  test('foldReactions: the RCS reaction from the screenshot hangs on its message', () {
+    final f = foldReactions([
+      _m(3, '😂 to “Lmao i knew we had two!”', minute: 3),
+      _m(2, 'Lmao i knew we had two! 😂', out: true, minute: 2),
+    ]);
+    expect(f.messages.map((m) => m.body), ['Lmao i knew we had two! 😂']);
+    expect(f.reactions.values.single.single.emoji, '😂');
+  });
+
   group('foldReactions', () {
     test('a reaction hangs on its message and its bubble goes', () {
       final msgs = [

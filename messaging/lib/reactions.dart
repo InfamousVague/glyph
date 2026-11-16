@@ -131,19 +131,29 @@ String _norm(String s) => s
     .trim()
     .toLowerCase();
 
-/// Whether [body] is the message [quote] names: the same text, or its start when the quote was cut short.
+/// [s] without its emoji: Google Messages quotes a message without them (Matt, 2026-11-15, of `😂 to "Lmao i knew we
+/// had two!"` left as a bubble under "Lmao i knew we had two! 😂": "Reactions are not being properly parsed on the RCS
+/// version").
+String _bare(String s) => String.fromCharCodes(s.runes.where((r) => !isEmojiRun(String.fromCharCode(r))));
+
+/// Whether [body] is the message [quote] names: the same text, or its start when the quote was cut short; and the
+/// same again with the emoji left out of both, where any words are left.
 bool quoteMatches(String quote, String body) {
-  final q = _norm(quote);
-  final b = _norm(body);
-  if (q.isEmpty || b.isEmpty) return false;
-  if (q == b) return true;
-  for (final cut in const ['…', '...']) {
-    if (q.endsWith(cut)) {
-      final head = q.substring(0, q.length - cut.length).trim();
-      if (head.length >= 3 && b.startsWith(head)) return true;
+  bool same(String q, String b) {
+    if (q.isEmpty || b.isEmpty) return false;
+    if (q == b) return true;
+    for (final cut in const ['…', '...']) {
+      if (q.endsWith(cut)) {
+        final head = q.substring(0, q.length - cut.length).trim();
+        if (head.length >= 3 && b.startsWith(head)) return true;
+      }
     }
+    return false;
   }
-  return false;
+
+  if (same(_norm(quote), _norm(body))) return true;
+  final q = _norm(_bare(quote)), b = _norm(_bare(body));
+  return q.length >= 2 && same(q, b);
 }
 
 /// One person's reaction on a message. [by] is their number, or '' for you.
