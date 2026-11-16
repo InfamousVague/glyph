@@ -159,10 +159,18 @@ object GmWeb {
         val conv = c.getString("id")
         val ps = c.optJSONArray("people") ?: JSONArray()
         val addresses = ArrayList<String>()
+        // You are among a conversation's people, not always marked as you (Matt, 2026-11-15: "i see two chats for
+        // message DMs one in the nromal layout that just shows the person I'm texting then one that is the person and
+        // me in a group"): known also as the one the conversation sends from, and by this phone's own numbers.
+        val outgoing = c.optString("outgoing")
+        val store = Store(app)
+        val own = try { store.ownNumbers() } catch (_: Exception) { emptySet() }
         for (i in 0 until ps.length()) {
             val p = ps.getJSONObject(i)
             people["$conv/${p.optString("id")}"] = p
-            if (!p.optBoolean("me")) p.optString("number").takeIf { it.isNotBlank() }?.let { addresses += it }
+            val number = p.optString("number")
+            val me = p.optBoolean("me") || (outgoing.isNotEmpty() && p.optString("id") == outgoing) || (number.isNotBlank() && store.isOwn(number, own))
+            if (!me && number.isNotBlank() && addresses.none { Store.sameNumber(it, number) }) addresses += number
         }
         val group = c.optBoolean("group")
         val title = c.optString("name").ifBlank { null }
