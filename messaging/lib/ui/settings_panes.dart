@@ -321,7 +321,7 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
     ]),
     PaneSection(
       title: 'Bubbles',
-      footer: Text('The colour of your own bubbles in every conversation. Ghost is Ghost Keyboard\'s teal, Ink is the page\'s own black and white${palette ? ', and Wallpaper is the accent Android takes from this phone\'s wallpaper' : ''}. A conversation can have a colour of its own, from the cog at its top.'),
+      footer: Text('The colour of your own bubbles in every conversation. Ghost is Ghost Keyboard\'s teal, Ink is the page\'s own black and white${palette ? ', and Wallpaper is the accent Android takes from this phone\'s wallpaper' : ''}. A conversation can have a colour of its own, from the cog at its top.${Sms.remote ? '' : ' Ghost Keyboard offers the same colours for its enter key and keeps in step: choose one here or there and both change.'}'),
       children: [
         SettingRow(
           icon: _icon(Lucide.messageSquare),

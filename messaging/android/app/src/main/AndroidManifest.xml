@@ -209,6 +209,12 @@
             android:authorities="${applicationId}.codes"
             android:exported="true" />
 
+        <!-- Your bubbles' colour, for Ghost Keyboard alone, to keep the two in step (AccentSync.kt). -->
+        <provider
+            android:name=".AccentProvider"
+            android:authorities="${applicationId}.accent"
+            android:exported="true" />
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
@@ -217,6 +223,8 @@
     <queries>
         <!-- Ghost Keyboard, so Settings can say whether it is on this phone. -->
         <package android:name="com.infamousvague.devkeyboard" />
+        <!-- Its colour, kept in step with your bubbles' (AccentSync.kt). -->
+        <provider android:authorities="com.infamousvague.devkeyboard.accent" />
         <!-- The texting apps people come from (Arriving.kt): whether one is on the phone, its name, and its settings
              page, to say what to turn off there before switching. -->
         <package android:name="com.google.android.apps.messaging" />
