@@ -200,6 +200,8 @@ object GmWeb {
             val p = media.getJSONObject(i)
             val id = partId(p.getString("id"))
             db.keepPart(id, p.getString("id"), p.optString("key"), p.optString("mime"), p.optString("name").ifBlank { null })
+            // Your own, just sent from here: its preview is the file sent, whatever Google Messages names it.
+            if (out) claimSent(conv, id, p.optString("mime").ifBlank { null })
             parts.put(JSONObject().put("id", id).put("type", p.optString("mime")).put("name", p.optString("name")))
         }
         val reactions = m.optJSONArray("reactions")?.let { r -> (0 until r.length()).mapNotNull { r.getJSONObject(it).optString("emoji").ifBlank { null } }.joinToString(" ") }?.ifBlank { null }
@@ -246,6 +248,31 @@ object GmWeb {
     /** Whether [conv] is one this connection knows: what is sent to it goes this way. */
     fun knows(conv: String) = connected && threads.containsKey(conv)
 
+    /** Files being sent from here to each conversation, oldest first, until Google Messages tells of their message. */
+    private val sending = ConcurrentHashMap<String, MutableList<Pair<File, Long>>>()
+
+    /**
+     * Gives the picture [id] of your message in [conv] the file sent from here, where none is kept for it yet (Matt,
+     * 2026-11-16: "the preview of the image I sent never loads"). Google Messages can tell of the message before the
+     * send has answered, and may name its picture otherwise than the upload was named; the file is then not where
+     * [file] looks, and bringing your own picture down from Google does not always work.
+     */
+    private fun claimSent(conv: String, id: Long, mime: String?) {
+        val dir = File(app.cacheDir, "gmmedia")
+        if (dir.listFiles { x -> x.nameWithoutExtension == "$id" && x.length() > 0 }?.isNotEmpty() == true) return
+        val queue = sending[conv] ?: return
+        val now = System.currentTimeMillis()
+        val next = synchronized(queue) {
+            queue.removeAll { now - it.second > 5 * 60_000 }
+            if (queue.isEmpty()) null else queue.removeAt(0)
+        } ?: return
+        try {
+            val ending = android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: next.first.extension.ifBlank { "bin" }
+            dir.mkdirs()
+            next.first.copyTo(File(dir, "$id.$ending"), overwrite = true)
+        } catch (e: Exception) { DevLog.add(app, "gmweb", "sent copy: ${e.message}") }
+    }
+
     /** A sent file, kept as the picture Google Messages names [media]: where [file] would bring it down to. */
     private fun keepSent(media: String, mime: String?, from: File) {
         try {
@@ -261,6 +288,10 @@ object GmWeb {
         else {
             for ((i, f) in files.withIndex()) {
                 val (path, mime, name) = f
+                // Waiting for its message, which may come before the send answers (claimSent).
+                val queue = sending.getOrPut(conv) { mutableListOf() }
+                val entry = File(path) to System.currentTimeMillis()
+                synchronized(queue) { queue.add(entry) }
                 val r = ask("send_media", mapOf("conv" to conv, "path" to path, "mime" to mime, "name" to name, "text" to if (i == files.lastIndex) text else ""), seconds = 180)
                 // Your own picture or video, as its preview: this phone's copy kept where the download would have put it
                 // (Matt, 2026-11-15: "Outbound picture and video messages are not loading the preview").
