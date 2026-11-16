@@ -203,4 +203,28 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     semantics.dispose();
   });
+
+  // Matt, 2026-11-16: "the chatbar doesn't move up when in the chat section of a space".
+  testWidgets('on a phone the chat\'s message bar stands above the keyboard', (tester) async {
+    final h = await SpaceHarness.load(tester);
+    addTearDown(tester.view.reset);
+    await h.shoot(tester, TelegramCall(call: h.call()), 'space-telegram-chat-closed');
+    await tester.tap(find.bySemanticsLabel('Chat'));
+    await h.again(tester, 'space-telegram-chat');
+    final field = find.byType(EditableText);
+    expect(field, findsOneWidget);
+    final before = tester.getRect(field).bottom;
+    // A keyboard 300 high comes up (the view's insets, in device pixels).
+    tester.view.viewInsets = const FakeViewPadding(bottom: 600);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    final after = tester.getRect(field).bottom;
+    expect(after, lessThanOrEqualTo(SpaceHarness.phone.height - 300), reason: 'above the keyboard');
+    expect(after, greaterThan(SpaceHarness.phone.height - 300 - 80), reason: 'just above it, not far up');
+    expect(after, lessThan(before));
+    tester.view.resetViewInsets();
+    await tester.pump();
+    expect(tester.getRect(field).bottom, closeTo(before, 1), reason: 'back down when it goes');
+    await tester.pumpWidget(const SizedBox());
+  });
 }

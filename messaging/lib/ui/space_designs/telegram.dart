@@ -62,6 +62,11 @@ class _TelegramCallState extends State<TelegramCall> {
     final t = context.tokens;
     final pad = media.padding;
     final top = BorderRadius.vertical(top: Radius.circular(t.radius('xl')));
+    // Typing, the message bar stands just above the keyboard (Matt, 2026-11-16: "the chatbar doesn't move up when in
+    // the chat section of a space"). The chat adds the screen's own foot to what it is given, so the keyboard's height
+    // less that foot puts the bar on the keyboard; without a keyboard, room for the foot as before.
+    final keyboard = media.viewInsets.bottom;
+    final chatBottom = keyboard > 0 ? math.max(1.0, keyboard - pad.bottom) : pad.bottom;
     return ColoredBox(
       color: t.color('app-paper-2'),
       child: Stack(children: [
@@ -80,7 +85,7 @@ class _TelegramCallState extends State<TelegramCall> {
             top: pad.top + t.space(2) + 58 + t.space(1),
             child: ClipRRect(
               borderRadius: top,
-              child: _ChatPanel(call: call, onClose: toggleChat, bottom: pad.bottom),
+              child: _ChatPanel(call: call, onClose: toggleChat, bottom: chatBottom),
             ),
           ),
         ],
