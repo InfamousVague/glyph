@@ -133,18 +133,34 @@ object Voice {
         listener?.invoke(mapOf("type" to "voice", "part" to playingPart, "position" to position, "duration" to duration, "playing" to playing))
     }
 
+    /**
+     * Where the audio part [part] is: an MMS part, or, for one from Google Messages' connection (GmWeb), a file in the
+     * cache it is brought down to first. Blocks for that: never on the main thread.
+     */
+    private fun source(context: Context, part: Long): Uri? =
+        if (GmWeb.isPart(part)) GmWeb.file(context, part)?.let { Uri.fromFile(it) } else Uri.parse("content://mms/part/$part")
+
     /** Plays the audio part [part] of a picture message from its start (or goes on, if it was paused); stops any other. */
-    fun play(context: Context, part: Long) = main.post {
+    fun play(context: Context, part: Long) {
+        if (GmWeb.isPart(part) && playingPart != part) {
+            // From Google Messages' connection: brought down first, off the main thread, then played.
+            Thread { val uri = source(context, part); main.post { playFrom(context, part, uri) } }.start()
+            return
+        }
+        main.post { playFrom(context, part, if (GmWeb.isPart(part)) null else Uri.parse("content://mms/part/$part")) }
+    }
+
+    private fun playFrom(context: Context, part: Long, uri: Uri?) {
         val had = player
         if (had != null && playingPart == part) {
             try { had.start() } catch (_: Exception) {}
             main.removeCallbacks(tick); main.post(tick)
-            return@post
+            return
         }
         halt()
         try {
             val p = MediaPlayer()
-            p.setDataSource(context.applicationContext, Uri.parse("content://mms/part/$part"))
+            p.setDataSource(context.applicationContext, uri ?: throw IllegalStateException("the audio could not be brought down"))
             p.setOnCompletionListener {
                 say(playing = false, ended = true)
                 halt()
@@ -181,7 +197,7 @@ object Voice {
     fun length(context: Context, part: Long): Long {
         val m = MediaMetadataRetriever()
         return try {
-            m.setDataSource(context.applicationContext, Uri.parse("content://mms/part/$part"))
+            m.setDataSource(context.applicationContext, source(context, part) ?: return 0L)
             m.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
         } catch (_: Exception) { 0L } finally { try { m.release() } catch (_: Exception) {} }
     }
