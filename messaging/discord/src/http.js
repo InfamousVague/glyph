@@ -3,6 +3,8 @@
 //
 //   POST /discord/claim   {"code":"ABC123"} -> {token, guild}       (404 unknown code, 429 too many tries)
 //   GET  /discord/state?token=<token>       -> {guild, channels, at} (401 not linked, 410 gone)
+//   POST /discord/voice/join {"token","channel"} -> {seed, name, guild, channel, bridge}
+//                                           (401 not linked, 404 unknown channel, 410 gone, 403 no permission)
 //   GET  /discord/invite                    -> {url}
 //   GET  /discord/                          -> {ok: true}            (the deploy's health check)
 //
@@ -11,7 +13,22 @@ import { buildState, guildInfo } from './state.js';
 import { RateLimit } from './ratelimit.js';
 
 export const MAX_BODY = 4 * 1024;
-export const inviteUrl = (appId) => `https://discord.com/oauth2/authorize?client_id=${appId}&scope=bot%20applications.commands&permissions=1024`;
+
+/** The bot's permissions, by Discord's names for them (the bits are Discord's: discord.js's PermissionFlagsBits). */
+export const PERMISSIONS = {
+  ViewChannel: 1n << 10n,
+  SendMessages: 1n << 11n,
+  ReadMessageHistory: 1n << 16n,
+  Connect: 1n << 20n,
+  Speak: 1n << 21n,
+  UseVAD: 1n << 25n,
+  ChangeNickname: 1n << 26n,
+  ManageWebhooks: 1n << 29n,
+};
+/** What the invite asks for: everything the bridge uses, nothing else. */
+export const INVITE_PERMISSIONS = Object.values(PERMISSIONS).reduce((a, b) => a | b, 0n).toString();
+export const inviteUrl = (appId) => `https://discord.com/oauth2/authorize?client_id=${appId}&scope=bot%20applications.commands&permissions=${INVITE_PERMISSIONS}`;
+const SNOWFLAKE = /^\d{15,22}$/;
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -71,11 +88,60 @@ export function clientIp(req) {
 
 /**
  * The request handler. codes: Codes; store: TokenStore; guilds: { lookup(id, { members }) }; appId: for /invite.
- * log(message) gets counts and outcomes only, never a token, a code or a name.
+ * bridge (optional, null while the bridge is off): { channel(guild, channelId) -> { name, missing, full } | null,
+ * ensure(guildId, channelId) -> { seed, bridge } (throws { code: 'busy' | 'voice' | 'hub' }), bridged(guildId) -> Set }.
+ * log(message) gets counts and outcomes only, never a token, a code, a seed or a name.
  */
-export function createHandler({ codes, store, guilds, appId = null, now = Date.now, log = () => {}, perIp = 10, overall = 300 }) {
+export function createHandler({ codes, store, guilds, bridge = null, appId = null, now = Date.now, log = () => {}, perIp = 10, overall = 300, joinsPerIp = 30 }) {
   const ipLimit = new RateLimit({ limit: perIp, now });
   const allLimit = new RateLimit({ limit: overall, now });
+  const joinLimit = new RateLimit({ limit: joinsPerIp, now });
+
+  async function readJson(req, res) {
+    const raw = await readBody(req);
+    if (raw === null) {
+      send(res, 413, { error: 'too large' }, { Connection: 'close' });
+      return null;
+    }
+    try {
+      const body = JSON.parse(raw.toString('utf8'));
+      if (body && typeof body === 'object') return body;
+    } catch {}
+    send(res, 400, { error: 'bad json' });
+    return null;
+  }
+
+  async function voiceJoin(req, res) {
+    const ip = clientIp(req);
+    if (!joinLimit.hit(ip)) return send(res, 429, { error: 'slow down' }, { 'Retry-After': String(joinLimit.retryAfter(ip)) });
+    const body = await readJson(req, res);
+    if (!body) return;
+    const guildId = store.guildOf(typeof body.token === 'string' ? body.token : '');
+    if (!guildId) return send(res, 401, { error: 'not linked' });
+    const channelId = typeof body.channel === 'string' ? body.channel : '';
+    if (!SNOWFLAKE.test(channelId)) return send(res, 404, { error: 'unknown channel' });
+    const found = await guilds.lookup(guildId, { members: false });
+    if (found.status === 'gone') return send(res, 410, { error: 'gone' });
+    if (found.status !== 'ok' || !bridge) return send(res, 503, { error: 'starting' }, { 'Retry-After': '5' });
+    const info = bridge.channel(found.guild, channelId);
+    if (!info) return send(res, 404, { error: 'unknown channel' });
+    if (info.missing.length) {
+      log(`voice/join: guild ${guildId} lacks ${info.missing.length} permissions`);
+      return send(res, 403, { error: 'no permission', missing: info.missing });
+    }
+    if (info.full) return send(res, 409, { error: 'full' });
+    let joined;
+    try {
+      joined = await bridge.ensure(guildId, channelId);
+    } catch (e) {
+      log(`voice/join: guild ${guildId} channel ${channelId} failed (${e?.code ?? 'error'})`);
+      if (e?.code === 'busy') return send(res, 409, { error: 'busy' });
+      if (e?.code === 'voice') return send(res, 502, { error: 'voice failed' });
+      return send(res, 503, { error: 'relay unreachable' }, { 'Retry-After': '5' });
+    }
+    log(`voice/join: guild ${guildId} channel ${channelId} bridged`);
+    return send(res, 200, { seed: joined.seed, name: info.name, guild: guildId, channel: channelId, bridge: joined.bridge });
+  }
 
   async function claim(req, res) {
     const ip = clientIp(req);
@@ -108,7 +174,7 @@ export function createHandler({ codes, store, guilds, appId = null, now = Date.n
     const found = await guilds.lookup(guildId, { members: true });
     if (found.status === 'gone') return send(res, 410, { error: 'gone' });
     if (found.status !== 'ok') return send(res, 503, { error: 'starting' }, { 'Retry-After': '5' });
-    return send(res, 200, buildState(found.guild, now()));
+    return send(res, 200, buildState(found.guild, now(), { bridged: bridge?.bridged(guildId) }));
   }
 
   return async function handle(req, res) {
@@ -122,6 +188,7 @@ export function createHandler({ codes, store, guilds, appId = null, now = Date.n
       if (method === 'OPTIONS') return send(res, 204, null);
       if (path === '/claim') return method === 'POST' ? await claim(req, res) : send(res, 405, { error: 'method' }, { Allow: 'POST, OPTIONS' });
       if (path === '/state') return method === 'GET' ? await state(req, res, url) : send(res, 405, { error: 'method' }, { Allow: 'GET, OPTIONS' });
+      if (path === '/voice/join') return method === 'POST' ? await voiceJoin(req, res) : send(res, 405, { error: 'method' }, { Allow: 'POST, OPTIONS' });
       if (path === '/invite') {
         if (method !== 'GET') return send(res, 405, { error: 'method' }, { Allow: 'GET, OPTIONS' });
         return appId ? send(res, 200, { url: inviteUrl(appId) }) : send(res, 503, { error: 'starting' });

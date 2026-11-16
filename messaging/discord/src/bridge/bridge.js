@@ -1,0 +1,276 @@
+// The bridges: for each Discord voice channel a Ghost user has pressed, the bot in that channel and the bridge in the
+// matching Ghost space at once, with sound and chat carried both ways. Nothing here imports discord.js: the bot hands
+// in `discord`, which does the Discord half (voice.js), and everything else is this folder's.
+//
+//   discord.joinVoice(guildId, channelId, { opus(userId, packet), speaking(userId, on), lost() })
+//       -> Promise<{ play(opus), quiet(), destroy() }>       (rejoins once by itself; lost() when it gives up)
+//   discord.people(guildId, channelId, speaking: Set)  -> the space's {t:'dc'} list (mapping.js dcPeople)
+//   discord.setNickname(guildId, text | null)          -> Promise (skips quietly without Change Nickname)
+//   discord.postText(guildId, channelId, { name, text }) -> Promise (webhook, else as the bot)
+//
+// Logs: server and channel ids, counts and outcomes. Never a seed, a key, a name or a message.
+import { AudioEngine, Ticker } from './audio.js';
+import { nicknameFor } from './mapping.js';
+import { GhostSpace } from './space.js';
+import { BridgeStore } from './store.js';
+
+export const LEAVE_AFTER_MS = 30_000;
+export const PEOPLE_EVERY_MS = 5_000;
+
+export class BridgeError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.code = code; // 'voice' (could not join on Discord) | 'hub' (the relay is not reachable)
+  }
+}
+
+const withTimeout = (promise, ms, onTimeout) => {
+  let timer;
+  return Promise.race([promise, new Promise((_, fail) => { timer = setTimeout(() => fail(onTimeout()), ms); })]).finally(() => clearTimeout(timer));
+};
+
+class Bridge {
+  constructor(owner, guildId, channelId, seed) {
+    this.owner = owner;
+    this.guildId = guildId;
+    this.channelId = channelId;
+    this.seed = seed;
+    this.speaking = new Set();
+    this.names = [];
+    this.stopped = false;
+    this.speakingOut = false;
+    this.leaveTimer = null;
+    this.peopleTimer = null;
+    this.tickErrors = 0;
+  }
+
+  get tag() {
+    return `${this.guildId}/${this.channelId}`;
+  }
+
+  async start() {
+    const o = this.owner;
+    this.engine = new AudioEngine({ codec: o.codec });
+    this.space = new GhostSpace({
+      hub: o.hub,
+      seed: this.seed,
+      peers: o.peers,
+      now: o.now,
+      log: (m) => o.log(`bridge ${this.tag}: ${m}`),
+      on: {
+        members: (list) => this.membersChanged(list),
+        audio: (id, opus) => this.engine.feedGhost(id, opus),
+        peerUp: (id) => this.engine.addRecipient(id),
+        peerDown: (id) => this.engine.dropGhost(id),
+        chat: (m) => this.fromGhostChat(m),
+      },
+    });
+    const voice = o.discord.joinVoice(this.guildId, this.channelId, {
+      opus: (userId, packet) => this.engine.feedDiscord(userId, packet),
+      speaking: (userId, on) => this.speakingChanged(userId, on),
+      lost: () => this.stop('disconnected from Discord voice'),
+    });
+    const space = withTimeout(this.space.open(), o.joinTimeoutMs, () => new BridgeError('hub', 'the relay hub did not let the bridge in'));
+    const [v, s] = await Promise.allSettled([voice, space]);
+    if (v.status === 'rejected' || s.status === 'rejected') {
+      if (v.status === 'fulfilled') v.value.destroy();
+      await this.space.close();
+      this.stopped = true;
+      const e = v.status === 'rejected' ? v.reason : s.reason;
+      throw e instanceof BridgeError ? e : new BridgeError(v.status === 'rejected' ? 'voice' : 'hub', e?.message ?? String(e));
+    }
+    this.voice = v.value;
+    if (this.stopped) {
+      this.voice.destroy();
+      await this.space.close();
+      return;
+    }
+    this.ticker = o.ticker(() => this.tick());
+    this.ticker.start();
+    this.peopleTimer = o.setInterval(() => this.sendPeople(), PEOPLE_EVERY_MS);
+    this.sendPeople();
+    this.armLeave();
+  }
+
+  tick() {
+    if (this.stopped || !this.voice) return;
+    try {
+      const { discord, ghost } = this.engine.tick();
+      if (discord) {
+        this.voice.play(discord);
+        this.speakingOut = true;
+      } else if (this.speakingOut) {
+        this.voice.quiet();
+        this.speakingOut = false;
+      }
+      for (const [id, opus] of ghost) this.space.sendAudio(id, opus);
+    } catch (e) {
+      if (this.tickErrors++ % 500 === 0) this.owner.log(`bridge ${this.tag}: sound failed (${this.tickErrors}): ${e?.message ?? e}`);
+    }
+  }
+
+  sendPeople() {
+    if (this.stopped || !this.space) return;
+    const people = this.owner.discord.people(this.guildId, this.channelId, this.speaking);
+    const ids = new Set(people.map((p) => p.id));
+    for (const id of [...this.engine.discordIn.keys()]) if (!ids.has(id)) this.engine.dropDiscord(id);
+    for (const id of [...this.speaking]) if (!ids.has(id)) this.speaking.delete(id);
+    this.space.setPeople(people);
+  }
+
+  speakingChanged(userId, on) {
+    const had = this.speaking.has(userId);
+    if (on === had) return;
+    if (on) this.speaking.add(userId);
+    else this.speaking.delete(userId);
+    this.sendPeople();
+  }
+
+  membersChanged(list) {
+    this.names = list.map((m) => m.name);
+    this.armLeave();
+    this.owner.nicknameChanged(this.guildId);
+  }
+
+  /** No Ghost member in the call: leave in 30 s unless one comes. Someone there: stay. */
+  armLeave() {
+    if (this.stopped) return;
+    const empty = !this.space || this.space.members.size === 0;
+    if (empty && !this.leaveTimer) {
+      this.leaveTimer = this.owner.setTimer(() => {
+        this.leaveTimer = null;
+        if (this.space?.members.size === 0) this.stop('nobody from Ghost for 30 s');
+      }, LEAVE_AFTER_MS);
+    } else if (!empty && this.leaveTimer) {
+      this.owner.clearTimer(this.leaveTimer);
+      this.leaveTimer = null;
+    }
+  }
+
+  /** A join request again: the leave clock starts over if nobody is there yet. */
+  touched() {
+    if (this.leaveTimer) {
+      this.owner.clearTimer(this.leaveTimer);
+      this.leaveTimer = null;
+    }
+    this.armLeave();
+  }
+
+  fromGhostChat({ name, text }) {
+    this.owner.discord.postText(this.guildId, this.channelId, { name: name || 'Ghost', text }).catch((e) => this.owner.log(`bridge ${this.tag}: posting to Discord failed: ${e?.code ?? e?.message ?? e}`));
+  }
+
+  fromDiscordChat({ name, text }) {
+    if (this.stopped || !this.space) return false;
+    return this.space.sendChat({ name, text });
+  }
+
+  async stop(why) {
+    if (this.stopped) return;
+    this.stopped = true;
+    this.owner.log(`bridge ${this.tag}: leaving (${why})`);
+    this.owner.clearTimer(this.leaveTimer);
+    this.owner.clearInterval(this.peopleTimer);
+    this.ticker?.stop();
+    try {
+      this.voice?.destroy();
+    } catch {}
+    await this.space?.close().catch(() => {});
+    this.owner.ended(this);
+  }
+}
+
+export class Bridges {
+  constructor({
+    store, hub, peers, codec, discord, log = () => {}, now = Date.now,
+    setTimer = setTimeout, clearTimer = clearTimeout, setInterval: every = setInterval, clearInterval: stopEvery = clearInterval,
+    ticker = (f) => new Ticker(f), joinTimeoutMs = 10_000, nicknameDelayMs = 1500,
+  }) {
+    Object.assign(this, { store, hub, peers, codec, discord, log, now, setTimer, clearTimer, ticker, joinTimeoutMs, nicknameDelayMs });
+    this.setInterval = every;
+    this.clearInterval = stopEvery;
+    this.bridges = new Map(); // "guild:channel" -> Bridge
+    this.starting = new Map(); // "guild:channel" -> Promise
+    this.nicknames = new Map(); // guild -> what it was last set to
+    this.nicknameTimers = new Map();
+  }
+
+  /** The channel ids the bridge is in now (for /state's "bridged"). */
+  bridged(guildId) {
+    const out = new Set();
+    for (const b of this.bridges.values()) if (b.guildId === guildId && !b.stopped) out.add(b.channelId);
+    return out;
+  }
+
+  /**
+   * The bot in the Discord channel and the bridge in its space, made sure of (it stays as it is when it already is).
+   * { seed, bridge: the bridge's hub id }. Throws BridgeError when either half cannot be joined.
+   */
+  async ensure(guildId, channelId) {
+    const key = BridgeStore.key(guildId, channelId);
+    const seed = this.store.seedFor(guildId, channelId);
+    const have = this.bridges.get(key);
+    if (have && !have.stopped) {
+      have.touched();
+      return { seed, bridge: this.hub.me.id };
+    }
+    let starting = this.starting.get(key);
+    if (!starting) {
+      // A bot is in one voice channel per server at most: another bridged channel there gives way only when nobody
+      // from Ghost is in it.
+      for (const k of this.starting.keys()) if (k.startsWith(`${guildId}:`)) throw new BridgeError('busy', 'another channel on this server is being bridged');
+      for (const b of [...this.bridges.values()]) {
+        if (b.guildId !== guildId || b.channelId === channelId || b.stopped) continue;
+        if (b.space.members.size > 0) throw new BridgeError('busy', 'another channel on this server is bridged');
+        await b.stop('another channel was asked for');
+      }
+      const b = new Bridge(this, guildId, channelId, seed);
+      starting = b.start().then(() => {
+        if (!b.stopped) this.bridges.set(key, b);
+        this.log(`bridge ${b.tag}: in (${this.bridges.size} bridged)`);
+      }).finally(() => this.starting.delete(key));
+      this.starting.set(key, starting);
+    }
+    await starting;
+    return { seed, bridge: this.hub.me.id };
+  }
+
+  find(guildId, channelId) {
+    const b = this.bridges.get(`${guildId}:${channelId}`);
+    return b && !b.stopped ? b : null;
+  }
+
+  ended(b) {
+    const key = `${b.guildId}:${b.channelId}`;
+    if (this.bridges.get(key) === b) this.bridges.delete(key);
+    this.nicknameChanged(b.guildId);
+  }
+
+  /** Someone came, went, muted or deafened in a Discord voice channel. */
+  voiceChanged(guildId, channelId) {
+    this.find(guildId, channelId)?.sendPeople();
+  }
+
+  /** A message in a Discord channel (already filtered by mapping.js discordToGhost). */
+  discordText(guildId, channelId, message) {
+    return this.find(guildId, channelId)?.fromDiscordChat(message) ?? false;
+  }
+
+  /** The bot's nickname on a server, for everyone from Ghost in its calls there; changed at most once a delay. */
+  nicknameChanged(guildId) {
+    if (this.nicknameTimers.has(guildId)) return;
+    this.nicknameTimers.set(guildId, this.setTimer(() => {
+      this.nicknameTimers.delete(guildId);
+      const names = [];
+      for (const b of this.bridges.values()) if (b.guildId === guildId && !b.stopped) names.push(...b.names);
+      const text = nicknameFor(names);
+      if ((this.nicknames.get(guildId) ?? null) === text) return;
+      this.nicknames.set(guildId, text);
+      Promise.resolve(this.discord.setNickname(guildId, text)).catch(() => {});
+    }, this.nicknameDelayMs));
+  }
+
+  async stopAll(why) {
+    await Promise.all([...this.bridges.values()].map((b) => b.stop(why)));
+  }
+}
