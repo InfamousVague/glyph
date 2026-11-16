@@ -451,6 +451,12 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   link as it does a picture's, and keeps them in a file only while the picture is made or the window is open (its
   folder in the temporary directory is removed as the app opens and quits). One no picture can be made of (a kind
   the device cannot read) is still named, and can still be tried. Sending a video is not part of this.
+  - **Ghost's own player on the phone** (0.7.36; `lib/ui/video_screen.dart`, `videoFile` in `Video.kt`; Matt,
+    2026-11-15: "id like a video player built with glacier UI right now it looks like a very old android core system
+    player"). On black, a round frosted back button with who sent it, and a frosted dock: play/pause, where it has got
+    to, a scrubber, its length, mute. A tap shows or hides the controls (they go by themselves after 3 s while it
+    plays); a double tap either side skips 10 s. Played by `video_player` (ExoPlayer) from a file: the MMS part copied
+    into the cache, or the one Google Messages' helper brought down. The Mac keeps its own window.
 - **What a computer may ask of the phone** (0.7.4; Matt, 2026-11-14: "the desktop app should get all featues
   its missing from mobile", and of the Mac's message field "an emoji picker, file upload, voice memo and sticker
   selector"). The link carries what the phone's screens do: deleting, editing, sending a picture message again,
