@@ -648,6 +648,15 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   work for telegram and signal as well as standard messages"). The button counts the tab's unread chats from every
   network with its unread texts, so it is no longer grey when only chats are unread, and reads them all; a network's
   own tab and its menu read that network's chats (`_unreadTexts`, `_unreadChats` in lib/ui/conversations.dart).
+- **Voice chat is the default space call, in the app's own look** (0.7.49, not released; Matt, 2026-11-16: "Change
+  the telegram one to be our colors without the gradients and our voice effects make the chat window 33% of the screen
+  as well then deploy this as the default version"; "Make a few other small tweaks to make it ours and less like
+  telegram"). `SpaceDesign.fallback` is the Voice chat design (`lib/ui/space_designs/telegram.dart`); Standard, the
+  earlier layout, and the other five stay in Settings › Developer. It now follows the app's light and dark colours,
+  flat with no gradients (a test reads the file to keep it so), the app's wobbly ripples on every face and round the big
+  mic button, the chat docked at exactly a third of a computer's window (a sheet on a phone), and the app's words and
+  pieces: the space's name with "N in voice" as its title, "talking", "Mic on" / "Muted", "Invite to space", the app's
+  RoleTag, no Telegram drag handle. Built, reviewed adversarially, fixed and checked again in two passes.
 - **Six other designs for a space's call, behind a developer switch; your own voice activity alone** (0.7.49, not
   released; Matt, 2026-11-16: "give me 6 alternate designs for the calling chat and video screens for spaces,
   Additionally make it so that even when we're in the call alone we see the voice activity of ourselves release all 6
