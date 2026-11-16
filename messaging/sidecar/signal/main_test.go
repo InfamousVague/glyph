@@ -1,6 +1,7 @@
 package main
 
 import (
+	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -93,5 +94,29 @@ func TestParseChat(t *testing.T) {
 	}
 	if _, _, err := parseChat("nope"); err == nil {
 		t.Fatal("nonsense taken as a chat")
+	}
+}
+
+// Who may do what in a group, in the app's words and back (group_info, group_update).
+func TestGroupAccessWords(t *testing.T) {
+	if access(signalmeow.AccessControl_ADMINISTRATOR) != "admins" || access(signalmeow.AccessControl_MEMBER) != "members" || access(signalmeow.AccessControl_ANY) != "anyone" {
+		t.Fatal("access words")
+	}
+	for _, w := range []string{"admins", "members"} {
+		a, err := accessOf(w)
+		if err != nil || access(*a) != w {
+			t.Fatalf("%s round trip: %v %v", w, a, err)
+		}
+	}
+	if _, err := accessOf("everyone"); err == nil {
+		t.Fatal("an unknown word is refused")
+	}
+}
+
+// A change asked for arrives as the app sends it.
+func TestGroupEditParses(t *testing.T) {
+	r, err := parseRequest([]byte(`{"id":3,"op":"group_update","to":"g1","change":{"title":"Crew","timer":3600,"add":["a"],"edit_info":"admins","announcements_only":true,"leave":false}}`))
+	if err != nil || r.Change == nil || *r.Change.Title != "Crew" || *r.Change.Timer != 3600 || r.Change.Add[0] != "a" || *r.Change.EditInfo != "admins" || !*r.Change.AnnouncementsOnly || r.Change.Description != nil {
+		t.Fatalf("parsed %+v %v", r.Change, err)
 	}
 }

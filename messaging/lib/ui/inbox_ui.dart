@@ -32,6 +32,7 @@ import 'poof.dart';
 import 'video_screen.dart';
 import 'voice.dart' show VoiceRecorder, voiceProblem;
 import 'conversations.dart' show ConversationRow;
+import 'group_drawer.dart' show showGroupDrawer;
 import 'thread.dart' show LinkedText;
 import 'me.dart' show NetworkMark;
 import 'settings.dart';
@@ -311,7 +312,17 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
           // Laid out as a conversation of texts' header is (lib/ui/thread.dart): the face, the name, a line under it;
           // the network's logo on the face's corner is the one difference (Matt, 2026-11-15: "Use the same header
           // layout for telegram chats that we use for normal messages only difference should be the telegram icon").
-          titleWidget: Row(children: [
+          // A group's drawer from a long press on its name (Matt, 2026-11-16: "Add them to a drawer when pressing and
+          // holding on the group name"): its details, people and rules, changed on the network itself.
+          titleWidget: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onLongPress: chat?.group == true
+                ? () {
+                    HapticFeedback.mediumImpact();
+                    showGroupDrawer(context, _n, widget.chatId);
+                  }
+                : null,
+            child: Row(children: [
             SizedBox.square(
               dimension: t.lenOf('2.1rem'),
               child: Stack(clipBehavior: Clip.none, children: [
@@ -334,7 +345,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                 Text(chat?.group == true ? '${_n.name} group' : _n.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
               ]),
             ),
-          ]),
+          ])),
           footer: Padding(
             padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2) + MediaQuery.paddingOf(context).bottom),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
