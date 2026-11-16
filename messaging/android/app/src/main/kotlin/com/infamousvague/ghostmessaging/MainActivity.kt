@@ -382,6 +382,8 @@ class MainActivity : FlutterActivity() {
                 "prefs" ->result.success(getSharedPreferences("ui", MODE_PRIVATE).all.mapValues { it.value.toString() })
                 "setPref" -> {
                     getSharedPreferences("ui", MODE_PRIVATE).edit().putString(call.argument<String>("key")!!, call.argument<String>("value")).apply()
+                    // Your bubbles' colour: stamped, and Ghost Keyboard told, to keep the two in step (AccentSync.kt).
+                    if (call.argument<String>("key") == "bubble") AccentSync.chosen(this)
                     result.success(null)
                 }
                 // Paired computers (Desk.kt, docs/desktop.md): the list, a pairing being made, and how each connects.
@@ -428,6 +430,9 @@ class MainActivity : FlutterActivity() {
     override fun onResume() {
         super.onResume()
         inFront = true
+        // Ghost Keyboard's colour, if chosen there since, and watched while in front (AccentSync.kt).
+        io.execute { AccentSync.pull(this) }
+        accentWatch = AccentSync.watch(this)
         main.removeCallbacks(focusChecks)
         focusChecks.run()
         // Picture messages announced and never fetched are asked for again as the app comes forward.
@@ -447,9 +452,13 @@ class MainActivity : FlutterActivity() {
         try { contentResolver.unregisterContentObserver(contactsWatcher) } catch (_: Exception) {}
         super.onDestroy()
     }
+    private var accentWatch: android.database.ContentObserver? = null
+
     override fun onPause() {
         super.onPause()
         inFront = false
+        AccentSync.unwatch(this, accentWatch)
+        accentWatch = null
         main.removeCallbacks(focusChecks)
         // The microphone is open only while the person is recording with the app in front: leaving throws the
         // recording away, and the screen is told so.
