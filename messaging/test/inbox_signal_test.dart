@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -116,5 +117,75 @@ void main() {
     final none = Signal(link: () async => null);
     await none.start(AppState());
     expect(none.state, InboxState.unavailable);
+  });
+
+  // Matt, 2026-11-16: "Show telegram and signal contacts when linked".
+  test('Signal\'s contacts once linked, without the person themself; a chat with one is named by their ACI', () async {
+    final dir = Directory.systemTemp.createTempSync('signal-contacts');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final helper = FakeHelper();
+    helper.answer = (r) => switch (r['op']) {
+          'contacts' => [
+              {'aci': 'aci-me', 'name': 'Matt', 'number': '+15550100199'},
+              {'aci': 'aci-riley', 'name': 'Riley Fox', 'number': '+447700900123', 'avatar': '/tmp/riley.jpg'},
+              {'aci': 'aci-jo', 'name': 'Jo Park', 'number': ''},
+            ],
+          'groups' => const [],
+          _ => null,
+        };
+    final s = Signal(link: () async => helper, folder: dir.path);
+    await s.start(AppState());
+    await s.begin();
+    helper.event({'ev': 'linked', 'aci': 'aci-me', 'number': '+15550100199'});
+    await settle();
+    expect([for (final c in s.contacts) (c.id, c.name, c.number, c.avatar)], [('aci-jo', 'Jo Park', null, null), ('aci-riley', 'Riley Fox', '+447700900123', '/tmp/riley.jpg')]);
+    expect(await s.chatWith(s.contacts.last), 'aci-riley');
+
+    await s.signOut();
+    expect(s.contacts, isEmpty);
+  });
+
+  // Matt, 2026-11-16: "Sending signal messages get stuck on sending... and the group titles are not coming through".
+  test('a group is named when it is first heard from, and groups are asked for again when Signal is back', () async {
+    final dir = Directory.systemTemp.createTempSync('signal-groups');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final helper = FakeHelper();
+    var groupsAsked = 0;
+    // On linking the store has no groups yet: a group is known only from its first message.
+    helper.answer = (r) => switch (r['op']) {
+          'contacts' => const [],
+          'groups' => (groupsAsked++ == 0) ? const [] : [{'id': 'R3JvdXAtd2Vla2VuZC1jcmV3LWlkLTAwMDAwMDAwMDA=', 'title': 'Weekend crew', 'members': const []}],
+          _ => null,
+        };
+    final s = Signal(link: () async => helper, folder: dir.path);
+    await s.start(AppState());
+    await s.begin();
+    helper.event({'ev': 'linked', 'aci': 'aci-me', 'number': '+15550100199'});
+    await settle();
+    const gid = 'R3JvdXAtd2Vla2VuZC1jcmV3LWlkLTAwMDAwMDAwMDA=';
+    helper.event({'ev': 'message', 'chat': gid, 'group': true, 'from': 'aci-jo', 'name': 'Jo Park', 'ts': 1763300000000, 'text': 'tent is packed'});
+    await settle();
+    expect(s.chats.single.title, 'Signal group', reason: 'nothing known of it yet');
+
+    // The helper tells its name as soon as it has looked it up.
+    helper.event({'ev': 'group', 'id': gid, 'title': 'Hiking crew', 'members': ['aci-jo'], 'avatar': null});
+    await settle();
+    expect(s.chats.single.title, 'Hiking crew');
+    expect(s.chats.single.group, isTrue);
+
+    // Reconnected: groups asked for again (and the store now has the group).
+    final before = groupsAsked;
+    helper.event({'ev': 'connected'});
+    await settle();
+    expect(groupsAsked, before, reason: 'not again within a minute of the last time');
+  });
+
+  test('the helper\'s log: its own send lines and warnings go to the Developer log, nothing else', () {
+    String? keep(Map<String, Object?> m) => SignalLog.keep(jsonEncode(m));
+    expect(keep({'level': 'info', 'op': 'send', 'req': 7, 'took': 61.2, 'message': 'answered'}), 'info answered op=send req=7 took=61.2');
+    expect(keep({'level': 'info', 'message': 'sent to group', 'sent_to': 0, 'failed': 3, 'error': 'context deadline exceeded'}), 'info sent to group sent_to=0 failed=3 error=context deadline exceeded');
+    expect(keep({'level': 'warn', 'component': 'signalmeow', 'message': 'Failed to fetch prekeys'}), 'warn Failed to fetch prekeys component=signalmeow');
+    expect(keep({'level': 'info', 'component': 'signalmeow', 'message': 'Websocket connected'}), isNull);
+    expect(keep({'level': 'debug', 'message': 'anything'}), isNull);
   });
 }

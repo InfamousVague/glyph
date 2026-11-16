@@ -148,6 +148,30 @@ class InboxMessage {
 }
 
 /// A network's client: signing in, its chats, a chat's messages, and sending.
+/// Someone in a network's own contacts (Matt, 2026-11-16: "Show telegram and signal contacts when linked with icons to
+/// show which each is and filters, where contacts can be messages on multiple platforms as which you like to use when
+/// stating a conversation"). lib/inbox/people.dart puts them together with the phone's contacts, by number or name.
+@immutable
+class InboxContact {
+  const InboxContact({required this.network, required this.id, required this.name, this.number, this.avatar, this.handle});
+
+  /// [InboxNetwork.id] of the network they are on.
+  final String network;
+
+  /// The network's own name for them: Telegram's user id, Signal's ACI.
+  final String id;
+  final String name;
+
+  /// Their phone number as the network has it (+1…), where it shares one.
+  final String? number;
+
+  /// Their picture on this device, once brought down.
+  final String? avatar;
+
+  /// A username, where they have one (Telegram's @name).
+  final String? handle;
+}
+
 abstract class InboxNetwork extends ChangeNotifier {
   String get id;
   String get name;
@@ -204,6 +228,12 @@ abstract class InboxNetwork extends ChangeNotifier {
     setLocal('deleted', chatId, true);
     notifyListeners();
   }
+
+  /// This account's own contacts on the network, once signed in; none where it keeps none.
+  List<InboxContact> get contacts => const [];
+
+  /// The chat with [contact], made where there is none yet; its id, or null where it can't be.
+  Future<String?> chatWith(InboxContact contact) async => null;
 
   /// Whether files can be sent here: pictures, videos, voice messages and other files.
   bool get canSendFiles => false;

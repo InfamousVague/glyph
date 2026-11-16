@@ -7,6 +7,7 @@ import 'package:flutter/services.dart' show MethodChannel;
 
 import '../app_state.dart';
 import '../desktop/store.dart';
+import '../sms.dart';
 import 'inbox.dart';
 
 /// What the Signal helper is to the app: lines out, lines in. A process in the app; a stand-in in a test.
@@ -153,6 +154,7 @@ class Signal extends InboxNetwork {
 
   void _signedIn(Map s) {
     _account = (s['number'] as String?)?.ifEmpty((s['name'] as String?) ?? '') ?? s['name'] as String?;
+    _aci = s['aci'] as String?;
     _qr = null;
     _state = InboxState.ready;
     _error = null;
@@ -167,22 +169,36 @@ class Signal extends InboxNetwork {
     } catch (_) {}
     _chats.clear();
     _messages.clear();
+    _contacts.clear();
     _account = null;
     _state = InboxState.signedOut;
     _save();
     notifyListeners();
   }
 
+  /// When names and groups were last asked for.
+  DateTime? _whoAt;
+
+  void _takeGroup(Map m) {
+    final gid = m['id'] as String?;
+    if (gid == null) return;
+    _groups.add(gid);
+    final title = (m['title'] as String?)?.trim();
+    if (title != null && title.isNotEmpty) {
+      _names[gid] = title;
+    } else {
+      _names.putIfAbsent(gid, () => 'Signal group');
+    }
+    if (m['avatar'] is String) _avatars[gid] = m['avatar'] as String;
+  }
+
   /// Names and groups, from Signal's contact sync and profiles.
   Future<void> _who() async {
+    _whoAt = DateTime.now();
     try {
       _takeContacts((await _ask('contacts')) as List? ?? const []);
       for (final g in (await _ask('groups')) as List? ?? const []) {
-        final m = g as Map;
-        final gid = m['id'] as String;
-        _groups.add(gid);
-        _names[gid] = (m['title'] as String?)?.ifEmpty('Signal group') ?? 'Signal group';
-        _avatars[gid] = m['avatar'] as String?;
+        _takeGroup(g as Map);
       }
       notifyListeners();
     } catch (_) {}
@@ -196,8 +212,28 @@ class Signal extends InboxNetwork {
       final name = (m['name'] as String?)?.trim();
       _names[aci] = name == null || name.isEmpty ? ((m['number'] as String?) ?? 'Someone') : name;
       _avatars[aci] = m['avatar'] as String?;
+      final number = (m['number'] as String?)?.trim();
+      _contacts[aci] = number == null || number.isEmpty ? null : number;
     }
   }
+
+  // --- contacts (Matt, 2026-11-16: "Show telegram and signal contacts when linked") ---------------------------------
+
+  /// This account's own ACI: Signal's contact sync names the person themself too.
+  String? _aci;
+
+  /// The people in Signal's contact sync, by ACI, with their numbers where Signal gives one.
+  final Map<String, String?> _contacts = {};
+
+  @override
+  List<InboxContact> get contacts => [
+        for (final e in _contacts.entries)
+          if (e.key != _aci) InboxContact(network: id, id: e.key, name: _names[e.key] ?? e.value ?? 'Someone', number: e.value, avatar: _avatars[e.key]),
+      ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+  /// A chat with someone on Signal is named by their ACI: it is in the list from the first message sent.
+  @override
+  Future<String?> chatWith(InboxContact contact) async => _state == InboxState.ready ? contact.id : null;
 
   // --- what the helper says ---------------------------------------------------------------------------------------
 
@@ -229,6 +265,14 @@ class Signal extends InboxNetwork {
       case 'contacts':
         _takeContacts((m['list'] as List?) ?? const []);
         notifyListeners();
+      case 'group':
+        // A group first heard from: its name, as the groups op gives it (sidecar/signal announceGroup).
+        _takeGroup(m);
+        notifyListeners();
+      case 'connected':
+        // Back on Signal: names and groups asked for again, at most once a minute.
+        final now = DateTime.now();
+        if (_whoAt == null || now.difference(_whoAt!) > const Duration(minutes: 1)) unawaited(_who());
       case 'message':
         _message(m);
       case 'receipt':
@@ -510,7 +554,9 @@ class Signal extends InboxNetwork {
     final done = Completer<Object?>();
     _waiting[id] = done;
     link.say({'id': id, 'op': op, ...args});
-    return done.future.timeout(Duration(seconds: op == 'download' || op == 'send_media' ? 180 : 30), onTimeout: () {
+    // Longer than the helper gives each (sidecar/signal's do: a minute, three for files), so its own reason arrives.
+    final wait = switch (op) { 'download' || 'send_media' => 190, 'send' || 'react' || 'delete' || 'read' || 'groups' => 75, _ => 30 };
+    return done.future.timeout(Duration(seconds: wait), onTimeout: () {
       _waiting.remove(id);
       throw StateError('Signal took too long to answer');
     });
@@ -536,6 +582,13 @@ class Signal extends InboxNetwork {
   AppState? get app => _app;
 }
 
+/// The helper's log, as the Developer log keeps it (_ProcessLink).
+abstract final class SignalLog {
+  /// One line of the helper's log, shortened, where it is worth keeping: the helper's own lines about requests and
+  /// sends, and anything signalmeow warns of; null for the rest.
+  static String? keep(String line) => _ProcessLink.keep(line);
+}
+
 class _ProcessLink implements SignalLink {
   _ProcessLink(this.p) {
     p.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
@@ -544,8 +597,35 @@ class _ProcessLink implements SignalLink {
         if (m is Map) _in.add(m.cast<String, Object?>());
       } catch (_) {}
     });
-    p.stderr.drain<void>();
+    // The helper's log (sidecar/signal: also signal.log beside its store): what matters goes to the Developer log, so
+    // a send that stalls says where (Matt, 2026-11-16: "Sending signal messages get stuck on sending"). signalmeow logs
+    // no message's words at this level, and the helper's own lines name an op, a chat and a time, never the text.
+    p.stderr.transform(utf8.decoder).transform(const LineSplitter()).listen(logLine);
   }
+
+  /// One line of the helper's log, for the Developer log where it is worth keeping.
+  @visibleForTesting
+  static String? keep(String line) {
+    Map? m;
+    try {
+      final d = jsonDecode(line);
+      if (d is Map) m = d;
+    } catch (_) {}
+    if (m == null) return line.trim().isEmpty ? null : (line.length > 300 ? line.substring(0, 300) : line);
+    final level = '${m['level'] ?? ''}';
+    final message = '${m['message'] ?? ''}';
+    const ours = {'asked', 'answered', 'send', 'sent', 'send to group', 'sent to group', 'group not described', 'send: not connected to Signal; trying anyway'};
+    if (level != 'warn' && level != 'error' && level != 'fatal' && !ours.contains(message)) return null;
+    final parts = [level, message, for (final k in const ['op', 'req', 'took', 'sent_to', 'failed', 'error', 'action', 'component']) if (m[k] != null) '$k=${m[k]}'];
+    final out = parts.join(' ');
+    return out.length > 300 ? out.substring(0, 300) : out;
+  }
+
+  static void logLine(String line) {
+    final kept = keep(line);
+    if (kept != null) Sms.instance.devLog('signal', kept);
+  }
+
   final Process p;
   final _in = StreamController<Map<String, Object?>>.broadcast();
 

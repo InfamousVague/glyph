@@ -475,4 +475,37 @@ void main() {
     a.close();
     b.close();
   }, skip: Platform.isMacOS && lib.existsSync() ? false : 'TDLib is not built on this computer (sh tool/build-tdlib.sh mac)');
+
+  // Matt, 2026-11-16: "Show telegram and signal contacts when linked".
+  test('Telegram\'s contacts once signed in, kept in step, and a private chat made with one', () async {
+    final td = FakeTd();
+    td.answer = (r) => switch (r['@type']) {
+          'getContacts' => {'@type': 'users', 'total_count': 3, 'user_ids': [11, 12, 777000]},
+          'getUser' => {'@type': 'user', 'id': r['user_id'], 'first_name': 'Jo', 'last_name': 'Park', 'phone_number': '', 'usernames': {'active_usernames': ['jopark']}, 'is_contact': true},
+          'createPrivateChat' => {'@type': 'chat', 'id': 5011},
+          'getMe' => {'@type': 'user', 'id': 1, 'first_name': 'Matt'},
+          'loadChats' => {'@type': 'error', 'code': 404},
+          _ => {'@type': 'ok'},
+        };
+    final tg = Telegram(apiId: 1, apiHash: 'h', folder: '/tmp/tg-contacts', transport: () async => td);
+    await tg.start(AppState());
+    await tg.begin();
+    // Maya is heard of before the list comes; Jo (12) is asked for; Telegram's own account (777000) is never a contact.
+    td.say({'@type': 'updateUser', 'user': {'id': 11, 'first_name': 'Maya', 'last_name': 'Chen', 'phone_number': '15551230001', 'is_contact': true}});
+    td.say({'@type': 'updateUser', 'user': {'id': 777000, 'first_name': 'Telegram', 'is_contact': true}});
+    td.auth('authorizationStateReady');
+    for (var i = 0; i < 10; i++) {
+      await settle();
+    }
+    expect(td.types, contains('getContacts'));
+    expect([for (final c in tg.contacts) (c.name, c.number, c.handle)], [('Jo Park', null, '@jopark'), ('Maya Chen', '+15551230001', null)]);
+
+    // Taken out of the contacts in Telegram: gone from here too.
+    td.say({'@type': 'updateUser', 'user': {'id': 11, 'first_name': 'Maya', 'last_name': 'Chen', 'is_contact': false}});
+    await settle();
+    expect([for (final c in tg.contacts) c.name], ['Jo Park']);
+
+    expect(await tg.chatWith(tg.contacts.single), '5011');
+    expect(td.sent.lastWhere((r) => r['@type'] == 'createPrivateChat')['user_id'], 12);
+  });
 }
