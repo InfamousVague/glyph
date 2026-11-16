@@ -674,7 +674,10 @@ class Sms {
   /// with says it does for one (`deleteMessage`, `editMessage`, `sendPictures`, `sendVoice`, `sendSticker`, …).
   static bool can(String what) {
     final calls = _calls;
-    if (calls is _ChannelCalls) return true;
+    // The phone itself, straight by its channel or behind what keeps its friends by username (lib/standalone/overlay.dart):
+    // everything. Missing the second hid Add an attachment, Stickers and the microphone on every Android phone from
+    // 71d8d197e (Matt, 2026-11-15: "Im missing the button to send picture and videos to people").
+    if (calls is _ChannelCalls || calls is PhoneSide) return true;
     return calls is CapableCalls && (calls as CapableCalls).caps.contains(what);
   }
 
