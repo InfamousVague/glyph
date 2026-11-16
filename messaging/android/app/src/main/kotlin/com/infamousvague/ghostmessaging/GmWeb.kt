@@ -344,10 +344,14 @@ object GmWeb {
 
     /** Marks [conv] read in Google Messages, as far as its newest message (which sends a read receipt where on). */
     fun read(conv: String) {
-        if (!connected) return
+        if (!connected) {
+            DevLog.add(app, "gmweb", "read: not connected to Google Messages, so $conv is read in Ghost alone")
+            return
+        }
+        // A conversation known only from notifications has no id of the connection's: nothing to tell it.
         val newest = GmBridge.Db.get(app).newestWebId(conv) ?: return
         unreadIn[conv] = false
-        Thread { try { ask("read", mapOf("conv" to conv, "msg" to newest)) } catch (_: Exception) {} }.start()
+        Thread { try { ask("read", mapOf("conv" to conv, "msg" to newest)) } catch (e: Exception) { DevLog.add(app, "gmweb", "read $conv: ${e.message}") } }.start()
     }
 
     fun pair(): Boolean = try { problem = null; ask("pair"); true } catch (e: Exception) { problem = e.message; false }
