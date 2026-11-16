@@ -216,7 +216,7 @@ class ListPlugins {
   }
 
   /// How many conversations each section has, and which have something unread: for what the plugins put over the
-  /// list (Your day).
+  /// list.
   Map<String, int> get counts => _sorted.counts;
   Set<String> get unreadSections => _sorted.unread;
 
