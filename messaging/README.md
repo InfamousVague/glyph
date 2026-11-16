@@ -43,7 +43,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   replying from Ghost's goes back through Google Messages. Never hidden where Ghost may not post notifications.
   Google Messages' own must stay allowed (Silent): they are what Ghost reads. Checked on an emulator: Google
   Messages' notification gone, Ghost's shown, a reply from it sent through Google Messages.
-- **Google Messages set up by Google account, in one place** (not released; `lib/gm/google_signin.dart`,
+- **Google Messages set up by Google account, in one place** (0.7.33; `lib/gm/google_signin.dart`,
   `lib/gm/google_signin_flow.dart`, sidecar `pair_google`; Matt, 2026-11-15: "it seems they removed the ability to do
   it with the QR code"; "Please make setting up google messages a onboarding flow that is all in one place. It should
   also needs to if possible prompt to open the link incognito"). Google has replaced Device pairing's QR scanner with
