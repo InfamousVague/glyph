@@ -27,6 +27,7 @@ import 'voice/channels.dart';
 import 'sms.dart';
 import 'ui/computers.dart';
 import 'onboarding/onboarding.dart';
+import 'inbox/alerts.dart';
 import 'inbox/inbox.dart';
 import 'ui/inbox_ui.dart';
 import 'ui/shell.dart';
@@ -235,6 +236,14 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       // Telegram's and Bluesky's chats (lib/inbox), each started where it was signed in before, and their Settings.
       addInboxSettings();
       Inbox.instance.start(app);
+      // Their new messages notified, and the phone kept connected to them while Ghost is out of sight
+      // (lib/inbox/alerts.dart).
+      InboxAlerts.instance ??= InboxAlerts(
+        notify: (a) => Sms.instance.notifyInbox(a.key, network: a.network, title: a.title, body: a.body, group: a.group),
+        cancel: Sms.instance.cancelInbox,
+        keepAlive: Sms.instance.keepNetworks,
+        inFront: () => WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
+      )..watch(Inbox.instance);
       // The accounts linked and the handles watched for (Settings › Me): spoken of to the relay server only once
       // one has been.
       Me.instance.start(AppMeStore(app), Net.instance, () => Net.instance.hub, needHub: (yes) => Net.instance.want('me', yes));
@@ -265,7 +274,16 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     final shell = _shell.currentState;
     if (shell == null) return;
     shell.home();
-    if (req.pairing != null) {
+    if (req.inbox != null) {
+      // A Signal or Telegram message's notification: its chat.
+      final at = req.inbox!.indexOf(':');
+      final network = at < 0 ? null : Inbox.instance.named(req.inbox!.substring(0, at));
+      if (network != null) {
+        final id = req.inbox!.substring(at + 1);
+        final chat = network.chats.where((c) => c.id == id).firstOrNull;
+        shell.show(InboxChatScreen(network: network, chatId: id, fallback: chat), showing: 'inbox:${network.id}:$id');
+      }
+    } else if (req.pairing != null) {
       // A computer's pairing link, opened by the camera: the pairing page, which asks first.
       shell.show(PairComputerScreen(offered: req.pairing));
     } else if (req.computers) {

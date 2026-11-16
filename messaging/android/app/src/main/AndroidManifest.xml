@@ -189,6 +189,12 @@
             android:exported="false"
             android:foregroundServiceType="remoteMessaging" />
 
+        <!-- Signal and Telegram kept connected while Ghost is out of sight (NetworksService.kt). -->
+        <service
+            android:name=".NetworksService"
+            android:exported="false"
+            android:foregroundServiceType="remoteMessaging" />
+
         <!-- Beside Google Messages (GmBridge.kt): its notifications read, with the person's notification access, so its
              RCS chats are in Ghost and answered through it. Every other app's notifications are ignored. -->
         <service

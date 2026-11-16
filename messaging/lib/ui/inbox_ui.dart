@@ -11,6 +11,7 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../backgrounds.dart';
 import '../inbox/bluesky.dart';
+import '../inbox/alerts.dart';
 import '../inbox/inbox.dart';
 import '../inbox/mastodon.dart';
 import '../desktop/ui/qr.dart';
@@ -138,6 +139,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
   void initState() {
     super.initState();
     _n.watching = widget.chatId;
+    InboxAlerts.showing = '${_n.id}:${widget.chatId}';
     _n.load(widget.chatId).then((_) => _n.markRead(widget.chatId));
     _n.addListener(_changed);
     _scroll.addListener(_nearTop);
@@ -260,6 +262,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
     WidgetsBinding.instance.removeObserver(this);
     _n.removeListener(_changed);
     _n.watching = null;
+    if (InboxAlerts.showing == '${_n.id}:${widget.chatId}') InboxAlerts.showing = null;
     _text.removeListener(_typed);
     _text.dispose();
     _focus.dispose();

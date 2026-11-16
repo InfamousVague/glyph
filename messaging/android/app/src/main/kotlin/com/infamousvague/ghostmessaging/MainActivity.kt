@@ -10,6 +10,8 @@ import android.os.Handler
 import android.os.Looper
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.FlutterEngineCache
+import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import java.util.concurrent.Executors
@@ -23,6 +25,15 @@ class MainActivity : FlutterActivity() {
     companion object {
         @Volatile var openThread: Long = -1
         @Volatile var inFront = false
+
+        /** The one Flutter engine, kept past the screen so Signal and Telegram stay connected (NetworksService). */
+        private const val ENGINE = "main"
+
+        /**
+         * Dart's end of `ghost_messaging/events`, kept with the engine: a screen made again over a running engine is
+         * not listened to afresh, so it speaks through the sink the first one was given.
+         */
+        @Volatile private var sharedEvents: EventChannel.EventSink? = null
         private const val ROLE_REQUEST = 41
         private const val PERMS_REQUEST = 42
         private const val PICK_REQUEST = 43
@@ -46,7 +57,9 @@ class MainActivity : FlutterActivity() {
         override fun onChange(selfChange: Boolean) { if (::store.isInitialized) { store.contactsChanged(); Desk.contactsChanged(); Bus.changed(-1) } }
     }
     private val main = Handler(Looper.getMainLooper())
-    private var events: EventChannel.EventSink? = null
+    private var events: EventChannel.EventSink?
+        get() = sharedEvents
+        set(v) { sharedEvents = v }
     private var pendingOpen: Map<String, Any?>? = null
     private var updateListener: ((Updater.State) -> Unit)? = null
     private var roleResult: MethodChannel.Result? = null
@@ -56,11 +69,30 @@ class MainActivity : FlutterActivity() {
     private var micResult: MethodChannel.Result? = null
     private lateinit var store: Store
 
+    /**
+     * One engine for the app's life, not the screen's (Matt, 2026-11-16, on Signal and Telegram messages while Ghost is
+     * out of sight: "Yes, build them"): Dart, and with it Signal's helper and Telegram's TDLib, goes on when Android
+     * closes the screen (swiped away from Recents), for as long as NetworksService keeps the process. A screen opened
+     * again takes up the running app where it was.
+     */
+    override fun provideFlutterEngine(context: android.content.Context): FlutterEngine {
+        FlutterEngineCache.getInstance().get(ENGINE)?.let { return it }
+        return FlutterEngine(context.applicationContext).also {
+            it.dartExecutor.executeDartEntrypoint(DartExecutor.DartEntrypoint.createDefault())
+            FlutterEngineCache.getInstance().put(ENGINE, it)
+        }
+    }
+
+    override fun shouldDestroyEngineWithHost(): Boolean = false
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         store = Store(applicationContext)
         try { contentResolver.registerContentObserver(android.provider.ContactsContract.Contacts.CONTENT_URI, true, contactsWatcher) } catch (_: Exception) {}
-        pendingOpen = openRequest(intent)
+        // Over an engine already running (the screen closed and opened again, by a notification): Dart has asked for
+        // its first open request long ago, so what this screen was opened for is told as an event.
+        val asked = openRequest(intent)
+        if (sharedEvents != null && asked != null) main.post { sharedEvents?.success(mapOf("type" to "open") + asked) } else pendingOpen = asked
         // The computers this phone is paired with (Desk.kt): the service that keeps it reachable by them runs while
         // there is one, and is started here if Android stopped it since.
         DeskService.sync(applicationContext)
@@ -311,6 +343,15 @@ class MainActivity : FlutterActivity() {
                 // A call in a space (CallService.kt): going on with the phone locked, until it ends.
                 "callStarted" -> { CallService.start(this, call.argument<String>("name") ?: "", call.argument<Boolean>("video") ?: false); result.success(null) }
                 "callEnded" -> { CallService.stop(this); result.success(null) }
+                // Signal and Telegram (lib/inbox/alerts.dart): a new message's notification, taken away once read, and
+                // the service that keeps them connected while there are any signed in.
+                "notifyInbox" -> bg {
+                    Notifier.inbox(applicationContext, call.argument<String>("key")!!, call.argument<String>("network") ?: "", call.argument<String>("title") ?: "",
+                        call.argument<String>("body") ?: "", call.argument<Boolean>("group") ?: false)
+                    null
+                }
+                "cancelInbox" -> bg { Notifier.cancelInbox(applicationContext, call.argument<String>("key")!!); null }
+                "keepNetworks" -> { NetworksService.keep(applicationContext, call.argument<List<String>>("names").orEmpty()); result.success(null) }
                 // Ghost's own lists of what was deleted beside Google Messages, kept on the account too (lib/kept_lists.dart).
                 "hiddenLists" -> bg { mapOf("threads" to store.hiddenThreads().mapKeys { it.key.toString() }, "msgs" to store.hiddenMessages().toList()) }
                 "addHiddenLists" -> bg {
@@ -479,7 +520,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
-        DartAsk.channel = null
+        // The engine goes on without the screen (provideFlutterEngine): what a computer asks of Dart still reaches it.
         try { contentResolver.unregisterContentObserver(contactsWatcher) } catch (_: Exception) {}
         super.onDestroy()
     }
@@ -517,6 +558,8 @@ class MainActivity : FlutterActivity() {
         intent ?: return null
         val thread = intent.getLongExtra(Notifier.EXTRA_THREAD, -1)
         if (thread >= 0) return mapOf("thread" to thread)
+        // A Signal or Telegram message's notification (Notifier.inbox): its chat.
+        intent.getStringExtra(Notifier.EXTRA_INBOX)?.let { return mapOf("inbox" to it) }
         // The "Paired with …" notification: Settings › Computers.
         if (intent.getBooleanExtra("desk", false)) return mapOf("desk" to true)
         // A computer's pairing link, opened by the phone's camera or anything else: the pairing page, which asks

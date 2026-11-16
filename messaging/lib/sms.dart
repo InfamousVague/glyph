@@ -482,8 +482,11 @@ class UpdateState {
 
 /// What a notification or another app asked to open.
 class OpenRequest {
-  const OpenRequest({this.thread, this.addresses = const [], this.body, this.computers = false, this.pairing});
+  const OpenRequest({this.thread, this.addresses = const [], this.body, this.computers = false, this.pairing, this.inbox});
   final int? thread;
+
+  /// A chat on Signal or Telegram (`network:chat`), from its notification (lib/inbox/alerts.dart).
+  final String? inbox;
   final List<String> addresses;
   final String? body;
 
@@ -498,6 +501,7 @@ class OpenRequest {
         body: m['body'] as String?,
         computers: m['desk'] == true,
         pairing: m['pair'] as String?,
+        inbox: m['inbox'] as String?,
       );
 }
 
@@ -704,6 +708,30 @@ class Sms {
     if (remote) return;
     try {
       await _calls.invokeMethod('callEnded');
+    } catch (_) {}
+  }
+
+  /// A new message on Signal or Telegram (lib/inbox/alerts.dart): a notification that opens the chat.
+  Future<void> notifyInbox(String key, {required String network, required String title, required String body, bool group = false}) async {
+    if (remote || !Platform.isAndroid) return;
+    try {
+      await _calls.invokeMethod('notifyInbox', {'key': key, 'network': network, 'title': title, 'body': body, 'group': group});
+    } catch (_) {}
+  }
+
+  Future<void> cancelInbox(String key) async {
+    if (remote || !Platform.isAndroid) return;
+    try {
+      await _calls.invokeMethod('cancelInbox', {'key': key});
+    } catch (_) {}
+  }
+
+  /// The networks signed in ([names]; none to stop): Android keeps Ghost running, connected to them, while there are
+  /// any (android NetworksService.kt).
+  Future<void> keepNetworks(List<String> names) async {
+    if (remote || !Platform.isAndroid) return;
+    try {
+      await _calls.invokeMethod('keepNetworks', {'names': names});
     } catch (_) {}
   }
 

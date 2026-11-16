@@ -281,6 +281,43 @@ object Notifier {
         try { manager(context).notify(thread.toInt(), n) } catch (_: SecurityException) {}
     }
 
+    /** The tag a Signal or Telegram chat's notification is shown under, apart from the texts' (numbered by thread). */
+    private const val INBOX_TAG = "inbox"
+    const val EXTRA_INBOX = "inbox"
+
+    /**
+     * A new message on Signal or Telegram (lib/inbox/alerts.dart; Matt, 2026-11-16): the chat's name and its newest
+     * words, with the network's name under them; a press opens the chat. [key] is `network:chat`. Dart decides
+     * whether to notify (not muted, not spam, not on the screen); "New message" where previews are off.
+     */
+    fun inbox(context: Context, key: String, network: String, title: String, body: String, group: Boolean) {
+        val previews = context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("notif_preview", "on") != "off"
+        val who = Person.Builder().setName(title).setKey(key).build()
+        val style = Notification.MessagingStyle(Person.Builder().setName("You").build())
+            .addMessage(Notification.MessagingStyle.Message(if (previews) body.ifBlank { "New message" } else "New message", System.currentTimeMillis(), who))
+        if (group) style.setConversationTitle(title).setGroupConversation(true)
+        val open = PendingIntent.getActivity(context, key.hashCode(), Intent(context, MainActivity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            putExtra(EXTRA_INBOX, key)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val n = Notification.Builder(context, CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_ghost)
+            .setStyle(style)
+            .setSubText(network)
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .setCategory(Notification.CATEGORY_MESSAGE)
+            .setColor(0xFF4F5BD5.toInt())
+            .setGroup(GROUP)
+            .build()
+        try { manager(context).notify(INBOX_TAG, key.hashCode(), n) } catch (_: SecurityException) {}
+    }
+
+    fun cancelInbox(context: Context, key: String) {
+        context.getSystemService(NotificationManager::class.java).cancel(INBOX_TAG, key.hashCode())
+    }
+
     fun cancel(context: Context, thread: Long) {
         context.getSystemService(NotificationManager::class.java).cancel(thread.toInt())
     }
