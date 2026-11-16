@@ -1,6 +1,6 @@
 
 
-import 'package:flutter/services.dart' show TextCapitalization;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeedback, TextCapitalization, TextInputAction, TextInputType;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -16,6 +16,7 @@ import '../kit/settings_type.dart';
 import '../me/me.dart' as me;
 import '../sms.dart';
 import 'common.dart';
+import 'composer_box.dart';
 import 'conversations.dart' show ConversationRow;
 import 'me.dart' show NetworkMark;
 import 'settings.dart';
@@ -35,9 +36,10 @@ Widget inboxMark(InboxNetwork network, {double size = 18}) => NetworkMark(me.net
 
 /// One chat in the list: drawn as a conversation is, so the tab reads like the rest of the app.
 class InboxChatRow extends StatelessWidget {
-  const InboxChatRow({super.key, required this.chat, required this.onPress, this.selected = false});
+  const InboxChatRow({super.key, required this.chat, required this.onPress, this.onLongPress, this.selected = false});
   final InboxChat chat;
   final VoidCallback onPress;
+  final VoidCallback? onLongPress;
   final bool selected;
 
   @override
@@ -54,8 +56,23 @@ class InboxChatRow extends StatelessWidget {
     );
     final network = Inbox.instance.named(chat.network);
     // Its network's mark on the corner of the face, so a Telegram or Bluesky chat among the texts says what it is.
-    return ConversationRow(conversation: c, selected: selected, onPress: onPress, onLongPress: onPress, badge: network == null ? null : inboxMark(network, size: 16));
+    return ConversationRow(conversation: c, selected: selected, onPress: onPress, onLongPress: onLongPress ?? onPress, badge: network == null ? null : inboxMark(network, size: 16));
   }
+}
+
+/// A chat pressed and held in the list: archived or brought back, or deleted, on its network where it can be (Matt,
+/// 2026-11-15: "if possible proxy the archive and delete messages too, if we can't actually delete telegram messages
+/// add them to a ignore or archive list"). Telegram does both itself; a network that can't keeps Ghost's own list.
+void inboxChatMenu(BuildContext context, InboxNetwork network, InboxChat chat, {required bool archived}) {
+  HapticFeedback.mediumImpact();
+  showChoices(context, title: chat.title, choices: [
+    Choice(archived ? 'Unarchive' : 'Archive', archived ? Lucide.archiveRestore : Lucide.archive, () => network.archive(chat.id, !archived)),
+    Choice(chat.group ? 'Leave and delete' : 'Delete', Lucide.trash2, () {
+      showChoices(context, title: chat.group ? 'Leave ${chat.title} and delete it on ${network.name}?' : 'Delete this chat on ${network.name}?', choices: [
+        Choice(chat.group ? 'Leave and delete' : 'Delete', Lucide.trash2, () => network.deleteChat(chat.id), danger: true),
+      ]);
+    }, danger: true),
+  ]);
 }
 
 /// Opens [chat] in the pane beside the list, or over it on a phone.
@@ -94,6 +111,26 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
     _n.load(widget.chatId).then((_) => _n.markRead(widget.chatId));
     _n.addListener(_changed);
     _scroll.addListener(_nearTop);
+    // The composer lays itself out by whether there are words (lib/ui/composer_box.dart).
+    _text.addListener(_typed);
+  }
+
+  final _focus = FocusNode();
+  bool _wasTyping = false;
+  void _typed() {
+    final typing = _text.text.isNotEmpty;
+    if (typing != _wasTyping && mounted) setState(() => _wasTyping = typing);
+  }
+
+  /// Pressed and held: copy it, or delete it, for this account or, where the network allows, for everyone (Matt,
+  /// 2026-11-15: "if possible proxy the archive and delete messages too").
+  void _messageMenu(InboxMessage m) {
+    HapticFeedback.mediumImpact();
+    showChoices(context, choices: [
+      if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
+      if (_n.canDeleteForEveryone(widget.chatId, m)) Choice('Delete for everyone', Lucide.trash2, () => _n.deleteMessage(widget.chatId, m.id, forEveryone: true), danger: true),
+      Choice(m.mine && _n.canDeleteForEveryone(widget.chatId, m) ? 'Delete for me' : 'Delete', Lucide.trash2, () => _n.deleteMessage(widget.chatId, m.id), danger: true),
+    ]);
   }
 
   int _seen = 0;
@@ -119,7 +156,9 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
   void dispose() {
     _n.removeListener(_changed);
     _n.watching = null;
+    _text.removeListener(_typed);
     _text.dispose();
+    _focus.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -139,7 +178,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
       listenable: _n,
       builder: (context, _) {
         final chat = _n.chats.where((c) => c.id == widget.chatId).firstOrNull;
-        final list = _n.messagesOf(widget.chatId).reversed.toList();
+        final list = _n.shownMessages(widget.chatId).reversed.toList();
         final (mineBg, mineInk) = myBubble(t, app);
         return GhostPage(
           title: chat?.title ?? _n.name,
@@ -156,20 +195,52 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
                   padding: EdgeInsets.only(bottom: t.space(2)),
                   child: Text(_n.error!, style: pageText(t, t.fontSize('xs'), color: t.colorOf('#dd3a30'))),
                 ),
-              Row(children: [
-                Expanded(
-                  child: GlacierInput(
-                    controller: _text,
-                    placeholder: 'Message on ${_n.name}',
-                    ariaLabel: 'Message',
-                    autoCapitalize: TextCapitalization.sentences,
-                    size: GlacierFieldSize.md,
-                    onSubmitted: (_) => _send(),
+              // The same box as a conversation of texts (lib/ui/composer_box.dart; Matt, 2026-11-15: "Also use the same
+              // composer for telegram"): words alone here, so no + or microphone, and Send at its end.
+              Builder(builder: (context) {
+                final style = composerTextStyle(t);
+                final strut = composerStrutStyle(t);
+                final enterSends = app.enterSends;
+                final send = IconTap(icon: Lucide.send, label: 'Send', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: _text.text.trim().isEmpty ? null : _send);
+                return ComposerBox(
+                  typing: _text.text.isNotEmpty,
+                  ends: [send],
+                  below: [send],
+                  field: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onTap: () => _focus.requestFocus(),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: t.lenOf('2.25rem')),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: t.lenOf('0.3rem')),
+                          child: Stack(children: [
+                            if (_text.text.isEmpty)
+                              IgnorePointer(child: Text('Message on ${_n.name}', style: style.copyWith(color: t.color('app-ink-3')), strutStyle: strut, textHeightBehavior: composerLeading)),
+                            EditableText(
+                              controller: _text,
+                              focusNode: _focus,
+                              style: style,
+                              strutStyle: strut,
+                              textHeightBehavior: composerLeading,
+                              cursorColor: t.color('app-ink'),
+                              backgroundCursorColor: t.color('app-ink-3'),
+                              minLines: 1,
+                              maxLines: 6,
+                              keyboardType: enterSends ? TextInputType.text : TextInputType.multiline,
+                              textInputAction: enterSends ? TextInputAction.send : TextInputAction.newline,
+                              onSubmitted: (_) => _send(),
+                              onEditingComplete: enterSends ? () {} : null,
+                              textCapitalization: TextCapitalization.sentences,
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                SizedBox(width: t.space(2)),
-                IconTap(icon: Lucide.send, label: 'Send', onPressed: _send),
-              ]),
+                );
+              }),
             ]),
           ),
           body: list.isEmpty
@@ -192,7 +263,10 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
                           padding: EdgeInsets.symmetric(vertical: t.space(3)),
                           child: Text(dayHeading(m.date), textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
                         ),
-                      _InboxBubble(key: ValueKey(m.id), message: m, group: chat?.group ?? false, first: firstOfRun, last: lastOfRun, mineBg: mineBg, mineInk: mineInk),
+                      GestureDetector(
+                        onLongPress: () => _messageMenu(m),
+                        child: _InboxBubble(key: ValueKey(m.id), message: m, group: chat?.group ?? false, first: firstOfRun, last: lastOfRun, mineBg: mineBg, mineInk: mineInk),
+                      ),
                     ]);
                   },
                 ),

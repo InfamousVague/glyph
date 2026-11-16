@@ -286,11 +286,12 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// add a telegram icon in thr corner of the bubble"). While older texts are still being read, a chat older than the
   /// oldest text held waits for them, so the list does not jump.
   List<Object> _mixed(List<Conversation> shown) {
-    if (widget.archived || _section != null) return shown;
+    if (_section != null) return shown;
     final q = _query.toLowerCase();
+    // In the archive, the networks' archived chats among the archived texts.
     final chats = [
       for (final n in Inbox.instance.ready)
-        for (final c in n.chats)
+        for (final c in widget.archived ? n.archivedChats : n.shownChats)
           if (q.isEmpty || c.title.toLowerCase().contains(q) || c.snippet.toLowerCase().contains(q)) c,
     ];
     if (chats.isEmpty) return shown;
@@ -721,7 +722,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
             ? voices
             : _mixed(shown);
     // Android's own count, where it has answered: the ones held are not all of them until the read ends.
-    final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length);
+    final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length) + Inbox.instance.ready.fold<int>(0, (n, net) => n + net.archivedChats.length);
     // Older conversations still arriving: said at the foot of the list, and in place of "Nothing found".
     final more = _more && !widget.archived;
     final gutter = t.space(4);
@@ -797,6 +798,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               key: ValueKey('inbox-${chat.network}-${chat.id}'),
               chat: chat,
               onPress: () { if (network != null) openInboxChat(context, network, chat); },
+              onLongPress: network == null ? null : () => inboxChatMenu(context, network, chat, archived: widget.archived),
             );
           }
           if (at < rows.length && rows[at] is VoiceChannel) {

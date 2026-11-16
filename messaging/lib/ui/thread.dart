@@ -25,6 +25,7 @@ import '../sms.dart';
 import '../stickers.dart';
 import 'chat_settings.dart';
 import 'common.dart';
+import 'composer_box.dart';
 import 'shell.dart';
 import 'voice_screen.dart';
 import '../voice/voice.dart';
@@ -1235,51 +1236,18 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                       ? IconTap(icon: Lucide.check, label: 'Save edit', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _saveEdit : null)
                       : IconTap(icon: Lucide.send, label: 'Send', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _send : null),
                 ];
-            const move = Duration(milliseconds: 200);
-            Widget slot(bool shown, Widget child) => ClipRect(child: AnimatedSize(duration: move, curve: Curves.easeOutCubic, child: shown ? child : const SizedBox(width: 0)));
-            return Padding(
-              padding: EdgeInsets.symmetric(horizontal: t.space(1)),
-              child: Container(
-                constraints: BoxConstraints(minHeight: t.lenOf('2.75rem')),
-                padding: EdgeInsets.all(t.lenOf('0.25rem')),
-                decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.lenOf('1.375rem'))),
-                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    slot(!typing && plus != null, plus ?? const SizedBox(width: 0)),
-                    Expanded(child: AnimatedPadding(duration: move, curve: Curves.easeOutCubic, padding: EdgeInsets.only(left: !typing && plus != null ? t.space(1) : t.space(3), right: typing ? t.space(3) : 0), child: field)),
-                    slot(!typing, Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: ends())),
-                  ]),
-                  ClipRect(
-                    child: AnimatedSize(
-                      duration: move,
-                      curve: Curves.easeOutCubic,
-                      alignment: Alignment.topCenter,
-                      child: !typing
-                          ? const SizedBox(width: double.infinity)
-                          : TweenAnimationBuilder<double>(
-                              key: const ValueKey('composer-tools'),
-                              tween: Tween(begin: 0, end: 1),
-                              duration: move,
-                              curve: Curves.easeOutCubic,
-                              builder: (context, v, child) => Opacity(opacity: v, child: Transform.translate(offset: Offset(0, (1 - v) * -8), child: child)),
-                              child: Padding(
-                                padding: EdgeInsets.only(top: t.space(1)),
-                                child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                                  ?plus,
-                                  const Spacer(),
-                                  // The microphone beside Send while words are written (Matt, 2026-11-15: "Put the
-                                  // microphone for sending voice memos there too"): a voice message goes on its own,
-                                  // and the words stay in the field.
-                                  if (Sms.can('sendVoice') && !_isGhost && !_byName && !editing && _people.isNotEmpty)
-                                    IconTap(icon: Lucide.mic, label: 'Record a voice message', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _sending ? null : _record),
-                                  ...ends(),
-                                ]),
-                              ),
-                            ),
-                    ),
-                  ),
-                ]),
-              ),
+            return ComposerBox(
+              field: field,
+              typing: typing,
+              plus: plus,
+              ends: ends(),
+              below: [
+                // The microphone beside Send while words are written (Matt, 2026-11-15: "Put the microphone for sending
+                // voice memos there too"): a voice message goes on its own, and the words stay in the field.
+                if (Sms.can('sendVoice') && !_isGhost && !_byName && !editing && _people.isNotEmpty)
+                  IconTap(icon: Lucide.mic, label: 'Record a voice message', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _sending ? null : _record),
+                ...ends(),
+              ],
             );
           }),
           if (!isMms && !editing && parts > 1)

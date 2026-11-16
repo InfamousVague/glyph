@@ -8,6 +8,8 @@ import 'package:ghost_messaging/inbox/bluesky.dart';
 import 'package:ghost_messaging/inbox/inbox.dart';
 import 'package:ghost_messaging/inbox/telegram.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
+import 'package:ghost_messaging/ui/common.dart' show IconTap;
+import 'package:ghost_messaging/ui/composer_box.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
 import 'package:ghost_messaging/ui/inbox_ui.dart';
 import 'package:ghost_messaging/ui/me.dart' show NetworkMark;
@@ -152,6 +154,33 @@ void main() {
       tester.state<NavigatorState>(find.byType(Navigator).first).pop();
       await settle(tester);
     }
+  });
+
+  // Matt, 2026-11-15: "Also use the same composer for telegram and if possible proxy the archive and delete messages
+  // too, if we can't actually delete telegram messages add them to a ignore or archive list".
+  testWidgets('a chat pressed and held is archived (in Ghost\'s own list where the network keeps none); its page has the same composer, and a message is deleted', (tester) async {
+    final sheet = await loadSheet(tester);
+    telegram.listStore = AppState();
+    await _shoot(tester, sheet, const ConversationsScreen(), '16-inbox-list-archive', dark: false);
+    await tester.longPress(find.text('Weekend crew'));
+    await settle(tester);
+    expect(find.text('Leave and delete'), findsOneWidget, reason: 'a group is left as it is deleted');
+    await tester.tap(find.text('Archive'));
+    await settle(tester);
+    expect(find.text('Weekend crew'), findsNothing);
+    expect(telegram.archivedChats.map((c) => c.title), ['Weekend crew']);
+
+    await tester.tap(find.text('Jo Park'));
+    await settle(tester);
+    expect(find.byType(ComposerBox), findsOneWidget);
+    expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send' && w.onPressed == null), findsOneWidget, reason: 'grey until there are words');
+    await tester.longPress(find.text('hey! long time'));
+    await settle(tester);
+    expect(find.text('Delete for everyone'), findsNothing, reason: 'this network says nothing can be');
+    await tester.tap(find.text('Delete'));
+    await settle(tester);
+    expect(find.text('hey! long time'), findsNothing);
+    expect(find.text('I know, how have you been?'), findsOneWidget);
   });
 
   testWidgets('signing in: Bluesky\'s page, and Telegram\'s steps', (tester) async {

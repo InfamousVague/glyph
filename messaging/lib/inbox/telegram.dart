@@ -255,7 +255,12 @@ class Telegram extends InboxNetwork {
   Future<void> _loadAll() async {
     for (var i = 0; i < 50; i++) {
       final r = await _ask({'@type': 'loadChats', 'chat_list': {'@type': 'chatListMain'}, 'limit': 100});
-      if (r['@type'] == 'error') return;
+      if (r['@type'] == 'error') break;
+    }
+    // And Telegram's archive, which Ghost's Archived page shows among archived texts.
+    for (var i = 0; i < 20; i++) {
+      final r = await _ask({'@type': 'loadChats', 'chat_list': {'@type': 'chatListArchive'}, 'limit': 100});
+      if (r['@type'] == 'error') break;
     }
   }
 
@@ -365,26 +370,79 @@ class Telegram extends InboxNetwork {
   }
 
   void _position(int chat, Map p) {
-    if ((p['list'] as Map?)?['@type'] != 'chatListMain') return;
+    final list = (p['list'] as Map?)?['@type'];
+    final orders = switch (list) { 'chatListMain' => _order, 'chatListArchive' => _archOrder, _ => null };
+    if (orders == null) return;
     final order = int.tryParse('${p['order']}') ?? 0;
     if (order == 0) {
-      _order.remove(chat);
+      orders.remove(chat);
     } else {
-      _order[chat] = order;
+      orders[chat] = order;
     }
+  }
+
+  /// The chats in Telegram's own archive, by their order there.
+  final Map<int, int> _archOrder = {};
+  List<InboxChat> _archived = const [];
+
+  @override
+  List<InboxChat> get archivedChats => _archived;
+
+  bool _writable(int id) {
+    final type = (_chatsById[id]?['type'] as Map?);
+    if (type == null) return false;
+    return !(type['@type'] == 'chatTypeSupergroup' && type['is_channel'] == true);
+  }
+
+  /// Into Telegram's archive, or back to the main list, as Telegram's own Archive does.
+  @override
+  Future<void> archive(String chatId, bool archived) async {
+    final r = await _ask({'@type': 'addChatToList', 'chat_id': int.parse(chatId), 'chat_list': {'@type': archived ? 'chatListArchive' : 'chatListMain'}});
+    if (r['@type'] == 'error') _error = _plain(r);
+    notifyListeners();
+  }
+
+  /// Deleted for this account, as Telegram's Delete chat does: a group is left first, then its history goes.
+  @override
+  Future<void> deleteChat(String chatId) async {
+    final id = int.parse(chatId);
+    final type = (_chatsById[id]?['type'] as Map?)?['@type'];
+    if (type == 'chatTypeBasicGroup' || type == 'chatTypeSupergroup') await _ask({'@type': 'leaveChat', 'chat_id': id});
+    final r = await _ask({'@type': 'deleteChatHistory', 'chat_id': id, 'remove_from_chat_list': true, 'revoke': false});
+    if (r['@type'] == 'error') {
+      _error = _plain(r);
+    } else {
+      _order.remove(id);
+      _archOrder.remove(id);
+      _messages.remove(chatId);
+      _rebuild();
+    }
+    notifyListeners();
+  }
+
+  /// The messages Telegram says can be deleted for everyone.
+  final Set<String> _forAll = {};
+
+  @override
+  bool canDeleteForEveryone(String chatId, InboxMessage message) => _forAll.contains('$chatId/${message.id}');
+
+  @override
+  Future<void> deleteMessage(String chatId, String messageId, {bool forEveryone = false}) async {
+    final r = await _ask({'@type': 'deleteMessages', 'chat_id': int.parse(chatId), 'message_ids': [int.parse(messageId)], 'revoke': forEveryone});
+    if (r['@type'] == 'error') {
+      _error = _plain(r);
+    } else {
+      _messages[chatId] = [for (final x in messagesOf(chatId)) if (x.id != messageId) x];
+    }
+    notifyListeners();
   }
 
   /// The chats the list shows: those in the main list that can be written in (private chats and groups, not
   /// channels), the newest first, as they stand among the texts.
   void _rebuild() {
-    final ids = _order.keys.where((id) {
-      final type = (_chatsById[id]?['type'] as Map?);
-      if (type == null) return false;
-      if (type['@type'] == 'chatTypeSupergroup' && type['is_channel'] == true) return false;
-      return true;
-    }).toList()
-      ..sort((a, b) => _order[b]!.compareTo(_order[a]!));
+    final ids = _order.keys.where(_writable).toList();
     _chats = [for (final id in ids) _chat(_chatsById[id]!)]..sort((a, b) => b.date.compareTo(a.date));
+    _archived = [for (final id in _archOrder.keys.where((id) => _writable(id) && !_order.containsKey(id))) _chat(_chatsById[id]!)]..sort((a, b) => b.date.compareTo(a.date));
     notifyListeners();
   }
 
@@ -405,6 +463,7 @@ class Telegram extends InboxNetwork {
   }
 
   InboxMessage _message(Map<String, Object?> m) {
+    if (m['can_be_deleted_for_all_users'] == true) _forAll.add('${m['chat_id']}/${m['id']}');
     final sender = m['sender_id'] as Map?;
     final user = (sender?['user_id'] as num?)?.toInt();
     final sending = (m['sending_state'] as Map?)?['@type'];
