@@ -3,7 +3,7 @@ import 'package:ghost_messaging/plugins/plugin.dart';
 import 'package:ghost_messaging/plugins/registry.dart';
 import 'package:ghost_messaging/plugins/replies.dart';
 
-/// Replies (lib/plugins/replies.dart; Matt, 2026-11-14: "Needs a reply", "Smart replies", "Follow-up nudges").
+/// Replies (lib/plugins/replies.dart; Matt, 2026-11-14: "Smart replies", "Follow-up nudges").
 void main() {
   final now = DateTime(2026, 11, 14, 10);
 
@@ -33,19 +33,12 @@ void main() {
     expect(promiseIn('I sent it', now), isNull);
   });
 
-  test('Needs a reply: an unread question, from a person, stays in Messages too', () {
+  test('No Needs a reply tab (Matt, 2026-11-16: "Remove the "needs a reply" section and functionality")', () {
     final registry = PluginRegistry(const [RepliesPlugin()]);
-    final store = MemoryStore();
-    MessageFacts facts(String text, {bool unread = true, bool contact = true, String from = '+15551230001'}) =>
-        MessageFacts(thread: 1, senders: [from], text: text, contact: contact, unread: unread);
-    PluginSection? at(MessageFacts f) => registry.sectionOf(f, registry.classify(f, store), store);
-    expect(at(facts('Are you free Saturday?')), isNull, reason: 'the tab is off until it is turned on (Matt, 2026-11-16)');
-    store.write('plugin_replies_tab', 'on');
-    expect(at(facts('Are you free Saturday?'))?.id, RepliesPlugin.section);
-    expect(at(facts('Are you free Saturday?', unread: false)), isNull, reason: 'read: it has been seen to');
-    expect(at(facts('Sounds good')), isNull);
-    expect(at(facts('Reply YES to confirm?', contact: false, from: '28777')), isNull, reason: 'a short code asks no person to answer');
-    expect(registry.sections(store).single.section.leavesMain, isFalse);
+    final store = MemoryStore({'plugin_replies_tab': 'on'});
+    final facts = MessageFacts(thread: 1, senders: const ['+15551230001'], text: 'Are you free Saturday?', contact: true, unread: true);
+    expect(registry.sectionOf(facts, registry.classify(facts, store), store), isNull);
+    expect(registry.sections(store), isEmpty);
     expect(remindTimes(now).map((t) => t.label), ['In an hour', 'This evening', 'Tomorrow morning']);
     expect(shippedPlugins.whereType<RepliesPlugin>(), hasLength(1));
   });

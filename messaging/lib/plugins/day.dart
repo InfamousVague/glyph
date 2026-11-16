@@ -3,7 +3,7 @@
 /// deliveries today, a bill due Thursday, 1 appointment tomorrow", with "Bill and delivery timeline" and "Catch-up for
 /// groups" grouped with it).
 ///
-/// It counts what the other plugins sort: Needs a reply (Replies), Deliveries & tracking, Payment reminders and
+/// It counts what the other plugins sort: Deliveries & tracking, Payment reminders and
 /// Appointments (Kinds of text). A group's unread texts are summed up in its row by Summaries. Put away for the
 /// rest of the day with its ×; back the next morning, and whenever something new is waiting.
 library;
@@ -30,7 +30,6 @@ class DayLine {
 }
 
 const List<DayLine> dayLines = [
-  DayLine('reply', LucideMore.reply, '1 person waiting on you', '# people waiting on you'),
   DayLine('deliveries', LucideMore.package, '1 delivery', '# deliveries'),
   DayLine('reminders', LucideMore.receipt, '1 bill or payment', '# bills and payments'),
   DayLine('appointments', LucideMore.calendarCheck, '1 appointment', '# appointments'),
@@ -47,7 +46,7 @@ class DayPlugin extends GhostPlugin {
   String get name => 'Your day';
 
   @override
-  String get description => 'A card at the top of Messages: who is waiting on you, deliveries, bills and appointments.';
+  String get description => 'A card at the top of Messages: deliveries, bills and appointments.';
 
   @override
   LucideIcon get icon => LucideMore.sunMedium;
@@ -74,7 +73,7 @@ class DayPlugin extends GhostPlugin {
 
   @override
   List<PluginSetting> get settings => const [
-        PluginSetting.note(label: 'What it counts', hint: 'People waiting on a reply (Replies), and deliveries, bills and appointments (Kinds of text). A press on a line opens its list.', icon: Lucide.listFilter),
+        PluginSetting.note(label: 'What it counts', hint: 'Deliveries, bills and appointments (Kinds of text). A press on a line opens its list.', icon: Lucide.listFilter),
         PluginSetting.note(label: 'Put away', hint: 'Its × puts it away for the rest of the day; it comes back the next morning, or when something new is waiting.', icon: Lucide.x),
       ];
 }

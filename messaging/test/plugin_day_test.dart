@@ -22,7 +22,7 @@ void main() {
     await pumpScreen(tester, sheet, card({'reply': 3, 'deliveries': 2, 'reminders': 1, 'codes': 4}), AppState());
     expect(find.text('Good morning'), findsOneWidget);
     expect(find.text('Saturday, November 14'), findsOneWidget);
-    expect(find.text('3 people waiting on you'), findsOneWidget);
+    expect(find.textContaining('waiting on you'), findsNothing, reason: 'Needs a reply was taken out (Matt, 2026-11-16)');
     expect(find.text('2 deliveries'), findsOneWidget);
     expect(find.text('1 bill or payment'), findsOneWidget);
     expect(find.textContaining('appointment'), findsNothing, reason: 'none waiting');
@@ -30,12 +30,12 @@ void main() {
     expect(shown, 'deliveries');
     // Put away: gone for today, back when something more is waiting.
     await tester.tap(find.bySemanticsLabel('Put away for today'));
-    await pumpScreen(tester, sheet, card({'reply': 3, 'deliveries': 2, 'reminders': 1}), AppState());
+    await pumpScreen(tester, sheet, card({'deliveries': 2, 'reminders': 1}), AppState());
     expect(find.text('Good morning'), findsNothing);
-    await pumpScreen(tester, sheet, card({'reply': 4, 'deliveries': 2, 'reminders': 1}), AppState());
-    expect(find.text('4 people waiting on you'), findsOneWidget);
+    await pumpScreen(tester, sheet, card({'deliveries': 3, 'reminders': 1}), AppState());
+    expect(find.text('3 deliveries'), findsOneWidget);
     // Nothing waiting: no card.
-    await pumpScreen(tester, sheet, card({'codes': 2}), AppState());
+    await pumpScreen(tester, sheet, card({'codes': 2, 'reply': 5}), AppState());
     expect(find.byType(DayCard), findsNothing);
   });
 

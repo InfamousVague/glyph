@@ -1,10 +1,8 @@
-/// Replies: a tab of the conversations waiting on an answer to a question, replies to choose from over the composer,
-/// and reminders to follow up (Matt, 2026-11-14, of the ideas to streamline someone's day: "Needs a reply", "Smart
-/// replies", "Follow-up nudges", and "let's add all of the additional ones to a plugins, some can be grouped into the
-/// same plugin").
+/// Replies: replies to choose from over the composer, and reminders to follow up (Matt, 2026-11-14, of the ideas to
+/// streamline someone's day: "Smart replies", "Follow-up nudges", and "let's add all of the additional ones to a
+/// plugins, some can be grouped into the same plugin"). Its Needs a reply tab was taken out (Matt, 2026-11-16:
+/// "Remove the "needs a reply" section and functionality").
 ///
-/// - Needs a reply: an unread conversation whose newest text asks something ("are you free Saturday?", "let me
-///   know") gets a tab of that name; it stays in Messages too, and leaves the tab once it is read or answered.
 /// - Replies to choose from: over an empty composer, under a text that waits for an answer, three short replies that
 ///   fit it (a thank-you, a yes-or-no question, a plan, "where are you"); a press writes one in, to send or change.
 /// - Follow up: a message's menu has Remind me, an hour from now, this evening or tomorrow morning; and after a text
@@ -87,8 +85,6 @@ class RepliesPlugin extends GhostPlugin {
   const RepliesPlugin({this.now});
   final DateTime Function()? now;
 
-  static const section = 'reply';
-
   @override
   String get id => 'replies';
 
@@ -96,29 +92,12 @@ class RepliesPlugin extends GhostPlugin {
   String get name => 'Replies';
 
   @override
-  String get description => 'A Needs a reply tab, replies to choose from over the composer, and reminders to follow up.';
+  String get description => 'Replies to choose from over the composer, and reminders to follow up.';
 
   @override
   LucideIcon get icon => LucideMore.reply;
 
   DateTime _now() => (now ?? DateTime.now)();
-
-  @override
-  List<Classifier> get classifiers => [
-        (facts) => !facts.group && facts.outgoing != true && asksSomething(facts.text) ? [const Tag('asks')] : const [],
-      ];
-
-  @override
-  List<ListSection> get sections => [
-        ListSection(
-          id: section,
-          label: 'Needs a reply',
-          icon: LucideMore.reply,
-          // It stays in Messages too: a tab to go through, not a place things are put away in.
-          leavesMain: false,
-          takes: (facts, tags, prefs) => prefs.flag('tab', fallback: false) && facts.unread && tags.has('asks') && (facts.contact || facts.senders.every((a) => a.replaceAll(RegExp(r'\D'), '').length >= 10)),
-        ),
-      ];
 
   static Future<void> _remind(PluginHost host, int thread, String who, String words, DateTime at, String when) async {
     final ok = await Sms.instance.remind(thread: thread, title: 'Follow up${who.isEmpty ? '' : ' with $who'}', body: words, at: at);
@@ -156,13 +135,11 @@ class RepliesPlugin extends GhostPlugin {
   PluginSettingsPage? get settingsPage => PluginSettingsPage(
         hue: 'blue',
         intro: 'Keeping up with the people waiting on you.',
-        summary: (prefs) => [if (prefs.flag('tab', fallback: false)) 'Needs a reply', if (prefs.flag('suggest')) 'Suggestions', if (prefs.flag('nudge')) 'Reminders'].join(' · '),
+        summary: (prefs) => [if (prefs.flag('suggest')) 'Suggestions', if (prefs.flag('nudge')) 'Reminders'].join(' · '),
       );
 
   @override
   List<PluginSetting> get settings => const [
-        // Off unless turned on (Matt, 2026-11-16: "I don't like the reply symbol or whatever section on messages").
-        PluginSetting.toggle(key: 'tab', label: 'Needs a reply tab', hint: 'Unread conversations whose newest text asks you something.', fallback: false, icon: LucideMore.reply),
         PluginSetting.toggle(key: 'suggest', label: 'Replies to choose from', hint: 'Three short replies over the composer, under a text that waits for an answer.', icon: Lucide.messageSquare),
         PluginSetting.toggle(key: 'nudge', label: 'Reminders to follow up', hint: 'Remind me in a message\'s menu, and an offer after a text of yours that promises something.', icon: Lucide.bell),
         PluginSetting.note(label: 'On this phone only', hint: 'Worked out from the words, on the phone. Nothing is sent anywhere.', icon: Lucide.lock),
