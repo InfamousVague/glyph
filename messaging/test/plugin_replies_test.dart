@@ -39,6 +39,8 @@ void main() {
     MessageFacts facts(String text, {bool unread = true, bool contact = true, String from = '+15551230001'}) =>
         MessageFacts(thread: 1, senders: [from], text: text, contact: contact, unread: unread);
     PluginSection? at(MessageFacts f) => registry.sectionOf(f, registry.classify(f, store), store);
+    expect(at(facts('Are you free Saturday?')), isNull, reason: 'the tab is off until it is turned on (Matt, 2026-11-16)');
+    store.write('plugin_replies_tab', 'on');
     expect(at(facts('Are you free Saturday?'))?.id, RepliesPlugin.section);
     expect(at(facts('Are you free Saturday?', unread: false)), isNull, reason: 'read: it has been seen to');
     expect(at(facts('Sounds good')), isNull);

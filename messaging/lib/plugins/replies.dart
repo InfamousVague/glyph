@@ -116,7 +116,7 @@ class RepliesPlugin extends GhostPlugin {
           icon: LucideMore.reply,
           // It stays in Messages too: a tab to go through, not a place things are put away in.
           leavesMain: false,
-          takes: (facts, tags, prefs) => prefs.flag('tab') && facts.unread && tags.has('asks') && (facts.contact || facts.senders.every((a) => a.replaceAll(RegExp(r'\D'), '').length >= 10)),
+          takes: (facts, tags, prefs) => prefs.flag('tab', fallback: false) && facts.unread && tags.has('asks') && (facts.contact || facts.senders.every((a) => a.replaceAll(RegExp(r'\D'), '').length >= 10)),
         ),
       ];
 
@@ -156,12 +156,13 @@ class RepliesPlugin extends GhostPlugin {
   PluginSettingsPage? get settingsPage => PluginSettingsPage(
         hue: 'blue',
         intro: 'Keeping up with the people waiting on you.',
-        summary: (prefs) => [if (prefs.flag('tab')) 'Needs a reply', if (prefs.flag('suggest')) 'Suggestions', if (prefs.flag('nudge')) 'Reminders'].join(' · '),
+        summary: (prefs) => [if (prefs.flag('tab', fallback: false)) 'Needs a reply', if (prefs.flag('suggest')) 'Suggestions', if (prefs.flag('nudge')) 'Reminders'].join(' · '),
       );
 
   @override
   List<PluginSetting> get settings => const [
-        PluginSetting.toggle(key: 'tab', label: 'Needs a reply tab', hint: 'Unread conversations whose newest text asks you something.', icon: LucideMore.reply),
+        // Off unless turned on (Matt, 2026-11-16: "I don't like the reply symbol or whatever section on messages").
+        PluginSetting.toggle(key: 'tab', label: 'Needs a reply tab', hint: 'Unread conversations whose newest text asks you something.', fallback: false, icon: LucideMore.reply),
         PluginSetting.toggle(key: 'suggest', label: 'Replies to choose from', hint: 'Three short replies over the composer, under a text that waits for an answer.', icon: Lucide.messageSquare),
         PluginSetting.toggle(key: 'nudge', label: 'Reminders to follow up', hint: 'Remind me in a message\'s menu, and an offer after a text of yours that promises something.', icon: Lucide.bell),
         PluginSetting.note(label: 'On this phone only', hint: 'Worked out from the words, on the phone. Nothing is sent anywhere.', icon: Lucide.lock),
