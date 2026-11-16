@@ -7,6 +7,7 @@ import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
 import '../ui/common.dart';
 import 'google_signin.dart';
+import '../kit/semantic_colors.dart';
 
 /// Setting up Google Messages, start to end, in one place (Matt, 2026-11-15: "Please make setting up google messages a
 /// onboarding flow that is all in one place. It should also needs to if possible prompt to open the link incognito"):
@@ -193,8 +194,8 @@ class _GoogleSignInFlowState extends State<GoogleSignInFlow> {
           Padding(
             padding: EdgeInsets.only(top: t.space(3)),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Padding(padding: EdgeInsets.only(right: t.space(2), top: 2), child: AppIcon(Lucide.triangleAlert, size: 16, color: t.colorOf('#dd3a30'))),
-              Expanded(child: Text(_error ?? widget.problem!, style: pageText(t, t.fontSize('sm'), color: t.colorOf('#dd3a30'), height: 1.4))),
+              Padding(padding: EdgeInsets.only(right: t.space(2), top: 2), child: AppIcon(Lucide.triangleAlert, size: 16, color: t.danger)),
+              Expanded(child: Text(_error ?? widget.problem!, style: pageText(t, t.fontSize('sm'), color: t.danger, height: 1.4))),
             ]),
           ),
       ], current: _pasted.text.isNotEmpty),

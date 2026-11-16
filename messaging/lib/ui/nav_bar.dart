@@ -7,6 +7,9 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
+import '../kit/semantic_colors.dart';
+import '../kit/settings_type.dart';
+import 'dialup/dialup.dart';
 
 /// One place the navigation pill goes to: one ring.
 class NavItem {
@@ -74,9 +77,15 @@ class NavPill extends StatelessWidget {
   /// small phone on its side) has no room for it stood up.
   static double railHeight(Tokens t, int count) => t.len('app-ring') * count + t.space(2) * (count - 1) + (t.space(2) + t.len('glacier-hairline')) * 2 + inset(t) * 2;
 
+  /// Dial-Up's taskbar ([build] under it): how tall it is above the screen's bottom inset. Two lines of light along
+  /// its top, a step of silver, the buttons 48 high, a step of silver.
+  static const double taskbarHeight = 2 + _taskbarPad * 2 + RetroButton.target;
+  static const double _taskbarPad = 4;
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    if (isBevelChrome(t)) return _taskbar(context, t);
     final gap = t.space(2);
     final radius = BorderRadius.circular(t.radius('full'));
     // The pill runs the sidebar's width and its rings stand evenly along it, the first and the last at its ends
@@ -109,6 +118,42 @@ class NavPill extends StatelessWidget {
                     // Ghost.md's dock as it is there: head to foot, a step between its rings.
                     ? Column(mainAxisSize: MainAxisSize.min, spacing: gap, children: rings)
                     : Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: rings),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+extension on NavPill {
+  /// Dial-Up's way round (Matt, 2026-11-16: "base one of them heavily on the old AOL chatrooms"): the era's taskbar, a
+  /// silver strip the window's width along its foot with a line of light on top, holding one raised button per place,
+  /// its picture over its name, the place shown now held in. No start button and no logo: the design keeps the
+  /// strip and leaves the rest of that era's desktop alone. It stands under the list, not over it (lib/ui/shell.dart),
+  /// and is not drawn under a conversation on a phone, as the pill is not.
+  Widget _taskbar(BuildContext context, Tokens t) {
+    final c = DialupColors.of(t);
+    const pad = NavPill._taskbarPad;
+    return Semantics(
+      container: true,
+      label: 'Navigation',
+      explicitChildNodes: true,
+      child: DecoratedBox(
+        decoration: BoxDecoration(color: c.chrome, border: Border(top: BorderSide(color: c.hi))),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: DecoratedBox(
+            decoration: BoxDecoration(border: Border(top: BorderSide(color: c.lo))),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(pad, pad, pad, pad - 1),
+              child: SizedBox(
+                height: RetroButton.target,
+                child: Row(spacing: pad, children: [
+                  for (final item in items)
+                    Expanded(child: _Ring(key: ValueKey('nav-${item.id}'), item: item, shown: item.id == active, onPressed: () => onSelect(item.id))),
+                ]),
               ),
             ),
           ),
@@ -183,6 +228,7 @@ class _RingState extends State<_Ring> {
 
   Widget _round(BuildContext context) {
     final t = context.tokens;
+    if (isBevelChrome(t)) return _task(context, t);
     final item = widget.item;
     final shown = widget.shown;
     final onPressed = widget.onPressed;
@@ -217,7 +263,7 @@ class _RingState extends State<_Ring> {
                       width: ring,
                       height: ring,
                       alignment: Alignment.center,
-                      decoration: BoxDecoration(color: t.color('app-accent'), shape: BoxShape.circle),
+                      decoration: BoxDecoration(color: t.color('app-accent'), borderRadius: BorderRadius.circular(t.radius('full'))),
                       child: mark,
                     ),
                   ),
@@ -230,7 +276,8 @@ class _RingState extends State<_Ring> {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: t.color(state.hovered || state.pressed ? 'app-paper-2' : 'glacier-bg'),
-                      shape: BoxShape.circle,
+                      // The kit's pill radius rather than a circle, so a look's own (Phosphor's 0.25rem keys) reaches it.
+                      borderRadius: BorderRadius.circular(t.radius('full')),
                       border: Border.all(color: t.color('glacier-border-strong'), width: t.len('app-line')),
                     ),
                     child: mark,
@@ -255,7 +302,7 @@ class _RingState extends State<_Ring> {
                     constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                     alignment: Alignment.center,
-                    decoration: BoxDecoration(color: t.colorOf('#dd3a30'), borderRadius: BorderRadius.circular(12), border: Border.all(color: t.color('glacier-bg'), width: 2)),
+                    decoration: BoxDecoration(color: t.danger, borderRadius: BorderRadius.circular(12), border: Border.all(color: t.color('glacier-bg'), width: 2)),
                     child: Text(item.count > 99 ? '99+' : '${item.count}', style: t.textAt(13, weight: 'bold', height: 1.15, color: const Color(0xFFFFFFFF))),
                   ),
                 ),
@@ -264,6 +311,47 @@ class _RingState extends State<_Ring> {
           );
         },
        ),
+      ),
+    );
+  }
+}
+
+extension on _RingState {
+  /// A taskbar button (NavPill under Dial-Up): its picture over its name, held in while its place is shown, on the
+  /// lighter face the era gave the window in front; a count on its corner in a small red square. Its name shrinks
+  /// to fit rather than being cut, since five go across a phone 360 wide.
+  Widget _task(BuildContext context, Tokens t) {
+    final item = widget.item;
+    final shown = widget.shown;
+    final c = DialupColors.of(t);
+    final onMenu = item.menu == null ? null : _showMenu;
+    final button = RetroButton(
+      onPressed: widget.onPressed,
+      onLongPress: onMenu,
+      semanticLabel: item.count > 0 ? '${item.label}, ${item.count}' : item.label,
+      toggled: shown,
+      face: shown && !c.afterHours ? c.lo : null,
+      faceHeight: RetroButton.target,
+      // As wide as its share of the strip.
+      minFaceWidth: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        AppIcon(item.icon, size: 18, color: c.onChrome, wash: false),
+        const SizedBox(height: 2),
+        FittedBox(fit: BoxFit.scaleDown, child: Text(item.label, maxLines: 1, softWrap: false, style: pageText(t, 12, weight: shown ? 'bold' : 'regular', color: c.onChrome, height: 1.2))),
+      ]),
+    );
+    return HoverTip(
+      message: item.label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onSecondaryTapUp: onMenu == null ? null : (_) => onMenu(),
+        child: item.count <= 0
+            ? button
+            : Stack(clipBehavior: Clip.none, children: [
+                Positioned.fill(child: button),
+                PositionedDirectional(end: 3, top: 3, child: IgnorePointer(child: ExcludeSemantics(child: DialupCount(count: item.count)))),
+              ]),
       ),
     );
   }
@@ -367,11 +455,18 @@ class _HoverTipState extends State<HoverTip> {
               offset: Offset(0, widget.below ? t.space(2) : -t.space(3)),
               child: IgnorePointer(
                 child: ExcludeSemantics(
-                  child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.space(1)),
-                    decoration: BoxDecoration(color: t.color('app-ink'), borderRadius: BorderRadius.circular(t.radius('sm'))),
-                    child: Text(widget.message, maxLines: 1, softWrap: false, style: t.textAt(t.fontSize('xs'), weight: 'medium', height: 1.3, color: t.color('app-paper'))),
-                  ),
+                  // Dial-Up's tip is the era's pale yellow in a thin black line (in After Hours black in a white one).
+                  child: isBevelChrome(t)
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(color: DialupColors.of(t).tooltip, border: Border.all(color: DialupColors.of(t).onTooltip)),
+                          child: Text(widget.message, maxLines: 1, softWrap: false, style: t.textAt(13, height: 1.3, color: DialupColors.of(t).onTooltip)),
+                        )
+                      : Container(
+                          padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.space(1)),
+                          decoration: BoxDecoration(color: t.color('app-ink'), borderRadius: BorderRadius.circular(t.radius('sm'))),
+                          child: Text(widget.message, maxLines: 1, softWrap: false, style: t.textAt(t.fontSize('xs'), weight: 'medium', height: 1.3, color: t.color('app-paper'))),
+                        ),
                 ),
               ),
             ),

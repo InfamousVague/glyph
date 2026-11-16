@@ -27,6 +27,22 @@
      chosen everywhere is laid over them. */
   --app-accent: var(--app-ink);
   --app-on-accent: var(--app-paper);
+  /* The colours that mean something whatever the look (lib/kit/semantic_colors.dart): each was a hex in the Dart
+     where it was drawn, and keeps that hex here, so Ghost's own look is drawn as before; a look may name its own. */
+  --app-danger: #dd3a30;
+  --app-unread: #4f5bd5;
+  --app-chosen: #4f5bd5;
+  --app-info: #4f5bd5;
+  --app-online: #2fb35a;
+  --app-warn: #c27c00;
+  --app-pinned: #d38b00;
+  --app-text-selection: color-mix(in srgb, var(--app-chosen) 30%, transparent);
+  --app-sheet-scrim: #00000066;
+  --app-menu-scrim: #00000073;
+  /* Your bubbles while they are the look's own ('theme', lib/backgrounds.dart): white, Ghost's default, until a look
+     (at the end of this file) names its own. */
+  --app-bubble-mine: #FFFFFF;
+  --app-on-bubble-mine: #16181D;
   /* The notch and home-indicator insets, named once so every surface that
      hugs an edge reads the same number. Real values only arrive because the
      viewport meta says viewport-fit=cover. */
@@ -874,4 +890,487 @@ body:has(.app-headerPane) .app-statusScrim {
   --activity-meetings: var(--app-ink);
   --activity-downloads: var(--app-ink);
   --activity-needs-you: var(--app-ink);
+}
+
+/* ---- the looks (lib/looks.dart) ---------------------------------------------------------------------------------
+ *
+ * Settings › Appearance › Look (Matt, 2026-11-16: "spend some time making a few themes for ghost"). Each is stamped
+ * on the page as `data-theme-preset` by ghostAttrs, with its fixed `data-theme` where it has only one brightness;
+ * Ghost, the app's own, stamps none and none of this applies to it.
+ *
+ * How each is written, and why:
+ * - its twelve greys at `:root[data-theme-preset='x']` (with `[data-theme='dark']` for a dark half): all twelve, always,
+ *   since ink.css's `:root:root[data-theme-preset]` copies `--glacier-gray-*` onto the page's `--app-gray-*`, and a
+ *   step left out falls back to the kit's own blue-tinted grey. Nothing here maps the kit's greys back onto the
+ *   page's: with both in force the two point at each other and every colour comes out empty (ink.css explains);
+ * - everything else at `:root:root:root:root[data-theme-preset='x']`, specificity 5: above ink.css's mapping (3) and
+ *   its accent ramp (4), which a block written as the kit writes its presets (2) would silently lose to, and below
+ *   lib/accent.dart's rule for a bubble colour chosen (6), so a colour picked in Appearance still wins;
+ * - `--app-bubble-mine` and `--app-on-bubble-mine` are your bubbles while they are the look's own ('theme', the
+ *   default once a look is chosen), `--app-bubble-theirs` and `--app-bubble-rim` someone else's where a look draws
+ *   them otherwise (lib/backgrounds.dart).
+ * The contrast of each pair was measured as it was chosen, and test/themes_test.dart checks the page's ink and your
+ * bubble's words stay readable (4.5:1 or more) in every look.
+ */
+
+/* Mist: morning fog on pale water. A faintly aqua white page, deep-teal ink, deep-teal bubbles of your own. Light. */
+:root[data-theme-preset='mist'] {
+  --glacier-gray-1: #F8FEFD;
+  --glacier-gray-2: #F1FAF9;
+  --glacier-gray-3: #E7F5F3;
+  --glacier-gray-4: #DCEFEC;
+  --glacier-gray-5: #D1E7E3;
+  --glacier-gray-6: #C2DCD8;
+  --glacier-gray-7: #ACCAC5;
+  --glacier-gray-8: #8CACA8;
+  --glacier-gray-9: #51746F;
+  --glacier-gray-10: #3E605B;
+  --glacier-gray-11: #294642;
+  --glacier-gray-12: #0F2624;
+}
+:root:root:root:root[data-theme-preset='mist'] {
+  --glacier-glass-thin: oklch(0.985 0.012 186 / 0.48);
+  --glacier-glass-regular: oklch(0.985 0.012 186 / 0.68);
+  --glacier-glass-thick: oklch(0.985 0.012 186 / 0.86);
+  --glacier-glass-border: oklch(0.4 0.03 186 / 0.12);
+  --glacier-glass-highlight: oklch(1 0 0 / 0.82);
+  --glacier-surface-raised: #FFFFFF;
+  --glacier-overlay: oklch(0.25 0.03 186 / 0.40);
+  --glacier-segment-track: oklch(0.93 0.02 186 / 0.72);
+  --glacier-slider-thumb: #FFFFFF;
+  --app-ink-level: 0.13;
+  --app-raised: var(--app-gray-1);
+  --app-scrim: oklch(0.25 0.03 186 / 0.40);
+  --app-mark: color-mix(in oklch, oklch(0.70 0.12 186) 34%, transparent);
+  --app-accent: #0C7F7A;
+  --app-on-accent: #FFFFFF;
+  --app-bubble-mine: #0C7F7A;
+  --app-on-bubble-mine: #FFFFFF;
+  --glacier-selection: color-mix(in oklch, #0C7F7A 22%, transparent);
+  --glacier-focus-ring: #0C7F7A;
+  --glacier-radius-scale: 1.5;
+  /* What means unread, chosen or informative is the look's teal, not Ghost's indigo (the text selection follows
+     --app-chosen). */
+  --app-unread: #0C7F7A;
+  --app-chosen: #0C7F7A;
+  --app-info: #0C7F7A;
+}
+
+/* Lamplight: a warm, low-blue evening dark. Amber-tinted paper, parchment ink, amber bubbles. Dark. */
+:root[data-theme-preset='lamplight'] {
+  --glacier-gray-1: #100B07;
+  --glacier-gray-2: #16100B;
+  --glacier-gray-3: #1E1611;
+  --glacier-gray-4: #291F18;
+  --glacier-gray-5: #33271F;
+  --glacier-gray-6: #403228;
+  --glacier-gray-7: #514135;
+  --glacier-gray-8: #6D5949;
+  --glacier-gray-9: #A58C73;
+  --glacier-gray-10: #B0967C;
+  --glacier-gray-11: #CCB395;
+  --glacier-gray-12: #E9D6BB;
+}
+:root:root:root:root[data-theme-preset='lamplight'] {
+  --glacier-glass-thin: oklch(0.18 0.015 58 / 0.44);
+  --glacier-glass-regular: oklch(0.18 0.015 58 / 0.64);
+  --glacier-glass-thick: oklch(0.18 0.015 58 / 0.88);
+  --glacier-glass-border: oklch(0.88 0.04 78 / 0.10);
+  --glacier-glass-highlight: oklch(0.95 0.03 78 / 0.10);
+  --glacier-surface-raised: #1E1611;
+  --glacier-overlay: oklch(0 0 0 / 0.62);
+  --glacier-segment-track: oklch(0.25 0.02 58 / 0.72);
+  --glacier-slider-thumb: #E9D6BB;
+  --app-ink-level: 0.85;
+  --app-raised: var(--app-gray-3);
+  --app-scrim: oklch(0 0 0 / 0.62);
+  --app-mark: color-mix(in oklch, oklch(0.62 0.13 75) 34%, transparent);
+  --app-accent: #E5A152;
+  --app-on-accent: #221106;
+  --app-bubble-mine: #E5A152;
+  --app-on-bubble-mine: #221106;
+  --glacier-selection: color-mix(in oklch, #E5A152 26%, transparent);
+  --glacier-focus-ring: #E5A152;
+  --app-unread: #E5A152;
+  --app-chosen: #E5A152;
+  --app-info: #D9A86A;
+}
+
+/* Sharp: high contrast in either brightness, every grey above AA, rules you can see; its dark half is true black. */
+:root[data-theme-preset='sharp'] {
+  --glacier-gray-1: #FFFFFF;
+  --glacier-gray-2: #F5F5F5;
+  --glacier-gray-3: #E8E8E8;
+  --glacier-gray-4: #DEDEDE;
+  --glacier-gray-5: #D1D1D1;
+  --glacier-gray-6: #808080;
+  --glacier-gray-7: #696969;
+  --glacier-gray-8: #555555;
+  --glacier-gray-9: #484848;
+  --glacier-gray-10: #353535;
+  --glacier-gray-11: #242424;
+  --glacier-gray-12: #000000;
+}
+:root[data-theme-preset='sharp'][data-theme='dark'] {
+  --glacier-gray-1: #000000;
+  --glacier-gray-2: #0B0B0B;
+  --glacier-gray-3: #161616;
+  --glacier-gray-4: #1F1F1F;
+  --glacier-gray-5: #2E2E2E;
+  --glacier-gray-6: #868686;
+  --glacier-gray-7: #989898;
+  --glacier-gray-8: #AEAEAE;
+  --glacier-gray-9: #BEBEBE;
+  --glacier-gray-10: #D1D1D1;
+  --glacier-gray-11: #E4E4E4;
+  --glacier-gray-12: #FFFFFF;
+}
+:root:root:root:root[data-theme-preset='sharp'] {
+  --glacier-surface-raised: #FFFFFF;
+  --glacier-overlay: oklch(0 0 0 / 0.55);
+  --glacier-glass-thin: oklch(1 0 0 / 0.80);
+  --glacier-glass-regular: oklch(1 0 0 / 0.90);
+  --glacier-glass-thick: oklch(1 0 0 / 0.96);
+  --glacier-glass-border: oklch(0 0 0 / 0.45);
+  --glacier-segment-track: #E8E8E8;
+  --glacier-slider-thumb: #FFFFFF;
+  --app-ink-level: 0;
+  --app-raised: var(--app-gray-1);
+  --app-scrim: oklch(0 0 0 / 0.55);
+  --app-rule: var(--app-gray-6);
+  --glacier-border: var(--app-gray-8);
+  --glacier-border-subtle: var(--app-gray-6);
+  --glacier-border-strong: var(--app-gray-12);
+  --glacier-hairline: 2px;
+  --app-line: 2px;
+  --app-mark: color-mix(in oklch, oklch(0.62 0.17 250) 45%, transparent);
+  --app-accent: #005C5B;
+  --app-on-accent: #FFFFFF;
+  --app-bubble-mine: #005C5B;
+  --app-on-bubble-mine: #FFFFFF;
+  --app-bubble-theirs: var(--app-gray-3);
+  --app-bubble-rim: var(--app-gray-8);
+  --glacier-focus-ring: var(--app-accent);
+  --glacier-selection: color-mix(in oklch, var(--app-accent) 30%, transparent);
+  --glacier-radius-scale: 0.55;
+  /* The accent, a var() so the dark half's aqua follows without repeating it: teal 7.8:1 on white. */
+  --app-unread: var(--app-accent);
+  --app-chosen: var(--app-accent);
+  --app-info: var(--app-accent);
+}
+/* The same specificity as the light half and later, so it wins the tie. The rule, border, line and radius need no
+   repeating: they are var()s onto the scale and follow it. */
+:root:root:root[data-theme-preset='sharp'][data-theme='dark'] {
+  --glacier-surface-raised: #161616;
+  --glacier-overlay: oklch(0 0 0 / 0.75);
+  --glacier-glass-thin: oklch(0 0 0 / 0.85);
+  --glacier-glass-regular: oklch(0 0 0 / 0.92);
+  --glacier-glass-thick: oklch(0 0 0 / 0.97);
+  --glacier-glass-border: oklch(1 0 0 / 0.45);
+  --glacier-segment-track: #161616;
+  --glacier-slider-thumb: #FFFFFF;
+  --app-ink-level: 1;
+  --app-raised: var(--app-gray-3);
+  --app-scrim: oklch(0 0 0 / 0.75);
+  --app-accent: #51FCFB;
+  --app-on-accent: #002524;
+  --app-bubble-mine: #51FCFB;
+  --app-on-bubble-mine: #002524;
+  --app-bubble-theirs: var(--app-gray-5);
+}
+
+/* Phosphor: a green-screen terminal. Glowing green monospace on a black tube, square corners, a lit green block for
+   your own messages. Dark. */
+:root[data-theme-preset='phosphor'] {
+  --glacier-gray-1: #020703;
+  --glacier-gray-2: #030F05;
+  --glacier-gray-3: #041608;
+  --glacier-gray-4: #06210D;
+  --glacier-gray-5: #092C13;
+  --glacier-gray-6: #063B19;
+  --glacier-gray-7: #0B5022;
+  --glacier-gray-8: #13702F;
+  --glacier-gray-9: #33A64B;
+  --glacier-gray-10: #3BBB56;
+  --glacier-gray-11: #4EDF6B;
+  --glacier-gray-12: #70FF83;
+}
+:root:root:root:root[data-theme-preset='phosphor'] {
+  --glacier-glass-thin: oklch(0.14 0.03 150 / 0.60);
+  --glacier-glass-regular: oklch(0.14 0.03 150 / 0.72);
+  --glacier-glass-thick: oklch(0.14 0.03 150 / 0.88);
+  --glacier-glass-border: oklch(0.80 0.20 147 / 0.18);
+  --glacier-glass-highlight: oklch(0.90 0.21 146 / 0.08);
+  --glacier-surface-raised: #041608;
+  --glacier-overlay: oklch(0 0 0 / 0.70);
+  --glacier-segment-track: #06210D;
+  --glacier-slider-thumb: #70FF83;
+  --app-ink-level: 0.86;
+  --app-raised: var(--app-gray-3);
+  --app-scrim: oklch(0 0 0 / 0.70);
+  --app-mark: color-mix(in oklch, #33FF66 28%, transparent);
+  --app-accent: #33FF66;
+  --app-on-accent: #001A08;
+  --app-bubble-mine: #33FF66;
+  --app-on-bubble-mine: #001A08;
+  --app-bubble-rim: var(--app-gray-7);
+  --glacier-selection: color-mix(in oklch, #33FF66 28%, transparent);
+  --glacier-focus-ring: #33FF66;
+  --app-unread: #33FF66;
+  --app-chosen: #33FF66;
+  --app-info: #70FF83;
+  /* The app's own mono, already bundled; ghostTypography hangs the emoji set on it too (lib/main.dart). */
+  --glacier-font-sans: 'JetBrains Mono Variable', ui-monospace, monospace;
+  --app-tracking-display: 0;
+  --app-tracking-title: 0;
+  --glacier-radius-scale: 0;
+  --glacier-radius-full: 0.25rem;
+}
+
+/* Dial-Up: a late-90s online service's chat room. Silver bevelled windows with navy title bars, a white page where
+   each line is a name and what they said, a teal desktop in the wide window's gutters. Two halves: Daytime (the
+   authentic one) and After Hours, a black high-contrast scheme of the same era (purple bars, cyan names, white
+   frames). Drawn by lib/ui/dialup/ (Bevel, Sunken, RetroButton, TitleBar), which read the tokens below; the layout
+   asks `--app-chrome-style` (`bevel` only here), so it goes by these rules rather than by the look's name.
+   Grey on silver fails (#808080 on #C0C0C0 is 2.2:1), so readable secondary words are #404040 (5.7:1) and #808080 is
+   kept for bevels and what is disabled; pure red on white is 4:1, so your own name and failures are #B00000. */
+:root[data-theme-preset='dialup'] {
+  --glacier-gray-1: #FFFFFF;
+  --glacier-gray-2: #F4F4F4;
+  --glacier-gray-3: #DFDFDF;
+  --glacier-gray-4: #C0C0C0;
+  --glacier-gray-5: #C0C0C0;
+  --glacier-gray-6: #A0A0A0;
+  --glacier-gray-7: #808080;
+  --glacier-gray-8: #606060;
+  --glacier-gray-9: #404040;
+  --glacier-gray-10: #303030;
+  --glacier-gray-11: #202020;
+  --glacier-gray-12: #000000;
+}
+:root[data-theme-preset='dialup'][data-theme='dark'] {
+  --glacier-gray-1: #000000;
+  --glacier-gray-2: #101010;
+  --glacier-gray-3: #202020;
+  --glacier-gray-4: #404040;
+  --glacier-gray-5: #404040;
+  --glacier-gray-6: #606060;
+  --glacier-gray-7: #808080;
+  --glacier-gray-8: #A0A0A0;
+  --glacier-gray-9: #C0C0C0;
+  --glacier-gray-10: #D0D0D0;
+  --glacier-gray-11: #E0E0E0;
+  --glacier-gray-12: #FFFFFF;
+}
+:root:root:root:root[data-theme-preset='dialup'] {
+  /* What lib/ui/dialup/'s isDialup asks: the chat-room chrome, bevels and title bars, instead of the app's glass. */
+  --app-chrome-style: bevel;
+  /* The window: its silver face, and the bevel's two rings, light from the upper left (outer then inner on the
+     top-left, inner then outer on the bottom-right). */
+  --app-chrome: #C0C0C0;
+  --app-on-chrome: #000000;
+  --app-bevel-hi: #FFFFFF;
+  --app-bevel-lo: #DFDFDF;
+  --app-bevel-shadow: #808080;
+  --app-bevel-dark: #000000;
+  /* The title bar: navy, brightening toward the far end only past the words (white on #1084D0 is 4:1). Named
+     -titlebar, not -title: `--app-title` is already the type scale's list-title size, above. */
+  --app-titlebar: #000080;
+  --app-titlebar-end: #1084D0;
+  --app-titlebar-ink: #FFFFFF;
+  --app-titlebar-inactive: #808080;
+  --app-titlebar-inactive-ink: #C0C0C0;
+  /* Names in a transcript: yours red, everyone else's navy, and in a room of many one of six per person (picked by
+     the address, as bubble colours are), each 4.5:1 or more on the white page. */
+  --app-name-mine: #B00000;
+  --app-name-theirs: #000080;
+  --app-name-1: #000080;
+  /* Olive, not maroon: #800000 read as the same red as your own name (#B00000). 5.6:1 on white. */
+  --app-name-2: #6B6B00;
+  --app-name-3: #006400;
+  --app-name-4: #800080;
+  --app-name-5: #005F5F;
+  --app-name-6: #7F3F00;
+  /* The desktop behind the windows, in a wide window's gutters only (on a phone it would read as a fault). */
+  --app-desktop: #008080;
+  --app-tooltip: #FFFFE1;
+  --app-on-tooltip: #000000;
+  /* A chosen row: navy with white words. */
+  --app-highlight: #000080;
+  --app-on-highlight: #FFFFFF;
+  --app-danger: #B00000;
+  --app-unread: #000080;
+  --app-chosen: #000080;
+  --app-info: #000080;
+  --app-online: #006400;
+  --app-warn: #7F5F00;
+  --app-pinned: #7F5F00;
+  --app-text-selection: color-mix(in srgb, #000080 30%, transparent);
+  --app-ink-level: 0;
+  --app-raised: var(--app-gray-1);
+  --app-scrim: oklch(0 0 0 / 0.40);
+  --app-rule: var(--app-gray-7);
+  --app-mark: color-mix(in oklch, #FFFF00 60%, transparent);
+  /* Your colour is the look's own while bubbles are 'theme' (lib/accent.dart leaves the accent alone then). */
+  --app-accent: #000080;
+  --app-on-accent: #FFFFFF;
+  --app-bubble-mine: #000080;
+  --app-on-bubble-mine: #FFFFFF;
+  --app-bubble-theirs: var(--app-gray-3);
+  --app-bubble-rim: var(--app-gray-7);
+  /* No glass in 1998: every pane the kit draws in glass is the silver face. */
+  --glacier-glass-thin: #C0C0C0;
+  --glacier-glass-regular: #C0C0C0;
+  --glacier-glass-thick: #C0C0C0;
+  --glacier-glass-border: #808080;
+  --glacier-glass-highlight: transparent;
+  --glacier-surface-raised: #C0C0C0;
+  --glacier-overlay: oklch(0 0 0 / 0.40);
+  --glacier-segment-track: #C0C0C0;
+  --glacier-slider-thumb: #C0C0C0;
+  --glacier-border: var(--app-gray-7);
+  --glacier-border-subtle: var(--app-gray-4);
+  --glacier-border-strong: var(--app-gray-12);
+  --glacier-hairline: 1px;
+  --app-line: 1px;
+  --glacier-focus-ring: #000000;
+  --glacier-selection: color-mix(in oklch, #000080 30%, transparent);
+  /* Weights 400 and 700 only, no tracking, square everything (a pill too), and nothing moves: windows then simply
+     appeared. The same near-nothing the kit uses for reduced motion, so every animation still runs to its end. */
+  --app-tracking-display: 0;
+  --app-tracking-title: 0;
+  --glacier-radius-scale: 0;
+  --glacier-radius-full: 0px;
+  --app-tracking-caps: 0;
+  --app-tracking-caps-close: 0;
+  --glacier-duration-instant: 0.01ms;
+  --glacier-duration-fast: 0.01ms;
+  --glacier-duration-normal: 0.01ms;
+  --glacier-duration-slow: 0.01ms;
+  --glacier-duration-slower: 0.01ms;
+  --app-pop: 0.01ms linear;
+  --app-turn: 0.01ms linear;
+  --app-settle: 0.01ms linear;
+}
+/* After Hours: black chrome and wells outlined in white, as the era's high-contrast black scheme drew them. The same
+   specificity as Daytime and later, so it wins the tie; what is not repeated (the shape, the motion) carries over. */
+:root:root:root[data-theme-preset='dialup'][data-theme='dark'] {
+  --app-chrome: #000000;
+  --app-on-chrome: #FFFFFF;
+  --app-bevel-hi: #FFFFFF;
+  --app-bevel-lo: #808080;
+  --app-bevel-shadow: #808080;
+  --app-bevel-dark: #FFFFFF;
+  --app-titlebar: #800080;
+  --app-titlebar-end: #800080;
+  --app-titlebar-ink: #FFFFFF;
+  --app-titlebar-inactive: #000000;
+  --app-titlebar-inactive-ink: #C0C0C0;
+  --app-name-mine: #FF6060;
+  --app-name-theirs: #00FFFF;
+  --app-name-1: #00FFFF;
+  --app-name-2: #FFFF00;
+  --app-name-3: #00FF00;
+  --app-name-4: #FF80FF;
+  --app-name-5: #80C0FF;
+  --app-name-6: #FFC080;
+  --app-desktop: #000000;
+  --app-tooltip: #000000;
+  --app-on-tooltip: #FFFFFF;
+  --app-highlight: #800080;
+  --app-on-highlight: #FFFFFF;
+  --app-danger: #FF6060;
+  --app-unread: #FFFF00;
+  --app-chosen: #00FFFF;
+  --app-info: #00FFFF;
+  --app-online: #00FF00;
+  --app-warn: #FFFF00;
+  --app-pinned: #FFFF00;
+  --app-text-selection: color-mix(in srgb, #800080 70%, transparent);
+  --app-ink-level: 1;
+  --app-scrim: oklch(0 0 0 / 0.70);
+  --app-mark: color-mix(in oklch, #FFFF00 35%, transparent);
+  --app-accent: #800080;
+  --app-on-accent: #FFFFFF;
+  --app-bubble-mine: #800080;
+  --app-on-bubble-mine: #FFFFFF;
+  --app-bubble-theirs: var(--app-gray-3);
+  --app-bubble-rim: var(--app-gray-8);
+  --glacier-glass-thin: #000000;
+  --glacier-glass-regular: #000000;
+  --glacier-glass-thick: #000000;
+  --glacier-glass-border: #FFFFFF;
+  --glacier-surface-raised: #000000;
+  --glacier-overlay: oklch(0 0 0 / 0.70);
+  --glacier-segment-track: var(--app-gray-3);
+  --glacier-slider-thumb: #FFFFFF;
+  --glacier-border: var(--app-gray-10);
+  --glacier-border-subtle: var(--app-gray-6);
+  --glacier-border-strong: var(--app-gray-12);
+  --glacier-focus-ring: #FFFFFF;
+  --glacier-selection: color-mix(in oklch, #800080 70%, transparent);
+}
+
+/* The count on a taskbar button stays red in both halves, as the design asks, where --app-unread is navy or yellow. */
+:root:root:root:root[data-theme-preset='dialup'] {
+  --app-count: #B00000;
+  --app-on-count: #FFFFFF;
+}
+/* What stands on a title bar (lib/ui/dialup/parts.dart DialupBand): the page's ink is the band's white there, so a
+   page's own header and its icon buttons read on navy (or After Hours' purple) without knowing they are on it. */
+[data-theme-preset='dialup'] .dialup-band {
+  --app-ink: var(--app-titlebar-ink);
+  --app-ink-2: var(--app-titlebar-ink);
+  --app-ink-3: #DFDFDF;
+  --glacier-text: var(--app-titlebar-ink);
+  --glacier-text-muted: #DFDFDF;
+  --glacier-bg: var(--app-titlebar);
+}
+/* The silver panel along a page's foot (DialupPanel): what is drawn on the page's ground there is the window's face. */
+[data-theme-preset='dialup'] .dialup-panel {
+  --glacier-bg: var(--app-chrome);
+}
+
+/* A kit field in a sunken frame (DialupWell): white, the frame its only edge. */
+[data-theme-preset='dialup'] .dialup-well {
+  --glacier-surface: var(--app-paper);
+  --glacier-border: transparent;
+  --glacier-border-strong: transparent;
+}
+
+/* The section colours of Settings' row icons and the avatars' colours (`data-hue`, lib/kit/settings_css.dart, which
+   is laid over this sheet with lower specificity), settled into each look: Ghost's indigo was the one cold patch on
+   Mist's, Lamplight's and Sharp's pages (the review of the looks, 2026-11-16). Phosphor is one phosphor, so every hue
+   is its green; Dial-Up draws its icons in plain ink. Both --hue and --hue-dark, since settings.css makes the dark
+   page's --hue its --hue-dark. */
+:root:root:root:root[data-theme-preset='mist'] [data-hue='indigo'],
+:root:root:root:root[data-theme-preset='mist'] [data-hue='blue'],
+:root:root:root:root[data-theme-preset='mist'] [data-hue='purple'] {
+  --hue: #0C7F7A;
+  --hue-dark: #0C7F7A;
+}
+:root:root:root:root[data-theme-preset='lamplight'] [data-hue='indigo'],
+:root:root:root:root[data-theme-preset='lamplight'] [data-hue='blue'],
+:root:root:root:root[data-theme-preset='lamplight'] [data-hue='purple'],
+:root:root:root:root[data-theme-preset='lamplight'] [data-hue='slate'],
+:root:root:root:root[data-theme-preset='lamplight'] [data-hue='cyan'] {
+  --hue: #E5A152;
+  --hue-dark: #E5A152;
+}
+:root:root:root:root[data-theme-preset='sharp'] [data-hue='indigo'] {
+  --hue: var(--app-accent);
+  --hue-dark: var(--app-accent);
+}
+:root:root:root:root[data-theme-preset='phosphor'] [data-hue] {
+  --hue: #70FF83;
+  --hue-dark: #70FF83;
+}
+:root:root:root:root[data-theme-preset='dialup'] [data-hue] {
+  --hue: var(--app-ink);
+  --hue-dark: var(--app-ink);
+}
+
+/* Dial-Up's face (lib/looks.dart stamps it): Arimo, bundled, drawn to Arial's measures. */
+[data-font='arimo'] {
+  --glacier-font-sans: 'Arimo', Arial, Helvetica, sans-serif;
 }

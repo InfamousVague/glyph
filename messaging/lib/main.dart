@@ -11,6 +11,7 @@ import 'accent.dart';
 import 'summaries.dart';
 import 'app_state.dart';
 import 'kept_lists.dart';
+import 'looks.dart';
 import 'backgrounds.dart';
 import 'desktop/main.dart';
 import 'desktop/store.dart' show DeskStore;
@@ -137,7 +138,7 @@ GlacierTypography ghostTypography(String emoji) {
   final family = emojiSet(emoji).family;
   return GlacierTypography(
     features: const [FontFeature('cv11'), FontFeature('ss01')],
-    fallbacks: family == null ? const {} : {'Inter Variable': [family], 'JetBrains Mono Variable': [family]},
+    fallbacks: family == null ? const {} : {'Inter Variable': [family], 'JetBrains Mono Variable': [family], 'Arimo': [family]},
   );
 }
 
@@ -167,7 +168,7 @@ class GhostMessagingApp extends StatelessWidget {
               PageRouteBuilder<T>(settings: settings, pageBuilder: (context, _, _) => builder(context)),
           builder: (context, child) => GlacierTheme(
             sheet: accents?.of(state) ?? sheet,
-            attrs: {'platform': 'mobile', if (state.theme != 'system') 'theme': state.theme},
+            attrs: ghostAttrs(state, 'mobile'),
             typography: ghostTypography(state.emoji),
             child: HapticsProvider(
               enabled: true,

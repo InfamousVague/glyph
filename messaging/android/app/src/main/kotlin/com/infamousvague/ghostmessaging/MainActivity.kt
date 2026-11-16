@@ -457,6 +457,8 @@ class MainActivity : FlutterActivity() {
                     getSharedPreferences("ui", MODE_PRIVATE).edit().putString(call.argument<String>("key")!!, call.argument<String>("value")).apply()
                     // Your bubbles' colour: stamped, and Ghost Keyboard told, to keep the two in step (AccentSync.kt).
                     if (call.argument<String>("key") == "bubble") AccentSync.chosen(this)
+                    // A look's nearest keyboard colour, while your bubbles are the look's own: a new look is a new colour.
+                    else if (call.argument<String>("key") == "theme_bubble" && getSharedPreferences("ui", MODE_PRIVATE).getString("bubble", null) == "theme") AccentSync.chosen(this)
                     else if (call.argument<String>("key")?.startsWith("bubble_") == true) AccentSync.nowChanged(this)
                     result.success(null)
                 }

@@ -37,6 +37,9 @@ import 'thread.dart' show LinkedText;
 import 'me.dart' show NetworkMark;
 import 'settings.dart';
 import 'shell.dart';
+import '../kit/semantic_colors.dart';
+import 'dialup/bevel.dart' show DialupColors, isDialup;
+import 'message_line.dart';
 
 /// The screens of the inbox of other networks (lib/inbox): a chat's row in the list, the chat itself, signing in, and
 /// the sections of Settings for each network.
@@ -377,7 +380,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
               if (_n.error != null)
                 Padding(
                   padding: EdgeInsets.only(bottom: t.space(2)),
-                  child: Text(_n.error!, style: pageText(t, t.fontSize('xs'), color: t.colorOf('#dd3a30'))),
+                  child: Text(_n.error!, style: pageText(t, t.fontSize('xs'), color: t.danger)),
                 ),
               // The same box as a conversation of texts (lib/ui/composer_box.dart; Matt, 2026-11-15: "Also use the same
               // composer for telegram"): words alone here, so no + or microphone, and Send at its end.
@@ -450,6 +453,9 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
           ),
           body: list.isEmpty
               ? Center(child: Text(_n.state == InboxState.ready ? 'No messages yet' : 'Not signed in to ${_n.name}', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))
+              // Dial-Up writes the chat as a chat room's transcript (lib/ui/message_line.dart), as it does texts.
+              : isDialup(context)
+              ? _transcript(chat, list)
               : ListView.builder(
                   controller: _scroll,
                   reverse: true,
@@ -487,6 +493,60 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
   }
 }
 
+extension on _InboxChatScreenState {
+  /// The chat as Dial-Up writes it: "Name: words" lines in one white well, the day's turn and where the chat starts
+  /// said by the room's Host, and pictures, files and link cards under the line they came with (lib/ui/message_line.dart).
+  Widget _transcript(InboxChat? chat, List<InboxMessage> list) {
+    final c = DialupColors.of(context.tokens);
+    final group = chat?.group ?? false;
+    final more = switch (_n) { Bluesky b => b.hasOlder(widget.chatId), Telegram t => t.hasOlder(widget.chatId), _ => false };
+    return Transcript(
+      child: ListView.builder(
+        controller: _scroll,
+        reverse: true,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        itemCount: list.length,
+        itemBuilder: (context, i) {
+          final m = list[i];
+          final older = i + 1 < list.length ? list[i + 1] : null;
+          final newer = i > 0 ? list[i - 1] : null;
+          final lastOfRun = newer == null || newer.mine != m.mine || newer.sender != m.sender || newer.date.difference(m.date).inMinutes > 10;
+          final newDay = older == null || older.date.day != m.date.day || older.date.month != m.date.month || older.date.year != m.date.year;
+          final failed = m.state == 'failed';
+          final who = m.mine ? 'You' : (group ? (m.sender.isEmpty ? 'Someone' : m.sender) : (chat?.title ?? _n.name));
+          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            if (older == null && !more) ...[
+              HostLine('*** You are in "${chat?.title ?? _n.name}". ***'),
+              // Signal seals every chat end to end; the other networks' chats are not, so they say nothing.
+              if (_n.id == 'signal') const HostLine('Messages here are sealed end to end.'),
+            ],
+            if (newDay) HostLine.day(m.date),
+            Poof(
+              key: ValueKey('poof-${m.id}'),
+              gone: _poofing.containsKey(m.id),
+              side: m.mine ? AxisDirection.right : AxisDirection.left,
+              onDone: () => _n.deleteMessage(widget.chatId, m.id, forEveryone: _poofing.remove(m.id) ?? false),
+              child: MessageLine(
+                key: ValueKey(m.id),
+                name: who,
+                nameColor: m.mine ? c.nameMine : (group ? c.nameFor(m.sender) : c.nameTheirs),
+                mine: m.mine,
+                body: m.text,
+                media: [for (final x in m.media) InboxMediaView(network: _n, media: x, ink: c.ink)],
+                under: _linkCards(context, m.text),
+                status: failed ? 'Not sent' : (m.state == 'sending' ? 'Sending…' : (lastOfRun ? clock(m.date) : null)),
+                failed: failed,
+                faded: m.state == 'sending',
+                onLongPress: (_) => _messageMenu(m),
+              ),
+            ),
+          ]);
+        },
+      ),
+    );
+  }
+}
+
 /// The Link previews plugin's cards for the links in [text] (lib/plugins/embeds.dart), while it is on: two at most.
 List<Widget> _linkCards(BuildContext context, String text) {
   if (text.isEmpty) return const [];
@@ -512,8 +572,8 @@ class _InboxBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final m = message;
-    final round = Radius.circular(t.lenOf('1.125rem'));
-    final tight = Radius.circular(t.lenOf('0.375rem'));
+    final round = Radius.circular(lookCorner(t, '1.125rem', most: 1));
+    final tight = Radius.circular(lookCorner(t, '0.375rem', most: 1));
     final failed = m.state == 'failed';
     return Padding(
       padding: EdgeInsets.only(top: first ? t.space(2) : 2),
@@ -534,7 +594,7 @@ class _InboxBubble extends StatelessWidget {
               decoration: BoxDecoration(
                 // The conversation's own colours (lib/backgrounds.dart): a white bubble on the light page has a line round it.
                 color: m.mine ? mineBg : theirBubble(t, onBackground: false),
-                border: m.mine && bubbleNeedsRim(mineBg, t.color('glacier-bg')) ? Border.all(color: t.color('app-ink-4'), width: 1) : null,
+                border: !m.mine ? theirRim(t) : bubbleNeedsRim(mineBg, t.color('glacier-bg')) ? Border.all(color: t.color('app-ink-4'), width: 1) : null,
                 borderRadius: BorderRadius.only(
                   topLeft: !m.mine && !first ? tight : round,
                   bottomLeft: !m.mine && !last ? tight : round,
@@ -558,7 +618,7 @@ class _InboxBubble extends StatelessWidget {
             padding: EdgeInsets.only(top: 2, left: t.space(2), right: t.space(2)),
             child: Text(
               failed ? 'Not sent' : (m.state == 'sending' ? 'Sending…' : clock(m.date)),
-              style: pageText(t, t.fontSize('xs'), color: failed ? t.colorOf('#dd3a30') : t.color('app-ink-3')),
+              style: pageText(t, t.fontSize('xs'), color: failed ? t.danger : t.color('app-ink-3')),
             ),
           ),
       ]),
@@ -634,7 +694,7 @@ class _BlueskySignInScreenState extends State<BlueskySignInScreen> {
                   title: 'Your account',
                   description: const Text(
                       'Use an app password, not your account\'s password. Make one in Bluesky: Settings › Privacy and security › App passwords › Add, with "Allow access to your direct messages" ticked. It can be taken back there at any time.'),
-                  footer: n.error == null ? null : Text(n.error!, style: TextStyle(color: t.colorOf('#dd3a30'))),
+                  footer: n.error == null ? null : Text(n.error!, style: TextStyle(color: t.danger)),
                   children: [
                     SettingRowBox(
                       child: GlacierInput(controller: _handle, placeholder: 'you.bsky.social', ariaLabel: 'Your handle', autoCorrect: false, autoFocus: true, size: GlacierFieldSize.md),
@@ -725,7 +785,7 @@ class _SignalLinkScreenState extends State<SignalLinkScreen> {
                 PaneSection(
                   title: 'Scan this with Signal',
                   description: const Text('In Signal on your phone: Settings › Linked devices › Link new device, then point it at this code. Ghost becomes another of your devices, as Signal Desktop is. Messages from now on come here; Signal keeps no older ones for a new device.'),
-                  footer: n.error == null ? null : Text(n.error!, style: TextStyle(color: t.colorOf('#dd3a30'))),
+                  footer: n.error == null ? null : Text(n.error!, style: TextStyle(color: t.danger)),
                   children: [
                     SettingRowBox(
                       child: Padding(
@@ -816,7 +876,7 @@ class _MastodonSignInScreenState extends State<MastodonSignInScreen> {
                 description: Text(_page == null
                     ? 'The server your account is on, or your whole address (@you@mastodon.social). Its own page opens to let Ghost read and send your direct messages.'
                     : 'Approve Ghost Messaging on the page that opened, then paste the code it shows here.'),
-                footer: n.error == null ? null : Text(n.error!, style: TextStyle(color: t.colorOf('#dd3a30'))),
+                footer: n.error == null ? null : Text(n.error!, style: TextStyle(color: t.danger)),
                 children: [
                   if (_page == null) ...[
                     SettingRowBox(child: GlacierInput(controller: _server, placeholder: 'mastodon.social', ariaLabel: 'Your server', autoCorrect: false, autoFocus: true, size: GlacierFieldSize.md, onSubmitted: (_) => _begin())),
@@ -973,7 +1033,7 @@ class _TelegramSignInScreenState extends State<TelegramSignInScreen> {
                     PaneSection(
                       title: 'Sign in with your phone',
                       description: Text('Your phone is signed in to Telegram${_phoneAccount == null ? '' : ' as $_phoneAccount'}. It approves this computer, and this computer gets a session of its own: no number, no code.'),
-                      footer: _phoneError == null ? null : Text(_phoneError!, style: TextStyle(color: t.colorOf('#dd3a30'))),
+                      footer: _phoneError == null ? null : Text(_phoneError!, style: TextStyle(color: t.danger)),
                       children: [
                         SettingRow(
                           icon: _icon(Lucide.smartphone),
@@ -989,7 +1049,7 @@ class _TelegramSignInScreenState extends State<TelegramSignInScreen> {
                     key: ValueKey(n.step == InboxStep.elsewhere ? InboxStep.phone : n.step),
                     title: Sms.remote && _phoneReady == true && (n.step == InboxStep.phone || n.step == InboxStep.elsewhere) ? 'Or with your number' : title,
                     description: Text(about),
-                    footer: n.error == null ? null : Text(n.error!, style: TextStyle(color: t.colorOf('#dd3a30'))),
+                    footer: n.error == null ? null : Text(n.error!, style: TextStyle(color: t.danger)),
                     children: [
                       SettingRowBox(child: GlacierInput(controller: _field, type: type, placeholder: placeholder, ariaLabel: title, autoCorrect: false, autoFocus: true, size: GlacierFieldSize.md, onSubmitted: (_) => _go())),
                       SettingRow(icon: _icon(n.step == InboxStep.phone || n.step == InboxStep.elsewhere ? Lucide.messageSquare : Lucide.arrowRight), label: _busy ? 'One moment…' : action, disabled: _busy, onPress: _go),

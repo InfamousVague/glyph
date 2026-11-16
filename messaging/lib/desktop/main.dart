@@ -8,6 +8,7 @@ import 'package:glacier/glacier.dart';
 import '../accent.dart';
 import '../app_state.dart';
 import '../kit/settings_css.dart';
+import '../looks.dart';
 import '../main.dart' show InkOverrides, ghostTypography;
 import '../sounds.dart';
 import '../sms.dart';
@@ -128,7 +129,7 @@ class DesktopApp extends StatelessWidget {
             navigatorObservers: [UpdateWatch()],
             builder: (context, child) => GlacierTheme(
               sheet: accents?.of(state) ?? sheet,
-              attrs: {'platform': 'desktop', if (state.theme != 'system') 'theme': state.theme},
+              attrs: ghostAttrs(state, 'desktop'),
               typography: ghostTypography(state.emoji),
               // A newer version says so with the card the phone has, at the top of the list (lib/ui/update_banner.dart).
               child: InkOverrides(child: GlacierToastProvider(child: child!)),

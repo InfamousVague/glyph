@@ -16,6 +16,7 @@ import '../kit/settings_kit.dart';
 import '../plugins/settings.dart';
 import '../onboarding/onboarding.dart';
 import '../kit/settings_type.dart';
+import '../looks.dart';
 import '../sms.dart';
 import '../sounds.dart';
 import 'background_picker.dart';
@@ -24,6 +25,7 @@ import '../voice/voice_settings.dart';
 import 'common.dart';
 import 'gm_guide_screen.dart';
 import 'gm_web_screen.dart';
+import 'look_picker.dart';
 import 'rcs_setup.dart';
 import 'voice_pane.dart';
 import 'voice_screen.dart' show VolumeSlider;
@@ -88,11 +90,15 @@ List<SettingsSection> _ownSections() => [
     icon: _icon(Lucide.sunMoon),
     hue: 'indigo',
     group: 'look',
-    summary: (m) => [
-      switch (m.app.theme) { 'light' => 'Light', 'dark' => 'Dark', _ => 'System theme' },
-      '${bubbleColor(m.app.bubble).name} bubbles',
-      if (m.app.textSize != 'default') '${m.app.textSize} text',
-    ].join(' · '),
+    summary: (m) {
+      final look = m.app.look;
+      return [
+        if (look != Look.ghost) look.label,
+        if (look.forced == null) switch (m.app.theme) { 'light' => look.lightName, 'dark' => look.darkName, _ => 'System theme' },
+        '${m.app.bubble == 'theme' ? (look == Look.ghost ? 'White' : look.label) : bubbleColor(m.app.bubble).name} bubbles',
+        if (m.app.textSize != 'default') '${m.app.textSize} text',
+      ].join(' · ');
+    },
     page: _appearance,
   ),
   SettingsSection(
@@ -317,36 +323,54 @@ const appVersion = '0.8.4';
 List<Widget> _appearance(BuildContext context, SettingsModel m) {
   final app = m.app;
   final palette = PhonePalette.current != null;
+  final look = app.look;
   return [
-    PaneSection(title: 'Theme', children: [
-      SettingRow(
-        icon: _icon(Lucide.sunMoon),
-        label: 'Theme',
-        layout: SettingRowLayout.stacked,
-        control: GlacierSegmentedControl(
-          fullWidth: true,
-          value: app.theme,
-          onValueChange: app.setTheme,
-          options: const [
-            GlacierSegmentedOption(value: 'system', label: Text('System')),
-            GlacierSegmentedOption(value: 'light', label: Text('Light')),
-            GlacierSegmentedOption(value: 'dark', label: Text('Dark')),
-          ],
-        ),
-      ),
-    ]),
+    // Looks for the whole app (Matt, 2026-11-16: "spend some time making a few themes for ghost"), above Theme, which
+    // only a look with both a light and a dark half has.
     PaneSection(
-      title: 'Bubbles',
-      footer: Text('The colour of your own bubbles in every conversation. Ghost is Ghost Keyboard\'s teal, Ink is the page\'s own black and white${palette ? ', and Wallpaper is the accent Android takes from this phone\'s wallpaper' : ''}. A conversation can have a colour of its own, from the cog at its top.${Sms.remote ? '' : ' Ghost Keyboard offers the same colours for its enter key and keeps in step: choose one here or there and both change.'}'),
-      children: [
-        SettingRow(
-          icon: _icon(Lucide.messageSquare),
-          label: 'Your bubbles',
-          layout: SettingRowLayout.stacked,
-          control: BubbleSwatches(chosen: app.bubble == 'wallpaper' && !palette ? 'white' : app.bubble, onPick: app.setBubble),
-        ),
-      ],
+      title: 'Look',
+      footer: const Text('How the whole app looks. Each look brings its own colour for your bubbles, which you can still change below.'),
+      children: [SettingRowBox(child: LookPicker(app: app))],
     ),
+    PaneSection(title: 'Theme', children: [
+      if (look.forced == null)
+        SettingRow(
+          icon: _icon(Lucide.sunMoon),
+          label: 'Theme',
+          layout: SettingRowLayout.stacked,
+          control: GlacierSegmentedControl(
+            fullWidth: true,
+            value: app.theme,
+            onValueChange: app.setTheme,
+            options: [
+              const GlacierSegmentedOption(value: 'system', label: Text('System')),
+              GlacierSegmentedOption(value: 'light', label: Text(look.lightName)),
+              GlacierSegmentedOption(value: 'dark', label: Text(look.darkName)),
+            ],
+          ),
+        )
+      else
+        SettingRow(
+          icon: _icon(Lucide.sunMoon),
+          label: 'Theme',
+          hint: Text('${look.label} is always ${look.forced}, whatever the phone is set to.'),
+        ),
+    ]),
+    // Dial-Up's transcript has no bubbles and writes your name in its own red, so a colour chosen here would change
+    // nothing seen there: not offered while it is the look.
+    if (look != Look.dialup)
+      PaneSection(
+        title: 'Bubbles',
+        footer: Text('The colour of your own bubbles in every conversation.${look != Look.ghost ? ' Theme is ${look.label}\'s own.' : ''} Ghost is Ghost Keyboard\'s teal, Ink is the page\'s own black and white${palette ? ', and Wallpaper is the accent Android takes from this phone\'s wallpaper' : ''}. A conversation can have a colour of its own, from the cog at its top.${Sms.remote ? '' : ' Ghost Keyboard offers the same colours for its enter key and keeps in step: choose one here or there and both change.'}'),
+        children: [
+          SettingRow(
+            icon: _icon(Lucide.messageSquare),
+            label: 'Your bubbles',
+            layout: SettingRowLayout.stacked,
+            control: BubbleSwatches(chosen: app.bubble == 'wallpaper' && !palette ? 'white' : app.bubble, onPick: app.setBubble),
+          ),
+        ],
+      ),
     PaneSection(title: 'Text', footer: Text(Sms.remote ? 'The size of the words in a message.' : 'The size of the words in a message. Everything else follows Android\'s own font size.'), children: [
       SettingRow(
         icon: _icon(LucideMore.type),

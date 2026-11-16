@@ -38,7 +38,11 @@ TextStyle _weighted(Tokens t, TextStyle style, String weight) => style.copyWith(
 Color settingsHue(Tokens t) => t.colorOf('var(--hue, var(--app-ink))');
 
 /// `color-mix(in srgb, var(--hue, var(--app-ink)) 16%, transparent)`: the chip under an icon in its section's colour.
-Color settingsHueWash(Tokens t) => t.colorOf('color-mix(in srgb, var(--hue, var(--app-ink)) 16%, transparent)');
+/// None under Dial-Up's bevelled chrome, whose icons stand bare on the page as the era's did.
+Color settingsHueWash(Tokens t) => _bevel(t) ? const Color(0x00000000) : t.colorOf('color-mix(in srgb, var(--hue, var(--app-ink)) 16%, transparent)');
+
+/// Dial-Up's chrome (lib/ui/dialup/bevel.dart's isBevelChrome, read here from its token so the kit needs no app import).
+bool _bevel(Tokens t) => t.raw('app-chrome-style')?.trim() == 'bevel';
 
 // --- the pane ----------------------------------------------------------------------------------------------------
 
@@ -380,9 +384,10 @@ class PaneSection extends StatelessWidget {
             child: Semantics(
               label: title,
               child: ExcludeSemantics(
-                // `text-transform: uppercase`: drawn in capitals, named as written.
+                // `text-transform: uppercase`: drawn in capitals, named as written. Dial-Up's group labels are as
+                // written, as the era's group boxes had them.
                 child: Text(
-                  title!.toUpperCase(),
+                  _bevel(t) ? title! : title!.toUpperCase(),
                   style: pageText(t, titleSize, weight: 'semibold', color: t.color('app-ink-3'), tracking: t.len('app-tracking-caps', em: titleSize)),
                 ),
               ),
@@ -394,11 +399,20 @@ class PaneSection extends StatelessWidget {
         if (description != null) ...[Padding(padding: side, child: DefaultTextStyle(style: small, child: ExactLines(lineHeight: small.fontSize! * small.height!, child: description!))), SizedBox(height: gap)],
         GlacierScope(
           classes: const {'setk__card'},
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(t.radius('lg')),
-            child: ColoredBox(
-              color: t.color('app-paper-2'),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: rows),
+          // In a look that rules its shapes (Sharp, Phosphor: `--app-bubble-rim`) the card wears a line, where its
+          // paper-2 on Sharp's black was 1.1:1 and the card all but vanished.
+          child: DecoratedBox(
+            position: DecorationPosition.foreground,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(t.radius('lg')),
+              border: (t.raw('app-bubble-rim') ?? '').isEmpty || _bevel(t) ? null : Border.all(color: t.color('glacier-border-subtle'), width: t.len('glacier-hairline')),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(t.radius('lg')),
+              child: ColoredBox(
+                color: t.color('app-paper-2'),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: rows),
+              ),
             ),
           ),
         ),
@@ -520,7 +534,8 @@ class SettingRow extends StatelessWidget implements PaneRow {
           ? Container(
               width: t.lenOf('1.85rem'),
               height: t.lenOf('1.85rem'),
-              decoration: BoxDecoration(color: settingsHueWash(t), borderRadius: BorderRadius.circular(t.lenOf('0.55rem'))),
+              // Its corners under the look's radius scale, as the kit's own radii are (square in Phosphor, Dial-Up).
+              decoration: BoxDecoration(color: settingsHueWash(t), borderRadius: BorderRadius.circular(t.lenOf('0.55rem') * t.number('glacier-radius-scale'))),
               alignment: Alignment.center,
               child: SizedBox.square(dimension: t.lenOf('1.05rem'), child: FittedBox(child: IconTheme.merge(data: IconThemeData(color: settingsHue(t)), child: icon!))),
             )

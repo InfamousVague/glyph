@@ -16,10 +16,12 @@ import '../kit/settings_type.dart';
 import '../reactions.dart';
 import '../sms.dart';
 import '../ui/common.dart';
+import '../ui/dialup/dialup.dart' show DialupCount, RetroButton, isDialup;
 import '../ui/nav_bar.dart';
 import 'companies.dart' show ghostDomain;
 import 'plugin.dart';
 import 'registry.dart';
+import '../kit/semantic_colors.dart';
 
 /// The list's tabs, under its search field: "Messages" and each section that has conversations in it, with how
 /// many, as one segmented toggle (Matt, 2026-11-14: "change the messages and codes to a segmented toggle"). They
@@ -180,45 +182,60 @@ class _FilterButtonState extends State<FilterButton> {
         message: widget.hidden == 0 ? 'Filter' : 'Filter · ${widget.hidden} hidden',
         below: true,
         end: true,
-        child: GlacierPressable(
-          onPressed: trigger.toggle,
-          semanticLabel: widget.hidden == 0 ? 'Filter' : 'Filter, ${widget.hidden} hidden',
-          builder: (context, state) => GlacierFocusRing(
-            visible: state.focused,
-            radius: t.radius('full'),
-            child: Stack(clipBehavior: Clip.none, children: [
-              Container(
-                width: size,
-                height: size,
-                decoration: BoxDecoration(
-                  color: widget.only ? t.color('app-accent') : t.color(state.pressed || _open ? 'app-paper-3' : 'app-paper-2'),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: widget.only ? t.color('app-accent') : t.color('app-rule')),
+        // Dial-Up's is a square raised button like the rest of its window's, held while its menu is open, with the
+        // taskbar's red square for the count, where the round grey pill was the one Ghost shape left on its page.
+        child: isDialup(context)
+            ? Stack(clipBehavior: Clip.none, children: [
+                RetroButton(
+                  onPressed: trigger.toggle,
+                  icon: LucideMore.funnel,
+                  semanticLabel: widget.hidden == 0 ? 'Filter' : 'Filter, ${widget.hidden} hidden',
+                  toggled: _open || widget.only,
+                  faceHeight: size,
+                  minFaceWidth: size,
+                  padding: EdgeInsets.zero,
                 ),
-                alignment: Alignment.center,
-                child: ExcludeSemantics(child: AppIcon(LucideMore.funnel, size: 16, strokeWidth: 2.2, wash: false, color: ink)),
-              ),
-              if (widget.hidden > 0)
-                Positioned(
-                  right: -6,
-                  top: -6,
-                  child: ExcludeSemantics(
-                    child: Container(
-                      // As big as the pill's (Matt, 2026-11-15: "make the notification count badges a bit bigger on
-                      // the filter and other places where they're listed").
-                      constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      alignment: Alignment.center,
-                      // In the app's accent (Matt, 2026-11-14: "Make the pill indicator on the filters thr same as
-                      // the primary color").
-                      decoration: BoxDecoration(color: t.color('app-accent'), borderRadius: BorderRadius.circular(12), border: Border.all(color: t.color('glacier-bg'), width: 2)),
-                      child: Text(widget.hidden > 99 ? '99+' : '${widget.hidden}', style: t.textAt(13, weight: 'bold', height: 1.15, color: t.color('app-on-accent'))),
+                if (widget.hidden > 0) Positioned(right: 0, top: 0, child: ExcludeSemantics(child: DialupCount(count: widget.hidden))),
+              ])
+            : GlacierPressable(
+              onPressed: trigger.toggle,
+              semanticLabel: widget.hidden == 0 ? 'Filter' : 'Filter, ${widget.hidden} hidden',
+              builder: (context, state) => GlacierFocusRing(
+                visible: state.focused,
+                radius: t.radius('full'),
+                child: Stack(clipBehavior: Clip.none, children: [
+                  Container(
+                    width: size,
+                    height: size,
+                    decoration: BoxDecoration(
+                      color: widget.only ? t.color('app-accent') : t.color(state.pressed || _open ? 'app-paper-3' : 'app-paper-2'),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: widget.only ? t.color('app-accent') : t.color('app-rule')),
                     ),
+                    alignment: Alignment.center,
+                    child: ExcludeSemantics(child: AppIcon(LucideMore.funnel, size: 16, strokeWidth: 2.2, wash: false, color: ink)),
                   ),
-                ),
-            ]),
-          ),
-        ),
+                  if (widget.hidden > 0)
+                    Positioned(
+                      right: -6,
+                      top: -6,
+                      child: ExcludeSemantics(
+                        child: Container(
+                          // As big as the pill's (Matt, 2026-11-15: "make the notification count badges a bit bigger on
+                          // the filter and other places where they're listed").
+                          constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          alignment: Alignment.center,
+                          // In the app's accent (Matt, 2026-11-14: "Make the pill indicator on the filters thr same as
+                          // the primary color").
+                          decoration: BoxDecoration(color: t.color('app-accent'), borderRadius: BorderRadius.circular(12), border: Border.all(color: t.color('glacier-bg'), width: 2)),
+                          child: Text(widget.hidden > 99 ? '99+' : '${widget.hidden}', style: t.textAt(13, weight: 'bold', height: 1.15, color: t.color('app-on-accent'))),
+                        ),
+                      ),
+                    ),
+                ]),
+              ),
+            ),
       ),
       children: widget.rows(context),
     );
@@ -278,8 +295,8 @@ class PluginRow extends StatelessWidget {
                     height: face,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: selected ? t.colorOf('#4f5bd5') : const Color(0x00000000),
-                      border: Border.all(color: selected ? t.colorOf('#4f5bd5') : t.color('app-ink-4'), width: 2),
+                      color: selected ? t.chosen : const Color(0x00000000),
+                      border: Border.all(color: selected ? t.chosen : t.color('app-ink-4'), width: 2),
                     ),
                     alignment: Alignment.center,
                     child: selected ? const AppIcon(Lucide.check, size: 22, strokeWidth: 2.6, wash: false, color: Color(0xFFFFFFFF)) : null,
@@ -299,7 +316,7 @@ class PluginRow extends StatelessWidget {
                         Expanded(child: Text(look.title ?? c.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize(value == null ? 'md' : 'sm'), weight: unread ? 'bold' : 'semibold', color: t.color(value == null ? 'app-ink' : 'app-ink-2')))),
                         if (unread) ...[
                           SizedBox(width: t.space(2)),
-                          Container(width: 9, height: 9, decoration: BoxDecoration(shape: BoxShape.circle, color: t.colorOf('#4f5bd5'))),
+                          Container(width: 9, height: 9, decoration: BoxDecoration(shape: BoxShape.circle, color: t.unread)),
                         ],
                         SizedBox(width: t.space(2)),
                         Text(listWhen(c.date), style: pageText(t, t.fontSize('xs'), weight: unread ? 'semibold' : 'regular', color: t.color(unread ? 'app-ink' : 'app-ink-3'))),

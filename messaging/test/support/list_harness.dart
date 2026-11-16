@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides;
+import 'package:ghost_messaging/looks.dart';
 import 'package:glacier/glacier.dart';
 
 /// A phone made up for a test of the list of conversations with plugins (test/plugins_list_test.dart and the
@@ -107,7 +108,7 @@ Future<void> pumpScreen(WidgetTester tester, TokenSheet sheet, Widget screen, Ap
       pageRouteBuilder: <T>(RouteSettings s, WidgetBuilder b) => PageRouteBuilder<T>(settings: s, pageBuilder: (c, _, _) => b(c)),
       builder: (context, child) => GlacierTheme(
         sheet: sheet,
-        attrs: const {'platform': 'mobile', 'theme': 'light'},
+        attrs: {'theme': 'light', ...ghostAttrs(state, 'mobile')},
         child: InkOverrides(child: GlacierToastProvider(child: child!)),
       ),
       home: screen,
