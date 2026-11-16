@@ -1,6 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/art/app_icon.dart';
+import 'package:ghost_messaging/art/lucide_more.dart';
 import 'package:ghost_messaging/ui/space_designs/discord.dart';
+import 'package:ghost_messaging/ui/space_designs/space_design.dart';
 
 import 'support/space_call_harness.dart';
 
@@ -17,6 +20,10 @@ void main() {
       await h.shoot(tester, DiscordCall(call: h.call(people: 0, video: const {})), 'space-discord-alone', dark: dark);
       await h.shoot(tester, DiscordCall(call: h.call(people: 0, video: const {})), 'space-discord-alone-computer', size: SpaceHarness.computer, dark: dark);
       await h.shoot(tester, DiscordCall(call: h.call(people: 3, video: const {'a', 'c'}, myVideo: true, muted: true)), 'space-discord-video', size: SpaceHarness.computer, dark: dark);
+      await h.shoot(tester, DiscordCall(call: h.call(deafened: true)), 'space-discord-deafened', dark: dark);
+      // Deafened: the bar says Undeafen, and your own name pill and the button both show the headphones crossed out.
+      expect(find.text('Undeafen'), findsOneWidget);
+      expect(find.byWidgetPredicate((w) => w is AppIcon && w.icon == LucideMore.headphoneOff), findsNWidgets(2));
       final semantics = tester.ensureSemantics();
       await h.shoot(tester, DiscordCall(call: h.call()), 'space-discord-chat', dark: dark);
       await tester.tap(find.bySemanticsLabel('Chat'));
@@ -49,6 +56,28 @@ void main() {
     await h.shoot(tester, DiscordCall(call: h.call(log: log, micLocked: true, muted: true)), 'space-discord-buttons');
     expect(find.text('Mic locked'), findsOneWidget);
     await tester.tap(find.bySemanticsLabel('Mic locked').first, warnIfMissed: false);
+    expect(log, isEmpty);
+
+    // So is a locked camera: the lock in place of the camera, and pressing it writes nothing.
+    final c = h.call(log: log);
+    final locked = SpaceCall(
+      channel: c.channel,
+      people: c.people,
+      levels: c.levels,
+      changes: c.changes,
+      room: c.room,
+      since: c.since,
+      videoLocked: true,
+      onMute: c.onMute,
+      onVideo: c.onVideo,
+      onDeafen: c.onDeafen,
+      onLeave: c.onLeave,
+      chatBuilder: c.chatBuilder,
+    );
+    await h.shoot(tester, DiscordCall(call: locked), 'space-discord-buttons');
+    expect(find.text('Video locked'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('Video locked').first, warnIfMissed: false);
+    await tester.pump();
     expect(log, isEmpty);
     semantics.dispose();
     await tester.pumpWidget(const SizedBox());

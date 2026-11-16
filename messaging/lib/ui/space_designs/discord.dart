@@ -122,8 +122,9 @@ class _Header extends StatelessWidget {
             ),
           ]),
         ),
-        _HeaderButton(icon: Lucide.userPlus, label: SpaceWords.invite, onPressed: invite == null ? null : () => invite(context)),
-        _HeaderButton(icon: LucideMore.settings, label: SpaceWords.settings, onPressed: settings == null ? null : () => settings(context)),
+        // On a phone Invite and Settings keep only their icons (their words are still read), so the name has room.
+        _HeaderButton(icon: Lucide.userPlus, label: SpaceWords.invite, compact: !wide, onPressed: invite == null ? null : () => invite(context)),
+        _HeaderButton(icon: LucideMore.settings, label: SpaceWords.settings, compact: !wide, onPressed: settings == null ? null : () => settings(context)),
         _HeaderButton(icon: LucideMore.messageCircle, label: SpaceWords.chat, on: chatOpen, onPressed: onChat),
         if (wide) _HeaderButton(icon: Lucide.chevronDown, label: SpaceWords.minimize, onPressed: minimize),
       ]),
@@ -131,13 +132,15 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// A header icon with its word under it, light on the dark stage; [on] for the chat while it shows.
+/// A header icon with its word under it, light on the dark stage; [on] for the chat while it shows. [compact]: the
+/// icon alone, the word only read aloud.
 class _HeaderButton extends StatelessWidget {
-  const _HeaderButton({required this.icon, required this.label, this.onPressed, this.on = false});
+  const _HeaderButton({required this.icon, required this.label, this.onPressed, this.on = false, this.compact = false});
   final LucideIcon icon;
   final String label;
   final VoidCallback? onPressed;
   final bool on;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -151,15 +154,25 @@ class _HeaderButton extends StatelessWidget {
         builder: (context, state) {
           final lit = on || state.hovered;
           return Container(
-            width: 58,
-            padding: const EdgeInsets.symmetric(vertical: 4),
+            width: compact ? 40 : 58,
+            height: compact ? 40 : null,
+            padding: compact ? null : const EdgeInsets.symmetric(vertical: 4),
+            alignment: compact ? Alignment.center : null,
             decoration: BoxDecoration(color: on ? const Color(0x1FFFFFFF) : (state.hovered ? const Color(0x12FFFFFF) : null), borderRadius: BorderRadius.circular(8)),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              AppIcon(icon, size: 20, wash: false, color: lit ? _D.text : _D.muted),
-              const SizedBox(height: 3),
-              // The pressable already says the word; the visible one is not read twice.
-              ExcludeSemantics(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, 11, weight: 'semibold', color: lit ? _D.text : _D.muted))),
-            ]),
+            child: compact
+                ? AppIcon(icon, size: 20, wash: false, color: lit ? _D.text : _D.muted)
+                : Column(mainAxisSize: MainAxisSize.min, children: [
+                    AppIcon(icon, size: 20, wash: false, color: lit ? _D.text : _D.muted),
+                    const SizedBox(height: 3),
+                    // The pressable already says the word; the visible one is not read twice. At a large text size
+                    // it shrinks to fit rather than losing its end.
+                    ExcludeSemantics(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(label, maxLines: 1, style: pageText(t, 11, weight: 'semibold', color: lit ? _D.text : _D.muted)),
+                      ),
+                    ),
+                  ]),
           );
         },
       ),
@@ -350,7 +363,8 @@ class _Tile extends StatelessWidget {
   }
 }
 
-/// A round avatar with the first letter, ringed green (with a dark gap, as Discord's is) while they talk.
+/// A round avatar with the first letter, ringed green while they talk, with a dark gap between ring and face as
+/// Discord's has.
 class _Avatar extends StatelessWidget {
   const _Avatar({required this.name, required this.color, required this.size, required this.talking});
   final String name;
@@ -366,7 +380,12 @@ class _Avatar extends StatelessWidget {
       width: size + 10,
       height: size + 10,
       padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: talking ? _D.green : const Color(0x00000000), width: 3)),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        // The fill shows only in the 2px gap round the face: dark, so the ring reads crisp on any tile colour.
+        color: talking ? _D.ground : null,
+        border: Border.all(color: talking ? _D.green : const Color(0x00000000), width: 3),
+      ),
       child: Container(
         decoration: BoxDecoration(shape: BoxShape.circle, color: color),
         alignment: Alignment.center,
@@ -386,34 +405,39 @@ class _ControlBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final devices = call.onDevices;
-    final gap = SizedBox(width: wide ? t.space(3) : t.space(2));
+    // Each column is its button plus a fixed margin for the word, so the buttons sit evenly whatever the words say.
+    final gap = SizedBox(width: wide ? t.space(2) : t.space(1));
     return Padding(
       padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), wide ? t.space(4) : t.space(3)),
-      child: Row(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _BarButton(
-          icon: SpaceWords.videoIcon(call),
-          label: call.videoLocked ? 'Video locked' : SpaceWords.video(call),
-          onPressed: call.videoLocked ? null : call.onVideo,
-          look: call.video ? _Look.lit : _Look.plain,
-        ),
-        gap,
-        _BarButton(
-          icon: call.micLocked ? Lucide.lock : SpaceWords.muteIcon(call),
-          label: call.micLocked ? 'Mic locked' : SpaceWords.mute(call),
-          onPressed: call.micLocked ? null : call.onMute,
-          look: call.muted || call.micLocked ? _Look.alarm : _Look.plain,
-          onMore: devices == null ? null : () => devices(context),
-        ),
-        gap,
-        _BarButton(
-          icon: SpaceWords.deafenIcon(call),
-          label: SpaceWords.deafen(call),
-          onPressed: call.onDeafen,
-          look: call.deafened ? _Look.alarm : _Look.plain,
-        ),
-        gap,
-        _BarButton(icon: LucideMore.phoneOff, label: SpaceWords.leave, onPressed: call.onLeave, look: _Look.danger, width: wide ? 76 : 68),
-      ]),
+      // Too wide for the screen (a large text size, a narrow phone): the whole bar shrinks rather than overflowing.
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _BarButton(
+            icon: call.videoLocked ? Lucide.lock : SpaceWords.videoIcon(call),
+            label: call.videoLocked ? 'Video locked' : SpaceWords.video(call),
+            onPressed: call.videoLocked ? null : call.onVideo,
+            look: call.videoLocked ? _Look.alarm : (call.video ? _Look.lit : _Look.plain),
+          ),
+          gap,
+          _BarButton(
+            icon: call.micLocked ? Lucide.lock : SpaceWords.muteIcon(call),
+            label: call.micLocked ? 'Mic locked' : SpaceWords.mute(call),
+            onPressed: call.micLocked ? null : call.onMute,
+            look: call.muted || call.micLocked ? _Look.alarm : _Look.plain,
+            onMore: devices == null ? null : () => devices(context),
+          ),
+          gap,
+          _BarButton(
+            icon: SpaceWords.deafenIcon(call),
+            label: SpaceWords.deafen(call),
+            onPressed: call.onDeafen,
+            look: call.deafened ? _Look.alarm : _Look.plain,
+          ),
+          gap,
+          _BarButton(icon: LucideMore.phoneOff, label: SpaceWords.leave, onPressed: call.onLeave, look: _Look.danger, width: wide ? 76 : 68),
+        ]),
+      ),
     );
   }
 }
@@ -462,18 +486,24 @@ class _BarButton extends StatelessWidget {
       more == null ? BorderRadius.circular(14) : const BorderRadius.horizontal(left: Radius.circular(14)),
       width,
     );
-    return Column(mainAxisSize: MainAxisSize.min, children: [
-      if (more == null)
-        main
-      else
-        Row(mainAxisSize: MainAxisSize.min, children: [
-          main,
-          Container(width: 1, height: height, color: _D.ground),
-          face(more, SpaceWords.devices, const AppIcon(Lucide.chevronUp, size: 16, wash: false, color: _D.muted), const BorderRadius.horizontal(right: Radius.circular(14)), 30),
-        ]),
-      const SizedBox(height: 6),
-      ExcludeSemantics(child: Text(label, maxLines: 1, style: pageText(t, 11, weight: 'semibold', color: _D.muted))),
-    ]);
+    final column = width + (more == null ? 0 : 31) + 20;
+    return SizedBox(
+      width: column,
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (more == null)
+          main
+        else
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            main,
+            Container(width: 1, height: height, color: _D.ground),
+            face(more, SpaceWords.devices, const AppIcon(Lucide.chevronUp, size: 16, wash: false, color: _D.muted), const BorderRadius.horizontal(right: Radius.circular(14)), 30),
+          ]),
+        const SizedBox(height: 6),
+        ExcludeSemantics(
+          child: FittedBox(fit: BoxFit.scaleDown, child: Text(label, maxLines: 1, style: pageText(t, 11, weight: 'semibold', color: _D.muted))),
+        ),
+      ]),
+    );
   }
 }
 
