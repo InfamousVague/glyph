@@ -398,6 +398,9 @@ void _answerChannel() {
             // As a video comes from an iPhone as a picture message: 320 by 240, under a megabyte.
             ? {'picture': File('assets/stickers/party/03.webp').readAsBytesSync(), 'millis': 12400, 'width': 640, 'height': 360, 'videoWidth': 320, 'videoHeight': 240, 'bytes': 912384}
             : {'picture': null, 'millis': 0, 'width': 0, 'height': 0};
+      // A text sent: the phone's thread for it.
+      case 'send':
+        return 1;
       case 'videoPlay':
         _videosPlayed.add((args['part'] as num).toInt());
         return null;
@@ -1353,6 +1356,13 @@ void main() {
       expect(send, findsOneWidget);
       final disc = find.descendant(of: send, matching: find.byType(Container)).evaluate().map((e) => (e.widget as Container).decoration).whereType<BoxDecoration>().map((d) => d.color?.toARGB32()).toList();
       expect(disc, contains(0xFF0A84FF), reason: 'Send wears the bubble colour');
+      // Sent, it is drawn at once as sending, before the phone has answered (Matt, 2026-11-15: "optimistically render a
+      // sent message bubble so it appears instantly").
+      await tester.tap(send);
+      await tester.pump();
+      expect(find.text('On my way', findRichText: true), findsOneWidget, reason: 'the bubble, the composer emptied');
+      expect(find.byWidgetPredicate((w) => w is Semantics && w.properties.label == 'sending'), findsWidgets);
+      await _settle(tester);
       // And every other colour is as it was (Matt, of 0.7.15: "make sure this next update brings back all the
       // colors to the app, they're missing from virtually every place where we had colors before on all the message
       // avatars and settings sections"): a face keeps its own colour, and so does each section of Settings.

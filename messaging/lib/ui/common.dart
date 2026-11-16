@@ -328,7 +328,9 @@ class IconTap extends StatelessWidget {
       builder: (context, state) {
         final off = onPressed == null;
         // A filled disc (Send) wears the app's accent: the bubble colour chosen everywhere (lib/accent.dart).
-        final ink = filled ? t.color('app-on-accent') : (color ?? t.color(state.pressed ? 'app-ink-3' : 'app-ink'));
+        // Off, it is grey with a grey icon, no colour at all until there is something to send (Matt, 2026-11-15: "on the
+        // send button it should be gray with no colored icon until the message has text").
+        final ink = filled ? (off ? t.color('app-ink-3') : t.color('app-on-accent')) : (color ?? t.color(state.pressed ? 'app-ink-3' : 'app-ink'));
         return GlacierFocusRing(
           visible: state.focused,
           radius: box,
@@ -341,7 +343,7 @@ class IconTap extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: filled
-                    ? (off ? t.color('app-ink-4') : t.color('app-accent'))
+                    ? (off ? t.color('app-paper-3') : t.color('app-accent'))
                     : (state.pressed ? t.color('app-paper-3') : const Color(0x00000000)),
               ),
               alignment: Alignment.center,
