@@ -273,6 +273,7 @@ class Store(private val context: Context) {
             if (offset <= 0) out += conversationsFromTexts(archived, pinned, muted, drafts).filter { only == null || (it["id"] as Long) in only }
         }
         if (offset <= 0) withBridge(out, only, lastShown = if (next != null) out.lastOrNull()?.get("date") as Long? else null)
+        withReadHere(out)
         return mapOf("items" to out, "next" to next)
     }
 
@@ -914,11 +915,17 @@ class Store(private val context: Context) {
     fun markRead(thread: Long) {
         // Beside Google Messages (GmBridge): read in the bridge, and in Google Messages too where it offers that. Android's
         // database takes no writes from an app that is not the default, so the two updates below may change nothing.
+        // Every conversation of Google Messages' that is this one, not the newest alone: a thread is often two (the one
+        // its notifications named and the one its on-phone connection knows), and only the second can be marked read
+        // there (Matt, 2026-11-16: "Rcs messages are not being marked as read when i view the message group").
         try {
             val db = GmBridge.Db.get(context)
-            db.convOfThread(thread)?.let { GmBridge.markRead(context, it) }
+            for (conv in (db.webConvsOf(thread) + listOfNotNull(db.convOfThread(thread))).distinct()) GmBridge.markRead(context, conv)
             db.markRead(thread)
-        } catch (_: Exception) {}
+        } catch (e: Exception) { DevLog.add(context, "read", "marking $thread read beside Google Messages: ${e.message}") }
+        // Read here whatever Android's database says: beside Google Messages it takes no writes from this app, and
+        // Google Messages may not have marked it yet (or at all, with its connection down).
+        keepRead(thread)
         val v = ContentValues().apply { put("read", 1); put("seen", 1) }
         try {
             resolver.update(Telephony.Sms.CONTENT_URI, v, "thread_id = ? AND read = 0", arrayOf(thread.toString()))
@@ -937,6 +944,21 @@ class Store(private val context: Context) {
      * Conversations deleted while Ghost is not the default SMS app, each with the time it was deleted at: left out of
      * the list until something newer arrives in them. Android lets only the default SMS app delete texts.
      */
+    /** When each conversation was last read here: what came before then is read, whatever Android's database says. */
+    fun readThreads(): Map<Long, Long> = try {
+        val o = org.json.JSONObject(prefs.getString("read_threads", "{}")!!)
+        o.keys().asSequence().mapNotNull { k -> k.toLongOrNull()?.let { it to o.getLong(k) } }.toMap()
+    } catch (_: Exception) { emptyMap() }
+
+    private fun keepRead(thread: Long) {
+        val o = try { org.json.JSONObject(prefs.getString("read_threads", "{}")!!) } catch (_: Exception) { org.json.JSONObject() }
+        o.put(thread.toString(), System.currentTimeMillis())
+        prefs.edit().putString("read_threads", o.toString()).apply()
+    }
+
+    /** [rows] with each one read here since its newest message shown as read. */
+    private fun withReadHere(rows: ArrayList<Map<String, Any?>>) = readHere(rows, readThreads())
+
     fun hiddenThreads(): Map<Long, Long> = try {
         val o = org.json.JSONObject(prefs.getString("hidden_threads", "{}")!!)
         o.keys().asSequence().mapNotNull { k -> k.toLongOrNull()?.let { it to o.getLong(k) } }.toMap()
@@ -1036,8 +1058,14 @@ class Store(private val context: Context) {
 
     fun unreadCount(): Int {
         var n = 0
-        resolver.query(Telephony.Sms.Inbox.CONTENT_URI, arrayOf("_id"), "read = 0", null, null)?.use { n += it.count }
-        resolver.query(Telephony.Mms.Inbox.CONTENT_URI, arrayOf("_id"), "read = 0", null, null)?.use { n += it.count }
+        val read = readThreads()
+        // A text read here counts as read (withReadHere). MMS dates are in seconds.
+        resolver.query(Telephony.Sms.Inbox.CONTENT_URI, arrayOf("thread_id", "date"), "read = 0", null, null)?.use { c ->
+            while (c.moveToNext()) if (c.getLong(1) > (read[c.getLong(0)] ?: -1L)) n++
+        }
+        resolver.query(Telephony.Mms.Inbox.CONTENT_URI, arrayOf("thread_id", "date"), "read = 0", null, null)?.use { c ->
+            while (c.moveToNext()) if (c.getLong(1) * 1000 > (read[c.getLong(0)] ?: -1L)) n++
+        }
         return n
     }
 
@@ -1178,6 +1206,15 @@ class Store(private val context: Context) {
     }
 
     companion object {
+        /** [rows] (conversations, newest message's time in `date`) read at [read]'s times, by id: unread no more if nothing newer came. */
+        fun readHere(rows: MutableList<Map<String, Any?>>, read: Map<Long, Long>) {
+            if (read.isEmpty()) return
+            rows.forEachIndexed { i, row ->
+                val at = read[row["id"] as Long] ?: return@forEachIndexed
+                if (row["unread"] == true && (row["date"] as Long) <= at) rows[i] = row + mapOf("unread" to false)
+            }
+        }
+
         /** The longest name a conversation can be given. */
         const val NAME_MOST = 60
 
