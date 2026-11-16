@@ -171,10 +171,13 @@ func saveSession() {
 func connect() {
 	cli = libgm.NewClient(auth, nil, log, exhttp.SensibleClientSettings)
 	cli.SetEventHandler(onEvent)
+	c := cli
 	go func() {
-		if err := cli.Connect(context.Background()); err != nil {
+		if err := c.Connect(context.Background()); err != nil {
 			log.Err(err).Msg("connect")
+			return
 		}
+		event("connected", nil)
 	}()
 }
 
@@ -217,7 +220,10 @@ func onEvent(raw any) {
 				}()
 			}
 		case gmproto.AlertType_BROWSER_ACTIVE:
+			// libgm sends no ClientReady any more: this alert is what says the session is up (mautrix-gmessages'
+			// bridge treats it so too). Ghost reads "connected" and fetches the conversations.
 			event("active", nil)
+			event("connected", nil)
 		}
 	case *events.PhoneNotResponding:
 		say(map[string]any{"ev": "phone", "responding": false})
@@ -563,6 +569,16 @@ func pairGoogle(cookies map[string]string) error {
 		saveSession()
 		mu.Unlock()
 		event("paired", nil)
+		// Connected as soon as libgm's own reconnect is up, whether or not its alert comes (it may have come already).
+		go func() {
+			for i := 0; i < 30; i++ {
+				time.Sleep(time.Second)
+				if c.IsConnected() && c.IsLoggedIn() {
+					event("connected", nil)
+					return
+				}
+			}
+		}()
 	}()
 	return nil
 }

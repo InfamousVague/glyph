@@ -108,7 +108,7 @@ object GmWeb {
             "connected" -> { connected = true; problem = null; Thread { status(); sync() }.start() }
             "qr" -> qr = o.optString("url")
             "emoji" -> emoji = o.optString("emoji")
-            "paired" -> { qr = null; emoji = null; paired = true; problem = null }
+            "paired" -> { qr = null; emoji = null; paired = true; problem = null; Thread { status(); sync(); watchUntilConnected() }.start() }
             "pair_failed" -> { qr = null; emoji = null; problem = o.optString("why") }
             "unpaired" -> { paired = false; connected = false; problem = o.optString("why"); Bus.changed(-1) }
             "inactive" -> inactive = true
@@ -116,6 +116,16 @@ object GmWeb {
             "phone" -> problem = if (o.optBoolean("responding")) null else "Google Messages on this phone isn't answering"
             "conversation" -> o.optJSONObject("data")?.let { Thread { keepConversation(it); Bus.changed(-1) }.start() }
             "message" -> o.optJSONObject("data")?.let { m -> Thread { keepMessage(m, notify = true) }.start() }
+        }
+    }
+
+    /** Paired but not yet said to be connected: asked again every 15 seconds for two minutes, and read in when it is. */
+    private fun watchUntilConnected() {
+        for (i in 0 until 8) {
+            if (connected || !paired) return
+            Thread.sleep(15_000)
+            status()
+            if (connected) { sync(); return }
         }
     }
 
