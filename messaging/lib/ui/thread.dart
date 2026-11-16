@@ -80,6 +80,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
 
   /// What [_messages] draws as: reaction texts folded onto their messages, your corrections onto your edits.
   Folded _folded = const Folded(messages: [], reactions: {});
+
+  /// Messages sent from here and not yet back from the phone, drawn at once as sending (Matt, 2026-11-15:
+  /// "optimistically render a sent message bubble so it appears instantly"); each goes once the phone's own copy is
+  /// read ([_settlePending]), or once it fails, or after two minutes.
+  final List<Message> _pending = [];
   Set<String> _corrected = const {};
 
   /// The message being edited in the composer, and what the composer held before.
@@ -354,16 +359,18 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final list = await Sms.instance.messages(widget.thread, limit: asked);
     if (!mounted) return;
     final edits = foldCorrections(list);
+    final folded = _foldOn ? foldReactions(edits.messages) : Folded(messages: edits.messages, reactions: const {});
     setState(() {
       _messages = list;
       // As many as were asked for: there may be more behind them.
       _older = list.length >= asked;
-      _folded = _foldOn ? foldReactions(edits.messages) : Folded(messages: edits.messages, reactions: const {});
+      _settlePending(list);
+      _folded = _pending.isEmpty ? folded : Folded(messages: [..._pending, ...folded.messages], reactions: folded.reactions);
       _corrected = edits.corrected;
     });
     _playReactions();
     // A message that came or went while the conversation is open sets off its effect, once.
-    final newest = _folded.messages.isEmpty ? null : _folded.messages.first;
+    final newest = folded.messages.isEmpty ? null : folded.messages.first;
     if (newest != null && _newestKey != null && newest.key != _newestKey && newest.state != 'failed') _playFor(newest);
     _newestKey = newest?.key ?? '';
     if (markRead && list.any((m) => !m.outgoing)) Sms.instance.markRead(widget.thread);
@@ -384,11 +391,37 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     return d(a).isNotEmpty ? d(a) == d(b) : a == b;
   }
 
+  /// Drops from [_pending] each message the phone's [list] now has (your own, the same words, from a minute before it
+  /// on), and any two minutes old.
+  void _settlePending(List<Message> list) {
+    final now = DateTime.now();
+    _pending.removeWhere((p) =>
+        now.difference(p.date) > const Duration(minutes: 2) ||
+        list.any((m) => m.outgoing && m.body.trim() == p.body && !m.date.isBefore(p.date.subtract(const Duration(minutes: 1)))));
+  }
+
+  /// [body] drawn at once as your newest message, sending.
+  Message _showPending(String body) {
+    final now = DateTime.now();
+    final m = Message(id: -now.microsecondsSinceEpoch, kind: 'pending', address: '', body: body, date: now, outgoing: true, state: 'sending');
+    setState(() {
+      _pending.insert(0, m);
+      _folded = Folded(messages: [m, ..._folded.messages], reactions: _folded.reactions);
+    });
+    return m;
+  }
+
+  void _dropPending(Message m) {
+    if (!_pending.remove(m)) return;
+    setState(() => _folded = Folded(messages: _folded.messages.where((x) => x.key != m.key).toList(), reactions: _folded.reactions));
+  }
+
   Future<void> _send() async {
     final body = _text.text.trim();
     if ((body.isEmpty && _attachments.isEmpty) || _sending) return;
     final to = _people.map((p) => p.address).toList();
     if (to.isEmpty) return;
+    final pending = body.isEmpty ? null : _showPending(body);
     setState(() => _sending = true);
     HapticFeedback.lightImpact();
     final files = List<String>.of(_attachments);
@@ -407,6 +440,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         if (!byRoute) await Sms.instance.send(to, body, attachments: files);
       }
     } catch (e) {
+      if (pending != null && mounted) _dropPending(pending);
       if (mounted) {
         // What was to be sent is put back, pictures too: nothing went.
         _text.text = body;
@@ -612,6 +646,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   /// what else can be done come up beside it (lib/ui/message_popover.dart). A line that is no bubble (a key, a
   /// background) has the sheet from the foot of the screen.
   void _messageMenu(Message m, [Rect? at]) {
+    // One drawn before the phone has it (_pending) has nothing on the phone to act on yet.
+    if (m.kind == 'pending') return;
     final canReact = m.state != 'sending' && m.state != 'waiting' && m.state != 'failed' && m.state != 'pending_download' && m.state != 'downloading' && m.notice == null;
     final mine = {for (final r in _folded.reactions[m.key] ?? const <Reaction>[]) if (r.by.isEmpty) r.emoji};
     final choices = [
@@ -1621,7 +1657,9 @@ class _Bubble extends StatelessWidget {
                       size: 14,
                       strokeWidth: 2.4,
                       wash: false,
-                      color: m.state == 'read' ? t.colorOf('#4f5bd5') : t.color('app-ink-3'),
+                      // Read in the app's accent, the colour chosen for your bubbles (Matt, 2026-11-15: "The read
+                      // checkmarks should be the same color as the apps selected primary color").
+                      color: m.state == 'read' ? t.color('app-accent') : t.color('app-ink-3'),
                     ),
                   ),
                 ],
