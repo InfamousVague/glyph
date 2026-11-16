@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/ui/hangout_screen.dart' show RoleTag;
 import 'package:ghost_messaging/ui/ripple_avatar.dart';
 import 'package:ghost_messaging/ui/space_designs/space_design.dart';
 import 'package:ghost_messaging/ui/space_designs/telegram.dart';
@@ -56,7 +57,7 @@ void main() {
     await tap('Deafen');
     await tap('Leave');
     await tap('Minimise');
-    await tap('Invite members');
+    await tap('Invite to space');
     await tap('Maya Chen');
     await tap('More: invite, devices, settings, leave');
     await tap('Settings');
@@ -160,12 +161,45 @@ void main() {
     await h.shoot(tester, TelegramCall(call: h.call(people: 0, video: const {})), 'space-telegram-alone-check');
     expect(find.byKey(const ValueKey('tg-face-me')), findsOneWidget);
     expect(find.text('You'), findsOneWidget);
-    expect(find.text('speaking'), findsOneWidget);
+    expect(find.text('talking'), findsOneWidget);
     expect(find.text('Waiting for others to join'), findsOneWidget);
-    expect(find.text('You\'re live'), findsOneWidget);
+    expect(find.text('Mic on'), findsOneWidget);
+    expect(find.text('Just you'), findsOneWidget);
     h.levels.value = const {'me': 0};
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('listening'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    semantics.dispose();
+  });
+
+  testWidgets('the words are the app\'s: the space\'s name, in voice, talking, Mic on and Muted, RoleTag', (tester) async {
+    final h = await SpaceHarness.load(tester);
+    addTearDown(tester.view.reset);
+    final semantics = tester.ensureSemantics();
+    final call = h.call();
+    await h.shoot(tester, TelegramCall(call: call), 'space-telegram-words');
+    // Headed by the space's name and how many are in voice, not "Voice Chat" and participants.
+    expect(find.text(call.channel.name), findsWidgets);
+    expect(find.text('${call.people.length} in voice'), findsOneWidget);
+    expect(find.text('Voice Chat'), findsNothing);
+    expect(find.textContaining('participant'), findsNothing);
+    expect(find.textContaining('members'), findsNothing);
+    expect(find.text('talking'), findsWidgets);
+    expect(find.text('speaking'), findsNothing);
+    expect(find.text('listening'), findsWidgets);
+    expect(find.text('muted'), findsWidgets);
+    expect(find.text('Mic on'), findsOneWidget);
+    expect(find.text('Tap to mute'), findsOneWidget);
+    expect(find.text('Invite to space'), findsOneWidget);
+    // The owner (this device) and Maya the moderator wear the app's own RoleTag; Riley is a quiet "guest".
+    expect(find.byType(RoleTag), findsNWidgets(2));
+    expect(find.descendant(of: find.byType(RoleTag), matching: find.text('Owner')), findsOneWidget);
+    expect(find.text('guest'), findsOneWidget);
+
+    await h.shoot(tester, TelegramCall(call: h.call(muted: true)), 'space-telegram-muted');
+    expect(find.text('Muted'), findsOneWidget);
+    expect(find.text('Tap to unmute'), findsOneWidget);
+    expect(find.text('Mic on'), findsNothing);
     await tester.pumpWidget(const SizedBox());
     semantics.dispose();
   });

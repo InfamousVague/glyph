@@ -7,15 +7,19 @@ import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
 import '../../kit/settings_type.dart';
+import '../../voice/roles.dart';
+import '../hangout_screen.dart' show RoleTag;
 import '../ripple_avatar.dart';
 import 'space_design.dart';
 
 /// A space's call laid out as Telegram's group voice chat (SpaceDesign.telegram, the app's default call screen):
-/// headed "Voice Chat", video tiles two across above a list of people, and at the foot one big microphone button with
-/// two round buttons either side of it. Drawn in Ghost Messaging's own look, light or dark as the app is (Matt,
+/// headed by the space's name and how many are in voice, video tiles two across above a list of people, and at the foot
+/// one big microphone button with two round buttons either side of it. Drawn in Ghost Messaging's own look, light or dark as the app is (Matt,
 /// 2026-11-16: "Change the telegram one to be our colors without the gradients and our voice effects make the chat
 /// window 33% of the screen"): flat paper and ink, hairlines, and the app's wobbly green ripples (RippleAvatar) round
-/// whoever talks and round the microphone while you are live. No gradients anywhere.
+/// whoever talks and round the microphone while you are live. No gradients anywhere. Made the app's own in its words
+/// too (Matt, 2026-11-16: "make it ours and less like telegram"): talking, listening, muted; Mic on and Muted; the
+/// app's RoleTag; no sheet grabber; corners and gaps from the app's tokens.
 ///
 /// On a phone the chat opens as a second sheet over the voice chat; on a computer it is docked beside it, a third of
 /// the window wide, open from the start.
@@ -57,15 +61,15 @@ class _TelegramCallState extends State<TelegramCall> {
   Widget _phone(BuildContext context, SpaceCall call, MediaQueryData media, bool chat, VoidCallback toggleChat) {
     final t = context.tokens;
     final pad = media.padding;
-    const top = BorderRadius.vertical(top: Radius.circular(18));
+    final top = BorderRadius.vertical(top: Radius.circular(t.radius('xl')));
     return ColoredBox(
       color: t.color('app-paper-2'),
       child: Stack(children: [
         Positioned.fill(
-          top: pad.top + 8,
+          top: pad.top + t.space(2),
           child: Container(
             decoration: BoxDecoration(color: t.color('glacier-bg'), borderRadius: top, border: Border(top: BorderSide(color: t.color('app-rule')))),
-            child: _VoicePanel(call: call, chatOpen: chat, onChat: toggleChat, bottom: pad.bottom, grabber: true),
+            child: _VoicePanel(call: call, chatOpen: chat, onChat: toggleChat, bottom: pad.bottom),
           ),
         ),
         if (chat) ...[
@@ -76,7 +80,7 @@ class _TelegramCallState extends State<TelegramCall> {
             top: pad.top + 56,
             child: ClipRRect(
               borderRadius: top,
-              child: _ChatPanel(call: call, onClose: toggleChat, bottom: pad.bottom, grabber: true),
+              child: _ChatPanel(call: call, onClose: toggleChat, bottom: pad.bottom),
             ),
           ),
         ],
@@ -115,12 +119,11 @@ class _TelegramCallState extends State<TelegramCall> {
 
 /// The voice chat itself: header, the people, the buttons. Holds the header's menu.
 class _VoicePanel extends StatefulWidget {
-  const _VoicePanel({required this.call, required this.chatOpen, required this.onChat, required this.bottom, this.grabber = false, this.compact = false, this.maxWidth});
+  const _VoicePanel({required this.call, required this.chatOpen, required this.onChat, required this.bottom, this.compact = false, this.maxWidth});
   final SpaceCall call;
   final bool chatOpen;
   final VoidCallback onChat;
   final double bottom;
-  final bool grabber;
 
   /// Rows a little tighter, as on a computer.
   final bool compact;
@@ -141,7 +144,6 @@ class _VoicePanelState extends State<_VoicePanel> {
     Widget narrow(Widget child) => widget.maxWidth == null ? child : Center(child: ConstrainedBox(constraints: BoxConstraints(maxWidth: widget.maxWidth!), child: child));
     return Stack(children: [
       Column(children: [
-        if (widget.grabber) const _Grabber(),
         _Header(call: call, onMenu: () => setState(() => _menu = !_menu), menuOpen: _menu),
         Expanded(child: narrow(_People(call: call, compact: widget.compact))),
         narrow(_Controls(call: call, chatOpen: widget.chatOpen, onChat: widget.onChat, bottom: widget.bottom)),
@@ -149,8 +151,8 @@ class _VoicePanelState extends State<_VoicePanel> {
       if (_menu) ...[
         Positioned.fill(child: GestureDetector(onTap: () => setState(() => _menu = false), child: const ColoredBox(color: Color(0x00000000)))),
         Positioned(
-          top: (widget.grabber ? 14 : 0) + 58,
-          right: 12,
+          top: 58,
+          right: context.tokens.space(3),
           child: _Menu(call: call, close: () => setState(() => _menu = false)),
         ),
       ],
@@ -158,20 +160,7 @@ class _VoicePanelState extends State<_VoicePanel> {
   }
 }
 
-class _Grabber extends StatelessWidget {
-  const _Grabber();
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 2),
-      child: Container(width: 36, height: 4, decoration: BoxDecoration(color: t.color('app-ink-4'), borderRadius: BorderRadius.circular(2))),
-    );
-  }
-}
-
-/// "Voice Chat", the space and how many are in it; Minimise on the left, the menu on the right.
+/// The space's name and how many are in voice ("Just you" alone); Minimise on the left, the menu on the right.
 class _Header extends StatelessWidget {
   const _Header({required this.call, required this.onMenu, required this.menuOpen});
   final SpaceCall call;
@@ -186,17 +175,17 @@ class _Header extends StatelessWidget {
     return SizedBox(
       height: 58,
       child: Row(children: [
-        const SizedBox(width: 10),
+        SizedBox(width: t.space(3)),
         _IconButton(icon: Lucide.chevronDown, label: SpaceWords.minimize, onPressed: call.onMinimize),
         Expanded(
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text('Voice Chat', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
+            Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
             const SizedBox(height: 1),
-            Text('$name · $n ${n == 1 ? 'participant' : 'participants'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+            Text(n <= 1 ? 'Just you' : '$n in voice', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
           ]),
         ),
         _IconButton(icon: Lucide.ellipsisVertical, label: _menuLabel, onPressed: onMenu, on: menuOpen),
-        const SizedBox(width: 10),
+        SizedBox(width: t.space(3)),
       ]),
     );
   }
@@ -233,7 +222,7 @@ class _IconButton extends StatelessWidget {
   }
 }
 
-/// The header's menu, as Telegram's "⋮": invite, devices, the space's settings, leave.
+/// The header's menu: invite, devices, the space's settings, leave.
 class _Menu extends StatelessWidget {
   const _Menu({required this.call, required this.close});
   final SpaceCall call;
@@ -250,22 +239,22 @@ class _Menu extends StatelessWidget {
           };
     return Container(
       width: 270,
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: EdgeInsets.symmetric(vertical: t.space(1)),
       decoration: BoxDecoration(
         color: t.color('app-paper'),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(t.radius('lg')),
         border: Border.all(color: t.color('app-rule')),
         boxShadow: t.shadowOf('0 8px 28px rgba(0,0,0,0.22)'),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        _MenuRow(icon: Lucide.userPlus, label: SpaceWords.invite, hint: 'Copy the space\'s invite link', onPressed: run(call.onInvite)),
+        _MenuRow(icon: Lucide.link, label: SpaceWords.invite, hint: 'Copy the space\'s invite link', onPressed: run(call.onInvite)),
         _MenuRow(icon: LucideMore.headphones, label: SpaceWords.devices, hint: 'Microphone, camera and speaker', onPressed: run(call.onDevices)),
         _MenuRow(icon: Lucide.settings, label: SpaceWords.settings, hint: 'Roles and permissions', onPressed: run(call.onSettings)),
-        Container(height: 1, margin: const EdgeInsets.symmetric(vertical: 4), color: t.color('app-rule')),
+        Container(height: 1, margin: EdgeInsets.symmetric(vertical: t.space(1)), color: t.color('app-rule')),
         _MenuRow(
           icon: LucideMore.phoneOff,
           label: SpaceWords.leave,
-          hint: 'Leave the voice chat',
+          hint: 'Leave voice',
           danger: true,
           onPressed: call.onLeave == null
               ? null
@@ -297,10 +286,10 @@ class _MenuRow extends StatelessWidget {
         semanticLabel: label,
         builder: (context, state) => Container(
           color: state.hovered || state.pressed ? t.color('app-paper-2') : null,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(2)),
           child: Row(children: [
             AppIcon(icon, size: 20, wash: false, color: danger ? _red(t) : t.color('app-ink-2')),
-            const SizedBox(width: 16),
+            SizedBox(width: t.space(4)),
             Expanded(
               child: ExcludeSemantics(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -315,7 +304,7 @@ class _MenuRow extends StatelessWidget {
   }
 }
 
-/// Video tiles two across, "Invite members", then everyone in a list.
+/// Video tiles two across, "Invite to space", then everyone in a list.
 class _People extends StatelessWidget {
   const _People({required this.call, this.compact = false});
   final SpaceCall call;
@@ -333,17 +322,19 @@ class _People extends StatelessWidget {
     return LayoutBuilder(builder: (context, box) {
       // The video gives way to the list: its tiles shrink (to no less than 84 a row) so everyone in the call fits
       // under them where the panel is short.
-      final list = 48 + call.people.length * (_faceSize + rowPad * 2 + 1) + 16 + 12;
+      // The invite row, the rows, and the list's padding and gap under the video (the app's spacing, which grows a
+      // little on a wide window).
+      final list = 48 + call.people.length * (_faceSize + rowPad * 2 + 1) + t.space(1) + t.space(3) * 2 + 2;
       final room = box.maxHeight - list;
       return ListView(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+        padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), t.space(3)),
         children: [
           if (videos.isNotEmpty) ...[
             _VideoGrid(call: call, people: videos, room: room),
-            const SizedBox(height: 12),
+            SizedBox(height: t.space(3)),
           ],
           Container(
-            decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(14), border: Border.all(color: t.color('app-rule'))),
+            decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.radius('xl')), border: Border.all(color: t.color('app-rule'))),
             // Not clipped: a speaker's outermost ring may lean a pixel or two past the card rather than be cut flat.
             // The rows round their own hover at the card's corners instead.
             child: Column(children: [
@@ -355,14 +346,14 @@ class _People extends StatelessWidget {
             ]),
           ),
           if (alone) ...[
-            const SizedBox(height: 44),
+            SizedBox(height: t.space(10)),
             Column(children: [
               // You, large, your voice moving the ripples round you while you wait.
               SpaceFace(key: const ValueKey('tg-alone-me'), call: call, person: call.me, size: 88),
-              const SizedBox(height: 40),
+              SizedBox(height: t.space(10)),
               Text('Waiting for others to join', textAlign: TextAlign.center, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink'))),
-              const SizedBox(height: 4),
-              Text('Invite members, and they will appear here as they come in.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+              SizedBox(height: t.space(1)),
+              Text('Invite people, and they\'ll show up here as they join.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
             ]),
           ],
         ],
@@ -383,23 +374,25 @@ class _InviteRow extends StatelessWidget {
       opacity: onPressed == null ? 0.4 : 1,
       child: GlacierPressable(
         onPressed: onPressed,
-        semanticLabel: 'Invite members',
+        semanticLabel: _inviteWords,
         builder: (context, state) => Container(
           decoration: BoxDecoration(
             color: state.hovered || state.pressed ? t.color('app-paper-3') : null,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(t.radius('xl') - 1)),
           ),
           padding: const EdgeInsets.fromLTRB(_rowLeft, 12, 14, 12),
           child: Row(children: [
-            SizedBox(width: _faceSize, child: Center(child: AppIcon(Lucide.userPlus, size: 22, wash: false, color: ink))),
+            SizedBox(width: _faceSize, child: Center(child: AppIcon(Lucide.link, size: 22, wash: false, color: ink))),
             const SizedBox(width: _faceGap),
-            Expanded(child: ExcludeSemantics(child: Text('Invite members', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: ink)))),
+            Expanded(child: ExcludeSemantics(child: Text(_inviteWords, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: ink)))),
           ]),
         ),
       ),
     );
   }
 }
+
+const _inviteWords = 'Invite to space';
 
 /// The list's face, its left inset and the gap to the name: the rings (to 1.85 × 19 ≈ 35 px from the face's middle)
 /// end at 72, short of the name at [_textStart].
@@ -408,10 +401,10 @@ const double _rowLeft = 18;
 const double _faceGap = 18;
 const double _textStart = _rowLeft + _faceSize + _faceGap;
 
-/// What someone is doing now, in the list's words and colour: green speaking, red muted, quiet ink listening.
+/// What someone is doing now, in the list's words and colour: green talking, red muted, quiet ink listening.
 ({String words, Color color, LucideIcon icon}) _status(Tokens t, SpaceCall call, SpacePerson p, Map<String, double> now) {
   if (p.muted) return (words: p.me && call.micLocked ? 'muted by a moderator' : 'muted', color: _red(t), icon: LucideMore.micOff);
-  if (call.isTalking(p, now)) return (words: 'speaking', color: _green(t), icon: Lucide.mic);
+  if (call.isTalking(p, now)) return (words: 'talking', color: _green(t), icon: Lucide.mic);
   return (words: 'listening', color: t.color('app-ink-3'), icon: Lucide.mic);
 }
 
@@ -419,6 +412,8 @@ class _PersonRow extends StatelessWidget {
   const _PersonRow({required this.call, required this.person, required this.role, this.pad = 16, this.last = false});
   final SpaceCall call;
   final SpacePerson person;
+
+  /// The role worth showing beside them (SpacePerson.roleLabel), shown as the app's RoleTag; null for none.
   final String? role;
   final double pad;
   final bool last;
@@ -439,7 +434,7 @@ class _PersonRow extends StatelessWidget {
           return Container(
             decoration: BoxDecoration(
               color: state.hovered || state.pressed ? t.color('app-paper-3') : null,
-              borderRadius: last ? const BorderRadius.vertical(bottom: Radius.circular(13)) : null,
+              borderRadius: last ? BorderRadius.vertical(bottom: Radius.circular(t.radius('xl') - 1)) : null,
             ),
             padding: EdgeInsets.fromLTRB(_rowLeft, pad, 14, pad),
             child: Row(children: [
@@ -450,8 +445,9 @@ class _PersonRow extends StatelessWidget {
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     Flexible(child: Text(p.shown, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink')))),
-                    if (p.guest) ...[const SizedBox(width: 6), const _Tag(words: 'guest')],
-                    if (role != null) ...[const SizedBox(width: 6), _Tag(words: role!.toLowerCase())],
+                    // A guest as the app's call list shows one: the word, quiet, after the name.
+                    if (p.guest) ...[SizedBox(width: t.space(2)), Text('guest', maxLines: 1, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))],
+                    if (role != null) ...[SizedBox(width: t.space(2)), RoleTag(role: p.role ?? _ownerRole, owner: p.owner)],
                   ]),
                   const SizedBox(height: 2),
                   Text(s.words, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: s.words == 'listening' ? 'regular' : 'semibold', color: s.color)),
@@ -468,21 +464,8 @@ class _PersonRow extends StatelessWidget {
   }
 }
 
-/// A role or "guest" beside a name: small ink words on a sunken chip.
-class _Tag extends StatelessWidget {
-  const _Tag({required this.words});
-  final String words;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(color: t.color('app-paper-3'), borderRadius: BorderRadius.circular(6)),
-      child: Text(words, maxLines: 1, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-2'))),
-    );
-  }
-}
+/// RoleTag wants a role; an owner with none known reads as Owner all the same (RoleTag shows "Owner" for an owner).
+final _ownerRole = Role.defaults.first;
 
 /// The row's microphone, swelling a little with the voice.
 class _MicMark extends StatelessWidget {
@@ -511,7 +494,7 @@ class _VideoGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, box) {
-      const gap = 8.0;
+      final gap = context.tokens.space(2);
       final half = (box.maxWidth - gap) / 2;
       final rows = (people.length + 1) ~/ 2;
       final fit = math.max(84.0, (room - gap * (rows - 1)) / rows);
@@ -548,11 +531,11 @@ class _VideoTile extends StatelessWidget {
           return Container(
             decoration: BoxDecoration(
               color: t.color('app-paper-2'),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(t.radius('xl')),
               border: Border.all(color: talking ? _green(t) : t.color('app-rule'), width: talking ? 2.5 : 1),
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(talking ? 9.5 : 11),
+              borderRadius: BorderRadius.circular(t.radius('xl') - (talking ? 2.5 : 1)),
               child: Stack(fit: StackFit.expand, children: [
                 SpaceVideo(
                   call: call,
@@ -697,8 +680,8 @@ class _MicButton extends StatelessWidget {
     // Deafened, the button undeafens: hearing comes back first (and your voice with it, unless you muted too).
     final deaf = call.deafened && !locked;
     final green = _green(t);
-    final title = locked ? 'Muted by a moderator' : (deaf ? SpaceWords.deafen(call) : (live ? 'You\'re live' : 'Unmute'));
-    final hint = locked ? 'You can listen' : (deaf ? (call.muted ? 'Tap to listen' : 'Tap to listen and speak') : (live ? 'Tap to mute' : 'Tap to speak'));
+    final title = locked ? 'Muted by a moderator' : (deaf ? SpaceWords.deafen(call) : (live ? 'Mic on' : 'Muted'));
+    final hint = locked ? 'You can listen' : (deaf ? (call.muted ? 'Tap to listen' : 'Tap to listen and speak') : (live ? 'Tap to mute' : 'Tap to unmute'));
     final icon = locked ? Lucide.lock : (deaf ? LucideMore.headphoneOff : (live ? Lucide.mic : LucideMore.micOff));
     return GlacierPressable(
       onPressed: locked ? null : (deaf ? call.onDeafen : call.onMute),
@@ -745,11 +728,10 @@ class _MicButton extends StatelessWidget {
 /// The space's chat as a sheet of its own (a phone) or a panel docked beside the voice chat (a computer), in the
 /// app's own paper and ink as its bubbles and composer are.
 class _ChatPanel extends StatelessWidget {
-  const _ChatPanel({required this.call, required this.onClose, required this.bottom, this.grabber = false});
+  const _ChatPanel({required this.call, required this.onClose, required this.bottom});
   final SpaceCall call;
   final VoidCallback onClose;
   final double bottom;
-  final bool grabber;
 
   @override
   Widget build(BuildContext context) {
@@ -761,13 +743,12 @@ class _ChatPanel extends StatelessWidget {
         Container(
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.color('app-rule')))),
           child: Column(children: [
-            if (grabber) const _Grabber(),
             SizedBox(
               height: 58,
               child: Row(children: [
-                const SizedBox(width: 16),
+                SizedBox(width: t.space(4)),
                 AppIcon(LucideMore.messageCircle, size: 20, wash: false, color: t.color('app-ink')),
-                const SizedBox(width: 10),
+                SizedBox(width: t.space(3)),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
                     Text(SpaceWords.chat, maxLines: 1, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
@@ -775,7 +756,7 @@ class _ChatPanel extends StatelessWidget {
                   ]),
                 ),
                 _IconButton(icon: Lucide.x, label: 'Close chat', onPressed: onClose),
-                const SizedBox(width: 10),
+                SizedBox(width: t.space(3)),
               ]),
             ),
           ]),
