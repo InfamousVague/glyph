@@ -139,11 +139,31 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
 
   InboxNetwork get _n => widget.network;
 
+  /// Unread as the chat was opened, and the message the New messages divider stands above (a group's): found once,
+  /// the first time its messages are there, and kept while the chat is open.
+  int _unreadAtOpen = 0;
+  String? _firstNewId;
+  bool _newFound = false;
+
+  /// The [_unreadAtOpen]th newest message from someone else, in [list] (newest first).
+  String? _findFirstNew(List<InboxMessage> list) {
+    if (_unreadAtOpen <= 0) return null;
+    var seen = 0;
+    for (final m in list) {
+      if (m.mine) continue;
+      if (++seen == _unreadAtOpen) return m.id;
+    }
+    // Fewer of theirs held than were unread: the oldest held.
+    return list.lastWhere((m) => !m.mine, orElse: () => list.last).id;
+  }
+
   @override
   void initState() {
     super.initState();
     _n.watching = widget.chatId;
     InboxAlerts.showing = '${_n.id}:${widget.chatId}';
+    // How many were unread as it was opened, before they are marked read: where the New messages divider goes.
+    _unreadAtOpen = (_n.chats.where((c) => c.id == widget.chatId).firstOrNull ?? widget.fallback)?.unread ?? 0;
     _n.load(widget.chatId).then((_) => _n.markRead(widget.chatId));
     _n.addListener(_changed);
     _scroll.addListener(_nearTop);
@@ -305,6 +325,11 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
       builder: (context, _) {
         final chat = _n.chats.where((c) => c.id == widget.chatId).firstOrNull ?? widget.fallback;
         final list = _n.shownMessages(widget.chatId).reversed.toList();
+        if (!_newFound && list.isNotEmpty) {
+          _newFound = true;
+          _firstNewId = _findFirstNew(list);
+        }
+        final newAt = (chat?.group ?? false) ? _firstNewId : null;
         final (mineBg, mineInk) = myBubble(t, app);
         return GhostPage(
           title: chat?.title ?? _n.name,
@@ -432,6 +457,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                           padding: EdgeInsets.symmetric(vertical: t.space(3)),
                           child: Text(dayHeading(m.date), textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
                         ),
+                      if (m.id == newAt) const NewMessagesDivider(key: ValueKey('new-messages')),
                       Poof(
                         key: ValueKey('poof-${m.id}'),
                         gone: _poofing.containsKey(m.id),
