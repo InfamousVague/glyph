@@ -77,7 +77,7 @@ class _TelegramCallState extends State<TelegramCall> {
             child: GestureDetector(onTap: toggleChat, child: const ColoredBox(color: Color(0x66000000))),
           ),
           Positioned.fill(
-            top: pad.top + 56,
+            top: pad.top + t.space(2) + 58 + t.space(1),
             child: ClipRRect(
               borderRadius: top,
               child: _ChatPanel(call: call, onClose: toggleChat, bottom: pad.bottom),
