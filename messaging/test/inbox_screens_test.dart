@@ -271,6 +271,30 @@ void main() {
     expect(tester.getTopLeft(find.text('Priya')).dx, moreOrLessEquals(tester.getTopLeft(find.text(clock(at))).dx, epsilon: 0.5));
   });
 
+  testWidgets('a group chat opened with unread messages marks where they begin; a chat with one person does not', (tester) async {
+    // Matt, 2026-11-16: "Add a "new messages" divider like discord has for all group chats across telegram signal and
+    // RCS".
+    final sheet = await loadSheet(tester);
+    DateTime ago(int m) => now.subtract(Duration(minutes: m));
+    final messages = [
+      InboxMessage(id: '1', text: 'who is driving', date: ago(30), mine: false, sender: 'Priya'),
+      InboxMessage(id: '2', text: 'I can', date: ago(25), mine: true),
+      InboxMessage(id: '3', text: 'tent is packed', date: ago(10), mine: false, sender: 'Priya'),
+      InboxMessage(id: '4', text: 'leaving at 8', date: ago(5), mine: false, sender: 'Dev'),
+    ];
+    final crew = FakeNetwork('telegram', 'Telegram', [
+      InboxChat(network: 'telegram', id: '20', title: 'Weekend crew', date: ago(5), snippet: 'leaving at 8', group: true, unread: 2),
+      InboxChat(network: 'telegram', id: '21', title: 'Jo Park', date: ago(5), snippet: 'leaving at 8', unread: 2),
+    ], {'20': messages, '21': messages});
+    await _shoot(tester, sheet, InboxChatScreen(network: crew, chatId: '20'), 'x-inbox-new-messages', dark: false);
+    expect(find.byKey(const ValueKey('new-messages')), findsOneWidget);
+    final divider = tester.getRect(find.byKey(const ValueKey('new-messages')));
+    expect(divider.bottom, lessThanOrEqualTo(tester.getTopLeft(find.text('tent is packed')).dy), reason: 'above the older of the two unread');
+    expect(divider.top, greaterThanOrEqualTo(tester.getBottomLeft(find.text('I can')).dy));
+    await _shoot(tester, sheet, InboxChatScreen(network: crew, chatId: '21'), 'x-inbox-new-messages-one', dark: false);
+    expect(find.byKey(const ValueKey('new-messages')), findsNothing);
+  });
+
   testWidgets('signing in: Bluesky\'s page, and Telegram\'s steps', (tester) async {
     final sheet = await loadSheet(tester);
     for (final dark in [false, true]) {
