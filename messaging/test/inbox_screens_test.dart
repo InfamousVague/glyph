@@ -240,6 +240,20 @@ void main() {
     expect(inboxCode(chat('Welcome to Telegram')), isNull);
   });
 
+  testWidgets('the filters sort Telegram\'s and Signal\'s chats as they sort texts: a kind hidden from Messages hides a chat of it too', (tester) async {
+    // Matt, 2026-11-16: "Filters should apply to all chats including telegram and signal make sure the filters are
+    // processing all chats".
+    final sheet = await loadSheet(tester);
+    final net = FakeNetwork('telegram', 'Telegram', [
+      InboxChat(network: 'telegram', id: '10', title: 'Jo Park', date: now.subtract(const Duration(minutes: 2)), snippet: 'are you coming tonight?'),
+      InboxChat(network: 'telegram', id: '40', title: 'Pat for Senate', date: now.subtract(const Duration(minutes: 1)), snippet: 'Chip in \$5 to keep us in this race! Paid for by Friends of Pat Rivera', unread: 1, stranger: true),
+    ], {});
+    Inbox.instance = Inbox.of([net]);
+    await _shoot(tester, sheet, const ConversationsScreen(), 'x-inbox-filtered', dark: false);
+    expect(find.text('Jo Park'), findsOneWidget);
+    expect(find.text('Pat for Senate'), findsNothing, reason: 'political, which Messages hides as it ships');
+  });
+
   testWidgets('in a group, the sender\'s name and the time under the bubble start at the same left edge', (tester) async {
     // Matt, 2026-11-16: "Make sure the username and the timestamp are aligned on the same left side of the bubble".
     final sheet = await loadSheet(tester);
