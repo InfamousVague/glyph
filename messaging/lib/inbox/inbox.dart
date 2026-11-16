@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../app_state.dart';
 import '../kept_lists.dart';
 import 'bluesky.dart';
+import 'mastodon.dart';
 import 'telegram.dart';
 
 /// Direct messages from other networks, read and answered in Ghost (Matt, 2026-11-15: "Let's build in telegram and
@@ -262,7 +263,9 @@ class Inbox {
   static Inbox? _instance;
   // Bluesky is built and tested, and offered later (Matt, 2026-11-15: "I don't have bluesky setup yet, set that to
   // "coming soon"").
-  static Inbox get instance => _instance ??= Inbox._([Telegram(), Bluesky(soon: true)]);
+  // Mastodon is built and tested, and offered later too (Matt, 2026-11-15: "Wire up mastadon and bluesky and have them
+  // set as coming soon until we get the API keys setup").
+  static Inbox get instance => _instance ??= Inbox._([Telegram(), Bluesky(soon: true), Mastodon(soon: true)]);
 
   /// Stand-ins for a test of a screen; null puts the app's own back.
   @visibleForTesting

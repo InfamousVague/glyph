@@ -95,6 +95,12 @@ void main() {
             answer = {'id': 'm3', 'text': (body['message'] as Map)['text'], 'sender': {'did': 'did:plc:matt'}, 'sentAt': '2026-11-15T10:06:00Z'};
           case '/xrpc/chat.bsky.convo.updateRead':
             answer = {'convo': {}};
+          case '/xrpc/chat.bsky.convo.deleteMessageForSelf':
+            sent.add(body);
+            answer = {'id': body['messageId']};
+          case '/xrpc/chat.bsky.convo.leaveConvo':
+            sent.add(body);
+            answer = {'convoId': body['convoId'], 'rev': '1'};
           default:
             status = 404;
             answer = {'error': 'NotFound'};
@@ -140,6 +146,15 @@ void main() {
     await b.markRead('c1');
     expect(b.chats.single.unread, 0);
     expect(seen, contains('POST /xrpc/chat.bsky.convo.updateRead did:web:api.bsky.chat#bsky_chat'));
+
+    // Deleted for this account, and left, on Bluesky itself (Matt, 2026-11-15: "if possible proxy the archive and
+    // delete messages too").
+    await b.deleteMessage('c1', 'm3');
+    expect(sent.last, {'convoId': 'c1', 'messageId': 'm3'});
+    expect(b.messagesOf('c1').map((m) => m.id), isNot(contains('m3')));
+    await b.deleteChat('c1');
+    expect(sent.last, {'convoId': 'c1'});
+    expect(b.chats, isEmpty);
     b.dispose();
   });
 

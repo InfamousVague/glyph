@@ -201,6 +201,31 @@ class Bluesky extends InboxNetwork {
     } catch (_) {}
   }
 
+  /// Left, as Bluesky's own Leave conversation does: gone from this account's chats.
+  @override
+  Future<void> deleteChat(String chatId) async {
+    try {
+      await _chat('POST', 'chat.bsky.convo.leaveConvo', body: {'convoId': chatId});
+      _chats = [for (final c in _chats) if (c.id != chatId) c];
+      _messages.remove(chatId);
+    } catch (e) {
+      _error = _plain(e);
+    }
+    notifyListeners();
+  }
+
+  /// Deleted for this account, as Bluesky's own Delete for me does (Bluesky deletes for no one else).
+  @override
+  Future<void> deleteMessage(String chatId, String messageId, {bool forEveryone = false}) async {
+    try {
+      await _chat('POST', 'chat.bsky.convo.deleteMessageForSelf', body: {'convoId': chatId, 'messageId': messageId});
+      _messages[chatId] = [for (final x in messagesOf(chatId)) if (x.id != messageId) x];
+    } catch (e) {
+      _error = _plain(e);
+    }
+    notifyListeners();
+  }
+
   /// Asks for the chats again now.
   Future<void> refresh() async {
     if (_state != InboxState.ready) return;
