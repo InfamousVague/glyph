@@ -430,4 +430,41 @@ void main() {
     expect(signal.read, containsAll(['s1', 's2']));
     expect(telegram.read, contains('10'));
   });
+
+  // Matt, 2026-11-16: "The mark read button should work for telegram and signal as well as standard messages".
+  testWidgets('Mark all read counts and reads Telegram\'s and Signal\'s chats with the texts', (tester) async {
+    final phone = ListPhone([
+      ListPhone.conversation(1, '+15551230001', 'Sounds good, see you at 7!', name: 'Maya Chen', minutes: 4, unread: true),
+      ListPhone.conversation(2, '+15551230005', 'Call me when you land', name: 'Dad', minutes: 300),
+    ])..install();
+    final signal = FakeNetwork('signal', 'Signal', [
+      InboxChat(network: 'signal', id: 's1', title: 'Ana', date: now.subtract(const Duration(minutes: 6)), snippet: 'see you there', unread: 1),
+      InboxChat(network: 'signal', id: 's2', title: 'Ben', date: now.subtract(const Duration(hours: 5)), snippet: 'ok'),
+    ], {});
+    Inbox.instance = Inbox.of([telegram, signal]);
+    final sheet = await loadSheet(tester);
+    await _shoot(tester, sheet, const ConversationsScreen(), '16-inbox-mark-read', dark: false);
+    final button = find.byType(MarkAllRead);
+    expect(tester.widget<MarkAllRead>(button).unread, 3, reason: 'Maya\'s text, Jo Park on Telegram, Ana on Signal');
+    await tester.tap(button);
+    await settle(tester);
+    expect(telegram.read, ['10'], reason: 'only the unread chat');
+    expect(signal.read, ['s1']);
+    expect(phone.asked, contains('markRead 1'));
+    expect(phone.asked.where((a) => a == 'markRead 2'), isEmpty);
+  });
+
+  testWidgets('with only chats unread, the button is not greyed out and reads them', (tester) async {
+    final signal = FakeNetwork('signal', 'Signal', [
+      InboxChat(network: 'signal', id: 's1', title: 'Ana', date: now.subtract(const Duration(minutes: 6)), snippet: 'see you there', unread: 4),
+    ], {});
+    Inbox.instance = Inbox.of([telegram, signal]);
+    final sheet = await loadSheet(tester);
+    await _shoot(tester, sheet, const ConversationsScreen(), '16-inbox-mark-read-chats', dark: false);
+    expect(tester.widget<MarkAllRead>(find.byType(MarkAllRead)).unread, 2, reason: 'no unread texts; Jo Park and Ana');
+    await tester.tap(find.byType(MarkAllRead));
+    await settle(tester);
+    expect(telegram.read, ['10']);
+    expect(signal.read, ['s1']);
+  });
 }

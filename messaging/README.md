@@ -644,6 +644,31 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   Kept on purpose: `@group.ghost-sms.com` in a group's address (a name phones store and send, not a link), and the
   relay's sign-in callbacks (`GHOST_PUBLIC_URL`), until gogho.st's callback addresses are added at Discord, X and
   Telegram. The folders on the box keep their names (/opt/ghost-sms-*).
+- **Mark all read covers Telegram and Signal** (0.7.49, not released; Matt, 2026-11-16: "The mark read button should
+  work for telegram and signal as well as standard messages"). The button counts the tab's unread chats from every
+  network with its unread texts, so it is no longer grey when only chats are unread, and reads them all; a network's
+  own tab and its menu read that network's chats (`_unreadTexts`, `_unreadChats` in lib/ui/conversations.dart).
+- **Six other designs for a space's call, behind a developer switch; your own voice activity alone** (0.7.49, not
+  released; Matt, 2026-11-16: "give me 6 alternate designs for the calling chat and video screens for spaces,
+  Additionally make it so that even when we're in the call alone we see the voice activity of ourselves release all 6
+  versions under a developer setting flag so I can toggle them on and off. Use iconography and good labeling and base
+  the designs off popular voice and video chat apps that exist today").
+  - **The switch:** Settings › Developer › Space call design: Standard (the app's own) or one of six. With one chosen,
+    a space's call opens as a page over the whole window (`openSpaceCall`, `SpaceCallPage`); Minimise puts it away to
+    the call banner, which brings it back.
+  - **The six** (`lib/ui/space_designs/`): Voice channel like Discord (dark tiles, green outline on whoever talks,
+    Text in voice panel), Meeting like Zoom (speaker and gallery views, labelled toolbar, Participants and Chat
+    panels), Full screen like FaceTime (whoever talks fills it, you in a corner, glass controls), Rounded tiles like
+    Google Meet (audio bars, pill toolbar, People and In-call messages), Audio stage like Clubhouse and X Spaces (big
+    rippling faces on stage, listeners below, chat as Comments), Voice chat like Telegram (a dark sheet of people with
+    waves, one big microphone button). Each works on a phone and a computer window, light and dark, with an icon and
+    words on every control (`SpaceWords`, the same words in all six), and draws from one model, `SpaceCall`.
+  - **Built** by six agents in parallel, each design then reviewed adversarially against its brief, fixed and
+    checked again (tests: `space_design_<name>_test.dart` for each, `space_designs_test.dart` over all, pictures
+    `test/shots/space-*`).
+  - **Your own activity alone:** the level meter (`RtcMedia`) is now connected to a silent partner on the device, so
+    the microphone really sends and is measured with nobody else in the call; what arrives at the partner is never
+    played. Not yet heard on a phone or the Mac.
 - **Hangouts get a chat, and roles and permissions as Discord has them** (0.7.25; Matt, 2026-11-15:
   "Implement a permissions system similar to discord for hangouts and add a chat to hangouts so the whole group can
   send messages to the hangout as well as voice and video, make default roles such as admin, moderator, member").
@@ -712,6 +737,14 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   - Not yet: a paired computer does not see these conversations (it asks the phone's Android side); a message the
     relay passes to a connection that has just died is lost, as for any friend (nothing is sent again without an
     answer); a closed or backgrounded app hears them only when it connects again.
+- **Friends by username on Contacts, and friend requests** (0.7.28, not released; Matt, 2026-11-16: "We need a way
+  to add friends on the network by username on the contacts page and see friend requests"). At the top of Contacts
+  on the phone (`UsernameFriends`, lib/ui/username_friends.dart): a field to ask someone by @username, each request
+  with Decline and Accept on it, friends by username, and the requests you sent (a press takes one back); without a
+  username of your own, a row to choose one. The dock's Contacts ring counts the requests waiting. The relay is now
+  kept for friends by username from the moment you have a username (lib/main.dart), not only once you have a friend,
+  so a first request reaches you. Not yet: a chat with a friend by username on Android. Tests: buddies_test's
+  "on Contacts" group; screens_test's `15-contacts-friends` picture.
 - **Ghost Messaging on iPhone, without SMS** (not released; Matt, 2026-11-15: "port the app to work on iOS as well,
   investigate if we can within apples rules make a bridge for messaging through RCS like we're doing with mautrix on
   android and if not we'll want to roll a version of the app that works without sms"; "it's unlikely the user will
