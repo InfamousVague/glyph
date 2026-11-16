@@ -30,6 +30,19 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Signal: group names, and sends that say why they stall** (0.7.42, not released; `sidecar/signal/main.go`,
+  `lib/inbox/signal.dart`; Matt, 2026-11-16: "Sending signal messages get stuck on sending... and the group titles
+  are not coming through", then "It says bad state signal took too long to answer").
+  - Group names: the app asked for groups once, on linking, when the helper's store has none (a group is known only
+    from its first message, which carries its key), so every group stayed "Signal group". The helper now looks a
+    group up the first time a message from it arrives and says a `group` event (title, members, picture); the app
+    also asks for groups again when the connection comes back, at most once a minute.
+  - Sends: the app waited 30 s for a send while the helper allowed itself 90, so the app gave up first and the
+    message sat on sending with "took too long". The helper now gives a send 60 s and the app waits 75, so the
+    helper's own error arrives and the message is marked failed with it. The helper logs each request and each send's
+    stages with their times to `signal.log` beside its store and to standard error, which the app now passes to the
+    Developer log (its own lines and signalmeow's warnings only; no message's words). Why Signal itself is slow to
+    take a message is not known yet: the next stuck send says where in that log.
 - **Telegram's and Signal's contacts in Contacts, and which way to write** (0.7.42, not released; `lib/inbox/people.dart`,
   `lib/ui/contacts.dart`; Matt, 2026-11-16: "Show telegram and signal contacts when linked with icons to show which
   each is and filters, where contacts can be messages on multiple platforms as which you like to use when stating a

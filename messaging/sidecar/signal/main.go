@@ -7,7 +7,7 @@
 //	{"id":2,"op":"link","name":"Ghost Messaging"}            → null, then events "qr" (again every 45 s) and "linked" or "link_failed"
 //	{"id":3,"op":"unlink"}                                   → null; everything forgotten
 //	{"id":4,"op":"contacts"}                                 → [{"aci","name","number","avatar"}…]
-//	{"id":5,"op":"groups"}                                   → [{"id","title","members","avatar"}…]
+//	{"id":5,"op":"groups"}                                   → [{"id","title","members","avatar"}…] (and event "group", the same, when one is first heard from)
 //	{"id":6,"op":"send","to":"…","text":"…","quote":{"ts":…,"author":"…"}} → {"ts":…}
 //	{"id":7,"op":"send_media","to":"…","path":"…","mime":"…","name":"…","text":"…"} → {"ts":…}
 //	{"id":8,"op":"read","to":"…","author":"…","ts":[…]}      → null
@@ -140,8 +140,10 @@ func main() {
 		os.Exit(2)
 	}
 	_ = os.MkdirAll(dir, 0o700)
-	// signalmeow's and libsignal's log to standard error, for Ghost's developer log; never standard output.
-	log = zerolog.New(os.Stderr).With().Timestamp().Logger().Level(zerolog.InfoLevel)
+	// signalmeow's and libsignal's log to standard error, for Ghost's developer log; never standard output. And to
+	// signal.log in the store's folder, so a stuck send can be traced on the device afterwards (Matt, 2026-11-16:
+	// "Sending signal messages get stuck on sending"): started afresh once it passes a megabyte.
+	log = zerolog.New(zerolog.MultiLevelWriter(os.Stderr, logFile())).With().Timestamp().Logger().Level(zerolog.InfoLevel)
 	signalmeow.SetLogger(log)
 	// The QR address carries "&": kept as it is, not as \u0026.
 	out.SetEscapeHTML(false)
@@ -373,8 +375,19 @@ func client() (*signalmeow.Client, error) {
 // --- requests -------------------------------------------------------------------------------------------------------
 
 func do(r request) (any, error) {
-	ctx, cancel := context.WithTimeout(bg(), 90*time.Second)
+	// A send is given a minute, under the app's own wait (lib/inbox/signal.dart), so what went wrong is said to it
+	// rather than the app giving up first; a download or an upload has longer.
+	limit := 60 * time.Second
+	if r.Op == "download" || r.Op == "send_media" {
+		limit = 170 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(bg(), limit)
 	defer cancel()
+	if r.Op != "status" {
+		began := time.Now()
+		log.Info().Str("op", r.Op).Int64("req", r.ID).Msg("asked")
+		defer func() { log.Info().Str("op", r.Op).Int64("req", r.ID).Dur("took", time.Since(began)).Msg("answered") }()
+	}
 	switch r.Op {
 	case "status":
 		return status(ctx), nil
@@ -542,10 +555,23 @@ func send(ctx context.Context, c *signalmeow.Client, to string, dm *signalpb.Dat
 	if err != nil {
 		return err
 	}
+	if !isConnected(c) {
+		log.Warn().Msg("send: not connected to Signal; trying anyway")
+	}
 	content := signalmeow.WrapDataMessage(dm)
+	began := time.Now()
 	if group != "" {
+		log.Info().Str("group", string(group)).Msg("send to group")
 		res, err := c.SendGroupMessage(ctx, group, content)
+		sentTo, failed := 0, 0
+		if res != nil {
+			sentTo, failed = len(res.SuccessfullySentTo), len(res.FailedToSendTo)
+		}
+		log.Info().Err(err).Dur("took", time.Since(began)).Int("sent_to", sentTo).Int("failed", failed).Msg("sent to group")
 		if err != nil {
+			if ctx.Err() != nil {
+				return fmt.Errorf("Signal didn't take the message in time (%w)", err)
+			}
 			return err
 		}
 		if len(res.SuccessfullySentTo) == 0 && len(res.FailedToSendTo) > 0 {
@@ -553,7 +579,13 @@ func send(ctx context.Context, c *signalmeow.Client, to string, dm *signalpb.Dat
 		}
 		return nil
 	}
-	return resultErr(c.SendMessage(ctx, user, content))
+	log.Info().Stringer("to", user).Msg("send")
+	err = resultErr(c.SendMessage(ctx, user, content))
+	log.Info().Err(err).Dur("took", time.Since(began)).Msg("sent")
+	if err != nil && ctx.Err() != nil {
+		return fmt.Errorf("Signal didn't take the message in time (%w)", err)
+	}
+	return err
 }
 
 func resultErr(res signalmeow.SendMessageResult) error {
@@ -845,27 +877,39 @@ func groups(ctx context.Context, c *signalmeow.Client) ([]map[string]any, error)
 	_ = rows.Close()
 	list := make([]map[string]any, 0, len(ids))
 	for _, id := range ids {
-		g, _, err := c.RetrieveGroupByID(ctx, types.GroupIdentifier(id), 0)
-		if err != nil || g == nil {
+		g, err := describeGroup(ctx, c, id)
+		if err != nil {
 			log.Debug().Err(err).Str("group", id).Msg("group not fetched")
 			continue
 		}
-		members := make([]string, 0, len(g.Members))
-		for _, m := range g.Members {
-			members = append(members, m.ACI.String())
-		}
-		avatar := ""
-		if g.AvatarPath != "" {
-			key := "group:" + g.AvatarPath
-			if avatar = keptAvatar(key); avatar == "" {
-				if data, err := c.DownloadGroupAvatar(ctx, g.AvatarPath, g.GroupMasterKey); err == nil {
-					avatar = keepAvatar(key, data)
-				}
-			}
-		}
-		list = append(list, map[string]any{"id": id, "title": g.Title, "members": members, "avatar": nullable(avatar)})
+		list = append(list, g)
 	}
 	return list, nil
+}
+
+// describeGroup is group [id] as the app has it: its title, members and picture (kept beside the store).
+func describeGroup(ctx context.Context, c *signalmeow.Client, id string) (map[string]any, error) {
+	g, _, err := c.RetrieveGroupByID(ctx, types.GroupIdentifier(id), 0)
+	if err != nil {
+		return nil, err
+	}
+	if g == nil {
+		return nil, errors.New("no such group")
+	}
+	members := make([]string, 0, len(g.Members))
+	for _, m := range g.Members {
+		members = append(members, m.ACI.String())
+	}
+	avatar := ""
+	if g.AvatarPath != "" {
+		key := "group:" + g.AvatarPath
+		if avatar = keptAvatar(key); avatar == "" {
+			if data, err := c.DownloadGroupAvatar(ctx, g.AvatarPath, g.GroupMasterKey); err == nil {
+				avatar = keepAvatar(key, data)
+			}
+		}
+	}
+	return map[string]any{"id": id, "title": g.Title, "members": members, "avatar": nullable(avatar)}, nil
 }
 
 // senderName is a sender's name from what the store knows, without asking Signal.
@@ -941,6 +985,12 @@ func chatEvent(c *signalmeow.Client, evt *events.ChatEvent) {
 	group := dm.GetGroupV2() != nil
 	chat := evt.Info.ChatID
 	sender := evt.Info.Sender
+	// A group heard from for the first time this run: its name, members and picture told to the app, off the receive
+	// loop (Matt, 2026-11-16: "the group titles are not coming through"). The app asks for groups once, on linking,
+	// when the store has none yet: a group is known only from its first message, which carries its key.
+	if group {
+		announceGroup(c, chat)
+	}
 	switch {
 	case dm.Reaction != nil:
 		target, _ := signalmeow.ParseStringOrBinaryUUID(dm.Reaction.GetTargetAuthorAci(), dm.Reaction.GetTargetAuthorAciBinary())
@@ -986,4 +1036,48 @@ func mediaOf(a *signalpb.AttachmentPointer) map[string]any {
 		"pointer": json.RawMessage(ptr), "mime": a.GetContentType(), "name": a.GetFileName(), "size": a.GetSize(),
 		"width": a.GetWidth(), "height": a.GetHeight(),
 	}
+}
+
+// --- the log file and groups told as they are met -------------------------------------------------------------------
+
+// logFile is signal.log in the store's folder, begun afresh past a megabyte; standard error alone where it can't open.
+func logFile() *os.File {
+	path := filepath.Join(dir, "signal.log")
+	if st, err := os.Stat(path); err == nil && st.Size() > 1<<20 {
+		_ = os.Remove(path)
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return os.Stderr
+	}
+	return f
+}
+
+var (
+	announcedMu sync.Mutex
+	announced   = map[string]bool{}
+)
+
+// announceGroup says a "group" event for [chat] (the group's id), once a run, as the "groups" op describes one.
+func announceGroup(c *signalmeow.Client, chat string) {
+	announcedMu.Lock()
+	if announced[chat] {
+		announcedMu.Unlock()
+		return
+	}
+	announced[chat] = true
+	announcedMu.Unlock()
+	go func() {
+		ctx, cancel := context.WithTimeout(bg(), 30*time.Second)
+		defer cancel()
+		g, err := describeGroup(ctx, c, chat)
+		if err != nil {
+			log.Warn().Err(err).Str("group", chat).Msg("group not described")
+			announcedMu.Lock()
+			delete(announced, chat)
+			announcedMu.Unlock()
+			return
+		}
+		event("group", g)
+	}()
 }
