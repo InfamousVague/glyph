@@ -746,7 +746,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   - Not yet: a paired computer does not see these conversations (it asks the phone's Android side); a message the
     relay passes to a connection that has just died is lost, as for any friend (nothing is sent again without an
     answer); a closed or backgrounded app hears them only when it connects again.
-- **Friends by username on Contacts, and friend requests** (0.7.28, not released; Matt, 2026-11-16: "We need a way
+- **Friends by username on Contacts, and friend requests** (0.7.49; Matt, 2026-11-16: "We need a way
   to add friends on the network by username on the contacts page and see friend requests"). At the top of Contacts
   on the phone (`UsernameFriends`, lib/ui/username_friends.dart): a field to ask someone by @username, each request
   with Decline and Accept on it, friends by username, and the requests you sent (a press takes one back); without a
