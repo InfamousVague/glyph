@@ -1,4 +1,5 @@
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart' show TextCapitalization, TextInputAction, TextInputType;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -127,3 +128,54 @@ class _RenderMeasure extends RenderProxyBox {
 TextStyle composerTextStyle(Tokens t) => pageText(t, t.fontSize('md'), color: t.color('app-ink'), height: 1.3);
 StrutStyle composerStrutStyle(Tokens t) => StrutStyle.fromTextStyle(composerTextStyle(t), forceStrutHeight: true, leadingDistribution: TextLeadingDistribution.even);
 const composerLeading = TextHeightBehavior(leadingDistribution: TextLeadingDistribution.even);
+
+/// The words' line of a [ComposerBox] where nothing more is wanted of it (a Telegram chat, a space's chat): the words,
+/// [hint] while there are none, and Enter as Settings › Messages › Enter sends says. A conversation of texts has its
+/// own, with more in it (lib/ui/thread.dart).
+class ComposerField extends StatelessWidget {
+  const ComposerField({super.key, required this.controller, required this.focusNode, required this.hint, required this.onSubmitted, this.enterSends = false});
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final String hint;
+  final VoidCallback onSubmitted;
+  final bool enterSends;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final style = composerTextStyle(t);
+    final strut = composerStrutStyle(t);
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: focusNode.requestFocus,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: t.lenOf('2.25rem')),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: t.lenOf('0.3rem')),
+            child: Stack(children: [
+              if (controller.text.isEmpty) IgnorePointer(child: Text(hint, style: style.copyWith(color: t.color('app-ink-3')), strutStyle: strut, textHeightBehavior: composerLeading)),
+              EditableText(
+                controller: controller,
+                focusNode: focusNode,
+                style: style,
+                strutStyle: strut,
+                textHeightBehavior: composerLeading,
+                cursorColor: t.color('app-ink'),
+                backgroundCursorColor: t.color('app-ink-3'),
+                minLines: 1,
+                maxLines: 6,
+                keyboardType: enterSends ? TextInputType.text : TextInputType.multiline,
+                textInputAction: enterSends ? TextInputAction.send : TextInputAction.newline,
+                onSubmitted: (_) => onSubmitted(),
+                onEditingComplete: enterSends ? () {} : null,
+                textCapitalization: TextCapitalization.sentences,
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
