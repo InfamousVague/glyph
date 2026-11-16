@@ -44,6 +44,8 @@ class InboxChat {
     this.group = false,
     this.avatar,
     this.lastFromMe = false,
+    this.pinned = false,
+    this.service = false,
   });
 
   /// [InboxNetwork.id] of the network it is on.
@@ -63,6 +65,12 @@ class InboxChat {
   /// The last message was this account's.
   final bool lastFromMe;
 
+  /// Pinned at the top of the network's own list.
+  final bool pinned;
+
+  /// The network's own account or a bot, not a person: where sign-in codes come from (Telegram's 777000).
+  final bool service;
+
   InboxChat copyWith({String? title, DateTime? date, String? snippet, int? unread, String? avatar, bool? lastFromMe}) => InboxChat(
         network: network,
         id: id,
@@ -73,6 +81,8 @@ class InboxChat {
         group: group,
         avatar: avatar ?? this.avatar,
         lastFromMe: lastFromMe ?? this.lastFromMe,
+        pinned: pinned,
+        service: service,
       );
 }
 
@@ -149,6 +159,15 @@ abstract class InboxNetwork extends ChangeNotifier {
     setLocal('deleted', chatId, true);
     notifyListeners();
   }
+
+  /// Pins [chatId] at the top, or unpins it: the network's own pin where it has one, else Ghost's list.
+  Future<void> pin(String chatId, bool pinned) async {
+    setLocal('pinned', chatId, pinned);
+    notifyListeners();
+  }
+
+  /// Whether [chat] is pinned, by the network or in Ghost's list.
+  bool isPinned(InboxChat chat) => chat.pinned || localList('pinned').contains(chat.id);
 
   /// Whether [message] can be deleted for everyone in the chat, not only for this account.
   bool canDeleteForEveryone(String chatId, InboxMessage message) => false;

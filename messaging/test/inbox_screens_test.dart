@@ -158,17 +158,30 @@ void main() {
 
   // Matt, 2026-11-15: "Also use the same composer for telegram and if possible proxy the archive and delete messages
   // too, if we can't actually delete telegram messages add them to a ignore or archive list".
-  testWidgets('a chat pressed and held is archived (in Ghost\'s own list where the network keeps none); its page has the same composer, and a message is deleted', (tester) async {
+  testWidgets('a chat slid is archived and pinned (in Ghost\'s own lists where the network keeps none); its page has the same composer, and a message is deleted', (tester) async {
     final sheet = await loadSheet(tester);
     telegram.listStore = AppState();
     await _shoot(tester, sheet, const ConversationsScreen(), '16-inbox-list-archive', dark: false);
-    await tester.longPress(find.text('Weekend crew'));
+    // Slid left to Archive and let go, as a conversation of texts is (Matt, 2026-11-15: "Don't use a press and hold
+    // menu on telegram chats use the same slide solution normal messages use").
+    final left = await tester.startGesture(tester.getCenter(find.text('Weekend crew')));
+    await left.moveBy(const Offset(-30, 0));
+    await left.moveBy(const Offset(-80, 0));
+    await tester.pump(const Duration(milliseconds: 200));
+    await left.up();
     await settle(tester);
-    expect(find.text('Leave and delete'), findsOneWidget, reason: 'a group is left as it is deleted');
-    await tester.tap(find.text('Archive'));
-    await settle(tester);
+    await tester.pump(const Duration(seconds: 1));
     expect(find.text('Weekend crew'), findsNothing);
     expect(telegram.archivedChats.map((c) => c.title), ['Weekend crew']);
+    // Slid right, pinned: at the top, above the newest text.
+    final right = await tester.startGesture(tester.getCenter(find.text('Sam Rivera')));
+    await right.moveBy(const Offset(30, 0));
+    await right.moveBy(const Offset(80, 0));
+    await tester.pump(const Duration(milliseconds: 200));
+    await right.up();
+    await settle(tester);
+    expect(telegram.localList('pinned'), {'30'});
+    expect(tester.getTopLeft(find.text('Sam Rivera')).dy, lessThan(tester.getTopLeft(find.text('Jo Park')).dy));
 
     await tester.tap(find.text('Jo Park'));
     await settle(tester);
@@ -181,6 +194,16 @@ void main() {
     await settle(tester);
     expect(find.text('hey! long time'), findsNothing);
     expect(find.text('I know, how have you been?'), findsOneWidget);
+  });
+
+  // Matt, 2026-11-15: "proxy telegram codes through to the codes tab as well".
+  test('a sign-in code from Telegram\'s own account or a bot is a code; a friend\'s is not', () {
+    final now = DateTime.now();
+    InboxChat chat(String text, {bool service = true, bool mine = false}) => InboxChat(network: 'telegram', id: '1', title: 'Telegram', date: now, snippet: text, service: service, lastFromMe: mine);
+    expect(inboxCode(chat('Login code: 48213. Do not give this code to anyone')), '48213');
+    expect(inboxCode(chat('Login code: 48213', service: false)), isNull, reason: 'a person\'s chat');
+    expect(inboxCode(chat('Login code: 48213', mine: true)), isNull);
+    expect(inboxCode(chat('Welcome to Telegram')), isNull);
   });
 
   testWidgets('signing in: Bluesky\'s page, and Telegram\'s steps', (tester) async {

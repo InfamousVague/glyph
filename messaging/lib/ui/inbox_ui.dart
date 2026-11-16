@@ -15,6 +15,7 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart' as me;
 import '../sms.dart';
+import '../plugins/codes.dart' show signInCode;
 import 'common.dart';
 import 'composer_box.dart';
 import 'conversations.dart' show ConversationRow;
@@ -60,18 +61,15 @@ class InboxChatRow extends StatelessWidget {
   }
 }
 
-/// A chat pressed and held in the list: archived or brought back, or deleted, on its network where it can be (Matt,
-/// 2026-11-15: "if possible proxy the archive and delete messages too, if we can't actually delete telegram messages
-/// add them to a ignore or archive list"). Telegram does both itself; a network that can't keeps Ghost's own list.
-void inboxChatMenu(BuildContext context, InboxNetwork network, InboxChat chat, {required bool archived}) {
-  HapticFeedback.mediumImpact();
-  showChoices(context, title: chat.title, choices: [
-    Choice(archived ? 'Unarchive' : 'Archive', archived ? Lucide.archiveRestore : Lucide.archive, () => network.archive(chat.id, !archived)),
-    Choice(chat.group ? 'Leave and delete' : 'Delete', Lucide.trash2, () {
-      showChoices(context, title: chat.group ? 'Leave ${chat.title} and delete it on ${network.name}?' : 'Delete this chat on ${network.name}?', choices: [
-        Choice(chat.group ? 'Leave and delete' : 'Delete', Lucide.trash2, () => network.deleteChat(chat.id), danger: true),
-      ]);
-    }, danger: true),
+/// The sign-in code [chat]'s last message is, where it is from the network's own account or a bot (Telegram's codes
+/// come from 777000): it goes to the Codes tab with texted codes (lib/plugins/codes.dart's rules).
+String? inboxCode(InboxChat chat) => chat.service && !chat.lastFromMe ? signInCode(chat.snippet) : null;
+
+/// A chat slid all the way: deleted on its network once asked (Matt, 2026-11-15: "if possible proxy the archive and
+/// delete messages too"). A group is left as it goes.
+void confirmInboxDelete(BuildContext context, InboxNetwork network, InboxChat chat) {
+  showChoices(context, title: chat.group ? 'Leave ${chat.title} and delete it on ${network.name}?' : 'Delete this chat on ${network.name}? This can\'t be undone.', choices: [
+    Choice(chat.group ? 'Leave and delete' : 'Delete', Lucide.trash2, () => network.deleteChat(chat.id), danger: true),
   ]);
 }
 

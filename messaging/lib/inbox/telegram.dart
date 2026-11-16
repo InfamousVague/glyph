@@ -308,6 +308,7 @@ class Telegram extends InboxNetwork {
         _authState((m['authorization_state'] as Map).cast<String, Object?>());
       case 'updateUser':
         final u = m['user'] as Map;
+        if ((u['type'] as Map?)?['@type'] == 'userTypeBot') _bots.add((u['id'] as num).toInt());
         final name = [u['first_name'], u['last_name']].whereType<String>().where((s) => s.isNotEmpty).join(' ');
         _users[(u['id'] as num).toInt()] = name.isEmpty ? 'Someone' : name;
       case 'updateNewChat':
@@ -379,6 +380,26 @@ class Telegram extends InboxNetwork {
     } else {
       orders[chat] = order;
     }
+    if (list == 'chatListMain') {
+      if (p['is_pinned'] == true && order != 0) {
+        _pinned.add(chat);
+      } else {
+        _pinned.remove(chat);
+      }
+    }
+  }
+
+  /// The users that are bots, which sign-in codes may come from as Telegram's own account's do.
+  final Set<int> _bots = {};
+
+  /// Pinned chats in the main list.
+  final Set<int> _pinned = {};
+
+  @override
+  Future<void> pin(String chatId, bool pinned) async {
+    final r = await _ask({'@type': 'toggleChatIsPinned', 'chat_list': {'@type': 'chatListMain'}, 'chat_id': int.parse(chatId), 'is_pinned': pinned});
+    if (r['@type'] == 'error') _error = _plain(r);
+    notifyListeners();
   }
 
   /// The chats in Telegram's own archive, by their order there.
@@ -459,6 +480,9 @@ class Telegram extends InboxNetwork {
       group: type == 'chatTypeBasicGroup' || type == 'chatTypeSupergroup',
       lastFromMe: last?['is_outgoing'] == true,
       avatar: _photo(c),
+      pinned: _pinned.contains(c['id']),
+      // Telegram's own account (777000, which sends its sign-in codes) and bots.
+      service: type == 'chatTypePrivate' && (((c['type'] as Map)['user_id'] as num?)?.toInt() == 777000 || _bots.contains(((c['type'] as Map)['user_id'] as num?)?.toInt())),
     );
   }
 
