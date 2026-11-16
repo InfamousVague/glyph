@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ghost Messaging: high-quality text, voice and video in one app</title>
-<meta name="description" content="Ghost Messaging: high-quality text, voice and video in one app. Encrypted chats, 510 kb/s voice with noise suppression, 4K video calls, on your phone and your computer.">
+<meta name="description" content="Ghost Messaging: high-quality text, voice and video in one app. Your texts, Telegram and Signal in one list, encrypted chats, 510 kb/s voice with noise suppression and 4K video calls, on your phone and your computer.">
 <link rel="canonical" href="https://gogho.st/">
 <link rel="icon" type="image/png" href="/icon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -178,20 +178,34 @@
   .duo .b { right: 6%; top: 3rem; transform: rotate(4deg); }
   @media (max-width: 520px) { .duo { height: 31rem; } .duo img { width: 12rem; } .duo .a { left: 0; } .duo .b { right: 0; } .duo .scene { width: 96%; } }
 
-  /* one inbox */
-  .inbox { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 2.5rem; }
-  @media (max-width: 900px) { .inbox { grid-template-columns: 1fr; } }
-  .stepcard { background: var(--paper); border: 1px solid var(--rule); border-radius: 1.6rem; padding: 1.4rem; box-shadow: var(--shadow); position: relative; }
-  .stepcard .when { display: inline-block; font-size: .72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; padding: .2rem .6rem; border-radius: 999px; margin-bottom: .8rem; }
-  .now { background: var(--mist); color: var(--teal-2); }
-  .soon { background: var(--soon-bg); color: var(--soon-fg); }
-  .later { background: var(--later-bg); color: var(--later-fg); }
-  .stepcard h3 { margin: 0 0 .35rem; font-size: 1.12rem; }
-  .stepcard p { margin: 0; color: var(--ink-2); font-size: .95rem; }
-  .bubbles { display: flex; gap: .45rem; margin-top: 1rem; }
-  .bubbles span { width: 2.2rem; height: 2.2rem; border-radius: .75rem; display: grid; place-items: center; background: var(--bg); border: 1px dashed var(--rule); color: var(--ink-3); }
-  .bubbles span.on { background: var(--mist); border: 1px solid var(--sea); color: var(--teal-2); }
-  .bubbles svg.i { width: 1.05rem; height: 1.05rem; }
+  /* one inbox: other networks among the texts */
+  .nets { display: grid; grid-template-columns: .9fr 1.1fr; gap: 3rem; align-items: center; margin-top: 3rem; }
+  @media (max-width: 900px) { .nets { grid-template-columns: 1fr; gap: 2rem; } }
+  .netshots { position: relative; height: 32rem; }
+  .netshots img { position: absolute; width: 17rem; border-radius: 1.8rem; box-shadow: var(--ring), 0 30px 60px -20px rgba(0, 0, 0, .45); }
+  .netshots .a { left: 0; top: 0; transform: rotate(-3deg); }
+  .netshots .b { right: 0; bottom: 0; transform: rotate(3deg); }
+  @media (max-width: 520px) { .netshots { height: 26rem; } .netshots img { width: 13rem; } }
+  .netcards { display: grid; gap: 1rem; }
+  .netcard { background: var(--paper); border: 1px solid var(--rule); border-radius: 1.6rem; padding: 1.4rem 1.5rem; box-shadow: var(--shadow); }
+  .nethead { display: flex; align-items: center; gap: .85rem; margin-bottom: .9rem; }
+  .nethead h3 { margin: 0; font-size: 1.25rem; letter-spacing: -.02em; }
+  .nethead .where { font-size: .82rem; color: var(--ink-3); font-weight: 600; }
+  .badge { width: 2.6rem; height: 2.6rem; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--b); box-shadow: 0 8px 18px -8px var(--b); flex: none; }
+  .badge svg.i { width: 1.25rem; height: 1.25rem; }
+  .netcard ul { list-style: none; padding: 0; margin: 0 0 .9rem; display: grid; gap: .45rem; }
+  .netcard li { display: flex; gap: .55rem; align-items: flex-start; color: var(--ink-2); font-size: .96rem; }
+  .netcard li svg.i { width: 1.05rem; height: 1.05rem; color: var(--teal); margin-top: .2rem; }
+  .netcard .how { margin: 0; font-size: .9rem; color: var(--ink-3); border-top: 1px solid var(--rule); padding-top: .8rem; }
+  .netcard .how b { color: var(--ink-2); }
+  .netrow { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin-top: 3rem; }
+  .net { display: inline-flex; align-items: center; gap: .45rem; padding: .5rem .9rem; border-radius: 999px; font-weight: 650; font-size: .9rem; border: 1px solid var(--rule); }
+  .net svg.i { width: 1rem; height: 1rem; }
+  .net.on { background: var(--mist); color: var(--ink); }
+  .net.on svg.i { color: var(--teal); }
+  .net.soon { background: transparent; color: var(--ink-3); border-style: dashed; }
+  .netnote { display: flex; gap: .6rem; align-items: flex-start; max-width: 46rem; margin: 1.4rem auto 0; color: var(--ink-3); font-size: .9rem; }
+  .netnote svg.i { width: 1.1rem; height: 1.1rem; color: var(--teal); margin-top: .15rem; }
 
   /* desktop */
   .deskart { position: relative; }
@@ -258,6 +272,10 @@
     <symbol id="i-zap" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></symbol>
     <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
     <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></symbol>
+    <symbol id="i-at" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></symbol>
     <!-- The drawn ghost: what a picture's spot shows until Matt's picture is there. -->
     <symbol id="ghost" viewBox="0 0 120 130"><path fill="#fff" stroke="#cfeee7" stroke-width="2" d="M60 4C30 4 10 27 10 58v62c0 3 3.5 4.6 5.8 2.6l9-8 9.4 8.6a4 4 0 0 0 5.4 0l9.6-8.6 9.6 8.6a4 4 0 0 0 5.4 0l9.6-8.6 9.6 8.6a4 4 0 0 0 5.4 0l9.4-8.6 9 8c2.3 2 5.8.4 5.8-2.6V58C110 27 90 4 60 4Z"/><ellipse cx="44" cy="56" rx="7.5" ry="10" fill="#0d2322"/><ellipse cx="76" cy="56" rx="7.5" ry="10" fill="#0d2322"/><circle cx="46.5" cy="52" r="2.6" fill="#fff"/><circle cx="78.5" cy="52" r="2.6" fill="#fff"/><ellipse cx="34" cy="74" rx="7" ry="4" fill="#8fe0d4" opacity=".9"/><ellipse cx="86" cy="74" rx="7" ry="4" fill="#8fe0d4" opacity=".9"/><path d="M52 74c4 4 12 4 16 0" stroke="#0d2322" stroke-width="3.5" fill="none" stroke-linecap="round"/></symbol>
   </defs>
@@ -283,7 +301,7 @@
     <div>
       <span class="pill"><b id="now">New</b>Your all-in-one messenger</span>
       <h1>High-quality text, voice and video. <em>In one app.</em></h1>
-      <p class="lede">Messages with reactions and effects that land. Voice at 510 kb/s stereo with noise suppression that clears the room. Video up to 4K. Chats and calls with friends are end-to-end encrypted, on your phone and your computer, with more of your messengers joining over time.</p>
+      <p class="lede">Messages with reactions and effects that land. Voice at 510 kb/s stereo with noise suppression that clears the room. Video up to 4K. Your Telegram and Signal chats sit right beside your texts, and chats and calls with friends are end-to-end encrypted, on your phone and your computer.</p>
       <div class="get">
         <a class="dl main" href="/ghost-messaging.apk" data-feed="apk"><svg class="i"><use href="#i-phone"/></svg><span>Download for Android<small data-version="apk">Free, straight from us</small></span></a>
         <a class="dl alt" href="/ghost-messaging-mac.zip" data-feed="mac" hidden><svg class="i"><use href="#i-laptop"/></svg><span>Mac<small data-version="mac"></small></span></a>
@@ -380,13 +398,48 @@
 <section id="inbox">
   <div class="wrap center">
     <span class="kicker"><svg class="i" style="width:1rem;height:1rem"><use href="#i-inbox"/></svg>One inbox</span>
-    <h2>All your messengers, <em>in one place.</em></h2>
-    <p class="sub">Ghost Messaging is built to be the one app you open. It already handles your texts and your friends on Ghost, and it's bringing your other messengers in, one at a time, so every conversation shows up in one list.</p>
+    <h2>Telegram and Signal, <em>right beside your texts.</em></h2>
+    <p class="sub">Sign in once and your Telegram and Signal chats join your texts in one list, newest first, each marked with its network. Read them, answer them and send pictures without switching apps.</p>
   </div>
-  <div class="wrap inbox">
-    <div class="stepcard"><span class="when now">Today</span><h3>Texts and Ghost chats</h3><p>SMS and picture messages through your carrier, and encrypted chats, calls and groups with friends on Ghost.</p><div class="bubbles"><span class="on"><svg class="i"><use href="#i-msg"/></svg></span><span class="on"><svg class="i"><use href="#i-lock"/></svg></span><span class="on"><svg class="i"><use href="#i-phones"/></svg></span></div></div>
-    <div class="stepcard"><span class="when soon">Next</span><h3>RCS chats, everywhere</h3><p>Works beside Google Messages on your phone today, so RCS keeps arriving. Next, your RCS conversations right in Ghost's list on your computer.</p><div class="bubbles"><span class="on"><svg class="i"><use href="#i-msgs"/></svg></span><span><svg class="i"><use href="#i-laptop"/></svg></span></div></div>
-    <div class="stepcard"><span class="when later">After that</span><h3>Your other messengers</h3><p>More networks, bridged in one by one, so you can stop switching between apps to keep up with people.</p><div class="bubbles"><span><svg class="i"><use href="#i-plus"/></svg></span><span><svg class="i"><use href="#i-plus"/></svg></span><span><svg class="i"><use href="#i-plus"/></svg></span></div></div>
+  <div class="wrap nets">
+    <div class="netshots" aria-hidden="true">
+      <img class="a" src="/shots/inbox-list-dark.webp" data-shot="inbox-list" alt="" loading="lazy">
+      <img class="b" src="/shots/inbox-chat-dark.webp" data-shot="inbox-chat" alt="" loading="lazy">
+    </div>
+    <div class="netcards">
+      <div class="netcard">
+        <div class="nethead"><span class="badge" style="--b:#2aabee"><svg class="i"><use href="#i-send"/></svg></span><div><h3>Telegram</h3><span class="where">Android · Mac</span></div></div>
+        <ul>
+          <li><svg class="i"><use href="#i-check"/></svg>Your private chats and groups, with their pictures, in the same list as your texts</li>
+          <li><svg class="i"><use href="#i-check"/></svg>Photos, videos, voice messages and files, both ways</li>
+          <li><svg class="i"><use href="#i-check"/></svg>Swipe to archive or delete, done on Telegram itself</li>
+          <li><svg class="i"><use href="#i-check"/></svg>Telegram's sign-in codes land in your Codes tab, and the spam filter checks strangers' chats</li>
+        </ul>
+        <p class="how"><b>How you connect:</b> sign in with your Telegram number, the code Telegram sends you and your two-step password if you have one. It runs on Telegram's own client library, TDLib.</p>
+      </div>
+      <div class="netcard">
+        <div class="nethead"><span class="badge" style="--b:#3a76f0"><svg class="i"><use href="#i-msg"/></svg></span><div><h3>Signal</h3><span class="where">Android · Mac with Apple silicon</span></div></div>
+        <ul>
+          <li><svg class="i"><use href="#i-check"/></svg>Messages and groups, with replies and reactions</li>
+          <li><svg class="i"><use href="#i-check"/></svg>Pictures, read receipts and deletes, both ways</li>
+          <li><svg class="i"><use href="#i-check"/></svg>Your Signal contacts' names and faces</li>
+          <li><svg class="i"><use href="#i-check"/></svg>Still end-to-end encrypted, with Signal's own protocol</li>
+        </ul>
+        <p class="how"><b>How you connect:</b> Ghost links as another device, as Signal Desktop does: in Signal on your phone, open Settings › Linked devices and scan the code. Signal gives a new device no history, so you'll see messages from then on.</p>
+      </div>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="netrow" aria-label="Networks">
+      <span class="net on"><svg class="i"><use href="#i-msg"/></svg>Texts and picture messages</span>
+      <span class="net on"><svg class="i"><use href="#i-lock"/></svg>Ghost chats</span>
+      <span class="net on"><svg class="i"><use href="#i-msgs"/></svg>RCS, through Google Messages</span>
+      <span class="net on"><svg class="i"><use href="#i-send"/></svg>Telegram</span>
+      <span class="net on"><svg class="i"><use href="#i-msg"/></svg>Signal</span>
+      <span class="net soon"><svg class="i"><use href="#i-cloud"/></svg>Bluesky · soon</span>
+      <span class="net soon"><svg class="i"><use href="#i-at"/></svg>Mastodon · soon</span>
+    </div>
+    <p class="netnote"><svg class="i"><use href="#i-shield"/></svg><span>Each network runs on your own device and talks straight to its own servers. Your chats, codes and sign-ins never pass through ours. The Signal helper is built on the open-source mautrix-signal and Signal's libsignal, and its source is published with every release (AGPL). Telegram and Signal aren't on Windows yet, and their calls aren't included: messages only.</span></p>
   </div>
 </section>
 
