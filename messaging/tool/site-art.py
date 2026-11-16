@@ -5,7 +5,10 @@ Matt, 2026-11-15: "gogho.st assets has been added to desktop wire them and redep
 ~/Desktop/ghost-messaging-art-prompts.md; their originals stay where Matt keeps them (2048 px PNGs, megabytes each),
 and only what the page shows is kept here: WebP at the largest size the page draws them, twice over for sharp screens.
 
-  python3 tool/site-art.py ["~/Desktop/gogho.st assets"]
+  python3 tool/site-art.py ["~/Desktop/gogho.st assets"] ["~/Desktop/new_graphics"]
+
+The second folder holds the spot icons (Matt, 2026-11-16: "new graphics uploaded to the desktop", made from
+~/Desktop/ghost-messaging-icon-prompts.md): objects in Boo's style without Boo, for the cards and the install steps.
 """
 import sys
 from pathlib import Path
@@ -27,6 +30,23 @@ PICTURES = [
     ("Empty state — messages", "boo-messages.webp", 360),
     ("Empty state — calls", "boo-calls.webp", 360),
     ("Empty state — codes", "boo-codes.webp", 360),
+]
+
+# The spot icons and the inbox scene (the second folder), and the wisps behind the hero and the dark sections.
+SPOTS = [
+    ("Spot icon 01", "icon-reactions.webp", 320),
+    ("Spot icon 02", "icon-friends.webp", 320),
+    ("Spot icon 03", "icon-sorted.webp", 320),
+    ("Spot icon 04", "icon-emoji.webp", 320),
+    ("Spot icon 05", "icon-ticks.webp", 320),
+    ("Spot icon 06", "icon-updates.webp", 320),
+    ("Spot icon 07", "icon-video.webp", 320),
+    ("Spot icon 08", "icon-sealed.webp", 320),
+    ("Spot icon 09", "icon-no-account.webp", 320),
+    ("Spot icon 10", "icon-texts.webp", 320),
+    ("Spot icon 12", "icon-install-phone.webp", 160),
+    ("Spot icon 13", "icon-install-computer.webp", 160),
+    ("Spot scene 11", "scene-inbox.webp", 900),
 ]
 
 
@@ -70,6 +90,18 @@ def font(size, bold=True):
 
 def main():
     folder = Path(sys.argv[1] if len(sys.argv) > 1 else Path.home() / "Desktop" / "gogho.st assets").expanduser()
+    spots = Path(sys.argv[2] if len(sys.argv) > 2 else Path.home() / "Desktop" / "new_graphics").expanduser()
+    if spots.is_dir():
+        ART.mkdir(parents=True, exist_ok=True)
+        for start, name, longest in SPOTS:
+            image = fitted(trim(Image.open(find(spots, start)).convert("RGBA")), longest)
+            image.save(ART / name, "WEBP", quality=86, method=6)
+            print(f"ok site/art/{name} {image.size[0]}x{image.size[1]} {(ART / name).stat().st_size // 1024} KB")
+        # The wisps: faint, wide, behind everything; not trimmed (their emptiness is the point).
+        wisps = Image.open(find(spots, "Wisps texture")).convert("RGBA")
+        wisps.thumbnail((1600, 1600), Image.LANCZOS)
+        wisps.save(ART / "wisps.webp", "WEBP", quality=80, method=6)
+        print(f"ok site/art/wisps.webp {wisps.size[0]}x{wisps.size[1]} {(ART / 'wisps.webp').stat().st_size // 1024} KB")
     ART.mkdir(parents=True, exist_ok=True)
     for start, name, longest in PICTURES:
         image = fitted(trim(Image.open(find(folder, start)).convert("RGBA")), longest)
