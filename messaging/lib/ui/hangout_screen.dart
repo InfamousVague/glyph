@@ -14,6 +14,8 @@ import '../voice/hangout.dart';
 import '../voice/roles.dart';
 import '../voice/voice.dart';
 import 'common.dart';
+import '../app_state.dart';
+import 'composer_box.dart';
 import 'nav_bar.dart';
 import 'ripple_avatar.dart';
 import 'shell.dart';
@@ -94,7 +96,10 @@ class _HangoutScreenState extends State<HangoutScreen> {
             body: Padding(padding: EdgeInsets.all(t.space(4)), child: SettingsCallout(child: Text(room!.putOut!))),
           );
         }
-        final chat = room == null ? const SizedBox.shrink() : HangoutChat(room: room, bottom: pill + (s != null ? NavPill.clearance(t) : 0));
+        // In a call on a phone the chat is a tab: while it is shown the call's controls are not, and the composer stands at
+        // the foot as every conversation's does (Matt, 2026-11-15: "when we switch to chat please don't show the call
+        // controls just make it appear like the bottom of all the compose windows look").
+        final chat = room == null ? const SizedBox.shrink() : HangoutChat(room: room, bottom: pill + (s != null && (wide || _tab != 'chat') ? NavPill.clearance(t) : 0));
         if (s == null) {
           // Out of the call: who is here, a way in, and the chat.
           final here = room?.present.values.toList() ?? const <HangoutPerson>[];
@@ -171,7 +176,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
                       ),
               ),
             ]),
-            Positioned(left: 0, right: 0, bottom: dockAt, child: Center(child: CallDock(session: s))),
+            if (_tab != 'chat') Positioned(left: 0, right: 0, bottom: dockAt, child: Center(child: CallDock(session: s))),
           ]),
         );
       },
@@ -278,10 +283,23 @@ class HangoutChat extends StatefulWidget {
 
 class _HangoutChatState extends State<HangoutChat> {
   final _text = TextEditingController();
+  final _focus = FocusNode();
+  bool _typing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // The composer lays itself out by whether there are words (lib/ui/composer_box.dart).
+    _text.addListener(() {
+      final typing = _text.text.isNotEmpty;
+      if (typing != _typing && mounted) setState(() => _typing = typing);
+    });
+  }
 
   @override
   void dispose() {
     _text.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -321,22 +339,19 @@ class _HangoutChatState extends State<HangoutChat> {
                   ),
           ),
           Padding(
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(2) + widget.bottom + MediaQuery.paddingOf(context).bottom * (widget.bottom > 0 ? 1 : 0)),
+            // Laid out as every other conversation's foot is (Matt, 2026-11-15: "Use the same compose input on spaces
+            // that we use for the rest of the app ... just make it appear like the bottom of all the compose windows look").
+            padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2) + widget.bottom + MediaQuery.paddingOf(context).bottom * (widget.bottom > 0 ? 1 : 0)),
             child: mayWrite
-                ? Row(children: [
-                    Expanded(
-                      child: GlacierInput(
-                        controller: _text,
-                        placeholder: 'Message ${room.channel.name}',
-                        ariaLabel: 'Message',
-                        autoCapitalize: TextCapitalization.sentences,
-                        size: GlacierFieldSize.md,
-                        onSubmitted: (_) => _send(),
-                      ),
-                    ),
-                    SizedBox(width: t.space(2)),
-                    IconTap(icon: Lucide.send, label: 'Send', onPressed: _send),
-                  ])
+                ? Builder(builder: (context) {
+                    final send = IconTap(icon: Lucide.send, label: 'Send', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: _text.text.trim().isEmpty ? null : _send);
+                    return ComposerBox(
+                      typing: _typing,
+                      ends: [send],
+                      below: [send],
+                      field: ComposerField(controller: _text, focusNode: _focus, hint: 'Message ${room.channel.name}', onSubmitted: _send, enterSends: AppState.of(context).enterSends),
+                    );
+                  })
                 : Text('Your role can\'t send messages here.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
           ),
         ]);

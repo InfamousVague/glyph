@@ -30,6 +30,7 @@ import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner
 import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
 import 'package:ghost_messaging/voice/hangout.dart';
 import 'package:ghost_messaging/voice/roles.dart';
+import 'package:ghost_messaging/ui/composer_box.dart';
 import 'package:ghost_messaging/ui/hangout_screen.dart';
 import 'package:ghost_messaging/ui/ripple_avatar.dart';
 import 'package:ghost_messaging/ui/voice_screen.dart';
@@ -1517,13 +1518,23 @@ void main() {
       await _shootAgain(tester, '21-hangout-chat', dark: dark);
       expect(find.text('Bring snacks 🍿'), findsOneWidget);
       expect(find.text('Maya Chen'), findsOneWidget, reason: 'her two messages under her name once');
-      expect(find.byType(GlacierInput), findsOneWidget);
+      // The same composer as every conversation, and no call controls over the chat (Matt, 2026-11-15: "Use the same
+      // compose input on spaces ... when we switch to chat please don't show the call controls").
+      expect(find.byType(ComposerBox), findsOneWidget);
+      expect(find.byType(CallDock), findsNothing);
       // Writing one.
       await tester.enterText(find.byType(EditableText), 'Two minutes');
-      await tester.tap(find.bySemanticsLabel('Send'));
+      await _settle(tester);
+      await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send'));
       await _settle(tester);
       expect(room.messages.map((m) => m.text), contains('Two minutes'));
       expect(find.text('Two minutes'), findsOneWidget);
+      // Back to the people: the call's controls again.
+      await tester.tap(find.bySemanticsLabel('People'));
+      await _settle(tester);
+      expect(find.byType(CallDock), findsOneWidget);
+      await tester.tap(find.bySemanticsLabel('Chat'));
+      await _settle(tester);
       // Back to the people; press and hold Sam: as owner, his role, mute for everyone, remove, ban.
       await tester.tap(find.bySemanticsLabel('People'));
       await _settle(tester);
@@ -1597,7 +1608,7 @@ void main() {
       await _shoot(tester, sheet, const VoiceScreen(), '22-hangout-open', dark: dark);
       expect(find.byType(HangoutScreen), findsOneWidget);
       expect(find.text('Join voice'), findsOneWidget);
-      final composer = tester.getRect(find.byType(GlacierInput));
+      final composer = tester.getRect(find.byType(ComposerBox));
       expect(892 - composer.bottom, lessThan(32 + 40), reason: 'no room kept for a pill that isn\'t there');
       v.view(null);
 
