@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
@@ -7,6 +8,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/net/packet.dart';
+import 'package:ghost_messaging/friends/buddies.dart';
 import 'package:ghost_messaging/me/me.dart';
 import 'package:ghost_messaging/ui/me.dart';
 import 'package:ghost_messaging/accent.dart';
@@ -1227,6 +1230,25 @@ void main() {
       await groups.start();
       // The address book offers New group where there is a friend to put in one.
       await _shoot(tester, sheet, ContactsScreen(key: ValueKey('contacts-$dark')), '15-groups-contacts', dark: dark);
+      // Friends by username at the top: the field to add one, a request to answer, one sent, and a friend (Matt,
+      // 2026-11-16: "We need a way to add friends on the network by username on the contacts page and see friend
+      // requests").
+      final meStore = MemoryMeStore()..set('me_username', 'matt');
+      await tester.runAsync(() => Me.instance.start(meStore, ValueNotifier(0), () => null));
+      final buddies = Buddies(_KeptBuddies([
+        const Buddy(username: 'riley', id: 'r1', key: 'k', name: 'Riley Fox', bio: 'Climbing on Saturdays', state: 'invited'),
+        const Buddy(username: 'noor', id: 'n1', key: 'k', state: 'asked'),
+        const Buddy(username: 'jamie', id: 'j1', key: 'k', name: 'Jamie Lee', state: 'yes'),
+      ]));
+      Buddies.instance = buddies;
+      await tester.runAsync(buddies.start);
+      await _shoot(tester, sheet, ContactsScreen(key: ValueKey('contacts-friends-$dark')), '15-contacts-friends', dark: dark);
+      expect(find.text('Friend request'), findsOneWidget);
+      expect(find.text('Accept'), findsOneWidget);
+      expect(find.text('Waiting for them'), findsOneWidget);
+      expect(find.text('Friends by username'), findsOneWidget);
+      Buddies.instance = null;
+      await tester.runAsync(() => Me.instance.start(MemoryMeStore(), ValueNotifier(0), () => null));
       expect(find.text('New group'), findsOneWidget);
       // The people added on Ghost Messaging come first, under their own heading, and the phone's contacts after.
       expect(find.text('On Ghost Messaging'), findsOneWidget);
@@ -2297,3 +2319,30 @@ class _NoMedia implements VoiceMedia {
 
 /// The tokens the screen on show is drawn with.
 Tokens _tokensOf(WidgetTester tester) => tester.element(find.byType(HangoutChat).first).tokens;
+
+/// Friends by username as kept, for a picture: nothing reaches anyone.
+class _KeptBuddies implements BuddiesPort {
+  _KeptBuddies(this.list);
+  final List<Buddy> list;
+
+  @override
+  Future<({String id, String key})> me() async => (id: 'me', key: 'k');
+  @override
+  String? get username => 'matt';
+  @override
+  String get displayName => 'Matt';
+  @override
+  String get bio => '';
+  @override
+  Future<({String id, String key})?> whois(String username) async => null;
+  @override
+  Future<void> keep(String json) async {}
+  @override
+  Future<String> kept() async => jsonEncode([for (final b in list) b.toJson()]);
+  @override
+  Future<bool> send(String id, Envelope envelope, {bool sealed = true}) async => true;
+  @override
+  Stream<({String from, Envelope envelope})> get received => const Stream.empty();
+  @override
+  Stream<({String from, Envelope envelope})> get greetings => const Stream.empty();
+}

@@ -7,6 +7,7 @@ import '../app_state.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
+import '../friends/buddies.dart';
 import '../sms.dart';
 import 'common.dart';
 import 'new_group.dart';
@@ -464,7 +465,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   Widget _pill({required bool upright}) => ValueListenableBuilder<int>(
         valueListenable: archived,
         builder: (context, count, _) => ListenableBuilder(
-          listenable: Listenable.merge([Me.instance, Voice.instance]),
+          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance]),
           builder: (context, _) => NavPill(
             upright: upright,
             active: _showing ?? (settingsOpen ? 'settings' : (_archivedOpen ? 'archive' : 'messages')),
@@ -472,7 +473,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
             items: [
               const NavItem(id: 'new', icon: Lucide.messageSquarePlus, label: 'New chat'),
               const NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
-              const NavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts'),
+              // Contacts with how many friend requests wait for an answer there (lib/ui/username_friends.dart).
+              NavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts', count: Sms.paired ? 0 : Buddies.instance.requests.length),
               // Voice channels, lit while you're in one (Matt, 2026-11-14: "always open voice channels").
               NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: count, menu: _archiveRows),
               NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings', count: Me.instance.unseen, menu: _settingsRows),

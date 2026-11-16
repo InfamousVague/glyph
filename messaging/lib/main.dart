@@ -248,9 +248,14 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       // The accounts linked and the handles watched for (Settings › Me): spoken of to the relay server only once
       // one has been.
       Me.instance.start(AppMeStore(app), Net.instance, () => Net.instance.hub, needHub: (yes) => Net.instance.want('me', yes));
-      // Friends by username (lib/friends/buddies.dart): heard over the hub, so it is dialled while any are kept.
+      // Friends by username (lib/friends/buddies.dart): heard over the hub, so it is dialled while any are kept, and
+      // from the moment there is a username of your own, so a first friend request reaches you (Matt, 2026-11-16: "We
+      // need a way to add friends on the network by username on the contacts page and see friend requests").
+      void hearBuddies() => Net.instance.want('buddies', Buddies.instance.all.isNotEmpty || Me.instance.username != null);
       Buddies.instance.start().then((_) {
-        if (Buddies.instance.all.isNotEmpty) Net.instance.want('buddies', true);
+        hearBuddies();
+        Buddies.instance.addListener(hearBuddies);
+        Me.instance.addListener(hearBuddies);
       });
       // Summaries of unread conversations by the phone's own model (lib/summaries.dart): where it stands, and asked
       // for where it can be had.
