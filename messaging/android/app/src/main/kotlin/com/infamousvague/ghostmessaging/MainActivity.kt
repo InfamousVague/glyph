@@ -305,6 +305,9 @@ class MainActivity : FlutterActivity() {
                 // one copied to a file of this app's own, which TDLib sends from; a recording ended as a file; and a
                 // file that came opened in whichever app reads it.
                 "pickFiles" -> pickImages(result, any = true)
+                // A helper of the app's, by its name, in the native libraries Android unpacks (the Signal helper,
+                // libsignalsidecar.so): its path where it is there.
+                "helperPath" -> result.success(java.io.File(applicationInfo.nativeLibraryDir, "lib${call.argument<String>("name")}.so").takeIf { it.exists() }?.path)
                 // A call in a space (CallService.kt): going on with the phone locked, until it ends.
                 "callStarted" -> { CallService.start(this, call.argument<String>("name") ?: "", call.argument<Boolean>("video") ?: false); result.success(null) }
                 "callEnded" -> { CallService.stop(this); result.success(null) }

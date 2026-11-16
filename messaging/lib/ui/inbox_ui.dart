@@ -13,6 +13,9 @@ import '../backgrounds.dart';
 import '../inbox/bluesky.dart';
 import '../inbox/inbox.dart';
 import '../inbox/mastodon.dart';
+import '../desktop/ui/qr.dart';
+import '../inbox/signal.dart';
+import '../net/pair_room.dart';
 import '../inbox/telegram.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
@@ -39,7 +42,11 @@ String inboxTab(InboxNetwork network) => '*inbox-${network.id}';
 InboxNetwork? inboxOfTab(String? tab) => tab != null && tab.startsWith('*inbox-') ? Inbox.instance.named(tab.substring(7)) : null;
 
 /// A network's logo, as Settings › Me draws it.
-Widget inboxMark(InboxNetwork network, {double size = 18, bool badge = false}) => NetworkMark(me.networks.firstWhere((n) => n.id == network.id), size: size, badge: badge);
+Widget inboxMark(InboxNetwork network, {double size = 18, bool badge = false}) => NetworkMark(
+      me.networks.where((n) => n.id == network.id).firstOrNull ?? me.Network(network.id, network.name, 'blue', network.name[0], signIn: false),
+      size: size,
+      badge: badge,
+    );
 
 /// One chat in the list: drawn as a conversation is, so the tab reads like the rest of the app.
 class InboxChatRow extends StatelessWidget {
@@ -537,6 +544,110 @@ class _BlueskySignInScreenState extends State<BlueskySignInScreen> {
   }
 }
 
+/// Linking Signal: the QR code Signal on the person's phone scans (Settings › Linked devices › Link new device). On a
+/// computer it is drawn here; on the phone, which cannot scan its own screen, it is drawn on another screen too, by
+/// the link to Ghost's pairing page (the same sealed room the Google Messages QR code uses), or the address copied.
+class SignalLinkScreen extends StatefulWidget {
+  const SignalLinkScreen({super.key, required this.network});
+  final Signal network;
+
+  @override
+  State<SignalLinkScreen> createState() => _SignalLinkScreenState();
+}
+
+class _SignalLinkScreenState extends State<SignalLinkScreen> {
+  /// The code on another screen, on the phone (lib/net/pair_room.dart).
+  final _room = PairRoom();
+
+  @override
+  void initState() {
+    super.initState();
+    widget.network.begin();
+    widget.network.addListener(_changed);
+  }
+
+  Future<void> _elsewhere() async {
+    if (!_room.open) await _room.openRoom(onCame: () => _showCode());
+    _showCode();
+    final link = _room.link;
+    if (link != null && mounted) await Sms.instance.shareText('Link Signal to Ghost', link);
+    if (mounted) setState(() {});
+  }
+
+  void _showCode() {
+    final qr = widget.network.qr;
+    if (qr != null && _room.open) _room.showCode(qr);
+  }
+
+  void _changed() {
+    _showCode();
+    if (widget.network.state == InboxState.ready && _room.open) _room.done();
+    if (widget.network.state == InboxState.ready && mounted) {
+      toast(context, 'Signal linked${widget.network.account == null ? '' : ' as ${widget.network.account}'}');
+      Navigator.of(context).maybePop();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.network.removeListener(_changed);
+    _room.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final n = widget.network;
+    return ListenableBuilder(
+      listenable: n,
+      builder: (context, _) {
+        final qr = n.qr;
+        return GhostPage(
+          title: 'Link Signal',
+          body: SettingsPaneScope(
+            finder: SettingsFinder(),
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+              children: [
+                PaneSection(
+                  title: 'Scan this with Signal',
+                  description: const Text('In Signal on your phone: Settings › Linked devices › Link new device, then point it at this code. Ghost becomes another of your devices, as Signal Desktop is. Messages from now on come here; Signal keeps no older ones for a new device.'),
+                  footer: n.error == null ? null : Text(n.error!, style: TextStyle(color: t.colorOf('#dd3a30'))),
+                  children: [
+                    SettingRowBox(
+                      child: Padding(
+                        padding: EdgeInsets.all(t.space(3)),
+                        child: Center(
+                          child: qr == null
+                              ? const GhostSpinner(size: 24, label: 'Asking Signal for a code…')
+                              : Container(color: const Color(0xFFFFFFFF), padding: EdgeInsets.all(t.space(2)), child: QrView(data: qr, size: 220)),
+                        ),
+                      ),
+                    ),
+                    if (qr != null && Platform.isAndroid)
+                      SettingRow(
+                        icon: _icon(Lucide.share2),
+                        label: 'Show it on another screen',
+                        hint: Text(_room.open
+                            ? 'Open ${_room.link} on a computer or tablet: the code is drawn there, and changes there as it does here. Scan it with Signal on this phone.'
+                            : 'This phone can\'t scan its own screen: a link opens the code on any other screen, sealed so only that page can read it.'),
+                        onPress: _elsewhere,
+                      ),
+                    SettingRow(icon: _icon(Lucide.rotateCcw), label: 'A new code', onPress: n.begin),
+                  ],
+                ),
+                SizedBox(height: t.space(4)),
+                const SettingsFootnote(child: Text('Signal has no API for other apps: Ghost links the way Signal Desktop does, through the open-source mautrix-signal (GNU AGPL). Your messages go between this device and Signal only, never through Ghost\'s servers.')),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// Signing in to Mastodon: the server, its own page to approve Ghost on, and the code that page shows.
 class MastodonSignInScreen extends StatefulWidget {
   const MastodonSignInScreen({super.key, required this.network});
@@ -729,7 +840,7 @@ List<SettingsSection> inboxSettingsSections() => [
           id: 'inbox-${n.id}',
           label: n.name,
           icon: inboxMark(n),
-          hue: switch (n.id) { 'telegram' => 'cyan', 'mastodon' => 'purple', _ => 'blue' },
+          hue: switch (n.id) { 'telegram' => 'cyan', 'mastodon' => 'purple', 'signal' => 'indigo', _ => 'blue' },
           group: 'me',
           summary: (_) => _summary(n),
           page: (context, m) => _pane(context, n),
@@ -745,7 +856,7 @@ String _summary(InboxNetwork n) => n.soon ? 'Coming soon' : switch (n.state) {
 
 List<Widget> _pane(BuildContext context, InboxNetwork n) {
   void signIn() {
-    final page = switch (n) { Telegram tg => TelegramSignInScreen(network: tg), Bluesky b => BlueskySignInScreen(network: b), Mastodon m => MastodonSignInScreen(network: m), _ => null };
+    final page = switch (n) { Telegram tg => TelegramSignInScreen(network: tg), Bluesky b => BlueskySignInScreen(network: b), Mastodon m => MastodonSignInScreen(network: m), Signal sg => SignalLinkScreen(network: sg), _ => null };
     if (page != null) push<void>(context, (_) => page);
   }
 
