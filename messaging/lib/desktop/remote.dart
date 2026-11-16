@@ -557,6 +557,14 @@ class LinkCalls implements SmsCalls, CapableCalls {
       // handed over in pieces first ([_handOver]).
       case 'pickImages':
         return MacPlatform.pickPictures();
+      // A Telegram chat's + and a file it was sent (lib/ui/inbox_ui.dart): chosen and opened on the computer itself,
+      // which runs its own Telegram.
+      case 'pickFiles':
+        return MacPlatform.pickPictures(most: 10);
+      case 'openFile':
+        final path = '${a['path']}';
+        await Process.run(Platform.isWindows ? 'explorer' : 'open', [path]);
+        return null;
       case 'emoji':
         await MacPlatform.emoji();
         return null;

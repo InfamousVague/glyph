@@ -5,6 +5,7 @@ import android.app.role.RoleManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import java.io.File
 import android.os.Handler
 import android.os.Looper
 import io.flutter.embedding.android.FlutterActivity
@@ -299,6 +300,18 @@ class MainActivity : FlutterActivity() {
                 "photo" -> on(pictures) { store.photo(call.argument<String>("uri")!!) }
                 "part" -> on(pictures) { store.readPart(call.argument<Number>("id")!!.toLong()) }
                 "pickImages" -> pickImages(result)
+                // Telegram's attachments (lib/inbox/telegram.dart): any file, pictures and videos among them; a picked
+                // one copied to a file of this app's own, which TDLib sends from; a recording ended as a file; and a
+                // file that came opened in whichever app reads it.
+                "pickFiles" -> pickImages(result, any = true)
+                "cacheCopy" -> bg { cacheCopy(Uri.parse(call.argument<String>("uri")!!)) }
+                "voiceFinish" -> bg {
+                    val recorded = Voice.stop() ?: throw IllegalStateException("That was too short to send")
+                    val out = File(File(cacheDir, "outgoing").apply { mkdirs() }, recorded.first.name)
+                    recorded.first.copyTo(out, overwrite = true); recorded.first.delete()
+                    mapOf("path" to out.path, "millis" to recorded.second)
+                }
+                "openFile" -> bg { openFile(File(call.argument<String>("path")!!), call.argument<String>("name")); null }
                 "setOpenThread" -> {
                     openThread = call.argument<Number>("thread")?.toLong() ?: -1
                     if (openThread >= 0) Notifier.cancel(applicationContext, openThread)
@@ -617,10 +630,31 @@ class MainActivity : FlutterActivity() {
         requestPermissions(missing.toTypedArray(), PERMS_REQUEST)
     }
 
-    private fun pickImages(result: MethodChannel.Result) {
+    /** A picked file, by its content address, copied into this app's cache under its own name: its path. */
+    private fun cacheCopy(uri: Uri): String {
+        val name = contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        }?.replace('/', '_') ?: "file-${System.currentTimeMillis()}"
+        val out = File(File(cacheDir, "outgoing").apply { mkdirs() }, name)
+        contentResolver.openInputStream(uri)!!.use { input -> out.outputStream().use { input.copyTo(it) } }
+        return out.path
+    }
+
+    /** Opens [file] in the app that reads its kind, through the provider MMS files go by. */
+    private fun openFile(file: File, name: String?) {
+        val shown = File(MmsFileProvider.dir(this), (name ?: file.name).replace('/', '_'))
+        if (shown.path != file.path) file.copyTo(shown, overwrite = true)
+        val ext = shown.extension.lowercase()
+        val type = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
+        val i = Intent(Intent.ACTION_VIEW).setDataAndType(MmsFileProvider.uriFor(this, shown), type)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        runOnUiThread { try { startActivity(Intent.createChooser(i, "Open with").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e: Exception) { DevLog.add(this, "files", "open: ${e.message}") } }
+    }
+
+    private fun pickImages(result: MethodChannel.Result, any: Boolean = false) {
         pickResult = result
         val i = Intent(Intent.ACTION_GET_CONTENT).apply {
-            type = "image/*"
+            type = if (any) "*/*" else "image/*"
             addCategory(Intent.CATEGORY_OPENABLE)
             putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
         }

@@ -308,6 +308,7 @@ class Telegram extends InboxNetwork {
         _authState((m['authorization_state'] as Map).cast<String, Object?>());
       case 'updateUser':
         final u = m['user'] as Map;
+        if ((u['type'] as Map?)?['@type'] == 'userTypeBot') _bots.add((u['id'] as num).toInt());
         final name = [u['first_name'], u['last_name']].whereType<String>().where((s) => s.isNotEmpty).join(' ');
         _users[(u['id'] as num).toInt()] = name.isEmpty ? 'Someone' : name;
       case 'updateNewChat':
@@ -324,6 +325,7 @@ class Telegram extends InboxNetwork {
         _patch(m, {'photo': m['photo']});
       case 'updateFile':
         _fileUpdated(m['file'] as Map);
+        _messageFile(m['file'] as Map);
       case 'updateChatLastMessage':
         _patch(m, {'last_message': m['last_message']});
         for (final p in (m['positions'] as List? ?? const [])) {
@@ -379,6 +381,26 @@ class Telegram extends InboxNetwork {
     } else {
       orders[chat] = order;
     }
+    if (list == 'chatListMain') {
+      if (p['is_pinned'] == true && order != 0) {
+        _pinned.add(chat);
+      } else {
+        _pinned.remove(chat);
+      }
+    }
+  }
+
+  /// The users that are bots, which sign-in codes may come from as Telegram's own account's do.
+  final Set<int> _bots = {};
+
+  /// Pinned chats in the main list.
+  final Set<int> _pinned = {};
+
+  @override
+  Future<void> pin(String chatId, bool pinned) async {
+    final r = await _ask({'@type': 'toggleChatIsPinned', 'chat_list': {'@type': 'chatListMain'}, 'chat_id': int.parse(chatId), 'is_pinned': pinned});
+    if (r['@type'] == 'error') _error = _plain(r);
+    notifyListeners();
   }
 
   /// The chats in Telegram's own archive, by their order there.
@@ -459,6 +481,9 @@ class Telegram extends InboxNetwork {
       group: type == 'chatTypeBasicGroup' || type == 'chatTypeSupergroup',
       lastFromMe: last?['is_outgoing'] == true,
       avatar: _photo(c),
+      pinned: _pinned.contains(c['id']),
+      // Telegram's own account (777000, which sends its sign-in codes) and bots.
+      service: type == 'chatTypePrivate' && (((c['type'] as Map)['user_id'] as num?)?.toInt() == 777000 || _bots.contains(((c['type'] as Map)['user_id'] as num?)?.toInt())),
     );
   }
 
@@ -467,14 +492,166 @@ class Telegram extends InboxNetwork {
     final sender = m['sender_id'] as Map?;
     final user = (sender?['user_id'] as num?)?.toInt();
     final sending = (m['sending_state'] as Map?)?['@type'];
+    final media = _media(m['content'] as Map? ?? const {});
+    for (final x in media) {
+      _fileUsers.putIfAbsent(x.fileId, () => {}).add('${m['chat_id']}');
+      if (x.thumbId != null) _fileUsers.putIfAbsent(x.thumbId!, () => {}).add('${m['chat_id']}');
+    }
     return InboxMessage(
       id: '${m['id']}',
-      text: _text(m),
+      // A picture's or a file's words are its caption alone: the picture itself is drawn.
+      text: media.isEmpty ? _text(m) : ((((m['content'] as Map?)?['caption'] as Map?)?['text'] as String?) ?? '').trim(),
+      media: media,
       date: DateTime.fromMillisecondsSinceEpoch(((m['date'] as num?) ?? 0).toInt() * 1000),
       mine: m['is_outgoing'] == true,
       sender: user == null ? '' : (_users[user] ?? ''),
       state: sending == 'messageSendingStatePending' ? 'sending' : (sending == 'messageSendingStateFailed' ? 'failed' : 'sent'),
     );
+  }
+
+  // --- attachments (Matt, 2026-11-15: "Is it possible to send and receive attachments through telegram too?") --------
+
+  /// The chats each file is in, so a file brought down reaches the messages holding it.
+  final Map<int, Set<String>> _fileUsers = {};
+  final Map<int, String> _files = {};
+  final Set<int> _filesAsked = {};
+
+  static int? _fileId(Map? f) => (f?['id'] as num?)?.toInt();
+
+  /// TDLib's file as far as this device has it: its path once it is whole here.
+  String? _localOf(Map? f) {
+    final local = f?['local'] as Map?;
+    final path = local?['path'] as String?;
+    return local?['is_downloading_completed'] == true && path != null && path.isNotEmpty ? path : null;
+  }
+
+  /// A message's pictures, videos, sounds and files.
+  List<InboxMedia> _media(Map c) {
+    InboxMedia one(String kind, Map? file, {String? name, Map? dims, int duration = 0, Map? thumb}) {
+      final id = _fileId(file)!;
+      final path = _localOf(file) ?? _files[id];
+      if (path != null) _files[id] = path;
+      final thumbFile = thumb?['file'] as Map?;
+      final thumbId = _fileId(thumbFile);
+      return InboxMedia(
+        kind: kind, fileId: id, path: path, name: name, size: ((file?['size'] ?? file?['expected_size']) as num?)?.toInt() ?? 0,
+        width: (dims?['width'] as num?)?.toInt() ?? 0, height: (dims?['height'] as num?)?.toInt() ?? 0, duration: duration,
+        thumbId: thumbId, thumbPath: thumbId == null ? null : (_localOf(thumbFile) ?? _files[thumbId]),
+      );
+    }
+
+    switch (c['@type']) {
+      case 'messagePhoto':
+        final sizes = ((c['photo'] as Map?)?['sizes'] as List? ?? const []).cast<Map>();
+        if (sizes.isEmpty) return const [];
+        // The largest no wider than 1280: sharp on a phone without bringing the original down.
+        final fit = sizes.where((x) => ((x['width'] as num?) ?? 0) <= 1280).toList();
+        final size = (fit.isEmpty ? sizes : fit).last;
+        return [one('photo', size['photo'] as Map?, dims: size)];
+      case 'messageVideo':
+        final v = c['video'] as Map;
+        return [one('video', v['video'] as Map?, name: v['file_name'] as String?, dims: v, duration: (v['duration'] as num?)?.toInt() ?? 0, thumb: v['thumbnail'] as Map?)];
+      case 'messageAnimation':
+        final v = c['animation'] as Map;
+        return [one('video', v['animation'] as Map?, name: v['file_name'] as String?, dims: v, duration: (v['duration'] as num?)?.toInt() ?? 0, thumb: v['thumbnail'] as Map?)];
+      case 'messageVideoNote':
+        final v = c['video_note'] as Map;
+        return [one('video', v['video'] as Map?, dims: {'width': v['length'], 'height': v['length']}, duration: (v['duration'] as num?)?.toInt() ?? 0, thumb: v['thumbnail'] as Map?)];
+      case 'messageSticker':
+        final st = c['sticker'] as Map;
+        // A still sticker is a picture; an animated one is not drawn here yet.
+        if ((st['format'] as Map?)?['@type'] != 'stickerFormatWebp') return const [];
+        return [one('photo', st['sticker'] as Map?, dims: st)];
+      case 'messageDocument':
+        final d = c['document'] as Map;
+        return [one('file', d['document'] as Map?, name: d['file_name'] as String?, thumb: d['thumbnail'] as Map?)];
+      case 'messageAudio':
+        final a = c['audio'] as Map;
+        return [one('audio', a['audio'] as Map?, name: (a['title'] as String?)?.trim().isNotEmpty == true ? a['title'] as String : a['file_name'] as String?, duration: (a['duration'] as num?)?.toInt() ?? 0)];
+      case 'messageVoiceNote':
+        final a = c['voice_note'] as Map;
+        return [one('audio', a['voice'] as Map?, name: 'Voice message', duration: (a['duration'] as num?)?.toInt() ?? 0)];
+    }
+    return const [];
+  }
+
+  /// A file whole on this device: the messages holding it take its path, and whoever waits for it is answered.
+  void _messageFile(Map file) {
+    final id = _fileId(file);
+    final path = _localOf(file);
+    if (id == null || path == null) return;
+    _files[id] = path;
+    final chats = _fileUsers[id];
+    if (chats == null) return;
+    for (final chat in chats) {
+      final held = _messages[chat];
+      if (held == null) continue;
+      _messages[chat] = [
+        for (final m in held)
+          m.media.any((x) => x.fileId == id || x.thumbId == id)
+              ? InboxMessage(id: m.id, text: m.text, date: m.date, mine: m.mine, sender: m.sender, state: m.state, media: [for (final x in m.media) x.withPath(id, path)])
+              : m,
+      ];
+    }
+    notifyListeners();
+  }
+
+  @override
+  bool get canSendFiles => true;
+
+  @override
+  void wantFile(int fileId) {
+    if (_files.containsKey(fileId) || !_filesAsked.add(fileId)) return;
+    _td?.send({'@type': 'downloadFile', 'file_id': fileId, 'priority': 16, 'offset': 0, 'limit': 0, 'synchronous': false});
+  }
+
+  @override
+  Future<String?> fileOf(int fileId) async {
+    final known = _files[fileId];
+    if (known != null) return known;
+    // Waited for whole: a video may take a while.
+    final r = await _ask({'@type': 'downloadFile', 'file_id': fileId, 'priority': 32, 'offset': 0, 'limit': 0, 'synchronous': true}, wait: const Duration(minutes: 5));
+    if (r['@type'] != 'file') {
+      _error = _plain(r);
+      notifyListeners();
+      return null;
+    }
+    _messageFile(r);
+    return _localOf(r);
+  }
+
+  /// What a file is sent as, by its name: a picture, a video, or a file as it is.
+  static String kindOf(String path) {
+    final ext = path.split('.').last.toLowerCase();
+    if (const {'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif', 'bmp'}.contains(ext)) return ext == 'gif' ? 'animation' : 'photo';
+    if (const {'mp4', 'mov', 'm4v', 'webm', 'mkv', '3gp'}.contains(ext)) return 'video';
+    return 'file';
+  }
+
+  @override
+  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false}) async {
+    if (_state != InboxState.ready) return;
+    for (final (i, path) in paths.indexed) {
+      final words = i == paths.length - 1 && caption.trim().isNotEmpty ? {'caption': {'@type': 'formattedText', 'text': caption.trim()}} : const <String, Object?>{};
+      final file = {'@type': 'inputFileLocal', 'path': path};
+      final content = voice
+          // Ghost records AAC in .m4a; Telegram's voice messages are Opus, so it goes as a sound named for what it is.
+          ? {'@type': 'inputMessageAudio', 'audio': file, 'title': 'Voice message', ...words}
+          : switch (kindOf(path)) {
+              'photo' => {'@type': 'inputMessagePhoto', 'photo': file, ...words},
+              'animation' => {'@type': 'inputMessageAnimation', 'animation': file, ...words},
+              'video' => {'@type': 'inputMessageVideo', 'video': file, 'supports_streaming': true, ...words},
+              _ => {'@type': 'inputMessageDocument', 'document': file, ...words},
+            };
+      final r = await _ask({'@type': 'sendMessage', 'chat_id': int.parse(chatId), 'input_message_content': content}, wait: const Duration(minutes: 2));
+      if (r['@type'] == 'message') {
+        _add(chatId, [_message(r)]);
+      } else {
+        _error = _plain(r);
+        notifyListeners();
+        return;
+      }
+    }
   }
 
   /// A message's words, or what it is where it has none to show (a picture, a voice message…).
@@ -576,14 +753,14 @@ class Telegram extends InboxNetwork {
     if (chatId != null && chatId != was) _td?.send({'@type': 'openChat', 'chat_id': int.parse(chatId)});
   }
 
-  Future<Map<String, Object?>> _ask(Map<String, Object?> request) {
+  Future<Map<String, Object?>> _ask(Map<String, Object?> request, {Duration wait = const Duration(seconds: 30)}) {
     final td = _td;
     if (td == null) return Future.value(const {'@type': 'error', 'message': 'Telegram isn\'t running'});
     final key = 'q${++_asked}';
     final done = Completer<Map<String, Object?>>();
     _waiting[key] = done;
     td.send({...request, '@extra': key});
-    return done.future.timeout(const Duration(seconds: 30), onTimeout: () {
+    return done.future.timeout(wait, onTimeout: () {
       _waiting.remove(key);
       return const {'@type': 'error', 'message': 'Telegram took too long to answer'};
     });

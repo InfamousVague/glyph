@@ -257,6 +257,16 @@ class ListPlugins {
     return look == null ? null : (look, _Host(this, s.plugin, context));
   }
 
+  /// The plugin [id]'s host, to run its actions with from a row that is not a conversation of texts (a Telegram chat
+  /// in Codes); null where it is not on.
+  PluginHost? hostFor(BuildContext context, String id) {
+    final store = _store;
+    if (store == null) return null;
+    final plugin = registry.plugins.where((p) => p.id == id).firstOrNull;
+    if (plugin == null || !registry.isOn(plugin, store)) return null;
+    return _Host(this, plugin, context);
+  }
+
   /// The lines the plugins add to the menu a conversation's long press brings up.
   List<Choice> menu(BuildContext context, Conversation c) {
     final store = _store;

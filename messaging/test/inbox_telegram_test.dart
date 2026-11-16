@@ -247,6 +247,74 @@ void main() {
     tg.dispose();
   });
 
+  // Matt, 2026-11-15: "Is it possible to send and receive attachments through telegram too?"
+  test('pictures, videos and files come in and are brought down; files go out as what they are', () async {
+    final td = FakeTd();
+    var sentId = 500;
+    td.answer = (r) => switch (r['@type']) {
+          'getMe' => {'@type': 'user', 'id': 1, 'first_name': 'Matt'},
+          'loadChats' => {'@type': 'error', 'code': 404, 'message': 'Not Found'},
+          'sendMessage' => {'@type': 'message', 'id': ++sentId, 'chat_id': r['chat_id'], 'is_outgoing': true, 'date': 1763200200, 'content': {'@type': 'messageText', 'text': {'text': ''}}},
+          _ => {'@type': 'ok'},
+        };
+    final tg = Telegram(apiId: 12345, apiHash: 'hash', folder: '/tmp/tg', transport: () async => td);
+    await tg.start(AppState());
+    await tg.begin();
+    td.auth('authorizationStateReady');
+    for (var i = 0; i < 6; i++) {
+      await settle();
+    }
+    Map<String, Object?> file(int id, {String path = '', bool done = false}) => {'id': id, 'size': 2048, 'local': {'path': path, 'is_downloading_completed': done}};
+    td.say({
+      '@type': 'updateNewMessage',
+      'message': {
+        'id': 1, 'chat_id': 10, 'is_outgoing': false, 'date': 1763200000,
+        'content': {
+          '@type': 'messagePhoto',
+          'caption': {'text': 'the view'},
+          'photo': {'sizes': [
+            {'type': 's', 'width': 90, 'height': 60, 'photo': file(1)},
+            {'type': 'x', 'width': 800, 'height': 600, 'photo': file(2)},
+            {'type': 'w', 'width': 2560, 'height': 1920, 'photo': file(3)},
+          ]},
+        },
+      },
+    });
+    td.say({
+      '@type': 'updateNewMessage',
+      'message': {
+        'id': 2, 'chat_id': 10, 'is_outgoing': false, 'date': 1763200010,
+        'content': {'@type': 'messageDocument', 'caption': {'text': ''}, 'document': {'file_name': 'menu.pdf', 'document': file(9, path: '/tg/menu.pdf', done: true)}},
+      },
+    });
+    await settle();
+    final photo = tg.messagesOf('10').first;
+    expect(photo.text, 'the view', reason: 'its words are its caption');
+    expect(photo.media.single.kind, 'photo');
+    expect(photo.media.single.fileId, 2, reason: 'the largest no wider than 1280');
+    expect(photo.media.single.path, isNull);
+    tg.wantFile(2);
+    tg.wantFile(2);
+    expect(td.sent.where((r) => r['@type'] == 'downloadFile' && r['file_id'] == 2).length, 1, reason: 'asked for once');
+    td.say({'@type': 'updateFile', 'file': file(2, path: '/tg/photos/2.jpg', done: true)});
+    await settle();
+    expect(tg.messagesOf('10').first.media.single.path, '/tg/photos/2.jpg');
+    final doc = tg.messagesOf('10').last.media.single;
+    expect((doc.kind, doc.name, doc.path), ('file', 'menu.pdf', '/tg/menu.pdf'));
+    expect(await tg.fileOf(9), '/tg/menu.pdf');
+
+    await tg.sendFiles('10', ['/cache/beach.jpg', '/cache/clip.mp4', '/cache/notes.pdf'], caption: 'from today');
+    final went = [for (final r in td.sent) if (r['@type'] == 'sendMessage') r['input_message_content'] as Map];
+    expect(went.map((c) => c['@type']), ['inputMessagePhoto', 'inputMessageVideo', 'inputMessageDocument']);
+    expect((went.first['photo'] as Map)['path'], '/cache/beach.jpg');
+    expect(went.first.containsKey('caption'), isFalse);
+    expect(((went.last['caption'] as Map)['text']), 'from today', reason: 'the words go with the last');
+    await tg.sendFiles('10', ['/cache/voice.m4a'], voice: true);
+    final voice = td.sent.lastWhere((r) => r['@type'] == 'sendMessage')['input_message_content'] as Map;
+    expect((voice['@type'], voice['title']), ('inputMessageAudio', 'Voice message'));
+    tg.dispose();
+  });
+
   test('a chat\'s messages, a reply sent and confirmed, and reading it', () async {
     final td = FakeTd();
     final tg = Telegram(apiId: 1, apiHash: 'h', folder: '/tmp/tg', transport: () async => td);

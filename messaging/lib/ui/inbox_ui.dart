@@ -1,3 +1,5 @@
+import 'dart:io';
+
 
 
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeedback, TextCapitalization, TextInputAction, TextInputType;
@@ -15,8 +17,11 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart' as me;
 import '../sms.dart';
+import '../plugins/codes.dart' show signInCode;
 import 'common.dart';
 import 'composer_box.dart';
+import 'video_screen.dart';
+import 'voice.dart' show VoiceRecorder, voiceProblem;
 import 'conversations.dart' show ConversationRow;
 import 'me.dart' show NetworkMark;
 import 'settings.dart';
@@ -60,18 +65,15 @@ class InboxChatRow extends StatelessWidget {
   }
 }
 
-/// A chat pressed and held in the list: archived or brought back, or deleted, on its network where it can be (Matt,
-/// 2026-11-15: "if possible proxy the archive and delete messages too, if we can't actually delete telegram messages
-/// add them to a ignore or archive list"). Telegram does both itself; a network that can't keeps Ghost's own list.
-void inboxChatMenu(BuildContext context, InboxNetwork network, InboxChat chat, {required bool archived}) {
-  HapticFeedback.mediumImpact();
-  showChoices(context, title: chat.title, choices: [
-    Choice(archived ? 'Unarchive' : 'Archive', archived ? Lucide.archiveRestore : Lucide.archive, () => network.archive(chat.id, !archived)),
-    Choice(chat.group ? 'Leave and delete' : 'Delete', Lucide.trash2, () {
-      showChoices(context, title: chat.group ? 'Leave ${chat.title} and delete it on ${network.name}?' : 'Delete this chat on ${network.name}?', choices: [
-        Choice(chat.group ? 'Leave and delete' : 'Delete', Lucide.trash2, () => network.deleteChat(chat.id), danger: true),
-      ]);
-    }, danger: true),
+/// The sign-in code [chat]'s last message is, where it is from the network's own account or a bot (Telegram's codes
+/// come from 777000): it goes to the Codes tab with texted codes (lib/plugins/codes.dart's rules).
+String? inboxCode(InboxChat chat) => chat.service && !chat.lastFromMe ? signInCode(chat.snippet) : null;
+
+/// A chat slid all the way: deleted on its network once asked (Matt, 2026-11-15: "if possible proxy the archive and
+/// delete messages too"). A group is left as it goes.
+void confirmInboxDelete(BuildContext context, InboxNetwork network, InboxChat chat) {
+  showChoices(context, title: chat.group ? 'Leave ${chat.title} and delete it on ${network.name}?' : 'Delete this chat on ${network.name}? This can\'t be undone.', choices: [
+    Choice(chat.group ? 'Leave and delete' : 'Delete', Lucide.trash2, () => network.deleteChat(chat.id), danger: true),
   ]);
 }
 
@@ -117,6 +119,54 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
 
   final _focus = FocusNode();
   bool _wasTyping = false;
+
+  /// Files to go with the next message, by their paths on this device (Matt, 2026-11-15: "Is it possible to send and
+  /// receive attachments through telegram too?"), and the voice message being recorded: its most seconds.
+  final List<String> _files = [];
+  int? _recording;
+  bool _sendingFiles = false;
+
+  Future<void> _attach() async {
+    final picked = await Sms.instance.pickFiles();
+    for (final p in picked.take(10 - _files.length)) {
+      try {
+        final path = await Sms.instance.cacheCopy(p);
+        if (mounted) setState(() => _files.add(path));
+      } catch (e) {
+        if (mounted) toast(context, 'Couldn\'t add that file: $e', tone: GlacierToastTone.danger);
+      }
+    }
+  }
+
+  Future<void> _record() async {
+    try {
+      final limit = await Sms.instance.startVoice();
+      if (!mounted) return;
+      if (limit == null) {
+        toast(context, 'Allow the microphone for Ghost Messaging in Android\'s settings to record a voice message.', tone: GlacierToastTone.danger);
+        return;
+      }
+      HapticFeedback.lightImpact();
+      setState(() => _recording = limit);
+    } catch (e) {
+      if (mounted) toast(context, voiceProblem(e), tone: GlacierToastTone.danger);
+    }
+  }
+
+  Future<void> _sendVoice() async {
+    setState(() => _recording = null);
+    try {
+      final path = await Sms.instance.finishVoice();
+      await _n.sendFiles(widget.chatId, [path], voice: true);
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t send the voice message: ${voiceProblem(e)}', tone: GlacierToastTone.danger);
+    }
+  }
+
+  void _discardVoice() {
+    Sms.instance.cancelVoice().catchError((_) {});
+    setState(() => _recording = null);
+  }
   void _typed() {
     final typing = _text.text.isNotEmpty;
     if (typing != _wasTyping && mounted) setState(() => _wasTyping = typing);
@@ -163,11 +213,26 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
     super.dispose();
   }
 
-  void _send() {
+  Future<void> _send() async {
     final text = _text.text;
+    if (_files.isNotEmpty) {
+      if (_sendingFiles) return;
+      final files = List<String>.of(_files);
+      setState(() {
+        _files.clear();
+        _sendingFiles = true;
+      });
+      _text.clear();
+      try {
+        await _n.sendFiles(widget.chatId, files, caption: text);
+      } finally {
+        if (mounted) setState(() => _sendingFiles = false);
+      }
+      return;
+    }
     if (text.trim().isEmpty) return;
     _text.clear();
-    _n.send(widget.chatId, text);
+    await _n.send(widget.chatId, text);
   }
 
   @override
@@ -201,11 +266,23 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
                 final style = composerTextStyle(t);
                 final strut = composerStrutStyle(t);
                 final enterSends = app.enterSends;
-                final send = IconTap(icon: Lucide.send, label: 'Send', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: _text.text.trim().isEmpty ? null : _send);
-                return ComposerBox(
+                // Laid out as a conversation of texts is (Matt, 2026-11-15: "The compose window should also use the exact same
+                // layout as messages"): + at its start, the microphone while it is empty, Send once there is something.
+                final files = _n.canSendFiles;
+                final canSend = (_text.text.trim().isNotEmpty || _files.isNotEmpty) && !_sendingFiles;
+                final send = IconTap(icon: Lucide.send, label: 'Send', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _send : null);
+                final mic = IconTap(icon: Lucide.mic, label: 'Record a voice message', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _record);
+                final voice = files && !Sms.remote;
+                if (_recording != null) {
+                  return VoiceRecorder(limit: _recording!, onDiscard: _discardVoice, onSend: _sendVoice);
+                }
+                return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  if (_files.isNotEmpty) _FilesStrip(files: _files, onRemove: (f) => setState(() => _files.remove(f))),
+                  ComposerBox(
                   typing: _text.text.isNotEmpty,
-                  ends: [send],
-                  below: [send],
+                  plus: files ? IconTap(icon: Lucide.plus, label: 'Add an attachment', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _files.length >= 10 ? null : _attach) : null,
+                  ends: [if (voice && _text.text.isEmpty && _files.isEmpty) mic else send],
+                  below: [if (voice) mic, send],
                   field: GestureDetector(
                     behavior: HitTestBehavior.translucent,
                     onTap: () => _focus.requestFocus(),
@@ -239,7 +316,8 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
                       ),
                     ),
                   ),
-                );
+                ),
+                ]);
               }),
             ]),
           ),
@@ -265,7 +343,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
                         ),
                       GestureDetector(
                         onLongPress: () => _messageMenu(m),
-                        child: _InboxBubble(key: ValueKey(m.id), message: m, group: chat?.group ?? false, first: firstOfRun, last: lastOfRun, mineBg: mineBg, mineInk: mineInk),
+                        child: _InboxBubble(key: ValueKey(m.id), network: _n, message: m, group: chat?.group ?? false, first: firstOfRun, last: lastOfRun, mineBg: mineBg, mineInk: mineInk),
                       ),
                     ]);
                   },
@@ -277,7 +355,8 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
 }
 
 class _InboxBubble extends StatelessWidget {
-  const _InboxBubble({super.key, required this.message, required this.group, required this.first, required this.last, required this.mineBg, required this.mineInk});
+  const _InboxBubble({super.key, required this.network, required this.message, required this.group, required this.first, required this.last, required this.mineBg, required this.mineInk});
+  final InboxNetwork network;
   final InboxMessage message;
   final bool group, first, last;
   final Color mineBg, mineInk;
@@ -314,7 +393,10 @@ class _InboxBubble extends StatelessWidget {
                   bottomRight: m.mine && !last ? tight : round,
                 ),
               ),
-              child: Text(m.text, style: pageText(t, t.fontSize('md'), color: m.mine ? mineInk : t.color('app-ink'), height: 1.3)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                for (final x in m.media) Padding(padding: EdgeInsets.only(bottom: m.text.isEmpty ? 0 : t.space(2)), child: InboxMediaView(network: network, media: x, ink: m.mine ? mineInk : t.color('app-ink'))),
+                if (m.text.isNotEmpty) Text(m.text, style: pageText(t, t.fontSize('md'), color: m.mine ? mineInk : t.color('app-ink'), height: 1.3)),
+              ]),
             ),
           ),
         ),
@@ -582,3 +664,120 @@ List<Widget> _pane(BuildContext context, InboxNetwork n) {
 /// Puts the networks' sections into Settings, and redraws it as they change.
 void addInboxSettings() => SettingsSources.add(inboxSettingsSections, watch: Inbox.instance.networks);
 
+
+
+/// The files waiting to go with the next message, above the composer: each with a way to take it off.
+class _FilesStrip extends StatelessWidget {
+  const _FilesStrip({required this.files, required this.onRemove});
+  final List<String> files;
+  final ValueChanged<String> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final side = t.lenOf('4rem');
+    return SizedBox(
+      height: side + t.space(2),
+      child: ListView(scrollDirection: Axis.horizontal, padding: EdgeInsets.only(bottom: t.space(2), left: t.space(1)), children: [
+        for (final f in files)
+          Padding(
+            padding: EdgeInsets.only(right: t.space(2)),
+            child: Stack(children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(t.radius('md')),
+                child: Telegram.kindOf(f) == 'photo'
+                    ? Image.file(File(f), width: side, height: side, fit: BoxFit.cover)
+                    : Container(
+                        width: side,
+                        height: side,
+                        color: t.color('app-paper-2'),
+                        padding: EdgeInsets.all(t.space(1)),
+                        alignment: Alignment.center,
+                        child: Column(mainAxisSize: MainAxisSize.min, children: [
+                          AppIcon(Telegram.kindOf(f) == 'video' ? Lucide.play : Lucide.file, size: 18),
+                          Text(f.split('/').last, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+                        ]),
+                      ),
+              ),
+              Positioned(top: 0, right: 0, child: IconTap(icon: Lucide.x, label: 'Take off ${f.split('/').last}', size: 14, box: t.lenOf('1.5rem'), onPressed: () => onRemove(f))),
+            ]),
+          ),
+      ]),
+    );
+  }
+}
+
+/// A picture, video, sound or file in a chat's bubble: a picture drawn (brought down as it is first drawn), a video's
+/// picture with Play, a sound or file as its name; a tap opens it full screen, in Ghost's player, or in the app that
+/// reads it.
+class InboxMediaView extends StatelessWidget {
+  const InboxMediaView({super.key, required this.network, required this.media, required this.ink});
+  final InboxNetwork network;
+  final InboxMedia media;
+  final Color ink;
+
+  Future<void> _open(BuildContext context) async {
+    final path = media.path ?? await network.fileOf(media.fileId);
+    if (path == null || !context.mounted) return;
+    switch (media.kind) {
+      case 'photo':
+        await Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(
+          opaque: false,
+          pageBuilder: (context, _, _) => ColoredBox(
+            color: const Color(0xF0000000),
+            child: GestureDetector(onTap: () => Navigator.of(context).pop(), child: InteractiveViewer(maxScale: 5, child: Center(child: Image.file(File(path))))),
+          ),
+        ));
+      case 'video' || 'audio':
+        await Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(pageBuilder: (context, _, _) => VideoScreen(path: path, title: media.name ?? network.name)));
+      default:
+        await Sms.instance.openFile(path, name: media.name);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final width = t.lenOf('15rem');
+    final ratio = media.width > 0 && media.height > 0 ? (media.width / media.height).clamp(0.5, 2.0) : 4 / 3;
+    Widget picture(String? path, int? id) {
+      if (path == null && id != null) network.wantFile(id);
+      return SizedBox(
+        width: width,
+        height: width / ratio,
+        child: path == null ? ColoredBox(color: t.color('app-paper-3'), child: const Center(child: GhostSpinner(size: 20))) : Image.file(File(path), fit: BoxFit.cover, gaplessPlayback: true),
+      );
+    }
+
+    final Widget body = switch (media.kind) {
+      'photo' => ClipRRect(borderRadius: BorderRadius.circular(t.radius('md')), child: picture(media.path, media.fileId)),
+      'video' => ClipRRect(
+          borderRadius: BorderRadius.circular(t.radius('md')),
+          child: Stack(alignment: Alignment.center, children: [
+            media.thumbId == null ? Container(width: width, height: width / ratio, color: const Color(0xFF111111)) : picture(media.thumbPath, media.thumbId),
+            Container(
+              padding: EdgeInsets.all(t.space(3)),
+              decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0x99000000)),
+              child: const AppIcon(Lucide.play, size: 22, color: Color(0xFFFFFFFF)),
+            ),
+            if (media.duration > 0)
+              Positioned(right: t.space(2), bottom: t.space(2), child: Text(_clock(media.duration), style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: const Color(0xFFFFFFFF)))),
+          ]),
+        ),
+      _ => Row(mainAxisSize: MainAxisSize.min, children: [
+          AppIcon(media.kind == 'audio' ? Lucide.play : Lucide.file, size: 20, color: ink),
+          SizedBox(width: t.space(2)),
+          Flexible(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text(media.name ?? (media.kind == 'audio' ? 'Sound' : 'File'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: ink)),
+              Text([if (media.duration > 0) _clock(media.duration), if (media.size > 0) _bytes(media.size)].join(' · '), style: pageText(t, t.fontSize('xs'), color: ink.withValues(alpha: 0.7))),
+            ]),
+          ),
+        ]),
+    };
+    return GlacierPressable(onPressed: () => _open(context), semanticLabel: 'Open ${media.name ?? media.kind}', builder: (context, _) => body);
+  }
+
+  static String _clock(int s) => '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+  static String _bytes(int b) => b >= 1 << 20 ? '${(b / (1 << 20)).toStringAsFixed(1)} MB' : '${(b / 1024).ceil()} KB';
+}
