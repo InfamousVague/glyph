@@ -13,6 +13,9 @@ import '../voice/space_groups.dart';
 import '../voice/voice.dart';
 import 'common.dart';
 import 'ripple_avatar.dart';
+import 'shell.dart';
+import 'space_designs/space_design.dart';
+import '../voice/channels.dart';
 
 /// The Spaces tab's groups (Matt, 2026-11-16: "add grouping options to spaces so we can group all of a servers spaces
 /// under one group and show members that are in a space proxied from discord"): spaces in no group first, then each
@@ -171,8 +174,8 @@ void pickSpaceGroup(BuildContext context, VoiceChannel c) {
 }
 
 /// One of a Discord server's voice channels, as a space in its group: its name, who is in it (with their state, as
-/// Discord's own sidebar shows them), and a press that opens it in Discord. Joining from here, with the sound carried
-/// into the app, is a later step.
+/// Discord's own sidebar shows them), and a press that joins it through the bridge (Matt, 2026-11-16: "I want the bot
+/// to connect and act as my voice"). Its menu still opens it in Discord.
 class DiscordChannelRow extends StatelessWidget {
   const DiscordChannelRow({super.key, required this.channel});
   final DiscordChannel channel;
@@ -183,6 +186,7 @@ class DiscordChannelRow extends StatelessWidget {
     final green = t.colorOf('#2fb35a');
     final live = channel.members.isNotEmpty;
     void menu() => showChoices(context, title: channel.name, choices: [
+          Choice('Join here', LucideMore.headphones, () => joinDiscordChannel(context, channel)),
           Choice('Open in Discord', Lucide.externalLink, () => Sms.instance.openLink(channel.link)),
           Choice('Copy link', Lucide.copy, () {
             Clipboard.setData(ClipboardData(text: channel.link));
@@ -194,8 +198,8 @@ class DiscordChannelRow extends StatelessWidget {
       onLongPress: menu,
       onSecondaryTap: menu,
       child: GlacierPressable(
-        onPressed: () => Sms.instance.openLink(channel.link),
-        semanticLabel: '${channel.name}, Discord ${channel.stage ? 'stage' : 'voice channel'}, ${live ? '${channel.members.length} in it' : 'nobody in it'}. Opens in Discord.',
+        onPressed: () => joinDiscordChannel(context, channel),
+        semanticLabel: '${channel.name}, Discord ${channel.stage ? 'stage' : 'voice channel'}, ${live ? '${channel.members.length} in it' : 'nobody in it'}. Joins through the bridge.',
         builder: (context, state) => Padding(
           padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')),
           child: Container(
@@ -206,9 +210,8 @@ class DiscordChannelRow extends StatelessWidget {
                 AppIcon(channel.stage ? LucideMore.audioLines : Lucide.volume2, size: 18, color: live ? green : t.color('app-ink-2')),
                 SizedBox(width: t.space(2)),
                 Expanded(child: Text(channel.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: live ? 'bold' : 'semibold', color: t.color('app-ink')))),
+                if (channel.bridged) ...[_Badge(words: 'GHOST', color: t.color('app-ink')), SizedBox(width: t.space(2))],
                 if (live) Text('${channel.members.length} in voice', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: green)),
-                SizedBox(width: t.space(2)),
-                AppIcon(Lucide.externalLink, size: 14, color: t.color('app-ink-3')),
               ]),
               // Who is in it, as Discord's sidebar lists them: face, name, and what they have on or off.
               for (final m in channel.members)
@@ -336,5 +339,19 @@ class _AddDiscordScreenState extends State<AddDiscordScreen> {
         ],
       ),
     );
+  }
+}
+
+/// Joins [channel] through the bridge: the bot goes into the Discord voice channel and a space for it, this device
+/// joins the space, and the call opens as any space's does.
+Future<void> joinDiscordChannel(BuildContext context, DiscordChannel channel) async {
+  toast(context, 'Joining ${channel.name}…');
+  try {
+    final space = await DiscordServers.instance.joinVoice(channel);
+    await Voice.instance.join(space);
+    if (!context.mounted) return;
+    if (!openSpaceCall(context)) AppShell.maybeOf(context)?.go('voice');
+  } catch (e) {
+    if (context.mounted) toast(context, e is DiscordProblem ? e.words : 'Couldn\'t join: $e', tone: GlacierToastTone.danger);
   }
 }

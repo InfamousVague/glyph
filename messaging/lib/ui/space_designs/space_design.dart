@@ -96,6 +96,7 @@ class SpacePerson {
     this.role,
     this.owner = false,
     this.username,
+    this.tag,
   });
 
   /// `me` for this device, else their id on the hub (the key [SpaceCall.levels] uses).
@@ -113,6 +114,10 @@ class SpacePerson {
   final Role? role;
   final bool owner;
   final String? username;
+
+  /// Where they are from when not from Ghost Messaging: 'Discord' for someone in the Discord voice channel a space is
+  /// bridged to. Shown beside their name; they can't be acted on from here.
+  final String? tag;
 
   /// What to call them on a tile: "You" for this device.
   String get shown => me ? 'You' : name;
@@ -150,6 +155,7 @@ class SpaceCall {
     this.onInvite,
     this.onDevices,
     this.chatBuilder,
+    this.bridged = false,
   });
 
   /// Whether this device may invite people into [channel]'s call: never a group's (its members' alone, and it has no
@@ -178,6 +184,8 @@ class SpaceCall {
         owner: roster?.isOwner(meId) ?? false,
       ),
       for (final m in s.members.values)
+        // The bridge to Discord is a member, but not a person: the people it brings are below.
+        if (m.id != s.bridgeId)
         SpacePerson(
           id: m.id,
           name: v.nameOf(m.id),
@@ -189,12 +197,16 @@ class SpaceCall {
           owner: roster?.isOwner(m.id) ?? false,
           username: m.username,
         ),
+      // Everyone in the Discord voice channel the space is bridged to (VoiceSession.discordPeople).
+      for (final d in s.discordPeople)
+        if (!d.bot) SpacePerson(id: 'dc:${d.id}', name: d.name, muted: d.muted || d.deafened, tag: 'Discord'),
     ];
     return SpaceCall(
       channel: s.channel,
       people: people,
-      levels: media?.levels ?? s.media.levels,
+      levels: s.discordPeople.isEmpty ? (media?.levels ?? s.media.levels) : MergedLevels(media?.levels ?? s.media.levels, s.discordLevels),
       changes: Listenable.merge([v, s, ?room, ?media?.remote, ?media?.localVideo]),
+      bridged: s.channel.discord != null,
       room: room,
       muted: s.muted,
       deafened: s.deafened,
@@ -207,7 +219,10 @@ class SpaceCall {
       onVideo: () => unawaited(s.setVideo(!s.video)),
       onLeave: () => unawaited(v.leave()),
       onMinimize: minimize,
-      onPerson: (context, p) => showPerson(context, s, p.id, p.name),
+      // Someone in Discord can't be muted or given a role from here: their press does nothing yet.
+      onPerson: (context, p) {
+        if (p.tag == null) showPerson(context, s, p.id, p.name);
+      },
       onSettings: room == null ? null : (context) => push(context, (_) => RolesScreen(room: room, settings: true)),
       onInvite: mayInvite(s.channel, room) ? (context) => showSpaceInvite(context, s.channel) : null,
       onDevices: (context) => push(context, (_) => const SettingsSectionScreen('voice')),
@@ -243,6 +258,10 @@ class SpaceCall {
   final void Function(BuildContext context, SpacePerson person)? onPerson;
   final void Function(BuildContext context)? onSettings, onInvite, onDevices;
   final Widget Function({double bottom})? chatBuilder;
+
+  /// The space is bridged to a Discord voice channel: its sound and chat go through the bridge, so it is not
+  /// end-to-end encrypted. A design says so.
+  final bool bridged;
 
   /// The level at which someone counts as talking (RippleAvatar.talking).
   static const talking = RippleAvatar.talking;
@@ -521,4 +540,25 @@ Widget? inlineSpaceCall(BuildContext context, VoiceSession? s) {
   final d = SpaceDesign.of(AppState.of(context));
   if (d == SpaceDesign.standard) return null;
   return SpaceCallPage(key: ValueKey('inline-${d.name}-${s.channel.room}'), design: d, inline: true);
+}
+
+/// Two sets of levels read as one: the call's own and the Discord people's (keys don't overlap).
+class MergedLevels implements ValueListenable<Map<String, double>> {
+  MergedLevels(this.a, this.b);
+  final ValueListenable<Map<String, double>> a, b;
+
+  @override
+  Map<String, double> get value => {...a.value, ...b.value};
+
+  @override
+  void addListener(VoidCallback listener) {
+    a.addListener(listener);
+    b.addListener(listener);
+  }
+
+  @override
+  void removeListener(VoidCallback listener) {
+    a.removeListener(listener);
+    b.removeListener(listener);
+  }
 }
