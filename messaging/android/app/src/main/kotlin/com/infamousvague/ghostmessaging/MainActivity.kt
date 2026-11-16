@@ -182,6 +182,7 @@ class MainActivity : FlutterActivity() {
                 "voiceLength" -> on(pictures) { Voice.length(applicationContext, call.argument<Number>("part")!!.toLong()) }
                 // A video in a message (Video.kt): a picture of where it starts and how long it runs, and playing it.
                 "videoPreview" -> on(pictures) { Video.preview(applicationContext, call.argument<Number>("part")!!.toLong()) }
+                "videoFile" -> on(pictures) { videoFile(applicationContext, call.argument<Number>("part")!!.toLong(), call.argument<String>("ending")) }
                 "videoPlay" -> {
                     startActivity(Intent(this, VideoActivity::class.java).putExtra(VideoActivity.PART, call.argument<Number>("part")!!.toLong()))
                     result.success(null)

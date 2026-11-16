@@ -1,7 +1,7 @@
 name: ghost_messaging
 description: "Ghost Messaging: an SMS and MMS app for Android, drawn with Glacier (Ghost.md's UI kit)."
 publish_to: 'none'
-version: 0.7.35+47
+version: 0.7.36+48
 
 environment:
   sdk: ^3.11.0
@@ -19,6 +19,9 @@ dependencies:
   flutter_webrtc: 1.6.3
   # TDLib's C functions for the Telegram inbox (lib/inbox/td_json.dart): Dart's own FFI helpers, already in the lock.
   ffi: ^2.1.0
+  # The video player on the phone (lib/ui/video_screen.dart; Matt, 2026-11-15: "id like a video player built with
+  # glacier UI right now it looks like a very old android core system player"): ExoPlayer under the app's own controls.
+  video_player: ^2.14.1
 
 dev_dependencies:
   flutter_test:
@@ -30,6 +33,7 @@ dev_dependencies:
   ghost_relay:
     path: relay
   flutter_lints: ^6.0.0
+  video_player_platform_interface: ^6.9.0
 
 flutter:
   uses-material-design: false

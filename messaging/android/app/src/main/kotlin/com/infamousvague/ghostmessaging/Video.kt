@@ -87,6 +87,24 @@ object Video {
 }
 
 /**
+ * A message's video as a file the app's own player can open (lib/ui/video_screen.dart): one from Google Messages'
+ * connection is its cached file (GmWeb); an MMS part is copied to the cache once. Null where it cannot be had.
+ * Blocks: never on the main thread.
+ */
+fun videoFile(context: Context, part: Long, ending: String?): String? {
+    if (GmWeb.isPart(part)) return GmWeb.file(context, part)?.absolutePath
+    val dir = java.io.File(context.cacheDir, "videos").apply { mkdirs() }
+    val safe = (ending ?: "mp4").filter { it.isLetterOrDigit() }.ifEmpty { "mp4" }
+    val f = java.io.File(dir, "$part.$safe")
+    if (!f.exists() || f.length() == 0L) {
+        try {
+            context.contentResolver.openInputStream(Uri.parse("content://mms/part/$part"))?.use { inp -> f.outputStream().use { inp.copyTo(it) } } ?: return null
+        } catch (_: Exception) { f.delete(); return null }
+    }
+    return f.absolutePath
+}
+
+/**
  * Plays the video in a message's part, the whole screen: Android's own player and its own controls (play, pause,
  * where it has got to), over black. It is read from where the message keeps it; nothing is copied anywhere.
  */

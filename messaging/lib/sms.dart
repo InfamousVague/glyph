@@ -1131,6 +1131,9 @@ class Sms {
   }
 
   /// Plays the video [a]: the whole screen on the phone, a window of its own on a computer.
+  /// On the phone: the video as a file the app's own player opens (android Video.kt videoFile); null where it can't be had.
+  Future<String?> videoFile(Attachment a) => _calls.invokeMethod<String>('videoFile', {'part': a.id, 'ending': a.ending});
+
   Future<void> playVideo(Attachment a) => _calls.invokeMethod('videoPlay', {'part': a.id, 'type': a.type, 'ending': a.ending, 'name': a.name});
 
   /// Opens the computer's own panel of emoji, which types what is chosen where the cursor is. A phone's keyboard has
