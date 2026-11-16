@@ -244,6 +244,7 @@ class HubCarrier implements Carrier {
       problem = null;
       state.value = CarrierState.up;
       if (_watched.isNotEmpty) ws.add(jsonEncode({'watch': _watched.toList()}));
+      if (_push != null) ws.add(jsonEncode({'push': _push}));
       for (final e in _joined.entries) {
         ws.add(jsonEncode({'join': e.key, 'token': e.value}));
       }
@@ -288,6 +289,19 @@ class HubCarrier implements Carrier {
     } else if (m['went'] is String) {
       here.value = {...here.value}..remove(m['went']);
     }
+  }
+
+  Map<String, Object?>? _push;
+
+  /// How the hub may wake this app when something is held for it and it is closed: an iPhone's Apple push token
+  /// (`{'apns': hex, 'sandbox': bool}`; relay/lib/pushes.dart). Said on every sign-in, so a hub that restarted or
+  /// lost it hears it again; null tells it to forget.
+  Map<String, Object?>? get push => _push;
+  set push(Map<String, Object?>? value) {
+    final had = _push;
+    _push = value;
+    final ws = _ws;
+    if (_ready && ws != null && (value != null || had != null)) ws.add(jsonEncode({'push': value}));
   }
 
   /// A hub reaches anyone: someone who is not connected to it is kept for.

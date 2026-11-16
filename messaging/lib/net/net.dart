@@ -54,6 +54,15 @@ class Net extends ChangeNotifier implements PeerBook {
 
   Switchboard? get board => _board;
   HubCarrier? get hub => _hub;
+
+  Map<String, Object?>? _push;
+
+  /// How the relay server may wake this app while it is closed (an iPhone's push token; [HubCarrier.push]): kept here
+  /// too, so a hub route made later (another server, [setHub]) says it as well.
+  void setPush(Map<String, Object?>? value) {
+    _push = value;
+    _hub?.push = value;
+  }
   SmsCarrier? get sms => _sms;
   List<Peer> get people => _peers.values.toList();
   bool get on => _app?.flag('net_on') ?? true;
@@ -98,7 +107,7 @@ class Net extends ChangeNotifier implements PeerBook {
       if (carriers != null) {
         routes = carriers;
       } else {
-        final hub = _hub = HubCarrier(url: hubUrl, signer: _PhoneSigner(me.id, me.key));
+        final hub = _hub = HubCarrier(url: hubUrl, signer: _PhoneSigner(me.id, me.key))..push = _push;
         final sms = _sms = SmsCarrier(_PhoneSms());
         routes = [hub, sms];
       }
@@ -232,7 +241,7 @@ class Net extends ChangeNotifier implements PeerBook {
     final board = _board, old = _hub, me = id;
     if (board == null || old == null || me == null) return;
     await old.stop();
-    final hub = _hub = HubCarrier(url: hubUrl, signer: old.signer);
+    final hub = _hub = HubCarrier(url: hubUrl, signer: old.signer)..push = _push;
     board.add(hub);
     await _apply();
     notifyListeners();
