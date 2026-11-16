@@ -178,6 +178,117 @@ class InboxContact {
   final String? handle;
 }
 
+// --- a group's details, and changing them (Matt, 2026-11-16: "Add them to a drawer when pressing and holding on the
+// group name add support for all supported featues") ----------------------------------------------------------------
+
+/// What a network lets a group's details be changed in, at all. Whether this person may, in this group, is
+/// [GroupDetails]'s to say.
+enum GroupFeature { title, description, photo, timer, addPeople, removePeople, admins, announcementsOnly, editInfoRule, addPeopleRule, inviteLink, leave }
+
+/// Someone in a group, or invited to it, or asking to join.
+@immutable
+class GroupPerson {
+  const GroupPerson({required this.id, required this.name, this.number, this.admin = false, this.me = false, this.owner = false});
+
+  /// The network's own name for them (Signal's ACI, Telegram's user id).
+  final String id;
+  final String name;
+  final String? number;
+  final bool admin;
+
+  /// Who made the group, where the network says (Telegram's creator): no one can take their admin away.
+  final bool owner;
+  final bool me;
+}
+
+/// A group as its drawer shows it: what it is, who is in it, its rules, and what this person may change.
+@immutable
+class GroupDetails {
+  const GroupDetails({
+    required this.title,
+    this.description = '',
+    this.photo,
+    this.timer = 0,
+    this.people = const [],
+    this.pending = const [],
+    this.requesting = const [],
+    this.admin = false,
+    this.editInfoAdminsOnly = false,
+    this.addPeopleAdminsOnly = false,
+    this.announcementsOnly = false,
+    this.inviteLink,
+    required this.supports,
+    this.canEditInfo = false,
+    this.canAddPeople = false,
+    this.canRemovePeople = false,
+    this.canSetAdmins = false,
+    this.canChangeRules = false,
+  });
+
+  final String title;
+  final String description;
+
+  /// The group's picture on this device, where there is one.
+  final String? photo;
+
+  /// Messages disappear after this many seconds; 0, never.
+  final int timer;
+  final List<GroupPerson> people;
+
+  /// Invited, not yet joined; and asking to join.
+  final List<GroupPerson> pending, requesting;
+
+  /// This person is an admin.
+  final bool admin;
+
+  /// Only admins may change its name, picture, description and timer; only admins may add people; only admins may
+  /// write.
+  final bool editInfoAdminsOnly, addPeopleAdminsOnly, announcementsOnly;
+  final String? inviteLink;
+  final Set<GroupFeature> supports;
+
+  /// What this person may do here, by the group's rules and their role.
+  final bool canEditInfo, canAddPeople, canRemovePeople, canSetAdmins, canChangeRules;
+
+  bool can(GroupFeature f) => supports.contains(f);
+}
+
+/// A change to a group: each field left null is left as it is.
+@immutable
+class GroupChange {
+  const GroupChange({
+    this.title,
+    this.description,
+    this.photo,
+    this.timer,
+    this.add = const [],
+    this.remove = const [],
+    this.admin = const [],
+    this.unadmin = const [],
+    this.announcementsOnly,
+    this.editInfoAdminsOnly,
+    this.addPeopleAdminsOnly,
+    this.leave = false,
+  });
+  final String? title;
+  final String? description;
+
+  /// A picture's path for the group's new one; '' takes it away.
+  final String? photo;
+
+  /// Seconds; 0 turns disappearing messages off.
+  final int? timer;
+  final List<String> add, remove, admin, unadmin;
+  final bool? announcementsOnly, editInfoAdminsOnly, addPeopleAdminsOnly;
+  final bool leave;
+
+  bool get isEmpty =>
+      title == null && description == null && photo == null && timer == null && add.isEmpty && remove.isEmpty && admin.isEmpty && unadmin.isEmpty && announcementsOnly == null && editInfoAdminsOnly == null && addPeopleAdminsOnly == null && !leave;
+}
+
+/// The timers disappearing messages offer, as Signal's and Telegram's apps do: seconds and their words.
+const disappearingTimers = <(int, String)>[(0, 'Off'), (30, '30 seconds'), (300, '5 minutes'), (3600, '1 hour'), (28800, '8 hours'), (86400, '1 day'), (604800, '1 week'), (2419200, '4 weeks')];
+
 abstract class InboxNetwork extends ChangeNotifier {
   String get id;
   String get name;
@@ -303,6 +414,13 @@ abstract class InboxNetwork extends ChangeNotifier {
 
   /// Shown in Settings as "Coming soon", and never started: not offered yet.
   bool get soon => false;
+
+  /// The group [chatId] in full, for its drawer; null where the network has no such thing or it is not a group.
+  Future<GroupDetails?> groupDetails(String chatId) async => null;
+
+  /// Makes [change] to the group [chatId] on the network itself, where everyone in it sees it, and answers with the
+  /// group as it then is (null once you have left). Throws with the network's reason where it refuses.
+  Future<GroupDetails?> changeGroup(String chatId, GroupChange change) => Future.error(UnsupportedError('$name groups can\'t be changed from here'));
 
   /// Unread chats.
   int get unreadChats => chats.where((c) => c.unread > 0).length;

@@ -361,6 +361,10 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     }
   }
 
+  /// The first message unread as the chat was opened (a group's), and whether that has been looked for yet.
+  String? _firstNewKey;
+  bool _newKnown = false;
+
   Future<void> _load({bool markRead = false}) async {
     _loadE2e();
     final asked = _limit;
@@ -381,6 +385,14 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final newest = folded.messages.isEmpty ? null : folded.messages.first;
     if (newest != null && _newestKey != null && newest.key != _newestKey && newest.state != 'failed') _playFor(newest);
     _newestKey = newest?.key ?? '';
+    // Where the unread began as the group chat was opened, before it is marked read: the New messages divider stays
+    // above it while the chat is open (NewMessagesDivider).
+    if (markRead && !_newKnown) {
+      _newKnown = true;
+      // Looked for in every chat: who is in it may not be known yet, and the divider is drawn for a group alone.
+      final firstNew = list.where((m) => !m.outgoing && !m.read).lastOrNull;
+      if (firstNew != null) setState(() => _firstNewKey = firstNew.key);
+    }
     if (markRead && list.any((m) => !m.outgoing)) Sms.instance.markRead(widget.thread);
     if (_group) {
       for (final m in list) {
@@ -986,6 +998,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         busy: busy,
         thread: widget.thread,
       )));
+      if (_group && m.key == _firstNewKey) items.add(Padding(key: const ValueKey('new-messages'), padding: EdgeInsets.symmetric(horizontal: t.space(3)), child: const NewMessagesDivider()));
       if (older == null || !_sameDay(older.date, m.date)) items.add(_DayHeading(date: m.date, busy: busy));
     }
     if (msgs.isEmpty) {

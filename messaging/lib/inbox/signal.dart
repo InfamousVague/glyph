@@ -264,6 +264,50 @@ class Signal extends InboxNetwork {
           if (e.key != _aci) InboxContact(network: id, id: e.key, name: _names[e.key] ?? e.value ?? 'Someone', number: e.value, avatar: _avatars[e.key]),
       ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
+  /// A Signal group in full (sidecar/signal group_info), for its drawer.
+  @override
+  Future<GroupDetails?> groupDetails(String chatId) async {
+    if (_state != InboxState.ready || !_groups.contains(chatId)) return null;
+    final m = await _ask('group_info', {'to': chatId}) as Map?;
+    if (m == null) return null;
+    _takeGroup(m);
+    return signalGroupDetails(m, names: _names);
+  }
+
+  /// Changes a Signal group on Signal (sidecar/signal group_update): everyone in it sees the change.
+  @override
+  Future<GroupDetails?> changeGroup(String chatId, GroupChange change) async {
+    if (_state != InboxState.ready) throw StateError('Signal isn\'t connected');
+    if (change.isEmpty) return groupDetails(chatId);
+    final m = await _ask('group_update', {
+      'to': chatId,
+      'change': {
+        if (change.title != null) 'title': change.title,
+        if (change.description != null) 'description': change.description,
+        if (change.photo != null) 'avatar': change.photo,
+        if (change.timer != null) 'timer': change.timer,
+        if (change.add.isNotEmpty) 'add': change.add,
+        if (change.remove.isNotEmpty) 'remove': change.remove,
+        if (change.admin.isNotEmpty) 'admin': change.admin,
+        if (change.unadmin.isNotEmpty) 'unadmin': change.unadmin,
+        if (change.announcementsOnly != null) 'announcements_only': change.announcementsOnly,
+        if (change.editInfoAdminsOnly != null) 'edit_info': change.editInfoAdminsOnly! ? 'admins' : 'members',
+        if (change.addPeopleAdminsOnly != null) 'add_members': change.addPeopleAdminsOnly! ? 'admins' : 'members',
+        if (change.leave) 'leave': true,
+      },
+    }) as Map?;
+    if (change.leave || m == null || m['left'] == true) {
+      _chats.remove(chatId);
+      _messages.remove(chatId);
+      _save();
+      notifyListeners();
+      return null;
+    }
+    _takeGroup(m);
+    notifyListeners();
+    return signalGroupDetails(m, names: _names);
+  }
+
   /// A chat with someone on Signal is named by their ACI: it is in the list from the first message sent.
   @override
   Future<String?> chatWith(InboxContact contact) async => _state == InboxState.ready ? contact.id : null;
@@ -634,7 +678,7 @@ class Signal extends InboxNetwork {
     _waiting[id] = done;
     link.say({'id': id, 'op': op, ...args});
     // Longer than the helper gives each (sidecar/signal's do: a minute, three for files), so its own reason arrives.
-    final wait = switch (op) { 'download' || 'send_media' => 190, 'send' || 'react' || 'delete' || 'read' || 'groups' => 75, _ => 30 };
+    final wait = switch (op) { 'download' || 'send_media' || 'group_update' => 190, 'send' || 'react' || 'delete' || 'read' || 'groups' || 'group_info' => 75, _ => 30 };
     return done.future.timeout(Duration(seconds: wait), onTimeout: () {
       _waiting.remove(id);
       throw StateError('Signal took too long to answer');
@@ -733,4 +777,47 @@ class _ProcessLink implements SignalLink {
 
 extension on String {
   String ifEmpty(String other) => isEmpty ? other : this;
+}
+
+/// A Signal group as the helper's group_info gives it (sidecar/signal groupInfo), in the drawer's words. A member with
+/// no name in their profile is named as the app names them elsewhere ([names], by ACI), else by their number.
+GroupDetails signalGroupDetails(Map m, {Map<String, String> names = const {}}) {
+  GroupPerson person(Object? raw) {
+    final p = raw as Map;
+    final aci = '${p['aci']}';
+    final number = (p['number'] as String?)?.trim();
+    final name = (p['name'] as String?)?.trim();
+    return GroupPerson(
+      id: aci,
+      name: name != null && name.isNotEmpty ? name : (names[aci] ?? (number != null && number.isNotEmpty ? number : 'Someone on Signal')),
+      number: number == null || number.isEmpty ? null : number,
+      admin: p['admin'] == true,
+      me: p['me'] == true,
+    );
+  }
+
+  final admin = m['admin'] == true;
+  final editInfoAdminsOnly = m['edit_info'] == 'admins';
+  final addPeopleAdminsOnly = m['add_members'] == 'admins';
+  return GroupDetails(
+    title: '${m['title'] ?? ''}'.trim().isEmpty ? 'Signal group' : '${m['title']}'.trim(),
+    description: '${m['description'] ?? ''}',
+    photo: m['avatar'] as String?,
+    timer: (m['timer'] as num?)?.toInt() ?? 0,
+    people: [for (final p in (m['people'] as List? ?? const [])) person(p)],
+    pending: [for (final p in (m['pending'] as List? ?? const [])) person(p)],
+    requesting: [for (final p in (m['requesting'] as List? ?? const [])) person(p)],
+    admin: admin,
+    editInfoAdminsOnly: editInfoAdminsOnly,
+    addPeopleAdminsOnly: addPeopleAdminsOnly,
+    announcementsOnly: m['announcements_only'] == true,
+    inviteLink: m['invite_link'] as String?,
+    supports: GroupFeature.values.toSet(),
+    canEditInfo: admin || !editInfoAdminsOnly,
+    canAddPeople: admin || !addPeopleAdminsOnly,
+    // Signal lets only admins remove people, make admins and change the rules.
+    canRemovePeople: admin,
+    canSetAdmins: admin,
+    canChangeRules: admin,
+  );
 }

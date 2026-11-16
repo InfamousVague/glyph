@@ -26,6 +26,8 @@ Every request has `id` (a number the app picks) and `op`. Each is answered by on
 | `delete` | `to`, `ts` | `null`: deleted for everyone (your own message) |
 | `download` | `pointer` (an attachment as an event gave it: the JSON object, or that object as a string), `path` | `null` once written to `path` |
 | `who` | `aci` | `{"aci", "name", "number", "avatar"}`: the person as the store has them, and from their Signal profile (fetched with the profile key a message carried) where nothing names them; `name` empty where Signal has none |
+| `group_info` | `to` (a group id) | the group in full: `groups`' fields and `description`, `timer` (seconds, 0 off), `people` and `pending` and `requesting` (`[{"aci", "name", "number", "admin", "me"}]`), `admin` (you are), `edit_info` and `add_members` (`"members"`, `"admins"` or `"anyone"`), `announcements_only`, `terminated`, `invite_link` (where there is one) |
+| `group_update` | `to`, `change`: any of `title`, `description`, `avatar` (a picture's path; `""` removes it), `timer`, `add`, `remove`, `admin`, `unadmin` (lists of ACIs), `announcements_only`, `edit_info` and `add_members` (`"members"` or `"admins"`), `leave` | the group as `group_info` gives it, once Signal has made the change and told everyone in it (also sent as a `group` event); `{"id", "left": true}` after `leave`. Signal refuses what the group's rules do not let you do |
 
 ## Events (stdout), one JSON object a line, each with `ev`
 
