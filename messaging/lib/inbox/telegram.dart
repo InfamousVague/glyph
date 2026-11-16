@@ -247,7 +247,47 @@ class Telegram extends InboxNetwork {
       _account = usernames != null && usernames.isNotEmpty ? '@${usernames.first}' : (name.isEmpty ? null : name);
       notifyListeners();
     });
-    _td?.send({'@type': 'loadChats', 'chat_list': {'@type': 'chatListMain'}, 'limit': 100});
+    unawaited(_loadAll());
+  }
+
+  /// Every chat, not only the first hundred (Matt, 2026-11-15: "import telegram chats sorted by most recent with the
+  /// profile pictures and all"): TDLib is asked for more until it says there are none (a 404).
+  Future<void> _loadAll() async {
+    for (var i = 0; i < 50; i++) {
+      final r = await _ask({'@type': 'loadChats', 'chat_list': {'@type': 'chatListMain'}, 'limit': 100});
+      if (r['@type'] == 'error') return;
+    }
+  }
+
+  /// The file ids of chats' pictures asked for, so each is asked for once.
+  final Set<int> _photosAsked = {};
+
+  /// The chat's picture as a file on this device, once TDLib has brought it down; asked for the first time it is seen.
+  String? _photo(Map<String, Object?> c) {
+    final small = ((c['photo'] as Map?)?['small'] as Map?);
+    if (small == null) return null;
+    final local = small['local'] as Map?;
+    final path = local?['path'] as String?;
+    if (local?['is_downloading_completed'] == true && path != null && path.isNotEmpty) return path;
+    final file = (small['id'] as num?)?.toInt();
+    if (file != null && _photosAsked.add(file)) {
+      _td?.send({'@type': 'downloadFile', 'file_id': file, 'priority': 1, 'offset': 0, 'limit': 0, 'synchronous': false});
+    }
+    return null;
+  }
+
+  /// A file TDLib brought down: the chats whose picture it is take it.
+  void _fileUpdated(Map file) {
+    final fileId = (file['id'] as num?)?.toInt();
+    if (fileId == null || (file['local'] as Map?)?['is_downloading_completed'] != true) return;
+    var changed = false;
+    for (final e in _chatsById.entries.toList()) {
+      final photo = e.value['photo'] as Map?;
+      if ((((photo?['small'] as Map?)?['id']) as num?)?.toInt() != fileId) continue;
+      _chatsById[e.key] = {...e.value, 'photo': {...photo!, 'small': file}};
+      changed = true;
+    }
+    if (changed) _rebuild();
   }
 
   // --- chats and messages --------------------------------------------------------------------------------------------
@@ -275,6 +315,10 @@ class Telegram extends InboxNetwork {
         _rebuild();
       case 'updateChatTitle':
         _patch(m, {'title': m['title']});
+      case 'updateChatPhoto':
+        _patch(m, {'photo': m['photo']});
+      case 'updateFile':
+        _fileUpdated(m['file'] as Map);
       case 'updateChatLastMessage':
         _patch(m, {'last_message': m['last_message']});
         for (final p in (m['positions'] as List? ?? const [])) {
@@ -331,7 +375,7 @@ class Telegram extends InboxNetwork {
   }
 
   /// The chats the list shows: those in the main list that can be written in (private chats and groups, not
-  /// channels), in Telegram's own order.
+  /// channels), the newest first, as they stand among the texts.
   void _rebuild() {
     final ids = _order.keys.where((id) {
       final type = (_chatsById[id]?['type'] as Map?);
@@ -340,7 +384,7 @@ class Telegram extends InboxNetwork {
       return true;
     }).toList()
       ..sort((a, b) => _order[b]!.compareTo(_order[a]!));
-    _chats = [for (final id in ids) _chat(_chatsById[id]!)];
+    _chats = [for (final id in ids) _chat(_chatsById[id]!)]..sort((a, b) => b.date.compareTo(a.date));
     notifyListeners();
   }
 
@@ -356,6 +400,7 @@ class Telegram extends InboxNetwork {
       unread: (c['unread_count'] as num?)?.toInt() ?? 0,
       group: type == 'chatTypeBasicGroup' || type == 'chatTypeSupergroup',
       lastFromMe: last?['is_outgoing'] == true,
+      avatar: _photo(c),
     );
   }
 

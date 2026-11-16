@@ -253,6 +253,20 @@ object GmWeb {
         false
     }
 
+    /**
+     * Deletes the conversations of [thread] in Google Messages, as messages.google.com's Delete does: from Android's
+     * store (Google Messages is the default SMS app) and every device. False where not connected or none is known.
+     */
+    fun deleteThread(thread: Long): Boolean {
+        if (!connected) return false
+        val convs = threads.filterValues { it == thread }.keys.ifEmpty { GmBridge.Db.get(app).webConvsOf(thread).toSet() }
+        var all = convs.isNotEmpty()
+        for (conv in convs) {
+            try { ask("delete_conv", mapOf("conv" to conv)); threads.remove(conv) } catch (e: Exception) { all = false; DevLog.add(app, "gmweb", "delete: ${e.message}") }
+        }
+        return all
+    }
+
     /** Marks [conv] read in Google Messages, as far as its newest message (which sends a read receipt where on). */
     fun read(conv: String) {
         if (!connected) return

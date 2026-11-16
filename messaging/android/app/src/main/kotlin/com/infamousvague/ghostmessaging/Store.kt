@@ -191,6 +191,7 @@ class Store(private val context: Context) {
         val pinned = threadFlags("pinned")
         val muted = threadFlags("muted")
         val drafts = drafts()
+        val hidden = hiddenThreads()
         // Android's blocked list, read once: asking it about each conversation's number is a call to Android apiece.
         val blocked = blockedKeys()
         readCanonical()
@@ -215,6 +216,8 @@ class Store(private val context: Context) {
                     val group = groups[id]
                     val recipients = if (group != null) Groups.people(context, group) else recipientsOf(if (iRec >= 0) c.getString(iRec) else null)
                     val date = if (iDate >= 0) c.getLong(iDate) else 0L
+                    // Deleted beside Google Messages, and nothing newer since (hideThread).
+                    if (hidden[id]?.let { date <= it } == true) return null
                     val summary = E2e.preview(context, if (group != null) null else recipients.singleOrNull(), if (iSnip >= 0) c.getString(iSnip) ?: "" else "").let { if (BackgroundWire.valueIn(it) != null) "Chat background" else it }
                     val people = recipients.map { contact(it) }
                     return mapOf(
@@ -281,8 +284,10 @@ class Store(private val context: Context) {
         out.forEachIndexed { i, row -> at[row["id"] as Long] = i }
         val archived = archivedThreads(); val pinned = threadFlags("pinned"); val muted = threadFlags("muted")
         var added = false
+        val hidden = hiddenThreads()
         for (b in bridged.distinctBy { it.thread }) {
             if (only != null && b.thread !in only) continue
+            if (hidden[b.thread]?.let { b.time <= it } == true) continue
             val i = at[b.thread]
             if (i != null) {
                 val row = out[i]
@@ -862,7 +867,33 @@ class Store(private val context: Context) {
      * conversation they say they are in, and if they are still there after that the screen is told, not left
      * showing "deleted" over something that was not.
      */
+    /**
+     * Conversations deleted while Ghost is not the default SMS app, each with the time it was deleted at: left out of
+     * the list until something newer arrives in them. Android lets only the default SMS app delete texts.
+     */
+    fun hiddenThreads(): Map<Long, Long> = try {
+        val o = org.json.JSONObject(prefs.getString("hidden_threads", "{}")!!)
+        o.keys().asSequence().mapNotNull { k -> k.toLongOrNull()?.let { it to o.getLong(k) } }.toMap()
+    } catch (_: Exception) { emptyMap() }
+
+    private fun hideThread(thread: Long) {
+        val o = try { org.json.JSONObject(prefs.getString("hidden_threads", "{}")!!) } catch (_: Exception) { org.json.JSONObject() }
+        o.put(thread.toString(), System.currentTimeMillis())
+        prefs.edit().putString("hidden_threads", o.toString()).apply()
+    }
+
     fun deleteThread(thread: Long) {
+        // Beside Google Messages, where Android lets only it delete texts (Matt, 2026-11-15: "I also need to be able to
+        // proxy deleting conversations when ghost is not the default messaging app"): Google Messages deletes it,
+        // through its web connection where Ghost is paired with it (GmWeb), which deletes it from Android's store and
+        // every device; and Ghost leaves it out of its list until something newer arrives, paired or not.
+        if (!GmBridge.isDefault(context)) {
+            GmWeb.deleteThread(thread)
+            hideThread(thread)
+            try { GmBridge.Db.get(context).forget(thread) } catch (_: Exception) {}
+            snippets.remove(thread)
+            return
+        }
         try { GmBridge.Db.get(context).forget(thread) } catch (_: Exception) {}
         // Only the bridge's (an RCS chat Google Messages showed): nothing of Android's to delete.
         if (thread < 0) return

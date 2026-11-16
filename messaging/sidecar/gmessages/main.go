@@ -388,6 +388,13 @@ func do(r request) (any, error) {
 			return nil, err
 		}
 		return nil, c.SetActiveSession(ctx)
+	// A conversation deleted, as messages.google.com's Delete does: from the phone and every device.
+	case "delete_conv":
+		c, err := client()
+		if err != nil {
+			return nil, err
+		}
+		return nil, c.DeleteConversation(ctx, r.Conv, "")
 	case "read":
 		c, err := client()
 		if err != nil {

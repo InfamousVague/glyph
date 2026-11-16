@@ -281,6 +281,28 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     }
   }
 
+  /// The main list with Telegram's and Bluesky's chats among the texts, newest first, after the pinned conversations
+  /// (Matt, 2026-11-15: "Id like the telegram chats to be mixed into the normal text messages (same with bluesky) just
+  /// add a telegram icon in thr corner of the bubble"). While older texts are still being read, a chat older than the
+  /// oldest text held waits for them, so the list does not jump.
+  List<Object> _mixed(List<Conversation> shown) {
+    if (widget.archived || _section != null) return shown;
+    final q = _query.toLowerCase();
+    final chats = [
+      for (final n in Inbox.instance.ready)
+        for (final c in n.chats)
+          if (q.isEmpty || c.title.toLowerCase().contains(q) || c.snippet.toLowerCase().contains(q)) c,
+    ];
+    if (chats.isEmpty) return shown;
+    final pinned = [for (final c in shown) if (c.pinned) c];
+    final rest = [for (final c in shown) if (!c.pinned) c];
+    final oldest = _more && rest.isNotEmpty ? rest.last.date : null;
+    final waiting = [for (final c in chats) if (oldest == null || !c.date.isBefore(oldest)) c];
+    final merged = <(DateTime, Object)>[for (final c in rest) (c.date, c), for (final c in waiting) (c.date, c)]
+      ..sort((a, b) => b.$1.compareTo(a.$1));
+    return [...pinned, for (final m in merged) m.$2];
+  }
+
   List<Conversation> get _shown {
     // Pinned conversations first, each group newest first (the order they arrive in).
     final held = (_all ?? const <Conversation>[]).where((c) => c.archived == widget.archived).toList();
@@ -361,8 +383,6 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final voices = Voice.instance.channels;
     final tabs = _plugins.tabs(_section, (section) => setState(() => _section = section), onMenu: _tabMenu, extra: [
       (id: voiceTab, icon: LucideMore.headphones, label: 'Spaces', count: voices.where(Voice.instance.live).length),
-      // Each network signed in (lib/inbox): Telegram's paper plane, Bluesky's sky.
-      for (final n in Inbox.instance.ready) (id: inboxTab(n), icon: n.id == 'telegram' ? Lucide.send : LucideMore.cloud, label: n.name, count: n.unreadChats),
     ]);
     final kinds = _plugins.kinds;
     if (tabs == null && kinds.isEmpty) return null;
@@ -699,7 +719,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         ? [for (final c in inbox.chats) if (_query.isEmpty || c.title.toLowerCase().contains(_query.toLowerCase()) || c.snippet.toLowerCase().contains(_query.toLowerCase())) c]
         : _section == voiceTab
             ? voices
-            : shown;
+            : _mixed(shown);
     // Android's own count, where it has answered: the ones held are not all of them until the read ends.
     final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length);
     // Older conversations still arriving: said at the foot of the list, and in place of "Nothing found".
@@ -772,7 +792,12 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           final at = i - extras;
           if (at < rows.length && rows[at] is InboxChat) {
             final chat = rows[at] as InboxChat;
-            return InboxChatRow(key: ValueKey('inbox-${chat.network}-${chat.id}'), chat: chat, onPress: () => openInboxChat(context, inbox!, chat));
+            final network = inbox ?? Inbox.instance.named(chat.network);
+            return InboxChatRow(
+              key: ValueKey('inbox-${chat.network}-${chat.id}'),
+              chat: chat,
+              onPress: () { if (network != null) openInboxChat(context, network, chat); },
+            );
           }
           if (at < rows.length && rows[at] is VoiceChannel) {
             final v = rows[at] as VoiceChannel;
@@ -1017,8 +1042,11 @@ class _RcsNotice extends StatelessWidget {
 /// One conversation in the list: its face, its name, its last words and when. The Mac's list (lib/desktop) draws its
 /// rows with it too.
 class ConversationRow extends StatelessWidget {
-  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false, this.summary});
+  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false, this.summary, this.badge});
   final Conversation conversation;
+
+  /// A mark on the face's corner: the network a chat from Telegram or Bluesky is on (lib/ui/inbox_ui.dart).
+  final Widget? badge;
 
   /// What its unread texts come to, in a line, by the phone's own model (lib/summaries.dart): shown in place of the
   /// last words, marked as a summary.
@@ -1070,6 +1098,22 @@ class ConversationRow extends StatelessWidget {
                     ),
                     alignment: Alignment.center,
                     child: selected ? const AppIcon(Lucide.check, size: 22, strokeWidth: 2.6, wash: false, color: Color(0xFFFFFFFF)) : null,
+                  )
+                else if (badge != null)
+                  SizedBox.square(
+                    dimension: face,
+                    child: Stack(clipBehavior: Clip.none, children: [
+                      Avatar(people: c.people, size: face),
+                      Positioned(
+                        right: -3,
+                        bottom: -3,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(shape: BoxShape.circle, color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2')),
+                          child: badge,
+                        ),
+                      ),
+                    ]),
                   )
                 else
                   Avatar(people: c.people, size: face),
