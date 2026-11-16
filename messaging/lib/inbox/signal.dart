@@ -153,6 +153,7 @@ class Signal extends InboxNetwork {
 
   void _signedIn(Map s) {
     _account = (s['number'] as String?)?.ifEmpty((s['name'] as String?) ?? '') ?? s['name'] as String?;
+    _aci = s['aci'] as String?;
     _qr = null;
     _state = InboxState.ready;
     _error = null;
@@ -167,6 +168,7 @@ class Signal extends InboxNetwork {
     } catch (_) {}
     _chats.clear();
     _messages.clear();
+    _contacts.clear();
     _account = null;
     _state = InboxState.signedOut;
     _save();
@@ -196,8 +198,28 @@ class Signal extends InboxNetwork {
       final name = (m['name'] as String?)?.trim();
       _names[aci] = name == null || name.isEmpty ? ((m['number'] as String?) ?? 'Someone') : name;
       _avatars[aci] = m['avatar'] as String?;
+      final number = (m['number'] as String?)?.trim();
+      _contacts[aci] = number == null || number.isEmpty ? null : number;
     }
   }
+
+  // --- contacts (Matt, 2026-11-16: "Show telegram and signal contacts when linked") ---------------------------------
+
+  /// This account's own ACI: Signal's contact sync names the person themself too.
+  String? _aci;
+
+  /// The people in Signal's contact sync, by ACI, with their numbers where Signal gives one.
+  final Map<String, String?> _contacts = {};
+
+  @override
+  List<InboxContact> get contacts => [
+        for (final e in _contacts.entries)
+          if (e.key != _aci) InboxContact(network: id, id: e.key, name: _names[e.key] ?? e.value ?? 'Someone', number: e.value, avatar: _avatars[e.key]),
+      ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+  /// A chat with someone on Signal is named by their ACI: it is in the list from the first message sent.
+  @override
+  Future<String?> chatWith(InboxContact contact) async => _state == InboxState.ready ? contact.id : null;
 
   // --- what the helper says ---------------------------------------------------------------------------------------
 

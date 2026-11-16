@@ -18,6 +18,12 @@ class ListPhone {
   final copied = <String>[];
   final prefs = <String, String>{};
 
+  /// The phone's contacts, as searchContacts gives them: `address`, `name`, `photo`, `label`.
+  final contacts = <Map<String, String?>>[];
+
+  /// The conversations asked for by address (threadFor), each given a thread number.
+  final threads = <String>[];
+
   static Map<String, Object?> person(String address, [String? name]) => {'address': address, 'name': name, 'photo': null};
 
   /// A conversation with one person, [minutes] old.
@@ -68,6 +74,12 @@ class ListPhone {
           return {'isDefault': true, 'contacts': true, 'notifications': true, 'phone': true};
         case 'arriving':
           return <String, Object?>{};
+        case 'searchContacts':
+          final q = '${args['query'] ?? ''}'.toLowerCase();
+          return [for (final c in contacts) if (q.isEmpty || (c['name'] ?? '').toLowerCase().contains(q) || (c['address'] ?? '').contains(q)) c];
+        case 'threadFor':
+          threads.add('${(args['addresses'] as List?)?.join(',')}');
+          return 900 + threads.length;
         default:
           return null;
       }

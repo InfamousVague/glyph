@@ -526,11 +526,17 @@ Future<void> showChoices(BuildContext context, {String? title, Widget? header, r
 }
 
 class Choice {
-  const Choice(this.label, this.icon, this.onPress, {this.danger = false});
+  const Choice(this.label, this.icon, this.onPress, {this.danger = false, this.mark, this.hint});
   final String label;
   final LucideIcon icon;
   final VoidCallback onPress;
   final bool danger;
+
+  /// Drawn in the icon's place: a network's own mark (lib/ui/contacts.dart's "Message … with").
+  final Widget? mark;
+
+  /// A second line under the label.
+  final String? hint;
 }
 
 class _ChoiceSheet extends StatelessWidget {
@@ -577,10 +583,17 @@ class _ChoiceSheet extends StatelessWidget {
                         child: Padding(
                           padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(3)),
                           child: Row(children: [
-                            AppIcon(c.icon, size: 20, color: ink),
+                            c.mark ?? AppIcon(c.icon, size: 20, color: ink),
                             SizedBox(width: t.space(3)),
                             // A long line wraps rather than running off the sheet.
-                            Flexible(child: Text(c.label, style: pageText(t, t.fontSize('md'), weight: 'medium', color: ink))),
+                            Flexible(
+                              child: c.hint == null
+                                  ? Text(c.label, style: pageText(t, t.fontSize('md'), weight: 'medium', color: ink))
+                                  : Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                                      Text(c.label, style: pageText(t, t.fontSize('md'), weight: 'medium', color: ink)),
+                                      Text(c.hint!, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+                                    ]),
+                            ),
                           ]),
                         ),
                       );

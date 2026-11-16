@@ -159,6 +159,7 @@ class Telegram extends InboxNetwork {
     _exhausted.clear();
     _chats = const [];
     _account = null;
+    _contactIds.clear();
   }
 
   void _authState(Map<String, Object?> s) {
@@ -248,6 +249,71 @@ class Telegram extends InboxNetwork {
       notifyListeners();
     });
     unawaited(_loadAll());
+    unawaited(_loadContacts());
+  }
+
+  // --- contacts (Matt, 2026-11-16: "Show telegram and signal contacts when linked") ---------------------------------
+
+  /// The users in this account's Telegram contacts.
+  final Set<int> _contactIds = {};
+
+  /// Telegram's contact list; each user comes as updateUser, and any not yet heard of is asked for.
+  Future<void> _loadContacts() async {
+    final r = await _ask({'@type': 'getContacts'});
+    if (r['@type'] != 'users') return;
+    _contactIds
+      ..clear()
+      ..addAll([for (final x in (r['user_ids'] as List? ?? const [])) (x as num).toInt()]);
+    for (final id in _contactIds.toList()) {
+      if (_people.containsKey(id)) continue;
+      final u = await _ask({'@type': 'getUser', 'user_id': id});
+      if (u['@type'] == 'user') _people[id] = u;
+    }
+    notifyListeners();
+  }
+
+  @override
+  List<InboxContact> get contacts {
+    final out = <InboxContact>[];
+    for (final id in _contactIds) {
+      final u = _people[id];
+      if (u == null || id == 777000 || _bots.contains(id)) continue;
+      final name = [u['first_name'], u['last_name']].whereType<String>().where((s) => s.trim().isNotEmpty).join(' ').trim();
+      final phone = '${u['phone_number'] ?? ''}'.replaceAll(RegExp(r'\D'), '');
+      final usernames = (u['usernames'] as Map?)?['active_usernames'] as List?;
+      out.add(InboxContact(
+        network: this.id,
+        id: '$id',
+        name: name.isEmpty ? (usernames != null && usernames.isNotEmpty ? '@${usernames.first}' : 'Someone') : name,
+        number: phone.isEmpty ? null : '+$phone',
+        avatar: _userPhoto(u),
+        handle: usernames != null && usernames.isNotEmpty ? '@${usernames.first}' : null,
+      ));
+    }
+    out.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return out;
+  }
+
+  /// A user's picture as a file on this device, asked for the first time it is wanted.
+  String? _userPhoto(Map u) {
+    final small = ((u['profile_photo'] as Map?)?['small'] as Map?);
+    if (small == null) return null;
+    final local = small['local'] as Map?;
+    final path = local?['path'] as String?;
+    if (local?['is_downloading_completed'] == true && path != null && path.isNotEmpty) return path;
+    final file = (small['id'] as num?)?.toInt();
+    if (file != null && _photosAsked.add(file)) {
+      _td?.send({'@type': 'downloadFile', 'file_id': file, 'priority': 1, 'offset': 0, 'limit': 0, 'synchronous': false});
+    }
+    return null;
+  }
+
+  @override
+  Future<String?> chatWith(InboxContact contact) async {
+    final user = int.tryParse(contact.id);
+    if (user == null || _state != InboxState.ready) return null;
+    final r = await _ask({'@type': 'createPrivateChat', 'user_id': user, 'force': false});
+    return r['@type'] == 'chat' ? '${r['id']}' : null;
   }
 
   /// Every chat, not only the first hundred (Matt, 2026-11-15: "import telegram chats sorted by most recent with the
@@ -293,6 +359,15 @@ class Telegram extends InboxNetwork {
       changed = true;
     }
     if (changed) _rebuild();
+    // And the contacts whose picture it is.
+    var people = false;
+    for (final e in _people.entries.toList()) {
+      final photo = e.value['profile_photo'] as Map?;
+      if ((((photo?['small'] as Map?)?['id']) as num?)?.toInt() != fileId) continue;
+      _people[e.key] = {...e.value, 'profile_photo': {...photo!, 'small': file}};
+      people = true;
+    }
+    if (people && !changed) notifyListeners();
   }
 
   // --- chats and messages --------------------------------------------------------------------------------------------
@@ -309,6 +384,12 @@ class Telegram extends InboxNetwork {
       case 'updateUser':
         final u = m['user'] as Map;
         _people[(u['id'] as num).toInt()] = u;
+        // Added to or taken out of this account's contacts, in Telegram or here.
+        if (u['is_contact'] == true) {
+          if (_contactIds.add((u['id'] as num).toInt()) && _state == InboxState.ready) notifyListeners();
+        } else if (_contactIds.remove((u['id'] as num).toInt())) {
+          notifyListeners();
+        }
         // A label of Telegram's, or a contact made, changes how that person's chat is judged (lib/inbox/scams.dart).
         if (_chatsById.isNotEmpty) _rebuild();
         if ((u['type'] as Map?)?['@type'] == 'userTypeBot') _bots.add((u['id'] as num).toInt());

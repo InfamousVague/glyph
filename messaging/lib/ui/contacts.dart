@@ -8,8 +8,11 @@ import '../art/lucide.g.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../friends/friends.dart';
+import '../inbox/inbox.dart';
+import '../inbox/people.dart';
 import '../sms.dart';
 import 'common.dart';
+import 'inbox_ui.dart' show inboxMark, openInboxChat;
 import 'new_group.dart';
 import 'shell.dart';
 import 'thread.dart';
@@ -17,6 +20,12 @@ import 'thread.dart';
 /// The address book (Matt, 2026-11-14: "add an address book icon"): the phone's contacts, searched by name or
 /// number, and a press on one opens the conversation with them. It is the phone's own list, asked of the phone: with
 /// nothing typed it shows the people texted most, and typing finds anyone.
+///
+/// Telegram's and Signal's contacts are here too once they are linked (Matt, 2026-11-16: "Show telegram and signal
+/// contacts when linked with icons to show which each is and filters, where contacts can be messages on multiple
+/// platforms as which you like to use when stating a conversation"): one row a person however many places they are
+/// (lib/inbox/people.dart), each place's mark at the row's end, filters for each, and a press on someone reachable more
+/// than one way asks which to write on.
 class ContactsScreen extends StatefulWidget {
   const ContactsScreen({super.key});
 
@@ -31,6 +40,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
   Timer? _debounce;
   int _asked = 0;
   bool _opening = false;
+
+  /// 'all', 'phone', or a network's id.
+  String _filter = 'all';
 
   @override
   void initState() {
@@ -88,14 +100,72 @@ class _ContactsScreenState extends State<ContactsScreen> {
     }
   }
 
-  /// What the list shows: the people added on Ghost Messaging (friends) first, under their own heading, then the
-  /// phone's contacts without them (Matt, 2026-11-15: "Contacts added on Ghost Messaging should render at the top
-  /// instead of the normal contacts"). A search narrows both. Headings are there only where there are friends to show.
+  /// The chat with [contact] on its network, made there where there is none yet.
+  Future<void> _openOn(InboxContact contact) async {
+    final network = Inbox.instance.named(contact.network);
+    if (network == null || _opening) return;
+    setState(() => _opening = true);
+    try {
+      final chat = await network.chatWith(contact);
+      if (!mounted) return;
+      setState(() => _opening = false);
+      if (chat == null) {
+        toast(context, 'Couldn\'t start a chat with ${contact.name} on ${network.name}', tone: GlacierToastTone.danger);
+        return;
+      }
+      openInboxChat(context, network, network.chats.where((c) => c.id == chat).firstOrNull ?? InboxChat(network: network.id, id: chat, title: contact.name, date: DateTime.now(), avatar: contact.avatar));
+    } catch (e) {
+      if (mounted) {
+        setState(() => _opening = false);
+        toast(context, 'Couldn\'t start that chat: $e', tone: GlacierToastTone.danger);
+      }
+    }
+  }
+
+  void _reach(Someone s, Reach r) {
+    final c = r.contact;
+    if (c != null) {
+      unawaited(_openOn(c));
+    } else {
+      unawaited(_open(Person(address: r.address!, name: s.inPhone ? s.name : null, photo: s.photo)));
+    }
+  }
+
+  /// A press on someone: straight to them where there is one way to write, else which way, each with its mark.
+  void _pressed(Someone s) {
+    if (s.reaches.length == 1) return _reach(s, s.reaches.single);
+    showChoices(context, title: 'Message ${s.name} with', choices: [
+      for (final r in s.reaches)
+        if (r.contact == null)
+          Choice(s.friend ? 'Ghost' : 'Text message', s.friend ? Lucide.userCheck : Lucide.messageSquare, () => _reach(s, r), hint: s.friend ? '${r.address} · over the internet' : r.address)
+        else
+          Choice(
+            Inbox.instance.named(r.contact!.network)?.name ?? r.contact!.network,
+            Lucide.messageSquare,
+            () => _reach(s, r),
+            mark: _mark(r.contact!.network, 20),
+            hint: r.contact!.handle ?? r.contact!.number ?? r.contact!.name,
+          ),
+    ]);
+  }
+
+  Widget _mark(String network, double size) {
+    final n = Inbox.instance.named(network);
+    return n == null ? AppIcon(Lucide.messageSquare, size: size) : inboxMark(n, size: size);
+  }
+
+  /// The networks whose contacts the list has, signed in now: each is a filter.
+  List<InboxNetwork> get _networks => [for (final n in Inbox.instance.ready) if (n.contacts.isNotEmpty) n];
+
+  /// What the list shows: the people added on Ghost Messaging (friends) first, under their own heading, then everyone
+  /// else (Matt, 2026-11-15: "Contacts added on Ghost Messaging should render at the top instead of the normal
+  /// contacts"), the phone's contacts and Telegram's and Signal's put together, narrowed by the filter and a search.
   List<_Row> _rows(List<Map<String, String?>> found) {
     final byDigits = {for (final c in found) Friends.digits(c['address'] ?? ''): c};
     final q = _query.toLowerCase();
     final qDigits = Friends.digits(_query);
-    final friends = <_Row>[];
+    final phone = <PhoneContact>[];
+    final friendKeys = <String>{};
     for (final s in Friends.instance.friends) {
       final contact = byDigits[Friends.digits(s.address)];
       final address = s.person?.address ?? contact?['address'] ?? s.address;
@@ -105,20 +175,59 @@ class _ContactsScreenState extends State<ContactsScreen> {
         final numbered = qDigits.isNotEmpty && Friends.digits(address).contains(qDigits);
         if (!named && !numbered) continue;
       }
-      friends.add(_Row(person: Person(address: address, name: name, photo: s.person?.photo ?? contact?['photo']), label: contact?['label'], friend: true));
+      friendKeys.add(numberKey(address));
+      phone.add(PhoneContact(address: address, name: name, photo: s.person?.photo ?? contact?['photo'], label: contact?['label'], friend: true));
     }
-    friends.sort((a, b) => (a.person!.name ?? a.person!.address).toLowerCase().compareTo((b.person!.name ?? b.person!.address).toLowerCase()));
-    final rest = [
-      for (final c in found)
-        if (!Friends.instance.isFriend(c['address'] ?? '')) _Row(person: Person(address: c['address'] ?? '', name: c['name'], photo: c['photo']), label: c['label']),
-    ];
-    if (friends.isEmpty) return rest;
+    for (final c in found) {
+      if (Friends.instance.isFriend(c['address'] ?? '')) continue;
+      phone.add(PhoneContact(address: c['address'] ?? '', name: c['name'], photo: c['photo'], label: c['label']));
+    }
+    final contacts = [for (final n in _networks) ...n.contacts];
+    // The phone answered the search itself; the networks' contacts are searched here.
+    var people = [for (final s in gather(phone, contacts)) if (s.inPhone || s.friend || answers(s, _query)) s];
+    people = narrowed(people, _filter);
+    final friends = [for (final s in people) if (s.friend) s]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    final rest = [for (final s in people) if (!s.friend) s];
+    if (friends.isEmpty) return [for (final s in rest) _Row(someone: s)];
     return [
       const _Row(heading: 'On Ghost Messaging'),
-      ...friends,
+      for (final s in friends) _Row(someone: s),
       if (rest.isNotEmpty) const _Row(heading: 'Contacts'),
-      ...rest,
+      for (final s in rest) _Row(someone: s),
     ];
+  }
+
+  /// The filters: everyone, the phone's contacts, and each linked network's, with its mark.
+  Widget _filters(Tokens t, List<InboxNetwork> networks) {
+    Widget chip(String id, String label, Widget? mark) {
+      final on = _filter == id;
+      return GlacierPressable(
+        onPressed: () => setState(() => _filter = id),
+        semanticLabel: '$label${on ? ', shown' : ''}',
+        builder: (context, state) => AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1) + 3),
+          decoration: BoxDecoration(
+            color: on ? t.color('app-ink') : (state.pressed || state.hovered ? t.color('app-paper-3') : t.color('app-paper-2')),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (mark != null) ...[mark, SizedBox(width: t.space(1) + 2)],
+            Text(label, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: on ? t.color('app-paper') : t.color('app-ink'))),
+          ]),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(2)),
+      child: Row(spacing: t.space(2), children: [
+        chip('all', 'All', null),
+        chip('phone', 'Phone', AppIcon(Lucide.smartphone, size: 15, wash: false, color: _filter == 'phone' ? t.color('app-paper') : t.color('app-ink'))),
+        for (final n in networks) chip(n.id, n.name, inboxMark(n, size: 16, badge: true)),
+      ]),
+    );
   }
 
   @override
@@ -132,6 +241,15 @@ class _ContactsScreenState extends State<ContactsScreen> {
         Padding(
           padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(2)),
           child: GlacierSearchField(placeholder: 'Search contacts', size: GlacierFieldSize.md, onValueChange: _typed),
+        ),
+        // A filter for each linked network with contacts, beside All and Phone; none until one is linked.
+        ListenableBuilder(
+          listenable: Inbox.instance.changes,
+          builder: (context, _) {
+            final networks = _networks;
+            if (networks.isEmpty && _filter != 'all') WidgetsBinding.instance.addPostFrameCallback((_) => mounted ? setState(() => _filter = 'all') : null);
+            return networks.isEmpty ? const SizedBox.shrink() : _filters(t, networks);
+          },
         ),
         // A group of friends is made from here, where there is a friend to put in one (lib/ui/new_group.dart).
         if (!Sms.paired && _query.isEmpty && Friends.instance.available && Friends.instance.friends.isNotEmpty)
@@ -183,7 +301,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         ),
                 )
               : ListenableBuilder(
-                  listenable: Friends.instance,
+                  listenable: Listenable.merge([Friends.instance, Inbox.instance.changes]),
                   builder: (context, _) {
                     final rows = _rows(found);
                     return rows.isEmpty
@@ -192,7 +310,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
                       child: SettingsEmpty(
                         icon: AppIcon(Lucide.contactRound, size: 28, color: t.color('app-ink-3')),
                         title: _query.isEmpty ? 'No contacts' : 'Nobody found',
-                        body: Text(_query.isEmpty ? 'People in the phone\'s contacts appear here.' : 'No name or number in your contacts matches "$_query".'),
+                        body: Text(_query.isEmpty
+                            ? (_filter == 'all' || _filter == 'phone' ? 'People in the phone\'s contacts appear here.' : 'Nobody in your ${Inbox.instance.named(_filter)?.name ?? ''} contacts yet.')
+                            : 'No name or number in your contacts matches "$_query".'),
                       ),
                     )
                   : ListView.builder(
@@ -212,11 +332,16 @@ class _ContactsScreenState extends State<ContactsScreen> {
                             child: Text(row.heading!, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
                           );
                         }
-                        final person = row.person!;
-                        final label = row.label;
+                        final someone = row.someone!;
+                        final person = Person(address: someone.number ?? '${someone.reaches.first.kind}:${someone.name}', name: someone.name, photo: someone.photo);
+                        final handle = someone.reaches.map((r) => r.contact?.handle).whereType<String>().firstOrNull;
+                        final sub = [
+                          if (someone.number != null) someone.number! else ?handle,
+                          if (someone.label != null && someone.label!.isNotEmpty) someone.label!,
+                        ].join(' · ');
                         return GlacierPressable(
-                          onPressed: () => _open(person),
-                          semanticLabel: person.name ?? person.address,
+                          onPressed: () => _pressed(someone),
+                          semanticLabel: '${someone.name}, ${[for (final k in someone.kinds) k == 'phone' ? (someone.friend ? 'Ghost' : 'text') : Inbox.instance.named(k)?.name ?? k].join(', ')}',
                           builder: (context, state) => ColoredBox(
                             color: state.pressed || state.hovered ? t.color('app-paper-2') : const Color(0x00000000),
                             child: Padding(
@@ -226,16 +351,20 @@ class _ContactsScreenState extends State<ContactsScreen> {
                                 SizedBox(width: t.space(3)),
                                 Expanded(
                                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                    Text(person.name ?? person.address, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'medium')),
-                                    if (person.name != null)
-                                      Text([person.address, if (label != null && label.isNotEmpty) label].join(' · '), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+                                    Text(someone.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'medium')),
+                                    if (sub.isNotEmpty && sub != someone.name)
+                                      Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
                                   ]),
                                 ),
-                                // A friend (lib/friends/friends.dart): what is written to them goes over the internet.
-                                if (row.friend) ...[
-                                  SizedBox(width: t.space(2)),
-                                  Semantics(label: 'Friend', child: AppIcon(Lucide.userCheck, size: 16, color: t.color('app-ink-3'))),
-                                ],
+                                SizedBox(width: t.space(2)),
+                                // Where they can be written to: a friend's Ghost tick or the phone, then each network's mark.
+                                Row(mainAxisSize: MainAxisSize.min, spacing: t.space(1) + 2, children: [
+                                  for (final k in someone.kinds)
+                                    if (k == 'phone')
+                                      Semantics(label: someone.friend ? 'On Ghost Messaging' : 'Text message', child: AppIcon(someone.friend ? Lucide.userCheck : Lucide.messageSquare, size: 16, wash: false, color: t.color('app-ink-3')))
+                                    else
+                                      _mark(k, 18),
+                                ]),
                               ]),
                             ),
                           ),
@@ -252,9 +381,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
 /// A line of the list: a heading, or someone in it.
 class _Row {
-  const _Row({this.heading, this.person, this.label, this.friend = false});
+  const _Row({this.heading, this.someone});
   final String? heading;
-  final Person? person;
-  final String? label;
-  final bool friend;
+  final Someone? someone;
 }

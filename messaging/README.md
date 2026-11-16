@@ -30,6 +30,19 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Telegram's and Signal's contacts in Contacts, and which way to write** (0.7.42, not released; `lib/inbox/people.dart`,
+  `lib/ui/contacts.dart`; Matt, 2026-11-16: "Show telegram and signal contacts when linked with icons to show which
+  each is and filters, where contacts can be messages on multiple platforms as which you like to use when stating a
+  conversation"). Once linked, Telegram's contacts (TDLib's getContacts, kept in step by updateUser, their photos
+  brought down) and Signal's (its contact sync, without the person themself) are in Contacts with the phone's. One row
+  is one person: matched by number (its last ten digits), or, where one side has none, by the same full name of two
+  words or more that names nobody else; two different numbers are two people. Each row ends with a mark for each way
+  to write: text (or Ghost's tick for a friend), Telegram, Signal. Filters: All, Phone, and each linked network. A
+  press on someone with one way goes straight there; with more, "Message … with" asks, each with its mark and who on
+  that network (handle or number). A Telegram chat is made with createPrivateChat; a Signal one is the person's ACI
+  and is in the list from its first message; either opens with the person's name and face (InboxChatScreen's
+  fallback). A number known from Telegram or Signal can be texted too. Tests: inbox_people_test, inbox_screens_test
+  (16-inbox-contacts), inbox_telegram_test, inbox_signal_test.
 - **Set up RCS, and Ghost's notifications in place of Google Messages'** (0.7.29; `lib/ui/rcs_setup.dart`,
   GmBridge.kt; Matt, 2026-11-15: "add a button under messages settings to setup RCS if on an android phone and walk
   the user through how to enable the rcs sidecar"; "we should have a way to make the app work without needing to be

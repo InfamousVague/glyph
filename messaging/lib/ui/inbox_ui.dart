@@ -88,7 +88,7 @@ void confirmInboxDelete(BuildContext context, InboxNetwork network, InboxChat ch
 
 /// Opens [chat] in the pane beside the list, or over it on a phone.
 void openInboxChat(BuildContext context, InboxNetwork network, InboxChat chat) {
-  final page = InboxChatScreen(network: network, chatId: chat.id);
+  final page = InboxChatScreen(network: network, chatId: chat.id, fallback: chat);
   final shell = AppShell.maybeOf(context);
   if (shell != null) {
     shell.show(page, showing: 'inbox:${network.id}:${chat.id}');
@@ -100,9 +100,13 @@ void openInboxChat(BuildContext context, InboxNetwork network, InboxChat chat) {
 /// A chat on another network: its messages as bubbles, and a line to answer in. Sent from here, a message goes as
 /// the network's own app would send it.
 class InboxChatScreen extends StatefulWidget {
-  const InboxChatScreen({super.key, required this.network, required this.chatId});
+  const InboxChatScreen({super.key, required this.network, required this.chatId, this.fallback});
   final InboxNetwork network;
   final String chatId;
+
+  /// The chat as it was opened: its name and face until the network lists it (a chat begun from Contacts with
+  /// someone never written to before is in the network's list only from its first message).
+  final InboxChat? fallback;
 
   @override
   State<InboxChatScreen> createState() => _InboxChatScreenState();
@@ -256,7 +260,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
     return ListenableBuilder(
       listenable: _n,
       builder: (context, _) {
-        final chat = _n.chats.where((c) => c.id == widget.chatId).firstOrNull;
+        final chat = _n.chats.where((c) => c.id == widget.chatId).firstOrNull ?? widget.fallback;
         final list = _n.shownMessages(widget.chatId).reversed.toList();
         final (mineBg, mineInk) = myBubble(t, app);
         return GhostPage(

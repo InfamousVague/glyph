@@ -10,6 +10,7 @@ import 'package:ghost_messaging/inbox/telegram.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
 import 'package:ghost_messaging/ui/common.dart' show IconTap;
 import 'package:ghost_messaging/ui/composer_box.dart';
+import 'package:ghost_messaging/ui/contacts.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
 import 'package:ghost_messaging/ui/inbox_ui.dart';
 import 'package:ghost_messaging/ui/me.dart' show NetworkMark;
@@ -63,6 +64,20 @@ class FakeNetwork extends InboxNetwork {
   Future<void> start(AppState app) async {}
   @override
   Future<void> signOut() async {}
+}
+
+/// A network with contacts of its own (Telegram's, Signal's), and the chats asked for with them.
+class ContactsNetwork extends FakeNetwork {
+  ContactsNetwork(String id, String name, this.people) : super(id, name, const [], {});
+  final List<InboxContact> people;
+  final chatsWith = <String>[];
+  @override
+  List<InboxContact> get contacts => people;
+  @override
+  Future<String?> chatWith(InboxContact contact) async {
+    chatsWith.add(contact.id);
+    return 'chat-${contact.id}';
+  }
 }
 
 Future<void> _shoot(WidgetTester tester, TokenSheet sheet, Widget screen, String name, {required bool dark}) async {
@@ -264,5 +279,72 @@ void main() {
       expect(find.text('@matt'), findsOneWidget);
       expect(find.text('Sign out'), findsOneWidget);
     }
+  });
+
+  // Matt, 2026-11-16: "Show telegram and signal contacts when linked with icons to show which each is and filters, where
+  // contacts can be messages on multiple platforms as which you like to use when stating a conversation".
+  testWidgets('contacts: Telegram\'s and Signal\'s with the phone\'s, one row a person with each place\'s mark, filters, and which way to write', (tester) async {
+    final sheet = await loadSheet(tester);
+    final phone = ListPhone(const [])
+      ..contacts.addAll([
+        {'address': '+15551230001', 'name': 'Maya Chen', 'label': 'Mobile'},
+        {'address': '+15551230005', 'name': 'Dad', 'label': 'Home'},
+      ])
+      ..install();
+    final tg = ContactsNetwork('telegram', 'Telegram', const [
+      InboxContact(network: 'telegram', id: '11', name: 'Maya C', number: '+15551230001', handle: '@mayac'),
+      InboxContact(network: 'telegram', id: '12', name: 'Jo Park', handle: '@jopark'),
+    ]);
+    final sg = ContactsNetwork('signal', 'Signal', const [
+      InboxContact(network: 'signal', id: 'aci-maya', name: 'Maya', number: '+1 555 123 0001'),
+      InboxContact(network: 'signal', id: 'aci-riley', name: 'Riley Fox', number: '+447700900123'),
+    ]);
+    Inbox.instance = Inbox.of([tg, sg]);
+    for (final dark in [false, true]) {
+      await _shoot(tester, sheet, const ContactsScreen(), '16-inbox-contacts', dark: dark);
+    }
+    // One row for Maya though she is in three places; Jo and Riley from the networks; filters for each network.
+    expect(find.text('Maya Chen'), findsOneWidget);
+    expect(find.text('Jo Park'), findsOneWidget);
+    expect(find.text('Riley Fox'), findsOneWidget);
+    for (final f in ['All', 'Phone', 'Telegram', 'Signal']) {
+      expect(find.text(f), findsOneWidget, reason: 'the $f filter');
+    }
+
+    // Signal's filter: only those on Signal.
+    await tester.tap(find.text('Signal'));
+    await settle(tester);
+    expect(find.text('Maya Chen'), findsOneWidget);
+    expect(find.text('Riley Fox'), findsOneWidget);
+    expect(find.text('Jo Park'), findsNothing);
+    expect(find.text('Dad'), findsNothing);
+    await tester.tap(find.text('All'));
+    await settle(tester);
+
+    // Maya can be written to three ways: which is asked, each with its mark.
+    await tester.tap(find.text('Maya Chen'));
+    await settle(tester);
+    await _again(tester, '16-inbox-contacts-which', dark: true);
+    expect(find.text('Message Maya Chen with'), findsOneWidget);
+    expect(find.text('Text message'), findsOneWidget);
+    expect(find.text('@mayac'), findsOneWidget, reason: 'Telegram\'s choice says who on Telegram');
+    await tester.tap(find.widgetWithText(GlacierPressable, 'Signal').last);
+    await settle(tester);
+    expect(sg.chatsWith, ['aci-maya']);
+
+    // Jo is on Telegram alone: straight there, nothing asked.
+    await tester.pumpWidget(const SizedBox());
+    await _shoot(tester, sheet, const ContactsScreen(), '16-inbox-contacts', dark: true);
+    await tester.tap(find.text('Jo Park'));
+    await settle(tester);
+    expect(find.text('Message Jo Park with'), findsNothing);
+    expect(tg.chatsWith, ['12']);
+
+    // Dad is only on the phone: his conversation, by number.
+    await tester.pumpWidget(const SizedBox());
+    await _shoot(tester, sheet, const ContactsScreen(), '16-inbox-contacts', dark: true);
+    await tester.tap(find.text('Dad'));
+    await settle(tester);
+    expect(phone.threads, ['+15551230005']);
   });
 }
