@@ -418,6 +418,11 @@ object GmBridge {
 
 
         /** A conversation as the on-phone connection reads it: by Google Messages' own id. */
+        /** The conversations kept for [thread], by Google Messages' (or the notification's) own id. */
+        fun webConvsOf(thread: Long): List<String> = readableDatabase.rawQuery("SELECT conv FROM conv WHERE thread = ?", arrayOf(thread.toString())).use { c ->
+            buildList { while (c.moveToNext()) add(c.getString(0)) }
+        }
+
         fun keepWebConversation(conv: String, thread: Long, title: String?, group: Boolean, addresses: List<String>) {
             writableDatabase.insertWithOnConflict("conv", null, ContentValues().apply {
                 put("conv", conv); put("thread", thread); put("title", title); put("grp", if (group) 1 else 0)
