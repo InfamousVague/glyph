@@ -15,7 +15,9 @@ import '../emoji_sets.dart';
 import '../kit/settings_kit.dart';
 import '../plugins/settings.dart';
 import '../onboarding/onboarding.dart';
+import '../kit/settings_type.dart';
 import '../sms.dart';
+import '../sounds.dart';
 import 'background_picker.dart';
 import '../desktop/platform.dart' show computerWord;
 import '../voice/voice_settings.dart';
@@ -24,6 +26,7 @@ import 'gm_guide_screen.dart';
 import 'gm_web_screen.dart';
 import 'rcs_setup.dart';
 import 'voice_pane.dart';
+import 'voice_screen.dart' show VolumeSlider;
 import 'computers.dart';
 import 'conversations.dart';
 import 'encryption.dart';
@@ -119,6 +122,17 @@ List<SettingsSection> _ownSections() => [
     group: 'look',
     summary: (m) => m.app.effects ? 'On · ${ScreenEffect.values.length} effects' : 'Off',
     page: _effects,
+  ),
+  SettingsSection(
+    id: 'sounds',
+    label: 'Sounds',
+    icon: _icon(Lucide.audioLines),
+    hue: 'mint',
+    group: 'look',
+    summary: (m) => !Sounds.instance.on
+        ? 'Off'
+        : '${_choiceName(Sounds.messageChoices, Sounds.instance.message)} · ${_choiceName(Sounds.ringChoices, Sounds.instance.ring)} · ${Sounds.instance.quiet}%',
+    page: _sounds,
   ),
   SettingsSection(
     id: 'messages',
@@ -419,6 +433,68 @@ List<Widget> _effects(BuildContext context, SettingsModel m) {
             hint: Text(effectTriggers(effect)),
             onPress: () => EffectsHost.maybeOf(context)?.play(effect),
           ),
+      ],
+    ),
+  ];
+}
+
+// --- Sounds -----------------------------------------------------------------------------------------------------------
+
+String _choiceName(List<SoundChoice> choices, String id) => choices.firstWhere((c) => c.id == id, orElse: () => choices.first).label;
+
+/// The app's sounds (lib/sounds.dart; Matt, 2026-11-16: "give me the options to pick from for the calling and
+/// notification sounds", and "for most UI sounds (outside of calling and new messages) play them at 33% volume by
+/// default").
+List<Widget> _sounds(BuildContext context, SettingsModel m) {
+  final s = Sounds.instance;
+  final t = context.tokens;
+  return [
+    PaneSection(children: [
+      SettingRow(
+        icon: _icon(Lucide.audioLines),
+        label: 'Sounds',
+        hint: const Text('A message in and out, friends, calls, muting, and the phone and computer connecting.'),
+        control: GlacierSwitch(checked: s.on, onCheckedChange: s.setOn, ariaLabel: 'Sounds'),
+      ),
+    ]),
+    PaneSection(
+      title: 'New message',
+      description: Text(Sms.remote ? 'Played as a text comes in. Tap one to hear it.' : 'Played as a text comes in, and the sound of its notification. Tap one to hear it.'),
+      children: [
+        for (final c in Sounds.messageChoices)
+          SettingRow(
+            icon: _icon(Lucide.messageSquare),
+            label: c.label,
+            control: Pick(checked: s.message == c.id, label: 'Use ${c.label} for new messages', onPress: () => s.setMessage(c.id)),
+            onPress: () => s.setMessage(c.id),
+          ),
+      ],
+    ),
+    PaneSection(
+      title: 'Ringing',
+      description: const Text('Played while a group calls you. Tap one to hear it.'),
+      children: [
+        for (final c in Sounds.ringChoices)
+          SettingRow(
+            icon: _icon(Lucide.bell),
+            label: c.label,
+            control: Pick(checked: s.ring == c.id, label: 'Use ${c.label} for ringing', onPress: () => s.setRing(c.id)),
+            onPress: () => s.setRing(c.id),
+          ),
+      ],
+    ),
+    PaneSection(
+      title: 'Everything else',
+      footer: Text('How loud the other sounds are next to a new message and ringing: ${Sounds.quietDefault}% unless changed.'),
+      children: [
+        SettingRowBox(
+          child: Row(children: [
+            Expanded(child: VolumeSlider(value: s.quiet / 100, max: 1, label: 'Loudness of the other sounds', onChanged: (x) => s.setQuiet((x * 100).round()))),
+            SizedBox(width: t.space(3)),
+            SizedBox(width: t.lenOf('3rem'), child: Text('${s.quiet}%', textAlign: TextAlign.right, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
+          ]),
+        ),
+        SettingRow(icon: _icon(Lucide.volume2), label: 'Hear it', hint: const Text('The sound of a message going out, at this loudness.'), onPress: () => s.play(UiSound.messageOut)),
       ],
     ),
   ];

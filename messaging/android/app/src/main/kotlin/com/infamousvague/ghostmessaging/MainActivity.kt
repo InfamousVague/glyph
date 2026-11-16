@@ -119,6 +119,8 @@ class MainActivity : FlutterActivity() {
 
         // The microphone's processing in calls (VoiceFx.kt).
         VoiceFx.register(messenger)
+        // The interface sounds (Sounds.kt, lib/sounds.dart).
+        Sounds.register(this, messenger)
         // The walkthrough's voice (GuideVoice.kt).
         GuideVoice.register(this, messenger)
 

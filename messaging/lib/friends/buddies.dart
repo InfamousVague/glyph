@@ -10,6 +10,7 @@ import '../net/net.dart';
 import '../net/packet.dart';
 import '../net/switchboard.dart';
 import '../sms.dart';
+import '../sounds.dart';
 
 /// Someone added by their username on Ghost Messaging, with no phone number between the two (Matt, 2026-11-14:
 /// "create a profile and username under "me" to register a username and add friends on the platform").
@@ -194,6 +195,8 @@ class Buddies extends ChangeNotifier {
       unawaited(accept(had!.copyWith(name: name, bio: bio)));
       return;
     }
+    // A request new to this phone: the friend request's sound (lib/sounds.dart), once.
+    if (had?.state != 'invited') Sounds.instance.play(UiSound.friendRequest);
     _put(Buddy(username: tidyHandle(username), id: from, key: key, name: name, bio: bio, state: 'invited', at: DateTime.now().millisecondsSinceEpoch));
     unawaited(_save());
   }
@@ -205,6 +208,7 @@ class Buddies extends ChangeNotifier {
     final name = e.body['n'] is String ? e.body['n'] as String : null, bio = e.body['b'] is String ? e.body['b'] as String : null;
     switch (e.body['s']) {
       case 'yes':
+        if (had.state == 'asked') Sounds.instance.play(UiSound.friendAccepted);
         if (had.state == 'asked' || had.state == 'yes') _put(had.copyWith(state: 'yes', name: name, bio: bio));
       case 'me':
         if (had.state == 'yes') _put(had.copyWith(name: name, bio: bio));

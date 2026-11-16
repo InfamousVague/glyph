@@ -53,6 +53,8 @@ flutter:
     - assets/onboarding/
     # The app's own mark, cut from its icon (tool/app_icon.py).
     - assets/art/
+    # The interface sounds, made by tool/ui_sounds.py (lib/sounds.dart).
+    - assets/sounds/
   fonts:
     - family: Inter Variable
       fonts:

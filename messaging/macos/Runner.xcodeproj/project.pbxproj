@@ -22,6 +22,7 @@
 
 /* Begin PBXBuildFile section */
 		47D364DC2F0A0B0C000000F2 /* VoiceFx.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47D364DC2F0A0B0C000000F1 /* VoiceFx.swift */; };
+		5D0E1C7A2F0B11AA000000B2 /* Sounds.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E1C7A2F0B11AA000000B1 /* Sounds.swift */; };
 		47D364DC2F0A0B0C000000F5 /* VoiceFxC in Frameworks */ = {isa = PBXBuildFile; productRef = 47D364DC2F0A0B0C000000F4 /* VoiceFxC */; };
 		331C80D8294CF71000263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C80D7294CF71000263BE5 /* RunnerTests.swift */; };
 		335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 335BBD1A22A9A15E00E9071D /* GeneratedPluginRegistrant.swift */; };
@@ -68,6 +69,7 @@
 
 /* Begin PBXFileReference section */
 		47D364DC2F0A0B0C000000F1 /* VoiceFx.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceFx.swift; sourceTree = "<group>"; };
+		5D0E1C7A2F0B11AA000000B1 /* Sounds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sounds.swift; sourceTree = "<group>"; };
 		331C80D5294CF71000263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		331C80D7294CF71000263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		333000ED22D3DE5D00554162 /* Warnings.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Warnings.xcconfig; sourceTree = "<group>"; };
@@ -185,6 +187,7 @@
 				47D364DC2F0A0B0C00000005 /* DeskVideo.swift */,
 				47D364DC2F0A0B0C00000007 /* DeskSound.swift */,
 				47D364DC2F0A0B0C000000F1 /* VoiceFx.swift */,
+				5D0E1C7A2F0B11AA000000B1 /* Sounds.swift */,
 				33E51913231747F40026EE4D /* DebugProfile.entitlements */,
 				33E51914231749380026EE4D /* Release.entitlements */,
 				33CC11242044D66E0003C045 /* Resources */,
@@ -379,6 +382,7 @@
 				47D364DC2F0A0B0C00000006 /* DeskVideo.swift in Sources */,
 				47D364DC2F0A0B0C00000008 /* DeskSound.swift in Sources */,
 				47D364DC2F0A0B0C000000F2 /* VoiceFx.swift in Sources */,
+				5D0E1C7A2F0B11AA000000B2 /* Sounds.swift in Sources */,
 				33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */,
 				335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */,
 			);

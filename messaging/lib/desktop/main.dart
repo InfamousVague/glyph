@@ -9,6 +9,7 @@ import '../accent.dart';
 import '../app_state.dart';
 import '../kit/settings_css.dart';
 import '../main.dart' show InkOverrides, ghostTypography;
+import '../sounds.dart';
 import '../sms.dart';
 import '../ui/settings_panes.dart' show appVersion;
 import 'desk.dart';
@@ -70,6 +71,8 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   installSettingsStyles(sheet);
   await link.start();
   // Voice channels (lib/voice): the computer's own connection to the hub, made once it has a channel.
+  // The interface sounds (lib/sounds.dart) read the person's choices from here.
+  Sounds.instance.start(state);
   unawaited(Voice.instance.start(state));
   // Telegram's and Bluesky's chats (lib/inbox): the computer signs in to them itself, as their own apps do.
   addInboxSettings();

@@ -24,6 +24,7 @@ import 'friends/friends.dart';
 import 'friends/groups.dart';
 import 'net/net.dart';
 import 'voice/channels.dart';
+import 'sounds.dart';
 import 'sms.dart';
 import 'ui/computers.dart';
 import 'onboarding/onboarding.dart';
@@ -233,6 +234,8 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       // The app's routes to other phones with it (lib/net/net.dart): set up once, as the app opens.
       // And friends, who are reached by them (lib/friends/friends.dart).
       final app = AppState.of(context);
+      // The interface sounds (lib/sounds.dart) read the person's choices from here.
+      Sounds.instance.start(app);
       Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => Groups.instance.start()).then((_) => Voice.instance.start(app));
       // Telegram's and Bluesky's chats (lib/inbox), each started where it was signed in before, and their Settings.
       addInboxSettings();

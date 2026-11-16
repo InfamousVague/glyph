@@ -20,6 +20,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Build
 import android.os.ParcelFileDescriptor
@@ -33,13 +34,42 @@ object Notifier {
     const val EXTRA_THREAD = "thread"
     const val KEY_REPLY = "reply"
 
+    /**
+     * The messages' channel, with the message sound chosen in Settings › Sounds (lib/sounds.dart; Matt, 2026-11-16:
+     * "give me the options to pick from for the calling and notification sounds"). A channel's sound cannot change
+     * once it is made, so each sound has a channel of its own ("messages-sound-<take>"), the others are taken away as
+     * one is chosen, and the first channel ("messages", the phone's own sound) goes as well.
+     */
+    fun channel(context: Context): String {
+        val ui = context.getSharedPreferences("ui", Context.MODE_PRIVATE)
+        val take = (ui.getString("sound_message", "2") ?: "2").filter { it.isDigit() }.ifEmpty { "2" }
+        val silent = ui.getString("sounds", "on") == "off"
+        return if (silent) "$CHANNEL-sound-off" else "$CHANNEL-sound-$take"
+    }
+
     private fun manager(context: Context): NotificationManager {
         val nm = context.getSystemService(NotificationManager::class.java)
-        if (nm.getNotificationChannel(CHANNEL) == null) {
-            nm.createNotificationChannel(NotificationChannel(CHANNEL, "Messages", NotificationManager.IMPORTANCE_HIGH).apply {
+        val id = channel(context)
+        if (nm.getNotificationChannel(id) == null) {
+            for (old in nm.notificationChannels) {
+                if (old.id == CHANNEL || (old.id.startsWith("$CHANNEL-sound-") && old.id != id)) try { nm.deleteNotificationChannel(old.id) } catch (_: Exception) {}
+            }
+            nm.createNotificationChannel(NotificationChannel(id, "Messages", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "New text messages"
                 enableVibration(true)
+                val take = id.substringAfterLast('-')
+                if (take == "off") {
+                    setSound(null, null)
+                } else {
+                    val raw = context.resources.getIdentifier("notify_message_$take", "raw", context.packageName)
+                    if (raw != 0) setSound(Uri.parse("android.resource://${context.packageName}/$raw"), AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build())
+                }
             })
+        }
+        if (nm.getNotificationChannel(CHANNEL_ALERTS) == null) {
             nm.createNotificationChannel(NotificationChannel(CHANNEL_ALERTS, "Problems", NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = "A message that could not be sent or downloaded"
             })
@@ -121,8 +151,11 @@ object Notifier {
     fun incoming(context: Context, thread: Long): Boolean {
         // -1 is "the list", never a conversation. A bridged conversation below that (GmBridge) is notified like any.
         if (thread == -1L) return false
-        // Open on the screen now: nothing to notify, and nothing is missed.
-        if (MainActivity.openThread == thread && MainActivity.inFront) return true
+        // Open on the screen now: nothing to notify, and nothing is missed; the message sound says it came.
+        if (MainActivity.openThread == thread && MainActivity.inFront) {
+            if (!Store(context).isMuted(thread)) Sounds.messageIn(context)
+            return true
+        }
         val store = Store(context)
         if (store.isMuted(thread)) return true
         val people = store.threadPeople(thread)
@@ -175,7 +208,7 @@ object Notifier {
         // Quiet hours (lib/plugins/quiet.dart): from ten at night to seven in the morning a text from someone who is not a
         // contact, or from anyone where the person chose so, arrives without a sound; a contact's urgent words still do.
         val quiet = quietNow(context, ui, people.all { store.contact(it["address"] as String)["name"] == null }, unread.last()["body"] as String)
-        val builder = Notification.Builder(context, if (quiet) quietChannel(context) else CHANNEL)
+        val builder = Notification.Builder(context, if (quiet) quietChannel(context) else channel(context))
             .setSmallIcon(R.drawable.ic_stat_ghost)
             .setStyle(style)
             .setContentIntent(open(context, thread))
@@ -246,7 +279,7 @@ object Notifier {
      */
     fun waiting(context: Context, thread: Long, who: String) {
         if (thread < 0) return
-        val n = Notification.Builder(context, CHANNEL)
+        val n = Notification.Builder(context, channel(context))
             .setSmallIcon(R.drawable.ic_stat_ghost)
             .setContentTitle(who)
             .setContentText("New message. Open Ghost Messaging to read it.")
@@ -264,12 +297,12 @@ object Notifier {
      * while that conversation is on the screen; "New message" where previews are off.
      */
     fun chat(context: Context, thread: Long, who: String, body: String) {
-        if (MainActivity.openThread == thread && MainActivity.inFront) return
+        if (MainActivity.openThread == thread && MainActivity.inFront) { Sounds.messageIn(context); return }
         val previews = context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("notif_preview", "on") != "off"
         val sender = Person.Builder().setName(who).setKey(who).build()
         val style = Notification.MessagingStyle(Person.Builder().setName("You").build())
             .addMessage(Notification.MessagingStyle.Message(if (previews) body else "New message", System.currentTimeMillis(), sender))
-        val n = Notification.Builder(context, CHANNEL)
+        val n = Notification.Builder(context, channel(context))
             .setSmallIcon(R.drawable.ic_stat_ghost)
             .setStyle(style)
             .setContentIntent(open(context, thread))
@@ -301,7 +334,7 @@ object Notifier {
             putExtra(EXTRA_INBOX, key)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val n = Notification.Builder(context, CHANNEL)
+        val n = Notification.Builder(context, channel(context))
             .setSmallIcon(R.drawable.ic_stat_ghost)
             .setStyle(style)
             .setSubText(network)
