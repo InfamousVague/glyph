@@ -26,15 +26,16 @@ String spaceInviteWords(VoiceChannel c) => 'Join me in ${c.name} on Ghost Messag
 ///
 /// [send], [compose], [buddies] and [inSpace] (who is in it, by id) are for a test; the app's own otherwise ([compose]
 /// opens a new text with the words written, through the phone on a computer, or the share sheet where there is no
-/// shell).
+/// shell). A group's channel is its members' alone: nothing is raised for one.
 Future<void> showSpaceInvite(
   BuildContext context,
   VoiceChannel channel, {
-  Future<void> Function(VoiceChannel channel, List<Buddy> friends)? send,
+  Future<List<Buddy>> Function(VoiceChannel channel, List<Buddy> friends)? send,
   void Function(String words)? compose,
   Buddies? buddies,
   Set<String>? inSpace,
 }) {
+  if (channel.group != null) return Future.value();
   // The shell stands under the outermost navigator the sheet is raised on: found here, before.
   final shell = AppShell.maybeOf(context);
   final write = compose ?? (shell == null ? (String words) => unawaited(Sms.instance.shareText(channel.name, words)) : (String words) => shell.compose(body: words));
@@ -59,7 +60,8 @@ class SpaceInviteSheet extends StatefulWidget {
 
   /// Who is in the space, by id, where not as Voice says (a test).
   final Set<String>? inSpace;
-  final Future<void> Function(VoiceChannel channel, List<Buddy> friends) send;
+  /// Sends the space to the friends chosen; gives back those it could not reach.
+  final Future<List<Buddy>> Function(VoiceChannel channel, List<Buddy> friends) send;
   final void Function(String words) compose;
   final Buddies buddies;
 
@@ -87,9 +89,17 @@ class _SpaceInviteSheetState extends State<SpaceInviteSheet> {
     final nav = Navigator.of(context);
     final shown = context;
     try {
-      await widget.send(widget.channel, chosen);
+      final missed = await widget.send(widget.channel, chosen);
       if (!shown.mounted) return;
-      toast(shown, chosen.length == 1 ? 'Invited ${chosen.first.shown}' : 'Invited ${chosen.length}');
+      final reached = [for (final f in chosen) if (!missed.any((m) => m.id == f.id)) f];
+      final away = missed.map((f) => f.shown).join(', ');
+      if (reached.isEmpty) {
+        toast(shown, 'Couldn\'t reach $away. Try again in a moment, or text them an invite.', tone: GlacierToastTone.danger);
+        setState(() => _sending = false);
+        return;
+      }
+      final invited = reached.length == 1 ? 'Invited ${reached.first.shown}' : 'Invited ${reached.length}';
+      toast(shown, missed.isEmpty ? invited : '$invited; couldn\'t reach $away', tone: missed.isEmpty ? GlacierToastTone.neutral : GlacierToastTone.warning);
       nav.pop();
     } catch (e) {
       if (shown.mounted) toast(shown, 'Couldn\'t send the invites: $e', tone: GlacierToastTone.danger);
@@ -150,7 +160,7 @@ class _SpaceInviteSheetState extends State<SpaceInviteSheet> {
                               padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(1)),
                               child: GlacierPressable(
                                 onPressed: n == 0 || _sending ? null : () => _send(friends),
-                                semanticLabel: 'Send invites',
+                                semanticLabel: n == 1 ? 'Send invite' : 'Send invites',
                                 builder: (context, state) => Opacity(
                                   opacity: n == 0 ? 0.4 : 1,
                                   child: Container(
@@ -160,7 +170,7 @@ class _SpaceInviteSheetState extends State<SpaceInviteSheet> {
                                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                                       AppIcon(Lucide.send, size: 16, wash: false, color: t.color('app-paper')),
                                       SizedBox(width: t.space(2)),
-                                      Text(n < 2 ? 'Send invites' : 'Send $n invites', style: pageText(t, t.fontSize('md'), weight: 'bold', color: t.color('app-paper'))),
+                                      Text(n == 0 ? 'Send invites' : n == 1 ? 'Send invite' : 'Send $n invites', style: pageText(t, t.fontSize('md'), weight: 'bold', color: t.color('app-paper'))),
                                     ]),
                                   ),
                                 ),

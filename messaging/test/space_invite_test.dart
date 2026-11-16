@@ -8,6 +8,7 @@ import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
 import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner;
 import 'package:ghost_messaging/net/packet.dart';
 import 'package:ghost_messaging/ui/hangout_screen.dart';
+import 'package:ghost_messaging/ui/space_designs/space_design.dart';
 import 'package:ghost_messaging/ui/space_invite.dart';
 import 'package:ghost_messaging/ui/voice_screen.dart';
 import 'package:ghost_messaging/voice/channels.dart';
@@ -140,7 +141,10 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       await h.shoot(
         tester,
-        _Opener((context) => showSpaceInvite(context, channel, buddies: b, inSpace: {'riley-id'}, send: (c, fs) async => sent.add([for (final f in fs) f.username]))),
+        _Opener((context) => showSpaceInvite(context, channel, buddies: b, inSpace: {'riley-id'}, send: (c, fs) async {
+          sent.add([for (final f in fs) f.username]);
+          return const [];
+        })),
         'space-invite-phone',
         dark: dark,
       );
@@ -151,6 +155,7 @@ void main() {
       expect(find.text('In the space'), findsOneWidget, reason: 'Riley is in the call already');
       await tester.tap(find.text('Maya Chen'));
       await tester.pump();
+      expect(find.text('Send invite'), findsOneWidget, reason: 'one chosen: one invite');
       await tester.tap(find.text('Sam Ortiz'));
       await tester.pump();
       await tester.tap(find.text('Riley Fox'));
@@ -172,11 +177,11 @@ void main() {
   testWidgets('on a computer; no friends yet says so and offers to add one', (tester) async {
     await load(tester);
     final b = await buddies(tester, _friends);
-    await h.shoot(tester, _Opener((context) => showSpaceInvite(context, channel, buddies: b, send: (c, fs) async {})), 'space-invite-computer', size: SpaceHarness.computer);
+    await h.shoot(tester, _Opener((context) => showSpaceInvite(context, channel, buddies: b, send: (c, fs) async => const [])), 'space-invite-computer', size: SpaceHarness.computer);
     expect(find.text('Text an invite'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     final none = await buddies(tester, const []);
-    await h.shoot(tester, _Opener((context) => showSpaceInvite(context, channel, buddies: none, send: (c, fs) async {})), 'space-invite-empty');
+    await h.shoot(tester, _Opener((context) => showSpaceInvite(context, channel, buddies: none, send: (c, fs) async => const [])), 'space-invite-empty');
     expect(find.textContaining('No friends here yet'), findsOneWidget);
     expect(find.text('Add a friend'), findsOneWidget);
     expect(find.text('Send invites'), findsNothing);
@@ -187,7 +192,7 @@ void main() {
     await load(tester);
     final b = await buddies(tester, _friends);
     final texts = <String>[];
-    Widget page() => _Opener((context) => showSpaceInvite(context, channel, buddies: b, send: (c, fs) async {}, compose: texts.add));
+    Widget page() => _Opener((context) => showSpaceInvite(context, channel, buddies: b, send: (c, fs) async => const [], compose: texts.add));
     await draw(tester, page());
     await tester.tap(find.text('Text an invite'));
     for (var i = 0; i < 8; i++) {
@@ -230,6 +235,52 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Invite to Friday hang'), findsOneWidget);
     Voice.instance.clearHangouts();
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a friend who can\'t be reached is named, not counted as invited', (tester) async {
+    await load(tester);
+    final b = await buddies(tester, _friends);
+    await draw(tester, _Opener((context) => showSpaceInvite(context, channel, buddies: b, send: (c, fs) async => [for (final f in fs) if (f.username == 'sam') f])));
+    await tester.tap(find.text('Maya Chen'));
+    await tester.pump();
+    await tester.tap(find.text('Sam Ortiz'));
+    await tester.pump();
+    await tester.tap(find.text('Send 2 invites'));
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(find.text('Invited Maya Chen; couldn\'t reach Sam Ortiz'), findsWidgets);
+    await tester.pumpWidget(const SizedBox());
+    // No one reached: the sheet stays, and says so.
+    await draw(tester, _Opener((context) => showSpaceInvite(context, channel, buddies: b, send: (c, fs) async => fs)));
+    await tester.tap(find.text('Maya Chen'));
+    await tester.pump();
+    await tester.tap(find.text('Send invite'));
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(find.textContaining('Couldn\'t reach Maya Chen'), findsWidgets);
+    expect(find.text('Invite to Friday hang'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a group\'s call offers no invite, and the sheet is never raised for one', (tester) async {
+    await load(tester);
+    final group = VoiceChannel.ofGroup('g1', 'Climbing');
+    expect(SpaceCall.mayInvite(group, null), isFalse, reason: 'a group\'s channel is its members\' alone');
+    expect(SpaceCall.mayInvite(channel, null), isTrue);
+    expect(SpaceCall.mayInvite(h.room().channel, h.room()), isTrue);
+    final b = await buddies(tester, _friends);
+    final sent = <VoiceChannel>[];
+    await draw(tester, _Opener((context) => showSpaceInvite(context, group, buddies: b, send: (c, fs) async {
+          sent.add(c);
+          return const [];
+        })));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Invite to Climbing'), findsNothing);
+    expect(sent, isEmpty);
+    expect(await Voice.instance.share(group, [_friends.first]), [_friends.first], reason: 'given to no one');
     await tester.pumpWidget(const SizedBox());
   });
 

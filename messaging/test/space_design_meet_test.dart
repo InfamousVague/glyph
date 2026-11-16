@@ -106,7 +106,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('alone: your own tile is drawn and moves with your voice; Share joining info invites', (tester) async {
+  testWidgets('alone: your own tile is drawn and moves with your voice; Invite people opens the invite', (tester) async {
     final h = await SpaceHarness.load(tester);
     addTearDown(tester.view.reset);
     final log = <String>[];
@@ -125,7 +125,7 @@ void main() {
     h.levels.value = const {'me': 0};
     await tester.pump(const Duration(milliseconds: 200));
     expect((border() as Border).top.width, 1);
-    await tap(tester, 'Share joining info');
+    await tap(tester, 'Invite people');
     expect(log, ['invite']);
     await tester.pumpWidget(const SizedBox());
   });

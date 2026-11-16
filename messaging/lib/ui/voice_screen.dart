@@ -429,9 +429,9 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
     final v = Voice.instance;
     final c = await v.make(_name.text);
     final friends = [for (final f in Buddies.instance.friends) if (_with.contains(f.id)) f];
-    if (friends.isNotEmpty) await v.share(c, friends);
+    final missed = friends.isEmpty ? const <Buddy>[] : await v.share(c, friends);
     if (!mounted) return;
-    toast(context, friends.isEmpty ? '${c.name} made' : '${c.name} shared with ${friends.length}');
+    toast(context, friends.isEmpty ? '${c.name} made' : '${c.name} shared with ${friends.length - missed.length}${missed.isEmpty ? '' : '; couldn\'t reach ${missed.map((f) => f.shown).join(', ')}'}');
     // A call, started: in it at once, its page in this one's place.
     try {
       await v.join(c);
@@ -480,39 +480,6 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Shares a channel of yours with more friends.
-class ShareChannelScreen extends StatelessWidget {
-  const ShareChannelScreen({super.key, required this.channel});
-  final VoiceChannel channel;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final friends = Buddies.instance.friends;
-    return GhostPage(
-      title: 'Share ${channel.name}',
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8)),
-        children: [
-          PaneSection(children: [
-            if (friends.isEmpty) SettingRow(label: 'No friends added by username yet', disabled: true),
-            for (final f in friends)
-              SettingRow(
-                icon: AppIcon(Lucide.userRound, size: 18),
-                label: f.shown,
-                value: const Text('Share'),
-                onPress: () async {
-                  await Voice.instance.share(channel, [f]);
-                  if (context.mounted) toast(context, 'Shared with ${f.shown}');
-                },
-              ),
-          ]),
-        ],
       ),
     );
   }

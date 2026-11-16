@@ -246,9 +246,9 @@ class _MeetCallState extends State<MeetCall> {
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('You\'re the only one here', style: pageText(t, t.fontSize('lg'), weight: 'semibold', color: c.cardInk)),
         SizedBox(height: t.space(2)),
-        Text('Share this space\'s invite with people you want in the call.', style: pageText(t, t.fontSize('sm'), color: c.cardInk2)),
+        Text('Bring people into the call: friends in the app, or anyone by a text or the link.', style: pageText(t, t.fontSize('sm'), color: c.cardInk2)),
         SizedBox(height: t.space(4)),
-        _BluePill(c: c, icon: Lucide.userPlus, label: 'Share joining info', onPressed: call.onInvite == null ? null : () => _invite(context)),
+        _BluePill(c: c, icon: Lucide.userPlus, label: 'Invite people', onPressed: call.onInvite == null ? null : () => _invite(context)),
       ]),
     );
     final tile = _MeetTile(c: c, call: call, person: call.me, alone: true);
@@ -339,9 +339,9 @@ class _MeetCallState extends State<MeetCall> {
     return ListView(padding: EdgeInsets.symmetric(horizontal: t.space(5)), children: [
       Text('Joining info', style: pageText(t, t.fontSize('md'), weight: 'semibold', color: c.panelInk)),
       SizedBox(height: t.space(2)),
-      Text('${call.channel.name}, a space in Ghost Messaging. Share its invite to bring people into the call.', style: pageText(t, t.fontSize('sm'), color: c.panelInk2)),
+      Text('${call.channel.name}, a space in Ghost Messaging. Add people to bring them into the call.', style: pageText(t, t.fontSize('sm'), color: c.panelInk2)),
       SizedBox(height: t.space(4)),
-      Row(children: [_BluePill(c: c, icon: Lucide.copy, label: 'Copy joining info', onPressed: call.onInvite == null ? null : () => _invite(context))]),
+      Row(children: [_BluePill(c: c, icon: Lucide.userPlus, label: 'Add people', onPressed: call.onInvite == null ? null : () => _invite(context))]),
       SizedBox(height: t.space(6)),
       Text('You\'ve been in this call for ${call.clock(DateTime.now())}.', style: pageText(t, t.fontSize('sm'), color: c.panelInk2)),
     ]);
@@ -852,7 +852,7 @@ class _IconTap extends StatelessWidget {
       );
 }
 
-/// Meet's blue pill: "Share joining info", "Add people".
+/// Meet's blue pill: "Invite people", "Add people".
 class _BluePill extends StatelessWidget {
   const _BluePill({required this.c, required this.icon, required this.label, required this.onPressed});
   final _MeetColors c;
