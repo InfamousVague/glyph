@@ -66,13 +66,19 @@ class TextKind {
   static final _patterns = <String, RegExp>{};
   static RegExp _re(String source) => _patterns[source] ??= RegExp(r'(?<![a-z0-9])(?:' + source + r')(?![a-z0-9])', caseSensitive: false);
 
-  bool matches(String text) {
+  /// Whether [text] is this kind: one strong sign, one of [extra] (the person's own words for it), or [weakNeeded]
+  /// of the others (none at all where that is 0).
+  bool matches(String text, {int weakNeeded = 2, List<String> extra = const []}) {
     for (final s in strong) {
       if (_re(s).hasMatch(text)) return true;
     }
+    for (final w in extra) {
+      if (_re(RegExp.escape(w)).hasMatch(text)) return true;
+    }
+    if (weakNeeded <= 0) return false;
     var n = 0;
     for (final w in weak) {
-      if (_re(w).hasMatch(text) && ++n >= 2) return true;
+      if (_re(w).hasMatch(text) && ++n >= weakNeeded) return true;
     }
     return false;
   }
@@ -396,14 +402,33 @@ class KindsPlugin extends GhostPlugin {
   @override
   LucideIcon get icon => Lucide.listFilter;
 
+  /// How strict the sorting is: relaxed (strong signs only), balanced (one strong or two others), strict (one of
+  /// either). Matt, 2026-11-16: "detailed settings for the filtering with strictness settings".
+  static const levels = [
+    SettingOption('relaxed', 'Relaxed', 'Only the surest signs: "paid for by", "attempt to collect a debt", "out for delivery". Less is sorted, and less by mistake.'),
+    SettingOption('balanced', 'Balanced', 'One sure sign, or two lesser ones ("vote" and "election"), as the app ships.'),
+    SettingOption('strict', 'Strict', 'Any one sign, sure or lesser. Sorts the most; a text now and then lands in a kind it is not.'),
+  ];
+
+  static int _weakNeeded(PluginPrefs prefs) => switch (prefs.get('level')) {
+        'relaxed' => 0,
+        'strict' => 1,
+        _ => 2,
+      };
+
   @override
-  List<Classifier> get classifiers => [
-        (facts) {
+  List<TunedClassifier> get tuned => [
+        (facts, prefs) {
           if (facts.contact || facts.outgoing == true || facts.text.trim().isEmpty) return const [];
+          if (facts.group && !prefs.flag('groups')) return const [];
+          if (isNetworkChat(facts) && !prefs.flag('networks')) return const [];
+          final weakNeeded = _weakNeeded(prefs);
+          final spamFirst = prefs.flag('spam_first');
           bool? looksSpam;
           for (final k in kinds) {
-            if (!k.matches(facts.text)) continue;
-            if (k.notSpam && (looksSpam ??= judgeSpam(facts, rules: spam).spam)) continue;
+            if (!prefs.flag('kind_${k.id}')) continue;
+            if (!k.matches(facts.text, weakNeeded: weakNeeded, extra: wordsOf(prefs, 'words_${k.id}'))) continue;
+            if (spamFirst && k.notSpam && (looksSpam ??= judgeSpam(facts, rules: spam).spam)) continue;
             return [Tag(tag, k.id)];
           }
           return const [];
@@ -446,16 +471,46 @@ class KindsPlugin extends GhostPlugin {
   PluginSettingsPage? get settingsPage => PluginSettingsPage(
         hue: 'slate',
         intro: 'Texts from numbers that are not in your contacts, sorted by what they are about. The filter beside the tabs shows or hides each kind.',
-        summary: (prefs) => '${kinds.length} kinds',
+        summary: (prefs) {
+          final on = kinds.where((k) => prefs.flag('kind_${k.id}')).length;
+          final level = levels.firstWhere((o) => o.value == (prefs.get('level') ?? 'balanced'), orElse: () => levels[1]).label;
+          return '$level · $on of ${kinds.length} kinds';
+        },
       );
 
   @override
   List<PluginSetting> get settings => [
-        for (final k in kinds) PluginSetting.note(label: k.label, hint: '${k.about}${k.hidden ? ' Hidden from Messages until you show it.' : ''}', icon: k.icon),
+        const PluginSetting.heading(label: 'How strict', hint: 'Each kind has sure signs and lesser ones. How many it takes to sort a text:'),
+        const PluginSetting.choice(key: 'level', label: 'Strictness', options: levels, choice: 'balanced'),
+        const PluginSetting.heading(label: 'Kinds', hint: 'Switch off a kind to stop sorting texts into it. Whether a kind shows in Messages is chosen in the filter beside the tabs.'),
+        for (final k in kinds) PluginSetting.toggle(key: 'kind_${k.id}', label: k.label, hint: '${k.about}${k.hidden ? ' Hidden from Messages until you show it.' : ''}', icon: k.icon),
+        const PluginSetting.heading(label: 'Your own words', hint: 'A text from someone not in your contacts with any of these is sorted into that kind, as a sure sign is. Commas between them.'),
+        for (final k in kinds) PluginSetting.words(key: 'words_${k.id}', label: 'Words for ${k.label.toLowerCase()}', icon: k.icon, placeholder: _examples[k.id]),
+        const PluginSetting.heading(label: 'Where it looks'),
+        const PluginSetting.toggle(key: 'groups', label: 'Group chats with strangers', hint: 'A group in which nobody is in your contacts is sorted too.', icon: Lucide.users),
+        const PluginSetting.toggle(key: 'networks', label: 'Signal and Telegram', hint: 'Chats there from people you have not added, as texts are.', icon: Lucide.messageSquare),
+        const PluginSetting.toggle(
+          key: 'spam_first',
+          label: 'Spam before shown kinds',
+          hint: 'A text that looks like spam is not sorted as a delivery, a reminder or an appointment, so a fake "your parcel is held, pay the fee" stays hidden in Spam.',
+          icon: Lucide.shieldCheck,
+        ),
         const PluginSetting.note(
           label: 'On this phone only',
           hint: 'Texts are looked at here and sent nowhere. Nothing is deleted or blocked, and your contacts are never sorted. "Not …" on a conversation puts it back in Messages for good.',
           icon: Lucide.lock,
         ),
       ];
+
+  static const _examples = {
+    'debt': 'balance owed, collections',
+    'political': 'a candidate\'s name',
+    'sales': 'solar, roofing',
+    'scams': 'investment club',
+    'reminders': 'your landlord\'s name',
+    'food': 'a local restaurant',
+    'deliveries': 'a courier you use',
+    'appointments': 'your dentist',
+    'notices': 'a service you use',
+  };
 }

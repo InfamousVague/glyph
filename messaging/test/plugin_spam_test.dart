@@ -28,7 +28,7 @@ void main() {
     test('each sign is found where it is, and one sign alone is not spam', () {
       expect(_signs(_prize), ['link', 'prize']);
       expect(_signs(_locked), ['link', 'pressure']);
-      expect(_signs(_parcel), ['link', 'delivery']);
+      expect(_signs(_parcel), ['link', 'delivery', 'shortlink']);
       expect(_signs('You\'re pre-approved for a \$5,000 loan! Act now'), ['pressure', 'money']);
       expect(_signs('Deals inside: www.shop.example/sale', from: ['promo@deals.example']), ['link', 'email']);
       expect(_signs('Unable to deliver your parcel: customs fee unpaid'), ['pressure', 'delivery']);
@@ -218,7 +218,7 @@ void main() {
       await settle(tester);
       expect(find.byType(PluginRow), findsNWidgets(2));
       expect(find.text('Looks like spam: a link, prize wording'), findsOneWidget);
-      expect(find.text('Looks like spam: a link, a delivery problem'), findsOneWidget);
+      expect(find.text('Looks like spam: a link, a delivery problem, a shortened link'), findsOneWidget);
       expect(find.text('Show all'), findsOneWidget);
 
       // "Not spam" on the row: back in Messages, said, kept, and its notifications back on.

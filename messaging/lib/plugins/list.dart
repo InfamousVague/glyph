@@ -116,6 +116,10 @@ class ListPlugins {
   Map<String, PluginSection?> _chatAt = const {};
   final _chatTags = <String, (String, TagSet)>{};
 
+  /// What each chat on another network said of itself when last sorted, by its number ([chatThread]): so "Move to
+  /// Spam" and "Not spam" file a chat as they file a conversation of texts.
+  final _chatFacts = <int, MessageFacts>{};
+
   /// A number for a chat on another network as the plugins know a conversation: never one of Android's (which are
   /// above nothing) nor the bridge's own (just below).
   static int chatThread(String key) => -(1 << 40) - (key.hashCode & 0x3fffffff);
@@ -162,10 +166,15 @@ class ListPlugins {
     var others = all.where((c) => !c.archived && at[c.id] == null).length;
     // The other networks' chats, by what their newest message says, as a text is by its.
     final chatAt = <String, PluginSection?>{};
+    // What a chat was tagged holds while its words and the plugins' choices do.
+    final switches = registry.switches(store);
+    _chatFacts.clear();
     for (final c in chats) {
+      _chatFacts[c.facts.thread] = c.facts;
+      final seen = '$switches\u0000${c.facts.text}';
       final had = _chatTags[c.key];
-      final tagged = had != null && had.$1 == c.facts.text ? had.$2 : registry.classify(c.facts, store);
-      _chatTags[c.key] = (c.facts.text, tagged);
+      final tagged = had != null && had.$1 == seen ? had.$2 : registry.classify(c.facts, store);
+      _chatTags[c.key] = (seen, tagged);
       final s = registry.sectionOf(c.facts, tagged, store, among: sections);
       chatAt[c.key] = s;
       if (s == null) {
@@ -193,6 +202,15 @@ class ListPlugins {
     if (section != null) return s?.id == section;
     if (searching) return true;
     return s == null ? othersShown() : !_leaves(s);
+  }
+
+  /// Whether the chat [key] is kept out of its network's own tab: a kind the filter hides, Spam, or a section that
+  /// takes what it has out of the main list (Matt, 2026-11-16: "Fix the filtering a bit more this message got
+  /// through"). A search finds it all the same.
+  bool hidesChat(String key, {required bool searching}) {
+    if (searching) return false;
+    final s = _chatAt[key];
+    return s != null && _leaves(s);
   }
 
   /// What the list shows in place of a section: every conversation of a kind the filter hides ("N hidden · Show").
@@ -460,7 +478,16 @@ class _Host implements PluginHost {
   @override
   void move(int thread, String? section) {
     final facts = list.tags.facts(thread);
-    if (facts != null) list.registry.move(facts, list.tags.of(thread), section, list._store!);
+    if (facts != null) {
+      list.registry.move(facts, list.tags.of(thread), section, list._store!);
+      return;
+    }
+    // A chat on another network.
+    final chat = list._chatFacts[thread];
+    if (chat == null) return;
+    final key = list._chatAt.keys.firstWhere((k) => ListPlugins.chatThread(k) == thread, orElse: () => '');
+    final tags = list._chatTags[key]?.$2 ?? TagSet.none;
+    list.registry.move(chat, tags, section, list._store!);
   }
 
   /// The list has nothing being written.

@@ -5,6 +5,7 @@ library;
 
 import 'dart:io' show Platform;
 
+import 'package:flutter/services.dart' show TextCapitalization;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -102,19 +103,106 @@ List<Widget> pluginsPane(BuildContext context, AppState app, PluginRegistry regi
   ];
 }
 
-/// A plugin's own settings as a card: the rows it describes in words ([GhostPlugin.settings]), then what it puts in
-/// the settings slot. No card where it has neither.
+/// A plugin's own settings as cards: the rows it describes in words ([GhostPlugin.settings]), a new card at each of
+/// its headings, then what it puts in the settings slot. No card where it has neither.
 List<Widget> _own(BuildContext context, GhostPlugin plugin, PluginRegistry registry, PluginStore store, {required String? title, String? description}) {
   final prefs = registry.prefsOf(plugin, store);
-  final rows = <Widget>[
-    for (final s in registry.settingsOf(plugin))
+  final cards = <PaneSection>[];
+  var heading = title;
+  Widget? intro = description == null ? null : Text(description);
+  var rows = <Widget>[];
+  void close() {
+    if (rows.isNotEmpty) cards.add(PaneSection(title: heading, description: intro, children: rows));
+    rows = <Widget>[];
+  }
+
+  for (final s in registry.settingsOf(plugin)) {
+    if (s.heading) {
+      close();
+      heading = s.label;
+      intro = s.hint == null ? null : Text(s.hint!);
+      continue;
+    }
+    rows.addAll(_row(s, prefs));
+  }
+  rows.addAll(registry.widgets(Slots.settings, context, const SettingsPlace(), store, only: plugin));
+  close();
+  return cards;
+}
+
+/// The row, or rows, one setting is drawn as.
+List<Widget> _row(PluginSetting s, PluginPrefs prefs) {
+  final icon = s.icon == null ? null : AppIcon(s.icon!, size: 18);
+  if (s.options.isNotEmpty) {
+    final chosen = prefs.get(s.key!) ?? s.choice;
+    return [
+      if (s.hint != null || icon != null) SettingRow(icon: icon, label: s.label, hint: s.hint == null ? null : Text(s.hint!)),
+      for (final o in s.options)
+        SettingRow(
+          label: o.label,
+          hint: o.hint == null ? null : Text(o.hint!),
+          control: Pick(checked: chosen == o.value, label: '${s.label}: ${o.label}', onPress: () => prefs.set(s.key!, o.value)),
+        ),
+    ];
+  }
+  if (s.words) {
+    return [
       SettingRow(
-        icon: s.icon == null ? null : AppIcon(s.icon!, size: 18),
+        icon: icon,
         label: s.label,
         hint: s.hint == null ? null : Text(s.hint!),
-        control: s.key == null ? null : GlacierSwitch(checked: prefs.flag(s.key!, fallback: s.fallback), onCheckedChange: (on) => prefs.setFlag(s.key!, on), ariaLabel: s.label),
+        layout: SettingRowLayout.stacked,
+        control: _WordsField(key: ValueKey('words-${s.key}'), prefs: prefs, keyName: s.key!, label: s.label, placeholder: s.placeholder),
       ),
-    ...registry.widgets(Slots.settings, context, const SettingsPlace(), store, only: plugin),
+    ];
+  }
+  return [
+    SettingRow(
+      icon: icon,
+      label: s.label,
+      hint: s.hint == null ? null : Text(s.hint!),
+      control: s.key == null ? null : GlacierSwitch(checked: prefs.flag(s.key!, fallback: s.fallback), onCheckedChange: (on) => prefs.setFlag(s.key!, on), ariaLabel: s.label),
+    ),
   ];
-  return rows.isEmpty ? const [] : [PaneSection(title: title, description: description == null ? null : Text(description), children: rows)];
+}
+
+/// Words typed with commas between them, kept a line each when the field is left or Enter is pressed.
+class _WordsField extends StatefulWidget {
+  const _WordsField({super.key, required this.prefs, required this.keyName, required this.label, this.placeholder});
+  final PluginPrefs prefs;
+  final String keyName;
+  final String label;
+  final String? placeholder;
+
+  @override
+  State<_WordsField> createState() => _WordsFieldState();
+}
+
+class _WordsFieldState extends State<_WordsField> {
+  late final _text = TextEditingController(text: wordsOf(widget.prefs, widget.keyName).join(', '));
+
+  @override
+  void dispose() {
+    _save();
+    _text.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final words = [for (final w in _text.text.split(RegExp(r'[\n,]'))) if (w.trim().isNotEmpty) w.trim()];
+    final kept = words.join('\n');
+    if (kept != (widget.prefs.get(widget.keyName) ?? '')) widget.prefs.set(widget.keyName, kept);
+  }
+
+  @override
+  Widget build(BuildContext context) => GlacierInput(
+        controller: _text,
+        placeholder: widget.placeholder ?? 'Words, with commas between them',
+        ariaLabel: widget.label,
+        autoCorrect: false,
+        autoCapitalize: TextCapitalization.none,
+        size: GlacierFieldSize.md,
+        onSubmitted: (_) => _save(),
+        onBlur: _save,
+      );
 }
