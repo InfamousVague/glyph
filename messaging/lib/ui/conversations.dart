@@ -830,7 +830,15 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final shown = _shown;
     // What the list holds: conversations, the voice channels in their tab, or a network's chats in its.
     final List<Object> rows = inbox != null && inbox.state == InboxState.ready
-        ? [for (final c in inbox.chats) if (_query.isEmpty || c.title.toLowerCase().contains(_query.toLowerCase()) || c.snippet.toLowerCase().contains(_query.toLowerCase())) c]
+        // A network's own tab leaves out what the filters hide from Messages, as Messages does (Matt, 2026-11-16: "Fix
+        // the filtering a bit more this message got through"); a search finds it.
+        ? [
+            for (final c in inbox.chats)
+              if ((_query.isEmpty || c.title.toLowerCase().contains(_query.toLowerCase()) || c.snippet.toLowerCase().contains(_query.toLowerCase())) &&
+                  !_plugins.hidesChat('${c.network}:${c.id}', searching: _query.isNotEmpty) &&
+                  (_spamHost == null || _query.isNotEmpty || (Inbox.instance.named(c.network)?.localList('notspam').contains(c.id) ?? false) || scamOf(c) == null))
+                c,
+          ]
         : _section == voiceTab
             ? voices
             : _mixed(shown);

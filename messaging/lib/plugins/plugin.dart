@@ -156,6 +156,12 @@ class TagSet {
 /// every time.
 typedef Classifier = List<Tag> Function(MessageFacts facts);
 
+/// A classifier that is told the plugin's own choices: a filter whose strictness and words the person sets (Matt,
+/// 2026-11-16: "detailed settings for the filtering with strictness settings and tweak options for everything").
+/// What it said is kept as a [Classifier]'s is, and worked out again for every conversation when one of a plugin's
+/// choices changes ([PluginRegistry.switches]).
+typedef TunedClassifier = List<Tag> Function(MessageFacts facts, PluginPrefs prefs);
+
 // --- what a plugin may ask of the app --------------------------------------------------------------------------------
 
 /// A plugin's own choices, kept with the person's others under the plugin's name.
@@ -166,7 +172,29 @@ abstract interface class PluginPrefs {
   /// A switch: on unless it was switched off ([fallback] false: off unless switched on).
   bool flag(String key, {bool fallback = true});
   void setFlag(String key, bool on);
+
+  /// Nothing chosen: every switch at its fallback, every choice unset. For a test, and a classifier asked outside
+  /// the list.
+  static const PluginPrefs none = _NoPrefs();
 }
+
+class _NoPrefs implements PluginPrefs {
+  const _NoPrefs();
+  @override
+  String? get(String key) => null;
+  @override
+  void set(String key, String value) {}
+  @override
+  bool flag(String key, {bool fallback = true}) => fallback;
+  @override
+  void setFlag(String key, bool on) {}
+}
+
+/// A list of words or addresses kept in one choice, a line each; typed with commas or lines between them.
+List<String> wordsOf(PluginPrefs prefs, String key) => [
+      for (final w in (prefs.get(key) ?? '').split(RegExp(r'[\n,]')))
+        if (w.trim().isNotEmpty) w.trim(),
+    ];
 
 /// What a plugin's action is handed to do its work with: the app's side of the contract. A screen that draws a
 /// slot or a section gives one; a plugin never sees the screen.
@@ -501,18 +529,77 @@ typedef IncomingRule = List<IncomingAction> Function(MessageFacts facts, TagSet 
 @immutable
 class PluginSetting {
   /// A switch, kept under [key] in the plugin's choices.
-  const PluginSetting.toggle({required String this.key, required this.label, this.hint, this.fallback = true, this.icon});
+  const PluginSetting.toggle({required String this.key, required this.label, this.hint, this.fallback = true, this.icon})
+      : options = const [],
+        choice = null,
+        words = false,
+        placeholder = null,
+        heading = false;
 
   /// A line that says something and changes nothing.
   const PluginSetting.note({required this.label, this.hint, this.icon})
       : key = null,
-        fallback = false;
+        fallback = false,
+        options = const [],
+        choice = null,
+        words = false,
+        placeholder = null,
+        heading = false;
+
+  /// One of a few values, kept under [key]: a row for each, the chosen one marked ([choice] until one is chosen).
+  const PluginSetting.choice({required String this.key, required this.label, this.hint, this.icon, required this.options, required String this.choice})
+      : fallback = false,
+        words = false,
+        placeholder = null,
+        heading = false;
+
+  /// Words, phrases or addresses typed in a field, kept under [key] a line each ([wordsOf]).
+  const PluginSetting.words({required String this.key, required this.label, this.hint, this.icon, this.placeholder})
+      : fallback = false,
+        options = const [],
+        choice = null,
+        words = true,
+        heading = false;
+
+  /// A heading that starts a card of its own: the rows after it, to the next heading, are under it.
+  const PluginSetting.heading({required this.label, this.hint})
+      : key = null,
+        icon = null,
+        fallback = false,
+        options = const [],
+        choice = null,
+        words = false,
+        placeholder = null,
+        heading = true;
 
   final String? key;
   final String label;
   final String? hint;
   final bool fallback;
   final LucideIcon? icon;
+
+  /// A choice's values and what each is called and does.
+  final List<SettingOption> options;
+
+  /// A choice's value until the person picks one.
+  final String? choice;
+
+  /// A field of words ([PluginSetting.words]).
+  final bool words;
+  final String? placeholder;
+  final bool heading;
+
+  /// A switch ([PluginSetting.toggle]).
+  bool get toggle => key != null && options.isEmpty && !words;
+}
+
+/// One value of a [PluginSetting.choice].
+@immutable
+class SettingOption {
+  const SettingOption(this.value, this.label, [this.hint]);
+  final String value;
+  final String label;
+  final String? hint;
 }
 
 /// A section of its own in Settings for a plugin (Matt, 2026-11-14: "the plugins and all being able to make their
@@ -558,6 +645,9 @@ abstract class GhostPlugin {
   bool get onByDefault => true;
 
   List<Classifier> get classifiers => const [];
+
+  /// Classifiers told the plugin's own choices ([TunedClassifier]).
+  List<TunedClassifier> get tuned => const [];
   List<ListSection> get sections => const [];
   List<SlotFill> get slots => const [];
   List<IncomingRule> get incoming => const [];
