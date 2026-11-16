@@ -644,6 +644,27 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   Kept on purpose: `@group.ghost-sms.com` in a group's address (a name phones store and send, not a link), and the
   relay's sign-in callbacks (`GHOST_PUBLIC_URL`), until gogho.st's callback addresses are added at Discord, X and
   Telegram. The folders on the box keep their names (/opt/ghost-sms-*).
+- **Six other designs for a space's call, behind a developer switch; your own voice activity alone** (0.7.49, not
+  released; Matt, 2026-11-16: "give me 6 alternate designs for the calling chat and video screens for spaces,
+  Additionally make it so that even when we're in the call alone we see the voice activity of ourselves release all 6
+  versions under a developer setting flag so I can toggle them on and off. Use iconography and good labeling and base
+  the designs off popular voice and video chat apps that exist today").
+  - **The switch:** Settings › Developer › Space call design: Standard (the app's own) or one of six. With one chosen,
+    a space's call opens as a page over the whole window (`openSpaceCall`, `SpaceCallPage`); Minimise puts it away to
+    the call banner, which brings it back.
+  - **The six** (`lib/ui/space_designs/`): Voice channel like Discord (dark tiles, green outline on whoever talks,
+    Text in voice panel), Meeting like Zoom (speaker and gallery views, labelled toolbar, Participants and Chat
+    panels), Full screen like FaceTime (whoever talks fills it, you in a corner, glass controls), Rounded tiles like
+    Google Meet (audio bars, pill toolbar, People and In-call messages), Audio stage like Clubhouse and X Spaces (big
+    rippling faces on stage, listeners below, chat as Comments), Voice chat like Telegram (a dark sheet of people with
+    waves, one big microphone button). Each works on a phone and a computer window, light and dark, with an icon and
+    words on every control (`SpaceWords`, the same words in all six), and draws from one model, `SpaceCall`.
+  - **Built** by six agents in parallel, each design then reviewed adversarially against its brief, fixed and
+    checked again (tests: `space_design_<name>_test.dart` for each, `space_designs_test.dart` over all, pictures
+    `test/shots/space-*`).
+  - **Your own activity alone:** the level meter (`RtcMedia`) is now connected to a silent partner on the device, so
+    the microphone really sends and is measured with nobody else in the call; what arrives at the partner is never
+    played. Not yet heard on a phone or the Mac.
 - **Hangouts get a chat, and roles and permissions as Discord has them** (0.7.25; Matt, 2026-11-15:
   "Implement a permissions system similar to discord for hangouts and add a chat to hangouts so the whole group can
   send messages to the hangout as well as voice and video, make default roles such as admin, moderator, member").
