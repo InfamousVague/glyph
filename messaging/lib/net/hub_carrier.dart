@@ -137,6 +137,18 @@ class HubCarrier implements Carrier {
     _connect();
   }
 
+  /// The app has come back to the screen (Matt, 2026-11-16: "fix delivery"): a connection that is down is tried now,
+  /// not at the end of its wait, and one held while the app was away for [stale] or longer is made again, since the
+  /// phone may have let it die without saying so (the relay server would hand it messages that go nowhere).
+  void nudge({Duration away = Duration.zero, Duration stale = const Duration(seconds: 45)}) {
+    if (!_wanted) return;
+    if (_ws != null && away < stale) return;
+    _again?.cancel();
+    _tries = 0;
+    if (_ws != null) _drop('made again after the app was away');
+    unawaited(_connect());
+  }
+
   @override
   Future<void> stop() async {
     _wanted = false;

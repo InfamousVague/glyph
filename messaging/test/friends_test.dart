@@ -1,6 +1,8 @@
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/friends/friends.dart';
 import 'package:ghost_messaging/net/packet.dart';
 
@@ -14,6 +16,13 @@ const ann = '+15550001111', ben = '+15550002222';
 Future<void> settle() async {
   for (var i = 0; i < 6; i++) {
     await Future<void>.delayed(const Duration(milliseconds: 30));
+  }
+}
+
+/// Waits, a little at a time and for five seconds at most, until [done]: no fixed sleep, which a busy machine outruns.
+Future<void> until(bool Function() done) async {
+  for (var i = 0; i < 250 && !done(); i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 20));
   }
 }
 
@@ -218,5 +227,71 @@ void main() {
     expect(second.offers(second.of(ben)!), isTrue);
     expect(told, 1);
     await second.shutdown();
+  });
+
+  // Matt, 2026-11-16: "Yes, fix delivery". A message the relay server handed to a connection that had just died was
+  // lost, with nothing to say so: now what has had no answer goes again until it has one.
+  test('handed on and never answered: sent again with the same id when a route comes up, and kept once', () async {
+    await two(annIs: 'yes', benIs: 'yes');
+    a.lost = true;
+    expect(await annsPhone.sendText(ben, 'are you there'), isTrue);
+    await settle();
+    expect(b.came, isEmpty);
+    expect(a.rows.values.single.state, 'sent');
+    expect(annsPhone.unanswered, 1);
+    // The connection is made again (the app came back): it goes again, arrives and is answered.
+    a.lost = false;
+    a.bump();
+    await until(() => b.came.isNotEmpty && annsPhone.unanswered == 0);
+    expect(b.came.map((c) => c.words), ['are you there']);
+    expect(a.rows.values.single.state, 'delivered');
+    expect(annsPhone.unanswered, 0);
+    final texts = a.sent.where((x) => x.envelope.kind == 'text').toList();
+    expect(texts, hasLength(2));
+    expect(texts.last.envelope.id, texts.first.envelope.id, reason: 'the same id, so it is known for the same one');
+  });
+
+  test('the same message twice (its answer was lost) is kept once', () async {
+    await two(annIs: 'yes', benIs: 'yes');
+    final e = Envelope(kind: 'text', body: {'t': 'once'});
+    b.arriveAgain(ann, e);
+    b.arriveAgain(ann, e);
+    await settle();
+    expect(b.came.map((c) => c.words), ['once']);
+  });
+
+  test('sent again later and later: twenty seconds, then twice as long, five minutes at most', () {
+    expect([for (var t = 1; t <= 6; t++) Friends.resendAfter(t).inSeconds], [20, 40, 80, 160, 300, 300]);
+  });
+
+  test('what waits for an answer is kept with the app\'s choices: an app closed meanwhile sends it after', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (_) async => null);
+    final app = AppState();
+    a = FakePort(ann);
+    b = FakePort(ben);
+    a.other = b;
+    b.other = a;
+    a.stand(ben, friend: 'yes');
+    b.stand(ann, friend: 'yes');
+    annsPhone = Friends(a);
+    bensPhone = Friends(b);
+    await annsPhone.start(app);
+    await bensPhone.start();
+    a.lost = true;
+    await annsPhone.sendText(ben, 'before closing');
+    await settle();
+    expect(app.choice('friends_out', '[]'), contains('before closing'));
+    // The app closes and opens again.
+    await annsPhone.shutdown();
+    a.lost = false;
+    annsPhone = Friends(a);
+    await annsPhone.start(app);
+    expect(annsPhone.unanswered, 1);
+    a.bump();
+    await until(() => b.came.isNotEmpty && annsPhone.unanswered == 0);
+    expect(b.came.map((c) => c.words), ['before closing']);
+    expect(annsPhone.unanswered, 0);
+    expect(app.choice('friends_out', '[]'), '[]');
   });
 }

@@ -307,6 +307,43 @@ void main() {
       expect(c.state.value, CarrierState.up, reason: c.problem);
     }
 
+    // Matt, 2026-11-16: "Yes, fix delivery". Back on the screen after a while, the app makes the connection again
+    // rather than trust one the phone may have let die; a short look away leaves it be; one that is down is tried now.
+    test('nudged: made again after a long time away, left after a short one, tried at once when down', () async {
+      final c = HubCarrier(url: url, signer: KeysSigner(NetKeys.generate()), retry: const Duration(hours: 1));
+      await up(c);
+      var states = <CarrierState>[];
+      void heard() => states.add(c.state.value);
+      c.state.addListener(heard);
+      c.nudge(away: const Duration(seconds: 5));
+      await _tick(100);
+      expect(states, isEmpty, reason: 'away a moment: the connection is trusted');
+      c.nudge(away: const Duration(minutes: 3));
+      for (var i = 0; i < 200 && c.state.value != CarrierState.up; i++) {
+        await _tick(10);
+      }
+      await _tick(50);
+      expect(states, contains(CarrierState.connecting), reason: 'away long enough for it to have died: made again');
+      expect(c.state.value, CarrierState.up);
+      // Down, with an hour to wait before the next try: a nudge tries now.
+      await relay.stop();
+      for (var i = 0; i < 200 && c.state.value == CarrierState.up; i++) {
+        await _tick(10);
+      }
+      expect(c.state.value, CarrierState.down);
+      final port = Uri.parse(url).port;
+      relay = Relay(hub: Hub());
+      await relay.start(port: port);
+      states = [];
+      c.nudge();
+      for (var i = 0; i < 300 && c.state.value != CarrierState.up; i++) {
+        await _tick(10);
+      }
+      expect(c.state.value, CarrierState.up, reason: 'tried now, not in an hour');
+      c.state.removeListener(heard);
+      await c.stop();
+    });
+
     test('two installs find each other by name, and what one sends the other gets, sealed all the way', () async {
           final a = NetKeys.generate(), b = NetKeys.generate();
           final key = NetCrypto.netKey(NetCrypto.conversationKey(a, b.public)!);
