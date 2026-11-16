@@ -15,6 +15,8 @@ import '../voice/roles.dart';
 import '../voice/voice.dart';
 import 'common.dart';
 import '../app_state.dart';
+import '../backgrounds.dart';
+import '../sms.dart' show Person;
 import 'composer_box.dart';
 import 'poof.dart';
 import 'nav_bar.dart';
@@ -311,12 +313,6 @@ class _HangoutChatState extends State<HangoutChat> {
     if (widget.room.send(_text.text)) _text.clear();
   }
 
-  static String _time(int at) {
-    final d = DateTime.fromMillisecondsSinceEpoch(at);
-    final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
-    return '$h:${d.minute.toString().padLeft(2, '0')} ${d.hour < 12 ? 'AM' : 'PM'}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
@@ -326,19 +322,33 @@ class _HangoutChatState extends State<HangoutChat> {
       builder: (context, _) {
         final list = room.messages.reversed.toList();
         final mayWrite = room.can(Perm.chat);
+        final (mineBg, mineInk) = myBubble(t, AppState.of(context));
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(
             child: list.isEmpty
                 ? Center(child: Text('No messages yet', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))
                 : ListView.builder(
                     reverse: true,
-                    padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(2)),
+                    padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
                     itemCount: list.length,
                     itemBuilder: (context, i) {
                       final m = list[i];
-                      // Messages in a run from one person show their name once.
-                      final first = i == list.length - 1 || list[i + 1].from != m.from;
-                      return Poof(
+                      // Laid out as a conversation of texts is (Matt, 2026-11-16: "update the chat inside spaces to match
+                      // the look and layout of the normal chats"): a run from one person is one stack of bubbles, the
+                      // name over its first, the face and the time by its last, and a day's heading where the day turns.
+                      // The list runs newest first: [i + 1] is the message before, [i - 1] the one after.
+                      final at = DateTime.fromMillisecondsSinceEpoch(m.at);
+                      final before = i == list.length - 1 ? null : list[i + 1];
+                      final after = i == 0 ? null : list[i - 1];
+                      bool sameDay(HangoutMessage? o) {
+                        if (o == null) return false;
+                        final d = DateTime.fromMillisecondsSinceEpoch(o.at);
+                        return d.year == at.year && d.month == at.month && d.day == at.day;
+                      }
+                      final newDay = !sameDay(before);
+                      final first = newDay || before!.from != m.from;
+                      final last = !sameDay(after) || after!.from != m.from;
+                      final message = Poof(
                         key: ValueKey('poof-${m.id}'),
                         gone: _poofing.contains(m.id),
                         side: AxisDirection.left,
@@ -346,8 +356,16 @@ class _HangoutChatState extends State<HangoutChat> {
                           _poofing.remove(m.id);
                           room.delete(m);
                         },
-                        child: _Message(key: ValueKey(m.id), room: room, message: m, first: first, time: _time(m.at), onDelete: () => setState(() => _poofing.add(m.id))),
+                        child: _Message(key: ValueKey(m.id), room: room, message: m, first: first, last: last, mineBg: mineBg, mineInk: mineInk, onDelete: () => setState(() => _poofing.add(m.id))),
                       );
+                      if (!newDay) return message;
+                      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                        Padding(
+                          padding: EdgeInsets.only(top: t.space(4), bottom: t.space(1)),
+                          child: Text(dayHeading(at), textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
+                        ),
+                        message,
+                      ]);
                     },
                   ),
           ),
@@ -374,11 +392,15 @@ class _HangoutChatState extends State<HangoutChat> {
 }
 
 class _Message extends StatelessWidget {
-  const _Message({super.key, required this.room, required this.message, required this.first, required this.time, this.onDelete});
+  const _Message({super.key, required this.room, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onDelete});
   final HangoutRoom room;
   final HangoutMessage message;
-  final bool first;
-  final String time;
+
+  /// The first and the last of a run from one person on one day.
+  final bool first, last;
+
+  /// This person's own bubble colours (lib/backgrounds.dart myBubble), as in a conversation of texts.
+  final Color mineBg, mineInk;
 
   /// Deletes it, with its puff.
   final VoidCallback? onDelete;
@@ -390,7 +412,11 @@ class _Message extends StatelessWidget {
     final mine = m.from == room.me;
     final role = room.roster.roleOf(m.from);
     final owner = room.roster.isOwner(m.from);
-    final name = mine ? 'You' : (m.name.isEmpty ? Voice.instance.nameOf(m.from) : m.name);
+    final name = m.name.isEmpty ? Voice.instance.nameOf(m.from) : m.name;
+    final round = Radius.circular(t.lenOf('1.125rem'));
+    final tight = Radius.circular(t.lenOf('0.375rem'));
+    final faceSize = t.lenOf('1.75rem');
+    final faceGap = mine ? 0.0 : faceSize + t.space(2);
     // Pressed and held: copy it, or delete it at once with a puff (Matt, 2026-11-15: "Don't ask for confirmation when
     // deleting a message and show a poof animation when one is deleted").
     void menu() {
@@ -401,24 +427,56 @@ class _Message extends StatelessWidget {
       ]);
     }
 
+    final bubble = ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.72),
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+        decoration: BoxDecoration(
+          color: mine ? mineBg : theirBubble(t, onBackground: false),
+          border: mine && bubbleNeedsRim(mineBg, t.color('glacier-bg')) ? Border.all(color: t.color('app-ink-4'), width: 1) : null,
+          borderRadius: BorderRadius.only(
+            topLeft: !mine && !first ? tight : round,
+            bottomLeft: !mine && !last ? tight : round,
+            topRight: mine && !first ? tight : round,
+            bottomRight: mine && !last ? tight : round,
+          ),
+        ),
+        child: Text(m.text, style: pageText(t, t.fontSize('md'), color: mine ? mineInk : t.color('app-ink'), height: 1.3)),
+      ),
+    );
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onLongPress: menu,
       onSecondaryTap: menu,
       child: Padding(
-        padding: EdgeInsets.only(top: first ? t.space(3) : t.space(1)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (first)
+        padding: EdgeInsets.only(top: first ? t.space(2) : 2),
+        child: Column(crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start, children: [
+          // The name over a run's first bubble in the app's primary colour, as over a group of texts', and the space's
+          // own role beside it where it is more than a member's.
+          if (first && !mine)
             Padding(
-              padding: EdgeInsets.only(bottom: t.space(1)),
-              child: Row(children: [
-                Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'bold', color: t.color('app-ink')))),
-                if (owner || role.id != room.roster.newcomer) ...[SizedBox(width: t.space(2)), RoleTag(role: role, owner: owner)],
-                SizedBox(width: t.space(2)),
-                Text(time, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+              padding: EdgeInsets.only(left: faceGap + t.space(3), bottom: 2),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent')))),
+                if (owner || role.id != room.roster.newcomer) ...[SizedBox(width: t.space(1) + 2), RoleTag(role: role, owner: owner)],
               ]),
             ),
-          Text(m.text, style: pageText(t, t.fontSize('md'), color: t.color('app-ink'))),
+          if (first && mine && (owner || role.id != room.roster.newcomer))
+            Padding(padding: EdgeInsets.only(right: t.space(1), bottom: 2), child: RoleTag(role: role, owner: owner)),
+          Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
+            // Their face by the run's last bubble, as in a group of texts.
+            if (!mine) ...[
+              SizedBox(width: faceSize, child: last ? Avatar(people: [Person(address: 'space:${m.from}', name: name)], size: faceSize) : null),
+              SizedBox(width: t.space(2)),
+            ],
+            Flexible(child: bubble),
+          ]),
+          if (last)
+            Padding(
+              padding: EdgeInsets.only(top: 2, left: faceGap + t.space(2), right: t.space(2)),
+              child: Text(clock(DateTime.fromMillisecondsSinceEpoch(m.at)), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+            ),
         ]),
       ),
     );
