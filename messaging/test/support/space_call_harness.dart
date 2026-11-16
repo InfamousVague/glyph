@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -49,8 +50,25 @@ class SpaceHarness {
   SpaceHarness._(this.sheet);
   final TokenSheet sheet;
 
-  /// The app's tokens and the platform channels the pages touch answered with nothing.
+  static bool _fontsIn = false;
+
+  /// The app's own fonts, so the pictures show words, not blocks.
+  static Future<void> _fonts() async {
+    if (_fontsIn) return;
+    Future<void> family(String name, String file) async {
+      final loader = FontLoader(name)..addFont(File(file).readAsBytes().then((b) => ByteData.view(Uint8List.fromList(b).buffer)));
+      await loader.load();
+    }
+
+    await family('Inter Variable', 'assets/fonts/InterVariable-latin.ttf');
+    await family('JetBrains Mono Variable', 'assets/fonts/JetBrainsMonoVariable-latin.ttf');
+    await family('Ghost Emoji Noto', 'assets/emoji/NotoColor.ttf');
+    _fontsIn = true;
+  }
+
+  /// The app's tokens and fonts, and the platform channels the pages touch answered with nothing.
   static Future<SpaceHarness> load(WidgetTester tester) async {
+    await tester.runAsync(_fonts);
     final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async => null);
     messenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async => null);
