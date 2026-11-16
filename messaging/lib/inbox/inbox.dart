@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../app_state.dart';
+import '../kept_lists.dart';
 import 'bluesky.dart';
 import 'telegram.dart';
 
@@ -235,6 +236,7 @@ abstract class InboxNetwork extends ChangeNotifier {
     final s = localList(what);
     on ? s.add(item) : s.remove(item);
     listStore?.set('inbox_${id}_$what', s.join('\u001f'));
+    KeptLists.instance.changed();
   }
 
   /// The chat opened in the app: kept fresh more often while it is shown. Null when none is.

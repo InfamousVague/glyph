@@ -28,6 +28,9 @@ class AppState extends ChangeNotifier {
 
   String choice(String key, String fallback) => _prefs[key] ?? fallback;
 
+  /// The choices whose keys start with [prefix] (Ghost's own lists of a network's chats: lib/kept_lists.dart).
+  Map<String, String> withPrefix(String prefix) => {for (final e in _prefs.entries) if (e.key.startsWith(prefix)) e.key: e.value};
+
   /// A switch: on unless it was switched off ([fallback] false: off unless switched on).
   bool flag(String key, {bool fallback = true}) => _prefs[key] == null ? fallback : _prefs[key] == 'on';
 

@@ -253,6 +253,21 @@ object GmWeb {
         false
     }
 
+    /** Archives [thread]'s conversations in Google Messages, or brings them back, as messages.google.com's Archive does. */
+    fun archiveThread(thread: Long, archived: Boolean) {
+        if (!connected) return
+        val convs = threads.filterValues { it == thread }.keys.ifEmpty { GmBridge.Db.get(app).webConvsOf(thread).toSet() }
+        for (conv in convs) {
+            try { ask("archive_conv", mapOf("conv" to conv, "remove" to !archived)) } catch (e: Exception) { DevLog.add(app, "gmweb", "archive: ${e.message}") }
+        }
+    }
+
+    /** Deletes one message in Google Messages by its own id. False where not connected or it would not. */
+    fun deleteMessage(gmId: String): Boolean {
+        if (!connected) return false
+        return try { ask("delete_msg", mapOf("msg" to gmId)); true } catch (e: Exception) { DevLog.add(app, "gmweb", "delete message: ${e.message}"); false }
+    }
+
     /**
      * Deletes the conversations of [thread] in Google Messages, as messages.google.com's Delete does: from Android's
      * store (Google Messages is the default SMS app) and every device. False where not connected or none is known.

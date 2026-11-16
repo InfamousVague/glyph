@@ -180,6 +180,23 @@ void main() {
     expect(last(carol, 'err'), containsPair('about', 'whois'));
   });
 
+  // Matt, 2026-11-15: "add them to a ignore or archive list on my ghost account specifically".
+  test('an install keeps one sealed blob for itself, across a restart; no one else gets it', () async {
+    await h.said(alice, {'dir': 'kept'});
+    expect(last(alice, 'kept')!['blob'], isNull);
+    await h.said(alice, {'dir': 'keep', 'blob': 'c2VhbGVk'});
+    expect(last(alice, 'keep'), containsPair('ok', true));
+    await h.said(bob, {'dir': 'kept'});
+    expect(last(bob, 'kept')!['blob'], isNull, reason: 'each install its own');
+    h.save();
+    final again = Handles(dataDir: dir, config: config, fetch: net.fetch)..load();
+    come(again, alice);
+    await again.said(alice, {'dir': 'kept'});
+    expect(last(alice, 'kept')!['blob'], 'c2VhbGVk');
+    await again.said(alice, {'dir': 'keep', 'blob': 'x' * (Handles.maxKept + 1)});
+    expect(last(alice, 'err'), containsPair('about', 'keep'));
+  });
+
   test('a handle is tidied and hashed the same however it is written', () {
     expect(Handles.keyOf('discord', '@Maya'), Handles.keyOf('discord', ' maya '));
     expect(Handles.keyOf('discord', 'maya'), isNot(Handles.keyOf('x', 'maya')));

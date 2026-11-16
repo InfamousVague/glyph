@@ -90,6 +90,12 @@ class Handles {
   final Map<String, Map<String, String>> _names = {};
   final Map<String, String> _nameOf = {};
 
+  /// What each install keeps here for itself, sealed with a key only it has: Ghost's own lists of what was archived
+  /// or deleted where the network itself could not do it (Matt, 2026-11-15: "add them to a ignore or archive list on
+  /// my ghost account specifically"). This server can't read it; one blob per install, [maxKept] at most.
+  final Map<String, String> _kept = {};
+  static const maxKept = 256 * 1024;
+
   /// The public key each connected install proved itself with (hub.dart), for the username it claims.
   final Map<String, String> _keys = {};
 
@@ -210,6 +216,7 @@ class Handles {
         (all['watch'] as Map? ?? const {}).forEach((id, keys) => _watch[id as String] = (keys as List).cast<String>().toSet());
         (all['pending'] as Map? ?? const {}).forEach((id, keys) => _pending[id as String] = (keys as List).cast<String>().toList());
         (all['names'] as Map? ?? const {}).forEach((k, v) => _names[k as String] = (v as Map).cast<String, String>());
+        (all['kept'] as Map? ?? const {}).forEach((id, blob) => _kept[id as String] = blob as String);
       }
     } catch (_) {
       // A file that cannot be read is started again from nothing rather than stopping the relay.
@@ -247,6 +254,7 @@ class Handles {
         'watch': {for (final e in _watch.entries) e.key: e.value.toList()},
         'pending': _pending,
         'names': _names,
+        'kept': _kept,
       }));
       tmp.renameSync(file.path);
     } catch (_) {}
@@ -337,6 +345,18 @@ class Handles {
             tell({'dir': 'joined', 'list': waiting});
             _changed();
           }
+        case 'keep':
+          final blob = said['blob'];
+          if (blob is! String || blob.length > maxKept) return err('That is more than can be kept.');
+          if (blob.isEmpty) {
+            _kept.remove(id);
+          } else {
+            _kept[id] = blob;
+          }
+          _changed();
+          tell({'dir': 'keep', 'ok': true});
+        case 'kept':
+          tell({'dir': 'kept', 'blob': _kept[id]});
         case 'name':
           // Whether this install has a username here; the app keeps the words, this server only their hash.
           final mine = _nameOf[id];

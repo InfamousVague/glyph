@@ -517,6 +517,15 @@ object GmBridge {
             writableDatabase.execSQL("UPDATE msg SET read = 1 WHERE conv IN (SELECT conv FROM conv WHERE thread = ?)", arrayOf(thread))
         }
 
+        /** Google Messages' own id of the bridge's message [id]. */
+        fun gmIdOf(id: Long): String? = readableDatabase.rawQuery("SELECT gm_id FROM msg WHERE id = ?", arrayOf("$id")).use { c -> if (c.moveToFirst()) c.getString(0) else null }
+
+        /** Google Messages' own id of a text in [thread]: the same words, the same side, within three minutes. */
+        fun gmIdLike(thread: Long, text: String, out: Boolean, time: Long): String? = readableDatabase.rawQuery(
+            "SELECT m.gm_id FROM msg m JOIN conv c ON c.conv = m.conv WHERE c.thread = ? AND m.gm_id IS NOT NULL AND m.out = ? AND m.text = ? AND ABS(m.time - ?) < 180000 ORDER BY ABS(m.time - ?) LIMIT 1",
+            arrayOf("$thread", if (out) "1" else "0", text, "$time", "$time"),
+        ).use { c -> if (c.moveToFirst()) c.getString(0) else null }
+
         fun forgetMessage(id: Long) {
             writableDatabase.delete("msg", "id = ?", arrayOf("$id"))
         }
