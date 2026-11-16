@@ -12,6 +12,7 @@ import '../art/lucide.g.dart';
 import '../backgrounds.dart';
 import '../inbox/bluesky.dart';
 import '../inbox/inbox.dart';
+import '../inbox/mastodon.dart';
 import '../inbox/telegram.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
@@ -503,6 +504,84 @@ class _BlueskySignInScreenState extends State<BlueskySignInScreen> {
   }
 }
 
+/// Signing in to Mastodon: the server, its own page to approve Ghost on, and the code that page shows.
+class MastodonSignInScreen extends StatefulWidget {
+  const MastodonSignInScreen({super.key, required this.network});
+  final Mastodon network;
+
+  @override
+  State<MastodonSignInScreen> createState() => _MastodonSignInScreenState();
+}
+
+class _MastodonSignInScreenState extends State<MastodonSignInScreen> {
+  final _server = TextEditingController();
+  final _code = TextEditingController();
+  String? _page;
+
+  @override
+  void dispose() {
+    _server.dispose();
+    _code.dispose();
+    super.dispose();
+  }
+
+  Future<void> _begin() async {
+    if (_server.text.trim().isEmpty) return;
+    final page = await widget.network.begin(_server.text);
+    if (page == null || !mounted) return;
+    setState(() => _page = page);
+    await Sms.instance.openLink(page);
+  }
+
+  Future<void> _finish() async {
+    if (_code.text.trim().isEmpty) return;
+    await widget.network.sendCode(_code.text);
+    if (!mounted || widget.network.state != InboxState.ready) return;
+    toast(context, 'Signed in to Mastodon as ${widget.network.account}');
+    Navigator.of(context).maybePop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final n = widget.network;
+    return ListenableBuilder(
+      listenable: n,
+      builder: (context, _) => GhostPage(
+        title: 'Sign in to Mastodon',
+        body: SettingsPaneScope(
+          finder: SettingsFinder(),
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            children: [
+              PaneSection(
+                title: _page == null ? 'Your server' : 'The code',
+                description: Text(_page == null
+                    ? 'The server your account is on, or your whole address (@you@mastodon.social). Its own page opens to let Ghost read and send your direct messages.'
+                    : 'Approve Ghost Messaging on the page that opened, then paste the code it shows here.'),
+                footer: n.error == null ? null : Text(n.error!, style: TextStyle(color: t.colorOf('#dd3a30'))),
+                children: [
+                  if (_page == null) ...[
+                    SettingRowBox(child: GlacierInput(controller: _server, placeholder: 'mastodon.social', ariaLabel: 'Your server', autoCorrect: false, autoFocus: true, size: GlacierFieldSize.md, onSubmitted: (_) => _begin())),
+                    SettingRow(icon: _icon(Lucide.arrowRight), label: n.state == InboxState.signingIn ? 'Opening…' : 'Continue', onPress: _begin),
+                  ] else ...[
+                    SettingRowBox(child: GlacierInput(controller: _code, placeholder: 'The code from the page', ariaLabel: 'The code', autoCorrect: false, autoFocus: true, size: GlacierFieldSize.md, onSubmitted: (_) => _finish())),
+                    SettingRow(icon: _icon(Lucide.arrowRight), label: 'Sign in', onPress: _finish),
+                    SettingRow(icon: _icon(Lucide.externalLink), label: 'Open the page again', onPress: () => Sms.instance.openLink(_page!)),
+                  ],
+                ],
+              ),
+              SizedBox(height: t.space(4)),
+              const SettingsFootnote(child: Text('Your messages go between this device and your Mastodon server. Ghost\'s own server never sees them; only the token your server gives back is kept.')),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Signing in to Telegram: the phone number, the code Telegram sends, and the two-step password where there is one.
 class TelegramSignInScreen extends StatefulWidget {
   const TelegramSignInScreen({super.key, required this.network});
@@ -610,14 +689,14 @@ class _TelegramSignInScreenState extends State<TelegramSignInScreen> {
 
 // --- Settings --------------------------------------------------------------------------------------------------------
 
-/// Telegram's and Bluesky's sections of Settings: who is signed in, and signing in or out.
+/// Telegram's, Bluesky's and Mastodon's sections of Settings: who is signed in, and signing in or out.
 List<SettingsSection> inboxSettingsSections() => [
       for (final n in Inbox.instance.networks)
         SettingsSection(
           id: 'inbox-${n.id}',
           label: n.name,
           icon: inboxMark(n),
-          hue: n.id == 'telegram' ? 'cyan' : 'blue',
+          hue: switch (n.id) { 'telegram' => 'cyan', 'mastodon' => 'purple', _ => 'blue' },
           group: 'me',
           summary: (_) => _summary(n),
           page: (context, m) => _pane(context, n),
@@ -633,14 +712,14 @@ String _summary(InboxNetwork n) => n.soon ? 'Coming soon' : switch (n.state) {
 
 List<Widget> _pane(BuildContext context, InboxNetwork n) {
   void signIn() {
-    final page = switch (n) { Telegram tg => TelegramSignInScreen(network: tg), Bluesky b => BlueskySignInScreen(network: b), _ => null };
+    final page = switch (n) { Telegram tg => TelegramSignInScreen(network: tg), Bluesky b => BlueskySignInScreen(network: b), Mastodon m => MastodonSignInScreen(network: m), _ => null };
     if (page != null) push<void>(context, (_) => page);
   }
 
   return [
     PaneSection(
       title: n.name,
-      description: Text('Your ${n.name} chats in a tab of their own beside Messages, read and answered here. They go between this device and ${n.name} only.'),
+      description: Text('Your ${n.name} chats among your texts in Messages, marked with its logo, read and answered here. They go between this device and ${n.name} only.'),
       footer: n.error == null || n.state == InboxState.ready ? null : Text(n.error!),
       children: [
         if (n.soon)
