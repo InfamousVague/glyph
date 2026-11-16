@@ -164,6 +164,11 @@ def main():
         # Settings › Voice and video from its Volume section down: the boost, Music mode, noise suppression.
         save(Image.open(SHOTS / f"19-voice-settings-{theme}.png").convert("RGB").crop((0, 590, 824, 2200)), "voice-settings", theme)
 
+        # Other networks among the texts (Telegram's chats with their badge), and a Telegram chat from its top down to
+        # before its picture, which the screen test leaves loading.
+        save(Image.open(SHOTS / f"16-inbox-list-{theme}.png").convert("RGB").crop((0, 0, 824, 1170)), "inbox-list", theme)
+        save(Image.open(SHOTS / f"16-inbox-chat-{theme}.png").convert("RGB").crop((0, 0, 824, 925)), "inbox-chat", theme)
+
         # Whole screens, for the sections below the hero.
         for src, name in (("2-thread", "thread"), ("20-layout-tabs", "list"), ("21-hangout", "hangout"), ("11-frame-wide-thread", "wide"), ("21-hangout-chat", "hangout-chat")):
             path = SHOTS / f"{src}-{theme}.png"
