@@ -10,7 +10,7 @@
 # Usage: tool/build-signalsidecar.sh [mac|android] [--ship]
 set -e
 root=$(cd "$(dirname "$0")/.." && pwd)
-pin=4beb029d8a941f81e7d9c6d8af1ed25a677569a8   # mautrix-signal v0.2610.0's pkg/libsignalgo/libsignal
+pin=904c8dc8216073b078a5f2f5090e3da8382e6a92   # mautrix-signal main 23093d82 (2026-11-16)'s pkg/libsignalgo/libsignal (v0.106.1)
 lib="$root/build/signal/libsignal"
 out="$root/build/signal-sidecar"
 want=${1:-mac}
