@@ -26,6 +26,7 @@ import '../stickers.dart';
 import 'chat_settings.dart';
 import 'common.dart';
 import 'composer_box.dart';
+import 'poof.dart';
 import 'shell.dart';
 import 'voice_screen.dart';
 import '../voice/voice.dart';
@@ -649,6 +650,28 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   /// A long press on a message. [at] is where its bubble is on the screen: the reactions, the screen effects and
   /// what else can be done come up beside it (lib/ui/message_popover.dart). A line that is no bubble (a key, a
   /// background) has the sheet from the foot of the screen.
+  /// Messages going in a puff, deleted once it has gone off ([_gone]).
+  final Set<String> _poofing = {};
+
+  /// A message's puff has gone off: gone from the screen, and deleted; put back, with why, if Android would not.
+  Future<void> _gone(Message m) async {
+    final before = _messages;
+    setState(() {
+      _poofing.remove(m.key);
+      _messages = _messages?.where((x) => x.key != m.key).toList();
+      _folded = Folded(messages: _folded.messages.where((x) => x.key != m.key).toList(), reactions: _folded.reactions);
+    });
+    try {
+      await Sms.instance.deleteMessage(m);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _messages = before);
+        toast(context, 'Couldn\'t delete: ${_said(e)}', tone: GlacierToastTone.danger);
+      }
+    }
+    _load();
+  }
+
   void _messageMenu(Message m, [Rect? at]) {
     // One drawn before the phone has it (_pending) has nothing on the phone to act on yet.
     if (m.kind == 'pending') return;
@@ -667,22 +690,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       // The plugins' own lines (remind me about this, and the like).
       if (m.notice == null) ..._plugins.message(context, m),
       if (Sms.can('deleteMessage'))
-        Choice('Delete message', Lucide.trash2, () async {
-          // Gone from the screen at once; put back, with why, if Android would not delete it.
-          final before = _messages;
-          setState(() {
-            _messages = _messages?.where((x) => x.key != m.key).toList();
-            _folded = Folded(messages: _folded.messages.where((x) => x.key != m.key).toList(), reactions: _folded.reactions);
-          });
-          try {
-            await Sms.instance.deleteMessage(m);
-          } catch (e) {
-            if (mounted) {
-              setState(() => _messages = before);
-              toast(context, 'Couldn\'t delete: ${_said(e)}', tone: GlacierToastTone.danger);
-            }
-          }
-          _load();
+        // At once, nothing asked (Matt, 2026-11-15: "Don't ask for confirmation when deleting a message and show a poof
+        // animation when one is deleted"): the bubble goes in a puff (Poof), then the message is deleted (_gone).
+        Choice('Delete message', Lucide.trash2, () {
+          HapticFeedback.lightImpact();
+          setState(() => _poofing.add(m.key));
         }, danger: true),
     ];
     if (at == null) {
@@ -904,7 +916,12 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           ),
         ));
       }
-      items.add(_Bubble(
+      items.add(Poof(
+        key: ValueKey('poof-${m.key}'),
+        gone: _poofing.contains(m.key),
+        side: m.outgoing ? AxisDirection.right : AxisDirection.left,
+        onDone: () => _gone(m),
+        child: _Bubble(
         message: m,
         sender: _group && !m.outgoing && firstOfRun ? (_senders[m.address]?.label ?? m.address) : null,
         senderPerson: _group && !m.outgoing ? _senders[m.address] : null,
@@ -937,7 +954,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         onBackground: !background.isNone,
         busy: busy,
         thread: widget.thread,
-      ));
+      )));
       if (older == null || !_sameDay(older.date, m.date)) items.add(_DayHeading(date: m.date, busy: busy));
     }
     if (msgs.isEmpty) {

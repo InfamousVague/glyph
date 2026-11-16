@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/services.dart' show TextCapitalization;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeedback, TextCapitalization;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -16,6 +16,7 @@ import '../voice/voice.dart';
 import 'common.dart';
 import '../app_state.dart';
 import 'composer_box.dart';
+import 'poof.dart';
 import 'nav_bar.dart';
 import 'ripple_avatar.dart';
 import 'shell.dart';
@@ -286,6 +287,9 @@ class _HangoutChatState extends State<HangoutChat> {
   final _focus = FocusNode();
   bool _typing = false;
 
+  /// Messages going in a puff, deleted once it has gone off (lib/ui/poof.dart).
+  final Set<String> _poofing = {};
+
   @override
   void initState() {
     super.initState();
@@ -334,7 +338,16 @@ class _HangoutChatState extends State<HangoutChat> {
                       final m = list[i];
                       // Messages in a run from one person show their name once.
                       final first = i == list.length - 1 || list[i + 1].from != m.from;
-                      return _Message(key: ValueKey(m.id), room: room, message: m, first: first, time: _time(m.at));
+                      return Poof(
+                        key: ValueKey('poof-${m.id}'),
+                        gone: _poofing.contains(m.id),
+                        side: AxisDirection.left,
+                        onDone: () {
+                          _poofing.remove(m.id);
+                          room.delete(m);
+                        },
+                        child: _Message(key: ValueKey(m.id), room: room, message: m, first: first, time: _time(m.at), onDelete: () => setState(() => _poofing.add(m.id))),
+                      );
                     },
                   ),
           ),
@@ -361,11 +374,14 @@ class _HangoutChatState extends State<HangoutChat> {
 }
 
 class _Message extends StatelessWidget {
-  const _Message({super.key, required this.room, required this.message, required this.first, required this.time});
+  const _Message({super.key, required this.room, required this.message, required this.first, required this.time, this.onDelete});
   final HangoutRoom room;
   final HangoutMessage message;
   final bool first;
   final String time;
+
+  /// Deletes it, with its puff.
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -375,9 +391,14 @@ class _Message extends StatelessWidget {
     final role = room.roster.roleOf(m.from);
     final owner = room.roster.isOwner(m.from);
     final name = mine ? 'You' : (m.name.isEmpty ? Voice.instance.nameOf(m.from) : m.name);
+    // Pressed and held: copy it, or delete it at once with a puff (Matt, 2026-11-15: "Don't ask for confirmation when
+    // deleting a message and show a poof animation when one is deleted").
     void menu() {
-      if (!room.canDelete(m)) return;
-      showChoices(context, title: 'Message', choices: [Choice('Delete for everyone', Lucide.trash2, () => room.delete(m), danger: true)]);
+      HapticFeedback.mediumImpact();
+      showChoices(context, choices: [
+        if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
+        if (room.canDelete(m)) Choice('Delete for everyone', Lucide.trash2, () => onDelete?.call(), danger: true),
+      ]);
     }
 
     return GestureDetector(

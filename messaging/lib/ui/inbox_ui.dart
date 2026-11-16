@@ -21,6 +21,7 @@ import '../sms.dart';
 import '../plugins/codes.dart' show signInCode;
 import 'common.dart';
 import 'composer_box.dart';
+import 'poof.dart';
 import 'video_screen.dart';
 import 'voice.dart' show VoiceRecorder, voiceProblem;
 import 'conversations.dart' show ConversationRow;
@@ -177,12 +178,17 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
   /// 2026-11-15: "if possible proxy the archive and delete messages too").
   void _messageMenu(InboxMessage m) {
     HapticFeedback.mediumImpact();
+    // Deleted at once, nothing asked, with a puff (Matt, 2026-11-15: "Don't ask for confirmation when deleting a message
+    // and show a poof animation when one is deleted").
     showChoices(context, choices: [
       if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
-      if (_n.canDeleteForEveryone(widget.chatId, m)) Choice('Delete for everyone', Lucide.trash2, () => _n.deleteMessage(widget.chatId, m.id, forEveryone: true), danger: true),
-      Choice(m.mine && _n.canDeleteForEveryone(widget.chatId, m) ? 'Delete for me' : 'Delete', Lucide.trash2, () => _n.deleteMessage(widget.chatId, m.id), danger: true),
+      if (_n.canDeleteForEveryone(widget.chatId, m)) Choice('Delete for everyone', Lucide.trash2, () => setState(() => _poofing[m.id] = true), danger: true),
+      Choice(m.mine && _n.canDeleteForEveryone(widget.chatId, m) ? 'Delete for me' : 'Delete', Lucide.trash2, () => setState(() => _poofing[m.id] = false), danger: true),
     ]);
   }
+
+  /// Messages going in a puff, each with whether it goes for everyone; deleted once it has gone off.
+  final Map<String, bool> _poofing = {};
 
   int _seen = 0;
   void _changed() {
@@ -342,10 +348,15 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
                           padding: EdgeInsets.symmetric(vertical: t.space(3)),
                           child: Text(dayHeading(m.date), textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
                         ),
-                      GestureDetector(
+                      Poof(
+                        key: ValueKey('poof-${m.id}'),
+                        gone: _poofing.containsKey(m.id),
+                        side: m.mine ? AxisDirection.right : AxisDirection.left,
+                        onDone: () => _n.deleteMessage(widget.chatId, m.id, forEveryone: _poofing.remove(m.id) ?? false),
+                        child: GestureDetector(
                         onLongPress: () => _messageMenu(m),
                         child: _InboxBubble(key: ValueKey(m.id), network: _n, message: m, group: chat?.group ?? false, first: firstOfRun, last: lastOfRun, mineBg: mineBg, mineInk: mineInk),
-                      ),
+                      )),
                     ]);
                   },
                 ),
