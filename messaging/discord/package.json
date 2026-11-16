@@ -1,0 +1,18 @@
+{
+  "name": "ghost-messaging-discord",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ghost Messaging's Discord presence bot: who is in a linked server's voice channels, for the app's spaces.",
+  "type": "module",
+  "main": "src/bot.js",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "start": "node src/bot.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "discord.js": "14.27.0"
+  }
+}

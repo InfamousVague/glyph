@@ -25,6 +25,9 @@ import '../summaries.dart';
 import 'common.dart';
 import 'voice_screen.dart';
 import 'hangout_screen.dart';
+import 'space_groups_ui.dart';
+import '../voice/discord.dart';
+import '../voice/space_groups.dart';
 import 'space_designs/space_design.dart';
 import '../voice/voice.dart';
 import '../voice/channels.dart';
@@ -143,6 +146,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // A summary made comes into its row; who is in a voice channel comes into its.
     Summaries.instance.addListener(_summed);
     Voice.instance.addListener(_summed);
+    SpaceGroups.instance.addListener(_summed);
+    DiscordServers.instance.addListener(_summed);
     // Telegram's and Bluesky's chats (lib/inbox): each signed-in network is a tab, and its chats come into it.
     _inbox.addListener(_summed);
     _load();
@@ -164,6 +169,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   void dispose() {
     Summaries.instance.removeListener(_summed);
     Voice.instance.removeListener(_summed);
+    SpaceGroups.instance.removeListener(_summed);
+    DiscordServers.instance.removeListener(_summed);
     _inbox.removeListener(_summed);
     _shell?.closed.removeListener(_back);
     _plugins.dispose();
@@ -873,7 +880,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                 c,
           ]
         : _section == voiceTab
-            ? voices
+            // In their groups, and each linked Discord server's channels (lib/ui/space_groups_ui.dart).
+            ? spaceRows(voices)
             : _mixed(shown);
     // Android's own count, where it has answered: the ones held are not all of them until the read ends.
     final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length) + Inbox.instance.ready.fold<int>(0, (n, net) => n + net.archivedChats.length);
@@ -908,6 +916,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           icon: AppIcon(LucideMore.headphones, size: 28, color: t.color('app-ink-3')),
           title: 'No spaces yet',
           body: const Text('Every group of friends has its own space. Start one with the new button, then share it with friends or by a link.'),
+          action: SettingsEmptyAction('Add a Discord server', () => push(context, (_) => const AddDiscordScreen())),
         ),
       ]);
     } else if (rows.isEmpty) {
@@ -978,6 +987,14 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                       onPress: () => openInboxChat(context, network, chat),
                     ),
             );
+          }
+          if (at < rows.length && rows[at] is SpaceGroupHeading) {
+            final h = rows[at] as SpaceGroupHeading;
+            return SpaceGroupRow(key: ValueKey('space-group-${h.id}'), heading: h);
+          }
+          if (at < rows.length && rows[at] is DiscordChannel) {
+            final d = rows[at] as DiscordChannel;
+            return DiscordChannelRow(key: ValueKey('discord-${d.guildId}-${d.id}'), channel: d);
           }
           if (at < rows.length && rows[at] is VoiceChannel) {
             final v = rows[at] as VoiceChannel;
