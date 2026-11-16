@@ -132,7 +132,7 @@ const composerLeading = TextHeightBehavior(leadingDistribution: TextLeadingDistr
 /// The words' line of a [ComposerBox] where nothing more is wanted of it (a Telegram chat, a space's chat): the words,
 /// [hint] while there are none, and Enter as Settings › Messages › Enter sends says. A conversation of texts has its
 /// own, with more in it (lib/ui/thread.dart).
-class ComposerField extends StatelessWidget {
+class ComposerField extends StatefulWidget {
   const ComposerField({super.key, required this.controller, required this.focusNode, required this.hint, required this.onSubmitted, this.enterSends = false});
   final TextEditingController controller;
   final FocusNode focusNode;
@@ -141,13 +141,52 @@ class ComposerField extends StatelessWidget {
   final bool enterSends;
 
   @override
+  State<ComposerField> createState() => _ComposerFieldState();
+}
+
+/// The keyboard is asked for on a press, and again on coming back to the app with the cursor in the field: Android hides
+/// it on leaving while the field keeps its focus, and asking for focus it has does nothing (Matt, 2026-11-16: "Tabbing
+/// out and into thr app doesnt clear the focus on the signal convo so the keyboard can't be toggled open").
+class _ComposerFieldState extends State<ComposerField> with WidgetsBindingObserver {
+  final _field = GlobalKey<EditableTextState>();
+  Offset? _down;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && widget.focusNode.hasFocus) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _field.currentState?.requestKeyboard());
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final style = composerTextStyle(t);
     final strut = composerStrutStyle(t);
-    return GestureDetector(
+    final controller = widget.controller, focusNode = widget.focusNode, hint = widget.hint, enterSends = widget.enterSends;
+    // A finger down and up close by (a tap gesture here loses to the field's own).
+    return Listener(
       behavior: HitTestBehavior.translucent,
-      onTap: focusNode.requestFocus,
+      onPointerDown: (e) => _down = e.position,
+      onPointerUp: (e) {
+        final down = _down;
+        _down = null;
+        if (down == null || (e.position - down).distance >= 18) return;
+        focusNode.requestFocus();
+        _field.currentState?.requestKeyboard();
+      },
       child: ConstrainedBox(
         constraints: BoxConstraints(minHeight: t.lenOf('2.25rem')),
         child: Align(
@@ -157,6 +196,7 @@ class ComposerField extends StatelessWidget {
             child: Stack(children: [
               if (controller.text.isEmpty) IgnorePointer(child: Text(hint, style: style.copyWith(color: t.color('app-ink-3')), strutStyle: strut, textHeightBehavior: composerLeading)),
               EditableText(
+                key: _field,
                 controller: controller,
                 focusNode: focusNode,
                 style: style,
@@ -168,7 +208,7 @@ class ComposerField extends StatelessWidget {
                 maxLines: 6,
                 keyboardType: enterSends ? TextInputType.text : TextInputType.multiline,
                 textInputAction: enterSends ? TextInputAction.send : TextInputAction.newline,
-                onSubmitted: (_) => onSubmitted(),
+                onSubmitted: (_) => widget.onSubmitted(),
                 onEditingComplete: enterSends ? () {} : null,
                 textCapitalization: TextCapitalization.sentences,
               ),

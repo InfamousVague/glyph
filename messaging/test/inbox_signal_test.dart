@@ -187,5 +187,10 @@ void main() {
     expect(keep({'level': 'warn', 'component': 'signalmeow', 'message': 'Failed to fetch prekeys'}), 'warn Failed to fetch prekeys component=signalmeow');
     expect(keep({'level': 'info', 'component': 'signalmeow', 'message': 'Websocket connected'}), isNull);
     expect(keep({'level': 'debug', 'message': 'anything'}), isNull);
+    // A send's own steps, whatever their level, with their time and the sockets' state.
+    expect(keep({'level': 'info', 'trace': true, 'time': '2026-11-16T21:04:05Z', 'authed_ws': true, 'unauthed_ws': false, 'message': 'send begins'}),
+        '2026-11-16T21:04:05Z info send begins authed_ws=true unauthed_ws=false');
+    expect(keep({'level': 'debug', 'trace': true, 'time': '2026-11-16T21:04:41Z', 'response_status': 401, 'message': 'DEBUG: message send response data'}),
+        '2026-11-16T21:04:41Z debug DEBUG: message send response data response_status=401');
   });
 }

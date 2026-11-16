@@ -347,4 +347,39 @@ void main() {
     await settle(tester);
     expect(phone.threads, ['+15551230005']);
   });
+
+  // Matt, 2026-11-16: "Tabbing out and into thr app doesnt clear the focus on the signal convo so the keyboard can't be
+  // toggled open".
+  testWidgets('a chat\'s keyboard comes back on returning to the app, and on a press while the field has focus', (tester) async {
+    final sheet = await loadSheet(tester);
+    await _shoot(tester, sheet, InboxChatScreen(network: telegram, chatId: '10'), '16-inbox-chat-keys', dark: false);
+    final field = find.byType(EditableText);
+    await tester.tap(field);
+    await tester.pump();
+    expect(tester.testTextInput.isVisible, isTrue, reason: 'the first press opens it');
+
+    // Leaving the app: Android hides the keyboard, the field keeps its focus.
+    tester.testTextInput.hide();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    expect(tester.testTextInput.isVisible, isFalse);
+    expect(tester.widget<EditableText>(field).focusNode.hasFocus, isTrue);
+
+    // Back: the keys come back with the cursor.
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    await tester.pump();
+    expect(tester.testTextInput.isVisible, isTrue, reason: 'shown again on returning');
+
+    // Hidden by the back gesture, then a press on the field that still has focus: shown again.
+    tester.testTextInput.hide();
+    await tester.pump();
+    await tester.tap(field);
+    await tester.pump();
+    expect(tester.testTextInput.isVisible, isTrue, reason: 'a press asks for the keyboard even with focus already there');
+  });
 }

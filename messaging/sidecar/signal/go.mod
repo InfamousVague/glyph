@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/google/uuid v1.6.0
 	github.com/rs/zerolog v1.35.1
-	go.mau.fi/mautrix-signal v0.2610.0
+	go.mau.fi/mautrix-signal v0.2610.1-0.20261116101122-23093d82d79e
 	go.mau.fi/util v0.11.0
 	google.golang.org/protobuf v1.36.12
 )
