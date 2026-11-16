@@ -302,6 +302,8 @@ class MainActivity : FlutterActivity() {
                 "setOpenThread" -> {
                     openThread = call.argument<Number>("thread")?.toLong() ?: -1
                     if (openThread >= 0) Notifier.cancel(applicationContext, openThread)
+                    // Ghost Keyboard wears the open conversation's colour (AccentSync.now).
+                    AccentSync.nowChanged(this)
                     result.success(null)
                 }
                 "dial" -> {
@@ -384,6 +386,7 @@ class MainActivity : FlutterActivity() {
                     getSharedPreferences("ui", MODE_PRIVATE).edit().putString(call.argument<String>("key")!!, call.argument<String>("value")).apply()
                     // Your bubbles' colour: stamped, and Ghost Keyboard told, to keep the two in step (AccentSync.kt).
                     if (call.argument<String>("key") == "bubble") AccentSync.chosen(this)
+                    else if (call.argument<String>("key")?.startsWith("bubble_") == true) AccentSync.nowChanged(this)
                     result.success(null)
                 }
                 // Paired computers (Desk.kt, docs/desktop.md): the list, a pairing being made, and how each connects.
