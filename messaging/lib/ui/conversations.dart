@@ -577,22 +577,6 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// The texts of a tab that are unread: none in a network's own tab, which holds that network's chats alone.
   List<Conversation> _unreadTexts(String? section) => inboxOfTab(section) != null || section == voiceTab ? const [] : _of(section).where((c) => c.unread).toList();
 
-  /// The Telegram, Signal and other chats of a tab that are unread: a network's own tab's, or those among the texts
-  /// of any other (Matt, 2026-11-15: "Marking all as read should do the same for telegram chats"; 2026-11-16: "The
-  /// mark read button should work for telegram and signal as well as standard messages").
-  List<InboxChat> _unreadChats(String? section) {
-    if (widget.archived || section == voiceTab) return const [];
-    final network = inboxOfTab(section);
-    if (network != null) return network.state == InboxState.ready ? [for (final c in network.shownChats) if (c.unread > 0) c] : const [];
-    final saved = _section;
-    _section = section;
-    try {
-      return [for (final o in _mixed(const [])) if (o is InboxChat && o.unread > 0) o];
-    } finally {
-      _section = saved;
-    }
-  }
-
   /// Marks every unread conversation of a tab as read, texts and chats alike: from the button at the title row's
   /// end, or a tab's own menu.
   Future<void> _markAllRead(String? section) async {
@@ -629,6 +613,29 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     );
   }
 
+  /// Every unread chat of Signal's, Telegram's and the rest that [section] holds, whether or not it is drawn yet (Matt,
+  /// 2026-11-16: "I still can't mark telegram and signal messages as read with the read all even though they're marked
+  /// as unread"): it once took only the rows the list had drawn, which left out a chat older than the oldest text
+  /// read so far, one a filter hid, and every chat where the tab was a network's own. Messages is all of them.
+  List<InboxChat> _unreadChats(String? section) {
+    if (widget.archived) return [for (final n in Inbox.instance.ready) for (final c in n.archivedChats) if (c.unread > 0) c];
+    if (section == voiceTab) return const [];
+    final net = inboxOfTab(section);
+    if (net != null) return net.state == InboxState.ready ? [for (final c in net.shownChats) if (c.unread > 0) c] : const [];
+    return [
+      for (final n in Inbox.instance.ready)
+        for (final c in n.shownChats)
+          if (c.unread > 0 &&
+              switch (section) {
+                null => true,
+                CodesPlugin.section => inboxCode(c) != null || _plugins.sectionOfChat('${c.network}:${c.id}')?.id == section,
+                SpamPlugin.section => scamOf(c) != null || _plugins.sectionOfChat('${c.network}:${c.id}')?.id == section,
+                _ => _plugins.showsChat('${c.network}:${c.id}', section, searching: false),
+              })
+            c,
+    ];
+  }
+
   /// A tab's menu (Matt, 2026-11-14: "add a right click menu for the codes and messages tabs"): a press with the
   /// other button on it, or a long press where there is no other button.
   void _tabMenu(String? section) {
@@ -642,7 +649,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       return;
     }
     final all = _of(section);
-    final unread = all.where((c) => c.unread).length;
+    final unread = all.where((c) => c.unread).length + _unreadChats(section).length;
     final name = _plugins.tabName(section);
     showChoices(context, title: '$name · ${unread == 0 ? 'nothing unread' : '$unread unread'}', choices: [
       Choice('Mark all as read', Lucide.checkCheck, () => _markAllRead(section)),

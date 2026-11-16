@@ -13,6 +13,7 @@ import '../net/net.dart';
 import '../net/packet.dart';
 import '../net/switchboard.dart';
 import '../sms.dart';
+import '../sounds.dart';
 import 'hangout.dart';
 import 'roles.dart';
 import 'rtc.dart';
@@ -376,7 +377,23 @@ class Voice extends ChangeNotifier {
       final d = await Net.instance.send(peer, Envelope(kind: 'voice', body: {'t': 'ring', 'g': group.id, 'n': name}), urgent: true);
       if (d.sent) told++;
     }
+    // Ringing out until someone comes in (VoiceSession: someone joining stops it), the call is left, or half a minute.
+    if (told > 0) {
+      Sounds.instance.loop(UiSound.ringOut);
+      _ringOutEnds?.cancel();
+      _ringOutEnds = Timer(const Duration(seconds: 30), () => Sounds.instance.stopLoop(UiSound.ringOut));
+    }
     return told;
+  }
+
+  Timer? _ringOutEnds, _ringInEnds;
+
+  /// Ringing here while [ringing] is, half a minute at most.
+  void _ringIn(bool on) {
+    _ringInEnds?.cancel();
+    if (!on) return Sounds.instance.stopLoop(UiSound.ringIn);
+    Sounds.instance.loop(UiSound.ringIn);
+    _ringInEnds = Timer(const Duration(seconds: 30), () => Sounds.instance.stopLoop(UiSound.ringIn));
   }
 
   void _received(Received r) {
@@ -396,12 +413,15 @@ class Voice extends ChangeNotifier {
         final g = Groups.instance.all.where((g) => g.id == b['g'] && !g.gone).firstOrNull;
         if (g == null || g.member(r.peer.id) == null) return;
         ringing = VoiceRing(VoiceChannel.ofGroup(g.id, g.name), '${b['n'] ?? nameOf(r.peer.id)}', DateTime.now());
+        // Not while already in that call.
+        if (session?.channel.room != ringing!.channel.room) _ringIn(true);
         notifyListeners();
     }
   }
 
   void dismissRing() {
     ringing = null;
+    _ringIn(false);
     notifyListeners();
   }
 
@@ -496,7 +516,10 @@ class Voice extends ChangeNotifier {
     if (route == null) throw StateError('The relay server isn\'t connected.');
     if (session?.channel.room == c.room) return;
     await leave();
-    if (ringing?.channel.room == c.room) ringing = null;
+    if (ringing?.channel.room == c.room) {
+      ringing = null;
+      _ringIn(false);
+    }
     final settings = _app == null ? const VoiceSettings() : VoiceSettings.of(_app!);
     final m = media = RtcMedia(settings: settings);
     for (final e in _volumes.entries) {
@@ -561,6 +584,7 @@ class Voice extends ChangeNotifier {
   Future<void> leave() async {
     final s = session;
     session = null;
+    Sounds.instance.stopLoop(UiSound.ringOut);
     media = null;
     if (s != null) unawaited(Sms.instance.callEnded());
     if (s != null) {

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import '../sounds.dart';
 import '../sms.dart';
 import 'cache.dart';
 import 'gm_web.dart';
@@ -276,10 +277,25 @@ class LinkCalls implements SmsCalls, CapableCalls {
   }
 
   /// One conversation's line in the list, read again from the phone; gone from here where it is gone from there.
+  /// The newest each conversation had when its message sound last played here, and when this ran up.
+  final Map<int, int> _soundedUpTo = {};
+  final int _since = DateTime.now().millisecondsSinceEpoch;
+
+  /// The message sound (lib/sounds.dart), for a conversation the phone says changed and now has an unread message
+  /// newer than any heard: a text came in. Not for one muted, nor for what was there before the app opened.
+  void _heard(int thread, Map c) {
+    final date = (c['date'] as num?)?.toInt() ?? 0;
+    if (c['unread'] != true || c['muted'] == true || c['archived'] == true) return;
+    if (date <= (_soundedUpTo[thread] ?? _since)) return;
+    _soundedUpTo[thread] = date;
+    Sounds.instance.play(UiSound.messageIn);
+  }
+
   Future<void> _readOne(int thread) async {
     try {
       final c = await link.request('conversation', {'thread': thread});
       if (c is Map) {
+        _heard(thread, c);
         _remember([c]);
       } else if (_conversations != null) {
         _conversations = [for (final x in _conversations!) if (((x as Map)['id'] as num?)?.toInt() != thread) x];
@@ -381,6 +397,10 @@ class LinkCalls implements SmsCalls, CapableCalls {
       if (e.name == 'changed') unawaited(_changedOnPhone((e.args['thread'] as num?)?.toInt() ?? -1));
     });
     if (link.online) unawaited(_askCaps());
+    // The phone coming and going (lib/sounds.dart): disconnected as it goes, connected as it comes back. Not as the
+    // app first finds it.
+    _wasOnline = _everOnline = link.online;
+    link.addListener(_linkChanged);
     _connected = link.connected.stream.listen((_) async {
       await _askCaps();
       await _flush();
@@ -392,7 +412,22 @@ class LinkCalls implements SmsCalls, CapableCalls {
     });
   }
 
+  bool _wasOnline = false, _everOnline = false;
+
+  void _linkChanged() {
+    final now = link.online;
+    if (now == _wasOnline) return;
+    _wasOnline = now;
+    if (now) {
+      if (_everOnline) Sounds.instance.play(UiSound.connected);
+      _everOnline = true;
+    } else {
+      Sounds.instance.play(UiSound.disconnected);
+    }
+  }
+
   void dispose() {
+    link.removeListener(_linkChanged);
     _events?.cancel();
     _connected?.cancel();
     _listSaving?.cancel();

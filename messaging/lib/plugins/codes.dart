@@ -12,6 +12,7 @@ library;
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import 'companies.dart';
+import '../sounds.dart';
 import 'company_marks.g.dart';
 import 'plugin.dart';
 
@@ -29,6 +30,12 @@ String? signInCode(String text) {
 }
 
 class CodesPlugin extends GhostPlugin {
+  /// A code copied: said, and its sound played (lib/sounds.dart).
+  static void _copied(PluginHost host, String code) {
+    Sounds.instance.play(UiSound.codeCopied);
+    host.copy(code, say: 'Copied $code');
+  }
+
   const CodesPlugin();
 
   /// The tag a text with a code is given; its detail is the code.
@@ -53,7 +60,7 @@ class CodesPlugin extends GhostPlugin {
         label: 'Copy $code',
         icon: Lucide.copy,
         run: (host) async {
-          host.copy(code, say: 'Copied $code');
+          _copied(host, code);
           // Copied is as good as read.
           if (host.prefs.flag('read')) await host.markRead(thread);
         },
@@ -115,7 +122,7 @@ class CodesPlugin extends GhostPlugin {
         // A message's long press in a conversation.
         Slots.messageMenu.fill((place, prefs) {
           final code = place.facts.outgoing == true ? null : place.tags.detail(tag);
-          return [if (code != null) PluginAction(label: 'Copy $code', icon: Lucide.copy, run: (host) => host.copy(code, say: 'Copied $code'))];
+          return [if (code != null) PluginAction(label: 'Copy $code', icon: Lucide.copy, run: (host) => _copied(host, code))];
         }),
       ];
 

@@ -9,6 +9,7 @@ import '../net/net.dart';
 import '../net/packet.dart';
 import '../net/switchboard.dart';
 import '../sms.dart';
+import '../sounds.dart';
 
 /// What [Friends] stands on: the app's routes (lib/net) and the phone. The app's own is [_AppPort]; a test gives two
 /// of its own and lets what one sends reach the other.
@@ -277,10 +278,12 @@ class Friends extends ChangeNotifier {
         } else if (mine == 'yes') {
           await _say(address, 'yes');
         } else {
+          if (mine != 'invited') Sounds.instance.play(UiSound.friendRequest);
           await _set(address, 'invited');
         }
       case 'yes':
         if (mine == 'want' || mine == 'asked' || mine == 'invited') {
+          if (mine != 'invited') Sounds.instance.play(UiSound.friendAccepted);
           await _set(address, 'yes');
         } else if (mine.isEmpty) {
           // They hold this phone to have asked, and it has not (it took the request back, or was reset): theirs

@@ -1675,7 +1675,7 @@ void main() {
       v.session = VoiceSession(channel: channel, route: route, media: _NoMedia({'a': 0.4}), name: 'Me')
         ..members['a'] = const VoiceMember('a', name: 'Maya Chen', username: 'maya')
         ..members['b'] = const VoiceMember('b', name: 'Sam', muted: true);
-      await _shoot(tester, sheet, const AppShell(), '22-hangout-wide', dark: dark);
+      await _shoot(tester, sheet, const AppShell(), '22-hangout-wide', dark: dark, prefs: const {'dev_space_design': 'standard'});  // The earlier layout, chosen in Settings › Developer.
       final shell = tester.state<AppShellState>(find.byType(AppShell));
       shell.go('voice');
       await _settle(tester);

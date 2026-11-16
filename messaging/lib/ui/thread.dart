@@ -36,6 +36,7 @@ import 'message_popover.dart';
 import 'sticker_picker.dart';
 import 'video.dart';
 import 'voice.dart';
+import '../sounds.dart';
 
 /// One conversation: its messages oldest at the top, newest by the composer.
 class ThreadScreen extends StatefulWidget {
@@ -457,7 +458,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         final byRoute = files.isEmpty && to.length == 1 && body.isNotEmpty && !Sms.paired && await Friends.instance.sendText(to.first, body);
         if (!byRoute) await Sms.instance.send(to, body, attachments: files);
       }
+      Sounds.instance.play(UiSound.messageOut);
     } catch (e) {
+      Sounds.instance.play(UiSound.messageFailed);
       if (pending != null && mounted) _dropPending(pending);
       if (mounted) {
         // What was to be sent is put back, pictures too: nothing went.
@@ -579,6 +582,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   Future<void> _react(Message m, String emoji) async {
     final mine = (_folded.reactions[m.key] ?? const <Reaction>[]).any((r) => r.by.isEmpty && r.emoji == emoji);
     HapticFeedback.lightImpact();
+    if (!mine) Sounds.instance.play(UiSound.reaction);
     try {
       await _sendWords(reactionText(emoji, m, removed: mine));
     } catch (e) {

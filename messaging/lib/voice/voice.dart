@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
+import '../sounds.dart';
 
 /// Voice and video channels (Matt, 2026-11-14: "I'd like to be able to jump in audio chats like discord has always
 /// open voice channels that you can jump in and out at any time and you can see who's connected and also toggle
@@ -212,6 +213,7 @@ class VoiceSession extends ChangeNotifier {
     final there = await route.join(channel.room, channel.token);
     joined = true;
     since = DateTime.now();
+    Sounds.instance.play(UiSound.hangoutJoin);
     for (final id in there) {
       if (refuse?.call(id) ?? false) continue;
       members[id] = VoiceMember(id);
@@ -224,6 +226,7 @@ class VoiceSession extends ChangeNotifier {
   }
 
   Future<void> leave() async {
+    if (joined) Sounds.instance.play(UiSound.hangoutLeave);
     if (joined) route.leave(channel.room);
     joined = false;
     for (final s in _subs) {
@@ -241,6 +244,7 @@ class VoiceSession extends ChangeNotifier {
 
   void setMuted(bool on) {
     if (!on && locked) return;
+    if (on != muted) Sounds.instance.play(on ? UiSound.mute : UiSound.unmute);
     muted = on;
     media.muted = on || deafened;
     _sayState();
@@ -248,6 +252,7 @@ class VoiceSession extends ChangeNotifier {
   }
 
   void setDeafened(bool on) {
+    if (on != deafened) Sounds.instance.play(on ? UiSound.deafen : UiSound.undeafen);
     deafened = on;
     media.deafened = on;
     media.muted = muted || on;
@@ -267,11 +272,17 @@ class VoiceSession extends ChangeNotifier {
     if (e.came != null) {
       if (refuse?.call(e.came!) ?? false) return;
       // They offer: they came in.
+      if (!members.containsKey(e.came!)) {
+        Sounds.instance.stopLoop(UiSound.ringOut);
+        Sounds.instance.play(UiSound.someoneJoined);
+      }
       members[e.came!] = VoiceMember(e.came!);
       _sayState();
     } else if (e.went != null) {
-      members.remove(e.went);
+      final was = members.remove(e.went) != null;
       unawaited(_peers.remove(e.went)?.close());
+      // The last of the others gone: the call is over, said so; anyone else going is someone leaving.
+      if (was) Sounds.instance.play(members.isEmpty ? UiSound.callEnded : UiSound.someoneLeft);
     }
     notifyListeners();
   }

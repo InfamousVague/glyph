@@ -9,6 +9,7 @@ import '../net/net.dart';
 import '../net/packet.dart';
 import '../net/switchboard.dart';
 import '../sms.dart';
+import '../sounds.dart';
 import 'friends.dart';
 
 /// One member of a group: who they are to the routes ([id], the name of their [key]), their number, and who they
@@ -376,6 +377,7 @@ class Groups extends ChangeNotifier {
     final next = await _keep({'id': id, 'name': name, 'v': v, 'members': members, 'admins': admins});
     final who = next.member(from)?.label ?? 'Someone';
     if (!had) {
+      Sounds.instance.play(UiSound.groupAdded);
       await _port.note(id, name.isEmpty ? '$who added you to a group' : '$who added you to "$name"');
       return;
     }

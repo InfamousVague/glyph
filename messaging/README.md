@@ -648,6 +648,15 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   work for telegram and signal as well as standard messages"). The button counts the tab's unread chats from every
   network with its unread texts, so it is no longer grey when only chats are unread, and reads them all; a network's
   own tab and its menu read that network's chats (`_unreadTexts`, `_unreadChats` in lib/ui/conversations.dart).
+- **Voice chat is the default space call, in the app's own look** (0.7.49, not released; Matt, 2026-11-16: "Change
+  the telegram one to be our colors without the gradients and our voice effects make the chat window 33% of the screen
+  as well then deploy this as the default version"; "Make a few other small tweaks to make it ours and less like
+  telegram"). `SpaceDesign.fallback` is the Voice chat design (`lib/ui/space_designs/telegram.dart`); Standard, the
+  earlier layout, and the other five stay in Settings › Developer. It now follows the app's light and dark colours,
+  flat with no gradients (a test reads the file to keep it so), the app's wobbly ripples on every face and round the big
+  mic button, the chat docked at exactly a third of a computer's window (a sheet on a phone), and the app's words and
+  pieces: the space's name with "N in voice" as its title, "talking", "Mic on" / "Muted", "Invite to space", the app's
+  RoleTag, no Telegram drag handle. Built, reviewed adversarially, fixed and checked again in two passes.
 - **Six other designs for a space's call, behind a developer switch; your own voice activity alone** (0.7.49, not
   released; Matt, 2026-11-16: "give me 6 alternate designs for the calling chat and video screens for spaces,
   Additionally make it so that even when we're in the call alone we see the voice activity of ourselves release all 6
@@ -737,7 +746,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   - Not yet: a paired computer does not see these conversations (it asks the phone's Android side); a message the
     relay passes to a connection that has just died is lost, as for any friend (nothing is sent again without an
     answer); a closed or backgrounded app hears them only when it connects again.
-- **Friends by username on Contacts, and friend requests** (0.7.28, not released; Matt, 2026-11-16: "We need a way
+- **Friends by username on Contacts, and friend requests** (0.7.49; Matt, 2026-11-16: "We need a way
   to add friends on the network by username on the contacts page and see friend requests"). At the top of Contacts
   on the phone (`UsernameFriends`, lib/ui/username_friends.dart): a field to ask someone by @username, each request
   with Decline and Accept on it, friends by username, and the requests you sent (a press takes one back); without a
