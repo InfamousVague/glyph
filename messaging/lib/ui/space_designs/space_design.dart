@@ -42,7 +42,7 @@ enum SpaceDesign {
   facetime('Full screen', 'FaceTime', 'Whoever talks fills the screen, you float in a corner, glass controls on top.', Lucide.smartphone),
   meet('Rounded tiles', 'Google Meet', 'Soft tiles with a pill toolbar, the people and the chat in a side panel.', Lucide.layoutGrid),
   stage('Audio stage', 'Clubhouse and X Spaces', 'Voice first: big rippling faces on a stage, the chat as comments below.', LucideMore.audioLines),
-  telegram('Voice chat', 'Telegram', 'A dark sheet of people with waves round speakers and one big microphone button.', Lucide.mic);
+  telegram('Voice chat', 'Telegram', 'A list of people in the app\'s own colours, ripples round whoever talks, one big microphone button and the chat at a third of the window.', Lucide.mic);
 
   const SpaceDesign(this.label, this.after, this.description, this.icon);
 
