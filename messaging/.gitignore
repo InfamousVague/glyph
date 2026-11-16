@@ -50,3 +50,6 @@ app.*.map.json
 
 # The Google Messages sidecar built for the phone (tool/build-gmsidecar.sh android): a build product.
 /android/app/src/main/jniLibs/*/libgmsidecar.so
+# The Signal helper and the C++ library it needs (tool/build-signalsidecar.sh android --ship), built for each release.
+/android/app/src/main/jniLibs/*/libsignalsidecar.so
+/android/app/src/main/jniLibs/*/libc++_shared.so

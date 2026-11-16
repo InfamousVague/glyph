@@ -109,10 +109,10 @@ void main() {
     again.dispose();
   });
 
-  test('without the helper Signal is not in this build; offered as Coming soon', () async {
+  test('without the helper Signal is not in this build; offered from 0.7.40', () async {
     expect(Inbox.of([Signal(soon: true)]).ready, isEmpty);
     Inbox.instance = null;
-    expect(Inbox.instance.named('signal')!.soon, isTrue);
+    expect(Inbox.instance.named('signal')!.soon, isFalse);
     final none = Signal(link: () async => null);
     await none.start(AppState());
     expect(none.state, InboxState.unavailable);

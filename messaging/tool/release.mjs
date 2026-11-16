@@ -32,7 +32,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -176,6 +176,13 @@ if (existsSync(join(ROOT, 'sidecar/gmessages/SOURCE_URL'))) {
   say('> Building the Google Messages sidecar for the phone');
   run('sh', [join(ROOT, 'tool/build-gmsidecar.sh'), 'android'], { cwd: ROOT });
 }
+// The Signal helper for the phone (sidecar/signal, AGPL-3.0; lib/inbox/signal.dart) with Signal's libsignal and the
+// C++ library it needs, built into jniLibs (Matt, 2026-11-16: "Add it to a release it's okay as long as our app bundle
+// stays under 200mb"); its source is public with the app's (sidecar/signal/SOURCE_URL).
+if (existsSync(join(ROOT, 'sidecar/signal/SOURCE_URL'))) {
+  say('> Building the Signal helper for the phone');
+  run('sh', [join(ROOT, 'tool/build-signalsidecar.sh'), 'android', '--ship'], { cwd: ROOT });
+}
 // Telegram's library for the Telegram inbox (lib/inbox/telegram.dart), built from Telegram's source (reused while
 // the pinned commit is the same) into build/tdlib/android, which the app's jniLibs take in; and the app id.
 say('> TDLib for the Telegram inbox');
@@ -185,6 +192,10 @@ say(telegram.said);
 run('flutter', ['build', 'apk', '--release', '--target-platform', 'android-arm64', `--build-name=${versionName}`, `--build-number=${versionCode}`, ...telegram.args], { cwd: ROOT });
 const built = join(ROOT, 'build/app/outputs/flutter-apk/app-release.apk');
 if (!existsSync(built)) fail(`No APK at ${built}.`);
+// Under 200 MB, Signal's helper and all (Matt, 2026-11-16: "it's okay as long as our app bundle stays under 200mb").
+const apkMb = statSync(built).size / 1048576;
+if (apkMb > 200) fail(`The APK is ${apkMb.toFixed(1)} MB: over the 200 MB it is to stay under. Nothing was sent.`);
+say(`  the APK is ${apkMb.toFixed(1)} MB`);
 
 // What the APK says it is.
 const badging = capture(buildTool('aapt2'), ['dump', 'badging', built]);
