@@ -50,7 +50,8 @@ function compareKeys(a, b) {
 }
 const compareIds = (a, b) => (a.length - b.length) || (a < b ? -1 : a > b ? 1 : 0);
 
-export function buildState(guild, now = Date.now()) {
+/** bridged: the channel ids the bridge is in now (each gets "bridged": true). */
+export function buildState(guild, now = Date.now(), { bridged = null } = {}) {
   const channels = guild.channels?.cache;
   const voice = each(channels)
     .filter((c) => (c.type === CHANNEL_TYPES.GuildVoice || c.type === CHANNEL_TYPES.GuildStageVoice) && c.viewable !== false)
@@ -86,6 +87,7 @@ export function buildState(guild, now = Date.now()) {
       kind: c.type === CHANNEL_TYPES.GuildStageVoice ? 'stage' : 'voice',
       position: i,
       members: (byChannel.get(String(c.id)) ?? []).sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }) || compareIds(a.id, b.id)),
+      ...(bridged?.has(String(c.id)) ? { bridged: true } : {}),
     })),
     at: now,
   };

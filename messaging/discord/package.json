@@ -2,7 +2,7 @@
   "name": "ghost-messaging-discord",
   "version": "1.0.0",
   "private": true,
-  "description": "Ghost Messaging's Discord presence bot: who is in a linked server's voice channels, for the app's spaces.",
+  "description": "Ghost Messaging's Discord bot: who is in a linked server's voice channels, and the voice and chat bridge to Ghost spaces.",
   "type": "module",
   "main": "src/bot.js",
   "engines": {
@@ -13,6 +13,9 @@
     "test": "node --test"
   },
   "dependencies": {
-    "discord.js": "14.27.0"
+    "@discordjs/voice": "0.19.2",
+    "@evan/opus": "1.0.3",
+    "discord.js": "14.27.0",
+    "werift": "0.27.0"
   }
 }

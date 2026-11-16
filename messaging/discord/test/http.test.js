@@ -130,8 +130,11 @@ test('state: 503 while the bot is still connecting', async () => {
   assert.equal((await fetch(`${base}/discord/state?token=${token}`)).status, 503);
 });
 
-test('invite: the bot\'s invite link, View Channels only', async () => {
-  assert.deepEqual(await json(await fetch(`${base}/discord/invite`)), [200, { url: `https://discord.com/oauth2/authorize?client_id=${APP}&scope=bot%20applications.commands&permissions=1024` }]);
+test('invite: the bot\'s invite link, with the permissions the bridge needs', async () => {
+  // View Channel 1024 + Send Messages 2048 + Read Message History 65536 + Connect 1048576 + Speak 2097152
+  // + Use Voice Activity 33554432 + Change Nickname 67108864 + Manage Webhooks 536870912
+  assert.equal(1024 + 2048 + 65536 + 1048576 + 2097152 + 33554432 + 67108864 + 536870912, 640748544);
+  assert.deepEqual(await json(await fetch(`${base}/discord/invite`)), [200, { url: `https://discord.com/oauth2/authorize?client_id=${APP}&scope=bot%20applications.commands&permissions=640748544` }]);
   assert.equal((await fetch(`${base}/invite`)).status, 200);
 });
 
