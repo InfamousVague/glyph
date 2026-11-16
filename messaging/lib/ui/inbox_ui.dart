@@ -112,7 +112,7 @@ class InboxChatScreen extends StatefulWidget {
   State<InboxChatScreen> createState() => _InboxChatScreenState();
 }
 
-class _InboxChatScreenState extends State<InboxChatScreen> {
+class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingObserver {
   final _text = TextEditingController();
   final _scroll = ScrollController();
   bool _loadingOlder = false;
@@ -128,9 +128,29 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
     _scroll.addListener(_nearTop);
     // The composer lays itself out by whether there are words (lib/ui/composer_box.dart).
     _text.addListener(_typed);
+    WidgetsBinding.instance.addObserver(this);
   }
 
   final _focus = FocusNode();
+  final _field = GlobalKey<EditableTextState>();
+  Offset? _fieldDown;
+
+  /// Back in the app with the cursor still in the field: the keys come back with it, as a conversation of texts does
+  /// (lib/ui/thread.dart). Android hides the keyboard on leaving but the field keeps its focus, and asking for focus it
+  /// already has does nothing (Matt, 2026-11-16: "Tabbing out and into thr app doesnt clear the focus on the signal
+  /// convo so the keyboard can't be toggled open").
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _focus.hasFocus) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _field.currentState?.requestKeyboard());
+    }
+  }
+
+  /// A press on the field: focus, and the keyboard asked for even where the field has focus already.
+  void _keys() {
+    _focus.requestFocus();
+    _field.currentState?.requestKeyboard();
+  }
   bool _wasTyping = false;
 
   /// Files to go with the next message, by their paths on this device (Matt, 2026-11-15: "Is it possible to send and
@@ -222,6 +242,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _n.removeListener(_changed);
     _n.watching = null;
     _text.removeListener(_typed);
@@ -323,9 +344,16 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
                   plus: files ? IconTap(icon: Lucide.plus, label: 'Add an attachment', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _files.length >= 10 ? null : _attach) : null,
                   ends: [if (voice && _text.text.isEmpty && _files.isEmpty) mic else send],
                   below: [if (voice) mic, send],
-                  field: GestureDetector(
+                  // A finger down and up close by, as a conversation of texts reads it (lib/ui/thread.dart): a tap
+                  // gesture here loses to the field's own, so a press on a field with focus would ask for nothing.
+                  field: Listener(
                     behavior: HitTestBehavior.translucent,
-                    onTap: () => _focus.requestFocus(),
+                    onPointerDown: (e) => _fieldDown = e.position,
+                    onPointerUp: (e) {
+                      final down = _fieldDown;
+                      _fieldDown = null;
+                      if (down != null && (e.position - down).distance < 18) _keys();
+                    },
                     child: ConstrainedBox(
                       constraints: BoxConstraints(minHeight: t.lenOf('2.25rem')),
                       child: Align(
@@ -336,6 +364,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> {
                             if (_text.text.isEmpty)
                               IgnorePointer(child: Text('Message on ${_n.name}', style: style.copyWith(color: t.color('app-ink-3')), strutStyle: strut, textHeightBehavior: composerLeading)),
                             EditableText(
+                              key: _field,
                               controller: _text,
                               focusNode: _focus,
                               style: style,
