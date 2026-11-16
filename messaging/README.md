@@ -730,6 +730,20 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   - **Not yet:** a moderator's mute is held only while they are in the hangout; Matt's phone and computer are two
     people to a hangout (the computer has its own key), so a hangout made on one makes the other a member until the
     owner makes it an admin; the site's join page needs `tool/deploy-site.mjs` to go live.
+- **Delivery to friends: sent again until answered; the relay connection made again on coming back** (not
+  released; Matt, 2026-11-16: "Yes, fix delivery"). A message the relay server had handed to a connection of the
+  friend's that had just died (the app in the background) was lost with nothing to say so.
+  - `Friends` keeps what went out and has had no answer (`friends_out`, so a closed app goes on after) and sends it
+    again with the same envelope id: twenty seconds after, then twice as long each time up to five minutes, and at
+    once whenever the routes change; after three days it is marked failed. The friend's app keeps the ids it has
+    stored (`friends_in`, the newest 500), so a message whose answer was lost is not kept twice.
+  - Back on the screen after 45 seconds or more away, the app makes the relay connection again rather than trust one
+    the phone may have let die, and one that is down is tried at once rather than at the end of its wait
+    (`HubCarrier.nudge`, `Net.resume`, main.dart's lifecycle).
+  - Checked by tests (a route that swallows a message, a restart in between, a local relay dropped and back); the
+    iOS Simulator keeps a backgrounded app's connection alive, so the dead connection itself was not reproduced live.
+  - Not yet: groups of friends are not sent again (Groups.sendText); a closed app is still only reached when it
+    opens (push notifications for iPhone, a background connection for Android, would wake it).
 - **Friends by username on Android: iPhones and Android phones text each other** (not released; Matt, 2026-11-15:
   "Yes, Android next").
   - Android's store of texts has no room for someone with no number, so a friend by username's conversation is kept

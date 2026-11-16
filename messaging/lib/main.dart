@@ -214,9 +214,16 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  /// When the app last left the screen: how long it was away decides whether the relay connection is trusted.
+  DateTime? _left;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) _left ??= DateTime.now();
     if (state != AppLifecycleState.resumed) return;
+    // Back on the screen: a relay connection that died while away is made again now (lib/net/hub_carrier.dart).
+    Net.instance.resume(_left == null ? Duration.zero : DateTime.now().difference(_left!));
+    _left = null;
     _check();
     // The wallpaper may have changed while the app was away: what is drawn from its palette is drawn again.
     PhonePalette.load().then((changed) {

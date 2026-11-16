@@ -120,6 +120,10 @@ class Net extends ChangeNotifier implements PeerBook {
     notifyListeners();
   }
 
+  /// The app has come back after [away] (main.dart): the relay server's connection is made again where it may have
+  /// died meanwhile, and what friends were sent and have not answered goes again once it is up (Friends).
+  void resume(Duration away) => _hub?.nudge(away: away);
+
   Future<void> _readPeers() async {
     final list = await Sms.instance.netPeers();
     final found = <String, Peer>{};
