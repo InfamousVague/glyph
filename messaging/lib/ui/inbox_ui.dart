@@ -465,7 +465,8 @@ class _InboxBubble extends StatelessWidget {
       child: Column(crossAxisAlignment: m.mine ? CrossAxisAlignment.end : CrossAxisAlignment.start, children: [
         if (group && !m.mine && first && m.sender.isNotEmpty)
           Padding(
-            padding: EdgeInsets.only(left: t.space(3), bottom: 2),
+            // On the same left edge as the time under the bubble (Matt, 2026-11-16).
+            padding: EdgeInsets.only(left: t.space(2), bottom: 2),
             // In the app's primary colour, as over a group of texts' bubbles (lib/ui/thread.dart).
             child: Text(m.sender, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent'))),
           ),

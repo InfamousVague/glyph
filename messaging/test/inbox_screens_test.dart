@@ -8,7 +8,7 @@ import 'package:ghost_messaging/inbox/bluesky.dart';
 import 'package:ghost_messaging/inbox/inbox.dart';
 import 'package:ghost_messaging/inbox/telegram.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
-import 'package:ghost_messaging/ui/common.dart' show IconTap;
+import 'package:ghost_messaging/ui/common.dart' show IconTap, clock;
 import 'package:ghost_messaging/ui/composer_box.dart';
 import 'package:ghost_messaging/ui/contacts.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
@@ -238,6 +238,19 @@ void main() {
     expect(inboxCode(chat('Login code: 48213', service: false)), isNull, reason: 'a person\'s chat');
     expect(inboxCode(chat('Login code: 48213', mine: true)), isNull);
     expect(inboxCode(chat('Welcome to Telegram')), isNull);
+  });
+
+  testWidgets('in a group, the sender\'s name and the time under the bubble start at the same left edge', (tester) async {
+    // Matt, 2026-11-16: "Make sure the username and the timestamp are aligned on the same left side of the bubble".
+    final sheet = await loadSheet(tester);
+    final at = now.subtract(const Duration(minutes: 5));
+    final crew = FakeNetwork('telegram', 'Telegram', [
+      InboxChat(network: 'telegram', id: '20', title: 'Weekend crew', date: at, snippet: 'tent is packed', group: true),
+    ], {
+      '20': [InboxMessage(id: '1', text: 'tent is packed', date: at, mine: false, sender: 'Priya')],
+    });
+    await _shoot(tester, sheet, InboxChatScreen(network: crew, chatId: '20'), 'x-inbox-group-align', dark: false);
+    expect(tester.getTopLeft(find.text('Priya')).dx, moreOrLessEquals(tester.getTopLeft(find.text(clock(at))).dx, epsilon: 0.5));
   });
 
   testWidgets('signing in: Bluesky\'s page, and Telegram\'s steps', (tester) async {
