@@ -327,11 +327,13 @@ class _People extends StatelessWidget {
     final videos = call.withVideo;
     final alone = call.others.isEmpty;
     final roster = call.room?.roster;
-    final rowPad = compact ? 7.0 : 10.0;
+    // A face of 38 whose ripples reach 1.85 times its radius (about 35 px) needs rows of about 70 for its rings to
+    // stay inside its own row: 16 above and below (14 where the panel is docked and short).
+    final rowPad = compact ? 14.0 : 16.0;
     return LayoutBuilder(builder: (context, box) {
       // The video gives way to the list: its tiles shrink (to no less than 84 a row) so everyone in the call fits
       // under them where the panel is short.
-      final list = 48 + call.people.length * (46 + rowPad * 2 + 1) + 16 + 12;
+      final list = 48 + call.people.length * (_faceSize + rowPad * 2 + 1) + 16 + 12;
       final room = box.maxHeight - list;
       return ListView(
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
@@ -342,12 +344,13 @@ class _People extends StatelessWidget {
           ],
           Container(
             decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(14), border: Border.all(color: t.color('app-rule'))),
-            clipBehavior: Clip.antiAlias,
+            // Not clipped: a speaker's outermost ring may lean a pixel or two past the card rather than be cut flat.
+            // The rows round their own hover at the card's corners instead.
             child: Column(children: [
               _InviteRow(onPressed: call.onInvite == null ? null : () => call.onInvite!(context)),
               for (final p in call.people) ...[
-                Container(height: 1, margin: const EdgeInsets.only(left: 78), color: t.color('app-rule')),
-                _PersonRow(call: call, person: p, role: p.roleLabel(roster), pad: rowPad),
+                Container(height: 1, margin: const EdgeInsets.only(left: _textStart), color: t.color('app-rule')),
+                _PersonRow(call: call, person: p, role: p.roleLabel(roster), pad: rowPad, last: identical(p, call.people.last)),
               ],
             ]),
           ),
@@ -382,11 +385,14 @@ class _InviteRow extends StatelessWidget {
         onPressed: onPressed,
         semanticLabel: 'Invite members',
         builder: (context, state) => Container(
-          color: state.hovered || state.pressed ? t.color('app-paper-3') : null,
-          padding: const EdgeInsets.fromLTRB(20, 12, 14, 12),
+          decoration: BoxDecoration(
+            color: state.hovered || state.pressed ? t.color('app-paper-3') : null,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
+          ),
+          padding: const EdgeInsets.fromLTRB(_rowLeft, 12, 14, 12),
           child: Row(children: [
-            SizedBox(width: 46, child: Center(child: AppIcon(Lucide.userPlus, size: 22, wash: false, color: ink))),
-            const SizedBox(width: 12),
+            SizedBox(width: _faceSize, child: Center(child: AppIcon(Lucide.userPlus, size: 22, wash: false, color: ink))),
+            const SizedBox(width: _faceGap),
             Expanded(child: ExcludeSemantics(child: Text('Invite members', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: ink)))),
           ]),
         ),
@@ -394,6 +400,13 @@ class _InviteRow extends StatelessWidget {
     );
   }
 }
+
+/// The list's face, its left inset and the gap to the name: the rings (to 1.85 × 19 ≈ 35 px from the face's middle)
+/// end at 72, short of the name at [_textStart].
+const double _faceSize = 38;
+const double _rowLeft = 18;
+const double _faceGap = 18;
+const double _textStart = _rowLeft + _faceSize + _faceGap;
 
 /// What someone is doing now, in the list's words and colour: green speaking, red muted, quiet ink listening.
 ({String words, Color color, LucideIcon icon}) _status(Tokens t, SpaceCall call, SpacePerson p, Map<String, double> now) {
@@ -403,11 +416,12 @@ class _InviteRow extends StatelessWidget {
 }
 
 class _PersonRow extends StatelessWidget {
-  const _PersonRow({required this.call, required this.person, required this.role, this.pad = 10});
+  const _PersonRow({required this.call, required this.person, required this.role, this.pad = 16, this.last = false});
   final SpaceCall call;
   final SpacePerson person;
   final String? role;
   final double pad;
+  final bool last;
 
   @override
   Widget build(BuildContext context) {
@@ -423,11 +437,14 @@ class _PersonRow extends StatelessWidget {
           final s = _status(t, call, p, now);
           final level = p.muted ? 0.0 : (now[p.id] ?? 0);
           return Container(
-            color: state.hovered || state.pressed ? t.color('app-paper-3') : null,
-            padding: EdgeInsets.fromLTRB(20, pad, 14, pad),
+            decoration: BoxDecoration(
+              color: state.hovered || state.pressed ? t.color('app-paper-3') : null,
+              borderRadius: last ? const BorderRadius.vertical(bottom: Radius.circular(13)) : null,
+            ),
+            padding: EdgeInsets.fromLTRB(_rowLeft, pad, 14, pad),
             child: Row(children: [
-              ExcludeSemantics(child: SpaceFace(key: ValueKey('tg-face-${p.id}'), call: call, person: p, size: 46)),
-              const SizedBox(width: 12),
+              ExcludeSemantics(child: SpaceFace(key: ValueKey('tg-face-${p.id}'), call: call, person: p, size: _faceSize)),
+              const SizedBox(width: _faceGap),
               Expanded(
                 child: ExcludeSemantics(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -540,13 +557,20 @@ class _VideoTile extends StatelessWidget {
                 SpaceVideo(
                   call: call,
                   person: p,
-                  // The face sized to the tile and a little above its middle, clear of the name chip.
-                  fallback: LayoutBuilder(
-                    builder: (context, box) => Align(
-                      alignment: const Alignment(0, -0.3),
-                      child: ExcludeSemantics(child: SpaceFace(key: ValueKey('tg-tile-${p.id}'), call: call, person: p, size: math.min(56.0, box.maxHeight * 0.42))),
-                    ),
-                  ),
+                  // The face in the middle of the part above the name chip (the chip's top is 28 from the foot), sized
+                  // so its ripples, which reach 1.85 times its radius, stay above the chip too.
+                  fallback: LayoutBuilder(builder: (context, box) {
+                    final above = math.max(0.0, box.maxHeight - 30);
+                    return Stack(children: [
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top: 0,
+                        height: above,
+                        child: Center(child: ExcludeSemantics(child: SpaceFace(key: ValueKey('tg-tile-${p.id}'), call: call, person: p, size: math.min(56.0, above / 1.85)))),
+                      ),
+                    ]);
+                  }),
                 ),
                 // The name on a flat chip of the page's paper, readable over a picture too.
                 Positioned(
@@ -661,6 +685,10 @@ class _MicButton extends StatelessWidget {
 
   static const size = 96.0;
 
+  /// The ripples are drawn round a hidden face of this size, so that the rings, which run from its edge out to 1.85
+  /// times its radius (63 px), show as a band round the 96 px button and stay inside the 128 px slot and 140 px box.
+  static const ringFace = 68.0;
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
@@ -684,7 +712,7 @@ class _MicButton extends StatelessWidget {
               ExcludeSemantics(
                 child: ValueListenableBuilder<Map<String, double>>(
                   valueListenable: call.levels,
-                  builder: (context, now, _) => RippleAvatar(key: const ValueKey('tg-mic-ripples'), name: ' ', level: live ? (now['me'] ?? 0) : 0, muted: !live, size: size, color: green),
+                  builder: (context, now, _) => RippleAvatar(key: const ValueKey('tg-mic-ripples'), name: ' ', level: live ? (now['me'] ?? 0) : 0, muted: !live, size: ringFace, color: green),
                 ),
               ),
               AnimatedScale(
