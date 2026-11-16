@@ -189,6 +189,12 @@
             android:exported="false"
             android:foregroundServiceType="remoteMessaging" />
 
+        <!-- Every fifteen minutes or so, a look at whether a friend by username wrote while Ghost was closed (HubPeek.kt). -->
+        <service
+            android:name=".HubPeekJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
         <!-- Signal and Telegram kept connected while Ghost is out of sight (NetworksService.kt). -->
         <service
             android:name=".NetworksService"

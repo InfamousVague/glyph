@@ -137,6 +137,18 @@ class HubCarrier implements Carrier {
     _connect();
   }
 
+  /// The app has come back to the screen (Matt, 2026-11-16: "fix delivery"): a connection that is down is tried now,
+  /// not at the end of its wait, and one held while the app was away for [stale] or longer is made again, since the
+  /// phone may have let it die without saying so (the relay server would hand it messages that go nowhere).
+  void nudge({Duration away = Duration.zero, Duration stale = const Duration(seconds: 45)}) {
+    if (!_wanted) return;
+    if (_ws != null && away < stale) return;
+    _again?.cancel();
+    _tries = 0;
+    if (_ws != null) _drop('made again after the app was away');
+    unawaited(_connect());
+  }
+
   @override
   Future<void> stop() async {
     _wanted = false;
@@ -232,6 +244,7 @@ class HubCarrier implements Carrier {
       problem = null;
       state.value = CarrierState.up;
       if (_watched.isNotEmpty) ws.add(jsonEncode({'watch': _watched.toList()}));
+      if (_push != null) ws.add(jsonEncode({'push': _push}));
       for (final e in _joined.entries) {
         ws.add(jsonEncode({'join': e.key, 'token': e.value}));
       }
@@ -276,6 +289,19 @@ class HubCarrier implements Carrier {
     } else if (m['went'] is String) {
       here.value = {...here.value}..remove(m['went']);
     }
+  }
+
+  Map<String, Object?>? _push;
+
+  /// How the hub may wake this app when something is held for it and it is closed: an iPhone's Apple push token
+  /// (`{'apns': hex, 'sandbox': bool}`; relay/lib/pushes.dart). Said on every sign-in, so a hub that restarted or
+  /// lost it hears it again; null tells it to forget.
+  Map<String, Object?>? get push => _push;
+  set push(Map<String, Object?>? value) {
+    final had = _push;
+    _push = value;
+    final ws = _ws;
+    if (_ready && ws != null && (value != null || had != null)) ws.add(jsonEncode({'push': value}));
   }
 
   /// A hub reaches anyone: someone who is not connected to it is kept for.

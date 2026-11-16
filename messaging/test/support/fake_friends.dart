@@ -28,6 +28,13 @@ class FakePort implements FriendsPort {
   bool refuses = false;
   bool answers = false;
 
+  /// The relay server hands what it is given to a connection of the other's that has died: it says it passed it on,
+  /// and nothing arrives or answers (what happened in the live test, 2026-11-15).
+  bool lost = false;
+
+  /// The routes changed (one came up): what Friends listens for.
+  void bump() => _changed.value++;
+
   final sent = <Sent>[];
   final held = <Envelope>[];
   final rows = <int, ({String address, String words, String state})>{};
@@ -59,6 +66,7 @@ class FakePort implements FriendsPort {
       other._arrive(me, envelope, sealed);
       return Delivery(envelope.id, via: 'sms', handed: Handed.passed);
     }
+    if (lost) return Delivery(envelope.id, via: 'hub', handed: Handed.passed);
     if (!otherHere) {
       held.add(envelope);
       return Delivery(envelope.id, via: 'hub', handed: Handed.held);
@@ -66,6 +74,9 @@ class FakePort implements FriendsPort {
     other._arrive(me, envelope, sealed);
     return Delivery(envelope.id, via: 'hub', handed: Handed.passed, acked: envelope.ack);
   }
+
+  /// [envelope] arrives at this phone again from [from], as a resend would bring it.
+  void arriveAgain(String from, Envelope envelope) => _arrive(from, envelope, true);
 
   void _arrive(String from, Envelope envelope, bool sealed) => _in.add(Received(Peer(id: 'name-of-$from', address: from), envelope, 'hub', sealed: sealed));
 

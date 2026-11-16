@@ -1,0 +1,188 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
+
+import 'p256.dart';
+
+/// Waking an app that is closed when something is held for it (Matt, 2026-11-16: "Yes, wake-ups"; Android checks
+/// every fifteen minutes on its own, hub.dart's `peek`): an iPhone says, over its connection, the token Apple gave it
+/// for push notifications, and when a packet is held for it this asks Apple to show "New message".
+///
+/// - **What is kept** (`pushes.json`): per install, the token and whether it is Apple's sandbox (a build from Xcode)
+///   or production, and the day. Nothing about who sent what: the notification says only that something came.
+/// - **How often**: at most once a minute per install ([quiet]), however much is held.
+/// - **Apple's side** needs a key from the Apple Developer account (an APNs .p8 file, its key id, the team id and the
+///   app's bundle id: [ApnsConfig.fromEnvironment]). Without one nothing is sent and registrations are still kept.
+class Pushes {
+  Pushes({this.dataDir, ApnsConfig? config, this.send, DateTime Function()? now, this.quiet = const Duration(minutes: 1)})
+      : config = config ?? const ApnsConfig(),
+        _now = now ?? DateTime.now {
+    _load();
+  }
+
+  final Directory? dataDir;
+  final ApnsConfig config;
+  final Duration quiet;
+  final DateTime Function() _now;
+
+  /// Sends one notification to a token; Apple's by default ([Apns.send]). A test gives its own.
+  final Future<bool> Function(String token, bool sandbox)? send;
+
+  final Map<String, ({String token, bool sandbox, String day})> _tokens = {};
+  final Map<String, DateTime> _last = {};
+  Apns? _apns;
+
+  File? get _file => dataDir == null ? null : File('${dataDir!.path}/pushes.json');
+
+  int get registered => _tokens.length;
+
+  void _load() {
+    final f = _file;
+    if (f == null || !f.existsSync()) return;
+    try {
+      final j = jsonDecode(f.readAsStringSync()) as Map;
+      for (final e in j.entries) {
+        final v = e.value as Map;
+        _tokens['${e.key}'] = (token: '${v['t']}', sandbox: v['s'] == true, day: '${v['d']}');
+      }
+    } catch (_) {}
+  }
+
+  void _save() {
+    final f = _file;
+    if (f == null) return;
+    f.parent.createSync(recursive: true);
+    final temp = File('${f.path}.new')..writeAsStringSync(jsonEncode({for (final e in _tokens.entries) e.key: {'t': e.value.token, 's': e.value.sandbox, 'd': e.value.day}}));
+    temp.renameSync(f.path);
+  }
+
+  /// What an install says about its token (`{"push": {"apns": "<hex>", "sandbox": true}}`, or `{"push": null}` to
+  /// forget it). Said over its own connection, so only it can set its own.
+  void said(String id, Object? what) {
+    if (what is Map && what['apns'] is String && RegExp(r'^[0-9a-fA-F]{32,200}$').hasMatch(what['apns'] as String)) {
+      _tokens[id] = (token: (what['apns'] as String).toLowerCase(), sandbox: what['sandbox'] == true, day: _now().toIso8601String().substring(0, 10));
+    } else {
+      _tokens.remove(id);
+    }
+    _save();
+  }
+
+  /// Something was held for [id], who is not connected: their app is asked to wake, if it can be.
+  void held(String id) {
+    final t = _tokens[id];
+    if (t == null) return;
+    final now = _now();
+    final last = _last[id];
+    if (last != null && now.difference(last) < quiet) return;
+    _last[id] = now;
+    unawaited(_deliver(id, t.token, t.sandbox));
+  }
+
+  Future<void> _deliver(String id, String token, bool sandbox) async {
+    final s = send;
+    bool ok;
+    if (s != null) {
+      ok = await s(token, sandbox);
+    } else if (config.ready) {
+      ok = await (_apns ??= Apns(config)).send(token, sandbox: sandbox);
+    } else {
+      return;
+    }
+    // A token Apple no longer knows (the app was deleted) is forgotten; [Apns.send] says so by false with gone.
+    if (!ok && _apns?.lastGone == true) {
+      _tokens.remove(id);
+      _save();
+    }
+  }
+}
+
+/// Apple's push service: what is needed to speak to it (from the environment on the server).
+class ApnsConfig {
+  const ApnsConfig({this.keyFile = '', this.keyId = '', this.teamId = '', this.topic = ''});
+
+  factory ApnsConfig.fromEnvironment(Map<String, String> env) => ApnsConfig(
+        keyFile: env['GHOST_APNS_KEY_FILE'] ?? '',
+        keyId: env['GHOST_APNS_KEY_ID'] ?? '',
+        teamId: env['GHOST_APNS_TEAM_ID'] ?? '',
+        topic: env['GHOST_APNS_TOPIC'] ?? 'com.infamousvague.ghostmessaging',
+      );
+
+  /// The .p8 file Apple gave for the key.
+  final String keyFile;
+  final String keyId;
+  final String teamId;
+
+  /// The app's bundle id.
+  final String topic;
+
+  bool get ready => keyFile.isNotEmpty && keyId.isNotEmpty && teamId.isNotEmpty && topic.isNotEmpty && File(keyFile).existsSync();
+}
+
+/// Sends to Apple: a token signed with the key (ES256, made again every fifty minutes), over HTTP/2, which Dart's
+/// own client does not speak, so by `curl --http2` (the server has it); nothing fetched into the relay.
+class Apns {
+  Apns(this.config);
+  final ApnsConfig config;
+  String? _jwt;
+  DateTime? _made;
+  bool lastGone = false;
+
+  /// The private key's 32 bytes, from the PKCS#8 the .p8 holds: the OCTET STRING after the version inside the
+  /// ECPrivateKey (04 20 then the key).
+  static List<int> scalarOf(String pem) {
+    final der = base64Decode(pem.split('\n').where((l) => !l.startsWith('-----') && l.trim().isNotEmpty).join());
+    for (var i = 0; i + 34 <= der.length; i++) {
+      // ECPrivateKey: 02 01 01 (version 1), then 04 20 (32 bytes).
+      if (der[i] == 0x02 && der[i + 1] == 0x01 && der[i + 2] == 0x01 && der[i + 3] == 0x04 && der[i + 4] == 0x20) {
+        return der.sublist(i + 5, i + 37);
+      }
+    }
+    throw const FormatException('No P-256 private key in that .p8');
+  }
+
+  static String _b64(List<int> b) => base64Url.encode(b).replaceAll('=', '');
+
+  /// A provider token for Apple: header and claims, signed ES256 with the key.
+  static String token(List<int> scalar, {required String keyId, required String teamId, required int issuedAt, Random? random}) {
+    final header = _b64(utf8.encode(jsonEncode({'alg': 'ES256', 'kid': keyId})));
+    final claims = _b64(utf8.encode(jsonEncode({'iss': teamId, 'iat': issuedAt})));
+    final signed = '$header.$claims';
+    final rnd = random ?? Random.secure();
+    final nonce = [for (var i = 0; i < 32; i++) rnd.nextInt(256)];
+    return '$signed.${_b64(P256.sign(scalar, utf8.encode(signed), nonce))}';
+  }
+
+  String _jwtNow() {
+    final now = DateTime.now();
+    if (_jwt == null || _made == null || now.difference(_made!) > const Duration(minutes: 50)) {
+      final scalar = scalarOf(File(config.keyFile).readAsStringSync());
+      _jwt = token(scalar, keyId: config.keyId, teamId: config.teamId, issuedAt: now.millisecondsSinceEpoch ~/ 1000);
+      _made = now;
+    }
+    return _jwt!;
+  }
+
+  /// The notification itself: words only, since the relay cannot read what came.
+  static const payload = '{"aps":{"alert":{"title":"Ghost Messaging","body":"New message"},"sound":"default","thread-id":"ghost"}}';
+
+  Future<bool> send(String token, {bool sandbox = false}) async {
+    final host = sandbox ? 'api.sandbox.push.apple.com' : 'api.push.apple.com';
+    try {
+      final r = await Process.run('curl', [
+        '--http2', '-s', '-o', '/dev/stderr', '-w', '%{http_code}', '--max-time', '15',
+        '-H', 'authorization: bearer ${_jwtNow()}',
+        '-H', 'apns-topic: ${config.topic}',
+        '-H', 'apns-push-type: alert',
+        '-H', 'apns-priority: 10',
+        '-d', payload,
+        'https://$host/3/device/$token',
+      ]);
+      final status = '${r.stdout}'.trim();
+      lastGone = status == '410' || '${r.stderr}'.contains('BadDeviceToken') || '${r.stderr}'.contains('Unregistered');
+      return status == '200';
+    } catch (_) {
+      return false;
+    }
+  }
+}

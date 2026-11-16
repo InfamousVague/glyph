@@ -506,6 +506,9 @@ class MainActivity : FlutterActivity() {
         inFront = true
         // Ghost Keyboard's colour, if chosen there since, and watched while in front (AccentSync.kt).
         io.execute { AccentSync.pull(this) }
+        // A look every fifteen minutes for what friends by username wrote while closed; open now, so any "New
+        // message" from a look is taken down (HubPeek.kt).
+        io.execute { HubPeek.schedule(this); HubPeek.opened(this) }
         accentWatch = AccentSync.watch(this)
         main.removeCallbacks(focusChecks)
         focusChecks.run()

@@ -18,6 +18,7 @@ import '../common.dart';
 import '../hangout_screen.dart';
 import '../ripple_avatar.dart';
 import '../settings.dart';
+import '../shell.dart';
 import '../voice_screen.dart';
 import 'discord.dart';
 import 'facetime.dart';
@@ -397,8 +398,12 @@ abstract final class SpaceWords {
 /// A space's call as the chosen [design] draws it, over the whole window: built again from the call as it changes,
 /// and closed when the call ends.
 class SpaceCallPage extends StatefulWidget {
-  const SpaceCallPage({super.key, required this.design});
+  const SpaceCallPage({super.key, required this.design, this.inline = false});
   final SpaceDesign design;
+
+  /// Drawn as the call page itself (a narrow phone's), not pushed over everything: when the call ends the page under
+  /// it shows what is there then, and nothing is popped.
+  final bool inline;
 
   @override
   State<SpaceCallPage> createState() => _SpaceCallPageState();
@@ -426,7 +431,7 @@ class _SpaceCallPageState extends State<SpaceCallPage> {
   void _changed() {
     if (!mounted) return;
     if (Voice.instance.session == null) {
-      Navigator.of(context).maybePop();
+      if (!widget.inline) Navigator.of(context).maybePop();
       return;
     }
     setState(() {});
@@ -461,6 +466,8 @@ bool openSpaceCall(BuildContext context, {SpaceDesign? design}) {
   final d = design ?? SpaceDesign.of(AppState.of(context));
   final s = Voice.instance.session;
   if (d == SpaceDesign.standard || s == null || !s.channel.hangout) return false;
+  // On a narrow phone the call page itself is the design (inlineSpaceCall), so there is nothing to push over it.
+  if (AppShell.maybeOf(context) != null && !AppShell.wideOf(context)) return false;
   Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(
     settings: const RouteSettings(name: 'space-call'),
     transitionDuration: const Duration(milliseconds: 280),
@@ -498,4 +505,15 @@ class SpaceDesignStub extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The chosen design drawn as the call page itself, where the call is a space's and the window is narrow (a phone, a
+/// folded Fold): wherever the call page is reached from — joining, the call banner, the Spaces tab — it is the design
+/// (Matt, 2026-11-16: "I don't see the new telegram like UI as the default in ghost calls ... i only see it when I open
+/// the phone to fullscreen not when it's closed and skinny"). Null where the app's own layout is to be drawn.
+Widget? inlineSpaceCall(BuildContext context, VoiceSession? s) {
+  if (s == null || !s.channel.hangout || AppShell.wideOf(context)) return null;
+  final d = SpaceDesign.of(AppState.of(context));
+  if (d == SpaceDesign.standard) return null;
+  return SpaceCallPage(key: ValueKey('inline-${d.name}-${s.channel.room}'), design: d, inline: true);
 }

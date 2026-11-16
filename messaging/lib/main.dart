@@ -16,6 +16,7 @@ import 'desktop/main.dart';
 import 'desktop/store.dart' show DeskStore;
 import 'standalone/overlay.dart';
 import 'standalone/standalone.dart';
+import 'standalone/wake.dart';
 import 'standalone/welcome.dart';
 import 'emoji_sets.dart';
 import 'kit/settings_css.dart';
@@ -214,9 +215,16 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  /// When the app last left the screen: how long it was away decides whether the relay connection is trusted.
+  DateTime? _left;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) _left ??= DateTime.now();
     if (state != AppLifecycleState.resumed) return;
+    // Back on the screen: a relay connection that died while away is made again now (lib/net/hub_carrier.dart).
+    Net.instance.resume(_left == null ? Duration.zero : DateTime.now().difference(_left!));
+    _left = null;
     _check();
     // The wallpaper may have changed while the app was away: what is drawn from its palette is drawn again.
     PhonePalette.load().then((changed) {
@@ -331,6 +339,8 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     // An iPhone of its own starts with a username (lib/standalone/welcome.dart); it is never asked to be the
     // default for texts, so the walkthrough above is not shown on one.
     if (Sms.standalone && Me.instance.username == null) return StandaloneWelcome(onDone: () => setState(() {}));
+    // Past the welcome: an iPhone may be woken while closed (lib/standalone/wake.dart).
+    if (Sms.standalone) IosWake.start();
     // The list, and what is opened from it beside it where the screen is wide enough (a folding phone opened out).
     return AppShell(key: _shell, paneObservers: _paneWatch);
   }

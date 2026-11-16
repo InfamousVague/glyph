@@ -1,4 +1,3 @@
-import 'package:flutter/services.dart' show TextCapitalization;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -9,12 +8,12 @@ import '../kit/settings_type.dart';
 import '../me/me.dart';
 import '../sms.dart';
 import 'common.dart';
-import 'profile.dart';
 
 /// Friends by username at the top of Contacts (Matt, 2026-11-16: "We need a way to add friends on the network by
-/// username on the contacts page and see friend requests"): a field to ask someone by their @username, the requests
-/// waiting for an answer with Accept and Decline on each, the ones you sent, and the friends you have. Without a
-/// username of your own it says to choose one first. Buddies (lib/friends/buddies.dart) does the asking.
+/// username on the contacts page and see friend requests"): the requests waiting for an answer with Accept and
+/// Decline on each, the ones you sent, and the friends you have. Asking someone, and choosing a username of your own,
+/// is the drawer the Add button beside the search opens (lib/ui/add_friend_drawer.dart). Buddies
+/// (lib/friends/buddies.dart) does the asking.
 class UsernameFriends extends StatefulWidget {
   const UsernameFriends({super.key, this.buddies, this.me});
 
@@ -27,39 +26,8 @@ class UsernameFriends extends StatefulWidget {
 }
 
 class _UsernameFriendsState extends State<UsernameFriends> {
-  final _who = TextEditingController();
-  String? _problem;
-  bool _busy = false;
-
   Buddies get _buddies => widget.buddies ?? Buddies.instance;
   Me get _me => widget.me ?? Me.instance;
-
-  @override
-  void dispose() {
-    _who.dispose();
-    super.dispose();
-  }
-
-  Future<void> _add() async {
-    final name = tidyHandle(_who.text);
-    if (!Me.goodUsername(name)) {
-      setState(() => _problem = 'Type their username, like @maya.');
-      return;
-    }
-    setState(() {
-      _busy = true;
-      _problem = null;
-    });
-    try {
-      final b = await _buddies.add(name);
-      _who.clear();
-      if (mounted) toast(context, b.state == 'yes' ? 'You and @$name are friends' : 'Friend request sent to @$name');
-    } catch (e) {
-      if (mounted) setState(() => _problem = '$e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,40 +41,6 @@ class _UsernameFriendsState extends State<UsernameFriends> {
               child: Text(words, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
             );
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-          if (_me.username == null)
-            _Row(
-              icon: Lucide.atSign,
-              title: 'Add friends by username',
-              sub: 'Choose a username first, so friends know it\'s you',
-              onPress: () => push(context, (_) => const ProfileScreen()),
-            )
-          else
-            Padding(
-              padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(1)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Row(children: [
-                  Expanded(
-                    child: GlacierInput(
-                      key: const ValueKey('add-friend-field'),
-                      controller: _who,
-                      placeholder: 'Add a friend by @username',
-                      ariaLabel: 'Their username',
-                      autoCorrect: false,
-                      autoCapitalize: TextCapitalization.none,
-                      size: GlacierFieldSize.md,
-                      onSubmitted: (_) => _add(),
-                    ),
-                  ),
-                  SizedBox(width: t.space(2)),
-                  _Pill(key: const ValueKey('add-friend'), label: _busy ? 'Asking…' : 'Add', icon: Lucide.userPlus, filled: true, onPress: _busy ? null : _add),
-                ]),
-                if (_problem != null)
-                  Padding(
-                    padding: EdgeInsets.only(top: t.space(1) + 2, left: t.space(1)),
-                    child: Text(_problem!, style: pageText(t, t.fontSize('sm'), color: t.colorOf('#dd3a30'))),
-                  ),
-              ]),
-            ),
           // Who asked: an answer on each, right there.
           if (b.requests.isNotEmpty) ...[
             heading(b.requests.length == 1 ? 'Friend request' : 'Friend requests · ${b.requests.length}'),
@@ -202,11 +136,10 @@ class _Row extends StatelessWidget {
 
 /// A small capsule: Accept (filled, the page's ink) or Decline (a ring).
 class _Pill extends StatelessWidget {
-  const _Pill({super.key, required this.label, required this.onPress, this.filled = false, this.icon});
+  const _Pill({super.key, required this.label, required this.onPress, this.filled = false});
   final String label;
   final VoidCallback? onPress;
   final bool filled;
-  final LucideIcon? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -226,7 +159,6 @@ class _Pill extends StatelessWidget {
             shape: StadiumBorder(side: filled ? BorderSide.none : BorderSide(color: t.color('app-rule'))),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            if (icon != null) ...[AppIcon(icon!, size: 14, strokeWidth: 2.3, wash: false, color: ink), SizedBox(width: t.space(1))],
             Text(label, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: ink)),
           ]),
         ),

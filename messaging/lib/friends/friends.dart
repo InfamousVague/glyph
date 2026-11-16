@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -85,6 +86,22 @@ class Friends extends ChangeNotifier {
   final Map<String, E2eState> _by = {};
   final Map<String, int> _rows = {};
   final Map<String, DateTime> _woke = {};
+
+  /// What went out and has had no answer yet, by its envelope's id: sent again until the friend's app says it has
+  /// it ([_resend]). Kept with the app's choices (`friends_out`), so an app closed meanwhile goes on after.
+  final Map<String, _Out> _out = {};
+
+  /// The ids of what friends wrote that is kept already (`friends_in`, the newest [keepSeen]): what is sent again
+  /// because an answer was lost is not kept twice.
+  final List<String> _seen = [];
+  Timer? _again;
+
+  /// How long something unanswered is sent again for before it is said to have failed.
+  static const giveUpAfter = Duration(days: 3);
+  static const keepSeen = 500;
+
+  /// When something unanswered is next sent: twenty seconds after, then twice as long each time, five minutes at most.
+  static Duration resendAfter(int tries) => Duration(seconds: (20 * (1 << (tries - 1).clamp(0, 10))).clamp(20, 300));
   final List<StreamSubscription<dynamic>> _subs = [];
   Timer? _soon;
   bool _started = false;
@@ -108,6 +125,8 @@ class Friends extends ChangeNotifier {
     _subs.add(_port.received.listen(_received));
     _subs.add(_port.acked.listen(_acked));
     _port.changed.addListener(_changed);
+    _loadOut();
+    _watchOut();
     await refresh();
     // A request that never got an answer is said again, by a route that costs nothing: either was lost.
     for (final s in _by.values.where((s) => s.on && s.friend == 'asked')) {
@@ -121,16 +140,23 @@ class Friends extends ChangeNotifier {
     }
     _subs.clear();
     _soon?.cancel();
+    _again?.cancel();
     if (_started) _port.changed.removeListener(_changed);
     _started = false;
     _by.clear();
     _rows.clear();
     _woke.clear();
+    _out.clear();
+    _seen.clear();
   }
 
   void _changed() {
     _soon?.cancel();
-    _soon = Timer(const Duration(milliseconds: 120), refresh);
+    _soon = Timer(const Duration(milliseconds: 120), () async {
+      await refresh();
+      // A route that has just come up: what is waiting for an answer goes now, not at its next turn.
+      if (_port.internet) _resend(all: true);
+    });
   }
 
   /// Reads where everyone stands again, and asks those it was waiting to ask now that their key is here.
@@ -300,6 +326,11 @@ class Friends extends ChangeNotifier {
   Future<void> _text(String address, Envelope e) async {
     final words = e.body['t'];
     if (words is! String || words.isEmpty) return;
+    // Sent again because the answer to it was lost: it is here already.
+    if (_seen.contains(e.id)) return;
+    _seen.add(e.id);
+    if (_seen.length > keepSeen) _seen.removeRange(0, _seen.length - keepSeen);
+    _app?.set('friends_in', _seen.join(','));
     final mine = stateOf(address);
     if (mine == 'want' || mine == 'asked') {
       // They write as a friend to someone who asked them: their yes was lost on the way.
@@ -313,9 +344,70 @@ class Friends extends ChangeNotifier {
   }
 
   void _acked(String id) {
-    final row = _rows.remove(id);
+    final row = _rows.remove(id) ?? _out[id]?.row;
+    if (_out.remove(id) != null) _saveOut();
     if (row != null) _port.rowState(row, 'delivered').catchError((_) {});
   }
+
+  void _loadOut() {
+    _out.clear();
+    _seen
+      ..clear()
+      ..addAll((_app?.choice('friends_in', '') ?? '').split(',').where((x) => x.isNotEmpty));
+    try {
+      for (final j in jsonDecode(_app?.choice('friends_out', '[]') ?? '[]') as List) {
+        final o = _Out.fromJson(j as Map);
+        if (o != null) _out[o.id] = o;
+      }
+    } catch (_) {}
+  }
+
+  void _saveOut() {
+    _app?.set('friends_out', jsonEncode([for (final o in _out.values) o.toJson()]));
+    _watchOut();
+  }
+
+  /// Looked at every ten seconds while anything waits for an answer, what is due going again (and at once whenever
+  /// the routes change, [_changed]); nothing runs while nothing waits.
+  void _watchOut() {
+    if (_out.isEmpty) {
+      _again?.cancel();
+      _again = null;
+    } else {
+      _again ??= Timer.periodic(const Duration(seconds: 10), (_) => _resend());
+    }
+  }
+
+  /// Sends again what is due ([all]: everything waiting), with the id it first went with, so the friend's app keeps
+  /// it once and answers. What has waited [giveUpAfter] is said to have failed.
+  Future<void> _resend({bool all = false}) async {
+    if (!_started || _out.isEmpty || !_port.internet) return;
+    final now = DateTime.now();
+    var changed = false;
+    for (final o in _out.values.toList()) {
+      if (now.difference(o.first) > giveUpAfter) {
+        _out.remove(o.id);
+        changed = true;
+        unawaited(_port.rowState(o.row, 'failed').catchError((_) {}));
+        continue;
+      }
+      if (!all && now.isBefore(o.next)) continue;
+      final peer = _port.peer(o.address);
+      if (peer == null) continue;
+      o.tries++;
+      o.next = now.add(resendAfter(o.tries));
+      changed = true;
+      try {
+        final d = await _port.send(peer, Envelope(id: o.id, kind: 'text', body: {'t': o.words}, at: o.first.millisecondsSinceEpoch));
+        if (d.acked) _acked(o.id);
+      } catch (_) {}
+    }
+    if (changed) _saveOut();
+  }
+
+  /// What is waiting for an answer, for a test.
+  @visibleForTesting
+  int get unanswered => _out.length;
 
   // --- what goes ------------------------------------------------------------------------------------------------------
 
@@ -344,6 +436,11 @@ class Friends extends ChangeNotifier {
     }
     await _port.rowState(row, 'sent');
     _rows[envelope.id] = row;
+    // Handed on but not yet answered: it may have gone down a connection that had just died, so it goes again until
+    // the friend's app says it has it.
+    final first = DateTime.fromMillisecondsSinceEpoch(envelope.at);
+    _out[envelope.id] = _Out(id: envelope.id, address: address, words: words, row: row, first: first, next: DateTime.now().add(resendAfter(1)));
+    _saveOut();
     if (d.handed == Handed.held) _wake(peer);
     return true;
   }
@@ -453,5 +550,25 @@ class _AppPort implements FriendsPort {
         await socket?.close();
       } catch (_) {}
     }
+  }
+}
+
+/// Something sent to a friend and not answered yet ([Friends._resend]).
+class _Out {
+  _Out({required this.id, required this.address, required this.words, required this.row, required this.first, required this.next, this.tries = 1});
+  final String id;
+  final String address;
+  final String words;
+  final int row;
+  final DateTime first;
+  DateTime next;
+  int tries;
+
+  Map<String, Object> toJson() => {'i': id, 'a': address, 'w': words, 'r': row, 'f': first.millisecondsSinceEpoch, 'n': next.millisecondsSinceEpoch, 't': tries};
+
+  static _Out? fromJson(Map j) {
+    final id = j['i'], address = j['a'], words = j['w'], row = j['r'], first = j['f'], next = j['n'];
+    if (id is! String || address is! String || words is! String || row is! num || first is! num || next is! num) return null;
+    return _Out(id: id, address: address, words: words, row: row.toInt(), first: DateTime.fromMillisecondsSinceEpoch(first.toInt()), next: DateTime.fromMillisecondsSinceEpoch(next.toInt()), tries: (j['t'] as num?)?.toInt() ?? 1);
   }
 }

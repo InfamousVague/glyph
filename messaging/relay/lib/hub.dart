@@ -5,6 +5,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'handles.dart';
+import 'pushes.dart';
 import 'p256.dart';
 import 'sha256.dart';
 
@@ -33,7 +34,7 @@ import 'sha256.dart';
 /// - **What it does not carry:** a call's sound and picture. Those go between the phones directly (or through a
 ///   media relay); the hub carries only what sets a call up.
 class Hub {
-  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles})
+  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes})
       : _now = now ?? DateTime.now,
         _random = random ?? Random.secure();
 
@@ -44,6 +45,9 @@ class Hub {
   /// The handles people linked (handles.dart): what a connection says that starts `{"dir": …}` is its to answer.
   /// None where null, and such a message is then answered that there is none.
   final Handles? handles;
+
+  /// Waking a closed iPhone when something is held for it (pushes.dart); none where null.
+  final Pushes? pushes;
 
   /// What is signed to connect: these words, then the hub's number.
   static const greeting = 'ghost-hub v1 ';
@@ -143,7 +147,9 @@ class Hub {
     final waiting = Timer(authWait, () {
       if (end == null) ws.close(4401, 'no hello');
     });
-    _tell(ws, {'hello': hexOf(nonce)});
+    // `peek`: this hub knows a look (below), so a closed app's check can sign in without being handed anything; a
+    // hub from before would hand it all over, and the check does not sign in to one that does not say so.
+    _tell(ws, {'hello': hexOf(nonce), 'peek': true});
 
     void leave() {
       waiting.cancel();
@@ -194,6 +200,16 @@ class Hub {
           return;
         }
         waiting.cancel();
+        // A look, not a coming (Matt, 2026-11-16: "Yes, wake-ups"): a closed app's check, every so often, of whether
+        // anything is held for it. Told how many, and nothing is handed over or taken, nor the app's own connection
+        // replaced: the app gets them when it opens.
+        if (hello?['peek'] == true) {
+          final cutoff = _now().subtract(holdFor);
+          final count = (_mail[id] ?? const <_Held>[]).where((h) => h.at.isAfter(cutoff)).length;
+          _tell(ws, {'ok': true, 'held': count, 'peek': true, 'here': _here.containsKey(id)});
+          ws.close(1000, 'looked');
+          return;
+        }
         final made = _End(id as String, ws, (what) => _tell(ws, what));
         _here[made.id]?.ws.close(4409, 'replaced');
         _here[made.id] = made;
@@ -224,6 +240,10 @@ class Hub {
       if (said == null) return;
       if (said.containsKey('ping')) {
         _tell(ws, {'pong': said['ping']});
+      } else if (said.containsKey('push')) {
+        // This install's token for push notifications (an iPhone), or null to forget it.
+        pushes?.said(e.id, said['push']);
+        _tell(ws, {'push': pushes != null});
       } else if (said['dir'] is String) {
         final h = handles;
         if (h == null) {
@@ -279,6 +299,8 @@ class Hub {
       box.add(_Held(frame, _now()));
       _held += frame.length;
       _tell(from.ws, {'ack': seq, 'here': false});
+      // Their app is closed: woken where it can be (an iPhone's push; an Android phone looks for itself).
+      pushes?.held(to);
     } else if (data[0] == toRoom && data.length > 17) {
       // [2][the room, 16 bytes][the packet]: to everyone else in it.
       final name = hexOf(data.sublist(1, 17));
