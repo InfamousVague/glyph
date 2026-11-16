@@ -9,7 +9,7 @@
 //	{"id":4,"op":"contacts"}                                 → [{"aci","name","number","avatar"}…]
 //	{"id":5,"op":"groups"}                                   → [{"id","title","members","avatar"}…] (and event "group", the same, when one is first heard from)
 //	{"id":6,"op":"send","to":"…","text":"…","quote":{"ts":…,"author":"…"}} → {"ts":…}
-//	{"id":7,"op":"send_media","to":"…","path":"…","mime":"…","name":"…","text":"…"} → {"ts":…}
+//	{"id":7,"op":"send_media","to":"…","path":"…","mime":"…","name":"…","text":"…"} → {"ts":…,"pointer":{…}}
 //	{"id":8,"op":"read","to":"…","author":"…","ts":[…]}      → null
 //	{"id":9,"op":"react","to":"…","author":"…","ts":…,"emoji":"👍","remove":false} → null
 //	{"id":10,"op":"delete","to":"…","ts":…}                  → null
@@ -456,7 +456,13 @@ func do(r request) (any, error) {
 		if err := send(ctx, c, r.To, dm); err != nil {
 			return nil, err
 		}
-		return map[string]any{"ts": ts}, nil
+		// The pointer sent, with its key, for the app to keep beside its copy (lib/inbox/signal.dart sendFiles): what the
+		// sent message's picture is fetched again with should the copy go.
+		out := map[string]any{"ts": ts}
+		if m := mediaOf(att); m != nil {
+			out["pointer"] = m["pointer"]
+		}
+		return out, nil
 	case "read":
 		c, err := client()
 		if err != nil {

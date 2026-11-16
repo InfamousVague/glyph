@@ -424,10 +424,16 @@ class Signal extends InboxNetwork {
           : const {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp', 'heic': 'image/heic', 'mp4': 'video/mp4', 'mov': 'video/quicktime', 'pdf': 'application/pdf'}[ext] ??
               'application/octet-stream';
       try {
-        final r = (await _ask('send_media', {'to': chatId, 'path': path, 'mime': mime, 'name': path.split(Platform.pathSeparator).last, 'text': i == paths.length - 1 ? caption : ''}) as Map?) ?? const {};
+        final name = path.split(Platform.pathSeparator).last;
+        final r = (await _ask('send_media', {'to': chatId, 'path': path, 'mime': mime, 'name': name, 'text': i == paths.length - 1 ? caption : ''}) as Map?) ?? const {};
         final ts = (r['ts'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch;
-        _messages.putIfAbsent(chatId, () => []).add({'ts': ts, 'from': '', 'mine': true, 'text': i == paths.length - 1 ? caption : '', 'media': [{'local': path, 'mime': mime, 'name': path.split(Platform.pathSeparator).last, 'pointer': {'local': path}}], 'state': 'sent'});
-        _files[jsonEncode({'local': path}).hashCode & 0x3fffffff] = path;
+        // What was sent is kept for its bubble: a copy in Signal's own folder (the picked file is a copy Android may clear),
+        // and Signal's pointer to it, with its key, to fetch it again should the copy go (Matt, 2026-11-16: a picture
+        // sent showed "Bad state: the attachment has no key", the pointer kept having been only the picked file's path).
+        final kept = await _keepSent(path, ts, i, name);
+        final pointer = r['pointer'] is Map ? r['pointer'] : {'local': kept};
+        _messages.putIfAbsent(chatId, () => []).add({'ts': ts, 'from': '', 'mine': true, 'text': i == paths.length - 1 ? caption : '', 'media': [{'local': kept, 'mime': mime, 'name': name, 'pointer': pointer}], 'state': 'sent'});
+        _files[jsonEncode(pointer).hashCode & 0x3fffffff] = kept;
         _chats.putIfAbsent(chatId, () => {'unread': 0})['last'] = ts;
       } catch (e) {
         _error = '$e';
@@ -436,6 +442,19 @@ class Signal extends InboxNetwork {
     }
     _save();
     notifyListeners();
+  }
+
+  /// A copy of a file sent, in Signal's own folder, kept as long as its message is; the file itself where it can't be copied.
+  Future<String> _keepSent(String path, int ts, int i, String name) async {
+    try {
+      final ext = name.contains('.') ? '.${name.split('.').last}' : '';
+      final kept = '$_dir/files/sent-$ts-$i$ext';
+      await Directory('$_dir/files').create(recursive: true);
+      await File(path).copy(kept);
+      return kept;
+    } catch (_) {
+      return path;
+    }
   }
 
   @override
@@ -447,6 +466,13 @@ class Signal extends InboxNetwork {
     if (known != null) return known;
     final a = _pointers[fileId];
     if (a == null) return null;
+    // One of this account's own, kept on this device as it was sent.
+    final local = a['local'] as String?;
+    if (local != null && File(local).existsSync()) return _files[fileId] = local;
+    // Sent before Signal's pointer was kept with it (0.7.45 and earlier): only the file it was sent from, now gone. Nothing
+    // to fetch it with, and nothing to say: the bubble shows it can't be had.
+    final pointer = a['pointer'];
+    if (pointer is! Map || pointer['key'] == null) return null;
     final ext = '${a['name'] ?? ''}'.contains('.') ? '.${'${a['name']}'.split('.').last}' : '';
     final path = '$_dir/files/$fileId$ext';
     if (File(path).existsSync()) return _files[fileId] = path;
