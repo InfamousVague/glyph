@@ -653,6 +653,14 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   work for telegram and signal as well as standard messages"). The button counts the tab's unread chats from every
   network with its unread texts, so it is no longer grey when only chats are unread, and reads them all; a network's
   own tab and its menu read that network's chats (`_unreadTexts`, `_unreadChats` in lib/ui/conversations.dart).
+- **Invite people into a space from the app; the chat bar above the keyboard** (0.8.2, not released; Matt,
+  2026-11-16: "also make a way to invite friends from the app into spaces and invite people into spaces through the
+  app"; "the chatbar doesn't move up when in the chat section of a space"). Every Invite (each call design, the space's
+  page, its menu's "Invite people", its settings) opens one sheet, `showSpaceInvite` (`lib/ui/space_invite.dart`):
+  friends on Ghost Messaging to tick and send (`Voice.share`), and for anyone else "Text an invite" (a new text with
+  the link written in), "Copy invite link" and "Share link…". A friend sent a space sees "<name> invited you to
+  <space>" with Join and Not now (the ring card). Only roles that may invite see it, and a group's call is never
+  offered. In the Voice chat design's chat on a phone the message bar now stands just above the keyboard.
 - **Voice chat is the default space call, in the app's own look** (0.7.49, not released; Matt, 2026-11-16: "Change
   the telegram one to be our colors without the gradients and our voice effects make the chat window 33% of the screen
   as well then deploy this as the default version"; "Make a few other small tweaks to make it ours and less like
