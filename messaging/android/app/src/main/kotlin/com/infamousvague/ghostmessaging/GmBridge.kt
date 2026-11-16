@@ -397,7 +397,7 @@ object GmBridge {
     // --- the database ------------------------------------------------------------------------------------------------
 
     /** The bridge's own small database: conversations Google Messages showed, and their messages. */
-    class Db private constructor(context: Context) : SQLiteOpenHelper(context, "gm_bridge.db", null, 2) {
+    class Db private constructor(context: Context) : SQLiteOpenHelper(context, "gm_bridge.db", null, 3) {
         companion object {
             @Volatile private var one: Db? = null
             fun get(context: Context): Db = one ?: synchronized(this) { one ?: Db(context.applicationContext).also { one = it } }
@@ -412,7 +412,7 @@ object GmBridge {
             db.execSQL("CREATE TABLE conv (conv TEXT PRIMARY KEY, thread INTEGER, title TEXT, grp INTEGER, addresses TEXT, updated INTEGER)")
             db.execSQL("CREATE TABLE msg (id INTEGER PRIMARY KEY AUTOINCREMENT, conv TEXT, text TEXT, time INTEGER, sender TEXT, address TEXT, out INTEGER, read INTEGER DEFAULT 0, UNIQUE(conv, time, text, out))")
             db.execSQL("CREATE INDEX msg_conv ON msg(conv, time)")
-            onUpgrade(db, 1, 2)
+            onUpgrade(db, 1, 3)
         }
 
         override fun onUpgrade(db: SQLiteDatabase, old: Int, new: Int) {
@@ -425,6 +425,11 @@ object GmBridge {
                 db.execSQL("ALTER TABLE msg ADD COLUMN reactions TEXT")
                 db.execSQL("CREATE UNIQUE INDEX msg_gm ON msg(gm_id)")
                 db.execSQL("CREATE TABLE part (id INTEGER PRIMARY KEY, media TEXT, key TEXT, mime TEXT, name TEXT)")
+            }
+            // 3: a picture's small copy (Google Messages' thumbnail), brought down where the picture itself can't be.
+            if (old < 3) {
+                db.execSQL("ALTER TABLE part ADD COLUMN thumb TEXT")
+                db.execSQL("ALTER TABLE part ADD COLUMN thumb_key TEXT")
             }
         }
 
@@ -468,8 +473,15 @@ object GmBridge {
             return id != -1L
         }
 
-        fun keepPart(id: Long, media: String, key: String, mime: String, name: String?) {
-            writableDatabase.insertWithOnConflict("part", null, ContentValues().apply { put("id", id); put("media", media); put("key", key); put("mime", mime); put("name", name) }, SQLiteDatabase.CONFLICT_REPLACE)
+        fun keepPart(id: Long, media: String, key: String, mime: String, name: String?, thumb: String? = null, thumbKey: String? = null) {
+            writableDatabase.insertWithOnConflict("part", null, ContentValues().apply {
+                put("id", id); put("media", media); put("key", key); put("mime", mime); put("name", name); put("thumb", thumb); put("thumb_key", thumbKey)
+            }, SQLiteDatabase.CONFLICT_REPLACE)
+        }
+
+        /** A picture's thumbnail and its key, where Google Messages gave one. */
+        fun thumbOf(id: Long): Pair<String, String>? = readableDatabase.rawQuery("SELECT thumb, thumb_key FROM part WHERE id = ?", arrayOf("$id")).use { c ->
+            if (c.moveToFirst() && !c.getString(0).isNullOrBlank()) c.getString(0) to (c.getString(1) ?: "") else null
         }
 
         fun part(id: Long): Triple<String, String, String>? = readableDatabase.rawQuery("SELECT media, key, mime FROM part WHERE id = ?", arrayOf("$id")).use { c ->
