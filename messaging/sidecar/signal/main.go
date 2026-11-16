@@ -14,9 +14,11 @@
 //	{"id":9,"op":"react","to":"…","author":"…","ts":…,"emoji":"👍","remove":false} → null
 //	{"id":10,"op":"delete","to":"…","ts":…}                  → null
 //	{"id":11,"op":"download","pointer":{…},"path":"…"}       → null once written
+//	{"id":12,"op":"who","aci":"…"}                           → {"aci","name","number","avatar"}: the person's Signal profile fetched where nothing names them
 //
 // Answers: {"id":1,"ok":true,"result":…} or {"id":1,"ok":false,"error":"…"}. Events, unasked, each with "ev": ready,
-// qr, linked, link_failed, connected, disconnected, message, receipt, reaction, deleted, contacts, unlinked.
+// qr, linked, link_failed, connected, disconnected, message, receipt, reaction, deleted, contacts, unlinked, and
+// name ({"aci","name","number","avatar"}: someone who wrote with nothing naming them, once their profile is fetched).
 package main
 
 import (
@@ -100,6 +102,7 @@ type request struct {
 	Emoji   string          `json:"emoji"`
 	Remove  bool            `json:"remove"`
 	Pointer json.RawMessage `json:"pointer"`
+	ACI     string          `json:"aci"`
 }
 
 var (
@@ -413,6 +416,16 @@ func do(r request) (any, error) {
 			return nil, err
 		}
 		return contacts(ctx, c)
+	case "who":
+		c, err := client()
+		if err != nil {
+			return nil, err
+		}
+		aci, err := uuid.Parse(r.ACI)
+		if err != nil {
+			return nil, errors.New("who: no aci")
+		}
+		return who(ctx, c, aci)
 	case "groups":
 		c, err := client()
 		if err != nil {
@@ -871,9 +884,58 @@ func contacts(ctx context.Context, c *signalmeow.Client) ([]map[string]any, erro
 		if r.ACI == uuid.Nil || r.ACI == c.Store.ACI {
 			continue
 		}
+		// Nothing naming them here (the phone's contact sync often has no name, and only a profile key): their
+		// Signal profile, fetched with that key (Matt, 2026-11-16: "signal messages are not being properly tied to a
+		// username or group name").
+		if recipientName(r) == "" && r.Profile.Key != (libsignalgo.ProfileKey{}) {
+			if fetched, err := c.ContactByACI(ctx, r.ACI); err == nil && fetched != nil {
+				r = fetched
+			}
+		}
 		list = append(list, contact(ctx, c, r))
 	}
 	return list, nil
+}
+
+// who is [aci] as the app shows them: from the store, and from their Signal profile where the store names them not.
+func who(ctx context.Context, c *signalmeow.Client, aci uuid.UUID) (map[string]any, error) {
+	r, err := c.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, uuid.Nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r == nil || recipientName(r) == "" {
+		if fetched, err := c.ContactByACI(ctx, aci); err == nil && fetched != nil {
+			r = fetched
+		} else if err != nil {
+			log.Debug().Err(err).Str("aci", aci.String()).Msg("profile not fetched")
+		}
+	}
+	if r == nil {
+		return map[string]any{"aci": aci.String(), "name": "", "number": "", "avatar": nil}, nil
+	}
+	return contact(ctx, c, r), nil
+}
+
+// announceName fetches the profile of someone who wrote with nothing naming them, once a run, off the receive loop,
+// and tells the app the name it found ("name" event).
+func announceName(c *signalmeow.Client, aci uuid.UUID) {
+	key := "name:" + aci.String()
+	announcedMu.Lock()
+	if announced[key] {
+		announcedMu.Unlock()
+		return
+	}
+	announced[key] = true
+	announcedMu.Unlock()
+	go func() {
+		ctx, cancel := context.WithTimeout(bg(), 30*time.Second)
+		defer cancel()
+		m, err := who(ctx, c, aci)
+		if err != nil || m["name"] == "" {
+			return
+		}
+		event("name", m)
+	}()
 }
 
 func groups(ctx context.Context, c *signalmeow.Client) ([]map[string]any, error) {
@@ -1036,8 +1098,21 @@ func message(c *signalmeow.Client, chat string, group bool, sender uuid.UUID, dm
 			media = append(media, m)
 		}
 	}
+	name := senderName(c, sender)
+	// Someone nothing here names yet: their profile fetched, and the name told to the app as it comes. In a chat of
+	// two the one written with is the chat itself, also when the message is this account's own from another device.
+	if name == "" && sender != c.Store.ACI {
+		announceName(c, sender)
+	}
+	if !group {
+		if other, err := uuid.Parse(chat); err == nil && other != c.Store.ACI && other != sender {
+			if r, err := c.Store.RecipientStore.LoadAndUpdateRecipient(bg(), other, uuid.Nil, nil); err == nil && recipientName(r) == "" {
+				announceName(c, other)
+			}
+		}
+	}
 	m := map[string]any{
-		"chat": chat, "group": group, "from": sender.String(), "name": senderName(c, sender),
+		"chat": chat, "group": group, "from": sender.String(), "name": name,
 		"mine": sender == c.Store.ACI, "ts": dm.GetTimestamp(), "text": dm.GetBody(), "media": media,
 	}
 	if q := dm.GetQuote(); q != nil {
