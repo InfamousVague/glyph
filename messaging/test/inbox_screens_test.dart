@@ -10,6 +10,7 @@ import 'package:ghost_messaging/inbox/telegram.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
 import 'package:ghost_messaging/ui/conversations.dart';
 import 'package:ghost_messaging/ui/inbox_ui.dart';
+import 'package:ghost_messaging/ui/me.dart' show NetworkMark;
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:glacier/glacier.dart';
 
@@ -120,18 +121,21 @@ void main() {
 
   tearDown(() => Inbox.instance = null);
 
-  testWidgets('a signed-in network is a tab of the list; its chat opens, is read, and is answered', (tester) async {
+  testWidgets('a signed-in network\'s chats are among the texts, newest first, marked with its logo; one opens, is read, and is answered', (tester) async {
     final sheet = await loadSheet(tester);
     for (final dark in [false, true]) {
+      // Mixed into Messages (Matt, 2026-11-15: "Id like the telegram chats to be mixed into the normal text messages
+      // (same with bluesky) just add a telegram icon in thr corner of the bubble"): no tab of their own.
       await _shoot(tester, sheet, const ConversationsScreen(), '16-inbox-list', dark: dark);
-      // The tabs: Messages, Voice, Telegram and Bluesky.
-      await tester.tap(find.bySemanticsLabel(RegExp('^Telegram')).first);
-      await settle(tester);
+      expect(find.bySemanticsLabel(RegExp('^Telegram')), findsNothing);
       expect(find.text('Jo Park'), findsOneWidget);
-      expect(find.text('Weekend crew'), findsOneWidget);
-      expect(find.text('You: thanks!'), findsOneWidget);
-      expect(find.text('Maya Chen'), findsNothing);
-      await _again(tester, '16-inbox-telegram', dark: dark);
+      expect(find.text('Maya Chen'), findsWidgets);
+      final rows = find.byType(InboxChatRow);
+      expect(rows, findsWidgets);
+      final badges = find.descendant(of: rows.first, matching: find.byType(NetworkMark));
+      expect(badges, findsOneWidget, reason: 'Telegram\'s logo on the corner of the face');
+      // The newest first: Jo Park (two minutes ago) above Weekend crew (three hours).
+      expect(tester.getTopLeft(find.text('Jo Park')).dy, lessThan(tester.getTopLeft(find.text('Weekend crew')).dy));
 
       await tester.tap(find.text('Jo Park'));
       await settle(tester);
@@ -145,13 +149,8 @@ void main() {
       await settle(tester);
       expect(telegram.sent.last, ('10', 'on my way'));
       expect(find.text('on my way'), findsWidgets);
-
-      // Bluesky, signed in with no chats yet.
       tester.state<NavigatorState>(find.byType(Navigator).first).pop();
       await settle(tester);
-      await tester.tap(find.bySemanticsLabel(RegExp('^Bluesky')).first);
-      await settle(tester);
-      expect(find.text('No chats yet'), findsOneWidget);
     }
   });
 

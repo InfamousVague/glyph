@@ -144,6 +144,54 @@ void main() {
     tg.dispose();
   });
 
+  // Matt, 2026-11-15: "import telegram chats sorted by most recent with the profile pictures and all".
+  test('every chat is loaded, the newest first, each with its picture once brought down', () async {
+    final td = FakeTd();
+    var loads = 0;
+    td.answer = (r) => switch (r['@type']) {
+          'getMe' => {'@type': 'user', 'id': 1, 'first_name': 'Matt'},
+          // Three lots of chats, then none left.
+          'loadChats' => ++loads <= 3 ? {'@type': 'ok'} : {'@type': 'error', 'code': 404, 'message': 'Not Found'},
+          _ => {'@type': 'ok'},
+        };
+    final tg = Telegram(apiId: 12345, apiHash: 'hash', folder: '/tmp/tg', transport: () async => td);
+    await tg.start(AppState());
+    await tg.begin();
+    td.auth('authorizationStateReady');
+    for (var i = 0; i < 12; i++) {
+      await settle();
+    }
+    expect(td.types.where((t) => t == 'loadChats').length, 4, reason: 'asked again until there were no more');
+
+    Map<String, Object?> chat(int id, String title, int date, String order, {Map<String, Object?>? small}) => {
+          '@type': 'updateNewChat',
+          'chat': {
+            'id': id,
+            'title': title,
+            'type': {'@type': 'chatTypePrivate', 'user_id': id},
+            'positions': [
+              {'list': {'@type': 'chatListMain'}, 'order': order},
+            ],
+            'photo': ?(small == null ? null : {'small': small}),
+            'last_message': {'id': 1, 'chat_id': id, 'is_outgoing': false, 'date': date, 'content': {'@type': 'messageText', 'text': {'text': 'hi'}}},
+          },
+        };
+    // A pinned chat (the highest order) that is old, and a newer one with a picture not yet brought down.
+    td.say(chat(10, 'Old but pinned', 1700000000, '900'));
+    td.say(chat(20, 'Jo Park', 1763200000, '100', small: {'id': 55, 'local': {'path': '', 'is_downloading_completed': false}}));
+    await settle();
+    expect(tg.chats.map((c) => c.title), ['Jo Park', 'Old but pinned'], reason: 'the newest first, as among the texts');
+    expect(tg.chats.first.avatar, isNull);
+    final asked = td.sent.where((r) => r['@type'] == 'downloadFile').toList();
+    expect(asked.single['file_id'], 55);
+
+    td.say({'@type': 'updateFile', 'file': {'id': 55, 'local': {'path': '/data/tg/photos/55.jpg', 'is_downloading_completed': true}}});
+    await settle();
+    expect(tg.chats.first.avatar, '/data/tg/photos/55.jpg');
+    expect(td.sent.where((r) => r['@type'] == 'downloadFile').length, 1, reason: 'asked for once');
+    tg.dispose();
+  });
+
   test('a chat\'s messages, a reply sent and confirmed, and reading it', () async {
     final td = FakeTd();
     final tg = Telegram(apiId: 1, apiHash: 'h', folder: '/tmp/tg', transport: () async => td);

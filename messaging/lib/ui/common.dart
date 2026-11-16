@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
@@ -432,6 +433,14 @@ class _Face extends StatelessWidget {
               : Text(letters, style: pageText(t, size * 0.38, weight: 'semibold', color: settingsHue(t))),
         );
         if (person.photo == null) return fallback;
+        // A picture of a chat on another network (lib/inbox): a file Telegram brought down, or Bluesky's address.
+        final photo = person.photo!;
+        if (photo.startsWith('/')) {
+          return ClipOval(child: Image.file(File(photo), width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, errorBuilder: (_, _, _) => fallback));
+        }
+        if (photo.startsWith('https://')) {
+          return ClipOval(child: Image.network(photo, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, errorBuilder: (_, _, _) => fallback));
+        }
         return FutureBuilder<Uint8List?>(
           future: Sms.instance.photo(person.photo!),
           builder: (context, snap) {

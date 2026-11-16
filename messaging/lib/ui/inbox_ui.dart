@@ -46,13 +46,15 @@ class InboxChatRow extends StatelessWidget {
       // The row draws from the conversation alone; the id is only for keys.
       id: -(chat.id.hashCode & 0x3fffffff) - 1,
       date: chat.date,
-      people: [Person(address: '${chat.network}:${chat.id}', name: chat.title)],
+      people: [Person(address: '${chat.network}:${chat.id}', name: chat.title, photo: chat.avatar)],
       snippet: chat.lastFromMe && chat.snippet.isNotEmpty ? 'You: ${chat.snippet}' : chat.snippet,
       unread: chat.unread > 0,
       error: false,
       archived: false,
     );
-    return ConversationRow(conversation: c, selected: selected, onPress: onPress, onLongPress: onPress);
+    final network = Inbox.instance.named(chat.network);
+    // Its network's mark on the corner of the face, so a Telegram or Bluesky chat among the texts says what it is.
+    return ConversationRow(conversation: c, selected: selected, onPress: onPress, onLongPress: onPress, badge: network == null ? null : inboxMark(network, size: 16));
   }
 }
 
