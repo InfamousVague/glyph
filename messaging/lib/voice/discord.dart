@@ -259,6 +259,16 @@ class DiscordServers extends ChangeNotifier {
         throw const DiscordProblem('That channel isn\'t there any more.');
       case 410:
         throw const DiscordProblem('The bot isn\'t in that server any more. Add it again.');
+      case 409:
+        throw DiscordProblem(r['error'] == 'full'
+            ? 'That channel is full.'
+            : 'The bot is already carrying Ghost people in another channel of this server, and it can be in one at a time. Join that one, or try again when it\'s empty.');
+      case 429:
+        throw const DiscordProblem('Too many tries. Wait a minute and try again.');
+      case 502:
+        throw const DiscordProblem('The bot couldn\'t connect to Discord voice. Try again in a moment.');
+      case 503:
+        throw const DiscordProblem('The bot couldn\'t reach Ghost Messaging\'s relay. Try again in a moment.');
       default:
         throw const DiscordProblem('The Discord bot couldn\'t join right now. Try again in a moment.');
     }
