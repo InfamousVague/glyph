@@ -5,6 +5,7 @@ import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
 import '../../kit/settings_type.dart';
+import '../ripple_avatar.dart';
 import 'space_design.dart';
 
 /// A space's call as a Zoom meeting window (SpaceDesign.zoom): a dark meeting area with a top bar (the green
@@ -38,6 +39,20 @@ abstract final class _Z {
   static const green = Color(0xFF23D959);
   static const red = Color(0xFFE5383B);
   static const blue = Color(0xFF0B5CFF);
+
+  /// The ring round a face on the stage, so a dark face still reads as a circle on a dark tile.
+  static const halo = Color(0xFF4A4A52);
+}
+
+/// The words only this design says, beside the shared SpaceWords: Zoom's own names for its buttons and views.
+abstract final class _W {
+  static const participants = 'Participants', more = 'More', close = 'Close', cancel = 'Cancel';
+  static const speakerView = 'Speaker view', galleryView = 'Gallery view';
+  static const startVideo = 'Start video';
+  static const unmuteLocked = 'Unmute, not allowed here', videoLocked = 'Start video, not allowed here';
+
+  /// Zoom says Start Video while the camera is off, Stop Video while it is on.
+  static String video(SpaceCall c) => c.video ? SpaceWords.video(c) : startVideo;
 }
 
 // Lucide's minimize-2 (ISC licence), and a speaker-view mark drawn in Lucide's style: a filmstrip over a big tile.
@@ -71,10 +86,39 @@ class _ZoomCallState extends State<ZoomCall> {
   bool? _gallery;
   _Panel? _panel;
 
-  /// The last one to talk, so the big tile stays on them through a pause.
+  /// The last one to talk, so the big tile stays on them through a pause: kept by a listener on the levels, not
+  /// while building.
   String? _last;
 
   SpaceCall get call => widget.call;
+
+  @override
+  void initState() {
+    super.initState();
+    call.levels.addListener(_heard);
+    _heard();
+  }
+
+  @override
+  void didUpdateWidget(ZoomCall old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.call.levels, call.levels)) {
+      old.call.levels.removeListener(_heard);
+      call.levels.addListener(_heard);
+      _heard();
+    }
+  }
+
+  @override
+  void dispose() {
+    call.levels.removeListener(_heard);
+    super.dispose();
+  }
+
+  void _heard() {
+    final loudest = call.loudest(call.levels.value);
+    if (loudest != null) _last = loudest.id;
+  }
 
   void _open(_Panel p) => setState(() => _panel = _panel == p ? null : p);
   void _close() => setState(() => _panel = null);
@@ -82,59 +126,76 @@ class _ZoomCallState extends State<ZoomCall> {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, box) {
+      // A computer's window (panels at the side) or a phone (sheets). The toolbar and top bar choose how much they
+      // show from the meeting area's own width, below.
       final wide = box.maxWidth >= 720;
       final gallery = _gallery ?? (wide && call.people.length >= 3);
       final pad = MediaQuery.paddingOf(context);
-      final meeting = ColoredBox(
-        color: _Z.stage,
-        child: Column(children: [
-          _TopBar(
-            call: call,
-            wide: wide,
-            top: pad.top,
-            gallery: gallery,
-            alone: call.others.isEmpty,
-            onView: (g) => setState(() => _gallery = g),
+      void view(bool g) => setState(() {
+            _gallery = g;
+            if (_panel == _Panel.more) _panel = null;
+          });
+      final meeting = Stack(children: [
+        Positioned.fill(
+          child: ColoredBox(
+            color: _Z.stage,
+            child: Column(children: [
+              _TopBar(call: call, wide: wide, top: pad.top, gallery: gallery, alone: call.others.isEmpty, onView: view),
+              Expanded(child: _stage(context, wide: wide, gallery: gallery)),
+              _Toolbar(call: call, wide: wide, bottom: pad.bottom, panel: _panel, onPanel: _open),
+            ]),
           ),
-          Expanded(child: _stage(context, wide: wide, gallery: gallery)),
-          _Toolbar(call: call, wide: wide, bottom: pad.bottom, panel: _panel, onPanel: _open),
-        ]),
-      );
-      if (wide) {
-        final side = _panel == _Panel.people || _panel == _Panel.chat;
+        ),
+        // More: the rest of the toolbar as Zoom's action sheet, along the foot of the meeting.
+        if (_panel == _Panel.more) ...[
+          Positioned.fill(child: _Scrim(onTap: _close)),
+          Positioned.fill(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: _MoreSheet(call: call, bottom: pad.bottom, gallery: gallery, onView: view, onClose: _close),
+              ),
+            ),
+          ),
+        ],
+      ]);
+      final side = _panel == _Panel.people || _panel == _Panel.chat;
+      void tab(bool chat) => setState(() => _panel = chat ? _Panel.chat : _Panel.people);
+      if (!wide) {
+        return Stack(children: [
+          Positioned.fill(child: meeting),
+          if (side) ...[
+            Positioned.fill(child: _Scrim(onTap: _close)),
+            Positioned.fill(top: pad.top + 12, child: _SidePanel(call: call, chat: _panel == _Panel.chat, sheet: true, bottom: pad.bottom, onTab: tab, onClose: _close)),
+          ],
+        ]);
+      }
+      const panelWidth = 360.0;
+      final panel = _SidePanel(call: call, chat: _panel == _Panel.chat, top: pad.top, bottom: pad.bottom, onTab: tab, onClose: _close);
+      // Beside the meeting where the window has room for both; over its right-hand side where it has not, so the
+      // meeting keeps its width.
+      if (box.maxWidth - panelWidth >= 680) {
         return Row(children: [
           Expanded(child: meeting),
-          if (side)
-            SizedBox(
-              width: 360,
-              child: _SidePanel(call: call, chat: _panel == _Panel.chat, top: pad.top, bottom: pad.bottom, onTab: (chat) => setState(() => _panel = chat ? _Panel.chat : _Panel.people), onClose: _close),
-            ),
+          if (side) SizedBox(width: panelWidth, child: panel),
         ]);
       }
       return Stack(children: [
         Positioned.fill(child: meeting),
-        if (_panel != null) Positioned.fill(child: _Scrim(onTap: _close)),
-        if (_panel == _Panel.people || _panel == _Panel.chat)
-          Positioned.fill(
-            top: pad.top + 12,
-            child: _SidePanel(call: call, chat: _panel == _Panel.chat, sheet: true, bottom: pad.bottom, onTab: (chat) => setState(() => _panel = chat ? _Panel.chat : _Panel.people), onClose: _close),
-          ),
-        if (_panel == _Panel.more)
+        if (side) ...[
+          Positioned.fill(child: _Scrim(onTap: _close)),
           Positioned(
-            left: 0,
+            top: 0,
             right: 0,
             bottom: 0,
-            child: _MoreSheet(
-              call: call,
-              bottom: pad.bottom,
-              gallery: gallery,
-              onView: (g) => setState(() {
-                _gallery = g;
-                _panel = null;
-              }),
-              onClose: _close,
+            width: panelWidth,
+            child: DecoratedBox(
+              decoration: const BoxDecoration(boxShadow: [BoxShadow(color: Color(0x66000000), blurRadius: 24)]),
+              child: panel,
             ),
           ),
+        ],
       ]);
     });
   }
@@ -146,17 +207,7 @@ class _ZoomCallState extends State<ZoomCall> {
         final others = call.others;
         if (others.isEmpty) return _Alone(call: call, wide: wide);
         // Zoom's active speaker: whoever is loudest now; else whoever spoke last; else someone with video.
-        SpacePerson? speaker;
-        var most = SpaceCall.talking;
-        for (final p in others) {
-          final l = now[p.id] ?? 0;
-          if (!p.muted && l > most) {
-            speaker = p;
-            most = l;
-          }
-        }
-        speaker ??= others.where((p) => p.id == _last).firstOrNull ?? others.where((p) => p.video).firstOrNull ?? others.first;
-        _last = speaker.id;
+        final speaker = call.loudest(now) ?? call.people.where((p) => p.id == _last).firstOrNull ?? others.where((p) => p.video).firstOrNull ?? others.first;
         final pad = wide ? 16.0 : 10.0;
         return Padding(
           padding: EdgeInsets.all(pad),
@@ -189,25 +240,29 @@ class _TopBar extends StatelessWidget {
       Text('Encrypted', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: _Z.green)),
     ]);
     if (wide) {
-      return Container(
-        color: _Z.bar,
-        padding: EdgeInsets.fromLTRB(16, top + 8, 12, 8),
-        child: Row(children: [
-          Expanded(
-            child: Row(children: [
-              Semantics(label: 'Encrypted call', child: encrypted),
-              const SizedBox(width: 14),
-              Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'bold', color: _Z.ink))),
-              const SizedBox(width: 10),
-              const AppIcon(Lucide.clock, size: 13, wash: false, color: _Z.ink3),
-              const SizedBox(width: 4),
-              Text(clock, style: pageText(t, t.fontSize('sm'), color: _Z.ink3)),
-            ]),
-          ),
-          if (!alone) ...[_ViewSwitch(gallery: gallery, onView: onView), const SizedBox(width: 10)],
-          _BarButton(icon: _minimize, label: SpaceWords.minimize, onPressed: call.onMinimize),
-        ]),
-      );
+      return LayoutBuilder(builder: (context, box) {
+        // A narrow meeting area (a small window, or the panel beside it): the view switch and Minimise as icons alone
+        // (still read out by their words), the clock without its mark.
+        final compact = box.maxWidth < 820;
+        return Container(
+          color: _Z.bar,
+          padding: EdgeInsets.fromLTRB(16, top + 8, 12, 8),
+          child: Row(children: [
+            Expanded(
+              child: Row(children: [
+                Semantics(label: 'Encrypted call', child: encrypted),
+                const SizedBox(width: 14),
+                Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'bold', color: _Z.ink))),
+                const SizedBox(width: 10),
+                if (!compact) ...[const AppIcon(Lucide.clock, size: 13, wash: false, color: _Z.ink3), const SizedBox(width: 4)],
+                Text(clock, style: pageText(t, t.fontSize('sm'), color: _Z.ink3)),
+              ]),
+            ),
+            if (!alone) ...[_ViewSwitch(gallery: gallery, onView: onView, iconsOnly: compact), const SizedBox(width: 10)],
+            _BarButton(icon: _minimize, label: SpaceWords.minimize, onPressed: call.onMinimize, iconOnly: compact),
+          ]),
+        );
+      });
     }
     return Container(
       color: _Z.bar,
@@ -244,9 +299,10 @@ class _TopBar extends StatelessWidget {
 
 /// Speaker view / Gallery view, as Zoom's View menu offers them: both visible, the one in use filled.
 class _ViewSwitch extends StatelessWidget {
-  const _ViewSwitch({required this.gallery, required this.onView});
+  const _ViewSwitch({required this.gallery, required this.onView, this.iconsOnly = false});
   final bool gallery;
   final ValueChanged<bool> onView;
+  final bool iconsOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -258,12 +314,14 @@ class _ViewSwitch extends StatelessWidget {
         semanticLabel: label,
         builder: (context, state) => AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: EdgeInsets.symmetric(horizontal: iconsOnly ? 9 : 12, vertical: 6),
           decoration: BoxDecoration(color: on ? _Z.raised : (state.hovered ? const Color(0xFF242428) : null), borderRadius: BorderRadius.circular(6)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             AppIcon(icon, size: 15, wash: false, color: on ? _Z.ink : _Z.ink3),
-            const SizedBox(width: 6),
-            Text(label, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: on ? _Z.ink : _Z.ink3)),
+            if (!iconsOnly) ...[
+              const SizedBox(width: 6),
+              Text(label, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: on ? _Z.ink : _Z.ink3)),
+            ],
           ]),
         ),
       );
@@ -273,8 +331,8 @@ class _ViewSwitch extends StatelessWidget {
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(color: const Color(0xCC151517), border: Border.all(color: _Z.line), borderRadius: BorderRadius.circular(8)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        option(false, _speakerView, 'Speaker view'),
-        option(true, Lucide.layoutGrid, 'Gallery view'),
+        option(false, _speakerView, _W.speakerView),
+        option(true, Lucide.layoutGrid, _W.galleryView),
       ]),
     );
   }
@@ -282,11 +340,12 @@ class _ViewSwitch extends StatelessWidget {
 
 /// A small icon button in the top bar, its word beside it (or under it on a phone).
 class _BarButton extends StatelessWidget {
-  const _BarButton({required this.icon, required this.label, this.onPressed, this.stacked = false});
+  const _BarButton({required this.icon, required this.label, this.onPressed, this.stacked = false, this.iconOnly = false});
   final LucideIcon icon;
   final String label;
   final VoidCallback? onPressed;
   final bool stacked;
+  final bool iconOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -301,7 +360,9 @@ class _BarButton extends StatelessWidget {
         builder: (context, state) => Container(
           padding: EdgeInsets.symmetric(horizontal: stacked ? 6 : 10, vertical: stacked ? 4 : 6),
           decoration: BoxDecoration(color: state.hovered || state.pressed ? _Z.raised : null, borderRadius: BorderRadius.circular(6)),
-          child: stacked
+          child: iconOnly
+              ? mark
+              : stacked
               ? Column(mainAxisSize: MainAxisSize.min, children: [mark, const SizedBox(height: 3), words])
               : Row(mainAxisSize: MainAxisSize.min, children: [mark, const SizedBox(width: 6), words]),
         ),
@@ -370,7 +431,7 @@ class _Tile extends StatelessWidget {
             if (person.video)
               SpaceVideo(call: call, person: person, faceSize: face, fallback: _VideoWaiting(call: call, person: person, face: face, small: small))
             else
-              Center(child: SpaceFace(call: call, person: person, size: face)),
+              Center(child: _StageFace(call: call, person: person, size: face)),
             Positioned(
               left: small ? 4 : 8,
               bottom: small ? 4 : 8,
@@ -394,6 +455,27 @@ class _Tile extends StatelessWidget {
   }
 }
 
+/// A face on the dark stage, in a lighter ring: in the dark theme the face itself is near-black, and without the ring
+/// it would sink into the tile and leave a floating letter. Its ripples still go out past the ring.
+class _StageFace extends StatelessWidget {
+  const _StageFace({required this.call, required this.person, required this.size});
+  final SpaceCall call;
+  final SpacePerson person;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final ring = (size * 0.05).clamp(2.0, 5.0);
+    return Container(
+      width: size,
+      height: size,
+      padding: EdgeInsets.all(ring),
+      decoration: const BoxDecoration(shape: BoxShape.circle, color: _Z.halo),
+      child: SpaceFace(call: call, person: person, size: size - ring * 2),
+    );
+  }
+}
+
 /// A tile whose video is on but whose picture has not arrived: their face on a cooler ground, a camera mark in the
 /// corner, so it reads as "video" rather than an empty box.
 class _VideoWaiting extends StatelessWidget {
@@ -407,7 +489,7 @@ class _VideoWaiting extends StatelessWidget {
   Widget build(BuildContext context) => DecoratedBox(
         decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF233046), Color(0xFF151C28)])),
         child: Stack(children: [
-          Center(child: SpaceFace(call: call, person: person, size: face)),
+          Center(child: _StageFace(call: call, person: person, size: face)),
           Positioned(
             top: small ? 4 : 8,
             right: small ? 4 : 8,
@@ -538,9 +620,9 @@ class _Alone extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(28, 36, 28, 28),
           decoration: BoxDecoration(color: _Z.tile, border: Border.all(color: _Z.line), borderRadius: BorderRadius.circular(14)),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            // Room for the ripples round the face.
-            Padding(padding: const EdgeInsets.all(22), child: SpaceFace(call: call, person: call.me, size: wide ? 104 : 92)),
-            const SizedBox(height: 10),
+            // Room for the ripples round the face: they reach out almost a face's radius past it.
+            Padding(padding: EdgeInsets.fromLTRB(22, 22, 22, (wide ? 104 : 92) * 0.48), child: _StageFace(call: call, person: call.me, size: wide ? 104 : 92)),
+            const SizedBox(height: 6),
             ValueListenableBuilder<Map<String, double>>(
               valueListenable: call.levels,
               builder: (context, now, _) {
@@ -596,53 +678,66 @@ class _Toolbar extends StatelessWidget {
     // Muted for everyone, or a role that may not speak: Unmute can't be pressed, and says why.
     final muteLocked = call.micLocked && call.muted;
     final videoLocked = call.videoLocked && !call.video;
-    final mute = _ToolButton(
-      icon: muteLocked ? Lucide.lock : SpaceWords.muteIcon(call),
-      label: SpaceWords.mute(call),
-      semanticLabel: muteLocked ? 'Unmute, not allowed here' : null,
-      alert: call.muted,
-      onPressed: muteLocked ? null : call.onMute,
-      // On a phone the devices are under More.
-      onChevron: wide ? devices : null,
-    );
-    final video = _ToolButton(
-      icon: videoLocked ? Lucide.lock : SpaceWords.videoIcon(call),
-      label: SpaceWords.video(call),
-      semanticLabel: videoLocked ? 'Video, not allowed here' : null,
-      alert: !call.video,
-      onPressed: videoLocked ? null : call.onVideo,
-      onChevron: wide ? devices : null,
-    );
-    final people = _ToolButton(icon: Lucide.users, label: 'Participants', count: call.people.length, on: panel == _Panel.people, onPressed: () => onPanel(_Panel.people));
+    Widget mute({bool chevron = false}) => _ToolButton(
+          icon: muteLocked ? Lucide.lock : SpaceWords.muteIcon(call),
+          label: SpaceWords.mute(call),
+          semanticLabel: muteLocked ? _W.unmuteLocked : null,
+          alert: call.muted,
+          onPressed: muteLocked ? null : call.onMute,
+          onChevron: chevron ? devices : null,
+        );
+    Widget video({bool chevron = false}) => _ToolButton(
+          icon: videoLocked ? Lucide.lock : SpaceWords.videoIcon(call),
+          label: _W.video(call),
+          semanticLabel: videoLocked ? _W.videoLocked : null,
+          alert: !call.video,
+          onPressed: videoLocked ? null : call.onVideo,
+          onChevron: chevron ? devices : null,
+        );
+    final people = _ToolButton(icon: Lucide.users, label: _W.participants, count: call.people.length, on: panel == _Panel.people, onPressed: () => onPanel(_Panel.people));
     final chat = _ToolButton(icon: LucideMore.messageCircle, label: SpaceWords.chat, on: panel == _Panel.chat, onPressed: () => onPanel(_Panel.chat));
+    final more = _ToolButton(icon: Lucide.ellipsis, label: _W.more, on: panel == _Panel.more, onPressed: () => onPanel(_Panel.more));
     if (!wide) {
+      // On a phone the devices are under More.
       return Container(
         decoration: const BoxDecoration(color: _Z.bar, border: Border(top: BorderSide(color: _Z.line))),
         padding: EdgeInsets.fromLTRB(4, 6, 4, bottom + 6),
         child: Row(children: [
-          Expanded(child: Center(child: mute)),
-          Expanded(child: Center(child: video)),
+          Expanded(child: Center(child: mute())),
+          Expanded(child: Center(child: video())),
           Expanded(child: Center(child: people)),
           Expanded(child: Center(child: chat)),
-          Expanded(child: Center(child: _ToolButton(icon: Lucide.ellipsis, label: 'More', on: panel == _Panel.more, onPressed: () => onPanel(_Panel.more)))),
+          Expanded(child: Center(child: more)),
         ]),
       );
     }
-    return Container(
-      decoration: const BoxDecoration(color: _Z.bar, border: Border(top: BorderSide(color: _Z.line))),
-      padding: EdgeInsets.fromLTRB(12, 8, 16, bottom + 8),
-      child: Row(children: [
-        Expanded(child: Align(alignment: Alignment.centerLeft, child: Row(mainAxisSize: MainAxisSize.min, spacing: 4, children: [mute, video]))),
-        Row(mainAxisSize: MainAxisSize.min, spacing: 4, children: [
-          people,
-          chat,
-          _ToolButton(icon: Lucide.userPlus, label: SpaceWords.invite, onPressed: call.onInvite == null ? null : () => call.onInvite!(context)),
-          _ToolButton(icon: SpaceWords.deafenIcon(call), label: SpaceWords.deafen(call), alert: call.deafened, onPressed: call.onDeafen),
-          _ToolButton(icon: Lucide.settings, label: SpaceWords.settings, onPressed: call.onSettings == null ? null : () => call.onSettings!(context)),
+    return LayoutBuilder(builder: (context, box) {
+      // Chosen from the meeting area's own width, not the window's: everything in a wide one; Invite, Deafen and
+      // Settings under More (as Zoom folds its toolbar) in a narrower one; and in the narrowest the devices too.
+      final w = box.maxWidth;
+      final full = w >= 860;
+      final chevrons = w >= 660;
+      // Should a size still not fit (a large font), the halves shrink to fit rather than spill.
+      Widget half(Widget child, Alignment at) => Align(alignment: at, child: FittedBox(fit: BoxFit.scaleDown, alignment: at, child: child));
+      return Container(
+        decoration: const BoxDecoration(color: _Z.bar, border: Border(top: BorderSide(color: _Z.line))),
+        padding: EdgeInsets.fromLTRB(12, 8, 16, bottom + 8),
+        child: Row(children: [
+          Expanded(child: half(Row(mainAxisSize: MainAxisSize.min, spacing: 4, children: [mute(chevron: chevrons), video(chevron: chevrons)]), Alignment.centerLeft)),
+          Row(mainAxisSize: MainAxisSize.min, spacing: 4, children: [
+            people,
+            chat,
+            if (full) ...[
+              _ToolButton(icon: Lucide.userPlus, label: SpaceWords.invite, onPressed: call.onInvite == null ? null : () => call.onInvite!(context)),
+              _ToolButton(icon: SpaceWords.deafenIcon(call), label: SpaceWords.deafen(call), alert: call.deafened, onPressed: call.onDeafen),
+              _ToolButton(icon: Lucide.settings, label: SpaceWords.settings, onPressed: call.onSettings == null ? null : () => call.onSettings!(context)),
+            ] else
+              more,
+          ]),
+          Expanded(child: half(_LeaveButton(call: call), Alignment.centerRight)),
         ]),
-        Expanded(child: Align(alignment: Alignment.centerRight, child: _LeaveButton(call: call))),
-      ]),
-    );
+      );
+    });
   }
 }
 
@@ -731,6 +826,7 @@ class _SidePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final dark = t.color('app-paper').computeLuminance() < 0.2;
     Widget tab(bool isChat, LucideIcon icon, String label) {
       final on = chat == isChat;
       return Expanded(
@@ -739,7 +835,13 @@ class _SidePanel extends StatelessWidget {
           semanticLabel: label,
           builder: (context, state) => Container(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            decoration: BoxDecoration(color: on ? t.color('app-paper') : null, borderRadius: BorderRadius.circular(7)),
+            // The selected tab raised out of the track: the page's paper in the light theme, and in the dark (where
+            // the paper is darker than the track) the track lifted with white, with a line round it in both.
+            decoration: BoxDecoration(
+              color: on ? (dark ? Color.alphaBlend(const Color(0x2EFFFFFF), t.color('app-paper-2')) : t.color('app-paper')) : null,
+              border: Border.all(color: on ? t.color('app-rule') : const Color(0x00000000)),
+              borderRadius: BorderRadius.circular(7),
+            ),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               AppIcon(icon, size: 15, wash: false, color: on ? t.color('app-ink') : t.color('app-ink-3')),
               const SizedBox(width: 6),
@@ -766,7 +868,7 @@ class _SidePanel extends StatelessWidget {
                 padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(9)),
                 child: Row(children: [
-                  tab(false, Lucide.users, 'Participants (${call.people.length})'),
+                  tab(false, Lucide.users, '${_W.participants} (${call.people.length})'),
                   tab(true, LucideMore.messageCircle, SpaceWords.chat),
                 ]),
               ),
@@ -774,7 +876,7 @@ class _SidePanel extends StatelessWidget {
             const SizedBox(width: 4),
             _Press(
               onPressed: onClose,
-              semanticLabel: 'Close',
+              semanticLabel: _W.close,
               builder: (context, state) => Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(color: state.hovered || state.pressed ? t.color('app-paper-2') : null, borderRadius: BorderRadius.circular(8)),
@@ -801,6 +903,8 @@ class _People extends StatelessWidget {
     final t = context.tokens;
     final roster = call.room?.roster;
     final red = t.colorOf('#dd3a30');
+    // Muted for everyone, or a role that may not speak: as on the toolbar, a lock, and words that say why.
+    final locked = call.micLocked && call.muted;
     return Column(children: [
       Expanded(
         child: ListView(padding: const EdgeInsets.symmetric(vertical: 6), children: [
@@ -819,7 +923,11 @@ class _People extends StatelessWidget {
                   color: state.hovered || state.pressed ? t.color('app-paper-2') : null,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Row(children: [
-                    SpaceFace(call: call, person: p, size: 34),
+                    // A green ring while they talk, not ripples: the ripples would run into the name and past the edge.
+                    ValueListenableBuilder<Map<String, double>>(
+                      valueListenable: call.levels,
+                      builder: (context, now, _) => RippleAvatar(name: p.me ? (p.name.isEmpty ? 'You' : p.name) : p.name, level: 0, muted: p.muted, size: 34, ringed: call.isTalking(p, now)),
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Row(children: [
@@ -850,7 +958,14 @@ class _People extends StatelessWidget {
         child: Row(children: [
           Expanded(child: _PanelAction(icon: Lucide.userPlus, label: SpaceWords.invite, onPressed: call.onInvite == null ? null : () => call.onInvite!(context))),
           const SizedBox(width: 8),
-          Expanded(child: _PanelAction(icon: SpaceWords.muteIcon(call), label: call.muted ? 'Unmute me' : 'Mute me', onPressed: call.micLocked && call.muted ? null : call.onMute)),
+          Expanded(
+            child: _PanelAction(
+              icon: locked ? Lucide.lock : SpaceWords.muteIcon(call),
+              label: call.muted ? 'Unmute me' : 'Mute me',
+              semanticLabel: locked ? _W.unmuteLocked : null,
+              onPressed: locked ? null : call.onMute,
+            ),
+          ),
         ]),
       ),
     ]);
@@ -858,9 +973,10 @@ class _People extends StatelessWidget {
 }
 
 class _PanelAction extends StatelessWidget {
-  const _PanelAction({required this.icon, required this.label, this.onPressed});
+  const _PanelAction({required this.icon, required this.label, this.onPressed, this.semanticLabel});
   final LucideIcon icon;
   final String label;
+  final String? semanticLabel;
   final VoidCallback? onPressed;
 
   @override
@@ -870,7 +986,7 @@ class _PanelAction extends StatelessWidget {
       opacity: onPressed == null ? 0.45 : 1,
       child: _Press(
         onPressed: onPressed,
-        semanticLabel: label,
+        semanticLabel: semanticLabel ?? label,
         builder: (context, state) => Container(
           padding: const EdgeInsets.symmetric(vertical: 9),
           decoration: BoxDecoration(color: state.pressed ? t.color('app-paper-3') : t.color('app-paper-2'), border: Border.all(color: t.color('app-rule')), borderRadius: BorderRadius.circular(8)),
@@ -927,7 +1043,7 @@ class _MoreSheet extends StatelessWidget {
         Container(width: 36, height: 4, decoration: BoxDecoration(color: t.color('app-rule'), borderRadius: BorderRadius.circular(2))),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-          child: Align(alignment: Alignment.centerLeft, child: Text('More', style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink')))),
+          child: Align(alignment: Alignment.centerLeft, child: Text(_W.more, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink')))),
         ),
         if (call.others.isNotEmpty) row(gallery ? _speakerView : Lucide.layoutGrid, gallery ? 'Switch to Speaker view' : 'Switch to Gallery view', () => onView(!gallery)),
         row(SpaceWords.deafenIcon(call), SpaceWords.deafen(call), call.onDeafen == null
@@ -940,7 +1056,7 @@ class _MoreSheet extends StatelessWidget {
         row(LucideMore.headphones, SpaceWords.devices, then(call.onDevices)),
         row(Lucide.settings, SpaceWords.settings, then(call.onSettings)),
         Container(height: 1, margin: const EdgeInsets.symmetric(vertical: 4), color: t.color('app-rule')),
-        row(Lucide.x, 'Cancel', onClose),
+        row(Lucide.x, _W.cancel, onClose),
       ]),
     );
   }
