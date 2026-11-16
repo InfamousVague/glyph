@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/ui/ripple_avatar.dart';
@@ -45,6 +46,21 @@ void main() {
     await tester.tap(find.text('Muted by a moderator'));
     await tester.pump();
     expect(log, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('stage: on a 412-wide phone every label in the header and the bar shows whole', (tester) async {
+    final h = await SpaceHarness.load(tester);
+    addTearDown(tester.view.reset);
+    await h.shoot(tester, StageCall(call: h.call()), 'space-stage-buttons');
+    for (final words in ['Leave quietly', 'Minimise', 'Comments', 'Invite', 'Mute', 'Camera', 'Deafen', 'Devices', 'Settings']) {
+      final text = find.text(words);
+      expect(text, findsOneWidget, reason: words);
+      expect(tester.renderObject<RenderParagraph>(text).didExceedMaxLines, isFalse, reason: '$words is cut off');
+      // Not squeezed onto two lines either: one line tall.
+      final line = tester.renderObject<RenderParagraph>(text).getFullHeightForCaret(const TextPosition(offset: 0));
+      expect(tester.getSize(text).height, lessThan(line * 1.5), reason: '$words wraps');
+    }
     await tester.pumpWidget(const SizedBox());
   });
 

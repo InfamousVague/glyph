@@ -26,6 +26,15 @@ const _purple = Color(0xFF7856FF);
 const _red = Color(0xFFE0245E);
 const _white = Color(0xFFFFFFFF);
 
+/// The stage's own words, beside the shared ones in [SpaceWords].
+abstract final class _Words {
+  static const comments = 'Comments', closeComments = 'Close comments', leaveQuietly = 'Leave quietly', mutedByModerator = 'Muted by a moderator';
+  static const onStage = 'On stage', listening = 'Listening', onCamera = 'On camera', live = 'LIVE', host = 'Host', coHost = 'Co-host';
+  static const alone = 'It\'s just you', aloneHint = 'Invite people to listen in';
+  static String camera(SpaceCall c) => c.video ? 'Stop camera' : 'Camera';
+  static String here(int n) => '$n ${n == 1 ? 'person' : 'people'} here';
+}
+
 /// The stage's colours: Clubhouse's warm cream behind white cards when light, near-black behind grey cards when dark.
 class _Look {
   _Look(Tokens t) : dark = t.color('app-paper').computeLuminance() < 0.4 {
@@ -63,12 +72,13 @@ class _StageCallState extends State<StageCall> {
         final comments = _comments ?? wide;
         void toggle() => setState(() => _comments = !comments);
         final bar = _Bar(call: call, look: look, camera: wide, comments: comments, onComments: toggle, bottom: wide ? t.space(3) : pad.bottom + t.space(2));
-        final header = _Header(call: call, look: look, camera: !wide, top: wide ? t.space(3) : pad.top + t.space(1));
+        final header = _Header(call: call, look: look, camera: !wide, side: wide ? t.space(4) : t.space(3), top: wide ? t.space(3) : pad.top + t.space(1));
         if (wide) {
           return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                header,
+                // The header as wide as the card below it, so its buttons end on the card's right edge.
+                Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 820), child: header)),
                 Expanded(
                   child: Center(
                     child: ConstrainedBox(
@@ -88,33 +98,40 @@ class _StageCallState extends State<StageCall> {
               ),
           ]);
         }
+        // The sheet and its scrim cover the header as well as the stage; the bar stays live, its Comments button shuts it.
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          header,
           Expanded(
-            child: Stack(children: [
-              Positioned.fill(child: Padding(padding: EdgeInsets.symmetric(horizontal: t.space(3)), child: _StageCard(call: call, look: look, wide: false))),
-              if (comments) ...[
-                // The stage dimmed behind the sheet; pressing it puts the sheet away.
+            child: LayoutBuilder(builder: (context, upper) {
+              return Stack(children: [
                 Positioned.fill(
-                  child: GestureDetector(onTap: toggle, child: ColoredBox(color: const Color(0xFF000000).withValues(alpha: look.dark ? 0.45 : 0.18))),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    header,
+                    Expanded(child: Padding(padding: EdgeInsets.symmetric(horizontal: t.space(3)), child: _StageCard(call: call, look: look, wide: false))),
+                  ]),
                 ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  top: box.maxHeight * 0.16,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: look.card,
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(t.radius('xl'))),
-                      boxShadow: [BoxShadow(color: const Color(0xFF000000).withValues(alpha: 0.18), blurRadius: 24, offset: const Offset(0, -4))],
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: _Comments(call: call, look: look, top: t.space(2), onClose: toggle, grabber: true),
+                if (comments) ...[
+                  // Everything above the bar dimmed behind the sheet; pressing it puts the sheet away.
+                  Positioned.fill(
+                    child: GestureDetector(onTap: toggle, child: ColoredBox(color: const Color(0xFF000000).withValues(alpha: look.dark ? 0.45 : 0.18))),
                   ),
-                ),
-              ],
-            ]),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    top: pad.top + upper.maxHeight * 0.12,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: look.card,
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(t.radius('xl'))),
+                        boxShadow: [BoxShadow(color: const Color(0xFF000000).withValues(alpha: 0.18), blurRadius: 24, offset: const Offset(0, -4))],
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: _Comments(call: call, look: look, top: t.space(2), onClose: toggle, grabber: true),
+                    ),
+                  ),
+                ],
+              ]);
+            }),
           ),
           bar,
         ]);
@@ -125,10 +142,13 @@ class _StageCallState extends State<StageCall> {
 
 /// Minimise on the left, as Clubhouse's "⌄ All rooms"; Deafen, Devices and Settings on the right.
 class _Header extends StatelessWidget {
-  const _Header({required this.call, required this.look, required this.top, required this.camera});
+  const _Header({required this.call, required this.look, required this.top, required this.side, required this.camera});
   final SpaceCall call;
   final _Look look;
   final double top;
+
+  /// The inset on either side: the card's own on a computer, so the round buttons end where the card does.
+  final double side;
 
   /// The camera up here, not in the foot: a phone's foot has no room for it beside "Leave quietly".
   final bool camera;
@@ -137,11 +157,11 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(3), top, t.space(3), t.space(2)),
+      padding: EdgeInsets.fromLTRB(side, top, side, t.space(2)),
       child: Row(children: [
-        Flexible(child: _Pill(look: look, icon: Lucide.chevronDown, label: SpaceWords.minimize, onPressed: call.onMinimize)),
+        // Minimise takes what the round buttons leave, sitting on the left at its own width.
+        Expanded(child: Align(alignment: Alignment.centerLeft, child: _Pill(look: look, icon: Lucide.chevronDown, label: SpaceWords.minimize, onPressed: call.onMinimize))),
         SizedBox(width: t.space(2)),
-        const Spacer(),
         if (camera) ...[_Camera(call: call, look: look, size: 38), SizedBox(width: t.space(1))],
         _Round(look: look, icon: SpaceWords.deafenIcon(call), label: SpaceWords.deafen(call), on: call.deafened, onPressed: call.onDeafen, size: 38),
         SizedBox(width: t.space(1)),
@@ -191,7 +211,7 @@ class _StageCard extends StatelessWidget {
               SizedBox(width: t.space(1)),
               Flexible(
                 child: Text(
-                  '$here ${here == 1 ? 'person' : 'people'} here · ${call.clock(DateTime.now())}',
+                  '${_Words.here(here)} · ${call.clock(DateTime.now())}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: look.ink3),
@@ -202,22 +222,22 @@ class _StageCard extends StatelessWidget {
             Text(call.channel.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, wide ? 30 : 24, weight: 'bold', color: look.ink)),
             if (cameras.isNotEmpty) ...[
               SizedBox(height: gap),
-              _Section(look: look, icon: Lucide.video, label: 'On camera', count: cameras.length),
+              _Section(look: look, icon: Lucide.video, label: _Words.onCamera, count: cameras.length),
               SizedBox(height: t.space(3)),
               _Cameras(call: call, people: cameras, wide: wide),
             ],
             SizedBox(height: gap),
-            _Section(look: look, icon: LucideMore.audioLines, label: 'On stage', count: stage.length),
+            _Section(look: look, icon: LucideMore.audioLines, label: _Words.onStage, count: stage.length),
             SizedBox(height: t.space(4)),
             if (alone)
               _Alone(call: call, look: look)
             else
-              _Grid(width: width, tile: wide ? 132 : 112, children: [for (final p in stage) _Speaker(call: call, person: p, look: look, size: wide ? 96 : 84)]),
+              _Grid(width: width, tile: wide ? 150 : 112, tiles: (w) => [for (final p in stage) _Speaker(call: call, person: p, look: look, size: wide ? 96 : 84, room: w)]),
             if (listening.isNotEmpty) ...[
               SizedBox(height: gap),
-              _Section(look: look, icon: LucideMore.headphones, label: 'Listening', count: listening.length),
+              _Section(look: look, icon: LucideMore.headphones, label: _Words.listening, count: listening.length),
               SizedBox(height: t.space(3)),
-              _Grid(width: width, tile: wide ? 96 : 86, children: [for (final p in listening) _Listener(call: call, person: p, look: look)]),
+              _Grid(width: width, tile: wide ? 96 : 86, tiles: (w) => [for (final p in listening) _Listener(call: call, person: p, look: look, room: w)]),
             ],
           ]),
         );
@@ -239,7 +259,7 @@ class _Live extends StatelessWidget {
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         const AppIcon(LucideMore.audioLines, size: 13, wash: false, color: _white),
         const SizedBox(width: 4),
-        Text('LIVE', style: pageText(t, t.fontSize('xs'), weight: 'bold', color: _white).copyWith(letterSpacing: 0.8)),
+        Text(_Words.live, style: pageText(t, t.fontSize('xs'), weight: 'bold', color: _white).copyWith(letterSpacing: 0.8)),
       ]),
     );
   }
@@ -265,50 +285,86 @@ class _Section extends StatelessWidget {
   }
 }
 
-/// Tiles of one width in rows, as many across as fit, spread evenly.
+/// Tiles of one width in rows, as many across as fit, spread evenly; [tiles] is told the tile's width.
 class _Grid extends StatelessWidget {
-  const _Grid({required this.width, required this.tile, required this.children});
+  const _Grid({required this.width, required this.tile, required this.tiles});
   final double width;
   final double tile;
-  final List<Widget> children;
+  final List<Widget> Function(double tile) tiles;
 
   @override
   Widget build(BuildContext context) {
     final across = (width / tile).floor().clamp(1, 8);
     final w = width / across;
-    return Wrap(runSpacing: context.tokens.space(4), children: [for (final c in children) SizedBox(width: w, child: c)]);
+    return Wrap(runSpacing: context.tokens.space(4), children: [for (final c in tiles(w)) SizedBox(width: w, child: c)]);
   }
 }
 
 /// A face that ripples purple from [SpaceCall.levels] while they talk.
+///
+/// With a [reach] (a grid tile's width) the rings fade out by the tile's edge instead of running on over the faces
+/// beside it: RippleAvatar's rings go out to nearly twice its radius, wider than a tile, so two neighbours talking at
+/// once would cross.
 class _Face extends StatelessWidget {
-  const _Face({required this.call, required this.person, required this.size});
+  const _Face({required this.call, required this.person, required this.size, this.reach});
   final SpaceCall call;
   final SpacePerson person;
   final double size;
+  final double? reach;
 
   @override
-  Widget build(BuildContext context) => ValueListenableBuilder<Map<String, double>>(
-        valueListenable: call.levels,
-        builder: (context, now, _) => RippleAvatar(name: person.name, level: person.muted ? 0 : (now[person.id] ?? 0), muted: person.muted, size: size, color: _purple),
-      );
+  Widget build(BuildContext context) {
+    final face = ValueListenableBuilder<Map<String, double>>(
+      valueListenable: call.levels,
+      builder: (context, now, _) => RippleAvatar(name: person.name, level: person.muted ? 0 : (now[person.id] ?? 0), muted: person.muted, size: size, color: _purple),
+    );
+    final r = reach;
+    if (r == null || r <= size) return face;
+    return SizedBox.square(
+      dimension: size,
+      child: OverflowBox(
+        minWidth: r,
+        maxWidth: r,
+        minHeight: r,
+        maxHeight: r,
+        child: ClipOval(
+          child: ShaderMask(
+            blendMode: BlendMode.dstIn,
+            // Whole as far as the face's rim, then fading to nothing at the tile's edge.
+            shaderCallback: (bounds) => RadialGradient(colors: const [_white, _white, Color(0x00FFFFFF)], stops: [0, size / r, 1]).createShader(bounds),
+            child: Center(child: face),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A badge on a face's rim, low on the 45° diagonal ([left] or right), just outside the face's edge.
+Widget _onRim({required double box, required double face, required double badge, required bool left, required Widget child}) {
+  final d = (face / 2 + badge * 0.15) * 0.7071;
+  final c = box / 2;
+  return Positioned(left: left ? c - d - badge / 2 : c + d - badge / 2, top: c + d - badge / 2, child: child);
 }
 
 /// Their role as Clubhouse and Spaces name it: the owner hosts, an admin co-hosts, others by their role's name.
 String? _roleOf(SpaceCall call, SpacePerson p) {
-  if (p.owner) return 'Host';
+  if (p.owner) return _Words.host;
   final label = p.roleLabel(call.room?.roster);
   if (label == null) return null;
-  return p.role?.id == Role.admin ? 'Co-host' : label;
+  return p.role?.id == Role.admin ? _Words.coHost : label;
 }
 
 /// Someone on stage: a big face, a mic-off or camera badge, their name with a wave while they talk, their role.
 class _Speaker extends StatelessWidget {
-  const _Speaker({required this.call, required this.person, required this.look, required this.size});
+  const _Speaker({required this.call, required this.person, required this.look, required this.size, this.room});
   final SpaceCall call;
   final SpacePerson person;
   final _Look look;
   final double size;
+
+  /// The grid tile's width, which the talking rings stay inside; none (alone on stage) lets them run out freely.
+  final double? room;
 
   @override
   Widget build(BuildContext context) {
@@ -322,9 +378,9 @@ class _Speaker extends StatelessWidget {
         SizedBox.square(
           dimension: size + 8,
           child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
-            _Face(call: call, person: person, size: size),
-            if (person.muted) Positioned(right: 0, bottom: 0, child: _Badge(look: look, icon: LucideMore.micOff, color: look.ink2)),
-            if (person.video) Positioned(left: 0, bottom: 0, child: _Badge(look: look, icon: Lucide.video, color: _purple)),
+            _Face(call: call, person: person, size: size, reach: room),
+            if (person.muted) _onRim(box: size + 8, face: size, badge: 26, left: false, child: _Badge(look: look, icon: LucideMore.micOff, color: look.ink2)),
+            if (person.video) _onRim(box: size + 8, face: size, badge: 26, left: true, child: _Badge(look: look, icon: Lucide.video, color: _purple)),
           ]),
         ),
         SizedBox(height: t.space(3)),
@@ -344,8 +400,8 @@ class _Speaker extends StatelessWidget {
           const SizedBox(height: 4),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(color: role == 'Host' || role == 'Co-host' ? look.tint : look.raised, borderRadius: BorderRadius.circular(t.radius('full'))),
-            child: Text(role, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: role == 'Host' || role == 'Co-host' ? look.tintInk : look.ink2)),
+            decoration: BoxDecoration(color: role == _Words.host || role == _Words.coHost ? look.tint : look.raised, borderRadius: BorderRadius.circular(t.radius('full'))),
+            child: Text(role, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: role == _Words.host || role == _Words.coHost ? look.tintInk : look.ink2)),
           ),
         ],
       ]),
@@ -355,10 +411,11 @@ class _Speaker extends StatelessWidget {
 
 /// Someone listening: a smaller face and their first name.
 class _Listener extends StatelessWidget {
-  const _Listener({required this.call, required this.person, required this.look});
+  const _Listener({required this.call, required this.person, required this.look, required this.room});
   final SpaceCall call;
   final SpacePerson person;
   final _Look look;
+  final double room;
 
   @override
   Widget build(BuildContext context) {
@@ -371,8 +428,8 @@ class _Listener extends StatelessWidget {
         SizedBox.square(
           dimension: 60,
           child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
-            _Face(call: call, person: person, size: 56),
-            if (person.video) Positioned(left: 0, bottom: 0, child: _Badge(look: look, icon: Lucide.video, color: _purple, small: true)),
+            _Face(call: call, person: person, size: 56, reach: room),
+            if (person.video) _onRim(box: 60, face: 56, badge: 22, left: true, child: _Badge(look: look, icon: Lucide.video, color: _purple, small: true)),
           ]),
         ),
         SizedBox(height: t.space(1)),
@@ -391,7 +448,7 @@ class _Badge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s = small ? 22.0 : 28.0;
+    final s = small ? 22.0 : 26.0;
     return Container(
       width: s,
       height: s,
@@ -412,7 +469,8 @@ class _Cameras extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final h = wide ? 112.0 : 112.0;
+    // Bigger on a computer, where the card has room to spare.
+    final h = wide ? 168.0 : 112.0;
     return SizedBox(
       height: h,
       child: ListView.separated(
@@ -482,9 +540,9 @@ class _Alone extends StatelessWidget {
         SizedBox(height: t.space(4)),
         SizedBox(width: 160, child: _Speaker(call: call, person: call.me, look: look, size: 112)),
         SizedBox(height: t.space(6)),
-        Text('It\'s just you', style: pageText(t, t.fontSize('lg'), weight: 'bold', color: look.ink)),
+        Text(_Words.alone, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: look.ink)),
         SizedBox(height: t.space(1)),
-        Text('Invite people to listen in', textAlign: TextAlign.center, style: pageText(t, t.fontSize('md'), color: look.ink3)),
+        Text(_Words.aloneHint, textAlign: TextAlign.center, style: pageText(t, t.fontSize('md'), color: look.ink3)),
         SizedBox(height: t.space(4)),
         Opacity(
           opacity: invite == null ? 0.45 : 1,
@@ -535,10 +593,10 @@ class _Comments extends StatelessWidget {
         child: Row(children: [
           AppIcon(Lucide.messageSquare, size: 18, wash: false, color: look.ink),
           SizedBox(width: t.space(2)),
-          Expanded(child: Text('Comments', style: pageText(t, t.fontSize('lg'), weight: 'bold', color: look.ink))),
+          Expanded(child: Text(_Words.comments, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: look.ink))),
           GlacierPressable(
             onPressed: onClose,
-            semanticLabel: 'Close comments',
+            semanticLabel: _Words.closeComments,
             builder: (context, state) => Container(
               width: 36,
               height: 36,
@@ -569,28 +627,32 @@ class _Bar extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final locked = call.micLocked && call.muted;
-    final mic = locked ? 'Muted by a moderator' : SpaceWords.mute(call);
+    final mic = locked ? _Words.mutedByModerator : SpaceWords.mute(call);
     return Container(
       decoration: BoxDecoration(color: look.card, border: Border(top: BorderSide(color: look.rule))),
       padding: EdgeInsets.fromLTRB(t.space(4), t.space(2) + 2, t.space(3), bottom),
       child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-        Flexible(
-          child: GlacierPressable(
-            onPressed: call.onLeave,
-            semanticLabel: 'Leave quietly',
-            builder: (context, state) => Container(
-              padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
-              decoration: BoxDecoration(color: state.pressed ? look.raised : look.raised.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(t.radius('full'))),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const AppIcon(LucideMore.hand, size: 17, wash: false, color: _red),
-                const SizedBox(width: 6),
-                Flexible(child: ExcludeSemantics(child: Text('Leave quietly', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'bold', color: _red)))),
-              ]),
+        // "Leave quietly" takes all the room the round buttons leave, so its words show whole on a phone.
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: GlacierPressable(
+              onPressed: call.onLeave,
+              semanticLabel: _Words.leaveQuietly,
+              builder: (context, state) => Container(
+                padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+                decoration: BoxDecoration(color: state.pressed ? look.raised : look.raised.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(t.radius('full'))),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const AppIcon(LucideMore.hand, size: 17, wash: false, color: _red),
+                  const SizedBox(width: 6),
+                  Flexible(child: ExcludeSemantics(child: Text(_Words.leaveQuietly, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'bold', color: _red)))),
+                ]),
+              ),
             ),
           ),
         ),
-        const Spacer(),
-        _Round(look: look, icon: Lucide.messageSquare, label: 'Comments', on: comments, onPressed: onComments),
+        SizedBox(width: t.space(2)),
+        _Round(look: look, icon: Lucide.messageSquare, label: _Words.comments, on: comments, onPressed: onComments),
         _Round(look: look, icon: Lucide.userPlus, label: SpaceWords.invite, onPressed: call.onInvite == null ? null : () => call.onInvite!(context)),
         if (camera) _Camera(call: call, look: look),
         SizedBox(width: t.space(1)),
@@ -611,7 +673,7 @@ class _Camera extends StatelessWidget {
   Widget build(BuildContext context) => _Round(
         look: look,
         icon: call.video ? Lucide.video : LucideMore.videoOff,
-        label: call.video ? 'Stop camera' : 'Camera',
+        label: _Words.camera(call),
         on: call.video,
         size: size,
         onPressed: call.videoLocked && !call.video ? null : call.onVideo,
