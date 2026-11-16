@@ -10,6 +10,7 @@ import 'package:ghost_messaging/me/me.dart';
 import 'package:ghost_messaging/net/packet.dart';
 import 'package:ghost_messaging/ui/add_friend_drawer.dart';
 import 'package:ghost_messaging/ui/contacts.dart';
+import 'package:ghost_messaging/looks.dart';
 import 'package:glacier/glacier.dart';
 
 import 'support/list_harness.dart';
@@ -47,7 +48,7 @@ class _Port implements BuddiesPort {
 }
 
 Future<void> _fonts() async {
-  for (final (name, file) in [('Inter Variable', 'assets/fonts/InterVariable-latin.ttf'), ('Ghost Emoji Noto', 'assets/emoji/NotoColor.ttf')]) {
+  for (final (name, file) in [('Inter Variable', 'assets/fonts/InterVariable-latin.ttf'), ('Arimo', 'assets/fonts/ArimoVariable.ttf'), ('Ghost Emoji Noto', 'assets/emoji/NotoColor.ttf')]) {
     await (FontLoader(name)..addFont(File(file).readAsBytes().then((b) => ByteData.view(Uint8List.fromList(b).buffer)))).load();
   }
 }
@@ -65,7 +66,7 @@ Future<void> _shoot(WidgetTester tester, TokenSheet sheet, Widget screen, String
       pageRouteBuilder: <T>(RouteSettings s, WidgetBuilder b) => PageRouteBuilder<T>(settings: s, pageBuilder: (c, _, _) => b(c)),
       builder: (context, child) => GlacierTheme(
         sheet: sheet,
-        attrs: {'platform': 'mobile', 'theme': state.theme},
+        attrs: ghostAttrs(state, 'mobile'),
         typography: ghostTypography('noto'),
         child: InkOverrides(child: GlacierToastProvider(child: child!)),
       ),

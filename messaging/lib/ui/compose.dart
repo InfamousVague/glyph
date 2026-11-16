@@ -9,6 +9,7 @@ import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
+import 'dialup/dialup.dart';
 import 'shell.dart';
 import 'thread.dart';
 
@@ -88,9 +89,14 @@ class _ComposeScreenState extends State<ComposeScreen> {
     final t = context.tokens;
     final gutter = t.space(4);
     final ready = _to.isNotEmpty || _typedNumber;
+    // Dial-Up: Next is one of the era's raised buttons on the title bar, and the field a white box sunk into the page.
+    final dialup = isBevelChrome(t);
     return GhostPage(
       title: 'New message',
       actions: [
+        if (dialup)
+          RetroButton(onPressed: ready ? _next : null, label: 'Next', faceHeight: 32, minFaceWidth: 64)
+        else
         Padding(
           padding: EdgeInsets.only(right: t.space(2)),
           child: GlacierPressable(
@@ -103,7 +109,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
           ),
         ),
       ],
-      body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      body: _face(dialup, Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
           padding: EdgeInsets.fromLTRB(gutter, 0, gutter, t.space(2)),
           child: Wrap(
@@ -117,7 +123,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
                   semanticLabel: 'Remove ${p.label}',
                   builder: (context, state) => Container(
                     padding: EdgeInsets.fromLTRB(t.space(1), t.space(1), t.space(3), t.space(1)),
-                    decoration: BoxDecoration(color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'), borderRadius: BorderRadius.circular(t.lenOf('1rem'))),
+                    decoration: BoxDecoration(color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'), borderRadius: BorderRadius.circular(dialup ? 0 : t.lenOf('1rem'))),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       Avatar(people: [p], size: t.lenOf('1.5rem')),
                       SizedBox(width: t.space(2)),
@@ -132,7 +138,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
         ),
         Padding(
           padding: EdgeInsets.fromLTRB(gutter, 0, gutter, t.space(2)),
-          child: GlacierInput(
+          child: _well(dialup, GlacierInput(
             controller: _field,
             focusNode: _focus,
             autoFocus: true,
@@ -144,10 +150,10 @@ class _ComposeScreenState extends State<ComposeScreen> {
             autoCorrect: false,
             onChange: (v) { setState(() {}); _search(v); },
             onSubmitted: (_) => _typedNumber ? _add(Person(address: _field.text.trim())) : _next(),
-          ),
+          )),
         ),
         Expanded(
-          child: ListView(
+          child: _results(dialup, _typedNumber || _matches.isNotEmpty, gutter, ListView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: EdgeInsets.only(bottom: t.space(4)),
             children: [
@@ -164,12 +170,22 @@ class _ComposeScreenState extends State<ComposeScreen> {
                   onPress: () => _add(Person(address: c['address'] ?? '', name: c['name'], photo: c['photo'])),
                 ),
             ],
-          ),
+          )),
         ),
-      ]),
+      ])),
     );
   }
 }
+
+Widget _well(bool dialup, Widget field) => dialup ? DialupWell(child: field) : field;
+
+/// Dial-Up's page is the window's silver face, with white only in its wells, as every other Dial-Up page has it: this
+/// one was plain white to the bottom edge under its sunken field.
+Widget _face(bool dialup, Widget body) => dialup ? Builder(builder: (context) => ColoredBox(color: DialupColors.of(context.tokens).chrome, child: body)) : body;
+
+/// The people found, in a white well sunk into Dial-Up's face (as the Chat List's rows are) while there are any.
+Widget _results(bool dialup, bool any, double gutter, Widget list) =>
+    dialup && any ? Padding(padding: EdgeInsets.fromLTRB(gutter, 0, gutter, gutter), child: Sunken(child: list)) : list;
 
 class _ContactRow extends StatelessWidget {
   const _ContactRow({required this.person, required this.line, required this.onPress});

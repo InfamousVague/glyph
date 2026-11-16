@@ -9,13 +9,23 @@ import '../art/lucide.g.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart';
+import '../kit/semantic_colors.dart';
+import 'dialup/dialup.dart';
 
 /// The page under every screen: the ground, a bar with the way back (or a big title), its actions, and the body.
 class GhostPage extends StatelessWidget {
-  const GhostPage({super.key, required this.title, required this.body, this.back = true, this.actions = const [], this.titleWidget, this.footer, this.top});
+  const GhostPage({super.key, required this.title, required this.body, this.back = true, this.actions = const [], this.titleWidget, this.footer, this.top, this.subtitle, this.onTitle, this.titleLeading});
 
   final String title;
   final Widget? titleWidget;
+
+  /// Under Dial-Up, where [titleWidget] is not drawn (its words were styled for the page's ground, and would be black
+  /// on the title bar's navy): the line under the name on the bar ("Telegram · People Here: 4"), a press on the
+  /// name ([onTitle]: a conversation's settings), and a small picture before it ([titleLeading], 16 to 20 across).
+  /// Every other look draws [titleWidget] and ignores these.
+  final String? subtitle;
+  final VoidCallback? onTitle;
+  final Widget? titleLeading;
   final Widget body;
   final bool back;
   final List<Widget> actions;
@@ -33,6 +43,7 @@ class GhostPage extends StatelessWidget {
     final inset = MediaQuery.viewInsetsOf(context).bottom;
     // Beside the list (lib/ui/shell.dart) there is nowhere to go back to: the list is there to be seen.
     final back = this.back && !PaneRoot.beside(context);
+    if (isBevelChrome(t)) return _dialup(context, t, pad, inset, back);
     return ColoredBox(
       color: t.color('glacier-bg'),
       child: Column(
@@ -63,6 +74,72 @@ class GhostPage extends StatelessWidget {
           const HeaderEnd(),
           Expanded(child: body),
           if (footer != null) Padding(padding: EdgeInsets.only(bottom: inset > 0 ? inset : pad.bottom), child: footer!),
+        ],
+      ),
+    );
+  }
+
+  /// Dial-Up's page (Matt, 2026-11-16: "base one of them heavily on the old AOL chatrooms"): a window opened full
+  /// screen, as the era's maximised windows were, edge to edge with no frame of its own. Its title bar has the
+  /// page's name, its own header where it has one, its buttons, and one X as the way back (the system's back gesture
+  /// still works: the X is only another way to it). The status bar's strip is the window's silver, and the foot that
+  /// holds the composer is a silver panel to the screen's bottom edge.
+  Widget _dialup(BuildContext context, Tokens t, EdgeInsets pad, double inset, bool back) {
+    final c = DialupColors.of(t);
+    return ColoredBox(
+      color: t.color('glacier-bg'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ColoredBox(color: c.chrome, child: SizedBox(height: pad.top)),
+          ?top,
+          // The page's own header ([titleWidget]) is made with the page's tokens before it reaches here, so it cannot
+          // be told it is on navy: the bar draws [title] and [subtitle] itself.
+          TitleBar(
+            title: title,
+            subtitle: subtitle,
+            leading: titleLeading,
+            titleChild: onTitle == null ? null : _PressTitle(title: title, subtitle: subtitle, onPressed: onTitle!),
+            actions: actions,
+            onClose: back ? () => Navigator.of(context).maybePop() : null,
+          ),
+          const HeaderEnd(),
+          Expanded(child: body),
+          if (footer != null)
+            DialupPanel(
+              child: DecoratedBox(
+                decoration: BoxDecoration(color: c.chrome, border: Border(top: BorderSide(color: c.hi, width: Bevel.ringOf(context)))),
+                child: Padding(padding: EdgeInsets.only(bottom: inset > 0 ? inset : pad.bottom), child: footer!),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dial-Up's title words where a press on them does something (a conversation's settings): the bar's name and its
+/// line under it, read aloud as a button.
+class _PressTitle extends StatelessWidget {
+  const _PressTitle({required this.title, required this.subtitle, required this.onPressed});
+  final String title;
+  final String? subtitle;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final desk = t.attrs['platform'] == 'desktop';
+    final ink = DialupColors.of(t).titlebarInk;
+    return GlacierPressable(
+      onPressed: onPressed,
+      semanticLabel: subtitle == null ? title : '$title, $subtitle',
+      builder: (context, state) => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, desk ? 14 : 16, weight: 'bold', color: ink)),
+          if (subtitle != null) Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, desk ? 12 : 14, color: ink)),
         ],
       ),
     );
@@ -294,12 +371,20 @@ class GhostLogo extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final side = size ?? t.lenOf('2.75rem');
+    // In a look of its own (Mist, Lamplight, Sharp, Phosphor) the mark is the look's ink on its paper, in its corners:
+    // the black tile was the one pure black on Mist's aqua page and the one white ghost on Phosphor's green screen.
+    // Ghost's, and Dial-Up's on its desktop, are the app's own black tile.
+    final own = t.attrs['theme-preset'] != null && t.attrs['theme-preset'] != 'dialup';
     return Container(
       width: side,
       height: side,
-      decoration: BoxDecoration(color: const Color(0xFF000000), borderRadius: BorderRadius.circular(side * 0.27), border: Border.all(color: t.color('app-rule'))),
+      decoration: BoxDecoration(
+        color: own ? t.color('app-paper-3') : const Color(0xFF000000),
+        borderRadius: BorderRadius.circular(side * 0.27 * (own ? t.number('glacier-radius-scale').clamp(0.0, 1.0) : 1)),
+        border: Border.all(color: t.color('app-rule')),
+      ),
       alignment: Alignment.center,
-      child: Image.asset('assets/art/ghost-mark.png', width: side * 0.64, height: side * 0.64, filterQuality: FilterQuality.medium),
+      child: Image.asset('assets/art/ghost-mark.png', width: side * 0.64, height: side * 0.64, filterQuality: FilterQuality.medium, color: own ? t.color('app-ink') : null, colorBlendMode: own ? BlendMode.srcIn : null),
     );
   }
 }
@@ -323,6 +408,13 @@ class IconTap extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final box = this.box ?? t.lenOf('2.75rem');
+    // Dial-Up: the one main action (Send) is a raised button with its word on it; the composer's own buttons stand
+    // up as raised squares (RetroIcons); every other is a flat tool button that sinks while held.
+    if (isBevelChrome(t)) {
+      if (filled) return DialupSendButton(onPressed: onPressed, label: DialupSendButton.wordFor(label), semanticLabel: label);
+      if (RetroIcons.of(context)) return RetroButton(onPressed: onPressed, icon: icon, semanticLabel: label, padding: EdgeInsets.zero);
+      return DialupTool(icon: icon, label: label, onPressed: onPressed, size: size, color: color, box: t.lenOf('2.75rem'));
+    }
     return GlacierPressable(
       onPressed: onPressed,
       semanticLabel: label,
@@ -385,6 +477,23 @@ class Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Dial-Up: square, set into the page in a ring of the sunken bevel; a group is a picture of people in the first
+    // person's colour, since overlapped squares read as a mistake and two halves of initials as one word.
+    if (isBevelChrome(context.tokens)) {
+      if (people.length > 1) {
+        return DialupFace(
+          size: size,
+          child: GlacierScope(
+            attrs: {'hue': hueFor(people.first.address)},
+            child: Builder(builder: (context) {
+              final t = context.tokens;
+              return ColoredBox(color: settingsHueWash(t), child: Center(child: AppIcon(Lucide.users, size: size * 0.55, color: settingsHue(t))));
+            }),
+          ),
+        );
+      }
+      return DialupFace(size: size, child: _Face(person: people.isEmpty ? const Person(address: '') : people.first, size: size, square: true));
+    }
     if (people.length > 1) {
       final small = size * 0.68;
       return SizedBox.square(
@@ -412,9 +521,12 @@ class _Ringed extends StatelessWidget {
 }
 
 class _Face extends StatelessWidget {
-  const _Face({required this.person, required this.size});
+  const _Face({required this.person, required this.size, this.square = false});
   final Person person;
   final double size;
+
+  /// Dial-Up's: square, to fill its frame (DialupFace).
+  final bool square;
 
   @override
   Widget build(BuildContext context) {
@@ -426,7 +538,7 @@ class _Face extends StatelessWidget {
         final fallback = Container(
           width: size,
           height: size,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: settingsHueWash(t)),
+          decoration: BoxDecoration(shape: square ? BoxShape.rectangle : BoxShape.circle, color: settingsHueWash(t)),
           alignment: Alignment.center,
           child: letters.isEmpty
               ? AppIcon(Lucide.userRound, size: size * 0.5, color: settingsHue(t))
@@ -435,18 +547,19 @@ class _Face extends StatelessWidget {
         if (person.photo == null) return fallback;
         // A picture of a chat on another network (lib/inbox): a file Telegram brought down, or Bluesky's address.
         final photo = person.photo!;
+        Widget clip(Widget child) => square ? ClipRect(child: child) : ClipOval(child: child);
         if (photo.startsWith('/')) {
-          return ClipOval(child: Image.file(File(photo), width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, errorBuilder: (_, _, _) => fallback));
+          return clip(Image.file(File(photo), width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, errorBuilder: (_, _, _) => fallback));
         }
         if (photo.startsWith('https://')) {
-          return ClipOval(child: Image.network(photo, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, errorBuilder: (_, _, _) => fallback));
+          return clip(Image.network(photo, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, errorBuilder: (_, _, _) => fallback));
         }
         return FutureBuilder<Uint8List?>(
           future: Sms.instance.photo(person.photo!),
           builder: (context, snap) {
             final bytes = snap.data;
             if (bytes == null) return fallback;
-            return ClipOval(child: Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true));
+            return clip(Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true));
           },
         );
       }),
@@ -489,11 +602,14 @@ String dayHeading(DateTime d, [DateTime? now]) {
   return '${_months[d.month - 1]} ${d.day}, ${d.year}';
 }
 
-/// Opens a page from the right, as Ghost Keyboard's settings pages do.
-Future<T?> push<T>(BuildContext context, WidgetBuilder builder) => Navigator.of(context).push<T>(
+/// Opens a page from the right, as Ghost Keyboard's settings pages do. Under Dial-Up it simply appears, as the era's
+/// windows did.
+Future<T?> push<T>(BuildContext context, WidgetBuilder builder) {
+  final still = isBevelChrome(context.tokens);
+  return Navigator.of(context).push<T>(
       PageRouteBuilder<T>(
-        transitionDuration: const Duration(milliseconds: 260),
-        reverseTransitionDuration: const Duration(milliseconds: 220),
+        transitionDuration: still ? Duration.zero : const Duration(milliseconds: 260),
+        reverseTransitionDuration: still ? Duration.zero : const Duration(milliseconds: 220),
         pageBuilder: (context, _, _) => builder(context),
         transitionsBuilder: (context, animation, _, child) => SlideTransition(
           position: Tween(begin: const Offset(1, 0), end: Offset.zero).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic)),
@@ -501,6 +617,7 @@ Future<T?> push<T>(BuildContext context, WidgetBuilder builder) => Navigator.of(
         ),
       ),
     );
+}
 
 void toast(BuildContext context, String message, {GlacierToastTone tone = GlacierToastTone.neutral, GlacierToastAction? action}) {
   GlacierToast.of(context).toast(message: Text(message), tone: tone, action: action);
@@ -511,12 +628,13 @@ Future<void> showChoices(BuildContext context, {String? title, Widget? header, r
   // On the app's outermost navigator, over everything: asked for from the list, whose own navigator stands under the
   // navigation pill, the sheet's last choices were behind the pill and could not be pressed (Matt, 2026-11-14: "the
   // context menu ... opens behind the navbar so you can't click delete").
+  final still = isBevelChrome(context.tokens);
   return Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(
     opaque: false,
     barrierDismissible: true,
-    barrierColor: const Color(0x66000000),
-    transitionDuration: const Duration(milliseconds: 220),
-    reverseTransitionDuration: const Duration(milliseconds: 180),
+    barrierColor: context.tokens.sheetScrim,
+    transitionDuration: still ? Duration.zero : const Duration(milliseconds: 220),
+    reverseTransitionDuration: still ? Duration.zero : const Duration(milliseconds: 180),
     pageBuilder: (context, _, _) => _ChoiceSheet(title: title, header: header, choices: choices),
     transitionsBuilder: (context, a, _, child) => SlideTransition(
       position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
@@ -549,6 +667,7 @@ class _ChoiceSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final pad = MediaQuery.paddingOf(context);
+    if (isBevelChrome(t)) return _dialup(context, t, pad);
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
@@ -577,7 +696,7 @@ class _ChoiceSheet extends StatelessWidget {
                       c.onPress();
                     },
                     builder: (context, state) {
-                      final ink = c.danger ? t.colorOf('#dd3a30') : t.color('app-ink');
+                      final ink = c.danger ? t.danger : t.color('app-ink');
                       return ColoredBox(
                         color: state.pressed ? t.color('app-paper-3') : const Color(0x00000000),
                         child: Padding(
@@ -607,4 +726,68 @@ class _ChoiceSheet extends StatelessWidget {
       ),
     );
   }
+
+  /// Dial-Up's: the era's pop-up menu, a silver panel in a raised frame, each choice a row the height of a finger
+  /// that turns navy with white words while pressed. The words are the window's black, a dangerous one red.
+  Widget _dialup(BuildContext context, Tokens t, EdgeInsets pad) {
+    final c = DialupColors.of(t);
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: t.lenOf('30rem'), maxHeight: MediaQuery.sizeOf(context).height - pad.top - pad.bottom - t.space(8)),
+          child: Bevel(
+            padding: const EdgeInsets.all(2),
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                if (title != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+                    child: Text(title!, maxLines: 14, overflow: TextOverflow.ellipsis, style: pageText(t, 14, color: c.onChrome, height: 1.35)),
+                  ),
+                if (title != null) _etch(c),
+                ?header,
+                for (final choice in choices)
+                  GlacierPressable(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      choice.onPress();
+                    },
+                    builder: (context, state) {
+                      final ink = state.pressed ? c.onHighlight : (choice.danger ? t.danger : c.onChrome);
+                      return ColoredBox(
+                        color: state.pressed ? c.highlight : const Color(0x00000000),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: 44),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            child: Row(children: [
+                              choice.mark ?? AppIcon(choice.icon, size: 18, color: ink, wash: false),
+                              const SizedBox(width: 10),
+                              Flexible(
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                                  Text(choice.label, style: pageText(t, 16, color: ink)),
+                                  if (choice.hint != null) Text(choice.hint!, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, 13, color: state.pressed ? c.onHighlight : c.inkSoft)),
+                                ]),
+                              ),
+                            ]),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The era's etched line between a menu's parts: grey over white.
+  static Widget _etch(DialupColors c) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+        child: Column(children: [SizedBox(height: 1, child: ColoredBox(color: c.shadow)), SizedBox(height: 1, child: ColoredBox(color: c.hi))]),
+      );
 }

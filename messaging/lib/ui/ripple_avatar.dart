@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../kit/settings_type.dart';
+import '../kit/semantic_colors.dart';
 
 /// A face in a call, with wobbly rings going out from it while they talk (Matt, 2026-11-15: "make the profile
 /// picture habe wobbly ripples going out when talking"). [level] is how loud they are now, 0 to 1 (lib/voice/rtc.dart
@@ -58,7 +59,7 @@ class _RippleAvatarState extends State<RippleAvatar> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final ink = widget.color ?? t.colorOf('#2fb35a');
+    final ink = widget.color ?? t.online;
     final want = widget.muted ? 0.0 : (widget.level <= RippleAvatar.talking ? 0.0 : (0.35 + widget.level * 1.6).clamp(0.0, 1.0));
     final letter = (widget.name.replaceAll('@', '').trim().characters.firstOrNull ?? '?').toUpperCase();
     // As big as the face: the rings spill past it, over what is around, rather than holding a row apart.

@@ -15,6 +15,7 @@ import 'package:ghost_messaging/ui/space_designs/space_design.dart';
 import 'package:ghost_messaging/voice/hangout.dart';
 import 'package:ghost_messaging/voice/roles.dart';
 import 'package:ghost_messaging/voice/voice.dart';
+import 'package:ghost_messaging/looks.dart';
 import 'package:glacier/glacier.dart';
 
 /// What the six space call designs (lib/ui/space_designs) are drawn and tried with: a call made up of people, levels
@@ -62,6 +63,7 @@ class SpaceHarness {
 
     await family('Inter Variable', 'assets/fonts/InterVariable-latin.ttf');
     await family('JetBrains Mono Variable', 'assets/fonts/JetBrainsMonoVariable-latin.ttf');
+    await family('Arimo', 'assets/fonts/ArimoVariable.ttf');
     await family('Ghost Emoji Noto', 'assets/emoji/NotoColor.ttf');
     _fontsIn = true;
   }
@@ -161,7 +163,7 @@ class SpaceHarness {
         pageRouteBuilder: <T>(RouteSettings s, WidgetBuilder b) => PageRouteBuilder<T>(settings: s, pageBuilder: (c, _, _) => b(c)),
         builder: (context, child) => GlacierTheme(
           sheet: sheet,
-          attrs: {'platform': 'mobile', 'theme': state.theme},
+          attrs: ghostAttrs(state, 'mobile'),
           typography: ghostTypography('noto'),
           child: InkOverrides(child: GlacierToastProvider(child: child!)),
         ),

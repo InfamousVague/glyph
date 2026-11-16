@@ -18,6 +18,7 @@ import '../art/lucide_more.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'plugin.dart';
+import '../kit/semantic_colors.dart';
 
 class CleanerPlugin extends GhostPlugin {
   const CleanerPlugin();
@@ -123,7 +124,7 @@ class CleanerSheetState extends State<CleanerSheet> {
     final t = context.tokens;
     final pad = MediaQuery.paddingOf(context);
     final n = _threads.toSet().length;
-    final red = t.colorOf('#dd3a30');
+    final red = t.danger;
     Text words(String s, {String size = 'sm', String weight = 'regular', Color? color, int lines = 4}) =>
         Text(s, maxLines: lines, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize(size), weight: weight, color: color ?? t.color('app-ink'), height: 1.35));
 

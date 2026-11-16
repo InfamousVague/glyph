@@ -8,6 +8,7 @@ import '../app_state.dart';
 import '../art/app_icon.dart';
 import '../art/ghost_icons.dart';
 import '../art/lucide.g.dart';
+import '../backgrounds.dart' show lookCorner, lookRim;
 import '../kit/fold.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
@@ -30,12 +31,14 @@ import '../voice/voice.dart';
 import '../voice/channels.dart';
 import 'update_banner.dart';
 import 'compose.dart';
+import 'dialup/dialup.dart';
 import 'settings.dart';
 import 'shell.dart';
 import 'swipe_actions.dart';
 import 'inbox_ui.dart';
 import '../inbox/inbox.dart';
 import 'thread.dart';
+import '../kit/semantic_colors.dart';
 
 /// Home: every conversation, the newest first, with a search over names, numbers and the last message.
 ///
@@ -887,6 +890,12 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final beside = AppShell.wideOf(context) ? open : null;
     final status = AppShell.statusOf(context);
     final framed = _shell != null;
+    // Dial-Up: the list is a window called Chat List (the era's own name for it is another company's mark), its rows flat in a white well (lib/ui/dialup/), still newest
+    // first (the design's critique: "ship v1 as a pure re-skin of the recency list ... and add groups later").
+    final dialup = isBevelChrome(t);
+    // The cards' shape, as ConversationRow and PluginRow draw it: the actions show inside it. Dial-Up's rows are
+    // flat across the well, so its actions are too.
+    final card = dialup ? (inset: EdgeInsets.zero, radius: 0.0) : (inset: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')), radius: t.lenOf('1rem'));
 
     Widget body;
     if (_all == null) {
@@ -894,7 +903,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     } else if (_error != null && rows.isEmpty) {
       body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
         SettingsEmpty(
-          icon: AppIcon(Lucide.circleAlert, size: 28, color: t.colorOf('#dd3a30')),
+          icon: AppIcon(Lucide.circleAlert, size: 28, color: t.danger),
           title: 'Couldn\'t read your messages',
           body: Text('Android didn\'t hand them over: $_error\nNothing has been deleted. They are still in Android\'s store.'),
           action: SettingsEmptyAction('Try again', _load),
@@ -967,7 +976,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               onArchive: () => network.archive(chat.id, !widget.archived),
               onDelete: () => confirmInboxDelete(context, network, chat, slid: true),
               onPin: () => network.pin(chat.id, !pinned),
-              card: (inset: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')), radius: t.lenOf('1rem')),
+              card: card,
               child: code != null && codesHost != null
                   ? _inboxCodeRow(chat, network, code, codesHost)
                   : why != null && spamHost != null
@@ -1002,8 +1011,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               onArchive: () => _archive(c),
               onDelete: () => _confirmDelete(c, slid: true),
               onPin: () => _pin(c),
-              // The cards' shape, as ConversationRow and PluginRow draw it: the actions show inside it.
-              card: (inset: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')), radius: t.lenOf('1rem')),
+              card: card,
               child: look != null
                   ? PluginRow(conversation: c, look: look.$1, host: look.$2, selecting: _selecting, selected: selected, onPress: () => _selecting ? _toggle(c) : _open(c), onLongPress: () => _selecting ? _toggle(c) : _menu(c))
                   : ConversationRow(
@@ -1054,18 +1062,22 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
             );
           }
           // Clear of the bar at the foot of the phone's screen, and of the frame's pill floating over the list's end.
+          // Dial-Up's well already ends above both.
+          if (dialup) return SizedBox(height: t.space(1));
           return SizedBox(height: MediaQuery.paddingOf(context).bottom + (framed ? AppShell.pillRoom(context) : t.space(4)));
         },
       );
     }
 
     final page = GhostPage(
-      title: widget.archived ? 'Archived' : 'Messages',
+      title: widget.archived ? 'Archived' : (dialup ? 'Chat List' : 'Messages'),
       back: widget.archived && !_selecting,
       // A newer version waiting: above the title and the search (Matt, 2026-11-14: "move the update banner on desktop
       // and mobile to show at the top of the sidebar above where it says messages and has the search bar").
       top: widget.archived ? null : const UpdateCard(),
-      // While several are being chosen the bar counts them, and holds what can be done with them.
+      // While several are being chosen the bar counts them, and holds what can be done with them. Dial-Up's bar draws
+      // its own words, so there the count is the title and the way out its first button.
+      subtitle: dialup && _selecting ? '${_selected.length} selected' : null,
       titleWidget: !_selecting
           ? null
           : Row(children: [
@@ -1076,18 +1088,26 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
             ]),
       actions: [
         if (_selecting) ...[
+          if (dialup) IconTap(icon: Lucide.x, label: 'Stop selecting', onPressed: () => setState(_selected.clear)),
           IconTap(icon: Lucide.checkCheck, label: 'Select all', onPressed: () => setState(() => _selected.addAll(shown.map((c) => c.id)))),
           IconTap(icon: widget.archived ? Lucide.archiveRestore : Lucide.archive, label: widget.archived ? 'Unarchive' : 'Archive', onPressed: _archiveSelected),
-          if (Sms.can('deleteThreads')) IconTap(icon: Lucide.trash2, label: 'Delete', color: t.colorOf('#dd3a30'), onPressed: _confirmDeleteSelected),
+          if (Sms.can('deleteThreads')) IconTap(icon: Lucide.trash2, label: 'Delete', color: t.danger, onPressed: _confirmDeleteSelected),
         ] else if (!widget.archived) ...[
           // Plugins: their buttons for the list's header, in the frame and out of it.
           ..._plugins.header(context, ListPlace(section: _section, shown: shown.length, groups: _plugins.groups(_all ?? const []))),
           // Mark all read for the tab shown, at the title row's end (Matt, 2026-11-14: "make the mark all read aligned
           // to the right of the messages title row instead of next to the filter").
-          Padding(
-            padding: EdgeInsets.only(left: t.space(1)),
-            child: MarkAllRead(unread: _unreadTexts(_section).length + _unreadChats(_section).length, onPress: () => _markAllRead(_section)),
-          ),
+          // Dial-Up: the same, as one of the bar's tool buttons rather than a round one.
+          if (dialup)
+            Builder(builder: (context) {
+              final n = _unreadTexts(_section).length + _unreadChats(_section).length;
+              return IconTap(icon: Lucide.checkCheck, label: n > 0 ? 'Mark all read, $n unread' : 'Mark all read, nothing unread', onPressed: n > 0 ? () => _markAllRead(_section) : null);
+            })
+          else
+            Padding(
+              padding: EdgeInsets.only(left: t.space(1)),
+              child: MarkAllRead(unread: _unreadTexts(_section).length + _unreadChats(_section).length, onPress: () => _markAllRead(_section)),
+            ),
           // Shown alone, with no frame and so no pill: the two it would hold.
           if (!framed) IconTap(icon: Lucide.messageSquarePlus, label: 'New message', onPressed: _compose),
           if (!framed) IconTap(icon: Lucide.settings, label: 'Settings', onPressed: _settings),
@@ -1095,17 +1115,21 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       ],
       body: Stack(
         children: [
+          if (dialup) Positioned.fill(child: ColoredBox(color: DialupColors.of(t).chrome)),
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // As wide as the cards under it, edge to edge with them.
               Padding(
-                padding: EdgeInsets.fromLTRB(t.space(2), 0, t.space(2), t.space(2)),
-                child: GlacierSearchField(
-                  placeholder: widget.archived ? 'Search archived' : 'Search messages',
-                  size: GlacierFieldSize.md,
-                  onValueChange: (v) => setState(() => _query = v),
-                ),
+                padding: EdgeInsets.fromLTRB(t.space(2), dialup ? t.space(2) : 0, t.space(2), t.space(2)),
+                child: Builder(builder: (context) {
+                  final field = GlacierSearchField(
+                    placeholder: widget.archived ? 'Search archived' : 'Search messages',
+                    size: GlacierFieldSize.md,
+                    onValueChange: (v) => setState(() => _query = v),
+                  );
+                  return dialup ? DialupWell(child: field) : field;
+                }),
               ),
               // What the frame keeps under the search: on a computer, how the phone is connected.
               if (status != null) Padding(padding: EdgeInsets.fromLTRB(gutter, 0, gutter, t.space(2)), child: status),
@@ -1125,7 +1149,16 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   context,
                   ListPlace(section: _section, shown: shown.length, counts: _plugins.counts, unread: _plugins.unreadSections, show: (section) => setState(() => _section = section)),
                 ),
-              Expanded(child: body),
+              Expanded(
+                child: !dialup
+                    ? body
+                    // The rows in a white well sunk into the window, which ends above the taskbar (or the screen's
+                    // foot where there is none).
+                    : Padding(
+                        padding: EdgeInsets.fromLTRB(t.space(1), 0, t.space(1), t.space(1) + (framed ? AppShell.pillRoom(context) + MediaQuery.paddingOf(context).bottom : MediaQuery.paddingOf(context).bottom)),
+                        child: Sunken(child: body),
+                      ),
+              ),
             ],
           ),
         ],
@@ -1197,7 +1230,7 @@ class _RcsNotice extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(t.space(3), t.space(3), t.space(1), t.space(3)),
         decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.radius('lg')), border: Border.all(color: t.color('app-rule'))),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(padding: const EdgeInsets.only(top: 2), child: AppIcon(Lucide.triangleAlert, size: 18, color: t.colorOf('#c27c00'))),
+          Padding(padding: const EdgeInsets.only(top: 2), child: AppIcon(Lucide.triangleAlert, size: 18, color: t.warn)),
           SizedBox(width: t.space(3)),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -1222,8 +1255,12 @@ class _RcsNotice extends StatelessWidget {
 /// One conversation in the list: its face, its name, its last words and when. The Mac's list (lib/desktop) draws its
 /// rows with it too.
 class ConversationRow extends StatelessWidget {
-  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false, this.summary, this.badge});
+  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false, this.summary, this.badge, this.unreadCount});
   final Conversation conversation;
+
+  /// How many are unread, where that is known (a chat on Telegram or Signal): Dial-Up's row says it after the name,
+  /// "Maya (3)". A conversation of texts knows only that some are, and says "(new)".
+  final int? unreadCount;
 
   /// A mark on the face's corner: the network a chat from Telegram or Bluesky is on (lib/ui/inbox_ui.dart).
   final Widget? badge;
@@ -1243,6 +1280,7 @@ class ConversationRow extends StatelessWidget {
     final t = context.tokens;
     final c = conversation;
     final unread = c.unread;
+    if (isBevelChrome(t)) return _dialup(context, t);
     final face = t.lenOf('3rem');
     return GestureDetector(
       onLongPress: onLongPress,
@@ -1261,8 +1299,10 @@ class ConversationRow extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'),
-              borderRadius: BorderRadius.circular(t.lenOf('1rem')),
-              border: Border.all(color: selected ? t.color('app-ink') : const Color(0x00000000), width: 2),
+              // Its corners under the look's radius scale (square in Phosphor), and in a look that rules its shapes
+              // (Sharp, Phosphor) a line round the card where Ghost keeps the room for one clear.
+              borderRadius: BorderRadius.circular(lookCorner(t, '1rem')),
+              border: Border.all(color: selected ? t.color('app-ink') : (lookRim(t) == null ? const Color(0x00000000) : t.color('glacier-border-subtle')), width: 2),
             ),
             padding: EdgeInsets.symmetric(horizontal: t.space(3) - 2, vertical: t.space(3) - 2),
             child: Row(
@@ -1273,8 +1313,8 @@ class ConversationRow extends StatelessWidget {
                     height: face,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: selected ? t.colorOf('#4f5bd5') : const Color(0x00000000),
-                      border: Border.all(color: selected ? t.colorOf('#4f5bd5') : t.color('app-ink-4'), width: 2),
+                      color: selected ? t.chosen : const Color(0x00000000),
+                      border: Border.all(color: selected ? t.chosen : t.color('app-ink-4'), width: 2),
                     ),
                     alignment: Alignment.center,
                     child: selected ? const AppIcon(Lucide.check, size: 22, strokeWidth: 2.6, wash: false, color: Color(0xFFFFFFFF)) : null,
@@ -1315,18 +1355,18 @@ class ConversationRow extends StatelessWidget {
                         ),
                         if (c.pinned) ...[SizedBox(width: t.space(1)), AppIcon(Lucide.pin, size: 13, color: t.color('app-ink-3'))],
                         if (c.muted) ...[SizedBox(width: t.space(1)), AppIcon(GhostIcons.bellOff, size: 13, color: t.color('app-ink-3'))],
-                        if (c.blocked) ...[SizedBox(width: t.space(1)), AppIcon(Lucide.ban, size: 13, color: t.colorOf('#dd3a30'))],
+                        if (c.blocked) ...[SizedBox(width: t.space(1)), AppIcon(Lucide.ban, size: 13, color: t.danger)],
                         SizedBox(width: t.space(2)),
                         Text(listWhen(c.date), style: pageText(t, t.fontSize('xs'), weight: unread ? 'semibold' : 'regular', color: t.color(unread ? 'app-ink' : 'app-ink-3'))),
                       ]),
                       SizedBox(height: t.lenOf('0.15rem')),
                       Row(children: [
-                        if (c.error) ...[AppIcon(Lucide.circleAlert, size: 14, color: t.colorOf('#dd3a30')), SizedBox(width: t.space(1))],
+                        if (c.error) ...[AppIcon(Lucide.circleAlert, size: 14, color: t.danger), SizedBox(width: t.space(1))],
                         Expanded(
                           child: Text.rich(
                             c.draft != null && c.draft!.trim().isNotEmpty
                                 ? TextSpan(children: [
-                                    TextSpan(text: 'Draft: ', style: TextStyle(color: t.colorOf('#dd3a30'), fontWeight: t.weight('medium'))),
+                                    TextSpan(text: 'Draft: ', style: TextStyle(color: t.danger, fontWeight: t.weight('medium'))),
                                     TextSpan(text: c.draft!.replaceAll('\n', ' ')),
                                   ])
                                 : summary != null && !c.error
@@ -1349,7 +1389,7 @@ class ConversationRow extends StatelessWidget {
                         ),
                         if (unread) ...[
                           SizedBox(width: t.space(2)),
-                          Container(width: 9, height: 9, decoration: BoxDecoration(shape: BoxShape.circle, color: t.colorOf('#4f5bd5'))),
+                          Container(width: 9, height: 9, decoration: BoxDecoration(shape: BoxShape.circle, color: t.unread)),
                         ],
                       ]),
                     ],
@@ -1359,6 +1399,82 @@ class ConversationRow extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// Dial-Up's row, as a buddy list had them: flat across the well with a line under it, a small square face in a
+  /// sunken frame, the name (bold with how many are unread after it, "Maya (3)", where a dot was), the time at the
+  /// end, and the last words on one line under the name. The one chosen is the era's navy with white words; a press
+  /// shows the well's grey. The network's mark, too small for the corner of so small a face, follows the name.
+  Widget _dialup(BuildContext context, Tokens t) {
+    final c = conversation;
+    final unread = c.unread;
+    final d = DialupColors.of(t);
+    return GestureDetector(
+      onLongPress: onLongPress,
+      onSecondaryTap: onLongPress,
+      child: GlacierPressable(
+        onPressed: onPress,
+        semanticLabel: selecting ? '${c.title}, ${selected ? 'selected' : 'not selected'}' : null,
+        builder: (context, state) {
+          final ink = selected ? d.onHighlight : d.ink;
+          final soft = selected ? d.onHighlight : d.inkSoft;
+          final count = unread ? (unreadCount != null && unreadCount! > 0 ? ' ($unreadCount)' : ' (new)') : '';
+          final words = c.draft != null && c.draft!.trim().isNotEmpty
+              ? TextSpan(children: [
+                  TextSpan(text: 'Draft: ', style: TextStyle(color: selected ? d.onHighlight : t.danger)),
+                  TextSpan(text: c.draft!.replaceAll('\n', ' ')),
+                ])
+              : summary != null && !c.error
+                  // A summary, marked as the design has it: a soft italic line after a » .
+                  ? TextSpan(text: '» $summary', style: const TextStyle(fontStyle: FontStyle.italic))
+                  : c.error
+                      ? TextSpan(text: 'Not sent', style: TextStyle(color: selected ? d.onHighlight : t.danger))
+                      : TextSpan(text: (reactionSnippet(c.snippet) ?? c.snippet).replaceAll('\n', ' '));
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              color: selected ? d.highlight : (state.pressed ? t.color('app-paper-3') : const Color(0x00000000)),
+              border: Border(bottom: BorderSide(color: t.color('app-rule'), width: 1)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: selecting ? Padding(padding: const EdgeInsets.all(2), child: DialupCheck(checked: selected)) : Avatar(people: c.people, size: 24),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Expanded(
+                        child: Row(children: [
+                          Flexible(
+                            child: Text.rich(
+                              TextSpan(children: [TextSpan(text: c.title), if (count.isNotEmpty) TextSpan(text: count)]),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: pageText(t, 16, weight: unread ? 'bold' : 'regular', color: ink),
+                            ),
+                          ),
+                          if (badge != null) ...[const SizedBox(width: 4), SizedBox.square(dimension: 14, child: FittedBox(child: badge))],
+                          if (c.encrypted) ...[const SizedBox(width: 4), Semantics(label: 'Encrypted', child: AppIcon(Lucide.lock, size: 12, strokeWidth: 2.4, wash: false, color: soft))],
+                        ]),
+                      ),
+                      if (c.pinned) ...[const SizedBox(width: 4), AppIcon(Lucide.pin, size: 13, color: soft)],
+                      if (c.muted) ...[const SizedBox(width: 4), AppIcon(GhostIcons.bellOff, size: 13, color: soft)],
+                      if (c.blocked) ...[const SizedBox(width: 4), AppIcon(Lucide.ban, size: 13, color: selected ? d.onHighlight : t.danger)],
+                      const SizedBox(width: 6),
+                      Text(listWhen(c.date), style: pageText(t, 12, color: soft)),
+                    ]),
+                    Text.rich(words, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, 15, color: soft, height: 1.3)),
+                  ]),
+                ),
+              ]),
+            ),
+          );
+        },
       ),
     );
   }

@@ -19,6 +19,7 @@ import 'hangout_screen.dart';
 import 'space_designs/space_design.dart';
 import '../voice/channels.dart';
 import 'compose.dart';
+import 'dialup/dialup.dart';
 import 'contacts.dart';
 import 'conversations.dart';
 import 'nav_bar.dart';
@@ -92,6 +93,8 @@ class AppShell extends StatefulWidget {
   static double pillRoom(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<_ShellScope>();
     final t = context.tokens;
+    // Dial-Up's taskbar stands under the list rather than floating over it: the list's own well ends above it.
+    if (isBevelChrome(t)) return NavPill.taskbarHeight;
     if (scope?.rail ?? false) return t.space(4);
     // Stood up in the list's corner: the list's last rows scroll clear of the whole column, as Ghost.md's pages
     // keep room for its dock.
@@ -494,6 +497,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// How many rings the pill has: what a window must be tall enough for, to have it stood up.
   static const _rings = 5;
 
+  /// Dial-Up's strip of desktop between the list and the pane in a wide window.
+  static const double _dialupGap = 6;
+
   Widget _sized(Widget child) => LayoutBuilder(
         // The screens measure themselves against the screen they are on: here that is their share of the window.
         builder: (context, box) => MediaQuery(data: MediaQuery.of(context).copyWith(size: Size(box.maxWidth, box.maxHeight)), child: child),
@@ -515,7 +521,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
       const rail = false;
       // Folded, it stands up too (Matt, 2026-11-14: "Folded: make it vertical"), floating in the list's bottom right
       // corner, with no strip: on a narrow screen every bit of width is the list's.
-      final docked = !wide && !Sms.computer && box.maxHeight - edges.vertical >= NavPill.railHeight(t, _rings) + t.lenOf('8rem');
+      // Dial-Up's taskbar is always a strip along the foot (NavPill), never stood up in a corner.
+      final dialup = isBevelChrome(t);
+      final docked = !dialup && !wide && !Sms.computer && box.maxHeight - edges.vertical >= NavPill.railHeight(t, _rings) + t.lenOf('8rem');
       // A page that has finished sliding over the list covers all of it.
       final covered = !wide && _open != null && _open!.animation?.status == AnimationStatus.completed;
       return _ShellScope(
@@ -578,7 +586,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                         Positioned(
                             left: docked ? null : 0,
                             right: docked ? edges.right : 0,
-                            bottom: edges.bottom,
+                            // Dial-Up's taskbar is silver down to the screen's edge, under the bar at its foot.
+                            bottom: dialup ? 0 : edges.bottom,
                             child: IgnorePointer(
                               ignoring: !wide && settingsOpen,
                               child: AnimatedOpacity(
@@ -594,6 +603,12 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                                         padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), NavPill.inset(t)),
                                         child: Center(child: CallDock(session: Voice.instance.session!)),
                                       )
+                                    : dialup
+                                        ? ColoredBox(
+                                            key: const ValueKey('taskbar'),
+                                            color: DialupColors.of(t).chrome,
+                                            child: Padding(padding: EdgeInsets.only(bottom: edges.bottom), child: _pill(upright: false)),
+                                          )
                                     : docked
                                         ? ScaleTransition(
                                             key: const ValueKey('pill-scale'),
@@ -639,7 +654,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                           Positioned(
                             left: t.space(3),
                             right: docked ? edges.right + NavPill.railWidth(t) : t.space(3),
-                            bottom: edges.bottom + (docked ? NavPill.inset(t) : (NavPill.clearance(t) - NavPill.inset(t)) * (Sms.computer ? pillScrolledScale : 1) + t.space(2)),
+                            bottom: edges.bottom + (dialup ? NavPill.taskbarHeight + t.space(2) : docked ? NavPill.inset(t) : (NavPill.clearance(t) - NavPill.inset(t)) * (Sms.computer ? pillScrolledScale : 1) + t.space(2)),
                             child: CallBanner(onOpen: () {
                               // A developer design draws the call as a page of its own; else the Voice page.
                               if (!openSpaceCall(context)) go('voice');
@@ -650,10 +665,13 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                   ),
                 ),
               ),
-              if (wide) Positioned(key: const ValueKey('shell-rule'), left: side, top: 0, bottom: 0, width: 1, child: ColoredBox(color: t.color('app-rule'))),
+              // Dial-Up: the list and the pane are two windows on the era's teal desktop, a gap of it between them
+              // (the design: "two windows side by side on the teal desktop with a 6px gap"). The teal is only ever
+              // here, in a wide window's gutter; on a phone it would read as a fault.
+              if (wide) Positioned(key: const ValueKey('shell-rule'), left: side, top: 0, bottom: 0, width: dialup ? _dialupGap : 1, child: ColoredBox(color: dialup ? DialupColors.of(t).desktop : t.color('app-rule'))),
               Positioned(
                 key: const ValueKey('shell-pane'),
-                left: wide ? side + 1 : 0,
+                left: wide ? side + (dialup ? _dialupGap : 1) : 0,
                 top: 0,
                 bottom: 0,
                 right: 0,
@@ -724,17 +742,21 @@ class _Nothing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    // Dial-Up: with no window open there, the pane is the era's bare desktop, its words white on it (4.8:1 on the
+    // teal, more on After Hours' black).
+    final dialup = isBevelChrome(t);
+    final ink = dialup ? const Color(0xFFFFFFFF) : null;
     return ColoredBox(
-      color: t.color('glacier-bg'),
+      color: dialup ? DialupColors.of(t).desktop : t.color('glacier-bg'),
       child: Center(
         child: Padding(
           padding: EdgeInsets.all(t.space(6)),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             GhostLogo(size: t.lenOf('3.5rem')),
             SizedBox(height: t.space(4)),
-            Text('Choose a conversation', textAlign: TextAlign.center, style: pageText(t, t.fontSize('lg'), weight: 'semibold', color: t.color('app-ink-2'))),
+            Text('Choose a conversation', textAlign: TextAlign.center, style: pageText(t, t.fontSize('lg'), weight: dialup ? 'bold' : 'semibold', color: ink ?? t.color('app-ink-2'))),
             SizedBox(height: t.space(1)),
-            Text('Or start a new chat from the bar under the list.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+            Text('Or start a new chat from the bar under the list.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: ink ?? t.color('app-ink-3'))),
           ]),
         ),
       ),

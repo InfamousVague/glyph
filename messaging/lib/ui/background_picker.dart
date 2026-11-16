@@ -9,6 +9,8 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
+import 'dialup/bevel.dart' show DialupColors, Sunken, isDialup;
+import 'message_line.dart';
 
 /// Choosing what is behind the messages (lib/backgrounds.dart): for every chat (Settings › Chat background), or for
 /// one conversation (its header › Chat background), which may also wear every chat's. A small conversation at the
@@ -323,7 +325,19 @@ class BackgroundPreview extends StatelessWidget {
               Positioned.fill(child: ChatBackgroundLayer(background: background)),
               Padding(
                 padding: EdgeInsets.all(t.space(3)),
-                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                // Dial-Up writes a conversation as transcript lines in a white well (lib/ui/message_line.dart): the
+                // background shows round the well, as it will in the conversation.
+                child: isDialup(context)
+                    ? Sunken(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                          HostLine.day(DateTime.now()),
+                          MessageLine(name: 'Maya', nameColor: DialupColors.of(t).nameTheirs, body: 'Are we still on for tonight?'),
+                          MessageLine(name: 'You', nameColor: DialupColors.of(t).nameMine, mine: true, body: 'Yes! See you at 7'),
+                          MessageLine(name: 'Maya', nameColor: DialupColors.of(t).nameTheirs, body: 'Perfect 🎉'),
+                        ]),
+                      )
+                    : Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Center(child: OnBackground(busy: background.busy, child: Text('Today', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))))),
                   SizedBox(height: t.space(1)),
                   bubble('Are we still on for tonight?', out: false),

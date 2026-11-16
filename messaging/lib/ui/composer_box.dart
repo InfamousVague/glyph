@@ -4,6 +4,8 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../kit/settings_type.dart';
+import '../backgrounds.dart' show lookCorner, lookRim;
+import 'dialup/dialup.dart';
 
 /// The box a message is written in, everywhere one is: a conversation of texts (lib/ui/thread.dart) and a chat on
 /// Telegram or Bluesky (lib/ui/inbox_ui.dart), so the two read and work the same (Matt, 2026-11-15: "Also use the
@@ -50,6 +52,7 @@ class _ComposerBoxState extends State<ComposerBox> {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    if (isBevelChrome(t)) return _dialup(context, t);
     final typing = widget.typing;
     final plus = widget.plus;
     final row = t.lenOf('2.25rem');
@@ -60,7 +63,9 @@ class _ComposerBoxState extends State<ComposerBox> {
       child: Container(
         constraints: BoxConstraints(minHeight: t.lenOf('2.75rem')),
         padding: EdgeInsets.all(t.lenOf('0.25rem')),
-        decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.lenOf('1.375rem'))),
+        // Its corners under the look's radius scale, and a rule round it where the look draws them (Sharp's paper-2
+        // field on white was 1.2:1 and all but vanished beside its ruled search field).
+        decoration: BoxDecoration(color: t.color('app-paper-2'), border: lookRim(t), borderRadius: BorderRadius.circular(lookCorner(t, '1.375rem', most: 1))),
         child: Stack(children: [
           Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             AnimatedPadding(
@@ -95,6 +100,43 @@ class _ComposerBoxState extends State<ComposerBox> {
                     ),
             ),
           ),
+        ]),
+      ),
+    );
+  }
+}
+
+extension on _ComposerBoxState {
+  /// Dial-Up's composer, on the silver panel along the page's foot (GhostPage): one raised + at the left in place of
+  /// a toolbar row (the design's critique: "Drop the toolbar row by default and put one '+' RetroButton left of the
+  /// field"), a white box sunk into the panel that is never under 44 high and grows with the words, and the buttons
+  /// at its right, raised, Send among them with its word on it (IconTap draws it so). Nothing moves: what is at the
+  /// right is what [ComposerBox.ends] or, once there are words, [ComposerBox.below] holds, at once. The field keeps
+  /// its place by its key, so the keyboard stays up as the buttons change.
+  Widget _dialup(BuildContext context, Tokens t) {
+    final gap = SizedBox(width: t.space(1));
+    final plus = widget.plus;
+    final end = widget.typing ? widget.below : widget.ends;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: t.space(1)),
+      child: RetroIcons(
+        child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          if (plus != null) ...[plus, gap],
+          Expanded(
+            key: const ValueKey('composer-field'),
+            child: Padding(
+              // On the buttons' line: they are 48 to the finger, their faces 40 inside that, the box 44.
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 44),
+                child: Sunken(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Align(alignment: Alignment.centerLeft, child: widget.field),
+                ),
+              ),
+            ),
+          ),
+          for (final b in end) ...[if (b is! SizedBox) gap, b],
         ]),
       ),
     );

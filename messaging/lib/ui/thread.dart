@@ -37,6 +37,9 @@ import 'sticker_picker.dart';
 import 'video.dart';
 import 'voice.dart';
 import '../sounds.dart';
+import '../kit/semantic_colors.dart';
+import 'dialup/bevel.dart' show DialupColors, isDialup;
+import 'message_line.dart';
 
 /// One conversation: its messages oldest at the top, newest by the composer.
 class ThreadScreen extends StatefulWidget {
@@ -858,7 +861,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       ],
       body: Stack(children: [
         if (!background.isNone) Positioned.fill(child: ChatBackgroundLayer(background: background)),
-        Positioned.fill(child: _messages == null ? const Center(child: GhostSpinner(size: 26, label: 'Loading messages…')) : _list(t, background)),
+        // Dial-Up writes the conversation as a chat room's transcript (lib/ui/message_line.dart); every other look draws
+        // its bubbles, untouched.
+        Positioned.fill(child: _messages == null ? const Center(child: GhostSpinner(size: 26, label: 'Loading messages…')) : (isDialup(context) ? _lines(t, background, title) : _list(t, background))),
         Positioned.fill(child: EffectLayer(key: _effects, style: pageText(t, 26, color: t.color('app-ink')))),
       ]),
       // Where nothing can be written (a group this phone has left, or one seen from a computer) it says why.
@@ -1002,6 +1007,127 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     );
   }
 
+  /// [_list] as Dial-Up writes it: one transcript in a white well, each message a line, "Name: words", no faces and no
+  /// bubbles (Matt, 2026-11-16: "base one of them heavily on the old AOL chatrooms"). The room's own speaker says where
+  /// it starts, that it is sealed, what a key or a background was, and where the day turns. What a message does (held
+  /// down, tapped to try again, its reactions, its pictures and cards) is as it is in a bubble.
+  Widget _lines(Tokens t, ChatBackground background, String title) {
+    final c = DialupColors.of(t);
+    final msgs = _folded.messages;
+    final items = <Widget>[];
+    final mediaWidth = math.min(MediaQuery.sizeOf(context).width * 0.7, 320.0);
+    String? lastOutgoingKey;
+    for (final m in msgs) {
+      if (m.outgoing && !_isLine(m)) { lastOutgoingKey = m.key; break; }
+    }
+    String nameOf(Message m) => m.outgoing ? 'You' : (_senders[m.address]?.label ?? (_people.length == 1 ? _people.first.label : (m.address.isEmpty ? 'They' : m.address)));
+    for (var i = 0; i < msgs.length; i++) {
+      final m = msgs[i];
+      final newer = i > 0 ? msgs[i - 1] : null;
+      final older = i < msgs.length - 1 ? msgs[i + 1] : null;
+      if (_isLine(m)) {
+        final who = nameOf(m);
+        items.add(HostLine(
+          m.notice == 'group' ? m.body : (m.notice == 'key' ? (m.outgoing ? 'You sent your encryption key.' : '$who sent an encryption key.') : '$who changed the chat background.'),
+          onLongPress: () => _messageMenu(m),
+        ));
+        if (older == null || !_sameDay(older.date, m.date)) items.add(HostLine.day(m.date));
+        continue;
+      }
+      final failed = m.state == 'failed';
+      final showStatus = m.outgoing && (m.key == lastOutgoingKey || failed || m.state == 'sending' || m.state == 'waiting');
+      // A time only where a run from one person ends, as under bubbles; most of the era's rooms showed none at all.
+      final lastOfRun = newer == null || _isLine(newer) || newer.outgoing != m.outgoing || newer.address != m.address || newer.date.difference(m.date).inMinutes.abs() >= 3 || !_sameDay(newer.date, m.date);
+      final sent = sentWith(m.body);
+      final unopened = m.notice == 'undecryptable';
+      final media = <Widget>[
+        for (final a in m.attachments)
+          if (a.isSticker)
+            // At most 96px in a transcript (the design), on the page with nothing round it.
+            _Sticker(id: a.id, side: math.min(96, mediaWidth))
+          else if (a.isImage)
+            _Picture(id: a.id, radius: BorderRadius.zero, maxWidth: mediaWidth, onTap: failed && _canRetry(m) ? () => _retry(m) : null)
+          else if (a.isVideo)
+            VideoBubble(video: a, radius: BorderRadius.zero, maxWidth: mediaWidth, ground: c.chrome, ink: c.onChrome, received: !m.outgoing)
+          else if (a.isAudio)
+            VoiceBubble(part: a.id, ground: c.chrome, ink: c.onChrome, radius: BorderRadius.zero, rim: Border.all(color: c.shadow), playable: true)
+          else
+            _Pill(text: a.name ?? a.type, ground: c.chrome, ink: c.onChrome),
+        if (m.state == 'downloading' || m.state == 'pending_download')
+          _Undelivered(
+            downloading: m.state == 'downloading',
+            ground: c.chrome,
+            ink: c.onChrome,
+            onRetry: m.state == 'pending_download' && Sms.can('retryDownload')
+                ? () async {
+                    try {
+                      await Sms.instance.retryDownload(m);
+                    } catch (e) {
+                      if (mounted) toast(context, 'Couldn\'t try again: $e', tone: GlacierToastTone.danger);
+                    }
+                    _load();
+                  }
+                : null,
+          ),
+      ];
+      final reactions = _folded.reactions[m.key] ?? const <Reaction>[];
+      items.add(Poof(
+        key: ValueKey('poof-${m.key}'),
+        gone: _poofing.contains(m.key),
+        side: m.outgoing ? AxisDirection.right : AxisDirection.left,
+        onDone: () => _gone(m),
+        child: MessageLine(
+          name: nameOf(m),
+          // Yours in your colour, the other person's in theirs; in a group each keeps one of six, picked by their address.
+          nameColor: m.outgoing ? c.nameMine : (_group ? c.nameFor(m.address) : c.nameTheirs),
+          mine: m.outgoing,
+          body: unopened ? 'Encrypted message that can\'t be opened on this phone' : sent.text,
+          italic: unopened,
+          concealed: sent.bubble == BubbleEffect.invisibleInk && !_revealed.contains(m.key),
+          onReveal: () => setState(() => _revealed.add(m.key)),
+          media: media,
+          under: m.state == 'sending' || m.state == 'waiting' ? const <Widget>[] : _plugins.under(context, m),
+          status: showStatus ? _statusText(m) : (lastOfRun ? clock(m.date) : null),
+          failed: failed,
+          onTapFailed: failed && _canRetry(m) ? () => _retry(m) : null,
+          reactions: [for (final r in reactions) r.emoji],
+          onReactionsTap: () => _showReactions(reactions),
+          edited: m.edited ? (_corrected.contains(m.key) ? 'Edited · correction sent' : 'Edited') : null,
+          onEditedTap: m.edited ? () => _showOriginal(m) : null,
+          highlighted: _editing?.key == m.key,
+          onLongPress: (at) => _messageMenu(m, at),
+        ),
+      ));
+      if (older == null || !_sameDay(older.date, m.date)) items.add(HostLine.day(m.date));
+    }
+    if (_older) {
+      items.add(Padding(
+        padding: EdgeInsets.symmetric(vertical: t.space(4)),
+        child: const Center(child: GhostSpinner(size: 18, label: 'Loading earlier messages…')),
+      ));
+    } else {
+      // The top of the conversation, where the era's room said who you had walked in on.
+      if (_e2e.on) items.add(const HostLine('Messages here are sealed end to end.'));
+      items.add(HostLine('*** You are in "$title". ***'));
+    }
+    return Transcript(
+      overBackground: !background.isNone,
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (n) {
+          if (_older && !_readingOlder && n.metrics.axis == Axis.vertical && n.metrics.extentAfter < 900) _readOlder();
+          return false;
+        },
+        child: ListView(
+          reverse: true,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          children: items,
+        ),
+      ),
+    );
+  }
+
+
   /// Drawn as a line in the conversation, not a bubble: a text that carried a key or a chat background.
   static bool _isLine(Message m) => m.notice == 'key' || m.notice == 'background' || m.notice == 'group';
 
@@ -1048,8 +1174,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final per = unicode ? 67 : 153;
     final single = unicode ? 70 : 160;
     final parts = len <= single ? 1 : (len / per).ceil();
-    return DecoratedBox(
-      decoration: BoxDecoration(color: t.color('glacier-bg'), border: Border(top: BorderSide(color: t.color('app-rule')))),
+    return _FootGround(
       child: Padding(
         padding: EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(2), t.space(2)),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1123,7 +1248,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           if (isMms && !editing && _mms?.obstacle != null)
             Padding(
               padding: EdgeInsets.only(left: t.space(3), right: t.space(3), bottom: t.space(2)),
-              child: Text('${_mms!.obstacle}.', style: pageText(t, t.fontSize('xs'), color: t.colorOf('#dd3a30'))),
+              child: Text('${_mms!.obstacle}.', style: pageText(t, t.fontSize('xs'), color: t.danger)),
             ),
           if (_e2e.on && _attachments.isNotEmpty)
             Padding(
@@ -1228,7 +1353,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                           textHeightBehavior: _evenLeading,
                           cursorColor: t.color('app-ink'),
                           backgroundCursorColor: t.color('app-ink-3'),
-                          selectionColor: t.colorOf('color-mix(in srgb, #4f5bd5 30%, transparent)'),
+                          selectionColor: t.textSelection,
                           minLines: 1,
                           maxLines: 6,
                           // Settings › Messages › Enter sends: the keyboard's Enter is Send, and the words still wrap.
@@ -1357,7 +1482,7 @@ class _E2eBar extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(2), t.space(2)),
           decoration: BoxDecoration(color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'), borderRadius: BorderRadius.circular(t.radius('lg'))),
           child: Row(children: [
-            if (warning) AppIcon(Lucide.triangleAlert, size: 16, color: t.colorOf('#c27c00'), wash: false) else AppIcon(icon ?? Lucide.lock, size: 16, color: t.color('app-ink-2')),
+            if (warning) AppIcon(Lucide.triangleAlert, size: 16, color: t.warn, wash: false) else AppIcon(icon ?? Lucide.lock, size: 16, color: t.color('app-ink-2')),
             SizedBox(width: t.space(2)),
             Expanded(child: Text(text, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink'), height: 1.3))),
             if (action != null) ...[
@@ -1367,7 +1492,7 @@ class _E2eBar extends StatelessWidget {
                 semanticLabel: action,
                 builder: (context, s) => Container(
                   padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
-                  decoration: BoxDecoration(color: t.color(s.pressed ? 'app-ink-2' : 'app-ink'), borderRadius: BorderRadius.circular(t.lenOf('1rem'))),
+                  decoration: BoxDecoration(color: t.color(s.pressed ? 'app-ink-2' : 'app-ink'), borderRadius: BorderRadius.circular(lookCorner(t, '1rem', most: 1))),
                   child: Text(action!, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-paper'))),
                 ),
               ),
@@ -1509,8 +1634,8 @@ class _Bubble extends StatelessWidget {
     // phone is held, but it is also far wider, and the phone's bubbles filled it.
     final desk = Sms.computer;
     final size = desk ? 0.88 : 1.0;
-    final big = t.lenOf(desk ? '1rem' : '1.15rem');
-    final small = t.lenOf('0.3rem');
+    final big = lookCorner(t, desk ? '1rem' : '1.15rem', most: 1);
+    final small = lookCorner(t, '0.3rem', most: 1);
     final radius = BorderRadius.only(
       topLeft: Radius.circular(!out && !top ? small : big),
       bottomLeft: Radius.circular(!out && !bottom ? small : big),
@@ -1519,8 +1644,11 @@ class _Bubble extends StatelessWidget {
     );
     // Your own bubbles: this conversation's colour, else everywhere's (Settings › Appearance).
     final (mine, onMine) = myBubble(t, app, thread);
-    final ground = out ? (failed ? t.colorOf('color-mix(in srgb, #dd3a30 18%, var(--app-paper-2))') : mine) : theirBubble(t, onBackground: onBackground);
+    final ground = out ? (failed ? t.failedGround : mine) : theirBubble(t, onBackground: onBackground);
     final ink = out && !failed ? onMine : t.color('app-ink');
+    // A look that rims bubbles (Sharp, Phosphor) rims a failed one of yours in the failure's red, as its dark half's
+    // near-black failed ground already got a rim and its light half's pink one did not.
+    final failedRim = failed && theirRim(t) != null ? Border.all(color: t.danger, width: 1.5) : null;
     final maxWidth = MediaQuery.sizeOf(context).width * (desk ? 0.62 : 0.76);
     final faceSize = t.lenOf('1.75rem');
     final emojis = m.attachments.isEmpty && !unopened && app.bigEmoji ? emojiOnly(body) : 0;
@@ -1553,7 +1681,7 @@ class _Bubble extends StatelessWidget {
               ground: ground,
               ink: ink,
               radius: radius,
-              rim: !onBackground && bubbleNeedsRim(ground, t.color('glacier-bg')) ? Border.all(color: t.color('app-rule')) : null,
+              rim: (out ? failedRim : theirRim(t)) ?? (!onBackground && bubbleNeedsRim(ground, t.color('glacier-bg')) ? Border.all(color: t.color('app-rule')) : null),
               playable: true,
             ),
           )
@@ -1573,7 +1701,7 @@ class _Bubble extends StatelessWidget {
           constraints: BoxConstraints(maxWidth: maxWidth),
           padding: desk ? EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2) - 2) : EdgeInsets.symmetric(horizontal: t.space(3) + 2, vertical: t.space(2)),
           // A bubble the page would swallow (white on the light page) wears a line round it.
-          decoration: BoxDecoration(color: ground, borderRadius: radius, border: !onBackground && bubbleNeedsRim(ground, t.color('glacier-bg')) ? Border.all(color: t.color('app-rule')) : null),
+          decoration: BoxDecoration(color: ground, borderRadius: radius, border: (out ? failedRim : theirRim(t)) ?? (!onBackground && bubbleNeedsRim(ground, t.color('glacier-bg')) ? Border.all(color: t.color('app-rule')) : null)),
           child: unopened
               ? Row(mainAxisSize: MainAxisSize.min, children: [
                   AppIcon(Lucide.lock, size: 14, strokeWidth: 2.2, wash: false, color: ink),
@@ -1619,7 +1747,7 @@ class _Bubble extends StatelessWidget {
     if (highlighted) {
       bubble = DecoratedBox(
         position: DecorationPosition.foreground,
-        decoration: BoxDecoration(borderRadius: radius, border: Border.all(color: t.colorOf('#4f5bd5'), width: 2)),
+        decoration: BoxDecoration(borderRadius: radius, border: Border.all(color: t.chosen, width: 2)),
         child: bubble,
       );
     }
@@ -1683,13 +1811,13 @@ class _Bubble extends StatelessWidget {
               child: Padding(
               padding: EdgeInsets.only(top: 3, left: faceGap + t.space(2), right: t.space(2), bottom: failed ? 6 : 0),
               child: OnBackground(busy: busy, child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: failed ? CrossAxisAlignment.start : CrossAxisAlignment.center, children: [
-                if (failed) ...[Padding(padding: const EdgeInsets.only(top: 2), child: AppIcon(Lucide.circleAlert, size: 12, color: t.colorOf('#dd3a30'))), const SizedBox(width: 4)],
+                if (failed) ...[Padding(padding: const EdgeInsets.only(top: 2), child: AppIcon(Lucide.circleAlert, size: 12, color: t.danger)), const SizedBox(width: 4)],
                 // It travelled sealed, and was opened here.
                 if (m.encrypted) ...[Semantics(label: 'Encrypted', child: AppIcon(Lucide.lock, size: 11, strokeWidth: 2.4, wash: false, color: t.color('app-ink-3'))), const SizedBox(width: 4)],
                 // It came or went by the internet, between friends, not as a text.
                 if (m.via == 'net') ...[Semantics(label: 'Sent over the internet', child: AppIcon(Lucide.globe, size: 11, strokeWidth: 2.4, wash: false, color: t.color('app-ink-3'))), const SizedBox(width: 4)],
                 // Why a message did not go can run to two lines: it wraps under the bubble, where a time never needs to.
-                Flexible(child: Text(status!, textAlign: out ? TextAlign.end : TextAlign.start, style: pageText(t, t.fontSize('xs'), color: failed ? t.colorOf('#dd3a30') : t.color('app-ink-3')))),
+                Flexible(child: Text(status!, textAlign: out ? TextAlign.end : TextAlign.start, style: pageText(t, t.fontSize('xs'), color: failed ? t.danger : t.color('app-ink-3')))),
                 // Your messages' ticks: a clock while it goes, one for sent, two for delivered, two in colour for read.
                 if (out && !failed) ...[
                   const SizedBox(width: 4),
@@ -1729,7 +1857,7 @@ class _Undelivered extends StatelessWidget {
     return Container(
       width: t.lenOf('14rem'),
       padding: EdgeInsets.all(t.space(3)),
-      decoration: BoxDecoration(color: ground, borderRadius: BorderRadius.circular(t.lenOf('1.1rem'))),
+      decoration: BoxDecoration(color: ground, borderRadius: BorderRadius.circular(lookCorner(t, '1.1rem', most: 1))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
           if (downloading) const GhostSpinner(size: 18) else AppIcon(LucideMore.imageOff, size: 20, color: ink),
@@ -1751,7 +1879,7 @@ class _Undelivered extends StatelessWidget {
               semanticLabel: 'Try again',
               builder: (context, state) => Container(
                 padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
-                decoration: BoxDecoration(color: ink.withValues(alpha: state.pressed ? 0.24 : 0.14), borderRadius: BorderRadius.circular(t.lenOf('1rem'))),
+                decoration: BoxDecoration(color: ink.withValues(alpha: state.pressed ? 0.24 : 0.14), borderRadius: BorderRadius.circular(lookCorner(t, '1rem', most: 1))),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   AppIcon(Lucide.rotateCcw, size: 15, color: ink, wash: false),
                   SizedBox(width: t.space(2)),
@@ -1762,6 +1890,23 @@ class _Undelivered extends StatelessWidget {
           ],
         ],
       ]),
+    );
+  }
+}
+
+/// The composer's strip, coloured where it is drawn: under Dial-Up it stands in GhostPage's silver foot, whose
+/// `.dialup-panel` makes the ground the window's face and whose light edge replaces the rule, where the page's own
+/// tokens, read before, painted it white between two silver strips (the review of the looks, 2026-11-16).
+class _FootGround extends StatelessWidget {
+  const _FootGround({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return DecoratedBox(
+      decoration: BoxDecoration(color: t.color('glacier-bg'), border: isDialup(context) ? null : Border(top: BorderSide(color: t.color('app-rule')))),
+      child: child,
     );
   }
 }
@@ -1778,7 +1923,7 @@ class _Pill extends StatelessWidget {
     return Container(
       margin: EdgeInsets.only(bottom: t.space(1)),
       padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
-      decoration: BoxDecoration(color: ground, borderRadius: BorderRadius.circular(t.lenOf('1rem'))),
+      decoration: BoxDecoration(color: ground, borderRadius: BorderRadius.circular(lookCorner(t, '1rem', most: 1))),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         AppIcon(Lucide.fileCode, size: 14, color: ink),
         SizedBox(width: t.space(1)),
@@ -1936,8 +2081,8 @@ class _ReactionRow extends StatelessWidget {
                     margin: EdgeInsets.only(right: t.space(1)),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: mine.contains(emoji) ? t.colorOf('color-mix(in srgb, #4f5bd5 22%, transparent)') : t.color('app-paper-3'),
-                      border: mine.contains(emoji) ? Border.all(color: t.colorOf('#4f5bd5'), width: 2) : null,
+                      color: mine.contains(emoji) ? t.chosenWash : t.color('app-paper-3'),
+                      border: mine.contains(emoji) ? Border.all(color: t.chosen, width: 2) : null,
                     ),
                     alignment: Alignment.center,
                     child: Text(emoji, style: pageText(t, t.lenOf('1.35rem'), height: 1.15)),
@@ -1954,10 +2099,14 @@ class _ReactionRow extends StatelessWidget {
 /// A message's words with its links underlined, and a press on one opening it in the browser (lib/links.dart).
 /// A long press is still the message's own, wherever it lands.
 class LinkedText extends StatefulWidget {
-  const LinkedText(this.text, {super.key, required this.ink, required this.style});
+  const LinkedText(this.text, {super.key, required this.ink, required this.style, this.before = const [], this.after = const []});
   final String text;
   final Color ink;
   final TextStyle style;
+
+  /// Drawn in the same run of words, before and after the message's own: Dial-Up's bold "Name: " and its small status,
+  /// so a wrapped line goes back to the left edge under the name (lib/ui/message_line.dart).
+  final List<InlineSpan> before, after;
 
   @override
   State<LinkedText> createState() => _LinkedTextState();
@@ -2009,7 +2158,7 @@ class _LinkedTextState extends State<LinkedText> {
   @override
   Widget build(BuildContext context) {
     final text = widget.text;
-    final spans = <InlineSpan>[];
+    final spans = <InlineSpan>[...widget.before];
     var at = 0;
     for (var i = 0; i < _links.length; i++) {
       final link = _links[i];
@@ -2024,6 +2173,7 @@ class _LinkedTextState extends State<LinkedText> {
       at = link.end;
     }
     if (at < text.length) spans.add(TextSpan(text: text.substring(at)));
+    spans.addAll(widget.after);
     return Text.rich(TextSpan(children: spans), style: widget.style);
   }
 }

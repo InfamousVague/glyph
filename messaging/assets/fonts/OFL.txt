@@ -25,6 +25,10 @@ Copyright 2022 The Noto Project Authors (https://github.com/notofonts/latin-gree
 IBM Plex Sans (IBMPlexSans-*.ttf)
 Copyright 2019 IBM Corp. All rights reserved.
 
+Arimo (ArimoVariable.ttf, the look Dial-Up's face), taken whole from google/fonts (ofl/arimo/Arimo[wght].ttf), not
+converted by tool/fonts.py; its own copy of the licence is OFL-Arimo.txt.
+Copyright 2020 The Arimo Project Authors (https://github.com/googlefonts/arimo)
+
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:
 http://scripts.sil.org/OFL

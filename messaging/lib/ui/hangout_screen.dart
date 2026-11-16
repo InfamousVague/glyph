@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeedback, TextCapitalization;
 import 'package:flutter/widgets.dart';
@@ -18,6 +19,10 @@ import '../app_state.dart';
 import '../backgrounds.dart';
 import '../sms.dart' show Person;
 import 'composer_box.dart';
+import 'dialup/bevel.dart';
+import 'dialup/parts.dart' show DialupPanel;
+import 'dialup/retro_button.dart';
+import 'message_line.dart';
 import 'poof.dart';
 import 'nav_bar.dart';
 import 'ripple_avatar.dart';
@@ -115,29 +120,32 @@ class _HangoutScreenState extends State<HangoutScreen> {
           // Out of the call: who is here, a way in, and the chat.
           final here = room?.present.values.toList() ?? const <HangoutPerson>[];
           final inVoice = v.inChannel(widget.channel);
+          // Dial-Up: on the window's silver, and only who is in voice, since "People Here" under it counts the room.
+          final dialup = isDialup(context);
+          final row = Padding(
+            padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(2)),
+            child: Row(children: [
+              // Who is connected: their faces, then their names.
+              for (final id in inVoice.take(4))
+                Padding(padding: EdgeInsets.only(right: t.space(1)), child: RippleAvatar(name: v.nameOf(id), level: 0, size: 30)),
+              if (inVoice.isNotEmpty) SizedBox(width: t.space(1)),
+              Expanded(
+                child: Text(
+                  inVoice.isEmpty ? (here.isEmpty || dialup ? 'Nobody in voice' : '${here.length} here · nobody in voice') : '${inVoice.length} connected · ${inVoice.map(v.nameOf).join(', ')}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')),
+                ),
+              ),
+              SizedBox(width: t.space(2)),
+              _JoinButton(onPressed: () => _join()),
+            ]),
+          );
           return GhostPage(
             title: widget.channel.name,
             actions: actions,
             body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(2)),
-                child: Row(children: [
-                  // Who is connected: their faces, then their names.
-                  for (final id in inVoice.take(4))
-                    Padding(padding: EdgeInsets.only(right: t.space(1)), child: RippleAvatar(name: v.nameOf(id), level: 0, size: 30)),
-                  if (inVoice.isNotEmpty) SizedBox(width: t.space(1)),
-                  Expanded(
-                    child: Text(
-                      inVoice.isEmpty ? (here.isEmpty ? 'Nobody in voice' : '${here.length} here · nobody in voice') : '${inVoice.length} connected · ${inVoice.map(v.nameOf).join(', ')}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')),
-                    ),
-                  ),
-                  SizedBox(width: t.space(2)),
-                  _JoinButton(onPressed: () => _join()),
-                ]),
-              ),
+              dialup ? ColoredBox(color: DialupColors.of(t).chrome, child: row) : row,
               Expanded(child: chat),
             ]),
           );
@@ -263,16 +271,19 @@ class _JoinButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    // Dial-Up's is a raised silver button like the rest of its window's (lib/ui/dialup/retro_button.dart).
+    if (isDialup(context)) return RetroButton(onPressed: onPressed, icon: LucideMore.headphones, label: 'Join voice');
+    final (fill, words) = strongFill(t);
     return GlacierPressable(
       onPressed: onPressed,
       semanticLabel: 'Join voice',
       builder: (context, state) => Container(
         padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(2)),
-        decoration: BoxDecoration(color: t.color('app-ink').withValues(alpha: state.pressed ? 0.85 : 1), borderRadius: BorderRadius.circular(t.radius('full'))),
+        decoration: BoxDecoration(color: fill.withValues(alpha: state.pressed ? 0.85 : 1), borderRadius: BorderRadius.circular(t.radius('full'))),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          AppIcon(LucideMore.headphones, size: 16, wash: false, color: t.color('app-paper')),
+          AppIcon(LucideMore.headphones, size: 16, wash: false, color: words),
           SizedBox(width: t.space(2)),
-          Text('Join voice', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-paper'))),
+          Text('Join voice', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: words)),
         ]),
       ),
     );
@@ -300,9 +311,67 @@ class _HangoutChatState extends State<HangoutChat> {
   /// Messages going in a puff, deleted once it has gone off (lib/ui/poof.dart).
   final Set<String> _poofing = {};
 
+  /// Who came into the room and who left while it was open here, for Dial-Up's Host lines ("Riley has entered the
+  /// room."): kept by this page alone, as the era's transcripts were, so they start empty each time it is opened.
+  final List<({int at, String id, bool came})> _comings = [];
+
+  /// Who was here at the room's last change (null until it is joined), and the names they gave, kept for saying who left.
+  Set<String>? _here;
+  final Map<String, String> _names = {};
+
+  /// Dial-Up's "People Here" opened out under its strip, on a phone.
+  bool _peopleOpen = false;
+
+  void _roomChanged({bool first = false}) {
+    final room = widget.room;
+    for (final p in room.present.values) {
+      if (p.name.isNotEmpty) _names[p.id] = p.name;
+    }
+    if (!room.opened) {
+      _here = null;
+      return;
+    }
+    final now = {for (final id in room.present.keys) if (id != room.me) id};
+    final was = _here;
+    if (was == null) {
+      // Who is here on joining is what "People Here" says; only later changes are comings and goings. Opened with
+      // nobody listed yet, the list joining brings is still on its way (HangoutRoom.open): the next change is it.
+      if (!(first && now.isEmpty)) _here = now;
+      return;
+    }
+    _here = now;
+    final at = DateTime.now().millisecondsSinceEpoch;
+    for (final id in now.difference(was)) {
+      _comings.add((at: at, id: id, came: true));
+    }
+    for (final id in was.difference(now)) {
+      _comings.add((at: at, id: id, came: false));
+    }
+    if (_comings.length > 200) _comings.removeRange(0, _comings.length - 200);
+  }
+
+  String _nameOf(String id) {
+    final said = widget.room.present[id]?.name ?? '';
+    return said.isNotEmpty ? said : (_names[id] ?? Voice.instance.nameOf(id));
+  }
+
+  @override
+  void didUpdateWidget(HangoutChat old) {
+    super.didUpdateWidget(old);
+    if (old.room != widget.room) {
+      old.room.removeListener(_roomChanged);
+      _comings.clear();
+      _here = null;
+      widget.room.addListener(_roomChanged);
+      _roomChanged(first: true);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    widget.room.addListener(_roomChanged);
+    _roomChanged(first: true);
     // The composer lays itself out by whether there are words (lib/ui/composer_box.dart).
     _text.addListener(() {
       final typing = _text.text.isNotEmpty;
@@ -312,6 +381,7 @@ class _HangoutChatState extends State<HangoutChat> {
 
   @override
   void dispose() {
+    widget.room.removeListener(_roomChanged);
     _text.dispose();
     _focus.dispose();
     super.dispose();
@@ -319,6 +389,114 @@ class _HangoutChatState extends State<HangoutChat> {
 
   void _send() {
     if (widget.room.send(_text.text)) _text.clear();
+  }
+
+  /// Pressed and held under Dial-Up: what a bubble's press offers ([_Message]), copy, or delete at once with a puff.
+  void _menu(HangoutMessage m) {
+    HapticFeedback.mediumImpact();
+    showChoices(context, choices: [
+      if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
+      if (widget.room.canDelete(m)) Choice('Delete for everyone', Lucide.trash2, () => setState(() => _poofing.add(m.id)), danger: true),
+    ]);
+  }
+
+  /// Who is in the room: you first, then the others as they said they are, each with whether they are in its voice.
+  List<({String id, String name, bool voice, bool me})> _people(HangoutRoom room) {
+    final v = Voice.instance;
+    final inVoice = v.inChannel(room.channel);
+    return [
+      (id: room.me, name: 'You', voice: v.session?.channel.room == room.channel.room, me: true),
+      for (final p in room.present.values)
+        if (p.id != room.me) (id: p.id, name: _nameOf(p.id), voice: p.inVoice || inVoice.contains(p.id), me: false),
+    ];
+  }
+
+  /// The space as Dial-Up's chat room (Matt, 2026-11-16: "base one of them heavily on the old AOL chatrooms"): one
+  /// transcript of "Name: words" lines with Host saying who came and went, and "People Here" with who is in it. On a
+  /// wide window the people stand beside the transcript, one name to a row, a speaker by each one in voice, filled
+  /// while they talk; on a phone they are a strip over it that opens out.
+  Widget _chatRoom(HangoutRoom room) {
+    final c = DialupColors.of(context.tokens);
+    final people = _people(room);
+    final entries = <({int at, HangoutMessage? m, ({int at, String id, bool came})? e})>[
+      for (final m in room.messages) (at: m.at, m: m, e: null),
+      for (final e in _comings) (at: e.at, m: null, e: e),
+    ]..sort((a, b) => a.at.compareTo(b.at));
+    final list = entries.reversed.toList();
+    bool sameDay(int a, int b) {
+      final x = DateTime.fromMillisecondsSinceEpoch(a), y = DateTime.fromMillisecondsSinceEpoch(b);
+      return x.year == y.year && x.month == y.month && x.day == y.day;
+    }
+
+    final transcript = Transcript(
+      child: ListView.builder(
+        reverse: true,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        itemCount: list.length + 1,
+        itemBuilder: (context, i) {
+          // The oldest end: where the room starts, and that what is said in it is sealed (each space's own key).
+          if (i == list.length) {
+            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              HostLine('*** You are in "${room.channel.name}". ***'),
+              const HostLine('Messages here are sealed end to end.'),
+            ]);
+          }
+          final x = list[i];
+          final older = i + 1 < list.length ? list[i + 1] : null;
+          final newer = i > 0 ? list[i - 1] : null;
+          final newDay = older == null || !sameDay(older.at, x.at);
+          final Widget line;
+          final e = x.e, m = x.m;
+          if (e != null) {
+            line = HostLine('${lineName(_nameOf(e.id))} has ${e.came ? 'entered' : 'left'} the room.');
+          } else {
+            final mine = m!.from == room.me;
+            final name = mine ? 'You' : (m.name.isEmpty ? Voice.instance.nameOf(m.from) : m.name);
+            final lastOfRun = newer == null || newer.m == null || newer.m!.from != m.from || !sameDay(newer.at, m.at);
+            line = Poof(
+              key: ValueKey('poof-${m.id}'),
+              gone: _poofing.contains(m.id),
+              side: AxisDirection.left,
+              onDone: () {
+                _poofing.remove(m.id);
+                room.delete(m);
+              },
+              child: MessageLine(
+                key: ValueKey(m.id),
+                name: name,
+                // Each person keeps one of the room's six colours, by their id, and yours is your own.
+                nameColor: mine ? c.nameMine : c.nameFor(m.from),
+                mine: mine,
+                body: m.text,
+                status: lastOfRun ? clock(DateTime.fromMillisecondsSinceEpoch(m.at)) : null,
+                onLongPress: (_) => _menu(m),
+              ),
+            );
+          }
+          if (!newDay) return line;
+          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [HostLine.day(DateTime.fromMillisecondsSinceEpoch(x.at)), line]);
+        },
+      ),
+    );
+    return LayoutBuilder(builder: (context, box) {
+      if (box.maxWidth >= 560) {
+        return ColoredBox(
+          color: c.chrome,
+          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Expanded(child: transcript),
+            SizedBox(width: 200, child: Padding(padding: const EdgeInsets.fromLTRB(0, 4, 6, 4), child: _DialupPeople(people: people, panel: true))),
+          ]),
+        );
+      }
+      return ColoredBox(
+        color: c.chrome,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          _DialupPeopleStrip(people: people, open: _peopleOpen, onToggle: () => setState(() => _peopleOpen = !_peopleOpen)),
+          if (_peopleOpen) Padding(padding: const EdgeInsets.fromLTRB(6, 0, 6, 2), child: SizedBox(height: math.min(people.length, 4) * 44.0 + 8, child: _DialupPeople(people: people))),
+          Expanded(child: transcript),
+        ]),
+      );
+    });
   }
 
   @override
@@ -333,7 +511,10 @@ class _HangoutChatState extends State<HangoutChat> {
         final (mineBg, mineInk) = myBubble(t, AppState.of(context));
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(
-            child: list.isEmpty
+            // Dial-Up writes the space as a chat room: its transcript, and who is here beside it or over it.
+            child: isDialup(context)
+                ? _chatRoom(room)
+                : list.isEmpty
                 ? Center(child: Text('No messages yet', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))
                 : ListView.builder(
                     reverse: true,
@@ -377,27 +558,196 @@ class _HangoutChatState extends State<HangoutChat> {
                     },
                   ),
           ),
-          Padding(
-            // Laid out as every other conversation's foot is (Matt, 2026-11-15: "Use the same compose input on spaces
-            // that we use for the rest of the app ... just make it appear like the bottom of all the compose windows look").
-            padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2) + widget.bottom + MediaQuery.paddingOf(context).bottom * (widget.bottom > 0 ? 1 : 0)),
-            child: mayWrite
-                ? Builder(builder: (context) {
-                    final send = IconTap(icon: Lucide.arrowUp, label: 'Send', filled: true, size: 19, box: t.lenOf('2.25rem'), onPressed: _text.text.trim().isEmpty ? null : _send);
-                    return ComposerBox(
-                      typing: _typing,
-                      ends: [send],
-                      below: [send],
-                      field: ComposerField(controller: _text, focusNode: _focus, hint: 'Message ${room.channel.name}', onSubmitted: _send, enterSends: AppState.of(context).enterSends),
-                    );
-                  })
-                : Text('Your role can\'t send messages here.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+          _DialupFoot(
+            child: Padding(
+              // Laid out as every other conversation's foot is (Matt, 2026-11-15: "Use the same compose input on spaces
+              // that we use for the rest of the app ... just make it appear like the bottom of all the compose windows look").
+              padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2) + widget.bottom + MediaQuery.paddingOf(context).bottom * (widget.bottom > 0 ? 1 : 0)),
+              child: mayWrite
+                  ? Builder(builder: (context) {
+                      final send = IconTap(icon: Lucide.arrowUp, label: 'Send', filled: true, size: 19, box: t.lenOf('2.25rem'), onPressed: _text.text.trim().isEmpty ? null : _send);
+                      return ComposerBox(
+                        typing: _typing,
+                        ends: [send],
+                        below: [send],
+                        field: ComposerField(controller: _text, focusNode: _focus, hint: 'Message ${room.channel.name}', onSubmitted: _send, enterSends: AppState.of(context).enterSends),
+                      );
+                    })
+                  : Text('Your role can\'t send messages here.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+            ),
           ),
         ]);
       },
     );
   }
 }
+
+/// The chat's foot under Dial-Up: the silver panel every other conversation's composer stands in (GhostPage's), with
+/// its light top edge, where the page's white showed through (the review of the looks, 2026-11-16). Elsewhere as it was.
+class _DialupFoot extends StatelessWidget {
+  const _DialupFoot({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isDialup(context)) return child;
+    final c = DialupColors.of(context.tokens);
+    return DialupPanel(
+      child: DecoratedBox(decoration: BoxDecoration(color: c.chrome, border: Border(top: BorderSide(color: c.hi, width: Bevel.ringOf(context)))), child: child),
+    );
+  }
+}
+
+typedef _Here = ({String id, String name, bool voice, bool me});
+
+/// Dial-Up's "People Here: N" on a phone: a strip over the transcript with the count and the first names, which a press
+/// opens out into the list ([_DialupPeople]) and closes again.
+class _DialupPeopleStrip extends StatelessWidget {
+  const _DialupPeopleStrip({required this.people, required this.open, required this.onToggle});
+  final List<_Here> people;
+  final bool open;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final c = DialupColors.of(t);
+    return GlacierPressable(
+      onPressed: onToggle,
+      semanticLabel: 'People Here: ${people.length}. ${open ? 'Hide' : 'Show'} who is here',
+      builder: (context, state) => ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Row(children: [
+            CustomPaint(size: const Size(10, 10), painter: _Triangle(color: c.onChrome, open: open)),
+            const SizedBox(width: 8),
+            Text('People Here: ${people.length}', style: pageText(t, lineSize(context, 15), weight: 'bold', color: c.onChrome)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                people.map((p) => p.name).join(', '),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: pageText(t, lineSize(context, 14), color: c.inkSoft),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Dial-Up's list of who is in a space: one name to a 44px row in a white well, a speaker by each one in its voice,
+/// filled while they talk (from the call's levels, as the faces ripple with them elsewhere). [panel] puts the count
+/// over it, for the wide window where it stands beside the transcript.
+class _DialupPeople extends StatelessWidget {
+  const _DialupPeople({required this.people, this.panel = false});
+  final List<_Here> people;
+  final bool panel;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final c = DialupColors.of(t);
+    final v = Voice.instance;
+    final levels = v.media?.levels ?? v.session?.media.levels;
+    Widget rows(Map<String, double> loud) => Sunken(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            children: [
+              for (final p in people)
+                Semantics(
+                  label: '${p.name}${p.voice ? ', in voice' : ''}',
+                  excludeSemantics: true,
+                  child: SizedBox(
+                    height: 44,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Row(children: [
+                        SizedBox(
+                          width: 18,
+                          child: p.voice ? CustomPaint(size: const Size(16, 14), painter: _Speaker(color: c.ink, talking: (loud[p.me ? 'me' : p.id] ?? 0) > 0.08)) : null,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            lineName(p.name),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: pageText(t, lineSize(context), weight: p.me ? 'bold' : 'regular', color: p.me ? c.nameMine : c.ink),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+    final list = levels == null ? rows(const {}) : ValueListenableBuilder<Map<String, double>>(valueListenable: levels, builder: (context, loud, _) => rows(loud));
+    if (!panel) return list;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      SizedBox(
+        height: 32,
+        child: Align(alignment: Alignment.centerLeft, child: Text('People Here: ${people.length}', style: pageText(t, lineSize(context, 15), weight: 'bold', color: c.onChrome))),
+      ),
+      Expanded(child: list),
+    ]);
+  }
+}
+
+/// A disclosure triangle drawn as a path: pointing right while closed, down while open.
+class _Triangle extends CustomPainter {
+  const _Triangle({required this.color, required this.open});
+  final Color color;
+  final bool open;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height;
+    final path = open ? (Path()..moveTo(0, h * 0.2)..lineTo(w, h * 0.2)..lineTo(w / 2, h * 0.85)) : (Path()..moveTo(w * 0.2, 0)..lineTo(w * 0.85, h / 2)..lineTo(w * 0.2, h));
+    canvas.drawPath(path..close(), Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_Triangle old) => old.color != color || old.open != open;
+}
+
+/// A loudspeaker drawn as a path, in the era's flat way: an outline while someone is in voice and quiet, filled with
+/// its sound waves while they talk.
+class _Speaker extends CustomPainter {
+  const _Speaker({required this.color, required this.talking});
+  final Color color;
+  final bool talking;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height;
+    final body = Path()
+      ..moveTo(0, h * 0.35)
+      ..lineTo(w * 0.22, h * 0.35)
+      ..lineTo(w * 0.5, h * 0.08)
+      ..lineTo(w * 0.5, h * 0.92)
+      ..lineTo(w * 0.22, h * 0.65)
+      ..lineTo(0, h * 0.65)
+      ..close();
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    canvas.drawPath(body, talking ? (Paint()..color = color) : stroke);
+    if (talking) {
+      canvas.drawArc(Rect.fromCenter(center: Offset(w * 0.5, h / 2), width: w * 0.5, height: h * 0.5), -0.9, 1.8, false, stroke);
+      canvas.drawArc(Rect.fromCenter(center: Offset(w * 0.5, h / 2), width: w * 0.95, height: h * 0.95), -0.9, 1.8, false, stroke);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_Speaker old) => old.color != color || old.talking != talking;
+}
+
 
 class _Message extends StatelessWidget {
   const _Message({super.key, required this.room, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onDelete});
@@ -421,8 +771,8 @@ class _Message extends StatelessWidget {
     final role = room.roster.roleOf(m.from);
     final owner = room.roster.isOwner(m.from);
     final name = m.name.isEmpty ? Voice.instance.nameOf(m.from) : m.name;
-    final round = Radius.circular(t.lenOf('1.125rem'));
-    final tight = Radius.circular(t.lenOf('0.375rem'));
+    final round = Radius.circular(lookCorner(t, '1.125rem', most: 1));
+    final tight = Radius.circular(lookCorner(t, '0.375rem', most: 1));
     final faceSize = t.lenOf('1.75rem');
     final faceGap = mine ? 0.0 : faceSize + t.space(2);
     // Pressed and held: copy it, or delete it at once with a puff (Matt, 2026-11-15: "Don't ask for confirmation when
@@ -441,7 +791,7 @@ class _Message extends StatelessWidget {
         padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
         decoration: BoxDecoration(
           color: mine ? mineBg : theirBubble(t, onBackground: false),
-          border: mine && bubbleNeedsRim(mineBg, t.color('glacier-bg')) ? Border.all(color: t.color('app-ink-4'), width: 1) : null,
+          border: !mine ? theirRim(t) : bubbleNeedsRim(mineBg, t.color('glacier-bg')) ? Border.all(color: t.color('app-ink-4'), width: 1) : null,
           borderRadius: BorderRadius.only(
             topLeft: !mine && !first ? tight : round,
             bottomLeft: !mine && !last ? tight : round,
@@ -501,13 +851,14 @@ class RoleTag extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final strong = owner || role.id == Role.admin;
+    final (fill, words) = strongFill(t);
     return Container(
       padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: 1),
       decoration: BoxDecoration(
-        color: strong ? t.color('app-ink') : t.color('app-paper-3'),
+        color: strong ? fill : t.color('app-paper-3'),
         borderRadius: BorderRadius.circular(t.radius('full')),
       ),
-      child: Text(owner ? 'Owner' : role.name, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: strong ? t.color('app-paper') : t.color('app-ink-2'))),
+      child: Text(owner ? 'Owner' : role.name, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: strong ? words : t.color('app-ink-2'))),
     );
   }
 }

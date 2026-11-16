@@ -8,6 +8,7 @@ import '../friends/buddies.dart';
 import '../kit/settings_kit.dart';
 import '../me/me.dart';
 import 'common.dart';
+import '../kit/semantic_colors.dart';
 
 /// Your profile on Ghost Messaging (Matt, 2026-11-14: "create a profile and username under "me" to register a
 /// username and add friends on the platform"): a username people find you by, held on the relay server's directory
@@ -91,7 +92,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               PaneSection(
                 title: 'Username',
                 description: Text(me.username == null ? 'How people find you to add you as a friend. Nobody sees your number.' : 'People add you as @${me.username}.'),
-                footer: _problem == null ? null : Text(_problem!, style: TextStyle(color: t.colorOf('#dd3a30'))),
+                footer: _problem == null ? null : Text(_problem!, style: TextStyle(color: t.danger)),
                 children: [
                   field(_username, 'username', 'Username', onSubmitted: (_) => _claim(), caps: TextCapitalization.none),
                   SettingRow(
@@ -200,7 +201,7 @@ class _BuddiesScreenState extends State<BuddiesScreen> {
               else
                 PaneSection(
                   title: 'Add a friend',
-                  footer: _problem == null ? null : Text(_problem!, style: TextStyle(color: t.colorOf('#dd3a30'))),
+                  footer: _problem == null ? null : Text(_problem!, style: TextStyle(color: t.danger)),
                   children: [
                     SettingRowBox(
                       child: GlacierInput(

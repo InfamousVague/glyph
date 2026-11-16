@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import 'looks.dart';
 import 'sms.dart';
 
 /// What the app remembers of the person's choices: Android's SharedPreferences ("ui"), read once and written through
@@ -64,6 +65,27 @@ class AppState extends ChangeNotifier {
   String get bubble => choice('bubble', 'white');
   void setBubble(String v) => set('bubble', v);
 
+  /// The look of the whole app (lib/looks.dart): Ghost, the app's own, where none was chosen.
+  Look get look => Look.of(this);
+
+  /// Choosing a look makes your bubbles the look's own ('theme'); going back to Ghost puts back the colour they had
+  /// under Ghost (white where none was chosen), unless a colour was chosen since. Leaving Ghost keeps that colour
+  /// (`bubble_before_look`), where it was thrown away and Pink came back as white, and Ghost Keyboard's enter key with
+  /// it. The look already chosen changes nothing, so a tap on its card keeps a colour picked under it. Ghost Keyboard
+  /// is told the nearest of its colours first (`theme_bubble`, AccentSync.kt), so the 'theme' that follows already has
+  /// a colour it knows.
+  void setLook(Look l) {
+    if (l == look) return;
+    if (look == Look.ghost && bubble != 'theme') set('bubble_before_look', bubble);
+    set('theme_bubble', l.keyboard);
+    set(Look.pref, l.name);
+    if (l != Look.ghost) {
+      if (bubble != 'theme') setBubble('theme');
+    } else if (bubble == 'theme') {
+      setBubble(choice('bubble_before_look', 'white'));
+    }
+  }
+
   /// The size of a message's words: small, default, large, larger.
   String get textSize => choice('text_size', 'default');
   double get textScale => switch (textSize) { 'small' => 0.9, 'large' => 1.15, 'larger' => 1.3, _ => 1.0 };
@@ -86,6 +108,7 @@ class AppState extends ChangeNotifier {
   void setReadReports(bool v) => setFlag('read_reports', v);
 
   static AppState of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_AppScope>()!.state;
+  static AppState? maybeOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_AppScope>()?.state;
 }
 
 class AppScope extends StatelessWidget {

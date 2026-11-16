@@ -14,10 +14,12 @@ import '../art/app_icon.dart';
 import '../art/lucide_more.dart';
 import '../sms.dart';
 import '../ui/common.dart';
+import '../ui/dialup/bevel.dart' show isBevelChrome;
 import 'plugin.dart';
 import 'registry.dart';
 import 'tag_store.dart';
 import 'ui.dart';
+import '../kit/semantic_colors.dart';
 
 export 'plugin.dart' show ListPlace;
 export 'ui.dart' show PluginRow;
@@ -354,7 +356,9 @@ class ListPlugins {
           icon: b.action.icon,
           label: b.action.label,
           size: b.action.quiet ? 17 : 20,
-          color: b.action.quiet ? context.tokens.color('app-ink-4') : null,
+          // Quiet in the page's faint ink, except on Dial-Up's title bar, where that grey read 2.5:1 on navy and
+          // looked disabled: there the bar's own ink, which the button reads inside the band.
+          color: b.action.quiet && !isBevelChrome(context.tokens) ? context.tokens.color('app-ink-4') : null,
           onPressed: () => b.action.run(_Host(this, b.plugin, context)),
         ),
     ];
@@ -500,7 +504,7 @@ class _Host implements PluginHost {
     Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(
       opaque: false,
       barrierDismissible: false,
-      barrierColor: const Color(0x66000000),
+      barrierColor: context.tokens.sheetScrim,
       transitionDuration: const Duration(milliseconds: 220),
       reverseTransitionDuration: const Duration(milliseconds: 180),
       pageBuilder: (context, _, _) => page(context),

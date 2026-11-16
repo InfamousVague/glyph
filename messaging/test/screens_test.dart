@@ -70,6 +70,7 @@ import 'package:ghost_messaging/ui/shell.dart';
 import 'package:ghost_messaging/ui/sticker_picker.dart';
 import 'package:ghost_messaging/ui/thread.dart';
 import 'package:ghost_messaging/ui/video.dart' show shrunkNote;
+import 'package:ghost_messaging/looks.dart';
 import 'package:glacier/glacier.dart';
 
 import 'support/fake_friends.dart';
@@ -86,6 +87,7 @@ Future<void> _fonts() async {
 
   await family('Inter Variable', 'assets/fonts/InterVariable-latin.ttf');
   await family('JetBrains Mono Variable', 'assets/fonts/JetBrainsMonoVariable-latin.ttf');
+  await family('Arimo', 'assets/fonts/ArimoVariable.ttf');
   await family('Ghost Emoji Noto', 'assets/emoji/NotoColor.ttf');
   await family('Ghost Emoji Twemoji', 'assets/emoji/Twemoji.ttf');
   await family('Ghost Emoji OpenMoji', 'assets/emoji/OpenMoji.ttf');
@@ -464,7 +466,7 @@ Future<void> _shoot(WidgetTester tester, TokenSheet sheet, Widget screen, String
       pageRouteBuilder: <T>(RouteSettings s, WidgetBuilder b) => PageRouteBuilder<T>(settings: s, pageBuilder: (c, _, _) => b(c)),
       builder: (context, child) => GlacierTheme(
         sheet: sheet,
-        attrs: {'platform': 'mobile', 'theme': state.theme},
+        attrs: ghostAttrs(state, 'mobile'),
         typography: ghostTypography('noto'),
         child: InkOverrides(child: GlacierToastProvider(child: child!)),
       ),
@@ -2046,7 +2048,8 @@ void main() {
       await tester.tap(row('Appearance'));
       await _settle(tester);
       await _shootAgain(tester, '11-frame-wide-settings-appearance', dark: dark);
-      expect(seen(find.text('Text size')), findsOneWidget);
+      // Its first section is the looks (lib/ui/look_picker.dart), which pushed Text size below the window's foot.
+      expect(seen(find.text('Lamplight')), findsOneWidget);
       expect(find.byType(SectionPage), findsOneWidget);
       expect(tester.state<AppShellState>(find.byType(AppShell)).settingsSection.value, 'appearance');
       expect(seen(icon('Back')), findsNothing);
@@ -2055,13 +2058,13 @@ void main() {
       tester.view.physicalSize = cover;
       await _settle(tester);
       await _shootAgain(tester, '11-frame-narrow-settings-section', dark: dark);
-      expect(seen(find.text('Text size')), findsOneWidget);
+      expect(seen(find.text('Lamplight')), findsOneWidget);
       expect(seen(icon('Back')), findsOneWidget);
       await tester.tap(seen(icon('Back')));
       await _settle(tester);
       await _shootAgain(tester, '11-frame-narrow-settings', dark: dark);
       expect(seen(row('Appearance')), findsOneWidget);
-      expect(seen(find.text('Text size')), findsNothing);
+      expect(seen(find.text('Lamplight')), findsNothing);
       expect(seen(ring('settings')), findsNothing, reason: 'on a phone Settings is a page with its own way back');
       await tester.tap(seen(icon('Back')));
       await _settle(tester);
@@ -2075,10 +2078,10 @@ void main() {
       expect(find.byType(SectionPage), findsNothing);
       await tester.tap(row('Appearance'));
       await _settle(tester);
-      expect(seen(find.text('Text size')), findsOneWidget);
+      expect(seen(find.text('Lamplight')), findsOneWidget);
       tester.view.physicalSize = open;
       await _settle(tester);
-      expect(seen(find.text('Text size')), findsOneWidget);
+      expect(seen(find.text('Lamplight')), findsOneWidget);
       expect(seen(row('Appearance')), findsOneWidget);
       // The Messages ring puts Settings away, list and page both.
       await tester.tap(ring('messages'));

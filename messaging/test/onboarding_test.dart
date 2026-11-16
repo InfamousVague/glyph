@@ -9,6 +9,7 @@ import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/onboarding/narration.dart';
 import 'package:ghost_messaging/onboarding/onboarding.dart';
 import 'package:ghost_messaging/sms.dart';
+import 'package:ghost_messaging/looks.dart';
 import 'package:pointycastle/digests/sha256.dart';
 
 /// The first-run walkthrough (lib/onboarding; Matt, 2026-11-15: "Look at how we do onboarding on Ghost KBD and Ghost
@@ -37,7 +38,7 @@ void main() {
       child: WidgetsApp(
         color: const Color(0xFF4F5BD5),
         pageRouteBuilder: <T>(RouteSettings s, WidgetBuilder b) => PageRouteBuilder<T>(settings: s, pageBuilder: (c, _, _) => b(c)),
-        builder: (context, child) => GlacierTheme(sheet: sheet, attrs: const {'platform': 'mobile'}, child: child!),
+        builder: (context, child) => GlacierTheme(sheet: sheet, attrs: ghostAttrs(app, 'mobile'), child: child!),
         home: Onboarding(onDone: onDone),
       ),
     ));
