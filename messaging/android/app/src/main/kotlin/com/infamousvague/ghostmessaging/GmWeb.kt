@@ -198,8 +198,12 @@ object GmWeb {
         val db = GmBridge.Db.get(app)
         if (media != null) for (i in 0 until media.length()) {
             val p = media.getJSONObject(i)
+            // Your own picture is first told of before it is uploaded, with no id yet: it is had once it is told of
+            // again with one, and the message is drawn without it meanwhile (the screen holds the picture sending).
+            if (p.optString("id").isBlank()) continue
             val id = partId(p.getString("id"))
-            db.keepPart(id, p.getString("id"), p.optString("key"), p.optString("mime"), p.optString("name").ifBlank { null })
+            db.keepPart(id, p.getString("id"), p.optString("key"), p.optString("mime"), p.optString("name").ifBlank { null },
+                p.optString("thumb").ifBlank { null }, p.optString("thumbKey").ifBlank { null })
             // Your own, just sent from here: its preview is the file sent, whatever Google Messages names it.
             if (out) claimSent(conv, id, p.optString("mime").ifBlank { null })
             parts.put(JSONObject().put("id", id).put("type", p.optString("mime")).put("name", p.optString("name")))
@@ -239,7 +243,12 @@ object GmWeb {
             File(context.cacheDir, "gmmedia").listFiles { x -> x.nameWithoutExtension == "$id" && x.length() > 0 }?.firstOrNull()?.let { return it }
             try { ask("media", mapOf("media" to media, "key" to key, "path" to f.absolutePath), seconds = 180) } catch (e: Exception) {
                 DevLog.add(context, "gmweb", "picture $id not brought down: ${e.message}")
-                return null
+                // Its small copy, where Google Messages gave one: a picture you sent is sometimes had only so.
+                val thumb = GmBridge.Db.get(context).thumbOf(id) ?: return null
+                try { ask("media", mapOf("media" to thumb.first, "key" to thumb.second, "path" to f.absolutePath), seconds = 60) } catch (e2: Exception) {
+                    DevLog.add(context, "gmweb", "picture $id's thumbnail not brought down either: ${e2.message}")
+                    return null
+                }
             }
         }
         return if (f.exists() && f.length() > 0) f else null

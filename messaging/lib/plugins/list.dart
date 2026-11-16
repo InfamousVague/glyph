@@ -108,17 +108,34 @@ class ListPlugins {
   List<Conversation>? _sortedOf;
   int _sortedTags = -1;
   int _sortedStamp = -1;
+  int _sortedChats = 0;
   Sorted _sorted = Sorted.none;
 
-  /// Sorts [all] into sections. Worked out again only when the list, some conversation's tags or a plugin's choices
-  /// have changed.
-  Sorted sort(List<Conversation>? all) {
+  /// Each chat on another network sorted with the texts (Signal's, Telegram's), by its key (`network:chat`): the
+  /// section it is in, null for none.
+  Map<String, PluginSection?> _chatAt = const {};
+  final _chatTags = <String, (String, TagSet)>{};
+
+  /// A number for a chat on another network as the plugins know a conversation: never one of Android's (which are
+  /// above nothing) nor the bridge's own (just below).
+  static int chatThread(String key) => -(1 << 40) - (key.hashCode & 0x3fffffff);
+
+  /// Sorts [all] into sections, and [chats] (Signal's and Telegram's, each its key, what it says of itself, whether it
+  /// is unread) with them (Matt, 2026-11-16: "Filters should apply to all chats including telegram and signal make
+  /// sure the filters are processing all chats"). Worked out again only when the list, the chats, some conversation's
+  /// tags or a plugin's choices have changed.
+  Sorted sort(List<Conversation>? all, {List<({String key, MessageFacts facts})> chats = const []}) {
     final store = _store;
-    if (store == null || all == null) return _sorted = Sorted.none;
-    if (identical(all, _sortedOf) && _sortedTags == tags.version && _sortedStamp == store.stamp) return _sorted;
+    if (store == null || all == null) {
+      _chatAt = const {};
+      return _sorted = Sorted.none;
+    }
+    final chatsSeen = Object.hashAll([for (final c in chats) Object.hash(c.key, c.facts.text, c.facts.unread, c.facts.contact, c.facts.outgoing)]);
+    if (identical(all, _sortedOf) && _sortedTags == tags.version && _sortedStamp == store.stamp && _sortedChats == chatsSeen) return _sorted;
     _sortedOf = all;
     _sortedTags = tags.version;
     _sortedStamp = store.stamp;
+    _sortedChats = chatsSeen;
     final sections = registry.sections(store);
     // With no section there is nothing to sort, unless a plugin that is now off left conversations muted.
     if (sections.isEmpty && store.read(mutedKey) == null) return _sorted = Sorted.none;
@@ -142,8 +159,40 @@ class ListPlugins {
       }
     }
     _settle(at, listed);
-    final others = all.where((c) => !c.archived && at[c.id] == null).length;
+    var others = all.where((c) => !c.archived && at[c.id] == null).length;
+    // The other networks' chats, by what their newest message says, as a text is by its.
+    final chatAt = <String, PluginSection?>{};
+    for (final c in chats) {
+      final had = _chatTags[c.key];
+      final tagged = had != null && had.$1 == c.facts.text ? had.$2 : registry.classify(c.facts, store);
+      _chatTags[c.key] = (c.facts.text, tagged);
+      final s = registry.sectionOf(c.facts, tagged, store, among: sections);
+      chatAt[c.key] = s;
+      if (s == null) {
+        others++;
+        continue;
+      }
+      counts[s.id] = (counts[s.id] ?? 0) + 1;
+      if (c.facts.unread) {
+        unread.add(s.id);
+        unreadCounts[s.id] = (unreadCounts[s.id] ?? 0) + 1;
+      }
+    }
+    _chatAt = chatAt;
     return _sorted = Sorted(at, [for (final s in sections) if (counts.containsKey(s.id)) s], counts, unread, others: others, unreadCounts: unreadCounts);
+  }
+
+  /// The section a chat on another network was sorted into ([sort]); null for none.
+  PluginSection? sectionOfChat(String key) => _chatAt[key];
+
+  /// Whether the chat [key] is shown in [section] as [pick] shows a conversation: a section's own, the hidden kinds'
+  /// view, or the main list without what is taken out of it or hidden by the filter.
+  bool showsChat(String key, String? section, {required bool searching}) {
+    final s = _chatAt[key];
+    if (section == hiddenView) return _hidden(s);
+    if (section != null) return s?.id == section;
+    if (searching) return true;
+    return s == null ? othersShown() : !_leaves(s);
   }
 
   /// What the list shows in place of a section: every conversation of a kind the filter hides ("N hidden · Show").

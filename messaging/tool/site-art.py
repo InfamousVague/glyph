@@ -127,11 +127,9 @@ def main():
     card.save(ART / "og.jpg", "JPEG", quality=88, optimize=True, progressive=True)
     print(f"ok site/art/og.jpg 1200x630 {(ART / 'og.jpg').stat().st_size // 1024} KB")
 
-    # The site's own icons, from the refreshed app icon.
-    icon = Image.open(find(folder, "App icon refresh")).convert("RGB")
-    icon.resize((512, 512), Image.LANCZOS).save(SITE / "icon.png", optimize=True)
-    icon.resize((180, 180), Image.LANCZOS).save(SITE / "apple-touch-icon.png", optimize=True)
-    print("ok site/icon.png 512, site/apple-touch-icon.png 180")
+    # The site's icons are the app's own black-and-white one (tool/app_icon.py writes them from art/app-icon.png; Matt,
+    # 2026-11-16: "the ghost messaging logo on the website should be using the black and white logo the app uses for
+    # everything"), so none are made here.
 
 
 if __name__ == "__main__":

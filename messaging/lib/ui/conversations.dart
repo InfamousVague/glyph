@@ -15,7 +15,7 @@ import '../inbox/scams.dart';
 import '../plugins/codes.dart' show CodesPlugin;
 import '../plugins/spam.dart' show SpamPlugin;
 import '../plugins/list.dart';
-import '../plugins/plugin.dart' show PluginAction, PluginHost, RowLook;
+import '../plugins/plugin.dart' show MessageFacts, PluginAction, PluginHost, RowLook;
 import '../art/lucide_more.dart';
 import '../plugins/registry.dart' show PluginSection;
 import '../plugins/ui.dart' show FilterButton, MarkAllRead, PluginRow;
@@ -298,17 +298,19 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // scams").
     final spam = !widget.archived && _spamHost != null;
     String? spamOf(InboxChat c) => spam && !(Inbox.instance.named(c.network)?.localList('notspam').contains(c.id) ?? false) ? scamOf(c) : null;
-    if (_section != null && !(codes && _section == CodesPlugin.section) && !(spam && _section == SpamPlugin.section)) return shown;
     final q = _query.toLowerCase();
+    // Every other kind the filters sort, as a text is (ListPlugins.sort's chats; Matt, 2026-11-16: "Filters should
+    // apply to all chats including telegram and signal").
+    bool sorted(InboxChat c) => widget.archived || _plugins.showsChat('${c.network}:${c.id}', _section, searching: q.isNotEmpty);
     // In the archive, the networks' archived chats among the archived texts.
     final chats = [
       for (final n in Inbox.instance.ready)
         for (final c in widget.archived ? n.archivedChats : n.shownChats)
           if ((q.isEmpty || c.title.toLowerCase().contains(q) || c.snippet.toLowerCase().contains(q)) &&
               switch (_section) {
-                CodesPlugin.section => codes && inboxCode(c) != null,
-                SpamPlugin.section => spamOf(c) != null,
-                _ => !(codes && inboxCode(c) != null) && spamOf(c) == null,
+                CodesPlugin.section => (codes && inboxCode(c) != null) || sorted(c),
+                SpamPlugin.section => spamOf(c) != null || sorted(c),
+                _ => !(codes && inboxCode(c) != null) && spamOf(c) == null && sorted(c),
               })
             c,
     ];
@@ -325,6 +327,27 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       ..sort((a, b) => b.$1.compareTo(a.$1));
     return [for (final m in pinned) m.$2, for (final m in merged) m.$2];
   }
+
+  /// What each signed-in network's chat says of itself, for the filters to sort it with the texts: its newest message,
+  /// whether whoever wrote is a contact, a group, unread, muted, and whether the newest message is this account's.
+  List<({String key, MessageFacts facts})> _chatFacts() => [
+        for (final n in Inbox.instance.ready)
+          for (final c in n.shownChats)
+            (
+              key: '${c.network}:${c.id}',
+              facts: MessageFacts(
+                thread: ListPlugins.chatThread('${c.network}:${c.id}'),
+                senders: [c.title],
+                text: c.snippet,
+                contact: !c.stranger && !c.service,
+                group: c.group,
+                date: c.date,
+                unread: c.unread > 0,
+                muted: c.muted,
+                outgoing: c.lastFromMe,
+              ),
+            ),
+      ];
 
   /// The spam filter's host while it is on: chats that look like scams go to Spam.
   PluginHost? get _spamHost => widget.archived ? null : _plugins.hostFor(context, SpamPlugin.section);
@@ -800,7 +823,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       _plugins.shown = (k) => ListPlugins.kindShown(app, k);
       _plugins.othersShown = () => ListPlugins.othersShownFor(app);
     }
-    final sorted = _plugins.sort(widget.archived ? null : _all);
+    final sorted = _plugins.sort(widget.archived ? null : _all, chats: widget.archived ? const [] : _chatFacts());
     final voices = widget.archived ? const <VoiceChannel>[] : _voices();
     final inbox = widget.archived ? null : inboxOfTab(_section);
     if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0) && !(_section == voiceTab && !widget.archived) && inbox?.state != InboxState.ready) _section = null;
