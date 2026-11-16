@@ -256,7 +256,8 @@ class _Alone extends StatelessWidget {
         Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             selfView,
-            const SizedBox(height: 28),
+            // Room for the ripples round your face before the words.
+            const SizedBox(height: 48),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text('Waiting for others…', textAlign: TextAlign.center, style: pageText(t, t.fontSize('xl'), weight: 'semibold', color: _white)),
