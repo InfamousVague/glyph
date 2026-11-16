@@ -644,6 +644,10 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   Kept on purpose: `@group.ghost-sms.com` in a group's address (a name phones store and send, not a link), and the
   relay's sign-in callbacks (`GHOST_PUBLIC_URL`), until gogho.st's callback addresses are added at Discord, X and
   Telegram. The folders on the box keep their names (/opt/ghost-sms-*).
+- **Mark all read covers Telegram and Signal** (0.7.49, not released; Matt, 2026-11-16: "The mark read button should
+  work for telegram and signal as well as standard messages"). The button counts the tab's unread chats from every
+  network with its unread texts, so it is no longer grey when only chats are unread, and reads them all; a network's
+  own tab and its menu read that network's chats (`_unreadTexts`, `_unreadChats` in lib/ui/conversations.dart).
 - **Six other designs for a space's call, behind a developer switch; your own voice activity alone** (0.7.49, not
   released; Matt, 2026-11-16: "give me 6 alternate designs for the calling chat and video screens for spaces,
   Additionally make it so that even when we're in the call alone we see the voice activity of ourselves release all 6
