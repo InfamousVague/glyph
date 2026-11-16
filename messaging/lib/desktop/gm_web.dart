@@ -198,6 +198,14 @@ class GmWeb extends ChangeNotifier {
         paired = true;
         problem = null;
         notifyListeners();
+        // How it stands at once, and again until it says connected (libgm sends no ready signal of its own now).
+        unawaited(refresh());
+        unawaited(() async {
+          for (var i = 0; i < 8 && paired && !connected; i++) {
+            await Future<void>.delayed(const Duration(seconds: 15));
+            await refresh();
+          }
+        }());
       case 'pair_failed':
         qr = null;
         emoji = null;
