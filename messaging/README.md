@@ -644,6 +644,10 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   Kept on purpose: `@group.ghost-sms.com` in a group's address (a name phones store and send, not a link), and the
   relay's sign-in callbacks (`GHOST_PUBLIC_URL`), until gogho.st's callback addresses are added at Discord, X and
   Telegram. The folders on the box keep their names (/opt/ghost-sms-*).
+- **Mark all read covers Telegram and Signal** (0.7.49, not released; Matt, 2026-11-16: "The mark read button should
+  work for telegram and signal as well as standard messages"). The button counts the tab's unread chats from every
+  network with its unread texts, so it is no longer grey when only chats are unread, and reads them all; a network's
+  own tab and its menu read that network's chats (`_unreadTexts`, `_unreadChats` in lib/ui/conversations.dart).
 - **Six other designs for a space's call, behind a developer switch; your own voice activity alone** (0.7.49, not
   released; Matt, 2026-11-16: "give me 6 alternate designs for the calling chat and video screens for spaces,
   Additionally make it so that even when we're in the call alone we see the voice activity of ourselves release all 6
@@ -733,6 +737,14 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   - Not yet: a paired computer does not see these conversations (it asks the phone's Android side); a message the
     relay passes to a connection that has just died is lost, as for any friend (nothing is sent again without an
     answer); a closed or backgrounded app hears them only when it connects again.
+- **Friends by username on Contacts, and friend requests** (0.7.28, not released; Matt, 2026-11-16: "We need a way
+  to add friends on the network by username on the contacts page and see friend requests"). At the top of Contacts
+  on the phone (`UsernameFriends`, lib/ui/username_friends.dart): a field to ask someone by @username, each request
+  with Decline and Accept on it, friends by username, and the requests you sent (a press takes one back); without a
+  username of your own, a row to choose one. The dock's Contacts ring counts the requests waiting. The relay is now
+  kept for friends by username from the moment you have a username (lib/main.dart), not only once you have a friend,
+  so a first request reaches you. Not yet: a chat with a friend by username on Android. Tests: buddies_test's
+  "on Contacts" group; screens_test's `15-contacts-friends` picture.
 - **Ghost Messaging on iPhone, without SMS** (not released; Matt, 2026-11-15: "port the app to work on iOS as well,
   investigate if we can within apples rules make a bridge for messaging through RCS like we're doing with mautrix on
   android and if not we'll want to roll a version of the app that works without sms"; "it's unlikely the user will

@@ -16,6 +16,7 @@ import 'inbox_ui.dart' show inboxMark, openInboxChat;
 import 'new_group.dart';
 import 'shell.dart';
 import 'thread.dart';
+import 'username_friends.dart';
 
 /// The address book (Matt, 2026-11-14: "add an address book icon"): the phone's contacts, searched by name or
 /// number, and a press on one opens the conversation with them. It is the phone's own list, asked of the phone: with
@@ -304,8 +305,14 @@ class _ContactsScreenState extends State<ContactsScreen> {
                   listenable: Listenable.merge([Friends.instance, Inbox.instance.changes]),
                   builder: (context, _) {
                     final rows = _rows(found);
+                    // Friends by username first (lib/ui/username_friends.dart; Matt, 2026-11-16: "We need a way to add
+                    // friends on the network by username on the contacts page and see friend requests"), on the phone,
+                    // whose they are, while nothing is searched for.
+                    final friends = !Sms.paired && _query.isEmpty;
                     return rows.isEmpty
-                  ? Padding(
+                  ? ListView(padding: EdgeInsets.only(bottom: t.space(6)), children: [
+                      if (friends) const UsernameFriends(),
+                      Padding(
                       padding: EdgeInsets.all(t.space(6)),
                       child: SettingsEmpty(
                         icon: AppIcon(Lucide.contactRound, size: 28, color: t.color('app-ink-3')),
@@ -314,11 +321,14 @@ class _ContactsScreenState extends State<ContactsScreen> {
                             ? (_filter == 'all' || _filter == 'phone' ? 'People in the phone\'s contacts appear here.' : 'Nobody in your ${Inbox.instance.named(_filter)?.name ?? ''} contacts yet.')
                             : 'No name or number in your contacts matches "$_query".'),
                       ),
-                    )
+                    ),
+                    ])
                   : ListView.builder(
                       padding: EdgeInsets.only(bottom: t.space(6)),
-                      itemCount: rows.length + (_query.isEmpty ? 1 : 0),
-                      itemBuilder: (context, i) {
+                      itemCount: (friends ? 1 : 0) + rows.length + (_query.isEmpty ? 1 : 0),
+                      itemBuilder: (context, at) {
+                        if (friends && at == 0) return const UsernameFriends();
+                        final i = friends ? at - 1 : at;
                         if (i == rows.length) {
                           return Padding(
                             padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), 0),
