@@ -72,6 +72,54 @@ class Telegram extends InboxNetwork {
   /// Where the code was sent ("your Telegram app", "a text to …"), once asked.
   String? get codeWhere => _codeWhere;
 
+  // --- signed in by the phone (Matt, 2026-11-16: "Build the Telegram phone sign-in approval"; before that, "It seems i
+  // have to setup signal and telegram on each device is it possible to proxy through thr phone") ---------------------
+  // A computer asks Telegram for a login link (requestQrCodeAuthentication), the phone's own signed-in session approves
+  // it (confirmQrCodeAuthentication), and the computer has a session of its own: no number, no code. The link goes
+  // from the computer to the phone over their sealed link (Sms.telegram on the computer, [answerComputer] on the phone).
+
+  /// The login link Telegram gave this device to be approved elsewhere, while it waits (tg://login?token=…).
+  String? get loginLink => _loginLink;
+  String? _loginLink;
+  Completer<String>? _linkWanted;
+
+  /// Asks Telegram for a login link for this device, to be approved by another device signed in to the account; the
+  /// link, or a [StateError] with Telegram's reason. Telegram renews the link every half minute while it waits.
+  Future<String> askLoginLink() async {
+    if (_td == null) await begin();
+    final wanted = _linkWanted = Completer<String>();
+    final r = await _ask({'@type': 'requestQrCodeAuthentication', 'other_user_ids': const <int>[]});
+    if (r['@type'] == 'error') {
+      _linkWanted = null;
+      throw StateError(_plain(r));
+    }
+    return wanted.future.timeout(const Duration(seconds: 20), onTimeout: () => throw StateError('Telegram didn\'t give a login link'));
+  }
+
+  /// On the phone: approves [link] (another device's login link) with this signed-in session. Null when approved, or
+  /// why not.
+  Future<String?> approveLogin(String link) async {
+    if (_state != InboxState.ready) return 'Telegram isn\'t signed in on your phone.';
+    if (!RegExp(r'^tg://login\?token=[A-Za-z0-9_\-=]+$').hasMatch(link.trim())) return 'That isn\'t a Telegram login link.';
+    final r = await _ask({'@type': 'confirmQrCodeAuthentication', 'link': link.trim()});
+    return r['@type'] == 'session' ? null : (r['@type'] == 'error' ? _plain(r) : 'Telegram didn\'t approve it.');
+  }
+
+  /// On the phone: what its paired computer asks of its Telegram (android DartAsk "telegram"). `status`: whether it is
+  /// signed in, and as whom. `approve`: approves the computer's login link.
+  Future<Object?> answerComputer(Map<String, Object?> args) async {
+    final what = (args['what'] as Map?)?.cast<String, Object?>() ?? args;
+    switch (what['dir']) {
+      case 'status':
+        return {'ready': _state == InboxState.ready, 'account': _account};
+      case 'approve':
+        final why = await approveLogin('${what['link'] ?? ''}');
+        if (why != null) throw StateError(why);
+        return {'approved': true};
+    }
+    throw StateError('The phone does not do that for a computer.');
+  }
+
   /// Whether this build can run Telegram at all: it has an app id, and (on a Mac or Android) the library.
   bool get configured => apiId != 0 && apiHash.isNotEmpty;
 
@@ -193,9 +241,13 @@ class Telegram extends InboxNetwork {
         _step = InboxStep.phone;
         _error = 'Finish setting up this account in Telegram\'s own app first, then sign in here.';
       case 'authorizationStateWaitOtherDeviceConfirmation':
+        // A login link to be approved by another device (askLoginLink): renewed by Telegram while it waits.
         _state = InboxState.signingIn;
-        _step = InboxStep.phone;
-        _error = 'Telegram asked to confirm this on another device. Sign in with your number here instead.';
+        _step = InboxStep.elsewhere;
+        _error = null;
+        _loginLink = s['link'] as String?;
+        final wanted = _linkWanted;
+        if (wanted != null && !wanted.isCompleted && _loginLink != null) wanted.complete(_loginLink);
       case 'authorizationStateReady':
         _state = InboxState.ready;
         _error = null;

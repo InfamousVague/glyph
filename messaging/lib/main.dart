@@ -29,6 +29,7 @@ import 'ui/computers.dart';
 import 'onboarding/onboarding.dart';
 import 'inbox/alerts.dart';
 import 'inbox/inbox.dart';
+import 'inbox/telegram.dart';
 import 'ui/inbox_ui.dart';
 import 'ui/shell.dart';
 import 'ui/update_banner.dart';
@@ -258,6 +259,12 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       Sms.answer('me', Me.instance.forComputer);
       // A paired computer's voice channels are the phone's (lib/voice/channels.dart).
       Sms.answer('voice', Voice.instance.answerDesk);
+      // And its Telegram approves a paired computer's sign-in (lib/inbox/telegram.dart).
+      Sms.answer('telegram', (args) async {
+        final tg = Inbox.instance.named('telegram');
+        if (tg is! Telegram) throw StateError('Telegram isn\'t in this build of the app.');
+        return tg.answerComputer(args);
+      });
       if (!s.contacts || !s.notifications) await Sms.instance.requestPermissions();
       final req = await Sms.instance.openRequest();
       if (req != null) _open(req);
