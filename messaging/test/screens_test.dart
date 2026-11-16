@@ -1221,7 +1221,8 @@ void main() {
       expect(find.text('Message'), findsOneWidget);
       expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Add an attachment'), findsNothing);
       await tester.enterText(find.byType(EditableText).first, 'Hike on Saturday?');
-      await tester.pump();
+      // Send slides in under the words as they are typed.
+      await _settle(tester);
       await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send'));
       await _settle(tester);
       expect(mine.rows.values.single, (group: made.id, words: 'Hike on Saturday?', state: 'sent'));
