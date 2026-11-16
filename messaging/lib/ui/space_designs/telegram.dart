@@ -247,7 +247,7 @@ class _Menu extends StatelessWidget {
         boxShadow: t.shadowOf('0 8px 28px rgba(0,0,0,0.22)'),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        _MenuRow(icon: Lucide.link, label: SpaceWords.invite, hint: 'Copy the space\'s invite link', onPressed: run(call.onInvite)),
+        _MenuRow(icon: Lucide.link, label: SpaceWords.invite, hint: 'Friends, a text or the link', onPressed: run(call.onInvite)),
         _MenuRow(icon: LucideMore.headphones, label: SpaceWords.devices, hint: 'Microphone, camera and speaker', onPressed: run(call.onDevices)),
         _MenuRow(icon: Lucide.settings, label: SpaceWords.settings, hint: 'Roles and permissions', onPressed: run(call.onSettings)),
         Container(height: 1, margin: EdgeInsets.symmetric(vertical: t.space(1)), color: t.color('app-rule')),

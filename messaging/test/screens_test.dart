@@ -1700,13 +1700,13 @@ void main() {
       await _settle(tester);
       await _shootAgain(tester, '22-hangout-menu', dark: dark);
       expect(find.text('Settings and permissions'), findsOneWidget);
-      expect(find.text('Copy invite link'), findsOneWidget);
+      expect(find.text('Invite people'), findsOneWidget);
       expect(find.text('Delete space'), findsOneWidget);
       await tester.tap(find.text('Settings and permissions'));
       await _settle(tester);
       await _shootAgain(tester, '22-hangout-settings', dark: dark);
       expect(find.byType(RolesScreen), findsOneWidget);
-      expect(find.text('Copy invite link'), findsOneWidget);
+      expect(find.text('Invite people'), findsOneWidget);
       // Further down: the role new people get, and deleting it.
       await tester.scrollUntilVisible(find.text('Delete space'), 300, scrollable: find.byType(Scrollable).last);
       expect(find.text('Join as'), findsOneWidget);

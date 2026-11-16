@@ -23,6 +23,7 @@ import 'nav_bar.dart';
 import 'ripple_avatar.dart';
 import 'shell.dart';
 import 'space_designs/space_design.dart';
+import 'space_invite.dart';
 import 'voice_screen.dart';
 
 /// A hangout: its chat, who is in it, and its call (Matt, 2026-11-15: "add a chat to hangouts so the whole group can
@@ -97,7 +98,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
         final pill = widget.inSidebar ? AppShell.pillRoom(context) : 0.0;
         final dockAt = pad + (widget.inSidebar ? pill : NavPill.inset(t));
         final actions = [
-          if (room == null || room.can(Perm.invite)) IconTap(icon: Lucide.link, label: 'Copy invite link', onPressed: () => copyInvite(context, widget.channel)),
+          if (room == null || room.can(Perm.invite)) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
           if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
         ];
         if (room?.putOut != null) {
@@ -238,7 +239,7 @@ class _HangoutStageState extends State<HangoutStage> {
           title: 'Chat',
           back: false,
           actions: [
-            if (room == null || room.can(Perm.invite)) IconTap(icon: Lucide.link, label: 'Copy invite link', onPressed: () => copyInvite(context, widget.channel)),
+            if (room == null || room.can(Perm.invite)) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
             if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
           ],
           body: videos
@@ -544,8 +545,7 @@ class RolesScreen extends StatelessWidget {
             children: [
               if (settings) ...[
                 PaneSection(title: 'Space', children: [
-                  if (room.can(Perm.invite)) SettingRow(icon: AppIcon(Lucide.link, size: 18), label: 'Copy invite link', hint: const Text('Anyone with it can join, from the app or a browser.'), onPress: () => copyInvite(context, c)),
-                  if (room.can(Perm.invite)) SettingRow(icon: AppIcon(Lucide.share2, size: 18), label: 'Share with friends', onPress: () => push(context, (_) => ShareChannelScreen(channel: c))),
+                  if (room.can(Perm.invite)) SettingRow(icon: AppIcon(Lucide.userPlus, size: 18), label: 'Invite people', hint: const Text('Friends in the app, anyone by a text, or the link.'), onPress: () => showSpaceInvite(context, c)),
                   SettingRow(icon: AppIcon(Lucide.users, size: 18), label: 'Owner', value: Text(r.isOwner(room.me) ? 'You' : (r.hasOwner ? _nameOf(room, r.ownerId) : 'None'))),
                 ]),
                 gap,
@@ -826,15 +826,14 @@ class HangoutModeration extends StatelessWidget {
 
 /// A hangout's menu, held or pressed with the other button on its row (Matt, 2026-11-15: "there also needs to be a
 /// context menu to open settings for hangouts and manage permissions and such as well as delete the hangouts"): open
-/// it, its settings and roles, its link, share it, delete it.
+/// it, its settings and roles, invite people into it (space_invite.dart), delete it.
 void showHangoutMenu(BuildContext context, VoiceChannel channel, {VoidCallback? onOpen}) {
   final v = Voice.instance;
   final room = v.hangoutFor(channel);
   showChoices(context, title: channel.name, choices: [
     if (onOpen != null) Choice('Open', LucideMore.messageCircle, onOpen),
     Choice('Settings and permissions', Lucide.shieldCheck, () => push(context, (_) => HangoutSettingsScreen(channel: channel))),
-    if (room == null || room.can(Perm.invite)) Choice('Copy invite link', Lucide.link, () => copyInvite(context, channel)),
-    if (room == null || room.can(Perm.invite)) Choice('Share with friends', Lucide.share2, () => push(context, (_) => ShareChannelScreen(channel: channel))),
+    if (room == null || room.can(Perm.invite)) Choice('Invite people', Lucide.userPlus, () => showSpaceInvite(context, channel)),
     Choice('Delete space', Lucide.trash2, () => confirmDeleteHangout(context, channel), danger: true),
   ]);
 }

@@ -20,13 +20,16 @@ import 'rtc.dart';
 import 'voice.dart';
 import 'voice_settings.dart';
 
-/// Someone calling a group: its channel, and who.
+/// Someone calling a group: its channel, and who. Or, with [invite], a friend who invited this phone into a space.
 @immutable
 class VoiceRing {
-  const VoiceRing(this.channel, this.from, this.at);
+  const VoiceRing(this.channel, this.from, this.at, {this.invite = false});
   final VoiceChannel channel;
   final String from;
   final DateTime at;
+
+  /// Not a call but an invite: a friend gave this phone [channel] (Voice.share), to join now or later.
+  final bool invite;
 }
 
 /// The voice channels this device can see and the one it is in (lib/voice/voice.dart says what a channel is).
@@ -55,7 +58,7 @@ class Voice extends ChangeNotifier {
   VoiceSession? session;
   RtcMedia? media;
 
-  /// Someone calling a group, until it is answered or put away.
+  /// Someone calling a group, or a friend's invite into a space, until it is answered or put away.
   VoiceRing? ringing;
 
   /// Channels made here or shared by friends.
@@ -358,12 +361,14 @@ class Voice extends ChangeNotifier {
     await _keep();
   }
 
-  /// Gives [c] to [friends]: they can see who is in it and hop in.
+  /// Gives [c] to [friends]: they can see who is in it and hop in, and their app says who invited them (`by`, this
+  /// phone's name).
   Future<void> share(VoiceChannel c, List<Buddy> friends) async {
+    final by = _myName.isNotEmpty ? _myName : 'Someone';
     for (final f in friends) {
       final peer = Net.instance.byId(f.id);
       if (peer == null) continue;
-      await Net.instance.send(peer, Envelope(kind: 'voice', body: {'t': 'channel', 's': c.seed, 'n': c.name, if (c.owner.isNotEmpty) 'o': c.owner}));
+      await Net.instance.send(peer, Envelope(kind: 'voice', body: {'t': 'channel', 's': c.seed, 'n': c.name, if (c.owner.isNotEmpty) 'o': c.owner, 'by': by}));
     }
   }
 
@@ -404,7 +409,14 @@ class Voice extends ChangeNotifier {
         // Only from a friend.
         if (Buddies.instance.byId(r.peer.id)?.state != 'yes') return;
         final c = VoiceChannel.fromJson({'s': b['s'], 'n': b['n'], 'o': b['o']});
-        if (c == null || own.any((o) => o.seed == c.seed)) return;
+        if (c == null) return;
+        // Said on screen, Join and Not now, unless already in its call or a group is calling (Matt, 2026-11-16:
+        // invites into spaces).
+        if (session?.channel.room != c.room && (ringing == null || ringing!.invite)) {
+          ringing = VoiceRing(c, '${b['by'] ?? nameOf(r.peer.id)}', DateTime.now(), invite: true);
+          notifyListeners();
+        }
+        if (own.any((o) => o.seed == c.seed)) return;
         // Shared again by a friend, after it was removed: wanted again.
         _unmarkGone(c.seed);
         own = [...own, c];

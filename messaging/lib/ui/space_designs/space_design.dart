@@ -19,6 +19,7 @@ import '../hangout_screen.dart';
 import '../ripple_avatar.dart';
 import '../settings.dart';
 import '../shell.dart';
+import '../space_invite.dart';
 import '../voice_screen.dart';
 import 'discord.dart';
 import 'facetime.dart';
@@ -204,7 +205,7 @@ class SpaceCall {
       onMinimize: minimize,
       onPerson: (context, p) => showPerson(context, s, p.id, p.name),
       onSettings: room == null ? null : (context) => push(context, (_) => RolesScreen(room: room, settings: true)),
-      onInvite: room != null && !room.can(Perm.invite) ? null : (context) => copyInvite(context, s.channel),
+      onInvite: room != null && !room.can(Perm.invite) ? null : (context) => showSpaceInvite(context, s.channel),
       onDevices: (context) => push(context, (_) => const SettingsSectionScreen('voice')),
       chatBuilder: room == null ? null : ({double bottom = 0}) => HangoutChat(room: room, bottom: bottom),
     );
