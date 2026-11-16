@@ -111,6 +111,15 @@ class RtcMedia implements VoiceMedia {
         }
       } catch (_) {}
     }
+    // The meter while alone, not with others (_openMeter, _closeMeter).
+    if (_peers.isEmpty && _meter == null && !_opening) {
+      unawaited(_openMeter());
+    } else if (_peers.isNotEmpty && _meter != null) {
+      unawaited(_closeMeter());
+    }
+    // What reaches the meter's other end is never heard: held to silence at every reading, not trusted to one event
+    // (Matt, 2026-11-16: "I can hear myself also if I mute and unmute in a space": on the phone the track was played).
+    unawaited(_silenceSink());
     // Where the sender says nothing, the level of what reached the meter's other end.
     final sink = _meterSink;
     if (sink != null && !next.containsKey('me')) {
@@ -137,6 +146,97 @@ class RtcMedia implements VoiceMedia {
     }
     final was = levels.value;
     levels.value = {for (final k in {...was.keys, ...next.keys}) k: _ease(was[k] ?? 0, next[k] ?? 0)};
+  }
+
+  bool _opening = false;
+
+  /// What the ids of the meter partner's copy of the microphone start with ([_openMeter]).
+  static const meterPrefix = 'ghost-meter-';
+
+  /// [sdp] (the meter's offer) with the microphone's track and stream ids given the meter's own prefix, so the
+  /// partner's copy is a track of its own to flutter_webrtc and switching it off never touches the microphone.
+  @visibleForTesting
+  static String meterApart(String sdp, {required String trackId, required String streamId}) =>
+      sdp.replaceAll(trackId, '$meterPrefix$trackId').replaceAll(streamId, '$meterPrefix$streamId');
+
+  /// Opens the meter and its silent partner, for this device's own level while it is alone in the call.
+  Future<void> _openMeter() async {
+    final mic = _mic;
+    if (_meter != null || _opening || mic == null) return;
+    _opening = true;
+    try {
+      final config = {'iceServers': <Map<String, Object>>[], 'sdpSemantics': 'unified-plan'};
+      final meter = await createPeerConnection(config);
+      final sink = await createPeerConnection(config);
+      // Connected on this device alone: each end's ways to connect handed straight to the other.
+      meter.onIceCandidate = (c) {
+        if (c.candidate != null) unawaited(sink.addCandidate(c).catchError((_) {}));
+      };
+      sink.onIceCandidate = (c) {
+        if (c.candidate != null) unawaited(meter.addCandidate(c).catchError((_) {}));
+      };
+      // What arrives is never played.
+      sink.onTrack = (_) => unawaited(_silenceSink());
+      await meter.addTransceiver(
+        track: mic.getAudioTracks().first,
+        kind: RTCRtpMediaType.RTCRtpMediaTypeAudio,
+        // Low: only its level is wanted.
+        init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendOnly, streams: [mic], sendEncodings: [RTCRtpEncoding(maxBitrate: 16000)]),
+      );
+      final offer = await meter.createOffer();
+      await meter.setLocalDescription(offer);
+      // The partner's copy of the microphone gets ids of its own. flutter_webrtc finds a track by its id, looking at
+      // this device's own tracks first, so under the microphone's id "switch off the partner's copy" switched off
+      // the microphone itself, and the copy was played (Matt, 2026-11-16: "I can hear myself also if I mute and
+      // unmute in a space"; "I cant hear the other person that joined the space"). With no ids to change, no meter.
+      final micTrack = mic.getAudioTracks().first;
+      final trackId = micTrack.id;
+      final sdp = offer.sdp ?? '';
+      if (trackId == null || trackId.isEmpty || !sdp.contains(trackId)) {
+        await meter.close();
+        await sink.close();
+        _opening = false;
+        return;
+      }
+      final apart = meterApart(sdp, trackId: trackId, streamId: mic.id);
+      await sink.setRemoteDescription(RTCSessionDescription(apart, offer.type));
+      final answer = await sink.createAnswer();
+      await sink.setLocalDescription(answer);
+      await meter.setRemoteDescription(answer);
+      _meterSink = sink;
+      await _silenceSink();
+      _meter = meter;
+    } catch (_) {}
+    _opening = false;
+  }
+
+  /// Closes the meter once someone else is in the call: their connections measure the microphone from then on, and
+  /// nothing of this device's own sound is looped back while anyone is listening.
+  Future<void> _closeMeter() async {
+    final meter = _meter, sink = _meterSink;
+    _meter = null;
+    _meterSink = null;
+    _energy = null;
+    _energyTime = null;
+    await meter?.close();
+    await sink?.close();
+  }
+
+  /// Switches off every track the meter's other end receives and turns it to nothing, so this device never plays its
+  /// own microphone back. Asked again and again (every reading), since on some phones a receiver's track is made, or
+  /// made again, without the event that announces it.
+  Future<void> _silenceSink() async {
+    final sink = _meterSink;
+    if (sink == null) return;
+    try {
+      for (final r in await sink.getReceivers()) {
+        final track = r.track;
+        // Only the partner's own copy, by the ids given it: never the microphone.
+        if (track == null || track.kind != 'audio' || !(track.id ?? '').startsWith(meterPrefix)) continue;
+        if (track.enabled) track.enabled = false;
+        await Helper.setVolume(0, track).catchError((_) {});
+      }
+    } catch (_) {}
   }
 
   static double _ease(double from, double to) => to > from ? from + (to - from) * 0.6 : from + (to - from) * 0.25;
@@ -215,39 +315,8 @@ class RtcMedia implements VoiceMedia {
     } else if (!kIsWeb && Platform.isAndroid) {
       await Helper.setSpeakerphoneOn(true);
     }
-    if (_meter == null) {
-      try {
-        final config = {'iceServers': <Map<String, Object>>[], 'sdpSemantics': 'unified-plan'};
-        final meter = await createPeerConnection(config);
-        final sink = await createPeerConnection(config);
-        // Connected on this device alone: each end's ways to connect handed straight to the other.
-        meter.onIceCandidate = (c) {
-          if (c.candidate != null) unawaited(sink.addCandidate(c).catchError((_) {}));
-        };
-        sink.onIceCandidate = (c) {
-          if (c.candidate != null) unawaited(meter.addCandidate(c).catchError((_) {}));
-        };
-        // What arrives is never played.
-        sink.onTrack = (e) {
-          e.track.enabled = false;
-          unawaited(Helper.setVolume(0, e.track).catchError((_) {}));
-        };
-        await meter.addTransceiver(
-          track: _mic!.getAudioTracks().first,
-          kind: RTCRtpMediaType.RTCRtpMediaTypeAudio,
-          // Low: only its level is wanted.
-          init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendOnly, streams: [_mic!], sendEncodings: [RTCRtpEncoding(maxBitrate: 16000)]),
-        );
-        final offer = await meter.createOffer();
-        await meter.setLocalDescription(offer);
-        await sink.setRemoteDescription(offer);
-        final answer = await sink.createAnswer();
-        await sink.setLocalDescription(answer);
-        await meter.setRemoteDescription(answer);
-        _meter = meter;
-        _meterSink = sink;
-      } catch (_) {}
-    }
+    // Alone, the microphone is measured through the meter (_openMeter); with others, through their connections.
+    if (_peers.isEmpty) await _openMeter();
     _levelTimer ??= Timer.periodic(const Duration(milliseconds: 150), (_) => _readLevels());
   }
 

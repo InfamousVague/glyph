@@ -81,6 +81,9 @@ abstract class BuddiesPort {
 ///
 /// The list is kept on the phone (`buddies`), and the phone works out the key each pair seals with from it, so the
 /// routes reach them as they reach anyone encryption is on with.
+/// What [Buddies.lookup] found.
+enum BuddyLookup { nobody, you, someone }
+
 class Buddies extends ChangeNotifier {
   Buddies(this._port);
 
@@ -129,6 +132,15 @@ class Buddies extends ChangeNotifier {
   }
 
   Map<String, Object> _profile() => {'u': _port.username ?? '', 'n': _port.displayName, 'b': _port.bio};
+
+  /// Who [username] is, as the add-friend drawer shows it while it is typed: nobody, this install itself, or someone
+  /// (lib/ui/add_friend_drawer.dart). Asks the same server [add] asks.
+  Future<BuddyLookup> lookup(String username) async {
+    final found = await _port.whois(tidyHandle(username));
+    if (found == null) return BuddyLookup.nobody;
+    if (found.id == (await _port.me()).id) return BuddyLookup.you;
+    return BuddyLookup.someone;
+  }
 
   /// Asks [username] to be friends. Throws a [MeError] where nobody has that username, or it is this install's.
   Future<Buddy> add(String username) async {

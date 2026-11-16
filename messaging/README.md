@@ -644,6 +644,11 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   Kept on purpose: `@group.ghost-sms.com` in a group's address (a name phones store and send, not a link), and the
   relay's sign-in callbacks (`GHOST_PUBLIC_URL`), until gogho.st's callback addresses are added at Discord, X and
   Telegram. The folders on the box keep their names (/opt/ghost-sms-*).
+- **Add a friend from a drawer beside Contacts' search** (0.8.1, not released; Matt, 2026-11-16: "move the Add button
+  to the side of search and have it open a drawer to search and add users as well as setup username if hasn't been
+  done already"). A round Add beside the search opens it: without a username of your own it asks for one first; with
+  one it looks up an @username as it is typed (whole names only, never listed by their start) and offers Add, or
+  Accept where they asked you (lib/ui/add_friend_drawer.dart). The requests and friends stay at the top of Contacts.
 - **Mark all read covers Telegram and Signal** (0.8.0, not released; Matt, 2026-11-16: "The mark read button should
   work for telegram and signal as well as standard messages"). The button counts the tab's unread chats from every
   network with its unread texts, so it is no longer grey when only chats are unread, and reads them all; a network's
