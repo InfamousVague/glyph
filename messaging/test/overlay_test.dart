@@ -64,6 +64,11 @@ void main() {
     addTearDown(() => Sms.calls = before);
     expect(Sms.remote, isFalse);
     expect(Sms.paired, isFalse);
+    // Everything the phone can do is still offered: pictures, stickers, voice, deleting (Matt, 2026-11-15: "Im missing
+    // the button to send picture and videos to people").
+    for (final what in ['sendPictures', 'sendSticker', 'sendVoice', 'deleteThreads', 'deleteMessage', 'editMessage', 'e2eOffer']) {
+      expect(Sms.can(what), isTrue, reason: what);
+    }
   });
 
   test('a friend by username\'s words are kept here, and the list is the phone\'s with them', () async {

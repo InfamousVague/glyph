@@ -122,6 +122,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   String? _groupId;
   bool get _isGhost => _ghost != null || _groupId != null;
 
+  /// Written to by username (`@name`, lib/standalone): words alone go that way, no pictures, stickers or voice yet.
+  bool get _byName => _people.isNotEmpty && _people.every((p) => p.address.startsWith('@'));
+
   /// Why nothing can be written here, where nothing can: a group this phone has left, or one seen from a computer.
   String? get _closed {
     if (!_isGhost) return null;
@@ -999,7 +1002,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final canSend = editing ? _text.text.trim().isNotEmpty : (_text.text.trim().isNotEmpty || _attachments.isNotEmpty) && !_sending;
     final isMms = !_isGhost && (_group || _attachments.isNotEmpty);
     // Nothing written and nothing attached: the microphone stands where Send would, to record a voice message.
-    final voiceOffered = Sms.can('sendVoice') && !_isGhost && !editing && _people.isNotEmpty && _text.text.isEmpty && _attachments.isEmpty;
+    final voiceOffered = Sms.can('sendVoice') && !_isGhost && !_byName && !editing && _people.isNotEmpty && _text.text.isEmpty && _attachments.isEmpty;
     // A sealed text goes as `ghost:e1:` and base64 of its bytes with 28 more (E2eCrypto.seal): longer than what was
     // typed, and plain letters whatever was typed.
     final sealed = _e2e.on && !isMms;
@@ -1155,7 +1158,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
             )
           else
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            if (Sms.can('sendPictures') && !_isGhost) IconTap(icon: Lucide.plus, label: 'Add an attachment', onPressed: editing || _attachments.length >= 5 ? null : _attach),
+            if (Sms.can('sendPictures') && !_isGhost && !_byName) IconTap(icon: Lucide.plus, label: 'Add an attachment', onPressed: editing || _attachments.length >= 5 ? null : _attach),
             SizedBox(width: t.space(1)),
             Expanded(
               // The field with Send inside it, at its end: a smaller disc that keeps to the bottom as the text grows.
@@ -1231,7 +1234,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                       },
                     ),
                   // Stickers, while nothing is being written: once there are words the room is theirs.
-                  if (Sms.can('sendSticker') && !_isGhost && !editing && _text.text.isEmpty && _attachments.isEmpty)
+                  if (Sms.can('sendSticker') && !_isGhost && !_byName && !editing && _text.text.isEmpty && _attachments.isEmpty)
                     IconTap(icon: Lucide.sticker, label: 'Stickers', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _sending ? null : _sticker),
                   SizedBox(width: t.space(1)),
                   if (voiceOffered)
