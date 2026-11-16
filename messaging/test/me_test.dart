@@ -109,6 +109,26 @@ void main() {
     expect(ownCodeIn('Ghost Messaging is out: 0.7.11'), isNull);
   });
 
+  // Matt, 2026-11-15: "add them to a ignore or archive list on my ghost account specifically" (lib/kept_lists.dart).
+  test('an install keeps its lists on the relay sealed: read back by it alone, unreadable on the server', () async {
+    final maya = _Install(url()), bob = _Install(url());
+    await maya.open();
+    await bob.open();
+    maya.me.wake();
+    bob.me.wake();
+    await _until(() => maya.me.ready && bob.me.ready);
+    expect(await maya.me.kept(), isNull);
+    await maya.me.keep({'v': 1, 'inbox': {'inbox_telegram_deleted': '10\u001f20'}, 'threads': {'44': 1763200000000}, 'msgs': ['sms:7']});
+    final back = await maya.me.kept();
+    expect((back!['inbox'] as Map)['inbox_telegram_deleted'], '10\u001f20');
+    expect((back['threads'] as Map)['44'], 1763200000000);
+    expect(await bob.me.kept(), isNull, reason: 'each install its own');
+    relay.hub!.handles!.save();
+    final file = File('${dir.path}/handles.json').readAsStringSync();
+    expect(file, isNot(contains('inbox_telegram')), reason: 'sealed: the server can\'t read it');
+    expect(file, contains('kept'));
+  });
+
   test('Maya\'s number is verified by the code texted to it; nobody is told it, and it is hers after a restart', () async {
     final maya = _Install(url()), bob = _Install(url());
     await maya.open();

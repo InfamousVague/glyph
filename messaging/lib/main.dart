@@ -10,6 +10,7 @@ import 'me/me.dart';
 import 'accent.dart';
 import 'summaries.dart';
 import 'app_state.dart';
+import 'kept_lists.dart';
 import 'backgrounds.dart';
 import 'desktop/main.dart';
 import 'desktop/store.dart' show DeskStore;
@@ -74,6 +75,7 @@ Future<void> main() async {
   }
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   final state = AppState();
+  KeptLists.instance.app = state;
   // The stylesheets, the person's choices and the wallpaper's colours (for a chat background and bubbles that follow
   // the phone) are asked for together: none waits on another.
   final loaded = await Future.wait<Object?>([

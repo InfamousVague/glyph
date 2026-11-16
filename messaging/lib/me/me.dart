@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../app_state.dart';
+import '../kept_lists.dart';
 import '../net/carrier.dart';
 import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
@@ -324,6 +325,9 @@ class Me extends ChangeNotifier {
       case 'hello':
         ways = (m['ways'] as Map? ?? const {}).cast<String, String>();
         ready = true;
+        // Ghost's own lists of what was deleted or archived where the network could not, kept on the account: read
+        // back and joined with this device's (lib/kept_lists.dart).
+        unawaited(KeptLists.instance.pull().catchError((_) => false));
         // The server is the word on what is linked there; the phone is the word on which handle each is.
         final there = {for (final l in (m['links'] as List? ?? const [])) (l as Map)['p'] as String: l['k'] as String?};
         links.removeWhere((p, h) => there[p] != handleKey(p, h));
@@ -347,6 +351,8 @@ class Me extends ChangeNotifier {
       case 'claim':
       case 'whois':
       case 'released':
+      case 'keep':
+      case 'kept':
         _waiting.remove('${m['dir']}:${network ?? ''}')?.complete(m);
       case 'linked':
         if (network != null && m['handle'] is String) {
@@ -468,6 +474,42 @@ class Me extends ChangeNotifier {
       _waiting.remove(key);
       throw MeError('The relay server did not answer.');
     });
+  }
+
+  // --- what this install keeps on the relay for itself (Matt, 2026-11-15: "add them to a ignore or archive list on my
+  // ghost account specifically"), sealed with a key made from its own private key, so the relay holds what it can't
+  // read ------------------------------------------------------------------------------------------------------------
+
+  /// The key the kept lists are sealed with: made once on this install and kept in its preferences (the install's
+  /// own private key is in Android's keystore, which never hands it out). The relay knows the install by its key, so
+  /// what it keeps is this install's, and is read back by it alone.
+  Uint8List? get _keptKey {
+    final app = _app;
+    if (app == null || _hub == null) return null;
+    var hex = app.choice('kept_key', '');
+    if (hex.length != 64) {
+      hex = NetCrypto.hex(NetCrypto.randomBytes(32));
+      app.set('kept_key', hex);
+    }
+    return NetCrypto.derive(NetCrypto.unhex(hex), 'kept lists');
+  }
+
+  /// Keeps [what] on the relay for this install, sealed.
+  Future<void> keep(Map<String, Object?> what) async {
+    final key = _keptKey;
+    if (key == null) throw MeError('The relay server can\'t be reached right now.');
+    await _ask({'dir': 'keep', 'blob': base64Encode(NetCrypto.seal(key, utf8.encode(jsonEncode(what))))}, 'keep');
+  }
+
+  /// What this install kept on the relay, opened; null where nothing is kept or it can't be opened.
+  Future<Map<String, Object?>?> kept() async {
+    final key = _keptKey;
+    if (key == null) return null;
+    final m = await _ask({'dir': 'kept'}, 'kept');
+    final blob = m['blob'];
+    if (blob is! String || blob.isEmpty) return null;
+    final clear = NetCrypto.open(key, base64Decode(blob));
+    return clear == null ? null : (jsonDecode(utf8.decode(clear)) as Map).cast<String, Object?>();
   }
 
   // --- a username (Matt, 2026-11-14: "create a profile and username under "me" to register a username and add

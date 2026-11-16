@@ -388,6 +388,32 @@ func do(r request) (any, error) {
 			return nil, err
 		}
 		return nil, c.SetActiveSession(ctx)
+	// A conversation archived or brought back (remove), as messages.google.com's Archive does.
+	case "archive_conv":
+		c, err := client()
+		if err != nil {
+			return nil, err
+		}
+		status := gmproto.ConversationStatus_ARCHIVED
+		if r.Remove {
+			status = gmproto.ConversationStatus_ACTIVE
+		}
+		_, err = c.UpdateConversation(ctx, &gmproto.UpdateConversationRequest{
+			ConversationID: r.Conv,
+			Data: &gmproto.UpdateConversationRequest_UpdateData{UpdateData: &gmproto.UpdateConversationData{
+				ConversationID: r.Conv,
+				Data:           &gmproto.UpdateConversationData_Status{Status: status},
+			}},
+		})
+		return nil, err
+	// One message deleted, as messages.google.com's Delete does.
+	case "delete_msg":
+		c, err := client()
+		if err != nil {
+			return nil, err
+		}
+		_, err = c.DeleteMessage(ctx, r.Msg)
+		return nil, err
 	// A conversation deleted, as messages.google.com's Delete does: from the phone and every device.
 	case "delete_conv":
 		c, err := client()

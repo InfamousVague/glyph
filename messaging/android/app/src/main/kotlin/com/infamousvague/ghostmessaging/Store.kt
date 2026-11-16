@@ -540,6 +540,7 @@ class Store(private val context: Context) {
             }
         }
         withBridgedMessages(thread, out, limit)
+        hiddenMessages().takeIf { it.isNotEmpty() }?.let { gone -> out.removeAll { "${it["kind"]}:${it["id"]}" in gone } }
         out.sortByDescending { it["date"] as Long }
         val originals = originals()
         val marked = if (originals.isEmpty()) out else out.map { m ->
@@ -909,9 +910,54 @@ class Store(private val context: Context) {
     }
 
     /** Deletes one message, and says so if Android did not: asked by its own address, then by its number. */
+    /** Messages deleted beside Google Messages that Android would not let go of: left out of the list ("kind:id"). */
+    fun hiddenMessages(): Set<String> = prefs.getStringSet("hidden_msgs", emptySet())!!
+
+    /**
+     * Joins [threads] (each with when it was deleted) and [msgs] from the Ghost account into the lists here
+     * (lib/kept_lists.dart): the later time for a conversation in both. True where any was new.
+     */
+    fun addHidden(threads: Map<Long, Long>, msgs: Collection<String>): Boolean {
+        val o = try { org.json.JSONObject(prefs.getString("hidden_threads", "{}")!!) } catch (_: Exception) { org.json.JSONObject() }
+        var added = false
+        for ((t, at) in threads) {
+            if (o.optLong(t.toString(), 0L) < at) { o.put(t.toString(), at); added = true }
+        }
+        val before = hiddenMessages()
+        if (!before.containsAll(msgs)) added = true
+        prefs.edit().putString("hidden_threads", o.toString()).putStringSet("hidden_msgs", before + msgs).apply()
+        return added
+    }
+
+    private fun hideMessage(kind: String, id: Long) {
+        prefs.edit().putStringSet("hidden_msgs", hiddenMessages() + "$kind:$id").apply()
+    }
+
     fun deleteMessage(kind: String, id: Long) {
-        // One the bridge read from Google Messages (GmBridge): forgotten here; Google Messages keeps its own.
-        if (kind == "rcs") { GmBridge.Db.get(context).forgetMessage(id); return }
+        // One the bridge read from Google Messages (GmBridge): deleted in Google Messages where Ghost is paired with
+        // its web connection (Matt, 2026-11-15: "if possible proxy the archive and delete messages too"), and
+        // forgotten here either way.
+        if (kind == "rcs") {
+            val db = GmBridge.Db.get(context)
+            db.gmIdOf(id)?.let { GmWeb.deleteMessage(it) }
+            db.forgetMessage(id)
+            return
+        }
+        // Beside Google Messages Android lets only it delete texts: Google Messages deletes its copy (found by the
+        // same words and time) where Ghost is paired, and Ghost leaves the text out of its list either way.
+        if (!GmBridge.isDefault(context) && kind == "sms") {
+            try {
+                resolver.query(Telephony.Sms.CONTENT_URI, arrayOf("thread_id", "body", "type", "date"), "_id = ?", arrayOf("$id"), null)?.use { c ->
+                    if (c.moveToFirst()) {
+                        val out = c.getInt(2) != Telephony.Sms.MESSAGE_TYPE_INBOX
+                        GmBridge.Db.get(context).gmIdLike(c.getLong(0), c.getString(1) ?: "", out, c.getLong(3))?.let { GmWeb.deleteMessage(it) }
+                    }
+                }
+            } catch (_: Exception) {}
+            hideMessage(kind, id)
+            return
+        }
+        if (!GmBridge.isDefault(context)) { hideMessage(kind, id); return }
         val all = if (kind == "mms") Telephony.Mms.CONTENT_URI else Telephony.Sms.CONTENT_URI
         var gone = try { resolver.delete(Uri.withAppendedPath(all, id.toString()), null, null) } catch (e: Exception) { android.util.Log.w("GhostMessaging", "delete message", e); 0 }
         if (gone == 0) {
@@ -1058,6 +1104,9 @@ class Store(private val context: Context) {
     fun archivedThreads(): Set<Long> = prefs.getStringSet("archived", emptySet())!!.mapNotNull { it.toLongOrNull() }.toSet()
 
     fun setArchived(thread: Long, archived: Boolean) {
+        // Archived in Google Messages too, where Ghost is paired with its web connection (Matt, 2026-11-15: "if
+        // possible proxy the archive and delete messages too"), so the two keep the same archive.
+        if (!GmBridge.isDefault(context)) Thread { GmWeb.archiveThread(thread, archived) }.start()
         val s = prefs.getStringSet("archived", emptySet())!!.toMutableSet()
         if (archived) s += thread.toString() else s -= thread.toString()
         prefs.edit().putStringSet("archived", s).apply()

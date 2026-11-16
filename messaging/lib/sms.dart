@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'kept_lists.dart';
 import 'package:flutter/services.dart';
 
 /// A person in a conversation: their number (or email address, for an MMS) and what the phone's contacts know of them.
@@ -905,8 +906,10 @@ class Sms {
 
   /// Tries again to bring down a picture message that could not be ([Message.state] `pending_download`).
   Future<void> retryDownload(Message m) => _calls.invokeMethod('retryDownload', {'id': m.id});
-  Future<void> deleteThread(int thread) => _calls.invokeMethod('deleteThread', {'thread': thread});
-  Future<void> deleteThreads(List<int> threads) => _calls.invokeMethod('deleteThreads', {'threads': threads});
+  // Deleted beside Google Messages, a conversation or text may be one Ghost only leaves out: that list is kept on the
+  // account too (lib/kept_lists.dart).
+  Future<void> deleteThread(int thread) => _calls.invokeMethod('deleteThread', {'thread': thread}).then((_) => KeptLists.instance.changed());
+  Future<void> deleteThreads(List<int> threads) => _calls.invokeMethod('deleteThreads', {'threads': threads}).then((_) => KeptLists.instance.changed());
 
   /// Coming from another texting app: what can be seen (null where Android will not say), and the ways out.
   Future<Arriving> arriving() async {
@@ -924,7 +927,7 @@ class Sms {
   Future<void> openAppInfo() => _calls.invokeMethod('openAppInfo');
   Future<void> openDefaultApps() => _calls.invokeMethod('openDefaultApps');
   Future<void> openRcsOff() => _calls.invokeMethod('openRcsOff');
-  Future<void> deleteMessage(Message m) => _calls.invokeMethod('deleteMessage', {'kind': m.kind, 'id': m.id});
+  Future<void> deleteMessage(Message m) => _calls.invokeMethod('deleteMessage', {'kind': m.kind, 'id': m.id}).then((_) => KeptLists.instance.changed());
   Future<void> editMessage(Message m, String body) => _calls.invokeMethod('editMessage', {'kind': m.kind, 'id': m.id, 'body': body});
   Future<void> archive(int thread, bool archived) => _calls.invokeMethod('archive', {'thread': thread, 'archived': archived});
   /// Gives the conversation a name on this phone, or takes it away with an empty one: a group's.
@@ -1142,6 +1145,27 @@ class Sms {
   /// Opens the computer's own panel of emoji, which types what is chosen where the cursor is. A phone's keyboard has
   /// its own, so this is a computer's alone ([remote]).
   Future<void> emojiPanel() => _calls.invokeMethod('emoji');
+
+  /// The conversations (with when each was deleted) and texts deleted beside Google Messages that Android kept: Ghost's
+  /// own lists, kept on the account too (lib/kept_lists.dart). Nothing on a computer.
+  Future<Map<String, Object?>> hiddenLists() async {
+    if (remote) return const {};
+    try {
+      return ((await _calls.invokeMethod<Map>('hiddenLists')) ?? const {}).cast<String, Object?>();
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// Joins [threads] and [msgs] from the account into those lists; true where any was new.
+  Future<bool> addHiddenLists(Map<String, int> threads, List<String> msgs) async {
+    if (remote) return false;
+    try {
+      return (await _calls.invokeMethod<bool>('addHiddenLists', {'threads': threads, 'msgs': msgs})) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// Any files, pictures and videos among them (a Telegram chat's +): their content addresses on the phone, paths on a
   /// computer.

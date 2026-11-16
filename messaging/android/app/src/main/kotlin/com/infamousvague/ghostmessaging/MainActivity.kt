@@ -304,6 +304,14 @@ class MainActivity : FlutterActivity() {
                 // one copied to a file of this app's own, which TDLib sends from; a recording ended as a file; and a
                 // file that came opened in whichever app reads it.
                 "pickFiles" -> pickImages(result, any = true)
+                // Ghost's own lists of what was deleted beside Google Messages, kept on the account too (lib/kept_lists.dart).
+                "hiddenLists" -> bg { mapOf("threads" to store.hiddenThreads().mapKeys { it.key.toString() }, "msgs" to store.hiddenMessages().toList()) }
+                "addHiddenLists" -> bg {
+                    val threads = (call.argument<Map<String, Number>>("threads") ?: emptyMap()).mapNotNull { (k, v) -> k.toLongOrNull()?.let { it to v.toLong() } }.toMap()
+                    val added = store.addHidden(threads, call.argument<List<String>>("msgs") ?: emptyList())
+                    if (added) Bus.changed(-1)
+                    added
+                }
                 "cacheCopy" -> bg { cacheCopy(Uri.parse(call.argument<String>("uri")!!)) }
                 "voiceFinish" -> bg {
                     val recorded = Voice.stop() ?: throw IllegalStateException("That was too short to send")
