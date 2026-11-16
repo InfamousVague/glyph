@@ -37,7 +37,7 @@ String inboxTab(InboxNetwork network) => '*inbox-${network.id}';
 InboxNetwork? inboxOfTab(String? tab) => tab != null && tab.startsWith('*inbox-') ? Inbox.instance.named(tab.substring(7)) : null;
 
 /// A network's logo, as Settings › Me draws it.
-Widget inboxMark(InboxNetwork network, {double size = 18}) => NetworkMark(me.networks.firstWhere((n) => n.id == network.id), size: size);
+Widget inboxMark(InboxNetwork network, {double size = 18, bool badge = false}) => NetworkMark(me.networks.firstWhere((n) => n.id == network.id), size: size, badge: badge);
 
 /// One chat in the list: drawn as a conversation is, so the tab reads like the rest of the app.
 class InboxChatRow extends StatelessWidget {
@@ -61,7 +61,7 @@ class InboxChatRow extends StatelessWidget {
     );
     final network = Inbox.instance.named(chat.network);
     // Its network's mark on the corner of the face, so a Telegram or Bluesky chat among the texts says what it is.
-    return ConversationRow(conversation: c, selected: selected, onPress: onPress, onLongPress: onLongPress ?? onPress, badge: network == null ? null : inboxMark(network, size: 16));
+    return ConversationRow(conversation: c, selected: selected, onPress: onPress, onLongPress: onLongPress ?? onPress, badge: network == null ? null : inboxMark(network, size: 20, badge: true));
   }
 }
 

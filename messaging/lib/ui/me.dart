@@ -28,9 +28,14 @@ Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 /// icons for discord telegram and X and bluesky and github etc"): Simple Icons' mark (lib/me/network_marks.g.dart),
 /// or its letter where the pack has none.
 class NetworkMark extends StatelessWidget {
-  const NetworkMark(this.network, {super.key, this.size = 18});
+  const NetworkMark(this.network, {super.key, this.size = 18, this.badge = false});
   final Network network;
   final double size;
+
+  /// Drawn as a badge on a face's corner (Matt, 2026-11-15: "Use the real brand icon for telegram chat indicators make
+  /// it a bit larger and make the icon white"): the brand's disc with its mark in white. A mark that is a disc with
+  /// the mark cut out of it (Telegram's) has white behind it; any other stands white on a disc of its colour.
+  final bool badge;
 
   @override
   Widget build(BuildContext context) {
@@ -42,8 +47,30 @@ class NetworkMark extends StatelessWidget {
     final brand = _brand[network.id];
     final color = (brand ?? t.color('app-ink')).withValues(alpha: ink.a);
     if (logo == null) return Text(network.mark, style: pageText(t, size, weight: 'bold', color: ink, height: 1.1));
+    if (badge) {
+      const white = Color(0xFFFFFFFF);
+      final disc = _discs.contains(network.id);
+      return Semantics(
+        label: network.name,
+        child: SizedBox.square(
+          dimension: size,
+          child: disc
+              ? Stack(children: [
+                  Positioned.fill(child: Padding(padding: EdgeInsets.all(size * 0.12), child: const DecoratedBox(decoration: BoxDecoration(shape: BoxShape.circle, color: white)))),
+                  CustomPaint(size: Size.square(size), painter: _LogoPainter(logo, color)),
+                ])
+              : DecoratedBox(
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+                  child: Padding(padding: EdgeInsets.all(size * 0.2), child: CustomPaint(painter: _LogoPainter(logo, white))),
+                ),
+        ),
+      );
+    }
     return Semantics(label: network.name, child: CustomPaint(size: Size.square(size), painter: _LogoPainter(logo, color)));
   }
+
+  /// Marks that are a disc with the mark cut out of it.
+  static const _discs = {'telegram'};
 
   static const _brand = {
     'discord': Color(0xFF5865F2),
