@@ -42,7 +42,7 @@ object Notifier {
      */
     fun channel(context: Context): String {
         val ui = context.getSharedPreferences("ui", Context.MODE_PRIVATE)
-        val take = (ui.getString("sound_message", "2") ?: "2").filter { it.isDigit() }.ifEmpty { "2" }
+        val take = (ui.getString("sound_message", "4") ?: "4").filter { it.isDigit() }.ifEmpty { "4" }
         val silent = ui.getString("sounds", "on") == "off"
         return if (silent) "$CHANNEL-sound-off" else "$CHANNEL-sound-$take"
     }
