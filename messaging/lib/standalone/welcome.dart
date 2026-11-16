@@ -8,6 +8,7 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart';
 import '../ui/computers.dart' show PairButton;
+import '../kit/semantic_colors.dart';
 
 /// The first thing an iPhone of its own shows (lib/standalone; Matt, 2026-11-15: "roll a version of the app that works
 /// without sms"; "the iOS onboarding [shouldn't] ask to have another phone scan the iPhone, it's unlikely the user
@@ -106,7 +107,7 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
               PaneSection(
                 title: 'Your username',
                 description: const Text('How people find you. Nobody sees your number; you don\'t need one.'),
-                footer: _problem == null ? null : Text(_problem!, style: TextStyle(color: t.colorOf('#dd3a30'))),
+                footer: _problem == null ? null : Text(_problem!, style: TextStyle(color: t.danger)),
                 children: [field(_username, 'username', 'Username', caps: TextCapitalization.none, onSubmitted: (_) => _go())],
               ),
               SizedBox(height: t.space(6)),

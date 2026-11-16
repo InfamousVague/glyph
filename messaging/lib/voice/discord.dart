@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import '../app_state.dart';
+import 'voice.dart';
 
 /// Discord servers linked into the Spaces tab (Matt, 2026-11-16: "get the ability to join discord voice channels and
 /// have spaces emulated as voice chat channels from a discord server ... group all of a servers spaces under one group
@@ -63,13 +64,16 @@ class DiscordMember {
 /// One of a server's voice (or stage) channels: a space in the server's group.
 @immutable
 class DiscordChannel {
-  const DiscordChannel({required this.guildId, required this.id, required this.name, this.stage = false, this.position = 0, this.members = const []});
+  const DiscordChannel({required this.guildId, required this.id, required this.name, this.stage = false, this.position = 0, this.members = const [], this.bridged = false});
   final String guildId;
   final String id;
   final String name;
   final bool stage;
   final int position;
   final List<DiscordMember> members;
+
+  /// The bridge is in it now: Ghost people are talking there through the bot.
+  final bool bridged;
 
   /// Opens it in Discord (the app where installed, else the web).
   String get link => 'https://discord.com/channels/$guildId/$id';
@@ -83,6 +87,7 @@ class DiscordChannel {
       stage: j['kind'] == 'stage',
       position: j['position'] is int ? j['position'] as int : 0,
       members: [for (final m in (j['members'] as List? ?? const [])) ?DiscordMember.fromJson(m)],
+      bridged: j['bridged'] == true,
     );
   }
 }
@@ -188,14 +193,17 @@ class DiscordServers extends ChangeNotifier {
     }
   }
 
-  /// The link to add the bot to a server, or null where the service doesn't say (not set up yet, or unreachable).
-  Future<String?> inviteUrl() async {
+  /// The bot's own invite: Ghost Messaging's Discord application (the one account linking uses), able only to see
+  /// channels. Used where the service can't be asked.
+  static const knownInvite = 'https://discord.com/oauth2/authorize?client_id=1571262060967366837&scope=bot%20applications.commands&permissions=1024';
+
+  /// The link to add the bot to a server: as the service says, or the app's own where it can't be reached.
+  Future<String> inviteUrl() async {
     try {
       final r = await _call('GET', '/invite');
-      return r['_status'] == 200 && r['url'] is String ? r['url'] as String : null;
-    } catch (_) {
-      return null;
-    }
+      if (r['_status'] == 200 && r['url'] is String) return r['url'] as String;
+    } catch (_) {}
+    return knownInvite;
   }
 
   /// Links the server whose `/ghost link` gave [code]. Its name, or throws with words for the person.
@@ -208,7 +216,12 @@ class DiscordServers extends ChangeNotifier {
     } catch (_) {
       throw const DiscordProblem('The Discord bot couldn\'t be reached. Try again in a moment.');
     }
-    if (r['_status'] == 404) throw const DiscordProblem('That code isn\'t right, or it has run out. Type /ghost link again for a new one.');
+    // Only the bot's own answer means the code is wrong; any other "not found" is the web server, with the bot out of
+    // reach (Matt, 2026-11-16: "it's saying invalid code even for valid codes", before gogho.st/discord reached it).
+    if (r['_status'] == 404 && r['error'] == 'unknown code') throw const DiscordProblem('That code isn\'t right, or it has run out. Type /ghost link again for a new one.');
+    if (r['_status'] == 410) throw const DiscordProblem('The bot isn\'t in that server any more. Add it again, then type /ghost link.');
+    if (r['_status'] == 503) throw const DiscordProblem('The Discord bot is starting up. Try again in a moment.');
+    if (r['_status'] is int && r['error'] == null && r['token'] == null) throw const DiscordProblem('The Discord bot couldn\'t be reached. Try again in a moment.');
     if (r['_status'] == 429) throw const DiscordProblem('Too many tries. Wait a minute and try again.');
     final g = r['guild'];
     if (r['_status'] != 200 || r['token'] is! String || g is! Map || g['id'] is! String || g['name'] is! String) {
@@ -218,6 +231,37 @@ class DiscordServers extends ChangeNotifier {
     _links = [for (final l in _links) if (l.guildId != link.guildId) l, link];
     _keep();
     return link.name;
+  }
+
+  /// Asks the bridge into [channel] (Matt, 2026-11-16: "I want the bot to connect and act as my voice"): the bot joins
+  /// the Discord voice channel and a space of its own for it, and the space is given back to join like any. Throws with
+  /// words for the person.
+  Future<VoiceChannel> joinVoice(DiscordChannel channel) async {
+    final link = _links.where((l) => l.guildId == channel.guildId).firstOrNull;
+    if (link == null) throw const DiscordProblem('That server isn\'t linked any more.');
+    final Map<String, dynamic> r;
+    try {
+      r = await _call('POST', '/voice/join', body: {'token': link.token, 'channel': channel.id});
+    } catch (_) {
+      throw const DiscordProblem('The Discord bot couldn\'t be reached. Try again in a moment.');
+    }
+    switch (r['_status']) {
+      case 200:
+        final seed = r['seed'];
+        if (seed is! String || !RegExp(r'^[0-9a-f]{64}$').hasMatch(seed)) throw const DiscordProblem('The Discord bot answered strangely. Try again.');
+        return VoiceChannel(seed: seed, name: r['name'] is String ? r['name'] as String : channel.name, discord: '${channel.guildId}/${channel.id}');
+      case 401:
+        throw const DiscordProblem('This server was unlinked. Add it again with /ghost link.');
+      case 403:
+        final missing = (r['missing'] as List? ?? const []).join(', ');
+        throw DiscordProblem('The bot isn\'t allowed to join that channel${missing.isEmpty ? '' : ' (it needs $missing)'}. Add it again with the new invite link, or give it those permissions.');
+      case 404:
+        throw const DiscordProblem('That channel isn\'t there any more.');
+      case 410:
+        throw const DiscordProblem('The bot isn\'t in that server any more. Add it again.');
+      default:
+        throw const DiscordProblem('The Discord bot couldn\'t join right now. Try again in a moment.');
+    }
   }
 
   /// Takes [link] off this device (the server keeps the bot; /ghost unlink there removes every device's link).

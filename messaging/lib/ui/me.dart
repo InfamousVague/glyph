@@ -21,6 +21,7 @@ import '../friends/buddies.dart';
 import 'common.dart';
 import 'profile.dart';
 import 'settings.dart';
+import '../kit/semantic_colors.dart';
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 
@@ -388,7 +389,7 @@ class _NumberScreenState extends State<NumberScreen> {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final sent = _sentTo;
-    final problem = _problem == null ? null : Text(_problem!, style: TextStyle(color: t.colorOf('#dd3a30')));
+    final problem = _problem == null ? null : Text(_problem!, style: TextStyle(color: t.danger));
     return GlacierScope(
       attrs: const {'hue': 'green'},
       child: GhostPage(
@@ -591,7 +592,7 @@ class _ProofScreenState extends State<ProofScreen> {
             children: [
               PaneSection(
                 title: 'Your handle',
-                footer: _problem == null ? null : Text(_problem!, style: TextStyle(color: t.colorOf('#dd3a30'))),
+                footer: _problem == null ? null : Text(_problem!, style: TextStyle(color: t.danger)),
                 children: [
                   SettingRowBox(
                     child: GlacierInput(
@@ -824,7 +825,7 @@ class _AddWatchScreenState extends State<AddWatchScreen> {
                             style: ink,
                             cursorColor: t.color('app-ink'),
                             backgroundCursorColor: t.color('app-ink-3'),
-                            selectionColor: t.colorOf('color-mix(in srgb, #4f5bd5 30%, transparent)'),
+                            selectionColor: t.textSelection,
                             minLines: 3,
                             maxLines: 10,
                             keyboardType: TextInputType.multiline,

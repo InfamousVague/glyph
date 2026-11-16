@@ -43,6 +43,22 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     stages with their times to `signal.log` beside its store and to standard error, which the app now passes to the
     Developer log (its own lines and signalmeow's warnings only; no message's words). Why Signal itself is slow to
     take a message is not known yet: the next stuck send says where in that log.
+- **Looks: Dial-Up, Mist, Lamplight, Sharp and Phosphor** (not released; `lib/looks.dart`, `lib/ui/look_picker.dart`,
+  `lib/ui/dialup/`, `lib/ui/message_line.dart`, the look blocks at the end of `assets/css/app.css`; Matt, 2026-11-16: "spend
+  some time making a few themes for ghost, base one of them heavily on the old AOL chatrooms"). Settings › Appearance has
+  a Look picker above Theme. Ghost is the app as it was. Mist is a pale aqua page with deep teal ink (light only),
+  Lamplight a warm amber dark for late reading, Sharp high contrast in either brightness (its dark half true black), and
+  Phosphor a green-screen terminal in JetBrains Mono with square corners. Dial-Up is a late-90s online chat room: silver
+  bevelled windows, navy title bars (purple in its dark half, After Hours, after the era's high-contrast black scheme),
+  Arimo (Arial's measures, OFL, bundled), each message a line of "Name: words" with your own in red and each other person
+  in a colour of their own, Host lines ("*** You are in ... ***", who entered and left a space), People Here in a space,
+  a "Send" button and a taskbar of buttons along the foot. No other company's name, marks or sounds are used. Each look
+  brings its own bubble colour (the Theme swatch, `--app-bubble-mine`) and going back to Ghost puts back the colour you had;
+  Ghost Keyboard is told the nearest of its colours. Red, indigo and the other fixed colours across the app became tokens
+  (`lib/kit/semantic_colors.dart`) with their old values, so a look can change them. Tests: themes_test (tokens resolve
+  and pass 4.5:1 in every look; `THEME_SHOTS=1` renders each look's screens to build/themes). The whole suite was not run
+  at the end (Matt: "skip running the test suites for now"), and the six Appearance goldens in test/shots predate the
+  Look section.
 - **Telegram on a computer, approved by the phone** (0.7.46; `lib/inbox/telegram.dart`,
   `lib/ui/inbox_ui.dart`, the desk link's `telegram` request; Matt, 2026-11-16: "It seems i have to setup signal and
   telegram on each device is it possible to proxy through thr phone", then "Build the Telegram phone sign-in approval").

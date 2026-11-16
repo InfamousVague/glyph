@@ -7,6 +7,7 @@ import '../kit/settings_type.dart';
 import '../app_state.dart';
 import '../sms.dart';
 import 'rcs_setup.dart';
+import '../kit/semantic_colors.dart';
 
 /// The walkthrough's "your texts" step (lib/onboarding/onboarding.dart): Android lets only the default SMS app send
 /// and keep texts, so the one thing to do is choose Ghost, or use it beside Google Messages.
@@ -227,7 +228,7 @@ class _Card extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final ink = danger ? t.colorOf('#dd3a30') : t.color('app-ink');
+    final ink = danger ? t.danger : t.color('app-ink');
     return Container(
       padding: EdgeInsets.all(t.space(4)),
       decoration: BoxDecoration(

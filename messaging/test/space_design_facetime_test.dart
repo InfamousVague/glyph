@@ -6,6 +6,7 @@ import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
 import 'package:ghost_messaging/ui/ripple_avatar.dart';
 import 'package:ghost_messaging/ui/space_designs/facetime.dart';
 import 'package:ghost_messaging/ui/space_designs/space_design.dart';
+import 'package:ghost_messaging/looks.dart';
 
 import 'support/space_call_harness.dart';
 
@@ -39,7 +40,7 @@ void main() {
         pageRouteBuilder: <T>(RouteSettings s, WidgetBuilder b) => PageRouteBuilder<T>(settings: s, pageBuilder: (c, _, _) => b(c)),
         builder: (context, child) => GlacierTheme(
           sheet: h.sheet,
-          attrs: {'platform': 'mobile', 'theme': state.theme},
+          attrs: ghostAttrs(state, 'mobile'),
           typography: ghostTypography('noto'),
           child: InkOverrides(child: GlacierToastProvider(child: child!)),
         ),

@@ -8,6 +8,7 @@ import '../art/lucide.g.dart';
 import '../effects.dart';
 import '../kit/settings_type.dart';
 import 'common.dart';
+import '../kit/semantic_colors.dart';
 
 /// What a long press on a message brings up, beside the message itself (Matt, 2026-11-13: "I want the message
 /// reactions to pop up under the message like imessage does", and "I'd like to be able to react with full screen
@@ -93,8 +94,8 @@ class _Popover extends StatelessWidget {
               margin: EdgeInsets.symmetric(horizontal: t.lenOf('0.1rem')),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: chosen ? t.colorOf('color-mix(in srgb, #4f5bd5 22%, transparent)') : const Color(0x00000000),
-                border: chosen ? Border.all(color: t.colorOf('#4f5bd5'), width: 2) : null,
+                color: chosen ? t.chosenWash : const Color(0x00000000),
+                border: chosen ? Border.all(color: t.chosen, width: 2) : null,
               ),
               alignment: Alignment.center,
               child: Text(emoji, style: pageText(t, t.lenOf('1.4rem'), height: 1.15)),
@@ -124,7 +125,7 @@ class _Popover extends StatelessWidget {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: close,
-          child: FadeTransition(opacity: animation, child: CustomPaint(painter: _Scrim(bubble, t.radius('lg')))),
+          child: FadeTransition(opacity: animation, child: CustomPaint(painter: _Scrim(bubble, t.radius('lg'), t.menuScrim))),
         ),
       ),
       Positioned.fill(
@@ -172,21 +173,22 @@ class _Beside extends SingleChildLayoutDelegate {
 
 /// The dimmed page, with the message's own place left clear.
 class _Scrim extends CustomPainter {
-  _Scrim(this.bubble, this.radius);
+  _Scrim(this.bubble, this.radius, this.color);
   final Rect bubble;
   final double radius;
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
     final hole = RRect.fromRectAndRadius(bubble.inflate(4), Radius.circular(radius + 4));
     canvas.drawPath(
       Path.combine(PathOperation.difference, Path()..addRect(Offset.zero & size), Path()..addRRect(hole)),
-      Paint()..color = const Color(0x73000000),
+      Paint()..color = color,
     );
   }
 
   @override
-  bool shouldRepaint(_Scrim old) => old.bubble != bubble;
+  bool shouldRepaint(_Scrim old) => old.bubble != bubble || old.color != color;
 }
 
 /// What can be done with a held message, as a list. "Effects" among it opens the screen effects in the list's own
@@ -216,7 +218,7 @@ class _MenuState extends State<_Menu> {
           onPressed: onPress,
           semanticLabel: says,
           builder: (context, state) {
-            final ink = danger ? t.colorOf('#dd3a30') : t.color('app-ink');
+            final ink = danger ? t.danger : t.color('app-ink');
             return ColoredBox(
               color: state.pressed ? t.color('app-paper-3') : const Color(0x00000000),
               child: Padding(
@@ -233,7 +235,7 @@ class _MenuState extends State<_Menu> {
 
     Widget choice(Choice c) => row(
           c.label,
-          trail: AppIcon(c.icon, size: 18, color: c.danger ? t.colorOf('#dd3a30') : t.color('app-ink')),
+          trail: AppIcon(c.icon, size: 18, color: c.danger ? t.danger : t.color('app-ink')),
           danger: c.danger,
           onPress: () {
             widget.close();
@@ -280,7 +282,7 @@ class _MenuState extends State<_Menu> {
                   effectLabel(e),
                   says: widget.mine.contains(effectReactionEmoji[e]) ? 'Take back ${effectLabel(e)}' : 'React with ${effectLabel(e)}, over the whole screen',
                   lead: SizedBox(width: t.lenOf('1.5rem'), child: Text(effectReactionEmoji[e]!, textAlign: TextAlign.center, style: pageText(t, t.lenOf('1.15rem'), height: 1.15))),
-                  trail: widget.mine.contains(effectReactionEmoji[e]) ? AppIcon(Lucide.check, size: 16, color: t.colorOf('#4f5bd5')) : null,
+                  trail: widget.mine.contains(effectReactionEmoji[e]) ? AppIcon(Lucide.check, size: 16, color: t.chosen) : null,
                   onPress: () {
                     widget.close();
                     widget.onEffect?.call(e);

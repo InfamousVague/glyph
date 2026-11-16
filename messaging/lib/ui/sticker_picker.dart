@@ -4,6 +4,7 @@ import 'package:glacier/glacier.dart';
 import '../app_state.dart';
 import '../kit/settings_type.dart';
 import '../stickers.dart';
+import '../kit/semantic_colors.dart';
 
 /// The stickers, in a sheet rising from the conversation's foot (Matt, 2026-11-13: "generate 4 sticker packs using
 /// our ghost mascot"): the packs across the top, the chosen pack's stickers under them. A tap on a sticker sends it,
@@ -15,7 +16,7 @@ Future<String?> pickSticker(BuildContext context, {bool encrypted = false}) {
   return Navigator.of(context).push<String>(PageRouteBuilder<String>(
     opaque: false,
     barrierDismissible: true,
-    barrierColor: const Color(0x66000000),
+    barrierColor: context.tokens.sheetScrim,
     transitionDuration: const Duration(milliseconds: 220),
     reverseTransitionDuration: const Duration(milliseconds: 180),
     pageBuilder: (context, _, _) => StickerSheet(encrypted: encrypted),

@@ -24,6 +24,7 @@ import 'hangout_screen.dart';
 import 'space_groups_ui.dart';
 import 'space_designs/space_design.dart';
 import 'space_invite.dart';
+import '../kit/semantic_colors.dart';
 
 /// Voice channels (Matt, 2026-11-14: "always open voice channels that you can jump in and out at any time and you can
 /// see who's connected and also toggle video on and off"): each channel with who is in it, a press to hop in, and,
@@ -204,7 +205,7 @@ class CallPanel extends StatelessWidget {
                         if ((p.me ? room.me : p.id) case final who when room.roster.isOwner(who) || room.roster.roleOf(who).id != room.roster.newcomer)
                           Padding(padding: EdgeInsets.only(right: t.space(2)), child: RoleTag(role: room.roster.roleOf(who), owner: room.roster.isOwner(who))),
                       if (p.video != null) Padding(padding: EdgeInsets.only(right: t.space(2)), child: AppIcon(Lucide.video, size: 16, color: t.color('app-ink-3'))),
-                      if (p.muted) Padding(padding: EdgeInsets.only(right: t.space(3)), child: AppIcon(LucideMore.micOff, size: 16, wash: false, color: t.colorOf('#dd3a30'))),
+                      if (p.muted) Padding(padding: EdgeInsets.only(right: t.space(3)), child: AppIcon(LucideMore.micOff, size: 16, wash: false, color: t.danger)),
                     ]),
                   )),
               ])),
@@ -275,7 +276,7 @@ class CallDock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final red = t.colorOf('#dd3a30');
+    final red = t.danger;
     // The size of the sidebar's dock (Matt, 2026-11-15: "the call controls are also too large they should match the
     // size of the sidebar control dock"): its rings, its frosted pill and the step between them (NavPill), and on a
     // computer the size that dock rests at (pillScrolledScale).
@@ -359,7 +360,7 @@ class _Tile extends StatelessWidget {
             right: t.space(2),
             child: Row(children: [
               Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: const Color(0xFFFFFFFF)))),
-              if (muted) ...[SizedBox(width: t.space(1)), AppIcon(LucideMore.micOff, size: 14, wash: false, color: t.colorOf('#dd3a30'))],
+              if (muted) ...[SizedBox(width: t.space(1)), AppIcon(LucideMore.micOff, size: 14, wash: false, color: t.danger)],
             ]),
           ),
         ]),
@@ -533,7 +534,7 @@ class RingCard extends StatelessWidget {
                         semanticLabel: 'Join',
                         builder: (context, state) => Container(
                           padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(2)),
-                          decoration: BoxDecoration(color: t.colorOf('#2fb35a'), borderRadius: BorderRadius.circular(t.radius('full'))),
+                          decoration: BoxDecoration(color: t.online, borderRadius: BorderRadius.circular(t.radius('full'))),
                           child: Text('Join', style: pageText(t, t.fontSize('sm'), weight: 'bold', color: const Color(0xFFFFFFFF))),
                         ),
                       ),
@@ -561,7 +562,7 @@ class VoiceRow extends StatelessWidget {
     final t = context.tokens;
     final v = Voice.instance;
     final face = t.lenOf('3rem');
-    final green = t.colorOf('#2fb35a');
+    final green = t.online;
     final here = v.session?.channel.room == channel.room;
     final inIt = here ? ['me', ...v.session!.members.keys] : v.inChannel(channel);
     final live = inIt.isNotEmpty;
@@ -682,8 +683,8 @@ class _CallBannerState extends State<CallBanner> with SingleTickerProviderStateM
         final s = v.session;
         if (s == null) return const SizedBox.shrink();
         final levels = v.media?.levels ?? s.media.levels;
-        final green = t.colorOf('#2fb35a');
-        final red = t.colorOf('#dd3a30');
+        final green = t.online;
+        final red = t.danger;
         return ListenableBuilder(
           listenable: Listenable.merge([s, levels]),
           builder: (context, _) {
@@ -761,7 +762,7 @@ void showPerson(BuildContext context, VoiceSession session, String id, String na
   Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(
     opaque: false,
     barrierDismissible: true,
-    barrierColor: const Color(0x66000000),
+    barrierColor: context.tokens.sheetScrim,
     transitionDuration: const Duration(milliseconds: 220),
     reverseTransitionDuration: const Duration(milliseconds: 180),
     pageBuilder: (context, _, _) => _PersonSheet(session: session, id: id, name: name),

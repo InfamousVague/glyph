@@ -123,6 +123,7 @@ Future<void> _fonts() async {
 
   await family('Inter Variable', 'assets/fonts/InterVariable-latin.ttf');
   await family('JetBrains Mono Variable', 'assets/fonts/JetBrainsMonoVariable-latin.ttf');
+  await family('Arimo', 'assets/fonts/ArimoVariable.ttf');
   await family('Ghost Emoji Noto', 'assets/emoji/NotoColor.ttf');
 }
 

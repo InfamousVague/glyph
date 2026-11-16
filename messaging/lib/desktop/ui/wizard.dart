@@ -16,6 +16,7 @@ import '../../ui/computers.dart';
 import '../desk.dart';
 import '../link/link.dart';
 import 'qr.dart';
+import '../../kit/semantic_colors.dart';
 
 /// The Mac's setup wizard (Matt, 2026-11-13: "it should attempt to use local networking by default and show the
 /// option for both in the setup wizard"): how to connect, the code for the phone to scan, the six digits to compare.
@@ -253,7 +254,7 @@ class LinkStatus extends StatelessWidget {
       if (on)
         AppIcon(link.via == 'local' ? Lucide.wifi : LucideMore.cloud, size: 14, color: ink, wash: false)
       else if (link.refused)
-        AppIcon(Lucide.triangleAlert, size: 14, color: t.colorOf('#c27c00'))
+        AppIcon(Lucide.triangleAlert, size: 14, color: t.warn)
       else
         const GhostSpinner(size: 14),
       SizedBox(width: t.space(2)),

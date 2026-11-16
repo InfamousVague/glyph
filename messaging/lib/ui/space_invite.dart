@@ -15,6 +15,7 @@ import 'common.dart';
 import 'ripple_avatar.dart';
 import 'shell.dart';
 import 'voice_screen.dart';
+import '../kit/semantic_colors.dart';
 
 /// The words an invite to [c] goes with, by a text or the share sheet.
 String spaceInviteWords(VoiceChannel c) => 'Join me in ${c.name} on Ghost Messaging: ${c.link}';
@@ -42,7 +43,7 @@ Future<void> showSpaceInvite(
   return Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(
     opaque: false,
     barrierDismissible: true,
-    barrierColor: const Color(0x66000000),
+    barrierColor: context.tokens.sheetScrim,
     transitionDuration: const Duration(milliseconds: 220),
     reverseTransitionDuration: const Duration(milliseconds: 180),
     pageBuilder: (context, _, _) => SpaceInviteSheet(channel: channel, send: send ?? Voice.instance.share, compose: write, buddies: buddies ?? Buddies.instance, inSpace: inSpace),
@@ -267,7 +268,7 @@ class _FriendRow extends StatelessWidget {
             ),
             SizedBox(width: t.space(2)),
             if (inSpace)
-              Text('In the space', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.colorOf('#2fb35a')))
+              Text('In the space', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.online))
             else
               Container(
                 width: size,

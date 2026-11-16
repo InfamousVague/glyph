@@ -8,6 +8,7 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
+import '../kit/semantic_colors.dart';
 
 /// Setting up RCS, step by step (Matt, 2026-11-15: "add a button under messages settings to setup RCS if on an
 /// android phone and walk the user through how to enable the rcs sidecar"; and "we should have a way to make the app
@@ -118,7 +119,7 @@ class _RcsStepsState extends State<RcsSteps> with WidgetsBindingObserver {
           Container(
             width: t.lenOf('1.6rem'),
             height: t.lenOf('1.6rem'),
-            decoration: BoxDecoration(shape: BoxShape.circle, color: ok ? t.colorOf('#2fb35a') : (current ? t.color('app-ink') : t.color('app-paper-3'))),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: ok ? t.online : (current ? t.color('app-ink') : t.color('app-paper-3'))),
             alignment: Alignment.center,
             child: ok
                 ? const AppIcon(Lucide.check, size: 14, wash: false, color: Color(0xFFFFFFFF))

@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/ui/space_designs/space_design.dart';
+import 'package:ghost_messaging/ui/space_designs/telegram.dart';
 import 'package:ghost_messaging/ui/space_groups_ui.dart';
 import 'package:ghost_messaging/ui/voice_screen.dart';
 import 'package:ghost_messaging/voice/discord.dart';
@@ -65,6 +67,20 @@ class _Bot {
             ],
             'at': 1,
           }));
+        }
+      } else if (req.method == 'POST' && req.uri.path == '/discord/voice/join') {
+        final body = jsonDecode(await utf8.decoder.bind(req).join()) as Map;
+        if (!tokens.containsKey(body['token'])) {
+          res.statusCode = 401;
+          res.write(jsonEncode({'error': 'not linked'}));
+        } else if (body['channel'] == 'c3') {
+          res.statusCode = 403;
+          res.write(jsonEncode({'error': 'no permission', 'missing': ['Connect', 'Speak']}));
+        } else if (body['channel'] != 'c1') {
+          res.statusCode = 404;
+          res.write(jsonEncode({'error': 'unknown channel'}));
+        } else {
+          res.write(jsonEncode({'seed': 'ab' * 32, 'name': 'General', 'guild': '111', 'channel': 'c1', 'bridge': 'cd' * 16}));
         }
       } else if (req.uri.path == '/discord/invite') {
         res.write(jsonEncode({'url': 'https://discord.com/oauth2/authorize?client_id=9&scope=bot%20applications.commands&permissions=1024'}));
@@ -135,6 +151,12 @@ void main() {
       expect(await d.inviteUrl(), contains('permissions=1024'));
       await expectLater(d.claim('nope'), throwsA(isA<DiscordProblem>().having((p) => p.words, 'words', contains('6 letters'))));
       await expectLater(d.claim('ZZZ999'), throwsA(isA<DiscordProblem>().having((p) => p.words, 'words', contains('run out'))));
+      // A "not found" from something other than the bot (the web server, before it passes /discord on) is not a
+      // wrong code.
+      final real = d.base;
+      d.base = 'http://127.0.0.1:${bot.server.port}/elsewhere';
+      await expectLater(d.claim('ABC234'), throwsA(isA<DiscordProblem>().having((p) => p.words, 'words', contains('couldn\'t be reached'))));
+      d.base = real;
       expect(await d.claim(' abc-234 '), 'Night Owls', reason: 'spaces, dashes and case forgiven');
       await d.refresh();
       final link = d.links.single;
@@ -153,6 +175,20 @@ void main() {
       SpaceGroups.instance.start(AppState());
       SpaceGroups.instance.fold(link.group, true);
       expect(spaceRows(const []).whereType<DiscordChannel>(), isEmpty);
+    });
+
+    test('joining a channel asks the bridge in and gives back its space; each refusal is said in words', () async {
+      final d = DiscordServers.instance;
+      await d.claim('ABC234');
+      await d.refresh();
+      final channels = d.stateOf(d.links.single).channels;
+      final space = await d.joinVoice(channels.firstWhere((c) => c.id == 'c1'));
+      expect(space.seed, 'ab' * 32);
+      expect(space.name, 'General');
+      expect(space.discord, '111/c1', reason: 'marked as bridged');
+      expect(space.hangout, isTrue, reason: 'it has a chat, which the bridge mirrors');
+      await expectLater(d.joinVoice(channels.firstWhere((c) => c.id == 'c3')), throwsA(isA<DiscordProblem>().having((p) => p.words, 'words', contains('Connect, Speak'))));
+      await expectLater(d.joinVoice(channels.firstWhere((c) => c.id == 'c2')), throwsA(isA<DiscordProblem>().having((p) => p.words, 'words', contains('isn\'t there'))));
     });
 
     test('unlinked on the server, the group says so and keeps what it last knew; removing it takes it away', () async {
@@ -205,6 +241,34 @@ void main() {
       expect(find.text('Add the bot to your server'), findsOneWidget);
       expect(find.text('Link the server'), findsOneWidget);
     }
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a bridged call: the Discord people with their tag and talking, the bridge itself hidden, and the warning', (tester) async {
+    final h = await SpaceHarness.load(tester);
+    addTearDown(tester.view.reset);
+    final base = h.call(people: 1, video: const {});
+    final discord = ValueNotifier<Map<String, double>>(const {'dc:u1': 0.5});
+    final call = SpaceCall(
+      channel: const VoiceChannel(seed: 'ab', name: 'General', discord: '111/c1'),
+      people: [
+        ...base.people,
+        const SpacePerson(id: 'dc:u1', name: 'Alex', tag: 'Discord'),
+        const SpacePerson(id: 'dc:u2', name: 'Sam', muted: true, tag: 'Discord'),
+      ],
+      levels: MergedLevels(base.levels, discord),
+      changes: base.changes,
+      room: base.room,
+      chatBuilder: base.chatBuilder,
+      bridged: true,
+    );
+    for (final dark in [false, true]) {
+      await h.shoot(tester, TelegramCall(call: call), 'space-discord-bridged', dark: dark);
+      expect(find.text('Bridged to Discord · not end-to-end encrypted'), findsOneWidget);
+      expect(find.text('Discord'), findsNWidgets(2));
+      expect(find.text('Alex'), findsOneWidget);
+    }
+    expect(call.isTalking(call.people.firstWhere((p) => p.name == 'Alex'), call.levels.value), isTrue);
     await tester.pumpWidget(const SizedBox());
   });
 }

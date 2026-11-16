@@ -7,6 +7,7 @@ import 'package:glacier/glacier.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
+import '../kit/semantic_colors.dart';
 
 /// What a row dragged sideways has come to.
 enum SwipeStage { none, archive, delete, pin }
@@ -143,9 +144,9 @@ class _SwipeActionsState extends State<SwipeActions> with SingleTickerProviderSt
       final left = _dx < 0;
       final armed = _stage != SwipeStage.none;
       final (ground, ink, icon, label) = switch (_stage) {
-        SwipeStage.delete => (t.colorOf('#dd3a30'), const Color(0xFFFFFFFF), Lucide.trash2, 'Delete'),
-        SwipeStage.archive => (t.colorOf('#4f5bd5'), const Color(0xFFFFFFFF), widget.archiveIcon, widget.archiveLabel),
-        SwipeStage.pin => (t.colorOf('#d38b00'), const Color(0xFFFFFFFF), widget.pinIcon, widget.pinLabel),
+        SwipeStage.delete => (t.danger, const Color(0xFFFFFFFF), Lucide.trash2, 'Delete'),
+        SwipeStage.archive => (t.info, const Color(0xFFFFFFFF), widget.archiveIcon, widget.archiveLabel),
+        SwipeStage.pin => (t.pinned, const Color(0xFFFFFFFF), widget.pinIcon, widget.pinLabel),
         // Not yet come to anything: what it is on the way to, quietly.
         SwipeStage.none => (t.color('app-paper-3'), t.color('app-ink-2'), left ? widget.archiveIcon : widget.pinIcon, left ? widget.archiveLabel : widget.pinLabel),
       };

@@ -11,6 +11,7 @@ import '../kit/settings_type.dart';
 import '../me/me.dart';
 import '../sms.dart';
 import 'common.dart';
+import '../kit/semantic_colors.dart';
 
 /// Adding a friend by username, in a drawer from the Add button beside Contacts' search (Matt, 2026-11-16: "move the
 /// Add button to the side of search and have it open a drawer to search and add users as well as setup username if
@@ -23,7 +24,7 @@ Future<void> showAddFriendDrawer(BuildContext context, {Buddies? buddies, Me? me
   return Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(
     opaque: false,
     barrierDismissible: true,
-    barrierColor: const Color(0x66000000),
+    barrierColor: context.tokens.sheetScrim,
     transitionDuration: const Duration(milliseconds: 240),
     reverseTransitionDuration: const Duration(milliseconds: 180),
     pageBuilder: (context, _, _) => AddFriendDrawer(buddies: buddies, me: me),
@@ -194,7 +195,7 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
       ? null
       : Padding(
           padding: EdgeInsets.only(top: t.space(2)),
-          child: Text(_problem!, style: pageText(t, t.fontSize('sm'), color: t.colorOf('#dd3a30'))),
+          child: Text(_problem!, style: pageText(t, t.fontSize('sm'), color: t.danger)),
         );
 
   /// First, a username of your own: friends find you by it, and know a request is yours.

@@ -1,6 +1,9 @@
 import 'dart:math';
 
 import 'package:flutter/widgets.dart';
+import 'package:glacier/glacier.dart';
+
+import 'dialup/dialup.dart';
 
 /// A message's bubble going in a puff (Matt, 2026-11-15: "show a poof animation when one is deleted"): once [gone],
 /// it shrinks and fades while a ring of small puffs bursts out of where it was and fades, then its room closes up
@@ -28,6 +31,24 @@ class _PoofState extends State<Poof> with SingleTickerProviderStateMixin {
   late final _c = AnimationController(vsync: this, duration: Poof.duration);
   bool _done = false;
 
+  /// Dial-Up has no puff (Matt, 2026-11-16, of the chat-room look; the design: "the delete 'poof' becomes the line
+  /// vanishing"): the line goes at once, and [Poof.onDone] is told in the next frame, as it would be at the puff's end.
+  bool _vanish = false;
+
+  void _go({bool restart = false}) {
+    if (isBevelChrome(context.tokens)) {
+      if (_vanish) return;
+      _vanish = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _done) return;
+        _done = true;
+        widget.onDone?.call();
+      });
+      return;
+    }
+    restart ? _c.forward(from: 0) : _c.forward();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -37,13 +58,19 @@ class _PoofState extends State<Poof> with SingleTickerProviderStateMixin {
         widget.onDone?.call();
       }
     });
-    if (widget.gone) _c.forward();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Here rather than in initState: the tokens that say Dial-Up are an inherited widget's.
+    if (widget.gone && _c.value == 0 && !_vanish) _go();
   }
 
   @override
   void didUpdateWidget(Poof old) {
     super.didUpdateWidget(old);
-    if (widget.gone && !old.gone) _c.forward(from: 0);
+    if (widget.gone && !old.gone) _go(restart: true);
   }
 
   @override
@@ -54,6 +81,7 @@ class _PoofState extends State<Poof> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    if (_vanish) return const SizedBox.shrink();
     if (!widget.gone && _c.value == 0) return widget.child;
     return AnimatedBuilder(
       animation: _c,

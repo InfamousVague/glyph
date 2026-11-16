@@ -10,6 +10,7 @@ import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
+import '../kit/semantic_colors.dart';
 
 /// Voice messages on the screen (Matt, 2026-11-13: "I also want to have the ability to send audio messages"): the
 /// row the composer becomes while one is being recorded, and the player a message's sound is drawn as. The phone's
@@ -98,7 +99,7 @@ class _VoiceRecorderState extends State<VoiceRecorder> {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final red = t.colorOf('#dd3a30');
+    final red = t.danger;
     final note = _full ? 'That\'s as long as a voice message can be on your carrier.' : widget.note;
     return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [

@@ -62,6 +62,10 @@ flutter:
     - family: JetBrains Mono Variable
       fonts:
         - asset: assets/fonts/JetBrainsMonoVariable-latin.ttf
+    # The look Dial-Up's face (lib/looks.dart): Arial's metrics, under the OFL (assets/fonts/OFL-Arimo.txt).
+    - family: Arimo
+      fonts:
+        - asset: assets/fonts/ArimoVariable.ttf
     # The emoji sets the person chooses between (lib/emoji_sets.dart, assets/emoji/LICENSES.md).
     - family: Ghost Emoji Noto
       fonts:

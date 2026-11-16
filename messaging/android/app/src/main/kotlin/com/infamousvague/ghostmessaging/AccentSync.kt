@@ -47,8 +47,16 @@ object AccentSync {
         val ui = ui(context)
         val chosen = ui.getString("bubble", null)
         val at = ui.getString("bubble_at", null)?.toLongOrNull() ?: if (chosen != null) 1L else 0L
-        return (chosen ?: "white") to at
+        return known(context, chosen ?: "white") to at
     }
+
+    /**
+     * [id] as the keyboard knows it. A look's own bubbles ('theme', lib/looks.dart) are no colour of the keyboard's, so
+     * it is told the look's nearest one, which the app keeps beside the look as `theme_bubble` (Matt, 2026-11-16:
+     * "spend some time making a few themes for ghost").
+     */
+    private fun known(context: Context, id: String): String =
+        if (id == "theme") ui(context).getString("theme_bubble", null)?.takeIf { it in IDS } ?: "white" else id
 
     fun nowUri(context: Context): Uri = Uri.parse("content://${context.packageName}.accent/now")
 
@@ -60,7 +68,7 @@ object AccentSync {
     fun now(context: Context): String {
         val thread = MainActivity.openThread
         val own = if (thread == -1L) null else ui(context).getString("bubble_$thread", null)?.takeIf { it.isNotBlank() }
-        return own ?: current(context).first
+        return own?.let { known(context, it) } ?: current(context).first
     }
 
     /** The colour of the moment may have changed (a conversation opened or closed, a colour chosen): the keyboard told. */
@@ -92,11 +100,14 @@ object AccentSync {
                 if (c.moveToFirst()) c.getString(0) to c.getString(1).toLong() else null
             }
         }.getOrNull() ?: return false
-        val (mine, mineAt) = current(context)
+        val (_, mineAt) = current(context)
         val taken = take(mineAt, id, at) ?: return false
+        // Compared with what is stored, not its mapped id: a look's own 'theme' maps to, say, "blue", and the keyboard
+        // then choosing blue itself changed the stored id without telling the screens, which kept 'theme'.
+        val stored = ui(context).getString("bubble", null) ?: "white"
         ui(context).edit().putString("bubble", taken).putString("bubble_at", at.toString()).apply()
-        if (taken != mine) { Bus.prefsChanged(); nowChanged(context) }
-        return taken != mine
+        if (taken != stored) { Bus.prefsChanged(); nowChanged(context) }
+        return taken != stored
     }
 
     /** Watches the keyboard's address while [context] is in front. */

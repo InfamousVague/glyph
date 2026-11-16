@@ -19,6 +19,7 @@ import '../sms.dart';
 import '../ui/common.dart';
 import 'plugin.dart';
 import 'spam.dart';
+import '../kit/semantic_colors.dart';
 
 /// What a stranger likely is: `spam`, `business` or `person`.
 String strangerGuess(String address, String words) {
@@ -84,7 +85,7 @@ class StrangerLine extends StatelessWidget {
           onPressed: onPress,
           builder: (context, state) => Padding(
             padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.space(1)),
-            child: Text(label, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: danger ? t.colorOf('#dd3a30') : t.color(state.pressed ? 'app-ink-3' : 'app-ink'))),
+            child: Text(label, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: danger ? t.danger : t.color(state.pressed ? 'app-ink-3' : 'app-ink'))),
           ),
         );
     return Padding(
@@ -93,7 +94,7 @@ class StrangerLine extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(1), t.space(2)),
         decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.radius('lg')), border: Border.all(color: t.color('app-rule'))),
         child: Row(children: [
-          AppIcon(icon, size: 16, strokeWidth: 2.2, wash: false, color: guess == 'spam' ? t.colorOf('#dd3a30') : t.color('app-ink-2')),
+          AppIcon(icon, size: 16, strokeWidth: 2.2, wash: false, color: guess == 'spam' ? t.danger : t.color('app-ink-2')),
           SizedBox(width: t.space(2)),
           Expanded(child: Text(words, maxLines: 2, style: pageText(t, t.fontSize('xs'), weight: 'medium', color: t.color('app-ink-2')))),
           button('Save', () async {

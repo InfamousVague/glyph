@@ -5,6 +5,7 @@ import 'package:glacier/glacier.dart';
 import 'app_state.dart';
 import 'backgrounds.dart';
 import 'kit/settings_css.dart';
+import 'looks.dart';
 
 /// The app's accent: the colour of your bubbles everywhere, worn by what is pressed and chosen across the app too
 /// (Matt, 2026-11-14: "make the bubble color the accent color for the app so the send button, segmented toggles,
@@ -39,9 +40,24 @@ class AccentSheets {
   String? _css;
   TokenSheet? _sheet;
 
+  /// The pages of each look (lib/looks.dart), light and dark, that a bubble's accent must be seen on: worked out
+  /// once a look, from [base].
+  final Map<Look, ({Color light, Color dark})> _pages = {};
+
+  /// The paper of [look]'s light and dark page, as its rules say: a navy, silver or tinted page is not the near
+  /// white and near black the check once took for granted. Ghost keeps the fixed near white and near black it was always checked
+  /// against: its computed dark paper is a shade darker than the constant, which moved the cutoff for a dark wallpaper colour.
+  ({Color light, Color dark}) pagesOf(Look look) => _pages[look] ??= look == Look.ghost
+      ? (light: _lightPage, dark: _darkPage)
+      : (
+          light: Tokens.root(base, attrs: look.attrs(platform: 'mobile', theme: 'light')..['theme'] = 'light').color('app-paper'),
+          dark: Tokens.root(base, attrs: look.attrs(platform: 'mobile', theme: 'dark')..['theme'] = 'dark').color('app-paper'),
+        );
+
   /// The sheet for the bubble colour chosen everywhere in [app].
   TokenSheet of(AppState app) {
-    final css = accentCss(app.bubble);
+    final pages = pagesOf(app.look);
+    final css = accentCss(app.bubble, lightPage: pages.light, darkPage: pages.dark);
     if (css == null) return base;
     if (css != _css) {
       _css = css;
@@ -64,12 +80,17 @@ double _contrast(Color a, Color b) {
 }
 
 /// The bubble colour [id] as the accent on the light page and on the dark: the colour and the words on it, or null
-/// where it is the page's own ink or would not be seen.
-({(Color, Color)? light, (Color, Color)? dark}) accentPair(String id) {
+/// where it is the page's own ink or would not be seen. [lightPage] and [darkPage] are the look's own papers
+/// ([AccentSheets.pagesOf]); Ghost's, near white and near black, where not given.
+///
+/// A look's own bubbles ('theme') are never laid over it: the look's rules name its accent themselves, and the
+/// default white bubble would otherwise turn the accent white on every dark look.
+({(Color, Color)? light, (Color, Color)? dark}) accentPair(String id, {Color lightPage = _lightPage, Color darkPage = _darkPage}) {
   (Color, Color)? on(bool dark) {
     (Color, Color)? pair;
     switch (id) {
       case 'ink':
+      case 'theme':
         return null;
       case 'wallpaper':
         pair = PhonePalette.current?.bubble(dark);
@@ -82,7 +103,7 @@ double _contrast(Color a, Color b) {
         final c = bubbleColor(id).color;
         pair = c == null ? (Color(dark ? 0xFF51FCFB : 0xFF008B8A), Color(dark ? 0xFF00302F : 0xFFFFFFFF)) : (c, inkOn(c));
     }
-    return _contrast(pair.$1, dark ? _darkPage : _lightPage) < 1.5 ? null : pair;
+    return _contrast(pair.$1, dark ? darkPage : lightPage) < 1.5 ? null : pair;
   }
 
   return (light: on(false), dark: on(true));
@@ -92,8 +113,8 @@ String _hex(Color c) => '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(
 
 /// The rule that makes the bubble colour [id] the accent, or null where it is the page's ink on both themes. It
 /// outranks every rule of the app's stylesheets that names the two tokens.
-String? accentCss(String id) {
-  final p = accentPair(id);
+String? accentCss(String id, {Color lightPage = _lightPage, Color darkPage = _darkPage}) {
+  final p = accentPair(id, lightPage: lightPage, darkPage: darkPage);
   if (p.light == null && p.dark == null) return null;
   String block(String theme, (Color, Color) pair) =>
       ':root:root:root:root:root[data-theme=\'$theme\'] { --app-accent: ${_hex(pair.$1)}; --app-on-accent: ${_hex(pair.$2)}; }\n';
