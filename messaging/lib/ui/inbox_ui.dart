@@ -80,11 +80,26 @@ String? inboxCode(InboxChat chat) => chat.service && !chat.lastFromMe ? signInCo
 
 /// A chat slid all the way: deleted on its network once asked (Matt, 2026-11-15: "if possible proxy the archive and
 /// delete messages too"). A group is left as it goes.
-void confirmInboxDelete(BuildContext context, InboxNetwork network, InboxChat chat) {
+void confirmInboxDelete(BuildContext context, InboxNetwork network, InboxChat chat, {bool slid = false}) {
+  final app = AppState.of(context);
+  void delete() => network.deleteChat(chat.id);
+  if (slid && deleteAskOff(app)) return delete();
   showChoices(context, title: chat.group ? 'Leave ${chat.title} and delete it on ${network.name}?' : 'Delete this chat on ${network.name}? This can\'t be undone.', choices: [
-    Choice(chat.group ? 'Leave and delete' : 'Delete', Lucide.trash2, () => network.deleteChat(chat.id), danger: true),
+    Choice(chat.group ? 'Leave and delete' : 'Delete', Lucide.trash2, delete, danger: true),
+    if (slid) dontAskAgainChoice(app, delete),
   ]);
 }
+
+/// Whether a conversation slid all the way is deleted without asking (Matt, 2026-11-16: "Add a "don't ask again" on
+/// the confirmation for sliding to delete message groups"): chosen once on the question, undone in Settings › Writing.
+/// A delete from a conversation's menu still asks.
+bool deleteAskOff(AppState app) => !app.flag('delete_ask', fallback: true);
+
+/// The question's second choice: deletes, and from then on a slide deletes at once.
+Choice dontAskAgainChoice(AppState app, VoidCallback delete) => Choice('Delete, and don\'t ask again', Lucide.trash2, () {
+      app.setFlag('delete_ask', false);
+      delete();
+    }, danger: true, hint: 'Sliding deletes straight away. Ask again in Settings › Writing.');
 
 /// Opens [chat] in the pane beside the list, or over it on a phone.
 void openInboxChat(BuildContext context, InboxNetwork network, InboxChat chat) {
@@ -448,7 +463,8 @@ class _InboxBubble extends StatelessWidget {
         if (group && !m.mine && first && m.sender.isNotEmpty)
           Padding(
             padding: EdgeInsets.only(left: t.space(3), bottom: 2),
-            child: Text(m.sender, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
+            // In the app's primary colour, as over a group of texts' bubbles (lib/ui/thread.dart).
+            child: Text(m.sender, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent'))),
           ),
         ConstrainedBox(
           constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.75),

@@ -152,6 +152,19 @@
   .pillar .peek { position: absolute; right: 1rem; top: .9rem; width: 4.2rem; filter: drop-shadow(0 8px 12px rgba(0, 0, 0, .25)); }
   .pillar h3, .pillar p { padding-right: 3.6rem; }
   .card .art { width: 4.4rem; height: 4.4rem; object-fit: contain; margin: -.4rem 0 .5rem -.3rem; filter: drop-shadow(0 8px 12px rgba(0, 0, 0, .22)); }
+  /* The ghostly spot icons (art/icon-*.webp, tool/site-art.py), the inbox scene and the install steps' icons. */
+  .inbox-art { display: block; width: min(30rem, 86%); margin: 1.6rem auto -1rem; filter: drop-shadow(0 22px 30px rgba(0, 0, 0, .3)); }
+  .install b .inst { width: 2.1rem; height: 2.1rem; object-fit: contain; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .3)); }
+  /* Wisps of mist behind the hero and the dark band at the foot: faint, and in the dark theme alone (white on white is
+     nothing). */
+  .hero::before, .final::before { content: ""; position: absolute; inset: 0; background: url(/art/wisps.webp) no-repeat; pointer-events: none; }
+  .hero::before { background-position: 85% 20%; background-size: min(90rem, 150%) auto; opacity: .28;
+    /* Kept off the words on the left and faded out before the hero's foot, so it has no edge. */
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 45%), linear-gradient(180deg, #000 60%, transparent 100%);
+    -webkit-mask-composite: source-in; mask-image: linear-gradient(90deg, transparent 0%, #000 45%), linear-gradient(180deg, #000 60%, transparent 100%); mask-composite: intersect; }
+  .final::before { background-position: 30% 70%; background-size: min(80rem, 180%) auto; opacity: .35; }
+  :root[data-theme="light"] .hero::before { opacity: 0; }
+  .hero .wrap, .final > * { position: relative; }
   .pillar h3 { display: flex; align-items: center; gap: .6rem; margin: 0 0 .4rem; font-size: 1.35rem; letter-spacing: -.025em; }
   .pillar h3 span { width: 2.3rem; height: 2.3rem; border-radius: .8rem; display: grid; place-items: center; background: var(--mist); color: var(--teal-2); }
   .pillar p { margin: 0; color: var(--ink-2); font-size: .98rem; }
@@ -354,20 +367,20 @@
       <div class="shot"><img src="/shots/hangout-dark.webp" data-shot="hangout" alt="A space with four people" loading="lazy"></div>
     </div>
     <div class="pillar">
-      <div class="text"><h3><span><svg class="i"><use href="#i-video"/></svg></span>Video</h3><p>Turn your camera on in any call, up to 4K. Noise suppression keeps fans, keyboards and traffic out, and your mic can go to 200%.</p></div>
+      <div class="text"><img class="peek" src="/art/icon-video.webp" alt="" loading="lazy"><h3><span><svg class="i"><use href="#i-video"/></svg></span>Video</h3><p>Turn your camera on in any call, up to 4K. Noise suppression keeps fans, keyboards and traffic out, and your mic can go to 200%.</p></div>
       <div class="shot"><img src="/shots/voice-settings-dark.webp" data-shot="voice-settings" alt="Voice and video settings" loading="lazy"></div>
     </div>
   </div>
   <div class="wrap">
     <div class="grid">
-      <div class="card"><div class="tile"><svg class="i"><use href="#i-heart"/></svg></div><h3>Reactions that land</h3><p>A ❤️ from an iPhone or a Pixel sits on the message it was for, not in a line of its own.</p></div>
+      <div class="card"><img class="art" src="/art/icon-reactions.webp" alt="" loading="lazy"><h3>Reactions that land</h3><p>A ❤️ from an iPhone or a Pixel sits on the message it was for, not in a line of its own.</p></div>
       <div class="card"><img class="art" src="/art/scene-effects.webp" alt="" loading="lazy"><h3>Effects</h3><p>Balloons for "Happy birthday", confetti for "Congrats", lasers for "pew pew", ghosts for "Boo".</p></div>
-      <div class="card"><div class="tile"><svg class="i"><use href="#i-users"/></svg></div><h3>Friends by username</h3><p>Pick a username, add friends by theirs, and make groups you can call all at once.</p></div>
+      <div class="card"><img class="art" src="/art/icon-friends.webp" alt="" loading="lazy"><h3>Friends by username</h3><p>Pick a username, add friends by theirs, and make groups you can call all at once.</p></div>
       <div class="card"><img class="art" src="/art/boo-codes.webp" alt="" loading="lazy"><h3>Codes, sorted</h3><p>One-time codes get their own tab with the company's logo, ready to copy.</p></div>
-      <div class="card"><div class="tile"><svg class="i"><use href="#i-msg"/></svg></div><h3>Sorted for you</h3><p>Needs a reply, sales and spam each find their own tab, so what matters comes first.</p></div>
-      <div class="card"><div class="tile"><svg class="i"><use href="#i-smile"/></svg></div><h3>Your emoji</h3><p>The phone's own, Noto, Twemoji, OpenMoji or a clean outline set. Stickers too.</p></div>
-      <div class="card"><div class="tile"><svg class="i"><use href="#i-check2"/></svg></div><h3>Ticks</h3><p>Sent, delivered and read. Pictures retry by themselves and tell you why.</p></div>
-      <div class="card"><div class="tile"><svg class="i"><use href="#i-zap"/></svg></div><h3>Keeps itself current</h3><p>Small updates, often, on every device. No store needed.</p></div>
+      <div class="card"><img class="art" src="/art/icon-sorted.webp" alt="" loading="lazy"><h3>Sorted for you</h3><p>Sales and spam each find their own tab, and codes theirs, so the people you talk to come first.</p></div>
+      <div class="card"><img class="art" src="/art/icon-emoji.webp" alt="" loading="lazy"><h3>Your emoji</h3><p>The phone's own, Noto, Twemoji, OpenMoji or a clean outline set. Stickers too.</p></div>
+      <div class="card"><img class="art" src="/art/icon-ticks.webp" alt="" loading="lazy"><h3>Ticks</h3><p>Sent, delivered and read. Pictures retry by themselves and tell you why.</p></div>
+      <div class="card"><img class="art" src="/art/icon-updates.webp" alt="" loading="lazy"><h3>Keeps itself current</h3><p>Small updates, often, on every device. No store needed.</p></div>
     </div>
   </div>
 </section>
@@ -400,6 +413,7 @@
     <span class="kicker"><svg class="i" style="width:1rem;height:1rem"><use href="#i-inbox"/></svg>One inbox</span>
     <h2>Telegram and Signal, <em>right beside your texts.</em></h2>
     <p class="sub">Sign in once and your Telegram and Signal chats join your texts in one list, newest first, each marked with its network. Read them, answer them and send pictures without switching apps.</p>
+    <img class="inbox-art" src="/art/scene-inbox.webp" alt="" loading="lazy">
   </div>
   <div class="wrap nets">
     <div class="netshots" aria-hidden="true">
@@ -473,9 +487,9 @@
     <p class="sub">No account to make. What travels through our server between friends is sealed on your device first, so the server passes it along and can't read it.</p>
   </div>
   <div class="wrap grid">
-    <div class="card"><div class="tile"><svg class="i"><use href="#i-lock"/></svg></div><h3>Sealed end to end</h3><p>Chats between Ghost users, your computer's link to your phone, and calls are encrypted on the devices themselves.</p></div>
-    <div class="card"><div class="tile"><svg class="i"><use href="#i-user"/></svg></div><h3>No account</h3><p>Your number stays on your phone. A username and linked accounts are yours to turn on, and to remove.</p></div>
-    <div class="card"><div class="tile"><svg class="i"><use href="#i-msg"/></svg></div><h3>Texts stay texts</h3><p>SMS and picture messages go through your carrier as they always have. Nothing is copied to us.</p></div>
+    <div class="card"><img class="art" src="/art/icon-sealed.webp" alt="" loading="lazy"><h3>Sealed end to end</h3><p>Chats between Ghost users, your computer's link to your phone, and calls are encrypted on the devices themselves.</p></div>
+    <div class="card"><img class="art" src="/art/icon-no-account.webp" alt="" loading="lazy"><h3>No account</h3><p>Your number stays on your phone. A username and linked accounts are yours to turn on, and to remove.</p></div>
+    <div class="card"><img class="art" src="/art/icon-texts.webp" alt="" loading="lazy"><h3>Texts stay texts</h3><p>SMS and picture messages go through your carrier as they always have. Nothing is copied to us.</p></div>
   </div>
 </section>
 
@@ -489,8 +503,8 @@
     <a class="dl alt" href="/ghost-messaging-setup.exe" data-feed="windows" hidden><svg class="i"><use href="#i-monitor"/></svg><span>Download for Windows<small data-version="windows"></small></span></a>
   </div>
   <div class="install">
-    <div><b><svg class="i"><use href="#i-phone"/></svg>On Android</b><ol><li>Download the APK on your phone and open it. Allow your browser to install apps if Android asks.</li><li>Open Ghost Messaging and choose "Set as default SMS app", or let it work beside your current one.</li></ol></div>
-    <div><b><svg class="i"><use href="#i-laptop"/></svg>On a computer</b><ol><li>Download for Mac or Windows and install it.</li><li>On your phone, Settings › Computers, and pair.</li></ol></div>
+    <div><b><img class="inst" src="/art/icon-install-phone.webp" alt="" loading="lazy">On Android</b><ol><li>Download the APK on your phone and open it. Allow your browser to install apps if Android asks.</li><li>Open Ghost Messaging and choose "Set as default SMS app", or let it work beside your current one.</li></ol></div>
+    <div><b><img class="inst" src="/art/icon-install-computer.webp" alt="" loading="lazy">On a computer</b><ol><li>Download for Mac or Windows and install it.</li><li>On your phone, Settings › Computers, and pair.</li></ol></div>
   </div>
 </div>
 

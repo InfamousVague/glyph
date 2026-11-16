@@ -1633,7 +1633,9 @@ class _Bubble extends StatelessWidget {
           if (sender != null)
             Padding(
               padding: EdgeInsets.only(left: (group ? faceSize + t.space(2) : 0) + t.space(3), bottom: 2),
-              child: OnBackground(busy: busy, child: Text(sender!, style: pageText(t, t.fontSize('xs'), weight: 'medium', color: t.color('app-ink-3')))),
+              // A sender's name over their bubble in the app's primary colour (Matt, 2026-11-16: "Make the names of people above
+              // chat bubbles the primary color"): the accent chosen in Settings, as the read ticks are.
+              child: OnBackground(busy: busy, child: Text(sender!, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent')))),
             ),
           Row(
             mainAxisAlignment: out ? MainAxisAlignment.end : MainAxisAlignment.start,
