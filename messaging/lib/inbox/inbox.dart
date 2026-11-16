@@ -49,6 +49,7 @@ class InboxChat {
     this.pinned = false,
     this.service = false,
     this.stranger = false,
+    this.cold = false,
     this.flag,
   });
 
@@ -78,6 +79,9 @@ class InboxChat {
   /// Someone not in this account's contacts wrote first (Telegram's "Report spam" bar): spam is looked for (scams.dart).
   final bool stranger;
 
+  /// A stranger wrote and this account never answered: Telegram still offers to report them (its action bar).
+  final bool cold;
+
   /// What the network itself says of the account, where it marks it ("Telegram marks this account as a scam").
   final String? flag;
 
@@ -94,6 +98,7 @@ class InboxChat {
         pinned: pinned,
         service: service,
         stranger: stranger,
+        cold: cold,
         flag: flag,
       );
 }
