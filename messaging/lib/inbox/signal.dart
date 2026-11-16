@@ -615,8 +615,12 @@ class _ProcessLink implements SignalLink {
     final level = '${m['level'] ?? ''}';
     final message = '${m['message'] ?? ''}';
     const ours = {'asked', 'answered', 'send', 'sent', 'send to group', 'sent to group', 'group not described', 'send: not connected to Signal; trying anyway'};
-    if (level != 'warn' && level != 'error' && level != 'fatal' && !ours.contains(message)) return null;
-    final parts = [level, message, for (final k in const ['op', 'req', 'took', 'sent_to', 'failed', 'error', 'action', 'component']) if (m[k] != null) '$k=${m[k]}'];
+    // A send's own steps (trace: true, sidecar/signal send): kept whatever their level, with their time, so the
+    // Developer log shows which step a slow send waited on.
+    final traced = m['trace'] == true;
+    if (!traced && level != 'warn' && level != 'error' && level != 'fatal' && !ours.contains(message)) return null;
+    const fields = ['op', 'req', 'took', 'sent_to', 'failed', 'error', 'action', 'component', 'authed_ws', 'unauthed_ws', 'response_status', 'retry_count'];
+    final parts = [if (traced && m['time'] != null) '${m['time']}', level, message, for (final k in fields) if (m[k] != null) '$k=${m[k]}'];
     final out = parts.join(' ');
     return out.length > 300 ? out.substring(0, 300) : out;
   }

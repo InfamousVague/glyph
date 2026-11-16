@@ -295,6 +295,13 @@ func isConnected(c *signalmeow.Client) (up bool) {
 	return c.AuthedWS != nil && c.UnauthedWS != nil && c.IsConnected()
 }
 
+// socketsUp is whether each of signalmeow's two sockets is up: the authed one (receiving, plain sends) and the unauthed
+// one (sealed-sender sends).
+func socketsUp(c *signalmeow.Client) (authed, unauthed bool) {
+	defer func() { _ = recover() }()
+	return c.AuthedWS != nil && c.AuthedWS.IsConnected(), c.UnauthedWS != nil && c.UnauthedWS.IsConnected()
+}
+
 func setConnected(c *signalmeow.Client, now bool) {
 	mu.Lock()
 	if cli != c || connected == now {
@@ -558,6 +565,13 @@ func send(ctx context.Context, c *signalmeow.Client, to string, dm *signalpb.Dat
 	if !isConnected(c) {
 		log.Warn().Msg("send: not connected to Signal; trying anyway")
 	}
+	// Each send's own steps, from signalmeow's debug lines under this send's context (fetching keys, sealed sender
+	// refused and sent again, the server's answer, sender keys for a group), marked trace=true so the app's Developer
+	// log keeps them: which step a slow send waits on (Matt, 2026-11-16: "Sending signal messages get stuck on
+	// sending"). None of them carries the message's words.
+	authed, unauthed := socketsUp(c)
+	ctx = log.Level(zerolog.DebugLevel).With().Bool("trace", true).Logger().WithContext(ctx)
+	zerolog.Ctx(ctx).Info().Bool("authed_ws", authed).Bool("unauthed_ws", unauthed).Msg("send begins")
 	content := signalmeow.WrapDataMessage(dm)
 	began := time.Now()
 	if group != "" {
