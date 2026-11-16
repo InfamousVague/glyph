@@ -8,6 +8,7 @@ import 'package:ghost_messaging/inbox/bluesky.dart';
 import 'package:ghost_messaging/inbox/inbox.dart';
 import 'package:ghost_messaging/inbox/telegram.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
+import 'package:ghost_messaging/plugins/ui.dart' show MarkAllRead;
 import 'package:ghost_messaging/ui/common.dart' show IconTap, clock;
 import 'package:ghost_messaging/ui/composer_box.dart';
 import 'package:ghost_messaging/ui/contacts.dart';
@@ -408,5 +409,25 @@ void main() {
     await tester.tap(field);
     await tester.pump();
     expect(tester.testTextInput.isVisible, isTrue, reason: 'a press asks for the keyboard even with focus already there');
+  });
+
+  // Matt, 2026-11-16: "I still can't mark telegram and signal messages as read with the read all even though they're
+  // marked as unread".
+  testWidgets('Mark all read reads every unread chat, the ones a filter hides too, and in a network\'s own tab', (tester) async {
+    final sheet = await loadSheet(tester);
+    final signal = FakeNetwork('signal', 'Signal', [
+      InboxChat(network: 'signal', id: 's1', title: 'Ana', date: now.subtract(const Duration(minutes: 5)), snippet: 'lunch?', unread: 1),
+      // Hidden from Messages by the filter as the app ships: still unread, still read by Mark all read.
+      InboxChat(network: 'signal', id: 's2', title: 'Vote Pat', date: now.subtract(const Duration(minutes: 6)), snippet: 'Paid for by Friends of Pat. Election day is Tuesday!', unread: 1, stranger: true),
+    ], const {});
+    Inbox.instance = Inbox.of([telegram, signal]);
+    await pumpScreen(tester, sheet, const ConversationsScreen(), AppState());
+    await settle(tester);
+    expect(find.text('Vote Pat'), findsNothing, reason: 'hidden by the filter');
+    expect(tester.widget<MarkAllRead>(find.byType(MarkAllRead)).unread, greaterThanOrEqualTo(3), reason: 'the chats count, not the texts alone');
+    await tester.tap(find.byType(MarkAllRead));
+    await settle(tester);
+    expect(signal.read, containsAll(['s1', 's2']));
+    expect(telegram.read, contains('10'));
   });
 }

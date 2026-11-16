@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -21,6 +23,7 @@ import 'nav_bar.dart';
 import 'settings.dart';
 import 'settings_panes.dart' show settingsGroupLabel, settingsSections;
 import 'thread.dart';
+import '../inbox/inbox.dart';
 
 /// The app's one frame, on the phone and on a computer alike (Matt, 2026-11-14: "Unify the UI experience to match on
 /// desktop and mac as well the desktop app should get all featues its missing from mobile and thr mobile app should
@@ -427,7 +430,12 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
       return;
     }
     if (!mounted) return;
-    if (unread.isEmpty) return toast(context, 'Nothing is unread in the archive');
+    // Signal's, Telegram's and the rest archived, read on their networks too.
+    final chats = [for (final n in Inbox.instance.ready) for (final c in n.archivedChats) if (c.unread > 0) (n, c)];
+    for (final (n, c) in chats) {
+      unawaited(n.markRead(c.id));
+    }
+    if (unread.isEmpty && chats.isEmpty) return toast(context, 'Nothing is unread in the archive');
     var failed = 0;
     for (final c in unread) {
       try {
@@ -439,7 +447,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     if (!mounted) return;
     // The lists read their conversations again.
     closed.value++;
-    final n = unread.length - failed;
+    final n = unread.length + chats.length - failed;
     toast(
       context,
       failed == 0 ? '$n ${n == 1 ? 'conversation' : 'conversations'} marked as read' : '$n marked as read; $failed could not be',
