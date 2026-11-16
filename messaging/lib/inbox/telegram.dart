@@ -409,6 +409,8 @@ class Telegram extends InboxNetwork {
         _patch(m, {'photo': m['photo']});
       case 'updateChatActionBar':
         _patch(m, {'action_bar': m['action_bar']});
+      case 'updateChatNotificationSettings':
+        _patch(m, {'notification_settings': m['notification_settings']});
       case 'updateFile':
         _fileUpdated(m['file'] as Map);
         _messageFile(m['file'] as Map);
@@ -587,10 +589,15 @@ class Telegram extends InboxNetwork {
               _people[((c['type'] as Map)['user_id'] as num?)?.toInt()]?['is_contact'] == false),
       cold: type == 'chatTypePrivate' && const {'chatActionBarReportSpam', 'chatActionBarReportAddBlock'}.contains((c['action_bar'] as Map?)?['@type']),
       flag: type == 'chatTypePrivate' ? _flagOf(((c['type'] as Map)['user_id'] as num?)?.toInt()) : null,
+      // Muted in Telegram for now: no notification from Ghost either. A chat on Telegram's default for its kind is not
+      // taken as muted (the default is rarely muted, and is not kept per chat).
+      muted: _muted(c['notification_settings'] as Map?),
       // Telegram's own account (777000, which sends its sign-in codes) and bots.
       service: type == 'chatTypePrivate' && (((c['type'] as Map)['user_id'] as num?)?.toInt() == 777000 || _bots.contains(((c['type'] as Map)['user_id'] as num?)?.toInt())),
     );
   }
+
+  static bool _muted(Map? settings) => settings != null && settings['use_default_mute_for'] != true && ((settings['mute_for'] as num?) ?? 0) > 0;
 
   InboxMessage _message(Map<String, Object?> m) {
     if (m['can_be_deleted_for_all_users'] == true) _forAll.add('${m['chat_id']}/${m['id']}');

@@ -52,6 +52,7 @@ class InboxChat {
     this.stranger = false,
     this.cold = false,
     this.flag,
+    this.muted = false,
   });
 
   /// [InboxNetwork.id] of the network it is on.
@@ -86,6 +87,9 @@ class InboxChat {
   /// What the network itself says of the account, where it marks it ("Telegram marks this account as a scam").
   final String? flag;
 
+  /// Muted on the network itself (Telegram's own mute): no notification from Ghost either (lib/inbox/alerts.dart).
+  final bool muted;
+
   InboxChat copyWith({String? title, DateTime? date, String? snippet, int? unread, String? avatar, bool? lastFromMe}) => InboxChat(
         network: network,
         id: id,
@@ -101,6 +105,7 @@ class InboxChat {
         stranger: stranger,
         cold: cold,
         flag: flag,
+        muted: muted,
       );
 }
 
