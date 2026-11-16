@@ -75,6 +75,12 @@ class RtcMedia implements VoiceMedia {
   /// from my voice chat"). It was read from the connections to the others alone, so alone in a call, and wherever
   /// those had not yet said it, the face had nothing to ripple with.
   RTCPeerConnection? _meter;
+
+  /// The meter's other end, on this device: the meter is connected to it, so the microphone is really sending even
+  /// with nobody else in the call (Matt, 2026-11-16: "make it so that even when we're in the call alone we see the
+  /// voice activity of ourselves"). A sender that never connects is never started on Android's and the Mac's WebRTC,
+  /// and gave no level at all. What arrives here is silenced: nobody hears themselves.
+  RTCPeerConnection? _meterSink;
   double? _energy, _energyTime;
 
   /// How loud the microphone is from a media source's numbers: its own level where it gives one, else from the
@@ -105,6 +111,18 @@ class RtcMedia implements VoiceMedia {
         }
       } catch (_) {}
     }
+    // Where the sender says nothing, the level of what reached the meter's other end.
+    final sink = _meterSink;
+    if (sink != null && !next.containsKey('me')) {
+      try {
+        for (final r in await sink.getStats()) {
+          final v = r.values;
+          if (r.type == 'inbound-rtp' && v['kind'] == 'audio' && v['audioLevel'] is num) next['me'] = (v['audioLevel'] as num).toDouble();
+        }
+      } catch (_) {}
+    }
+    // Muted, this device is not talking, whatever the microphone still hears.
+    if (_mic?.getAudioTracks().any((t) => t.enabled) == false) next['me'] = 0;
     for (final e in _peers.entries) {
       final made = e.value._pc;
       if (made == null) continue;
@@ -199,9 +217,35 @@ class RtcMedia implements VoiceMedia {
     }
     if (_meter == null) {
       try {
-        final meter = await createPeerConnection({'iceServers': <Map<String, Object>>[], 'sdpSemantics': 'unified-plan'});
-        await meter.addTransceiver(track: _mic!.getAudioTracks().first, kind: RTCRtpMediaType.RTCRtpMediaTypeAudio, init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendOnly, streams: [_mic!]));
+        final config = {'iceServers': <Map<String, Object>>[], 'sdpSemantics': 'unified-plan'};
+        final meter = await createPeerConnection(config);
+        final sink = await createPeerConnection(config);
+        // Connected on this device alone: each end's ways to connect handed straight to the other.
+        meter.onIceCandidate = (c) {
+          if (c.candidate != null) unawaited(sink.addCandidate(c).catchError((_) {}));
+        };
+        sink.onIceCandidate = (c) {
+          if (c.candidate != null) unawaited(meter.addCandidate(c).catchError((_) {}));
+        };
+        // What arrives is never played.
+        sink.onTrack = (e) {
+          e.track.enabled = false;
+          unawaited(Helper.setVolume(0, e.track).catchError((_) {}));
+        };
+        await meter.addTransceiver(
+          track: _mic!.getAudioTracks().first,
+          kind: RTCRtpMediaType.RTCRtpMediaTypeAudio,
+          // Low: only its level is wanted.
+          init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendOnly, streams: [_mic!], sendEncodings: [RTCRtpEncoding(maxBitrate: 16000)]),
+        );
+        final offer = await meter.createOffer();
+        await meter.setLocalDescription(offer);
+        await sink.setRemoteDescription(offer);
+        final answer = await sink.createAnswer();
+        await sink.setLocalDescription(answer);
+        await meter.setRemoteDescription(answer);
         _meter = meter;
+        _meterSink = sink;
       } catch (_) {}
     }
     _levelTimer ??= Timer.periodic(const Duration(milliseconds: 150), (_) => _readLevels());
@@ -214,6 +258,8 @@ class RtcMedia implements VoiceMedia {
     levels.value = const {};
     await _meter?.close();
     _meter = null;
+    await _meterSink?.close();
+    _meterSink = null;
     _energy = _energyTime = null;
     for (final p in _peers.values.toList()) {
       await p.close();

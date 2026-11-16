@@ -25,6 +25,7 @@ import '../summaries.dart';
 import 'common.dart';
 import 'voice_screen.dart';
 import 'hangout_screen.dart';
+import 'space_designs/space_design.dart';
 import '../voice/voice.dart';
 import '../voice/channels.dart';
 import 'update_banner.dart';
@@ -431,6 +432,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   /// Hops into [c] and shows it.
   Future<void> _openVoice(VoiceChannel c) async {
+    // In its call already, with a developer design chosen: its page (lib/ui/space_designs).
+    if (Voice.instance.session?.channel.room == c.room && openSpaceCall(context)) return;
     // A hangout opens its page: its chat, who is in it, and a way into voice (lib/ui/hangout_screen.dart).
     // In the conversation's place (Matt, 2026-11-15: "clicking on a voice chat should show me the chat in the normal
     // spot and connected participants with a "join" button").

@@ -30,6 +30,8 @@ import 'encryption.dart';
 import 'me.dart';
 import 'network.dart';
 import 'settings.dart';
+import 'space_designs/space_design.dart';
+import '../app_state.dart';
 import '../summaries.dart';
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
@@ -1082,9 +1084,29 @@ List<Widget> _updates(BuildContext context, SettingsModel m) {
 /// send to whoever is helping. A phone that is not plugged into a computer has no other way to say.
 List<Widget> _developer(BuildContext context, SettingsModel m) {
   final t = context.tokens;
+  // The settings' own state: a search builds this page with no app around it.
+  final app = m.app;
+  final design = SpaceDesign.of(app);
   // The newest first: what just happened is what is being looked for.
   final lines = m.devLines.reversed.toList();
   return [
+    // Six other ways a space's call can look (Matt, 2026-11-16: "give me 6 alternate designs for the calling chat and
+    // video screens for spaces ... release all 6 versions under a developer setting flag so I can toggle them on and
+    // off"). Chosen here; the next call in a space opens in it, or press the call banner in one already.
+    PaneSection(
+      title: 'Space call design',
+      description: const Text('How a space\'s call looks, modelled on today\'s call apps. Standard is the app\'s own. A call already open changes when you open it again from its banner.'),
+      children: [
+        for (final d in SpaceDesign.values)
+          SettingRow(
+            icon: _icon(d.icon),
+            label: d == SpaceDesign.standard ? d.label : '${d.label} · like ${d.after}',
+            hint: Text(d.description),
+            value: d == design ? AppIcon(Lucide.check, size: 18, color: t.color('app-ink')) : null,
+            onPress: () => app.set(SpaceDesign.pref, d == SpaceDesign.standard ? '' : d.name),
+          ),
+      ],
+    ),
     PaneSection(
       title: 'Report',
       description: const Text('What this phone is, how picture messages stand, and the log below, as text.'),
