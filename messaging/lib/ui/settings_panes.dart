@@ -1095,15 +1095,15 @@ List<Widget> _developer(BuildContext context, SettingsModel m) {
     // off"). Chosen here; the next call in a space opens in it, or press the call banner in one already.
     PaneSection(
       title: 'Space call design',
-      description: const Text('How a space\'s call looks, modelled on today\'s call apps. Standard is the app\'s own. A call already open changes when you open it again from its banner.'),
+      description: const Text('How a space\'s call looks, modelled on today\'s call apps. Voice chat is the default; Standard is the earlier layout. A call already open changes when you open it again from its banner.'),
       children: [
         for (final d in SpaceDesign.values)
           SettingRow(
             icon: _icon(d.icon),
-            label: d == SpaceDesign.standard ? d.label : '${d.label} · like ${d.after}',
+            label: '${d.label}${d == SpaceDesign.standard ? ' · the earlier layout' : ' · like ${d.after}'}${d == SpaceDesign.fallback ? ' (default)' : ''}',
             hint: Text(d.description),
             value: d == design ? AppIcon(Lucide.check, size: 18, color: t.color('app-ink')) : null,
-            onPress: () => app.set(SpaceDesign.pref, d == SpaceDesign.standard ? '' : d.name),
+            onPress: () => app.set(SpaceDesign.pref, d.name),
           ),
       ],
     ),

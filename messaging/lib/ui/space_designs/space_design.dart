@@ -54,7 +54,12 @@ enum SpaceDesign {
 
   static const pref = 'dev_space_design';
 
-  static SpaceDesign of(AppState app) => named(app.choice(pref, '')) ?? SpaceDesign.standard;
+  /// The design a call opens in: Telegram's, made the app's default (Matt, 2026-11-16: "Change the telegram one to be
+  /// our colors without the gradients and our voice effects ... then deploy this as the default version"), until
+  /// another is chosen in Settings › Developer ("standard" is the app's earlier layout).
+  static const fallback = SpaceDesign.telegram;
+
+  static SpaceDesign of(AppState app) => named(app.choice(pref, '')) ?? fallback;
 
   static SpaceDesign? named(String name) {
     for (final d in values) {
