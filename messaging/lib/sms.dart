@@ -1236,6 +1236,11 @@ class Sms {
   /// the verification process".
   /// On a computer: the phone's voice channels, and a channel made here given to it (lib/voice/channels.dart;
   /// android DartAsk "voice").
+  /// On a computer: what the phone's Telegram is asked (its status, approving this computer's login link: lib/inbox/
+  /// telegram.dart answerComputer; android DartAsk "telegram").
+  Future<Map<String, dynamic>> telegram(Map<String, Object?> what) async =>
+      Map<String, dynamic>.from((await _calls.invokeMethod<Map>('telegram', {'what': what})) ?? const {});
+
   Future<Map<String, dynamic>> voiceSync(Map<String, Object?> what) async =>
       Map<String, dynamic>.from((await _calls.invokeMethod<Map>('voice', {'what': what})) ?? const {});
 
