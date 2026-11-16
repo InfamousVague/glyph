@@ -33,6 +33,12 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
+    <!-- A voice or video call in a space going on with the phone locked (CallService.kt). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <uses-feature android:name="android.hardware.telephony" android:required="true" />
@@ -172,6 +178,12 @@
 
         <!-- Keeps the phone reachable by the computers it is paired with, while there is one. "Remote messaging" is
              Android's kind of foreground service for carrying texts to another of the person's own devices. -->
+        <!-- A call in a space, going on with the phone locked (CallService.kt). -->
+        <service
+            android:name=".CallService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|mediaPlayback|camera" />
+
         <service
             android:name=".DeskService"
             android:exported="false"

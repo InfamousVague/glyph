@@ -42,6 +42,8 @@ class Voice extends ChangeNotifier {
   Voice._();
   static final Voice instance = Voice._();
 
+  StreamSubscription<void>? _leaveCall;
+
   AppState? _app;
   HubCarrier? _ownHub;
   VoiceRoute? _route;
@@ -124,6 +126,8 @@ class Voice extends ChangeNotifier {
   }
 
   Future<void> start(AppState app) async {
+    // The call notification's Leave (android CallService.kt).
+    _leaveCall ??= Sms.instance.leaveCall.stream.listen((_) => unawaited(leave()));
     if (_app != null) return;
     _app = app;
     try {
@@ -520,7 +524,12 @@ class Voice extends ChangeNotifier {
     s.addListener(_enforce);
     notifyListeners();
     try {
-      await s.join(withVideo: video && (room == null || room.can(Perm.video)));
+      final withVideo = video && (room == null || room.can(Perm.video));
+      // On the phone the call goes on with the screen locked: its service holds the microphone and keeps the phone
+      // awake until the call ends (android CallService.kt; Matt, 2026-11-15: "voice chat stops working when the phone
+      // is locked").
+      await Sms.instance.callStarted(c.name, video: withVideo);
+      await s.join(withVideo: withVideo);
       _enforce();
     } catch (e) {
       await leave();
@@ -553,6 +562,7 @@ class Voice extends ChangeNotifier {
     final s = session;
     session = null;
     media = null;
+    if (s != null) unawaited(Sms.instance.callEnded());
     if (s != null) {
       s.removeListener(notifyListeners);
       s.removeListener(_enforce);
