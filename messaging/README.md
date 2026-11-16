@@ -737,6 +737,14 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   - Not yet: a paired computer does not see these conversations (it asks the phone's Android side); a message the
     relay passes to a connection that has just died is lost, as for any friend (nothing is sent again without an
     answer); a closed or backgrounded app hears them only when it connects again.
+- **Friends by username on Contacts, and friend requests** (0.7.28, not released; Matt, 2026-11-16: "We need a way
+  to add friends on the network by username on the contacts page and see friend requests"). At the top of Contacts
+  on the phone (`UsernameFriends`, lib/ui/username_friends.dart): a field to ask someone by @username, each request
+  with Decline and Accept on it, friends by username, and the requests you sent (a press takes one back); without a
+  username of your own, a row to choose one. The dock's Contacts ring counts the requests waiting. The relay is now
+  kept for friends by username from the moment you have a username (lib/main.dart), not only once you have a friend,
+  so a first request reaches you. Not yet: a chat with a friend by username on Android. Tests: buddies_test's
+  "on Contacts" group; screens_test's `15-contacts-friends` picture.
 - **Ghost Messaging on iPhone, without SMS** (not released; Matt, 2026-11-15: "port the app to work on iOS as well,
   investigate if we can within apples rules make a bridge for messaging through RCS like we're doing with mautrix on
   android and if not we'll want to roll a version of the app that works without sms"; "it's unlikely the user will

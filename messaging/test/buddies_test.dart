@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:glacier/glacier.dart';
 import 'package:ghost_messaging/friends/buddies.dart';
 import 'package:ghost_messaging/me/me.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/packet.dart';
+import 'package:ghost_messaging/ui/username_friends.dart';
 
 /// Friends by username (lib/friends/buddies.dart). Matt, 2026-11-14: "create a profile and username under "me" to
 /// register a username and add friends on the platform".
@@ -136,5 +139,84 @@ void main() {
     expect(b.requests, isEmpty);
     expect(Me.goodUsername('ab'), isFalse);
     expect(Me.goodUsername('Maya_C'), isTrue);
+  });
+
+  group('on Contacts (UsernameFriends)', () {
+    // Matt, 2026-11-16: "We need a way to add friends on the network by username on the contacts page and see friend
+    // requests".
+    Future<Me> me(String? username) async {
+      final store = MemoryMeStore();
+      if (username != null) store.set('me_username', username);
+      final m = Me.forTest();
+      await m.start(store, ValueNotifier(0), () => null);
+      return m;
+    }
+
+    Future<void> show(WidgetTester tester, Buddies b, Me m) async {
+      final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+      await tester.pumpWidget(WidgetsApp(
+        color: const Color(0xFF4F5BD5),
+        pageRouteBuilder: <T>(RouteSettings s, WidgetBuilder w) => PageRouteBuilder<T>(settings: s, pageBuilder: (c, _, _) => w(c)),
+        builder: (context, child) => GlacierTheme(sheet: sheet, attrs: const {'platform': 'mobile'}, child: GlacierToastProvider(child: child!)),
+        home: ListView(children: [UsernameFriends(buddies: b, me: m)]),
+      ));
+      await tester.pump();
+    }
+
+    Future<void> settle(WidgetTester tester) async {
+      await tester.runAsync(_settle);
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
+
+    testWidgets('a request shows with Accept and Decline, and Accept makes friends of both', (tester) async {
+      final world = _World();
+      final a = Buddies(_Port(world, 'maya', display: 'Maya Chen')), b = Buddies(_Port(world, 'sam'));
+      await tester.runAsync(() async {
+        await a.start();
+        await b.start();
+        await a.add('sam');
+        await _settle();
+      });
+      await show(tester, b, await tester.runAsync(() => me('sam')) as Me);
+      expect(find.text('Friend request'), findsOneWidget);
+      expect(find.text('Maya Chen'), findsOneWidget);
+      expect(find.byKey(const ValueKey('decline-maya')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('accept-maya')));
+      await settle(tester);
+      expect(find.text('Friend request'), findsNothing);
+      expect(find.text('Friends by username'), findsOneWidget);
+      expect(b.friends.single.username, 'maya');
+      expect(a.friends.single.username, 'sam', reason: 'Maya hears the yes');
+    });
+
+    testWidgets('asking by @username from the field; nobody by that name is said so', (tester) async {
+      final world = _World();
+      final a = Buddies(_Port(world, 'maya')), b = Buddies(_Port(world, 'sam'));
+      await tester.runAsync(() async {
+        await a.start();
+        await b.start();
+      });
+      await show(tester, a, await tester.runAsync(() => me('maya')) as Me);
+      await tester.enterText(find.byType(EditableText), '@nobody');
+      await tester.tap(find.byKey(const ValueKey('add-friend')));
+      await settle(tester);
+      expect(find.textContaining('Nobody has the username @nobody'), findsOneWidget);
+      await tester.enterText(find.byType(EditableText), '@sam');
+      await tester.tap(find.byKey(const ValueKey('add-friend')));
+      await settle(tester);
+      expect(find.text('Waiting for them'), findsOneWidget);
+      expect(find.text('@sam'), findsOneWidget);
+      expect(b.requests.single.username, 'maya', reason: 'Sam sees the request');
+    });
+
+    testWidgets('without a username of your own it says to choose one first', (tester) async {
+      final b = Buddies(_Port(_World(), 'maya'));
+      await tester.runAsync(b.start);
+      await show(tester, b, await tester.runAsync(() => me(null)) as Me);
+      expect(find.text('Add friends by username'), findsOneWidget);
+      expect(find.byKey(const ValueKey('add-friend-field')), findsNothing);
+    });
   });
 }
