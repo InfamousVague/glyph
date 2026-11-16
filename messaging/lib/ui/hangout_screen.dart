@@ -88,6 +88,9 @@ class _HangoutScreenState extends State<HangoutScreen> {
       listenable: Listenable.merge([v, ?room]),
       builder: (context, _) {
         final s = v.session?.channel.room == widget.channel.room ? v.session : null;
+        // In the call on a narrow phone: the chosen design is the page (space_design.dart).
+        final design = inlineSpaceCall(context, s);
+        if (design != null) return design;
         final pad = MediaQuery.paddingOf(context).bottom;
         final wide = AppShell.wideOf(context);
         // Under the pill in the list's place: what stands at the foot (the composer, the dock) stands above it.
