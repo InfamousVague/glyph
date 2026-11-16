@@ -192,6 +192,7 @@ class Store(private val context: Context) {
         val muted = threadFlags("muted")
         val drafts = drafts()
         val hidden = hiddenThreads()
+        val standIns = rcsStandIns()
         // Android's blocked list, read once: asking it about each conversation's number is a call to Android apiece.
         val blocked = blockedKeys()
         readCanonical()
@@ -218,6 +219,9 @@ class Store(private val context: Context) {
                     val date = if (iDate >= 0) c.getLong(iDate) else 0L
                     // Deleted beside Google Messages, and nothing newer since (hideThread).
                     if (hidden[id]?.let { date <= it } == true) return null
+                    // An RCS group's stand-in, already found to be a group the bridge shows (withBridge).
+                    val standIn = group == null && recipients.isNotEmpty() && recipients.all(::isRcsStandIn)
+                    if (standIn && id in standIns) return null
                     val summary = E2e.preview(context, if (group != null) null else recipients.singleOrNull(), if (iSnip >= 0) c.getString(iSnip) ?: "" else "").let { if (BackgroundWire.valueIn(it) != null) "Chat background" else it }
                     val people = recipients.map { contact(it) }
                     return mapOf(
@@ -240,7 +244,7 @@ class Store(private val context: Context) {
                         "archived" to archived.contains(id),
                         "pinned" to pinned.contains(id),
                         "muted" to muted.contains(id),
-                        "name" to (group?.optString("name")?.takeIf { it.isNotBlank() } ?: threadName(id)),
+                        "name" to (group?.optString("name")?.takeIf { it.isNotBlank() } ?: threadName(id) ?: if (standIn) rcsGroupName(recipients) else null),
                         "draft" to drafts[id.toString()],
                         "blocked" to (group == null && recipients.size == 1 && E2e.norm(recipients[0]) in blocked),
                     )
@@ -309,7 +313,68 @@ class Store(private val context: Context) {
             )
             added = true
         }
+        // An RCS group as Android's database has it: Google Messages keeps it there under one made-up address
+        // (…@rcs.google.com), so it would be listed a second time, as a chat with a long code for its number (Matt,
+        // 2026-11-16: "some RCS chats are being duplicated with a number that has a huge string when I'm in a group
+        // chat"). The address names the group's RCS id, not its people, so it is matched to the bridge's group by its
+        // newest message, and the match is kept: from then on it is never listed.
+        val groups = bridged.filter { it.group }
+        if (groups.isNotEmpty()) {
+            val learned = HashMap<Long, Long>()
+            val iter = out.listIterator()
+            val unreadIn = HashSet<Long>()
+            while (iter.hasNext()) {
+                val row = iter.next()
+                @Suppress("UNCHECKED_CAST") val people = row["people"] as List<Map<String, Any?>>
+                if (people.isEmpty() || !people.all { (it["address"] as? String)?.let(::isRcsStandIn) == true }) continue
+                val words = (row["snippet"] as? String)?.trim().orEmpty()
+                val date = row["date"] as Long
+                val match = groups.firstOrNull { g -> g.thread != row["id"] && g.text.trim() == words && words.isNotEmpty() && kotlin.math.abs(g.time - date) <= 10 * 60_000L }
+                    ?: continue
+                learned[row["id"] as Long] = match.thread
+                if (row["unread"] == true) unreadIn += match.thread
+                iter.remove()
+            }
+            if (learned.isNotEmpty()) {
+                keepRcsStandIns(learned)
+                out.forEachIndexed { i, row -> if (row["id"] in unreadIn && row["unread"] != true) out[i] = row + mapOf("unread" to true) }
+            }
+        }
         if (added) out.sortByDescending { it["date"] as Long }
+    }
+
+    /** Google Messages' address for an RCS group (not a business's, which is …@bot.rcs.google.com). */
+    private fun isRcsStandIn(address: String): Boolean =
+        address.endsWith("@rcs.google.com", ignoreCase = true) && !address.endsWith("@bot.rcs.google.com", ignoreCase = true)
+
+    /** RCS groups' stand-in threads found to be the bridge's groups: stand-in thread to the group's thread. */
+    private fun rcsStandIns(): Map<Long, Long> = try {
+        val o = org.json.JSONObject(prefs.getString("rcs_standins", "{}")!!)
+        o.keys().asSequence().associate { it.toLong() to o.getLong(it) }
+    } catch (_: Exception) { emptyMap() }
+
+    private fun keepRcsStandIns(found: Map<Long, Long>) {
+        val o = try { org.json.JSONObject(prefs.getString("rcs_standins", "{}")!!) } catch (_: Exception) { org.json.JSONObject() }
+        for ((k, v) in found) o.put("$k", v)
+        prefs.edit().putString("rcs_standins", o.toString()).apply()
+    }
+
+    /**
+     * What a stand-in is called where no group matches it: the group's name where its address carries one (base32 of
+     * "name␟owner␟id"), else "Group chat"; never the code.
+     */
+    private fun rcsGroupName(addresses: List<String>): String {
+        val code = addresses.first().substringBefore('@').uppercase().trimEnd('=')
+        val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+        val bytes = java.io.ByteArrayOutputStream()
+        var buffer = 0; var bits = 0
+        for (ch in code) {
+            val v = alphabet.indexOf(ch); if (v < 0) return "Group chat"
+            buffer = (buffer shl 5) or v; bits += 5
+            if (bits >= 8) { bits -= 8; bytes.write((buffer shr bits) and 0xff) }
+        }
+        val name = try { bytes.toString("UTF-8").split('\u001f').firstOrNull()?.replace('+', ' ')?.trim() } catch (_: Exception) { null }
+        return name?.takeIf { it.isNotEmpty() && it.none { c -> c.isISOControl() } } ?: "Group chat"
     }
 
     /** The numbers on Android's blocked list, as conversations are told apart by them ([E2e.norm]). */
