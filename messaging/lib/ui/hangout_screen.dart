@@ -412,7 +412,8 @@ class _Message extends StatelessWidget {
             Padding(
               padding: EdgeInsets.only(bottom: t.space(1)),
               child: Row(children: [
-                Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'bold', color: t.color('app-ink')))),
+                // In the app's primary colour, as over a conversation's bubbles (lib/ui/thread.dart).
+                Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'bold', color: t.color('app-accent')))),
                 if (owner || role.id != room.roster.newcomer) ...[SizedBox(width: t.space(2)), RoleTag(role: role, owner: owner)],
                 SizedBox(width: t.space(2)),
                 Text(time, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
