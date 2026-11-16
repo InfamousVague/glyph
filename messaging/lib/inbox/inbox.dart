@@ -48,6 +48,8 @@ class InboxChat {
     this.lastFromMe = false,
     this.pinned = false,
     this.service = false,
+    this.stranger = false,
+    this.flag,
   });
 
   /// [InboxNetwork.id] of the network it is on.
@@ -73,6 +75,12 @@ class InboxChat {
   /// The network's own account or a bot, not a person: where sign-in codes come from (Telegram's 777000).
   final bool service;
 
+  /// Someone not in this account's contacts wrote first (Telegram's "Report spam" bar): spam is looked for (scams.dart).
+  final bool stranger;
+
+  /// What the network itself says of the account, where it marks it ("Telegram marks this account as a scam").
+  final String? flag;
+
   InboxChat copyWith({String? title, DateTime? date, String? snippet, int? unread, String? avatar, bool? lastFromMe}) => InboxChat(
         network: network,
         id: id,
@@ -85,6 +93,8 @@ class InboxChat {
         lastFromMe: lastFromMe ?? this.lastFromMe,
         pinned: pinned,
         service: service,
+        stranger: stranger,
+        flag: flag,
       );
 }
 

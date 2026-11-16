@@ -315,6 +315,45 @@ void main() {
     tg.dispose();
   });
 
+  // Matt, 2026-11-15: "i also want spam filters on them to work and cut out fake romance scams and other telegram scams".
+  test('a stranger who wrote first, and an account Telegram marks a scam, are told to the list; mark read needs no open chat', () async {
+    final td = FakeTd();
+    td.answer = (r) => r['@type'] == 'getMe' ? {'@type': 'user', 'id': 1, 'first_name': 'Matt'} : (r['@type'] == 'loadChats' ? {'@type': 'error', 'code': 404, 'message': 'Not Found'} : {'@type': 'ok'});
+    final tg = Telegram(apiId: 12345, apiHash: 'hash', folder: '/tmp/tg', transport: () async => td);
+    await tg.start(AppState());
+    await tg.begin();
+    td.auth('authorizationStateReady');
+    for (var i = 0; i < 6; i++) {
+      await settle();
+    }
+    td.say({'@type': 'updateUser', 'user': {'id': 7, 'first_name': 'Ana', 'is_contact': false}});
+    td.say({'@type': 'updateUser', 'user': {'id': 8, 'first_name': 'Support', 'is_contact': false, 'verification_status': {'is_scam': true}}});
+    td.say({'@type': 'updateUser', 'user': {'id': 9, 'first_name': 'Jo', 'is_contact': true}});
+    for (final (id, user, bar) in [(10, 7, 'chatActionBarReportSpam'), (20, 8, null), (30, 9, null)]) {
+      td.say({
+        '@type': 'updateNewChat',
+        'chat': {
+          'id': id, 'title': 'chat $id', 'type': {'@type': 'chatTypePrivate', 'user_id': user}, 'unread_count': 3,
+          'action_bar': ?(bar == null ? null : {'@type': bar}),
+          'positions': [
+            {'list': {'@type': 'chatListMain'}, 'order': '$id'},
+          ],
+          'last_message': {'id': 55, 'chat_id': id, 'is_outgoing': false, 'date': 1763200000 + id, 'content': {'@type': 'messageText', 'text': {'text': 'hi'}}},
+        },
+      });
+    }
+    await settle();
+    final by = {for (final c in tg.chats) c.id: c};
+    expect(by['10']!.stranger, isTrue);
+    expect(by['20']!.flag, 'Telegram marks this account as a scam');
+    expect((by['30']!.stranger, by['30']!.flag), (false, null));
+    await tg.markRead('30');
+    final viewed = td.sent.lastWhere((r) => r['@type'] == 'viewMessages');
+    expect(viewed['message_ids'], [55], reason: 'its newest message reads the chat that was never opened');
+    expect(tg.chats.firstWhere((c) => c.id == '30').unread, 0);
+    tg.dispose();
+  });
+
   test('a chat\'s messages, a reply sent and confirmed, and reading it', () async {
     final td = FakeTd();
     final tg = Telegram(apiId: 1, apiHash: 'h', folder: '/tmp/tg', transport: () async => td);
