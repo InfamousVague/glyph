@@ -1143,6 +1143,19 @@ class Sms {
   /// its own, so this is a computer's alone ([remote]).
   Future<void> emojiPanel() => _calls.invokeMethod('emoji');
 
+  /// Any files, pictures and videos among them (a Telegram chat's +): their content addresses on the phone, paths on a
+  /// computer.
+  Future<List<String>> pickFiles() async => [for (final u in (await _calls.invokeMethod<List>('pickFiles')) ?? const []) u as String];
+
+  /// A picked file's path on this device: a phone's content address copied into the app's cache, a path as it is.
+  Future<String> cacheCopy(String picked) async => picked.startsWith('content:') ? (await _calls.invokeMethod<String>('cacheCopy', {'uri': picked}))! : picked;
+
+  /// Ends the recording and gives its file, for a network's chat to send.
+  Future<String> finishVoice() async => ((await _calls.invokeMethod('voiceFinish')) as Map)['path'] as String;
+
+  /// Opens a file in whichever app reads its kind.
+  Future<void> openFile(String path, {String? name}) => _calls.invokeMethod('openFile', {'path': path, 'name': name});
+
   Future<List<String>> pickImages() async => [for (final u in (await _calls.invokeMethod<List>('pickImages')) ?? const []) u as String];
 
   Future<String?> ownNumber() => _calls.invokeMethod<String>('ownNumber');

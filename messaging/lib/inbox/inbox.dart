@@ -87,13 +87,40 @@ class InboxChat {
 }
 
 /// A message in an [InboxChat].
+/// A picture, video, sound or file in an [InboxMessage] (Matt, 2026-11-15: "Is it possible to send and receive
+/// attachments through telegram too?"). [path] is the file on this device once the network has brought it down
+/// ([InboxNetwork.fileOf]); [thumbPath] a small picture of a video, where it has one.
+@immutable
+class InboxMedia {
+  const InboxMedia({required this.kind, required this.fileId, this.path, this.name, this.size = 0, this.width = 0, this.height = 0, this.duration = 0, this.thumbId, this.thumbPath});
+
+  /// "photo", "video", "audio" or "file".
+  final String kind;
+  final int fileId;
+  final String? path;
+  final String? name;
+  final int size, width, height;
+
+  /// Seconds, for a video or a sound.
+  final int duration;
+  final int? thumbId;
+  final String? thumbPath;
+
+  InboxMedia withPath(int file, String path) => InboxMedia(
+        kind: kind, fileId: fileId, path: file == fileId ? path : this.path, name: name, size: size, width: width, height: height,
+        duration: duration, thumbId: thumbId, thumbPath: file == thumbId ? path : thumbPath);
+}
+
 @immutable
 class InboxMessage {
-  const InboxMessage({required this.id, required this.text, required this.date, required this.mine, this.sender = '', this.state = 'sent'});
+  const InboxMessage({required this.id, required this.text, required this.date, required this.mine, this.sender = '', this.state = 'sent', this.media = const []});
   final String id;
   final String text;
   final DateTime date;
   final bool mine;
+
+  /// Its pictures, videos, sounds and files, where it has any.
+  final List<InboxMedia> media;
 
   /// Who wrote it, where that is someone else in a group.
   final String sender;
@@ -159,6 +186,19 @@ abstract class InboxNetwork extends ChangeNotifier {
     setLocal('deleted', chatId, true);
     notifyListeners();
   }
+
+  /// Whether files can be sent here: pictures, videos, voice messages and other files.
+  bool get canSendFiles => false;
+
+  /// Sends the files at [paths] to [chatId], [caption] with the last; [voice] for a recorded voice message.
+  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false}) async =>
+      throw UnsupportedError('$name can\'t send files here yet');
+
+  /// The file [fileId] on this device, brought down first where it is not yet; null where it can't be.
+  Future<String?> fileOf(int fileId) async => null;
+
+  /// Asks for [fileId] to be brought down without waiting: a picture as its bubble is first drawn.
+  void wantFile(int fileId) {}
 
   /// Pins [chatId] at the top, or unpins it: the network's own pin where it has one, else Ghost's list.
   Future<void> pin(String chatId, bool pinned) async {

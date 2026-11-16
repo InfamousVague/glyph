@@ -40,6 +40,11 @@ class FakeNetwork extends InboxNetwork {
   @override
   List<InboxChat> get chats => _chats;
   @override
+  bool get canSendFiles => true;
+  final wanted = <int>[];
+  @override
+  void wantFile(int fileId) => wanted.add(fileId);
+  @override
   List<InboxMessage> messagesOf(String chatId) => _messages[chatId] ?? const [];
   @override
   Future<void> load(String chatId, {bool older = false}) async {}
@@ -116,6 +121,8 @@ void main() {
         InboxMessage(id: '2', text: 'I know, how have you been?', date: now.subtract(const Duration(minutes: 28)), mine: true),
         InboxMessage(id: '3', text: 'good! there\'s a thing at the park later', date: now.subtract(const Duration(minutes: 3)), mine: false),
         InboxMessage(id: '4', text: 'are you coming tonight?', date: now.subtract(const Duration(minutes: 2)), mine: false),
+        InboxMessage(id: '5', text: 'the park', date: now.subtract(const Duration(minutes: 1)), mine: false, media: const [InboxMedia(kind: 'photo', fileId: 42, width: 800, height: 600)]),
+        InboxMessage(id: '6', text: '', date: now.subtract(const Duration(seconds: 30)), mine: false, media: const [InboxMedia(kind: 'file', fileId: 43, name: 'tickets.pdf', size: 245760)]),
       ],
     });
     Inbox.instance = Inbox.of([telegram, FakeNetwork('bluesky', 'Bluesky', const [], const {})]);
@@ -186,7 +193,19 @@ void main() {
     await tester.tap(find.text('Jo Park'));
     await settle(tester);
     expect(find.byType(ComposerBox), findsOneWidget);
-    expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send' && w.onPressed == null), findsOneWidget, reason: 'grey until there are words');
+    // Laid out as a conversation of texts is (Matt, 2026-11-15: "The compose window should also use the exact same
+    // layout as messages"): + at its start, the microphone at its end while it is empty.
+    expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Add an attachment'), findsOneWidget);
+    expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Record a voice message'), findsOneWidget);
+    // A picture is asked for as it is drawn; a file is its name and size.
+    expect(telegram.wanted, contains(42));
+    expect(find.text('tickets.pdf'), findsOneWidget);
+    expect(find.text('240 KB'), findsOneWidget);
+    await tester.enterText(find.byType(EditableText).last, 'hi');
+    await settle(tester);
+    expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send' && w.onPressed != null), findsOneWidget);
+    await tester.enterText(find.byType(EditableText).last, '');
+    await settle(tester);
     await tester.longPress(find.text('hey! long time'));
     await settle(tester);
     expect(find.text('Delete for everyone'), findsNothing, reason: 'this network says nothing can be');
