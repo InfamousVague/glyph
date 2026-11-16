@@ -32,7 +32,8 @@ enum InboxState {
 }
 
 /// What a sign-in waits for next.
-enum InboxStep { none, phone, code, password, credentials }
+/// [elsewhere]: waiting for another device signed in to the account to approve this one (Telegram's login link).
+enum InboxStep { none, phone, code, password, credentials, elsewhere }
 
 /// A conversation on another network.
 @immutable

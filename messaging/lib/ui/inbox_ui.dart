@@ -792,11 +792,57 @@ class _TelegramSignInScreenState extends State<TelegramSignInScreen> {
   InboxStep _shown = InboxStep.none;
   bool _busy = false;
 
+  // On a computer paired with a phone signed in to Telegram, the phone signs it in (Matt, 2026-11-16: "Build the Telegram
+  // phone sign-in approval"): the phone's own session approves this computer's login link (lib/inbox/telegram.dart).
+  bool? _phoneReady;
+  String? _phoneAccount;
+  String? _phoneError;
+  bool _askingPhone = false;
+
   @override
   void initState() {
     super.initState();
     widget.network.begin();
     widget.network.addListener(_changed);
+    if (Sms.remote) _phoneStatus();
+  }
+
+  Future<void> _phoneStatus() async {
+    try {
+      final s = await Sms.instance.telegram({'dir': 'status'});
+      if (!mounted) return;
+      setState(() {
+        _phoneReady = s['ready'] == true;
+        _phoneAccount = s['account'] as String?;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _phoneReady = false);
+    }
+  }
+
+  /// The phone approves this computer: a login link from Telegram, sent to the phone, approved with its session.
+  Future<void> _byPhone() async {
+    if (_askingPhone) return;
+    setState(() {
+      _askingPhone = true;
+      _phoneError = null;
+    });
+    try {
+      final link = await widget.network.askLoginLink();
+      await Sms.instance.telegram({'dir': 'approve', 'link': link});
+      // Telegram now says this device is signed in (or asks its two-step password here): _changed carries on.
+    } catch (e) {
+      if (mounted) setState(() => _phoneError = _words(e));
+    } finally {
+      if (mounted) setState(() => _askingPhone = false);
+    }
+  }
+
+  /// An error's words as a person reads them: a phone's refusal comes as "PlatformException(failed, words, …)".
+  static String _words(Object e) {
+    final m = RegExp(r'^PlatformException\([^,]*, (.*?), .*\)$', dotAll: true).firstMatch('$e');
+    final w = m?.group(1) ?? '$e';
+    return w.startsWith('Bad state: ') ? w.substring(11) : w;
   }
 
   void _changed() {
@@ -824,7 +870,7 @@ class _TelegramSignInScreenState extends State<TelegramSignInScreen> {
     if (v.trim().isEmpty) return;
     setState(() => _busy = true);
     switch (n.step) {
-      case InboxStep.phone:
+      case InboxStep.phone || InboxStep.elsewhere:
         await n.sendPhone(v);
       case InboxStep.code:
         await n.sendCode(v);
@@ -844,7 +890,7 @@ class _TelegramSignInScreenState extends State<TelegramSignInScreen> {
       listenable: n,
       builder: (context, _) {
         final (title, about, placeholder, type, action) = switch (n.step) {
-          InboxStep.phone => ('Your phone number', 'The number of your Telegram account, with its country code. Telegram sends a code to your Telegram app, or texts it.', '+1 555 010 0199', GlacierInputType.tel, 'Send the code'),
+          InboxStep.phone || InboxStep.elsewhere => ('Your phone number', 'The number of your Telegram account, with its country code. Telegram sends a code to your Telegram app, or texts it.', '+1 555 010 0199', GlacierInputType.tel, 'Send the code'),
           InboxStep.code => ('The code', 'Telegram sent a code to ${n.codeWhere ?? 'you'}.', '12345', GlacierInputType.number, 'Sign in'),
           InboxStep.password => ('Your password', 'This account has a two-step password${n.passwordHint == null ? '' : ' (hint: ${n.passwordHint})'}.', 'Password', GlacierInputType.password, 'Sign in'),
           _ => ('', '', '', GlacierInputType.text, ''),
@@ -861,17 +907,35 @@ class _TelegramSignInScreenState extends State<TelegramSignInScreen> {
                   SettingsCallout(child: Text(n.error ?? 'Telegram isn\'t in this build of the app.'))
                 else if (n.step == InboxStep.none)
                   Padding(padding: EdgeInsets.all(t.space(8)), child: const Center(child: GhostSpinner(size: 26, label: 'Starting Telegram…')))
-                else
+                else ...[
+                  // Signed in by the phone, where this computer is paired with one signed in to Telegram.
+                  if (Sms.remote && _phoneReady == true && (n.step == InboxStep.phone || n.step == InboxStep.elsewhere)) ...[
+                    PaneSection(
+                      title: 'Sign in with your phone',
+                      description: Text('Your phone is signed in to Telegram${_phoneAccount == null ? '' : ' as $_phoneAccount'}. It approves this computer, and this computer gets a session of its own: no number, no code.'),
+                      footer: _phoneError == null ? null : Text(_phoneError!, style: TextStyle(color: t.colorOf('#dd3a30'))),
+                      children: [
+                        SettingRow(
+                          icon: _icon(Lucide.smartphone),
+                          label: _askingPhone ? 'Waiting for your phone…' : 'Approve on my phone',
+                          disabled: _askingPhone,
+                          onPress: _byPhone,
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: t.space(6)),
+                  ],
                   PaneSection(
-                    key: ValueKey(n.step),
-                    title: title,
+                    key: ValueKey(n.step == InboxStep.elsewhere ? InboxStep.phone : n.step),
+                    title: Sms.remote && _phoneReady == true && (n.step == InboxStep.phone || n.step == InboxStep.elsewhere) ? 'Or with your number' : title,
                     description: Text(about),
                     footer: n.error == null ? null : Text(n.error!, style: TextStyle(color: t.colorOf('#dd3a30'))),
                     children: [
                       SettingRowBox(child: GlacierInput(controller: _field, type: type, placeholder: placeholder, ariaLabel: title, autoCorrect: false, autoFocus: true, size: GlacierFieldSize.md, onSubmitted: (_) => _go())),
-                      SettingRow(icon: _icon(n.step == InboxStep.phone ? Lucide.messageSquare : Lucide.arrowRight), label: _busy ? 'One moment…' : action, disabled: _busy, onPress: _go),
+                      SettingRow(icon: _icon(n.step == InboxStep.phone || n.step == InboxStep.elsewhere ? Lucide.messageSquare : Lucide.arrowRight), label: _busy ? 'One moment…' : action, disabled: _busy, onPress: _go),
                     ],
                   ),
+                ],
                 SizedBox(height: t.space(4)),
                 const SettingsFootnote(child: Text('Ghost signs in as a Telegram app of its own, on this device. Your chats go between it and Telegram; Ghost\'s own server never sees them. Sign out here, or end the session in Telegram › Settings › Devices.')),
               ],

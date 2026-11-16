@@ -43,6 +43,16 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     stages with their times to `signal.log` beside its store and to standard error, which the app now passes to the
     Developer log (its own lines and signalmeow's warnings only; no message's words). Why Signal itself is slow to
     take a message is not known yet: the next stuck send says where in that log.
+- **Telegram on a computer, approved by the phone** (0.7.46, not released; `lib/inbox/telegram.dart`,
+  `lib/ui/inbox_ui.dart`, the desk link's `telegram` request; Matt, 2026-11-16: "It seems i have to setup signal and
+  telegram on each device is it possible to proxy through thr phone", then "Build the Telegram phone sign-in approval").
+  On a computer paired with a phone that is signed in to Telegram, Telegram's sign-in starts with "Sign in with your
+  phone": the computer asks TDLib for a login link (requestQrCodeAuthentication, the same link Telegram's QR code
+  holds), sends it over the sealed desk link, and the phone approves it with confirmQrCodeAuthentication. The computer
+  gets a Telegram session of its own, so no number and no code; it is listed in Telegram's Devices like any other. The
+  phone approves only a `tg://login?token=` link and only when it is signed in; anything else is refused before
+  Telegram is asked. A phone without this (older than 0.7.46) answers "Update Ghost Messaging on your phone"; the
+  number sign-in stays beneath. Signal is not proxied yet. Tests: inbox_telegram_test, DeskSessionTest.
 - **Telegram's and Signal's contacts in Contacts, and which way to write** (0.7.42, not released; `lib/inbox/people.dart`,
   `lib/ui/contacts.dart`; Matt, 2026-11-16: "Show telegram and signal contacts when linked with icons to show which
   each is and filters, where contacts can be messages on multiple platforms as which you like to use when stating a

@@ -781,6 +781,10 @@ class LinkCalls implements SmsCalls, CapableCalls {
         } on LinkDown {
           return null;
         }
+      case 'telegram':
+        // The phone's Telegram approves this computer's sign-in (lib/inbox/telegram.dart answerComputer).
+        if (!_caps.contains('telegram')) throw const PhoneError('Update Ghost Messaging on your phone to sign in to Telegram through it.');
+        return link.request('telegram', a, const Duration(seconds: 40));
       case 'voice':
         // The phone's voice channels, kept in step with this computer's (lib/voice/channels.dart).
         if (!_caps.contains('voice')) throw const PhoneError('Update Ghost Messaging on your phone to see its spaces here.');

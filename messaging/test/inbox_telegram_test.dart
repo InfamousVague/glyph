@@ -508,4 +508,55 @@ void main() {
     expect(await tg.chatWith(tg.contacts.single), '5011');
     expect(td.sent.lastWhere((r) => r['@type'] == 'createPrivateChat')['user_id'], 12);
   });
+
+  // Matt, 2026-11-16: "Build the Telegram phone sign-in approval".
+  test('a computer asks for a login link; a phone signed in approves it, and refuses anything else', () async {
+    // The computer: signing in, it asks Telegram for a link to be approved elsewhere.
+    final td = FakeTd();
+    td.answer = (r) => r['@type'] == 'requestQrCodeAuthentication' ? {'@type': 'ok'} : {'@type': 'ok'};
+    final computer = Telegram(apiId: 1, apiHash: 'h', folder: '/tmp/tg-qr', transport: () async => td);
+    await computer.start(AppState());
+    await computer.begin();
+    td.auth('authorizationStateWaitPhoneNumber');
+    await settle();
+    final asked = computer.askLoginLink();
+    await settle();
+    expect(td.types, contains('requestQrCodeAuthentication'));
+    td.auth('authorizationStateWaitOtherDeviceConfirmation', {'link': 'tg://login?token=AQAbc-_123='});
+    expect(await asked, 'tg://login?token=AQAbc-_123=');
+    expect(computer.step, InboxStep.elsewhere);
+    expect(computer.error, isNull, reason: 'waiting for another device is no longer an error');
+
+    // The phone: signed in, it approves that link with its own session.
+    final ptd = FakeTd();
+    ptd.answer = (r) => switch (r['@type']) {
+          'confirmQrCodeAuthentication' => {'@type': 'session', 'id': '7'},
+          'getMe' => {'@type': 'user', 'id': 1, 'first_name': 'Matt', 'usernames': {'active_usernames': ['matt']}},
+          'loadChats' => {'@type': 'error', 'code': 404},
+          'getContacts' => {'@type': 'users', 'user_ids': const []},
+          _ => {'@type': 'ok'},
+        };
+    final phone = Telegram(apiId: 1, apiHash: 'h', folder: '/tmp/tg-qr-phone', transport: () async => ptd);
+    await phone.start(AppState());
+    // Not signed in yet: it says so, and asks Telegram nothing.
+    expect(await phone.approveLogin('tg://login?token=AQAbc-_123='), contains('isn\'t signed in'));
+    await phone.begin();
+    ptd.auth('authorizationStateReady');
+    for (var i = 0; i < 6; i++) {
+      await settle();
+    }
+    expect(await phone.answerComputer({'what': {'dir': 'status'}}), {'ready': true, 'account': '@matt'});
+    expect(await phone.answerComputer({'what': {'dir': 'approve', 'link': 'tg://login?token=AQAbc-_123='}}), {'approved': true});
+    expect(ptd.sent.lastWhere((r) => r['@type'] == 'confirmQrCodeAuthentication')['link'], 'tg://login?token=AQAbc-_123=');
+
+    // Anything but a Telegram login link is refused before Telegram is asked.
+    final before = ptd.sent.where((r) => r['@type'] == 'confirmQrCodeAuthentication').length;
+    expect(await phone.approveLogin('https://evil.example/login?token=x'), contains('isn\'t a Telegram login link'));
+    await expectLater(phone.answerComputer({'what': {'dir': 'approve', 'link': 'tg://resolve?domain=x'}}), throwsA(isA<StateError>()));
+    expect(ptd.sent.where((r) => r['@type'] == 'confirmQrCodeAuthentication').length, before);
+
+    // Telegram refusing it: its reason comes back.
+    ptd.answer = (r) => r['@type'] == 'confirmQrCodeAuthentication' ? {'@type': 'error', 'code': 400, 'message': 'AUTH_TOKEN_EXPIRED'} : {'@type': 'ok'};
+    expect(await phone.approveLogin('tg://login?token=AQAbc-_123='), isNotNull);
+  });
 }
