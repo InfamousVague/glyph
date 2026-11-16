@@ -34,12 +34,15 @@ void main() {
     expect(scamOf(InboxChat(network: 'telegram', id: '2', title: 'Telegram', date: now, snippet: 'hello', stranger: false)), 'Pretends to be Telegram');
     expect(scamOf(InboxChat(network: 'telegram', id: '777000', title: 'Telegram', date: now, snippet: 'Login code: 12345', service: true)), isNull, reason: 'Telegram\'s own account');
     expect(scamOf(chat('see you at 7 😍', stranger: false)), isNull, reason: 'a contact\'s');
-    expect(scamOf(chat('haha so cute 😍', cold: false)), isNull, reason: 'someone not saved as a contact, but answered before');
+    // From anyone not a contact these are scams too, answered or not (Matt, 2026-11-15: "Those two messages you tested
+    // against were not friends but instead also scammer").
+    expect(scamOf(chat('haha so cute 😍', cold: false)), isNotNull);
+    expect(scamOf(chat('Free tonight for the game? 🏀')), isNotNull);
     expect(scamOf(chat('daily profit with USDT', cold: false)), isNotNull, reason: 'an investment pitch counts from any stranger');
   });
 
   test('ordinary chats are left alone, and so is anything from a contact or a group', () {
-    for (final text in ['are you coming tonight?', 'Hi! It\'s Maya from the climbing gym', 'thanks for the invoice, paid', 'the meeting moved to 3', 'is the bike still for sale?', 'Free tonight for the game? 🏀']) {
+    for (final text in ['are you coming tonight?', 'Hi! It\'s Maya from the climbing gym', 'thanks for the invoice, paid', 'the meeting moved to 3', 'is the bike still for sale?']) {
       expect(scamOf(chat(text)), isNull, reason: text);
     }
     expect(scamOf(chat('Hello dear, how are you?', stranger: false)), isNull, reason: 'a contact');
