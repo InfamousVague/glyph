@@ -22,6 +22,7 @@ import '../edits.dart';
 import '../kit/settings_type.dart';
 import '../links.dart';
 import '../plugins/conversation.dart';
+import '../plugins/plugin.dart' show MessageFacts;
 import '../reactions.dart';
 import '../sms.dart';
 import '../stickers.dart';
@@ -43,6 +44,7 @@ import '../sounds.dart';
 import '../kit/semantic_colors.dart';
 import 'dialup/bevel.dart' show DialupColors, isDialup;
 import 'message_line.dart';
+import 'translated_card.dart';
 
 /// One conversation: its messages oldest at the top, newest by the composer.
 class ThreadScreen extends StatefulWidget {
@@ -720,6 +722,14 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     _load();
   }
 
+  /// The facts the plugins are asked [m]'s words by (a translation): its words as its bubble shows them, and none while
+  /// it is invisible ink not yet tapped open, whose words a card over it would give away.
+  MessageFacts? _wordsFacts(Message m) {
+    final sent = sentWith(m.body);
+    if (sent.bubble == BubbleEffect.invisibleInk && !_revealed.contains(m.key)) return null;
+    return _plugins.words(m, sent.text);
+  }
+
   void _messageMenu(Message m, [Rect? at]) {
     // One drawn before the phone has it (_pending) has nothing on the phone to act on yet.
     if (m.kind == 'pending') return;
@@ -971,8 +981,13 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         gone: _poofing.contains(m.key),
         side: m.outgoing ? AxisDirection.right : AxisDirection.left,
         onDone: () => _gone(m),
-        child: _Bubble(
+        // What the plugins show its words as (a translation, lib/plugins/translate.dart): the bubble says that, and a
+        // dimmed card over it the words as they came.
+        child: ShownWords(
+        facts: _wordsFacts(m),
+        builder: (_, shown) => _Bubble(
         message: m,
+        shown: shown,
         sender: _group && !m.outgoing && firstOfRun ? (_senders[m.address]?.label ?? m.address) : null,
         senderPerson: _group && !m.outgoing ? _senders[m.address] : null,
         showFace: _group && !m.outgoing && lastOfRun,
@@ -1004,7 +1019,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         onBackground: !background.isNone,
         busy: busy,
         thread: widget.thread,
-      )));
+      ))));
       if (_group && m.key == _firstNewKey) items.add(Padding(key: const ValueKey('new-messages'), padding: EdgeInsets.symmetric(horizontal: t.space(3)), child: const NewMessagesDivider()));
       if (older == null || !_sameDay(older.date, m.date)) items.add(_DayHeading(date: m.date, busy: busy));
     }
@@ -1105,12 +1120,16 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         gone: _poofing.contains(m.key),
         side: m.outgoing ? AxisDirection.right : AxisDirection.left,
         onDone: () => _gone(m),
-        child: MessageLine(
+        child: ShownWords(
+          facts: _wordsFacts(m),
+          builder: (_, shown) => MessageLine(
           name: nameOf(m),
           // Yours in your colour, the other person's in theirs; in a group each keeps one of six, picked by their address.
           nameColor: m.outgoing ? c.nameMine : (_group ? c.nameFor(m.address) : c.nameTheirs),
           mine: m.outgoing,
-          body: unopened ? 'Encrypted message that can\'t be opened on this phone' : sent.text,
+          body: unopened ? 'Encrypted message that can\'t be opened on this phone' : (shown?.bubble ?? sent.text),
+          // The words as they came, as a dim line under a translated one (lib/ui/translated_card.dart).
+          original: shown == null ? null : OriginalLine(view: shown),
           italic: unopened,
           concealed: sent.bubble == BubbleEffect.invisibleInk && !_revealed.contains(m.key),
           onReveal: () => setState(() => _revealed.add(m.key)),
@@ -1125,7 +1144,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           onEditedTap: m.edited ? () => _showOriginal(m) : null,
           highlighted: _editing?.key == m.key,
           onLongPress: (at) => _messageMenu(m, at),
-        ),
+        )),
       ));
       if (older == null || !_sameDay(older.date, m.date)) items.add(HostLine.day(m.date));
     }
@@ -1617,9 +1636,14 @@ class _Bubble extends StatelessWidget {
     this.onBackground = false,
     this.busy = false,
     this.thread,
+    this.shown,
   });
 
   final Message message;
+
+  /// What a plugin shows its words as (lib/ui/translated_card.dart): the bubble says [ShownView.bubble], and a card
+  /// over it the words as they came.
+  final ShownView? shown;
   final bool top;
   final bool bottom;
   final bool group;
@@ -1665,7 +1689,7 @@ class _Bubble extends StatelessWidget {
     final sent = sentWith(m.body);
     // Sealed, and the key that opens it is not on this phone (a reinstall, a new key since): said in its place.
     final unopened = m.notice == 'undecryptable';
-    final body = unopened ? 'Encrypted message that can\'t be opened on this phone' : sent.text;
+    final body = unopened ? 'Encrypted message that can\'t be opened on this phone' : (shown?.bubble ?? sent.text);
     final app = AppState.of(context);
     final out = m.outgoing;
     final failed = m.state == 'failed';
@@ -1730,6 +1754,9 @@ class _Bubble extends StatelessWidget {
       // A picture message the carrier announced that is not here: coming down now, or it could not be, with a way to
       // ask for it again (Matt, 2026-11-13: "show the failed image with a retry if needed").
       if (m.state == 'downloading' || m.state == 'pending_download') _Undelivered(downloading: m.state == 'downloading', ground: ground, ink: ink, onRetry: onRetryDownload),
+      // The words as they came, dimmed, in a card over a translated bubble (Matt, 2026-11-17: "show the original text
+      // dimmed in a card with the translated text for the actual message bubble").
+      if (shown != null && body.isNotEmpty && !jumbo && !unopened) OriginalCard(view: shown!, maxWidth: maxWidth, mine: out, scale: app.textScale * size),
       if (body.isNotEmpty && jumbo)
         // One to three emoji and nothing else: large, on the page, with no bubble.
         Padding(
@@ -1989,7 +2016,8 @@ class _Picture extends StatelessWidget {
             opaque: false,
             barrierColor: const Color(0xF2000000),
             pageBuilder: (context, _, _) => _Viewer(bytes: bytes),
-            transitionsBuilder: (context, a, _, child) => FadeTransition(opacity: a, child: child),
+            // Grown a little into place over the darkening (the barrier's own fade), not faded: cheaper to draw.
+            transitionsBuilder: (context, a, _, child) => ScaleTransition(scale: Tween(begin: 0.92, end: 1.0).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)), child: child),
           )),
           child: ClipRRect(
             borderRadius: radius,

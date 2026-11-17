@@ -319,6 +319,44 @@ class GroupChange {
 /// The timers disappearing messages offer, as Signal's and Telegram's apps do: seconds and their words.
 const disappearingTimers = <(int, String)>[(0, 'Off'), (30, '30 seconds'), (300, '5 minutes'), (3600, '1 hour'), (28800, '8 hours'), (86400, '1 day'), (604800, '1 week'), (2419200, '4 weeks')];
 
+/// Whether someone is on a network now, or when they last were (Matt, 2026-11-17: "activity presence sensing for friends
+/// and conacts on telegram and signal to be able to tell if a friend is online on a given plaform anywhere the users
+/// avatar is shown"). Telegram says so; Signal keeps no such thing.
+@immutable
+class InboxPresence {
+  const InboxPresence({required this.network, this.online = false, this.lastSeen, this.rough});
+
+  /// What the network calls itself: "Telegram".
+  final String network;
+  final bool online;
+
+  /// When they were last on, where the network says.
+  final DateTime? lastSeen;
+
+  /// Where they keep the time to themselves: "recently", "within a week", "within a month".
+  final String? rough;
+
+  /// "online", "last seen 5 min ago", "last seen recently"; null where nothing is known.
+  String? words({DateTime? now}) {
+    if (online) return 'online';
+    final seen = lastSeen;
+    if (seen != null) {
+      final ago = (now ?? DateTime.now()).difference(seen);
+      if (ago.inMinutes < 1) return 'last seen just now';
+      if (ago.inMinutes < 60) return 'last seen ${ago.inMinutes} min ago';
+      if (ago.inHours < 24) return 'last seen ${ago.inHours} h ago';
+      if (ago.inDays < 7) return 'last seen ${ago.inDays} d ago';
+      return 'last seen a long time ago';
+    }
+    return rough == null ? null : 'last seen $rough';
+  }
+}
+
+/// Told when someone's presence changes, apart from a network's other changes: an avatar listens to this alone.
+class PresenceChanges extends ChangeNotifier {
+  void changed() => notifyListeners();
+}
+
 abstract class InboxNetwork extends ChangeNotifier {
   String get id;
   String get name;
@@ -458,6 +496,16 @@ abstract class InboxNetwork extends ChangeNotifier {
   /// Sends [text] to [chatId] as a reply to the message [messageId].
   Future<void> reply(String chatId, String messageId, String text) => send(chatId, text);
 
+  /// Someone's presence on this network, by the network's id for them or for a chat with them alone; null where it
+  /// keeps none, or knows none of them.
+  InboxPresence? presenceOf(String id) => null;
+
+  /// Someone's presence by their phone number (digits only), for a conversation of texts with them; null as above.
+  InboxPresence? presenceOfNumber(String digits) => null;
+
+  /// Told whenever someone's presence changes.
+  final PresenceChanges presenceChanges = PresenceChanges();
+
   /// The group [chatId] in full, for its drawer; null where the network has no such thing or it is not a group.
   Future<GroupDetails?> groupDetails(String chatId) async => null;
 
@@ -496,6 +544,29 @@ class Inbox {
       if (n.id == id) return n;
     }
     return null;
+  }
+
+  /// Told whenever anyone's presence changes on any network.
+  Listenable get presenceChanges => Listenable.merge([for (final n in networks) n.presenceChanges]);
+
+  /// The presence of whoever [address] names: `<network>:<id>` (a chat or person on that network), or a phone number,
+  /// looked for on every network signed in. Online anywhere wins; else the latest seen.
+  InboxPresence? presenceOfAddress(String address) {
+    final colon = address.indexOf(':');
+    if (colon > 0) {
+      final n = named(address.substring(0, colon));
+      if (n != null) return n.state == InboxState.ready ? n.presenceOf(address.substring(colon + 1)) : null;
+    }
+    final digits = address.replaceAll(RegExp(r'\D'), '');
+    if (digits.length < 7) return null;
+    InboxPresence? best;
+    for (final n in ready) {
+      final p = n.presenceOfNumber(digits);
+      if (p == null) continue;
+      if (p.online) return p;
+      if (best == null || (p.lastSeen != null && (best.lastSeen == null || p.lastSeen!.isAfter(best.lastSeen!)))) best = p;
+    }
+    return best;
   }
 
   /// The networks signed in, whose chats the list shows.

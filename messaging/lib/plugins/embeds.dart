@@ -226,6 +226,20 @@ class EmbedsPlugin extends GhostPlugin {
   @override
   LucideIcon get icon => Lucide.link;
 
+  // Its card and page on the Plugins page (Matt, 2026-11-17: "redo how the plugins look with their own dedicated plugins page
+  // with a marketplace like look how ghostmd has").
+  @override
+  PluginShelf get shelf => PluginShelf.messages;
+
+  @override
+  String get tagline => 'A link in a message shown as a card, with its picture and title.';
+
+  @override
+  List<String> get adds => const ['A card under a message with a link: its picture, its title and who made it'];
+
+  @override
+  List<PluginReach> get reaches => const [PluginReach(Lucide.globe, 'The site a link goes to', 'Asked what the link is, given the link and nothing else. What it answers is kept while the app is open.')];
+
   @override
   List<SlotFill> get slots => [
         Slots.underMessage.fill((context, place, prefs) {
@@ -236,7 +250,8 @@ class EmbedsPlugin extends GhostPlugin {
 
   @override
   PluginSettingsPage? get settingsPage => PluginSettingsPage(
-        hue: 'red',
+        // Magenta, its own: it wore red with the Spam filter, and on the Plugins page the two tiles read as one.
+        hue: 'magenta',
         intro: 'Links in messages shown as cards, with their picture and title.',
         summary: (prefs) => prefs.flag('others') ? 'Every link' : 'Known services only',
       );

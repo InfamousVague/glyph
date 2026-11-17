@@ -78,6 +78,13 @@ object Desk : DeskHost {
     private val lists = Executors.newSingleThreadExecutor()
     private val sender = Executors.newSingleThreadExecutor()
     private val teller = Executors.newSingleThreadExecutor()
+
+    /**
+     * A computer's translations (Translate.kt) on a thread of their own, as the screen's are (MainActivity): one can take
+     * the phone up to about 25 s (naming the language, looking for its models, translating), and a computer opening a
+     * conversation in another language asks once a bubble, so on [io] they held up its messages, reads and drafts.
+     */
+    private val translating = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
     private var seenSaved = 0L
 
@@ -415,6 +422,7 @@ object Desk : DeskHost {
             "photo", "part" -> pictures.execute(work)
             "conversations", "conversationsPage", "archivedCount" -> lists.execute(work)
             "send" -> sender.execute(work)
+            "translate" -> translating.execute(work)
             else -> io.execute(work)
         }
     }
@@ -471,6 +479,8 @@ object Desk : DeskHost {
         override fun voice(what: Map<String, Any?>) = DartAsk.ask("voice", what, seconds = 10)
         // The phone's Telegram approving its computer's sign-in (lib/inbox/telegram.dart answerComputer).
         override fun telegram(what: Map<String, Any?>) = DartAsk.ask("telegram", what, seconds = 30)
+        // Translation, answered by the phone itself (Translate.kt), so it works with the app's screen closed.
+        override fun translate(what: Map<String, Any?>) = Translate.call(context, what["op"] as? String ?: "text", what)
 
         // --- what the phone's screens do, done for a computer too -----------------------------------------------------
 

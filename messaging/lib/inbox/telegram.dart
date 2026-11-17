@@ -440,6 +440,9 @@ class Telegram extends InboxNetwork {
       case 'updateUser':
         final u = m['user'] as Map;
         _people[(u['id'] as num).toInt()] = u;
+        _setStatus((u['id'] as num).toInt(), u['status'] as Map?);
+        final phone = '${u['phone_number'] ?? ''}'.replaceAll(RegExp(r'\D'), '');
+        if (phone.length >= 7) _byNumber[phone.length > 10 ? phone.substring(phone.length - 10) : phone] = (u['id'] as num).toInt();
         // Added to or taken out of this account's contacts, in Telegram or here.
         if (u['is_contact'] == true) {
           if (_contactIds.add((u['id'] as num).toInt()) && _state == InboxState.ready) notifyListeners();
@@ -481,6 +484,8 @@ class Telegram extends InboxNetwork {
         _rebuild();
       case 'updateChatReadInbox':
         _patch(m, {'unread_count': m['unread_count']});
+      case 'updateUserStatus':
+        _setStatus((m['user_id'] as num).toInt(), m['status'] as Map?);
       case 'updateNewMessage':
         final msg = (m['message'] as Map).cast<String, Object?>();
         _add('${msg['chat_id']}', [_message(msg)]);
@@ -708,6 +713,33 @@ class Telegram extends InboxNetwork {
         replyText: x.replyText,
         replySender: x.replySender,
       );
+
+  /// Each person's status as Telegram last said it (userStatusOnline and the rest).
+  final Map<int, Map> _statuses = {};
+
+  void _setStatus(int user, Map? status) {
+    if (status == null) return;
+    final was = _statuses[user];
+    _statuses[user] = status;
+    if (was == null || was['@type'] != status['@type'] || was['was_online'] != status['was_online']) presenceChanges.changed();
+  }
+
+  /// A private chat's id is its person's own (TDLib): either names them.
+  @override
+  InboxPresence? presenceOf(String id) {
+    final user = int.tryParse(id);
+    if (user == null || user <= 0 || _bots.contains(user)) return null;
+    return telegramPresence(_statuses[user]);
+  }
+
+  /// People by their phone number's last ten digits, for an avatar of texts to find their Telegram presence at once.
+  final Map<String, int> _byNumber = {};
+
+  @override
+  InboxPresence? presenceOfNumber(String digits) {
+    final user = _byNumber[digits.length > 10 ? digits.substring(digits.length - 10) : digits];
+    return user == null ? null : presenceOf('$user');
+  }
 
   @override
   bool get canReact => true;
@@ -1238,4 +1270,25 @@ List<InboxReaction> telegramReactions(Map? interaction) {
       if (((r as Map)['type'] as Map?)?['@type'] == 'reactionTypeEmoji')
         InboxReaction(emoji: '${(r['type'] as Map)['emoji']}', count: (r['total_count'] as num?)?.toInt() ?? 1, mine: r['is_chosen'] == true),
   ];
+}
+
+/// A person's status as TDLib gives it, as presence: online until it says otherwise, offline with when, or the rough
+/// words of someone who keeps the time to themselves. Null for none (an empty status, a bot).
+InboxPresence? telegramPresence(Map? status, {DateTime? now}) {
+  switch (status?['@type']) {
+    case 'userStatusOnline':
+      final until = (status!['expires'] as num?)?.toInt();
+      final online = until == null || DateTime.fromMillisecondsSinceEpoch(until * 1000).isAfter(now ?? DateTime.now());
+      return InboxPresence(network: 'Telegram', online: online, lastSeen: online ? null : DateTime.fromMillisecondsSinceEpoch(until * 1000));
+    case 'userStatusOffline':
+      final at = (status!['was_online'] as num?)?.toInt();
+      return InboxPresence(network: 'Telegram', lastSeen: at == null ? null : DateTime.fromMillisecondsSinceEpoch(at * 1000));
+    case 'userStatusRecently':
+      return const InboxPresence(network: 'Telegram', rough: 'recently');
+    case 'userStatusLastWeek':
+      return const InboxPresence(network: 'Telegram', rough: 'within a week');
+    case 'userStatusLastMonth':
+      return const InboxPresence(network: 'Telegram', rough: 'within a month');
+  }
+  return null;
 }

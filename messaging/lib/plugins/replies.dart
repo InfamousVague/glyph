@@ -97,6 +97,20 @@ class RepliesPlugin extends GhostPlugin {
   @override
   LucideIcon get icon => LucideMore.reply;
 
+  // Its card and page on the Plugins page (Matt, 2026-11-17: "redo how the plugins look with their own dedicated plugins page
+  // with a marketplace like look how ghostmd has").
+  @override
+  PluginShelf get shelf => PluginShelf.messages;
+
+  @override
+  String get tagline => 'Replies to choose from, and reminders to follow up.';
+
+  @override
+  List<String> get adds => const ['Three short replies over the composer, under a text that waits for an answer', 'Remind me, in a message\'s menu'];
+
+  @override
+  List<PluginReach> get reaches => const [PluginReach(Lucide.messageSquare, 'The words of the conversation on the screen', 'Worked out on this phone. Nothing is sent anywhere.')];
+
   DateTime _now() => (now ?? DateTime.now)();
 
   static Future<void> _remind(PluginHost host, int thread, String who, String words, DateTime at, String when) async {
