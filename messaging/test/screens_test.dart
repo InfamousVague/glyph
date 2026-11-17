@@ -1910,7 +1910,7 @@ void main() {
       }
       expect(shown(), 'messages');
       expect(tester.widget<NavPill>(find.byType(NavPill)).items.firstWhere((i) => i.id == 'archive').count, 1);
-      expect(icon('New message'), findsNothing, reason: 'the header holds nothing the pill does');
+      expect(icon('New'), findsNothing, reason: 'the header holds nothing the pill does');
       expect(tester.getTopRight(find.byType(ConversationsScreen)).dx, side);
       // A conversation opens beside the list, which stays, with no way back drawn: there is nowhere to go back to.
       await tester.tap(find.text('Maya Chen'));

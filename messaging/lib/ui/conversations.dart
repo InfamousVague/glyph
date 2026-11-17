@@ -1132,7 +1132,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               child: MarkAllRead(unread: _unreadTexts(_section).length + _unreadChats(_section).length, onPress: () => _markAllRead(_section)),
             ),
           // Shown alone, with no frame and so no pill: the two it would hold.
-          if (!framed) IconTap(icon: Lucide.messageSquarePlus, label: 'New message', onPressed: _compose),
+          // The same plain plus as the pill's, that says New (Matt, 2026-11-17).
+          if (!framed) IconTap(icon: Lucide.plus, label: 'New', onPressed: _compose),
           if (!framed) IconTap(icon: Lucide.settings, label: 'Settings', onPressed: _settings),
         ],
       ],
