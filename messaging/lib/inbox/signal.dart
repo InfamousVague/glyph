@@ -357,6 +357,8 @@ class Signal extends InboxNetwork {
         if (_whoAt == null || now.difference(_whoAt!) > const Duration(minutes: 1)) unawaited(_who());
       case 'message':
         _message(m);
+      case 'reaction':
+        _reaction(m);
       case 'receipt':
         final kind = m['kind'] == 'read' ? 'read' : 'delivered';
         final times = {for (final t in (m['ts'] as List? ?? const [])) '$t'};
@@ -394,6 +396,7 @@ class Signal extends InboxNetwork {
       'text': m['text'] ?? '',
       'media': m['media'] ?? const [],
       'state': m['mine'] == true ? 'sent' : 'received',
+      if (m['quote'] is Map) 'quote': m['quote'],
     });
     list.sort((a, b) => (a['ts'] as int).compareTo(b['ts'] as int));
     final fresh = !_chats.containsKey(chat);
@@ -401,6 +404,74 @@ class Signal extends InboxNetwork {
     if (fresh && !group && (_names[chat]?.isEmpty ?? true)) unawaited(_nameChats());
     c['last'] = ts;
     if (m['mine'] != true) c['unread'] = ((c['unread'] as int?) ?? 0) + 1;
+    _save();
+    notifyListeners();
+  }
+
+  /// A reaction someone put on a message, or took off (sidecar/signal's reaction event): one reaction a person, as
+  /// Signal has it, kept on the message as who gave which.
+  void _reaction(Map<String, Object?> m) {
+    final list = _messages['${m['chat']}'];
+    final target = (m['target_ts'] as num?)?.toInt();
+    if (list == null || target == null) return;
+    final msg = list.where((x) => x['ts'] == target).firstOrNull;
+    if (msg == null) return;
+    final from = '${m['from'] ?? ''}';
+    final reactions = Map<String, Object?>.from(msg['reactions'] as Map? ?? const {});
+    if (m['remove'] == true) {
+      if (reactions[from] == m['emoji']) reactions.remove(from);
+    } else {
+      reactions[from] = '${m['emoji']}';
+    }
+    msg['reactions'] = reactions;
+    _save();
+    notifyListeners();
+  }
+
+  /// Who wrote the message [ts] of [chatId], as Signal names them: their ACI, or this account's own for yours.
+  String? _authorOf(String chatId, int ts) {
+    final msg = (_messages[chatId] ?? const []).where((x) => x['ts'] == ts).firstOrNull;
+    if (msg == null) return null;
+    return msg['mine'] == true ? _aci : '${msg['from']}';
+  }
+
+  @override
+  bool get canReact => true;
+
+  @override
+  Future<void> react(String chatId, String messageId, String emoji, {bool remove = false}) async {
+    if (_state != InboxState.ready) throw StateError('Signal isn\'t connected');
+    final ts = int.parse(messageId);
+    final author = _authorOf(chatId, ts);
+    if (author == null || author.isEmpty) throw StateError('That message isn\'t one Signal can react to');
+    await _ask('react', {'to': chatId, 'author': author, 'ts': ts, 'emoji': emoji, 'remove': remove});
+    _reaction({'chat': chatId, 'target_ts': ts, 'from': _aci ?? '', 'emoji': emoji, 'remove': remove});
+  }
+
+  @override
+  bool get canReply => true;
+
+  @override
+  Future<void> reply(String chatId, String messageId, String text) async {
+    text = text.trim();
+    if (text.isEmpty || _state != InboxState.ready) return;
+    final ts = int.parse(messageId);
+    final author = _authorOf(chatId, ts) ?? '';
+    final quoted = (_messages[chatId] ?? const []).where((x) => x['ts'] == ts).firstOrNull;
+    final quote = {'ts': ts, 'author': author, 'text': '${quoted?['text'] ?? ''}'};
+    final local = <String, Object?>{'ts': DateTime.now().millisecondsSinceEpoch, 'from': '', 'mine': true, 'text': text, 'media': const [], 'state': 'sending', 'quote': quote};
+    _messages.putIfAbsent(chatId, () => []).add(local);
+    _chats.putIfAbsent(chatId, () => {'unread': 0})['last'] = local['ts'];
+    notifyListeners();
+    try {
+      final r = (await _ask('send', {'to': chatId, 'text': text, 'quote': {'ts': ts, 'author': author}}) as Map?) ?? const {};
+      local['ts'] = (r['ts'] as num?)?.toInt() ?? local['ts'];
+      local['state'] = 'sent';
+      _error = null;
+    } catch (e) {
+      local['state'] = 'failed';
+      _error = '$e';
+    }
     _save();
     notifyListeners();
   }
@@ -459,8 +530,18 @@ class Signal extends InboxNetwork {
             sender: m['mine'] == true ? '' : (_names['${m['from']}'] ?? ''),
             state: switch (m['state']) { 'sending' => 'sending', 'failed' => 'failed', _ => 'sent' },
             media: [for (final a in (m['media'] as List? ?? const [])) _media(a as Map)],
+            reactions: signalReactions(m['reactions'] as Map?, me: _aci),
+            replyTo: (m['quote'] as Map?)?['ts']?.toString(),
+            replyText: (m['quote'] as Map?)?['text'] as String?,
+            replySender: _quoteName((m['quote'] as Map?)?['author'] as String?),
           ),
       ];
+
+  String? _quoteName(String? aci) {
+    if (aci == null || aci.isEmpty) return null;
+    if (aci == _aci) return 'You';
+    return _names[aci] ?? _numbers[aci] ?? _contacts[aci];
+  }
 
   InboxMedia _media(Map a) {
     final key = jsonEncode(a['pointer']).hashCode & 0x3fffffff;
@@ -820,4 +901,20 @@ GroupDetails signalGroupDetails(Map m, {Map<String, String> names = const {}}) {
     canSetAdmins: admin,
     canChangeRules: admin,
   );
+}
+
+/// A message's reactions as Signal keeps them, one a person (who → emoji), as kinds: each emoji, how many, and whether
+/// [me] (this account's ACI, or '' for one put on here before Signal said who) is among them. In the order first given.
+List<InboxReaction> signalReactions(Map? byWho, {String? me}) {
+  if (byWho == null || byWho.isEmpty) return const [];
+  final order = <String>[];
+  final count = <String, int>{};
+  final mine = <String>{};
+  byWho.forEach((who, emoji) {
+    final e = '$emoji';
+    if (!count.containsKey(e)) order.add(e);
+    count[e] = (count[e] ?? 0) + 1;
+    if (who == '' || who == me) mine.add(e);
+  });
+  return [for (final e in order) InboxReaction(emoji: e, count: count[e]!, mine: mine.contains(e))];
 }

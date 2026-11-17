@@ -9,6 +9,7 @@ import 'package:glacier/glacier.dart';
 import '../app_state.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
+import '../art/lucide_more.dart';
 import '../backgrounds.dart';
 import '../inbox/bluesky.dart';
 import '../inbox/alerts.dart';
@@ -256,7 +257,18 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
     HapticFeedback.mediumImpact();
     // Deleted at once, nothing asked, with a puff (Matt, 2026-11-15: "Don't ask for confirmation when deleting a message
     // and show a poof animation when one is deleted").
-    showChoices(context, choices: [
+    final mine = {for (final r in m.reactions) if (r.mine) r.emoji};
+    showChoices(context, header: _n.canReact && m.state != 'sending'
+        ? InboxReactionRow(
+            choices: _n.reactionChoices,
+            mine: mine,
+            onPick: (emoji) {
+              Navigator.of(context, rootNavigator: true).pop();
+              _react(m, emoji);
+            },
+          )
+        : null, choices: [
+      if (_n.canReply && m.state != 'sending') Choice('Reply', LucideMore.reply, () => _startReply(m)),
       if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
       if (_n.canDeleteForEveryone(widget.chatId, m)) Choice('Delete for everyone', Lucide.trash2, () => setState(() => _poofing[m.id] = true), danger: true),
       Choice(m.mine && _n.canDeleteForEveryone(widget.chatId, m) ? 'Delete for me' : 'Delete', Lucide.trash2, () => setState(() => _poofing[m.id] = false), danger: true),
@@ -298,8 +310,27 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
     super.dispose();
   }
 
+  /// The message being answered, while a reply is being written (Matt, 2026-11-17: "Id like to be able to reply to
+  /// messages as well as react to telegram and signal messages").
+  InboxMessage? _replying;
+
+  Future<void> _react(InboxMessage m, String emoji) async {
+    final remove = m.reactions.any((r) => r.mine && r.emoji == emoji);
+    try {
+      await _n.react(widget.chatId, m.id, emoji, remove: remove);
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t react: ${'$e'.replaceFirst(RegExp(r'^(Bad state|StateError|Unsupported operation): '), '')}', tone: GlacierToastTone.danger);
+    }
+  }
+
+  void _startReply(InboxMessage m) {
+    setState(() => _replying = m);
+    _focus.requestFocus();
+  }
+
   Future<void> _send() async {
     final text = _text.text;
+    final replying = _replying;
     if (_files.isNotEmpty) {
       if (_sendingFiles) return;
       final files = List<String>.of(_files);
@@ -317,6 +348,11 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
     }
     if (text.trim().isEmpty) return;
     _text.clear();
+    if (replying != null) {
+      setState(() => _replying = null);
+      await _n.reply(widget.chatId, replying.id, text);
+      return;
+    }
     await _n.send(widget.chatId, text);
   }
 
@@ -399,6 +435,12 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                   return VoiceRecorder(limit: _recording!, onDiscard: _discardVoice, onSend: _sendVoice);
                 }
                 return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  if (_replying != null)
+                    InboxReplyBar(
+                      to: _replying!.mine ? 'yourself' : (_replying!.sender.isNotEmpty ? _replying!.sender : (chat?.title ?? _n.name)),
+                      text: _replying!.text.isNotEmpty ? _replying!.text : (_replying!.media.isNotEmpty ? 'A picture or file' : ''),
+                      onClose: () => setState(() => _replying = null),
+                    ),
                   if (_files.isNotEmpty) _FilesStrip(files: _files, onRemove: (f) => setState(() => _files.remove(f))),
                   ComposerBox(
                   typing: _text.text.isNotEmpty,
@@ -482,7 +524,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                         onDone: () => _n.deleteMessage(widget.chatId, m.id, forEveryone: _poofing.remove(m.id) ?? false),
                         child: GestureDetector(
                         onLongPress: () => _messageMenu(m),
-                        child: _InboxBubble(key: ValueKey(m.id), network: _n, message: m, group: chat?.group ?? false, first: firstOfRun, last: lastOfRun, mineBg: mineBg, mineInk: mineInk),
+                        child: _InboxBubble(key: ValueKey(m.id), network: _n, message: m, group: chat?.group ?? false, first: firstOfRun, last: lastOfRun, mineBg: mineBg, mineInk: mineInk, onReactionsTap: () => _messageMenu(m)),
                       )),
                     ]);
                   },
@@ -562,7 +604,10 @@ List<Widget> _linkCards(BuildContext context, String text) {
 }
 
 class _InboxBubble extends StatelessWidget {
-  const _InboxBubble({super.key, required this.network, required this.message, required this.group, required this.first, required this.last, required this.mineBg, required this.mineInk});
+  const _InboxBubble({super.key, required this.network, required this.message, required this.group, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onReactionsTap});
+
+  /// A press on its reactions: the message's menu, to add one or take yours off.
+  final VoidCallback? onReactionsTap;
   final InboxNetwork network;
   final InboxMessage message;
   final bool group, first, last;
@@ -585,6 +630,8 @@ class _InboxBubble extends StatelessWidget {
             // In the app's primary colour, as over a group of texts' bubbles (lib/ui/thread.dart).
             child: Text(m.sender, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent'))),
           ),
+        // Its reactions over the bubble's lower edge, as under a text (lib/ui/thread.dart).
+        _withReactions(context, m, onReactionsTap,
         ConstrainedBox(
           constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.75),
           child: Opacity(
@@ -603,6 +650,8 @@ class _InboxBubble extends StatelessWidget {
                 ),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                // The message it answers, quoted at its head.
+                if (m.replyTo != null) InboxQuote(sender: m.replySender, text: m.replyText, ink: m.mine ? mineInk : t.color('app-ink')),
                 for (final x in m.media) Padding(padding: EdgeInsets.only(bottom: m.text.isEmpty ? 0 : t.space(2)), child: InboxMediaView(network: network, media: x, ink: m.mine ? mineInk : t.color('app-ink'))),
                 // Links underlined and opened by a press, as in a conversation of texts (Matt, 2026-11-16: "links are
                 // not expanding or clickable on telegram and signal chats").
@@ -610,7 +659,7 @@ class _InboxBubble extends StatelessWidget {
               ]),
             ),
           ),
-        ),
+        )),
         // And a card for each, while Link previews is on: the plugin's own, as under a text.
         ..._linkCards(context, m.text),
         if (last || failed)
@@ -1239,4 +1288,123 @@ class InboxMediaView extends StatelessWidget {
 
   static String _clock(int s) => '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
   static String _bytes(int b) => b >= 1 << 20 ? '${(b / (1 << 20)).toStringAsFixed(1)} MB' : '${(b / 1024).ceil()} KB';
+}
+
+/// [bubble] with [m]'s reactions over its lower edge, on the side away from the screen's edge: the emoji alone, how many
+/// where more than one gave it, and yours marked by a dot of the accent. As a text's (lib/ui/thread.dart).
+Widget _withReactions(BuildContext context, InboxMessage m, VoidCallback? onTap, Widget bubble) {
+  if (m.reactions.isEmpty) return bubble;
+  final t = context.tokens;
+  final total = m.reactions.fold<int>(0, (n, r) => n + r.count);
+  return Stack(clipBehavior: Clip.none, children: [
+    Padding(padding: EdgeInsets.only(bottom: t.lenOf('0.95rem')), child: bubble),
+    Positioned(
+      bottom: 0,
+      left: m.mine ? t.space(2) : null,
+      right: m.mine ? null : t.space(2),
+      child: GlacierPressable(
+        onPressed: onTap,
+        semanticLabel: '$total reaction${total == 1 ? '' : 's'}: ${m.reactions.map((r) => r.emoji).join(' ')}',
+        builder: (context, state) => AnimatedScale(
+          scale: state.pressed ? 1.15 : 1,
+          duration: const Duration(milliseconds: 120),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(m.reactions.take(4).map((r) => r.emoji).join(' '), style: pageText(t, t.lenOf('1.5rem'), height: 1.15)),
+            if (total > m.reactions.length) ...[
+              SizedBox(width: t.space(1)),
+              Text('$total', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-2'))),
+            ],
+          ]),
+        ),
+      ),
+    ),
+  ]);
+}
+
+/// The reactions offered over a network message's menu; yours ringed, and a press on one takes it off.
+class InboxReactionRow extends StatelessWidget {
+  const InboxReactionRow({super.key, required this.choices, required this.mine, required this.onPick});
+  final List<String> choices;
+  final Set<String> mine;
+  final ValueChanged<String> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final side = t.lenOf('2.75rem');
+    return Padding(
+      padding: EdgeInsets.fromLTRB(t.space(3), t.space(3), t.space(3), t.space(1)),
+      child: Wrap(spacing: t.space(1), runSpacing: t.space(1), alignment: WrapAlignment.center, children: [
+        for (final e in choices)
+          GlacierPressable(
+            onPressed: () => onPick(e),
+            semanticLabel: mine.contains(e) ? 'Take off $e' : 'React $e',
+            builder: (context, state) => Container(
+              width: side,
+              height: side,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: state.pressed ? t.color('app-paper-3') : null,
+                border: mine.contains(e) ? Border.all(color: t.color('app-accent'), width: 2) : null,
+              ),
+              child: Text(e, style: pageText(t, t.lenOf('1.45rem'), height: 1.1)),
+            ),
+          ),
+      ]),
+    );
+  }
+}
+
+/// The message a reply answers, at the head of its bubble: who said it and the start of what they said.
+class InboxQuote extends StatelessWidget {
+  const InboxQuote({super.key, this.sender, this.text, required this.ink});
+  final String? sender;
+  final String? text;
+  final Color ink;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Container(
+      margin: EdgeInsets.only(bottom: t.space(2)),
+      padding: EdgeInsets.fromLTRB(t.space(2), t.space(1), t.space(2), t.space(1)),
+      decoration: BoxDecoration(
+        color: ink.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(t.lenOf('0.5rem')),
+        border: Border(left: BorderSide(color: ink.withValues(alpha: 0.5), width: 3)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        if (sender != null && sender!.isNotEmpty) Text(sender!, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: ink)),
+        Text((text ?? '').trim().isEmpty ? 'A message' : text!.trim(), maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: ink.withValues(alpha: 0.8))),
+      ]),
+    );
+  }
+}
+
+/// Over the message box while a reply is written: whom it answers and what, and a way to stop replying.
+class InboxReplyBar extends StatelessWidget {
+  const InboxReplyBar({super.key, required this.to, required this.text, required this.onClose});
+  final String to;
+  final String text;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Padding(
+      padding: EdgeInsets.only(bottom: t.space(2)),
+      child: Row(children: [
+        AppIcon(LucideMore.reply, size: 16, color: t.color('app-accent')),
+        SizedBox(width: t.space(2)),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text('Replying to $to', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent'))),
+            if (text.isNotEmpty) Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+          ]),
+        ),
+        IconTap(icon: Lucide.x, label: 'Stop replying', size: 18, onPressed: onClose),
+      ]),
+    );
+  }
 }
