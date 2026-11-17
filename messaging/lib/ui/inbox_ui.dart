@@ -407,7 +407,14 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
             Expanded(
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(chat?.title ?? _n.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold')),
-                Text(chat?.group == true ? '${_n.name} group' : _n.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+                // One to one: whether they are on now, or when they were, where the network says (Telegram does).
+                ListenableBuilder(
+                  listenable: _n.presenceChanges,
+                  builder: (context, _) {
+                    final seen = chat?.group == true ? null : _n.presenceOf(widget.chatId)?.words();
+                    return Text(chat?.group == true ? '${_n.name} group' : (seen == null ? _n.name : '${_n.name} · $seen'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3')));
+                  },
+                ),
               ]),
             ),
           ])),
