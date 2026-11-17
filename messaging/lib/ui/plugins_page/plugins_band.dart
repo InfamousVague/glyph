@@ -43,10 +43,8 @@ class PluginsBand extends StatelessWidget {
     final stops = [for (final hue in bandHues) PluginHues.of(t, hue)];
     final colours = [for (final c in stops) c.start];
     final first = stops.first;
-    // The band's line and count are small words: 4.5:1 on every colour the band runs through, its bright end too. Read
-    // against its start alone, Phosphor's band was pale green on mid green; now it is the dark paper, as its featured
-    // cards are.
-    final on = onColour(first.light, first.dark, colours, least: 4.5);
+    // White on the band in every look, as on the cards (Matt, 2026-11-17: "make the text on the cards white not black").
+    const on = Color(0xFFFFFFFF);
     final radius = pluginCorner(t, t.radius('lg') * (compact ? 1.2 : 1.6));
     final height = compact ? t.lenOf('5.5rem') : (wide ? t.lenOf('12rem') : t.lenOf('11rem'));
     final tiles = plugins.take(compact ? 3 : (wide ? 7 : 4)).toList();

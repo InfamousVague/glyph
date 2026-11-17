@@ -40,8 +40,8 @@ class PluginHues {
     return PluginHues._(
       start: start,
       end: end,
-      // Read against the whole of the colour, its bright end too, where the words and the tags can fall.
-      on: onColour(light, dark, [start, Color.lerp(start, end, 0.55)!, end], least: 3),
+      // White on the colour, in every look (Matt, 2026-11-17: "make the text on the cards white not black").
+      on: const Color(0xFFFFFFFF),
       accent: hue,
       wash: t.colorOf('color-mix(in srgb, var(--hue, var(--app-ink)) 14%, transparent)'),
       light: light,
