@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/ui/split_handle.dart';
 import 'package:ghost_messaging/net/packet.dart';
 import 'package:ghost_messaging/friends/buddies.dart';
 import 'package:ghost_messaging/me/me.dart';
@@ -1905,6 +1906,26 @@ void main() {
       // The sidebar is at least wide enough for the toggle and the filter ("the sidebar needs to be at least wide
       // enough to show the segmented toggles and the filter").
       expect(side, greaterThanOrEqualTo(320));
+      // The line between them is dragged to make the list wider, kept, and put back with a double tap (Matt,
+      // 2026-11-17: "add a handle to resize the sidebar and the main chat page ... like claude has").
+      if (!dark) {
+        final split = find.byKey(const ValueKey('shell-split'));
+        expect(split, findsOneWidget);
+        await tester.drag(split, const Offset(60, 0));
+        await tester.pump();
+        expect(tester.getRect(find.byKey(const ValueKey('shell-side'))).right, closeTo(side + 60, 1));
+        expect(PaneWidth.of(tester.widget<AppScope>(find.byType(AppScope)).state, 'list'), closeTo(side + 60, 1));
+        // No wider than leaves the pane 360.
+        await tester.drag(split, const Offset(400, 0));
+        await tester.pump();
+        expect(tester.getRect(find.byKey(const ValueKey('shell-side'))).right, closeTo(750 - 360, 1));
+        await tester.tap(split);
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.tap(split);
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(tester.getRect(find.byKey(const ValueKey('shell-side'))).right, side);
+        expect(PaneWidth.of(tester.widget<AppScope>(find.byType(AppScope)).state, 'list'), isNull);
+      }
       for (final id in ['new', 'messages', 'contacts', 'archive', 'settings']) {
         expect(ring(id), findsOneWidget, reason: 'the pill has $id');
       }

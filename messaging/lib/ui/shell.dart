@@ -1,3 +1,4 @@
+import 'split_handle.dart';
 import 'window_chrome.dart';
 import 'dart:async';
 
@@ -80,6 +81,15 @@ class AppShell extends StatefulWidget {
   /// be at least wide enough to show the segmented toggles and the filter").
   static double sideWidth(double width) => (width * 0.4).clamp(320.0, 380.0);
 
+  /// The list's width where the person has dragged it (lib/ui/split_handle.dart; Matt, 2026-11-17: "add a handle to
+  /// resize the sidebar and the main chat page ... like claude has"): from 260, so a narrow list is still a list, to
+  /// what leaves the pane 360, so a conversation is still readable beside it.
+  static double sideWidthAt(double width, double? dragged) {
+    if (dragged == null) return sideWidth(width);
+    final most = (width - 360.0).clamp(260.0, double.infinity);
+    return dragged.clamp(260.0, most);
+  }
+
   /// The shell this page is in, to open things with; null on a page shown with none (a test of one screen).
   static AppShellState? maybeOf(BuildContext context) => context.getInheritedWidgetOfExactType<_ShellScope>()?.shell;
 
@@ -138,6 +148,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// one across the page or inside something in it. Shrinks in the kit's fast duration, grows in its normal one, both
   /// easing out; at once under reduced motion. On a computer, as Ghost.md's desktop dock, it rests at the smaller size.
   /// 0 whole, 1 small.
+  /// The list's width as dragged, kept between runs (PaneWidth 'list'); null for the width it is made with.
+  double? _dragged;
+
   late final AnimationController _small = AnimationController(vsync: this, value: Sms.computer ? 1 : 0);
   late final Animation<double> _pillScale = _small.drive(Tween<double>(begin: 1, end: pillScrolledScale));
   double _smallGoal = Sms.computer ? 1 : 0;
@@ -534,7 +547,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     return LayoutBuilder(builder: (context, box) {
       final wide = box.maxWidth >= AppShell.wideAt;
       _wide = wide;
-      final side = wide ? AppShell.sideWidth(box.maxWidth) : box.maxWidth;
+      _dragged ??= PaneWidth.of(AppState.of(context), 'list');
+      final side = wide ? AppShell.sideWidthAt(box.maxWidth, _dragged) : box.maxWidth;
       // A wide phone has the pill stood up at its right, where the window is tall enough for it (not a small phone
       // on its side). The strip is as wide as the pill and its room, and clear of anything cut into the screen's edge.
       final edges = MediaQuery.paddingOf(context);
@@ -717,6 +731,25 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                   )),
                 )),
               ),
+              // The line between the list and the pane, dragged to make the list wider or narrower; double clicked,
+              // as it was made. Over both, so the pointer finds it on either side of the line.
+              if (wide)
+                Positioned(
+                  key: const ValueKey('shell-split'),
+                  left: side + (dialup ? _dialupGap / 2 : 0.5) - SplitHandle.widthOf(context) / 2,
+                  top: 0,
+                  bottom: 0,
+                  width: SplitHandle.widthOf(context),
+                  child: SplitHandle(
+                    label: 'Resize the list',
+                    onDrag: (dx) => setState(() => _dragged = AppShell.sideWidthAt(box.maxWidth, AppShell.sideWidthAt(box.maxWidth, _dragged) + dx)),
+                    onDone: () => PaneWidth.keep(AppState.of(context), 'list', _dragged),
+                    onReset: () {
+                      setState(() => _dragged = null);
+                      PaneWidth.keep(AppState.of(context), 'list', null);
+                    },
+                  ),
+                ),
               // A group calling (lib/voice): over everything, until joined or put away.
               const Positioned(left: 0, right: 0, top: 0, child: RingCard()),
             ]),
