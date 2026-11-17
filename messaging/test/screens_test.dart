@@ -1288,7 +1288,9 @@ void main() {
       expect(find.text('3 members'), findsOneWidget);
       expect(find.text('You made the group "Weekend crew"'), findsOneWidget);
       expect(find.text('Message'), findsOneWidget);
-      expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Add an attachment'), findsNothing);
+      // Words alone here, so Add an attachment is there but greyed out, where every conversation has it (Matt,
+      // 2026-11-17: "if it's not avilable on a given chat just disable the button but still show it").
+      expect(tester.widget<IconTap>(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Add an attachment')).onPressed, isNull);
       await tester.enterText(find.byType(EditableText).first, 'Hike on Saturday?');
       // Send slides in under the words as they are typed.
       await _settle(tester);

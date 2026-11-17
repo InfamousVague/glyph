@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeed
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../sms.dart' show Sms;
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
@@ -642,14 +643,30 @@ class _HangoutChatState extends State<HangoutChat> {
             child: Padding(
               // Laid out as every other conversation's foot is (Matt, 2026-11-15: "Use the same compose input on spaces
               // that we use for the rest of the app ... just make it appear like the bottom of all the compose windows look").
-              padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2) + widget.bottom + MediaQuery.paddingOf(context).bottom * (widget.bottom > 0 ? 1 : 0)),
+              // The screen's foot always, as a conversation of texts leaves it, and the call's dock on top where there is one.
+              padding: composerFootPadding(t, bottom: widget.bottom + MediaQuery.paddingOf(context).bottom),
               child: mayWrite
                   ? Builder(builder: (context) {
-                      final send = IconTap(icon: Lucide.arrowUp, label: 'Send', filled: true, size: 19, box: t.lenOf('2.25rem'), onPressed: _text.text.trim().isEmpty ? null : _send);
+                      // The same buttons in the same places as every other conversation (lib/ui/composer_box.dart): a
+                      // space's chat is words only, so Add an attachment, stickers and the microphone are greyed out.
+                      final buttons = composerButtons(
+                        t,
+                        hasSomething: _text.text.isNotEmpty,
+                        onAttach: null,
+                        onSticker: null,
+                        onRecord: null,
+                        onSend: _text.text.trim().isEmpty ? null : _send,
+                        emoji: Sms.remote,
+                        onEmoji: () {
+                          _focus.requestFocus();
+                          Sms.instance.emojiPanel().catchError((_) {});
+                        },
+                      );
                       return ComposerBox(
                         typing: _typing,
-                        ends: [send],
-                        below: [send],
+                        plus: buttons.plus,
+                        ends: buttons.ends,
+                        below: buttons.below,
                         field: ComposerField(controller: _text, focusNode: _focus, hint: 'Message ${room.channel.name}', onSubmitted: _send, enterSends: AppState.of(context).enterSends),
                       );
                     })

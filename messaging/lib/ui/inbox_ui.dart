@@ -3,7 +3,7 @@ import 'dart:io';
 
 
 
-import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeedback, TextCapitalization, TextInputAction, TextInputType;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeedback, TextCapitalization, TextInputAction, TextInputType, rootBundle;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -36,6 +36,7 @@ import '../plugins/registry.dart' show AppStore, PluginRegistry;
 import 'common.dart';
 import 'composer_box.dart';
 import 'poof.dart';
+import 'sticker_picker.dart' show pickSticker;
 import 'reaction_stickers.dart';
 import 'video_screen.dart';
 import 'voice.dart' show VoiceRecorder, voiceProblem;
@@ -216,6 +217,23 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
   final List<String> _files = [];
   int? _recording;
   bool _sendingFiles = false;
+
+  /// A sticker, sent as the picture it is (Matt, 2026-11-17: "Make sure we support the same functionality for each of
+  /// them as well"): the app's own sticker, copied out and sent as a file, as Telegram and Signal take any picture.
+  Future<void> _sticker() async {
+    final asset = await pickSticker(context);
+    if (asset == null || !mounted) return;
+    HapticFeedback.lightImpact();
+    try {
+      final data = await rootBundle.load(asset);
+      final dir = await Directory.systemTemp.createTemp('ghost-sticker');
+      final file = File('${dir.path}/${asset.split('/').last}');
+      await file.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+      await _n.sendFiles(widget.chatId, [file.path]);
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t send the sticker: $e', tone: GlacierToastTone.danger);
+    }
+  }
 
   Future<void> _attach() async {
     final picked = await Sms.instance.pickFiles();
@@ -438,7 +456,8 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
             ),
           ])),
           footer: Padding(
-            padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2) + MediaQuery.paddingOf(context).bottom),
+            // The page (GhostPage's footer) leaves the screen's foot under it already, as a conversation of texts.
+            padding: composerFootPadding(t),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               if (_n.error != null)
                 Padding(
@@ -455,12 +474,26 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                 // layout as messages"): + at its start, the microphone while it is empty, Send once there is something.
                 final files = _n.canSendFiles;
                 final canSend = (_text.text.trim().isNotEmpty || _files.isNotEmpty) && !_sendingFiles;
-                final send = IconTap(icon: Lucide.arrowUp, label: 'Send', filled: true, size: 19, box: t.lenOf('2.25rem'), onPressed: canSend ? _send : null);
-                final mic = IconTap(icon: Lucide.mic, label: 'Record a voice message', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _record);
                 final voice = files && !Sms.remote;
                 if (_recording != null) {
                   return VoiceRecorder(limit: _recording!, onDiscard: _discardVoice, onSend: _sendVoice);
                 }
+                // The same buttons in the same places as every other conversation (lib/ui/composer_box.dart), each
+                // greyed out where this network can't do it.
+                final buttons = composerButtons(
+                  t,
+                  hasSomething: _text.text.isNotEmpty || _files.isNotEmpty,
+                  onAttach: files && _files.length < 10 ? _attach : null,
+                  onSticker: files && _files.isEmpty && !_sendingFiles ? _sticker : null,
+                  onRecord: voice && _files.isEmpty ? _record : null,
+                  onSend: canSend ? _send : null,
+                  emoji: Sms.remote,
+                  onEmoji: () {
+                    _focus.requestFocus();
+                    _keys();
+                    Sms.instance.emojiPanel().catchError((_) {});
+                  },
+                );
                 return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   if (_replying != null)
                     InboxReplyBar(
@@ -471,9 +504,9 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                   if (_files.isNotEmpty) _FilesStrip(files: _files, onRemove: (f) => setState(() => _files.remove(f))),
                   ComposerBox(
                   typing: _text.text.isNotEmpty,
-                  plus: files ? IconTap(icon: Lucide.plus, label: 'Add an attachment', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _files.length >= 10 ? null : _attach) : null,
-                  ends: [if (voice && _text.text.isEmpty && _files.isEmpty) mic else send],
-                  below: [if (voice) mic, send],
+                  plus: buttons.plus,
+                  ends: buttons.ends,
+                  below: buttons.below,
                   // A finger down and up close by, as a conversation of texts reads it (lib/ui/thread.dart): a tap
                   // gesture here loses to the field's own, so a press on a field with focus would ask for nothing.
                   field: Listener(

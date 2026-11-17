@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/ui/composer_box.dart';
 import 'package:ghost_messaging/accent.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/backgrounds.dart';
@@ -259,6 +260,29 @@ void main() {
         }
       });
     }
+
+    // Matt, 2026-11-17: "unify the compose layout between sms / rcs chats, telegram and signal chats as well as spaces
+    // chats, they should all have the same layout so there is no shift when switching between them ... if it's not
+    // avilable on a given chat just disable the button but still show it".
+    testWidgets('the composer and its buttons are in the same place in a text, a Telegram chat and a space', (tester) async {
+      _answerChannel();
+      Inbox.instance = Inbox.of([_telegram()]);
+      Voice.instance.own = [_space().channel];
+      Voice.instance.putHangout(_space());
+      final sheet = (await tester.runAsync(_loadSheet))!;
+      final at = <String, Map<String, Rect>>{};
+      for (final name in ['thread', 'inbox', 'space']) {
+        await shootLook(tester, sheet, Look.ghost, 'light', themeScreens.firstWhere((s) => s.name == name), write: false);
+        at[name] = {
+          'box': tester.getRect(find.byType(ComposerBox)),
+          for (final key in ['composer-plus', 'composer-stickers', 'composer-mic']) key: tester.getRect(find.byKey(ValueKey(key))),
+        };
+      }
+      for (final part in at['thread']!.keys) {
+        expect(at['inbox']![part], at['thread']![part], reason: '$part: Telegram as a text');
+        expect(at['space']![part], at['thread']![part], reason: '$part: a space as a text');
+      }
+    });
   });
 }
 

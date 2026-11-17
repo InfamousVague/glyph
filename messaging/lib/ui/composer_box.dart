@@ -6,6 +6,10 @@ import 'package:glacier/glacier.dart';
 import '../kit/settings_type.dart';
 import '../backgrounds.dart' show lookCorner, lookRim;
 import 'dialup/dialup.dart';
+import '../art/app_icon.dart' show LucideIcon;
+import '../art/lucide.g.dart';
+import '../art/lucide_more.dart';
+import 'common.dart' show IconTap;
 
 /// The box a message is written in, everywhere one is: a conversation of texts (lib/ui/thread.dart) and a chat on
 /// Telegram or Bluesky (lib/ui/inbox_ui.dart), so the two read and work the same (Matt, 2026-11-15: "Also use the
@@ -260,4 +264,49 @@ class _ComposerFieldState extends State<ComposerField> with WidgetsBindingObserv
       ),
     );
   }
+}
+
+/// The room round every conversation's composer, the same for texts, Telegram, Signal and a space's chat, so the box
+/// does not move when you go from one to another (Matt, 2026-11-17: "unify the compose layout between sms / rcs chats,
+/// telegram and signal chats as well as spaces chats, they should all have the same layout so there is no shift when
+/// switching between them"). [bottom] is what the page leaves under it (the screen's foot, where the page does not).
+EdgeInsets composerFootPadding(Tokens t, {double bottom = 0}) => EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(2), t.space(2) + bottom);
+
+/// The buttons of every conversation's composer, in the same places whatever the conversation is: Add an attachment at
+/// its start; emoji (on a computer), stickers and the microphone at its end while nothing is written, Send in the
+/// microphone's place once something is; and once words are written, the microphone, emoji and Send in the row under
+/// them. One a conversation can't do is still shown, greyed out ([VoidCallback] null), so nothing moves from one
+/// conversation to the next ("if it's not avilable on a given chat just disable the button but still show it so the
+/// layout doesn't shift"). [send] replaces Send where something else goes there (Save edit).
+({Widget plus, List<Widget> ends, List<Widget> below}) composerButtons(
+  Tokens t, {
+  required bool hasSomething,
+  required VoidCallback? onAttach,
+  required VoidCallback? onSticker,
+  required VoidCallback? onRecord,
+  required VoidCallback? onSend,
+  VoidCallback? onEmoji,
+  bool emoji = false,
+  Widget? send,
+}) {
+  final box = t.lenOf('2.25rem');
+  final ink = t.color('app-ink-2');
+  Widget tap(LucideIcon icon, String label, VoidCallback? on, {String? key}) => IconTap(key: key == null ? null : ValueKey(key), icon: icon, label: label, size: 19, box: box, color: ink, onPressed: on);
+  final sendButton = send ?? IconTap(key: const ValueKey('composer-send'), icon: Lucide.arrowUp, label: 'Send', filled: true, size: 19, box: box, onPressed: onSend);
+  Widget emojiButton() => tap(LucideMore.smile, 'Emoji', onEmoji, key: 'composer-emoji');
+  return (
+    plus: tap(Lucide.plus, 'Add an attachment', onAttach, key: 'composer-plus'),
+    ends: [
+      if (emoji) emojiButton(),
+      tap(Lucide.sticker, 'Stickers', onSticker, key: 'composer-stickers'),
+      SizedBox(width: t.space(1)),
+      if (hasSomething) sendButton else tap(Lucide.mic, 'Record a voice message', onRecord, key: 'composer-mic'),
+    ],
+    below: [
+      tap(Lucide.mic, 'Record a voice message', onRecord, key: 'composer-mic'),
+      if (emoji) emojiButton(),
+      SizedBox(width: t.space(1)),
+      sendButton,
+    ],
+  );
 }
