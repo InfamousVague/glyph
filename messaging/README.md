@@ -43,7 +43,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     stages with their times to `signal.log` beside its store and to standard error, which the app now passes to the
     Developer log (its own lines and signalmeow's warnings only; no message's words). Why Signal itself is slow to
     take a message is not known yet: the next stuck send says where in that log.
-- **Circles, and Files spaces** (not released; `lib/circles/`, `lib/ui/circles/`, `lib/files/`, `lib/ui/files_space/`,
+- **Circles, and Files spaces** (0.9.2; `lib/circles/`, `lib/ui/circles/`, `lib/files/`, `lib/ui/files_space/`,
   `lib/net/file_seal.dart`, `relay/lib/files.dart`; Matt, 2026-11-17: "remove all of the code related to the server UIs and
   make a new design ... with it's own sidebar full of spaces each space should be able to act as a chat and a voice chat,
   or just a texting space. Additionally add full functionality for filesharing in a space when the space is designated
@@ -59,7 +59,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   opened from the app. Relay limits: a file 2 GB, a space and the store by quota, per-address limits, reservations
   released after 10 minutes. Tests: circles_test, circles_trust_test, circle_list_test, circles_screens_test,
   files_space_test, files_space_screen_test, relay files_test and files_limits_test.
-- **A down arrow to the newest message, and each chat keeps its place** (not released; `lib/ui/jump_to_latest.dart`;
+- **A down arrow to the newest message, and each chat keeps its place** (0.9.2; `lib/ui/jump_to_latest.dart`;
   Matt, 2026-11-17: "add a down arrow that pops up when we enter a chat and we're not scrolled to the bottom or after we
   scroll up a certain amount, remember the scroll position when switching between chats"). In texts, Telegram and
   Signal chats and a space's chat, a round arrow (a bevelled square in Dial-Up) shows above the composer once you are
