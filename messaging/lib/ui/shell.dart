@@ -496,7 +496,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
             active: _showing ?? (settingsOpen ? 'settings' : (_archivedOpen ? 'archive' : 'messages')),
             onSelect: go,
             items: [
-              const NavItem(id: 'new', icon: Lucide.messageSquarePlus, label: 'New chat'),
+              // A plain plus that says New: it starts a chat, a group or a space (Matt, 2026-11-17: "change the new chat
+              // button to be a generic plus button and change the tooltip to simply say \"new\"").
+              const NavItem(id: 'new', icon: Lucide.plus, label: 'New'),
               const NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
               // Contacts with how many friend requests wait for an answer there (lib/ui/username_friends.dart).
               NavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts', count: Sms.paired ? 0 : Buddies.instance.requests.length),

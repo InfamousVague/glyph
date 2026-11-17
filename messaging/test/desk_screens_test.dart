@@ -238,7 +238,7 @@ void main() {
       expect(_button('Back'), findsNothing);
       // The navigation pill at the sidebar's foot (Ghost.md's dock, laid along): a new chat, the messages, the
       // archive with how many are in it, Settings. Messages is the one shown; a ring has no words but its tip.
-      for (final label in ['New chat', 'Messages', 'Contacts', 'Archive', 'Settings']) {
+      for (final label in ['New', 'Messages', 'Contacts', 'Archive', 'Settings']) {
         expect(_nav(label), findsOneWidget, reason: label);
       }
       expect(tester.widget<NavPill>(find.byType(NavPill)).active, 'messages');
@@ -272,7 +272,7 @@ void main() {
       // The rings stand evenly along the sidebar's foot: the first by its start, the last by its end.
       // Five rings: calls are the list's Voice tab, not a ring (Matt, 2026-11-15: "lets remove the calls icon in the
       // dock").
-      final first = tester.getCenter(_nav('New chat')).dx, last = tester.getCenter(_nav('Settings')).dx;
+      final first = tester.getCenter(_nav('New')).dx, last = tester.getCenter(_nav('Settings')).dx;
       final middle = tester.getCenter(_nav('Contacts')).dx;
       // On a computer the pill rests at the smaller size, as Ghost.md's desktop dock does (Matt, 2026-11-15: "just like
       // ghost markdown does match the sizes"), held to the foot's middle.
@@ -284,7 +284,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       // The new ring asks: a new chat, a group or a voice call (Matt, 2026-11-15: "The new button should also ask for
       // new chat, group or voice call"). A new chat opens beside the list and is the one shown; Messages puts it away.
-      await tester.tap(_nav('New chat'));
+      await tester.tap(_nav('New'));
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.text('New group'), findsOneWidget);
       expect(find.text('New space'), findsOneWidget);

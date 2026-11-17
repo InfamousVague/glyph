@@ -72,7 +72,7 @@ void main() {
     expect(find.text('I have ticket 77 for you'), findsOneWidget);
     // The plugin's button in the header, before New message.
     expect(_icon('Ticket desk'), findsOneWidget);
-    expect(tester.getCenter(_icon('Ticket desk')).dx, lessThan(tester.getCenter(_icon('New message')).dx));
+    expect(tester.getCenter(_icon('Ticket desk')).dx, lessThan(tester.getCenter(_icon('New')).dx));
     expect(find.text('Tickets wait here.'), findsNothing);
 
     // Its chip: its own list, the newest first, each row with the number large, and its note over the list.
