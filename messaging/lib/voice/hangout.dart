@@ -255,8 +255,23 @@ class HangoutRoom extends ChangeNotifier {
 
   // --- the room ------------------------------------------------------------------------------------------------------
 
+  /// The relay dropped this device out of the room ([RoomEvent.closed]); it puts it back in on reconnecting.
+  bool _dropped = false;
+
   void _event(RoomEvent e) {
-    if (e.came != null) {
+    if (e.closed) {
+      _dropped = true;
+      present.clear();
+    } else if (e.members != null && _dropped) {
+      // Back in after the relay dropped and came back: who is here now, and what was said meanwhile.
+      _dropped = false;
+      present.clear();
+      for (final id in e.members!) {
+        present[id] = HangoutPerson(id);
+      }
+      _hi();
+      _say({'t': 'sync?', 'since': messages.isEmpty ? 0 : messages.last.at, 'v': roster.version});
+    } else if (e.came != null) {
       present[e.came!] = HangoutPerson(e.came!);
       // Who is here and what they call themselves, for the newcomer.
       _hi();

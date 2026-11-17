@@ -25,6 +25,7 @@ import 'space_groups_ui.dart';
 import 'space_designs/space_design.dart';
 import 'space_invite.dart';
 import '../kit/semantic_colors.dart';
+import '../backgrounds.dart' show strongFill;
 
 /// Voice channels (Matt, 2026-11-14: "always open voice channels that you can jump in and out at any time and you can
 /// see who's connected and also toggle video on and off"): each channel with who is in it, a press to hop in, and,
@@ -1034,6 +1035,67 @@ class _DevicePillState extends State<DevicePill> {
           ],
         ),
       ]),
+    );
+  }
+}
+
+/// A group of friends' call while anyone is in it and this device isn't, floating at the top of its conversation: who
+/// is in it and Join (Matt, 2026-11-17: "each group should come with a space"; its chat is the group's texts, so the
+/// call is joined from there). Nothing while the call is empty or this device is in it.
+class SpaceLiveBar extends StatelessWidget {
+  const SpaceLiveBar({super.key, required this.channel, required this.onJoin});
+  final VoiceChannel channel;
+  final VoidCallback onJoin;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return ListenableBuilder(
+      listenable: Voice.instance,
+      builder: (context, _) {
+        final v = Voice.instance;
+        final inIt = v.inChannel(channel);
+        if (inIt.isEmpty || v.session?.channel.room == channel.room) return const SizedBox.shrink();
+        final radius = BorderRadius.circular(t.radius('full'));
+        final (fill, words) = strongFill(t);
+        return Center(
+          child: ClipRRect(
+            borderRadius: radius,
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+              child: Container(
+                padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(1), t.space(1)),
+                foregroundDecoration: BoxDecoration(border: Border.all(color: t.color('glacier-border-subtle'), width: t.len('glacier-hairline')), borderRadius: radius),
+                decoration: BoxDecoration(color: t.colorOf('color-mix(in srgb, var(--glacier-bg) 82%, transparent)'), borderRadius: radius),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: t.online)),
+                  SizedBox(width: t.space(2)),
+                  for (final id in inIt.take(3)) Padding(padding: EdgeInsets.only(right: 2), child: RippleAvatar(name: v.nameOf(id), level: 0, size: 22)),
+                  SizedBox(width: t.space(1)),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.4),
+                    child: Text(inIt.length == 1 ? '${v.nameOf(inIt.first)} in voice' : '${inIt.length} in voice', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink'))),
+                  ),
+                  SizedBox(width: t.space(2)),
+                  GlacierPressable(
+                    onPressed: onJoin,
+                    semanticLabel: 'Join voice',
+                    builder: (context, state) => Container(
+                      padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1) + 2),
+                      decoration: BoxDecoration(color: fill.withValues(alpha: state.pressed ? 0.85 : 1), borderRadius: radius),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        AppIcon(LucideMore.headphones, size: 14, wash: false, color: words),
+                        SizedBox(width: t.space(1)),
+                        Text('Join', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: words)),
+                      ]),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

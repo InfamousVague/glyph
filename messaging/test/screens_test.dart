@@ -1776,6 +1776,104 @@ void main() {
     }
   });
 
+  // Matt, 2026-11-17: "I'd also like spaces to show up in the main chats list with a preview of the last message sent in
+  // the space and the ability to open it as a normal chat window when there are no people online and chatting and then
+  // have the join call button still".
+  testWidgets('spaces in Messages: the newest message, unread, who is in voice; opened as a chat, or on its call', (tester) async {
+    tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
+    tester.view.devicePixelRatio = 2.0;
+    tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    final keys = NetKeys.generate();
+    final channel = VoiceChannel.make('Book club', owner: NetCrypto.hex(keys.public));
+    final store = MemoryHangoutStore();
+    final now = DateTime.now().millisecondsSinceEpoch;
+    store.keepMessages(channel.chatRoom, [
+      HangoutMessage(id: '1', from: 'a', name: 'Maya Chen', text: 'Chapter 4 tonight?', at: now - 60000),
+      HangoutMessage(id: '2', from: 'c', name: 'Riley', text: 'Yes! Bring your notes', at: now - 30000),
+    ]);
+    final room = HangoutRoom(channel: channel, route: _IdRoute(keys.id), name: 'Me', signer: KeysSigner(keys), store: store);
+    room.present.addAll({'a': const HangoutPerson('a', name: 'Maya Chen', inVoice: true), 'c': const HangoutPerson('c', name: 'Riley', inVoice: true)});
+    final v = Voice.instance;
+    v.own = [channel];
+    v.putHangout(room);
+    v.clearRead();
+    addTearDown(() {
+      v.putLook(channel.room, const []);
+      v.own = [];
+      v.clearHangouts();
+      v.clearRead();
+    });
+    for (final dark in [false, true]) {
+      v.putLook(channel.room, const []);
+      v.clearRead();
+      await _shoot(tester, sheet, const AppShell(), '20-space-in-messages', dark: dark);
+      // In Messages as a conversation is: its name, who said its newest message and what, and unread.
+      final row = find.byKey(ValueKey('space-row-${channel.room}'));
+      expect(row, findsOneWidget);
+      expect(find.descendant(of: row, matching: find.text('Book club')), findsOneWidget);
+      expect(find.descendant(of: row, matching: find.text('Riley: Yes! Bring your notes')), findsOneWidget);
+      expect(tester.widget<ConversationRow>(row).conversation.unread, isTrue);
+      expect(v.unreadIn(channel), 2);
+      // Nobody in voice: it opens as a chat, Join voice at its top; reading it puts the unread mark away.
+      await tester.tap(row);
+      await _settle(tester);
+      expect(find.byType(HangoutChat), findsOneWidget);
+      expect(find.text('Join voice'), findsOneWidget);
+      expect(find.text('Chapter 4 tonight?'), findsOneWidget);
+      expect(v.unreadIn(channel), 0);
+      await tester.pumpWidget(const SizedBox());
+
+      // Two people talking in it: the row says so in green, and it opens on its call with a way to the chat.
+      v.putLook(channel.room, const ['a', 'c']);
+      await _shoot(tester, sheet, const AppShell(), '20-space-in-messages-live', dark: dark);
+      expect(tester.widget<ConversationRow>(find.byKey(ValueKey('space-row-${channel.room}'))).live, 2);
+      expect(find.descendant(of: find.byKey(ValueKey('space-row-${channel.room}')), matching: find.byWidgetPredicate((w) => w is AppIcon && w.icon == LucideMore.headphones)), findsNWidgets(2), reason: 'the badge and the live mark');
+      await tester.tap(find.byKey(ValueKey('space-row-${channel.room}')));
+      await _settle(tester);
+      // What each said of themselves on coming into the room (its "hi").
+      room.present.addAll({'a': const HangoutPerson('a', name: 'Maya Chen', inVoice: true), 'c': const HangoutPerson('c', name: 'Riley', inVoice: true)});
+      v.putLook(channel.room, const ['a', 'c']);
+      await _settle(tester);
+      await _shootAgain(tester, '20-space-live-call', dark: dark);
+      expect(find.text('2 in voice'), findsOneWidget);
+      expect(find.text('Maya Chen'), findsOneWidget, reason: 'by the names they gave the room');
+      expect(find.text('Join voice'), findsNothing, reason: 'the people themselves are pressed to join');
+      expect(find.bySemanticsLabel('Join the call with 2 in it'), findsOneWidget);
+      expect(find.byType(HangoutChat), findsNothing);
+      await tester.tap(find.bySemanticsLabel('Chat'));
+      await _settle(tester);
+      expect(find.byType(HangoutChat), findsOneWidget);
+      expect(find.text('Join voice'), findsOneWidget, reason: 'the chat keeps its way into the call');
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
+  // Matt, 2026-11-17: "each group should come with a space": a group's call, while others are in it, floats over its
+  // conversation with Join.
+  testWidgets('a group\'s call floats over its conversation while others are in it', (tester) async {
+    _answerChannel();
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    final channel = VoiceChannel.ofGroup('0123456789abcdef0123456789abcdef', 'Climbing');
+    var joined = 0;
+    final v = Voice.instance;
+    addTearDown(() => v.putLook(channel.room, const []));
+    final bar = SpaceLiveBar(channel: channel, onJoin: () => joined++);
+    await _shoot(tester, sheet, Center(child: bar), '20-group-live-bar-empty', dark: false);
+    expect(find.text('Join'), findsNothing, reason: 'nothing while nobody is in it');
+    await tester.pumpWidget(const SizedBox());
+    v.putLook(channel.room, const ['a', 'b', 'c']);
+    await _shoot(tester, sheet, Center(child: bar), '20-group-live-bar', dark: false);
+    expect(find.text('3 in voice'), findsOneWidget);
+    await tester.tap(find.text('Join'));
+    expect(joined, 1);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   // Matt, 2026-11-15: "Make the dock slightly larger when scrolled to the top of the page and make it get smaller when
   // we scroll down just like ghost markdown does match the sizes".
   testWidgets('the pill: whole at the list\'s top, four fifths once scrolled down, whole again back at the top', (tester) async {
