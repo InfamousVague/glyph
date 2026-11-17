@@ -1226,6 +1226,13 @@ class InboxMediaView extends StatelessWidget {
   final Color ink;
 
   Future<void> _open(BuildContext context) async {
+    // A video or a sound opens at once and waits for its file there, with a spinner (Matt, 2026-11-17: "The app has
+    // gotten pretty laggy, especially when opening videos and exiting them").
+    if (media.kind == 'video' || media.kind == 'audio') {
+      final known = media.path;
+      await Navigator.of(context, rootNavigator: true).push(videoRoute(VideoScreen.coming(file: known != null ? Future.value(known) : network.fileOf(media.fileId), title: media.name ?? network.name)));
+      return;
+    }
     final path = media.path ?? await network.fileOf(media.fileId);
     if (path == null || !context.mounted) return;
     switch (media.kind) {
@@ -1237,8 +1244,6 @@ class InboxMediaView extends StatelessWidget {
             child: GestureDetector(onTap: () => Navigator.of(context).pop(), child: InteractiveViewer(maxScale: 5, child: Center(child: Image.file(File(path))))),
           ),
         ));
-      case 'video' || 'audio':
-        await Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(pageBuilder: (context, _, _) => VideoScreen(path: path, title: media.name ?? network.name)));
       default:
         await Sms.instance.openFile(path, name: media.name);
     }

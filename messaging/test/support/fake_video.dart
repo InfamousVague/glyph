@@ -22,7 +22,7 @@ class FakeVideoPlayer extends VideoPlayerPlatform {
     return _events.stream;
   }
   @override
-  Future<void> dispose(int playerId) async {}
+  Future<void> dispose(int playerId) async => calls.add('dispose');
   @override
   Future<void> setLooping(int playerId, bool looping) async {}
   @override
