@@ -53,3 +53,5 @@ app.*.map.json
 # The Signal helper and the C++ library it needs (tool/build-signalsidecar.sh android --ship), built for each release.
 /android/app/src/main/jniLibs/*/libsignalsidecar.so
 /android/app/src/main/jniLibs/*/libc++_shared.so
+# The Matrix helper (tool/build-matrixsidecar.sh android --ship), built for each release; its other builds are in build/.
+/android/app/src/main/jniLibs/*/libmatrixsidecar.so
