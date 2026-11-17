@@ -72,6 +72,16 @@ const KNOWN = {
   GHOST_TWILIO_VERIFY: /^VA[0-9a-fA-F]{32}$/,
   GHOST_TEXT_TO: /^\+[0-9]{1,6}(,\+[0-9]{1,6})*$/,
   GHOST_TEXTS_A_DAY: /^[0-9]{1,6}$/,
+  // Files spaces' limits (relay/lib/files.dart `FilesConfig.fromEnvironment`): bytes for the first three, counts and
+  // days for the rest. Each has a default where it is not set; check the box's disk (`df -h /var/lib`) before raising
+  // GHOST_FILES_TOTAL. The files live under ${DATA}/files, which ReadWritePaths below already covers, and are streamed
+  // to and from the disk, so MemoryMax stays as it is.
+  GHOST_FILES_MAX_FILE: /^[0-9]{1,13}$/,
+  GHOST_FILES_SPACE_QUOTA: /^[0-9]{1,13}$/,
+  GHOST_FILES_TOTAL: /^[0-9]{1,14}$/,
+  GHOST_FILES_SPACES_PER_ID: /^[0-9]{1,5}$/,
+  GHOST_FILES_IDLE_DAYS: /^[0-9]{1,4}$/,
+  GHOST_FILES_WRITES_PER_MINUTE: /^[0-9]{1,6}$/,
 };
 const SHAPES = {
   GHOST_TWILIO_SID: 'AC or SK and 32 more characters',

@@ -116,6 +116,27 @@ void main() {
     expect(find.text('Replying to Jo'), findsNothing, reason: 'the bar goes once sent');
   });
 
+  // Matt, 2026-11-17: "Add support for edited messages on telegram and signal and the ability to see the original
+  // message".
+  testWidgets('an edited message says Edited under it, and a press shows what it first said', (tester) async {
+    final sheet = await loadSheet(tester);
+    final net = _Net()
+      ..list = [
+        InboxMessage(id: '1', text: 'see you at 9', date: DateTime(2026, 11, 17, 9), mine: false, sender: 'Jo', edited: true, versions: const ['see you at 7', 'see you at 8']),
+        InboxMessage(id: '2', text: 'ok!', date: DateTime(2026, 11, 17, 9, 1), mine: true),
+      ];
+    await pumpScreen(tester, sheet, InboxChatScreen(network: net, chatId: 'c1'), AppState());
+    await settle(tester);
+    expect(find.byKey(const ValueKey('edited-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('edited-2')), findsNothing);
+    if (autoUpdateGoldenFiles) await expectLater(find.byType(InboxChatScreen), matchesGoldenFile('shots/x-inbox-edited.png'));
+    await tester.tap(find.byKey(const ValueKey('edited-1')));
+    await settle(tester);
+    expect(find.text('First sent as:\nsee you at 7'), findsOneWidget);
+    expect(find.text('Copy original'), findsOneWidget);
+    expect(find.text('see you at 8'), findsOneWidget, reason: 'the wording between, as Edit 1');
+  });
+
   // Matt, 2026-11-17: "Make reactions pin at randomish places slightly askue so multiple reactions look like stickers
   // plastered on and around the message without overlapping text much".
   test('a sticker lands in the same place every time, askew, along the foot or a lower corner', () {

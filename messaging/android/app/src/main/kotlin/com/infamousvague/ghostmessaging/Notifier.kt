@@ -479,8 +479,22 @@ class MmsFileProvider : ContentProvider() {
         return ParcelFileDescriptor.open(file, ParcelFileDescriptor.parseMode(mode))
     }
 
-    override fun query(uri: Uri, p: Array<out String>?, s: String?, a: Array<out String>?, o: String?): Cursor? = null
-    override fun getType(uri: Uri): String = "application/vnd.wap.mms-message"
+    // A file shared or opened from a Files space is asked its name and size by the app it goes to; a picture message's
+    // own parts (.pdu) are never asked. Its type by its ending, and an MMS's where it has none that Android knows.
+    override fun query(uri: Uri, p: Array<out String>?, s: String?, a: Array<out String>?, o: String?): Cursor? {
+        val ctx = context ?: return null
+        val name = uri.lastPathSegment ?: return null
+        if (name.contains('/') || name.contains("..")) return null
+        val file = File(dir(ctx), name)
+        if (!file.exists()) return null
+        val shown = name.replace(Regex("^share-[0-9]+-"), "")
+        val cols = p ?: arrayOf(android.provider.OpenableColumns.DISPLAY_NAME, android.provider.OpenableColumns.SIZE)
+        return android.database.MatrixCursor(cols).apply {
+            addRow(cols.map { when (it) { android.provider.OpenableColumns.DISPLAY_NAME -> shown; android.provider.OpenableColumns.SIZE -> file.length(); else -> null } })
+        }
+    }
+    override fun getType(uri: Uri): String =
+        android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension((uri.lastPathSegment ?: "").substringAfterLast('.', "").lowercase()) ?: "application/vnd.wap.mms-message"
     override fun insert(uri: Uri, values: ContentValues?): Uri? = null
     override fun delete(uri: Uri, s: String?, a: Array<out String>?) = 0
     override fun update(uri: Uri, v: ContentValues?, s: String?, a: Array<out String>?) = 0

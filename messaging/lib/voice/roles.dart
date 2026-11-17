@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../net/crypto.dart';
+import 'voice.dart' show SpaceKind;
 
 /// Roles and permissions in a hangout, as Discord has them (Matt, 2026-11-15: "Implement a permissions system similar
 /// to discord for hangouts ... make default roles such as admin, moderator, member").
@@ -24,11 +25,24 @@ enum Perm {
   muteOthers('Mute others', 'Mute someone for everyone'),
   removeMembers('Remove people', 'Put someone out; they can come back'),
   ban('Ban', 'Keep someone out for good'),
-  manageMessages('Manage messages', 'Delete anyone\'s messages');
+  manageMessages('Manage messages', 'Delete anyone\'s messages'),
+
+  // A Files space's (Matt, 2026-11-17: "add full functionality for filesharing in a space when the space is designated
+  // a Files Space"): members add files, moderators and admins rename or delete anyone's.
+  uploadFiles('Add files', 'Add files to a Files space'),
+  manageFiles('Manage files', 'Rename or delete anyone\'s files');
 
   const Perm(this.label, this.hint);
   final String label;
   final String hint;
+
+  /// Only a Files space's roles carry these. A roster an older build checks must come out the same when it writes it
+  /// again, and an older build drops a permission it doesn't know, so a voice or texting space's roles never name one
+  /// (a new permission always goes at the end, and [Role.extra] keeps the ones this build doesn't know).
+  static const files = {uploadFiles, manageFiles};
+
+  /// The permissions a space of [kind] has.
+  static Set<Perm> of(SpaceKind kind) => kind == SpaceKind.files ? values.toSet() : values.where((p) => !files.contains(p)).toSet();
 
   static Perm? named(String name) {
     for (final p in values) {
@@ -41,34 +55,46 @@ enum Perm {
 /// A role: its name, what it may do, and its place (a higher rank can act on a lower one, never on its own or above).
 @immutable
 class Role {
-  const Role({required this.id, required this.name, required this.perms, required this.rank});
+  const Role({required this.id, required this.name, required this.perms, required this.rank, this.extra = const []});
   final String id;
   final String name;
   final Set<Perm> perms;
+
+  /// Permissions named by a newer build that this one doesn't know: kept, after the known ones, so a roster written
+  /// again comes out as it was signed.
+  final List<String> extra;
 
   /// Admin 30, moderator 20, member 10; others in between or below.
   final int rank;
 
   static const admin = 'admin', moderator = 'moderator', member = 'member';
 
-  Role copyWith({String? name, Set<Perm>? perms, int? rank}) => Role(id: id, name: name ?? this.name, perms: perms ?? this.perms, rank: rank ?? this.rank);
+  Role copyWith({String? name, Set<Perm>? perms, int? rank}) => Role(id: id, name: name ?? this.name, perms: perms ?? this.perms, rank: rank ?? this.rank, extra: extra);
 
-  Map<String, Object> toJson() => {'id': id, 'n': name, 'p': [for (final p in Perm.values) if (perms.contains(p)) p.name], 'r': rank};
+  Map<String, Object> toJson() => {'id': id, 'n': name, 'p': [for (final p in Perm.values) if (perms.contains(p)) p.name, ...extra], 'r': rank};
 
   static Role? fromJson(Object? j) {
     if (j is! Map || j['id'] is! String || j['n'] is! String || j['r'] is! int || j['p'] is! List) return null;
-    return Role(id: j['id'] as String, name: j['n'] as String, rank: j['r'] as int, perms: {for (final p in j['p'] as List) ?Perm.named('$p')});
+    final names = [for (final p in j['p'] as List) '$p'];
+    return Role(id: j['id'] as String, name: j['n'] as String, rank: j['r'] as int, perms: {for (final p in names) ?Perm.named(p)}, extra: [for (final p in names) if (Perm.named(p) == null) p]);
   }
 
-  /// The three a hangout starts with.
-  static final defaults = <Role>[
-    Role(id: admin, name: 'Admin', rank: 30, perms: Perm.values.toSet()),
-    const Role(id: moderator, name: 'Moderator', rank: 20, perms: {Perm.speak, Perm.video, Perm.chat, Perm.invite, Perm.muteOthers, Perm.removeMembers, Perm.manageMessages}),
-    const Role(id: member, name: 'Member', rank: 10, perms: {Perm.speak, Perm.video, Perm.chat, Perm.invite}),
-  ];
+  /// The three a voice or texting space starts with.
+  static final defaults = defaultsFor(SpaceKind.voice);
+
+  /// The three a space of [kind] starts with: in a Files space members add files too, and moderators and admins manage
+  /// anyone's.
+  static List<Role> defaultsFor(SpaceKind kind) {
+    final files = kind == SpaceKind.files;
+    return [
+      Role(id: admin, name: 'Admin', rank: 30, perms: Perm.of(kind)),
+      Role(id: moderator, name: 'Moderator', rank: 20, perms: {Perm.speak, Perm.video, Perm.chat, Perm.invite, Perm.muteOthers, Perm.removeMembers, Perm.manageMessages, if (files) Perm.uploadFiles, if (files) Perm.manageFiles}),
+      Role(id: member, name: 'Member', rank: 10, perms: {Perm.speak, Perm.video, Perm.chat, Perm.invite, if (files) Perm.uploadFiles}),
+    ];
+  }
 
   @override
-  bool operator ==(Object other) => other is Role && other.id == id && other.name == name && other.rank == rank && setEquals(other.perms, perms);
+  bool operator ==(Object other) => other is Role && other.id == id && other.name == name && other.rank == rank && setEquals(other.perms, perms) && listEquals(other.extra, extra);
 
   @override
   int get hashCode => Object.hash(id, name, rank, perms.length);
@@ -115,8 +141,8 @@ class Roster {
   final String? byKey;
   final String? sig;
 
-  /// A hangout's first roster: the three roles, the owner alone.
-  factory Roster.first(String owner) => Roster(owner: owner, roles: Role.defaults);
+  /// A hangout's first roster: the three roles (a Files space's with its own permissions), the owner alone.
+  factory Roster.first(String owner, {SpaceKind kind = SpaceKind.voice}) => Roster(owner: owner, roles: Role.defaultsFor(kind));
 
   String get ownerId => owner.isEmpty ? '' : NetCrypto.idOf(NetCrypto.unhex(owner));
 

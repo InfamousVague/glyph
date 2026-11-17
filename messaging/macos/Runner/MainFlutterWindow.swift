@@ -1,8 +1,12 @@
 import Cocoa
 import FlutterMacOS
 
-class MainFlutterWindow: NSWindow {
+class MainFlutterWindow: NSWindow, NSDraggingDestination {
   private var desk: DeskChannels?
+  /// Files dropped on the window (lib/files/file_platform.dart): taken only while a Files space is on the screen, which
+  /// says so with "target"; then "over" as files are dragged over the window and "dropped" with their paths.
+  private var drops: FlutterMethodChannel?
+  private var dropTarget = false
   private var updates: UpdatesChannel?
   private var chrome: FlutterMethodChannel?
   /// The app's header, which the three buttons sit centred in, and how far in from the left the first one is.
@@ -64,6 +68,13 @@ class MainFlutterWindow: NSWindow {
     DeskVideo.sweep()
     NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in DeskVideo.sweep() }
 
+    drops = FlutterMethodChannel(name: "ghost_desktop/drop", binaryMessenger: flutterViewController.engine.binaryMessenger)
+    drops?.setMethodCallHandler { [weak self] call, result in
+      if call.method == "target" { self?.dropTarget = (call.arguments as? [String: Any])?["on"] as? Bool ?? false }
+      result(nil)
+    }
+    registerForDraggedTypes([.fileURL])
+
     RegisterGeneratedPlugins(registry: flutterViewController)
     desk = DeskChannels(messenger: flutterViewController.engine.binaryMessenger)
     // The microphone's processing in calls (VoiceFx.swift).
@@ -74,6 +85,38 @@ class MainFlutterWindow: NSWindow {
     updates = UpdatesChannel(messenger: flutterViewController.engine.binaryMessenger)
 
     super.awakeFromNib()
+  }
+
+  // MARK: Files dragged onto the window
+  //
+  // The window is the drop's destination (registerForDraggedTypes above): the Flutter view under it takes no drags of
+  // its own, so AppKit asks the window, and these answer it.
+
+  private func droppedPaths(_ info: NSDraggingInfo) -> [String] {
+    let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+    return urls.filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) != true }.map { $0.path }
+  }
+
+  func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+    guard dropTarget, !droppedPaths(sender).isEmpty else { return [] }
+    drops?.invokeMethod("over", arguments: ["on": true])
+    return .copy
+  }
+
+  func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+    dropTarget && !droppedPaths(sender).isEmpty ? .copy : []
+  }
+
+  func draggingExited(_ sender: NSDraggingInfo?) {
+    drops?.invokeMethod("over", arguments: ["on": false])
+  }
+
+  func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+    let paths = droppedPaths(sender)
+    drops?.invokeMethod("over", arguments: ["on": false])
+    guard dropTarget, !paths.isEmpty else { return false }
+    drops?.invokeMethod("dropped", arguments: ["paths": paths])
+    return true
   }
 
   /// The three buttons centred in the app's header: the strip that holds them made as tall as the header, and each

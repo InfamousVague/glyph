@@ -41,7 +41,6 @@ import 'me.dart';
 import 'network.dart';
 import 'settings.dart';
 import 'space_designs/space_design.dart';
-import '../app_state.dart';
 import '../summaries.dart';
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);

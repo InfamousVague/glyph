@@ -31,10 +31,10 @@ import 'poof.dart';
 import 'nav_bar.dart';
 import 'ripple_avatar.dart';
 import 'shell.dart';
-import 'space_groups_ui.dart';
 import 'space_designs/space_design.dart';
 import 'space_invite.dart';
 import 'voice_screen.dart';
+import 'jump_to_latest.dart';
 
 /// A hangout: its chat, who is in it, and its call (Matt, 2026-11-15: "add a chat to hangouts so the whole group can
 /// send messages to the hangout as well as voice and video"; roles: "Implement a permissions system similar to
@@ -56,6 +56,27 @@ class HangoutScreen extends StatefulWidget {
 
   @override
   State<HangoutScreen> createState() => _HangoutScreenState();
+}
+
+/// A space's chat before its room can be opened (the relay server not reached yet): what it will show, and why not.
+class _NoRoomYet extends StatelessWidget {
+  const _NoRoomYet({required this.name});
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(t.space(6)),
+        child: SettingsEmpty(
+          icon: AppIcon(LucideMore.messageCircle, size: 28, color: t.color('app-ink-3')),
+          title: 'Connecting to $name',
+          body: const Text('Its messages show here as soon as the relay server is reached.'),
+        ),
+      ),
+    );
+  }
 }
 
 class _HangoutScreenState extends State<HangoutScreen> {
@@ -126,9 +147,12 @@ class _HangoutScreenState extends State<HangoutScreen> {
         // Under the pill in the list's place: what stands at the foot (the composer, the dock) stands above it.
         final pill = widget.inSidebar ? AppShell.pillRoom(context) : 0.0;
         final dockAt = pad + (widget.inSidebar ? pill : NavPill.inset(t));
+        // A circle's space beside the circle's list (a wide window): the list's own Invite stands just beside it, so the
+        // space's page leaves its own out rather than show two of the same button side by side.
+        final besideCircle = wide && widget.channel.circle != null;
         final actions = [
           if (room != null) _membersButton(_members, () => setState(() => _members = !_members)),
-          if (room == null || room.can(Perm.invite)) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
+          if ((room == null || room.can(Perm.invite)) && !besideCircle) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
           if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
         ];
         if (room?.putOut != null) {
@@ -141,7 +165,12 @@ class _HangoutScreenState extends State<HangoutScreen> {
         // the foot as every conversation's does (Matt, 2026-11-15: "when we switch to chat please don't show the call
         // controls just make it appear like the bottom of all the compose windows look").
         final bottom = pill + (s != null && (wide || _tab != 'chat') ? NavPill.clearance(t) : 0);
-        final chat = room == null ? const SizedBox.shrink() : (_members ? SpaceMembers(room: room, bottom: bottom + pad) : HangoutChat(room: room, bottom: bottom));
+        // Before the relay is reached there is no room yet: say so, rather than a bare title over nothing.
+        final chat = room == null ? _NoRoomYet(name: widget.channel.name) : (_members ? SpaceMembers(room: room, bottom: bottom + pad) : HangoutChat(room: room, bottom: bottom));
+        // A texting or Files space has no call: no Join, no one "in voice", just its chat (SpaceKind).
+        if (s == null && !widget.channel.hasVoice) {
+          return GhostPage(title: widget.channel.name, actions: actions, body: chat);
+        }
         if (s == null) {
           // Out of the call: who is here, a way in, and the chat.
           final here = room?.present.values.toList() ?? const <HangoutPerson>[];
@@ -382,6 +411,17 @@ class HangoutChat extends StatefulWidget {
 class _HangoutChatState extends State<HangoutChat> {
   final _text = TextEditingController();
   final _focus = FocusNode();
+
+  /// Where this space's chat was left, and its list's controller, which starts there (lib/ui/jump_to_latest.dart; Matt,
+  /// 2026-11-17: "remember the scroll position when switching between chats"). The page can stay as the room changes
+  /// (didUpdateWidget): the arrow then keeps the old room's spot and puts the list at the new one's, and a list made
+  /// afresh for the new room (after its "No messages yet") starts at the new room's spot, since the controller asks
+  /// which room it is each time a list takes it up.
+  String get _spot => 'space:${widget.room.channel.room}';
+  late final ScrollController _scroll = ScrollMemory.controllerFor(() => _spot);
+
+  /// What others wrote, newest first, for the arrow to count while the person reads back.
+  Iterable<Object> _incoming(HangoutRoom room) => room.messages.reversed.where((m) => m.from != room.me).map((m) => m.id);
   bool _typing = false;
 
   /// Messages going in a puff, deleted once it has gone off (lib/ui/poof.dart).
@@ -468,6 +508,7 @@ class _HangoutChatState extends State<HangoutChat> {
     widget.room.removeListener(_roomChanged);
     _text.dispose();
     _focus.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -513,8 +554,14 @@ class _HangoutChatState extends State<HangoutChat> {
       return x.year == y.year && x.month == y.month && x.day == y.day;
     }
 
-    final transcript = Transcript(
+    final transcript = JumpToLatest(
+      controller: _scroll,
+      chat: _spot,
+      incoming: _incoming(room),
+      inset: const EdgeInsets.only(right: 14, bottom: 12),
+      child: Transcript(
       child: ListView.builder(
+        controller: _scroll,
         reverse: true,
         padding: const EdgeInsets.symmetric(vertical: 4),
         itemCount: list.length + 1,
@@ -565,7 +612,7 @@ class _HangoutChatState extends State<HangoutChat> {
           return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [HostLine.day(DateTime.fromMillisecondsSinceEpoch(x.at)), line]);
         },
       ),
-    );
+    ));
     return LayoutBuilder(builder: (context, box) {
       if (box.maxWidth >= 560) {
         return ColoredBox(
@@ -604,7 +651,16 @@ class _HangoutChatState extends State<HangoutChat> {
                 ? _chatRoom(room)
                 : list.isEmpty
                 ? Center(child: Text('No messages yet', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))
-                : ListView.builder(
+                // The down arrow over the list's foot, back to the newest message (Matt, 2026-11-17: "add a down arrow
+                // that pops up when we enter a chat and we're not scrolled to the bottom or after we scroll up a certain
+                // amount").
+                : JumpToLatest(
+                  controller: _scroll,
+                  chat: _spot,
+                  incoming: _incoming(room),
+                  inset: EdgeInsets.only(right: t.space(3), bottom: t.space(3)),
+                  child: ListView.builder(
+                    controller: _scroll,
                     reverse: true,
                     padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
                     itemCount: list.length,
@@ -645,6 +701,7 @@ class _HangoutChatState extends State<HangoutChat> {
                       ]);
                     },
                   ),
+                ),
           ),
           _DialupFoot(
             child: Padding(
@@ -1261,7 +1318,8 @@ class _RoleScreenState extends State<RoleScreen> {
               PaneSection(
                 title: 'What ${role.name.toLowerCase()}s may do',
                 children: [
-                  for (final p in Perm.values)
+                  // A Files space's permissions only in a Files space (Perm.files).
+                  for (final p in Perm.values.where(Perm.of(room.channel.kind).contains))
                     SettingRow(
                       label: p.label,
                       hint: Text(p.hint),
@@ -1376,9 +1434,21 @@ void showHangoutMenu(BuildContext context, VoiceChannel channel, {VoidCallback? 
     if (onOpen != null) Choice('Open', LucideMore.messageCircle, onOpen),
     Choice('Settings and permissions', Lucide.shieldCheck, () => push(context, (_) => HangoutSettingsScreen(channel: channel))),
     if (room == null || room.can(Perm.invite)) Choice('Invite people', Lucide.userPlus, () => showSpaceInvite(context, channel)),
-    // Into one of the Spaces tab's groups (lib/ui/space_groups_ui.dart).
-    Choice('Move to group…', Lucide.folder, () => pickSpaceGroup(context, channel)),
     Choice('Delete space', Lucide.trash2, () => confirmDeleteHangout(context, channel), danger: true),
+  ]);
+}
+
+/// Asks first, then leaves [channel]: its call if this phone is in it, and the space itself, off this phone and its
+/// computer (Voice.forget), as a swipe on its row asks (Matt, 2026-11-17: "can be swiped to leave a space or delete /
+/// archive"). Its link brings it back.
+void confirmLeaveHangout(BuildContext context, VoiceChannel channel) {
+  showChoices(context, title: 'Leave ${channel.name}? It goes from your list; its link brings you back.', choices: [
+    Choice('Leave space', Lucide.logOut, () async {
+      final v = Voice.instance;
+      if (v.viewing?.seed == channel.seed) v.view(null);
+      await v.forget(channel);
+      if (context.mounted) toast(context, 'Left ${channel.name}');
+    }, danger: true),
   ]);
 }
 

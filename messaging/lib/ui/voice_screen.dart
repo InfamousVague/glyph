@@ -20,6 +20,7 @@ import '../voice/rtc.dart';
 import 'shell.dart';
 import 'nav_bar.dart';
 import 'ripple_avatar.dart';
+import 'circles/new_circle.dart' show SpaceKindCards;
 import 'hangout_screen.dart';
 import 'space_groups_ui.dart';
 import 'space_designs/space_design.dart';
@@ -80,7 +81,8 @@ class VoiceScreen extends StatelessWidget {
               if (v.channels.isEmpty)
                 SettingsCallout(child: const Text('Every group of friends has a space. Make one of your own with + and share it with friends you added by username.'))
               else
-                PaneSection(title: 'Spaces', children: [for (final c in v.channels) _ChannelRow(channel: c)]),
+                // A circle's spaces are listed in their circle, not here.
+                PaneSection(title: 'Spaces', children: [for (final c in v.channels) if (c.circle == null) _ChannelRow(channel: c)]),
             ],
           ),
         );
@@ -422,6 +424,9 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
   final _name = TextEditingController();
   final Set<String> _with = {};
 
+  // What it is for, as a circle's spaces are (lib/ui/circles/new_circle.dart): chat and voice, texting only, or files.
+  SpaceKind _kind = SpaceKind.voice;
+
   @override
   void dispose() {
     _name.dispose();
@@ -430,11 +435,22 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
 
   Future<void> _make() async {
     final v = Voice.instance;
-    final c = await v.make(_name.text);
+    final c = await v.make(_name.text, kind: _kind);
     final friends = [for (final f in Buddies.instance.friends) if (_with.contains(f.id)) f];
     final missed = friends.isEmpty ? const <Buddy>[] : await v.share(c, friends);
     if (!mounted) return;
     toast(context, friends.isEmpty ? '${c.name} made' : '${c.name} shared with ${friends.length - missed.length}${missed.isEmpty ? '' : '; couldn\'t reach ${missed.map((f) => f.shown).join(', ')}'}');
+    // A texting or Files space has no call: its page opens, its chat ready.
+    if (!c.hasVoice) {
+      final shell = AppShell.maybeOf(context);
+      if (shell != null) {
+        v.view(c);
+        shell.go('voice');
+      } else {
+        unawaited(Navigator.of(context).pushReplacement(PageRouteBuilder<void>(pageBuilder: (context, _, _) => HangoutScreen(channel: c))));
+      }
+      return;
+    }
     // A call, started: in it at once, its page in this one's place.
     try {
       await v.join(c);
@@ -466,6 +482,8 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
                 SettingRowBox(child: GlacierInput(controller: _name, placeholder: 'Space name', ariaLabel: 'Space name', autoFocus: true, autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md)),
               ]),
               SizedBox(height: t.space(6)),
+              SpaceKindCards(value: _kind, onChanged: (k) => setState(() => _kind = k)),
+              SizedBox(height: t.space(6)),
               PaneSection(
                 title: 'Share with',
                 description: Text(friends.isEmpty ? 'Add friends by username (Settings › Me › Friends) to share spaces with them.' : 'They can see who\'s in it and hop in any time.'),
@@ -479,7 +497,11 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
                 ],
               ),
               SizedBox(height: t.space(6)),
-              PaneSection(children: [SettingRow(icon: AppIcon(LucideMore.phoneCall, size: 18), label: 'Start the call', onPress: _make)]),
+              PaneSection(children: [
+                _kind.hasVoice
+                    ? SettingRow(key: const ValueKey('new-space-make'), icon: AppIcon(LucideMore.phoneCall, size: 18), label: 'Start the call', onPress: _make)
+                    : SettingRow(key: const ValueKey('new-space-make'), icon: AppIcon(Lucide.check, size: 18), label: 'Make the space', onPress: _make),
+              ]),
             ],
           ),
         ),

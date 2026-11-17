@@ -108,6 +108,17 @@
     <p class="sub">Ask whoever sent it for the whole link: it ends with a long string of letters and numbers after a #.</p>
   </section>
 
+  <!-- A circle's link: circles open in the app (lib/circles/circle.dart). -->
+  <section id="circle" class="center" hidden>
+    <h1 id="circle-title">Circle</h1>
+    <p class="sub">You're invited to a circle on Ghost Messaging: a few people and their spaces, for chat and voice, texting and files.</p>
+    <p class="sub">Circles open in the app. Get Ghost Messaging, then open this link again on that phone or computer, or paste it into the app.</p>
+    <div class="row" style="justify-content:center">
+      <a class="primary" id="circle-get" href="/" style="text-decoration:none">Get the app</a>
+      <button class="quiet" id="circle-copy">Copy link</button>
+    </div>
+  </section>
+
   <!-- Before joining: who is here, your name, your microphone and camera. -->
   <section id="lobby" hidden>
     <h1 id="title">Space</h1>
@@ -183,7 +194,7 @@
 </dialog>
 
 <script type="module">
-import { readLink, identity, connectHub, Hangout, Chat } from './voice.js';
+import { readLink, readCircleLink, identity, connectHub, Hangout, Chat } from './voice.js';
 
 const $ = (id) => document.getElementById(id);
 const icons = {
@@ -193,15 +204,33 @@ const icons = {
   camOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.66 6H14a2 2 0 0 1 2 2v2.5l5.248-3.062A.5.5 0 0 1 22 7.87v8.196"/><path d="M16 16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2"/><path d="m2 2 20 20"/></svg>',
   leave: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.1 13.9a14 14 0 0 0 3.732 2.668 1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2 18 18 0 0 1-12.728-5.272"/><path d="M22 2 2 22"/><path d="M4.76 13.582A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 .244.473"/></svg>',
 };
-const show = (id) => { for (const s of ['bad', 'lobby', 'call', 'left']) $(s).hidden = s !== id; };
+const show = (id) => { for (const s of ['bad', 'circle', 'lobby', 'call', 'left']) $(s).hidden = s !== id; };
 const store = { get: (k) => { try { return localStorage.getItem(k) ?? ''; } catch (_) { return ''; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (_) {} } };
 const initial = (n) => (n.replace('@', '').trim()[0] ?? '?').toUpperCase();
 const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 
+// A circle's link: said what it is, and the way to the app (Matt, 2026-11-17: circles, "simpler and easier to digest").
+const circle = readCircleLink(location.hash);
+if (circle) {
+  document.title = circle.name + ' · Ghost Messaging';
+  $('circle-title').textContent = circle.name;
+  $('circle-copy').onclick = async () => {
+    try { await navigator.clipboard.writeText(location.href); $('circle-copy').textContent = 'Copied'; setTimeout(() => ($('circle-copy').textContent = 'Copy link'), 1800); } catch (_) {}
+  };
+  show('circle');
+  throw new Error('a circle link');
+}
 const link = readLink(location.hash);
 if (!link) { show('bad'); throw new Error('not a hangout link'); }
+// A texting or Files space has no voice: its chat alone, with no microphone or camera asked for.
+const chatOnly = link.kind !== 'voice';
 document.title = link.name + ' · Ghost Messaging';
 for (const id of ['title', 'call-title']) $(id).textContent = link.name;
+if (chatOnly) {
+  for (const id of ['lobby-mic', 'lobby-cam', 'devices', 'preview', 'tiles', 'people', 'mic', 'cam']) $(id).hidden = true;
+  $('join').textContent = 'Open the chat';
+  if (link.kind === 'files') $('no-messages').textContent = 'No messages yet. The files themselves are in the app.';
+}
 show('lobby');
 
 // The hub is this site's own, unless a test names another (?hub=ws://…).
@@ -257,12 +286,15 @@ function error(id, words) { $(id).textContent = words; $(id).hidden = !words; }
 async function connect() {
   try {
     hub = await connectHub(hubUrl, me);
-    hangout = new Hangout(hub, link.seed, paint);
-    await hangout.prepare();
+    // A texting or Files space has no call room: it is never looked at.
+    if (!chatOnly) {
+      hangout = new Hangout(hub, link.seed, paint);
+      await hangout.prepare();
+    }
     // The hangout's chat and roles, in a room of their own beside the call's.
     chat = new Chat(hub, link.seed, link.owner, paint);
     await chat.prepare();
-    hangout.refuse = (id) => chat.roster.banned(id);
+    if (hangout) hangout.refuse = (id) => chat.roster.banned(id);
   } catch (e) {
     $('here').textContent = 'The relay server can’t be reached right now.';
     error('lobby-error', e.message);
@@ -274,6 +306,7 @@ window.ghostHangout = () => hangout;
 window.ghostChat = () => chat;
 
 function paint() {
+  if (chatOnly) return paintChatOnly();
   if (!hangout) return;
   const n = hangout.here.length;
   $('here').textContent = n === 0 ? 'Nobody is here yet. Be the first.' : plural(n, 'person is', 'people are') + ' here.';
@@ -362,6 +395,23 @@ function paint() {
   if (hangout.lost) error('call-error', 'The connection to the relay server was lost. Leave and join again.');
 }
 
+// A texting or Files space: who is in its chat, and the chat; no call.
+function paintChatOnly() {
+  $('here').textContent = link.kind === 'files' ? 'A Files space: its chat is here, its files in the app.' : 'A texting space: a chat, no voice.';
+  if (!chat?.opened) return;
+  if (chat.putOut) {
+    chat.close();
+    $('left-title').textContent = chat.putOut;
+    $('left-why').textContent = chat.putOut.includes('banned') ? 'You can’t come back to this space.' : 'You can come back with the same link.';
+    $('rejoin').hidden = chat.putOut.includes('banned');
+    show('left');
+    return;
+  }
+  const n = chat.present?.size ?? 0;
+  $('call-here').textContent = n === 0 ? 'Just you so far' : plural(n + 1, 'person', 'people') + ' here';
+  paintChat();
+}
+
 // The chat: newest at the foot, a name over each run of one person's messages, Delete where this browser may.
 const clock = (at) => new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 let painted = '';
@@ -429,7 +479,7 @@ $('join').onclick = async () => {
     preview = null;
     if (chat?.putOut) throw new Error(chat.putOut);
     chat?.open({ name, guest: !username, username });
-    await hangout.join({ name, guest: !username, username, audio: wantMic, video: wantCam && (!chat || chat.can('video')) });
+    if (!chatOnly) await hangout.join({ name, guest: !username, username, audio: wantMic, video: wantCam && (!chat || chat.can('video')) });
     show('call');
     paint();
   } catch (e) {
@@ -440,7 +490,7 @@ $('join').onclick = async () => {
 };
 $('mic').onclick = () => hangout.setMuted(!hangout.muted);
 $('cam').onclick = () => hangout.setVideo(!hangout.video).catch((e) => error('call-error', 'The camera couldn’t be opened: ' + e.message));
-$('leave').onclick = () => { hangout.leave(); chat?.close(); show('left'); };
+$('leave').onclick = () => { if (!chatOnly) hangout.leave(); chat?.close(); show('left'); };
 $('rejoin').onclick = () => { show('lobby'); paint(); };
 $('copy').onclick = async () => {
   try { await navigator.clipboard.writeText(location.href); $('copy').textContent = 'Copied'; setTimeout(() => ($('copy').textContent = 'Copy link'), 1800); } catch (_) {}

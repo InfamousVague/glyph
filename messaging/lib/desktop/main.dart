@@ -27,6 +27,8 @@ import '../ui/update_banner.dart';
 import 'ui/wizard.dart';
 import '../inbox/inbox.dart';
 import '../ui/inbox_ui.dart';
+import '../circles/circles.dart';
+import '../files/files_store.dart';
 import 'gm_web.dart';
 import 'updates.dart';
 
@@ -77,7 +79,10 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // Voice channels (lib/voice): the computer's own connection to the hub, made once it has a channel.
   // The interface sounds (lib/sounds.dart) read the person's choices from here.
   Sounds.instance.start(state);
-  unawaited(Voice.instance.start(state));
+  // And the circles, whose rooms ride Voice's connection (lib/circles/circles.dart).
+  unawaited(Voice.instance.start(state).then((_) => Circles.instance.start(state)));
+  // Files spaces' files (lib/files/files_store.dart): what was going up when the app closed goes on.
+  unawaited(FilesStore.instance.start());
   SpaceGroups.instance.start(state);
   DiscordServers.instance.start(state);
   // Telegram's and Bluesky's chats (lib/inbox): the computer signs in to them itself, as their own apps do.

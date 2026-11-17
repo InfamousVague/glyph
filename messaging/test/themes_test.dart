@@ -3,13 +3,19 @@ import 'dart:convert' show jsonEncode, utf8;
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart' show GestureBinding;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/ui/composer_box.dart';
 import 'package:ghost_messaging/accent.dart';
 import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/art/app_icon.dart';
+import 'package:ghost_messaging/art/lucide.g.dart';
 import 'package:ghost_messaging/backgrounds.dart';
+import 'package:ghost_messaging/circles/circles.dart';
+import 'package:ghost_messaging/friends/buddies.dart';
+import 'package:ghost_messaging/net/packet.dart' show Envelope;
 import 'package:ghost_messaging/inbox/inbox.dart';
 import 'package:ghost_messaging/kit/semantic_colors.dart';
 import 'package:ghost_messaging/kit/settings_css.dart';
@@ -21,11 +27,18 @@ import 'package:ghost_messaging/plugins/plugin.dart' show DeviceLanguage, Device
 import 'package:ghost_messaging/plugins/registry.dart' show PluginRegistry;
 import 'package:ghost_messaging/plugins/settings.dart' show pluginsScreen;
 import 'package:ghost_messaging/plugins/shown_store.dart' show ShownStore;
+import 'package:ghost_messaging/plugins/ui.dart' show SectionTabs;
 import 'package:ghost_messaging/sms.dart' show Person, Sms;
+import 'package:ghost_messaging/ui/circles/arrange_spaces.dart';
+import 'package:ghost_messaging/ui/circles/circle_invite.dart';
+import 'package:ghost_messaging/ui/circles/circle_list.dart';
+import 'package:ghost_messaging/ui/circles/circle_screen.dart';
+import 'package:ghost_messaging/ui/circles/new_circle.dart';
 import 'package:ghost_messaging/ui/compose.dart';
 import 'package:ghost_messaging/ui/dialup/dialup.dart';
 import 'package:ghost_messaging/ui/hangout_screen.dart';
 import 'package:ghost_messaging/ui/inbox_ui.dart';
+import 'package:ghost_messaging/ui/jump_to_latest.dart';
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/ui/shell.dart';
 import 'package:ghost_messaging/ui/thread.dart';
@@ -34,6 +47,9 @@ import 'package:ghost_messaging/voice/hangout.dart';
 import 'package:ghost_messaging/voice/roles.dart';
 import 'package:ghost_messaging/voice/voice.dart';
 import 'package:glacier/glacier.dart';
+
+import 'circle_sample.dart';
+import 'files_shots.dart';
 
 /// The looks (lib/looks.dart; Matt, 2026-11-16: "spend some time making a few themes for ghost, base one of them
 /// heavily on the old AOL chatrooms").
@@ -431,12 +447,155 @@ final themeScreens = <ThemeScreen>[
   ThemeScreen('translated', () => const ThreadScreen(thread: 8, people: [Person(address: '+15551230009', name: 'Lucía Ortega')]), choices: _translateOn, before: _translating, after: _translated),
   ThemeScreen('translated-inbox', () => InboxChatScreen(network: _telegram(), chatId: '11', fallback: _camille), choices: _translateOn, before: _translating, after: _translated),
   ThemeScreen('translate-settings', () => const SettingsSectionScreen('plugin-translate'), choices: _translateOn, before: _translating, after: _translated),
+  // The down arrow back to the newest message (Matt, 2026-11-17: "add a down arrow that pops up when we enter a chat and
+  // we're not scrolled to the bottom or after we scroll up a certain amount, remember the scroll position when switching
+  // between chats"): a long conversation opened where it was left, two screens up, with two texts come since.
+  ThemeScreen('thread-scrolled', () => const ThreadScreen(thread: 12, people: [Person(address: '+15551230012', name: 'Priya Natarajan')]), before: () => _leftUp(12), after: ScrollMemory.clear),
+  // The same on a small phone and a wide window, where the pane's edge and the quick replies could crowd it; and the
+  // arrow over a Telegram chat and over a space's chat. Each its own chat: the screen drawn before is let go only as the
+  // next is drawn, and keeps its own spot as it goes.
+  ThemeScreen('thread-scrolled-360', () => const ThreadScreen(thread: 13, people: [Person(address: '+15551230012', name: 'Priya Natarajan')]), size: const Size(360, 780), before: () => _leftUp(13), after: ScrollMemory.clear),
+  ThemeScreen('thread-scrolled-wide', () => const ThreadScreen(thread: 14, people: [Person(address: '+15551230012', name: 'Priya Natarajan')]), size: ThemeScreen.wide, before: () => _leftUp(14), after: ScrollMemory.clear),
+  ThemeScreen('inbox-scrolled', () => InboxChatScreen(network: _telegram(), chatId: '12', fallback: _priyaTg), before: () => ScrollMemory.keep('inbox:telegram:12', 1400, seen: '37'), after: ScrollMemory.clear),
+  ThemeScreen('space-scrolled', () => HangoutScreen(channel: _longSpace().channel), before: () {
+    Voice.instance.putHangout(_longSpace());
+    ScrollMemory.keep('space:${_longSpace().channel.room}', 1400, seen: '37');
+  }, after: ScrollMemory.clear),
+  // Circles (Matt, 2026-11-17: "make a new design for [circles] ... with it's own sidebar full of spaces"): a circle's
+  // list of spaces on a phone and as the sidebar of a wide window, the Circles tab, and making one.
+  ThemeScreen('circle', () => CircleScreen(seed: _circle.seed), before: _joinCircle, after: _leaveCircle),
+  ThemeScreen('circle-wide', () => const AppShell(), size: ThemeScreen.wide, before: _joinCircle, after: _leaveCircle, choices: (_) => _openCircleSoon()),
+  ThemeScreen('new-circle', () => const NewCircleScreen()),
+  // The Circles tab, where the Spaces tab was: each circle, then spaces of one's own; on a phone and a wide window.
+  ThemeScreen('circles-tab', () => const AppShell(), before: _joinBothCircles, after: _leaveOwnCircle, choices: (_) => _tapCirclesTabSoon()),
+  ThemeScreen('circles-tab-wide', () => const AppShell(), size: ThemeScreen.wide, before: _joinBothCircles, after: _leaveOwnCircle, choices: (_) => _tapCirclesTabSoon()),
+  // A Files space (test/files_shots.dart): its list, grid, a wide window, files going up, an empty one, a picture opened.
+  ...filesThemeScreens,
+  // A circle's list, the one way a circle is drawn (Matt, 2026-11-17: "Lets remove the other views and focus on the list
+  // view / layout it's the most practical of them all so far"), with something going on: people talking, new messages,
+  // files counted; on a phone and as a wide window's sidebar with a space open beside it.
+  ThemeScreen('circle-list', () => CircleList(view: sampleCircleView())),
+  ThemeScreen('circle-list-wide', () => CircleList(view: sampleCircleView(wide: true, selected: sampleCircle.spaces.first.seed)), size: const Size(380, 860)),
+  // A circle of one's own: a new space's three kinds as cards (phone and wide), its settings (people and their roles,
+  // the QR code), arranging its spaces, and the invite sheet.
+  ThemeScreen('circle-space-new', () => NewCircleSpaceScreen(circle: _ownCircle), before: _joinOwnCircle, after: _leaveOwnCircle),
+  ThemeScreen('circle-space-new-wide', () => NewCircleSpaceScreen(circle: _ownCircle), size: ThemeScreen.wide, before: _joinOwnCircle, after: _leaveOwnCircle),
+  ThemeScreen('circle-settings', () => CircleSettingsScreen(seed: _ownCircle.seed, qr: true), size: const Size(412, 2300), before: _joinOwnCircle, after: _leaveOwnCircle),
+  ThemeScreen('circle-arrange', () => ArrangeCircleSpacesScreen(seed: _ownCircle.seed), before: _joinOwnCircle, after: _leaveOwnCircle),
+  ThemeScreen('circle-invite', () => CircleInviteSheet(circle: _ownCircle, send: (_, _) async => const [], compose: (_) {}, buddies: _inviteFriends, qr: true), before: _joinOwnCircle, after: _leaveOwnCircle),
 ];
+
+/// A circle to draw: three spaces, one of each kind, one under a heading. Unsigned: drawn, never checked.
+final _circle = Circle(
+  seed: '7' * 64,
+  owner: '',
+  manifest: CircleManifest(owner: '', version: 1, name: 'Night Owls', hue: 'indigo', icon: 'sparkles', spaces: const [
+    CircleSpace(seed: '7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a', name: 'General', kind: SpaceKind.text),
+    CircleSpace(seed: '7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b', name: 'Lounge', order: 1),
+    CircleSpace(seed: '7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c', name: 'Drop box', kind: SpaceKind.files, order: 2, section: 'Sharing'),
+  ]),
+);
+
+/// This install's own circle (its owner is the key [Circles] signs with here), so its pages show what an owner may
+/// change. Drawn, never signed.
+final _ownKeys = NetKeys.generate();
+final _ownCircle = Circle(
+  seed: '6' * 64,
+  owner: NetCrypto.hex(_ownKeys.public),
+  manifest: CircleManifest(owner: NetCrypto.hex(_ownKeys.public), version: 1, name: 'Book Club', hue: 'coral', icon: 'book', spaces: const [
+    CircleSpace(seed: '6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a', name: 'General', kind: SpaceKind.text),
+    CircleSpace(seed: '6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b', name: 'Lounge', order: 1),
+    CircleSpace(seed: '6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c', name: 'Reading list', kind: SpaceKind.files, order: 2, section: 'Books'),
+    CircleSpace(seed: '6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d', name: 'Spoilers', kind: SpaceKind.text, order: 3, section: 'Books'),
+  ]),
+);
+
+/// Two friends to choose from on the invite sheet, one chosen by nobody: kept nowhere, nothing sent.
+final _inviteFriends = Buddies(_StillBuddies())
+  ..all = const [
+    Buddy(username: 'maya', id: 'f1', key: 'k1', name: 'Maya Chen'),
+    Buddy(username: 'theo', id: 'f2', key: 'k2', name: 'Theo Park'),
+  ];
+
+class _StillBuddies implements BuddiesPort {
+  @override
+  Future<({String id, String key})> me() async => (id: 'me', key: 'k');
+  @override
+  String? get username => 'matt';
+  @override
+  String get displayName => 'Matt';
+  @override
+  String get bio => '';
+  @override
+  Future<({String id, String key})?> whois(String username) async => null;
+  @override
+  Future<void> keep(String json) async {}
+  @override
+  Future<String> kept() async => '[]';
+  @override
+  Future<bool> send(String id, Envelope envelope, {bool sealed = true}) async => false;
+  @override
+  Stream<({String from, Envelope envelope})> get received => const Stream.empty();
+  @override
+  Stream<({String from, Envelope envelope})> get greetings => const Stream.empty();
+}
+
+void _joinOwnCircle() {
+  Circles.instance.signerOverride = KeysSigner(_ownKeys);
+  Circles.instance.join(_ownCircle);
+}
+
+void _leaveOwnCircle() {
+  Circles.instance.signerOverride = null;
+  unawaited(Circles.instance.clear());
+}
+
+void _joinCircle() {
+  Circles.instance.join(_circle);
+  // Its General space with a few messages, so a wide window shows a conversation beside the list, not a bare title.
+  Voice.instance.putHangout(_circleGeneral());
+}
+
+/// The test circle's General space's chat, with a few messages in it.
+HangoutRoom _circleGeneral() => _general ??= () {
+      final keys = NetKeys.generate();
+      final channel = _circle.channelOf(_circle.spaces.first);
+      final store = MemoryHangoutStore();
+      final at = _now.subtract(const Duration(minutes: 30)).millisecondsSinceEpoch;
+      store.keepMessages(channel.chatRoom, [
+        HangoutMessage(id: '1', from: 'a', name: 'Maya Chen', text: 'Who is up for the late show tonight?', at: at),
+        HangoutMessage(id: '2', from: 'c', name: 'Theo', text: 'Me! Saving seats in the back', at: at + 120000),
+        HangoutMessage(id: '3', from: keys.id, name: 'Me', text: 'Popcorn is on me', at: at + 300000),
+      ]);
+      return HangoutRoom(channel: channel, route: _NoRoute(keys.id), name: 'Me', signer: KeysSigner(keys), store: store);
+    }();
+HangoutRoom? _general;
+void _leaveCircle() => unawaited(Circles.instance.clear());
+
+void _joinBothCircles() {
+  _joinOwnCircle();
+  Circles.instance.join(_circle);
+}
+
+/// The Circles tab chosen once the list is up, as a finger would: a tap on its icon among the tabs. The picture is
+/// taken after the pumps that follow, so the tap lands before it.
+void _tapCirclesTabSoon() => WidgetsBinding.instance.addPostFrameCallback((_) {
+      final tab = find.descendant(of: find.byType(SectionTabs), matching: find.byWidgetPredicate((w) => w is AppIcon && w.icon == Lucide.circleDot)).evaluate();
+      if (tab.isEmpty) return;
+      final box = tab.first.renderObject! as RenderBox;
+      final at = box.localToGlobal(box.size.center(Offset.zero));
+      GestureBinding.instance.handlePointerEvent(PointerDownEvent(position: at, pointer: 9001));
+      GestureBinding.instance.handlePointerEvent(PointerUpEvent(position: at, pointer: 9001));
+    });
+
+/// The circle opened in the list's place once the frame is up.
+void _openCircleSoon() => WidgetsBinding.instance.addPostFrameCallback((_) => AppShellState.live?.openCircle(_circle));
 
 void _translateOn(AppState state) => state.set('plugin_translate', 'on');
 
 /// The French chat's name, as it was opened: it is not in the network's list of chats, so the list's pictures stay
 /// as they were, and its bar read "Telegram" over "Telegram" without it.
+final _priyaTg = InboxChat(network: 'telegram', id: '12', title: 'Priya Natarajan', date: _now.subtract(const Duration(minutes: 1)), snippet: 'Text 40');
 final _camille = InboxChat(network: 'telegram', id: '11', title: 'Camille Laurent', date: _now.subtract(const Duration(minutes: 4)), snippet: 'Yes, where?');
 
 void _translating() {
@@ -596,6 +755,7 @@ final _conversations = [
 ];
 
 List<Map<String, Object?>> _messages(int thread) => switch (thread) {
+      12 || 13 || 14 => _long,
       8 => [
           {'id': 25, 'kind': 'sms', 'address': '+15551230009', 'body': 'Obrigada pela ajuda de ontem, foi muito gentil', 'date': _ago(minutes: 1), 'outgoing': false, 'state': 'received', 'read': true},
           {'id': 24, 'kind': 'sms', 'address': '+15551230009', 'body': 'Perfecto, yo llevo el postre. Mi madre hizo flan otra vez', 'date': _ago(minutes: 3), 'outgoing': false, 'state': 'received', 'read': true},
@@ -624,6 +784,16 @@ List<Map<String, Object?>> _messages(int thread) => switch (thread) {
           {'id': 1, 'kind': 'sms', 'address': '+15551230001', 'body': 'Hey! Long time 👋', 'date': _ago(days: 1, hours: 3), 'outgoing': false, 'state': 'received', 'read': true},
         ],
     };
+
+/// A long conversation (threads 12, 13 and 14) for the down arrow's screen: forty texts, newest first, every third yours.
+final _long = [
+  for (var i = 40; i >= 1; i--)
+    {'id': 1200 + i, 'kind': 'sms', 'address': '+15551230012', 'body': i % 3 == 0 ? 'Text $i of mine, about the weekend and who is driving' : 'Text $i from Priya, a line or two long so the conversation runs several screens', 'date': _ago(minutes: 200 - i * 4), 'outgoing': i % 3 == 0, 'state': i % 3 == 0 ? 'delivered' : 'received', 'read': true},
+];
+
+/// [thread] (12, or 13 and 14 for the same conversation at other widths) left two screens up, the newest text from
+/// Priya seen then being the third newest of hers: the two since are counted on the arrow.
+void _leftUp(int thread) => ScrollMemory.keep('sms:$thread', 1400, seen: 'sms:${1200 + 37}');
 
 void _answerChannel() {
   final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -685,6 +855,11 @@ InboxNetwork _telegram() => _tg ??= _FakeNetwork('telegram', 'Telegram', [
         InboxMessage(id: '4', text: 'are you coming tonight?', date: _now.subtract(const Duration(minutes: 2)), mine: false),
         InboxMessage(id: '5', text: 'yes! save me a spot', date: _now.subtract(const Duration(minutes: 1)), mine: true),
       ],
+      // A long chat for the down arrow's screen ('inbox-scrolled'): forty messages, every third yours.
+      '12': [
+        for (var i = 1; i <= 40; i++)
+          InboxMessage(id: '$i', text: i % 3 == 0 ? 'Message $i of mine, about the weekend and who is driving' : 'Message $i from Priya, a line or two long so the chat runs several screens', date: _now.subtract(Duration(minutes: 200 - i * 4)), mine: i % 3 == 0),
+      ],
       // A chat in French, translated (the 'translated-inbox' screen): not in the list of chats, so the list is as it was.
       '11': [
         InboxMessage(id: '1', text: 'Salut ! Tu es libre ce soir pour un verre ?', date: _now.subtract(const Duration(minutes: 6)), mine: false),
@@ -742,6 +917,21 @@ HangoutRoom _space() => _room ??= () {
       return HangoutRoom(channel: channel, route: _NoRoute(keys.id), name: 'Me', signer: KeysSigner(keys), store: store);
     }();
 HangoutRoom? _room;
+
+/// A space whose chat runs several screens, for the down arrow over a space's chat ('space-scrolled').
+HangoutRoom _longSpace() => _long2 ??= () {
+      final keys = NetKeys.generate();
+      final channel = VoiceChannel.make('Book club', owner: NetCrypto.hex(keys.public));
+      final store = MemoryHangoutStore();
+      final at = _now.subtract(const Duration(minutes: 200)).millisecondsSinceEpoch;
+      store.keepMessages(channel.chatRoom, [
+        for (var i = 1; i <= 40; i++)
+          HangoutMessage(id: '$i', from: i % 3 == 0 ? keys.id : 'a', name: i % 3 == 0 ? 'Me' : 'Maya Chen', text: i % 3 == 0 ? 'Line $i of mine, about the next book' : 'Line $i from Maya, a line or two long so the chat runs several screens', at: at + i * 240000),
+      ]);
+      store.keepRoster(channel.chatRoom, Roster.first(channel.owner));
+      return HangoutRoom(channel: channel, route: _NoRoute(keys.id), name: 'Me', signer: KeysSigner(keys), store: store);
+    }();
+HangoutRoom? _long2;
 
 /// A space with people in it: Maya (in voice) and Dana there on joining, then Riley comes in and Dana leaves, each
 /// saying their name as the app does ('hi', sealed with the space's key). One per [screen], each joined afresh.

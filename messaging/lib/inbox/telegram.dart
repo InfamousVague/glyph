@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -520,6 +521,10 @@ class Telegram extends InboxNetwork {
           _messages[chat] = [for (final x in messagesOf(chat)) x.id == id ? _withReactions(x, reactions) : x];
           notifyListeners();
         }
+      case 'updateMessageContent':
+        _edited('${m['chat_id']}', '${m['message_id']}', (raw) => raw..['content'] = m['new_content']);
+      case 'updateMessageEdited':
+        _edited('${m['chat_id']}', '${m['message_id']}', (raw) => raw..['edit_date'] = m['edit_date']);
       case 'updateDeleteMessages':
         if (m['is_permanent'] == true) {
           final chat = '${m['chat_id']}';
@@ -695,7 +700,7 @@ class Telegram extends InboxNetwork {
       id: '${c['id']}',
       title: (c['title'] as String?)?.trim().isNotEmpty == true ? c['title'] as String : 'Telegram',
       date: last == null ? DateTime.fromMillisecondsSinceEpoch(0) : DateTime.fromMillisecondsSinceEpoch(((last['date'] as num?) ?? 0).toInt() * 1000),
-      snippet: last == null ? '' : _text(last),
+      snippet: last == null ? '' : (_event(last) ?? _text(last)),
       unread: (c['unread_count'] as num?)?.toInt() ?? 0,
       group: type == 'chatTypeBasicGroup' || type == 'chatTypeSupergroup',
       lastFromMe: last?['is_outgoing'] == true,
@@ -731,10 +736,17 @@ class Telegram extends InboxNetwork {
       _fileUsers.putIfAbsent(x.fileId, () => {}).add('${m['chat_id']}');
       if (x.thumbId != null) _fileUsers.putIfAbsent(x.thumbId!, () => {}).add('${m['chat_id']}');
     }
+    final event = _event(m);
+    final key = '${m['chat_id']}/${m['id']}';
+    _raw[key] = m;
+    final versions = _versions[key] ?? const <String>[];
     return InboxMessage(
       id: '${m['id']}',
+      event: event != null,
+      edited: event == null && (((m['edit_date'] as num?) ?? 0) > 0 || versions.isNotEmpty),
+      versions: versions,
       // A picture's or a file's words are its caption alone: the picture itself is drawn.
-      text: media.isEmpty ? _text(m) : ((((m['content'] as Map?)?['caption'] as Map?)?['text'] as String?) ?? '').trim(),
+      text: event ?? (media.isEmpty ? _text(m) : ((((m['content'] as Map?)?['caption'] as Map?)?['text'] as String?) ?? '').trim()),
       media: media,
       date: DateTime.fromMillisecondsSinceEpoch(((m['date'] as num?) ?? 0).toInt() * 1000),
       mine: m['is_outgoing'] == true,
@@ -760,7 +772,62 @@ class Telegram extends InboxNetwork {
         replyTo: x.replyTo,
         replyText: x.replyText,
         replySender: x.replySender,
+        event: x.event,
+        edited: x.edited,
+        versions: x.versions,
       );
+
+  // --- edits (Matt, 2026-11-17: "Add support for edited messages on telegram and signal and the ability to see the
+  // original message") ----------------------------------------------------------------------------------------------
+  // Telegram says a message was edited (its edit_date) and gives its new words, never the old: what it said before is
+  // kept here as each edit comes, the first first, in a file of its own beside TDLib's, so the original is still there
+  // after a restart. A message edited before this device saw it is marked edited, with no earlier words to show.
+
+  /// Each message as Telegram last gave it, by "chat/id": what an edit's new content is put into.
+  final Map<String, Map<String, Object?>> _raw = {};
+
+  Map<String, List<String>>? _versionsHeld;
+
+  File? get _versionsFile => folder == null ? null : File('$folder/ghost-edits.json');
+
+  Map<String, List<String>> get _versions {
+    if (_versionsHeld != null) return _versionsHeld!;
+    try {
+      final f = _versionsFile;
+      if (f != null && f.existsSync()) {
+        return _versionsHeld = (jsonDecode(f.readAsStringSync()) as Map).map((k, v) => MapEntry('$k', [for (final x in v as List) '$x']));
+      }
+    } catch (_) {}
+    return _versionsHeld = {};
+  }
+
+  void _keepVersions() {
+    try {
+      final f = _versionsFile;
+      if (f == null) return;
+      // The newest thousand edited messages: enough to see what was said, never a file that only grows.
+      final all = _versions;
+      if (all.length > 1000) all.remove(all.keys.first);
+      f.writeAsStringSync(jsonEncode(all));
+    } catch (_) {}
+  }
+
+  /// A message edited: its words before kept, and it drawn again as it now is (its reactions as they stand here).
+  void _edited(String chat, String id, Map<String, Object?> Function(Map<String, Object?> raw) change) {
+    final key = '$chat/$id';
+    final raw = _raw[key];
+    final held = messagesOf(chat).where((x) => x.id == id).firstOrNull;
+    if (raw == null || held == null) return;
+    final next = change(Map<String, Object?>.of(raw));
+    final now = _message(next);
+    if (now.text != held.text && !held.event) {
+      _versions[key] = [...?_versions[key], held.text];
+      _keepVersions();
+    }
+    final redone = _withReactions(_message(next), held.reactions);
+    _messages[chat] = [for (final x in messagesOf(chat)) x.id == id ? redone : x];
+    notifyListeners();
+  }
 
   /// Each person's status as Telegram last said it (userStatusOnline and the rest).
   final Map<int, Map> _statuses = {};
@@ -1001,7 +1068,63 @@ class Telegram extends InboxNetwork {
       'messageContact' => 'Contact',
       'messagePoll' => 'Poll',
       'messageCall' => 'Call',
-      _ => 'Message',
+      'messageDice' => '${c['emoji'] ?? '🎲'}',
+      'messageGame' => 'Game: ${(c['game'] as Map?)?['title'] ?? ''}'.trim(),
+      'messageInvoice' => 'Invoice: ${c['title'] ?? (c['product_info'] as Map?)?['title'] ?? ''}'.trim(),
+      'messageStory' => 'Story',
+      'messageGiveaway' || 'messageGiveawayWinners' || 'messageGiveawayCompleted' || 'messageGiveawayCreated' => 'Giveaway',
+      'messageExpiredPhoto' => 'Photo (no longer available)',
+      'messageExpiredVideo' => 'Video (no longer available)',
+      'messageExpiredVideoNote' || 'messageExpiredVoiceNote' => 'Message (no longer available)',
+      'messagePaidMedia' => caption('Paid photo or video'),
+      'messageChecklist' => 'Checklist',
+      // Something newer than this app knows (Matt, 2026-11-17: "A bunch of telegram messages are just showing as
+      // \"Message\""): said so, rather than a word that reads like what was written.
+      _ => 'A kind of message Ghost can\'t show yet: open Telegram to see it',
+    };
+  }
+
+  /// What happened, where [m] is something that happened in the chat rather than something said: a join, a leave, a new
+  /// name or picture, a pin, a video chat (Telegram's service messages). Null for anything said.
+  String? _event(Map m) {
+    final c = m['content'] as Map? ?? const {};
+    final senderId = ((m['sender_id'] as Map?)?['user_id'] as num?)?.toInt();
+    String who(int? id) => id == null ? 'Someone' : (id == senderId && m['is_outgoing'] == true ? 'You' : (_users[id] ?? 'Someone'));
+    final by = m['is_outgoing'] == true ? 'You' : who(senderId);
+    String names(Object? ids) => [for (final i in (ids as List? ?? const [])) if (i is num) who(i.toInt())].join(', ');
+    return switch (c['@type']) {
+      'messageChatAddMembers' => () {
+          final ids = [for (final i in (c['member_user_ids'] as List? ?? const [])) if (i is num) i.toInt()];
+          return ids.length == 1 && ids.first == senderId ? '$by joined the group' : '$by added ${names(ids)}';
+        }(),
+      'messageChatJoinByLink' => '$by joined with an invite link',
+      'messageChatJoinByRequest' => '$by joined the group',
+      'messageChatDeleteMember' => (c['user_id'] as num?)?.toInt() == senderId ? '$by left the group' : '$by removed ${who((c['user_id'] as num?)?.toInt())}',
+      'messageBasicGroupChatCreate' || 'messageSupergroupChatCreate' => '$by made the group "${c['title'] ?? ''}"',
+      'messageChatChangeTitle' => '$by renamed the group "${c['title'] ?? ''}"',
+      'messageChatChangePhoto' => '$by changed the group\'s picture',
+      'messageChatDeletePhoto' => '$by took away the group\'s picture',
+      'messagePinMessage' => '$by pinned a message',
+      'messageChatUpgradeTo' || 'messageChatUpgradeFrom' => 'The group became a supergroup',
+      'messageScreenshotTaken' => '$by took a screenshot',
+      'messageContactRegistered' => '$by joined Telegram',
+      'messageChatSetMessageAutoDeleteTime' => ((c['message_auto_delete_time'] as num?) ?? 0) > 0 ? '$by turned on disappearing messages' : '$by turned off disappearing messages',
+      'messageVideoChatStarted' => '$by started a video chat',
+      'messageVideoChatEnded' => 'The video chat ended',
+      'messageVideoChatScheduled' => '$by scheduled a video chat',
+      'messageInviteVideoChatParticipants' => '$by invited ${names(c['user_ids'])} to the video chat',
+      'messageForumTopicCreated' => '$by made the topic "${c['name'] ?? ''}"',
+      'messageForumTopicEdited' || 'messageForumTopicIsClosedToggled' || 'messageForumTopicIsHiddenToggled' => '$by changed a topic',
+      'messageChatSetTheme' || 'messageChatSetBackground' => '$by changed the chat\'s look',
+      'messageChatBoost' => '$by boosted the group',
+      'messageGameScore' => '$by scored ${c['score'] ?? ''}'.trim(),
+      'messageGift' || 'messageGiftedPremium' || 'messagePremiumGiftCode' || 'messageGiftedStars' => '$by sent a gift',
+      'messageCustomServiceAction' => '${c['text'] ?? ''}',
+      'messageProximityAlertTriggered' => 'Someone came near',
+      'messageChatShared' || 'messageUsersShared' => '$by shared a contact',
+      'messageBotWriteAccessAllowed' => 'You allowed the bot to write to you',
+      'messageWebAppDataSent' || 'messageWebAppDataReceived' => 'Data sent from a web app',
+      _ => null,
     };
   }
 

@@ -14,6 +14,7 @@ import '../net/packet.dart';
 import '../net/switchboard.dart';
 import '../sms.dart';
 import '../sounds.dart';
+import '../circles/circles.dart';
 import 'hangout.dart';
 import 'roles.dart';
 import 'rtc.dart';
@@ -64,6 +65,21 @@ class Voice extends ChangeNotifier {
   /// Channels made here or shared by friends.
   List<VoiceChannel> own = [];
 
+  /// The spaces of every circle this device is in (lib/circles/circles.dart sets them as its circles change): their
+  /// chat rooms are held for previews and unread counts as a space of one's own is, but they are listed in their
+  /// circle, not in Messages, and the phone and computer keep them in step as circles, not one by one.
+  List<VoiceChannel> circled = [];
+
+  /// Sets [circled] and looks again at what is held.
+  void setCircled(List<VoiceChannel> spaces) {
+    final before = circled.map((c) => '${c.seed}${c.kind.wire}${c.name}').join();
+    circled = spaces;
+    if (spaces.map((c) => '${c.seed}${c.kind.wire}${c.name}').join() != before) _look();
+  }
+
+  /// What this device's spaces stand on, once the relay is connected: the circles' rooms go through it too.
+  VoiceRoute? get route => _route;
+
   /// The seeds of channels removed on this device or its phone or computer, kept so that neither gives one back to
   /// the other (Matt, 2026-11-15: "Removing a hangout channel doesn't remove it for all devices": the computer still
   /// had it and, every few seconds, handed the phone it again). The newest [_goneKept].
@@ -81,6 +97,18 @@ class Voice extends ChangeNotifier {
 
   void _unmarkGone(String seed) {
     if (_gone.remove(seed)) _app?.set('voice_gone', jsonEncode(_gone));
+  }
+
+  /// The seeds of spaces archived here: out of Messages, in Archive with the archived conversations (Matt, 2026-11-17:
+  /// "spaces outside of servers move to the main chat list and can be swiped to leave a space or delete / archive").
+  final Set<String> _archived = {};
+
+  bool archived(VoiceChannel c) => _archived.contains(c.seed);
+
+  void archive(VoiceChannel c, bool on) {
+    if (on ? !_archived.add(c.seed) : !_archived.remove(c.seed)) return;
+    _app?.set('voice_archived', jsonEncode([..._archived]));
+    notifyListeners();
   }
 
   /// How loud each person is played here, and who is silenced here, by their id: kept, and applied in every call with
@@ -139,6 +167,7 @@ class Voice extends ChangeNotifier {
       _seen.addAll((jsonDecode(app.choice('voice_seen', '{}')) as Map).cast<String, int>());
       _readAt.addAll((jsonDecode(app.choice('voice_read', '{}')) as Map).map((k, v) => MapEntry('$k', (v as num).toInt())));
       _gone.addAll((jsonDecode(app.choice('voice_gone', '[]')) as List).whereType<String>());
+      _archived.addAll((jsonDecode(app.choice('voice_archived', '[]')) as List).whereType<String>());
       final people = jsonDecode(app.choice('voice_people', '{}')) as Map;
       _volumes.addAll(((people['v'] as Map?) ?? const {}).map((k, v) => MapEntry(k as String, (v as num).toDouble())));
       _silenced.addAll(((people['m'] as List?) ?? const []).cast<String>());
@@ -161,6 +190,7 @@ class Voice extends ChangeNotifier {
         if (!g.gone) VoiceChannel.ofGroup(g.id, g.name),
       ..._phone,
       ...own,
+      ...circled,
     ];
     final seen = <String>{};
     return [for (final c in out) if (seen.add(c.seed)) c];
@@ -180,7 +210,7 @@ class Voice extends ChangeNotifier {
   Future<Object?> answerDesk(Map<String, Object?> what) async {
     switch (what['op']) {
       case 'add':
-        final c = VoiceChannel.fromJson({'s': what['s'], 'n': what['n'], 'o': what['o']});
+        final c = VoiceChannel.fromJson({'s': what['s'], 'n': what['n'], 'o': what['o'], 'k': what['k']});
         // One removed here is not given back by a computer that had not heard yet.
         if (c != null && removed(c.seed)) return {'ok': false, 'gone': true};
         if (c != null && !own.any((o) => o.seed == c.seed)) {
@@ -194,12 +224,18 @@ class Voice extends ChangeNotifier {
         own = [for (final o in own) if (o.seed != what['s']) o];
         await _keep();
         return {'ok': true};
+      case 'circle' || 'circle-join' || 'circle-forget':
+        // A circle the computer made or changed, or left (lib/circles/circles.dart).
+        return Circles.instance.answerDesk(what);
       default:
         final me = Me.instance;
         return {
+          // A circle's spaces go with their circle ('circles'), not one by one.
           'channels': [
-            for (final c in channels) {'s': c.seed, 'n': c.name, if (c.group != null) 'g': c.group, if (c.mine) 'm': 1, if (c.owner.isNotEmpty) 'o': c.owner},
+            for (final c in channels)
+              if (c.circle == null) {'s': c.seed, 'n': c.name, if (c.group != null) 'g': c.group, if (c.mine) 'm': 1, if (c.owner.isNotEmpty) 'o': c.owner, if (c.kind != SpaceKind.voice) 'k': c.kind.wire},
           ],
+          ...Circles.instance.forDesk(),
           // What was removed, here or from a computer, for every computer to take away too.
           'gone': _gone,
           'name': me.displayName.isNotEmpty ? me.displayName : (me.username == null ? '' : '@${me.username}'),
@@ -235,22 +271,27 @@ class Voice extends ChangeNotifier {
         }
         final c = VoiceChannel.fromJson(j);
         if (c == null) continue;
-        list.add(VoiceChannel(seed: c.seed, name: c.name, group: j['g'] as String?, mine: c.mine, owner: c.owner));
+        list.add(VoiceChannel(seed: c.seed, name: c.name, group: j['g'] as String?, mine: c.mine, owner: c.owner, kind: c.kind));
       }
       final name = got['name'] is String ? got['name'] as String : null;
-      final changed = dropped || list.map((c) => '${c.seed}${c.name}').join() != _phone.map((c) => '${c.seed}${c.name}').join() || name != _deskName;
+      final changed = dropped || list.map((c) => '${c.seed}${c.name}${c.kind.wire}').join() != _phone.map((c) => '${c.seed}${c.name}${c.kind.wire}').join() || name != _deskName;
       _phone = list;
       _deskName = name;
       _deskUsername = got['u'] as String?;
       // Channels made here that the phone does not have yet go to it.
       for (final c in own) {
-        if (!list.any((p) => p.seed == c.seed) && !removed(c.seed)) unawaited(Sms.instance.voiceSync({'op': 'add', 's': c.seed, 'n': c.name, if (c.owner.isNotEmpty) 'o': c.owner}).catchError((_) => <String, dynamic>{}));
+        if (!list.any((p) => p.seed == c.seed) && !removed(c.seed)) unawaited(Sms.instance.voiceSync(_deskAdd(c)).catchError((_) => <String, dynamic>{}));
       }
+      // And the phone's circles, each kept at its newest list of spaces (lib/circles/circles.dart).
+      Circles.instance.fromPhone(got);
       if (changed) _look();
     } catch (_) {
       // The phone is away or older: the computer keeps what it last heard.
     }
   }
+
+  /// What the phone is told of a space made on a computer.
+  static Map<String, Object?> _deskAdd(VoiceChannel c) => {'op': 'add', 's': c.seed, 'n': c.name, if (c.owner.isNotEmpty) 'o': c.owner, if (c.kind != SpaceKind.voice) 'k': c.kind.wire};
 
   /// Who is in [channel] now, as the hub says.
   List<String> inChannel(VoiceChannel channel) => _in[channel.room] ?? const [];
@@ -267,7 +308,8 @@ class Voice extends ChangeNotifier {
     return Net.instance.hub?.signer;
   }
 
-  String? get _ownerKey {
+  /// The public key (hex) this install owns spaces and circles by.
+  String? get ownerKey {
     final s = signer;
     return s == null ? null : NetCrypto.hex(s.publicKey);
   }
@@ -330,8 +372,9 @@ class Voice extends ChangeNotifier {
     if (route == null) return;
     // The hub dialled for the channels too, on a phone, while there are any.
     if (!Sms.paired) unawaited(Net.instance.want('voice', channels.isNotEmpty));
+    // Only a space with a call is looked at: a texting or Files space has no call room to ask about.
     for (final c in channels) {
-      route.look(c.room, c.token);
+      if (c.hasVoice) route.look(c.room, c.token);
     }
     _listenAll();
     notifyListeners();
@@ -356,6 +399,10 @@ class Voice extends ChangeNotifier {
       if (room != null) unawaited(release(room.channel));
     }
     for (final c in want.values) {
+      // A circle's space made another kind (or renamed): its room, held already, follows, so its roles and its
+      // call match what it now is (HangoutRoom.updateChannel).
+      final held = _hangouts[c.seed];
+      if (held != null && (held.channel.kind != c.kind || held.channel.name != c.name)) held.updateChannel(c);
       if (!_listening.add(c.seed)) continue;
       // A space first listened to starts read: what was said in it before is not news.
       if (!_readAt.containsKey(c.seed)) {
@@ -397,14 +444,14 @@ class Voice extends ChangeNotifier {
     _look();
   }
 
-  /// Makes a channel of this phone's, named [name].
-  Future<VoiceChannel> make(String name) async {
+  /// Makes a channel of this phone's, named [name], for chat and voice, texting or files ([kind]).
+  Future<VoiceChannel> make(String name, {SpaceKind kind = SpaceKind.voice}) async {
     // This install owns it: its key is in the hangout, so everyone with the link knows whose roles to believe.
-    final c = VoiceChannel.make(name.trim().isEmpty ? 'Voice' : name.trim(), owner: _ownerKey ?? '');
+    final c = VoiceChannel.make(name.trim().isEmpty ? (kind == SpaceKind.voice ? 'Voice' : kind.label) : name.trim(), owner: ownerKey ?? '', kind: kind);
     own = [...own, c];
     await _keep();
     // Made on a computer: the phone keeps it too.
-    if (Sms.paired) unawaited(Sms.instance.voiceSync({'op': 'add', 's': c.seed, 'n': c.name, if (c.owner.isNotEmpty) 'o': c.owner}).catchError((_) => <String, dynamic>{}));
+    if (Sms.paired) unawaited(Sms.instance.voiceSync(_deskAdd(c)).catchError((_) => <String, dynamic>{}));
     return c;
   }
 
@@ -432,7 +479,7 @@ class Voice extends ChangeNotifier {
         continue;
       }
       try {
-        final d = await Net.instance.send(peer, Envelope(kind: 'voice', body: {'t': 'channel', 's': c.seed, 'n': c.name, if (c.owner.isNotEmpty) 'o': c.owner, 'by': by}));
+        final d = await Net.instance.send(peer, Envelope(kind: 'voice', body: {'t': 'channel', 's': c.seed, 'n': c.name, if (c.owner.isNotEmpty) 'o': c.owner, if (c.kind != SpaceKind.voice) 'k': c.kind.wire, 'by': by}));
         if (!d.sent) missed.add(f);
       } catch (_) {
         missed.add(f);
@@ -480,7 +527,7 @@ class Voice extends ChangeNotifier {
       case 'channel':
         // Only from a friend.
         if (Buddies.instance.byId(r.peer.id)?.state != 'yes') return;
-        final c = VoiceChannel.fromJson({'s': b['s'], 'n': b['n'], 'o': b['o']});
+        final c = VoiceChannel.fromJson({'s': b['s'], 'n': b['n'], 'o': b['o'], 'k': b['k']});
         if (c == null) return;
         // Said on screen, Join and Not now, unless already in its call or a group is calling (Matt, 2026-11-16:
         // invites into spaces).
@@ -617,6 +664,8 @@ class Voice extends ChangeNotifier {
   Future<void> join(VoiceChannel c, {bool video = false}) async {
     final route = _route;
     if (route == null) throw StateError('The relay server isn\'t connected.');
+    // A texting or Files space has no call (SpaceKind).
+    if (!c.hasVoice) throw StateError('${c.name} is a ${c.kind.label.toLowerCase()} space, with no voice.');
     if (session?.channel.room == c.room) return;
     await leave();
     if (ringing?.channel.room == c.room) {

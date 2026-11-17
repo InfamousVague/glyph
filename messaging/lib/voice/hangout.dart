@@ -27,14 +27,15 @@ import 'voice.dart';
 class HangoutRoom extends ChangeNotifier {
   HangoutRoom({required this.channel, required this.route, required this.name, this.username, this.signer, HangoutStore? store})
       : store = store ?? MemoryHangoutStore() {
-    roster = this.store.roster(channel.chatRoom) ?? Roster.first(channel.owner);
-    if (roster.owner != channel.owner) roster = Roster.first(channel.owner);
+    roster = this.store.roster(channel.chatRoom) ?? Roster.first(channel.owner, kind: channel.kind);
+    if (roster.owner != channel.owner) roster = Roster.first(channel.owner, kind: channel.kind);
     messages = this.store.messages(channel.chatRoom);
   }
 
   static const keep = 300;
 
-  final VoiceChannel channel;
+  /// The space: replaced, same seed, when the circle it is in changes its kind ([updateChannel]).
+  VoiceChannel channel;
   final VoiceRoute route;
   final HangoutStore store;
 
@@ -210,10 +211,34 @@ class HangoutRoom extends ChangeNotifier {
     return ok;
   }
 
+  /// [c], the same space with its kind (or name) changed by its circle: kept here so what the space may do follows it.
+  /// Made a Files space, members may add files and moderators and admins manage them, as a new Files space's roles
+  /// have; made another kind, the Files permissions go. A roster no one has signed yet is the kind's first roster; a
+  /// signed one is changed and signed here where this install may manage it (else by whoever may, as they see it).
+  void updateChannel(VoiceChannel c) {
+    if (c.seed != channel.seed) return;
+    final was = channel.kind;
+    channel = c;
+    if (c.kind != was) {
+      if (roster.version == 0 && roster.sig == null) {
+        _take(Roster.first(c.owner, kind: c.kind));
+      } else if (canManage) {
+        final defaults = {for (final r in Role.defaultsFor(c.kind)) r.id: r};
+        final roles = [
+          for (final r in roster.ranked)
+            r.copyWith(perms: c.kind == SpaceKind.files ? {...r.perms, ...?defaults[r.id]?.perms.intersection(Perm.files)} : r.perms.difference(Perm.files)),
+        ];
+        unawaited(_publish(roster.next(roles: roles)));
+      }
+    }
+    notifyListeners();
+  }
+
   /// Changes what [role] may do, or its name or rank; or adds it where it is new. Admin keeps every permission.
   Future<bool> saveRole(Role role) async {
     if (!canManage) return false;
-    final fixed = role.id == Role.admin ? role.copyWith(perms: Perm.values.toSet(), rank: 30) : role.copyWith(rank: role.rank.clamp(1, 29));
+    // Only what a space of this kind has: a voice or texting space's roles never name a Files permission (Perm.files).
+    final fixed = role.id == Role.admin ? role.copyWith(perms: Perm.of(channel.kind), rank: 30) : role.copyWith(perms: role.perms.intersection(Perm.of(channel.kind)), rank: role.rank.clamp(1, 29));
     final roles = [for (final r in roster.ranked) r.id == role.id ? fixed : r];
     if (!roles.any((r) => r.id == role.id)) roles.add(fixed);
     return _publish(roster.next(roles: roles));

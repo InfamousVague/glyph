@@ -763,6 +763,9 @@ class Sms {
 
   /// A data text for the app's routes came (android/.../NetSms.kt): the number it came from, and its bytes.
   final netSms = StreamController<({String address, Uint8List bytes})>.broadcast();
+
+  /// Files shared into the app from another (their content addresses): added to a Files space the person picks.
+  final sharedIn = StreamController<List<String>>.broadcast();
   StreamSubscription<dynamic>? _sub;
 
   void listen() {
@@ -778,6 +781,7 @@ class Sms {
       if (m['type'] == 'voiceFull') voiceFull.add(null);
       if (m['type'] == 'voiceStopped') voiceStopped.add(null);
       if (m['type'] == 'netSms') netSms.add((address: m['address'] as String, bytes: m['bytes'] as Uint8List));
+      if (m['type'] == 'sharedFiles') sharedIn.add([for (final u in (m['uris'] as List? ?? const [])) u as String]);
     });
   }
 
@@ -1286,6 +1290,24 @@ class Sms {
   Future<void> openFile(String path, {String? name}) => _calls.invokeMethod('openFile', {'path': path, 'name': name});
 
   Future<List<String>> pickImages() async => [for (final u in (await _calls.invokeMethod<List>('pickImages')) ?? const []) u as String];
+
+  // --- a Files space's files on the phone (lib/files/file_platform.dart; android MainActivity "keepFile" and the rest) --
+
+  /// A picked or shared file (its content address) copied into the app's own folder, to go up from there even after
+  /// the app was closed: its path, name and size.
+  Future<({String path, String name, int size})> keepFile(String uri) async {
+    final m = (await _calls.invokeMethod<Map>('keepFile', {'uri': uri}))!;
+    return (path: m['path'] as String, name: m['name'] as String, size: (m['size'] as num).toInt());
+  }
+
+  /// Asks where to save the file at [path] (as [name]) and copies it there; false where the person put the page away.
+  Future<bool> saveFile(String path, String name, String mime) async => await _calls.invokeMethod<bool>('saveFile', {'path': path, 'name': name, 'mime': mime}) ?? false;
+
+  /// Shares the file at [path] with another app.
+  Future<void> shareFile(String path, String name, String mime) => _calls.invokeMethod('shareFile', {'path': path, 'name': name, 'mime': mime});
+
+  /// Files another app shared into this one before anything listened for them ([sharedIn] has the ones after).
+  Future<List<String>> sharedFiles() async => [for (final u in (await _calls.invokeMethod<List>('sharedFiles')) ?? const []) u as String];
 
   Future<String?> ownNumber() => _calls.invokeMethod<String>('ownNumber');
 

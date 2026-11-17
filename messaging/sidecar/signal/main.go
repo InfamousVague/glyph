@@ -1350,6 +1350,15 @@ func nonNil(ts []uint64) []uint64 {
 }
 
 func chatEvent(c *signalmeow.Client, evt *events.ChatEvent) {
+	// An edit (Matt, 2026-11-17: "Add support for edited messages on telegram and signal and the ability to see the
+	// original message"): which message, by its first time, and its words now; the app keeps what it said before.
+	if em, ok := evt.Event.(*signalpb.EditMessage); ok {
+		event("edited", map[string]any{
+			"chat": evt.Info.ChatID, "from": evt.Info.Sender.String(), "target_ts": em.GetTargetSentTimestamp(),
+			"ts": em.GetDataMessage().GetTimestamp(), "text": em.GetDataMessage().GetBody(),
+		})
+		return
+	}
 	dm, ok := evt.Event.(*signalpb.DataMessage)
 	if !ok {
 		return

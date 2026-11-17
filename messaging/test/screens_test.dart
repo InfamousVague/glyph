@@ -1746,7 +1746,7 @@ void main() {
   // Matt, 2026-11-15: "use an icon only segmented toggle for the messages codes and add voice chats to the list as well,
   // try a few different layouts for switching between the few including a mixed view that shows them all intertwined
   // sorted by recency, also id like you to rework the active call indicator".
-  testWidgets('the list\'s three tabs with voice, and the call as a banner above the dock', (tester) async {
+  testWidgets('the list\'s three tabs with circles, and the call as a banner above the dock', (tester) async {
     tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
     tester.view.devicePixelRatio = 2.0;
     tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
@@ -1769,8 +1769,9 @@ void main() {
       // Tabs: icons alone, voice among them.
       await _shoot(tester, sheet, const AppShell(), '20-layout-tabs', dark: dark);
       expect(find.byType(SectionTabs), findsOneWidget);
-      final voiceTab = find.descendant(of: find.byType(SectionTabs), matching: find.byWidgetPredicate((w) => w is AppIcon && w.icon == LucideMore.headphones));
-      expect(voiceTab, findsOneWidget);
+      // Circles where Spaces was (Matt, 2026-11-17: "Let's do a circle for now ... with it's own sidebar full of spaces").
+      final circlesTab = find.descendant(of: find.byType(SectionTabs), matching: find.byWidgetPredicate((w) => w is AppIcon && w.icon == Lucide.circleDot));
+      expect(circlesTab, findsOneWidget);
       // The call: a banner just above the dock, the people talking rippling in it (Matt, 2026-11-15: "switch the
       // active call to be a banner again in the sidebar just above the navigation bar").
       expect(find.byType(CallBanner), findsOneWidget);
@@ -1786,10 +1787,11 @@ void main() {
       }
       // No Voice ring: calls are the Voice tab.
       expect(find.byKey(const ValueKey('nav-voice')), findsNothing);
-      await tester.tap(voiceTab);
+      await tester.tap(circlesTab);
       await _settle(tester);
-      await _shootAgain(tester, '20-layout-tabs-voice', dark: dark);
-      expect(find.byType(VoiceRow), findsNWidgets(2));
+      await _shootAgain(tester, '20-layout-tabs-circles', dark: dark);
+      // No circles here: spaces of one's own, as the Spaces tab listed them.
+      expect(find.text('Study room'), findsWidgets);
       await tester.pumpWidget(const SizedBox());
     }
   });

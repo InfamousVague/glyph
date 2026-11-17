@@ -1,0 +1,442 @@
+/// A circle: a group of people with a sidebar of their own spaces (Matt, 2026-11-17: "I think for now the full server
+/// implementation is a bit much and the UI doesn't look like our own ... Let's do a circle for now, remove all of the
+/// code related to the server UIs and make a new design for [circles]. We want it to be simpler and easier to digest
+/// with it's own sidebar full of spaces each space should be able to act as a chat and a voice chat, or just a texting
+/// space").
+///
+/// **Its identity is one seed**, 32 random bytes, as a space's is (lib/voice/voice.dart): the circle's room on the hub,
+/// the token to join it and the key what is said in it is sealed with all come from it, so holding the seed is being
+/// in the circle, and the hub sees only that some installs are in some room.
+///
+/// **What it holds is its manifest** ([CircleManifest]): its name, colour, icon and picture, and its list of spaces,
+/// each with the space's own seed, name, kind, place and section. It is numbered and signed by the circle's owner (the
+/// install that made it), or by an admin the owner granted, as a space's roster is (lib/voice/roles.dart), so anyone
+/// may pass it on and only the owner and their admins can change it. Members keep the highest-numbered one that checks
+/// out (lib/circles/circles.dart gossips it in the circle's room).
+///
+/// Each space of a circle is an ordinary space ([VoiceChannel]) whose owner is the circle's owner: its chat, its roles
+/// and its call (a voice one's) are what any space has.
+library;
+
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+
+import '../net/crypto.dart';
+import '../voice/voice.dart';
+
+/// The colours a circle may wear: the app's own hues (lib/kit/settings_css.dart `data-hue`), which every look in
+/// lib/looks.dart settles into its own page.
+const circleHues = ['blue', 'purple', 'coral', 'green', 'amber', 'indigo', 'orange', 'cyan', 'rose', 'mint', 'magenta', 'slate'];
+
+/// A hue for a circle that has not said its own yet (joined by a link, before its manifest came): the same one on
+/// every device, from its seed.
+String hueOfSeed(String seed) {
+  var h = 0;
+  for (final c in seed.codeUnits) {
+    h = (h * 31 + c) & 0x7fffffff;
+  }
+  return circleHues[h % circleHues.length];
+}
+
+/// The largest picture a manifest carries, as base64: small enough that the manifest still fits one packet on the hub
+/// (64 KB) and one invite.
+const circlePictureMax = 24000;
+
+/// One space in a circle's list.
+@immutable
+class CircleSpace {
+  const CircleSpace({required this.seed, required this.name, this.kind = SpaceKind.voice, this.order = 0, this.section, this.kindWire, this.extra = const {}});
+
+  /// A new space, with a seed of its own.
+  factory CircleSpace.make(String name, {SpaceKind kind = SpaceKind.voice, int order = 0, String? section}) =>
+      CircleSpace(seed: NetCrypto.hex(NetCrypto.randomBytes(32)), name: name, kind: kind, order: order, section: section);
+
+  /// The space's own seed (32 bytes in hex), as any space's: its rooms and key come from it.
+  final String seed;
+  final String name;
+  final SpaceKind kind;
+
+  /// Its place in the circle's list, lowest first.
+  final int order;
+
+  /// The heading it is listed under, or null for none.
+  final String? section;
+
+  /// Its kind's word as a newer build wrote it, where this build doesn't know it: written back as it came, so an admin
+  /// here renaming or moving the space doesn't turn it into another kind for everyone. Meanwhile it is drawn as a
+  /// [SpaceKind.text] space (a chat, no call), never offered a call it may not have.
+  final String? kindWire;
+
+  /// What a newer build wrote of the space that this one doesn't read, written back unchanged ([toJson]).
+  final Map<String, Object?> extra;
+
+  CircleSpace copyWith({String? name, SpaceKind? kind, int? order, String? section, bool clearSection = false}) => CircleSpace(
+        seed: seed,
+        name: name ?? this.name,
+        kind: kind ?? this.kind,
+        order: order ?? this.order,
+        section: clearSection ? null : (section ?? this.section),
+        // A kind chosen here replaces the one this build couldn't read.
+        kindWire: kind == null ? kindWire : null,
+        extra: extra,
+      );
+
+  static const _known = {'s', 'n', 'k', 'o', 'g'};
+
+  Map<String, Object> toJson() => {
+        for (final e in extra.entries)
+          if (e.value != null) e.key: e.value!,
+        's': seed,
+        'n': name,
+        if (kindWire != null) 'k': kindWire! else if (kind != SpaceKind.voice) 'k': kind.wire,
+        'o': order,
+        if (section != null && section!.isNotEmpty) 'g': section!,
+      };
+
+  static CircleSpace? fromJson(Object? j) {
+    if (j is! Map || j['s'] is! String || !RegExp(r'^[0-9a-f]{64}$').hasMatch(j['s'] as String) || j['n'] is! String) return null;
+    final name = (j['n'] as String).trim();
+    if (name.isEmpty) return null;
+    final section = j['g'] is String && (j['g'] as String).trim().isNotEmpty ? (j['g'] as String).trim() : null;
+    final k = j['k'];
+    final known = k == null || SpaceKind.values.any((x) => x.wire == k);
+    return CircleSpace(
+      seed: j['s'] as String,
+      name: name.length > 100 ? name.substring(0, 100) : name,
+      kind: known ? SpaceKind.of(k) : SpaceKind.text,
+      kindWire: known ? null : '$k',
+      order: j['o'] is int ? j['o'] as int : 0,
+      section: section,
+      extra: {for (final e in j.entries) if (!_known.contains(e.key)) '${e.key}': e.value},
+    );
+  }
+
+  @override
+  bool operator ==(Object other) => other is CircleSpace && other.seed == seed && other.name == name && other.kind == kind && other.order == order && other.section == section && other.kindWire == kindWire;
+
+  @override
+  int get hashCode => Object.hash(seed, name, kind, order, section, kindWire);
+}
+
+/// What a circle is and holds, numbered and signed ([trustedFor]).
+///
+/// The signature covers the body exactly as it was written ([raw], a JSON string), not as this build reads it, so a
+/// manifest from a newer build with fields or kinds this one doesn't know still checks out here, and is passed on
+/// unchanged.
+@immutable
+class CircleManifest {
+  CircleManifest({
+    required this.owner,
+    required this.name,
+    this.version = 0,
+    this.hue = 'indigo',
+    this.icon = 'users',
+    this.picture,
+    this.spaces = const [],
+    this.adminGrants = const {},
+    this.grantsVersion = 0,
+    this.grantsSig,
+    this.extra = const {},
+    this.by,
+    this.byKey,
+    this.sig,
+    String? raw,
+  }) : raw = raw ?? jsonEncode(_body(owner, version, name, hue, icon, picture, spaces, adminGrants, grantsVersion, grantsSig, extra));
+
+  /// The highest version a manifest may carry: a whole number a browser reads exactly (2^53). One at or above it is
+  /// refused, so an admin can't publish the highest number there is and leave the owner no higher one to change the
+  /// circle with; the owner starts the numbers again under a new admin list instead ([grantsVersion]).
+  static const versionCap = 9007199254740992;
+
+  /// The owner's public key (33 bytes in hex).
+  final String owner;
+  final int version;
+  final String name;
+
+  /// One of [circleHues].
+  final String hue;
+
+  /// A Lucide icon's name (lib/art), shown on the circle's face where it has no picture.
+  final String icon;
+
+  /// A small picture (WebP or PNG, base64, at most [circlePictureMax]) in the icon's place; null for none.
+  final String? picture;
+  final List<CircleSpace> spaces;
+
+  /// For each admin's id, the owner's signature that they are one ([grantMessage]): they may sign manifests too.
+  final Map<String, String> adminGrants;
+
+  /// The admin list's own number and the owner's signature over it ([grantsMessage]): made only by the owner, carried
+  /// unchanged by every manifest an admin signs. Manifests are ordered by it first, then by [version], so once the
+  /// owner removes an admin (a higher [grantsVersion]) nothing that admin signed before can win again, whatever its
+  /// version, and a member who joins later takes the owner's. 0 with no signature: a circle from before it.
+  final int grantsVersion;
+  final String? grantsSig;
+
+  /// What a newer build wrote in the body that this one doesn't read, written back unchanged when a manifest is made
+  /// from this one ([next]).
+  final Map<String, Object?> extra;
+
+  /// Who signed this version: their id, their public key, their signature over [signed].
+  final String? by;
+  final String? byKey;
+  final String? sig;
+
+  /// The body as it was written and signed.
+  final String raw;
+
+  /// A circle's manifest before any has come: what its link or invite said, unsigned and numbered 0, so the first real
+  /// one replaces it.
+  factory CircleManifest.placeholder({required String owner, required String name, String? hue}) => CircleManifest(owner: owner, name: name, hue: hue ?? 'indigo');
+
+  static const _known = {'o', 'v', 'n', 'h', 'i', 'p', 'sp', 'g', 'gv', 'gs'};
+
+  static Map<String, Object?> _body(String owner, int version, String name, String hue, String icon, String? picture, List<CircleSpace> spaces, Map<String, String> grants, int gv, String? gs, Map<String, Object?> extra) => {
+        ...extra,
+        'o': owner,
+        'v': version,
+        'n': name,
+        'h': hue,
+        'i': icon,
+        'p': ?picture,
+        'sp': [for (final s in spaces) s.toJson()],
+        'g': _sorted(grants),
+        if (gv > 0) 'gv': gv,
+        'gs': ?gs,
+      };
+
+  static Map<String, String> _sorted(Map<String, String> grants) => Map.fromEntries(grants.entries.toList()..sort((a, b) => a.key.compareTo(b.key)));
+
+  /// What the owner signs for generation [gv] of the admin list [grants].
+  static List<int> grantsMessage(String owner, int gv, Map<String, String> grants) => utf8.encode('ghost-circle grants|$owner|$gv|${jsonEncode(_sorted(grants))}');
+
+  /// Whether the admin list is the owner's: its generation signed by the owner, or (generation 0) a circle from before
+  /// generations, whose single grants are checked one by one ([granted]).
+  bool get grantsTrusted {
+    if (grantsVersion == 0) return true;
+    final gs = grantsSig;
+    if (gs == null || owner.isEmpty) return false;
+    try {
+      return NetCrypto.verify(NetCrypto.unhex(owner), grantsMessage(owner, grantsVersion, adminGrants), NetCrypto.unhex(gs));
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// The manifest as a room message would carry it fits one hub packet (64 KB), with room for the seal round it.
+  bool get fitsAPacket => raw.length <= 60000 && utf8.encode(jsonEncode({'t': 'circle', 'm': toJson()})).length <= 60000;
+
+  bool get isSigned => sig != null;
+
+  String get ownerId => owner.isEmpty ? '' : NetCrypto.idOf(NetCrypto.unhex(owner));
+
+  /// The spaces in their order: by [CircleSpace.order], then by name.
+  List<CircleSpace> get ordered => [...spaces]..sort((a, b) => a.order != b.order ? a.order.compareTo(b.order) : a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+  /// The headings, in the order their first space comes; null (no heading) where a space has none.
+  List<String?> get sections {
+    final out = <String?>[];
+    for (final s in ordered) {
+      if (!out.contains(s.section)) out.add(s.section);
+    }
+    return out;
+  }
+
+  /// What the owner signs to make [id] an admin of the circle whose owner key this is.
+  static List<int> grantMessage(String owner, String id) => utf8.encode('ghost-circle admin|$owner|$id');
+
+  /// Whether [id] has the owner's grant in this manifest.
+  bool granted(String id) {
+    final g = adminGrants[id];
+    if (g == null || owner.isEmpty || !grantsTrusted) return false;
+    try {
+      return NetCrypto.verify(NetCrypto.unhex(owner), grantMessage(owner, id), NetCrypto.unhex(g));
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Whether [id] may sign a manifest: the owner, or an admin they granted.
+  bool canSign(String id) => id.isNotEmpty && (id == ownerId || granted(id));
+
+  /// The bytes a signature covers.
+  List<int> get signed => utf8.encode('ghost-circle manifest|$raw|${by ?? ''}|${byKey ?? ''}');
+
+  Map<String, Object?> toJson() => {'b': raw, 'by': by, 'k': byKey, 's': sig};
+
+  /// The manifest [j] is; null where it is not one. Every field is checked for its type before it is used, since
+  /// anyone in the circle, or a friend's invite, can send anything: a wrong one makes it no manifest, never an error
+  /// in the room's listener.
+  static CircleManifest? fromJson(Object? j) {
+    if (j is! Map || j['b'] is! String) return null;
+    final raw = j['b'] as String;
+    if (raw.length > 60000) return null;
+    final Object? b;
+    try {
+      b = jsonDecode(raw);
+    } catch (_) {
+      return null;
+    }
+    if (b is! Map || b['o'] is! String || b['v'] is! int || b['n'] is! String) return null;
+    final version = b['v'] as int;
+    final gv = b['gv'] is int ? b['gv'] as int : 0;
+    if (version < 0 || version >= versionCap || gv < 0 || gv >= versionCap) return null;
+    for (final f in ['by', 'k', 's']) {
+      if (j[f] != null && j[f] is! String) return null;
+    }
+    final hue = b['h'] is String && circleHues.contains(b['h']) ? b['h'] as String : 'indigo';
+    final picture = b['p'] is String && (b['p'] as String).length <= circlePictureMax ? b['p'] as String : null;
+    final seen = <String>{};
+    final sp = b['sp'] is List ? b['sp'] as List : const [];
+    final g = b['g'] is Map ? b['g'] as Map : const {};
+    return CircleManifest(
+      owner: b['o'] as String,
+      version: version,
+      name: (b['n'] as String).trim().isEmpty ? 'Circle' : (b['n'] as String).trim(),
+      hue: hue,
+      icon: b['i'] is String ? b['i'] as String : 'users',
+      picture: picture,
+      // A space named twice is listed once.
+      spaces: [for (final s in sp) if (CircleSpace.fromJson(s) case final x? when seen.add(x.seed)) x],
+      adminGrants: {for (final e in g.entries) if (e.value is String) '${e.key}': e.value as String},
+      grantsVersion: gv,
+      grantsSig: b['gs'] is String ? b['gs'] as String : null,
+      extra: {for (final e in b.entries) if (!_known.contains(e.key)) '${e.key}': e.value},
+      by: j['by'] as String?,
+      byKey: j['k'] as String?,
+      sig: j['s'] as String?,
+      raw: raw,
+    );
+  }
+
+  /// Whether this manifest is one to believe for a circle whose owner key is [owner]: for that owner, signed by the key
+  /// it names, by the owner or an admin the owner granted.
+  bool trustedFor(String owner) {
+    if (owner.isEmpty || this.owner != owner) return false;
+    final by = this.by, key = byKey, sig = this.sig;
+    if (by == null || key == null || sig == null) return false;
+    try {
+      final k = NetCrypto.unhex(key);
+      if (NetCrypto.idOf(k) != by) return false;
+      if (!NetCrypto.verify(k, signed, NetCrypto.unhex(sig))) return false;
+    } catch (_) {
+      return false;
+    }
+    return canSign(by);
+  }
+
+  /// Whether this may take [current]'s place in a circle owned by [owner]: newer, to be believed, and, signed by an
+  /// admin, naming the same admins (only the owner makes or unmakes them).
+  ///
+  /// Newer is by the admin list's generation first, then by version ([grantsVersion]): an admin can't raise the
+  /// generation, so the owner's change of admins outranks anything signed under the list before it. An admin's
+  /// manifest carries the admin list as it stands, unchanged.
+  bool follows(CircleManifest current, String owner) {
+    if (!trustedFor(owner) || version >= versionCap) return false;
+    final newer = grantsVersion != current.grantsVersion ? grantsVersion > current.grantsVersion : version > current.version;
+    if (!newer) return false;
+    if (by == ownerId || !current.isSigned) return true;
+    return grantsVersion == current.grantsVersion && mapEquals(adminGrants, current.adminGrants);
+  }
+
+  /// The next version with [name], [hue], [icon], [picture] (or none, with [clearPicture]), [spaces] and [adminGrants]
+  /// changed, to be signed ([signedBy]).
+  ///
+  /// A new admin list comes with its generation and the owner's signature ([grantsVersion], [grantsSig]); with
+  /// [restart] the versions start again at 1 under it (it outranks every version of the list before).
+  CircleManifest next({String? name, String? hue, String? icon, String? picture, bool clearPicture = false, List<CircleSpace>? spaces, Map<String, String>? adminGrants, int? grantsVersion, String? grantsSig, bool restart = false}) => CircleManifest(
+        owner: owner,
+        version: restart ? 1 : version + 1,
+        name: name ?? this.name,
+        hue: hue ?? this.hue,
+        icon: icon ?? this.icon,
+        picture: clearPicture ? null : (picture ?? this.picture),
+        spaces: spaces ?? this.spaces,
+        adminGrants: adminGrants ?? this.adminGrants,
+        grantsVersion: grantsVersion ?? this.grantsVersion,
+        grantsSig: grantsVersion != null ? grantsSig : this.grantsSig,
+        extra: extra,
+      );
+
+  /// This manifest as [id] (with [publicKey]) signs it, with [sign] the signer.
+  Future<CircleManifest> signedBy(String id, Uint8List publicKey, Future<Uint8List> Function(List<int>) sign) async {
+    final unsigned = CircleManifest(owner: owner, version: version, name: name, hue: hue, icon: icon, picture: picture, spaces: spaces, adminGrants: adminGrants, grantsVersion: grantsVersion, grantsSig: grantsSig, extra: extra, by: id, byKey: NetCrypto.hex(publicKey), raw: raw);
+    final s = await sign(unsigned.signed);
+    return CircleManifest(owner: owner, version: version, name: name, hue: hue, icon: icon, picture: picture, spaces: spaces, adminGrants: adminGrants, grantsVersion: grantsVersion, grantsSig: grantsSig, extra: extra, by: id, byKey: NetCrypto.hex(publicKey), sig: NetCrypto.hex(s), raw: raw);
+  }
+}
+
+/// A circle this device is in.
+@immutable
+class Circle {
+  const Circle({required this.seed, required this.owner, required this.manifest, this.mine = false});
+
+  /// 32 bytes in hex: the circle's room, token and key come from it.
+  final String seed;
+
+  /// The owner's public key (33 bytes in hex): whose manifests to believe. Empty where it was made with no key, and
+  /// then no one can change it.
+  final String owner;
+  final CircleManifest manifest;
+
+  /// Made on this device.
+  final bool mine;
+
+  String get name => manifest.name;
+  String get hue => manifest.hue;
+  String get icon => manifest.icon;
+  String? get picture => manifest.picture;
+
+  /// Its spaces, in their order.
+  List<CircleSpace> get spaces => manifest.ordered;
+
+  Uint8List get _seed => NetCrypto.unhex(seed);
+  String get room => NetCrypto.hex(NetCrypto.derive(_seed, 'circle room').sublist(0, 16));
+  String get token => NetCrypto.hex(NetCrypto.derive(_seed, 'circle token'));
+  Uint8List get key => NetCrypto.derive(_seed, 'circle key');
+
+  /// [space] as a space of this circle: owned by the circle's owner, marked as the circle's.
+  VoiceChannel channelOf(CircleSpace space) => VoiceChannel(seed: space.seed, name: space.name, kind: space.kind, owner: owner, circle: seed);
+
+  /// Every space of the circle, as spaces.
+  List<VoiceChannel> get channels => [for (final s in spaces) channelOf(s)];
+
+  CircleSpace? space(String seed) => manifest.spaces.where((s) => s.seed == seed).firstOrNull;
+
+  Circle copyWith({CircleManifest? manifest, bool? mine}) => Circle(seed: seed, owner: owner, manifest: manifest ?? this.manifest, mine: mine ?? this.mine);
+
+  /// This circle with [incoming] as its manifest, where it may follow the one held ([CircleManifest.follows]); null
+  /// where it may not.
+  Circle? merged(CircleManifest incoming) => incoming.follows(manifest, owner) ? copyWith(manifest: incoming) : null;
+
+  /// A link to the circle, for anyone to open in the app (site/join explains it in a browser). The `c.` tells it from a
+  /// space's link; the seed is after the #, which a browser never sends to any server. The owner's key follows the
+  /// name, so whoever opens it knows whose list of spaces to believe.
+  String get link => 'https://gogho.st/join/#c.$seed.${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}${owner.isEmpty ? '' : '.$owner'}';
+
+  /// The circle a [link] (or its part after the #) is, with a manifest of just its name until the real one comes; null
+  /// where it is not a circle's.
+  static Circle? fromLink(String link) {
+    final hash = link.contains('#') ? link.substring(link.indexOf('#') + 1) : link;
+    final m = RegExp(r'^c\.([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?$').firstMatch(hash);
+    if (m == null) return null;
+    var name = 'Circle';
+    try {
+      final b = m.group(2) ?? '';
+      if (b.isNotEmpty) name = utf8.decode(base64Url.decode(base64Url.normalize(b)));
+    } catch (_) {}
+    final seed = m.group(1)!, owner = m.group(3) ?? '';
+    return Circle(seed: seed, owner: owner, manifest: CircleManifest.placeholder(owner: owner, name: name.trim().isEmpty ? 'Circle' : name.trim(), hue: hueOfSeed(seed)));
+  }
+
+  Map<String, Object?> toJson() => {'s': seed, 'o': owner, 'm': manifest.toJson(), if (mine) 'mine': 1};
+
+  static Circle? fromJson(Object? j) {
+    if (j is! Map || j['s'] is! String || !RegExp(r'^[0-9a-f]{64}$').hasMatch(j['s'] as String)) return null;
+    final owner = j['o'] is String && RegExp(r'^0[23][0-9a-f]{64}$').hasMatch(j['o'] as String) ? j['o'] as String : '';
+    final m = CircleManifest.fromJson(j['m']);
+    if (m == null || m.owner != owner) return null;
+    return Circle(seed: j['s'] as String, owner: owner, manifest: m, mine: j['mine'] == 1);
+  }
+}

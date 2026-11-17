@@ -50,6 +50,7 @@ import '../kit/semantic_colors.dart';
 import 'dialup/bevel.dart' show DialupColors, isDialup;
 import 'message_line.dart';
 import 'translated_card.dart';
+import 'jump_to_latest.dart';
 import 'inbox_signin_teams.dart';
 import 'inbox_signin_google_chat.dart';
 import 'inbox_signin_whatsapp.dart' show WhatsAppLinkScreen;
@@ -152,7 +153,10 @@ class InboxChatScreen extends StatefulWidget {
 
 class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingObserver {
   final _text = TextEditingController();
-  final _scroll = ScrollController();
+  /// The chat's list, starting where the chat was left (lib/ui/jump_to_latest.dart; Matt, 2026-11-17: "remember the
+  /// scroll position when switching between chats").
+  String get _spot => 'inbox:${widget.network.id}:${widget.chatId}';
+  late final ScrollController _scroll = ScrollMemory.controllerFor(() => _spot);
   bool _loadingOlder = false;
 
   InboxNetwork get _n => widget.network;
@@ -283,6 +287,25 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
 
   /// Pressed and held: copy it, or delete it, for this account or, where the network allows, for everyone (Matt,
   /// 2026-11-15: "if possible proxy the archive and delete messages too").
+  /// What an edited message said before: the original, and any wording between it and now, each copied with a press.
+  /// Edited before this device saw it, there is nothing to show: the network keeps no earlier words.
+  void _showOriginal(InboxMessage m) {
+    if (m.versions.isEmpty) {
+      showChoices(context, title: 'Edited before Ghost saw it. ${_n.name} doesn\'t keep what it said first.', choices: const []);
+      return;
+    }
+    void copy(String text) {
+      Clipboard.setData(ClipboardData(text: text));
+      toast(context, 'Copied');
+    }
+
+    showChoices(context, title: 'First sent as:\n${m.original}', choices: [
+      Choice('Copy original', Lucide.copy, () => copy(m.original!)),
+      // Edited more than once: each wording on the way, oldest first.
+      for (final (i, v) in m.versions.skip(1).indexed) Choice(v, Lucide.clock, () => copy(v), hint: 'Edit ${i + 1} · press to copy'),
+    ]);
+  }
+
   void _messageMenu(InboxMessage m) {
     HapticFeedback.mediumImpact();
     // Deleted at once, nothing asked, with a puff (Matt, 2026-11-15: "Don't ask for confirmation when deleting a message
@@ -300,6 +323,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
         : null, choices: [
       if (_n.canReply && m.state != 'sending') Choice('Reply', LucideMore.reply, () => _startReply(m)),
       if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
+      if (m.edited) Choice('Show original', Lucide.clock, () => _showOriginal(m)),
       // The Translate plugin's lines, while it is on (lib/ui/translated_card.dart).
       ...translateChoices(context, inboxFacts(_n, widget.chatId, m)),
       if (_n.canDeleteForEveryone(widget.chatId, m)) Choice('Delete for everyone', Lucide.trash2, () => setState(() => _poofing[m.id] = true), danger: true),
@@ -556,7 +580,14 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
           body: list.isEmpty
               ? Center(child: Text(_n.state == InboxState.ready ? 'No messages yet' : 'Not signed in to ${_n.name}', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))
               // Dial-Up writes the chat as a chat room's transcript (lib/ui/message_line.dart), as it does texts.
-              : isDialup(context)
+              // The down arrow over the list's foot, back to the newest message (Matt, 2026-11-17: "add a down arrow that
+              // pops up when we enter a chat and we're not scrolled to the bottom or after we scroll up a certain amount").
+              : JumpToLatest(
+                  controller: _scroll,
+                  chat: _spot,
+                  incoming: list.where((m) => !m.mine).map((m) => m.id),
+                  inset: isDialup(context) ? const EdgeInsets.only(right: 14, bottom: 12) : EdgeInsets.only(right: t.space(3), bottom: t.space(3)),
+                  child: isDialup(context)
               ? _transcript(chat, list)
               : ListView.builder(
                   controller: _scroll,
@@ -567,8 +598,9 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                     final m = list[i];
                     final older = i + 1 < list.length ? list[i + 1] : null;
                     final newer = i > 0 ? list[i - 1] : null;
-                    final firstOfRun = older == null || older.mine != m.mine || older.sender != m.sender || m.date.difference(older.date).inMinutes > 10;
-                    final lastOfRun = newer == null || newer.mine != m.mine || newer.sender != m.sender || newer.date.difference(m.date).inMinutes > 10;
+                    // Something that happened (a join, a pin) ends a run of bubbles, as a day's turn does.
+                    final firstOfRun = older == null || older.event || older.mine != m.mine || older.sender != m.sender || m.date.difference(older.date).inMinutes > 10;
+                    final lastOfRun = newer == null || newer.event || newer.mine != m.mine || newer.sender != m.sender || newer.date.difference(m.date).inMinutes > 10;
                     final newDay = older == null || older.date.day != m.date.day || older.date.month != m.date.month || older.date.year != m.date.year;
                     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                       if (newDay)
@@ -577,6 +609,15 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                           child: Text(dayHeading(m.date), textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
                         ),
                       if (m.id == newAt) const NewMessagesDivider(key: ValueKey('new-messages')),
+                      // Something that happened, not something said: a small line across the middle, as Telegram draws
+                      // its own (Matt, 2026-11-17: "A bunch of telegram messages are just showing as \"Message\"").
+                      if (m.event)
+                        Padding(
+                          key: ValueKey('event-${m.id}'),
+                          padding: EdgeInsets.symmetric(horizontal: t.space(6), vertical: t.space(1) + 2),
+                          child: Text(m.text, textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), weight: 'medium', color: t.color('app-ink-3'))),
+                        )
+                      else
                       Poof(
                         key: ValueKey('poof-${m.id}'),
                         gone: _poofing.containsKey(m.id),
@@ -584,10 +625,11 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                         onDone: () => _n.deleteMessage(widget.chatId, m.id, forEveryone: _poofing.remove(m.id) ?? false),
                         child: GestureDetector(
                         onLongPress: () => _messageMenu(m),
-                        child: _InboxBubble(key: ValueKey(m.id), network: _n, chatId: widget.chatId, message: m, group: chat?.group ?? false, first: firstOfRun, last: lastOfRun, mineBg: mineBg, mineInk: mineInk, onReactionsTap: () => _messageMenu(m)),
+                        child: _InboxBubble(key: ValueKey(m.id), network: _n, chatId: widget.chatId, message: m, group: chat?.group ?? false, first: firstOfRun, last: lastOfRun, mineBg: mineBg, mineInk: mineInk, onReactionsTap: () => _messageMenu(m), onEditedTap: () => _showOriginal(m)),
                       )),
                     ]);
                   },
+                ),
                 ),
         );
       },
@@ -623,6 +665,7 @@ extension on _InboxChatScreenState {
               if (_n.id == 'signal') const HostLine('Messages here are sealed end to end.'),
             ],
             if (newDay) HostLine.day(m.date),
+            if (m.event) HostLine('*** ${m.text} ***') else
             Poof(
               key: ValueKey('poof-${m.id}'),
               gone: _poofing.containsKey(m.id),
@@ -675,7 +718,10 @@ MessageFacts? inboxFacts(InboxNetwork network, String chatId, InboxMessage m) {
 }
 
 class _InboxBubble extends StatelessWidget {
-  const _InboxBubble({super.key, required this.network, required this.chatId, required this.message, required this.group, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onReactionsTap});
+  const _InboxBubble({super.key, required this.network, required this.chatId, required this.message, required this.group, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onReactionsTap, this.onEditedTap});
+
+  /// A press on "Edited": what it said before.
+  final VoidCallback? onEditedTap;
 
   /// A press on its reactions: the message's menu, to add one or take yours off.
   final VoidCallback? onReactionsTap;
@@ -741,6 +787,16 @@ class _InboxBubble extends StatelessWidget {
         )),
         // And a card for each, while Link previews is on: the plugin's own, as under a text.
         ..._linkCards(context, m.text),
+        // Changed since it was sent, said under it as under a text (lib/ui/thread.dart); a press shows the original.
+        if (m.edited)
+          GestureDetector(
+            key: ValueKey('edited-${m.id}'),
+            onTap: onEditedTap,
+            child: Padding(
+              padding: EdgeInsets.only(top: 3, left: t.space(2), right: t.space(2)),
+              child: Text('Edited', style: pageText(t, t.fontSize('xs'), weight: 'medium', color: t.color('app-ink-3'))),
+            ),
+          ),
         if (last || failed)
           Padding(
             padding: EdgeInsets.only(top: 2, left: t.space(2), right: t.space(2)),
@@ -1197,8 +1253,24 @@ class _TelegramSignInScreenState extends State<TelegramSignInScreen> {
 
 // --- Settings --------------------------------------------------------------------------------------------------------
 
-/// Telegram's, Bluesky's and Mastodon's sections of Settings: who is signed in, and signing in or out.
+/// Settings › Connections, and each network's own page under it (Matt, 2026-11-17: "move the connections to it's own sub
+/// setting, label it as such and put connecting to telegram etc all under that page so as to not crowd the main
+/// settings page there shuld be a sub section to pick and modify each one"): one row in Settings' list, a page of the
+/// networks, connected ones first, and each network's page (who is signed in, signing in or out) opened from its row.
+/// The networks' pages are no longer rows of Settings' list; they are still opened by their ids and found by search.
 List<SettingsSection> inboxSettingsSections() => [
+      SettingsSection(
+        id: 'connections',
+        label: 'Connections',
+        icon: _icon(Lucide.link),
+        hue: 'cyan',
+        group: 'me',
+        summary: (_) {
+          final on = [for (final n in Inbox.instance.networks) if (!n.soon && n.state == InboxState.ready) n.name];
+          return on.isEmpty ? 'Telegram, Signal and more' : on.join(', ');
+        },
+        page: (context, m) => _connections(context),
+      ),
       for (final n in Inbox.instance.networks)
         SettingsSection(
           id: 'inbox-${n.id}',
@@ -1206,10 +1278,31 @@ List<SettingsSection> inboxSettingsSections() => [
           icon: inboxMark(n),
           hue: switch (n.id) { 'telegram' => 'cyan', 'mastodon' => 'purple', 'signal' => 'indigo', 'teams' => 'magenta', 'whatsapp' => 'green', 'matrix' => 'graphite', 'googlechat' => 'mint', _ => 'blue' },
           group: 'me',
+          listed: false,
           summary: (_) => _summary(n),
           page: (context, m) => _pane(context, n),
         ),
     ];
+
+/// The Connections page: every network as a row, its mark, its name and where it stands, opening its own page.
+List<Widget> _connections(BuildContext context) {
+  final all = Inbox.instance.networks;
+  final on = [for (final n in all) if (!n.soon && (n.state == InboxState.ready || n.state == InboxState.signingIn)) n];
+  final off = [for (final n in all) if (!n.soon && !on.contains(n)) n];
+  final soon = [for (final n in all) if (n.soon) n];
+  Widget row(InboxNetwork n) => SettingRow(
+        key: ValueKey('connection-${n.id}'),
+        icon: inboxMark(n),
+        label: n.name,
+        hint: Text(_summary(n)),
+        onPress: () => push<void>(context, (_) => SettingsSectionScreen('inbox-${n.id}')),
+      );
+  const intro = Text('Your chats on other networks among your texts in Messages, each marked with its logo. Ghost signs in to each as an app of its own, on this device; its own server never sees your chats. Choose one to connect it or change it.');
+  final groups = [('Connected', on), ('Add a connection', off), ('Coming soon', soon)].where((g) => g.$2.isNotEmpty).toList();
+  return [
+    for (final (i, g) in groups.indexed) PaneSection(title: g.$1, description: i == 0 ? intro : null, children: [for (final n in g.$2) row(n)]),
+  ];
+}
 
 String _summary(InboxNetwork n) => n.soon ? 'Coming soon' : switch (n.state) {
       InboxState.ready => 'Signed in${n.account == null ? '' : ' as ${n.account}'}',
@@ -1239,7 +1332,13 @@ List<Widget> _pane(BuildContext context, InboxNetwork n) {
           SettingRow(
             icon: _icon(Lucide.logOut),
             label: 'Sign out',
-            onPress: () => showChoices(context, title: 'Sign out of ${n.name}?', choices: [Choice('Sign out', Lucide.logOut, () => n.signOut(), danger: true)]),
+            onPress: () => showChoices(context, title: 'Sign out of ${n.name}?', choices: [
+              // Its chats' kept spots go with it: signed in again, perhaps as someone else, the same ids may name other chats.
+              Choice('Sign out', Lucide.logOut, () {
+                ScrollMemory.forgetAll('inbox:${n.id}:');
+                n.signOut();
+              }, danger: true),
+            ]),
           ),
         ] else if (n.state == InboxState.unavailable)
           SettingRow(icon: _icon(Lucide.info), label: 'Not in this build', hint: Text(n.error ?? '${n.name} isn\'t set up in this build of the app.'), disabled: true)

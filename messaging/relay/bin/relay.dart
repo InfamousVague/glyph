@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:ghost_relay/files.dart';
 import 'package:ghost_relay/handles.dart';
 import 'package:ghost_relay/pushes.dart';
 import 'package:ghost_relay/hub.dart';
@@ -30,9 +31,12 @@ Future<void> main(List<String> args) async {
   // Waking a closed iPhone (pushes.dart): Apple's key from the environment (GHOST_APNS_KEY_FILE and the rest);
   // without it tokens are kept and nothing is sent.
   final pushes = Pushes(dataDir: data, config: ApnsConfig.fromEnvironment(Platform.environment));
-  final relay = Relay(dataDir: data, verbose: verbose, hub: Hub(verbose: verbose, handles: handles, pushes: pushes));
+  // Files spaces' sealed files, under the data folder; their limits from the environment (GHOST_FILES_MAX_FILE and the
+  // rest: files.dart), each with a default where it is not set.
+  final files = Files(dir: Directory('${data.path}/files'), config: FilesConfig.fromEnvironment(Platform.environment), verbose: verbose);
+  final relay = Relay(dataDir: data, verbose: verbose, hub: Hub(verbose: verbose, handles: handles, pushes: pushes), files: files);
   final got = await relay.start(host: host, port: port);
-  stdout.writeln('Ghost Messaging relay listening on ws://$host:$got (${relay.channelCount} pairings kept; ${handles.linked} handles linked; sign-ins: ${handles.ways.entries.where((e) => e.value == 'signin').map((e) => e.key).join(', ').padRight(1, '-')})');
+  stdout.writeln('Ghost Messaging relay listening on ws://$host:$got (${relay.channelCount} pairings kept; ${handles.linked} handles linked; ${files.spaces} Files spaces; sign-ins: ${handles.ways.entries.where((e) => e.value == 'signin').map((e) => e.key).join(', ').padRight(1, '-')})');
   for (final signal in [ProcessSignal.sigint, ProcessSignal.sigterm]) {
     signal.watch().listen((_) async {
       await relay.stop();
