@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 /**
- * Puts Ghost Messaging's Discord presence bot (discord/) on the box: who is in a linked Discord server's voice
- * channels, for the app's spaces. One Node program holding one connection to Discord's gateway and answering the app
- * on 127.0.0.1:18788; the web server passes https://ghost-sms.com/discord/* (and gogho.st's) to it
- * (tool/deploy-site.mjs --caddy writes that into the site's blocks). It does not join voice.
+ * Puts Ghost Messaging's Discord bot (discord/) on the box: who is in a linked Discord server's voice channels, for
+ * the app's spaces, and the bridge that joins one of those channels and the matching Ghost space and carries sound
+ * and chat both ways. One Node program holding one connection to Discord's gateway, one to the relay's hub on this box
+ * (ws://127.0.0.1:18787/hub), and answering the app on 127.0.0.1:18788; the web server passes
+ * https://ghost-sms.com/discord/* (and gogho.st's) to it (tool/deploy-site.mjs --caddy writes that into the site's
+ * blocks).
  *
  *   node tool/deploy-discord.mjs --env <file>       the first time: installs it with <file> as /etc/ghost-discord/env
  *   node tool/deploy-discord.mjs                    later: the new code, the values on the box kept
@@ -24,9 +26,12 @@
  * the program does not load, or there are no values yet: a user of its own with no shell and no home (ghost-discord);
  * its own Node (/opt/ghost-discord/node, the official linux-x64 release pinned below and checked against its
  * SHA-256: the box's /usr/bin/node is Ubuntu's, which other services keep); the program in /opt/ghost-discord/app
- * with its dependencies installed here (`npm ci --omit=dev`: discord.js is plain JavaScript, nothing is compiled);
- * the links (hashes of the app's tokens) in /var/lib/ghost-discord; a systemd service that restarts it, may write
- * nowhere else, and may use 200 MB and half a processor at most. A restart forgets codes not yet used (/ghost link
+ * with its dependencies installed here for the box (`npm ci --omit=dev --os=linux --cpu=x64 --libc=glibc`: nothing is
+ * compiled, but two dependencies carry prebuilt binaries, Discord's voice encryption (@snazzah/davey) and Opus
+ * (@evan/opus, which falls back to WebAssembly), and those flags make npm fetch the box's linux-x64 builds rather
+ * than this Mac's); they are loaded on the box before anything is changed; the links (hashes of the app's tokens)
+ * and the bridge's seeds and key in /var/lib/ghost-discord; a systemd service that restarts it, may write nowhere
+ * else, and may use 400 MB and one processor at most (the bridge decodes, mixes and encodes sound every 20 ms). A restart forgets codes not yet used (/ghost link
  * again) and keeps every link.
  *
  * It uses Ghost.md's box account and its own deploy code, as tool/release.mjs does (--glyph <path> or GLYPH_ROOT).
@@ -68,10 +73,15 @@ const KNOWN = {
   // Three base64url parts joined by dots (Developer Portal › Bot › Reset Token).
   DISCORD_TOKEN: /^[A-Za-z0-9_-]{20,100}\.[A-Za-z0-9_-]{4,20}\.[A-Za-z0-9_-]{20,100}$/,
   DISCORD_APP_ID: /^[0-9]{15,22}$/,
+  // Optional: "off" runs the presence bot alone; a port range pins WebRTC's UDP ports (discord/README.md).
+  GHOST_BRIDGE: /^(on|off)$/,
+  GHOST_RTC_PORTS: /^\d{4,5}-\d{4,5}$/,
 };
 const SHAPES = {
   DISCORD_TOKEN: 'three parts joined by dots: Developer Portal › your application › Bot › Reset Token',
   DISCORD_APP_ID: 'digits: Developer Portal › your application › General Information › Application ID',
+  GHOST_BRIDGE: 'on or off',
+  GHOST_RTC_PORTS: 'two port numbers joined by a dash, for example 40000-40100',
 };
 const REQUIRED = ['DISCORD_TOKEN', 'DISCORD_APP_ID'];
 
@@ -117,16 +127,24 @@ for (const file of ['package.json', 'package-lock.json', 'src/bot.js']) {
   if (!existsSync(join(BOT, file))) fail(`Missing discord/${file}.`);
 }
 
-/** The program as it runs on the box: src/, package.json, the lock, and the dependencies installed here (no tests,
- * nothing dev). discord.js and its dependencies are plain JavaScript, so a Mac's npm ci is the box's too. */
+/** The program as it runs on the box: src/, package.json, the lock, and the dependencies installed here for the box
+ * (no tests, nothing dev). Nothing runs at install (--ignore-scripts) and nothing is compiled: the prebuilt binaries
+ * are the box's own (linux-x64, glibc), chosen by npm from the lock's optional packages for that platform. */
+const BOX_PLATFORM = ['--os=linux', '--cpu=x64', '--libc=glibc'];
+/** Native files the box needs, and the only ones allowed besides @evan/opus's prebuilds (one per platform, all in the
+ * package; it picks the box's and falls back to its WebAssembly). Anything else native could not be built here. */
+const NEEDED_NATIVE = ['node_modules/@snazzah/davey-linux-x64-gnu/davey.linux-x64-gnu.node'];
+const ALLOWED_NATIVE = /^node_modules\/(@snazzah\/davey-linux-x64-gnu\/|@evan\/opus\/node\/)[^/]+\.node$/;
 function stage() {
   const dir = mkdtempSync(join(tmpdir(), 'ghost-discord-'));
   for (const file of ['package.json', 'package-lock.json', 'README.md', 'src']) cpSync(join(BOT, file), join(dir, file), { recursive: true });
-  const npm = spawnSync('npm', ['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', '--loglevel=error'], { cwd: dir, stdio: 'inherit' });
+  const npm = spawnSync('npm', ['ci', '--omit=dev', '--ignore-scripts', ...BOX_PLATFORM, '--no-audit', '--no-fund', '--loglevel=error'], { cwd: dir, stdio: 'inherit' });
   if (npm.status !== 0) fail('npm ci for the bot failed.');
-  // Anything native would have been built for this Mac and would not load on the box.
-  const native = spawnSync('find', [join(dir, 'node_modules'), '-name', '*.node'], { encoding: 'utf8' }).stdout.trim();
-  if (native) fail(`The bot's dependencies now carry a native module, which a Mac's npm ci cannot build for the box:\n${native}`);
+  const native = spawnSync('find', ['node_modules', '-name', '*.node'], { cwd: dir, encoding: 'utf8' }).stdout.trim().split('\n').filter(Boolean);
+  const stray = native.filter((f) => !ALLOWED_NATIVE.test(f));
+  if (stray.length) fail(`The bot's dependencies carry native modules that are not prebuilt for the box:\n${stray.join('\n')}`);
+  const missing = NEEDED_NATIVE.filter((f) => !native.includes(f));
+  if (missing.length) fail(`npm did not fetch the box's build of ${missing.join(', ')} (is npm 10.9 or newer, for --libc?).`);
   return dir;
 }
 
@@ -146,7 +164,7 @@ if (!printOnly) {
 }
 
 const SERVICE = `[Unit]
-Description=Ghost Messaging Discord presence bot: who is in a linked server's voice channels, at /discord (ghost-sms.com)
+Description=Ghost Messaging Discord bot: who is in a linked server's voice channels, and the voice and chat bridge to Ghost spaces, at /discord (ghost-sms.com)
 After=network-online.target
 Wants=network-online.target
 
@@ -158,13 +176,16 @@ EnvironmentFile=${ENV}
 Environment=PORT=${PORT}
 Environment=DISCORD_DATA=${DATA}
 Environment=NODE_ENV=production
-Environment=NODE_OPTIONS=--max-old-space-size=128
+Environment=GHOST_HUB=ws://127.0.0.1:18787/hub
+Environment=NODE_OPTIONS=--max-old-space-size=256
 WorkingDirectory=${DIR}/app
 ExecStart=${DIR}/node/bin/node ${DIR}/app/src/bot.js
 Restart=always
 RestartSec=5
-MemoryMax=200M
-CPUQuota=50%
+# The bridge decodes every speaker, mixes, and encodes once for Discord and once per Ghost member every 20 ms, and
+# runs WebRTC (DTLS, SRTP) in JavaScript: discord/README.md has the numbers.
+MemoryMax=400M
+CPUQuota=100%
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
@@ -220,6 +241,21 @@ echo "  Node $($NODE --version)"
 # Loaded here before anything else is changed: a program that does not load on this box stops the deploy.
 $NODE --check "$STAGE/app/src/bot.js"
 (cd "$STAGE/app" && $NODE -e "import('discord.js').then(() => {}, (e) => { console.log('x discord.js does not load: ' + (e.code || e.message)); process.exit(1) })")
+# The bridge's dependencies, on this box: Discord's voice with its DAVE encryption (a prebuilt binary), Opus (the
+# prebuilt one or its WebAssembly) encoding and decoding a frame, and WebRTC.
+(cd "$STAGE/app" && $NODE --input-type=module -e "
+const fail = (what, e) => { console.log('x ' + what + ' does not load here: ' + (e?.code || e?.message || e)); process.exit(1); };
+const voice = await import('@discordjs/voice').catch((e) => fail('@discordjs/voice', e));
+const davey = (await import('@snazzah/davey').catch((e) => fail('@snazzah/davey (DAVE)', e))).default;
+if (!(davey.DAVE_PROTOCOL_VERSION >= 1)) fail('@snazzah/davey (DAVE)', 'no protocol version');
+const { opusCodec } = await import('./src/bridge/opus.js').catch((e) => fail('@evan/opus', e));
+const pcm = new Int16Array(1920).map((_, i) => Math.round(8000 * Math.sin(i / 10)));
+if (opusCodec.decoder().decode(opusCodec.encoder().encode(pcm)).length !== 1920) fail('Opus', 'a frame did not survive');
+await import('werift').catch((e) => fail('werift', e));
+console.log('  voice ' + voice.version + ', DAVE protocol ' + davey.DAVE_PROTOCOL_VERSION + ', Opus and WebRTC load');
+// Out at once: a native library tearing down at exit must not fail a check that has passed.
+process.exit(0);
+")
 id ghost-discord >/dev/null 2>&1 || $SUDO useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin ghost-discord
 $SUDO mkdir -p ${DIR} ${DATA}
 $SUDO chown ghost-discord:ghost-discord ${DATA}
@@ -247,6 +283,10 @@ case "$ANSWER" in *'"service":"ghost-discord"'*) ;; *) echo "x the bot does not 
 $SUDO rm -rf ${DIR}/app.old
 # The invite link (no secret in it): the journal has it too.
 echo "  invite: $(curl -s --max-time 5 http://127.0.0.1:${PORT}/discord/invite | sed -n 's/.*"url":"\\([^"]*\\)".*/\\1/p')"
+# The bridge talks to Ghost apps over UDP (WebRTC). Said here so a firewall that would block it is seen.
+if command -v ufw >/dev/null 2>&1 && $SUDO ufw status 2>/dev/null | grep -q '^Status: active'; then
+  echo "  note: ufw is active; the bridge's WebRTC needs inbound UDP (or GHOST_RTC_PORTS and a rule for them): discord/README.md"
+fi
 echo "ok the bot is running as ghost-discord on 127.0.0.1:${PORT}; $(free -m | awk '/^Mem:/ {print $7}') MB of the box's memory is free"
 `;
 
