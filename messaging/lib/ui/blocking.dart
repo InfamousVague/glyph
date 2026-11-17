@@ -39,6 +39,7 @@ class BlockTarget {
         null => '${Sms.remote ? 'Your phone' : 'Android'} will stop their texts and calls before they reach you.',
         'telegram' => 'Telegram will stop their messages and calls, on all your devices.',
         'signal' => 'Signal will stop their messages and calls, on your phone too.',
+        'matrix' => 'Ghost will hide them here; Matrix itself is not told.',
         _ => 'Their messages won\'t show here.',
       };
 
