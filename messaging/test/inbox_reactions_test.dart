@@ -81,10 +81,11 @@ void main() {
     final net = _Net();
     await pumpScreen(tester, sheet, InboxChatScreen(network: net, chatId: 'c1'), AppState());
     await settle(tester);
-    // Drawn: the reply's quote, and the reactions with their count.
+    // Drawn: the reply's quote, and a heart for each of the two who gave one (Matt, 2026-11-17: "show multiple
+    // reactions as multiple emoji's pinned on and around the message").
     expect(find.byType(InboxQuote), findsOneWidget);
-    expect(find.text('❤️'), findsOneWidget);
-    expect(find.text('2'), findsOneWidget);
+    expect(find.text('❤️'), findsNWidgets(2));
+    expect(find.text('2'), findsNothing);
 
     await tester.longPress(find.text('are you coming tonight?').last);
     await settle(tester);
@@ -119,9 +120,11 @@ void main() {
   // plastered on and around the message without overlapping text much".
   test('a sticker lands in the same place every time, askew, along the foot or a lower corner', () {
     final a = stickerPlace('sms:7', '❤️', 0, 1), b = stickerPlace('sms:7', '❤️', 0, 1);
-    expect((a.x, a.y, a.turn), (b.x, b.y, b.turn), reason: 'the same message and emoji: the same place');
+    expect((a.x, a.y, a.turn, a.scale), (b.x, b.y, b.turn, b.scale), reason: 'the same message and emoji: the same place');
     final six = [for (var i = 0; i < 6; i++) stickerPlace('sms:7', 'e$i', i, 6)];
-    expect(six.every((p) => p.turn.abs() <= 0.26), isTrue, reason: 'at most about 15 degrees');
+    expect(six.every((p) => p.turn.abs() <= 0.3), isTrue, reason: 'at most about 17 degrees');
+    expect(six.every((p) => p.scale >= 0.85 && p.scale <= 1.2), isTrue, reason: 'a little bigger or smaller, no more');
+    expect(six.map((p) => p.scale).toSet().length, greaterThan(3), reason: 'each its own size');
     expect(six.every((p) => p.y >= 0.3), isTrue, reason: 'low on the bubble, clear of most of its words');
     expect(six.where((p) => p.out != 0), isNotEmpty, reason: 'with many, some go on a corner\'s side');
     expect(six.map((p) => p.turn).toSet().length, greaterThan(3), reason: 'each leans its own way');
@@ -140,6 +143,8 @@ void main() {
     await pumpScreen(tester, sheet, InboxChatScreen(network: net, chatId: 'c1'), AppState());
     await settle(tester);
     expect(find.byType(ReactionStickers), findsNWidgets(3));
+    // Three laughs are three laughing faces on the second message, beside its heart and fire.
+    expect(find.descendant(of: find.byType(ReactionStickers).at(1), matching: find.text('😂')), findsNWidgets(3));
     if (autoUpdateGoldenFiles) await expectLater(find.byType(InboxChatScreen), matchesGoldenFile('shots/x-reaction-stickers.png'));
   });
 }

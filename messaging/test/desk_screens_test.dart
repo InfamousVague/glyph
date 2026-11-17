@@ -238,7 +238,7 @@ void main() {
       expect(_button('Back'), findsNothing);
       // The navigation pill at the sidebar's foot (Ghost.md's dock, laid along): a new chat, the messages, the
       // archive with how many are in it, Settings. Messages is the one shown; a ring has no words but its tip.
-      for (final label in ['New chat', 'Messages', 'Contacts', 'Archive', 'Settings']) {
+      for (final label in ['New', 'Messages', 'Contacts', 'Archive', 'Settings']) {
         expect(_nav(label), findsOneWidget, reason: label);
       }
       expect(tester.widget<NavPill>(find.byType(NavPill)).active, 'messages');
@@ -272,7 +272,7 @@ void main() {
       // The rings stand evenly along the sidebar's foot: the first by its start, the last by its end.
       // Five rings: calls are the list's Voice tab, not a ring (Matt, 2026-11-15: "lets remove the calls icon in the
       // dock").
-      final first = tester.getCenter(_nav('New chat')).dx, last = tester.getCenter(_nav('Settings')).dx;
+      final first = tester.getCenter(_nav('New')).dx, last = tester.getCenter(_nav('Settings')).dx;
       final middle = tester.getCenter(_nav('Contacts')).dx;
       // On a computer the pill rests at the smaller size, as Ghost.md's desktop dock does (Matt, 2026-11-15: "just like
       // ghost markdown does match the sizes"), held to the foot's middle.
@@ -284,7 +284,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       // The new ring asks: a new chat, a group or a voice call (Matt, 2026-11-15: "The new button should also ask for
       // new chat, group or voice call"). A new chat opens beside the list and is the one shown; Messages puts it away.
-      await tester.tap(_nav('New chat'));
+      await tester.tap(_nav('New'));
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.text('New group'), findsOneWidget);
       expect(find.text('New space'), findsOneWidget);
@@ -324,7 +324,8 @@ void main() {
       await shoot('5-settings', paired('relay'), dark: dark, then: () async {
         await tester.tap(_nav('Settings'));
       });
-      for (final label in ['Your phone', 'Me', 'Appearance', 'Chat background', 'Emoji', 'Effects', 'Messages', 'Plugins', 'Codes', 'Encryption', 'Blocked numbers', 'Archived', 'Kept on this Mac', 'About']) {
+      // Codes is no longer a row of its own: a plugin's settings are on its page in Plugins since 2026-11-17.
+      for (final label in ['Your phone', 'Me', 'Appearance', 'Chat background', 'Emoji', 'Effects', 'Messages', 'Plugins', 'Encryption', 'Blocked', 'Archived', 'Kept on this Mac', 'About']) {
         expect(find.text(label), findsWidgets, reason: '$label is a section of a computer\'s Settings');
       }
       for (final label in ['Your number', 'Android', 'Notifications', 'Receipts', 'Computers', 'Ghost Keyboard', 'Network', 'Developer']) {
@@ -343,7 +344,7 @@ void main() {
 
       // A shared page, as the phone has it: pressing a section puts its page beside the list.
       Future<void> section(String label) async {
-        // The last so called: Plugins' own row says which are on ("Codes") just above the row for Codes.
+        // The last so called, where a page beside the list says the same word.
         final row = find.descendant(of: find.byType(SettingsList), matching: find.text(label)).last;
         await tester.ensureVisible(row);
         await tester.pump(const Duration(milliseconds: 60));
@@ -357,11 +358,17 @@ void main() {
       });
       expect(find.text('Text size'), findsOneWidget);
       expect(find.text('Unpair this phone'), findsNothing);
-      // A plugin's own section (Matt: "the plugins and all being able to make their own setting sections").
+      // A plugin's own settings (Matt: "the plugins and all being able to make their own setting sections"), on its
+      // page in Plugins since 2026-11-17: Plugins, then Codes' card.
       await shoot('5-settings-plugin', paired('local'), dark: dark, then: () async {
         await tester.tap(_nav('Settings'));
         await tester.pump(const Duration(milliseconds: 120));
-        await section('Codes');
+        await section('Plugins');
+        await tester.pump(const Duration(milliseconds: 400));
+        final codes = find.text('Codes').last;
+        await tester.ensureVisible(codes);
+        await tester.pump(const Duration(milliseconds: 60));
+        await tester.tap(codes);
       });
       expect(find.text('Mark as read when copied'), findsOneWidget);
       // What is kept on this Mac, and a way to clear it.

@@ -137,6 +137,7 @@ class Voice extends ChangeNotifier {
     try {
       own = [for (final j in jsonDecode(app.choice('voice_channels', '[]')) as List) ?VoiceChannel.fromJson(j)];
       _seen.addAll((jsonDecode(app.choice('voice_seen', '{}')) as Map).cast<String, int>());
+      _readAt.addAll((jsonDecode(app.choice('voice_read', '{}')) as Map).map((k, v) => MapEntry('$k', (v as num).toInt())));
       _gone.addAll((jsonDecode(app.choice('voice_gone', '[]')) as List).whereType<String>());
       final people = jsonDecode(app.choice('voice_people', '{}')) as Map;
       _volumes.addAll(((people['v'] as Map?) ?? const {}).map((k, v) => MapEntry(k as String, (v as num).toDouble())));
@@ -332,6 +333,62 @@ class Voice extends ChangeNotifier {
     for (final c in channels) {
       route.look(c.room, c.token);
     }
+    _listenAll();
+    notifyListeners();
+  }
+
+  // --- every space's chat, listened to while the app runs (Matt, 2026-11-17: spaces in the chats list "with a preview
+  // of the last message sent in the space"; he chose staying connected over a preview of what this device last saw) ---
+
+  /// The spaces whose chat rooms this device stays in for the list: held once each ([hold]).
+  final Set<String> _listening = {};
+
+  /// When this device last read each space's chat, by its seed (ms): what its unread count counts from.
+  final Map<String, int> _readAt = {};
+
+  void _listenAll() {
+    if (_route == null) return;
+    final want = {for (final c in channels) if (c.hangout) c.seed: c};
+    for (final seed in [..._listening]) {
+      if (want.containsKey(seed)) continue;
+      _listening.remove(seed);
+      final room = _hangouts[seed];
+      if (room != null) unawaited(release(room.channel));
+    }
+    for (final c in want.values) {
+      if (!_listening.add(c.seed)) continue;
+      // A space first listened to starts read: what was said in it before is not news.
+      if (!_readAt.containsKey(c.seed)) {
+        _readAt[c.seed] = lastMessage(c)?.at ?? DateTime.now().millisecondsSinceEpoch;
+        _app?.set('voice_read', jsonEncode(_readAt));
+      }
+      unawaited(hold(c).catchError((_) => null));
+    }
+  }
+
+  /// The newest message in [c]'s chat this device has; null where none (or a group's channel, whose chat is its texts).
+  HangoutMessage? lastMessage(VoiceChannel c) {
+    if (!c.hangout) return null;
+    final room = _hangouts[c.seed];
+    if (room != null) return room.messages.lastOrNull;
+    final app = _app;
+    return app == null ? null : AppHangoutStore(app).messages(c.chatRoom).lastOrNull;
+  }
+
+  /// How many of [c]'s messages from others came after this device last read it.
+  int unreadIn(VoiceChannel c) {
+    final room = _hangouts[c.seed];
+    if (room == null) return 0;
+    final since = _readAt[c.seed] ?? 0;
+    return room.messages.where((m) => m.at > since && m.from != room.me).length;
+  }
+
+  /// [c]'s chat is read to its newest message.
+  void markRead(VoiceChannel c) {
+    final at = lastMessage(c)?.at ?? DateTime.now().millisecondsSinceEpoch;
+    if ((_readAt[c.seed] ?? 0) >= at) return;
+    _readAt[c.seed] = at;
+    _app?.set('voice_read', jsonEncode(_readAt));
     notifyListeners();
   }
 
@@ -502,6 +559,17 @@ class Voice extends ChangeNotifier {
 
   @visibleForTesting
   void clearHangouts() => _hangouts.clear();
+
+  /// For a picture or a test: who the relay says is in [room], as a look would ([members] empty clears it).
+  @visibleForTesting
+  void putLook(String room, List<String> members) {
+    members.isEmpty ? _in.remove(room) : _in[room] = members;
+    notifyListeners();
+  }
+
+  /// For a test: what this device has read, forgotten.
+  @visibleForTesting
+  void clearRead() => _readAt.clear();
 
   /// Opens [c]'s chat room while something shows it (its page, or the call): [release] when done.
   Future<HangoutRoom?> hold(VoiceChannel c) async {

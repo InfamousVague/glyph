@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../app_state.dart';
@@ -390,9 +391,9 @@ abstract class InboxNetwork extends ChangeNotifier {
   // A network that can do these itself does them there (Telegram's archive, its Delete); one that can't keeps them
   // in a list of Ghost's own on this device, so they are gone from here all the same.
 
-  /// The chats the list shows: [chats] without those in Ghost's own lists (archived or deleted here).
+  /// The chats the list shows: [chats] without those in Ghost's own lists (archived, deleted or blocked here).
   List<InboxChat> get shownChats {
-    final gone = {...localList('archived'), ...localList('deleted')};
+    final gone = {...localList('archived'), ...localList('deleted'), ...localList('blocked')};
     return gone.isEmpty ? chats : [for (final c in chats) if (!gone.contains(c.id)) c];
   }
 
@@ -413,6 +414,51 @@ abstract class InboxNetwork extends ChangeNotifier {
     setLocal('deleted', chatId, true);
     notifyListeners();
   }
+
+  // --- blocking (Matt, 2026-11-17: "I'd like to be able to block signal and telegram users"; "add the signal helper
+  // and do your recommendation. Make sure the UIs are unified across SMS Telegram and Signal") -------------------------
+  // Blocked on the network itself where it can ([canBlock]: Telegram's own block, Signal's through the helper), and
+  // always in Ghost's own list too, so they are gone from here at once and stay gone while the network is away.
+
+  /// Whether this network blocks people itself (else Ghost's list is the whole of it).
+  bool get canBlock => false;
+
+  /// Whether the one-to-one chat [chatId] is with someone blocked.
+  bool isBlocked(String chatId) => localList('blocked').contains(chatId);
+
+  /// Everyone blocked, as Ghost knows them: [chatId] of the chat with them, and their name as it was.
+  List<({String id, String name})> get blockedPeople {
+    final names = _blockedNames;
+    return [for (final id in localList('blocked')) (id: id, name: names[id] ?? id)]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  }
+
+  Map<String, String> get _blockedNames {
+    try {
+      return (jsonDecode(listStore?.choice('inbox_${id}_blocked_names', '{}') ?? '{}') as Map).map((k, v) => MapEntry('$k', '$v'));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Blocks the person [chatId] is with, or unblocks them ([on] false): on the network where it can, then in Ghost's
+  /// list. Throws with the network's reason where it refuses; Ghost's list is left as it was then.
+  Future<void> block(String chatId, {required String name, bool on = true}) async {
+    keepBlocked(chatId, name: name, on: on);
+    notifyListeners();
+  }
+
+  /// Ghost's list alone: [chatId] in it or out, with the name to show.
+  void keepBlocked(String chatId, {String? name, bool on = true}) {
+    final names = _blockedNames;
+    if (on && name != null && name.isNotEmpty) names[chatId] = name;
+    if (!on) names.remove(chatId);
+    listStore?.set('inbox_${id}_blocked_names', jsonEncode(names));
+    setLocal('blocked', chatId, on);
+  }
+
+  /// Brings the network's own blocked list into Ghost's (someone blocked in the network's app shows here too). Nothing
+  /// where the network keeps none.
+  Future<void> refreshBlocked() async {}
 
   /// This account's own contacts on the network, once signed in; none where it keeps none.
   List<InboxContact> get contacts => const [];

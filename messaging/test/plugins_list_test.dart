@@ -72,7 +72,7 @@ void main() {
     expect(find.text('I have ticket 77 for you'), findsOneWidget);
     // The plugin's button in the header, before New message.
     expect(_icon('Ticket desk'), findsOneWidget);
-    expect(tester.getCenter(_icon('Ticket desk')).dx, lessThan(tester.getCenter(_icon('New message')).dx));
+    expect(tester.getCenter(_icon('Ticket desk')).dx, lessThan(tester.getCenter(_icon('New')).dx));
     expect(find.text('Tickets wait here.'), findsNothing);
 
     // Its chip: its own list, the newest first, each row with the number large, and its note over the list.
@@ -399,7 +399,8 @@ void main() {
     expect(find.text('Paged tickets'), findsOneWidget);
     expect(find.byType(GlacierSwitch), findsOneWidget);
     expect(find.text('Mark tickets as read'), findsNothing);
-    expect(find.textContaining('has a section of its own in Settings'), findsOneWidget);
+    // Its settings are on its page in Plugins now (lib/ui/plugins_page; Matt, 2026-11-17: "their own dedicated plugins page").
+    expect(find.textContaining('settings are on its page in Plugins'), findsOneWidget);
 
     // Switched off from the top of its own page: its settings go, its switch stays to turn it back on, and its row
     // says Off.

@@ -681,10 +681,21 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   done already"). A round Add beside the search opens it: without a username of your own it asks for one first; with
   one it looks up an @username as it is typed (whole names only, never listed by their start) and offers Add, or
   Accept where they asked you (lib/ui/add_friend_drawer.dart). The requests and friends stay at the top of Contacts.
-- **Mark all read covers Telegram and Signal** (0.8.0, not released; Matt, 2026-11-16: "The mark read button should
+- **Mark all read covers Telegram and Signal** (0.8.0; Matt, 2026-11-16: "The mark read button should
   work for telegram and signal as well as standard messages"). The button counts the tab's unread chats from every
   network with its unread texts, so it is no longer grey when only chats are unread, and reads them all; a network's
   own tab and its menu read that network's chats (`_unreadTexts`, `_unreadChats` in lib/ui/conversations.dart).
+- **Spaces in Messages; a group's space is its conversation** (0.8.10, not released; Matt, 2026-11-17: "each group
+  should come with a space but I'd also like spaces to show up in the main chats list with a preview of the last
+  message sent in the space"; he chose one chat per group, staying connected for previews, and side by side when wide).
+  Each space is a row among the conversations, newest message first ("Riley: Yes! Bring your notes"), with its unread
+  mark and, while anyone is in its call, a green headphones count where the time goes; Mark all read reads spaces too.
+  The app stays in every space's chat room while it runs (`Voice._listenAll`, `unreadIn`, `markRead`), and a room the
+  relay dropped asks again for what it missed once back (`HangoutRoom._event`). A space opens as a chat with Join voice
+  at its top; on a phone, with people already talking in it, it opens on who is in the call, tapped to join, with the
+  chat a switch away. A group of friends is its own space: its conversation's row shows its call's count, a pill with
+  who is in voice and Join floats at the top of the conversation (`SpaceLiveBar`), and the group in the Spaces tab
+  opens the conversation.
 - **Invite people into a space from the app; the chat bar above the keyboard** (0.8.2, not released; Matt,
   2026-11-16: "also make a way to invite friends from the app into spaces and invite people into spaces through the
   app"; "the chatbar doesn't move up when in the chat section of a space"). Every Invite (each call design, the space's
