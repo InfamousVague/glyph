@@ -164,4 +164,13 @@ void main() {
     expect(kindOf('Do you want a quick price estimate on new health plans in IL? Reply STOP to opt out'), 'sales');
     expect(kindOf('Want a free gutter service quote?'), 'sales');
   });
+
+  // Matt, 2026-11-17: "This message made it through spam" (an advocacy text from a toll-free number).
+  test('a cause asking you to tell Congress is political, and "StopToEnd" is an opt-out', () {
+    expect(kindOf("The FDA has made progress, but the work isn't finished. Tell Congress where you stand on smoke-free nicotine options: info26.net/b/juf1P7\n\nStopToEnd"), 'political');
+    expect(kindOf('Urge your senators to vote yes on the bill: act.example/x'), 'political');
+    expect(kindOf('Where do you stand on pineapple pizza?'), isNull, reason: 'a friend\'s question is not a campaign');
+    expect(kindOf('I told my congressman about the pothole lol'), isNull);
+    expect(kindOf('Let me know where you stand on dinner'), isNull, reason: 'one lesser sign alone');
+  });
 }
