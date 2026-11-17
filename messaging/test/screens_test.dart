@@ -1238,7 +1238,7 @@ void main() {
       Groups.instance = groups;
       await friends.start();
       await groups.start();
-      // The address book offers New group where there is a friend to put in one.
+      // The address book: New group is under the list's + now, not here.
       await _shoot(tester, sheet, ContactsScreen(key: ValueKey('contacts-$dark')), '15-groups-contacts', dark: dark);
       // Friends by username at the top: the field to add one, a request to answer, one sent, and a friend (Matt,
       // 2026-11-16: "We need a way to add friends on the network by username on the contacts page and see friend
@@ -1259,7 +1259,7 @@ void main() {
       expect(find.text('Friends by username'), findsOneWidget);
       Buddies.instance = null;
       await tester.runAsync(() => Me.instance.start(MemoryMeStore(), ValueNotifier(0), () => null));
-      expect(find.text('New group'), findsOneWidget);
+      expect(find.text('New group'), findsNothing);
       // The people added on Ghost Messaging come first, under their own heading, and the phone's contacts after.
       expect(find.text('On Ghost Messaging'), findsOneWidget);
       expect(tester.getTopLeft(find.text('Alex Kim')).dy, lessThan(tester.getTopLeft(find.text('Contacts').last).dy));

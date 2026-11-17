@@ -16,7 +16,7 @@ import 'window_chrome.dart';
 
 /// The page under every screen: the ground, a bar with the way back (or a big title), its actions, and the body.
 class GhostPage extends StatelessWidget {
-  const GhostPage({super.key, required this.title, required this.body, this.back = true, this.actions = const [], this.titleWidget, this.footer, this.top, this.subtitle, this.onTitle, this.titleLeading});
+  const GhostPage({super.key, required this.title, required this.body, this.back = true, this.actions = const [], this.titleWidget, this.footer, this.top, this.subtitle, this.onTitle, this.titleLeading, this.onBack});
 
   final String title;
   final Widget? titleWidget;
@@ -30,6 +30,10 @@ class GhostPage extends StatelessWidget {
   final Widget? titleLeading;
   final Widget body;
   final bool back;
+
+  /// Where the back arrow goes, where that is not the page under this one: a page that took another's place in the
+  /// pane (Contacts › Blocked goes back to Contacts). Given, the arrow is there beside the list too.
+  final VoidCallback? onBack;
   final List<Widget> actions;
 
   /// Kept above the keyboard: a conversation's composer.
@@ -44,7 +48,7 @@ class GhostPage extends StatelessWidget {
     final pad = MediaQuery.paddingOf(context);
     final inset = MediaQuery.viewInsetsOf(context).bottom;
     // Beside the list (lib/ui/shell.dart) there is nowhere to go back to: the list is there to be seen.
-    final back = this.back && !PaneRoot.beside(context);
+    final back = this.back && (onBack != null || !PaneRoot.beside(context));
     final bar = t.lenOf('3.5rem');
     final lights = TopBarLights.roomOf(context);
     if (pad.top == 0) MacChrome.say(height: isBevelChrome(t) ? TitleBar.heightOf(t) : bar, dark: t.color('glacier-bg').computeLuminance() < 0.4);
@@ -64,7 +68,7 @@ class GhostPage extends StatelessWidget {
             child: Row(
               children: [
                 SizedBox(width: lights + t.space(back ? 1 : 4)),
-                if (back) IconTap(icon: Lucide.arrowLeft, label: 'Back', size: 22, onPressed: () => Navigator.of(context).maybePop()),
+                if (back) IconTap(icon: Lucide.arrowLeft, label: 'Back', size: 22, onPressed: onBack ?? () => Navigator.of(context).maybePop()),
                 Expanded(
                   child: titleWidget ??
                       Text(
@@ -113,7 +117,7 @@ class GhostPage extends StatelessWidget {
             leading: titleLeading,
             titleChild: onTitle == null ? null : _PressTitle(title: title, subtitle: subtitle, onPressed: onTitle!),
             actions: actions,
-            onClose: back ? () => Navigator.of(context).maybePop() : null,
+            onClose: back ? (onBack ?? () => Navigator.of(context).maybePop()) : null,
           ),
           ),
           ),

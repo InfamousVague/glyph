@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/inbox/inbox.dart';
 import 'package:ghost_messaging/ui/blocking.dart';
+import 'package:ghost_messaging/ui/common.dart' show PaneRoot;
 
 import 'support/space_call_harness.dart';
 
@@ -29,5 +30,20 @@ void main() {
     }
     expect(find.text('Jo Park'), findsOneWidget);
     expect(find.text('Sam Rivera'), findsOneWidget);
+  });
+
+  // Matt, 2026-11-17: "include a back arrow when clicking blocked to go back to the main contacts page". Opened from
+  // Contacts it takes Contacts' place in the pane, where a page has no back arrow of its own: given where back goes,
+  // it has one, beside the list too.
+  testWidgets('Blocked opened in Contacts\' place has a back arrow to Contacts', (tester) async {
+    final h = await SpaceHarness.load(tester);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async => null);
+    var back = 0;
+    for (final dark in [false, true]) {
+      await h.shoot(tester, PaneRoot(isBeside: true, child: BlockedScreen(onBack: () => back++)), 'blocked-back', dark: dark);
+      await tester.tap(find.bySemanticsLabel('Back'));
+      await tester.pump();
+    }
+    expect(back, 2);
   });
 }
