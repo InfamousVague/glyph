@@ -136,8 +136,12 @@ const List<TextKind> textKinds = [
       r'gauging (?:views|opinions)',
       r'campaign updates',
       r'residents (?:across|of) (?:our|the|your)',
+      // Advocacy texts, a cause asking you to lean on your lawmakers (Matt's screenshot, 2026-11-17: "Tell Congress where
+      // you stand on smoke-free nicotine options").
+      r'(?:tell|urge|ask|call on|contact|write to|email|call) (?:congress|your (?:senators?|representatives?|reps?|congress(?:man|woman|person)?|lawmakers?|legislators?|elected officials?))',
+      r'(?:take action|make your voice heard|add your (?:name|voice))',
     ],
-    weak: [r'vote', r'election', r'campaign', r'candidates?', r'donat(?:e|ion|ions)', r'congress(?:man|woman)?', r'senators?', r'governor', r'president', r'petition', r'rally', r'endorse'],
+    weak: [r'vote', r'election', r'campaign', r'candidates?', r'donat(?:e|ion|ions)', r'congress(?:man|woman)?', r'senators?', r'governor', r'president', r'petition', r'rally', r'endorse', r'where you stand on'],
   ),
   TextKind(
     id: 'sales',
@@ -209,7 +213,7 @@ const List<TextKind> textKinds = [
       r'shop now',
     ],
     // "Reply STOP to opt out" is one sign however many of its words a text has.
-    weak: [r'neighbou?rhood', r'your (?:home|house|property)', r'special offer', r'limited time', r'discounts?', r'deals?', r'(?:reply|text|txt) stop|stop to (?:end|opt|quit|cancel|unsubscribe)|unsubscribe|opt[ -]out', r'book (?:now|today)', r'\$\d+(?:\.\d\d)?/mo', r'quotes?'],
+    weak: [r'neighbou?rhood', r'your (?:home|house|property)', r'special offer', r'limited time', r'discounts?', r'deals?', r'(?:reply|text|txt) ?stop|stop ?to ?(?:end|opt|quit|cancel|unsubscribe)|unsubscribe|opt[ -]?out', r'book (?:now|today)', r'\$\d+(?:\.\d\d)?/mo', r'quotes?'],
   ),
   TextKind(
     id: 'scams',
