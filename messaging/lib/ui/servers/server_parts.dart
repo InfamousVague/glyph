@@ -1,4 +1,4 @@
-/// What every server layout is made of (lib/ui/servers/server_layouts.dart): a server's face, a channel's row, the
+/// What a server is drawn from (its list: lib/ui/servers/server_sidebar.dart): a server's face, a channel's row, the
 /// people in it, a channel opened, the server's settings, and the page where channels and spaces are moved about.
 library;
 
@@ -14,6 +14,7 @@ import '../../kit/settings_kit.dart';
 import '../../kit/settings_type.dart';
 import '../../sms.dart' show Person;
 import '../common.dart';
+import '../shell.dart';
 import 'server_mock.dart';
 
 /// A server's face: its initials on its colour, a rounded square.
@@ -310,12 +311,35 @@ class ChannelView extends StatelessWidget {
 }
 
 /// Opens [c] as a page of its own: on a phone, where there is no room beside the list.
-void openChannelPage(BuildContext context, MockServer server, MockChannel c) {
-  server.read(c);
-  push<void>(context, (_) => GhostPage(title: c.kind == ChannelKind.space ? c.name : '#${c.name}', body: ChannelView(server: server, channel: c, header: false)));
+/// Opens [page] in the pane, as a conversation is: beside the server's list in a wide window, over it on a phone. A
+/// page opened from a page already in the pane goes on over it (push).
+void _inPane(BuildContext context, Widget page, {String? channel, MockServer? server}) {
+  final shell = AppShell.maybeOf(context);
+  if (shell == null) {
+    push<void>(context, (_) => page);
+    return;
+  }
+  if (server != null) server.open = channel;
+  shell.show(page, showing: 'server');
 }
 
-void openMembersPage(BuildContext context, MockServer server) => push<void>(context, (_) => GhostPage(title: 'People · ${server.members.length}', body: MemberList(server: server)));
+/// Opens a channel or a space: with its own header beside the list, as a page with a way back on a phone.
+void openChannel(BuildContext context, MockServer server, MockChannel c) {
+  server.read(c);
+  final wide = AppShell.maybeOf(context)?.wide ?? false;
+  final view = ChannelView(server: server, channel: c, header: wide);
+  _inPane(
+    context,
+    wide ? KeyedSubtree(key: ValueKey('server-channel-${c.id}'), child: view) : GhostPage(key: ValueKey('server-channel-${c.id}'), title: c.kind == ChannelKind.space ? c.name : '#${c.name}', body: view),
+    channel: c.id,
+    server: server,
+  );
+}
+
+void openMembersPage(BuildContext context, MockServer server) =>
+    _inPane(context, GhostPage(key: const ValueKey('server-people'), title: 'People · ${server.members.length}', body: MemberList(server: server)), server: server);
+
+void openOrganizer(BuildContext context, MockServer server) => _inPane(context, ChannelOrganizer(key: const ValueKey('server-arrange'), server: server), server: server);
 
 /// The invite: copy its link, or make a new one.
 void showInvite(BuildContext context, MockServer server) => showChoices(context, title: 'Invite people to ${server.name}\n${server.invite}', choices: [
@@ -329,7 +353,7 @@ void showInvite(BuildContext context, MockServer server) => showChoices(context,
       }),
     ]);
 
-void openServerSettings(BuildContext context, MockServer server) => push<void>(context, (_) => ServerSettingsPage(server: server));
+void openServerSettings(BuildContext context, MockServer server) => _inPane(context, ServerSettingsPage(key: const ValueKey('server-settings'), server: server), server: server);
 
 /// A server's settings: its name and what it is for, the invite, roles and what each may do, its channels and
 /// spaces, its people, and its notifications.

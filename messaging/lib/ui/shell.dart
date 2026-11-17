@@ -1,4 +1,6 @@
-import 'servers/server_preview.dart';
+import 'servers/server_mock.dart';
+import 'servers/server_sidebar.dart';
+import 'servers/server_parts.dart' show openChannel;
 import 'split_handle.dart';
 import 'window_chrome.dart';
 import 'dart:async';
@@ -207,6 +209,13 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// Whether Settings is open in the list's place.
   bool get settingsOpen => _settings != null;
 
+  /// A server, while it is open in the list's place (Matt, 2026-11-17: "it should takeover the normal sidebar when i
+  /// enter a server with a back button at the top"); its channels open in the pane. The made-up one for now, kept
+  /// while the app runs so what is changed in it stays.
+  Route<void>? _server;
+  bool get serverOpen => _server != null;
+  late final MockServer _sample = sampleServer();
+
   /// The section of Settings whose page is in the pane, or null: the row Settings' list marks.
   final settingsSection = ValueNotifier<String?>(null);
 
@@ -360,6 +369,41 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     }
   }
 
+  /// Opens [server] in the list's place, with a way back at its top; beside it in a wide window its first text channel
+  /// is opened, as Settings opens its first section.
+  void openServer(MockServer server) {
+    final side = _side.currentState;
+    if (side == null) return;
+    if (_showing != null) close();
+    side.popUntil((r) => r.isFirst);
+    final route = PageRouteBuilder<void>(
+      transitionDuration: const Duration(milliseconds: 200),
+      reverseTransitionDuration: const Duration(milliseconds: 160),
+      pageBuilder: (context, _, _) => ServerSidebar(key: const ValueKey('server-sidebar'), server: server),
+      transitionsBuilder: (context, a, _, child) => SlideTransition(
+        position: Tween(begin: const Offset(1, 0), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic)),
+        child: child,
+      ),
+    );
+    setState(() => _server = route);
+    side.push(route);
+    route.popped.then((_) {
+      if (!mounted || _server != route) return;
+      setState(() => _server = null);
+      // Its pages go with it.
+      if (_showing == 'server') close();
+    });
+    if (_wide) {
+      final first = server.channels.where((c) => c.kind == ChannelKind.text).firstOrNull;
+      if (first != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final ctx = _side.currentContext;
+          if (mounted && _server == route && ctx != null) openChannel(ctx, server, first);
+        });
+      }
+    }
+  }
+
   /// The section in the pane is no longer one of Settings' (a plugin's page, and the plugin was switched off): the
   /// page goes, and beside the list the first section takes its place (Settings' list sees to that).
   void settingsGone() {
@@ -382,10 +426,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
           Choice('New space', LucideMore.headphones, () => show(const NewChannelScreen(key: ValueKey('new-voice')), showing: 'new')),
           // A Discord server's voice channels as a group of spaces (lib/ui/space_groups_ui.dart).
           Choice('Add a Discord server', Lucide.link, () => show(const AddDiscordScreen(key: ValueKey('add-discord')), showing: 'new')),
-          // A made-up server in five layouts, to choose how servers should look (lib/ui/servers; Matt, 2026-11-17:
-          // "add a mocked sever ... when we click add server it should launch the mock version with a button to toggle
-          // between the 5 different designs").
-          Choice('Add a server (preview)', Lucide.layoutGrid, () => show(const ServerPreviewScreen(key: ValueKey('server-preview')), showing: 'server-preview'), hint: 'Five layouts to try, with a made-up server'),
+          // A made-up server in the list's place, to try how servers work (lib/ui/servers).
+          Choice('Add a server (preview)', Lucide.layoutGrid, () => openServer(_sample), hint: 'A made-up server, to try how servers work'),
         ]);
       case 'contacts':
         contacts();
