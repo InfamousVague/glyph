@@ -4,7 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/art/app_icon.dart';
+import 'package:ghost_messaging/art/lucide.g.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
+import 'package:ghost_messaging/ui/servers/server_rows.dart';
+import 'package:ghost_messaging/voice/channels.dart';
+import 'package:ghost_messaging/voice/voice.dart';
 import 'package:ghost_messaging/ui/servers/server_mock.dart';
 import 'package:ghost_messaging/ui/servers/server_parts.dart';
 import 'package:ghost_messaging/ui/servers/server_sidebar.dart';
@@ -108,5 +113,35 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('server-back')));
     await settle(tester);
     expect(find.byType(ServerSidebar), findsNothing);
+  });
+
+  // Matt, 2026-11-17: "replace the spaces item in the sidebar with servers, spaces outside of servers move to the main
+  // chat list and can be swiped to leave a space or delete / archive".
+  testWidgets('the Servers tab lists the server, and opens it; a space in Messages is swiped to Archive', (tester) async {
+    final space = VoiceChannel.make('Book club');
+    final v = Voice.instance;
+    v.own = [space];
+    addTearDown(() {
+      v.archive(space, false);
+      v.own = [];
+    });
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, const AppShell(), AppState(), size: const Size(412, 892));
+    await settle(tester);
+    expect(find.text('Book club'), findsOneWidget, reason: 'a space of one\'s own is in Messages');
+
+    // Left, past the first detent: archived, out of Messages.
+    await tester.drag(find.text('Book club'), const Offset(-100, 0));
+    await settle(tester);
+    expect(v.archived(space), isTrue);
+    expect(find.text('Book club'), findsNothing);
+
+    final tab = find.byWidgetPredicate((w) => w is AppIcon && w.icon == Lucide.layoutGrid);
+    await tester.tap(tab.first);
+    await settle(tester);
+    expect(find.byType(ServerRow), findsOneWidget);
+    await tester.tap(find.text('Night Owls'));
+    await settle(tester);
+    expect(find.byType(ServerSidebar), findsOneWidget);
   });
 }

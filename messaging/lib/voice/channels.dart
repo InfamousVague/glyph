@@ -83,6 +83,18 @@ class Voice extends ChangeNotifier {
     if (_gone.remove(seed)) _app?.set('voice_gone', jsonEncode(_gone));
   }
 
+  /// The seeds of spaces archived here: out of Messages, in Archive with the archived conversations (Matt, 2026-11-17:
+  /// "spaces outside of servers move to the main chat list and can be swiped to leave a space or delete / archive").
+  final Set<String> _archived = {};
+
+  bool archived(VoiceChannel c) => _archived.contains(c.seed);
+
+  void archive(VoiceChannel c, bool on) {
+    if (on ? !_archived.add(c.seed) : !_archived.remove(c.seed)) return;
+    _app?.set('voice_archived', jsonEncode([..._archived]));
+    notifyListeners();
+  }
+
   /// How loud each person is played here, and who is silenced here, by their id: kept, and applied in every call with
   /// them (Matt, 2026-11-15: "press and hold on a user to habe options like muting changing volume levels").
   final Map<String, double> _volumes = {};
@@ -139,6 +151,7 @@ class Voice extends ChangeNotifier {
       _seen.addAll((jsonDecode(app.choice('voice_seen', '{}')) as Map).cast<String, int>());
       _readAt.addAll((jsonDecode(app.choice('voice_read', '{}')) as Map).map((k, v) => MapEntry('$k', (v as num).toInt())));
       _gone.addAll((jsonDecode(app.choice('voice_gone', '[]')) as List).whereType<String>());
+      _archived.addAll((jsonDecode(app.choice('voice_archived', '[]')) as List).whereType<String>());
       final people = jsonDecode(app.choice('voice_people', '{}')) as Map;
       _volumes.addAll(((people['v'] as Map?) ?? const {}).map((k, v) => MapEntry(k as String, (v as num).toDouble())));
       _silenced.addAll(((people['m'] as List?) ?? const []).cast<String>());

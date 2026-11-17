@@ -27,6 +27,7 @@ import '../summaries.dart';
 import 'common.dart';
 import 'voice_screen.dart';
 import 'hangout_screen.dart';
+import 'servers/server_rows.dart';
 import 'space_groups_ui.dart';
 import '../voice/discord.dart';
 import '../voice/space_groups.dart';
@@ -330,9 +331,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // Spaces: in Messages among the conversations, by their newest message (or now, while anyone is in the call), each
     // with a preview of it (Matt, 2026-11-17: "I'd also like spaces to show up in the main chats list with a preview
     // of the last message sent in the space"). A group's own is not one of them: its conversation stands for it.
-    final spaces = _section != null || widget.archived ? const <(DateTime, Object)>[] : [
+    // An archived one is in Archive instead (Voice.archive).
+    final spaces = _section != null ? const <(DateTime, Object)>[] : [
       for (final v in Voice.instance.channels)
-        if (v.hangout && (q.isEmpty || v.name.toLowerCase().contains(q) || (Voice.instance.lastMessage(v)?.text.toLowerCase().contains(q) ?? false))) (_spaceDate(v), v as Object),
+        if (v.hangout && Voice.instance.archived(v) == widget.archived && (q.isEmpty || v.name.toLowerCase().contains(q) || (Voice.instance.lastMessage(v)?.text.toLowerCase().contains(q) ?? false))) (_spaceDate(v), v as Object),
     ];
     if (chats.isEmpty && spaces.isEmpty) return shown;
     if (_section != null) {
@@ -503,17 +505,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   // --- the tabs --------------------------------------------------------------------------------------------------------
 
-  /// The tab of voice channels (the "tabs" layout).
-  static const voiceTab = '*voice';
-
-  /// The voice channels, the live ones first, then by when each last had anyone in it.
-  List<VoiceChannel> _voices() {
-    final v = Voice.instance;
-    final all = [...v.channels];
-    int when(VoiceChannel c) => v.lastActive(c)?.millisecondsSinceEpoch ?? 0;
-    all.sort((a, b) => when(b).compareTo(when(a)));
-    return all;
-  }
+  /// The Servers tab, where the Spaces tab was (Matt, 2026-11-17: "replace the spaces item in the sidebar with
+  /// servers, spaces outside of servers move to the main chat list"): lib/ui/servers/server_rows.dart.
+  static const serversTab = '*servers';
 
   /// Hops into [c] and shows it.
   Future<void> _openVoice(VoiceChannel c) async {
@@ -568,9 +562,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // Messages, codes and voice channels as the toggle's three icons (Matt, 2026-11-15: "use the segmented toggle with
     // the three icons instead of intertwining them remove the other options for now"). Voice is there always: it is
     // where calls are.
-    final voices = Voice.instance.channels;
     final tabs = _plugins.tabs(_section, (section) => setState(() => _section = section), onMenu: _tabMenu, extra: [
-      (id: voiceTab, icon: LucideMore.headphones, label: 'Spaces', count: voices.where(Voice.instance.live).length),
+      (id: serversTab, icon: Lucide.layoutGrid, label: 'Servers', count: 0),
     ]);
     final kinds = _plugins.kinds;
     if (tabs == null && kinds.isEmpty) return null;
@@ -668,7 +661,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   }
 
   /// The texts of a tab that are unread: none in a network's own tab, which holds that network's chats alone.
-  List<Conversation> _unreadTexts(String? section) => inboxOfTab(section) != null || section == voiceTab ? const [] : _of(section).where((c) => c.unread).toList();
+  List<Conversation> _unreadTexts(String? section) => inboxOfTab(section) != null || section == serversTab ? const [] : _of(section).where((c) => c.unread).toList();
 
   /// Marks every unread conversation of a tab as read, texts and chats alike: from the button at the title row's
   /// end, or a tab's own menu.
@@ -717,11 +710,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// read so far, one a filter hid, and every chat where the tab was a network's own. Messages is all of them.
   /// The spaces with unread messages that [section] holds: the main list's.
   List<VoiceChannel> _unreadSpaces(String? section) =>
-      section != null || widget.archived ? const [] : [for (final v in Voice.instance.channels) if (v.hangout && Voice.instance.unreadIn(v) > 0) v];
+      section != null || widget.archived ? const [] : [for (final v in Voice.instance.channels) if (v.hangout && !Voice.instance.archived(v) && Voice.instance.unreadIn(v) > 0) v];
 
   List<InboxChat> _unreadChats(String? section) {
     if (widget.archived) return [for (final n in Inbox.instance.ready) for (final c in n.archivedChats) if (c.unread > 0) c];
-    if (section == voiceTab) return const [];
+    if (section == serversTab) return const [];
     final net = inboxOfTab(section);
     if (net != null) return net.state == InboxState.ready ? [for (final c in net.shownChats) if (c.unread > 0) c] : const [];
     return [
@@ -741,7 +734,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// A tab's menu (Matt, 2026-11-14: "add a right click menu for the codes and messages tabs"): a press with the
   /// other button on it, or a long press where there is no other button.
   void _tabMenu(String? section) {
-    if (section == voiceTab) return;
+    if (section == serversTab) return;
     final network = inboxOfTab(section);
     if (network != null) {
       final unread = _unreadChats(section).length;
@@ -942,9 +935,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       _plugins.othersShown = () => ListPlugins.othersShownFor(app);
     }
     final sorted = _plugins.sort(widget.archived ? null : _all, chats: widget.archived ? const [] : _chatFacts());
-    final voices = widget.archived ? const <VoiceChannel>[] : _voices();
     final inbox = widget.archived ? null : inboxOfTab(_section);
-    if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0) && !(_section == voiceTab && !widget.archived) && inbox?.state != InboxState.ready) _section = null;
+    if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0) && !(_section == serversTab && !widget.archived) && inbox?.state != InboxState.ready) _section = null;
     final shown = _shown;
     // What the list holds: conversations, the voice channels in their tab, or a network's chats in its.
     final List<Object> rows = inbox != null && inbox.state == InboxState.ready
@@ -957,9 +949,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   (_spamHost == null || _query.isNotEmpty || (Inbox.instance.named(c.network)?.localList('notspam').contains(c.id) ?? false) || scamOf(c) == null))
                 c,
           ]
-        : _section == voiceTab
-            // In their groups, and each linked Discord server's channels (lib/ui/space_groups_ui.dart).
-            ? spaceRows(voices)
+        : _section == serversTab
+            // Each server, then each linked Discord server's channels (lib/ui/servers/server_rows.dart).
+            ? serverRows([?_shell?.sample])
             : _mixed(shown);
     // Android's own count, where it has answered: the ones held are not all of them until the read ends.
     final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length) + Inbox.instance.ready.fold<int>(0, (n, net) => n + net.archivedChats.length);
@@ -997,12 +989,12 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       ]);
     } else if (rows.isEmpty && inbox != null) {
       body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [inboxEmpty(context, inbox)]);
-    } else if (rows.isEmpty && _section == voiceTab) {
+    } else if (rows.isEmpty && _section == serversTab) {
       body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
         SettingsEmpty(
-          icon: AppIcon(LucideMore.headphones, size: 28, color: t.color('app-ink-3')),
-          title: 'No spaces yet',
-          body: const Text('Every group of friends has its own space. Start one with the new button, then share it with friends or by a link.'),
+          icon: AppIcon(Lucide.layoutGrid, size: 28, color: t.color('app-ink-3')),
+          title: 'No servers yet',
+          body: const Text('A server keeps channels and spaces together for a group of people. Your own spaces are in Messages.'),
           action: SettingsEmptyAction('Add a Discord server', () => push(context, (_) => const AddDiscordScreen())),
         ),
       ]);
@@ -1084,16 +1076,31 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
             final d = rows[at] as DiscordChannel;
             return DiscordChannelRow(key: ValueKey('discord-${d.guildId}-${d.id}'), channel: d);
           }
-          if (at < rows.length && rows[at] is VoiceChannel && _section != voiceTab) {
-            final v = rows[at] as VoiceChannel;
-            // Selected only while the pane beside the list shows it: a space opened before and left for another chat
-            // stays Voice's viewing one, and was drawn as open with that chat beside it (Matt, 2026-11-17: "the only
-            // ghosts chat is always highlighted even when it's not active in the front").
-            return _spaceRow(v, selected: besideChat == 'voice' && (Voice.instance.viewing ?? Voice.instance.session?.channel)?.seed == v.seed);
+          if (at < rows.length && rows[at] is ServerEntry) {
+            final s = (rows[at] as ServerEntry).server;
+            return ServerRow(key: ValueKey('server-row-${s.name}'), server: s);
           }
           if (at < rows.length && rows[at] is VoiceChannel) {
             final v = rows[at] as VoiceChannel;
-            return VoiceRow(key: ValueKey('voice-${v.room}'), channel: v, onPress: () => _openVoice(v));
+            final archived = Voice.instance.archived(v);
+            // Slid as a conversation is (Matt, 2026-11-17: "can be swiped to leave a space or delete / archive"): left
+            // archives, further deletes (asked first), right leaves (asked first).
+            return SwipeActions(
+              key: ValueKey('swipe-space-${v.room}'),
+              enabled: !_selecting,
+              archiveLabel: archived ? 'Unarchive' : 'Archive',
+              archiveIcon: archived ? Lucide.archiveRestore : Lucide.archive,
+              pinLabel: 'Leave',
+              pinIcon: Lucide.logOut,
+              onArchive: () => setState(() => Voice.instance.archive(v, !archived)),
+              onDelete: () => confirmDeleteHangout(context, v),
+              onPin: () => confirmLeaveHangout(context, v),
+              card: card,
+              // Selected only while the pane beside the list shows it: a space opened before and left for another chat
+              // stays Voice's viewing one, and was drawn as open with that chat beside it (Matt, 2026-11-17: "the only
+              // ghosts chat is always highlighted even when it's not active in the front").
+              child: _spaceRow(v, selected: besideChat == 'voice' && (Voice.instance.viewing ?? Voice.instance.session?.channel)?.seed == v.seed),
+            );
           }
           if (at < rows.length) {
             // The one that is open is being read: its row does not say unread, however it came to be opened (a

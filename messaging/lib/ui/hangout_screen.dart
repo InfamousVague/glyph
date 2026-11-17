@@ -31,7 +31,6 @@ import 'poof.dart';
 import 'nav_bar.dart';
 import 'ripple_avatar.dart';
 import 'shell.dart';
-import 'space_groups_ui.dart';
 import 'space_designs/space_design.dart';
 import 'space_invite.dart';
 import 'voice_screen.dart';
@@ -1376,9 +1375,21 @@ void showHangoutMenu(BuildContext context, VoiceChannel channel, {VoidCallback? 
     if (onOpen != null) Choice('Open', LucideMore.messageCircle, onOpen),
     Choice('Settings and permissions', Lucide.shieldCheck, () => push(context, (_) => HangoutSettingsScreen(channel: channel))),
     if (room == null || room.can(Perm.invite)) Choice('Invite people', Lucide.userPlus, () => showSpaceInvite(context, channel)),
-    // Into one of the Spaces tab's groups (lib/ui/space_groups_ui.dart).
-    Choice('Move to group…', Lucide.folder, () => pickSpaceGroup(context, channel)),
     Choice('Delete space', Lucide.trash2, () => confirmDeleteHangout(context, channel), danger: true),
+  ]);
+}
+
+/// Asks first, then leaves [channel]: its call if this phone is in it, and the space itself, off this phone and its
+/// computer (Voice.forget), as a swipe on its row asks (Matt, 2026-11-17: "can be swiped to leave a space or delete /
+/// archive"). Its link brings it back.
+void confirmLeaveHangout(BuildContext context, VoiceChannel channel) {
+  showChoices(context, title: 'Leave ${channel.name}? It goes from your list; its link brings you back.', choices: [
+    Choice('Leave space', Lucide.logOut, () async {
+      final v = Voice.instance;
+      if (v.viewing?.seed == channel.seed) v.view(null);
+      await v.forget(channel);
+      if (context.mounted) toast(context, 'Left ${channel.name}');
+    }, danger: true),
   ]);
 }
 

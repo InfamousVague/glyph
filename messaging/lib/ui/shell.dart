@@ -216,6 +216,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   bool get serverOpen => _server != null;
   late final MockServer _sample = sampleServer();
 
+  /// The made-up server, as the Servers tab lists it.
+  MockServer get sample => _sample;
+
   /// The section of Settings whose page is in the pane, or null: the row Settings' list marks.
   final settingsSection = ValueNotifier<String?>(null);
 
