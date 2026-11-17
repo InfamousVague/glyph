@@ -43,7 +43,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     stages with their times to `signal.log` beside its store and to standard error, which the app now passes to the
     Developer log (its own lines and signalmeow's warnings only; no message's words). Why Signal itself is slow to
     take a message is not known yet: the next stuck send says where in that log.
-- **Looks: Dial-Up, Mist, Lamplight, Sharp and Phosphor** (not released; `lib/looks.dart`, `lib/ui/look_picker.dart`,
+- **Looks: Dial-Up, Mist, Lamplight, Sharp and Phosphor** (0.8.4; `lib/looks.dart`, `lib/ui/look_picker.dart`,
   `lib/ui/dialup/`, `lib/ui/message_line.dart`, the look blocks at the end of `assets/css/app.css`; Matt, 2026-11-16: "spend
   some time making a few themes for ghost, base one of them heavily on the old AOL chatrooms"). Settings › Appearance has
   a Look picker above Theme. Ghost is the app as it was. Mist is a pale aqua page with deep teal ink (light only),
