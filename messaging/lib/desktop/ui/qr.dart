@@ -3,9 +3,12 @@ import 'package:qr/qr.dart';
 
 /// A QR code of [data]: black on white whatever the theme, with the quiet border a camera wants round it.
 class QrView extends StatelessWidget {
-  const QrView({super.key, required this.data, this.size = 260});
+  const QrView({super.key, required this.data, this.size = 260, this.radius = 14});
   final String data;
   final double size;
+
+  /// Its corners' rounding: none in Dial-Up's square chrome.
+  final double radius;
 
   @override
   Widget build(BuildContext context) {
@@ -13,7 +16,7 @@ class QrView extends StatelessWidget {
     return Semantics(
       label: 'The pairing code, as a QR code',
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(radius),
         child: CustomPaint(size: Size.square(size), painter: _QrPainter(image)),
       ),
     );

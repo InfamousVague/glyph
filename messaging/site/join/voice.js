@@ -29,13 +29,29 @@ async function open(key, sealed) {
   try { return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: sealed.slice(0, 12), additionalData: AAD, tagLength: 128 }, key, sealed.slice(12))); } catch (_) { return null; }
 }
 
-/** The link's fragment: the channel's seed, its name, and its owner's key (lib/voice/roles.dart). Null where it is not one. */
+const readName = (b64, fallback) => {
+  try { if (b64) return dec.decode(Uint8Array.from(atob(b64.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0))) || fallback; } catch (_) {}
+  return fallback;
+};
+
+/**
+ * The link's fragment: the channel's seed, its name, its owner's key (lib/voice/roles.dart), and its kind (lib/voice/voice.dart
+ * SpaceKind: 'voice', or a texting or Files space's 'text' or 'files', which the link ends with). Null where it is not one.
+ */
 export function readLink(fragment) {
-  const m = /^#?([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?$/.exec(fragment ?? '');
+  const m = /^#?([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?(?:\.(voice|text|files))?$/.exec(fragment ?? '');
   if (!m) return null;
-  let name = 'Space';
-  try { if (m[2]) name = dec.decode(Uint8Array.from(atob(m[2].replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0))) || name; } catch (_) {}
-  return { seed: m[1], name, owner: m[3] ?? '' };
+  return { seed: m[1], name: readName(m[2], 'Space'), owner: m[3] ?? '', kind: m[4] ?? 'voice' };
+}
+
+/**
+ * A circle's link (lib/circles/circle.dart Circle.link): `c.` then its seed, its name and its owner's key. A circle opens in
+ * the app, where its list of spaces is; this page says what it is and how to get there. Null where it is not one.
+ */
+export function readCircleLink(fragment) {
+  const m = /^#?c\.([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?$/.exec(fragment ?? '');
+  if (!m) return null;
+  return { seed: m[1], name: readName(m[2], 'Circle'), owner: m[3] ?? '' };
 }
 
 // lib/voice/voice.dart highestOpus and videoFor.
@@ -334,9 +350,13 @@ export class Hangout {
 // moderator, member". The same rules as the app: a roster believed only when the owner (whose key is in the link) or
 // an admin the owner made signed it, and each device doing what it says.
 
-export const PERMS = ['speak', 'video', 'chat', 'invite', 'muteOthers', 'removeMembers', 'ban', 'manageMessages'];
+// In Perm.values' order (lib/voice/roles.dart), a Files space's two at the end: a roster is signed with its roles'
+// permissions in this order, so a browser that left them out rebuilt different bytes and refused every Files space's.
+export const PERMS = ['speak', 'video', 'chat', 'invite', 'muteOthers', 'removeMembers', 'ban', 'manageMessages', 'uploadFiles', 'manageFiles'];
+// What a voice or texting space's admin may do: every permission but a Files space's own.
+const SPACE_PERMS = PERMS.filter((p) => p !== 'uploadFiles' && p !== 'manageFiles');
 const DEFAULT_ROLES = [
-  { id: 'admin', n: 'Admin', p: PERMS, r: 30 },
+  { id: 'admin', n: 'Admin', p: SPACE_PERMS, r: 30 },
   { id: 'moderator', n: 'Moderator', p: ['speak', 'video', 'chat', 'invite', 'muteOthers', 'removeMembers', 'manageMessages'], r: 20 },
   { id: 'member', n: 'Member', p: ['speak', 'video', 'chat', 'invite'], r: 10 },
 ];
@@ -402,7 +422,7 @@ export class Roster {
     const k = unhex(j.k);
     if ((await idOf(k)) !== j.by) return false;
     const sorted = (o) => Object.fromEntries(Object.entries(o ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
-    const body = { o: j.o, v: j.v, roles: (j.roles ?? []).map((r) => ({ id: r.id, n: r.n, p: PERMS.filter((p) => r.p.includes(p)), r: r.r })), a: sorted(j.a), g: sorted(j.g), b: [...(j.b ?? [])].sort(), m: [...(j.m ?? [])].sort(), n: j.n, by: j.by, k: j.k };
+    const body = { o: j.o, v: j.v, roles: (j.roles ?? []).map((r) => ({ id: r.id, n: r.n, p: [...PERMS.filter((p) => r.p.includes(p)), ...r.p.filter((p) => !PERMS.includes(p))], r: r.r })), a: sorted(j.a), g: sorted(j.g), b: [...(j.b ?? [])].sort(), m: [...(j.m ?? [])].sort(), n: j.n, by: j.by, k: j.k };
     if (!(await verify(k, enc.encode('ghost-hangout roster|' + JSON.stringify(body)), unhex(j.s)))) return false;
     await this.checkGrants();
     if (!(this.isOwner(j.by) || this.roleOf(j.by).id === 'admin')) return false;

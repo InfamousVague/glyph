@@ -58,6 +58,27 @@ class HangoutScreen extends StatefulWidget {
   State<HangoutScreen> createState() => _HangoutScreenState();
 }
 
+/// A space's chat before its room can be opened (the relay server not reached yet): what it will show, and why not.
+class _NoRoomYet extends StatelessWidget {
+  const _NoRoomYet({required this.name});
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(t.space(6)),
+        child: SettingsEmpty(
+          icon: AppIcon(LucideMore.messageCircle, size: 28, color: t.color('app-ink-3')),
+          title: 'Connecting to $name',
+          body: const Text('Its messages show here as soon as the relay server is reached.'),
+        ),
+      ),
+    );
+  }
+}
+
 class _HangoutScreenState extends State<HangoutScreen> {
   HangoutRoom? _room;
   String _tab = 'people';
@@ -126,9 +147,12 @@ class _HangoutScreenState extends State<HangoutScreen> {
         // Under the pill in the list's place: what stands at the foot (the composer, the dock) stands above it.
         final pill = widget.inSidebar ? AppShell.pillRoom(context) : 0.0;
         final dockAt = pad + (widget.inSidebar ? pill : NavPill.inset(t));
+        // A circle's space beside the circle's list (a wide window): the list's own Invite stands just beside it, so the
+        // space's page leaves its own out rather than show two of the same button side by side.
+        final besideCircle = wide && widget.channel.circle != null;
         final actions = [
           if (room != null) _membersButton(_members, () => setState(() => _members = !_members)),
-          if (room == null || room.can(Perm.invite)) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
+          if ((room == null || room.can(Perm.invite)) && !besideCircle) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
           if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
         ];
         if (room?.putOut != null) {
@@ -141,7 +165,12 @@ class _HangoutScreenState extends State<HangoutScreen> {
         // the foot as every conversation's does (Matt, 2026-11-15: "when we switch to chat please don't show the call
         // controls just make it appear like the bottom of all the compose windows look").
         final bottom = pill + (s != null && (wide || _tab != 'chat') ? NavPill.clearance(t) : 0);
-        final chat = room == null ? const SizedBox.shrink() : (_members ? SpaceMembers(room: room, bottom: bottom + pad) : HangoutChat(room: room, bottom: bottom));
+        // Before the relay is reached there is no room yet: say so, rather than a bare title over nothing.
+        final chat = room == null ? _NoRoomYet(name: widget.channel.name) : (_members ? SpaceMembers(room: room, bottom: bottom + pad) : HangoutChat(room: room, bottom: bottom));
+        // A texting or Files space has no call: no Join, no one "in voice", just its chat (SpaceKind).
+        if (s == null && !widget.channel.hasVoice) {
+          return GhostPage(title: widget.channel.name, actions: actions, body: chat);
+        }
         if (s == null) {
           // Out of the call: who is here, a way in, and the chat.
           final here = room?.present.values.toList() ?? const <HangoutPerson>[];
@@ -1289,7 +1318,8 @@ class _RoleScreenState extends State<RoleScreen> {
               PaneSection(
                 title: 'What ${role.name.toLowerCase()}s may do',
                 children: [
-                  for (final p in Perm.values)
+                  // A Files space's permissions only in a Files space (Perm.files).
+                  for (final p in Perm.values.where(Perm.of(room.channel.kind).contains))
                     SettingRow(
                       label: p.label,
                       hint: Text(p.hint),

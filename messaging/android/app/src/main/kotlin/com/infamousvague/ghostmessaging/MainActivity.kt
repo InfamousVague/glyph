@@ -39,6 +39,7 @@ class MainActivity : FlutterActivity() {
         private const val PICK_REQUEST = 43
         private const val SCAN_REQUEST = 44
         private const val MIC_REQUEST = 45
+        private const val SAVE_REQUEST = 46
     }
 
     private val io = Executors.newSingleThreadExecutor()
@@ -73,6 +74,14 @@ class MainActivity : FlutterActivity() {
     private var pickResult: MethodChannel.Result? = null
     private var scanResult: MethodChannel.Result? = null
     private var micResult: MethodChannel.Result? = null
+    private var saveResult: MethodChannel.Result? = null
+    private var saveFrom: File? = null
+
+    /**
+     * Files shared into the app from another (a Files space's "Add to", lib/ui/files_space/share_in.dart): their content
+     * addresses, held until Dart asks for them when it was not yet listening.
+     */
+    private var pendingShared: List<String>? = null
     private lateinit var store: Store
 
     /**
@@ -99,6 +108,7 @@ class MainActivity : FlutterActivity() {
         // its first open request long ago, so what this screen was opened for is told as an event.
         val asked = openRequest(intent)
         if (sharedEvents != null && asked != null) main.post { sharedEvents?.success(mapOf("type" to "open") + asked) } else pendingOpen = asked
+        sharedFiles(intent)?.let { uris -> if (sharedEvents != null) main.post { sharedEvents?.success(mapOf("type" to "sharedFiles", "uris" to uris)) } else pendingShared = uris }
         // The computers this phone is paired with (Desk.kt): the service that keeps it reachable by them runs while
         // there is one, and is started here if Android stopped it since.
         DeskService.sync(applicationContext)
@@ -376,6 +386,13 @@ class MainActivity : FlutterActivity() {
                     mapOf("path" to out.path, "millis" to recorded.second)
                 }
                 "openFile" -> bg { openFile(File(call.argument<String>("path")!!), call.argument<String>("name")); null }
+                // A Files space (lib/files/file_platform.dart): a picked file copied into the app's own folder, so it can
+                // go up after the app is closed and opened again (the picker's permission ends with the app); a file
+                // saved where the person chooses; one shared to another app; and files shared into this one.
+                "keepFile" -> bg { keepFile(Uri.parse(call.argument<String>("uri")!!)) }
+                "saveFile" -> saveFile(result, File(call.argument<String>("path")!!), call.argument<String>("name") ?: "file", call.argument<String>("mime") ?: "application/octet-stream")
+                "shareFile" -> bg { shareFile(File(call.argument<String>("path")!!), call.argument<String>("name"), call.argument<String>("mime")); null }
+                "sharedFiles" -> { result.success(pendingShared ?: emptyList<String>()); pendingShared = null }
                 "setOpenThread" -> {
                     openThread = call.argument<Number>("thread")?.toLong() ?: -1
                     if (openThread >= 0) Notifier.cancel(applicationContext, openThread)
@@ -576,6 +593,10 @@ class MainActivity : FlutterActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        sharedFiles(intent)?.let { uris ->
+            if (events != null) events?.success(mapOf("type" to "sharedFiles", "uris" to uris)) else pendingShared = uris
+            return
+        }
         val req = openRequest(intent) ?: return
         if (events != null) events?.success(mapOf("type" to "open") + req) else pendingOpen = req
     }
@@ -598,7 +619,7 @@ class MainActivity : FlutterActivity() {
             val body = intent.getStringExtra("sms_body") ?: intent.getStringExtra(Intent.EXTRA_TEXT) ?: data.getQueryParameterSafe("body")
             return mapOf("addresses" to to, "body" to body)
         }
-        if (intent.action == Intent.ACTION_SEND && intent.type == "text/plain") {
+        if (intent.action == Intent.ACTION_SEND && intent.type == "text/plain" && sharedFiles(intent) == null) {
             return mapOf("addresses" to emptyList<String>(), "body" to intent.getStringExtra(Intent.EXTRA_TEXT))
         }
         return null
@@ -725,15 +746,111 @@ class MainActivity : FlutterActivity() {
         return out.path
     }
 
+    /** App packages, which [openFile] never hands to ACTION_VIEW. */
+    private val installers = setOf("apk", "xapk", "apks", "apkm")
+
     /** Opens [file] in the app that reads its kind, through the provider MMS files go by. */
     private fun openFile(file: File, name: String?) {
-        val shown = File(MmsFileProvider.dir(this), (name ?: file.name).replace('/', '_'))
-        if (shown.path != file.path) file.copyTo(shown, overwrite = true)
+        val shown = File(MmsFileProvider.dir(this), cleanFileName(name ?: file.name))
         val ext = shown.extension.lowercase()
+        // An app package from a Files space is never opened: ACTION_VIEW would take it straight to the installer, with
+        // this app's own grant to install packages, past the step that asks. It can be saved and opened from there.
+        if (ext in installers) {
+            DevLog.add(this, "files", "open: refused an installer (.$ext)")
+            return
+        }
+        if (shown.path != file.path) file.copyTo(shown, overwrite = true)
         val type = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
         val i = Intent(Intent.ACTION_VIEW).setDataAndType(MmsFileProvider.uriFor(this, shown), type)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         runOnUiThread { try { startActivity(Intent.createChooser(i, "Open with").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e: Exception) { DevLog.add(this, "files", "open: ${e.message}") } }
+    }
+
+    /** The content addresses an ACTION_SEND or ACTION_SEND_MULTIPLE carries as files; null for a share of words alone. */
+    private fun sharedFiles(intent: Intent?): List<String>? {
+        intent ?: return null
+        if (intent.action != Intent.ACTION_SEND && intent.action != Intent.ACTION_SEND_MULTIPLE) return null
+        val uris = ArrayList<String>()
+        @Suppress("DEPRECATION")
+        if (intent.action == Intent.ACTION_SEND) (intent.getParcelableExtra<android.os.Parcelable>(Intent.EXTRA_STREAM) as? Uri)?.let { uris += it.toString() }
+        else intent.getParcelableArrayListExtra<android.os.Parcelable>(Intent.EXTRA_STREAM)?.forEach { (it as? Uri)?.let { u -> uris += u.toString() } }
+        if (uris.isEmpty()) intent.clipData?.let { clip -> for (k in 0 until clip.itemCount) clip.getItemAt(k).uri?.let { uris += it.toString() } }
+        // Only another app's content: a file:// address, or one of this app's own providers, would be read with this
+        // app's rights, so another app could share this app's private files (its keys, its choices) into a Files space.
+        return uris.filter { foreign(Uri.parse(it)) }.ifEmpty { null }
+    }
+
+    /** A content:// address served by another app, not one of this app's own providers. */
+    private fun foreign(uri: Uri): Boolean {
+        if (uri.scheme != "content") return false
+        val authority = uri.authority ?: return false
+        return authority != packageName && !authority.startsWith("$packageName.")
+    }
+
+    /** A file name as it is kept and shown: no folders, no control or direction marks (a name that shows as
+     *  "invoiceexe.pdf" but ends ".exe"), no name of only dots. */
+    private fun cleanFileName(name: String): String {
+        val plain = name.replace('/', '_').replace('\\', '_').filter { c -> !Character.isISOControl(c) && Character.getType(c) != Character.FORMAT.toInt() }.trim().trimEnd('.', ' ')
+        return if (plain.isEmpty() || plain.all { it == '.' }) "file" else plain
+    }
+
+    /**
+     * A picked or shared file copied into the app's own files, each in a folder of its own under its own name: its path,
+     * name and size. Streamed, never read whole; the copy goes once the file is up (lib/files/files_store.dart).
+     */
+    private fun keepFile(uri: Uri): Map<String, Any?> {
+        require(foreign(uri)) { "Only another app's files can be added" }
+        var name: String? = null
+        var size = -1L
+        contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME, android.provider.OpenableColumns.SIZE), null, null, null)?.use { c ->
+            if (c.moveToFirst()) {
+                name = c.getString(0)
+                if (!c.isNull(1)) size = c.getLong(1)
+            }
+        }
+        val ext = android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(contentResolver.getType(uri) ?: "")
+        val shown = cleanFileName(name ?: uri.lastPathSegment ?: "file")
+        val named = if (shown.contains('.') || ext == null) shown else "$shown.$ext"
+        val dir = File(filesDir, "space-files/outbox/${System.nanoTime()}").apply { mkdirs() }
+        val out = File(dir, named)
+        contentResolver.openInputStream(uri)!!.use { input -> out.outputStream().use { input.copyTo(it, 1 shl 16) } }
+        return mapOf("path" to out.path, "name" to named, "size" to (if (size >= 0) size else out.length()))
+    }
+
+    /** Asks where to save [file] (Android's own "Save to" page), and copies it there: true where it was saved. */
+    private fun saveFile(result: MethodChannel.Result, file: File, name: String, mime: String) {
+        saveResult?.success(false)
+        saveResult = result
+        saveFrom = file
+        val i = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = mime
+            putExtra(Intent.EXTRA_TITLE, name)
+        }
+        try {
+            @Suppress("DEPRECATION")
+            startActivityForResult(i, SAVE_REQUEST)
+        } catch (e: Exception) {
+            saveResult = null
+            result.error("failed", e.message ?: "Nothing on this phone saves files", null)
+        }
+    }
+
+    /** Shares [file] with another app, through the provider MMS files go by. */
+    private fun shareFile(file: File, name: String?, mime: String?) {
+        // Copies shared before, an hour old or more, go: nothing else ever deleted them.
+        val hourAgo = System.currentTimeMillis() - 3_600_000L
+        MmsFileProvider.dir(this).listFiles { f -> f.name.startsWith("share-") && f.lastModified() < hourAgo }?.forEach { it.delete() }
+        val shown = File(MmsFileProvider.dir(this), "share-${System.nanoTime()}-${cleanFileName(name ?: file.name)}")
+        file.copyTo(shown, overwrite = true)
+        val type = mime ?: android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(shown.extension.lowercase()) ?: "application/octet-stream"
+        val i = Intent(Intent.ACTION_SEND).apply {
+            this.type = type
+            putExtra(Intent.EXTRA_STREAM, MmsFileProvider.uriFor(this@MainActivity, shown))
+            clipData = android.content.ClipData.newRawUri(name ?: file.name, MmsFileProvider.uriFor(this@MainActivity, shown))
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runOnUiThread { try { startActivity(Intent.createChooser(i, name ?: "Share").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e: Exception) { DevLog.add(this, "files", "share: ${e.message}") } }
     }
 
     private fun pickImages(result: MethodChannel.Result, any: Boolean = false) {
@@ -758,6 +875,21 @@ class MainActivity : FlutterActivity() {
             SCAN_REQUEST -> {
                 scanResult?.success(mapOf("text" to data?.getStringExtra(ScanActivity.RESULT_TEXT), "denied" to (data?.getBooleanExtra("denied", false) ?: false)))
                 scanResult = null
+            }
+            SAVE_REQUEST -> {
+                val asked = saveResult ?: return
+                val from = saveFrom
+                saveResult = null
+                saveFrom = null
+                val to = data?.data
+                if (resultCode != RESULT_OK || to == null || from == null) { asked.success(false); return }
+                io.execute {
+                    val ok = try {
+                        contentResolver.openOutputStream(to)!!.use { out -> from.inputStream().use { it.copyTo(out, 1 shl 16) } }
+                        true
+                    } catch (e: Exception) { DevLog.add(this, "files", "save: ${e.message}"); false }
+                    main.post { asked.success(ok) }
+                }
             }
             PICK_REQUEST -> {
                 val uris = ArrayList<String>()

@@ -1,0 +1,400 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/art/app_icon.dart';
+import 'package:ghost_messaging/art/lucide.g.dart';
+import 'package:ghost_messaging/circles/circles.dart';
+import 'package:ghost_messaging/net/crypto.dart';
+import 'package:ghost_messaging/net/hub_carrier.dart';
+import 'package:ghost_messaging/ui/circles/circle_screen.dart';
+import 'package:ghost_messaging/ui/common.dart' show IconTap;
+import 'package:ghost_messaging/ui/circles/circle_list.dart';
+import 'package:ghost_messaging/ui/shell.dart';
+import 'package:ghost_messaging/voice/channels.dart';
+import 'package:ghost_messaging/voice/roles.dart';
+import 'package:ghost_messaging/voice/voice.dart';
+
+import 'support/list_harness.dart';
+
+/// Circles (lib/circles, lib/ui/circles). Matt, 2026-11-17: "Let's do a circle for now, remove all of the code related
+/// to the server UIs and make a new design for [circles]. We want it to be simpler and easier to digest with it's own
+/// sidebar full of spaces each space should be able to act as a chat and a voice chat, or just a texting space".
+///
+/// The hub is stood in for, as in hangout_test (rooms: join, leave, a packet to everyone else, who came and went), and
+/// each install has a real key, so manifests are really signed and checked.
+class _Hub {
+  final Map<String, Map<String, _Route>> rooms = {};
+}
+
+class _Route implements VoiceRoute {
+  _Route(this.hub, this.me);
+  final _Hub hub;
+  @override
+  final String me;
+  final _events = StreamController<RoomEvent>.broadcast();
+  final _packets = StreamController<({String room, String from, Uint8List bytes})>.broadcast();
+  final _looks = StreamController<({String room, List<String> members})>.broadcast();
+  int sent = 0;
+
+  @override
+  Future<List<String>> join(String room, String token) async {
+    final r = hub.rooms[room] ??= {};
+    final others = r.keys.toList();
+    r[me] = this;
+    for (final o in r.values) {
+      if (o != this) scheduleMicrotask(() => o._events.add(RoomEvent(room, came: me)));
+    }
+    return others;
+  }
+
+  @override
+  void leave(String room) {
+    final r = hub.rooms[room];
+    r?.remove(me);
+    for (final o in r?.values ?? const <_Route>[]) {
+      scheduleMicrotask(() => o._events.add(RoomEvent(room, went: me)));
+    }
+  }
+
+  @override
+  void send(String room, Uint8List bytes) {
+    sent++;
+    for (final o in hub.rooms[room]?.values ?? const <_Route>[]) {
+      if (o != this) scheduleMicrotask(() => o._packets.add((room: room, from: me, bytes: bytes)));
+    }
+  }
+
+  @override
+  void look(String room, String token) {}
+  @override
+  void unlook(String room) {}
+  @override
+  Stream<RoomEvent> get events => _events.stream;
+  @override
+  Stream<({String room, String from, Uint8List bytes})> get packets => _packets.stream;
+  @override
+  Stream<({String room, List<String> members})> get looks => _looks.stream;
+}
+
+Future<void> _settle([int ms = 0]) async {
+  for (var i = 0; i < 20; i++) {
+    await Future<void>.delayed(Duration.zero);
+  }
+  if (ms > 0) await Future<void>.delayed(Duration(milliseconds: ms));
+  for (var i = 0; i < 20; i++) {
+    await Future<void>.delayed(Duration.zero);
+  }
+}
+
+/// Waits until [ok] holds (or five seconds go by): not a fixed sleep, which a busy machine outruns.
+Future<void> _until(bool Function() ok) async {
+  final end = DateTime.now().add(const Duration(seconds: 5));
+  while (!ok() && DateTime.now().isBefore(end)) {
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
+}
+
+Future<CircleManifest> _sign(CircleManifest m, NetKeys k) => m.signedBy(k.id, k.public, (b) async => NetCrypto.sign(k, b));
+
+Future<void> _fonts() async {
+  Future<void> family(String name, String file) async {
+    final loader = FontLoader(name)..addFont(File(file).readAsBytes().then((b) => ByteData.view(Uint8List.fromList(b).buffer)));
+    await loader.load();
+  }
+
+  await family('Inter Variable', 'assets/fonts/InterVariable-latin.ttf');
+  await family('JetBrains Mono Variable', 'assets/fonts/JetBrainsMonoVariable-latin.ttf');
+}
+
+void main() {
+  group('space kinds', () {
+    test('a space from before kinds is a voice space; kinds go round its JSON and its link', () {
+      final old = VoiceChannel.fromJson({'s': 'a' * 64, 'n': 'Old'})!;
+      expect(old.kind, SpaceKind.voice);
+      expect(old.hasVoice, isTrue);
+      expect(old.toJson().containsKey('k'), isFalse, reason: 'a voice space writes no kind, so older builds read it as before');
+
+      final text = VoiceChannel.make('Notes', kind: SpaceKind.text);
+      expect(text.toJson()['k'], 'text');
+      expect(VoiceChannel.fromJson(text.toJson())!.kind, SpaceKind.text);
+      expect(text.hasVoice, isFalse);
+      // A kind from a newer build reads as voice here, not as nothing.
+      expect(VoiceChannel.fromJson({'s': 'b' * 64, 'n': 'X', 'k': 'board'})!.kind, SpaceKind.voice);
+
+      final owner = '02${'c' * 64}';
+      final files = VoiceChannel(seed: 'd' * 64, name: 'Drop box', owner: owner, kind: SpaceKind.files);
+      expect(files.link, endsWith('.$owner.files'));
+      final back = VoiceChannel.fromLink(files.link)!;
+      expect((back.seed, back.name, back.owner, back.kind), (files.seed, 'Drop box', owner, SpaceKind.files));
+      final voice = VoiceChannel.fromLink(VoiceChannel(seed: 'e' * 64, name: 'Lounge').link)!;
+      expect((voice.name, voice.owner, voice.kind), ('Lounge', '', SpaceKind.voice));
+      expect(VoiceChannel.fromLink('https://gogho.st/join/#c.${'e' * 64}.Q2lyY2xl'), isNull, reason: 'a circle\'s link is not a space\'s');
+    });
+
+    test('a texting space is never joined', () async {
+      await expectLater(Voice.instance.join(VoiceChannel.make('Notes', kind: SpaceKind.text)), throwsStateError);
+    });
+
+    test('a Files space\'s roles carry its permissions; a voice space\'s never name them', () {
+      final voice = Role.defaultsFor(SpaceKind.voice), files = Role.defaultsFor(SpaceKind.files);
+      for (final r in voice) {
+        expect(r.perms.intersection(Perm.files), isEmpty, reason: r.id);
+      }
+      Role byId(List<Role> l, String id) => l.firstWhere((r) => r.id == id);
+      expect(byId(files, Role.member).perms, contains(Perm.uploadFiles));
+      expect(byId(files, Role.member).perms, isNot(contains(Perm.manageFiles)));
+      expect(byId(files, Role.moderator).perms, containsAll([Perm.uploadFiles, Perm.manageFiles]));
+      expect(byId(files, Role.admin).perms, containsAll(Perm.values));
+      // A permission this build doesn't know is kept, after the known ones, so a roster written again is as signed.
+      final j = {'id': 'member', 'n': 'Member', 'r': 10, 'p': ['speak', 'chat', 'paintWalls']};
+      expect(Role.fromJson(j)!.toJson()['p'], ['speak', 'chat', 'paintWalls']);
+    });
+  });
+
+  group('manifest', () {
+    final owner = NetKeys.generate(), admin = NetKeys.generate(), stranger = NetKeys.generate();
+    final ownerKey = NetCrypto.hex(owner.public);
+
+    test('signed by the owner, it checks out and goes round its JSON; changed, it does not', () async {
+      final m = await _sign(CircleManifest(owner: ownerKey, version: 1, name: 'Book club', hue: 'rose', icon: 'book', spaces: [CircleSpace.make('General', kind: SpaceKind.text), CircleSpace.make('Lounge', order: 1)]), owner);
+      expect(m.trustedFor(ownerKey), isTrue);
+      final back = CircleManifest.fromJson(jsonDecode(jsonEncode(m.toJson())))!;
+      expect(back.trustedFor(ownerKey), isTrue);
+      expect((back.name, back.hue, back.icon, back.spaces.length), ('Book club', 'rose', 'book', 2));
+      expect(back.ordered.first.kind, SpaceKind.text);
+      final forged = m.toJson()..['b'] = (m.toJson()['b'] as String).replaceAll('Book club', 'Spam club');
+      expect(CircleManifest.fromJson(forged)!.trustedFor(ownerKey), isFalse);
+      expect(m.trustedFor(NetCrypto.hex(stranger.public)), isFalse, reason: 'for another owner');
+    });
+
+    test('a newer build\'s fields still check out here', () async {
+      final body = jsonEncode({'o': ownerKey, 'v': 3, 'n': 'Future', 'h': 'mint', 'i': 'users', 'sp': [{'s': 'f' * 64, 'n': 'Board', 'k': 'board', 'o': 0, 'z': 1}], 'g': {}, 'theme': 'x'});
+      final unsigned = CircleManifest.fromJson({'b': body})!;
+      final signed = await _sign(unsigned, owner);
+      final back = CircleManifest.fromJson(jsonDecode(jsonEncode(signed.toJson())))!;
+      expect(back.trustedFor(ownerKey), isTrue);
+      expect(back.raw, body);
+    });
+
+    test('an admin the owner granted may sign; a stranger may not; an admin can\'t change who the admins are', () async {
+      final v1 = await _sign(CircleManifest(owner: ownerKey, version: 1, name: 'C'), owner);
+      final grant = NetCrypto.hex(NetCrypto.sign(owner, CircleManifest.grantMessage(ownerKey, admin.id)));
+      final v2 = await _sign(v1.next(adminGrants: {admin.id: grant}), owner);
+      expect(v2.follows(v1, ownerKey), isTrue);
+      final v3 = await _sign(v2.next(name: 'Renamed by admin'), admin);
+      expect(v3.trustedFor(ownerKey), isTrue);
+      expect(v3.follows(v2, ownerKey), isTrue);
+      final byStranger = await _sign(v2.next(name: 'Mine now'), stranger);
+      expect(byStranger.follows(v2, ownerKey), isFalse);
+      // An admin making another admin (the grant is real, but only the owner may add it).
+      final other = NetKeys.generate();
+      final otherGrant = NetCrypto.hex(NetCrypto.sign(owner, CircleManifest.grantMessage(ownerKey, other.id)));
+      final sneaky = await _sign(v3.next(adminGrants: {...v3.adminGrants, other.id: otherGrant}), admin);
+      expect(sneaky.follows(v3, ownerKey), isFalse);
+      // An older one never replaces a newer one.
+      expect(v2.follows(v3, ownerKey), isFalse);
+      expect(v3.follows(v3, ownerKey), isFalse);
+    });
+
+    test('a circle\'s link and invite give back the circle; its spaces are spaces owned by its owner', () async {
+      final m = await _sign(CircleManifest(owner: ownerKey, version: 1, name: 'Night Owls', spaces: [CircleSpace.make('Lounge'), CircleSpace.make('Drop', kind: SpaceKind.files, order: 1, section: 'Stuff')]), owner);
+      final c = Circle(seed: '1' * 64, owner: ownerKey, manifest: m, mine: true);
+      expect(c.link, startsWith('https://gogho.st/join/#c.${'1' * 64}.'));
+      final fromLink = Circle.fromLink(c.link)!;
+      expect((fromLink.seed, fromLink.owner, fromLink.name, fromLink.manifest.version), (c.seed, ownerKey, 'Night Owls', 0));
+      expect(Circle.fromLink('#${'1' * 64}.TmlnaHQ'), isNull, reason: 'a space\'s link is not a circle\'s');
+      expect(fromLink.merged(m), isNotNull, reason: 'the real manifest replaces what the link said');
+
+      final invite = Circles.fromInvite(Circles.inviteBody(c, 'Maya'))!;
+      expect(invite.manifest.trustedFor(ownerKey), isTrue);
+      expect(invite.spaces.map((s) => s.name), ['Lounge', 'Drop']);
+      final drop = invite.channels.last;
+      expect((drop.kind, drop.owner, drop.circle, drop.hangout), (SpaceKind.files, ownerKey, c.seed, true));
+
+      final kept = Circle.fromJson(jsonDecode(jsonEncode(c.toJson())))!;
+      expect((kept.seed, kept.mine, kept.manifest.trustedFor(ownerKey)), (c.seed, true, true));
+      expect(kept.manifest.sections, [null, 'Stuff']);
+      expect(c.room, isNot(Circle(seed: '2' * 64, owner: ownerKey, manifest: m).room));
+    });
+  });
+
+  group('gossip', () {
+    test('a change goes round the circle\'s room; a newcomer is given the newest manifest; a forged one is refused', () async {
+      final hub = _Hub();
+      final owner = NetKeys.generate(), maya = NetKeys.generate(), sam = NetKeys.generate();
+      final mine = Circles.forTest(signer: KeysSigner(owner), route: _Route(hub, owner.id));
+      final hers = Circles.forTest(signer: KeysSigner(maya), route: _Route(hub, maya.id));
+      addTearDown(() async {
+        await mine.clear();
+        await hers.clear();
+      });
+      final c = (await mine.make(name: 'Book club', hue: 'rose', icon: 'book'))!;
+      expect(c.spaces.map((s) => s.kind), [SpaceKind.text, SpaceKind.voice], reason: 'a texting space and a voice space to start');
+      await _settle();
+
+      // Maya comes in by the link alone: the manifest comes from the room.
+      hers.join(Circle.fromLink(c.link)!);
+      await _until(() => hers.bySeed(c.seed)!.manifest.version == 1);
+      expect(hers.bySeed(c.seed)!.manifest.version, 1);
+      expect(hers.bySeed(c.seed)!.spaces.length, 2);
+      expect(hers.canEdit(hers.bySeed(c.seed)!), isFalse);
+
+      // The owner adds a Files space: it reaches her.
+      final drop = await mine.addSpace(mine.bySeed(c.seed)!, 'Drop box', kind: SpaceKind.files, section: 'Sharing');
+      expect(drop, isNotNull);
+      await _until(() => hers.bySeed(c.seed)!.manifest.version == 2);
+      final seen = hers.bySeed(c.seed)!;
+      expect(seen.manifest.version, 2);
+      expect(seen.space(drop!.seed)?.kind, SpaceKind.files);
+      expect(seen.space(drop.seed)?.section, 'Sharing');
+
+      // She can't change it.
+      expect(await hers.addSpace(seen, 'Mine'), isNull);
+
+      // A forged manifest said in the room by someone with the seed is refused.
+      final forger = CircleRoom(circle: seen, route: _Route(hub, sam.id), onManifest: (_, _) {});
+      await forger.open();
+      forger.say(await _sign(seen.manifest.next(name: 'Taken over'), sam));
+      await _settle(50);
+      expect(hers.bySeed(c.seed)!.name, 'Book club');
+      expect(mine.bySeed(c.seed)!.name, 'Book club');
+      await forger.close();
+
+      // Moved and renamed: the order and the name reach her.
+      final lounge = mine.bySeed(c.seed)!.spaces.firstWhere((s) => s.kind == SpaceKind.voice);
+      await mine.moveSpace(mine.bySeed(c.seed)!, lounge.seed, 0);
+      await mine.updateSpace(mine.bySeed(c.seed)!, lounge.seed, name: 'Living room');
+      await _until(() => hers.bySeed(c.seed)!.spaces.first.name == 'Living room');
+      expect(hers.bySeed(c.seed)!.spaces.first.name, 'Living room');
+
+      // Left: off her list, its room left.
+      await hers.leave(hers.bySeed(c.seed)!);
+      expect(hers.bySeed(c.seed), isNull);
+      expect(hers.removed(c.seed), isTrue);
+    });
+
+    test('a device that was away takes the newer manifest when it comes back', () async {
+      final hub = _Hub();
+      final owner = NetKeys.generate(), maya = NetKeys.generate();
+      final mine = Circles.forTest(signer: KeysSigner(owner), route: _Route(hub, owner.id));
+      addTearDown(mine.clear);
+      final c = (await mine.make(name: 'Night Owls'))!;
+      final old = c.manifest;
+      await mine.edit(mine.bySeed(c.seed)!, name: 'Night Owls Club', hue: 'mint');
+      await _settle();
+      // Maya held version 1 from an invite.
+      final hers = Circles.forTest(signer: KeysSigner(maya), route: _Route(hub, maya.id));
+      addTearDown(hers.clear);
+      hers.join(Circle(seed: c.seed, owner: c.owner, manifest: old));
+      await _until(() => hers.bySeed(c.seed)!.manifest.version == 2);
+      expect(hers.bySeed(c.seed)!.name, 'Night Owls Club');
+      expect(hers.bySeed(c.seed)!.hue, 'mint');
+    });
+  });
+
+  group('screens', () {
+    setUpAll(_fonts);
+    setUp(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (_) async => null));
+
+    Future<Circle> aCircle() async {
+      final keys = NetKeys.generate();
+      final m = await _sign(
+        CircleManifest(owner: NetCrypto.hex(keys.public), version: 1, name: 'Night Owls', hue: 'indigo', icon: 'book', spaces: [
+          CircleSpace.make('General', kind: SpaceKind.text),
+          CircleSpace.make('Lounge', order: 1),
+          CircleSpace.make('Drop box', kind: SpaceKind.files, order: 2, section: 'Sharing'),
+        ]),
+        keys,
+      );
+      return Circle(seed: NetCrypto.hex(NetCrypto.randomBytes(32)), owner: NetCrypto.hex(keys.public), manifest: m);
+    }
+
+    testWidgets('the Circles tab lists a circle, which takes the list\'s place with its spaces; back is the conversations', (tester) async {
+      final c = (await tester.runAsync(aCircle))!;
+      Circles.instance.join(c);
+      addTearDown(Circles.instance.clear);
+      final sheet = await loadSheet(tester);
+      await pumpScreen(tester, sheet, const AppShell(), AppState(), size: const Size(412, 892));
+      await settle(tester);
+      await tester.tap(find.byWidgetPredicate((w) => w is AppIcon && w.icon == Lucide.circleDot).first);
+      await settle(tester);
+      expect(find.byType(CircleRow), findsOneWidget);
+      await tester.tap(find.text('Night Owls'));
+      await settle(tester);
+      expect(find.byType(CircleScreen), findsOneWidget);
+      expect(find.byType(CircleSpaceTile), findsNWidgets(3));
+      expect(find.text('SHARING'), findsOneWidget, reason: 'a space under its heading');
+      expect(find.byType(CircleSpaceTile).evaluate().map((e) => (e.widget as CircleSpaceTile).space.kind), [SpaceKind.text, SpaceKind.voice, SpaceKind.files]);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Back').first);
+      await settle(tester);
+      expect(find.byType(CircleScreen), findsNothing);
+    });
+
+    testWidgets('on a wide window the circle\'s first space opens beside it', (tester) async {
+      final c = (await tester.runAsync(aCircle))!;
+      Circles.instance.join(c);
+      addTearDown(() async {
+        openCircleSpaceSeed.value = null;
+        await Circles.instance.clear();
+      });
+      final sheet = await loadSheet(tester);
+      await pumpScreen(tester, sheet, const AppShell(), AppState(), size: const Size(1240, 900));
+      await settle(tester);
+      tester.state<AppShellState>(find.byType(AppShell)).openCircle(c);
+      await settle(tester);
+      expect(find.byType(CircleScreen), findsOneWidget);
+      expect(openCircleSpaceSeed.value, c.spaces.first.seed);
+      final tile = tester.widget<CircleSpaceTile>(find.byWidgetPredicate((w) => w is CircleSpaceTile && w.space.seed == c.spaces.first.seed));
+      expect(tile.selected, isTrue);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a circle is always its list: no layout to choose, whatever an older build kept', (tester) async {
+      final c = (await tester.runAsync(aCircle))!;
+      Circles.instance.join(c);
+      addTearDown(Circles.instance.clear);
+      final sheet = await loadSheet(tester);
+      // An older build's choice of another layout is left alone and means nothing now.
+      final app = AppState()..set('circle_layout', 'orbit');
+      await pumpScreen(tester, sheet, CircleScreen(seed: c.seed, onBack: () {}), app, size: const Size(412, 892));
+      await settle(tester);
+      expect(find.byType(CircleList), findsOneWidget);
+      expect(find.byType(CircleSpaceTile), findsNWidgets(3));
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  // Matt, 2026-11-17: "spaces outside of servers move to the main chat list and can be swiped to leave a space or
+  // delete / archive" (from the server preview's test, which went with it).
+  group('spaces in Messages', () {
+    setUpAll(_fonts);
+    setUp(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (_) async => null));
+
+    testWidgets('a space of one\'s own is in Messages, swiped left to Archive; a circle\'s is not', (tester) async {
+      final space = VoiceChannel.make('Book club');
+      final v = Voice.instance;
+      v.own = [space];
+      v.setCircled([VoiceChannel(seed: '9' * 64, name: 'Circle lounge', circle: '8' * 64)]);
+      addTearDown(() {
+        v.archive(space, false);
+        v.own = [];
+        v.setCircled(const []);
+      });
+      final sheet = await loadSheet(tester);
+      await pumpScreen(tester, sheet, const AppShell(), AppState(), size: const Size(412, 892));
+      await settle(tester);
+      expect(find.text('Book club'), findsOneWidget, reason: 'a space of one\'s own is in Messages');
+      expect(find.text('Circle lounge'), findsNothing, reason: 'a circle\'s space is in its circle');
+
+      await tester.drag(find.text('Book club'), const Offset(-100, 0));
+      await settle(tester);
+      expect(v.archived(space), isTrue);
+      expect(find.text('Book club'), findsNothing);
+    });
+  });
+}

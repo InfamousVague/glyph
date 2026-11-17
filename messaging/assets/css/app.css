@@ -1343,11 +1343,19 @@ body:has(.app-headerPane) .app-statusScrim {
    Mist's, Lamplight's and Sharp's pages (the review of the looks, 2026-11-16). Phosphor is one phosphor, so every hue
    is its green; Dial-Up draws its icons in plain ink. Both --hue and --hue-dark, since settings.css makes the dark
    page's --hue its --hue-dark. */
-:root:root:root:root[data-theme-preset='mist'] [data-hue='indigo'],
-:root:root:root:root[data-theme-preset='mist'] [data-hue='blue'],
-:root:root:root:root[data-theme-preset='mist'] [data-hue='purple'] {
+:root:root:root:root[data-theme-preset='mist'] [data-hue='indigo'] {
   --hue: #0C7F7A;
   --hue-dark: #0C7F7A;
+}
+/* Mist's blue and purple stay a blue and a purple, sea-washed to sit on its page: folded into its teal as well, three
+   of a circle's colours and a Files space's documents and notes all read the same (the review of Circles, 2026-11-17). */
+:root:root:root:root[data-theme-preset='mist'] [data-hue='blue'] {
+  --hue: #2A6A9C;
+  --hue-dark: #2A6A9C;
+}
+:root:root:root:root[data-theme-preset='mist'] [data-hue='purple'] {
+  --hue: #7A5C9E;
+  --hue-dark: #7A5C9E;
 }
 :root:root:root:root[data-theme-preset='lamplight'] [data-hue='indigo'],
 :root:root:root:root[data-theme-preset='lamplight'] [data-hue='blue'],

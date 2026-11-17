@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import '../files/file_platform.dart';
 import '../plugins/shown_store.dart';
 import '../sounds.dart';
 import '../sms.dart';
@@ -597,8 +598,10 @@ class LinkCalls implements SmsCalls, CapableCalls {
         return MacPlatform.pickPictures();
       // A Telegram chat's + and a file it was sent (lib/ui/inbox_ui.dart): chosen and opened on the computer itself,
       // which runs its own Telegram.
+      // Any file, not only pictures: the Mac's Open panel for every kind (lib/files/file_platform.dart), which a Files
+      // space chooses with too.
       case 'pickFiles':
-        return MacPlatform.pickPictures(most: 10);
+        return FilePlatform.pickPaths(most: 10);
       case 'openFile':
         final path = '${a['path']}';
         await Process.run(Platform.isWindows ? 'explorer' : 'open', [path]);
