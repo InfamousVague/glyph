@@ -1,8 +1,8 @@
-/// A made-up server, to try the ways servers could look (Matt, 2026-11-17: "I'd like to investigate deeper into making
+/// A made-up server, to try how servers work (Matt, 2026-11-17: "I'd like to investigate deeper into making
 /// our app have servers like discord ... no place for organizing multiple spaces and text groups under one location to
 /// share and invite several users. I'd like you to propose 5 different layouts ... consider user lists, server
-/// settings, moving channels and spaces around"). Nothing here reaches the network: it is the preview's own state,
-/// kept while the preview is open, so what is changed in one layout shows in the others.
+/// settings, moving channels and spaces around"; he chose the Workspace one, server_sidebar.dart). Nothing here reaches
+/// the network: it is kept while the app runs (AppShell.openServer), so what is changed in it stays.
 library;
 
 import 'package:flutter/foundation.dart';
@@ -61,7 +61,7 @@ class MockMessage {
   final int minutesAgo;
 }
 
-/// The preview's server, and every server in the rail beside it.
+/// A server: its channels and spaces in categories, its people, its invite and settings.
 class MockServer extends ChangeNotifier {
   MockServer({required this.name, required this.hue, required this.categories, required this.members, this.description = '', this.invite = 'gogho.st/s/k7Qw2'});
 
@@ -75,6 +75,9 @@ class MockServer extends ChangeNotifier {
   /// Whether new members' messages wait for a moderator, and the server's notifications.
   bool approveJoins = false;
   String notifications = 'Mentions only';
+
+  /// The channel open in the pane, for the list to mark; null while another of the server's pages is.
+  String? open;
 
   /// What each role may do, as switches: role → power → on.
   final Map<MockRole, Map<String, bool>> powers = {
@@ -178,7 +181,7 @@ class MockServer extends ChangeNotifier {
       };
 }
 
-/// The preview's made-up server, and the others in the rail.
+/// The made-up server.
 MockServer sampleServer() => MockServer(
       name: 'Night Owls',
       hue: 'indigo',
@@ -210,6 +213,3 @@ MockServer sampleServer() => MockServer(
         MockMember('riley', 'Riley', MockRole.member),
       ],
     );
-
-/// The other servers the rail shows, by name and hue.
-const otherServers = [('Book Club', 'green'), ('Family', 'coral'), ('Work', 'slate')];

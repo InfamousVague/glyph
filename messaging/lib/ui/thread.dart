@@ -1218,8 +1218,6 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final composerStrut = StrutStyle.fromTextStyle(composerText, forceStrutHeight: true, leadingDistribution: TextLeadingDistribution.even);
     final canSend = editing ? _text.text.trim().isNotEmpty : (_text.text.trim().isNotEmpty || _attachments.isNotEmpty) && !_sending;
     final isMms = !_isGhost && (_group || _attachments.isNotEmpty);
-    // Nothing written and nothing attached: the microphone stands where Send would, to record a voice message.
-    final voiceOffered = Sms.can('sendVoice') && !_isGhost && !_byName && !editing && _people.isNotEmpty && _text.text.isEmpty && _attachments.isEmpty;
     // A sealed text goes as `ghost:e1:` and base64 of its bytes with 28 more (E2eCrypto.seal): longer than what was
     // typed, and plain letters whatever was typed.
     final sealed = _e2e.on && !isMms;
@@ -1232,7 +1230,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final parts = len <= single ? 1 : (len / per).ceil();
     return _FootGround(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(2), t.space(2)),
+        padding: composerFootPadding(t),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           // Both phones have Ghost Messaging and nothing has been exchanged: encryption is offered, until it is
           // turned on or the banner is dismissed (Matt, 2026-11-13: "a banner that can be dismissed asking the user
@@ -1380,9 +1378,6 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           // laid out, so the keyboard stays up as it changes.
           Builder(builder: (context) {
             final typing = _text.text.isNotEmpty || editing;
-            final plus = Sms.can('sendPictures') && !_isGhost && !_byName
-                ? IconTap(icon: Lucide.plus, label: 'Add an attachment', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: editing || _attachments.length >= 5 ? null : _attach)
-                : null;
             final field = Listener(
                       behavior: HitTestBehavior.translucent,
                       onPointerDown: (e) => _fieldDown = e.position,
@@ -1437,44 +1432,25 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                     ),
                       ),
                     ));
-            List<Widget> ends() => [
-                  if (Sms.remote)
-                    IconTap(
-                      icon: LucideMore.smile,
-                      label: 'Emoji',
-                      size: 19,
-                      box: t.lenOf('2.25rem'),
-                      color: t.color('app-ink-2'),
-                      onPressed: () {
-                        _focus.requestFocus();
-                        _field.currentState?.requestKeyboard();
-                        Sms.instance.emojiPanel().catchError((_) {});
-                      },
-                    ),
-                  // Stickers, while nothing is being written: once there are words the room is theirs.
-                  if (Sms.can('sendSticker') && !_isGhost && !_byName && !editing && _text.text.isEmpty && _attachments.isEmpty)
-                    IconTap(icon: Lucide.sticker, label: 'Stickers', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _sending ? null : _sticker),
-                  SizedBox(width: t.space(1)),
-                  if (voiceOffered)
-                    IconTap(icon: Lucide.mic, label: 'Record a voice message', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _sending ? null : _record)
-                  else
-                  editing
-                      ? IconTap(icon: Lucide.check, label: 'Save edit', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _saveEdit : null)
-                      : IconTap(icon: Lucide.arrowUp, label: 'Send', filled: true, size: 19, box: t.lenOf('2.25rem'), onPressed: canSend ? _send : null),
-                ];
-            return ComposerBox(
-              field: field,
-              typing: typing,
-              plus: plus,
-              ends: ends(),
-              below: [
-                // The microphone beside Send while words are written (Matt, 2026-11-15: "Put the microphone for sending
-                // voice memos there too"): a voice message goes on its own, and the words stay in the field.
-                if (Sms.can('sendVoice') && !_isGhost && !_byName && !editing && _people.isNotEmpty)
-                  IconTap(icon: Lucide.mic, label: 'Record a voice message', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _sending ? null : _record),
-                ...ends(),
-              ],
+            // The same buttons in the same places as every other conversation (lib/ui/composer_box.dart), each greyed out
+            // where this one can't do it.
+            final reach = !_isGhost && !_byName && !editing && _people.isNotEmpty;
+            final buttons = composerButtons(
+              t,
+              hasSomething: _text.text.isNotEmpty || _attachments.isNotEmpty || editing,
+              onAttach: Sms.can('sendPictures') && !_isGhost && !_byName && !editing && _attachments.length < 5 ? _attach : null,
+              onSticker: Sms.can('sendSticker') && reach && !_sending && _attachments.isEmpty ? _sticker : null,
+              onRecord: Sms.can('sendVoice') && reach && !_sending && _attachments.isEmpty ? _record : null,
+              onSend: canSend ? _send : null,
+              emoji: Sms.remote,
+              onEmoji: () {
+                _focus.requestFocus();
+                _field.currentState?.requestKeyboard();
+                Sms.instance.emojiPanel().catchError((_) {});
+              },
+              send: editing ? IconTap(key: const ValueKey('composer-send'), icon: Lucide.check, label: 'Save edit', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _saveEdit : null) : null,
             );
+            return ComposerBox(field: field, typing: typing, plus: buttons.plus, ends: buttons.ends, below: buttons.below);
           }),
           if (!isMms && !editing && parts > 1)
             Padding(

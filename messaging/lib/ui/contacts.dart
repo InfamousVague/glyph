@@ -14,7 +14,6 @@ import '../inbox/people.dart';
 import '../sms.dart';
 import 'common.dart';
 import 'inbox_ui.dart' show inboxMark, openInboxChat;
-import 'new_group.dart';
 import 'shell.dart';
 import 'thread.dart';
 import 'add_friend_drawer.dart';
@@ -270,46 +269,14 @@ class _ContactsScreenState extends State<ContactsScreen> {
             onPressed: () {
               final shell = AppShell.maybeOf(context);
               if (shell != null) {
-                shell.show(const BlockedScreen(), showing: 'contacts');
+                shell.show(BlockedScreen(onBack: shell.contacts), showing: 'contacts');
               } else {
                 push<void>(context, (_) => const BlockedScreen());
               }
             },
           ),
-        // A group of friends is made from here, where there is a friend to put in one (lib/ui/new_group.dart).
-        if (!Sms.paired && _query.isEmpty && Friends.instance.available && Friends.instance.friends.isNotEmpty)
-          GlacierPressable(
-            onPressed: () {
-              final shell = AppShell.maybeOf(context);
-              if (shell != null) {
-                shell.show(const NewGroupScreen(), showing: 'contacts');
-              } else {
-                push<void>(context, (_) => const NewGroupScreen());
-              }
-            },
-            semanticLabel: 'New group',
-            builder: (context, state) => ColoredBox(
-              color: state.pressed || state.hovered ? t.color('app-paper-2') : const Color(0x00000000),
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(2) + 2),
-                child: Row(children: [
-                  Container(
-                    width: t.lenOf('2.5rem'),
-                    height: t.lenOf('2.5rem'),
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: t.color('app-paper-3')),
-                    child: Center(child: AppIcon(Lucide.users, size: 18, color: t.color('app-ink'))),
-                  ),
-                  SizedBox(width: t.space(3)),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('New group', style: pageText(t, t.fontSize('md'), weight: 'medium')),
-                      Text('Of your friends, over the internet', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
-                    ]),
-                  ),
-                ]),
-              ),
-            ),
-          ),
+        // New group is not here: it is under the + of the list (Matt, 2026-11-17: "remove the new group from the
+        // contacts page since it's already under the plus button").
         Expanded(
           child: found == null
               ? Center(
