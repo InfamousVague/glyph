@@ -99,6 +99,26 @@ class HubCarrier implements Carrier {
   /// The names, of those asked about ([watch]), that are connected to the hub now.
   final ValueNotifier<Set<String>> here = ValueNotifier(const {});
 
+  /// Of those [here], the ones with the app put away (relay/lib/hub.dart's `away`).
+  final ValueNotifier<Set<String>> away = ValueNotifier(const {});
+
+  /// When each of those asked about was last using the app, where the hub knows (`went`, `seen`, `away`).
+  final Map<String, DateTime> seen = {};
+
+  /// Goes up whenever [here], [away] or [seen] changes: the one thing a face's presence listens to.
+  final ValueNotifier<int> presence = ValueNotifier(0);
+
+  bool _awayNow = false;
+
+  /// This app put away (true) or in use (false), told to the hub so friends watching see it; said again after every
+  /// sign-in (Matt, 2026-11-17: "presense sensing ... for users who have signed up for a username").
+  bool get awayNow => _awayNow;
+  set awayNow(bool value) {
+    if (value == _awayNow) return;
+    _awayNow = value;
+    if (_ready) _ws?.add(jsonEncode({'away': value}));
+  }
+
   WebSocket? _ws;
   bool _wanted = false;
   bool _ready = false;
@@ -173,7 +193,12 @@ class HubCarrier implements Carrier {
     for (final room in _joined.keys) {
       _rooms.add(RoomEvent(room, closed: true));
     }
-    if (here.value.isNotEmpty) here.value = const {};
+    // Lost: nobody is known to be here until the hub says again.
+    if (here.value.isNotEmpty || away.value.isNotEmpty) {
+      here.value = const {};
+      away.value = const {};
+      presence.value++;
+    }
   }
 
   Future<void> _connect() async {
@@ -244,6 +269,7 @@ class HubCarrier implements Carrier {
       problem = null;
       state.value = CarrierState.up;
       if (_watched.isNotEmpty) ws.add(jsonEncode({'watch': _watched.toList()}));
+      if (_awayNow) ws.add(jsonEncode({'away': true}));
       if (_push != null) ws.add(jsonEncode({'push': _push}));
       for (final e in _joined.entries) {
         ws.add(jsonEncode({'join': e.key, 'token': e.value}));
@@ -282,12 +308,35 @@ class HubCarrier implements Carrier {
       }
     } else if (m['here'] is List) {
       // Who, of those asked about, is connected now; then each as they come and go. (A room's coming and going
-      // names its room, and is the branch above.)
-      here.value = {...here.value, ...(m['here'] as List).cast<String>()};
+      // names its room, and is the branch above.) With them, who has the app put away, and when those not here were
+      // last there (a hub before 2026-11-17 says neither).
+      final now = (m['here'] as List).cast<String>();
+      here.value = {...here.value, ...now};
+      away.value = {...away.value.where((id) => !now.contains(id)), ...((m['away'] as List?) ?? const []).cast<String>()};
+      (m['seen'] as Map?)?.forEach((id, at) {
+        if (at is num) seen['$id'] = DateTime.fromMillisecondsSinceEpoch(at.toInt());
+      });
+      presence.value++;
     } else if (m['came'] is String) {
       here.value = {...here.value, m['came'] as String};
+      away.value = {...away.value}..remove(m['came']);
+      presence.value++;
     } else if (m['went'] is String) {
-      here.value = {...here.value}..remove(m['went']);
+      final id = m['went'] as String;
+      here.value = {...here.value}..remove(id);
+      away.value = {...away.value}..remove(id);
+      seen[id] = m['at'] is num ? DateTime.fromMillisecondsSinceEpoch((m['at'] as num).toInt()) : DateTime.now();
+      presence.value++;
+    } else if (m['away'] is String) {
+      // Someone watched put the app away, or came back to it.
+      final id = m['away'] as String;
+      if (m['is'] == true) {
+        away.value = {...away.value, id};
+        if (m['at'] is num) seen[id] = DateTime.fromMillisecondsSinceEpoch((m['at'] as num).toInt());
+      } else {
+        away.value = {...away.value}..remove(id);
+      }
+      presence.value++;
     }
   }
 

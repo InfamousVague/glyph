@@ -8,7 +8,7 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
-import '../inbox/inbox.dart';
+import '../presence.dart';
 import '../sms.dart';
 import '../kit/semantic_colors.dart';
 import 'dialup/dialup.dart';
@@ -528,9 +528,9 @@ class Avatar extends StatelessWidget {
     if (!presence || people.length != 1 || people.first.address.isEmpty) return face;
     final address = people.first.address;
     return ListenableBuilder(
-      listenable: Inbox.instance.presenceChanges,
+      listenable: Presence.changes,
       builder: (context, _) {
-        final p = Inbox.instance.presenceOfAddress(address);
+        final p = Presence.of(address);
         if (p == null || !p.online) return face;
         final dot = (size * 0.3).clamp(8.0, 16.0);
         final t = context.tokens;

@@ -344,6 +344,55 @@ void main() {
       await c.stop();
     });
 
+    // Matt, 2026-11-17: "Do the server change in order to get presense sensing working ... for users who have signed up
+    // for a username and are part of our own system".
+    test('a friend watched is told when someone puts the app away, comes back to it, and leaves, and when they were last on', () async {
+      final a = NetKeys.generate(), b = NetKeys.generate();
+      final hubA = HubCarrier(url: url, signer: KeysSigner(a)), hubB = HubCarrier(url: url, signer: KeysSigner(b));
+      await up(hubA);
+      hubA.watch([b.id]);
+      await up(hubB);
+      await _tick(60);
+      expect(hubA.here.value, {b.id});
+      expect(hubA.away.value, isEmpty, reason: 'using the app');
+      final ticks = hubA.presence.value;
+      // Put away: still connected, no longer in use.
+      hubB.awayNow = true;
+      await _tick(60);
+      expect(hubA.away.value, {b.id});
+      expect(hubA.seen[b.id], isNotNull, reason: 'last in use when put away');
+      expect(hubA.presence.value, greaterThan(ticks));
+      // Back.
+      hubB.awayNow = false;
+      await _tick(60);
+      expect(hubA.away.value, isEmpty);
+      // Away again, then gone: last seen is when they put it away.
+      hubB.awayNow = true;
+      await _tick(60);
+      final putAway = hubA.seen[b.id]!;
+      await hubB.stop();
+      await _tick(60);
+      expect(hubA.here.value, isEmpty);
+      expect(hubA.seen[b.id], putAway);
+      expect(relay.hub!.seenOf(b.id), putAway.millisecondsSinceEpoch);
+      // Someone watching afterwards is told when they were last on, at once.
+      final c = NetKeys.generate();
+      final hubC = HubCarrier(url: url, signer: KeysSigner(c));
+      await up(hubC);
+      hubC.watch([b.id]);
+      await _tick(60);
+      expect(hubC.seen[b.id], putAway);
+      // And one away when they connect says so after signing in (an app opened in the background).
+      final hubB2 = HubCarrier(url: url, signer: KeysSigner(b))..awayNow = true;
+      await up(hubB2);
+      await _tick(60);
+      expect(hubC.here.value, {b.id});
+      expect(hubC.away.value, {b.id});
+      await hubB2.stop();
+      await hubC.stop();
+      await hubA.stop();
+    });
+
     test('two installs find each other by name, and what one sends the other gets, sealed all the way', () async {
           final a = NetKeys.generate(), b = NetKeys.generate();
           final key = NetCrypto.netKey(NetCrypto.conversationKey(a, b.public)!);

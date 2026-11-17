@@ -57,6 +57,47 @@ class Net extends ChangeNotifier implements PeerBook {
 
   Map<String, Object?>? _push;
 
+  // --- who is here: presence of people on our own system ------------------------------------------------------------
+
+  /// Goes up whenever anyone's presence on the hub changes (HubCarrier.presence).
+  final ValueNotifier<int> presence = ValueNotifier(0);
+  bool _away = false;
+  final Set<String> _alsoWatch = {};
+
+  void _presenceChanged() => presence.value++;
+
+  HubCarrier _presenceOf(HubCarrier hub) {
+    hub.presence.addListener(_presenceChanged);
+    hub.awayNow = _away;
+    if (_alsoWatch.isNotEmpty) hub.watch(_alsoWatch);
+    return hub;
+  }
+
+  /// This app put away or in use (main.dart, as it goes to the background and comes back): friends see it (Matt,
+  /// 2026-11-17: "presense sensing ... for users who have signed up for a username and are part of our own system").
+  void setAway(bool away) {
+    _away = away;
+    _hub?.awayNow = away;
+  }
+
+  /// Watches these names too (friends by username, lib/friends/buddies.dart), beside those the phone has keys with.
+  void watchToo(Iterable<String> ids) {
+    final fresh = ids.where(_alsoWatch.add).toList();
+    if (fresh.isNotEmpty) _hub?.watch(fresh);
+  }
+
+  /// Whether someone on our own system, by their install's name, is using the app now, or when they last were; null
+  /// where the hub has said nothing of them.
+  ({bool online, DateTime? lastSeen})? presenceOfId(String id) {
+    final hub = _hub;
+    if (hub == null) return null;
+    final here = hub.here.value.contains(id);
+    final away = hub.away.value.contains(id);
+    final seen = hub.seen[id];
+    if (!here && seen == null) return null;
+    return (online: here && !away, lastSeen: here && !away ? null : seen);
+  }
+
   /// How the relay server may wake this app while it is closed (an iPhone's push token; [HubCarrier.push]): kept here
   /// too, so a hub route made later (another server, [setHub]) says it as well.
   void setPush(Map<String, Object?>? value) {
@@ -107,7 +148,7 @@ class Net extends ChangeNotifier implements PeerBook {
       if (carriers != null) {
         routes = carriers;
       } else {
-        final hub = _hub = HubCarrier(url: hubUrl, signer: _PhoneSigner(me.id, me.key))..push = _push;
+        final hub = _hub = _presenceOf(HubCarrier(url: hubUrl, signer: _PhoneSigner(me.id, me.key))..push = _push);
         final sms = _sms = SmsCarrier(_PhoneSms());
         routes = [hub, sms];
       }
@@ -200,7 +241,7 @@ class Net extends ChangeNotifier implements PeerBook {
     if (board == null) return;
     if (on && _peers.isNotEmpty) {
       await board.start();
-      _hub?.watch(_peers.keys);
+      _hub?.watch([..._peers.keys, ..._alsoWatch]);
     } else if (_wanting.isNotEmpty && !board.off.contains('hub')) {
       for (final c in board.carriers) {
         await (c.id == 'hub' ? c.start() : c.stop()).catchError((_) {});
@@ -241,7 +282,9 @@ class Net extends ChangeNotifier implements PeerBook {
     final board = _board, old = _hub, me = id;
     if (board == null || old == null || me == null) return;
     await old.stop();
-    final hub = _hub = HubCarrier(url: hubUrl, signer: old.signer)..push = _push;
+    old.presence.removeListener(_presenceChanged);
+    final hub = _hub = _presenceOf(HubCarrier(url: hubUrl, signer: old.signer)..push = _push);
+    presence.value++;
     board.add(hub);
     await _apply();
     notifyListeners();

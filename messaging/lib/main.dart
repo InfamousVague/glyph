@@ -234,6 +234,8 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) _left ??= DateTime.now();
+    // Friends watching on our own system see the app put away, or back in use (lib/presence.dart).
+    Net.instance.setAway(state != AppLifecycleState.resumed);
     if (state != AppLifecycleState.resumed) return;
     // Back on the screen: a relay connection that died while away is made again now (lib/net/hub_carrier.dart).
     Net.instance.resume(_left == null ? Duration.zero : DateTime.now().difference(_left!));
@@ -278,7 +280,11 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       // Friends by username (lib/friends/buddies.dart): heard over the hub, so it is dialled while any are kept, and
       // from the moment there is a username of your own, so a first friend request reaches you (Matt, 2026-11-16: "We
       // need a way to add friends on the network by username on the contacts page and see friend requests").
-      void hearBuddies() => Net.instance.want('buddies', Buddies.instance.all.isNotEmpty || Me.instance.username != null);
+      void hearBuddies() {
+        Net.instance.want('buddies', Buddies.instance.all.isNotEmpty || Me.instance.username != null);
+        // Friends by username watched on the hub, so their faces say when they are on (lib/presence.dart).
+        Net.instance.watchToo([for (final b in Buddies.instance.friends) b.id]);
+      }
       Buddies.instance.start().then((_) {
         hearBuddies();
         Buddies.instance.addListener(hearBuddies);

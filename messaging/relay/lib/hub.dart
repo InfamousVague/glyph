@@ -22,7 +22,13 @@ import 'sha256.dart';
 ///   handed over when they next connect. The sender is told which happened. Held packets live in memory: a restart
 ///   of the hub loses them, and the app's own routes are what a sender falls back on (lib/net/switchboard.dart).
 ///   No more than [maxConnections] are connected at once.
-/// - **Who is here.** A connection may ask to be told when some names come and go (`watch`).
+/// - **Who is here.** A connection may ask to be told when some names come and go (`watch`), and whether each is using
+///   the app or has put it away, and when they were last there (Matt, 2026-11-17: "Do the server change in order to get
+///   presense sensing working ... for users who have signed up for a username and are part of our own system"). An app
+///   says `{"away": true}` as it goes to the background and `{"away": false}` as it comes back; watchers are told
+///   `{"away": id, "is": bool, "at": ms}`, a going is `{"went": id, "at": ms}` (when they were last using it), and
+///   the answer to `watch` carries `away` (those here but away) and `seen` (when each not here was last there). Kept
+///   in memory only, for at most [maxSeen] names: a restart forgets when anyone was last seen.
 /// - **Looking at a room** without joining it (`look`, with its token): told who is in it, now and as that changes. A
 ///   voice channel's list, showing who is connected before you jump in.
 /// - **Rooms** (a voice room, a group): named by 32 hex digits with a token of 64, both made by its members from a
@@ -67,6 +73,9 @@ class Hub {
   static const maxWatched = 500;
   static const authWait = Duration(seconds: 10);
 
+  /// How many names' last-seen times are kept; the oldest go first.
+  static const maxSeen = 200000;
+
   /// A packet to one person, and one to a room: the first byte of a binary message.
   static const toPeer = 1;
   static const toRoom = 2;
@@ -75,6 +84,23 @@ class Hub {
   final Map<String, List<_Held>> _mail = {};
   final Map<String, _Room> _rooms = {};
   final Map<String, Set<_End>> _watching = {};
+
+  /// When each name that has gone was last using the app (ms since 1970), oldest first.
+  final Map<String, int> _seen = {};
+
+  /// Those here with the app put away, and since when.
+  final Map<String, int> _awaySince = {};
+
+  void _keepSeen(String id, int at) {
+    _seen.remove(id);
+    _seen[id] = at;
+    while (_seen.length > maxSeen) {
+      _seen.remove(_seen.keys.first);
+    }
+  }
+
+  /// When [id] was last seen, for a test.
+  int? seenOf(String id) => _seen[id];
 
   /// Who is looking at a room without being in it (a voice channel's list: who is connected), by room, with the hash
   /// of the token each looked with. Told who is in it now and whenever that changes; a wrong token is told nothing.
@@ -174,8 +200,11 @@ class Hub {
       handles?.went(e.id, e.tell);
       if (!identical(_here[e.id], e)) return; // replaced by a newer connection under the same name
       _here.remove(e.id);
+      // Last seen: when they put the app away, where they had, else now.
+      final at = _awaySince.remove(e.id) ?? _now().millisecondsSinceEpoch;
+      _keepSeen(e.id, at);
       for (final w in _watching[e.id] ?? const <_End>{}) {
-        _tell(w.ws, {'went': e.id});
+        _tell(w.ws, {'went': e.id, 'at': at});
       }
       _say('${e.id.substring(0, 6)} left');
     }
@@ -213,6 +242,7 @@ class Hub {
         final made = _End(id as String, ws, (what) => _tell(ws, what));
         _here[made.id]?.ws.close(4409, 'replaced');
         _here[made.id] = made;
+        _awaySince.remove(made.id);
         end = made;
         handles?.came(made.id, made.tell, key: key);
         final held = _mail.remove(made.id) ?? const <_Held>[];
@@ -258,7 +288,24 @@ class Hub {
           e.watches.add(id);
           (_watching[id] ??= {}).add(e);
         }
-        _tell(ws, {'here': [for (final id in ids) if (_here.containsKey(id)) id]});
+        _tell(ws, {
+          'here': [for (final id in ids) if (_here.containsKey(id)) id],
+          'away': [for (final id in ids) if (_here.containsKey(id) && _awaySince.containsKey(id)) id],
+          'seen': {for (final id in ids) if (!_here.containsKey(id) && _seen.containsKey(id)) id: _seen[id]},
+        });
+      } else if (said['away'] is bool) {
+        // The app put away, or back in use: told to whoever watches them, once a change.
+        final away = said['away'] as bool;
+        if (away == _awaySince.containsKey(e.id)) return;
+        final at = _now().millisecondsSinceEpoch;
+        if (away) {
+          _awaySince[e.id] = at;
+        } else {
+          _awaySince.remove(e.id);
+        }
+        for (final w in _watching[e.id] ?? const <_End>{}) {
+          _tell(w.ws, {'away': e.id, 'is': away, 'at': at});
+        }
       } else if (said.containsKey('join')) {
         _join(e, said['join'], said['token']);
       } else if (said.containsKey('leave')) {
