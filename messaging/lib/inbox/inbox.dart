@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../app_state.dart';
 import '../kept_lists.dart';
 import 'bluesky.dart';
+import 'google_chat.dart';
 import 'mastodon.dart';
 import 'signal.dart';
 import 'teams.dart';
@@ -576,8 +577,9 @@ class Inbox {
   // Signal through mautrix-signal (Matt, 2026-11-15: "Lets wire it up for signal through the mautrix"), offered from
   // 0.7.40 (2026-11-16: "Add it to a release it's okay as long as our app bundle stays under 200mb").
   // Microsoft Teams over Microsoft Graph (Matt, 2026-11-17: "Let's add support for matrix, microsoft teams and google
-  // chat"): "Not in this build" until it is built with a Microsoft app id (GHOST_TEAMS_CLIENT_ID).
-  static Inbox get instance => _instance ??= Inbox._([Telegram(), Bluesky(soon: true), Mastodon(soon: true), Signal(), Teams()]);
+  // chat"): "Not in this build" until it is built with a Microsoft app id (GHOST_TEAMS_CLIENT_ID). Google Chat the same, until
+  // built with a Google app id (GHOST_GCHAT_CLIENT_ID and _SECRET).
+  static Inbox get instance => _instance ??= Inbox._([Telegram(), Bluesky(soon: true), Mastodon(soon: true), Signal(), Teams(), GoogleChat()]);
 
   /// Stand-ins for a test of a screen; null puts the app's own back.
   @visibleForTesting

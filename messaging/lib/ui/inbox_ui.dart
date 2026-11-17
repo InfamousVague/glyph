@@ -19,6 +19,7 @@ import '../inbox/mastodon.dart';
 import '../desktop/ui/qr.dart';
 import '../inbox/signal.dart';
 import '../inbox/teams.dart';
+import '../inbox/google_chat.dart';
 import '../net/pair_room.dart';
 import '../inbox/telegram.dart';
 import '../kit/settings_kit.dart';
@@ -47,6 +48,7 @@ import 'dialup/bevel.dart' show DialupColors, isDialup;
 import 'message_line.dart';
 import 'translated_card.dart';
 import 'inbox_signin_teams.dart';
+import 'inbox_signin_google_chat.dart';
 
 /// The screens of the inbox of other networks (lib/inbox): a chat's row in the list, the chat itself, signing in, and
 /// the sections of Settings for each network.
@@ -1181,7 +1183,7 @@ String _summary(InboxNetwork n) => n.soon ? 'Coming soon' : switch (n.state) {
 
 List<Widget> _pane(BuildContext context, InboxNetwork n) {
   void signIn() {
-    final page = switch (n) { Telegram tg => TelegramSignInScreen(network: tg), Bluesky b => BlueskySignInScreen(network: b), Mastodon m => MastodonSignInScreen(network: m), Signal sg => SignalLinkScreen(network: sg), Teams tm => TeamsSignInScreen(network: tm), _ => null };
+    final page = switch (n) { Telegram tg => TelegramSignInScreen(network: tg), Bluesky b => BlueskySignInScreen(network: b), Mastodon m => MastodonSignInScreen(network: m), Signal sg => SignalLinkScreen(network: sg), Teams tm => TeamsSignInScreen(network: tm), GoogleChat gc => GoogleChatSignInScreen(network: gc), _ => null };
     if (page != null) push<void>(context, (_) => page);
   }
 
