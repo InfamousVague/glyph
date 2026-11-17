@@ -1989,7 +1989,8 @@ class _Picture extends StatelessWidget {
             opaque: false,
             barrierColor: const Color(0xF2000000),
             pageBuilder: (context, _, _) => _Viewer(bytes: bytes),
-            transitionsBuilder: (context, a, _, child) => FadeTransition(opacity: a, child: child),
+            // Grown a little into place over the darkening (the barrier's own fade), not faded: cheaper to draw.
+            transitionsBuilder: (context, a, _, child) => ScaleTransition(scale: Tween(begin: 0.92, end: 1.0).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)), child: child),
           )),
           child: ClipRRect(
             borderRadius: radius,

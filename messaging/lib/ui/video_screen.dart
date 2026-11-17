@@ -38,13 +38,17 @@ class VideoScreen extends StatefulWidget {
   State<VideoScreen> createState() => _VideoScreenState();
 }
 
-/// The route a video opens in: a quick fade, the screen opaque once in.
+/// The route a video opens in: up from the foot, quickly. Slid, not faded: a whole page faded is drawn apart and laid
+/// over what is under it on every frame of the fade.
 Route<void> videoRoute(Widget screen) => PageRouteBuilder<void>(
       opaque: true,
-      transitionDuration: const Duration(milliseconds: 180),
-      reverseTransitionDuration: const Duration(milliseconds: 150),
+      transitionDuration: const Duration(milliseconds: 220),
+      reverseTransitionDuration: const Duration(milliseconds: 180),
       pageBuilder: (context, _, _) => screen,
-      transitionsBuilder: (context, a, _, child) => FadeTransition(opacity: a, child: child),
+      transitionsBuilder: (context, a, _, child) => SlideTransition(
+        position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic)),
+        child: child,
+      ),
     );
 
 class _VideoScreenState extends State<VideoScreen> {
