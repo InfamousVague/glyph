@@ -28,6 +28,7 @@ import '../stickers.dart';
 import 'chat_settings.dart';
 import 'common.dart';
 import 'composer_box.dart';
+import 'reaction_stickers.dart';
 import 'poof.dart';
 import 'shell.dart';
 import 'voice_screen.dart';
@@ -1791,23 +1792,13 @@ class _Bubble extends StatelessWidget {
       );
     }
     if (reactions.isNotEmpty) {
-      // The reactions are pinned under the bubble, on the side away from the screen's edge: the emoji alone, a
-      // little larger, with no chip round them (Matt, 2026-11-14: "don't show the border on the emoji reaction just
-      // show the emoji's with no background pinned under it a bit larger"); over the bubble's lower edge by about half
-      // their height, and larger again (2026-11-17: "show the reactions slightly overlapping the chat bubble and make them
-      // a bit larger").
-      bubble = Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Padding(padding: EdgeInsets.only(bottom: t.lenOf('0.95rem')), child: bubble),
-          Positioned(
-            bottom: 0,
-            left: out ? t.space(2) : null,
-            right: out ? null : t.space(2),
-            child: _ReactionChip(reactions: reactions, onPressed: onReactionsTap),
-          ),
-        ],
-      );
+      // Stickers on its lower edge and corners, each kind its own, a little askew (lib/ui/reaction_stickers.dart; Matt,
+      // 2026-11-17: "Make reactions pin at randomish places slightly askue so multiple reactions look like stickers").
+      final kinds = <String, int>{};
+      for (final r in reactions) {
+        kinds[r.emoji] = (kinds[r.emoji] ?? 0) + 1;
+      }
+      bubble = ReactionStickers(bubble: bubble, seed: message.key, kinds: [for (final e in kinds.entries) (emoji: e.key, count: e.value)], onTap: onReactionsTap);
     }
     final faceGap = group && !out ? faceSize + t.space(2) : 0.0;
 
@@ -2058,38 +2049,6 @@ class _Viewer extends StatelessWidget {
 
 /// The reactions on a message as one chip: each kind once, in the order they came, with the count when there are
 /// several. A press lists who reacted with what.
-class _ReactionChip extends StatelessWidget {
-  const _ReactionChip({required this.reactions, this.onPressed});
-  final List<Reaction> reactions;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final kinds = <String>[];
-    for (final r in reactions) {
-      if (!kinds.contains(r.emoji)) kinds.add(r.emoji);
-    }
-    return GlacierPressable(
-      onPressed: onPressed,
-      semanticLabel: '${reactions.length} reaction${reactions.length == 1 ? '' : 's'}: ${kinds.join(' ')}',
-      // The emoji themselves, nothing behind them and no line round them: they grow a touch while pressed.
-      builder: (context, state) => AnimatedScale(
-        scale: state.pressed ? 1.15 : 1,
-        duration: const Duration(milliseconds: 120),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(kinds.take(4).join(' '), style: pageText(t, t.lenOf('1.5rem'), height: 1.15)),
-          // How many, only where it is more than the emoji shown say.
-          if (reactions.length > kinds.length) ...[
-            SizedBox(width: t.space(1)),
-            Text('${reactions.length}', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-2'))),
-          ],
-        ]),
-      ),
-    );
-  }
-}
-
 /// The reactions offered over a message's menu: the six every phone knows, then more. One that is already yours is
 /// ringed, and a press on it takes it off.
 class _ReactionRow extends StatelessWidget {

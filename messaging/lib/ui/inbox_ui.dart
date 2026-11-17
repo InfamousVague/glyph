@@ -30,6 +30,7 @@ import '../plugins/registry.dart' show AppStore, PluginRegistry;
 import 'common.dart';
 import 'composer_box.dart';
 import 'poof.dart';
+import 'reaction_stickers.dart';
 import 'video_screen.dart';
 import 'voice.dart' show VoiceRecorder, voiceProblem;
 import 'conversations.dart' show ConversationRow;
@@ -1290,36 +1291,10 @@ class InboxMediaView extends StatelessWidget {
   static String _bytes(int b) => b >= 1 << 20 ? '${(b / (1 << 20)).toStringAsFixed(1)} MB' : '${(b / 1024).ceil()} KB';
 }
 
-/// [bubble] with [m]'s reactions over its lower edge, on the side away from the screen's edge: the emoji alone, how many
-/// where more than one gave it, and yours marked by a dot of the accent. As a text's (lib/ui/thread.dart).
-Widget _withReactions(BuildContext context, InboxMessage m, VoidCallback? onTap, Widget bubble) {
-  if (m.reactions.isEmpty) return bubble;
-  final t = context.tokens;
-  final total = m.reactions.fold<int>(0, (n, r) => n + r.count);
-  return Stack(clipBehavior: Clip.none, children: [
-    Padding(padding: EdgeInsets.only(bottom: t.lenOf('0.95rem')), child: bubble),
-    Positioned(
-      bottom: 0,
-      left: m.mine ? t.space(2) : null,
-      right: m.mine ? null : t.space(2),
-      child: GlacierPressable(
-        onPressed: onTap,
-        semanticLabel: '$total reaction${total == 1 ? '' : 's'}: ${m.reactions.map((r) => r.emoji).join(' ')}',
-        builder: (context, state) => AnimatedScale(
-          scale: state.pressed ? 1.15 : 1,
-          duration: const Duration(milliseconds: 120),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(m.reactions.take(4).map((r) => r.emoji).join(' '), style: pageText(t, t.lenOf('1.5rem'), height: 1.15)),
-            if (total > m.reactions.length) ...[
-              SizedBox(width: t.space(1)),
-              Text('$total', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-2'))),
-            ],
-          ]),
-        ),
-      ),
-    ),
-  ]);
-}
+/// [bubble] with [m]'s reactions stuck on it, as a text's are (lib/ui/reaction_stickers.dart).
+Widget _withReactions(BuildContext context, InboxMessage m, VoidCallback? onTap, Widget bubble) => m.reactions.isEmpty
+    ? bubble
+    : ReactionStickers(bubble: bubble, seed: '${m.date.millisecondsSinceEpoch}:${m.id}', kinds: [for (final r in m.reactions) (emoji: r.emoji, count: r.count)], onTap: onTap);
 
 /// The reactions offered over a network message's menu; yours ringed, and a press on one takes it off.
 class InboxReactionRow extends StatelessWidget {

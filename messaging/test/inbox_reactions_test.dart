@@ -5,6 +5,7 @@ import 'package:ghost_messaging/inbox/inbox.dart';
 import 'package:ghost_messaging/inbox/signal.dart';
 import 'package:ghost_messaging/inbox/telegram.dart';
 import 'package:ghost_messaging/ui/inbox_ui.dart';
+import 'package:ghost_messaging/ui/reaction_stickers.dart';
 
 import 'support/list_harness.dart';
 
@@ -112,5 +113,33 @@ void main() {
     expect(net.replied.single, ('1', 'on my way'));
     expect(net.sent, isEmpty);
     expect(find.text('Replying to Jo'), findsNothing, reason: 'the bar goes once sent');
+  });
+
+  // Matt, 2026-11-17: "Make reactions pin at randomish places slightly askue so multiple reactions look like stickers
+  // plastered on and around the message without overlapping text much".
+  test('a sticker lands in the same place every time, askew, along the foot or a lower corner', () {
+    final a = stickerPlace('sms:7', '❤️', 0, 1), b = stickerPlace('sms:7', '❤️', 0, 1);
+    expect((a.x, a.y, a.turn), (b.x, b.y, b.turn), reason: 'the same message and emoji: the same place');
+    final six = [for (var i = 0; i < 6; i++) stickerPlace('sms:7', 'e$i', i, 6)];
+    expect(six.every((p) => p.turn.abs() <= 0.26), isTrue, reason: 'at most about 15 degrees');
+    expect(six.every((p) => p.y >= 0.3), isTrue, reason: 'low on the bubble, clear of most of its words');
+    expect(six.where((p) => p.out != 0), isNotEmpty, reason: 'with many, some go on a corner\'s side');
+    expect(six.map((p) => p.turn).toSet().length, greaterThan(3), reason: 'each leans its own way');
+  });
+
+  testWidgets('stickers on messages with one, three and six reactions', (tester) async {
+    final sheet = await loadSheet(tester);
+    final net = _Net()
+      ..list = [
+        InboxMessage(id: '1', text: 'are you coming tonight?', date: DateTime(2026, 11, 17, 9), mine: false, sender: 'Jo', reactions: const [InboxReaction(emoji: '❤️')]),
+        InboxMessage(id: '2', text: 'Damn we were going to have a Steve and Katelynn were coming over party', date: DateTime(2026, 11, 17, 9, 1), mine: true, reactions: const [InboxReaction(emoji: '😂', count: 3), InboxReaction(emoji: '❤️'), InboxReaction(emoji: '🔥')]),
+        InboxMessage(id: '3', text: 'lol ask him, he\'s the boss', date: DateTime(2026, 11, 17, 9, 2), mine: false, sender: 'Katelynn', reactions: const [
+          InboxReaction(emoji: '❤️'), InboxReaction(emoji: '😂'), InboxReaction(emoji: '👍'), InboxReaction(emoji: '🔥'), InboxReaction(emoji: '🎉'), InboxReaction(emoji: '😮'),
+        ]),
+      ];
+    await pumpScreen(tester, sheet, InboxChatScreen(network: net, chatId: 'c1'), AppState());
+    await settle(tester);
+    expect(find.byType(ReactionStickers), findsNWidgets(3));
+    if (autoUpdateGoldenFiles) await expectLater(find.byType(InboxChatScreen), matchesGoldenFile('shots/x-reaction-stickers.png'));
   });
 }
