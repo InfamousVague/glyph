@@ -1086,7 +1086,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           }
           if (at < rows.length && rows[at] is VoiceChannel && _section != voiceTab) {
             final v = rows[at] as VoiceChannel;
-            return _spaceRow(v, selected: AppShell.wideOf(context) && Voice.instance.viewing?.seed == v.seed);
+            // Selected only while the pane beside the list shows it: a space opened before and left for another chat
+            // stays Voice's viewing one, and was drawn as open with that chat beside it (Matt, 2026-11-17: "the only
+            // ghosts chat is always highlighted even when it's not active in the front").
+            return _spaceRow(v, selected: besideChat == 'voice' && (Voice.instance.viewing ?? Voice.instance.session?.channel)?.seed == v.seed);
           }
           if (at < rows.length && rows[at] is VoiceChannel) {
             final v = rows[at] as VoiceChannel;
