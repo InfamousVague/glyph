@@ -8,6 +8,7 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
+import '../presence.dart';
 import '../sms.dart';
 import '../kit/semantic_colors.dart';
 import 'dialup/dialup.dart';
@@ -512,12 +513,47 @@ String initials(String label) {
 
 /// A person's face: their contact photo, else their initials on their colour; a group is two faces overlapped.
 class Avatar extends StatelessWidget {
-  const Avatar({super.key, required this.people, this.size = 44});
+  const Avatar({super.key, required this.people, this.size = 44, this.presence = true});
   final List<Person> people;
   final double size;
 
+  /// A dot on its corner while the one person it shows is online on a network that says so (Telegram's), wherever
+  /// the face is drawn (Matt, 2026-11-17: "to be able to tell if a friend is online on a given plaform anywhere the
+  /// users avatar is shown"). Off for a face that is not someone's (a group's picture).
+  final bool presence;
+
   @override
   Widget build(BuildContext context) {
+    final face = _face(context);
+    if (!presence || people.length != 1 || people.first.address.isEmpty) return face;
+    final address = people.first.address;
+    return ListenableBuilder(
+      listenable: Presence.changes,
+      builder: (context, _) {
+        final p = Presence.of(address);
+        if (p == null || !p.online) return face;
+        final dot = (size * 0.3).clamp(8.0, 16.0);
+        final t = context.tokens;
+        return Stack(clipBehavior: Clip.none, children: [
+          face,
+          Positioned(
+            top: size * 0.02,
+            right: size * 0.02,
+            child: Semantics(
+              label: 'Online on ${p.network}',
+              child: Container(
+                width: dot,
+                height: dot,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFF34C759), border: Border.all(color: t.color('glacier-bg'), width: (dot * 0.18).clamp(1.5, 2.5))),
+              ),
+            ),
+          ),
+        ]);
+      },
+    );
+  }
+
+  Widget _face(BuildContext context) {
     // Dial-Up: square, set into the page in a ring of the sunken bevel; a group is a picture of people in the first
     // person's colour, since overlapped squares read as a mistake and two halves of initials as one word.
     if (isBevelChrome(context.tokens)) {

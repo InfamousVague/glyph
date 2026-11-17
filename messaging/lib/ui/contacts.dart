@@ -350,7 +350,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
                           );
                         }
                         final someone = row.someone!;
-                        final person = Person(address: someone.number ?? '${someone.reaches.first.kind}:${someone.name}', name: someone.name, photo: someone.photo);
+                        // Someone on a network with no number: named by their id there, so their presence is found (Avatar).
+                        final onNetwork = someone.reaches.map((r) => r.contact).whereType<InboxContact>().firstOrNull;
+                        final person = Person(address: someone.number ?? (onNetwork != null ? '${onNetwork.network}:${onNetwork.id}' : '${someone.reaches.first.kind}:${someone.name}'), name: someone.name, photo: someone.photo);
                         final handle = someone.reaches.map((r) => r.contact?.handle).whereType<String>().firstOrNull;
                         final sub = [
                           if (someone.number != null) someone.number! else ?handle,

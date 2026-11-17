@@ -54,20 +54,11 @@ class _VideoBubbleState extends State<VideoBubble> {
         // A computer plays it in a window of its own (macos/Runner/DeskVideo.swift).
         await Sms.instance.playVideo(widget.video);
       } else {
-        // The phone: the app's own player (lib/ui/video_screen.dart), from a file of it.
-        final path = await Sms.instance.videoFile(widget.video);
+        // The phone: the app's own player (lib/ui/video_screen.dart), opened at once over the video's picture while
+        // its file is made (Matt, 2026-11-17: "The app has gotten pretty laggy, especially when opening videos").
+        final poster = (await _preview.catchError((_) => const VideoPreview())).picture;
         if (!mounted) return;
-        if (path == null) {
-          toast(context, 'This video couldn\'t be opened.', tone: GlacierToastTone.danger);
-          return;
-        }
-        await Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(
-          opaque: true,
-          transitionDuration: const Duration(milliseconds: 200),
-          reverseTransitionDuration: const Duration(milliseconds: 160),
-          pageBuilder: (context, _, _) => VideoScreen(path: path),
-          transitionsBuilder: (context, a, _, child) => FadeTransition(opacity: a, child: child),
-        ));
+        await Navigator.of(context, rootNavigator: true).push(videoRoute(VideoScreen.coming(file: Sms.instance.videoFile(widget.video), poster: poster)));
       }
     } catch (e) {
       if (mounted) toast(context, voiceProblem(e), tone: GlacierToastTone.danger);

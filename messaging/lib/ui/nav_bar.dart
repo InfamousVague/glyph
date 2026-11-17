@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart' show HitTestEntry;
 import 'package:flutter/widgets.dart';
@@ -108,12 +107,13 @@ class NavPill extends StatelessWidget {
           explicitChildNodes: true,
           child: ClipRRect(
             borderRadius: radius,
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            // A nearly solid ground, not a blur of the list behind it: the blur was drawn again on every frame of every
+            // scroll, under a ground that already hid most of it (Matt, 2026-11-17: "get the app functioning at max speed").
+            child: RepaintBoundary(
               child: Container(
                 padding: EdgeInsets.all(gap + t.len('glacier-hairline')),
                 foregroundDecoration: BoxDecoration(border: Border.all(color: t.color('glacier-border-subtle'), width: t.len('glacier-hairline')), borderRadius: radius),
-                decoration: BoxDecoration(color: t.colorOf('color-mix(in srgb, var(--glacier-bg) 82%, transparent)'), borderRadius: radius),
+                decoration: BoxDecoration(color: t.colorOf('color-mix(in srgb, var(--glacier-bg) 94%, transparent)'), borderRadius: radius),
                 child: upright
                     // Ghost.md's dock as it is there: head to foot, a step between its rings.
                     ? Column(mainAxisSize: MainAxisSize.min, spacing: gap, children: rings)

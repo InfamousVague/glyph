@@ -111,6 +111,10 @@ class AppShell extends StatefulWidget {
   /// The conversation open in the pane, or null. The page asking is built again when that changes.
   static int? threadOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_ShellScope>()?.thread;
 
+  /// What else is open in the pane by its name (a Signal or Telegram chat: `inbox:<network>:<chat>`), or null. The
+  /// page asking is built again when that changes.
+  static String? showingOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_ShellScope>()?.showing;
+
   /// What is kept under the list's search field ([status]), or null.
   static Widget? statusOf(BuildContext context) => context.getInheritedWidgetOfExactType<_ShellScope>()?.shell.widget.status;
 
@@ -376,10 +380,16 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         side.popUntil((r) => r.isFirst);
         if (id != 'archive') return;
         final route = PageRouteBuilder<void>(
-          transitionDuration: const Duration(milliseconds: 160),
-          reverseTransitionDuration: const Duration(milliseconds: 120),
+          transitionDuration: const Duration(milliseconds: 200),
+          reverseTransitionDuration: const Duration(milliseconds: 160),
           pageBuilder: (context, _, _) => ConversationsScreen(archived: true, selectAll: selectAll),
-          transitionsBuilder: (context, a, _, child) => FadeTransition(opacity: a, child: child),
+          // Slid in, not faded: a fading page is drawn apart and laid over the list under it on every frame (an
+          // emulator's pass over every page, 2026-11-17: 11 to 17 ms a frame opening an empty Archive, where every
+          // other page drew in 2 to 3).
+          transitionsBuilder: (context, a, _, child) => SlideTransition(
+            position: Tween(begin: const Offset(1, 0), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic)),
+            child: child,
+          ),
         );
         setState(() => _archive = route);
         side.push(route);
@@ -538,6 +548,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         rail: rail,
         docked: docked,
         thread: _open == null ? null : _thread,
+        showing: _open == null ? null : _showing,
         child: PopScope(
           canPop: !(_paneBack || _sideBack),
           onPopInvokedWithResult: (didPop, _) {
@@ -710,7 +721,11 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
 }
 
 class _ShellScope extends InheritedWidget {
-  const _ShellScope({required this.shell, required this.wide, required this.rail, required this.docked, required this.thread, required super.child});
+  const _ShellScope({required this.shell, required this.wide, required this.rail, required this.docked, required this.thread, this.showing, required super.child});
+
+  /// What else is open in the pane, by its name ([AppShell.show]'s `showing`): a Signal or Telegram chat is
+  /// `inbox:<network>:<chat>`.
+  final String? showing;
   final AppShellState shell;
   final bool wide;
   final bool rail;
@@ -718,7 +733,7 @@ class _ShellScope extends InheritedWidget {
   final int? thread;
 
   @override
-  bool updateShouldNotify(_ShellScope old) => old.wide != wide || old.rail != rail || old.docked != docked || old.thread != thread;
+  bool updateShouldNotify(_ShellScope old) => old.wide != wide || old.rail != rail || old.docked != docked || old.thread != thread || old.showing != showing;
 }
 
 /// A page open in the pane: it draws its way back only while the list is not beside it.
