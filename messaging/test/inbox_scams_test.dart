@@ -53,4 +53,17 @@ void main() {
   test('an account Telegram marks a scam or a fake is caught whatever it says', () {
     expect(scamOf(chat('hi', stranger: false, flag: 'Telegram marks this account as a scam')), 'Telegram marks this account as a scam');
   });
+
+  // Matt, 2026-11-17: "add to the filtering for scammers when the telegram user has excessive emoji's especially hearts
+  // and romance based stuff some are still getting through", of "Jeong❤️💋🌹", whose newest message was a photo.
+  test('a stranger whose name is dressed in hearts, kisses and roses, or in emoji, whatever they last sent', () {
+    InboxChat named(String title, {String snippet = 'Photo', bool stranger = true}) =>
+        InboxChat(network: 'telegram', id: '3', title: title, date: now, snippet: snippet, stranger: stranger, cold: stranger);
+    expect(scamOf(named('Jeong❤️💋🌹')), contains('hearts and roses in the name'));
+    expect(scamOf(named('Anna 💕')), isNotNull);
+    expect(scamOf(named('Lily🌸✨🦋', snippet: 'Sticker')), contains('a name full of emoji'));
+    expect(scamOf(named('Jeong❤️💋🌹', stranger: false)), isNull, reason: 'a contact may name themselves so');
+    expect(scamOf(named('Mike 🏀')), isNull, reason: 'one emoji, no heart');
+    expect(scamOf(chat('Your profile looks great and caught my attention. Is that your real photo? Nice to meet you 😊')), contains('a romance opener'));
+  });
 }

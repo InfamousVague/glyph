@@ -11,7 +11,8 @@ import 'inbox.dart';
 ///   message shows a sign of one of [scamSigns]: the come-on and the flirty emoji, the romance opener ("hello dear",
 ///   "sorry, wrong number"), the
 ///   "investment" pitch (crypto, forex, trading mentors), the fake Telegram support or giveaway, the money ask (gift
-///   cards, sugar daddies, loans), or the too-good job.
+///   cards, sugar daddies, loans), or the too-good job; or the name is dressed for romance: a heart, a kiss or a rose
+///   in it, or three emoji or more, whatever the newest message is (a photo, a sticker).
 ///
 /// A contact's chat, or a group, is never taken out; "Not spam" puts a chat back for good. Everything is looked at on
 /// the device; nothing is reported, blocked or deleted.
@@ -39,7 +40,11 @@ const List<ScamSign> scamSigns = [
     'a romance opener',
     '$_b(?:(?:hello|hi|hey|good (?:morning|evening))[ ,]+(?:my )?(?:dear|darling|handsome|beautiful|sweetheart)|how are you (?:my )?dear|nice to meet you dear|are you single|'
         'looking for (?:a )?(?:serious |long[- ]term )?(?:relationship|partner)|sorry,? (?:wrong (?:number|person)|i (?:added|messaged) the wrong)|'
-        'my (?:friend|cousin) gave me your (?:number|contact)|i saw your profile|can we be friends)$_e',
+        'my (?:friend|cousin) gave me your (?:number|contact)|i saw your profile|can we be friends|'
+        // Matt, 2026-11-17, one that got through: "Your profile looks great and caught my attention. Is that your real
+        // photo? Nice to meet you 😊".
+        'your (?:profile|photo|picture|pic)s? (?:looks?|is|are) (?:so |really )?(?:great|nice|beautiful|amazing|lovely|cute|stunning)|caught my (?:attention|eye)|'
+        '(?:is|was) (?:that|this) (?:really )?your (?:real )?(?:photo|picture|pic|face)|your real (?:photo|picture|pic))$_e',
   ),
   // The come-on that gets past Telegram's own filter: one message from a stranger, romantic or sexual, often with a
   // flirty emoji (Matt, 2026-11-15, three of them: "I want to see your face. Are you free? I have a surprise.", "Hiya! ✨
@@ -83,6 +88,20 @@ const List<ScamSign> scamSigns = [
 /// have: two of Matt's three came from accounts calling themselves "Telegram".
 final _pretends = RegExp(r'^\W*(?:telegram|telegram (?:support|team|security|premium|notifications?|official)|support team|security team)\W*$', caseSensitive: false);
 
+/// A name dressed for romance (Matt, 2026-11-17: "when the telegram user has excessive emoji's especially hearts and
+/// romance based stuff", of "Jeong❤️💋🌹"): any heart, kiss, lips or rose in it.
+final _romanceName = RegExp('(?:❤|🧡|💛|💚|💙|💜|🖤|🤍|🤎|🩷|🩵|🩶|💕|💖|💗|💓|💞|💘|💝|❣|💌|💋|👄|🫦|🌹|🥀|💐|😘|😍|🥰|😻)');
+
+/// Any emoji: a name with three or more is dressed up rather than a person's.
+final _emoji = RegExp(r'[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]', unicode: true);
+
+/// What a stranger's name says, where it says something: hearts and roses, or a run of emoji.
+String? _nameSign(String title) {
+  if (_romanceName.hasMatch(title)) return 'hearts and roses in the name';
+  if (_emoji.allMatches(title).length >= 3) return 'a name full of emoji';
+  return null;
+}
+
 /// Why [chat] looks like spam or a scam, in words for its row; null where it does not.
 String? scamOf(InboxChat chat) {
   if (chat.group || chat.lastFromMe && chat.flag == null) return null;
@@ -90,6 +109,9 @@ String? scamOf(InboxChat chat) {
   if (flag != null) return flag;
   if (!chat.service && chat.network == 'telegram' && _pretends.hasMatch(chat.title)) return 'Pretends to be Telegram';
   if (!chat.stranger) return null;
-  final signs = [for (final s in scamSigns) if ((!s.coldOnly || chat.cold) && s.matches(chat.snippet)) s.says];
+  final signs = [
+    ?_nameSign(chat.title),
+    for (final s in scamSigns) if ((!s.coldOnly || chat.cold) && s.matches(chat.snippet)) s.says,
+  ];
   return signs.isEmpty ? null : 'Looks like a scam: ${signs.join(', ')}';
 }
