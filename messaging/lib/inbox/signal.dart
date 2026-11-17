@@ -699,6 +699,36 @@ class Signal extends InboxNetwork {
     notifyListeners();
   }
 
+  @override
+  bool get canBlock => true;
+
+  /// Blocked on Signal itself through the helper (sidecar/signal: the same word Signal Desktop sends the phone), then
+  /// in Ghost's list. A one-to-one chat's id is the person's ACI.
+  @override
+  Future<void> block(String chatId, {required String name, bool on = true}) async {
+    if (_groups.contains(chatId)) throw StateError('Only a person can be blocked');
+    await _ask('block', {'aci': chatId, 'on': on});
+    await super.block(chatId, name: name, on: on);
+  }
+
+  /// Signal's list as this device knows it (blocked here, or on the phone): Ghost's list is made the same.
+  @override
+  Future<void> refreshBlocked() async {
+    if (state != InboxState.ready) return;
+    final List list;
+    try {
+      list = (await _ask('blocked')) as List? ?? const [];
+    } catch (_) {
+      return;
+    }
+    final there = {for (final p in list) '${(p as Map)['aci']}': '${p['name'] ?? ''}'.trim().isEmpty ? '${p['number'] ?? ''}' : '${p['name']}'};
+    for (final id in localList('blocked')) {
+      if (!there.containsKey(id)) keepBlocked(id, on: false);
+    }
+    there.forEach((id, name) => keepBlocked(id, name: name));
+    notifyListeners();
+  }
+
   /// Gone from here: Signal keeps no conversations on its servers to delete.
   @override
   Future<void> deleteChat(String chatId) async {

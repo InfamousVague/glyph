@@ -324,7 +324,7 @@ void main() {
       await shoot('5-settings', paired('relay'), dark: dark, then: () async {
         await tester.tap(_nav('Settings'));
       });
-      for (final label in ['Your phone', 'Me', 'Appearance', 'Chat background', 'Emoji', 'Effects', 'Messages', 'Plugins', 'Codes', 'Encryption', 'Blocked numbers', 'Archived', 'Kept on this Mac', 'About']) {
+      for (final label in ['Your phone', 'Me', 'Appearance', 'Chat background', 'Emoji', 'Effects', 'Messages', 'Plugins', 'Codes', 'Encryption', 'Blocked', 'Archived', 'Kept on this Mac', 'About']) {
         expect(find.text(label), findsWidgets, reason: '$label is a section of a computer\'s Settings');
       }
       for (final label in ['Your number', 'Android', 'Notifications', 'Receipts', 'Computers', 'Ghost Keyboard', 'Network', 'Developer']) {

@@ -106,6 +106,7 @@ type request struct {
 	Pointer json.RawMessage `json:"pointer"`
 	ACI     string          `json:"aci"`
 	Change  *groupEdit      `json:"change"`
+	On      bool            `json:"on"`
 }
 
 // groupEdit is a change to a group the person asks for (Matt, 2026-11-16: "Add them to a drawer when pressing and
@@ -467,6 +468,22 @@ func do(r request) (any, error) {
 			return nil, errors.New("no change asked for")
 		}
 		return updateGroup(ctx, c, r.To, r.Change)
+	case "block":
+		c, err := client()
+		if err != nil {
+			return nil, err
+		}
+		aci, err := uuid.Parse(r.ACI)
+		if err != nil {
+			return nil, errors.New("block: no aci")
+		}
+		return nil, block(ctx, c, aci, r.On)
+	case "blocked":
+		c, err := client()
+		if err != nil {
+			return nil, err
+		}
+		return blocked(ctx, c)
 	case "send":
 		c, err := client()
 		if err != nil {
@@ -928,6 +945,58 @@ func contacts(ctx context.Context, c *signalmeow.Client) ([]map[string]any, erro
 			}
 		}
 		list = append(list, contact(ctx, c, r))
+	}
+	return list, nil
+}
+
+// block blocks [aci] on Signal itself, or unblocks them (Matt, 2026-11-17: "add the signal helper and do your
+// recommendation"): kept in this device's store at once, so the helper drops what they send from now on, and said to
+// the person's other devices as Signal Desktop says it, a message-request answer for that one person (BLOCK, or ACCEPT
+// to unblock), which the phone applies to its own list and Signal's synced settings. Not the whole blocked list
+// (SyncMessage.Blocked): the phone takes that list as complete and would unblock anyone this device does not know of.
+func block(ctx context.Context, c *signalmeow.Client, aci uuid.UUID, on bool) error {
+	if aci == c.Store.ACI {
+		return errors.New("you can't block yourself")
+	}
+	kind := signalpb.SyncMessage_MessageRequestResponse_ACCEPT
+	if on {
+		kind = signalpb.SyncMessage_MessageRequestResponse_BLOCK
+	}
+	res := c.SendMessage(ctx, c.Store.ACIServiceID(), signalmeow.WrapSyncMessage(&signalpb.SyncMessage{
+		Content: &signalpb.SyncMessage_MessageRequestResponse_{
+			MessageRequestResponse: &signalpb.SyncMessage_MessageRequestResponse{
+				ThreadAci:       proto.String(aci.String()),
+				ThreadAciBinary: aci[:],
+				Type:            kind.Enum(),
+			},
+		},
+	}))
+	// Only you on this account (no other device to tell) is no failure: the store below is the block then.
+	if err := resultErr(res); err != nil && !strings.Contains(err.Error(), "no devices") {
+		return err
+	}
+	_, err := c.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, uuid.Nil, func(r *types.Recipient) (bool, error) {
+		if r.Blocked == on {
+			return false, nil
+		}
+		r.Blocked = on
+		return true, nil
+	})
+	return err
+}
+
+// blocked is everyone blocked on Signal that this device knows of: blocked here, or on the phone (Signal's synced
+// settings bring its list here).
+func blocked(ctx context.Context, c *signalmeow.Client) ([]map[string]any, error) {
+	all, err := c.Store.RecipientStore.LoadAllContacts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	list := make([]map[string]any, 0)
+	for _, r := range all {
+		if r.Blocked && r.ACI != uuid.Nil && r.ACI != c.Store.ACI {
+			list = append(list, contact(ctx, c, r))
+		}
 	}
 	return list, nil
 }

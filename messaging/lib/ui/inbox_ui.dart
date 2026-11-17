@@ -1,3 +1,4 @@
+import 'blocking.dart';
 import 'dart:io';
 
 
@@ -386,7 +387,13 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                     HapticFeedback.mediumImpact();
                     showGroupDrawer(context, _n, widget.chatId);
                   }
-                : null,
+                // One to one: Block or Unblock, on the network itself (lib/ui/blocking.dart).
+                : chat != null && !chat.service && _n.canBlock
+                    ? () {
+                        HapticFeedback.mediumImpact();
+                        showPersonBlock(context, BlockTarget.network(_n, widget.chatId, chat.title));
+                      }
+                    : null,
             child: Row(children: [
             SizedBox.square(
               dimension: t.lenOf('2.1rem'),

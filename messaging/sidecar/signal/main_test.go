@@ -120,3 +120,17 @@ func TestGroupEditParses(t *testing.T) {
 		t.Fatalf("parsed %+v %v", r.Change, err)
 	}
 }
+
+func TestBlockRequestParses(t *testing.T) {
+	var r request
+	if err := json.Unmarshal([]byte(`{"id":7,"op":"block","aci":"5c6c3c8e-3b0f-4b5a-9a0e-1f2a3b4c5d6e","on":true}`), &r); err != nil {
+		t.Fatal(err)
+	}
+	if r.Op != "block" || !r.On || r.ACI == "" {
+		t.Fatalf("parsed %+v", r)
+	}
+	var u request
+	if err := json.Unmarshal([]byte(`{"id":8,"op":"block","aci":"x"}`), &u); err != nil || u.On {
+		t.Fatalf("unblock should parse with on false: %+v %v", u, err)
+	}
+}

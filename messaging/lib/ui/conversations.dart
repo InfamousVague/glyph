@@ -1,3 +1,4 @@
+import 'blocking.dart';
 import 'dart:async';
 
 import 'package:flutter/services.dart' show PlatformException;
@@ -712,7 +713,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       Choice(c.archived ? 'Unarchive' : 'Archive', c.archived ? Lucide.archiveRestore : Lucide.archive, () => _archive(c)),
       // On a computer, blocking and deleting are offered when the phone it is paired with does them for one.
       if (!c.group && c.people.isNotEmpty && Sms.can('setBlocked'))
-        Choice(c.blocked ? 'Unblock' : 'Block number', Lucide.ban, () => c.blocked ? _setBlocked(c, false) : _confirmBlock(c), danger: !c.blocked),
+        blockChoice(context, BlockTarget.number(c.people.first.address, c.title, thread: c.id), blocked: c.blocked, done: _load),
       if (Sms.can('deleteThreads')) Choice('Delete conversation', Lucide.trash2, () => _confirmDelete(c), danger: true),
     ]);
   }
@@ -750,23 +751,6 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       if (mounted) toast(context, 'Couldn\'t ${c.pinned ? 'unpin' : 'pin'}: $e', tone: GlacierToastTone.danger);
     }
     _load();
-  }
-
-  void _confirmBlock(Conversation c) {
-    showChoices(context, title: 'Block ${c.title}? Android will stop their texts and calls before they reach you.', choices: [
-      Choice('Block', Lucide.ban, () => _setBlocked(c, true), danger: true),
-    ]);
-  }
-
-  Future<void> _setBlocked(Conversation c, bool blocked) async {
-    try {
-      await Sms.instance.setBlocked(c.people.first.address, blocked);
-      if (blocked) await Sms.instance.archive(c.id, true);
-      await _load();
-      if (mounted) toast(context, blocked ? 'Blocked and archived' : 'Unblocked');
-    } catch (e) {
-      if (mounted) toast(context, 'Couldn\'t change the block: $e', tone: GlacierToastTone.danger);
-    }
   }
 
   /// Asks before deleting [c], unless it was [slid] and "Don't ask again" was chosen once (deleteAskOff).

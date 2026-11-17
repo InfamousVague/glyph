@@ -2115,7 +2115,7 @@ void main() {
       await _settle(tester);
       await _shootAgain(tester, '11-frame-wide-settings-menu', dark: dark);
       expect(find.byType(SettingsScreen), findsNothing, reason: 'the menu is over the conversations: Settings is not open yet');
-      for (final label in ['Me', 'Appearance', 'Emoji', 'Messages', 'Notifications', 'Plugins', 'Encryption', 'Blocked numbers', 'Android', 'About']) {
+      for (final label in ['Me', 'Appearance', 'Emoji', 'Messages', 'Notifications', 'Plugins', 'Encryption', 'Blocked', 'Android', 'About']) {
         expect(inMenu(label), findsOneWidget, reason: '$label is a section to jump to');
       }
       // Its groups are named, in the kit's small capitals.
@@ -2130,10 +2130,10 @@ void main() {
       expect(first.width, lessThan(250));
       expect(first.right, lessThanOrEqualTo(AppShell.sideWidth(750)));
       expect(first.bottom, lessThanOrEqualTo(pillTop - 4), reason: 'the menu is over the pill, not on it');
-      await choose('Blocked numbers');
+      await choose('Blocked');
       expect(shown(), 'settings');
       expect(frame.settingsSection.value, 'blocked');
-      expect(seen(row('Blocked numbers')), findsOneWidget);
+      expect(seen(row('Blocked')), findsOneWidget);
       expect(find.byType(SectionPage), findsOneWidget);
       expect(find.byType(GlacierMenuItem), findsNothing, reason: 'choosing closes the menu');
       // Asked for again with Settings open, another section takes the pane.
