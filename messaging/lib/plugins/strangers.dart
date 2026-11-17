@@ -45,6 +45,20 @@ class StrangersPlugin extends GhostPlugin {
   @override
   LucideIcon get icon => LucideMore.userRoundSearch;
 
+  // Its card and page on the Plugins page (Matt, 2026-11-17: "redo how the plugins look with their own dedicated plugins page
+  // with a marketplace like look how ghostmd has").
+  @override
+  PluginShelf get shelf => PluginShelf.safety;
+
+  @override
+  String get tagline => 'Someone not in your contacts, at a glance, with Save and Block.';
+
+  @override
+  List<String> get adds => const ['A line at the top of a conversation with a stranger: what they likely are', 'Save, Block and Not now'];
+
+  @override
+  List<PluginReach> get reaches => const [PluginReach(Lucide.contactRound, 'The number and its words, on this phone', 'Guessed here. Block uses the phone\'s own blocked numbers.')];
+
   @override
   List<SlotFill> get slots => [
         Slots.aboveComposer.fill((context, place, prefs) {

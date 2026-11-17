@@ -265,6 +265,13 @@ interface DeskPhone {
      * Dart answers (lib/me/me.dart, Me.forComputer). The code is texted to the phone and checked as the phone's.
      */
     fun me(what: Map<String, Any?>): Any?
+
+    /**
+     * Translation done by the phone for the computer (Translate.kt; Matt, 2026-11-17: "add a translate plugin which
+     * can automatically translate texts when detected from another language"): [what] has `op` ("text", "languages",
+     * "model") and that request's own values. Null from a phone that has none.
+     */
+    fun translate(what: Map<String, Any?>): Any? = null
 }
 
 /** Something a computer handed over to be sent: its name, its kind, and what is in it. */
@@ -326,6 +333,8 @@ class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = Syst
         "voice" -> phone.voice(plain(a.getJSONObject("what")))
         // The phone's Telegram signs its computer in (lib/inbox/telegram.dart): answered by Dart.
         "telegram" -> phone.telegram(plain(a.getJSONObject("what")))
+        // A text in another language, translated on the phone for the computer (Translate.kt).
+        "translate" -> phone.translate(plain(a.getJSONObject("what")))
         "deleteMessage" -> { phone.deleteMessage(kind(a), a.getLong("id")); null }
         "deleteThread" -> phone.deleteThreads(listOf(a.getLong("thread")))
         "deleteThreads" -> phone.deleteThreads(longs(a.getJSONArray("threads")))
@@ -478,6 +487,7 @@ class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = Syst
             "threadName", "deleteMessage", "deleteThread", "deleteThreads", "editMessage", "resendMms", "setBlocked", "blockedNumbers",
             "e2eOffer", "e2eOff", "e2eVerify", "e2ePlainSeen", "e2eList", "mmsStatus", "voiceLimit",
             "put", "drop", "sendPictures", "sendVoice", "sendSticker", "ownNumber", "me", "voice", "telegram",
+            "translate",
         )
     }
 }

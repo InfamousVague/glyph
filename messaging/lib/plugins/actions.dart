@@ -184,6 +184,20 @@ class ActionsPlugin extends GhostPlugin {
   @override
   LucideIcon get icon => Lucide.sparkles;
 
+  // Its card and page on the Plugins page (Matt, 2026-11-17: "redo how the plugins look with their own dedicated plugins page
+  // with a marketplace like look how ghostmd has").
+  @override
+  PluginShelf get shelf => PluginShelf.messages;
+
+  @override
+  String get tagline => 'A button under a message for a date, an address or a number in it.';
+
+  @override
+  List<String> get adds => const ['Add to calendar, for a day or a time', 'Open in Maps, for a street address', 'Track, for a tracking number', 'Call and Copy, for a phone number or a code'];
+
+  @override
+  List<PluginReach> get reaches => const [PluginReach(Lucide.messageSquare, 'The words of the message on the screen', 'Found on this phone. Nothing is sent anywhere.')];
+
   @override
   List<SlotFill> get slots => [
         Slots.underMessage.fill((context, place, prefs) {

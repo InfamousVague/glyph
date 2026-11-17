@@ -1090,23 +1090,24 @@ void main() {
       expect(find.text('Copied 771204'), findsOneWidget);
       await tester.pump(const Duration(seconds: 6));
       await _settle(tester);
-      // Settings › Plugins: each plugin with its switch. Each has a section of its own in Settings while it is on
-      // (Matt, 2026-11-14: "the plugins and all being able to make their own setting sections"), so its settings
-      // are there and not on this page.
+      // Settings › Plugins: the Plugins page since 2026-11-17 (Matt: "redo how the plugins look with their own
+      // dedicated plugins page with a marketplace like look how ghostmd has"), a card for each plugin (Codes and the
+      // Spam filter featured too), and a plugin's settings on its own page.
       await _shoot(tester, sheet, const SettingsSectionScreen('plugins'), '12-plugins-settings', dark: dark);
-      expect(find.text('Codes'), findsOneWidget);
-      expect(find.text('Spam filter'), findsOneWidget);
+      expect(find.text('Codes'), findsWidgets);
+      expect(find.text('Spam filter'), findsWidgets);
       expect(find.text('Kinds of text'), findsOneWidget);
       expect(find.text('Mark as read when copied'), findsNothing);
       await _shoot(tester, sheet, const SettingsSectionScreen('plugin-codes'), '12-plugins-settings-codes', dark: dark);
       expect(find.text('Mark as read when copied'), findsOneWidget);
-      // Settings' list: Codes, Kinds of text and the Spam filter under Plugins; the Spam filter's row stays while it
-      // is switched off, saying so, so it can be switched back on from its page.
+      // Settings' list: the Plugins page's band where the plugins' rows were (2026-11-17); a plugin's own section is
+      // opened from its page there, or by its id, and is no longer a row of the list.
       await _shoot(tester, sheet, const SettingsScreen(), '12-plugins-settings-list', dark: dark);
-      expect(find.text('Spam filter'), findsOneWidget);
-      expect(find.text('Kinds of text'), findsOneWidget);
+      expect(find.byKey(const ValueKey('plugins-entry')), findsOneWidget);
+      expect(find.text('Spam filter'), findsNothing);
+      expect(find.text('Kinds of text'), findsNothing);
       await _shoot(tester, sheet, const SettingsScreen(), '12-plugins-settings-list-off', dark: dark, prefs: const {'plugin_spam': 'off'});
-      expect(find.text('Spam filter'), findsOneWidget);
+      expect(find.byKey(const ValueKey('plugins-entry')), findsOneWidget);
       // A plugin's page has its switch at the top (Matt, 2026-11-14: "Plugins should be able to be toggled on and
       // off from the top of each plugin setting page"); off, that is all it has.
       await _shoot(tester, sheet, const SettingsSectionScreen('plugin-spam'), '12-plugins-settings-off', dark: dark, prefs: const {'plugin_spam': 'off'});
@@ -1909,7 +1910,7 @@ void main() {
       }
       expect(shown(), 'messages');
       expect(tester.widget<NavPill>(find.byType(NavPill)).items.firstWhere((i) => i.id == 'archive').count, 1);
-      expect(icon('New message'), findsNothing, reason: 'the header holds nothing the pill does');
+      expect(icon('New'), findsNothing, reason: 'the header holds nothing the pill does');
       expect(tester.getTopRight(find.byType(ConversationsScreen)).dx, side);
       // A conversation opens beside the list, which stays, with no way back drawn: there is nowhere to go back to.
       await tester.tap(find.text('Maya Chen'));

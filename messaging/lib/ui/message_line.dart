@@ -98,6 +98,7 @@ class MessageLine extends StatefulWidget {
     required this.nameColor,
     this.mine = false,
     this.body = '',
+    this.original,
     this.italic = false,
     this.concealed = false,
     this.onReveal,
@@ -120,6 +121,11 @@ class MessageLine extends StatefulWidget {
   final Color nameColor;
   final bool mine;
   final String body;
+
+  /// Under the words, before what went with them: the words as they came where a plugin shows them otherwise, a dim
+  /// italic line (lib/ui/translated_card.dart OriginalLine; Matt, 2026-11-17: "add a translate plugin which can
+  /// automatically translate texts when detected from another language").
+  final Widget? original;
 
   /// Drawn slanted: words standing in for ones that can't be shown (a sealed message this phone can't open).
   final bool italic;
@@ -231,6 +237,7 @@ class _MessageLineState extends State<MessageLine> {
     final maxMedia = math.min(MediaQuery.sizeOf(context).width * 0.7, 320.0);
     Widget line = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
       words,
+      ?w.original,
       for (final m in w.media) Padding(padding: const EdgeInsets.only(top: 4, bottom: 2), child: ConstrainedBox(constraints: BoxConstraints(maxWidth: maxMedia), child: m)),
       for (final u in w.under) Padding(padding: const EdgeInsets.only(top: 4), child: ConstrainedBox(constraints: BoxConstraints(maxWidth: maxMedia), child: u)),
       ?reactions,

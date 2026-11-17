@@ -94,6 +94,12 @@ dependencies {
     // summarize unread message conversations like apple does"): Android's own on-device model (Gemini Nano, through
     // AICore) by ML Kit's GenAI Summarization API, in beta. Nothing is sent anywhere; a phone without it says so.
     implementation("com.google.mlkit:genai-summarization:1.0.0-beta1")
+    // Texts in another language translated on the phone itself (Translate.kt; Matt, 2026-11-17: "add a translate plugin
+    // which can automatically translate texts when detected from another language"): ML Kit's on-device Translation, a
+    // model of about 30 MB per language fetched once, and its Language Identification with the model inside the app (not
+    // Play's), so nothing of a text leaves the phone.
+    implementation("com.google.mlkit:translate:17.0.3")
+    implementation("com.google.mlkit:language-id:17.0.6")
     testImplementation("junit:junit:4.13.2")
     // Android's own org.json is a stub on the JVM: the desktop link's tests (DeskSessionTest) need a real one.
     testImplementation("org.json:json:20240303")

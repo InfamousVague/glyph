@@ -17,12 +17,15 @@ import 'replies.dart';
 import 'strangers.dart';
 import 'plugin.dart';
 import 'spam.dart';
+import 'translate.dart';
+import 'translate_host.dart';
 
 /// The plugins the app ships with, in the order Settings › Plugins lists them and their sections are asked: a text
 /// that is a sign-in code is in Codes whatever the spam filter makes of it.
 // Kinds before Spam: a text that is plainly political or a debt collector is that, whatever else it shows; the kinds
 // that are shown (deliveries, reminders) leave a text that looks like spam to Spam.
-const List<GhostPlugin> shippedPlugins = [CodesPlugin(), KindsPlugin(), SpamPlugin(), EmbedsPlugin(), ActionsPlugin(), RepliesPlugin(), QuietPlugin(), StrangersPlugin(), CleanerPlugin()];
+// Translate last: it adds to a conversation and takes nothing from the list, and is off until it is added.
+const List<GhostPlugin> shippedPlugins = [CodesPlugin(), KindsPlugin(), SpamPlugin(), EmbedsPlugin(), ActionsPlugin(), RepliesPlugin(), QuietPlugin(), StrangersPlugin(), CleanerPlugin(), TranslatePlugin()];
 
 /// The person's choices as the plugins' side reads and writes them: the app's own ([AppStore]), or a map in a test.
 abstract interface class PluginStore {
@@ -32,6 +35,9 @@ abstract interface class PluginStore {
   /// Goes up whenever a plugin's switch or one of its choices changes: what was worked out from them is worked out
   /// again.
   int get stamp;
+
+  /// The choices whose keys start with [prefix]: one plugin's own (`plugin_<id>_`), for [PluginRegistry.textMark].
+  Map<String, String> withPrefix(String prefix);
 }
 
 /// The plugins' choices in the app's own ([AppState]), which keeps them in Android's preferences with the rest.
@@ -50,6 +56,9 @@ class AppStore implements PluginStore {
 
   @override
   int get stamp => app.pluginsStamp;
+
+  @override
+  Map<String, String> withPrefix(String prefix) => app.withPrefix(prefix);
 }
 
 /// Choices kept in memory: a test's, or a page drawn with no app round it.
@@ -71,6 +80,9 @@ class MemoryStore implements PluginStore {
     values[key] = value;
     stamp++;
   }
+
+  @override
+  Map<String, String> withPrefix(String prefix) => {for (final e in values.entries) if (e.key.startsWith(prefix)) e.key: e.value};
 }
 
 class _Prefs implements PluginPrefs {
@@ -172,7 +184,8 @@ class _Entry {
         sections = [for (final s in plugin.sections) PluginSection(plugin, s)],
         slots = List.of(plugin.slots),
         incoming = List.of(plugin.incoming),
-        settings = List.of(plugin.settings);
+        settings = List.of(plugin.settings),
+        text = List.of(plugin.text);
   final GhostPlugin plugin;
   final List<Classifier> classifiers;
   final List<TunedClassifier> tuned;
@@ -180,6 +193,16 @@ class _Entry {
   final List<SlotFill> slots;
   final List<IncomingRule> incoming;
   final List<PluginSetting> settings;
+  final List<TextRule> text;
+}
+
+/// A rule for a message's words, and the plugin whose it is ([PluginRegistry.textRules]).
+@immutable
+class BoundText {
+  const BoundText(this.plugin, this.rule, this.prefs);
+  final GhostPlugin plugin;
+  final TextRule rule;
+  final PluginPrefs prefs;
 }
 
 class PluginRegistry {
@@ -227,6 +250,20 @@ class PluginRegistry {
   /// conversation holds until it does: they are given none of the person's other choices.
   /// A tuned classifier is told its plugin's choices ([TunedClassifier]): any of them changing is a change here too.
   String switches(PluginStore store) => '${[for (final e in _entries) isOn(e.plugin, store) ? '1' : '0'].join()}:${store.read(tunedKey) ?? ''}';
+
+  /// What the text rules' answers are worked out from: which of their plugins are on, and those plugins' own choices.
+  /// Not [PluginStore.stamp], which goes up for every plugin's every choice (a conversation filed, Spam's strictness,
+  /// Android's preferences read again): each of those asked every bubble on the screen again, on a computer one
+  /// round trip to the phone each.
+  String textMark(PluginStore store) {
+    final parts = <String>[];
+    for (final e in _entries) {
+      if (e.text.isEmpty) continue;
+      final own = store.withPrefix('plugin_${e.plugin.id}_').entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+      parts.add('${e.plugin.id}:${isOn(e.plugin, store) ? 1 : 0}:${[for (final c in own) '${c.key}=${c.value}'].join('&')}');
+    }
+    return parts.join('|');
+  }
 
   /// Bumped whenever a plugin's own choice changes, for [switches].
   static const tunedKey = 'plugins_tuned';
@@ -340,6 +377,9 @@ class PluginRegistry {
     return out;
   }
 
+  /// What the plugins that are on have to press at [slot], those of [only] alone ([actions] for every plugin's).
+  List<BoundAction> actionsOf<P>(ActionSlot<P> slot, P place, PluginStore store, GhostPlugin only) => [for (final b in actions(slot, place, store)) if (identical(b.plugin, only)) b];
+
   /// The widgets the plugins that are on put at [slot]; those of [only] alone, where given.
   List<Widget> widgets<P>(WidgetSlot<P> slot, BuildContext context, P place, PluginStore store, {GhostPlugin? only}) {
     final out = <Widget>[];
@@ -352,6 +392,23 @@ class PluginRegistry {
     }
     return out;
   }
+
+  // --- (e) what a message's words are shown as ---------------------------------------------------------------------
+
+  /// The device's own language tools, as the plugins' text rules are handed them: the phone's (or, on a computer,
+  /// the paired phone's) translation. A test puts a fake here.
+  static TextHost textHost = const DeviceTextHost();
+
+  /// The text rules of the plugins that are on, in order, each with its plugin's choices: the first to answer has the
+  /// bubble (shown_store.dart asks them and keeps the answers).
+  List<BoundText> textRules(PluginStore store) => [
+        for (final e in _on(store))
+          if (e.text.isNotEmpty)
+            for (final rule in e.text) BoundText(e.plugin, rule, prefsOf(e.plugin, store)),
+      ];
+
+  /// Tells [onError] that [plugin] threw while being asked something away from the registry (a text rule's future).
+  void failed(GhostPlugin plugin, Object error) => onError?.call(plugin, error);
 
   // --- (d) messages that have just come -----------------------------------------------------------------------------
 

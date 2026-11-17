@@ -43,6 +43,12 @@ class MainActivity : FlutterActivity() {
 
     private val io = Executors.newSingleThreadExecutor()
 
+    /**
+     * Translation (Translate.kt) on a thread of its own: identifying a language, loading a model and translating can
+     * take a second or more, and the texts themselves (on [io]) must not wait behind them.
+     */
+    private val translating = Executors.newSingleThreadExecutor()
+
     /** Pictures and faces are read apart from everything else, so they do not wait behind a long read of the list. */
     private val pictures = Executors.newFixedThreadPool(3)
 
@@ -422,6 +428,10 @@ class MainActivity : FlutterActivity() {
                 "summaryStatus" -> bg { Summaries.status(this) }
                 "summaryPrepare" -> bg { Summaries.prepare(this) }
                 "summarize" -> bg { Summaries.summarize(this, call.argument<String>("text") ?: "") }
+                // Texts in another language, translated on the phone (Translate.kt, lib/plugins/translate.dart).
+                "translate" -> on(translating) { Translate.call(applicationContext, "text", argsOf(call.arguments)) }
+                "translateLanguages" -> on(translating) { Translate.call(applicationContext, "languages", emptyMap()) }
+                "translateModel" -> on(translating) { Translate.call(applicationContext, "model", argsOf(call.arguments)) }
                 "openOldApp" -> result.success(Arriving.openOld(this))
                 "openAppInfo" -> result.success(Arriving.openAppInfo(this))
                 "openDefaultApps" -> result.success(Arriving.openDefaultApps(this))
@@ -524,6 +534,16 @@ class MainActivity : FlutterActivity() {
                 if (stale > 0) { DevLog.add(applicationContext, "send", "$stale left on Sending for a quarter of an hour marked not sent"); Bus.changed(-1) }
             } catch (_: Exception) {}
         }
+    }
+
+    /** What Dart sent, as a map of plain values; nothing where it sent none. */
+    @Suppress("UNCHECKED_CAST")
+    private fun argsOf(arguments: Any?): Map<String, Any?> = (arguments as? Map<String, Any?>) ?: emptyMap()
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        // Translators hold their models in memory: given back when Android asks, opened again by the next text.
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND) Translate.release()
     }
 
     override fun onDestroy() {

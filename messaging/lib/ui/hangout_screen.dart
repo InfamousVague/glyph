@@ -23,6 +23,8 @@ import 'dialup/bevel.dart';
 import 'dialup/parts.dart' show DialupPanel;
 import 'dialup/retro_button.dart';
 import 'message_line.dart';
+import 'translated_card.dart';
+import '../plugins/plugin.dart' show MessageFacts;
 import 'poof.dart';
 import 'nav_bar.dart';
 import 'ripple_avatar.dart';
@@ -397,6 +399,7 @@ class _HangoutChatState extends State<HangoutChat> {
     HapticFeedback.mediumImpact();
     showChoices(context, choices: [
       if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
+      ...translateChoices(context, spaceFacts(m, mine: m.from == widget.room.me)),
       if (widget.room.canDelete(m)) Choice('Delete for everyone', Lucide.trash2, () => setState(() => _poofing.add(m.id)), danger: true),
     ]);
   }
@@ -462,16 +465,19 @@ class _HangoutChatState extends State<HangoutChat> {
                 _poofing.remove(m.id);
                 room.delete(m);
               },
-              child: MessageLine(
+              child: ShownWords(
                 key: ValueKey(m.id),
+                facts: spaceFacts(m, mine: mine),
+                builder: (_, shown) => MessageLine(
                 name: name,
                 // Each person keeps one of the room's six colours, by their id, and yours is your own.
                 nameColor: mine ? c.nameMine : c.nameFor(m.from),
                 mine: mine,
-                body: m.text,
+                body: shown?.bubble ?? m.text,
+                original: shown == null ? null : OriginalLine(view: shown),
                 status: lastOfRun ? clock(DateTime.fromMillisecondsSinceEpoch(m.at)) : null,
                 onLongPress: (_) => _menu(m),
-              ),
+              )),
             );
           }
           if (!newDay) return line;
@@ -750,6 +756,11 @@ class _Speaker extends CustomPainter {
 }
 
 
+/// The facts a plugin that shows a message's words otherwise is asked by (the Translate plugin; Matt, 2026-11-17: "add
+/// a translate plugin which can automatically translate texts when detected from another language"): none for your own.
+MessageFacts? spaceFacts(HangoutMessage m, {required bool mine}) =>
+    mine || m.text.trim().isEmpty ? null : MessageFacts(thread: -1, senders: [m.from], text: m.text, contact: false, outgoing: false, date: DateTime.fromMillisecondsSinceEpoch(m.at), id: 'space:${m.id}', network: 'space');
+
 class _Message extends StatelessWidget {
   const _Message({super.key, required this.room, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onDelete});
   final HangoutRoom room;
@@ -765,7 +776,10 @@ class _Message extends StatelessWidget {
   final VoidCallback? onDelete;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ShownWords(facts: spaceFacts(message, mine: message.from == room.me), builder: _build);
+
+  /// The message, saying [shown]'s words where a plugin shows them otherwise, with the words as they came over it.
+  Widget _build(BuildContext context, ShownView? shown) {
     final t = context.tokens;
     final m = message;
     final mine = m.from == room.me;
@@ -782,12 +796,14 @@ class _Message extends StatelessWidget {
       HapticFeedback.mediumImpact();
       showChoices(context, choices: [
         if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
+        ...translateChoices(context, spaceFacts(m, mine: mine)),
         if (room.canDelete(m)) Choice('Delete for everyone', Lucide.trash2, () => onDelete?.call(), danger: true),
       ]);
     }
 
+    final maxWidth = MediaQuery.sizeOf(context).width * 0.72;
     final bubble = ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.72),
+      constraints: BoxConstraints(maxWidth: maxWidth),
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
         decoration: BoxDecoration(
@@ -800,7 +816,7 @@ class _Message extends StatelessWidget {
             bottomRight: mine && !last ? tight : round,
           ),
         ),
-        child: Text(m.text, style: pageText(t, t.fontSize('md'), color: mine ? mineInk : t.color('app-ink'), height: 1.3)),
+        child: Text(shown?.bubble ?? m.text, style: pageText(t, t.fontSize('md'), color: mine ? mineInk : t.color('app-ink'), height: 1.3)),
       ),
     );
 
@@ -829,7 +845,8 @@ class _Message extends StatelessWidget {
               SizedBox(width: faceSize, child: last ? Avatar(people: [Person(address: 'space:${m.from}', name: name)], size: faceSize) : null),
               SizedBox(width: t.space(2)),
             ],
-            Flexible(child: bubble),
+            // The words as they came, dimmed, in a card over a translated bubble.
+            Flexible(child: shown == null ? bubble : Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [OriginalCard(view: shown, maxWidth: maxWidth), bubble])),
           ]),
           if (last)
             Padding(

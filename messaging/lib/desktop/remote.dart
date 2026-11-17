@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import '../plugins/shown_store.dart';
 import '../sounds.dart';
 import '../sms.dart';
 import 'cache.dart';
@@ -58,6 +59,8 @@ class LinkCalls implements SmsCalls, CapableCalls {
     }
     if (next.length != _caps.length || !next.containsAll(_caps)) {
       _caps = next;
+      // Bubbles drawn before the phone said it can translate were answered "unavailable": asked again now.
+      ShownStore.instance.askAll();
       Sms.instance.changes.add(-1);
     }
   }
@@ -824,6 +827,19 @@ class LinkCalls implements SmsCalls, CapableCalls {
         // The phone's voice channels, kept in step with this computer's (lib/voice/channels.dart).
         if (!_caps.contains('voice')) throw const PhoneError('Update Ghost Messaging on your phone to see its spaces here.');
         return link.request('voice', a, const Duration(seconds: 15));
+      case 'translate' || 'translateLanguages' || 'translateModel':
+        // Translation is the phone's (android Translate.kt): this computer's texts are translated there, as asked. A
+        // phone from before it, or one out of reach, leaves the words as they came, and says nothing more.
+        final none = switch (method) { 'translate' => <String, Object?>{'state': 'unavailable'}, 'translateLanguages' => const <Object?>[], _ => false };
+        if (!_caps.contains('translate')) return none;
+        final op = switch (method) { 'translateLanguages' => 'languages', 'translateModel' => 'model', _ => 'text' };
+        try {
+          return await link.request('translate', {'what': {...a, 'op': op}}, const Duration(seconds: 20));
+        } on LinkDown {
+          return method == 'translate' ? const {'state': 'offline'} : none;
+        } catch (_) {
+          return method == 'translate' ? const {'state': 'failed'} : none;
+        }
       case 'me':
         // Settings › Me's number, verified through the phone (Me.followPhone); a code takes the phone a while.
         if (!_caps.contains('me')) throw const PhoneError('Update Ghost Messaging on your phone to verify your number from here.');

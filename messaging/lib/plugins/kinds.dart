@@ -406,6 +406,23 @@ class KindsPlugin extends GhostPlugin {
   @override
   LucideIcon get icon => Lucide.listFilter;
 
+  // Its card and page on the Plugins page (Matt, 2026-11-17: "redo how the plugins look with their own dedicated plugins page
+  // with a marketplace like look how ghostmd has").
+  @override
+  PluginShelf get shelf => PluginShelf.organise;
+
+  @override
+  String get tagline => 'Texts from strangers sorted by what they are about.';
+
+  @override
+  List<String> get adds => const ['A filter beside the tabs, with a switch for each kind', 'Deliveries, sales, political texts, debt collectors and the rest, each said as it is'];
+
+  @override
+  List<PluginReach> get reaches => const [
+        PluginReach(Lucide.messageSquare, 'Texts from numbers not in your contacts', 'Read on this phone to sort them. Nothing is sent, deleted or blocked.'),
+        PluginReach(Lucide.contactRound, 'Your contacts, to know who is a stranger', 'Your contacts\' own texts are never sorted.'),
+      ];
+
   /// How strict the sorting is: relaxed (strong signs only), balanced (one strong or two others), strict (one of
   /// either). Matt, 2026-11-16: "detailed settings for the filtering with strictness settings".
   static const levels = [

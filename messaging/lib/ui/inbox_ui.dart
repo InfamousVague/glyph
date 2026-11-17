@@ -27,6 +27,7 @@ import '../sms.dart';
 import '../links.dart' show MessageLink;
 import '../plugins/codes.dart' show signInCode;
 import '../plugins/embeds.dart' show EmbedCard, EmbedsPlugin;
+import '../plugins/plugin.dart' show MessageFacts;
 import '../plugins/registry.dart' show AppStore, PluginRegistry;
 import 'common.dart';
 import 'composer_box.dart';
@@ -43,6 +44,7 @@ import 'shell.dart';
 import '../kit/semantic_colors.dart';
 import 'dialup/bevel.dart' show DialupColors, isDialup;
 import 'message_line.dart';
+import 'translated_card.dart';
 
 /// The screens of the inbox of other networks (lib/inbox): a chat's row in the list, the chat itself, signing in, and
 /// the sections of Settings for each network.
@@ -272,6 +274,8 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
         : null, choices: [
       if (_n.canReply && m.state != 'sending') Choice('Reply', LucideMore.reply, () => _startReply(m)),
       if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
+      // The Translate plugin's lines, while it is on (lib/ui/translated_card.dart).
+      ...translateChoices(context, inboxFacts(_n, widget.chatId, m)),
       if (_n.canDeleteForEveryone(widget.chatId, m)) Choice('Delete for everyone', Lucide.trash2, () => setState(() => _poofing[m.id] = true), danger: true),
       Choice(m.mine && _n.canDeleteForEveryone(widget.chatId, m) ? 'Delete for me' : 'Delete', Lucide.trash2, () => setState(() => _poofing[m.id] = false), danger: true),
     ]);
@@ -539,7 +543,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                         onDone: () => _n.deleteMessage(widget.chatId, m.id, forEveryone: _poofing.remove(m.id) ?? false),
                         child: GestureDetector(
                         onLongPress: () => _messageMenu(m),
-                        child: _InboxBubble(key: ValueKey(m.id), network: _n, message: m, group: chat?.group ?? false, first: firstOfRun, last: lastOfRun, mineBg: mineBg, mineInk: mineInk, onReactionsTap: () => _messageMenu(m)),
+                        child: _InboxBubble(key: ValueKey(m.id), network: _n, chatId: widget.chatId, message: m, group: chat?.group ?? false, first: firstOfRun, last: lastOfRun, mineBg: mineBg, mineInk: mineInk, onReactionsTap: () => _messageMenu(m)),
                       )),
                     ]);
                   },
@@ -583,19 +587,22 @@ extension on _InboxChatScreenState {
               gone: _poofing.containsKey(m.id),
               side: m.mine ? AxisDirection.right : AxisDirection.left,
               onDone: () => _n.deleteMessage(widget.chatId, m.id, forEveryone: _poofing.remove(m.id) ?? false),
-              child: MessageLine(
+              child: ShownWords(
                 key: ValueKey(m.id),
+                facts: inboxFacts(_n, widget.chatId, m),
+                builder: (_, shown) => MessageLine(
                 name: who,
                 nameColor: m.mine ? c.nameMine : (group ? c.nameFor(m.sender) : c.nameTheirs),
                 mine: m.mine,
-                body: m.text,
+                body: shown?.bubble ?? m.text,
+                original: shown == null ? null : OriginalLine(view: shown),
                 media: [for (final x in m.media) InboxMediaView(network: _n, media: x, ink: c.ink)],
                 under: _linkCards(context, m.text),
                 status: failed ? 'Not sent' : (m.state == 'sending' ? 'Sending…' : (lastOfRun ? clock(m.date) : null)),
                 failed: failed,
                 faded: m.state == 'sending',
                 onLongPress: (_) => _messageMenu(m),
-              ),
+              )),
             ),
           ]);
         },
@@ -618,20 +625,34 @@ List<Widget> _linkCards(BuildContext context, String text) {
   return [for (final url in links) Padding(padding: EdgeInsets.only(top: t.space(1)), child: EmbedCard(url: url, others: others))];
 }
 
+/// The facts a plugin that shows a message's words otherwise is asked by (the Translate plugin, lib/plugins/translate.dart;
+/// Matt, 2026-11-17: "add a translate plugin which can automatically translate texts when detected from another
+/// language"): none for the person's own, or one still going.
+MessageFacts? inboxFacts(InboxNetwork network, String chatId, InboxMessage m) {
+  if (m.mine || m.state == 'sending' || m.state == 'failed' || m.text.trim().isEmpty) return null;
+  return MessageFacts(thread: -1, senders: [m.sender], text: m.text, contact: false, outgoing: false, date: m.date, id: '${network.id}:$chatId:${m.id}', network: network.id);
+}
+
 class _InboxBubble extends StatelessWidget {
-  const _InboxBubble({super.key, required this.network, required this.message, required this.group, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onReactionsTap});
+  const _InboxBubble({super.key, required this.network, required this.chatId, required this.message, required this.group, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onReactionsTap});
 
   /// A press on its reactions: the message's menu, to add one or take yours off.
   final VoidCallback? onReactionsTap;
   final InboxNetwork network;
+  final String chatId;
   final InboxMessage message;
   final bool group, first, last;
   final Color mineBg, mineInk;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ShownWords(facts: inboxFacts(network, chatId, message), builder: _build);
+
+  /// The bubble, saying [shown]'s words where a plugin shows them otherwise, with the words as they came in a card over it.
+  Widget _build(BuildContext context, ShownView? shown) {
     final t = context.tokens;
     final m = message;
+    final text = shown?.bubble ?? m.text;
+    final maxWidth = MediaQuery.sizeOf(context).width * 0.75;
     final round = Radius.circular(lookCorner(t, '1.125rem', most: 1));
     final tight = Radius.circular(lookCorner(t, '0.375rem', most: 1));
     final failed = m.state == 'failed';
@@ -645,10 +666,12 @@ class _InboxBubble extends StatelessWidget {
             // In the app's primary colour, as over a group of texts' bubbles (lib/ui/thread.dart).
             child: Text(m.sender, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent'))),
           ),
+        // The words as they came, dimmed, over a translated bubble.
+        if (shown != null) OriginalCard(view: shown, maxWidth: maxWidth, mine: m.mine),
         // Its reactions over the bubble's lower edge, as under a text (lib/ui/thread.dart).
         _withReactions(context, m, onReactionsTap,
         ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.75),
+          constraints: BoxConstraints(maxWidth: maxWidth),
           child: Opacity(
             opacity: m.state == 'sending' ? 0.6 : 1,
             child: Container(
@@ -667,10 +690,10 @@ class _InboxBubble extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                 // The message it answers, quoted at its head.
                 if (m.replyTo != null) InboxQuote(sender: m.replySender, text: m.replyText, ink: m.mine ? mineInk : t.color('app-ink')),
-                for (final x in m.media) Padding(padding: EdgeInsets.only(bottom: m.text.isEmpty ? 0 : t.space(2)), child: InboxMediaView(network: network, media: x, ink: m.mine ? mineInk : t.color('app-ink'))),
+                for (final x in m.media) Padding(padding: EdgeInsets.only(bottom: text.isEmpty ? 0 : t.space(2)), child: InboxMediaView(network: network, media: x, ink: m.mine ? mineInk : t.color('app-ink'))),
                 // Links underlined and opened by a press, as in a conversation of texts (Matt, 2026-11-16: "links are
                 // not expanding or clickable on telegram and signal chats").
-                if (m.text.isNotEmpty) LinkedText(m.text, ink: m.mine ? mineInk : t.color('app-ink'), style: pageText(t, t.fontSize('md'), color: m.mine ? mineInk : t.color('app-ink'), height: 1.3)),
+                if (text.isNotEmpty) LinkedText(text, ink: m.mine ? mineInk : t.color('app-ink'), style: pageText(t, t.fontSize('md'), color: m.mine ? mineInk : t.color('app-ink'), height: 1.3)),
               ]),
             ),
           ),
