@@ -1,3 +1,7 @@
+import 'api/api.dart';
+import 'api/methods.dart';
+import 'api/remote.dart';
+import 'api/server.dart';
 import 'dart:async';
 import 'dart:io' show File, Platform;
 import 'dart:ui' show PlatformDispatcher;
@@ -107,6 +111,11 @@ Future<void> main() async {
   _logErrors();
   _watchFrames();
   Sms.instance.prefsChanged.stream.listen((_) => state.reload());
+  // The app's API (lib/api), each way in started where Settings › API has it on (Matt, 2026-11-17: "build an entire API
+  // that we can use to interact with every aspect of the app").
+  Api.instance.registerAll(appMethods(state));
+  unawaited(ApiServer.instance.apply(state));
+  unawaited(ApiRemote.instance.apply(state));
   runApp(GhostMessagingApp(sheet: sheet, state: state, accents: accents));
 }
 

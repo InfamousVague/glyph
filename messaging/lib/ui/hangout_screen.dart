@@ -10,6 +10,7 @@ import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
+import '../kit/semantic_colors.dart';
 import '../voice/channels.dart';
 import '../voice/hangout.dart';
 import '../voice/roles.dart';
@@ -88,6 +89,22 @@ class _HangoutScreenState extends State<HangoutScreen> {
     if (AppShell.wideOf(context)) AppShell.maybeOf(context)?.go('voice');
   }
 
+  /// The call or the chat, on a phone: the people in the call, or the space's messages.
+  Widget _callOrChat(Tokens t) => Padding(
+        padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(2)),
+        child: GlacierSegmentedControl(
+          fullWidth: true,
+          size: GlacierSegmentedSize.md,
+          ariaLabel: 'People or chat',
+          value: _tab,
+          onValueChange: (x) => setState(() => _tab = x),
+          options: [
+            GlacierSegmentedOption(value: 'people', label: Semantics(label: 'People', child: AppIcon(Lucide.users, size: 18, wash: false))),
+            GlacierSegmentedOption(value: 'chat', label: Semantics(label: 'Chat', child: AppIcon(LucideMore.messageCircle, size: 18, wash: false))),
+          ],
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
@@ -144,6 +161,23 @@ class _HangoutScreenState extends State<HangoutScreen> {
               _JoinButton(onPressed: () => _join()),
             ]),
           );
+          // On a phone, with people talking in it: the call first, who is in it and Join, and the chat a tap away
+          // (Matt, 2026-11-17: open "as a normal chat window when there are no people online and chatting", and
+          // "switch between the call and chat UI"). Nobody in it: the chat, as any conversation opens.
+          if (!wide && !dialup && inVoice.isNotEmpty) {
+            return GhostPage(
+              title: widget.channel.name,
+              actions: actions,
+              body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                _callOrChat(t),
+                Expanded(
+                  child: _tab == 'chat'
+                      ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [row, Expanded(child: chat)])
+                      : _WhoIsTalking(ids: inVoice, nameOf: (id) => (room?.present[id]?.name ?? '').isNotEmpty ? room!.present[id]!.name : v.nameOf(id), onJoin: () => _join()),
+                ),
+              ]),
+            );
+          }
           return GhostPage(
             title: widget.channel.name,
             actions: actions,
@@ -175,20 +209,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
           actions: actions,
           body: Stack(children: [
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(2)),
-                child: GlacierSegmentedControl(
-                  fullWidth: true,
-                  size: GlacierSegmentedSize.md,
-                  ariaLabel: 'People or chat',
-                  value: _tab,
-                  onValueChange: (x) => setState(() => _tab = x),
-                  options: [
-                    GlacierSegmentedOption(value: 'people', label: Semantics(label: 'People', child: AppIcon(Lucide.users, size: 18, wash: false))),
-                    GlacierSegmentedOption(value: 'chat', label: Semantics(label: 'Chat', child: AppIcon(LucideMore.messageCircle, size: 18, wash: false))),
-                  ],
-                ),
-              ),
+              _callOrChat(t),
               Expanded(
                 child: _tab == 'chat'
                     ? chat
@@ -266,6 +287,50 @@ class _HangoutStageState extends State<HangoutStage> {
   }
 }
 
+/// Who is in a space's call, seen from outside it on a phone: each face and name. Tapping them joins the call (Matt,
+/// 2026-11-17: "remove the join voice and video chat button ... just make tapping on the list of people join the call
+/// automatically").
+class _WhoIsTalking extends StatelessWidget {
+  const _WhoIsTalking({required this.ids, required this.nameOf, required this.onJoin});
+  final List<String> ids;
+
+  /// What each goes by: the name they gave the space's room, or the call's.
+  final String Function(String id) nameOf;
+  final VoidCallback onJoin;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final face = t.lenOf('3rem');
+    return GlacierPressable(
+      onPressed: onJoin,
+      semanticLabel: 'Join the call with ${ids.length} in it',
+      builder: (context, state) => ListView(
+      padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), MediaQuery.paddingOf(context).bottom + NavPill.clearance(t) + t.space(4)),
+      children: [
+        Row(children: [
+          Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: t.online)),
+          SizedBox(width: t.space(2)),
+          Text(ids.length == 1 ? '1 in voice' : '${ids.length} in voice', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.online)),
+        ]),
+        SizedBox(height: t.space(3)),
+        for (final id in ids)
+          Padding(
+            padding: EdgeInsets.only(bottom: t.space(2)),
+            child: Row(children: [
+              RippleAvatar(name: nameOf(id), level: 0, size: face),
+              SizedBox(width: t.space(3)),
+              Expanded(child: Text(nameOf(id), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink')))),
+            ]),
+          ),
+        SizedBox(height: t.space(1)),
+        Text('Tap to join', style: pageText(t, t.fontSize('sm'), color: t.color(state.pressed ? 'app-ink-2' : 'app-ink-3'))),
+      ],
+      ),
+    );
+  }
+}
+
 /// Join voice: a pill filled with ink, the headphones and the words.
 class _JoinButton extends StatelessWidget {
   const _JoinButton({required this.onPressed});
@@ -325,7 +390,15 @@ class _HangoutChatState extends State<HangoutChat> {
   /// Dial-Up's "People Here" opened out under its strip, on a phone.
   bool _peopleOpen = false;
 
+  /// What is shown here is read: its unread mark in the list goes (Voice.markRead).
+  void _read() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Voice.instance.markRead(widget.room.channel);
+    });
+  }
+
   void _roomChanged({bool first = false}) {
+    _read();
     final room = widget.room;
     for (final p in room.present.values) {
       if (p.name.isNotEmpty) _names[p.id] = p.name;

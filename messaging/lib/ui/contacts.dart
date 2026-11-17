@@ -1,3 +1,4 @@
+import 'blocking.dart';
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
@@ -259,6 +260,22 @@ class _ContactsScreenState extends State<ContactsScreen> {
             return networks.isEmpty ? const SizedBox.shrink() : _filters(t, networks);
           },
         ),
+        // Everyone blocked, numbers and Telegram and Signal people alike (lib/ui/blocking.dart; Matt, 2026-11-17: "Also
+        // add a block list to our address book pages").
+        if (_query.isEmpty)
+          _ActionRow(
+            icon: Lucide.ban,
+            label: 'Blocked',
+            hint: 'Numbers, and people on Telegram and Signal',
+            onPressed: () {
+              final shell = AppShell.maybeOf(context);
+              if (shell != null) {
+                shell.show(const BlockedScreen(), showing: 'contacts');
+              } else {
+                push<void>(context, (_) => const BlockedScreen());
+              }
+            },
+          ),
         // A group of friends is made from here, where there is a friend to put in one (lib/ui/new_group.dart).
         if (!Sms.paired && _query.isEmpty && Friends.instance.available && Friends.instance.friends.isNotEmpty)
           GlacierPressable(
@@ -403,4 +420,44 @@ class _Row {
   const _Row({this.heading, this.someone});
   final String? heading;
   final Someone? someone;
+}
+
+
+/// A line at the head of the contacts that opens something of its own (Blocked): a round icon, its name, a line under.
+class _ActionRow extends StatelessWidget {
+  const _ActionRow({required this.icon, required this.label, required this.hint, required this.onPressed});
+  final LucideIcon icon;
+  final String label;
+  final String hint;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return GlacierPressable(
+      onPressed: onPressed,
+      semanticLabel: label,
+      builder: (context, state) => ColoredBox(
+        color: state.pressed || state.hovered ? t.color('app-paper-2') : const Color(0x00000000),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(2) + 2),
+          child: Row(children: [
+            Container(
+              width: t.lenOf('2.5rem'),
+              height: t.lenOf('2.5rem'),
+              decoration: BoxDecoration(shape: BoxShape.circle, color: t.color('app-paper-3')),
+              child: Center(child: AppIcon(icon, size: 18, color: t.color('app-ink'))),
+            ),
+            SizedBox(width: t.space(3)),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(label, style: pageText(t, t.fontSize('md'), weight: 'medium')),
+                Text(hint, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
 }

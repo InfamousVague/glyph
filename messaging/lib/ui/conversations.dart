@@ -1,3 +1,4 @@
+import 'blocking.dart';
 import 'dart:async';
 
 import 'package:flutter/services.dart' show PlatformException;
@@ -40,6 +41,7 @@ import 'shell.dart';
 import 'swipe_actions.dart';
 import 'inbox_ui.dart';
 import '../inbox/inbox.dart';
+import '../friends/groups.dart';
 import 'thread.dart';
 import '../kit/semantic_colors.dart';
 
@@ -325,7 +327,14 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               })
             c,
     ];
-    if (chats.isEmpty) return shown;
+    // Spaces: in Messages among the conversations, by their newest message (or now, while anyone is in the call), each
+    // with a preview of it (Matt, 2026-11-17: "I'd also like spaces to show up in the main chats list with a preview
+    // of the last message sent in the space"). A group's own is not one of them: its conversation stands for it.
+    final spaces = _section != null || widget.archived ? const <(DateTime, Object)>[] : [
+      for (final v in Voice.instance.channels)
+        if (v.hangout && (q.isEmpty || v.name.toLowerCase().contains(q) || (Voice.instance.lastMessage(v)?.text.toLowerCase().contains(q) ?? false))) (_spaceDate(v), v as Object),
+    ];
+    if (chats.isEmpty && spaces.isEmpty) return shown;
     if (_section != null) {
       return ([for (final c in shown) (c.date, c as Object), for (final c in chats) (c.date, c as Object)]..sort((a, b) => b.$1.compareTo(a.$1))).map((e) => e.$2).toList();
     }
@@ -334,9 +343,75 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final rest = [for (final c in shown) if (!c.pinned) c];
     final oldest = _more && rest.isNotEmpty ? rest.last.date : null;
     final waiting = [for (final c in chats) if (!pinnedChat(c) && (oldest == null || !c.date.isBefore(oldest))) c];
-    final merged = <(DateTime, Object)>[for (final c in rest) (c.date, c), for (final c in waiting) (c.date, c)]
+    final merged = <(DateTime, Object)>[
+      for (final c in rest) (c.date, c),
+      for (final c in waiting) (c.date, c),
+      for (final v in spaces) if (oldest == null || !v.$1.isBefore(oldest)) v,
+    ]
       ..sort((a, b) => b.$1.compareTo(a.$1));
     return [for (final m in pinned) m.$2, for (final m in merged) m.$2];
+  }
+
+  /// When [v] last had anything happen: now while anyone is in its call, else its newest message or its call's last.
+  DateTime _spaceDate(VoiceChannel v) {
+    final voice = Voice.instance;
+    if (voice.live(v)) return DateTime.now();
+    final said = voice.lastMessage(v)?.at ?? 0;
+    final active = voice.lastActive(v)?.millisecondsSinceEpoch ?? 0;
+    return DateTime.fromMillisecondsSinceEpoch(said > active ? said : active);
+  }
+
+  /// How many are in [v]'s call now, this device among them.
+  static int _inCall(VoiceChannel v) {
+    final voice = Voice.instance;
+    final here = voice.session?.channel.room == v.room;
+    return here ? 1 + voice.session!.members.length : voice.inChannel(v).length;
+  }
+
+  /// How many are in the call of the group of friends whose conversation [c] is; null where it is not one.
+  static int? _groupInCall(Conversation c) {
+    final g = Groups.instance.ofThread(c.id);
+    if (g == null || g.gone) return null;
+    return _inCall(VoiceChannel.ofGroup(g.id, g.name));
+  }
+
+  /// A space in Messages, drawn as a conversation is: its name, a preview of its newest message, its unread mark, and
+  /// how many are in its call in the time's place. Pressed, it opens as a conversation does (HangoutScreen).
+  Widget _spaceRow(VoiceChannel v, {required bool selected}) {
+    final voice = Voice.instance;
+    final last = voice.lastMessage(v);
+    final inCall = _inCall(v);
+    final me = voice.hangoutFor(v)?.me;
+    final String snippet;
+    if (last != null) {
+      final who = last.from == me ? 'You' : (last.name.isNotEmpty ? last.name : voice.nameOf(last.from));
+      snippet = '$who: ${last.text}';
+    } else if (inCall > 0) {
+      snippet = '$inCall in voice · Join any time';
+    } else {
+      snippet = 'No messages yet';
+    }
+    final unread = voice.unreadIn(v);
+    final c = Conversation(
+      id: -(v.seed.hashCode & 0x3fffffff) - 1,
+      date: _spaceDate(v),
+      people: [Person(address: 'space:${v.seed}', name: v.name)],
+      snippet: snippet,
+      unread: unread > 0,
+      error: false,
+      archived: false,
+    );
+    final t = context.tokens;
+    return ConversationRow(
+      key: ValueKey('space-row-${v.room}'),
+      conversation: c,
+      unreadCount: unread,
+      selected: selected,
+      live: inCall,
+      badge: AppIcon(LucideMore.headphones, size: 12, strokeWidth: 2.4, wash: false, color: t.color(inCall > 0 ? 'app-ink' : 'app-ink-2')),
+      onPress: () => _openVoice(v),
+      onLongPress: () => showHangoutMenu(context, v, onOpen: () => _openVoice(v)),
+    );
   }
 
   /// What each signed-in network's chat says of itself, for the filters to sort it with the texts: its newest message,
@@ -442,6 +517,14 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   /// Hops into [c] and shows it.
   Future<void> _openVoice(VoiceChannel c) async {
+    // A group of friends' space is its conversation (Matt, 2026-11-17: "each group should come with a space"; he chose
+    // one chat for both): it opens there, where its call is joined from the top.
+    final group = c.group == null ? null : Groups.instance.of(c.group!);
+    if (group != null && !group.gone && group.thread >= 0 && Voice.instance.session?.channel.room != c.room) {
+      final held = (_all ?? const <Conversation>[]).where((x) => x.id == group.thread).firstOrNull;
+      await _open(held ?? Conversation(id: group.thread, date: DateTime.now(), people: [for (final m in group.others) m.person], snippet: '', unread: false, error: false, archived: false));
+      return;
+    }
     // In its call already, with a developer design chosen: its page (lib/ui/space_designs).
     if (Voice.instance.session?.channel.room == c.room && openSpaceCall(context)) return;
     // A hangout opens its page: its chat, who is in it, and a way into voice (lib/ui/hangout_screen.dart).
@@ -591,9 +674,14 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// end, or a tab's own menu.
   Future<void> _markAllRead(String? section) async {
     final unread = _unreadTexts(section);
-    final chats = _unreadChats(section);
+    // A space's chat is one of the list's chats here: counted and read with them.
+    final spaces = _unreadSpaces(section);
+    final chats = [..._unreadChats(section), ...spaces];
     for (final c in chats) {
-      unawaited(Inbox.instance.named(c.network)?.markRead(c.id));
+      if (c is InboxChat) unawaited(Inbox.instance.named(c.network)?.markRead(c.id));
+    }
+    for (final v in spaces) {
+      Voice.instance.markRead(v);
     }
     if (unread.isEmpty && chats.isNotEmpty) {
       toast(context, '${chats.length} marked as read');
@@ -627,6 +715,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// 2026-11-16: "I still can't mark telegram and signal messages as read with the read all even though they're marked
   /// as unread"): it once took only the rows the list had drawn, which left out a chat older than the oldest text
   /// read so far, one a filter hid, and every chat where the tab was a network's own. Messages is all of them.
+  /// The spaces with unread messages that [section] holds: the main list's.
+  List<VoiceChannel> _unreadSpaces(String? section) =>
+      section != null || widget.archived ? const [] : [for (final v in Voice.instance.channels) if (v.hangout && Voice.instance.unreadIn(v) > 0) v];
+
   List<InboxChat> _unreadChats(String? section) {
     if (widget.archived) return [for (final n in Inbox.instance.ready) for (final c in n.archivedChats) if (c.unread > 0) c];
     if (section == voiceTab) return const [];
@@ -659,7 +751,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       return;
     }
     final all = _of(section);
-    final unread = all.where((c) => c.unread).length + _unreadChats(section).length;
+    final unread = all.where((c) => c.unread).length + _unreadChats(section).length + _unreadSpaces(section).length;
     final name = _plugins.tabName(section);
     showChoices(context, title: '$name · ${unread == 0 ? 'nothing unread' : '$unread unread'}', choices: [
       Choice('Mark all as read', Lucide.checkCheck, () => _markAllRead(section)),
@@ -712,7 +804,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       Choice(c.archived ? 'Unarchive' : 'Archive', c.archived ? Lucide.archiveRestore : Lucide.archive, () => _archive(c)),
       // On a computer, blocking and deleting are offered when the phone it is paired with does them for one.
       if (!c.group && c.people.isNotEmpty && Sms.can('setBlocked'))
-        Choice(c.blocked ? 'Unblock' : 'Block number', Lucide.ban, () => c.blocked ? _setBlocked(c, false) : _confirmBlock(c), danger: !c.blocked),
+        blockChoice(context, BlockTarget.number(c.people.first.address, c.title, thread: c.id), blocked: c.blocked, done: _load),
       if (Sms.can('deleteThreads')) Choice('Delete conversation', Lucide.trash2, () => _confirmDelete(c), danger: true),
     ]);
   }
@@ -750,23 +842,6 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       if (mounted) toast(context, 'Couldn\'t ${c.pinned ? 'unpin' : 'pin'}: $e', tone: GlacierToastTone.danger);
     }
     _load();
-  }
-
-  void _confirmBlock(Conversation c) {
-    showChoices(context, title: 'Block ${c.title}? Android will stop their texts and calls before they reach you.', choices: [
-      Choice('Block', Lucide.ban, () => _setBlocked(c, true), danger: true),
-    ]);
-  }
-
-  Future<void> _setBlocked(Conversation c, bool blocked) async {
-    try {
-      await Sms.instance.setBlocked(c.people.first.address, blocked);
-      if (blocked) await Sms.instance.archive(c.id, true);
-      await _load();
-      if (mounted) toast(context, blocked ? 'Blocked and archived' : 'Unblocked');
-    } catch (e) {
-      if (mounted) toast(context, 'Couldn\'t change the block: $e', tone: GlacierToastTone.danger);
-    }
   }
 
   /// Asks before deleting [c], unless it was [slid] and "Don't ask again" was chosen once (deleteAskOff).
@@ -1009,6 +1084,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
             final d = rows[at] as DiscordChannel;
             return DiscordChannelRow(key: ValueKey('discord-${d.guildId}-${d.id}'), channel: d);
           }
+          if (at < rows.length && rows[at] is VoiceChannel && _section != voiceTab) {
+            final v = rows[at] as VoiceChannel;
+            return _spaceRow(v, selected: AppShell.wideOf(context) && Voice.instance.viewing?.seed == v.seed);
+          }
           if (at < rows.length && rows[at] is VoiceChannel) {
             final v = rows[at] as VoiceChannel;
             return VoiceRow(key: ValueKey('voice-${v.room}'), channel: v, onPress: () => _openVoice(v));
@@ -1037,6 +1116,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   ? PluginRow(conversation: c, look: look.$1, host: look.$2, selecting: _selecting, selected: selected, onPress: () => _selecting ? _toggle(c) : _open(c), onLongPress: () => _selecting ? _toggle(c) : _menu(c))
                   : ConversationRow(
                       conversation: c,
+                      // A group of friends' call, while anyone is in it: its space is its conversation's.
+                      live: _groupInCall(c),
                       // Unread texts summed up by the phone's own model, made as the row is first shown.
                       summary: widget.archived ? null : (Summaries.instance..want(c)).of(c),
                       selecting: _selecting,
@@ -1129,10 +1210,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           else
             Padding(
               padding: EdgeInsets.only(left: t.space(1)),
-              child: MarkAllRead(unread: _unreadTexts(_section).length + _unreadChats(_section).length, onPress: () => _markAllRead(_section)),
+              child: MarkAllRead(unread: _unreadTexts(_section).length + _unreadChats(_section).length + _unreadSpaces(_section).length, onPress: () => _markAllRead(_section)),
             ),
           // Shown alone, with no frame and so no pill: the two it would hold.
-          if (!framed) IconTap(icon: Lucide.messageSquarePlus, label: 'New message', onPressed: _compose),
+          // The same plain plus as the pill's, that says New (Matt, 2026-11-17).
+          if (!framed) IconTap(icon: Lucide.plus, label: 'New', onPressed: _compose),
           if (!framed) IconTap(icon: Lucide.settings, label: 'Settings', onPressed: _settings),
         ],
       ],
@@ -1278,8 +1360,11 @@ class _RcsNotice extends StatelessWidget {
 /// One conversation in the list: its face, its name, its last words and when. The Mac's list (lib/desktop) draws its
 /// rows with it too.
 class ConversationRow extends StatelessWidget {
-  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false, this.summary, this.badge, this.unreadCount});
+  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false, this.summary, this.badge, this.unreadCount, this.live});
   final Conversation conversation;
+
+  /// How many are in its call now, where it has one (a space, a group of friends): said in green in the time's place.
+  final int? live;
 
   /// How many are unread, where that is known (a chat on Telegram or Signal): Dial-Up's row says it after the name,
   /// "Maya (3)". A conversation of texts knows only that some are, and says "(new)".
@@ -1380,7 +1465,19 @@ class ConversationRow extends StatelessWidget {
                         if (c.muted) ...[SizedBox(width: t.space(1)), AppIcon(GhostIcons.bellOff, size: 13, color: t.color('app-ink-3'))],
                         if (c.blocked) ...[SizedBox(width: t.space(1)), AppIcon(Lucide.ban, size: 13, color: t.danger)],
                         SizedBox(width: t.space(2)),
-                        Text(listWhen(c.date), style: pageText(t, t.fontSize('xs'), weight: unread ? 'semibold' : 'regular', color: t.color(unread ? 'app-ink' : 'app-ink-3'))),
+                        if ((live ?? 0) > 0)
+                          Semantics(
+                            label: '$live in voice',
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              Container(width: 7, height: 7, decoration: BoxDecoration(shape: BoxShape.circle, color: t.online)),
+                              SizedBox(width: t.space(1)),
+                              AppIcon(LucideMore.headphones, size: 12, strokeWidth: 2.4, wash: false, color: t.online),
+                              SizedBox(width: 3),
+                              Text('$live', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.online)),
+                            ]),
+                          )
+                        else
+                          Text(listWhen(c.date), style: pageText(t, t.fontSize('xs'), weight: unread ? 'semibold' : 'regular', color: t.color(unread ? 'app-ink' : 'app-ink-3'))),
                       ]),
                       SizedBox(height: t.lenOf('0.15rem')),
                       Row(children: [

@@ -454,10 +454,19 @@ class Telegram extends InboxNetwork {
         if ((u['type'] as Map?)?['@type'] == 'userTypeBot') _bots.add((u['id'] as num).toInt());
         final name = [u['first_name'], u['last_name']].whereType<String>().where((s) => s.isNotEmpty).join(' ');
         _users[(u['id'] as num).toInt()] = name.isEmpty ? 'Someone' : name;
+      case 'updateChatBlockList':
+        // Blocked or unblocked, here or in Telegram's own app: Ghost's list follows Telegram's.
+        final id = (m['chat_id'] as num).toInt();
+        final on = (m['block_list'] as Map?)?['@type'] == 'blockListMain';
+        if (on != isBlocked('$id')) {
+          keepBlocked('$id', name: '${_chatsById[id]?['title'] ?? ''}', on: on);
+          notifyListeners();
+        }
       case 'updateNewChat':
         final c = (m['chat'] as Map).cast<String, Object?>();
         final id = (c['id'] as num).toInt();
         _chatsById[id] = c;
+        if ((c['block_list'] as Map?)?['@type'] == 'blockListMain' && !isBlocked('$id')) keepBlocked('$id', name: '${c['title'] ?? ''}');
         for (final p in (c['positions'] as List? ?? const [])) {
           _position(id, p as Map);
         }
@@ -592,6 +601,45 @@ class Telegram extends InboxNetwork {
   Future<void> archive(String chatId, bool archived) async {
     final r = await _ask({'@type': 'addChatToList', 'chat_id': int.parse(chatId), 'chat_list': {'@type': archived ? 'chatListArchive' : 'chatListMain'}});
     if (r['@type'] == 'error') _error = _plain(r);
+    notifyListeners();
+  }
+
+  @override
+  bool get canBlock => true;
+
+  /// Blocked on Telegram itself, as its own Block user does: they can't message or call this account, on any of its
+  /// devices. A one-to-one chat's id is the person's.
+  @override
+  Future<void> block(String chatId, {required String name, bool on = true}) async {
+    final type = _chatsById[int.tryParse(chatId)]?['type'] as Map?;
+    final user = type?['@type'] == 'chatTypePrivate' ? (type!['user_id'] as num).toInt() : int.tryParse(chatId);
+    if (user == null) throw StateError('Only a person can be blocked');
+    final r = await _ask({
+      '@type': 'setMessageSenderBlockList',
+      'sender_id': {'@type': 'messageSenderUser', 'user_id': user},
+      'block_list': on ? {'@type': 'blockListMain'} : null,
+    });
+    if (r['@type'] == 'error') throw StateError(_plain(r));
+    await super.block(chatId, name: name, on: on);
+  }
+
+  /// Telegram's own list, as its Settings › Privacy › Blocked users shows it: Ghost's list is made the same.
+  @override
+  Future<void> refreshBlocked() async {
+    if (_state != InboxState.ready) return;
+    final r = await _ask({'@type': 'getBlockedMessageSenders', 'block_list': {'@type': 'blockListMain'}, 'offset': 0, 'limit': 100});
+    if (r['@type'] == 'error') return;
+    final there = <String, String>{};
+    for (final s in (r['senders'] as List? ?? const [])) {
+      final user = (s as Map)['user_id'];
+      if (user is num) there['${user.toInt()}'] = _users[user.toInt()] ?? '${_chatsById[user.toInt()]?['title'] ?? ''}';
+    }
+    // Only a full list says who is no longer blocked: past a hundred, the ones beyond are left as Ghost has them.
+    final whole = ((r['total_count'] as num?) ?? 0) <= there.length;
+    for (final id in localList('blocked')) {
+      if (whole && !there.containsKey(id)) keepBlocked(id, on: false);
+    }
+    there.forEach((id, name) => keepBlocked(id, name: name));
     notifyListeners();
   }
 
