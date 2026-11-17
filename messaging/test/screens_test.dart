@@ -575,7 +575,7 @@ void main() {
       await _shoot(tester, sheet, const AppShell(), '1-update-banner', dark: dark);
       expect(find.textContaining('is out'), findsOneWidget);
       expect(find.text('Update now'), findsOneWidget);
-      expect(tester.getRect(find.textContaining('is out')).bottom, lessThan(tester.getRect(find.text('Messages').first).top));
+      expect(tester.getRect(find.textContaining('is out')).bottom, lessThan(tester.getRect(find.byType(GlacierSearchField).first).top));
       _updateWaiting = false;
       // A row dragged sideways (lib/ui/swipe_actions.dart): to the left past Archive, on past Delete, back to
       // Archive and let go; then to the right past Pin. The phone ticks at each detent it passes into.
