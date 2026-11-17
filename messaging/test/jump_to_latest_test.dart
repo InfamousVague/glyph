@@ -1,0 +1,421 @@
+
+import 'package:flutter/gestures.dart' show PointerScrollEvent;
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/inbox/inbox.dart';
+import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
+import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner;
+import 'package:ghost_messaging/sms.dart' show Person;
+import 'package:ghost_messaging/ui/hangout_screen.dart';
+import 'package:ghost_messaging/ui/inbox_ui.dart';
+import 'package:ghost_messaging/ui/jump_to_latest.dart';
+import 'package:ghost_messaging/ui/thread.dart';
+import 'package:ghost_messaging/voice/hangout.dart';
+import 'package:ghost_messaging/voice/roles.dart';
+import 'package:ghost_messaging/voice/voice.dart';
+import 'package:glacier/glacier.dart';
+
+import 'support/list_harness.dart';
+
+// The down arrow back to the newest message, and each chat opening where it was left (lib/ui/jump_to_latest.dart; Matt,
+// 2026-11-17: "add a down arrow that pops up when we enter a chat and we're not scrolled to the bottom or after we
+// scroll up a certain amount, remember the scroll position when switching between chats"), in all three chats: a
+// Telegram chat, a conversation of texts, and a space's chat whose page stays as the room changes.
+
+const _label = 'Jump to the newest message';
+
+/// A Telegram signed in, held in memory: [count] messages in each chat, a long line each, so the list is many screens.
+class _Network extends InboxNetwork {
+  _Network(List<String> chats, {int count = 60})
+      : _messages = {
+          for (final c in chats)
+            c: [
+              for (var i = 0; i < count; i++)
+                InboxMessage(id: '$c-$i', text: 'Message $i in $c, long enough to take a line or two of the bubble', date: DateTime(2026, 11, 17, 9).add(Duration(minutes: i)), mine: i.isOdd),
+            ],
+        };
+  final Map<String, List<InboxMessage>> _messages;
+
+  /// [n] older messages come in at the top, as a network's next page back does.
+  void older(String chat, int n) {
+    final list = _messages[chat]!;
+    list.insertAll(0, [
+      for (var i = n; i > 0; i--) InboxMessage(id: '$chat-old-$i', text: 'Older $i in $chat, long enough to take a line or two of the bubble', date: DateTime(2026, 11, 16, 9).add(Duration(minutes: -i)), mine: false),
+    ]);
+    notifyListeners();
+  }
+
+  /// Something about the network changed that is not a message (presence, typing): the chat is built again.
+  void poke() => notifyListeners();
+
+  void arrive(String chat, String text) {
+    final list = _messages[chat]!;
+    list.add(InboxMessage(id: '$chat-${list.length}', text: text, date: DateTime(2026, 11, 17, 12).add(Duration(minutes: list.length)), mine: false));
+    notifyListeners();
+  }
+
+  @override
+  String get id => 'telegram';
+  @override
+  String get name => 'Telegram';
+  @override
+  InboxState get state => InboxState.ready;
+  @override
+  String? get error => null;
+  @override
+  String? get account => '@matt';
+  @override
+  List<InboxChat> get chats => [for (final c in _messages.keys) InboxChat(network: 'telegram', id: c, title: 'Chat $c', date: DateTime(2026, 11, 17, 12), snippet: '')];
+  @override
+  List<InboxMessage> messagesOf(String chatId) => _messages[chatId] ?? const [];
+  @override
+  Future<void> load(String chatId, {bool older = false}) async {}
+  @override
+  Future<void> send(String chatId, String text) async {}
+  @override
+  Future<void> markRead(String chatId) async {}
+  @override
+  set watching(String? chatId) {}
+  @override
+  Future<void> start(AppState app) async {}
+  @override
+  Future<void> signOut() async {}
+}
+
+/// The phone, answering for a conversation of texts with [count] messages in each thread.
+void _phone({int count = 60}) {
+  final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+  messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async => null);
+  messenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async {
+    final args = (call.arguments as Map?) ?? const {};
+    switch (call.method) {
+      case 'status':
+        return const {'isDefault': true, 'contacts': true, 'notifications': true, 'phone': true};
+      case 'messages':
+        final thread = (args['thread'] as num).toInt();
+        final base = DateTime(2026, 11, 17, 9).millisecondsSinceEpoch;
+        return [
+          for (var i = count - 1; i >= 0; i--)
+            {'id': thread * 1000 + i, 'kind': 'sms', 'address': '+1555123000$thread', 'body': 'Text $i in thread $thread, long enough to take a line or two', 'date': base + i * 60000, 'outgoing': i.isOdd, 'state': i.isOdd ? 'delivered' : 'received', 'read': true},
+        ];
+      case 'e2e':
+        return {'address': args['address'], 'state': 'none', 'verified': false, 'changed': false};
+      case 'prefs':
+        return <String, String>{};
+      case 'ghostPeers':
+      case 'netSmsAvailable':
+        return false;
+      default:
+        return null;
+    }
+  });
+}
+
+/// The message list's own scroll position (the composer has one too).
+ScrollPosition _list(WidgetTester tester) {
+  final scrollable = find.descendant(of: find.byType(ListView), matching: find.byType(Scrollable)).first;
+  return tester.state<ScrollableState>(scrollable).position;
+}
+
+/// Whether the arrow is up: its fade aimed at showing it. (A semantics finder still sees a node a frame after it is
+/// excluded, so the fade is what is read; the label is checked where the arrow is pressed.)
+bool _arrow() {
+  final fade = find.ancestor(of: find.byKey(const ValueKey('jump-to-latest')), matching: find.byType(AnimatedOpacity));
+  return fade.evaluate().any((e) => (e.widget as AnimatedOpacity).opacity == 1);
+}
+
+/// Leaves whatever chat was open (its page goes, as switching chats does) and opens [screen].
+Future<void> _open(WidgetTester tester, TokenSheet sheet, Widget screen, AppState state) async {
+  await tester.pumpWidget(const SizedBox());
+  await pumpScreen(tester, sheet, screen, state);
+}
+
+Future<void> _up(WidgetTester tester, double by) async {
+  _list(tester).jumpTo(_list(tester).pixels + by);
+  await settle(tester);
+}
+
+void main() {
+  late TokenSheet sheet;
+  setUp(ScrollMemory.clear);
+
+  testWidgets('a Telegram chat: hidden at the foot, up past a screen it comes, pressed it goes back to the newest', (tester) async {
+    final semantics = tester.ensureSemantics();
+    sheet = await loadSheet(tester);
+    _phone();
+    final n = _Network(['a']);
+    await _open(tester, sheet, InboxChatScreen(network: n, chatId: 'a'), AppState());
+    expect(_list(tester).pixels, 0);
+    expect(_arrow(), isFalse, reason: 'at the newest message there is nothing to go back to');
+
+    // A little way up (under a screen) is still near enough: no arrow.
+    await _up(tester, 200);
+    expect(_arrow(), isFalse);
+
+    // Past a screen and a half.
+    await _up(tester, _list(tester).viewportDimension * 1.5);
+    expect(_arrow(), isTrue);
+
+    await tester.tap(find.bySemanticsLabel(_label));
+    await settle(tester);
+    await tester.pump(const Duration(milliseconds: 400));
+    await settle(tester);
+    expect(_list(tester).pixels, 0);
+    expect(_arrow(), isFalse);
+    semantics.dispose();
+  });
+
+  testWidgets('what others write while the person reads back is counted on the arrow', (tester) async {
+    final semantics = tester.ensureSemantics();
+    sheet = await loadSheet(tester);
+    _phone();
+    final n = _Network(['a']);
+    await _open(tester, sheet, InboxChatScreen(network: n, chatId: 'a'), AppState());
+    await _up(tester, 300);
+    expect(_arrow(), isFalse);
+    n.arrive('a', 'are you there?');
+    n.arrive('a', 'hello?');
+    await settle(tester);
+    expect(_arrow(), isTrue, reason: 'new messages bring it even under a screen up');
+    expect(find.text('2'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel(_label));
+    await tester.pump(const Duration(milliseconds: 400));
+    await settle(tester);
+    expect(find.text('2'), findsNothing);
+    expect(_arrow(), isFalse);
+    semantics.dispose();
+  });
+
+  testWidgets('a chat opens where it was left, with the arrow; each chat keeps its own place', (tester) async {
+    final semantics = tester.ensureSemantics();
+    sheet = await loadSheet(tester);
+    _phone();
+    final n = _Network(['a', 'b']);
+    final state = AppState();
+    await _open(tester, sheet, InboxChatScreen(key: const ValueKey('a'), network: n, chatId: 'a'), state);
+    await _up(tester, 900);
+    final left = _list(tester).pixels;
+    expect(left, 900);
+
+    // Chat b, read a little way up (under the arrow's line) and left there.
+    await _open(tester, sheet, InboxChatScreen(key: const ValueKey('b'), network: n, chatId: 'b'), state);
+    expect(_list(tester).pixels, 0, reason: 'a chat opened for the first time opens at its newest');
+    expect(_arrow(), isFalse);
+    await _up(tester, 250);
+
+    // Back to a: where it was, and the arrow up at once, though it is under a screen and a half up.
+    await _open(tester, sheet, InboxChatScreen(key: const ValueKey('a2'), network: n, chatId: 'a'), state);
+    expect(_list(tester).pixels, left);
+    expect(_arrow(), isTrue);
+
+    // And b where it was.
+    await _open(tester, sheet, InboxChatScreen(key: const ValueKey('b2'), network: n, chatId: 'b'), state);
+    expect(_list(tester).pixels, 250);
+    expect(_arrow(), isTrue, reason: 'opened away from the newest');
+
+    // Pressed, b is at its newest, and opens there next time.
+    await tester.tap(find.bySemanticsLabel(_label));
+    await tester.pump(const Duration(milliseconds: 400));
+    await settle(tester);
+    await _open(tester, sheet, InboxChatScreen(key: const ValueKey('b3'), network: n, chatId: 'b'), state);
+    expect(_list(tester).pixels, 0);
+    expect(_arrow(), isFalse);
+    semantics.dispose();
+  });
+
+  testWidgets('a chat that does not yet hold as far back as its spot gets there as its older messages come', (tester) async {
+    sheet = await loadSheet(tester);
+    _phone();
+    final n = _Network(['a'], count: 6);
+    ScrollMemory.keep('inbox:telegram:a', 2000, seen: 'a-4');
+    await _open(tester, sheet, InboxChatScreen(network: n, chatId: 'a'), AppState());
+    expect(_list(tester).pixels, lessThan(2000), reason: 'six messages do not reach that far');
+    n.older('a', 60);
+    await settle(tester);
+    expect(_list(tester).pixels, 2000);
+    expect(_arrow(), isTrue);
+  });
+
+  testWidgets('a mouse wheel leaves a spot the list cannot reach: messages that come later do not take it back up', (tester) async {
+    sheet = await loadSheet(tester);
+    _phone();
+    final n = _Network(['a'], count: 24);
+    ScrollMemory.keep('inbox:telegram:a', 5000, seen: 'a-22');
+    await _open(tester, sheet, InboxChatScreen(network: n, chatId: 'a'), AppState());
+    final most = _list(tester).maxScrollExtent;
+    expect(most, greaterThan(300), reason: 'the chat runs past a screen, but nowhere near 5000');
+    expect(_list(tester).pixels, most, reason: 'as far back as it goes');
+
+    // The wheel, down toward the newest (a mouse on the Mac).
+    tester.binding.handlePointerEvent(PointerScrollEvent(position: tester.getCenter(find.byType(ListView)), scrollDelta: const Offset(0, 200)));
+    await settle(tester);
+    final read = _list(tester).pixels;
+    expect(read, lessThan(most));
+
+    n.arrive('a', 'are you there?');
+    await settle(tester);
+    n.older('a', 60);
+    await settle(tester);
+    expect(_list(tester).pixels, read, reason: 'the person moved it: it stays where they put it');
+  });
+
+  testWidgets('a spot past the end of everything the chat holds is given up once the list stops growing', (tester) async {
+    sheet = await loadSheet(tester);
+    _phone();
+    final n = _Network(['a'], count: 24);
+    ScrollMemory.keep('inbox:telegram:a', 5000, seen: 'a-22');
+    await _open(tester, sheet, InboxChatScreen(network: n, chatId: 'a'), AppState());
+    final most = _list(tester).maxScrollExtent;
+    expect(_list(tester).pixels, most);
+    // Built again and again with nothing further back (presence, typing), for a couple of seconds.
+    for (var i = 0; i < 5; i++) {
+      n.poke();
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+    expect(_arrow(), isTrue);
+    // Older messages coming now (a page read later) no longer take the list up to the old spot.
+    n.older('a', 60);
+    await settle(tester);
+    expect(_list(tester).pixels, most);
+  });
+
+  testWidgets('a spot taken at another width (the Fold\'s cover screen, then its inner one) opens at the newest', (tester) async {
+    sheet = await loadSheet(tester);
+    _phone();
+    final n = _Network(['a']);
+    final state = AppState();
+    await tester.pumpWidget(const SizedBox());
+    await pumpScreen(tester, sheet, InboxChatScreen(key: const ValueKey('cover'), network: n, chatId: 'a'), state, size: const Size(360, 780));
+    await _up(tester, 1200);
+    expect(ScrollMemory.of('inbox:telegram:a')?.offset, 1200, reason: 'kept as it goes, not only as the screen goes');
+
+    await tester.pumpWidget(const SizedBox());
+    await pumpScreen(tester, sheet, InboxChatScreen(key: const ValueKey('inner'), network: n, chatId: 'a'), state, size: const Size(880, 780));
+    expect(_list(tester).pixels, 0, reason: 'every bubble wraps afresh: 1200 would be some other message');
+    expect(_arrow(), isFalse);
+
+    // The same width again keeps its place.
+    await _up(tester, 700);
+    await tester.pumpWidget(const SizedBox());
+    await pumpScreen(tester, sheet, InboxChatScreen(key: const ValueKey('inner2'), network: n, chatId: 'a'), state, size: const Size(880, 780));
+    expect(_list(tester).pixels, 700);
+    expect(_arrow(), isTrue);
+  });
+
+  testWidgets('no count where the message last seen is no longer held, however many came', (tester) async {
+    sheet = await loadSheet(tester);
+    _phone();
+    final n = _Network(['a'], count: 300);
+    ScrollMemory.keep('inbox:telegram:a', 900, seen: 'a-gone');
+    await _open(tester, sheet, InboxChatScreen(network: n, chatId: 'a'), AppState());
+    expect(_arrow(), isTrue);
+    expect(find.text('99+'), findsNothing);
+    expect(find.text('100'), findsNothing);
+
+    // Seen one that is held, more than 99 back: 99+. (The chat is left first, since leaving keeps its spot.)
+    await tester.pumpWidget(const SizedBox());
+    ScrollMemory.keep('inbox:telegram:a', 900, seen: 'a-10');
+    await pumpScreen(tester, sheet, InboxChatScreen(key: const ValueKey('again'), network: n, chatId: 'a'), AppState());
+    expect(find.text('99+'), findsOneWidget);
+  });
+
+  testWidgets('signing out of a network forgets where its chats were left', (tester) async {
+    ScrollMemory.keep('inbox:telegram:a', 900);
+    ScrollMemory.keep('inbox:signal:a', 900);
+    ScrollMemory.keep('sms:4', 900);
+    ScrollMemory.forgetAll('inbox:telegram:');
+    expect(ScrollMemory.of('inbox:telegram:a'), isNull);
+    expect(ScrollMemory.of('inbox:signal:a'), isNotNull);
+    expect(ScrollMemory.of('sms:4'), isNotNull);
+  });
+
+  testWidgets('a conversation of texts keeps its place across leaving and opening it again, apart from another', (tester) async {
+    final semantics = tester.ensureSemantics();
+    sheet = await loadSheet(tester);
+    _phone();
+    final state = AppState();
+    Widget thread(int id) => ThreadScreen(key: ValueKey('thread-$id-${DateTime.now().microsecondsSinceEpoch}'), thread: id, people: [Person(address: '+1555123000$id', name: 'Person $id')]);
+    await _open(tester, sheet, thread(1), state);
+    expect(_list(tester).pixels, 0);
+    expect(_arrow(), isFalse);
+    await _up(tester, _list(tester).viewportDimension * 1.6);
+    expect(_arrow(), isTrue);
+    final left = _list(tester).pixels;
+
+    await _open(tester, sheet, thread(2), state);
+    expect(_list(tester).pixels, 0);
+    expect(_arrow(), isFalse);
+
+    await _open(tester, sheet, thread(1), state);
+    expect(_list(tester).pixels, left);
+    expect(_arrow(), isTrue);
+
+    await tester.tap(find.bySemanticsLabel(_label));
+    await tester.pump(const Duration(milliseconds: 400));
+    await settle(tester);
+    expect(_list(tester).pixels, 0);
+    expect(_arrow(), isFalse);
+    semantics.dispose();
+  });
+
+  testWidgets('a space\'s chat, its page moved from room to room, puts each room back where it was', (tester) async {
+    final semantics = tester.ensureSemantics();
+    sheet = await loadSheet(tester);
+    _phone();
+    final one = _room('Friday hang'), two = _room('Book club');
+    final pick = ValueNotifier(one);
+    addTearDown(pick.dispose);
+    await _open(tester, sheet, ValueListenableBuilder(valueListenable: pick, builder: (_, room, _) => HangoutChat(room: room)), AppState());
+    expect(_list(tester).pixels, 0);
+    await _up(tester, 1000);
+    expect(_arrow(), isTrue);
+
+    pick.value = two;
+    await settle(tester);
+    expect(_list(tester).pixels, 0, reason: 'the other room had no place kept: its newest');
+    expect(_arrow(), isFalse);
+
+    pick.value = one;
+    await settle(tester);
+    expect(_list(tester).pixels, 1000);
+    expect(_arrow(), isTrue);
+    semantics.dispose();
+  });
+}
+
+/// A space with 60 messages in its chat, this device in it.
+HangoutRoom _room(String name) {
+  final keys = NetKeys.generate();
+  final channel = VoiceChannel.make(name, owner: NetCrypto.hex(keys.public));
+  final store = MemoryHangoutStore();
+  final at = DateTime(2026, 11, 16, 19).millisecondsSinceEpoch;
+  store.keepMessages(channel.chatRoom, [
+    for (var i = 0; i < 60; i++) HangoutMessage(id: '$i', from: i.isOdd ? keys.id : 'a', name: i.isOdd ? 'Me' : 'Maya', text: 'Line $i in $name, long enough to take a line or two of the bubble', at: at + i * 60000),
+  ]);
+  store.keepRoster(channel.chatRoom, Roster.first(channel.owner));
+  return HangoutRoom(channel: channel, route: _NoRoute(keys.id), name: 'Me', signer: KeysSigner(keys), store: store);
+}
+
+class _NoRoute implements VoiceRoute {
+  _NoRoute(this.me);
+  @override
+  final String me;
+  @override
+  Future<List<String>> join(String room, String token) async => const [];
+  @override
+  void leave(String room) {}
+  @override
+  void send(String room, Uint8List bytes) {}
+  @override
+  void look(String room, String token) {}
+  @override
+  void unlook(String room) {}
+  @override
+  Stream<RoomEvent> get events => const Stream.empty();
+  @override
+  Stream<({String room, String from, Uint8List bytes})> get packets => const Stream.empty();
+  @override
+  Stream<({String room, List<String> members})> get looks => const Stream.empty();
+}

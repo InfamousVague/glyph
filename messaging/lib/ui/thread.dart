@@ -45,6 +45,7 @@ import '../sounds.dart';
 import '../kit/semantic_colors.dart';
 import 'dialup/bevel.dart' show DialupColors, isDialup;
 import 'message_line.dart';
+import 'jump_to_latest.dart';
 import 'translated_card.dart';
 
 /// One conversation: its messages oldest at the top, newest by the composer.
@@ -210,6 +211,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     if (_recordingLimit != null) Sms.instance.cancelVoice().catchError((_) {});
     Sms.instance.stopVoice().catchError((_) {});
     if (_editing == null) Sms.instance.setDraft(widget.thread, _text.text);
+    // The spot itself was kept by the arrow (JumpToLatest) as it went; how many messages it took to get there goes with it.
+    ScrollMemory.hold(_spot, _limit);
+    _scroll.dispose();
     _text.dispose();
     _focus.dispose();
     super.dispose();
@@ -347,7 +351,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   /// How many of the newest messages are held. A conversation opens on its newest [_opening], which is several
   /// screens of them, and takes [_step] more each time the reader nears the oldest held (Matt, 2026-11-13: "load by
   /// most recent first so that things are faster"). Before this it held the newest 300 and no way to the rest.
-  int _limit = _opening;
+  late int _limit = math.max(_opening, ScrollMemory.of(_spot)?.held ?? 0);
   static const _opening = 120;
   static const _step = 300;
 
@@ -367,6 +371,14 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       WidgetsBinding.instance.addPostFrameCallback((_) => _readingOlder = false);
     }
   }
+
+  /// Where this conversation was left, and its list's controller, which starts there (lib/ui/jump_to_latest.dart; Matt,
+  /// 2026-11-17: "remember the scroll position when switching between chats").
+  String get _spot => 'sms:${widget.thread}';
+  late final ScrollController _scroll = ScrollMemory.controllerFor(() => _spot);
+
+  /// The messages from others, newest first, for the down arrow to count what came while the person was reading back.
+  Iterable<Object> get _incoming => _folded.messages.where((m) => !m.outgoing && !_isLine(m)).map((m) => m.key);
 
   /// The first message unread as the chat was opened (a group's), and whether that has been looked for yet.
   String? _firstNewKey;
@@ -1050,11 +1062,18 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         if (_older && !_readingOlder && n.metrics.axis == Axis.vertical && n.metrics.extentAfter < 900) _readOlder();
         return false;
       },
-      child: ListView(
-        reverse: true,
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
-        children: items,
+      child: JumpToLatest(
+        controller: _scroll,
+        chat: _spot,
+        incoming: _incoming,
+        inset: EdgeInsets.only(right: t.space(3), bottom: t.space(3)),
+        child: ListView(
+          controller: _scroll,
+          reverse: true,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
+          children: items,
+        ),
       ),
     );
   }
@@ -1173,11 +1192,19 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           if (_older && !_readingOlder && n.metrics.axis == Axis.vertical && n.metrics.extentAfter < 900) _readOlder();
           return false;
         },
-        child: ListView(
-          reverse: true,
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          children: items,
+        // The arrow inside the well, at its corner: a raised square button, as the room's own are.
+        child: JumpToLatest(
+          controller: _scroll,
+          chat: _spot,
+          incoming: _incoming,
+          inset: const EdgeInsets.only(right: 8, bottom: 8),
+          child: ListView(
+            controller: _scroll,
+            reverse: true,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            children: items,
+          ),
         ),
       ),
     );

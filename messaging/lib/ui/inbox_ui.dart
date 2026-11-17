@@ -49,6 +49,7 @@ import '../kit/semantic_colors.dart';
 import 'dialup/bevel.dart' show DialupColors, isDialup;
 import 'message_line.dart';
 import 'translated_card.dart';
+import 'jump_to_latest.dart';
 import 'inbox_signin_teams.dart';
 import 'inbox_signin_google_chat.dart';
 import 'inbox_signin_whatsapp.dart' show WhatsAppLinkScreen;
@@ -151,7 +152,10 @@ class InboxChatScreen extends StatefulWidget {
 
 class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingObserver {
   final _text = TextEditingController();
-  final _scroll = ScrollController();
+  /// The chat's list, starting where the chat was left (lib/ui/jump_to_latest.dart; Matt, 2026-11-17: "remember the
+  /// scroll position when switching between chats").
+  String get _spot => 'inbox:${widget.network.id}:${widget.chatId}';
+  late final ScrollController _scroll = ScrollMemory.controllerFor(() => _spot);
   bool _loadingOlder = false;
 
   InboxNetwork get _n => widget.network;
@@ -523,7 +527,14 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
           body: list.isEmpty
               ? Center(child: Text(_n.state == InboxState.ready ? 'No messages yet' : 'Not signed in to ${_n.name}', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))
               // Dial-Up writes the chat as a chat room's transcript (lib/ui/message_line.dart), as it does texts.
-              : isDialup(context)
+              // The down arrow over the list's foot, back to the newest message (Matt, 2026-11-17: "add a down arrow that
+              // pops up when we enter a chat and we're not scrolled to the bottom or after we scroll up a certain amount").
+              : JumpToLatest(
+                  controller: _scroll,
+                  chat: _spot,
+                  incoming: list.where((m) => !m.mine).map((m) => m.id),
+                  inset: isDialup(context) ? const EdgeInsets.only(right: 14, bottom: 12) : EdgeInsets.only(right: t.space(3), bottom: t.space(3)),
+                  child: isDialup(context)
               ? _transcript(chat, list)
               : ListView.builder(
                   controller: _scroll,
@@ -555,6 +566,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                       )),
                     ]);
                   },
+                ),
                 ),
         );
       },
@@ -1206,7 +1218,13 @@ List<Widget> _pane(BuildContext context, InboxNetwork n) {
           SettingRow(
             icon: _icon(Lucide.logOut),
             label: 'Sign out',
-            onPress: () => showChoices(context, title: 'Sign out of ${n.name}?', choices: [Choice('Sign out', Lucide.logOut, () => n.signOut(), danger: true)]),
+            onPress: () => showChoices(context, title: 'Sign out of ${n.name}?', choices: [
+              // Its chats' kept spots go with it: signed in again, perhaps as someone else, the same ids may name other chats.
+              Choice('Sign out', Lucide.logOut, () {
+                ScrollMemory.forgetAll('inbox:${n.id}:');
+                n.signOut();
+              }, danger: true),
+            ]),
           ),
         ] else if (n.state == InboxState.unavailable)
           SettingRow(icon: _icon(Lucide.info), label: 'Not in this build', hint: Text(n.error ?? '${n.name} isn\'t set up in this build of the app.'), disabled: true)

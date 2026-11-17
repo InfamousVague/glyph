@@ -25,6 +25,7 @@ import 'package:ghost_messaging/ui/compose.dart';
 import 'package:ghost_messaging/ui/dialup/dialup.dart';
 import 'package:ghost_messaging/ui/hangout_screen.dart';
 import 'package:ghost_messaging/ui/inbox_ui.dart';
+import 'package:ghost_messaging/ui/jump_to_latest.dart';
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/ui/shell.dart';
 import 'package:ghost_messaging/ui/thread.dart';
@@ -407,12 +408,27 @@ final themeScreens = <ThemeScreen>[
   ThemeScreen('translated', () => const ThreadScreen(thread: 8, people: [Person(address: '+15551230009', name: 'Lucía Ortega')]), choices: _translateOn, before: _translating, after: _translated),
   ThemeScreen('translated-inbox', () => InboxChatScreen(network: _telegram(), chatId: '11', fallback: _camille), choices: _translateOn, before: _translating, after: _translated),
   ThemeScreen('translate-settings', () => const SettingsSectionScreen('plugin-translate'), choices: _translateOn, before: _translating, after: _translated),
+  // The down arrow back to the newest message (Matt, 2026-11-17: "add a down arrow that pops up when we enter a chat and
+  // we're not scrolled to the bottom or after we scroll up a certain amount, remember the scroll position when switching
+  // between chats"): a long conversation opened where it was left, two screens up, with two texts come since.
+  ThemeScreen('thread-scrolled', () => const ThreadScreen(thread: 12, people: [Person(address: '+15551230012', name: 'Priya Natarajan')]), before: () => _leftUp(12), after: ScrollMemory.clear),
+  // The same on a small phone and a wide window, where the pane's edge and the quick replies could crowd it; and the
+  // arrow over a Telegram chat and over a space's chat. Each its own chat: the screen drawn before is let go only as the
+  // next is drawn, and keeps its own spot as it goes.
+  ThemeScreen('thread-scrolled-360', () => const ThreadScreen(thread: 13, people: [Person(address: '+15551230012', name: 'Priya Natarajan')]), size: const Size(360, 780), before: () => _leftUp(13), after: ScrollMemory.clear),
+  ThemeScreen('thread-scrolled-wide', () => const ThreadScreen(thread: 14, people: [Person(address: '+15551230012', name: 'Priya Natarajan')]), size: ThemeScreen.wide, before: () => _leftUp(14), after: ScrollMemory.clear),
+  ThemeScreen('inbox-scrolled', () => InboxChatScreen(network: _telegram(), chatId: '12', fallback: _priyaTg), before: () => ScrollMemory.keep('inbox:telegram:12', 1400, seen: '37'), after: ScrollMemory.clear),
+  ThemeScreen('space-scrolled', () => HangoutScreen(channel: _longSpace().channel), before: () {
+    Voice.instance.putHangout(_longSpace());
+    ScrollMemory.keep('space:${_longSpace().channel.room}', 1400, seen: '37');
+  }, after: ScrollMemory.clear),
 ];
 
 void _translateOn(AppState state) => state.set('plugin_translate', 'on');
 
 /// The French chat's name, as it was opened: it is not in the network's list of chats, so the list's pictures stay
 /// as they were, and its bar read "Telegram" over "Telegram" without it.
+final _priyaTg = InboxChat(network: 'telegram', id: '12', title: 'Priya Natarajan', date: _now.subtract(const Duration(minutes: 1)), snippet: 'Text 40');
 final _camille = InboxChat(network: 'telegram', id: '11', title: 'Camille Laurent', date: _now.subtract(const Duration(minutes: 4)), snippet: 'Yes, where?');
 
 void _translating() {
@@ -572,6 +588,7 @@ final _conversations = [
 ];
 
 List<Map<String, Object?>> _messages(int thread) => switch (thread) {
+      12 || 13 || 14 => _long,
       8 => [
           {'id': 25, 'kind': 'sms', 'address': '+15551230009', 'body': 'Obrigada pela ajuda de ontem, foi muito gentil', 'date': _ago(minutes: 1), 'outgoing': false, 'state': 'received', 'read': true},
           {'id': 24, 'kind': 'sms', 'address': '+15551230009', 'body': 'Perfecto, yo llevo el postre. Mi madre hizo flan otra vez', 'date': _ago(minutes: 3), 'outgoing': false, 'state': 'received', 'read': true},
@@ -600,6 +617,16 @@ List<Map<String, Object?>> _messages(int thread) => switch (thread) {
           {'id': 1, 'kind': 'sms', 'address': '+15551230001', 'body': 'Hey! Long time 👋', 'date': _ago(days: 1, hours: 3), 'outgoing': false, 'state': 'received', 'read': true},
         ],
     };
+
+/// A long conversation (threads 12, 13 and 14) for the down arrow's screen: forty texts, newest first, every third yours.
+final _long = [
+  for (var i = 40; i >= 1; i--)
+    {'id': 1200 + i, 'kind': 'sms', 'address': '+15551230012', 'body': i % 3 == 0 ? 'Text $i of mine, about the weekend and who is driving' : 'Text $i from Priya, a line or two long so the conversation runs several screens', 'date': _ago(minutes: 200 - i * 4), 'outgoing': i % 3 == 0, 'state': i % 3 == 0 ? 'delivered' : 'received', 'read': true},
+];
+
+/// [thread] (12, or 13 and 14 for the same conversation at other widths) left two screens up, the newest text from
+/// Priya seen then being the third newest of hers: the two since are counted on the arrow.
+void _leftUp(int thread) => ScrollMemory.keep('sms:$thread', 1400, seen: 'sms:${1200 + 37}');
 
 void _answerChannel() {
   final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -661,6 +688,11 @@ InboxNetwork _telegram() => _tg ??= _FakeNetwork('telegram', 'Telegram', [
         InboxMessage(id: '4', text: 'are you coming tonight?', date: _now.subtract(const Duration(minutes: 2)), mine: false),
         InboxMessage(id: '5', text: 'yes! save me a spot', date: _now.subtract(const Duration(minutes: 1)), mine: true),
       ],
+      // A long chat for the down arrow's screen ('inbox-scrolled'): forty messages, every third yours.
+      '12': [
+        for (var i = 1; i <= 40; i++)
+          InboxMessage(id: '$i', text: i % 3 == 0 ? 'Message $i of mine, about the weekend and who is driving' : 'Message $i from Priya, a line or two long so the chat runs several screens', date: _now.subtract(Duration(minutes: 200 - i * 4)), mine: i % 3 == 0),
+      ],
       // A chat in French, translated (the 'translated-inbox' screen): not in the list of chats, so the list is as it was.
       '11': [
         InboxMessage(id: '1', text: 'Salut ! Tu es libre ce soir pour un verre ?', date: _now.subtract(const Duration(minutes: 6)), mine: false),
@@ -718,6 +750,21 @@ HangoutRoom _space() => _room ??= () {
       return HangoutRoom(channel: channel, route: _NoRoute(keys.id), name: 'Me', signer: KeysSigner(keys), store: store);
     }();
 HangoutRoom? _room;
+
+/// A space whose chat runs several screens, for the down arrow over a space's chat ('space-scrolled').
+HangoutRoom _longSpace() => _long2 ??= () {
+      final keys = NetKeys.generate();
+      final channel = VoiceChannel.make('Book club', owner: NetCrypto.hex(keys.public));
+      final store = MemoryHangoutStore();
+      final at = _now.subtract(const Duration(minutes: 200)).millisecondsSinceEpoch;
+      store.keepMessages(channel.chatRoom, [
+        for (var i = 1; i <= 40; i++)
+          HangoutMessage(id: '$i', from: i % 3 == 0 ? keys.id : 'a', name: i % 3 == 0 ? 'Me' : 'Maya Chen', text: i % 3 == 0 ? 'Line $i of mine, about the next book' : 'Line $i from Maya, a line or two long so the chat runs several screens', at: at + i * 240000),
+      ]);
+      store.keepRoster(channel.chatRoom, Roster.first(channel.owner));
+      return HangoutRoom(channel: channel, route: _NoRoute(keys.id), name: 'Me', signer: KeysSigner(keys), store: store);
+    }();
+HangoutRoom? _long2;
 
 /// A space with people in it: Maya (in voice) and Dana there on joining, then Riley comes in and Dana leaves, each
 /// saying their name as the app does ('hi', sealed with the space's key). One per [screen], each joined afresh.
