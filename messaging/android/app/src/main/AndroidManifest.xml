@@ -91,6 +91,14 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+            <!-- Files shared from other apps, one or many, of any kind: added to a Files space the person picks
+                 (lib/ui/files_space/share_in.dart). -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
         </activity>
 
         <!-- Required of a default SMS app: incoming SMS, delivered to the default app alone. -->

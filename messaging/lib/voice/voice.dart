@@ -7,6 +7,37 @@ import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
 import '../sounds.dart';
 
+/// What a space is for (Matt, 2026-11-17: "each space should be able to act as a chat and a voice chat, or just a
+/// texting space. Additionally add full functionality for filesharing in a space when the space is designated a Files
+/// Space"). Every space has its chat room; only a [voice] one has a call, so a [text] or [files] one never shows Join
+/// and never asks the relay who is in a call room it does not have.
+///
+/// Carried as `k` wherever a space goes (its JSON, its link, the invite, the phone and computer in step), left out for
+/// [voice], so a space from before kinds is a voice one and an older build reading a newer space just sees a voice
+/// space.
+enum SpaceKind {
+  voice('Chat and voice', 'Talk any time, with a chat beside it'),
+  text('Texting', 'A chat, no voice'),
+  files('Files', 'Share files, with a chat beside them');
+
+  const SpaceKind(this.label, this.hint);
+  final String label;
+  final String hint;
+
+  /// Its word on the wire: `voice`, `text`, `files`.
+  String get wire => name;
+
+  bool get hasVoice => this == voice;
+
+  /// From its word; voice for anything else (missing, or a kind from a newer build).
+  static SpaceKind of(Object? wire) {
+    for (final k in values) {
+      if (k.name == wire) return k;
+    }
+    return voice;
+  }
+}
+
 /// Voice and video channels (Matt, 2026-11-14: "I'd like to be able to jump in audio chats like discord has always
 /// open voice channels that you can jump in and out at any time and you can see who's connected and also toggle
 /// video on and off, also allow for group chat video and voice calls to hop in the voice and video channel at any time
@@ -29,7 +60,7 @@ import '../sounds.dart';
 /// from the source, and no browser or phone engine sends uncompressed sound or picture.
 @immutable
 class VoiceChannel {
-  const VoiceChannel({required this.seed, required this.name, this.group, this.mine = false, this.owner = '', this.discord});
+  const VoiceChannel({required this.seed, required this.name, this.group, this.mine = false, this.owner = '', this.discord, this.kind = SpaceKind.voice, this.circle});
 
   /// 32 bytes in hex: everything else comes from it.
   final String seed;
@@ -49,6 +80,17 @@ class VoiceChannel {
   /// (lib/voice/roles.dart). Empty for a group's channel and for hangouts made before roles.
   final String owner;
 
+  /// What it is for: chat and voice, texting, or files ([SpaceKind]). A group's channel is always voice.
+  final SpaceKind kind;
+
+  /// The circle it is a space of (its seed, lib/circles/circle.dart), or null for a space of its own. A circle's spaces
+  /// are listed in the circle, not in Messages; this is not kept in the space's JSON, since the circle's list of spaces
+  /// is what says which are its.
+  final String? circle;
+
+  /// Whether it has a call: a [SpaceKind.voice] space, or a group's channel.
+  bool get hasVoice => kind.hasVoice;
+
   Uint8List get _seed => NetCrypto.unhex(seed);
   String get room => NetCrypto.hex(NetCrypto.derive(_seed, 'voice room').sublist(0, 16));
   String get token => NetCrypto.hex(NetCrypto.derive(_seed, 'voice token'));
@@ -64,14 +106,15 @@ class VoiceChannel {
       VoiceChannel(seed: NetCrypto.hex(NetCrypto.sha256(utf8.encode('ghost-voice group|$groupId'))), name: name, group: groupId);
 
   /// A new channel of this phone's.
-  factory VoiceChannel.make(String name, {String owner = ''}) => VoiceChannel(seed: NetCrypto.hex(NetCrypto.randomBytes(32)), name: name, mine: true, owner: owner);
+  factory VoiceChannel.make(String name, {String owner = '', SpaceKind kind = SpaceKind.voice}) => VoiceChannel(seed: NetCrypto.hex(NetCrypto.randomBytes(32)), name: name, mine: true, owner: owner, kind: kind);
 
   /// A hangout (not a group's channel): it has a chat and roles.
   bool get hangout => group == null;
 
-  VoiceChannel copyWith({bool? mine}) => VoiceChannel(seed: seed, name: name, group: group, mine: mine ?? this.mine, owner: owner, discord: discord);
+  VoiceChannel copyWith({bool? mine, String? name, SpaceKind? kind}) =>
+      VoiceChannel(seed: seed, name: name ?? this.name, group: group, mine: mine ?? this.mine, owner: owner, discord: discord, kind: kind ?? this.kind, circle: circle);
 
-  Map<String, Object> toJson() => {'s': seed, 'n': name, if (mine) 'm': 1, if (owner.isNotEmpty) 'o': owner};
+  Map<String, Object> toJson() => {'s': seed, 'n': name, if (mine) 'm': 1, if (owner.isNotEmpty) 'o': owner, if (kind != SpaceKind.voice) 'k': kind.wire};
 
   /// A link anyone can open in a browser to hop in, as a guest or signed up (site/join; Matt, 2026-11-14: "Make the
   /// voice hangouts possible to share via a link so people can join to talk anonymously or sign up through the
@@ -79,13 +122,27 @@ class VoiceChannel {
   /// server, so the link opens the channel and the relay still can't read it. Whoever has it is in, as with a
   /// meeting link.
   ///
-  /// The owner's key follows the name, so the browser knows whose roles to believe.
-  String get link => 'https://gogho.st/join/#$seed.${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}${owner.isEmpty ? '' : '.$owner'}';
+  /// The owner's key follows the name, so the browser knows whose roles to believe; a texting or Files space ends with
+  /// its kind (`.text`, `.files`), which can't be taken for a name or a key, so the page knows not to offer voice.
+  String get link => 'https://gogho.st/join/#$seed.${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}${owner.isEmpty ? '' : '.$owner'}${kind == SpaceKind.voice ? '' : '.${kind.wire}'}';
+
+  /// The space a [link] (or just its part after the #) is; null where it is not one, a circle's among them.
+  static VoiceChannel? fromLink(String link) {
+    final hash = link.contains('#') ? link.substring(link.indexOf('#') + 1) : link;
+    final m = RegExp(r'^([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?(?:\.(voice|text|files))?$').firstMatch(hash);
+    if (m == null) return null;
+    var name = 'Space';
+    try {
+      final b = m.group(2) ?? '';
+      if (b.isNotEmpty) name = utf8.decode(base64Url.decode(base64Url.normalize(b)));
+    } catch (_) {}
+    return VoiceChannel(seed: m.group(1)!, name: name.isEmpty ? 'Space' : name, owner: m.group(3) ?? '', kind: SpaceKind.of(m.group(4)));
+  }
 
   static VoiceChannel? fromJson(Object? j) {
     if (j is! Map || j['s'] is! String || (j['s'] as String).length != 64 || j['n'] is! String) return null;
     final owner = j['o'] is String && RegExp(r'^0[23][0-9a-f]{64}$').hasMatch(j['o'] as String) ? j['o'] as String : '';
-    return VoiceChannel(seed: j['s'] as String, name: j['n'] as String, mine: j['m'] == 1, owner: owner);
+    return VoiceChannel(seed: j['s'] as String, name: j['n'] as String, mine: j['m'] == 1, owner: owner, kind: SpaceKind.of(j['k']));
   }
 }
 

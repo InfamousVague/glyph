@@ -3,13 +3,19 @@ import 'dart:convert' show jsonEncode, utf8;
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart' show GestureBinding;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/ui/composer_box.dart';
 import 'package:ghost_messaging/accent.dart';
 import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/art/app_icon.dart';
+import 'package:ghost_messaging/art/lucide.g.dart';
 import 'package:ghost_messaging/backgrounds.dart';
+import 'package:ghost_messaging/circles/circles.dart';
+import 'package:ghost_messaging/friends/buddies.dart';
+import 'package:ghost_messaging/net/packet.dart' show Envelope;
 import 'package:ghost_messaging/inbox/inbox.dart';
 import 'package:ghost_messaging/kit/semantic_colors.dart';
 import 'package:ghost_messaging/kit/settings_css.dart';
@@ -21,7 +27,13 @@ import 'package:ghost_messaging/plugins/plugin.dart' show DeviceLanguage, Device
 import 'package:ghost_messaging/plugins/registry.dart' show PluginRegistry;
 import 'package:ghost_messaging/plugins/settings.dart' show pluginsScreen;
 import 'package:ghost_messaging/plugins/shown_store.dart' show ShownStore;
+import 'package:ghost_messaging/plugins/ui.dart' show SectionTabs;
 import 'package:ghost_messaging/sms.dart' show Person, Sms;
+import 'package:ghost_messaging/ui/circles/arrange_spaces.dart';
+import 'package:ghost_messaging/ui/circles/circle_invite.dart';
+import 'package:ghost_messaging/ui/circles/circle_list.dart';
+import 'package:ghost_messaging/ui/circles/circle_screen.dart';
+import 'package:ghost_messaging/ui/circles/new_circle.dart';
 import 'package:ghost_messaging/ui/compose.dart';
 import 'package:ghost_messaging/ui/dialup/dialup.dart';
 import 'package:ghost_messaging/ui/hangout_screen.dart';
@@ -35,6 +47,9 @@ import 'package:ghost_messaging/voice/hangout.dart';
 import 'package:ghost_messaging/voice/roles.dart';
 import 'package:ghost_messaging/voice/voice.dart';
 import 'package:glacier/glacier.dart';
+
+import 'circle_sample.dart';
+import 'files_shots.dart';
 
 /// The looks (lib/looks.dart; Matt, 2026-11-16: "spend some time making a few themes for ghost, base one of them
 /// heavily on the old AOL chatrooms").
@@ -446,7 +461,135 @@ final themeScreens = <ThemeScreen>[
     Voice.instance.putHangout(_longSpace());
     ScrollMemory.keep('space:${_longSpace().channel.room}', 1400, seen: '37');
   }, after: ScrollMemory.clear),
+  // Circles (Matt, 2026-11-17: "make a new design for [circles] ... with it's own sidebar full of spaces"): a circle's
+  // list of spaces on a phone and as the sidebar of a wide window, the Circles tab, and making one.
+  ThemeScreen('circle', () => CircleScreen(seed: _circle.seed), before: _joinCircle, after: _leaveCircle),
+  ThemeScreen('circle-wide', () => const AppShell(), size: ThemeScreen.wide, before: _joinCircle, after: _leaveCircle, choices: (_) => _openCircleSoon()),
+  ThemeScreen('new-circle', () => const NewCircleScreen()),
+  // The Circles tab, where the Spaces tab was: each circle, then spaces of one's own; on a phone and a wide window.
+  ThemeScreen('circles-tab', () => const AppShell(), before: _joinBothCircles, after: _leaveOwnCircle, choices: (_) => _tapCirclesTabSoon()),
+  ThemeScreen('circles-tab-wide', () => const AppShell(), size: ThemeScreen.wide, before: _joinBothCircles, after: _leaveOwnCircle, choices: (_) => _tapCirclesTabSoon()),
+  // A Files space (test/files_shots.dart): its list, grid, a wide window, files going up, an empty one, a picture opened.
+  ...filesThemeScreens,
+  // A circle's list, the one way a circle is drawn (Matt, 2026-11-17: "Lets remove the other views and focus on the list
+  // view / layout it's the most practical of them all so far"), with something going on: people talking, new messages,
+  // files counted; on a phone and as a wide window's sidebar with a space open beside it.
+  ThemeScreen('circle-list', () => CircleList(view: sampleCircleView())),
+  ThemeScreen('circle-list-wide', () => CircleList(view: sampleCircleView(wide: true, selected: sampleCircle.spaces.first.seed)), size: const Size(380, 860)),
+  // A circle of one's own: a new space's three kinds as cards (phone and wide), its settings (people and their roles,
+  // the QR code), arranging its spaces, and the invite sheet.
+  ThemeScreen('circle-space-new', () => NewCircleSpaceScreen(circle: _ownCircle), before: _joinOwnCircle, after: _leaveOwnCircle),
+  ThemeScreen('circle-space-new-wide', () => NewCircleSpaceScreen(circle: _ownCircle), size: ThemeScreen.wide, before: _joinOwnCircle, after: _leaveOwnCircle),
+  ThemeScreen('circle-settings', () => CircleSettingsScreen(seed: _ownCircle.seed, qr: true), size: const Size(412, 2300), before: _joinOwnCircle, after: _leaveOwnCircle),
+  ThemeScreen('circle-arrange', () => ArrangeCircleSpacesScreen(seed: _ownCircle.seed), before: _joinOwnCircle, after: _leaveOwnCircle),
+  ThemeScreen('circle-invite', () => CircleInviteSheet(circle: _ownCircle, send: (_, _) async => const [], compose: (_) {}, buddies: _inviteFriends, qr: true), before: _joinOwnCircle, after: _leaveOwnCircle),
 ];
+
+/// A circle to draw: three spaces, one of each kind, one under a heading. Unsigned: drawn, never checked.
+final _circle = Circle(
+  seed: '7' * 64,
+  owner: '',
+  manifest: CircleManifest(owner: '', version: 1, name: 'Night Owls', hue: 'indigo', icon: 'sparkles', spaces: const [
+    CircleSpace(seed: '7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a', name: 'General', kind: SpaceKind.text),
+    CircleSpace(seed: '7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b', name: 'Lounge', order: 1),
+    CircleSpace(seed: '7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c', name: 'Drop box', kind: SpaceKind.files, order: 2, section: 'Sharing'),
+  ]),
+);
+
+/// This install's own circle (its owner is the key [Circles] signs with here), so its pages show what an owner may
+/// change. Drawn, never signed.
+final _ownKeys = NetKeys.generate();
+final _ownCircle = Circle(
+  seed: '6' * 64,
+  owner: NetCrypto.hex(_ownKeys.public),
+  manifest: CircleManifest(owner: NetCrypto.hex(_ownKeys.public), version: 1, name: 'Book Club', hue: 'coral', icon: 'book', spaces: const [
+    CircleSpace(seed: '6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a', name: 'General', kind: SpaceKind.text),
+    CircleSpace(seed: '6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b', name: 'Lounge', order: 1),
+    CircleSpace(seed: '6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c', name: 'Reading list', kind: SpaceKind.files, order: 2, section: 'Books'),
+    CircleSpace(seed: '6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d', name: 'Spoilers', kind: SpaceKind.text, order: 3, section: 'Books'),
+  ]),
+);
+
+/// Two friends to choose from on the invite sheet, one chosen by nobody: kept nowhere, nothing sent.
+final _inviteFriends = Buddies(_StillBuddies())
+  ..all = const [
+    Buddy(username: 'maya', id: 'f1', key: 'k1', name: 'Maya Chen'),
+    Buddy(username: 'theo', id: 'f2', key: 'k2', name: 'Theo Park'),
+  ];
+
+class _StillBuddies implements BuddiesPort {
+  @override
+  Future<({String id, String key})> me() async => (id: 'me', key: 'k');
+  @override
+  String? get username => 'matt';
+  @override
+  String get displayName => 'Matt';
+  @override
+  String get bio => '';
+  @override
+  Future<({String id, String key})?> whois(String username) async => null;
+  @override
+  Future<void> keep(String json) async {}
+  @override
+  Future<String> kept() async => '[]';
+  @override
+  Future<bool> send(String id, Envelope envelope, {bool sealed = true}) async => false;
+  @override
+  Stream<({String from, Envelope envelope})> get received => const Stream.empty();
+  @override
+  Stream<({String from, Envelope envelope})> get greetings => const Stream.empty();
+}
+
+void _joinOwnCircle() {
+  Circles.instance.signerOverride = KeysSigner(_ownKeys);
+  Circles.instance.join(_ownCircle);
+}
+
+void _leaveOwnCircle() {
+  Circles.instance.signerOverride = null;
+  unawaited(Circles.instance.clear());
+}
+
+void _joinCircle() {
+  Circles.instance.join(_circle);
+  // Its General space with a few messages, so a wide window shows a conversation beside the list, not a bare title.
+  Voice.instance.putHangout(_circleGeneral());
+}
+
+/// The test circle's General space's chat, with a few messages in it.
+HangoutRoom _circleGeneral() => _general ??= () {
+      final keys = NetKeys.generate();
+      final channel = _circle.channelOf(_circle.spaces.first);
+      final store = MemoryHangoutStore();
+      final at = _now.subtract(const Duration(minutes: 30)).millisecondsSinceEpoch;
+      store.keepMessages(channel.chatRoom, [
+        HangoutMessage(id: '1', from: 'a', name: 'Maya Chen', text: 'Who is up for the late show tonight?', at: at),
+        HangoutMessage(id: '2', from: 'c', name: 'Theo', text: 'Me! Saving seats in the back', at: at + 120000),
+        HangoutMessage(id: '3', from: keys.id, name: 'Me', text: 'Popcorn is on me', at: at + 300000),
+      ]);
+      return HangoutRoom(channel: channel, route: _NoRoute(keys.id), name: 'Me', signer: KeysSigner(keys), store: store);
+    }();
+HangoutRoom? _general;
+void _leaveCircle() => unawaited(Circles.instance.clear());
+
+void _joinBothCircles() {
+  _joinOwnCircle();
+  Circles.instance.join(_circle);
+}
+
+/// The Circles tab chosen once the list is up, as a finger would: a tap on its icon among the tabs. The picture is
+/// taken after the pumps that follow, so the tap lands before it.
+void _tapCirclesTabSoon() => WidgetsBinding.instance.addPostFrameCallback((_) {
+      final tab = find.descendant(of: find.byType(SectionTabs), matching: find.byWidgetPredicate((w) => w is AppIcon && w.icon == Lucide.circleDot)).evaluate();
+      if (tab.isEmpty) return;
+      final box = tab.first.renderObject! as RenderBox;
+      final at = box.localToGlobal(box.size.center(Offset.zero));
+      GestureBinding.instance.handlePointerEvent(PointerDownEvent(position: at, pointer: 9001));
+      GestureBinding.instance.handlePointerEvent(PointerUpEvent(position: at, pointer: 9001));
+    });
+
+/// The circle opened in the list's place once the frame is up.
+void _openCircleSoon() => WidgetsBinding.instance.addPostFrameCallback((_) => AppShellState.live?.openCircle(_circle));
 
 void _translateOn(AppState state) => state.set('plugin_translate', 'on');
 

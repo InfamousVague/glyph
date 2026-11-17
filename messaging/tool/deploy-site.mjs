@@ -77,6 +77,18 @@ ${DOMAIN} {
 	handle @relay {
 		reverse_proxy 127.0.0.1:18787
 	}
+	# Files spaces' sealed files (relay/lib/files.dart): plain HTTP to the same service. A file goes up in pieces of at
+	# most 8 MB (the relay's maxBody), so no request needs more than this; a download streams back with Range. Not
+	# buffered here either way: flush_interval -1 passes each piece on as it comes.
+	@files path /files /files/*
+	handle @files {
+		request_body {
+			max_size 10MB
+		}
+		reverse_proxy 127.0.0.1:18787 {
+			flush_interval -1
+		}
+	}
 	# The Discord presence bot (discord/, tool/deploy-discord.mjs): a linked Discord server's voice channels and who
 	# is in them, for the app's spaces. Passed on with the /discord prefix kept; the port is that script's PORT.
 	@discord path /discord /discord/*
@@ -105,6 +117,15 @@ ${OLD} {
 	@relay path /hub /relay/* /link/*
 	handle @relay {
 		reverse_proxy 127.0.0.1:18787
+	}
+	@files path /files /files/*
+	handle @files {
+		request_body {
+			max_size 10MB
+		}
+		reverse_proxy 127.0.0.1:18787 {
+			flush_interval -1
+		}
 	}
 	@discord path /discord /discord/*
 	handle @discord {

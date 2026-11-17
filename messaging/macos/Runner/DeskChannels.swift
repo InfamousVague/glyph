@@ -38,6 +38,14 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
         result(DeskChannels.pickPictures(most: args["most"] as? Int ?? 5))
       case "pasteImage":
         result(DeskChannels.pasteImage())
+      // A Files space (lib/files/file_platform.dart): any files to add, where to save one, and the Mac's share menu.
+      case "pickFiles":
+        result(DeskChannels.pickFiles(most: args["most"] as? Int ?? 50))
+      case "saveFile":
+        result(DeskChannels.saveFile(name: args["name"] as? String ?? "File"))
+      case "shareFile":
+        DeskChannels.shareFile(path: args["path"] as? String ?? "")
+        result(nil)
       case "emoji":
         // The Mac's own "Emoji & Symbols": what is chosen there is typed into the field the cursor is in.
         NSApp.orderFrontCharacterPalette(nil)
@@ -119,6 +127,39 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
     panel.allowedContentTypes = [.image]
     guard panel.runModal() == .OK else { return [] }
     return panel.urls.prefix(max(1, most)).map { $0.path }
+  }
+
+  // MARK: A Files space's files
+
+  /// The Mac's panel for choosing files of any kind: the paths chosen, none where it was put away.
+  private static func pickFiles(most: Int) -> [String] {
+    let panel = NSOpenPanel()
+    panel.title = "Choose files"
+    panel.prompt = "Add"
+    panel.canChooseFiles = true
+    panel.canChooseDirectories = false
+    panel.allowsMultipleSelection = most > 1
+    guard panel.runModal() == .OK else { return [] }
+    return panel.urls.prefix(max(1, most)).map { $0.path }
+  }
+
+  /// The Mac's Save panel, starting in Downloads with the file's own name: the path chosen, nil where it was put away.
+  /// The file is copied there by the app (Dart), which has it.
+  private static func saveFile(name: String) -> String? {
+    let panel = NSSavePanel()
+    panel.nameFieldStringValue = name
+    panel.canCreateDirectories = true
+    panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+    guard panel.runModal() == .OK, let url = panel.url else { return nil }
+    return url.path
+  }
+
+  /// The Mac's share menu for the file at [path], shown from the middle of the window.
+  private static func shareFile(path: String) {
+    guard !path.isEmpty, let view = NSApp.keyWindow?.contentView ?? NSApp.mainWindow?.contentView else { return }
+    let picker = NSSharingServicePicker(items: [URL(fileURLWithPath: path)])
+    let at = NSRect(x: view.bounds.midX - 1, y: view.bounds.midY - 1, width: 2, height: 2)
+    picker.show(relativeTo: at, of: view, preferredEdge: .minY)
   }
 
   // MARK: The Keychain: the pairing's key, as a generic password of this app's.

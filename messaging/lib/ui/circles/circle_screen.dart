@@ -1,0 +1,239 @@
+/// A circle, in the list's place with a way back at its top (AppShell.openCircle; the pattern the server preview had,
+/// Matt, 2026-11-17: "it should takeover the normal sidebar when i enter a server with a back button at the top"):
+/// its list of spaces (circle_list.dart), and a space opened in the pane, beside it in a wide window and over it on a
+/// phone, as a conversation is.
+library;
+
+import 'package:flutter/widgets.dart';
+import 'package:glacier/glacier.dart';
+
+import '../../art/app_icon.dart';
+import '../../art/lucide.g.dart';
+import '../../circles/circles.dart';
+import '../../files/files_store.dart';
+import '../../voice/channels.dart';
+import '../../sms.dart' show Conversation, Person;
+import '../../voice/hangout.dart' show HangoutMessage;
+import '../../voice/voice.dart';
+import '../common.dart';
+import '../conversations.dart' show ConversationRow;
+import '../dialup/bevel.dart';
+import '../dialup/parts.dart' show DialupFace;
+import '../files_space/files_screen.dart';
+import '../hangout_screen.dart';
+import '../shell.dart';
+import 'arrange_spaces.dart';
+import 'circle_face.dart';
+import 'circle_invite.dart';
+import 'circle_list.dart';
+import 'circle_view.dart';
+import 'new_circle.dart';
+
+export 'circle_invite.dart' show showCircleInvite;
+
+/// The seed of the circle space open in the pane, while one is: the row the circle's list marks.
+final openCircleSpaceSeed = ValueNotifier<String?>(null);
+
+/// What a circle's space opens as: a voice space its chat with a way into its call, a texting space only its chat (no
+/// Join: HangoutScreen leaves it out for a space with no voice), and a Files space its files page. The files page is
+/// lib/ui/files_space/ (FilesSpaceScreen), its chat a press away at its top.
+Widget circleSpacePage(VoiceChannel c, {Key? key}) => c.kind == SpaceKind.files ? FilesSpaceScreen(key: key, channel: c) : HangoutScreen(key: key, channel: c);
+
+/// Opens [c], a space of a circle, in the pane: beside the circle's list in a wide window, over it on a phone.
+void openCircleSpace(BuildContext context, VoiceChannel c) {
+  final shell = AppShell.maybeOf(context);
+  openCircleSpaceSeed.value = c.seed;
+  Voice.instance.markRead(c);
+  if (shell == null) {
+    push<void>(context, (_) => circleSpacePage(c));
+    return;
+  }
+  shell.show(circleSpacePage(c, key: ValueKey('circle-space-page-${c.seed}')), showing: 'circle');
+}
+
+class CircleScreen extends StatelessWidget {
+  const CircleScreen({super.key, required this.seed, this.onBack});
+
+  /// The circle's seed: it is read from Circles each time it changes.
+  final String seed;
+
+  /// Back to the conversations; the list's own navigator's pop where not given.
+  final VoidCallback? onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    final circles = Circles.instance;
+    final voice = Voice.instance;
+    return ListenableBuilder(
+      listenable: Listenable.merge([circles, voice, openCircleSpaceSeed, FilesStore.instance]),
+      builder: (context, _) {
+        final c = circles.bySeed(seed);
+        final back = onBack ?? () => Navigator.of(context).maybePop();
+        if (c == null) {
+          // Left meanwhile (here, or on the phone or computer).
+          return GhostPage(title: 'Circle', onBack: back, body: const Center(child: Text('You left this circle.')));
+        }
+        return CircleList(view: circleView(context, c, onBack: back));
+      },
+    );
+  }
+}
+
+/// [c] as its list draws it, as it stands now.
+CircleView circleView(BuildContext context, Circle c, {required VoidCallback onBack}) {
+  final circles = Circles.instance;
+  final voice = Voice.instance;
+  final wide = AppShell.wideOf(context);
+  final showing = AppShell.maybeOf(context) == null || AppShell.showingOf(context) == 'circle';
+  final spaces = [
+    for (final s in c.spaces)
+      () {
+        final channel = c.channelOf(s);
+        final here = voice.session?.channel.room == channel.room;
+        final ids = !channel.hasVoice ? const <String>[] : (here ? ['me', ...voice.session!.members.keys] : voice.inChannel(channel));
+        final last = voice.lastMessage(channel);
+        final me = voice.hangoutFor(channel)?.me;
+        String who(HangoutMessage m) => m.from == me ? 'You' : (m.name.isNotEmpty ? m.name : voice.nameOf(m.from));
+        return CircleSpaceView(
+          space: s,
+          channel: channel,
+          unread: voice.unreadIn(channel),
+          lastMessage: last == null ? null : '${who(last)}: ${last.text}',
+          lastAt: last == null ? null : DateTime.fromMillisecondsSinceEpoch(last.at),
+          inVoice: [for (final id in ids) id == 'me' ? 'You' : voice.nameOf(id)],
+          here: here,
+          files: s.kind == SpaceKind.files ? FilesStore.instance.heldCount(channel) : null,
+        );
+      }(),
+  ];
+  final canEdit = circles.canEdit(c);
+  return CircleView(
+    circle: c,
+    spaces: spaces,
+    selected: wide && showing ? openCircleSpaceSeed.value : null,
+    wide: wide,
+    canEdit: canEdit,
+    online: circles.onlineIn(c),
+    onOpen: (s) => openCircleSpace(context, s.channel),
+    onSpaceMenu: (s) => showCircleSpaceMenu(context, c, s),
+    onNewSpace: ({String? section}) => canEdit ? push<void>(context, (_) => NewCircleSpaceScreen(circle: c, section: section)) : null,
+    onSettings: () => push<void>(context, (_) => CircleSettingsScreen(seed: c.seed)),
+    onInvite: () => showCircleInvite(context, c),
+    onBack: onBack,
+    onMenu: () => showCircleMenu(context, c),
+  );
+}
+
+/// A circle's menu: invite, new space, arranging, settings, leave.
+void showCircleMenu(BuildContext context, Circle c) {
+  final canEdit = Circles.instance.canEdit(c);
+  showChoices(context, title: c.name, choices: [
+    Choice('Invite people', Lucide.userPlus, () => showCircleInvite(context, c)),
+    if (canEdit) Choice('New space', Lucide.plus, () => push<void>(context, (_) => NewCircleSpaceScreen(circle: c))),
+    if (canEdit) Choice('Arrange spaces', Lucide.listTree, () => push<void>(context, (_) => ArrangeCircleSpacesScreen(seed: c.seed)), hint: 'Move, rename or delete them'),
+    Choice(canEdit ? 'Circle settings' : 'About this circle', Lucide.settings, () => push<void>(context, (_) => CircleSettingsScreen(seed: c.seed))),
+    Choice('Leave circle', Lucide.logOut, () => confirmLeaveCircle(context, c), danger: true),
+  ]);
+}
+
+/// A space's menu in a circle: open, and for whoever may change the circle, rename, heading, kind, arrange and delete.
+void showCircleSpaceMenu(BuildContext context, Circle c, CircleSpaceView s) {
+  final circles = Circles.instance;
+  final canEdit = circles.canEdit(c);
+  showChoices(context, title: '${s.name} · ${spaceKindTitle(s.kind)}', choices: [
+    Choice('Open', spaceKindIcon(s.kind), () => openCircleSpace(context, s.channel)),
+    if (canEdit) ...[
+      Choice('Rename', Lucide.pencil, () => askCircleWords(context, title: 'Rename ${s.name}', initial: s.name, then: (name) => circles.updateSpace(c, s.seed, name: name))),
+      Choice('Heading', Lucide.listTree, () => askCircleWords(context, title: 'Heading for ${s.name}', initial: s.section ?? '', hint: 'Spaces with the same heading are listed together. Leave it empty for none.', then: (h) => circles.updateSpace(c, s.seed, section: h.isEmpty ? null : h, clearSection: h.isEmpty))),
+      for (final k in SpaceKind.values)
+        if (k != s.kind) Choice('Make it ${spaceKindTitle(k).toLowerCase()}', spaceKindIcon(k), () => circles.updateSpace(c, s.seed, kind: k), hint: spaceKindBlurb(k)),
+      Choice('Arrange spaces', Lucide.gripVertical, () => push<void>(context, (_) => ArrangeCircleSpacesScreen(seed: c.seed))),
+      Choice('Delete space', Lucide.trash2, () => confirmRemoveCircleSpace(context, c, s.space), danger: true),
+    ],
+  ]);
+}
+
+/// Asks first, then leaves [c] on this device and its phone or computer.
+void confirmLeaveCircle(BuildContext context, Circle c) {
+  showChoices(context, title: 'Leave ${c.name}? It goes from your list; its link brings you back.', choices: [
+    Choice('Leave circle', Lucide.logOut, () async {
+      final shell = AppShell.maybeOf(context);
+      await Circles.instance.leave(c);
+      if (shell?.openCircleSeed == c.seed && context.mounted) Navigator.of(context).maybePop();
+      if (context.mounted) toast(context, 'Left ${c.name}');
+    }, danger: true),
+  ]);
+}
+
+/// The Circles tab's row for [circle], drawn as a conversation's (ConversationRow), so it has the same card, the same
+/// Dial-Up transcript line, its newest activity's time, an unread dot and who is talking: its face, its name, and
+/// "3 spaces · Maya is talking" or its newest message.
+class CircleRow extends StatelessWidget {
+  const CircleRow({super.key, required this.circle, this.onPress, this.onLongPress, this.selected = false});
+  final Circle circle;
+  final VoidCallback? onPress;
+  final VoidCallback? onLongPress;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final circles = Circles.instance;
+    final voice = Voice.instance;
+    final unread = circles.unread(circle);
+    final inVoice = circles.inVoice(circle);
+    final count = '${circle.spaces.length} ${circle.spaces.length == 1 ? 'space' : 'spaces'}';
+    // The newest message in any of its spaces, and which space it was in.
+    HangoutMessage? newest;
+    VoiceChannel? where;
+    for (final ch in circle.channels) {
+      final m = voice.lastMessage(ch);
+      if (m != null && (newest == null || m.at > newest.at)) (newest, where) = (m, ch);
+    }
+    String line;
+    if (inVoice.isNotEmpty) {
+      final names = inVoice.take(3).map(voice.nameOf).join(', ');
+      line = '$count · ${inVoice.length == 1 ? '$names is talking' : '$names talking'}';
+    } else if (newest != null) {
+      final me = voice.hangoutFor(where!)?.me;
+      final who = newest.from == me ? 'You' : (newest.name.isNotEmpty ? newest.name : voice.nameOf(newest.from));
+      line = '${where.name} · $who: ${newest.text}';
+    } else {
+      line = count;
+    }
+    final c = Conversation(
+      id: -(circle.seed.hashCode & 0x3fffffff) - 1,
+      date: newest == null ? DateTime.now() : DateTime.fromMillisecondsSinceEpoch(newest.at),
+      people: [Person(address: 'circle:${circle.seed}', name: circle.name)],
+      name: circle.name,
+      snippet: line,
+      unread: unread > 0,
+      error: false,
+      archived: false,
+    );
+    return ConversationRow(
+      conversation: c,
+      unreadCount: unread,
+      live: inVoice.isEmpty ? null : inVoice.length,
+      timed: newest != null,
+      selected: selected,
+      face: (size) => _CircleRowFace(circle: circle, size: size),
+      onPress: onPress ?? () => AppShell.maybeOf(context)?.openCircle(circle),
+      onLongPress: onLongPress ?? () => showCircleMenu(context, circle),
+    );
+  }
+}
+
+/// A circle's face in its row: round in its colour; in Dial-Up a small square frame as its people's faces have, its
+/// icon (or picture) in the page's ink set into it.
+class _CircleRowFace extends StatelessWidget {
+  const _CircleRowFace({required this.circle, required this.size});
+  final Circle circle;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    if (!isBevelChrome(t)) return CircleFace.of(circle, size: size);
+    return DialupFace(size: size, child: circle.picture != null ? CircleFace.of(circle, size: size) : Center(child: AppIcon(circleIconOf(circle.icon), size: size * 0.66, color: t.color('app-ink'), wash: false)));
+  }
+}

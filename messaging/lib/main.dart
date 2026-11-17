@@ -36,8 +36,11 @@ import 'voice/space_groups.dart';
 import 'sounds.dart';
 import 'sms.dart';
 import 'ui/computers.dart';
+import 'ui/files_space/share_in.dart';
 import 'onboarding/onboarding.dart';
 import 'inbox/alerts.dart';
+import 'circles/circles.dart';
+import 'files/files_store.dart';
 import 'inbox/inbox.dart';
 import 'inbox/telegram.dart';
 import 'ui/inbox_ui.dart';
@@ -268,7 +271,11 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       final app = AppState.of(context);
       // The interface sounds (lib/sounds.dart) read the person's choices from here.
       Sounds.instance.start(app);
-      Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => Groups.instance.start()).then((_) => Voice.instance.start(app));
+      Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => Groups.instance.start()).then((_) => Voice.instance.start(app)).then((_) => Circles.instance.start(app));
+      // Files spaces' files (lib/files/files_store.dart): what was going up when the app closed goes on, and files
+      // shared in from other apps are offered to a Files space (lib/ui/files_space/share_in.dart).
+      unawaited(FilesStore.instance.start());
+      FilesShareIn.attach(_navigator);
       // Spaces' groups, and Discord servers linked into Spaces (lib/voice/space_groups.dart, lib/voice/discord.dart).
       SpaceGroups.instance.start(app);
       DiscordServers.instance.start(app);

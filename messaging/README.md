@@ -43,6 +43,22 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     stages with their times to `signal.log` beside its store and to standard error, which the app now passes to the
     Developer log (its own lines and signalmeow's warnings only; no message's words). Why Signal itself is slow to
     take a message is not known yet: the next stuck send says where in that log.
+- **Circles, and Files spaces** (not released; `lib/circles/`, `lib/ui/circles/`, `lib/files/`, `lib/ui/files_space/`,
+  `lib/net/file_seal.dart`, `relay/lib/files.dart`; Matt, 2026-11-17: "remove all of the code related to the server UIs and
+  make a new design ... with it's own sidebar full of spaces each space should be able to act as a chat and a voice chat,
+  or just a texting space. Additionally add full functionality for filesharing in a space when the space is designated
+  a Files Space", then "Lets remove the other views and focus on the list view"). The server preview and the Servers tab
+  are gone; the Circles tab is in their place, with spaces outside circles, space groups and linked Discord servers
+  under the circles. A circle has a name, colour, icon and picture, and a list of spaces under headings, each one of
+  three kinds (`k`: chat and voice, text, Files). The list is an owner-signed manifest (admins the owner grants may sign;
+  an owner-signed generation makes removing an admin final) gossiped sealed in the circle's own hub room; links are
+  `gogho.st/join/#c.<seed>...`. A Files space keeps its files on the relay (`/files/`), each sealed end to end in 256 KiB
+  AES-GCM chunks with a key of its own and described in a sealed op log, so the relay sees only blobs and sizes: upload
+  with progress and resume, list and grid, folders, search and sort, previews (pictures, video, audio, text, PDF by the
+  system), save, share, rename, move, delete; drag and drop on the Mac, share into it from Android. Programs are never
+  opened from the app. Relay limits: a file 2 GB, a space and the store by quota, per-address limits, reservations
+  released after 10 minutes. Tests: circles_test, circles_trust_test, circle_list_test, circles_screens_test,
+  files_space_test, files_space_screen_test, relay files_test and files_limits_test.
 - **A down arrow to the newest message, and each chat keeps its place** (not released; `lib/ui/jump_to_latest.dart`;
   Matt, 2026-11-17: "add a down arrow that pops up when we enter a chat and we're not scrolled to the bottom or after we
   scroll up a certain amount, remember the scroll position when switching between chats"). In texts, Telegram and

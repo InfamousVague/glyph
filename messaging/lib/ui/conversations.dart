@@ -27,7 +27,10 @@ import '../summaries.dart';
 import 'common.dart';
 import 'voice_screen.dart';
 import 'hangout_screen.dart';
-import 'servers/server_rows.dart';
+import '../circles/circles.dart';
+import 'circles/circle_face.dart';
+import 'circles/circle_screen.dart';
+import 'circles/new_circle.dart';
 import 'space_groups_ui.dart';
 import '../voice/discord.dart';
 import '../voice/space_groups.dart';
@@ -37,6 +40,7 @@ import '../voice/channels.dart';
 import 'update_banner.dart';
 import 'compose.dart';
 import 'dialup/dialup.dart';
+import 'files_space/files_screen.dart';
 import 'settings.dart';
 import 'shell.dart';
 import 'swipe_actions.dart';
@@ -70,6 +74,13 @@ class ConversationsScreen extends StatefulWidget {
   /// The Archived page opens with every conversation in it chosen, for the bar at the top to take them back out or
   /// delete them: asked for from the Archive ring's menu (lib/ui/shell.dart).
   final bool selectAll;
+
+  /// The tab the main list is showing (null for Messages): the wide window's empty pane reads it, so it can say
+  /// "Choose a circle" while the Circles tab is up (lib/ui/shell.dart).
+  static final shownTab = ValueNotifier<String?>(null);
+
+  /// The Circles tab's id among the tabs.
+  static const circlesTab = '*circles';
 
   @override
   State<ConversationsScreen> createState() => _ConversationsScreenState();
@@ -154,6 +165,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     Voice.instance.addListener(_summed);
     SpaceGroups.instance.addListener(_summed);
     DiscordServers.instance.addListener(_summed);
+    Circles.instance.addListener(_summed);
     // Telegram's and Bluesky's chats (lib/inbox): each signed-in network is a tab, and its chats come into it.
     _inbox.addListener(_summed);
     _load();
@@ -177,6 +189,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     Voice.instance.removeListener(_summed);
     SpaceGroups.instance.removeListener(_summed);
     DiscordServers.instance.removeListener(_summed);
+    Circles.instance.removeListener(_summed);
     _inbox.removeListener(_summed);
     _shell?.closed.removeListener(_back);
     _plugins.dispose();
@@ -331,10 +344,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // Spaces: in Messages among the conversations, by their newest message (or now, while anyone is in the call), each
     // with a preview of it (Matt, 2026-11-17: "I'd also like spaces to show up in the main chats list with a preview
     // of the last message sent in the space"). A group's own is not one of them: its conversation stands for it.
-    // An archived one is in Archive instead (Voice.archive).
+    // An archived one is in Archive instead (Voice.archive). A circle's spaces are in their circle (the Circles tab).
     final spaces = _section != null ? const <(DateTime, Object)>[] : [
       for (final v in Voice.instance.channels)
-        if (v.hangout && Voice.instance.archived(v) == widget.archived && (q.isEmpty || v.name.toLowerCase().contains(q) || (Voice.instance.lastMessage(v)?.text.toLowerCase().contains(q) ?? false))) (_spaceDate(v), v as Object),
+        if (v.hangout && v.circle == null && Voice.instance.archived(v) == widget.archived && (q.isEmpty || v.name.toLowerCase().contains(q) || (Voice.instance.lastMessage(v)?.text.toLowerCase().contains(q) ?? false))) (_spaceDate(v), v as Object),
     ];
     if (chats.isEmpty && spaces.isEmpty) return shown;
     if (_section != null) {
@@ -410,7 +423,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       unreadCount: unread,
       selected: selected,
       live: inCall,
-      badge: AppIcon(LucideMore.headphones, size: 12, strokeWidth: 2.4, wash: false, color: t.color(inCall > 0 ? 'app-ink' : 'app-ink-2')),
+      // Its kind's mark: headphones, a speech bubble for texting, a folder for files (lib/ui/circles/circle_face.dart).
+      badge: AppIcon(spaceKindIcon(v.kind), size: 12, strokeWidth: 2.4, wash: false, color: t.color(inCall > 0 ? 'app-ink' : 'app-ink-2')),
       onPress: () => _openVoice(v),
       onLongPress: () => showHangoutMenu(context, v, onOpen: () => _openVoice(v)),
     );
@@ -505,9 +519,19 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   // --- the tabs --------------------------------------------------------------------------------------------------------
 
-  /// The Servers tab, where the Spaces tab was (Matt, 2026-11-17: "replace the spaces item in the sidebar with
-  /// servers, spaces outside of servers move to the main chat list"): lib/ui/servers/server_rows.dart.
-  static const serversTab = '*servers';
+  /// The Circles tab, where the Spaces tab was (Matt, 2026-11-17: "Let's do a circle for now ... with it's own sidebar
+  /// full of spaces"): each circle, which opens in the list's place (AppShell.openCircle), then spaces of one's own in
+  /// their groups and each linked Discord server's channels, as the Spaces tab had them (lib/ui/space_groups_ui.dart).
+  static const circlesTab = ConversationsScreen.circlesTab;
+
+  /// Spaces of one's own (not a circle's), the live ones first, then by when each last had anyone in it.
+  List<VoiceChannel> _voices() {
+    final v = Voice.instance;
+    final all = [for (final c in v.channels) if (c.circle == null) c];
+    int when(VoiceChannel c) => v.lastActive(c)?.millisecondsSinceEpoch ?? 0;
+    all.sort((a, b) => when(b).compareTo(when(a)));
+    return all;
+  }
 
   /// Hops into [c] and shows it.
   Future<void> _openVoice(VoiceChannel c) async {
@@ -524,6 +548,13 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // A hangout opens its page: its chat, who is in it, and a way into voice (lib/ui/hangout_screen.dart).
     // In the conversation's place (Matt, 2026-11-15: "clicking on a voice chat should show me the chat in the normal
     // spot and connected participants with a "join" button").
+    // A Files space opens its files (lib/ui/files_space/), in the conversation's place.
+    if (c.kind == SpaceKind.files) {
+      final shell = AppShell.maybeOf(context);
+      final page = FilesSpaceScreen(key: ValueKey('files-space-${c.seed}'), channel: c);
+      shell != null ? shell.show(page, showing: 'files:${c.seed}') : push<void>(context, (_) => page);
+      return;
+    }
     if (c.hangout && Voice.instance.session?.channel.room != c.room) {
       final shell = AppShell.maybeOf(context);
       if (shell != null) {
@@ -563,7 +594,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // the three icons instead of intertwining them remove the other options for now"). Voice is there always: it is
     // where calls are.
     final tabs = _plugins.tabs(_section, (section) => setState(() => _section = section), onMenu: _tabMenu, extra: [
-      (id: serversTab, icon: Lucide.layoutGrid, label: 'Servers', count: 0),
+      // Counted by how many circles have anyone in voice now.
+      (id: circlesTab, icon: Lucide.circleDot, label: 'Circles', count: Circles.instance.all.where((c) => Circles.instance.liveSpaces(c).isNotEmpty).length),
     ]);
     final kinds = _plugins.kinds;
     if (tabs == null && kinds.isEmpty) return null;
@@ -661,7 +693,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   }
 
   /// The texts of a tab that are unread: none in a network's own tab, which holds that network's chats alone.
-  List<Conversation> _unreadTexts(String? section) => inboxOfTab(section) != null || section == serversTab ? const [] : _of(section).where((c) => c.unread).toList();
+  List<Conversation> _unreadTexts(String? section) => inboxOfTab(section) != null || section == circlesTab ? const [] : _of(section).where((c) => c.unread).toList();
 
   /// Marks every unread conversation of a tab as read, texts and chats alike: from the button at the title row's
   /// end, or a tab's own menu.
@@ -710,11 +742,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// read so far, one a filter hid, and every chat where the tab was a network's own. Messages is all of them.
   /// The spaces with unread messages that [section] holds: the main list's.
   List<VoiceChannel> _unreadSpaces(String? section) =>
-      section != null || widget.archived ? const [] : [for (final v in Voice.instance.channels) if (v.hangout && !Voice.instance.archived(v) && Voice.instance.unreadIn(v) > 0) v];
+      section != null || widget.archived ? const [] : [for (final v in Voice.instance.channels) if (v.hangout && v.circle == null && !Voice.instance.archived(v) && Voice.instance.unreadIn(v) > 0) v];
 
   List<InboxChat> _unreadChats(String? section) {
     if (widget.archived) return [for (final n in Inbox.instance.ready) for (final c in n.archivedChats) if (c.unread > 0) c];
-    if (section == serversTab) return const [];
+    if (section == circlesTab) return const [];
     final net = inboxOfTab(section);
     if (net != null) return net.state == InboxState.ready ? [for (final c in net.shownChats) if (c.unread > 0) c] : const [];
     return [
@@ -734,7 +766,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// A tab's menu (Matt, 2026-11-14: "add a right click menu for the codes and messages tabs"): a press with the
   /// other button on it, or a long press where there is no other button.
   void _tabMenu(String? section) {
-    if (section == serversTab) return;
+    if (section == circlesTab) return;
     final network = inboxOfTab(section);
     if (network != null) {
       final unread = _unreadChats(section).length;
@@ -936,7 +968,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     }
     final sorted = _plugins.sort(widget.archived ? null : _all, chats: widget.archived ? const [] : _chatFacts());
     final inbox = widget.archived ? null : inboxOfTab(_section);
-    if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0) && !(_section == serversTab && !widget.archived) && inbox?.state != InboxState.ready) _section = null;
+    if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0) && !(_section == circlesTab && !widget.archived) && inbox?.state != InboxState.ready) _section = null;
+    if (!widget.archived && ConversationsScreen.shownTab.value != _section) {
+      final now = _section;
+      WidgetsBinding.instance.addPostFrameCallback((_) => ConversationsScreen.shownTab.value = now);
+    }
     final shown = _shown;
     // What the list holds: conversations, the voice channels in their tab, or a network's chats in its.
     final List<Object> rows = inbox != null && inbox.state == InboxState.ready
@@ -949,9 +985,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   (_spamHost == null || _query.isNotEmpty || (Inbox.instance.named(c.network)?.localList('notspam').contains(c.id) ?? false) || scamOf(c) == null))
                 c,
           ]
-        : _section == serversTab
-            // Each server, then each linked Discord server's channels (lib/ui/servers/server_rows.dart).
-            ? serverRows([?_shell?.sample])
+        : _section == circlesTab
+            // Each circle, then spaces of one's own in their groups and each linked Discord server's channels.
+            ? [...Circles.instance.all, ...spaceRows(_voices())]
             : _mixed(shown);
     // Android's own count, where it has answered: the ones held are not all of them until the read ends.
     final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length) + Inbox.instance.ready.fold<int>(0, (n, net) => n + net.archivedChats.length);
@@ -989,13 +1025,13 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       ]);
     } else if (rows.isEmpty && inbox != null) {
       body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [inboxEmpty(context, inbox)]);
-    } else if (rows.isEmpty && _section == serversTab) {
+    } else if (rows.isEmpty && _section == circlesTab) {
       body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
         SettingsEmpty(
-          icon: AppIcon(Lucide.layoutGrid, size: 28, color: t.color('app-ink-3')),
-          title: 'No servers yet',
-          body: const Text('A server keeps channels and spaces together for a group of people. Your own spaces are in Messages.'),
-          action: SettingsEmptyAction('Add a Discord server', () => push(context, (_) => const AddDiscordScreen())),
+          icon: AppIcon(Lucide.circleDot, size: 28, color: t.color('app-ink-3')),
+          title: 'No circles yet',
+          body: const Text('A circle keeps a few people and their spaces together: for chat and voice, for texting, or for files.'),
+          action: SettingsEmptyAction('New circle', () => _shell != null ? _shell!.show(const NewCircleScreen(key: ValueKey('new-circle')), showing: 'new') : push(context, (_) => const NewCircleScreen())),
         ),
       ]);
     } else if (rows.isEmpty) {
@@ -1076,9 +1112,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
             final d = rows[at] as DiscordChannel;
             return DiscordChannelRow(key: ValueKey('discord-${d.guildId}-${d.id}'), channel: d);
           }
-          if (at < rows.length && rows[at] is ServerEntry) {
-            final s = (rows[at] as ServerEntry).server;
-            return ServerRow(key: ValueKey('server-row-${s.name}'), server: s);
+          if (at < rows.length && rows[at] is Circle) {
+            final c = rows[at] as Circle;
+            return CircleRow(key: ValueKey('circle-row-${c.seed}'), circle: c);
           }
           if (at < rows.length && rows[at] is VoiceChannel) {
             final v = rows[at] as VoiceChannel;
@@ -1370,8 +1406,15 @@ class _RcsNotice extends StatelessWidget {
 /// One conversation in the list: its face, its name, its last words and when. The Mac's list (lib/desktop) draws its
 /// rows with it too.
 class ConversationRow extends StatelessWidget {
-  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false, this.summary, this.badge, this.unreadCount, this.live});
+  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false, this.summary, this.badge, this.unreadCount, this.live, this.face, this.timed = true});
   final Conversation conversation;
+
+  /// Its face at a size, in place of the people's: a circle's own (the Circles tab draws its circles as conversations,
+  /// so they get the same card, line, time and unread dot, Dial-Up's transcript line among them).
+  final Widget Function(double size)? face;
+
+  /// The time is shown at its end; off where there is none to show (a circle nobody has written in yet).
+  final bool timed;
 
   /// How many are in its call now, where it has one (a space, a group of friends): said in green in the time's place.
   final int? live;
@@ -1437,6 +1480,8 @@ class ConversationRow extends StatelessWidget {
                     alignment: Alignment.center,
                     child: selected ? const AppIcon(Lucide.check, size: 22, strokeWidth: 2.6, wash: false, color: Color(0xFFFFFFFF)) : null,
                   )
+                else if (this.face != null)
+                  this.face!(face)
                 else if (badge != null)
                   SizedBox.square(
                     dimension: face,
@@ -1486,7 +1531,7 @@ class ConversationRow extends StatelessWidget {
                               Text('$live', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.online)),
                             ]),
                           )
-                        else
+                        else if (timed)
                           Text(listWhen(c.date), style: pageText(t, t.fontSize('xs'), weight: unread ? 'semibold' : 'regular', color: t.color(unread ? 'app-ink' : 'app-ink-3'))),
                       ]),
                       SizedBox(height: t.lenOf('0.15rem')),
@@ -1572,7 +1617,7 @@ class ConversationRow extends StatelessWidget {
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
-                  child: selecting ? Padding(padding: const EdgeInsets.all(2), child: DialupCheck(checked: selected)) : Avatar(people: c.people, size: 24),
+                  child: selecting ? Padding(padding: const EdgeInsets.all(2), child: DialupCheck(checked: selected)) : (face?.call(24) ?? Avatar(people: c.people, size: 24)),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1595,8 +1640,15 @@ class ConversationRow extends StatelessWidget {
                       if (c.pinned) ...[const SizedBox(width: 4), AppIcon(Lucide.pin, size: 13, color: soft)],
                       if (c.muted) ...[const SizedBox(width: 4), AppIcon(GhostIcons.bellOff, size: 13, color: soft)],
                       if (c.blocked) ...[const SizedBox(width: 4), AppIcon(Lucide.ban, size: 13, color: selected ? d.onHighlight : t.danger)],
-                      const SizedBox(width: 6),
-                      Text(listWhen(c.date), style: pageText(t, 12, color: soft)),
+                      if ((live ?? 0) > 0) ...[
+                        const SizedBox(width: 6),
+                        AppIcon(LucideMore.headphones, size: 12, strokeWidth: 2.4, wash: false, color: selected ? d.onHighlight : t.online),
+                        const SizedBox(width: 2),
+                        Text('$live', style: pageText(t, 12, weight: 'bold', color: selected ? d.onHighlight : t.online)),
+                      ] else if (timed) ...[
+                        const SizedBox(width: 6),
+                        Text(listWhen(c.date), style: pageText(t, 12, color: soft)),
+                      ],
                     ]),
                     Text.rich(words, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, 15, color: soft, height: 1.3)),
                   ]),

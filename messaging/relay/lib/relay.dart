@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'files.dart';
 import 'hub.dart';
 import 'sha256.dart';
 
@@ -19,10 +20,13 @@ import 'sha256.dart';
 /// - A channel is removed when either end says so (unpairing), or after ninety days unused. One made for pairing
 ///   (`temp`) lives ten minutes at most, goes as soon as both ends have left it, and is never written to disk.
 class Relay {
-  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub}) : _now = now ?? DateTime.now;
+  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub, this.files}) : _now = now ?? DateTime.now;
 
   /// Where people's apps find each other (hub.dart), served at any address ending in `/hub`; none where null.
   final Hub? hub;
+
+  /// Files spaces' sealed files (files.dart), served under `/files/`; none where null.
+  final Files? files;
 
   /// Where `channels.json` is kept; null keeps nothing across restarts.
   final Directory? dataDir;
@@ -49,6 +53,7 @@ class Relay {
     _server = server;
     server.listen(_handle, onError: (_) {});
     hub?.start();
+    await files?.start();
     _sweeper = Timer.periodic(const Duration(minutes: 1), (_) => sweep());
     return server.port;
   }
@@ -57,6 +62,7 @@ class Relay {
     _sweeper?.cancel();
     _saver?.cancel();
     hub?.stop();
+    files?.stop();
     _save();
     for (final c in _channels.values) {
       c.phone?.close(WebSocketStatus.goingAway);
@@ -85,6 +91,8 @@ class Relay {
     if (!upgrade && segments.isNotEmpty && segments.first == 'link' && hub?.handles != null) {
       if (await hub!.handles!.http(request)) return;
     }
+    // A Files space's files (files.dart): plain HTTP under /files/, never a WebSocket.
+    if (!upgrade && segments.isNotEmpty && segments.first == 'files' && files != null) return files!.handle(request);
     if (!upgrade || !_hex(name, 32)) {
       request.response
         ..statusCode = upgrade ? HttpStatus.notFound : HttpStatus.ok
