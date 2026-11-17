@@ -156,7 +156,7 @@ object GmBridge {
         if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return null
         val extras = n.extras ?: return null
         val messages = @Suppress("DEPRECATION") extras.getParcelableArray(Notification.EXTRA_MESSAGES) ?: return null
-        val group = extras.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION, false)
+        val flagged = extras.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION, false)
         val title = (extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE) ?: extras.getCharSequence(Notification.EXTRA_TITLE))?.toString()
         @Suppress("DEPRECATION") val me = extras.getParcelable<Person>(Notification.EXTRA_MESSAGING_PERSON)
         // The conversation's key: Google Messages gives each conversation a shortcut of its own; failing that, its tag.
@@ -181,6 +181,7 @@ object GmBridge {
         // Every message hidden (a one-time code, Android 15+): the conversation is still read, so Ghost can notify
         // from Android's own copy of the text.
         if (heard.isEmpty() && messages.isEmpty()) return null
+        val group = looksLikeGroup(flagged, title, heard.filter { !it.out }.mapNotNull { it.sender })
         // One to one, with no address from the people in it: the title may be the number itself.
         if (addresses.isEmpty() && !group && title != null) ContactKey.of(title)?.let { addresses += ContactKey.main(title) }
         // One to one: whoever is not you is the one other person.
@@ -188,6 +189,22 @@ object GmBridge {
         val filled = if (other == null) heard else heard.map { if (!it.out && it.senderAddress == null) it.copy(senderAddress = other) else it }
         return Read(conv, title, group, addresses.toList(), filled)
     }
+
+    /**
+     * Whether a notification is a group's: Google Messages says so, or two people or more wrote in it. (Not a writer
+     * unlike the title: a contact kept under a nickname would take a one-to-one out of its thread.)
+     */
+    fun looksLikeGroup(flagged: Boolean, @Suppress("UNUSED_PARAMETER") title: String?, senders: List<String>): Boolean =
+        flagged || senders.map { it.trim().lowercase() }.toSet().size > 1
+
+    /**
+     * The thread a notification's conversation is kept in. A group's notification names its people only as they
+     * write, so the addresses it gives are often the newest writer's alone, whose thread is your one-to-one with them:
+     * a group's messages were filed, and told of, there (Matt, 2026-11-17: "When a user sends a message in an RCS group
+     * chat we get notified in our dm text conversation"). A group goes to the group of its name the on-phone connection
+     * knows ([named]), else a thread of its own; never to a thread found from its writers.
+     */
+    fun pickThread(group: Boolean, named: Long?, synthetic: Long, byAddresses: () -> Long): Long = if (!group) byAddresses() else named ?: synthetic
 
     private fun samePerson(a: Person, b: Person): Boolean =
         (a.key != null && a.key == b.key) || (a.uri != null && a.uri == b.uri)
@@ -237,7 +254,7 @@ object GmBridge {
         val r = read(context, sbn) ?: return null
         actionsOf(sbn.notification)?.let { actions[r.conv] = it }
         val db = Db.get(context)
-        val thread = threadFor(context, r)
+        val thread = pickThread(r.group, r.title?.let { db.webGroupNamed(it, r.conv) }, syntheticThread(r.conv)) { threadFor(context, r) }
         db.keepConversation(r, thread)
         var fresh = false
         var incoming = false
@@ -496,6 +513,12 @@ object GmBridge {
         fun webConversations(): Set<String> = readableDatabase.rawQuery("SELECT DISTINCT conv FROM msg WHERE gm_id IS NOT NULL", null).use { c ->
             buildSet { while (c.moveToNext()) add(c.getString(0)) }
         }
+
+        /** The thread of the group named [title] that the on-phone connection keeps (its messages have Google's ids). */
+        fun webGroupNamed(title: String, except: String): Long? = readableDatabase.rawQuery(
+            "SELECT c.thread FROM conv c WHERE c.grp = 1 AND c.title = ? AND c.conv != ? AND EXISTS (SELECT 1 FROM msg m WHERE m.conv = c.conv AND m.gm_id IS NOT NULL) ORDER BY c.updated DESC LIMIT 1",
+            arrayOf(title, except),
+        ).use { c -> if (c.moveToFirst()) c.getLong(0) else null }
 
         fun keepConversation(r: Read, thread: Long) {
             writableDatabase.insertWithOnConflict("conv", null, ContentValues().apply {
