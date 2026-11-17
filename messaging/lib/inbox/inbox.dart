@@ -163,8 +163,13 @@ class InboxMessage {
     this.replyTo,
     this.replyText,
     this.replySender,
+    this.event = false,
   });
   final String id;
+
+  /// Something that happened in the chat rather than something someone said ("Esther joined the group", a pin, a new
+  /// name): drawn as a small line across the middle, not a bubble, as the network's own app does.
+  final bool event;
 
   /// Its reactions, a kind each (Matt, 2026-11-17: "Id like to be able to reply to messages as well as react to
   /// telegram and signal messages").

@@ -578,8 +578,9 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                     final m = list[i];
                     final older = i + 1 < list.length ? list[i + 1] : null;
                     final newer = i > 0 ? list[i - 1] : null;
-                    final firstOfRun = older == null || older.mine != m.mine || older.sender != m.sender || m.date.difference(older.date).inMinutes > 10;
-                    final lastOfRun = newer == null || newer.mine != m.mine || newer.sender != m.sender || newer.date.difference(m.date).inMinutes > 10;
+                    // Something that happened (a join, a pin) ends a run of bubbles, as a day's turn does.
+                    final firstOfRun = older == null || older.event || older.mine != m.mine || older.sender != m.sender || m.date.difference(older.date).inMinutes > 10;
+                    final lastOfRun = newer == null || newer.event || newer.mine != m.mine || newer.sender != m.sender || newer.date.difference(m.date).inMinutes > 10;
                     final newDay = older == null || older.date.day != m.date.day || older.date.month != m.date.month || older.date.year != m.date.year;
                     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                       if (newDay)
@@ -588,6 +589,15 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                           child: Text(dayHeading(m.date), textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
                         ),
                       if (m.id == newAt) const NewMessagesDivider(key: ValueKey('new-messages')),
+                      // Something that happened, not something said: a small line across the middle, as Telegram draws
+                      // its own (Matt, 2026-11-17: "A bunch of telegram messages are just showing as \"Message\"").
+                      if (m.event)
+                        Padding(
+                          key: ValueKey('event-${m.id}'),
+                          padding: EdgeInsets.symmetric(horizontal: t.space(6), vertical: t.space(1) + 2),
+                          child: Text(m.text, textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), weight: 'medium', color: t.color('app-ink-3'))),
+                        )
+                      else
                       Poof(
                         key: ValueKey('poof-${m.id}'),
                         gone: _poofing.containsKey(m.id),
@@ -635,6 +645,7 @@ extension on _InboxChatScreenState {
               if (_n.id == 'signal') const HostLine('Messages here are sealed end to end.'),
             ],
             if (newDay) HostLine.day(m.date),
+            if (m.event) HostLine('*** ${m.text} ***') else
             Poof(
               key: ValueKey('poof-${m.id}'),
               gone: _poofing.containsKey(m.id),

@@ -244,6 +244,32 @@ void main() {
     expect(dm['message_ids'], [77]);
     expect(dm['revoke'], true);
     expect(tg.messagesOf('10'), isEmpty);
+
+    // Things that happened rather than things said, and kinds Ghost doesn't draw: words for each, not "Message" (Matt,
+    // 2026-11-17: "A bunch of telegram messages are just showing as \"Message\"").
+    td.say({'@type': 'updateUser', 'user': {'id': 41, 'first_name': 'Esther'}});
+    td.say({'@type': 'updateUser', 'user': {'id': 42, 'first_name': 'Robin'}});
+    var n = 100;
+    void say(int? from, Map<String, Object?> content) => td.say({'@type': 'updateNewMessage', 'message': {'id': n++, 'chat_id': 10, 'is_outgoing': false, 'date': 1763200200, if (from != null) 'sender_id': {'@type': 'messageSenderUser', 'user_id': from}, 'content': content}});
+    say(41, {'@type': 'messageChatJoinByLink'});
+    say(42, {'@type': 'messageChatAddMembers', 'member_user_ids': [42]});
+    say(41, {'@type': 'messageChatAddMembers', 'member_user_ids': [42]});
+    say(42, {'@type': 'messageChatDeleteMember', 'user_id': 42});
+    say(41, {'@type': 'messagePinMessage', 'message_id': 5});
+    say(41, {'@type': 'messageDice', 'emoji': '🎯', 'value': 3});
+    say(41, {'@type': 'messageSomethingNew'});
+    await settle();
+    final seen = {for (final m in tg.messagesOf('10')) m.text: m.event};
+    expect(seen, {
+      'Esther joined with an invite link': true,
+      'Robin joined the group': true,
+      'Esther added Robin': true,
+      'Robin left the group': true,
+      'Esther pinned a message': true,
+      '🎯': false,
+      'A kind of message Ghost can\'t show yet: open Telegram to see it': false,
+    });
+    expect(tg.messagesOf('10').map((m) => m.text), isNot(contains('Message')));
     tg.dispose();
   });
 
