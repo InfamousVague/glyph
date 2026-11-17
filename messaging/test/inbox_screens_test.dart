@@ -19,6 +19,7 @@ import 'package:ghost_messaging/ui/conversations.dart';
 import 'package:ghost_messaging/ui/inbox_ui.dart';
 import 'package:ghost_messaging/ui/me.dart' show NetworkMark;
 import 'package:ghost_messaging/ui/settings.dart';
+import 'package:ghost_messaging/ui/shell.dart';
 import 'package:ghost_messaging/looks.dart';
 import 'package:glacier/glacier.dart';
 
@@ -527,5 +528,18 @@ void main() {
     tap!.onTap!();
     await tester.pump();
     expect(opened.single, contains('example.com/menu'));
+  });
+
+  // Matt, 2026-11-17: "clicking on a telegram or signal chat does not highlight it as selected in the sidebar".
+  testWidgets('a Telegram chat opened beside the list is marked in it, as a conversation of texts is', (tester) async {
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, const AppShell(), AppState(), size: const Size(1200, 800));
+    await settle(tester);
+    bool marked(String title) => tester.widget<InboxChatRow>(find.ancestor(of: find.text(title).first, matching: find.byType(InboxChatRow)).first).selected;
+    expect(marked('Jo Park'), isFalse);
+    await tester.tap(find.text('Jo Park').first);
+    await settle(tester);
+    expect(marked('Jo Park'), isTrue);
+    expect(marked('Weekend crew'), isFalse);
   });
 }

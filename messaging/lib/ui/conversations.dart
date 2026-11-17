@@ -896,6 +896,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // The conversation open in the pane, and whether that is beside the list: its row is marked for it there.
     final open = AppShell.threadOf(context);
     final beside = AppShell.wideOf(context) ? open : null;
+    // A Signal or Telegram chat open beside the list is marked as a conversation of texts is (Matt, 2026-11-17:
+    // "clicking on a telegram or signal chat does not highlight it as selected in the sidebar").
+    final besideChat = AppShell.wideOf(context) ? AppShell.showingOf(context) : null;
     final status = AppShell.statusOf(context);
     final framed = _shell != null;
     // Dial-Up: the list is a window called Chat List (the era's own name for it is another company's mark), its rows flat in a white well (lib/ui/dialup/), still newest
@@ -993,6 +996,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   : InboxChatRow(
                       key: ValueKey('inbox-${chat.network}-${chat.id}'),
                       chat: chat,
+                      selected: besideChat == 'inbox:${chat.network}:${chat.id}',
                       onPress: () => openInboxChat(context, network, chat),
                     ),
             );
