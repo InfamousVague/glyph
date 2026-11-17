@@ -128,6 +128,9 @@ const double pillScrolledScale = 0.8;
 const double pillTopSlack = 4;
 
 class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin {
+  /// The frame on the screen, for what has no context of its own to find it by (the API, lib/api/methods.dart).
+  static AppShellState? live;
+
   /// The pill as Ghost.md's dock is (Matt, 2026-11-15: "Make the dock slightly larger when scrolled to the top of the
   /// page and make it get smaller when we scroll down just like ghost markdown does match the sizes"): its whole size
   /// at the list's top, four fifths once the person scrolls it down, and whole again only when the list is back at
@@ -224,11 +227,13 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   @override
   void initState() {
     super.initState();
+    live = this;
     Voice.instance.addListener(_voiceChanged);
   }
 
   @override
   void dispose() {
+    if (identical(live, this)) live = null;
     Voice.instance.removeListener(_voiceChanged);
     _small.dispose();
     closed.dispose();
