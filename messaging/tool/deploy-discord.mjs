@@ -194,7 +194,9 @@ PrivateDevices=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# AF_NETLINK: Node lists the machine's addresses through it (os.networkInterfaces), and WebRTC offers Ghost apps those
+# addresses; without it the bridge offered none and no call's sound ever connected (2026-11-17).
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 UMask=0077
 ReadWritePaths=${DATA}
 

@@ -907,7 +907,10 @@ class Store(private val context: Context) {
             }
             out += mapOf(
                 "id" to m.id, "kind" to "rcs", "address" to (m.address ?: m.sender ?: ""),
-                "body" to if (m.reactions.isNullOrBlank()) m.text else "${m.text}\n${m.reactions}", "encrypted" to false,
+                // Its reactions apart from its words, drawn once with the rest (lib/reactions.dart): in the words they were
+                // shown twice, there and under it (Matt, 2026-11-17: "When people react to a message we sent we see double
+                // reactions").
+                "body" to m.text, "reactions" to (m.reactions?.split(Regex("\\s+"))?.filter { it.isNotBlank() } ?: emptyList<String>()), "encrypted" to false,
                 "notice" to null, "date" to m.time, "outgoing" to m.out, "state" to state,
                 "read" to (m.out || m.read), "via" to "gm", "sender" to m.sender, "parts" to parts,
             )

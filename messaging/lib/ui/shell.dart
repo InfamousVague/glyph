@@ -1,3 +1,4 @@
+import 'window_chrome.dart';
 import 'dart:async';
 
 import 'package:flutter/rendering.dart' show ScrollDirection;
@@ -503,6 +504,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// Dial-Up's strip of desktop between the list and the pane in a wide window.
   static const double _dialupGap = 6;
 
+  static Widget _lightsIf(bool on, Widget child) => on ? TopBarLights(child: child) : child;
+
   Widget _sized(Widget child) => LayoutBuilder(
         // The screens measure themselves against the screen they are on: here that is their share of the window.
         builder: (context, box) => MediaQuery(data: MediaQuery.of(context).copyWith(size: Size(box.maxWidth, box.maxHeight)), child: child),
@@ -557,7 +560,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                   offstage: covered,
                   child: TickerMode(
                     enabled: !covered,
-                    child: HeaderCover(
+                    // The list is at the window's left: on the Mac its header leaves the window's three buttons room.
+                    child: TopBarLights(child: HeaderCover(
                       covered: !wide && _open != null,
                       // Beside a pane the list is a column of the window: what hangs under its header (the update
                       // banner) is as wide as the list, not laid across list and pane both.
@@ -664,7 +668,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                             }),
                           ),
                       ]))),
-                    ),
+                    )),
                   ),
                 ),
               ),
@@ -679,7 +683,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                 bottom: 0,
                 right: 0,
                 // With nothing open on a narrow screen the pane is empty air over the list: touches go through.
-                child: IgnorePointer(
+                // Over all of a narrow window, a page is at the window's left too.
+                child: _lightsIf(!wide, IgnorePointer(
                   ignoring: !wide && _open == null,
                   child: _sized(NotificationListener<NavigationNotification>(
                     onNotification: (n) {
@@ -692,7 +697,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                       onGenerateRoute: (_) => PageRouteBuilder<void>(opaque: false, pageBuilder: (context, _, _) => const _Base()),
                     ),
                   )),
-                ),
+                )),
               ),
               // A group calling (lib/voice): over everything, until joined or put away.
               const Positioned(left: 0, right: 0, top: 0, child: RingCard()),

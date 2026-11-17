@@ -12,6 +12,7 @@ import '../looks.dart';
 import '../main.dart' show InkOverrides, ghostTypography;
 import '../sounds.dart';
 import '../sms.dart';
+import '../ui/window_chrome.dart';
 import '../ui/settings_panes.dart' show appVersion;
 import 'desk.dart';
 import 'link/link.dart';
@@ -156,7 +157,11 @@ class DeskHome extends StatelessWidget {
         // Paired a moment ago: the wizard's last step is the conversations themselves.
         if (a != null && a.phase == 'done') WidgetsBinding.instance.addPostFrameCallback((_) => link.pairingShown());
         if (link.phone != null && (a == null || a.phase == 'done')) return DeskShell(key: ValueKey(link.phone!.id));
-        return const PairWizard();
+        // The wizard has no header: its top edge is the bar the window is dragged by (lib/ui/window_chrome.dart).
+        return Stack(children: [
+          const Positioned.fill(child: PairWizard()),
+          Positioned(left: 0, right: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),
+        ]);
       },
     );
   }

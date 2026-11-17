@@ -11,6 +11,7 @@ import '../kit/settings_type.dart';
 import '../sms.dart';
 import '../kit/semantic_colors.dart';
 import 'dialup/dialup.dart';
+import 'window_chrome.dart';
 
 /// The page under every screen: the ground, a bar with the way back (or a big title), its actions, and the body.
 class GhostPage extends StatelessWidget {
@@ -43,6 +44,9 @@ class GhostPage extends StatelessWidget {
     final inset = MediaQuery.viewInsetsOf(context).bottom;
     // Beside the list (lib/ui/shell.dart) there is nowhere to go back to: the list is there to be seen.
     final back = this.back && !PaneRoot.beside(context);
+    final bar = t.lenOf('3.5rem');
+    final lights = TopBarLights.roomOf(context);
+    if (pad.top == 0) MacChrome.say(height: isBevelChrome(t) ? TitleBar.heightOf(t) : bar, dark: t.color('glacier-bg').computeLuminance() < 0.4);
     if (isBevelChrome(t)) return _dialup(context, t, pad, inset, back);
     return ColoredBox(
       color: t.color('glacier-bg'),
@@ -51,11 +55,14 @@ class GhostPage extends StatelessWidget {
         children: [
           SizedBox(height: pad.top),
           ?top,
-          SizedBox(
-            height: t.lenOf('3.5rem'),
+          // The top bar: on the Mac the window's own strip is gone and this is where it was, dragged to move the
+          // window, with the three buttons centred in it at the window's left (lib/ui/window_chrome.dart).
+          WindowDragArea(
+            child: SizedBox(
+            height: bar,
             child: Row(
               children: [
-                SizedBox(width: t.space(back ? 1 : 4)),
+                SizedBox(width: lights + t.space(back ? 1 : 4)),
                 if (back) IconTap(icon: Lucide.arrowLeft, label: 'Back', size: 22, onPressed: () => Navigator.of(context).maybePop()),
                 Expanded(
                   child: titleWidget ??
@@ -70,6 +77,7 @@ class GhostPage extends StatelessWidget {
                 SizedBox(width: t.space(2)),
               ],
             ),
+          ),
           ),
           const HeaderEnd(),
           Expanded(child: body),
@@ -95,13 +103,18 @@ class GhostPage extends StatelessWidget {
           ?top,
           // The page's own header ([titleWidget]) is made with the page's tokens before it reaches here, so it cannot
           // be told it is on navy: the bar draws [title] and [subtitle] itself.
-          TitleBar(
+          WindowDragArea(
+            child: Padding(
+            padding: EdgeInsets.only(left: TopBarLights.roomOf(context)),
+            child: TitleBar(
             title: title,
             subtitle: subtitle,
             leading: titleLeading,
             titleChild: onTitle == null ? null : _PressTitle(title: title, subtitle: subtitle, onPressed: onTitle!),
             actions: actions,
             onClose: back ? () => Navigator.of(context).maybePop() : null,
+          ),
+          ),
           ),
           const HeaderEnd(),
           Expanded(child: body),

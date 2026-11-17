@@ -96,10 +96,12 @@ void main() {
     expect(gm.threadOf('c1'), isNot(gm.threadOf('c2')));
   });
 
-  test('messages come as the conversation draws them: who, words with reactions, state, and pictures to bring down', () async {
+  test('messages come as the conversation draws them: who, words, reactions apart, state, and pictures to bring down', () async {
     final t = gm.threadOf('c1');
     final ms = await gm.messages(t);
-    expect(ms.map((m) => m['body']), ['On my way\n👍', 'Dinner?'], reason: 'newest first');
+    expect(ms.map((m) => m['body']), ['On my way', 'Dinner?'], reason: 'newest first');
+    // Reactions apart from the words, drawn once (Matt, 2026-11-17: "we see double reactions").
+    expect(ms[0]['reactions'], ['👍']);
     expect(ms[0]['outgoing'], isTrue);
     expect(ms[0]['state'], 'delivered');
     expect(ms[1]['address'], '+15551230001');
