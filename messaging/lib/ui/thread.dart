@@ -1,3 +1,4 @@
+import 'blocking.dart';
 import 'dart:async';
 import 'dart:convert' show utf8;
 import 'dart:io' show Platform;
@@ -858,6 +859,10 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       back: true,
       titleWidget: GlacierPressable(
         onPressed: _openSettings,
+        // One to one, a long press offers Block, as a Telegram or Signal chat's name does (lib/ui/blocking.dart).
+        onLongPress: !_group && _people.length == 1 && Sms.can('setBlocked')
+            ? () => showPersonBlock(context, BlockTarget.number(_people.first.address, title, thread: widget.thread))
+            : null,
         builder: (context, state) => Row(children: [
           Avatar(people: _people, size: t.lenOf('2.1rem')),
           SizedBox(width: t.space(2)),

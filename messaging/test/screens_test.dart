@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/ui/split_handle.dart';
 import 'package:ghost_messaging/net/packet.dart';
 import 'package:ghost_messaging/friends/buddies.dart';
 import 'package:ghost_messaging/me/me.dart';
@@ -1108,11 +1109,10 @@ void main() {
       expect(find.text('Kinds of text'), findsNothing);
       await _shoot(tester, sheet, const SettingsScreen(), '12-plugins-settings-list-off', dark: dark, prefs: const {'plugin_spam': 'off'});
       expect(find.byKey(const ValueKey('plugins-entry')), findsOneWidget);
-      // A plugin's page has its switch at the top (Matt, 2026-11-14: "Plugins should be able to be toggled on and
-      // off from the top of each plugin setting page"); off, that is all it has.
+      // A plugin's page, from the Plugins page since 2026-11-17: off, it offers to add it, and its settings wait
+      // until it is added (in place of the switch at the top it had from 2026-11-14).
       await _shoot(tester, sheet, const SettingsSectionScreen('plugin-spam'), '12-plugins-settings-off', dark: dark, prefs: const {'plugin_spam': 'off'});
-      expect(find.byType(GlacierSwitch), findsOneWidget);
-      expect(tester.widget<GlacierSwitch>(find.byType(GlacierSwitch)).checked, isFalse);
+      expect(find.textContaining('Add to Ghost Messaging'), findsOneWidget);
       expect(find.text('Mute conversations in Spam'), findsNothing);
       // Kinds of text's own page: each kind, said in a line.
       await _shoot(tester, sheet, const SettingsSectionScreen('plugin-kinds'), '12-plugins-settings-kinds', dark: dark);
@@ -2003,12 +2003,32 @@ void main() {
       // The sidebar is at least wide enough for the toggle and the filter ("the sidebar needs to be at least wide
       // enough to show the segmented toggles and the filter").
       expect(side, greaterThanOrEqualTo(320));
+      // The line between them is dragged to make the list wider, kept, and put back with a double tap (Matt,
+      // 2026-11-17: "add a handle to resize the sidebar and the main chat page ... like claude has").
+      if (!dark) {
+        final split = find.byKey(const ValueKey('shell-split'));
+        expect(split, findsOneWidget);
+        await tester.drag(split, const Offset(60, 0));
+        await tester.pump();
+        expect(tester.getRect(find.byKey(const ValueKey('shell-side'))).right, closeTo(side + 60, 1));
+        expect(PaneWidth.of(tester.widget<AppScope>(find.byType(AppScope)).state, 'list'), closeTo(side + 60, 1));
+        // No wider than leaves the pane 360.
+        await tester.drag(split, const Offset(400, 0));
+        await tester.pump();
+        expect(tester.getRect(find.byKey(const ValueKey('shell-side'))).right, closeTo(750 - 360, 1));
+        await tester.tap(split);
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.tap(split);
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(tester.getRect(find.byKey(const ValueKey('shell-side'))).right, side);
+        expect(PaneWidth.of(tester.widget<AppScope>(find.byType(AppScope)).state, 'list'), isNull);
+      }
       for (final id in ['new', 'messages', 'contacts', 'archive', 'settings']) {
         expect(ring(id), findsOneWidget, reason: 'the pill has $id');
       }
       expect(shown(), 'messages');
       expect(tester.widget<NavPill>(find.byType(NavPill)).items.firstWhere((i) => i.id == 'archive').count, 1);
-      expect(icon('New message'), findsNothing, reason: 'the header holds nothing the pill does');
+      expect(icon('New'), findsNothing, reason: 'the header holds nothing the pill does');
       expect(tester.getTopRight(find.byType(ConversationsScreen)).dx, side);
       // A conversation opens beside the list, which stays, with no way back drawn: there is nowhere to go back to.
       await tester.tap(find.text('Maya Chen'));
@@ -2214,7 +2234,7 @@ void main() {
       await _settle(tester);
       await _shootAgain(tester, '11-frame-wide-settings-menu', dark: dark);
       expect(find.byType(SettingsScreen), findsNothing, reason: 'the menu is over the conversations: Settings is not open yet');
-      for (final label in ['Me', 'Appearance', 'Emoji', 'Messages', 'Notifications', 'Plugins', 'Encryption', 'Blocked numbers', 'Android', 'About']) {
+      for (final label in ['Me', 'Appearance', 'Emoji', 'Messages', 'Notifications', 'Plugins', 'Encryption', 'Blocked', 'Android', 'About']) {
         expect(inMenu(label), findsOneWidget, reason: '$label is a section to jump to');
       }
       // Its groups are named, in the kit's small capitals.
@@ -2229,10 +2249,10 @@ void main() {
       expect(first.width, lessThan(250));
       expect(first.right, lessThanOrEqualTo(AppShell.sideWidth(750)));
       expect(first.bottom, lessThanOrEqualTo(pillTop - 4), reason: 'the menu is over the pill, not on it');
-      await choose('Blocked numbers');
+      await choose('Blocked');
       expect(shown(), 'settings');
       expect(frame.settingsSection.value, 'blocked');
-      expect(seen(row('Blocked numbers')), findsOneWidget);
+      expect(seen(row('Blocked')), findsOneWidget);
       expect(find.byType(SectionPage), findsOneWidget);
       expect(find.byType(GlacierMenuItem), findsNothing, reason: 'choosing closes the menu');
       // Asked for again with Settings open, another section takes the pane.

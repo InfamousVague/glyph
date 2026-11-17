@@ -9,6 +9,7 @@
 /// across. Adding a plugin is the registry's switch, as Settings' switches were.
 library;
 
+import '../split_handle.dart';
 import 'dart:io' show Platform;
 import 'dart:math' as math;
 
@@ -175,13 +176,19 @@ class _PluginsPageState extends State<PluginsPage> {
           );
           if (open == null) return shelves;
           final bevel = isBevelChrome(t);
-          return Row(
+          // As made, or as dragged (lib/ui/split_handle.dart): from 300 to what leaves the shelves 360.
+          _paneWidth ??= PaneWidth.of(AppState.of(context), 'plugins');
+          double fit(double w) => w.clamp(300.0, (box.maxWidth - 360).clamp(300.0, double.infinity));
+          final paneW = fit(_paneWidth ?? math.min(440.0, box.maxWidth * 0.42));
+          final grip = SplitHandle.widthOf(context);
+          return Stack(children: [
+            Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(child: shelves),
               Container(
                 key: const ValueKey('plugins-pane'),
-                width: math.min(440.0, box.maxWidth * 0.42),
+                width: paneW,
                 decoration: BoxDecoration(
                   color: bevel ? DialupColors.of(t).chrome : t.color('app-paper'),
                   border: Border(left: BorderSide(color: bevel ? DialupColors.of(t).dark : t.color('app-rule'), width: t.len('glacier-hairline'))),
@@ -193,11 +200,31 @@ class _PluginsPageState extends State<PluginsPage> {
                 ),
               ),
             ],
-          );
+            ),
+            Positioned(
+              key: const ValueKey('plugins-split'),
+              right: paneW - grip / 2,
+              top: 0,
+              bottom: 0,
+              width: grip,
+              child: SplitHandle(
+                label: 'Resize the plugin\'s page',
+                onDrag: (dx) => setState(() => _paneWidth = fit(fit(_paneWidth ?? paneW) - dx)),
+                onDone: () => PaneWidth.keep(AppState.of(context), 'plugins', _paneWidth),
+                onReset: () {
+                  setState(() => _paneWidth = null);
+                  PaneWidth.keep(AppState.of(context), 'plugins', null);
+                },
+              ),
+            ),
+          ]);
         },
       ),
     );
   }
+
+  /// The plugin's page's width as dragged (PaneWidth 'plugins'); null for its width as made.
+  double? _paneWidth;
 
   /// Everything on the shelves' side: the band, the search, the chips and what the chosen shelf holds.
   List<Widget> _page(BuildContext context, Tokens t, PluginStore store, {required bool wide, required bool narrowed}) {

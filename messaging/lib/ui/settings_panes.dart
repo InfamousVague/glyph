@@ -2,6 +2,11 @@
 /// cards and rows, handed over plain, so the search can read every setting's name off it.
 library;
 
+import '../api/remote.dart';
+import '../api/server.dart';
+import 'api_pane.dart';
+import '../inbox/inbox.dart';
+import 'blocking.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -203,11 +208,15 @@ List<SettingsSection> _ownSections() => [
   ),
   SettingsSection(
     id: 'blocked',
-    label: 'Blocked numbers',
+    label: 'Blocked',
     icon: _icon(Lucide.ban),
     hue: 'red',
     group: 'privacy',
-    summary: (m) => m.blocked.isEmpty ? 'None' : '${m.blocked.length} ${m.blocked.length == 1 ? 'number' : 'numbers'}',
+    // Numbers and Telegram and Signal people together (lib/ui/blocking.dart).
+    summary: (m) {
+      final n = m.blocked.length + Inbox.instance.networks.fold<int>(0, (a, x) => a + (x.soon ? 0 : x.blockedPeople.length));
+      return n == 0 ? 'None' : '$n ${n == 1 ? 'person' : 'people'}';
+    },
     page: _blocked,
   ),
   SettingsSection(
@@ -301,6 +310,19 @@ List<SettingsSection> _ownSections() => [
     group: 'app',
     summary: (m) => m.devLines.isEmpty ? 'Nothing in the log' : '${m.devLines.length} ${m.devLines.length == 1 ? 'line' : 'lines'} in the log',
     page: _developer,
+  ),
+  // Settings › API, in developer mode (lib/ui/api_pane.dart; Matt, 2026-11-17: "a API section of the settings that
+  // shows up when developer mode is enabled").
+  SettingsSection(
+    id: 'api',
+    where: SettingsWhere.phone,
+    label: 'API',
+    icon: _icon(Lucide.braces),
+    hue: 'indigo',
+    group: 'app',
+    when: (m) => m.app.flag('dev_mode', fallback: false),
+    summary: (m) => [if (ApiServer.on(m.app)) 'On this phone', if (ApiRemote.on(m.app)) 'Through the relay'].join(' · ').ifEmptyThen('Off'),
+    page: apiPane,
   ),
   SettingsSection(
     id: 'about',
@@ -798,38 +820,9 @@ List<Widget> _encryption(BuildContext context, SettingsModel m) {
   ];
 }
 
-// --- Blocked numbers --------------------------------------------------------------------------------------------------
+// --- Blocked: numbers, and Telegram and Signal people (lib/ui/blocking.dart) -----------------------------------------
 
-List<Widget> _blocked(BuildContext context, SettingsModel m) {
-  return [
-    PaneSection(
-      title: 'Blocked',
-      description: Text(Sms.remote
-          ? 'Your phone\'s own list: it stops a number\'s texts and calls before any app sees them. Block one from a conversation\'s menu.'
-          : 'Android\'s own list: it stops a number\'s texts and calls before any app sees them. Block one from a conversation\'s long press.'),
-      footer: m.blocked.isEmpty ? const Text('No numbers are blocked.') : const Text('Tap a number to unblock it.'),
-      children: [
-        for (final p in m.blocked)
-          SettingRow(
-            icon: _icon(Lucide.ban),
-            label: p.label,
-            hint: p.name != null && p.name!.isNotEmpty ? Text(p.address) : null,
-            onPress: () => showChoices(context, title: 'Unblock ${p.label}? Their texts and calls will reach you again.', choices: [
-              Choice('Unblock', Lucide.check, () async {
-                try {
-                  await Sms.instance.setBlocked(p.address, false);
-                  if (context.mounted) toast(context, 'Unblocked');
-                } catch (e) {
-                  if (context.mounted) toast(context, 'Couldn\'t unblock: $e', tone: GlacierToastTone.danger);
-                }
-                m.refresh();
-              }),
-            ]),
-          ),
-      ],
-    ),
-  ];
-}
+List<Widget> _blocked(BuildContext context, SettingsModel m) => const [BlockedList()];
 
 // --- Your number ------------------------------------------------------------------------------------------------------
 
@@ -1190,6 +1183,18 @@ List<Widget> _developer(BuildContext context, SettingsModel m) {
   // The newest first: what just happened is what is being looked for.
   final lines = m.devLines.reversed.toList();
   return [
+    // Developer mode: Settings › API, and what else is for developers (Matt, 2026-11-17: "shows up when developer mode
+    // is enabled").
+    PaneSection(
+      children: [
+        SettingRow(
+          icon: _icon(Lucide.braces),
+          label: 'Developer mode',
+          hint: const Text('Shows Settings › API: the app\'s API, its documentation and a place to try every method.'),
+          control: GlacierSwitch(checked: app.flag('dev_mode', fallback: false), onCheckedChange: (on) => app.setFlag('dev_mode', on), ariaLabel: 'Developer mode'),
+        ),
+      ],
+    ),
     // Six other ways a space's call can look (Matt, 2026-11-16: "give me 6 alternate designs for the calling chat and
     // video screens for spaces ... release all 6 versions under a developer setting flag so I can toggle them on and
     // off"). Chosen here; the next call in a space opens in it, or press the call banner in one already.
@@ -1293,3 +1298,7 @@ PaneSection aboutLicences() => PaneSection(title: 'Licences', children: [
       ),
       SettingRow(icon: _icon(Lucide.info), label: 'Icons', hint: const Text('Lucide (ISC licence).')),
     ]);
+
+extension on String {
+  String ifEmptyThen(String other) => isEmpty ? other : this;
+}
