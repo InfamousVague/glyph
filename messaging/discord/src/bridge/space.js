@@ -182,6 +182,7 @@ export class GhostSpace {
       onState: (state) => {
         const cur = this.members.get(id);
         if (!cur || cur.peer !== peer) return;
+        if (state === 'connected' || state === 'failed') this.log(`a Ghost member's sound ${state}`);
         if (state === 'connected' && !cur.up) {
           cur.up = true;
           this.on.peerUp?.(id);
