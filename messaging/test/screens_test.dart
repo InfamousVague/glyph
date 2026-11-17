@@ -1238,7 +1238,7 @@ void main() {
       Groups.instance = groups;
       await friends.start();
       await groups.start();
-      // The address book offers New group where there is a friend to put in one.
+      // The address book: New group is under the list's + now, not here.
       await _shoot(tester, sheet, ContactsScreen(key: ValueKey('contacts-$dark')), '15-groups-contacts', dark: dark);
       // Friends by username at the top: the field to add one, a request to answer, one sent, and a friend (Matt,
       // 2026-11-16: "We need a way to add friends on the network by username on the contacts page and see friend
@@ -1259,7 +1259,7 @@ void main() {
       expect(find.text('Friends by username'), findsOneWidget);
       Buddies.instance = null;
       await tester.runAsync(() => Me.instance.start(MemoryMeStore(), ValueNotifier(0), () => null));
-      expect(find.text('New group'), findsOneWidget);
+      expect(find.text('New group'), findsNothing);
       // The people added on Ghost Messaging come first, under their own heading, and the phone's contacts after.
       expect(find.text('On Ghost Messaging'), findsOneWidget);
       expect(tester.getTopLeft(find.text('Alex Kim')).dy, lessThan(tester.getTopLeft(find.text('Contacts').last).dy));
@@ -1634,6 +1634,22 @@ void main() {
       await _shoot(tester, sheet, HangoutScreen(channel: channel), '21-hangout-out', dark: dark);
       expect(find.text('Join voice'), findsOneWidget);
       expect(find.text('Saving you a seat'), findsOneWidget);
+      // The members in the chat's place, and the chat back (Matt, 2026-11-17: "add a button to switch the chat to a member
+      // list").
+      await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Members'));
+      await _settle(tester);
+      await _shootAgain(tester, '21-hangout-members', dark: dark);
+      expect(find.byType(SpaceMembers), findsOneWidget);
+      expect(find.text('Maya Chen'), findsWidgets);
+      expect(find.text('Saving you a seat'), findsNothing);
+      await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Show the chat'));
+      await _settle(tester);
+      expect(find.byType(SpaceMembers), findsNothing);
+      expect(find.text('Saving you a seat'), findsOneWidget);
+      // The space's settings, each section in its colour (Matt, 2026-11-17: "add colors to the spaces settings").
+      await _shoot(tester, sheet, RolesScreen(room: room, settings: true), '21-hangout-settings', dark: dark);
+      expect(find.text('Owner'), findsWidgets);
+      expect(find.byType(GlacierScope), findsWidgets, reason: 'each section in its colour');
       v.session = s;
       room.roster = Roster.first(channel.owner).next(assigned: {'a': Role.moderator});
       room.messages = seeded;

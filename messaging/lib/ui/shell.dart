@@ -1,3 +1,4 @@
+import 'servers/server_preview.dart';
 import 'split_handle.dart';
 import 'window_chrome.dart';
 import 'dart:async';
@@ -381,6 +382,10 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
           Choice('New space', LucideMore.headphones, () => show(const NewChannelScreen(key: ValueKey('new-voice')), showing: 'new')),
           // A Discord server's voice channels as a group of spaces (lib/ui/space_groups_ui.dart).
           Choice('Add a Discord server', Lucide.link, () => show(const AddDiscordScreen(key: ValueKey('add-discord')), showing: 'new')),
+          // A made-up server in five layouts, to choose how servers should look (lib/ui/servers; Matt, 2026-11-17:
+          // "add a mocked sever ... when we click add server it should launch the mock version with a button to toggle
+          // between the 5 different designs").
+          Choice('Add a server (preview)', Lucide.layoutGrid, () => show(const ServerPreviewScreen(key: ValueKey('server-preview')), showing: 'server-preview'), hint: 'Five layouts to try, with a made-up server'),
         ]);
       case 'contacts':
         contacts();

@@ -189,13 +189,18 @@ class _BlockedListState extends State<BlockedList> {
 
 /// Contacts › Blocked, and wherever else the list is a page of its own.
 class BlockedScreen extends StatelessWidget {
-  const BlockedScreen({super.key});
+  const BlockedScreen({super.key, this.onBack});
+
+  /// Where its back arrow goes, where it took Contacts' place in the pane (Matt, 2026-11-17: "include a back arrow when
+  /// clicking blocked to go back to the main contacts page").
+  final VoidCallback? onBack;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     return GhostPage(
       title: 'Blocked',
+      onBack: onBack,
       body: ListView(padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom), children: const [BlockedList()]),
     );
   }

@@ -62,6 +62,9 @@ class _HangoutScreenState extends State<HangoutScreen> {
   HangoutRoom? _room;
   String _tab = 'people';
 
+  /// The space's members in the chat's place (Matt, 2026-11-17: "add a button to switch the chat to a member list").
+  bool _members = false;
+
   @override
   void initState() {
     super.initState();
@@ -124,6 +127,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
         final pill = widget.inSidebar ? AppShell.pillRoom(context) : 0.0;
         final dockAt = pad + (widget.inSidebar ? pill : NavPill.inset(t));
         final actions = [
+          if (room != null) _membersButton(_members, () => setState(() => _members = !_members)),
           if (room == null || room.can(Perm.invite)) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
           if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
         ];
@@ -136,7 +140,8 @@ class _HangoutScreenState extends State<HangoutScreen> {
         // In a call on a phone the chat is a tab: while it is shown the call's controls are not, and the composer stands at
         // the foot as every conversation's does (Matt, 2026-11-15: "when we switch to chat please don't show the call
         // controls just make it appear like the bottom of all the compose windows look").
-        final chat = room == null ? const SizedBox.shrink() : HangoutChat(room: room, bottom: pill + (s != null && (wide || _tab != 'chat') ? NavPill.clearance(t) : 0));
+        final bottom = pill + (s != null && (wide || _tab != 'chat') ? NavPill.clearance(t) : 0);
+        final chat = room == null ? const SizedBox.shrink() : (_members ? SpaceMembers(room: room, bottom: bottom + pad) : HangoutChat(room: room, bottom: bottom));
         if (s == null) {
           // Out of the call: who is here, a way in, and the chat.
           final here = room?.present.values.toList() ?? const <HangoutPerson>[];
@@ -241,6 +246,7 @@ class HangoutStage extends StatefulWidget {
 
 class _HangoutStageState extends State<HangoutStage> {
   HangoutRoom? _room;
+  bool _members = false;
 
   @override
   void initState() {
@@ -266,12 +272,13 @@ class _HangoutStageState extends State<HangoutStage> {
       listenable: Listenable.merge([v, ?room, ?media?.remote, ?media?.localVideo, ?v.session]),
       builder: (context, _) {
         final s = v.session?.channel.room == widget.channel.room ? v.session : null;
-        final chat = room == null ? const SizedBox.shrink() : HangoutChat(room: room);
+        final chat = room == null ? const SizedBox.shrink() : (_members ? SpaceMembers(room: room, bottom: MediaQuery.paddingOf(context).bottom) : HangoutChat(room: room));
         final videos = s != null && CallVideos.any(s);
         return GhostPage(
-          title: 'Chat',
+          title: _members ? 'Members' : 'Chat',
           back: false,
           actions: [
+            if (room != null) _membersButton(_members, () => setState(() => _members = !_members)),
             if (room == null || room.can(Perm.invite)) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
             if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
           ],
@@ -950,6 +957,83 @@ class _Message extends StatelessWidget {
 }
 
 /// A role's name in a small pill: the owner's says Owner.
+/// The button in a space's header that puts its members in the chat's place, and the chat back.
+Widget _membersButton(bool showing, VoidCallback onPressed) =>
+    IconTap(icon: showing ? LucideMore.messageCircle : Lucide.users, label: showing ? 'Show the chat' : 'Members', onPressed: onPressed);
+
+/// Everyone a space knows, for its member list and its settings: the owner, whoever is here now, whoever has been given
+/// a role, and you; not the banned.
+Map<String, List<String>> spacePeopleByRole(HangoutRoom room) {
+  final r = room.roster;
+  final people = <String>{r.ownerId, ...room.present.keys, ...r.assigned.keys, room.me}..remove('');
+  final byRole = <String, List<String>>{};
+  for (final id in people) {
+    if (r.banned.contains(id)) continue;
+    byRole.putIfAbsent(r.roleOf(id).id, () => []).add(id);
+  }
+  return byRole;
+}
+
+/// A space's members in its chat's place (Matt, 2026-11-17: "add a button to switch the chat to a member list"), as a
+/// chat app's member list is: by role, highest first, each with their face, whether they are here now or in voice, and
+/// their role. Pressing someone you outrank changes their role, where you may.
+class SpaceMembers extends StatelessWidget {
+  const SpaceMembers({super.key, required this.room, this.bottom = 0});
+  final HangoutRoom room;
+
+  /// What stands over the list's foot (the pill, the dock): room is left for it.
+  final double bottom;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return ListenableBuilder(
+      listenable: Listenable.merge([room, Voice.instance]),
+      builder: (context, _) {
+        final r = room.roster;
+        final byRole = spacePeopleByRole(room);
+        final inVoice = Voice.instance.inChannel(room.channel).toSet();
+        int order(String id) => inVoice.contains(id) ? 0 : (room.present.containsKey(id) ? 1 : 2);
+        final total = byRole.values.fold<int>(0, (n, l) => n + l.length);
+        final here = byRole.values.expand((l) => l).where((id) => order(id) < 2).length;
+        return ListView(
+          padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(6) + bottom),
+          children: [
+            Padding(
+              padding: EdgeInsets.only(left: t.space(1), bottom: t.space(3)),
+              child: Text('$total member${total == 1 ? '' : 's'} · $here here now', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+            ),
+            for (final role in r.ranked)
+              if ((byRole[role.id] ?? const <String>[]).isNotEmpty) ...[
+                PaneSection(
+                  title: '${role.name} · ${byRole[role.id]!.length}',
+                  children: [
+                    for (final id in [...byRole[role.id]!]..sort((a, b) {
+                        final o = order(a).compareTo(order(b));
+                        return o != 0 ? o : _nameOf(room, a).toLowerCase().compareTo(_nameOf(room, b).toLowerCase());
+                      }))
+                      SettingRow(
+                        icon: Opacity(opacity: order(id) == 2 ? 0.5 : 1, child: RippleAvatar(name: _nameOf(room, id), level: 0, size: 30, ringed: inVoice.contains(id))),
+                        label: id == room.me ? 'You' : _nameOf(room, id),
+                        hint: Text(inVoice.contains(id) ? 'In voice' : (room.present.containsKey(id) ? 'Here now' : 'Away')),
+                        value: RoleTag(role: role, owner: r.isOwner(id)),
+                        onPress: room.canManage && r.outranks(room.me, id) ? () => pickRole(context, room, id, _nameOf(room, id)) : null,
+                      ),
+                  ],
+                ),
+                SizedBox(height: t.space(5)),
+              ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Each part of a space's settings in a colour of its own, as Settings' sections are (Matt, 2026-11-17: "add colors to
+/// the spaces settings"): the rows' icons sit on a wash of it.
+Widget _hued(String hue, Widget section) => GlacierScope(attrs: {'hue': hue}, child: section);
+
 class RoleTag extends StatelessWidget {
   const RoleTag({super.key, required this.role, this.owner = false});
   final Role role;
@@ -990,23 +1074,21 @@ class RolesScreen extends StatelessWidget {
         final manage = room.canManage;
         final gap = SizedBox(height: t.space(6));
         // Everyone known: here now, or given a role.
-        final people = <String>{r.ownerId, ...room.present.keys, ...r.assigned.keys, room.me}..remove('');
-        final byRole = <String, List<String>>{};
-        for (final id in people) {
-          if (r.banned.contains(id)) continue;
-          byRole.putIfAbsent(r.roleOf(id).id, () => []).add(id);
-        }
+        final byRole = spacePeopleByRole(room);
         final c = room.channel;
         return GhostPage(
           title: settings ? c.name : 'Roles and permissions',
-          body: ListView(
+          // As a Settings page: each row's icon on its section's colour.
+          body: SettingsPaneScope(
+            finder: SettingsFinder(),
+            child: ListView(
             padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             children: [
               if (settings) ...[
-                PaneSection(title: 'Space', children: [
+                _hued('blue', PaneSection(title: 'Space', children: [
                   if (room.can(Perm.invite)) SettingRow(icon: AppIcon(Lucide.userPlus, size: 18), label: 'Invite people', hint: const Text('Friends in the app, anyone by a text, or the link.'), onPress: () => showSpaceInvite(context, c)),
                   SettingRow(icon: AppIcon(Lucide.users, size: 18), label: 'Owner', value: Text(r.isOwner(room.me) ? 'You' : (r.hasOwner ? _nameOf(room, r.ownerId) : 'None'))),
-                ]),
+                ])),
                 gap,
               ],
               if (!r.hasOwner)
@@ -1014,7 +1096,7 @@ class RolesScreen extends StatelessWidget {
               else if (!manage)
                 SettingsCallout(child: Text('You\'re ${r.isOwner(room.me) ? 'the owner' : 'a ${r.roleOf(room.me).name.toLowerCase()}'}. The owner and admins change roles.')),
               if (r.hasOwner) ...[
-                PaneSection(
+                _hued('green', PaneSection(
                   title: 'People',
                   description: const Text('Press someone to change their role. Admins are made by the owner alone.'),
                   children: [
@@ -1027,9 +1109,9 @@ class RolesScreen extends StatelessWidget {
                           onPress: manage && r.outranks(room.me, id) ? () => pickRole(context, room, id, _nameOf(room, id)) : null,
                         ),
                   ],
-                ),
+                )),
                 gap,
-                PaneSection(
+                _hued('purple', PaneSection(
                   title: 'Roles',
                   description: const Text('Highest first. A role can act on the ones below it: mute, remove, delete their messages.'),
                   children: [
@@ -1052,9 +1134,9 @@ class RolesScreen extends StatelessWidget {
                         },
                       ),
                   ],
-                ),
+                )),
                 gap,
-                PaneSection(
+                _hued('mint', PaneSection(
                   title: 'New people',
                   children: [
                     SettingRow(
@@ -1069,16 +1151,16 @@ class RolesScreen extends StatelessWidget {
                           : null,
                     ),
                   ],
-                ),
+                )),
                 if (settings) ...[
                   gap,
-                  PaneSection(title: '', children: [
+                  _hued('red', PaneSection(title: '', children: [
                     SettingRow(icon: AppIcon(Lucide.trash2, size: 18), label: 'Delete space', hint: const Text('From this phone and your computer.'), onPress: () => confirmDeleteHangout(context, c)),
-                  ]),
+                  ])),
                 ],
                 if (r.banned.isNotEmpty) ...[
                   gap,
-                  PaneSection(
+                  _hued('coral', PaneSection(
                     title: 'Banned',
                     children: [
                       for (final id in r.banned)
@@ -1089,10 +1171,11 @@ class RolesScreen extends StatelessWidget {
                           onPress: manage ? () => room.ban(id, on: false) : null,
                         ),
                     ],
-                  ),
+                  )),
                 ],
               ],
             ],
+          ),
           ),
         );
       },
