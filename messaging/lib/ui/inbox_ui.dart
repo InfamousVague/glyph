@@ -1209,8 +1209,24 @@ class _TelegramSignInScreenState extends State<TelegramSignInScreen> {
 
 // --- Settings --------------------------------------------------------------------------------------------------------
 
-/// Telegram's, Bluesky's and Mastodon's sections of Settings: who is signed in, and signing in or out.
+/// Settings › Connections, and each network's own page under it (Matt, 2026-11-17: "move the connections to it's own sub
+/// setting, label it as such and put connecting to telegram etc all under that page so as to not crowd the main
+/// settings page there shuld be a sub section to pick and modify each one"): one row in Settings' list, a page of the
+/// networks, connected ones first, and each network's page (who is signed in, signing in or out) opened from its row.
+/// The networks' pages are no longer rows of Settings' list; they are still opened by their ids and found by search.
 List<SettingsSection> inboxSettingsSections() => [
+      SettingsSection(
+        id: 'connections',
+        label: 'Connections',
+        icon: _icon(Lucide.link),
+        hue: 'cyan',
+        group: 'me',
+        summary: (_) {
+          final on = [for (final n in Inbox.instance.networks) if (!n.soon && n.state == InboxState.ready) n.name];
+          return on.isEmpty ? 'Telegram, Signal and more' : on.join(', ');
+        },
+        page: (context, m) => _connections(context),
+      ),
       for (final n in Inbox.instance.networks)
         SettingsSection(
           id: 'inbox-${n.id}',
@@ -1218,10 +1234,31 @@ List<SettingsSection> inboxSettingsSections() => [
           icon: inboxMark(n),
           hue: switch (n.id) { 'telegram' => 'cyan', 'mastodon' => 'purple', 'signal' => 'indigo', 'teams' => 'magenta', 'whatsapp' => 'green', 'matrix' => 'graphite', 'googlechat' => 'mint', _ => 'blue' },
           group: 'me',
+          listed: false,
           summary: (_) => _summary(n),
           page: (context, m) => _pane(context, n),
         ),
     ];
+
+/// The Connections page: every network as a row, its mark, its name and where it stands, opening its own page.
+List<Widget> _connections(BuildContext context) {
+  final all = Inbox.instance.networks;
+  final on = [for (final n in all) if (!n.soon && (n.state == InboxState.ready || n.state == InboxState.signingIn)) n];
+  final off = [for (final n in all) if (!n.soon && !on.contains(n)) n];
+  final soon = [for (final n in all) if (n.soon) n];
+  Widget row(InboxNetwork n) => SettingRow(
+        key: ValueKey('connection-${n.id}'),
+        icon: inboxMark(n),
+        label: n.name,
+        hint: Text(_summary(n)),
+        onPress: () => push<void>(context, (_) => SettingsSectionScreen('inbox-${n.id}')),
+      );
+  const intro = Text('Your chats on other networks among your texts in Messages, each marked with its logo. Ghost signs in to each as an app of its own, on this device; its own server never sees your chats. Choose one to connect it or change it.');
+  final groups = [('Connected', on), ('Add a connection', off), ('Coming soon', soon)].where((g) => g.$2.isNotEmpty).toList();
+  return [
+    for (final (i, g) in groups.indexed) PaneSection(title: g.$1, description: i == 0 ? intro : null, children: [for (final n in g.$2) row(n)]),
+  ];
+}
 
 String _summary(InboxNetwork n) => n.soon ? 'Coming soon' : switch (n.state) {
       InboxState.ready => 'Signed in${n.account == null ? '' : ' as ${n.account}'}',

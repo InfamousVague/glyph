@@ -325,15 +325,29 @@ void main() {
     }
   });
 
-  testWidgets('each network has a section of Settings', (tester) async {
+  // Matt, 2026-11-17: "move the connections to it's own sub setting, label it as such and put connecting to telegram etc
+  // all under that page so as to not crowd the main settings page there shuld be a sub section to pick and modify each".
+  testWidgets('the networks are under Settings › Connections, each with a page of its own', (tester) async {
     final sections = inboxSettingsSections();
-    expect(sections.map((s) => s.label), ['Telegram', 'Bluesky']);
+    expect(sections.map((s) => s.label), ['Connections', 'Telegram', 'Bluesky']);
+    expect(sections.where((s) => s.listed).map((s) => s.id), ['connections'], reason: 'one row in Settings\' list, not one a network');
     final sheet = await loadSheet(tester);
     addInboxSettings();
     addTearDown(() => SettingsSources.remove(inboxSettingsSections));
     for (final dark in [false, true]) {
-      await _shoot(tester, sheet, const SettingsSectionScreen('inbox-telegram'), '16-inbox-settings', dark: dark);
+      await _shoot(tester, sheet, SettingsSectionScreen('connections', key: ValueKey('connections-$dark')), '16-inbox-connections', dark: dark);
+      expect(find.text('CONNECTED'), findsOneWidget);
+      expect(find.byKey(const ValueKey('connection-telegram')), findsOneWidget);
+      expect(find.byKey(const ValueKey('connection-bluesky')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('connection-telegram')));
+      await tester.pumpAndSettle();
       expect(find.text('@matt'), findsOneWidget);
+      expect(find.text('Sign out'), findsOneWidget);
+      // Back to Connections, as its way back does.
+      Navigator.of(tester.element(find.text('Sign out'))).pop();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('connection-telegram')), findsOneWidget);
+      await _shoot(tester, sheet, const SettingsSectionScreen('inbox-telegram'), '16-inbox-settings', dark: dark);
       expect(find.text('Sign out'), findsOneWidget);
     }
   });
