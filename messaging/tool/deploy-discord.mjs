@@ -253,6 +253,8 @@ const pcm = new Int16Array(1920).map((_, i) => Math.round(8000 * Math.sin(i / 10
 if (opusCodec.decoder().decode(opusCodec.encoder().encode(pcm)).length !== 1920) fail('Opus', 'a frame did not survive');
 await import('werift').catch((e) => fail('werift', e));
 console.log('  voice ' + voice.version + ', DAVE protocol ' + davey.DAVE_PROTOCOL_VERSION + ', Opus and WebRTC load');
+// Out at once: a native library tearing down at exit must not fail a check that has passed.
+process.exit(0);
 ")
 id ghost-discord >/dev/null 2>&1 || $SUDO useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin ghost-discord
 $SUDO mkdir -p ${DIR} ${DATA}
