@@ -7,8 +7,8 @@ import '../app_state.dart';
 
 /// Where two panes meet, a handle to drag the line between them (Matt, 2026-11-17: "on desktop and unfolded mobile add
 /// a handle to resize the sidebar and the main chat page and any other split pane views like claude has"): invisible
-/// until the pointer is over it, then a line in the accent and the column-resize cursor; on a touch screen a small grip
-/// stays in the middle of the line, so there is something to put a finger on. A double click or a double tap puts the
+/// until the pointer is over it, then a short grip in the accent and the column-resize cursor (only the grip, not the
+/// whole line); on a touch screen the grip stays, so there is something to put a finger on. A double click or a double tap puts the
 /// width back as it was made. What it was dragged to is kept with the device's choices ([PaneWidth]).
 class SplitHandle extends StatefulWidget {
   const SplitHandle({super.key, required this.onDrag, this.onDone, this.onReset, this.label = 'Resize'});
@@ -73,26 +73,25 @@ class _SplitHandleState extends State<SplitHandle> {
           },
           onHorizontalDragCancel: () => setState(() => _held = false),
           onDoubleTap: widget.onReset,
+          // Only the grip lights, never the whole length of the line (Matt, 2026-11-17: "only highlight the handle on
+          // the vertical resize handle on the side of the sidebar and other places don't show the whole horizontal
+          // line"): with a mouse it shows while the pointer is over the handle or it is held; on a touch screen it is
+          // always there, so there is something to put a finger on.
           child: Center(
-            child: Stack(alignment: Alignment.center, children: [
-              // The line, lit while the pointer is over it or it is held.
-              AnimatedContainer(
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 120),
+              opacity: touch || lit ? 1 : 0,
+              child: AnimatedContainer(
                 duration: const Duration(milliseconds: 120),
-                width: lit ? 3 : 0,
-                decoration: BoxDecoration(color: t.color('app-accent').withValues(alpha: _held ? 0.9 : 0.6), borderRadius: BorderRadius.circular(2)),
-              ),
-              // A finger's grip, always there on a touch screen.
-              if (touch)
-                Container(
-                  width: 6,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: lit ? t.color('app-accent') : t.color('app-ink-4'),
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: t.color('glacier-bg'), width: 1.5),
-                  ),
+                width: touch ? 6 : 4,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: lit ? t.color('app-accent').withValues(alpha: _held ? 1 : 0.8) : t.color('app-ink-4'),
+                  borderRadius: BorderRadius.circular(3),
+                  border: touch ? Border.all(color: t.color('glacier-bg'), width: 1.5) : null,
                 ),
-            ]),
+              ),
+            ),
           ),
         ),
       ),
