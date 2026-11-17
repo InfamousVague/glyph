@@ -883,10 +883,10 @@ class Store(private val context: Context) {
     private fun withBridgedMessages(thread: Long, out: ArrayList<Map<String, Any?>>, limit: Int) {
         val bridged = try { GmBridge.Db.get(context).messagesOfThread(thread, limit) } catch (_: Exception) { return }
         if (bridged.isEmpty()) return
-        val have = out.map { Triple(it["outgoing"] as Boolean, (it["body"] as String?)?.trim() ?: "", it["date"] as Long) }
+        val have = out.map { AndroidCopy(it["outgoing"] as Boolean, (it["body"] as String?)?.trim() ?: "", it["date"] as Long, (it["parts"] as? List<*>)?.isNotEmpty() == true) }
+        val used = HashSet<Int>()
         for (m in bridged) {
-            val words = m.text.trim()
-            if (have.any { it.first == m.out && it.second == words && kotlin.math.abs(it.third - m.time) < 180_000 }) continue
+            if (androidCopyOf(have, m.out, m.text, m.time, !m.media.isNullOrBlank() && m.media != "[]", used) != null) continue
             // From the on-phone connection (GmWeb): its pictures, its delivered and read marks, and reactions.
             val parts = m.media?.let { j ->
                 try {
@@ -898,7 +898,9 @@ class Store(private val context: Context) {
             val state = when {
                 !m.out -> "received"
                 status.contains("fail") || status.contains("error") || status.contains("canceled") -> "failed"
-                status.contains("sending") || status.contains("yet_to_send") || status.contains("resending") -> "sending"
+                // Still "sending" a quarter of an hour on: its update was missed (Google Messages says "failed" of one that
+                // failed), so it is shown as sent rather than sending for ever.
+                status.contains("sending") || status.contains("yet_to_send") || status.contains("resending") -> if (System.currentTimeMillis() - m.time > 15 * 60_000) "sent" else "sending"
                 status.contains("display") || status.contains("read") -> "read"
                 status.contains("delivered") -> "delivered"
                 else -> "sent"
@@ -1205,7 +1207,32 @@ class Store(private val context: Context) {
         prefs.edit().putStringSet("archived", s).apply()
     }
 
+    /** A message as Android's database lists it, for [androidCopyOf]: its side, its words, when, whether it has a picture. */
+    data class AndroidCopy(val out: Boolean, val words: String, val time: Long, val media: Boolean)
+
     companion object {
+        /**
+         * Which of Android's messages ([have]) is the same as one the bridge has, if any, and marks it [used] so it is
+         * the same as no other. Words alike within three minutes; or a picture beside a picture message of the same
+         * words (none, mostly) within fifteen, the nearest first (Matt, 2026-11-16: "they don't show up in the app
+         * properly after closing and re opening and they get stuck on sending never sent"). Google Messages tells of a
+         * picture as it starts sending, and where RCS gives up and it goes as MMS, Android's copy is dated when the MMS
+         * went, minutes later; the bridge's own copy then never hears it went, and stood beside it as "sending".
+         */
+        fun androidCopyOf(have: List<AndroidCopy>, out: Boolean, text: String, time: Long, media: Boolean, used: MutableSet<Int>): Int? {
+            val words = text.trim()
+            var best: Int? = null
+            var gap = Long.MAX_VALUE
+            for ((i, h) in have.withIndex()) {
+                if (i in used || h.out != out || h.words != words) continue
+                val d = kotlin.math.abs(h.time - time)
+                val near = if (media && h.media) d < 15 * 60_000 else d < 180_000
+                if (near && d < gap) { best = i; gap = d }
+            }
+            best?.let { used += it }
+            return best
+        }
+
         /** [rows] (conversations, newest message's time in `date`) read at [read]'s times, by id: unread no more if nothing newer came. */
         fun readHere(rows: MutableList<Map<String, Any?>>, read: Map<Long, Long>) {
             if (read.isEmpty()) return
