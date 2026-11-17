@@ -892,7 +892,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
             builder: (context, _) {
               final c = VoiceChannel.ofGroup(_ghost!.id, _ghost!.name);
               final n = Voice.instance.inChannel(c).length;
-              return IconTap(icon: LucideMore.headphones, label: n == 0 ? 'Group space' : 'Group space, $n in it', onPressed: () => _voice(c));
+              return IconTap(icon: LucideMore.headphones, label: n == 0 ? 'Join voice' : 'Join voice, $n in it', onPressed: () => _voice(c));
             },
           ),
           IconTap(icon: LucideMore.phoneCall, label: 'Call the group', onPressed: _callGroup),
@@ -908,6 +908,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         // its bubbles, untouched.
         Positioned.fill(child: _messages == null ? const Center(child: GhostSpinner(size: 26, label: 'Loading messages…')) : (isDialup(context) ? _lines(t, background, title) : _list(t, background))),
         Positioned.fill(child: EffectLayer(key: _effects, style: pageText(t, 26, color: t.color('app-ink')))),
+        // The group's call while others are in it: who, and Join.
+        if (_ghost != null && !_ghost!.gone)
+          Positioned(left: t.space(3), right: t.space(3), top: t.space(2), child: SpaceLiveBar(channel: VoiceChannel.ofGroup(_ghost!.id, _ghost!.name), onJoin: () => _voice(VoiceChannel.ofGroup(_ghost!.id, _ghost!.name)))),
       ]),
       // Where nothing can be written (a group this phone has left, or one seen from a computer) it says why.
       footer: _closed != null
