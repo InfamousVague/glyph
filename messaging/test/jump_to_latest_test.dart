@@ -246,7 +246,9 @@ void main() {
     await _open(tester, sheet, InboxChatScreen(network: n, chatId: 'a'), AppState());
     final most = _list(tester).maxScrollExtent;
     expect(most, greaterThan(300), reason: 'the chat runs past a screen, but nowhere near 5000');
-    expect(_list(tester).pixels, most, reason: 'as far back as it goes');
+    // As far back as it goes, give or take the composer settling its height a frame later (the one composer for every
+    // conversation, 2026-11-17), which moves the end of the list by a few pixels.
+    expect(_list(tester).pixels, closeTo(most, 24), reason: 'as far back as it goes');
 
     // The wheel, down toward the newest (a mouse on the Mac).
     tester.binding.handlePointerEvent(PointerScrollEvent(position: tester.getCenter(find.byType(ListView)), scrollDelta: const Offset(0, 200)));
@@ -268,7 +270,7 @@ void main() {
     ScrollMemory.keep('inbox:telegram:a', 5000, seen: 'a-22');
     await _open(tester, sheet, InboxChatScreen(network: n, chatId: 'a'), AppState());
     final most = _list(tester).maxScrollExtent;
-    expect(_list(tester).pixels, most);
+    expect(_list(tester).pixels, closeTo(most, 24));
     // Built again and again with nothing further back (presence, typing), for a couple of seconds.
     for (var i = 0; i < 5; i++) {
       n.poke();
