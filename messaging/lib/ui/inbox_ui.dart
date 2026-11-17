@@ -20,6 +20,7 @@ import '../desktop/ui/qr.dart';
 import '../inbox/signal.dart';
 import '../inbox/teams.dart';
 import '../inbox/google_chat.dart';
+import '../inbox/whatsapp.dart';
 import '../net/pair_room.dart';
 import '../inbox/telegram.dart';
 import '../kit/settings_kit.dart';
@@ -49,6 +50,7 @@ import 'message_line.dart';
 import 'translated_card.dart';
 import 'inbox_signin_teams.dart';
 import 'inbox_signin_google_chat.dart';
+import 'inbox_signin_whatsapp.dart' show WhatsAppLinkScreen;
 
 /// The screens of the inbox of other networks (lib/inbox): a chat's row in the list, the chat itself, signing in, and
 /// the sections of Settings for each network.
@@ -1183,7 +1185,7 @@ String _summary(InboxNetwork n) => n.soon ? 'Coming soon' : switch (n.state) {
 
 List<Widget> _pane(BuildContext context, InboxNetwork n) {
   void signIn() {
-    final page = switch (n) { Telegram tg => TelegramSignInScreen(network: tg), Bluesky b => BlueskySignInScreen(network: b), Mastodon m => MastodonSignInScreen(network: m), Signal sg => SignalLinkScreen(network: sg), Teams tm => TeamsSignInScreen(network: tm), GoogleChat gc => GoogleChatSignInScreen(network: gc), _ => null };
+    final page = switch (n) { Telegram tg => TelegramSignInScreen(network: tg), Bluesky b => BlueskySignInScreen(network: b), Mastodon m => MastodonSignInScreen(network: m), Signal sg => SignalLinkScreen(network: sg), Teams tm => TeamsSignInScreen(network: tm), GoogleChat gc => GoogleChatSignInScreen(network: gc), WhatsApp wa => WhatsAppLinkScreen(network: wa), _ => null };
     if (page != null) push<void>(context, (_) => page);
   }
 
@@ -1193,6 +1195,8 @@ List<Widget> _pane(BuildContext context, InboxNetwork n) {
       description: Text('Your ${n.name} chats among your texts in Messages, marked with its logo, read and answered here. They go between this device and ${n.name} only.'),
       footer: n.error == null || n.state == InboxState.ready ? null : Text(n.error!),
       children: [
+        // WhatsApp allows no other apps (Matt, 2026-11-17: "warn the user that it's unsupported by whatsapp").
+        if (n is WhatsApp) SettingsCallout(child: Text(whatsAppWarning)),
         if (n.soon)
           SettingRow(icon: _icon(Lucide.info), label: 'Coming soon', hint: Text('${n.name} chats aren\'t offered yet.'), disabled: true)
         else if (n.state == InboxState.ready) ...[

@@ -183,6 +183,11 @@ if (existsSync(join(ROOT, 'sidecar/signal/SOURCE_URL'))) {
   say('> Building the Signal helper for the phone');
   run('sh', [join(ROOT, 'tool/build-signalsidecar.sh'), 'android', '--ship'], { cwd: ROOT });
 }
+// The WhatsApp helper for the phone (sidecar/whatsapp, on whatsmeow, MPL-2.0; lib/inbox/whatsapp.dart), into jniLibs.
+if (existsSync(join(ROOT, 'sidecar/whatsapp/SOURCE_URL'))) {
+  say('> Building the WhatsApp helper for the phone');
+  run('sh', [join(ROOT, 'tool/build-whatsappsidecar.sh'), 'android', '--ship'], { cwd: ROOT });
+}
 // Telegram's library for the Telegram inbox (lib/inbox/telegram.dart), built from Telegram's source (reused while
 // the pinned commit is the same) into build/tdlib/android, which the app's jniLibs take in; and the app id.
 say('> TDLib for the Telegram inbox');
