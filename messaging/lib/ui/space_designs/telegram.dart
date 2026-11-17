@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../window_chrome.dart';
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
@@ -177,10 +178,13 @@ class _Header extends StatelessWidget {
     final t = context.tokens;
     final n = call.people.length;
     final name = call.channel.name.isEmpty ? 'Space' : call.channel.name;
-    return SizedBox(
+    // On the Mac this page covers the window, so its header is the top bar: dragged to move the window, and clear of
+    // the three buttons at its left (lib/ui/window_chrome.dart).
+    return WindowDragArea(
+      child: SizedBox(
       height: 58,
       child: Row(children: [
-        SizedBox(width: t.space(3)),
+        SizedBox(width: (MacChrome.enabled ? MacChrome.lightsRoom - t.space(3) : 0) + t.space(3)),
         _IconButton(icon: Lucide.chevronDown, label: SpaceWords.minimize, onPressed: call.onMinimize),
         Expanded(
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -194,6 +198,7 @@ class _Header extends StatelessWidget {
         _IconButton(icon: Lucide.ellipsisVertical, label: _menuLabel, onPressed: onMenu, on: menuOpen),
         SizedBox(width: t.space(3)),
       ]),
+      ),
     );
   }
 }
