@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../app_state.dart';
+import '../split_handle.dart';
 import '../window_chrome.dart';
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
@@ -97,9 +99,14 @@ class _TelegramCallState extends State<TelegramCall> {
   /// The voice chat and, open, the chat docked to its right: the chat a third of the window, the voice chat the rest.
   Widget _computer(BuildContext context, SpaceCall call, BoxConstraints box, MediaQueryData media, bool chat, VoidCallback toggleChat) {
     final t = context.tokens;
-    final side = chat ? box.maxWidth / 3 : 0.0;
+    // A third of the window, or as dragged (lib/ui/split_handle.dart): from 280 to what leaves the voice chat 380.
+    _chatWidth ??= PaneWidth.of(AppState.of(context), 'call_chat');
+    double fit(double w) => w.clamp(280.0, (box.maxWidth - 380).clamp(280.0, double.infinity));
+    final side = chat ? fit(_chatWidth ?? box.maxWidth / 3) : 0.0;
     final voice = box.maxWidth - side;
-    return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    final grip = SplitHandle.widthOf(context);
+    return Stack(children: [
+      Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       SizedBox(
         key: const ValueKey('tg-voice-panel'),
         width: voice,
@@ -119,8 +126,29 @@ class _TelegramCallState extends State<TelegramCall> {
           ),
           child: _ChatPanel(call: call, onClose: toggleChat, bottom: media.padding.bottom),
         ),
+      ]),
+      if (chat)
+        Positioned(
+          key: const ValueKey('tg-chat-split'),
+          left: voice - grip / 2,
+          top: 0,
+          bottom: 0,
+          width: grip,
+          child: SplitHandle(
+            label: 'Resize the chat',
+            onDrag: (dx) => setState(() => _chatWidth = fit(fit(_chatWidth ?? side) - dx)),
+            onDone: () => PaneWidth.keep(AppState.of(context), 'call_chat', _chatWidth),
+            onReset: () {
+              setState(() => _chatWidth = null);
+              PaneWidth.keep(AppState.of(context), 'call_chat', null);
+            },
+          ),
+        ),
     ]);
   }
+
+  /// The chat's width as dragged, kept between calls (PaneWidth 'call_chat'); null for a third of the window.
+  double? _chatWidth;
 }
 
 /// The voice chat itself: header, the people, the buttons. Holds the header's menu.

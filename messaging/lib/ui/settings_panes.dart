@@ -2,6 +2,9 @@
 /// cards and rows, handed over plain, so the search can read every setting's name off it.
 library;
 
+import '../api/remote.dart';
+import '../api/server.dart';
+import 'api_pane.dart';
 import '../inbox/inbox.dart';
 import 'blocking.dart';
 import 'package:flutter/services.dart';
@@ -86,6 +89,9 @@ List<SettingsSection> _ownSections() => [
     summary: friendsSummary,
     page: friendsPane,
   ),
+  // Plugins (lib/plugins/settings.dart), near the top, under Me (Matt, 2026-11-17: "make the plugins towards the top of
+  // the settings page sidebar"): the band to the Plugins page, and each plugin's own settings, once the app has one.
+  ...pluginsSettings(),
   SettingsSection(
     id: 'appearance',
     label: 'Appearance',
@@ -187,8 +193,6 @@ List<SettingsSection> _ownSections() => [
     },
     page: (context, m) => [const VoicePane()],
   ),
-  // Plugins (lib/plugins/settings.dart): each with its switch and its own settings, once the app has one.
-  ...pluginsSettings(),
   SettingsSection(
     id: 'encryption',
     label: 'Encryption',
@@ -308,6 +312,19 @@ List<SettingsSection> _ownSections() => [
     summary: (m) => m.devLines.isEmpty ? 'Nothing in the log' : '${m.devLines.length} ${m.devLines.length == 1 ? 'line' : 'lines'} in the log',
     page: _developer,
   ),
+  // Settings › API, in developer mode (lib/ui/api_pane.dart; Matt, 2026-11-17: "a API section of the settings that
+  // shows up when developer mode is enabled").
+  SettingsSection(
+    id: 'api',
+    where: SettingsWhere.phone,
+    label: 'API',
+    icon: _icon(Lucide.braces),
+    hue: 'indigo',
+    group: 'app',
+    when: (m) => m.app.flag('dev_mode', fallback: false),
+    summary: (m) => [if (ApiServer.on(m.app)) 'On this phone', if (ApiRemote.on(m.app)) 'Through the relay'].join(' · ').ifEmptyThen('Off'),
+    page: apiPane,
+  ),
   SettingsSection(
     id: 'about',
     // The phone app's; a computer's is under "This Mac".
@@ -322,7 +339,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.8.10';
+const appVersion = '0.8.11';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -1167,6 +1184,18 @@ List<Widget> _developer(BuildContext context, SettingsModel m) {
   // The newest first: what just happened is what is being looked for.
   final lines = m.devLines.reversed.toList();
   return [
+    // Developer mode: Settings › API, and what else is for developers (Matt, 2026-11-17: "shows up when developer mode
+    // is enabled").
+    PaneSection(
+      children: [
+        SettingRow(
+          icon: _icon(Lucide.braces),
+          label: 'Developer mode',
+          hint: const Text('Shows Settings › API: the app\'s API, its documentation and a place to try every method.'),
+          control: GlacierSwitch(checked: app.flag('dev_mode', fallback: false), onCheckedChange: (on) => app.setFlag('dev_mode', on), ariaLabel: 'Developer mode'),
+        ),
+      ],
+    ),
     // Six other ways a space's call can look (Matt, 2026-11-16: "give me 6 alternate designs for the calling chat and
     // video screens for spaces ... release all 6 versions under a developer setting flag so I can toggle them on and
     // off"). Chosen here; the next call in a space opens in it, or press the call banner in one already.
@@ -1270,3 +1299,7 @@ PaneSection aboutLicences() => PaneSection(title: 'Licences', children: [
       ),
       SettingRow(icon: _icon(Lucide.info), label: 'Icons', hint: const Text('Lucide (ISC licence).')),
     ]);
+
+extension on String {
+  String ifEmptyThen(String other) => isEmpty ? other : this;
+}
