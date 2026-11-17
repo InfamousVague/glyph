@@ -1,0 +1,177 @@
+/// The Plugins page's colour (Matt, 2026-11-17: "redo how the plugins look with their own dedicated plugins page with a
+/// marketplace like look how ghostmd has"): each plugin's tile, card head and page wear its hue, read from the tokens
+/// as Settings' own section colours are (`[data-hue]`, lib/kit/settings_css.dart), so every look settles them as it
+/// settles those (assets/css/app.css: Mist's teal, Lamplight's amber, Phosphor's one green, Dial-Up's ink). Ghost.md's
+/// Market (its lib/market/) wrote its gradients and its white glass in hex; here nothing is: the words on a colour
+/// are the page's own paper or ink, whichever reads better on it.
+library;
+
+import 'dart:math' as math;
+
+import 'package:flutter/widgets.dart';
+import 'package:glacier/glacier.dart';
+
+import '../../art/app_icon.dart';
+import '../../plugins/plugin.dart';
+import '../dialup/bevel.dart';
+
+/// A hue's colours as the page draws them, from tokens that carry it (`t.child(attrs: {'hue': …})`).
+@immutable
+class PluginHues {
+  const PluginHues._({required this.start, required this.end, required this.on, required this.accent, required this.wash, required this.light, required this.dark});
+
+  /// The colours of [hue] under [t] (the page's tokens), kept per tokens and hue.
+  factory PluginHues.of(Tokens t, String hue) {
+    final kept = _kept[t] ??= {};
+    return kept[hue] ??= PluginHues._read(t.child(attrs: {'hue': hue}));
+  }
+
+  factory PluginHues._read(Tokens t) {
+    final hue = t.colorOf('var(--hue, var(--app-ink))');
+    // On the light page the hue's deep shade at the start and its bright one at the end, as Settings' chips pair them;
+    // on the dark one --hue is already the bright shade: the start is it taken a little way into the page's dark and
+    // the end is it whole. Mixed half into black, Ghost dark's colours came out mauve, brown and brick, where Ghost.md's
+    // Market keeps its tiles vivid in the dark (Matt asked for vivid).
+    final start = t.isDark ? t.colorOf('color-mix(in srgb, var(--hue, var(--app-ink)) 76%, var(--app-paper))') : hue;
+    final end = t.isDark ? hue : t.colorOf('color-mix(in srgb, var(--hue-dark, var(--hue, var(--app-ink))) 70%, var(--hue, var(--app-ink)))');
+    final paper = t.color('app-paper'), ink = t.color('app-ink');
+    final light = paper.computeLuminance() >= ink.computeLuminance() ? paper : ink;
+    final dark = identical(light, paper) ? ink : paper;
+    return PluginHues._(
+      start: start,
+      end: end,
+      // Read against the whole of the colour, its bright end too, where the words and the tags can fall.
+      on: onColour(light, dark, [start, Color.lerp(start, end, 0.55)!, end], least: 3),
+      accent: hue,
+      wash: t.colorOf('color-mix(in srgb, var(--hue, var(--app-ink)) 14%, transparent)'),
+      light: light,
+      dark: dark,
+    );
+  }
+
+  static final Expando<Map<String, PluginHues>> _kept = Expando('plugin hues');
+
+  /// The two ends of the colour, top start to bottom end.
+  final Color start, end;
+
+  /// Words and marks on the colour: the page's lighter one (white paper, a dark page's ink) where it reads at 3:1 on
+  /// all of it, else its darker (Phosphor's black on its green, a dark ink on Lamplight's amber).
+  final Color on;
+
+  /// The hue on the page itself, where it marks something: deep on the light page, bright on the dark.
+  final Color accent;
+
+  /// The hue as a wash on the page, under an icon.
+  final Color wash;
+
+  /// The page's lighter and darker of paper and ink: the glow over a tile and the shade under it.
+  final Color light, dark;
+
+  /// The colour as a fill, a soft light from its top start corner over it (Ghost.md's tileLight).
+  LinearGradient get gradient => LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [start, Color.lerp(start, end, 0.55)!, end]);
+
+  /// Glass on the colour: a chip, a button.
+  Color get glass => on.withValues(alpha: 0.18);
+  Color get glassRing => on.withValues(alpha: 0.3);
+
+  /// A small tag on the colour: solid enough that what lies under it (the faint icon, the gradient's bright end) does
+  /// not decide whether its word reads. Light words on the page's dark, dark words on its light.
+  Color get tag => identical(on, dark) ? light.withValues(alpha: 0.5) : dark.withValues(alpha: 0.34);
+  Color get tagRing => on.withValues(alpha: 0.22);
+
+  /// The faint icon on a coloured head, behind its words.
+  Color get faint => on.withValues(alpha: 0.10);
+}
+
+/// Of [light] and [dark], the one that reads on every colour in [on]: the light one where it reaches [least] on all of
+/// them (3:1 for large, bold words; 4.5:1 for a line of small ones), else whichever reads better: Phosphor's black on
+/// its green.
+Color onColour(Color light, Color dark, List<Color> on, {double least = 3}) {
+  double worst(Color ink) => on.map((c) => _contrast(ink, c)).reduce(math.min);
+  final l = worst(light);
+  if (l >= least) return light;
+  return worst(dark) > l ? dark : light;
+}
+
+double _contrast(Color a, Color b) {
+  final x = a.computeLuminance(), y = b.computeLuminance();
+  return (math.max(x, y) + 0.05) / (math.min(x, y) + 0.05);
+}
+
+/// A corner of [px] under the look's radius scale (as lib/backgrounds.dart's lookCorner): Phosphor and Dial-Up square.
+double pluginCorner(Tokens t, double px) => px * t.number('glacier-radius-scale').clamp(0.0, 1.0);
+
+/// The light laid over a coloured surface: a glow from its top start corner, in the page's lighter colour.
+Widget hueGlow(PluginHues c, {required double radius}) => IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius),
+          gradient: RadialGradient(center: const Alignment(-0.8, -0.9), radius: 1.1, colors: [c.light.withValues(alpha: 0.22), c.light.withValues(alpha: 0)]),
+        ),
+        child: const SizedBox.expand(),
+      ),
+    );
+
+/// A plugin's tile: its colour with its icon in the middle, [size] square. Under Dial-Up's bevelled chrome it is a
+/// raised silver square with the icon in ink, a toolbar button of the era.
+class PluginTile extends StatelessWidget {
+  const PluginTile({super.key, required this.plugin, required this.size, this.shadow = false});
+
+  final GhostPlugin plugin;
+  final double size;
+
+  /// A soft shadow under it: a tile floating on the band.
+  final bool shadow;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    if (isBevelChrome(t)) {
+      final c = DialupColors.of(t);
+      return SizedBox.square(
+        dimension: size,
+        child: Bevel(child: Center(child: AppIcon(plugin.icon, size: size * 0.5, strokeWidth: 2, color: c.onChrome, wash: false))),
+      );
+    }
+    final c = PluginHues.of(t, plugin.hue);
+    final radius = pluginCorner(t, size * 0.28);
+    return SizedBox.square(
+      dimension: size,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius),
+          gradient: c.gradient,
+          boxShadow: shadow ? [BoxShadow(color: c.dark.withValues(alpha: 0.22), blurRadius: 14, offset: const Offset(0, 6))] : null,
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            hueGlow(c, radius: radius),
+            Center(child: AppIcon(plugin.icon, size: size * 0.5, strokeWidth: 2, color: c.on, wash: false)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A plugin's icon on a chip of glass, on its colour: the featured card's and the page's hero.
+class GlassChip extends StatelessWidget {
+  const GlassChip({super.key, required this.plugin, required this.size});
+
+  final GhostPlugin plugin;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final c = PluginHues.of(t, plugin.hue);
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: c.glass, borderRadius: BorderRadius.circular(pluginCorner(t, size * 0.3)), border: Border.all(color: c.glassRing)),
+      child: AppIcon(plugin.icon, size: size * 0.54, strokeWidth: 2, color: c.on, wash: false),
+    );
+  }
+}

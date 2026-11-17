@@ -43,6 +43,22 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     stages with their times to `signal.log` beside its store and to standard error, which the app now passes to the
     Developer log (its own lines and signalmeow's warnings only; no message's words). Why Signal itself is slow to
     take a message is not known yet: the next stuck send says where in that log.
+- **Translate, and a Plugins page like a market** (not released; `lib/plugins/translate.dart`, `translate_host.dart`,
+  `shown_store.dart`, `lib/ui/translated_card.dart`, android `Translate.kt`, `lib/ui/plugins_page/`; Matt, 2026-11-17: "add a
+  translate plugin which can automatically translate texts when detected from another language and show the original
+  text dimmed in a card with the translated text for the actual message bubble also redo how the plugins look with their
+  own dedicated plugins page with a marketplace like look how ghostmd has"). Translate (off until added) tells a text's
+  language and translates it on the phone with Google's on-device ML Kit (language-id 17.0.6, translate 17.0.3): the
+  bubble holds the translation and a dimmed card above it the words as sent, "Translated from Spanish · Show original";
+  in Dial-Up the original is a dim line under the translated one. Never your own messages, codes, links or a word or two.
+  Each language's model (about 30 MB) is downloaded once, on Wi-Fi unless chosen otherwise ("Getting Portuguese
+  ready..."). Texts, Telegram, Signal and spaces; a paired computer asks the phone over the desk link (`translate`); an
+  iPhone says it is unavailable. Its choices: your language, automatic or from the message menu, Wi-Fi only, downloaded
+  languages. A fifth extension point in the plugin contract carries it (`TextRule`, `ShownText`, `TextHost`). The Plugins
+  page replaces Settings › Plugins, after Ghost.md's Market: a band in colour with the plugins' tiles, search, chips,
+  Featured, a card each with Add or Added, and a page for each plugin (what it does, what it reads, its settings).
+  Translations are kept in memory only, not on disk. Tests: plugins/translate_test, plugins_page_test, themes_test
+  screens. Not tried on a phone; the whole suite was not run.
 - **Looks: Dial-Up, Mist, Lamplight, Sharp and Phosphor** (0.8.4; `lib/looks.dart`, `lib/ui/look_picker.dart`,
   `lib/ui/dialup/`, `lib/ui/message_line.dart`, the look blocks at the end of `assets/css/app.css`; Matt, 2026-11-16: "spend
   some time making a few themes for ghost, base one of them heavily on the old AOL chatrooms"). Settings › Appearance has

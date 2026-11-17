@@ -1,13 +1,7 @@
 /// What a conversation's screen asks the plugins for, ready to put in place: the buttons for its header, the buttons
-/// for its composer's row, and the lines for a message's menu. The three slots are defined in plugin.dart and
-/// answered here; lib/ui/thread.dart does not ask yet (it is being worked on elsewhere), and each is one line when
-/// it does:
-///
-///     actions: [...plugins.header(context, newest: _messages?.firstOrNull), IconTap(icon: Lucide.phone, …)],
-///     ...plugins.composer(context, text: _text.text),            // beside Stickers
-///     final choices = [..., ...plugins.message(context, m)];     // in _messageMenu
-///
-/// with `late final plugins = ConversationPlugins(thread: widget.thread, people: () => _people, write: …)`.
+/// for its composer's row, the lines for a message's menu, what goes under a message, and the facts a message's words
+/// are shown by ([words]: the Translate plugin's). lib/ui/thread.dart asks for each, with
+/// `late final _plugins = ConversationPlugins(thread: widget.thread, people: () => _people, write: …)`.
 library;
 
 import 'package:flutter/services.dart';
@@ -90,6 +84,15 @@ class ConversationPlugins {
     final facts = MessageFacts.message(m, thread: thread, people: people());
     final tags = registry.classify(facts, store);
     return registry.widgets(Slots.underMessage, context, MessagePlace(facts, tags), store);
+  }
+
+  /// The facts the plugins' text rules are asked about [m] by ([TextRule]: a translation; Matt, 2026-11-17: "add a
+  /// translate plugin which can automatically translate texts when detected from another language"), with [text], its
+  /// words as its bubble shows them (without "(sent with Slam)"). Null where its words are not anyone's to change:
+  /// the person's own, one still going or drawn before the phone has it, a notice, one that could not be opened.
+  MessageFacts? words(Message m, String text) {
+    if (m.outgoing || m.notice != null || m.kind == 'pending' || m.state == 'sending' || m.state == 'waiting' || text.trim().isEmpty) return null;
+    return MessageFacts.message(m, thread: thread, people: people()).withText(text);
   }
 
   /// What the plugins put over the composer. [lastIn] is the newest message where it is from them (no reply yet).

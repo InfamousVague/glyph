@@ -32,6 +32,20 @@ class QuietPlugin extends GhostPlugin {
   @override
   LucideIcon get icon => Lucide.bell;
 
+  // Its card and page on the Plugins page (Matt, 2026-11-17: "redo how the plugins look with their own dedicated plugins page
+  // with a marketplace like look how ghostmd has").
+  @override
+  PluginShelf get shelf => PluginShelf.safety;
+
+  @override
+  String get tagline => 'Strangers silent at night; spam and sales never make a sound.';
+
+  @override
+  List<String> get adds => const ['Quiet hours from 10 PM to 7 AM', 'Spam, political texts, debt collectors and sales muted as they come'];
+
+  @override
+  List<PluginReach> get reaches => const [PluginReach(Lucide.bell, 'Each text as it arrives, on this phone', 'A quiet text is still shown, on a notification channel of its own.')];
+
   @override
   List<IncomingRule> get incoming => [
         (facts, tags, at, prefs) => [if (at != null && hushed.contains(at) && prefs.flag('kinds')) const MuteNotification()],

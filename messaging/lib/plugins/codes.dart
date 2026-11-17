@@ -56,6 +56,20 @@ class CodesPlugin extends GhostPlugin {
   @override
   LucideIcon get icon => Lucide.keyRound;
 
+  // Its card and page on the Plugins page (Matt, 2026-11-17: "redo how the plugins look with their own dedicated plugins page
+  // with a marketplace like look how ghostmd has").
+  @override
+  PluginShelf get shelf => PluginShelf.organise;
+
+  @override
+  String get tagline => 'Sign-in codes in a tab of their own, a tap to copy one.';
+
+  @override
+  List<String> get adds => const ['A Codes tab in the list, newest code first', 'A tap on a code copies it', 'Who each code is from, where it can tell'];
+
+  @override
+  List<PluginReach> get reaches => const [PluginReach(Lucide.messageSquare, 'Your texts, read on this phone', 'To find the codes in them. Nothing is sent anywhere.')];
+
   PluginAction _copy(String code, int thread) => PluginAction(
         label: 'Copy $code',
         icon: Lucide.copy,

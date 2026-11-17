@@ -413,7 +413,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     final model = SettingsModel(AppState.of(this.context));
     final groups = <String, List<SettingsSection>>{};
     for (final s in settingsSections) {
-      if (s.when?.call(model) ?? true) groups.putIfAbsent(s.group, () => []).add(s);
+      if (s.listed && (s.when?.call(model) ?? true)) groups.putIfAbsent(s.group, () => []).add(s);
     }
     model.dispose();
     final rows = <Widget>[];

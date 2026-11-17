@@ -10,6 +10,7 @@
 ///   it wants out of the main list and says how its rows look ([RowLook]).
 /// - [Slot]: a named place on a screen ([Slots]) for buttons and menu items ([PluginAction]) or widgets.
 /// - [IncomingRule]: what to do with a message that has just come ([IncomingAction]).
+/// - [TextRule]: what a message's words are shown as, in place of what they say: a translation ([ShownText]).
 ///
 /// A screen asks the registry (registry.dart) what its plugins have for a place and draws that; a plugin is handed
 /// facts and a [PluginHost] to ask things of, never a screen or its state. All but the widget slots is data in and
@@ -31,7 +32,7 @@ import '../sms.dart';
 /// whether the phone's contacts know them.
 @immutable
 class MessageFacts {
-  const MessageFacts({required this.thread, required this.senders, required this.text, required this.contact, this.group = false, this.date, this.unread = false, this.muted = false, this.outgoing});
+  const MessageFacts({required this.thread, required this.senders, required this.text, required this.contact, this.group = false, this.date, this.unread = false, this.muted = false, this.outgoing, this.id, this.network});
 
   /// The conversation it is, or is in.
   final int thread;
@@ -55,6 +56,17 @@ class MessageFacts {
   /// Whether the words are the person's own. Null where that is not known: the list of conversations holds a
   /// conversation's last words, not whose they are.
   final bool? outgoing;
+
+  /// The message itself, for one message: what it is known by while the app is open ("sms:12", "telegram:10:4",
+  /// "space:9f…"). Null for a conversation.
+  final String? id;
+
+  /// Where a message came by: 'sms' (a text, or one between friends), 'telegram', 'signal', 'space'. Null for a
+  /// conversation of texts as the list holds it.
+  final String? network;
+
+  /// The same, with other words: a message's as a bubble shows them (without "(sent with Slam)").
+  MessageFacts withText(String text) => MessageFacts(thread: thread, senders: senders, text: text, contact: contact, group: group, date: date, unread: unread, muted: muted, outgoing: outgoing, id: id, network: network);
 
   /// A conversation as the list holds it: its people and its last words.
   factory MessageFacts.conversation(Conversation c) => MessageFacts(
@@ -82,6 +94,8 @@ class MessageFacts {
       group: people.length > 1,
       date: m.date,
       outgoing: m.outgoing,
+      id: m.key,
+      network: 'sms',
     );
   }
 
@@ -98,6 +112,8 @@ class MessageFacts {
         'unread': unread,
         'muted': muted,
         'outgoing': outgoing,
+        if (id != null) 'id': id,
+        if (network != null) 'network': network,
       };
 }
 
@@ -522,6 +538,115 @@ final class MoveToSection extends IncomingAction {
 /// the README for what Android's side would have to do for it to hold while the app is closed.
 typedef IncomingRule = List<IncomingAction> Function(MessageFacts facts, TagSet tags, String? section, PluginPrefs prefs);
 
+// --- (e) what a message's words are shown as -----------------------------------------------------------------------
+
+/// What a plugin shows in place of a message's words (Matt, 2026-11-17: "add a translate plugin which can
+/// automatically translate texts when detected from another language and show the original text dimmed in a card with
+/// the translated text for the actual message bubble"): [text] in the bubble, and [original], the words as they came,
+/// drawn by the app over the bubble, dimmed, in a card of its own headed by [note]. A tap on the card swaps the two
+/// for that message; the app keeps which way round each is (shown_store.dart).
+@immutable
+class ShownText {
+  const ShownText({required this.text, this.original, this.note, this.flipNote, this.showOriginal = 'Show original', this.showShown = 'Show translation', this.called = 'translation', this.busy = false, this.again})
+      : later = false;
+
+  /// Nothing to show yet, and asked again after [again]: an answer that may change on its own (the phone out of reach,
+  /// a computer that has not heard yet what its phone can do, a translator let go mid-way). The words are shown as
+  /// they are meanwhile, and the next plugin is asked. Without it such an answer was held as "nothing" for the session.
+  const ShownText.later(Duration this.again)
+      : text = '',
+        original = null,
+        note = null,
+        flipNote = null,
+        showOriginal = 'Show original',
+        showShown = 'Show translation',
+        called = 'translation',
+        busy = false,
+        later = true;
+
+  /// What the bubble says.
+  final String text;
+
+  /// The words as they came, for the card; null for a card of [note] alone (still at work, [busy]).
+  final String? original;
+
+  /// The card's quiet heading: "Translated from Spanish", "Getting Spanish ready…".
+  final String? note;
+
+  /// The heading while the two are swapped ("Spanish, as sent"); [note] where null.
+  final String? flipNote;
+
+  /// What the word that swaps them says, each way round.
+  final String showOriginal;
+  final String showShown;
+
+  /// What the plugin's words are called, where a line says what it holds (Dial-Up's transcript: "(translation)").
+  final String called;
+
+  /// Still at work: the card wears a small spinner by [note], and nothing can be swapped yet.
+  final bool busy;
+
+  /// Asked again after this long (a language being fetched); null: it holds until the words or the choices change.
+  final Duration? again;
+
+  /// [ShownText.later]: nothing shown, asked again after [again].
+  final bool later;
+
+  /// The same as plain values.
+  Map<String, Object?> toJson() => {'text': text, 'original': original, 'note': note, 'busy': busy};
+
+  bool same(ShownText? o) => o != null && o.text == text && o.original == original && o.note == note && o.flipNote == flipNote && o.busy == busy;
+}
+
+/// What the device said of a text it was asked to translate ([TextHost.translate]): [state] is 'done' (with [text]
+/// and [from]), 'same' (already in a language the person reads), 'und' (not sure which), 'unsupported', 'fetching' (the
+/// language's model is coming), 'waiting-wifi' (it waits for Wi-Fi), 'needs-model', 'unavailable' (no translation on
+/// this device, or a paired phone too old to do it), 'offline' (the phone is out of reach) or 'failed'.
+@immutable
+class DeviceTranslation {
+  const DeviceTranslation(this.state, {this.text, this.from});
+  final String state;
+  final String? text;
+
+  /// The language it was in, as its base subtag ("es").
+  final String? from;
+
+  factory DeviceTranslation.from(Map? m) => m == null ? const DeviceTranslation('failed') : DeviceTranslation('${m['state'] ?? 'failed'}', text: m['text'] as String?, from: m['from'] as String?);
+}
+
+/// A language the device can translate, and whether its model is here.
+@immutable
+class DeviceLanguage {
+  const DeviceLanguage(this.tag, {this.downloaded = false, this.fetching = false});
+  final String tag;
+  final bool downloaded;
+  final bool fetching;
+}
+
+/// What a text rule may ask of the app: the language the person reads and the device's own translation, never a screen.
+abstract interface class TextHost {
+  /// The language the person reads, as its base subtag ("en"): the phone's (or the computer's) own.
+  String get language;
+
+  /// Whether this device can translate at all (an iPhone on its own cannot yet).
+  bool get canTranslate;
+
+  /// [text] in [to], unless it is in [to] or one of [known] already. [fetch] fetches a language's model where it is
+  /// not here yet (on Wi-Fi alone where [wifiOnly]); nothing waits for it.
+  Future<DeviceTranslation> translate(String text, {required String to, List<String> known = const [], bool fetch = true, bool wifiOnly = true});
+
+  /// Every language the device has a model for, or could fetch.
+  Future<List<DeviceLanguage>> languages();
+
+  /// Fetches a language's model ([delete] false) or deletes it to give the room back.
+  Future<bool> model(String tag, {bool delete = false, bool wifiOnly = true});
+}
+
+/// Asked for a message's words as they stand, once (and kept by the app until the words or the plugin's choices
+/// change, or until [ShownText.again]). Null: shown as they are. Never asked of the person's own messages, nor of a
+/// message being sent, a notice or one that could not be opened.
+typedef TextRule = Future<ShownText?> Function(MessageFacts facts, PluginPrefs prefs, TextHost host);
+
 // --- a plugin's own settings -----------------------------------------------------------------------------------------
 
 /// One row of a plugin's card on Settings › Plugins, said in words: a switch kept in the plugin's choices, or a line
@@ -624,6 +749,30 @@ class PluginSettingsPage {
   final String? intro;
 }
 
+// --- how the Plugins page shows a plugin -----------------------------------------------------------------------------
+
+/// The shelf a plugin stands on in the Plugins page (lib/ui/plugins_page/; Matt, 2026-11-17: "redo how the plugins
+/// look with their own dedicated plugins page with a marketplace like look how ghostmd has"): the chips over its
+/// cards. A shelf with no plugin on it has no chip.
+enum PluginShelf {
+  organise('Organise'),
+  safety('Safety'),
+  messages('Messages'),
+  tools('Tools');
+
+  const PluginShelf(this.label);
+  final String label;
+}
+
+/// One line of what a plugin reads, keeps or sends, for its page's privacy card: "Your texts, read on this phone".
+@immutable
+class PluginReach {
+  const PluginReach(this.icon, this.label, [this.hint]);
+  final LucideIcon icon;
+  final String label;
+  final String? hint;
+}
+
 // --- the plugin ------------------------------------------------------------------------------------------------------
 
 /// A plugin. The ones the app ships with are compiled in and listed in registry.dart.
@@ -653,6 +802,33 @@ abstract class GhostPlugin {
   List<IncomingRule> get incoming => const [];
   List<PluginSetting> get settings => const [];
 
+  /// What it shows in place of a message's words ([TextRule]): the first plugin to answer has the bubble.
+  List<TextRule> get text => const [];
+
   /// A section of its own in Settings for those, in place of a card on Settings › Plugins; null for none.
   PluginSettingsPage? get settingsPage => null;
+
+  // What the Plugins page shows of it (lib/ui/plugins_page/; Matt, 2026-11-17: "redo how the plugins look with their
+  // own dedicated plugins page with a marketplace like look how ghostmd has"). Each has a plain default, so a plugin
+  // that says nothing of these still has a card.
+
+  /// Its colour on its tile, its card and its page, by the names Settings' sections use ([PluginSettingsPage.hue]):
+  /// its own page's in Settings where it has one, so the two are one colour.
+  String get hue => settingsPage?.hue ?? 'rose';
+
+  /// The shelf it stands on.
+  PluginShelf get shelf => PluginShelf.tools;
+
+  /// The short line on its card, a few words; [description] where it says none.
+  String get tagline => description;
+
+  /// Its line on a featured card, which must be whole in three short lines: [tagline] where it says none.
+  String get pitch => tagline;
+
+  /// What it puts in the app once it is added, a line each: "A Codes tab in the list".
+  List<String> get adds => const [];
+
+  /// What it reads, keeps or sends, a line each, for the card on its page that says so. None: the page says it
+  /// works on what is on the screen and sends nothing.
+  List<PluginReach> get reaches => const [];
 }

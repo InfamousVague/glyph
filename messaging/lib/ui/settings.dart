@@ -216,7 +216,7 @@ abstract final class SettingsSources {
 /// One section: a row on the list and the page it opens.
 @immutable
 class SettingsSection {
-  const SettingsSection({required this.id, required this.label, required this.icon, required this.hue, required this.group, required this.page, this.summary, this.screen, this.where = SettingsWhere.everywhere, this.when});
+  const SettingsSection({required this.id, required this.label, required this.icon, required this.hue, required this.group, required this.page, this.summary, this.screen, this.where = SettingsWhere.everywhere, this.when, this.listed = true, this.entry});
 
   /// The kind of device it is for.
   final SettingsWhere where;
@@ -243,6 +243,28 @@ class SettingsSection {
 
   /// A screen of its own in place of a page of cards: Archived, the chat background.
   final Widget Function(BuildContext context, SettingsModel model)? screen;
+
+  /// Whether it has a row in Settings' list and the Settings ring's menu. One that is not (a plugin's own page, which
+  /// the Plugins page leads to now) is still opened by its id, and Settings' search still finds what is on it.
+  final bool listed;
+
+  /// What stands in Settings' list in place of its row, on a card of its own: the Plugins page's way in, a band in
+  /// colour with the plugins' tiles on it (Matt, 2026-11-17: "redo how the plugins look with their own dedicated
+  /// plugins page with a marketplace like look how ghostmd has"). [open] opens it; [selected] is that its page is the
+  /// one beside the list. A search's hit for it is a plain row, as every other section's.
+  final Widget Function(BuildContext context, SettingsModel model, VoidCallback open, bool selected)? entry;
+}
+
+/// The setting a search found on a section that draws a screen of its own ([SettingsSection.screen]), for that screen
+/// to show: the Plugins page opens the plugin of that name.
+class SettingsSeek extends InheritedWidget {
+  const SettingsSeek({super.key, required this.seek, required super.child});
+  final String? seek;
+
+  static String? of(BuildContext context) => context.getInheritedWidgetOfExactType<SettingsSeek>()?.seek;
+
+  @override
+  bool updateShouldNotify(SettingsSeek old) => old.seek != seek;
 }
 
 /// A section's page can play a message effect over itself (Effects): asked for from a row on it.
@@ -306,7 +328,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     final shell = AppShell.maybeOf(context);
     if (shell != null) return shell.settings(s.id, seek);
     final model = _model!;
-    push<void>(context, (context) => s.screen != null ? s.screen!(context, model) : SectionPage(section: s, model: model, seek: seek));
+    push<void>(context, (context) => s.screen != null ? SettingsSeek(seek: seek, child: Builder(builder: (context) => s.screen!(context, model))) : SectionPage(section: s, model: model, seek: seek));
   }
 
   @override
@@ -319,9 +341,10 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     return ListenableBuilder(
       listenable: Listenable.merge([model, ?shell?.settingsSection]),
       builder: (context, _) {
-        final sections = [for (final s in settingsSections) if (s.when?.call(model) ?? true) s];
+        final all = [for (final s in settingsSections) if (s.when?.call(model) ?? true) s];
+        final sections = [for (final s in all) if (s.listed) s];
         final query = _query.trim();
-        final hits = query.isEmpty ? const <SettingsHit>[] : searchSettings(context, model, sections, query);
+        final hits = query.isEmpty ? const <SettingsHit>[] : searchSettings(context, model, all, query);
         final chosen = beside ? shell.settingsSection.value : null;
         // Beside the pane there is always a section in it: the first, until another is pressed.
         if (beside && chosen == null && sections.isNotEmpty) {
@@ -488,7 +511,7 @@ class _SettingsSectionScreenState extends State<SettingsSectionScreen> {
           });
           return ColoredBox(color: context.tokens.color('glacier-bg'), child: const SizedBox.expand());
         }
-        return section.screen != null ? section.screen!(context, model) : SectionPage(section: section, model: model, seek: widget.seek);
+        return section.screen != null ? SettingsSeek(seek: widget.seek, child: Builder(builder: (context) => section.screen!(context, model))) : SectionPage(section: section, model: model, seek: widget.seek);
       },
     );
   }
@@ -518,12 +541,23 @@ class SettingsList extends StatelessWidget {
       groups.putIfAbsent(section.group, () => []).add(section);
     }
     var index = 0;
+    void open(SettingsSection section) => onOpen != null ? onOpen!(section) : push<void>(context, (context) => section.screen != null ? section.screen!(context, model) : SectionPage(section: section, model: model));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (final group in groups.values) ...[
-          _Group(rows: [
-            for (final section in group)
+          // A section with an entry of its own (the Plugins page's band) stands on its own above its group's card.
+          for (final section in group)
+            if (section.entry != null) ...[
+              _Reveal(
+                shown: beside && section.id == chosen,
+                foot: beside && !AppShell.railOf(context) ? NavPill.clearance(t) : 0,
+                child: section.entry!(context, model, () => open(section), beside && section.id == chosen),
+              ),
+              if (group.any((s) => s.entry == null)) SizedBox(height: t.space(3)),
+            ],
+          if (group.any((s) => s.entry == null)) _Group(rows: [
+            for (final section in group.where((s) => s.entry == null))
               _Reveal(
                 // The row of the section open beside the list is brought into view when it was not: a section
                 // jumped to from somewhere else (a search, the Settings ring's menu) is marked where it can be seen.
@@ -537,7 +571,7 @@ class SettingsList extends StatelessWidget {
                   index: index++,
                   selected: beside && section.id == chosen,
                   chevron: !beside,
-                  onPress: () => onOpen != null ? onOpen!(section) : push<void>(context, (context) => section.screen != null ? section.screen!(context, model) : SectionPage(section: section, model: model)),
+                  onPress: () => open(section),
                 ),
               ),
           ]),
@@ -754,7 +788,8 @@ List<SettingsHit> searchSettings(BuildContext context, SettingsModel model, List
   final seen = <String>{};
   for (final s in sections) {
     if (settingsMatch(query, '${s.label} ${s.summary?.call(model) ?? ''}')) found.add(SettingsHit(s));
-    if (s.screen != null) continue;
+    // A section with a screen of its own is searched by its page too, which is empty for most (Archived), and for
+    // the Plugins page is every plugin by name: a hit opens the screen at it ([SettingsSeek]).
     for (final (label, detail) in pageEntries(s.page(context, model))) {
       if (label == s.label || !seen.add('${s.id}|$label')) continue;
       if (settingsMatch(query, '$label $detail ${s.label}')) settings.add(SettingsHit(s, setting: label));

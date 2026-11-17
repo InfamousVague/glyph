@@ -16,6 +16,10 @@ import 'package:ghost_messaging/looks.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
 import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
 import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner;
+import 'package:ghost_messaging/plugins/plugin.dart' show DeviceLanguage, DeviceTranslation, TextHost;
+import 'package:ghost_messaging/plugins/registry.dart' show PluginRegistry;
+import 'package:ghost_messaging/plugins/settings.dart' show pluginsScreen;
+import 'package:ghost_messaging/plugins/shown_store.dart' show ShownStore;
 import 'package:ghost_messaging/sms.dart' show Person, Sms;
 import 'package:ghost_messaging/ui/compose.dart';
 import 'package:ghost_messaging/ui/dialup/dialup.dart';
@@ -247,6 +251,9 @@ void main() {
         final sheet = (await tester.runAsync(_loadSheet))!;
         for (final b in brightnessesOf(look)) {
           for (final screen in themeScreens) {
+            // THEME_SCREENS=plugins,plugin-detail draws those alone, for working on one screen.
+            final only = Platform.environment['THEME_SCREENS']?.split(',');
+            if (only != null && !only.contains(screen.name)) continue;
             await shootLook(tester, sheet, look, b, screen, write: shots);
           }
         }
@@ -351,11 +358,17 @@ class _DialupPieces extends StatelessWidget {
 /// A screen drawn in every look by [shootLook]: its [name] in the file's name, how to make it, the window it is drawn
 /// in, and anything to put in place before (a network signed in, a space's chat).
 class ThemeScreen {
-  const ThemeScreen(this.name, this.build, {this.size = phone, this.before});
+  const ThemeScreen(this.name, this.build, {this.size = phone, this.before, this.choices, this.after});
   final String name;
   final Widget Function() build;
   final Size size;
   final void Function()? before;
+
+  /// The person's choices for this screen alone, made on the [AppState] it is drawn with (a plugin switched on).
+  final void Function(AppState state)? choices;
+
+  /// Put back after it is drawn (what [before] changed that would outlive the test: a timer).
+  final void Function()? after;
 
   static const phone = Size(412, 892), wide = Size(750, 832);
 }
@@ -377,7 +390,74 @@ final themeScreens = <ThemeScreen>[
   ThemeScreen('group-wide', () => ThreadScreen(thread: 2, people: [for (final p in _conversations[1]['people'] as List) Person.from(p as Map)]), size: ThemeScreen.wide),
   ThemeScreen('space-room', () => HangoutScreen(channel: _busySpace('phone').channel), before: () => Voice.instance.putHangout(_busySpace('phone'))),
   ThemeScreen('space-room-wide', () => HangoutScreen(channel: _busySpace('wide').channel), size: ThemeScreen.wide, before: () => Voice.instance.putHangout(_busySpace('wide'))),
+  // The Plugins page (Matt, 2026-11-17: "redo how the plugins look with their own dedicated plugins page with a
+  // marketplace like look how ghostmd has"): Settings' list with its band leading there, the page on a phone, a
+  // plugin's page over it, and on a computer's window with a plugin's page beside the shelves.
+  ThemeScreen('settings', () => const SettingsScreen(), size: const Size(412, 2100)),
+  ThemeScreen('plugins', () => const SettingsSectionScreen('plugins')),
+  // Translate's page, as it is before it is added (its picture of a translated text, Add) and once it is (its
+  // settings, beside the shelves on a computer); and the Spam filter's, a plugin with a shelf tag and a summary.
+  ThemeScreen('plugin-detail', () => pluginsScreen(null, 'translate'), before: _translating, after: _translated),
+  ThemeScreen('plugin-detail-spam', () => pluginsScreen(null, 'spam')),
+  ThemeScreen('plugins-desktop', () => pluginsScreen(null, 'translate'), size: const Size(1180, 860), choices: _translateOn, before: _translating, after: _translated),
+  // Translate (Matt, 2026-11-17: "add a translate plugin which can automatically translate texts when detected from
+  // another language and show the original text dimmed in a card with the translated text for the actual message
+  // bubble"): a conversation with Spanish texts translated, one swapped back, and one whose language is being got
+  // ready; a Telegram chat in French; and the plugin's own page.
+  ThemeScreen('translated', () => const ThreadScreen(thread: 8, people: [Person(address: '+15551230009', name: 'Lucía Ortega')]), choices: _translateOn, before: _translating, after: _translated),
+  ThemeScreen('translated-inbox', () => InboxChatScreen(network: _telegram(), chatId: '11', fallback: _camille), choices: _translateOn, before: _translating, after: _translated),
+  ThemeScreen('translate-settings', () => const SettingsSectionScreen('plugin-translate'), choices: _translateOn, before: _translating, after: _translated),
 ];
+
+void _translateOn(AppState state) => state.set('plugin_translate', 'on');
+
+/// The French chat's name, as it was opened: it is not in the network's list of chats, so the list's pictures stay
+/// as they were, and its bar read "Telegram" over "Telegram" without it.
+final _camille = InboxChat(network: 'telegram', id: '11', title: 'Camille Laurent', date: _now.subtract(const Duration(minutes: 4)), snippet: 'Yes, where?');
+
+void _translating() {
+  _hostBefore ??= PluginRegistry.textHost;
+  PluginRegistry.textHost = _FakeTranslator();
+  ShownStore.instance.forget();
+  // Swapped back by the person: the Spanish in the bubble, the English in the card.
+  ShownStore.instance.flip('sms:23');
+}
+
+void _translated() {
+  ShownStore.instance.forget();
+  PluginRegistry.textHost = _hostBefore ?? PluginRegistry.textHost;
+}
+
+TextHost? _hostBefore;
+
+/// The phone's translation, made up for the pictures.
+class _FakeTranslator implements TextHost {
+  static const _said = {
+    '¡Hola! ¿Sigues viniendo a la cena del sábado?': 'Hi! Are you still coming to dinner on Saturday?',
+    'Perfecto, yo llevo el postre. Mi madre hizo flan otra vez': 'Perfect, I\'ll bring dessert. My mother made flan again',
+    'No te olvides de traer la guitarra, por favor': 'Don\'t forget to bring the guitar, please',
+    'Salut ! Tu es libre ce soir pour un verre ?': 'Hi! Are you free tonight for a drink?',
+  };
+
+  @override
+  String get language => 'en';
+  @override
+  bool get canTranslate => true;
+
+  @override
+  Future<DeviceTranslation> translate(String text, {required String to, List<String> known = const [], bool fetch = true, bool wifiOnly = true}) async {
+    final said = _said[text];
+    if (said != null) return DeviceTranslation('done', text: said, from: text.startsWith('Salut') ? 'fr' : 'es');
+    if (text.startsWith('Obrigada')) return const DeviceTranslation('fetching', from: 'pt');
+    return const DeviceTranslation('same', from: 'en');
+  }
+
+  @override
+  Future<List<DeviceLanguage>> languages() async => const [DeviceLanguage('en', downloaded: true), DeviceLanguage('es', downloaded: true), DeviceLanguage('fr', downloaded: true), DeviceLanguage('pt', fetching: true)];
+
+  @override
+  Future<bool> model(String tag, {bool delete = false, bool wifiOnly = true}) async => true;
+}
 
 /// Draws [screen] in [look] at [brightness] as the app would, from the person's choices alone (lib/looks.dart's
 /// ghostAttrs), and with [write] keeps its picture at `build/themes/<look>-<brightness>-<screen>.png`.
@@ -395,10 +475,15 @@ Future<void> shootLook(WidgetTester tester, TokenSheet sheet, Look look, String 
   final state = AppState()
     ..setTheme(brightness)
     ..setLook(look);
+  screen.choices?.call(state);
+  if (screen.after != null) addTearDown(screen.after!);
   final name = '${look.name}-$brightness-${screen.name}';
   await tester.pumpWidget(AppScope(
     state: state,
+    // A navigator of its own for each screen: a page one screen opened over itself (a plugin's, on the Plugins page)
+    // would otherwise still stand over every screen drawn after it.
     child: WidgetsApp(
+      key: ValueKey('app-$name'),
       color: const Color(0xFF4F5BD5),
       debugShowCheckedModeBanner: false,
       pageRouteBuilder: <T>(RouteSettings s, WidgetBuilder b) => PageRouteBuilder<T>(settings: s, pageBuilder: (c, _, _) => b(c)),
@@ -487,6 +572,13 @@ final _conversations = [
 ];
 
 List<Map<String, Object?>> _messages(int thread) => switch (thread) {
+      8 => [
+          {'id': 25, 'kind': 'sms', 'address': '+15551230009', 'body': 'Obrigada pela ajuda de ontem, foi muito gentil', 'date': _ago(minutes: 1), 'outgoing': false, 'state': 'received', 'read': true},
+          {'id': 24, 'kind': 'sms', 'address': '+15551230009', 'body': 'Perfecto, yo llevo el postre. Mi madre hizo flan otra vez', 'date': _ago(minutes: 3), 'outgoing': false, 'state': 'received', 'read': true},
+          {'id': 23, 'kind': 'sms', 'address': '+15551230009', 'body': 'No te olvides de traer la guitarra, por favor', 'date': _ago(minutes: 4), 'outgoing': false, 'state': 'received', 'read': true},
+          {'id': 22, 'kind': 'sms', 'address': '+15551230009', 'body': 'Yes! I\'ll be there around 7', 'date': _ago(minutes: 9), 'outgoing': true, 'state': 'delivered', 'read': true},
+          {'id': 21, 'kind': 'sms', 'address': '+15551230009', 'body': '¡Hola! ¿Sigues viniendo a la cena del sábado?', 'date': _ago(minutes: 12), 'outgoing': false, 'state': 'received', 'read': true},
+        ],
       2 => [
           {'id': 16, 'kind': 'mms', 'address': '', 'body': 'Trailhead at 9', 'date': _ago(minutes: 47), 'outgoing': true, 'state': 'failed', 'read': true, 'parts': [], 'why': 'mobile data is off. Picture messages need it, even on Wi-Fi'},
           {'id': 15, 'kind': 'mms', 'address': '', 'body': '', 'date': _ago(minutes: 48), 'outgoing': true, 'state': 'sent', 'read': true, 'parts': [{'id': 902, 'type': 'image/png', 'name': 'ghost-sticker-party-03.png'}]},
@@ -530,7 +622,8 @@ void _answerChannel() {
       case 'messages':
         return _messages((args['thread'] as num).toInt());
       case 'people':
-        return _conversations.firstWhere((c) => c['id'] == args['thread'])['people'];
+        // The translated conversation (thread 8) is not in the list, so the list's pictures stay as they were.
+        return _conversations.where((c) => c['id'] == args['thread']).firstOrNull?['people'] ?? [_p('+15551230009', 'Lucía Ortega')];
       case 'update':
         return {'phase': 'idle', 'current': '0.8.2', 'auto': true, 'canInstall': true, 'source': 'https://gogho.st'};
       case 'ownNumber':
@@ -567,6 +660,11 @@ InboxNetwork _telegram() => _tg ??= _FakeNetwork('telegram', 'Telegram', [
         InboxMessage(id: '3', text: 'good! there\'s a thing at the park later', date: _now.subtract(const Duration(minutes: 3)), mine: false),
         InboxMessage(id: '4', text: 'are you coming tonight?', date: _now.subtract(const Duration(minutes: 2)), mine: false),
         InboxMessage(id: '5', text: 'yes! save me a spot', date: _now.subtract(const Duration(minutes: 1)), mine: true),
+      ],
+      // A chat in French, translated (the 'translated-inbox' screen): not in the list of chats, so the list is as it was.
+      '11': [
+        InboxMessage(id: '1', text: 'Salut ! Tu es libre ce soir pour un verre ?', date: _now.subtract(const Duration(minutes: 6)), mine: false),
+        InboxMessage(id: '2', text: 'Yes, where?', date: _now.subtract(const Duration(minutes: 4)), mine: true),
       ],
     });
 InboxNetwork? _tg;

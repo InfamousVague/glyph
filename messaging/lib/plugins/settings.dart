@@ -1,6 +1,8 @@
-/// Settings › Plugins: every plugin with its switch, and under that a card for each one that is on and has settings
-/// of its own. The page is a list of the kit's cards and rows like every other section's (lib/ui/settings_panes.dart),
-/// so Settings' search finds a plugin, and a plugin's setting, by name.
+/// Settings › Plugins. Since 2026-11-17 it is the Plugins page (lib/ui/plugins_page/; Matt: "redo how the plugins look
+/// with their own dedicated plugins page with a marketplace like look how ghostmd has"), each plugin's settings on its
+/// page there. The section keeps its list of the kit's cards and rows ([pluginsPane]), every plugin with its switch,
+/// and each plugin keeps its own section ([pluginPages]), so Settings' search still finds a plugin, and a plugin's
+/// setting, by name.
 library;
 
 import 'dart:io' show Platform;
@@ -15,11 +17,13 @@ import '../art/lucide.g.dart';
 import '../kit/settings_kit.dart';
 import '../sms.dart';
 import '../ui/settings.dart';
+import '../ui/plugins_page/plugins_page.dart';
 import 'plugin.dart';
 import 'registry.dart';
 
-/// The plugins' rows for Settings' list: Plugins itself, there once the app has a plugin to switch, and after it a
-/// row for each plugin that has a section of its own ([GhostPlugin.settingsPage]), shown while that plugin is on.
+/// The plugins' sections of Settings: Plugins itself, there once the app has a plugin to switch, and after it a
+/// section for each plugin that has one of its own ([GhostPlugin.settingsPage]), which Settings' list does not show
+/// (the Plugins page leads to its settings) but a link or a search still opens.
 List<SettingsSection> pluginsSettings() => PluginRegistry.instance.isEmpty ? const [] : [pluginsSection(), ...pluginPages()];
 
 /// Settings › Plugins, for the app's own plugins or, in a test, for [registry]'s.
@@ -36,7 +40,29 @@ SettingsSection pluginsSection([PluginRegistry? registry]) => SettingsSection(
         return on.isEmpty ? 'None on' : on.join(' · ');
       },
       page: (context, m) => pluginsPane(context, m.app, registry ?? PluginRegistry.instance),
+      // The page itself is the Plugins page (Matt, 2026-11-17: "redo how the plugins look with their own dedicated
+      // plugins page with a marketplace like look how ghostmd has"); [page] stays what Settings' search reads, every
+      // plugin by name, and a hit opens the Plugins page at it. Its row in Settings' list is the band, short.
+      screen: (context, m) => pluginsScreen(registry),
+      entry: (context, m, open, selected) => PluginsEntry(registry: registry ?? PluginRegistry.instance, onOpen: open, selected: selected),
     );
+
+/// The Plugins page for the app's own plugins or [registry]'s, each one's settings on its page once it is added: the
+/// cards its own section in Settings has ([pluginPages]).
+Widget pluginsScreen([PluginRegistry? registry, String? open]) {
+  final r = registry ?? PluginRegistry.instance;
+  return PluginsPage(registry: r, open: open, settingsOf: (context, p) => _ownOf(context, p, r), summaryOf: (context, p) => _summaryOf(context, p, r));
+}
+
+/// One plugin's page from the Plugins page on a screen of its own: its section of Settings ([pluginPages]).
+Widget pluginScreen(GhostPlugin plugin, [PluginRegistry? registry]) {
+  final r = registry ?? PluginRegistry.instance;
+  return PluginScreen(registry: r, plugin: plugin, settingsOf: (context, p) => _ownOf(context, p, r), summaryOf: (context, p) => _summaryOf(context, p, r));
+}
+
+List<Widget> _ownOf(BuildContext context, GhostPlugin p, PluginRegistry r) => _own(context, p, r, AppStore(AppState.of(context)), title: null);
+
+String? _summaryOf(BuildContext context, GhostPlugin p, PluginRegistry r) => p.settingsPage?.summary?.call(r.prefsOf(p, AppStore(AppState.of(context))));
 
 /// A section of Settings for each plugin that asks for one (Matt, 2026-11-14: "the plugins and all being able to
 /// make their own setting sections"): its row is under Plugins, on or off, and its page is its own switch, at the top
@@ -53,11 +79,17 @@ List<SettingsSection> pluginPages([PluginRegistry? registry]) {
           icon: AppIcon(p.icon, size: 18),
           hue: p.settingsPage!.hue,
           group: 'plugins',
+          // Not a row of Settings' list since the Plugins page (Matt, 2026-11-17): the plugin's page there leads to
+          // these settings. Still opened by its id, and still read by Settings' search.
+          listed: false,
           summary: (m) {
             final store = AppStore(m.app);
             if (!r.isOn(p, store)) return 'Off';
             return p.settingsPage!.summary?.call(r.prefsOf(p, store)) ?? p.description;
           },
+          // Its page from the Plugins page (Matt, 2026-11-17: "redo how the plugins look with their own dedicated
+          // plugins page with a marketplace like look how ghostmd has"); [page] stays what Settings' search reads.
+          screen: (context, m) => pluginScreen(p, r),
           page: (context, m) {
             final store = AppStore(m.app);
             final on = r.isOn(p, store);
@@ -86,7 +118,7 @@ List<Widget> pluginsPane(BuildContext context, AppState app, PluginRegistry regi
     PaneSection(
       title: 'Plugins',
       description: Text('Extra things the app can do with your messages. Each one works on this ${Sms.remote ? (Platform.isIOS ? 'iPhone' : 'computer') : 'phone'} alone, and does nothing while it is off.'),
-      footer: registry.plugins.any((p) => p.settingsPage != null) ? const Text('A plugin with settings of its own has a section of its own in Settings, with its switch at the top.') : null,
+      footer: registry.plugins.any((p) => p.settingsPage != null) ? const Text('Each plugin\'s settings are on its page in Plugins.') : null,
       children: [
         for (final p in registry.plugins)
           SettingRow(

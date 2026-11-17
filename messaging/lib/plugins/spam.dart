@@ -335,6 +335,23 @@ class SpamPlugin extends GhostPlugin {
   @override
   LucideIcon get icon => Lucide.triangleAlert;
 
+  // Its card and page on the Plugins page (Matt, 2026-11-17: "redo how the plugins look with their own dedicated plugins page
+  // with a marketplace like look how ghostmd has").
+  @override
+  PluginShelf get shelf => PluginShelf.safety;
+
+  @override
+  String get tagline => 'Texts that look like spam go to a tab of their own.';
+
+  @override
+  List<String> get adds => const ['A Spam tab in the list', '"Not spam" on a conversation, to put it back for good', 'How strict it is, and lists of your own'];
+
+  @override
+  List<PluginReach> get reaches => const [
+        PluginReach(Lucide.messageSquare, 'Texts from numbers not in your contacts', 'Read on this phone to judge them. Nothing is sent, deleted or blocked.'),
+        PluginReach(Lucide.contactRound, 'Your contacts, so theirs are never judged'),
+      ];
+
   /// On from the start, its kind hidden until shown (Matt, 2026-11-14: "a filter dropdown where showing spam, political
   /// messages, and debt collectors are filtered out by default"): it was off until chosen, and a tab of its own.
   @override

@@ -1092,6 +1092,41 @@ class Sms {
     }
   }
 
+  /// [text] translated into [to] on the phone (android/.../Translate.kt), for the Translate plugin
+  /// (lib/plugins/translate.dart; Matt, 2026-11-17: "add a translate plugin which can automatically translate texts when
+  /// detected from another language"): `{state, text, from}`, as Translate.kt answers. On a computer, or an iPhone
+  /// paired with a phone, the paired phone is asked over the link (lib/desktop/remote.dart); an iPhone on its own has
+  /// no translation yet ('unavailable'). Never throws: a bubble must never break over it.
+  Future<Map<String, Object?>> translate(String text, {required String to, List<String> known = const [], bool fetch = true, bool wifiOnly = true}) async {
+    if (standalone) return const {'state': 'unavailable'};
+    try {
+      final got = await _calls.invokeMethod<Map>('translate', {'text': text, 'to': to, 'known': known, 'fetch': fetch, 'wifiOnly': wifiOnly});
+      return got == null ? const {'state': 'failed'} : got.cast<String, Object?>();
+    } catch (_) {
+      return const {'state': 'failed'};
+    }
+  }
+
+  /// Every language the phone can translate, `{tag, downloaded, fetching}` each; none where it cannot.
+  Future<List<Map<String, Object?>>> translateLanguages() async {
+    if (standalone) return const [];
+    try {
+      return [for (final l in (await _calls.invokeMethod<List>('translateLanguages')) ?? const []) (l as Map).cast<String, Object?>()];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Fetches a language's model for translation, or deletes it ([delete]) to give its room back.
+  Future<bool> translateModel(String tag, {bool delete = false, bool wifiOnly = true}) async {
+    if (standalone) return false;
+    try {
+      return (await _calls.invokeMethod<bool>('translateModel', {'tag': tag, 'action': delete ? 'delete' : 'fetch', 'wifiOnly': wifiOnly})) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Android's page for the "Paired with…" notification alone, where the person can turn it off.
   Future<void> deskNotificationSettings() => _calls.invokeMethod('deskNotificationSettings');
 
