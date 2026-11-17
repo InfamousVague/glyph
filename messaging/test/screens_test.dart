@@ -1850,6 +1850,26 @@ void main() {
       expect(find.text('Join voice'), findsOneWidget, reason: 'the chat keeps its way into the call');
       await tester.pumpWidget(const SizedBox());
     }
+
+    // Beside the list (an open Fold, a computer), the space is drawn as open only while the pane shows it: another
+    // conversation opened after it takes that from it (Matt, 2026-11-17: "the only ghosts chat is always highlighted
+    // even when it's not active in the front").
+    v.putLook(channel.room, const []);
+    tester.view.physicalSize = const Size(750 * 2.0, 832 * 2.0);
+    await _shoot(tester, sheet, const AppShell(), '20-space-in-messages-wide', dark: false);
+    bool chosen() => tester.widget<ConversationRow>(find.byKey(ValueKey('space-row-${channel.room}'))).selected;
+    expect(chosen(), isFalse);
+    await tester.tap(find.byKey(ValueKey('space-row-${channel.room}')));
+    await _settle(tester);
+    expect(chosen(), isTrue, reason: 'open in the pane');
+    await tester.tap(find.text('Maya Chen').first);
+    await _settle(tester);
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await tester.pump();
+    expect(chosen(), isFalse, reason: 'another conversation is in the pane now');
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 10));
+    v.view(null);
   });
 
   // Matt, 2026-11-17: "each group should come with a space": a group's call, while others are in it, floats over its
