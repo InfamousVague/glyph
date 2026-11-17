@@ -12,6 +12,7 @@ import '../../kit/settings_kit.dart';
 import '../../ui/common.dart';
 import '../../ui/computers.dart';
 import '../../ui/gm_guide_screen.dart';
+import '../../ui/jump_to_latest.dart' show ScrollMemory;
 import '../../ui/settings.dart';
 import '../../ui/settings_panes.dart' show aboutLicences;
 import '../../gm/google_signin.dart';
@@ -208,7 +209,12 @@ class _GmPage extends StatelessWidget {
                   label: 'Unpair Google Messages',
                   hint: const Text('This computer stops showing Google Messages\' conversations. Google Messages lists it under Device pairing until then.'),
                   onPress: () => showChoices(context, title: 'Unpair Google Messages from this computer?', choices: [
-                    Choice('Unpair', Lucide.unlink, () => gm.unpair(), danger: true),
+                    // Where each conversation was left goes too (lib/ui/jump_to_latest.dart): paired again, perhaps with another phone,
+                    // the same thread numbers name other conversations.
+                    Choice('Unpair', Lucide.unlink, () {
+                      ScrollMemory.forgetAll('sms:');
+                      gm.unpair();
+                    }, danger: true),
                   ]),
                 ),
               ],
@@ -279,6 +285,8 @@ List<Widget> _phonePage(BuildContext context, DeskSettings d) {
         onPress: () => showChoices(context, title: 'Unpair ${phone.name}? Its conversations leave this $computerWord, and the key the two share is deleted.', choices: [
           Choice('Unpair', Lucide.unlink, () async {
             d.calls.forget();
+            // And where each of its conversations was left: another phone paired later numbers its threads afresh.
+            ScrollMemory.forgetAll('sms:');
             await link.unpair();
           }, danger: true),
         ]),

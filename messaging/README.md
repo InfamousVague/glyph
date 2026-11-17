@@ -43,6 +43,14 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     stages with their times to `signal.log` beside its store and to standard error, which the app now passes to the
     Developer log (its own lines and signalmeow's warnings only; no message's words). Why Signal itself is slow to
     take a message is not known yet: the next stuck send says where in that log.
+- **A down arrow to the newest message, and each chat keeps its place** (not released; `lib/ui/jump_to_latest.dart`;
+  Matt, 2026-11-17: "add a down arrow that pops up when we enter a chat and we're not scrolled to the bottom or after we
+  scroll up a certain amount, remember the scroll position when switching between chats"). In texts, Telegram and
+  Signal chats and a space's chat, a round arrow (a bevelled square in Dial-Up) shows above the composer once you are
+  more than a screen (at least 400 px) up, or when a chat opens at a kept spot, with a red count of messages written
+  since; pressing it goes to the newest. Each chat keeps where it was for the session (`sms:`, `inbox:<network>:`,
+  `space:` keys) and opens there again; a spot kept at another width, look or text size is dropped and the chat opens
+  at the newest. Tests: jump_to_latest_test (11), themes_test screens.
 - **Translate, and a Plugins page like a market** (0.8.10; `lib/plugins/translate.dart`, `translate_host.dart`,
   `shown_store.dart`, `lib/ui/translated_card.dart`, android `Translate.kt`, `lib/ui/plugins_page/`; Matt, 2026-11-17: "add a
   translate plugin which can automatically translate texts when detected from another language and show the original
