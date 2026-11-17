@@ -685,6 +685,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   void _showReactions(List<Reaction> list) {
     String who(String by) {
       if (by.isEmpty) return 'You';
+      if (by == '?') return 'Someone';
       final p = _senders[by] ?? _people.where((p) => _same(p.address, by)).firstOrNull;
       return p?.label ?? by;
     }
@@ -1792,11 +1793,13 @@ class _Bubble extends StatelessWidget {
     if (reactions.isNotEmpty) {
       // The reactions are pinned under the bubble, on the side away from the screen's edge: the emoji alone, a
       // little larger, with no chip round them (Matt, 2026-11-14: "don't show the border on the emoji reaction just
-      // show the emoji's with no background pinned under it a bit larger").
+      // show the emoji's with no background pinned under it a bit larger"); over the bubble's lower edge by about half
+      // their height, and larger again (2026-11-17: "show the reactions slightly overlapping the chat bubble and make them
+      // a bit larger").
       bubble = Stack(
         clipBehavior: Clip.none,
         children: [
-          Padding(padding: EdgeInsets.only(bottom: t.lenOf('1.45rem')), child: bubble),
+          Padding(padding: EdgeInsets.only(bottom: t.lenOf('0.95rem')), child: bubble),
           Positioned(
             bottom: 0,
             left: out ? t.space(2) : null,
@@ -2075,7 +2078,7 @@ class _ReactionChip extends StatelessWidget {
         scale: state.pressed ? 1.15 : 1,
         duration: const Duration(milliseconds: 120),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(kinds.take(4).join(' '), style: pageText(t, t.lenOf('1.2rem'), height: 1.15)),
+          Text(kinds.take(4).join(' '), style: pageText(t, t.lenOf('1.5rem'), height: 1.15)),
           // How many, only where it is more than the emoji shown say.
           if (reactions.length > kinds.length) ...[
             SizedBox(width: t.space(1)),

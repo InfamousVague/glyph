@@ -131,4 +131,17 @@ void main() {
     expect(reactionSnippet('Loved “See you at 7”'), 'Reacted ❤️ to “See you at 7”');
     expect(reactionSnippet('hello'), isNull);
   });
+
+  // Matt, 2026-11-17: "When people react to a message we sent we see double reactions".
+  test('a reaction Google Messages keeps on a message and its reaction text are one reaction, not two', () {
+    final mine = Message(id: 1, kind: 'rcs', address: '', body: 'Damn we were going to have a party', date: DateTime(2026, 11, 17, 10, 8), outgoing: true, state: 'delivered', reactions: const ['😂']);
+    final text = _m(2, 'Laughed at “Damn we were going to have a party”', minute: 9);
+    final f = foldReactions([text, mine]);
+    expect(f.messages.single.body, 'Damn we were going to have a party', reason: 'the words alone, no emoji in them');
+    expect(f.reactions[mine.key]!.map((r) => r.emoji), ['😂']);
+    // Kept on the message alone, with no reaction text: still shown once, by no one in particular.
+    final alone = foldReactions([mine]);
+    expect(alone.reactions[mine.key]!.single.by, '?');
+    expect(Message.from({'id': 3, 'kind': 'rcs', 'body': 'hi', 'date': 0, 'outgoing': true, 'reactions': ['❤️', '👍']}).reactions, ['❤️', '👍']);
+  });
 }

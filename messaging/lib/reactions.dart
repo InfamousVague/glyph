@@ -206,6 +206,15 @@ Folded foldReactions(List<Message> newestFirst) {
     if (!r.removed) list.add(Reaction(emoji: r.emoji, by: by, date: m.date));
     if (list.isEmpty) reactions.remove(found.key);
   }
+  // Reactions the network keeps on a message (Google Messages' connection): each emoji once, beside those its reaction
+  // texts gave; who reacted is not said, so it is no one in particular.
+  for (final m in newestFirst) {
+    if (m.reactions.isEmpty || hidden.contains(m.key)) continue;
+    final list = reactions.putIfAbsent(m.key, () => []);
+    for (final emoji in m.reactions) {
+      if (!list.any((x) => x.emoji == emoji)) list.add(Reaction(emoji: emoji, by: '?', date: m.date));
+    }
+  }
   return Folded(messages: [for (final m in newestFirst) if (!hidden.contains(m.key)) m], reactions: reactions);
 }
 

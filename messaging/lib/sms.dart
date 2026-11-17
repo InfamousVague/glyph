@@ -181,7 +181,12 @@ class Message {
     this.why,
     this.via,
     this.read = true,
+    this.reactions = const [],
   });
+
+  /// Reactions on it as the network keeps them (Google Messages' connection: each emoji, not who): drawn under it with
+  /// those folded from reaction texts, each emoji once ([foldReactions]).
+  final List<String> reactions;
 
   /// Whether it had been read when it was read from the phone: an incoming one not yet looked at is false. Where the
   /// phone does not say (an older one), it is taken as read, so nothing is marked new that is not.
@@ -233,6 +238,7 @@ class Message {
         why: m['why'] as String?,
         via: m['via'] as String?,
         read: m['read'] != false,
+        reactions: [for (final r in (m['reactions'] as List? ?? const [])) '$r'],
       );
 }
 

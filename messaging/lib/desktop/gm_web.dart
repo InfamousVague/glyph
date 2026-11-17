@@ -390,7 +390,9 @@ class GmWeb extends ChangeNotifier {
         'id': id,
         'kind': 'gm',
         'address': '${from?['number'] ?? ''}',
-        'body': '${m['text'] ?? ''}${reactions.isEmpty ? '' : '\n${reactions.join(' ')}'}',
+        // Its reactions apart from its words, drawn once with the rest (lib/reactions.dart).
+        'body': '${m['text'] ?? ''}',
+        'reactions': reactions,
         'date': (m['time'] as num?)?.toInt() ?? 0,
         'outgoing': m['me'] == true,
         'state': _state(status, m['me'] == true),
