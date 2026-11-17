@@ -18,6 +18,7 @@ import '../inbox/inbox.dart';
 import '../inbox/mastodon.dart';
 import '../desktop/ui/qr.dart';
 import '../inbox/signal.dart';
+import '../inbox/teams.dart';
 import '../net/pair_room.dart';
 import '../inbox/telegram.dart';
 import '../kit/settings_kit.dart';
@@ -45,6 +46,7 @@ import '../kit/semantic_colors.dart';
 import 'dialup/bevel.dart' show DialupColors, isDialup;
 import 'message_line.dart';
 import 'translated_card.dart';
+import 'inbox_signin_teams.dart';
 
 /// The screens of the inbox of other networks (lib/inbox): a chat's row in the list, the chat itself, signing in, and
 /// the sections of Settings for each network.
@@ -1163,7 +1165,7 @@ List<SettingsSection> inboxSettingsSections() => [
           id: 'inbox-${n.id}',
           label: n.name,
           icon: inboxMark(n),
-          hue: switch (n.id) { 'telegram' => 'cyan', 'mastodon' => 'purple', 'signal' => 'indigo', _ => 'blue' },
+          hue: switch (n.id) { 'telegram' => 'cyan', 'mastodon' => 'purple', 'signal' => 'indigo', 'teams' => 'magenta', 'whatsapp' => 'green', 'matrix' => 'graphite', 'googlechat' => 'mint', _ => 'blue' },
           group: 'me',
           summary: (_) => _summary(n),
           page: (context, m) => _pane(context, n),
@@ -1179,7 +1181,7 @@ String _summary(InboxNetwork n) => n.soon ? 'Coming soon' : switch (n.state) {
 
 List<Widget> _pane(BuildContext context, InboxNetwork n) {
   void signIn() {
-    final page = switch (n) { Telegram tg => TelegramSignInScreen(network: tg), Bluesky b => BlueskySignInScreen(network: b), Mastodon m => MastodonSignInScreen(network: m), Signal sg => SignalLinkScreen(network: sg), _ => null };
+    final page = switch (n) { Telegram tg => TelegramSignInScreen(network: tg), Bluesky b => BlueskySignInScreen(network: b), Mastodon m => MastodonSignInScreen(network: m), Signal sg => SignalLinkScreen(network: sg), Teams tm => TeamsSignInScreen(network: tm), _ => null };
     if (page != null) push<void>(context, (_) => page);
   }
 
