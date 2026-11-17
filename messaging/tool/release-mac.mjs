@@ -174,6 +174,32 @@ if (existsSync(signalSource)) {
   run('ditto', [signalSource, join(app, 'Contents/Resources/signal-sidecar-SOURCE.txt')]);
 }
 
+// The WhatsApp helper (sidecar/whatsapp, on whatsmeow, MPL-2.0; lib/inbox/whatsapp.dart; Matt, 2026-11-17: "enable
+// whatsapp but warn the user that it's unsupported by whatsapp"), beside Signal's, signed with the rest below.
+const waSource = join(ROOT, 'sidecar/whatsapp/SOURCE_URL');
+const waHelper = join(app, 'Contents/Helpers/whatsapp-sidecar');
+if (existsSync(waSource)) {
+  say('> Building the WhatsApp helper');
+  run('sh', [join(ROOT, 'tool/build-whatsappsidecar.sh'), 'mac'], { cwd: ROOT });
+  mkdirSync(join(app, 'Contents/Helpers'), { recursive: true });
+  run('ditto', [join(ROOT, 'build/whatsapp-sidecar/mac/whatsapp-sidecar'), waHelper]);
+  run('ditto', [join(ROOT, 'sidecar/whatsapp/LICENSE'), join(app, 'Contents/Resources/whatsapp-sidecar-LICENSE.txt')]);
+  run('ditto', [waSource, join(app, 'Contents/Resources/whatsapp-sidecar-SOURCE.txt')]);
+}
+
+// The Matrix helper (sidecar/matrix, on mautrix-go with goolm's encryption; lib/inbox/matrix.dart; Matt, 2026-11-17:
+// "Let's add support for matrix"), beside Signal's, signed with the rest below.
+const matrixSource = join(ROOT, 'sidecar/matrix/SOURCE_URL');
+const matrixHelper = join(app, 'Contents/Helpers/matrix-sidecar');
+if (existsSync(matrixSource)) {
+  say('> Building the Matrix helper');
+  run('sh', [join(ROOT, 'tool/build-matrixsidecar.sh'), 'mac'], { cwd: ROOT });
+  mkdirSync(join(app, 'Contents/Helpers'), { recursive: true });
+  run('ditto', [join(ROOT, 'build/matrix-sidecar/mac/matrix-sidecar'), matrixHelper]);
+  run('ditto', [join(ROOT, 'sidecar/matrix/LICENSE'), join(app, 'Contents/Resources/matrix-sidecar-LICENSE.txt')]);
+  run('ditto', [matrixSource, join(app, 'Contents/Resources/matrix-sidecar-SOURCE.txt')]);
+}
+
 // TDLib in Contents/Frameworks, where lib/inbox/td_json.dart opens it; signed with the rest below. Apple silicon
 // only: on an Intel Mac Telegram says it isn't in this build.
 mkdirSync(join(app, 'Contents/Frameworks'), { recursive: true });
@@ -215,6 +241,8 @@ if (existsSync(frameworks)) {
 }
 if (existsSync(helper)) sign(helper);
 if (existsSync(signalHelper)) sign(signalHelper);
+if (existsSync(waHelper)) sign(waHelper);
+if (existsSync(matrixHelper)) sign(matrixHelper);
 sign(app, ['--entitlements', entitlements]);
 
 const verified = spawnSync('codesign', ['--verify', '--deep', '--strict', app], { encoding: 'utf8' });

@@ -799,6 +799,38 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   - Checked by tests (a route that swallows a message, a restart in between, a local relay dropped and back); the
     iOS Simulator keeps a backgrounded app's connection alive, so the dead connection itself was not reproduced live.
   - Not yet: groups of friends are not sent again (Groups.sendText). A closed app is woken by the entry above.
+- **Matrix, WhatsApp, Microsoft Teams and Google Chat** (not released; Matt, 2026-11-17: "Let's add support for
+  matrix, microsoft teams and google chat, enable whatsapp but warn the user that it's unsupported by whatsapp").
+  Each is an `InboxNetwork`: its chats among the texts with its mark, read and answered here, between the device and
+  that network only.
+  - **Matrix** (`lib/inbox/matrix.dart`, helper `sidecar/matrix` on mautrix-go v0.33 with goolm's encryption, pure Go;
+    `tool/build-matrixsidecar.sh mac|android|windows`): any homeserver or user id (`.well-known`), sign in with the
+    browser (SSO to a 127.0.0.1 listener, which matrix.org's authentication service allows) or a password; encrypted
+    rooms decrypt and sends are encrypted; the recovery key, optional, verifies this device and restores the key
+    backup so older messages open. DMs and groups, replies, reactions, deletes, files both ways, invites. Blocking is
+    Ghost's own list.
+  - **WhatsApp** (`lib/inbox/whatsapp.dart`, helper `sidecar/whatsapp` on whatsmeow, MPL-2.0;
+    `tool/build-whatsappsidecar.sh`): linked as a device the way WhatsApp Web is, by QR code or WhatsApp's 8-character
+    phone-number code; WhatsApp's history sync brings recent chats. **The warning** (`whatsAppWarning`): WhatsApp
+    doesn't allow other apps and may suspend or ban accounts it finds on unofficial ones. The link screen opens on it
+    and asks for nothing until "I understand, link WhatsApp" is pressed; WhatsApp's Settings section shows it too.
+  - **Microsoft Teams** (`lib/inbox/teams.dart`, Microsoft Graph, pure Dart): device code sign-in, work and school
+    accounts only (Graph's chats don't serve personal accounts); chats polled every 30 s (the open one 6 s, 429s
+    honoured), send, reply, react, mark read, delete own, inline pictures. "Not in this build" until built with
+    `--dart-define=GHOST_TEAMS_CLIENT_ID=…`: an Entra app registration (multitenant organisations, public client flows
+    on, delegated `offline_access User.Read Chat.ReadWrite ChatMessage.Send`, no secret).
+  - **Google Chat** (`lib/inbox/google_chat.dart`, the Chat API, pure Dart): Google's consent page with PKCE and a
+    127.0.0.1 redirect; Google Workspace accounts only; DMs, group chats and spaces, thread replies inline, send, reply
+    into a thread, react, mark read, delete own; names through the People API. "Not in this build" until built with
+    `GHOST_GCHAT_CLIENT_ID` and `_SECRET` (a Google Cloud project with the Chat and People APIs, a configured Chat app,
+    the consent screen and a Desktop OAuth client). `chat.messages` is a restricted scope: offering it to everyone
+    needs Google's verification; until then, up to 100 test users.
+  - Releases pack the Matrix and WhatsApp helpers into the Mac app (Contents/Helpers, signed) and the phone's jniLibs,
+    beside Signal's (about 12 and 15 MB on a Mac, 11 and 17 MB on the phone). Windows carries neither yet, as it
+    carries no Signal helper.
+  - Checked: each against stand-ins (Matrix 8 tests, WhatsApp 4, Teams 5, Google Chat 4) and the helpers' own `go
+    test`; the Matrix helper found matrix.org's server and its sign-in ways live, the WhatsApp helper got a real QR
+    code from WhatsApp. Not yet tried with a real account on any of the four.
 - **A closed app woken when a friend writes** (not released; Matt, 2026-11-16: "Yes, wake-ups", "Check every ~15
   min"). What friends by username write waits on the relay server while the app is closed; now the app hears of it.
   - **iPhone**: after the welcome the app asks once whether it may show notifications, and says Apple's push token
