@@ -1632,6 +1632,22 @@ void main() {
       await _shoot(tester, sheet, HangoutScreen(channel: channel), '21-hangout-out', dark: dark);
       expect(find.text('Join voice'), findsOneWidget);
       expect(find.text('Saving you a seat'), findsOneWidget);
+      // The members in the chat's place, and the chat back (Matt, 2026-11-17: "add a button to switch the chat to a member
+      // list").
+      await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Members'));
+      await _settle(tester);
+      await _shootAgain(tester, '21-hangout-members', dark: dark);
+      expect(find.byType(SpaceMembers), findsOneWidget);
+      expect(find.text('Maya Chen'), findsWidgets);
+      expect(find.text('Saving you a seat'), findsNothing);
+      await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Show the chat'));
+      await _settle(tester);
+      expect(find.byType(SpaceMembers), findsNothing);
+      expect(find.text('Saving you a seat'), findsOneWidget);
+      // The space's settings, each section in its colour (Matt, 2026-11-17: "add colors to the spaces settings").
+      await _shoot(tester, sheet, RolesScreen(room: room, settings: true), '21-hangout-settings', dark: dark);
+      expect(find.text('Owner'), findsWidgets);
+      expect(find.byType(GlacierScope), findsWidgets, reason: 'each section in its colour');
       v.session = s;
       room.roster = Roster.first(channel.owner).next(assigned: {'a': Role.moderator});
       room.messages = seeded;
