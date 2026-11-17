@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -520,6 +521,10 @@ class Telegram extends InboxNetwork {
           _messages[chat] = [for (final x in messagesOf(chat)) x.id == id ? _withReactions(x, reactions) : x];
           notifyListeners();
         }
+      case 'updateMessageContent':
+        _edited('${m['chat_id']}', '${m['message_id']}', (raw) => raw..['content'] = m['new_content']);
+      case 'updateMessageEdited':
+        _edited('${m['chat_id']}', '${m['message_id']}', (raw) => raw..['edit_date'] = m['edit_date']);
       case 'updateDeleteMessages':
         if (m['is_permanent'] == true) {
           final chat = '${m['chat_id']}';
@@ -732,9 +737,14 @@ class Telegram extends InboxNetwork {
       if (x.thumbId != null) _fileUsers.putIfAbsent(x.thumbId!, () => {}).add('${m['chat_id']}');
     }
     final event = _event(m);
+    final key = '${m['chat_id']}/${m['id']}';
+    _raw[key] = m;
+    final versions = _versions[key] ?? const <String>[];
     return InboxMessage(
       id: '${m['id']}',
       event: event != null,
+      edited: event == null && (((m['edit_date'] as num?) ?? 0) > 0 || versions.isNotEmpty),
+      versions: versions,
       // A picture's or a file's words are its caption alone: the picture itself is drawn.
       text: event ?? (media.isEmpty ? _text(m) : ((((m['content'] as Map?)?['caption'] as Map?)?['text'] as String?) ?? '').trim()),
       media: media,
@@ -762,7 +772,62 @@ class Telegram extends InboxNetwork {
         replyTo: x.replyTo,
         replyText: x.replyText,
         replySender: x.replySender,
+        event: x.event,
+        edited: x.edited,
+        versions: x.versions,
       );
+
+  // --- edits (Matt, 2026-11-17: "Add support for edited messages on telegram and signal and the ability to see the
+  // original message") ----------------------------------------------------------------------------------------------
+  // Telegram says a message was edited (its edit_date) and gives its new words, never the old: what it said before is
+  // kept here as each edit comes, the first first, in a file of its own beside TDLib's, so the original is still there
+  // after a restart. A message edited before this device saw it is marked edited, with no earlier words to show.
+
+  /// Each message as Telegram last gave it, by "chat/id": what an edit's new content is put into.
+  final Map<String, Map<String, Object?>> _raw = {};
+
+  Map<String, List<String>>? _versionsHeld;
+
+  File? get _versionsFile => folder == null ? null : File('$folder/ghost-edits.json');
+
+  Map<String, List<String>> get _versions {
+    if (_versionsHeld != null) return _versionsHeld!;
+    try {
+      final f = _versionsFile;
+      if (f != null && f.existsSync()) {
+        return _versionsHeld = (jsonDecode(f.readAsStringSync()) as Map).map((k, v) => MapEntry('$k', [for (final x in v as List) '$x']));
+      }
+    } catch (_) {}
+    return _versionsHeld = {};
+  }
+
+  void _keepVersions() {
+    try {
+      final f = _versionsFile;
+      if (f == null) return;
+      // The newest thousand edited messages: enough to see what was said, never a file that only grows.
+      final all = _versions;
+      if (all.length > 1000) all.remove(all.keys.first);
+      f.writeAsStringSync(jsonEncode(all));
+    } catch (_) {}
+  }
+
+  /// A message edited: its words before kept, and it drawn again as it now is (its reactions as they stand here).
+  void _edited(String chat, String id, Map<String, Object?> Function(Map<String, Object?> raw) change) {
+    final key = '$chat/$id';
+    final raw = _raw[key];
+    final held = messagesOf(chat).where((x) => x.id == id).firstOrNull;
+    if (raw == null || held == null) return;
+    final next = change(Map<String, Object?>.of(raw));
+    final now = _message(next);
+    if (now.text != held.text && !held.event) {
+      _versions[key] = [...?_versions[key], held.text];
+      _keepVersions();
+    }
+    final redone = _withReactions(_message(next), held.reactions);
+    _messages[chat] = [for (final x in messagesOf(chat)) x.id == id ? redone : x];
+    notifyListeners();
+  }
 
   /// Each person's status as Telegram last said it (userStatusOnline and the rest).
   final Map<int, Map> _statuses = {};

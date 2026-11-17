@@ -287,6 +287,25 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
 
   /// Pressed and held: copy it, or delete it, for this account or, where the network allows, for everyone (Matt,
   /// 2026-11-15: "if possible proxy the archive and delete messages too").
+  /// What an edited message said before: the original, and any wording between it and now, each copied with a press.
+  /// Edited before this device saw it, there is nothing to show: the network keeps no earlier words.
+  void _showOriginal(InboxMessage m) {
+    if (m.versions.isEmpty) {
+      showChoices(context, title: 'Edited before Ghost saw it. ${_n.name} doesn\'t keep what it said first.', choices: const []);
+      return;
+    }
+    void copy(String text) {
+      Clipboard.setData(ClipboardData(text: text));
+      toast(context, 'Copied');
+    }
+
+    showChoices(context, title: 'First sent as:\n${m.original}', choices: [
+      Choice('Copy original', Lucide.copy, () => copy(m.original!)),
+      // Edited more than once: each wording on the way, oldest first.
+      for (final (i, v) in m.versions.skip(1).indexed) Choice(v, Lucide.clock, () => copy(v), hint: 'Edit ${i + 1} · press to copy'),
+    ]);
+  }
+
   void _messageMenu(InboxMessage m) {
     HapticFeedback.mediumImpact();
     // Deleted at once, nothing asked, with a puff (Matt, 2026-11-15: "Don't ask for confirmation when deleting a message
@@ -304,6 +323,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
         : null, choices: [
       if (_n.canReply && m.state != 'sending') Choice('Reply', LucideMore.reply, () => _startReply(m)),
       if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
+      if (m.edited) Choice('Show original', Lucide.clock, () => _showOriginal(m)),
       // The Translate plugin's lines, while it is on (lib/ui/translated_card.dart).
       ...translateChoices(context, inboxFacts(_n, widget.chatId, m)),
       if (_n.canDeleteForEveryone(widget.chatId, m)) Choice('Delete for everyone', Lucide.trash2, () => setState(() => _poofing[m.id] = true), danger: true),
@@ -605,7 +625,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                         onDone: () => _n.deleteMessage(widget.chatId, m.id, forEveryone: _poofing.remove(m.id) ?? false),
                         child: GestureDetector(
                         onLongPress: () => _messageMenu(m),
-                        child: _InboxBubble(key: ValueKey(m.id), network: _n, chatId: widget.chatId, message: m, group: chat?.group ?? false, first: firstOfRun, last: lastOfRun, mineBg: mineBg, mineInk: mineInk, onReactionsTap: () => _messageMenu(m)),
+                        child: _InboxBubble(key: ValueKey(m.id), network: _n, chatId: widget.chatId, message: m, group: chat?.group ?? false, first: firstOfRun, last: lastOfRun, mineBg: mineBg, mineInk: mineInk, onReactionsTap: () => _messageMenu(m), onEditedTap: () => _showOriginal(m)),
                       )),
                     ]);
                   },
@@ -698,7 +718,10 @@ MessageFacts? inboxFacts(InboxNetwork network, String chatId, InboxMessage m) {
 }
 
 class _InboxBubble extends StatelessWidget {
-  const _InboxBubble({super.key, required this.network, required this.chatId, required this.message, required this.group, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onReactionsTap});
+  const _InboxBubble({super.key, required this.network, required this.chatId, required this.message, required this.group, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onReactionsTap, this.onEditedTap});
+
+  /// A press on "Edited": what it said before.
+  final VoidCallback? onEditedTap;
 
   /// A press on its reactions: the message's menu, to add one or take yours off.
   final VoidCallback? onReactionsTap;
@@ -764,6 +787,16 @@ class _InboxBubble extends StatelessWidget {
         )),
         // And a card for each, while Link previews is on: the plugin's own, as under a text.
         ..._linkCards(context, m.text),
+        // Changed since it was sent, said under it as under a text (lib/ui/thread.dart); a press shows the original.
+        if (m.edited)
+          GestureDetector(
+            key: ValueKey('edited-${m.id}'),
+            onTap: onEditedTap,
+            child: Padding(
+              padding: EdgeInsets.only(top: 3, left: t.space(2), right: t.space(2)),
+              child: Text('Edited', style: pageText(t, t.fontSize('xs'), weight: 'medium', color: t.color('app-ink-3'))),
+            ),
+          ),
         if (last || failed)
           Padding(
             padding: EdgeInsets.only(top: 2, left: t.space(2), right: t.space(2)),

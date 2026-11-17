@@ -164,8 +164,17 @@ class InboxMessage {
     this.replyText,
     this.replySender,
     this.event = false,
+    this.edited = false,
+    this.versions = const [],
   });
   final String id;
+
+  /// Changed by whoever wrote it since it was sent (Matt, 2026-11-17: "Add support for edited messages on telegram and
+  /// signal and the ability to see the original message"), and what it said before, the first first: [original] is
+  /// what was sent. Empty where it was edited before this device saw it: the network keeps no earlier words.
+  final bool edited;
+  final List<String> versions;
+  String? get original => versions.isEmpty ? null : versions.first;
 
   /// Something that happened in the chat rather than something someone said ("Esther joined the group", a pin, a new
   /// name): drawn as a small line across the middle, not a bubble, as the network's own app does.

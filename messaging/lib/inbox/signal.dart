@@ -375,6 +375,18 @@ class Signal extends InboxNetwork {
         _messages[chat]?.removeWhere((x) => '${x['ts']}' == '${m['target_ts']}');
         _save();
         notifyListeners();
+      case 'edited':
+        // Its words changed by whoever wrote it: what it said before kept, the first first, so the original can be shown.
+        final held = _messages['${m['chat']}']?.where((x) => '${x['ts']}' == '${m['target_ts']}').firstOrNull;
+        if (held == null) return;
+        final now = '${m['text'] ?? ''}';
+        final was = '${held['text'] ?? ''}';
+        if (now == was) return;
+        held['versions'] = [...((held['versions'] as List?) ?? const []).map((v) => '$v'), was];
+        held['text'] = now;
+        held['edited'] = true;
+        _save();
+        notifyListeners();
     }
   }
 
@@ -534,6 +546,8 @@ class Signal extends InboxNetwork {
             replyTo: (m['quote'] as Map?)?['ts']?.toString(),
             replyText: (m['quote'] as Map?)?['text'] as String?,
             replySender: _quoteName((m['quote'] as Map?)?['author'] as String?),
+            edited: m['edited'] == true,
+            versions: [for (final v in (m['versions'] as List? ?? const [])) '$v'],
           ),
       ];
 
