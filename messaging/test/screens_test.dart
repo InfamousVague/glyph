@@ -1109,11 +1109,10 @@ void main() {
       expect(find.text('Kinds of text'), findsNothing);
       await _shoot(tester, sheet, const SettingsScreen(), '12-plugins-settings-list-off', dark: dark, prefs: const {'plugin_spam': 'off'});
       expect(find.byKey(const ValueKey('plugins-entry')), findsOneWidget);
-      // A plugin's page has its switch at the top (Matt, 2026-11-14: "Plugins should be able to be toggled on and
-      // off from the top of each plugin setting page"); off, that is all it has.
+      // A plugin's page, from the Plugins page since 2026-11-17: off, it offers to add it, and its settings wait
+      // until it is added (in place of the switch at the top it had from 2026-11-14).
       await _shoot(tester, sheet, const SettingsSectionScreen('plugin-spam'), '12-plugins-settings-off', dark: dark, prefs: const {'plugin_spam': 'off'});
-      expect(find.byType(GlacierSwitch), findsOneWidget);
-      expect(tester.widget<GlacierSwitch>(find.byType(GlacierSwitch)).checked, isFalse);
+      expect(find.textContaining('Add to Ghost Messaging'), findsOneWidget);
       expect(find.text('Mute conversations in Spam'), findsNothing);
       // Kinds of text's own page: each kind, said in a line.
       await _shoot(tester, sheet, const SettingsSectionScreen('plugin-kinds'), '12-plugins-settings-kinds', dark: dark);
