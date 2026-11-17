@@ -43,7 +43,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     stages with their times to `signal.log` beside its store and to standard error, which the app now passes to the
     Developer log (its own lines and signalmeow's warnings only; no message's words). Why Signal itself is slow to
     take a message is not known yet: the next stuck send says where in that log.
-- **Translate, and a Plugins page like a market** (not released; `lib/plugins/translate.dart`, `translate_host.dart`,
+- **Translate, and a Plugins page like a market** (0.8.10; `lib/plugins/translate.dart`, `translate_host.dart`,
   `shown_store.dart`, `lib/ui/translated_card.dart`, android `Translate.kt`, `lib/ui/plugins_page/`; Matt, 2026-11-17: "add a
   translate plugin which can automatically translate texts when detected from another language and show the original
   text dimmed in a card with the translated text for the actual message bubble also redo how the plugins look with their
