@@ -53,3 +53,6 @@ app.*.map.json
 # The Signal helper and the C++ library it needs (tool/build-signalsidecar.sh android --ship), built for each release.
 /android/app/src/main/jniLibs/*/libsignalsidecar.so
 /android/app/src/main/jniLibs/*/libc++_shared.so
+# The WhatsApp helper (tool/build-whatsappsidecar.sh android --ship), built for each release; and one built in its own folder.
+/android/app/src/main/jniLibs/*/libwhatsappsidecar.so
+/sidecar/whatsapp/whatsapp-sidecar
