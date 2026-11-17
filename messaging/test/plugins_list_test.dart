@@ -162,7 +162,9 @@ void main() {
     final button = tester.getSize(find.byType(MarkAllRead)), toggle = tester.getRect(find.byType(GlacierSegmentedControl));
     expect(button.width, button.height);
     expect(button.height, closeTo(toggle.height, 0.5));
-    expect(tester.getRect(find.byType(MarkAllRead)).center.dy, closeTo(tester.getRect(find.text('Messages').first).center.dy, 4));
+    // The title row holds the button, with no "Messages" over the list (Matt, 2026-11-17: "Remove the word messages from
+    // the top of the page its redundant").
+    expect(find.descendant(of: find.byType(ConversationsScreen), matching: find.text('Messages')), findsNothing);
     expect(tester.getRect(find.byType(MarkAllRead)).bottom, lessThan(toggle.top));
     expect(tester.widget<GlacierSegmentedControl>(find.byType(GlacierSegmentedControl)).size, GlacierSegmentedSize.md);
 

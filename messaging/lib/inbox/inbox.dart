@@ -135,10 +135,40 @@ class InboxMedia {
         duration: duration, thumbId: thumbId, thumbPath: file == thumbId ? path : thumbPath);
 }
 
+/// One kind of reaction on a message: the emoji, how many gave it, and whether you are one of them.
+@immutable
+class InboxReaction {
+  const InboxReaction({required this.emoji, this.count = 1, this.mine = false});
+  final String emoji;
+  final int count;
+  final bool mine;
+}
+
 @immutable
 class InboxMessage {
-  const InboxMessage({required this.id, required this.text, required this.date, required this.mine, this.sender = '', this.state = 'sent', this.media = const []});
+  const InboxMessage({
+    required this.id,
+    required this.text,
+    required this.date,
+    required this.mine,
+    this.sender = '',
+    this.state = 'sent',
+    this.media = const [],
+    this.reactions = const [],
+    this.replyTo,
+    this.replyText,
+    this.replySender,
+  });
   final String id;
+
+  /// Its reactions, a kind each (Matt, 2026-11-17: "Id like to be able to reply to messages as well as react to
+  /// telegram and signal messages").
+  final List<InboxReaction> reactions;
+
+  /// The message it answers, by [id], and what that one said and who said it, where the network tells.
+  final String? replyTo;
+  final String? replyText;
+  final String? replySender;
   final String text;
   final DateTime date;
   final bool mine;
@@ -414,6 +444,19 @@ abstract class InboxNetwork extends ChangeNotifier {
 
   /// Shown in Settings as "Coming soon", and never started: not offered yet.
   bool get soon => false;
+
+  /// Reactions can be put on its messages ([react]), and which: the first few are offered in a row.
+  bool get canReact => false;
+  List<String> get reactionChoices => const ['❤️', '👍', '👎', '😂', '😮', '😢', '🙏', '🔥', '🎉'];
+
+  /// Puts [emoji] on the message [messageId] of [chatId], or takes it off ([remove]). Throws with the network's reason.
+  Future<void> react(String chatId, String messageId, String emoji, {bool remove = false}) => Future.error(UnsupportedError('$name reactions can\'t be sent from here'));
+
+  /// A message can be answered with a reply that quotes it ([reply]).
+  bool get canReply => false;
+
+  /// Sends [text] to [chatId] as a reply to the message [messageId].
+  Future<void> reply(String chatId, String messageId, String text) => send(chatId, text);
 
   /// The group [chatId] in full, for its drawer; null where the network has no such thing or it is not a group.
   Future<GroupDetails?> groupDetails(String chatId) async => null;

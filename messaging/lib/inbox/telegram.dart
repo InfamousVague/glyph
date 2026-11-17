@@ -497,6 +497,15 @@ class Telegram extends InboxNetwork {
         _messages[chat] = [for (final x in messagesOf(chat)) x.id == old ? InboxMessage(id: x.id, text: x.text, date: x.date, mine: true, state: 'failed') : x];
         _error = _plain(m['error'] as Map? ?? const {});
         notifyListeners();
+      case 'updateMessageInteractionInfo':
+        // Reactions put on a message, or taken off.
+        final chat = '${m['chat_id']}';
+        final id = '${m['message_id']}';
+        final reactions = telegramReactions(m['interaction_info'] as Map?);
+        if (messagesOf(chat).any((x) => x.id == id)) {
+          _messages[chat] = [for (final x in messagesOf(chat)) x.id == id ? _withReactions(x, reactions) : x];
+          notifyListeners();
+        }
       case 'updateDeleteMessages':
         if (m['is_permanent'] == true) {
           final chat = '${m['chat_id']}';
@@ -661,6 +670,10 @@ class Telegram extends InboxNetwork {
     final user = (sender?['user_id'] as num?)?.toInt();
     final sending = (m['sending_state'] as Map?)?['@type'];
     final media = _media(m['content'] as Map? ?? const {});
+    // The message it answers, where it is one: the words Telegram quoted, else that message's own where it is held.
+    final replyTo = m['reply_to'] as Map?;
+    final reply = replyTo?['@type'] == 'messageReplyToMessage' ? replyTo : null;
+    final quoted = reply == null ? null : messagesOf('${m['chat_id']}').where((x) => x.id == '${reply['message_id']}').firstOrNull;
     for (final x in media) {
       _fileUsers.putIfAbsent(x.fileId, () => {}).add('${m['chat_id']}');
       if (x.thumbId != null) _fileUsers.putIfAbsent(x.thumbId!, () => {}).add('${m['chat_id']}');
@@ -674,7 +687,71 @@ class Telegram extends InboxNetwork {
       mine: m['is_outgoing'] == true,
       sender: user == null ? '' : (_users[user] ?? ''),
       state: sending == 'messageSendingStatePending' ? 'sending' : (sending == 'messageSendingStateFailed' ? 'failed' : 'sent'),
+      reactions: telegramReactions(m['interaction_info'] as Map?),
+      replyTo: reply == null ? null : '${reply['message_id']}',
+      replyText: reply == null ? null : (((reply['quote'] as Map?)?['text'] as Map?)?['text'] as String? ?? quoted?.text),
+      replySender: quoted == null ? null : (quoted.mine ? 'You' : (quoted.sender.isEmpty ? null : quoted.sender)),
     );
+  }
+
+  /// [x] with its reactions now [reactions].
+  static InboxMessage _withReactions(InboxMessage x, List<InboxReaction> reactions) => InboxMessage(
+        id: x.id,
+        text: x.text,
+        date: x.date,
+        mine: x.mine,
+        sender: x.sender,
+        state: x.state,
+        media: x.media,
+        reactions: reactions,
+        replyTo: x.replyTo,
+        replyText: x.replyText,
+        replySender: x.replySender,
+      );
+
+  @override
+  bool get canReact => true;
+
+  /// The reactions every Telegram chat takes as it ships (a chat may allow fewer): Telegram has no 😂, so 🤣.
+  @override
+  List<String> get reactionChoices => const ['❤️', '👍', '👎', '🤣', '😱', '😢', '🙏', '🔥', '🎉'];
+
+  @override
+  Future<void> react(String chatId, String messageId, String emoji, {bool remove = false}) async {
+    if (_state != InboxState.ready) throw StateError('Telegram isn\'t connected');
+    final r = await _ask({
+      '@type': remove ? 'removeMessageReaction' : 'addMessageReaction',
+      'chat_id': int.parse(chatId),
+      'message_id': int.parse(messageId),
+      'reaction_type': {'@type': 'reactionTypeEmoji', 'emoji': emoji},
+      if (!remove) 'is_big': false,
+      if (!remove) 'update_recent_reactions': true,
+    });
+    if (r['@type'] == 'error') throw StateError(r['message'] == 'REACTION_INVALID' ? 'This chat doesn\'t take $emoji as a reaction' : _plain(r));
+  }
+
+  @override
+  bool get canReply => true;
+
+  @override
+  Future<void> reply(String chatId, String messageId, String text) async {
+    text = text.trim();
+    if (text.isEmpty || _state != InboxState.ready) return;
+    final r = await _ask({
+      '@type': 'sendMessage',
+      'chat_id': int.parse(chatId),
+      'reply_to': {'@type': 'inputMessageReplyToMessage', 'message_id': int.parse(messageId)},
+      'input_message_content': {
+        '@type': 'inputMessageText',
+        'text': {'@type': 'formattedText', 'text': text},
+      },
+    });
+    if (r['@type'] == 'message') {
+      _add(chatId, [_message(r)]);
+    } else {
+      _error = _plain(r);
+      notifyListeners();
+    }
   }
 
   // --- attachments (Matt, 2026-11-15: "Is it possible to send and receive attachments through telegram too?") --------
@@ -1150,4 +1227,15 @@ GroupDetails telegramGroupDetails({required Map chat, required Map mine, String 
     canSetAdmins: right('can_promote_members'),
     canChangeRules: right('can_restrict_members'),
   );
+}
+
+/// A message's reactions as TDLib gives them (messageInteractionInfo.reactions), as kinds: the emoji ones, how many each,
+/// and whether this account gave it. Paid stars and custom emoji are left out: Ghost has no way to draw them.
+List<InboxReaction> telegramReactions(Map? interaction) {
+  final list = ((interaction?['reactions'] as Map?)?['reactions'] as List?) ?? const [];
+  return [
+    for (final r in list)
+      if (((r as Map)['type'] as Map?)?['@type'] == 'reactionTypeEmoji')
+        InboxReaction(emoji: '${(r['type'] as Map)['emoji']}', count: (r['total_count'] as num?)?.toInt() ?? 1, mine: r['is_chosen'] == true),
+  ];
 }

@@ -1095,8 +1095,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       // While several are being chosen the bar counts them, and holds what can be done with them. Dial-Up's bar draws
       // its own words, so there the count is the title and the way out its first button.
       subtitle: dialup && _selecting ? '${_selected.length} selected' : null,
+      // No "Messages" over the list (Matt, 2026-11-17: "Remove the word messages from the top of the page its
+      // redundant"): the row keeps its buttons. The archive keeps its name, and Dial-Up its title bar's.
       titleWidget: !_selecting
-          ? null
+          ? (widget.archived || dialup ? null : const SizedBox.shrink())
           : Row(children: [
               if (!widget.archived) const SizedBox(width: 0) else SizedBox(width: t.space(3)),
               IconTap(icon: Lucide.x, label: 'Stop selecting', onPressed: () => setState(_selected.clear)),
