@@ -137,4 +137,46 @@ void main() {
     await _settle();
     expect(heard.where((m) => m['went'] == phone.id).length, 1);
   });
+
+  // Matt, 2026-11-18: his phone stopped seeing a circle's messages and members once his computer, the same identity,
+  // joined its rooms: a room kept one device a member, so the last to join took the other's place.
+  test('in a room, every device of a member is handed what is sent, and a member goes only with their last device', () async {
+    final phone = _Install(), desk = _Install.copyOf(phone), friend = _Install();
+    await phone.connect(url, device: 'phone');
+    await desk.connect(url, device: 'desk');
+    await friend.connect(url, device: 'phone');
+    final room = 'ab' * 16, token = 'cd' * 32;
+    for (final i in [phone, desk, friend]) {
+      i.ws.add(jsonEncode({'join': room, 'token': token}));
+      await _settle();
+    }
+    final cameToFriend = <Map>[];
+    final wentToFriend = <Map>[];
+    friend.said.stream.listen((m) {
+      if (m['came'] != null) cameToFriend.add(m);
+      if (m['went'] != null) wentToFriend.add(m);
+    });
+    // The friend writes: the phone and the computer both have it.
+    friend.ws.add(Uint8List.fromList([Hub.toRoom, ..._unhex(room), 9, 9]));
+    await _settle();
+    expect(phone.frames.length, 1, reason: 'the phone is still in the room after the computer joined');
+    expect(desk.frames.length, 1);
+    // The computer writes: the friend has it, and so does the phone, the same person's other device.
+    desk.ws.add(Uint8List.fromList([Hub.toRoom, ..._unhex(room), 5]));
+    await _settle();
+    expect(friend.frames.length, 1);
+    expect(phone.frames.length, 2);
+    expect(desk.frames.length, 1, reason: 'not back to the connection it came from');
+    // The computer leaves: the phone is still there, so nobody is told they went.
+    desk.ws.add(jsonEncode({'leave': room}));
+    await _settle();
+    expect(wentToFriend, isEmpty);
+    friend.ws.add(Uint8List.fromList([Hub.toRoom, ..._unhex(room), 1]));
+    await _settle();
+    expect(phone.frames.length, 3, reason: 'the phone still has the room after the computer left it');
+    // Then the phone leaves too: now they have gone.
+    phone.ws.add(jsonEncode({'leave': room}));
+    await _settle();
+    expect(wentToFriend.length, 1);
+  });
 }
