@@ -585,6 +585,9 @@ abstract class SmsCalls {
   Future<T?> invokeMethod<T>(String method, [dynamic arguments]);
 }
 
+/// Calls on a paired computer that answer the app's own network here, not on the phone (lib/desktop/own_calls.dart).
+abstract class OwnNetworkCalls {}
+
 /// Calls that reach the phone from somewhere else (a computer's link), where what can be asked depends on the phone
 /// at the other end: an older Ghost Messaging there does less. [caps] names what it does beyond the first few
 /// (android DeskCalls.CAPS), so a screen offers only what will work ([Sms.can]).
@@ -688,6 +691,16 @@ class Sms {
   /// What these screens ask of is a paired Android phone (a computer, or an iPhone paired with one): the routes,
   /// the directory and calls are the phone's, asked across the link.
   static bool get paired => remote && !standalone;
+
+  /// Whether the app's own network (the routes, friends by username, the directory) runs here, under this install's
+  /// identity: the phone, an iPhone of its own, a computer of its own, and a computer paired with a phone that has
+  /// taken the phone's identity for its friends and circles (lib/desktop/own_calls.dart; Matt, 2026-11-18: "I want
+  /// desktop to be able to run standalone for internal friends and circles ... even if the desktop is linked").
+  static bool get ownNetwork => !paired || _calls is OwnNetworkCalls;
+
+  /// A paired computer whose Settings › Me and friends are the phone's, asked across the link: one that has not taken
+  /// on the phone's identity for its own network.
+  static bool get followsPhone => paired && !ownNetwork;
 
   /// A computer's window rather than a phone's screen: the sizes a window is read at (smaller bubbles and dock).
   static bool get computer => remote && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
@@ -808,12 +821,12 @@ class Sms {
   /// Friends by username (lib/friends/buddies.dart): the list, kept where the phone works out each one's sealing key
   /// (android Buddies.kt). Nothing on a computer, which speaks through its phone.
   Future<void> buddiesKeep(String json) async {
-    if (paired) return;
+    if (!ownNetwork) return;
     await _calls.invokeMethod('buddiesKeep', {'json': json});
   }
 
   Future<String> buddiesKept() async {
-    if (paired) return '[]';
+    if (!ownNetwork) return '[]';
     return await _calls.invokeMethod<String>('buddiesKept') ?? '[]';
   }
 
@@ -1373,6 +1386,11 @@ class Sms {
 
   Future<Map<String, dynamic>> voiceSync(Map<String, Object?> what) async =>
       Map<String, dynamic>.from((await _calls.invokeMethod<Map>('voice', {'what': what})) ?? const {});
+
+  /// On a paired computer: the phone's identity, friends by username and conversations with them, handed over so the
+  /// computer has friends and circles of its own (android DeskCalls "handover"; lib/friends/handover.dart).
+  Future<Map<String, dynamic>> handover(Map<String, Object?> what) async =>
+      Map<String, dynamic>.from((await _calls.invokeMethod<Map>('handover', {'what': what})) ?? const {});
 
   /// On a paired computer: friends by username, asked of the phone (android DeskCalls "buddies", answered by the
   /// phone's [Buddies.forComputer]).

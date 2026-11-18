@@ -477,6 +477,7 @@ object Desk : DeskHost {
         override fun ownNumber() = store.ownNumbers().firstOrNull()
         override fun me(what: Map<String, Any?>) = DartAsk.ask("me", what)
         override fun buddies(what: Map<String, Any?>) = DartAsk.ask("buddies", what, seconds = 30)
+        override fun handover(what: Map<String, Any?>) = DartAsk.ask("handover", what, seconds = 30)
         override fun voice(what: Map<String, Any?>) = DartAsk.ask("voice", what, seconds = 10)
         // The phone's Telegram approving its computer's sign-in (lib/inbox/telegram.dart answerComputer).
         override fun telegram(what: Map<String, Any?>) = DartAsk.ask("telegram", what, seconds = 30)
