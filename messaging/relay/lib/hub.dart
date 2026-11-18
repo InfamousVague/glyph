@@ -91,6 +91,47 @@ class Hub {
   static const toPeer = 1;
   static const toRoom = 2;
 
+  /// A packet to a room that is kept as well, for whoever joins it later (Matt, 2026-11-18: "I can't see their messages
+  /// in spaces within a circle"): the hub kept nothing of a room, so what was written while a phone was closed came to
+  /// it only if a member who had it was in the room when it came back. The app marks a space's words, deletions,
+  /// roster and description so ([toRoomKept]); each joining device is handed what is kept, sealed as it came, which
+  /// the hub cannot read. Handed on as [toRoom], so nothing on the app's side reads another kind.
+  static const toRoomKept = 3;
+
+  /// What a room keeps: its newest [roomKeepFrames], none older than [roomKeepFor], [roomKeepBytes] in all at most.
+  static const roomKeepFrames = 300;
+  static const roomKeepFor = Duration(days: 7);
+  static const roomKeepBytes = 256 * 1024 * 1024;
+
+  /// Kept packets by room, with the hash of the room's token, so only one who knows it is handed them.
+  final Map<String, ({String hash, List<_Held> frames})> _kept = {};
+  int _keptBytes = 0;
+
+  /// How many packets [room] keeps, for a test.
+  int keptIn(String room) => _kept[room]?.frames.length ?? 0;
+
+  void _keep(String name, String hash, Uint8List frame) {
+    var box = _kept[name];
+    if (box == null || box.hash != hash) {
+      if (box != null) _keptBytes -= box.frames.fold<int>(0, (n, h) => n + h.frame.length);
+      box = _kept[name] = (hash: hash, frames: <_Held>[]);
+    }
+    box.frames.add(_Held(frame, _now()));
+    _keptBytes += frame.length;
+    while (box.frames.length > roomKeepFrames) {
+      _keptBytes -= box.frames.removeAt(0).frame.length;
+    }
+    // Over the whole store's cap: the oldest of the busiest room goes first.
+    while (_keptBytes > roomKeepBytes && _kept.isNotEmpty) {
+      final biggest = _kept.entries.reduce((a, b) => a.value.frames.length >= b.value.frames.length ? a : b);
+      if (biggest.value.frames.isEmpty) {
+        _kept.remove(biggest.key);
+        continue;
+      }
+      _keptBytes -= biggest.value.frames.removeAt(0).frame.length;
+    }
+  }
+
   /// Who is here, by name: every device signed in under it (Matt, 2026-11-18: "I want desktop to be able to run
   /// standalone for internal friends and circles ... even if the desktop is linked": a phone and its computer, one
   /// identity, both here). Each says which device it is (`device` in its hello); a connection from the same device
@@ -429,12 +470,13 @@ class Hub {
       _tell(from.ws, {'ack': seq, 'here': false});
       // Their app is closed: woken where it can be (an iPhone's push; an Android phone looks for itself).
       pushes?.held(to);
-    } else if (data[0] == toRoom && data.length > 17) {
+    } else if ((data[0] == toRoom || data[0] == toRoomKept) && data.length > 17) {
       // [2][the room, 16 bytes][the packet]: to everyone else in it.
       final name = hexOf(data.sublist(1, 17));
       final room = _rooms[name];
       if (room == null || !(room.members[from.id]?.contains(from) ?? false)) return;
       final frame = Uint8List.fromList([toRoom, ...data.sublist(1, 17), ..._unhex(from.id), ...data.sublist(17)]);
+      if (data[0] == toRoomKept) _keep(name, room.hash, frame);
       // To every device of everyone in it, the sender's other devices too, but not the connection it came from.
       for (final m in room.members.values.expand((d) => d)) {
         if (!identical(m, from) && m.ws.readyState == WebSocket.open) m.ws.add(frame);
@@ -497,6 +539,14 @@ class Hub {
     if (!devices.any((d) => identical(d, e))) devices.add(e);
     e.rooms.add(name);
     _tell(e.ws, {'room': name, 'ok': true, 'members': others});
+    // What the room kept, for one who knows its token: written while this device was away.
+    final kept = _kept[name];
+    if (kept != null && kept.hash == hash) {
+      final cutoff = _now().subtract(roomKeepFor);
+      for (final h in kept.frames) {
+        if (h.at.isAfter(cutoff) && e.ws.readyState == WebSocket.open) e.ws.add(h.frame);
+      }
+    }
     if (first) {
       for (final id in others) {
         for (final d in room.members[id] ?? const <_End>[]) {
@@ -530,6 +580,14 @@ class Hub {
 
   /// Forgets packets held longer than [holdFor].
   void sweep() {
+    final keptCutoff = _now().subtract(roomKeepFor);
+    for (final name in _kept.keys.toList()) {
+      final box = _kept[name]!;
+      while (box.frames.isNotEmpty && !box.frames.first.at.isAfter(keptCutoff)) {
+        _keptBytes -= box.frames.removeAt(0).frame.length;
+      }
+      if (box.frames.isEmpty) _kept.remove(name);
+    }
     final cutoff = _now().subtract(holdFor);
     for (final id in _mail.keys.toList()) {
       final box = _mail[id]!;

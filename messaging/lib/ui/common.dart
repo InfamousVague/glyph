@@ -16,7 +16,7 @@ import 'window_chrome.dart';
 
 /// The page under every screen: the ground, a bar with the way back (or a big title), its actions, and the body.
 class GhostPage extends StatelessWidget {
-  const GhostPage({super.key, required this.title, required this.body, this.back = true, this.actions = const [], this.titleWidget, this.footer, this.top, this.subtitle, this.onTitle, this.titleLeading, this.onBack});
+  const GhostPage({super.key, required this.title, required this.body, this.back = true, this.actions = const [], this.titleWidget, this.footer, this.top, this.subtitle, this.onTitle, this.titleLeading, this.onBack, this.bigTitle});
 
   final String title;
   final Widget? titleWidget;
@@ -34,6 +34,10 @@ class GhostPage extends StatelessWidget {
   /// Where the back arrow goes, where that is not the page under this one: a page that took another's place in the
   /// pane (Contacts › Blocked goes back to Contacts). Given, the arrow is there beside the list too.
   final VoidCallback? onBack;
+
+  /// The big title with a back arrow too, level with a page beside it (Settings' list beside a section's page); by
+  /// default a page with the way back has the bar's smaller title.
+  final bool? bigTitle;
   final List<Widget> actions;
 
   /// Kept above the keyboard: a conversation's composer.
@@ -75,7 +79,7 @@ class GhostPage extends StatelessWidget {
                         title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: pageText(t, back ? t.fontSize('lg') : t.fontSize('2xl'), weight: back ? 'semibold' : 'bold', color: t.color('app-ink')),
+                        style: pageText(t, (bigTitle ?? !back) ? t.fontSize('2xl') : t.fontSize('lg'), weight: (bigTitle ?? !back) ? 'bold' : 'semibold', color: t.color('app-ink')),
                       ),
                 ),
                 ...actions,

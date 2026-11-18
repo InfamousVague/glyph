@@ -89,8 +89,10 @@ class CircleSpaceList extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final bevel = isBevelChrome(t);
+    // Under Dial-Up the well ends above the taskbar, so the list needs no room of its own for it.
+    final foot = AppShell.pillRoom(context) + MediaQuery.paddingOf(context).bottom;
     final list = ListView(
-      padding: EdgeInsets.only(top: t.space(2), bottom: AppShell.pillRoom(context) + t.space(4) + MediaQuery.paddingOf(context).bottom),
+      padding: EdgeInsets.only(top: t.space(2), bottom: bevel ? t.space(2) : foot + t.space(4)),
       children: [
         for (final g in view.sections) ...[
           if (g.name != null) CircleSectionHeading(name: g.name!, onAdd: view.canEdit ? () => view.onNewSpace(section: g.name) : null),
@@ -104,8 +106,15 @@ class CircleSpaceList extends StatelessWidget {
         if (view.canEdit) _NewSpaceRow(onPress: () => view.onNewSpace()),
       ],
     );
-    // Dial-Up: the list in the window's white well.
-    return bevel ? ColoredBox(color: DialupColors.of(t).paper, child: list) : list;
+    // Dial-Up: the list in the window's white well, sunk into the silver as the Chat List's is (conversations.dart),
+    // with its bevel and a margin of silver round it. It was a flat white fill to the window's edges, so a circle in
+    // the list's place had no well border (Matt, 2026-11-18: "the sidebar in circles on the dial up theme is missing
+    // the border bevel").
+    if (!bevel) return list;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(t.space(1), t.space(1), t.space(1), t.space(1) + foot),
+      child: Sunken(child: list),
+    );
   }
 }
 

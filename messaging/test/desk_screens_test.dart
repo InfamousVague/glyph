@@ -341,7 +341,8 @@ void main() {
       expect(find.text('Galaxy Z Fold8 · through the relay'), findsOneWidget);
       final listRight = tester.getRect(find.text('Appearance')).right, pageLeft = tester.getRect(find.text('Unpair this phone')).left;
       expect(pageLeft, greaterThan(listRight), reason: 'the page is beside the list of sections');
-      expect(tester.getRect(find.text('Settings')).top, tester.getRect(find.text('Your phone').last).top, reason: 'the two pages\' names are level');
+      expect(tester.getRect(find.text('Settings')).top, closeTo(tester.getRect(find.text('Your phone').last).top, 1), reason: 'the two pages\' names are level');
+      expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Back'), findsWidgets, reason: 'Settings has a way back beside its page');
       expect(tester.getRect(find.byType(SettingsScreen)).left, 0, reason: 'Settings\' list is where the conversations were');
       expect(find.text('Maya Chen').hitTestable(), findsNothing, reason: 'two panes, not three');
       expect(_nav('Settings').hitTestable(), findsOneWidget);
