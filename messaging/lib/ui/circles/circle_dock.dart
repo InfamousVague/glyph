@@ -33,9 +33,8 @@ abstract final class CircleDock {
         const NavItem(id: home, icon: houseIcon, label: 'Home'),
         const NavItem(id: spaces, icon: Lucide.layoutList, label: 'Spaces'),
         const NavItem(id: members, icon: Lucide.users, label: 'Members'),
-        // In the room the circle's face had at the dock's head (Matt, 2026-11-17: "replace the circle icon with the home page
-        // ... find some other icon to fill the missing space").
-        const NavItem(id: invite, icon: Lucide.userPlus, label: 'Invite people', short: 'Invite'),
+        // No Invite of its own: adding people is in the Members drawer (Matt, 2026-11-18: "remove the add user from the header
+        // ... and in the dock and simply leave it under the users drawer").
         // "New" on Dial-Up's taskbar, where "New space" was drawn smaller than the other words to fit.
         if (canEdit) const NavItem(id: newSpace, icon: Lucide.plus, label: 'New space', short: 'New'),
         // The app's Settings (Matt, 2026-11-18); the circle's own are in its menu, under its name.
