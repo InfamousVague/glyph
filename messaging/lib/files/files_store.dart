@@ -1,3 +1,4 @@
+import '../circles/circles.dart' show Circles, CirclePerm;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -408,6 +409,8 @@ class FilesStore extends ChangeNotifier {
   /// Whether this device may add files to [c].
   bool canUpload(VoiceChannel c) {
     final me = _me();
+    // In a circle, as its roles say too (lib/circles: CirclePerm.files).
+    if (!Circles.instance.allows(c, CirclePerm.files)) return false;
     return me == null || _rules(c).mayAdd(me);
   }
 
