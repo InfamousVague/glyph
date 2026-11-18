@@ -3,10 +3,12 @@ import 'package:glacier/glacier.dart';
 
 import '../art/lucide.g.dart';
 import '../inbox/inbox.dart';
+import '../inbox/people.dart' show Reach;
 import '../kit/settings_kit.dart';
 import '../sms.dart';
 import 'common.dart';
 import 'inbox_ui.dart' show inboxMark;
+import 'person_reach.dart';
 
 /// Blocking, said and done the same way for texts, Telegram and Signal (Matt, 2026-11-17: "add the signal helper and
 /// do your recommendation. Make sure the UIs are unified across SMS Telegram and Signal, Also add a block list to our
@@ -207,7 +209,8 @@ class BlockedScreen extends StatelessWidget {
 }
 
 /// The person menu a long press on a one-to-one conversation's name opens, the same for texts, Telegram and Signal:
-/// who they are, and Block or Unblock.
+/// who they are, a new chat with them the other ways they can be reached (lib/ui/person_reach.dart), and Block or
+/// Unblock.
 Future<void> showPersonBlock(BuildContext context, BlockTarget who) async {
   var blocked = who.blocked;
   if (who.network == null) {
@@ -221,6 +224,12 @@ Future<void> showPersonBlock(BuildContext context, BlockTarget who) async {
       blocked = (await Sms.instance.blockedNumbers()).any((p) => digits(p.address) == digits(who.id));
     } catch (_) {}
   }
+  // A new chat with them the other ways they can be reached, above Block (Matt, 2026-11-18: "add a way to start a new
+  // chat with a contact from the contact menu right now it just says "block contact"").
+  var reaches = const <Reach>[];
+  try {
+    reaches = await otherReaches(who);
+  } catch (_) {}
   if (!context.mounted) return;
-  showChoices(context, title: '${who.name} · ${who.where}', choices: [blockChoice(context, who, blocked: blocked)]);
+  showChoices(context, title: '${who.name} · ${who.where}', choices: [...reachChoices(context, who.name, reaches), blockChoice(context, who, blocked: blocked)]);
 }

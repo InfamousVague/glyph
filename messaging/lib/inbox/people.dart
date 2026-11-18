@@ -87,14 +87,15 @@ List<Someone> gather(List<PhoneContact> phone, List<InboxContact> contacts) {
   // A name is matched only where it names one person on each side: two "Sam Rivera"s are not guessed between.
   int count(Iterable<String> names, String key) => names.where((n) => n == key).length;
   final phoneNames = [for (final p in phone) _nameKey(p.name)];
-  final contactNames = [for (final c in contacts) _nameKey(c.name)];
 
   for (final c in contacts) {
     final k = numberKey(c.number);
     _Building? into = k.isEmpty ? null : byNumber[k];
     if (into == null) {
       final n = _nameKey(c.name);
-      if (n.split(' ').length >= 2 && count(contactNames, n) == 1) {
+      // Unique on its own network: the same full name on Telegram and on Signal is one person seen twice, two of it on
+      // one network are two people (Matt, 2026-11-18: someone on both was never put together, nor offered a new chat).
+      if (n.split(' ').length >= 2 && contacts.where((x) => x.network == c.network && _nameKey(x.name) == n).length == 1) {
         // Someone with the same full name, on the phone or met already on another network.
         final candidates = [for (final b in people) if (_nameKey(b.name) == n) b];
         if (candidates.length == 1 && (count(phoneNames, n) <= 1)) {
