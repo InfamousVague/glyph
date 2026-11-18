@@ -148,7 +148,7 @@ void main() {
         'space-invite-phone',
         dark: dark,
       );
-      expect(find.text('Invite to Friday hang'), findsOneWidget);
+      expect(find.text('Invite people'), findsOneWidget);
       expect(find.text('Maya Chen'), findsOneWidget);
       expect(find.text('@jordan'), findsOneWidget, reason: 'no name: the username is the name, said once');
       expect(find.text('Noor Haddad'), findsNothing, reason: 'asked, not yet a friend');
@@ -199,7 +199,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
     }
     expect(texts, ['Join me in Friday hang on Ghost Messaging: ${channel.link}']);
-    expect(find.text('Invite to Friday hang'), findsNothing, reason: 'the sheet goes');
+    expect(find.text('Invite people'), findsNothing, reason: 'the sheet goes');
     await tester.pumpWidget(const SizedBox());
     await draw(tester, page());
     copied.clear();
@@ -233,7 +233,7 @@ void main() {
     expect(find.text('Copy invite link'), findsNothing, reason: 'in the invite sheet now');
     await tester.tap(find.text('Invite people'));
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('Invite to Friday hang'), findsOneWidget);
+    expect(find.byKey(const ValueKey('invite-search')), findsOneWidget, reason: 'the invite drawer');
     Voice.instance.clearHangouts();
     await tester.pumpWidget(const SizedBox());
   });
@@ -261,7 +261,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
     }
     expect(find.textContaining('Couldn\'t reach Maya Chen'), findsWidgets);
-    expect(find.text('Invite to Friday hang'), findsOneWidget);
+    expect(find.text('Invite people'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -278,7 +278,7 @@ void main() {
           return const [];
         })));
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('Invite to Climbing'), findsNothing);
+    expect(find.text('Invite people'), findsNothing);
     expect(sent, isEmpty);
     expect(await Voice.instance.share(group, [_friends.first]), [_friends.first], reason: 'given to no one');
     await tester.pumpWidget(const SizedBox());

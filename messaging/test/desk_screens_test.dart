@@ -321,8 +321,12 @@ void main() {
       // share the same settings pages"): its sections where the conversations were and the one chosen beside them
       // ("when the settings is open on desktop replace the normal sidebar so it's only a two pane layout not a
       // three pane"), the Mac's own among them, and what is the phone's alone left to the phone.
+      // Plugins heads the list now (Matt, 2026-11-17: "move plugins to the very top of settings list"), so it is what
+      // opens first; the phone's own section is pressed to see it.
       await shoot('5-settings', paired('relay'), dark: dark, then: () async {
         await tester.tap(_nav('Settings'));
+        await tester.pump(const Duration(milliseconds: 120));
+        await tester.tap(find.descendant(of: find.byType(SettingsList), matching: find.text('Your phone')).first);
       });
       // Codes is no longer a row of its own: a plugin's settings are on its page in Plugins since 2026-11-17.
       for (final label in ['Your phone', 'Me', 'Appearance', 'Chat background', 'Emoji', 'Effects', 'Messages', 'Plugins', 'Encryption', 'Blocked', 'Archived', 'Kept on this Mac', 'About']) {
@@ -331,7 +335,7 @@ void main() {
       for (final label in ['Your number', 'Android', 'Notifications', 'Receipts', 'Computers', 'Ghost Keyboard', 'Network', 'Developer']) {
         expect(find.text(label), findsNothing, reason: '$label is the phone\'s alone');
       }
-      // The first is open beside the list: the phone, how the two connect, and unpairing.
+      // The phone's section beside the list: the phone, how the two connect, and unpairing.
       expect(find.text('Unpair this phone'), findsOneWidget);
       expect(find.textContaining('Connected through the relay'), findsWidgets);
       expect(find.text('Galaxy Z Fold8 · through the relay'), findsOneWidget);
@@ -411,6 +415,8 @@ void main() {
       tester.view.physicalSize = const Size(760 * 2.0, 520 * 2.0);
       await shoot('5-settings-small', paired('local'), dark: dark, then: () async {
         await tester.tap(_nav('Settings'));
+        await tester.pump(const Duration(milliseconds: 120));
+        await section('Your phone'); // Plugins opens first now
       });
       expect(find.text('Unpair this phone'), findsOneWidget);
       // Messages, at the list's foot, puts Settings away: the conversations are back, with nothing open.

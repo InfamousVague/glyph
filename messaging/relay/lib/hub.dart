@@ -5,6 +5,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'handles.dart';
+import 'invites.dart';
 import 'pushes.dart';
 import 'p256.dart';
 import 'sha256.dart';
@@ -40,7 +41,7 @@ import 'sha256.dart';
 /// - **What it does not carry:** a call's sound and picture. Those go between the phones directly (or through a
 ///   media relay); the hub carries only what sets a call up.
 class Hub {
-  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes})
+  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites})
       : _now = now ?? DateTime.now,
         _random = random ?? Random.secure();
 
@@ -54,6 +55,11 @@ class Hub {
 
   /// Waking a closed iPhone when something is held for it (pushes.dart); none where null.
   final Pushes? pushes;
+
+  /// Invites waiting for someone not on the app yet, by a hash of their number (invites.dart): the `{"dir": …}`
+  /// messages it names ([Invites.dirs]) are its to answer, not [handles]'s. None where null, and they are then
+  /// answered that there are none.
+  final Invites? invites;
 
   /// What is signed to connect: these words, then the hub's number.
   static const greeting = 'ghost-hub v1 ';
@@ -118,9 +124,12 @@ class Hub {
 
   void start() {
     handles?.load();
+    invites?.load();
     _sweeper ??= Timer.periodic(const Duration(minutes: 10), (_) {
       sweep();
       handles?.sweep();
+      final i = invites;
+      if (i != null) unawaited(i.sweep());
     });
   }
 
@@ -128,6 +137,7 @@ class Hub {
     _sweeper?.cancel();
     _sweeper = null;
     handles?.save();
+    invites?.save();
     for (final end in _here.values.toList()) {
       end.ws.close(WebSocketStatus.goingAway);
     }
@@ -274,6 +284,13 @@ class Hub {
         // This install's token for push notifications (an iPhone), or null to forget it.
         pushes?.said(e.id, said['push']);
         _tell(ws, {'push': pushes != null});
+      } else if (said['dir'] is String && Invites.dirs.contains(said['dir'])) {
+        final i = invites;
+        if (i == null) {
+          _tell(ws, {'dir': 'err', 'about': said['dir'], 'err': 'This server keeps no invites.'});
+        } else {
+          i.said(e.id, said, (m) => _tell(ws, m));
+        }
       } else if (said['dir'] is String) {
         final h = handles;
         if (h == null) {

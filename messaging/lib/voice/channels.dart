@@ -24,13 +24,25 @@ import 'voice_settings.dart';
 /// Someone calling a group: its channel, and who. Or, with [invite], a friend who invited this phone into a space.
 @immutable
 class VoiceRing {
-  const VoiceRing(this.channel, this.from, this.at, {this.invite = false});
+  const VoiceRing(this.channel, this.from, this.at, {this.invite = false, this.offer = false});
   final VoiceChannel channel;
   final String from;
   final DateTime at;
 
   /// Not a call but an invite: a friend gave this phone [channel] (Voice.share), to join now or later.
   final bool invite;
+
+  /// An invite that waited on the relay for this phone's number ([Voice.offers]): not among the spaces until Join is
+  /// pressed, since anyone who knows a number can leave one.
+  final bool offer;
+
+  Map<String, Object> toJson() => {'c': channel.toJson(), 'f': from, 'at': at.millisecondsSinceEpoch};
+
+  static VoiceRing? offerFromJson(Object? j) {
+    if (j is! Map || j['f'] is! String || j['at'] is! int) return null;
+    final c = VoiceChannel.fromJson(j['c']);
+    return c == null ? null : VoiceRing(c, j['f'] as String, DateTime.fromMillisecondsSinceEpoch(j['at'] as int), invite: true, offer: true);
+  }
 }
 
 /// The voice channels this device can see and the one it is in (lib/voice/voice.dart says what a channel is).
@@ -87,6 +99,58 @@ class Voice extends ChangeNotifier {
   static const _goneKept = 300;
 
   bool removed(String seed) => _gone.contains(seed);
+
+  /// Spaces offered by invites that waited on the relay for this phone's number (lib/invites/pending_invites.dart),
+  /// newest last, kept (`voice_offers`) until Join or a month. A friend's share puts a space among [own] at once, as
+  /// it comes from a friend; one of these could be from anyone who knows the number, so nothing of it is joined,
+  /// named or held until the person presses Join on its ring ([acceptOffer]).
+  List<VoiceRing> offers = [];
+
+  /// How long an offer waits, as the relay keeps its copy.
+  static const offerLife = Duration(days: 30);
+
+  /// Offers put off with Not now while the app has been open: raised again the next time it opens.
+  final Set<String> _putOff = {};
+
+  /// Keeps [c] as an offer from [from] and raises its ring where nothing else is ringing. True once it is held here,
+  /// so the relay's copy can go: offered, or already among the spaces, or removed here.
+  bool offerSpace(VoiceChannel c, String from) {
+    if (own.any((o) => o.seed == c.seed) || circled.any((o) => o.seed == c.seed) || removed(c.seed)) return true;
+    offers = [for (final o in offers) if (o.channel.seed != c.seed) o, VoiceRing(c, from, DateTime.now(), invite: true, offer: true)];
+    _keepOffers();
+    _putOff.remove(c.seed);
+    _raiseOffer();
+    return true;
+  }
+
+  void _keepOffers() => _app?.set('voice_offers', jsonEncode([for (final o in offers) o.toJson()]));
+
+  /// The next offer not put off, on the ring, where nothing rings and its call is not the one this device is in.
+  void _raiseOffer() {
+    if (ringing != null) return;
+    final next = offers.where((o) => !_putOff.contains(o.channel.seed) && session?.channel.room != o.channel.room && !own.any((c) => c.seed == o.channel.seed)).firstOrNull;
+    if (next == null) return;
+    ringing = next;
+    notifyListeners();
+  }
+
+  /// Join on an offer's ring: the space goes among the spaces as a friend's share does, then its call is joined where
+  /// it has one.
+  Future<void> acceptOffer(VoiceRing r) async {
+    final c = r.channel;
+    offers = [for (final o in offers) if (o.channel.seed != c.seed) o];
+    _keepOffers();
+    if (identical(ringing, r)) ringing = null;
+    // Pressed Join after it was removed: wanted again.
+    _unmarkGone(c.seed);
+    if (!own.any((o) => o.seed == c.seed)) {
+      own = [...own, c];
+      await _keep();
+    }
+    notifyListeners();
+    if (c.hasVoice) await join(c);
+    _raiseOffer();
+  }
 
   void _markGone(String seed) {
     _gone.remove(seed);
@@ -168,6 +232,8 @@ class Voice extends ChangeNotifier {
       _readAt.addAll((jsonDecode(app.choice('voice_read', '{}')) as Map).map((k, v) => MapEntry('$k', (v as num).toInt())));
       _gone.addAll((jsonDecode(app.choice('voice_gone', '[]')) as List).whereType<String>());
       _archived.addAll((jsonDecode(app.choice('voice_archived', '[]')) as List).whereType<String>());
+      final cutoff = DateTime.now().subtract(offerLife);
+      offers = [for (final j in jsonDecode(app.choice('voice_offers', '[]')) as List) ?VoiceRing.offerFromJson(j)].where((o) => o.at.isAfter(cutoff) && !own.any((c) => c.seed == o.channel.seed)).toList();
       final people = jsonDecode(app.choice('voice_people', '{}')) as Map;
       _volumes.addAll(((people['v'] as Map?) ?? const {}).map((k, v) => MapEntry(k as String, (v as num).toDouble())));
       _silenced.addAll(((people['m'] as List?) ?? const []).cast<String>());
@@ -181,6 +247,7 @@ class Voice extends ChangeNotifier {
     Groups.instance.addListener(_look);
     Net.instance.listen(_received);
     _follow();
+    _raiseOffer();
   }
 
   /// Every channel: each group's, then those made or shared; on a computer, the phone's too.
@@ -559,8 +626,12 @@ class Voice extends ChangeNotifier {
 
   void dismissRing() {
     _ringClears?.cancel();
+    // An offer put off is kept, and raised again when the app next opens; the next one waiting comes up now.
+    final r = ringing;
+    if (r != null && r.offer) _putOff.add(r.channel.seed);
     ringing = null;
     _ringIn(false);
+    _raiseOffer();
     notifyListeners();
   }
 
@@ -568,6 +639,9 @@ class Voice extends ChangeNotifier {
 
   final Map<String, HangoutRoom> _hangouts = {};
   final Map<String, int> _holds = {};
+
+  /// [c]'s chat and roles where they are made already; null where not (nothing is made).
+  HangoutRoom? heldHangout(VoiceChannel c) => _hangouts[c.seed];
 
   /// [c]'s chat and roles: made on first need, kept for as long as the app runs (its messages and roster are kept
   /// with the device's choices between runs). Null for a group's channel, or before the relay is connected.

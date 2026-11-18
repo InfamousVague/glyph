@@ -4,6 +4,7 @@ import 'package:ghost_relay/files.dart';
 import 'package:ghost_relay/handles.dart';
 import 'package:ghost_relay/pushes.dart';
 import 'package:ghost_relay/hub.dart';
+import 'package:ghost_relay/invites.dart';
 import 'package:ghost_relay/relay.dart';
 
 /// `dart run bin/relay.dart [--host 127.0.0.1] [--port 8787] [--data relay-data] [--verbose]`
@@ -34,7 +35,10 @@ Future<void> main(List<String> args) async {
   // Files spaces' sealed files, under the data folder; their limits from the environment (GHOST_FILES_MAX_FILE and the
   // rest: files.dart), each with a default where it is not set.
   final files = Files(dir: Directory('${data.path}/files'), config: FilesConfig.fromEnvironment(Platform.environment), verbose: verbose);
-  final relay = Relay(dataDir: data, verbose: verbose, hub: Hub(verbose: verbose, handles: handles, pushes: pushes), files: files);
+  // Invites waiting for someone not on the app yet, kept by a hash of their number and taken only by the install that
+  // verified it (invites.dart; Matt, 2026-11-17: "a link that eventually follows through after they setup their account").
+  final invites = Invites(dataDir: data, phoneKeyOf: handles.phoneKeyOf, whoOf: handles.whoOf, verbose: verbose);
+  final relay = Relay(dataDir: data, verbose: verbose, hub: Hub(verbose: verbose, handles: handles, pushes: pushes, invites: invites), files: files);
   final got = await relay.start(host: host, port: port);
   stdout.writeln('Ghost Messaging relay listening on ws://$host:$got (${relay.channelCount} pairings kept; ${handles.linked} handles linked; ${files.spaces} Files spaces; sign-ins: ${handles.ways.entries.where((e) => e.value == 'signin').map((e) => e.key).join(', ').padRight(1, '-')})');
   for (final signal in [ProcessSignal.sigint, ProcessSignal.sigterm]) {

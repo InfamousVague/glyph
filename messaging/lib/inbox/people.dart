@@ -162,12 +162,22 @@ class _Building {
   static int _rank(String network) => switch (network) { 'telegram' => 0, 'signal' => 1, _ => 2 };
 }
 
-/// What the list is narrowed to: everyone, the phone's contacts, or one network's.
+/// What the list is narrowed to: everyone, the phone's contacts, friends on Ghost Messaging, or one network's.
+/// Friends are a filter of their own (Matt, 2026-11-17: "add the ability to sort contacts by friends in ghost").
 List<Someone> narrowed(List<Someone> people, String filter) => switch (filter) {
       'all' => people,
       'phone' => [for (final s in people) if (s.inPhone || s.friend) s],
+      'friends' => [for (final s in people) if (s.friend) s],
       _ => [for (final s in people) if (s.kinds.contains(filter)) s],
     };
+
+/// Friends on Ghost Messaging first, by name, then everyone else in the order they came (the phone's, then the
+/// networks' by name, as [gather] gives them): the friends are who Matt looks for first (2026-11-17: "add the ability
+/// to sort contacts by friends in ghost").
+List<Someone> friendsFirst(List<Someone> people) => [
+      ...[for (final s in people) if (s.friend) s]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase())),
+      for (final s in people) if (!s.friend) s,
+    ];
 
 /// Whether [s] answers [query]: by name, number or handle.
 bool answers(Someone s, String query) {

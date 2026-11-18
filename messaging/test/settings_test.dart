@@ -107,10 +107,14 @@ void main() {
       SettingsSources.add(before, first: true);
       SettingsSources.add(after);
       final ids = [for (final s in settingsSections) s.id];
-      expect(ids.first, 'before');
+      // Plugins first of all, even before a source's own (Matt, 2026-11-17: "move plugins to the very top of settings
+      // list"), then the source's, the app's own and the source's after.
+      final plugins = [for (final id in own) if (id == 'plugins' || id.startsWith('plugin-')) id];
+      expect(ids.take(plugins.length).toList(), plugins);
+      expect(ids[plugins.length], 'before');
       expect(ids.sublist(ids.length - 2), ['after', 'handset']);
       expect(ids, isNot(contains('mac')), reason: 'a computer\'s section is not on a phone');
-      expect(ids.sublist(1, ids.length - 2), own);
+      expect(ids.sublist(plugins.length + 1, ids.length - 2), [for (final id in own) if (!plugins.contains(id)) id]);
       // Added twice, it is there once.
       SettingsSources.add(after);
       expect([for (final s in settingsSections) s.id].where((id) => id == 'after').length, 1);

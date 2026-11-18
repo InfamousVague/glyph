@@ -48,6 +48,9 @@ const printOnly = args.includes('--print');
 const fail = (message) => { console.error(`x ${message}`); process.exit(1); };
 
 if (!existsSync(join(SITE_DIR, 'index.html'))) fail('No site/index.html to ship.');
+// The App Links file goes with the rest (the tarball takes dot folders too): without it, installed copies stop
+// opening gogho.st/join links straight away the next time Android checks.
+if (!existsSync(join(SITE_DIR, '.well-known', 'assetlinks.json'))) fail('No site/.well-known/assetlinks.json to ship.');
 const at = args.indexOf('--glyph');
 const glyph = [at >= 0 ? args[at + 1] : null, process.env.GLYPH_ROOT, join(ROOT, '..'), join(ROOT, '..', 'glyph'), join(homedir(), 'Development/Apps/glyph')]
   .filter(Boolean)
@@ -80,6 +83,11 @@ ${DOMAIN} {
 	# Files spaces' sealed files (relay/lib/files.dart): plain HTTP to the same service. A file goes up in pieces of at
 	# most 8 MB (the relay's maxBody), so no request needs more than this; a download streams back with Range. Not
 	# buffered here either way: flush_interval -1 passes each piece on as it comes.
+	# Timeouts (Matt, 2026-11-17: "Finish the missing pieces that went unfinished"): the relay must be reached at once,
+	# and must answer within two minutes of a request's last byte arriving (it answers a piece once it has it, a log
+	# page or a delete at once). Neither runs while a body is still coming, so a slow phone's 8 MB piece is not cut
+	# off. A body that stops coming is the relay's to end (files.dart's bodyPause, 30 s without a byte): Caddy's own
+	# read_body timeout is for every site on this box, not one route, so it is not set here.
 	@files path /files /files/*
 	handle @files {
 		request_body {
@@ -87,6 +95,10 @@ ${DOMAIN} {
 		}
 		reverse_proxy 127.0.0.1:18787 {
 			flush_interval -1
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 2m
+			}
 		}
 	}
 	# The Discord presence bot (discord/, tool/deploy-discord.mjs): a linked Discord server's voice channels and who
@@ -94,6 +106,16 @@ ${DOMAIN} {
 	@discord path /discord /discord/*
 	handle @discord {
 		reverse_proxy 127.0.0.1:18788
+	}
+	# Android App Links (site/.well-known/assetlinks.json): what Android reads to open gogho.st/join links in the app
+	# straight away (Matt, 2026-11-17: invites texted to contacts). It must answer 200 as application/json, with no
+	# redirect, so it is served here by itself.
+	@assetlinks path /.well-known/assetlinks.json
+	handle @assetlinks {
+		root * ${SITE}
+		header Content-Type "application/json"
+		header Cache-Control "no-cache"
+		file_server
 	}
 	handle {
 		root * ${SITE}
@@ -125,6 +147,10 @@ ${OLD} {
 		}
 		reverse_proxy 127.0.0.1:18787 {
 			flush_interval -1
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 2m
+			}
 		}
 	}
 	@discord path /discord /discord/*
@@ -148,6 +174,7 @@ SUDO=; [ "$(id -u)" -eq 0 ] || SUDO=sudo
 STAGE="$HOME/.ghost-sms-site-stage"
 rm -rf "$STAGE"; mkdir -p "$STAGE"; tar xzf - -C "$STAGE"
 [ -f "$STAGE/index.html" ] || { echo "x the site arrived without its index.html"; exit 1; }
+[ -f "$STAGE/.well-known/assetlinks.json" ] || { echo "x the site arrived without .well-known/assetlinks.json"; exit 1; }
 $SUDO mkdir -p ${SITE}.next
 $SUDO rm -rf ${SITE}.next/*
 $SUDO cp -a "$STAGE"/. ${SITE}.next/
@@ -220,5 +247,7 @@ const curl = (a) => spawnSync('curl', ['-s', '--max-time', '15', ...a], { encodi
 const page = curl(['-o', '/dev/null', '-w', '%{http_code}', `https://${DOMAIN}/`]).stdout;
 const info = curl(['-o', '/dev/null', '-w', '%{http_code}', `https://${DOMAIN}/apk.json`]).stdout;
 const apk = curl(['-o', '/dev/null', '-w', '%{http_code}', '-r', '0-0', `https://${DOMAIN}/${APK}`]).stdout;
+const links = curl(['-o', '/dev/null', '-w', '%{http_code} %{content_type}', `https://${DOMAIN}/.well-known/assetlinks.json`]).stdout;
+console.log(`  https://${DOMAIN}/.well-known/assetlinks.json answers ${links || 'nothing yet'} (200 application/json once the block from --caddy is live)`);
 console.log(`  https://${DOMAIN}/ answers ${page || 'nothing yet'}; /apk.json ${info || 'nothing yet'}; /${APK} ${apk || 'nothing yet'} (404 for those two until the first tool/release.mjs)`);
 if (page !== '200') console.log('  (a certificate can take a minute, or longer while the domain\'s DNS settles: Caddy keeps trying.)');

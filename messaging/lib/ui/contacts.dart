@@ -43,7 +43,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
   int _asked = 0;
   bool _opening = false;
 
-  /// 'all', 'phone', or a network's id.
+  /// 'all', 'friends', 'phone', or a network's id.
   String _filter = 'all';
 
   @override
@@ -187,10 +187,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
     final contacts = [for (final n in _networks) ...n.contacts];
     // The phone answered the search itself; the networks' contacts are searched here.
     var people = [for (final s in gather(phone, contacts)) if (s.inPhone || s.friend || answers(s, _query)) s];
-    people = narrowed(people, _filter);
-    final friends = [for (final s in people) if (s.friend) s]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    people = friendsFirst(narrowed(people, _filter));
+    final friends = [for (final s in people) if (s.friend) s];
     final rest = [for (final s in people) if (!s.friend) s];
-    if (friends.isEmpty) return [for (final s in rest) _Row(someone: s)];
+    // Under Friends everyone is one, so no heading says so.
+    if (friends.isEmpty || _filter == 'friends') return [for (final s in people) _Row(someone: s)];
     return [
       const _Row(heading: 'On Ghost Messaging'),
       for (final s in friends) _Row(someone: s),
@@ -199,7 +200,12 @@ class _ContactsScreenState extends State<ContactsScreen> {
     ];
   }
 
-  /// The filters: everyone, the phone's contacts, and each linked network's, with its mark.
+  /// Whether the filters are offered: with a network linked, or anyone added on Ghost Messaging to narrow to (with
+  /// neither, All and Phone would be the same list).
+  bool _filtersShown(List<InboxNetwork> networks) => networks.isNotEmpty || Friends.instance.friends.isNotEmpty;
+
+  /// The filters: everyone, friends on Ghost Messaging (Matt, 2026-11-17: "add the ability to sort contacts by friends
+  /// in ghost"), the phone's contacts, and each linked network's, with its mark.
   Widget _filters(Tokens t, List<InboxNetwork> networks) {
     Widget chip(String id, String label, Widget? mark) {
       final on = _filter == id;
@@ -226,6 +232,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(2)),
       child: Row(spacing: t.space(2), children: [
         chip('all', 'All', null),
+        chip('friends', 'Friends', AppIcon(Lucide.userCheck, size: 15, wash: false, color: _filter == 'friends' ? t.color('app-paper') : t.color('app-ink'))),
         chip('phone', 'Phone', AppIcon(Lucide.smartphone, size: 15, wash: false, color: _filter == 'phone' ? t.color('app-paper') : t.color('app-ink'))),
         for (final n in networks) chip(n.id, n.name, inboxMark(n, size: 16, badge: true)),
       ]),
@@ -250,18 +257,22 @@ class _ContactsScreenState extends State<ContactsScreen> {
             if (!Sms.paired) ...[SizedBox(width: t.space(2)), const AddFriendButton()],
           ]),
         ),
-        // A filter for each linked network with contacts, beside All and Phone; none until one is linked.
+        // A filter for each linked network with contacts, beside All, Friends and Phone; none until a network is linked
+        // or someone is added on Ghost Messaging. A filter whose chip has gone goes back to All.
         ListenableBuilder(
-          listenable: Inbox.instance.changes,
+          listenable: Listenable.merge([Inbox.instance.changes, Friends.instance]),
           builder: (context, _) {
             final networks = _networks;
-            if (networks.isEmpty && _filter != 'all') WidgetsBinding.instance.addPostFrameCallback((_) => mounted ? setState(() => _filter = 'all') : null);
-            return networks.isEmpty ? const SizedBox.shrink() : _filters(t, networks);
+            final shown = _filtersShown(networks);
+            final offered = {'all', if (shown) ...['friends', 'phone'], for (final n in networks) n.id};
+            if (!offered.contains(_filter)) WidgetsBinding.instance.addPostFrameCallback((_) => mounted ? setState(() => _filter = 'all') : null);
+            return shown ? _filters(t, networks) : const SizedBox.shrink();
           },
         ),
         // Everyone blocked, numbers and Telegram and Signal people alike (lib/ui/blocking.dart; Matt, 2026-11-17: "Also
-        // add a block list to our address book pages").
-        if (_query.isEmpty)
+        // add a block list to our address book pages"). Under All alone: the blocked are not friends, nor anyone on one
+        // network, so under a filter it would head a list it is not part of.
+        if (_query.isEmpty && _filter == 'all')
           _ActionRow(
             icon: Lucide.ban,
             label: 'Blocked',
@@ -307,16 +318,21 @@ class _ContactsScreenState extends State<ContactsScreen> {
                       padding: EdgeInsets.all(t.space(6)),
                       child: SettingsEmpty(
                         icon: AppIcon(Lucide.contactRound, size: 28, color: t.color('app-ink-3')),
-                        title: _query.isEmpty ? 'No contacts' : 'Nobody found',
+                        title: _query.isEmpty ? (_filter == 'friends' ? 'No friends yet' : 'No contacts') : 'Nobody found',
                         body: Text(_query.isEmpty
-                            ? (_filter == 'all' || _filter == 'phone' ? 'People in the phone\'s contacts appear here.' : 'Nobody in your ${Inbox.instance.named(_filter)?.name ?? ''} contacts yet.')
+                            ? (_filter == 'friends'
+                                ? 'People you add on Ghost Messaging appear here.'
+                                : _filter == 'all' || _filter == 'phone'
+                                    ? 'People in the phone\'s contacts appear here.'
+                                    : 'Nobody in your ${Inbox.instance.named(_filter)?.name ?? ''} contacts yet.')
                             : 'No name or number in your contacts matches "$_query".'),
                       ),
                     ),
                     ])
                   : ListView.builder(
                       padding: EdgeInsets.only(bottom: t.space(6)),
-                      itemCount: (friends ? 1 : 0) + rows.length + (_query.isEmpty ? 1 : 0),
+                      // The line about the people texted most is the phone's list, not Friends'.
+                      itemCount: (friends ? 1 : 0) + rows.length + (_query.isEmpty && _filter != 'friends' ? 1 : 0),
                       itemBuilder: (context, at) {
                         if (friends && at == 0) return const UsernameFriends();
                         final i = friends ? at - 1 : at;

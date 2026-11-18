@@ -1,0 +1,243 @@
+import 'dart:io';
+
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/circles/circles.dart';
+import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
+import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner;
+import 'package:ghost_messaging/sms.dart' show Person;
+import 'package:ghost_messaging/ui/circles/members_drawer.dart';
+import 'package:ghost_messaging/ui/circles/new_circle.dart';
+import 'package:ghost_messaging/ui/composer_box.dart';
+import 'package:ghost_messaging/ui/contacts.dart';
+import 'package:ghost_messaging/ui/hangout_screen.dart';
+import 'package:ghost_messaging/ui/nav_bar.dart';
+import 'package:ghost_messaging/ui/shell.dart';
+import 'package:ghost_messaging/ui/thread.dart';
+import 'package:ghost_messaging/voice/channels.dart' show Voice;
+import 'package:ghost_messaging/voice/hangout.dart';
+import 'package:ghost_messaging/voice/roles.dart';
+import 'package:ghost_messaging/voice/voice.dart' show SpaceKind, VoiceChannel, VoiceRoute;
+
+import 'support/list_harness.dart';
+
+/// The dock inside a circle (Matt, 2026-11-17: "add a 'home' button on the dock while on the space and transform all
+/// the icons inside the dock to be related to the circle instead of the whole app"), its members in a drawer with Add
+/// people at its top ("the member list should show up as a drawer like the add user, it should include a button to
+/// switch to add user at the top"), and the room under the composer matching the room under the dock ("the space below
+/// the navbar and the space below the composer input should be the same").
+Future<void> _fonts() async {
+  final loader = FontLoader('Inter Variable')..addFont(File('assets/fonts/InterVariable-latin.ttf').readAsBytes().then((b) => ByteData.view(Uint8List.fromList(b).buffer)));
+  await loader.load();
+}
+
+final _circle = Circle(
+  seed: '7' * 64,
+  owner: '',
+  manifest: CircleManifest(owner: '', version: 1, name: 'Night Owls', hue: 'indigo', icon: 'sparkles', spaces: [
+    CircleSpace(seed: '7a' * 32, name: 'General', kind: SpaceKind.text),
+    CircleSpace(seed: '7b' * 32, name: 'Lounge', order: 1),
+  ]),
+);
+
+Finder _ring(String id) => find.byKey(ValueKey('nav-$id'));
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(_fonts);
+  setUp(() => ListPhone([ListPhone.conversation(1, '+15551230001', 'See you at 7', name: 'Maya Chen')]).install());
+  tearDown(() async {
+    await Circles.instance.clear();
+  });
+
+  for (final (name, size) in [('a phone', const Size(412, 892)), ('a wide window', const Size(900, 832))]) {
+    testWidgets('on $name the dock is the circle\'s while it is open, and Home takes it back to the main layout', (tester) async {
+      Circles.instance.join(_circle);
+      final sheet = await loadSheet(tester);
+      await pumpScreen(tester, sheet, const AppShell(), AppState(), size: size);
+      expect(_ring('messages'), findsOneWidget);
+      expect(_ring('home'), findsNothing);
+
+      AppShellState.live!.openCircle(_circle);
+      await settle(tester);
+      // The circle's rings, and none of the app's: Home, its spaces, its members, its settings. Not its owner here, so
+      // no New space.
+      for (final id in ['home', 'circle-spaces', 'circle-members', 'circle-settings']) {
+        expect(_ring(id), findsOneWidget, reason: id);
+      }
+      for (final id in ['new', 'messages', 'contacts', 'archive', 'settings', 'circle-new']) {
+        expect(_ring(id), findsNothing, reason: id);
+      }
+
+      await tester.tap(_ring('home'));
+      await settle(tester);
+      expect(AppShellState.live!.circleOpen, isFalse);
+      expect(_ring('home'), findsNothing);
+      expect(_ring('messages'), findsOneWidget);
+      expect(find.text('Lounge'), findsNothing, reason: 'the circle\'s list is gone from the list\'s place');
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('the circle\'s Settings ring opens its settings and is marked while they are open', (tester) async {
+    Circles.instance.join(_circle);
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, const AppShell(), AppState(), size: const Size(900, 832));
+    AppShellState.live!.openCircle(_circle);
+    await settle(tester);
+    await tester.tap(_ring('circle-settings'));
+    await settle(tester);
+    expect(find.byType(CircleSettingsScreen), findsOneWidget);
+    expect(AppShell.showingOf(tester.element(find.byType(CircleSettingsScreen))), 'circle-settings');
+    expect(tester.widget<NavPill>(find.byKey(const ValueKey('circle-dock'))).active, 'circle-settings');
+    // Spaces puts a space back beside the list.
+    await tester.tap(_ring('circle-spaces'));
+    await settle(tester);
+    expect(find.byType(CircleSettingsScreen), findsNothing);
+    expect(AppShellState.live!.circleOpen, isTrue);
+    expect(tester.widget<NavPill>(find.byKey(const ValueKey('circle-dock'))).active, 'circle-spaces');
+    expect(AppShell.showingOf(tester.element(find.byType(NavPill))), 'circle', reason: 'a space of the circle beside its list again');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the header has the circle\'s settings beside Add people', (tester) async {
+    Circles.instance.join(_circle);
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, const AppShell(), AppState());
+    AppShellState.live!.openCircle(_circle);
+    await settle(tester);
+    final invite = tester.getRect(find.byKey(const ValueKey('circle-invite')));
+    final gear = tester.getRect(find.byKey(const ValueKey('circle-header-settings')));
+    expect((gear.center.dy - invite.center.dy).abs(), lessThan(1), reason: 'on the same line');
+    expect(gear.left - invite.right, lessThan(16), reason: 'right beside it');
+    await tester.tap(find.byKey(const ValueKey('circle-header-settings')));
+    await settle(tester);
+    expect(find.byType(CircleSettingsScreen), findsOneWidget);
+  });
+
+  testWidgets('from a circle, Home then a ring of the app\'s dock: that place in the main layout, nothing of the circle\'s', (tester) async {
+    Circles.instance.join(_circle);
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, const AppShell(), AppState(), size: const Size(900, 832));
+    final shell = AppShellState.live!;
+    // A space of the circle open beside its list, then Home and Contacts: the contacts in the pane, nothing of the
+    // circle's anywhere.
+    shell.openCircle(_circle);
+    await settle(tester);
+    expect(find.text('Lounge'), findsWidgets);
+    await tester.tap(_ring('home'));
+    await settle(tester);
+    await tester.tap(_ring('contacts'));
+    await settle(tester);
+    expect(find.byType(ContactsScreen), findsOneWidget);
+    expect(shell.circleOpen, isFalse);
+    expect(find.text('Lounge'), findsNothing);
+  });
+
+  testWidgets('Members is a drawer, and Add people at its top switches it to the invite drawer', (tester) async {
+    Circles.instance.join(_circle);
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, const AppShell(), AppState());
+    AppShellState.live!.openCircle(_circle);
+    await settle(tester);
+    await tester.tap(_ring('circle-members'));
+    await settle(tester);
+    expect(find.byType(MembersDrawer), findsOneWidget);
+    expect(find.byType(CircleMembersList), findsOneWidget);
+    final add = find.byKey(const ValueKey('members-add-people'));
+    expect(add, findsOneWidget);
+    // At the top: above the list of people.
+    expect(tester.getRect(add).bottom, lessThanOrEqualTo(tester.getRect(find.byType(CircleMembersList)).top + 1));
+    await tester.tap(add);
+    await settle(tester);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(MembersDrawer), findsNothing);
+    // The invite drawer, whichever is drawn: it is titled so.
+    expect(find.text('Invite people'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a space\'s Members opens the drawer, and Add people switches it to the space\'s invite drawer', (tester) async {
+    final mine = NetKeys.generate();
+    final c = VoiceChannel.make('Book club', owner: NetCrypto.hex(mine.public), kind: SpaceKind.text);
+    final store = MemoryHangoutStore()..keepRoster(c.chatRoom, Roster.first(c.owner, kind: SpaceKind.text));
+    final room = HangoutRoom(channel: c, route: _NoRoute(mine.id), name: 'Me', signer: KeysSigner(mine), store: store);
+    Voice.instance.putHangout(room);
+    addTearDown(Voice.instance.clearHangouts);
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, HangoutScreen(channel: c), AppState());
+    await tester.tap(find.byKey(const ValueKey('space-members')));
+    await settle(tester);
+    expect(find.byType(MembersDrawer), findsOneWidget);
+    expect(find.byType(SpaceMembers), findsOneWidget);
+    expect(find.byType(HangoutChat), findsOneWidget, reason: 'the chat stays where it was, under the drawer');
+    await tester.tap(find.byKey(const ValueKey('members-add-people')));
+    await settle(tester);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(MembersDrawer), findsNothing);
+    expect(find.text('Invite people'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('someone a space does not let invite sees Add people greyed in its members drawer', (tester) async {
+    final owner = NetKeys.generate(), mine = NetKeys.generate();
+    final c = VoiceChannel.make('Book club', owner: NetCrypto.hex(owner.public));
+    final store = MemoryHangoutStore()
+      ..keepRoster(c.chatRoom, Roster.first(c.owner).next(roles: [...Role.defaults, const Role(id: 'listener', name: 'Listener', rank: 5, perms: {Perm.speak, Perm.chat})], newcomer: 'listener'));
+    final room = HangoutRoom(channel: c, route: _NoRoute(mine.id), name: 'Me', signer: KeysSigner(mine), store: store);
+    expect(room.can(Perm.invite), isFalse);
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, Builder(builder: (context) => GestureDetector(onTap: () => showSpaceMembers(context, room), child: const ColoredBox(color: Color(0xFFFFFFFF)))), AppState());
+    await tester.tapAt(const Offset(200, 200));
+    await settle(tester);
+    expect(find.byKey(const ValueKey('members-add-people')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('members-add-people')));
+    await settle(tester);
+    expect(find.byType(MembersDrawer), findsOneWidget, reason: 'greyed: nothing happens');
+    expect(find.text('Invite people'), findsNothing);
+  });
+
+  // Matt, 2026-11-17: "the space below the navbar and the space below the composer input should be the same increase
+  // the space below the composer bar just a bit". Measured from the screen's foot: the dock's lowest edge over the
+  // list on a phone, and the composer's box in a conversation, with the bar a phone keeps at its foot.
+  testWidgets('the composer stands as far above the screen\'s foot as the dock does', (tester) async {
+    final sheet = await loadSheet(tester);
+    tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
+    addTearDown(tester.view.reset);
+    await pumpScreen(tester, sheet, const AppShell(), AppState());
+    final screen = tester.view.physicalSize.height / tester.view.devicePixelRatio;
+    final pill = tester.getRect(find.descendant(of: find.byType(NavPill), matching: find.byType(ClipRRect)).first);
+    final dockGap = screen - pill.bottom;
+
+    await pumpScreen(tester, sheet, const ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')]), AppState());
+    final box = tester.getRect(find.byType(ComposerBox));
+    final composerGap = screen - box.bottom;
+    // 25 and 34 points before (2026-11-17); the same since.
+    expect(composerGap, moreOrLessEquals(dockGap, epsilon: 0.5), reason: 'composer $composerGap above the foot, the dock $dockGap');
+  });
+}
+
+/// A relay that is never reached: the room is drawn from its store alone.
+class _NoRoute implements VoiceRoute {
+  _NoRoute(this.me);
+  @override
+  final String me;
+  @override
+  Future<List<String>> join(String room, String token) async => const [];
+  @override
+  void leave(String room) {}
+  @override
+  void send(String room, Uint8List bytes) {}
+  @override
+  void look(String room, String token) {}
+  @override
+  void unlook(String room) {}
+  @override
+  Stream<RoomEvent> get events => const Stream.empty();
+  @override
+  Stream<({String room, String from, Uint8List bytes})> get packets => const Stream.empty();
+  @override
+  Stream<({String room, List<String> members})> get looks => const Stream.empty();
+}

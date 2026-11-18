@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../invites/pending_invites.dart';
 import '../me/me.dart';
 import '../net/carrier.dart';
 import '../net/crypto.dart';
@@ -112,6 +113,10 @@ class Buddies extends ChangeNotifier {
   Future<void> start() async {
     if (_started) return;
     _started = true;
+    // Invites texted to this phone's number before it had the app, waiting on the relay: taken once the number is
+    // verified in Settings › Me (lib/invites/pending_invites.dart; Matt, 2026-11-17: "a link that eventually follows
+    // through after they setup their account"). Started with the app's friends, on the phone or an iPhone of its own.
+    if (identical(this, _instance) && _port is _AppBuddiesPort) PendingInvites.instance.start();
     try {
       all = [for (final j in jsonDecode(await _port.kept()) as List) ?Buddy.fromJson(j)];
     } catch (_) {

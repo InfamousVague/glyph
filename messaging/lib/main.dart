@@ -33,6 +33,8 @@ import 'voice/discord.dart';
 import 'voice/space_groups.dart';
 import 'sounds.dart';
 import 'sms.dart';
+import 'ui/circles/circle_invite_card.dart' show openCircleLink;
+import 'ui/common.dart' show toast;
 import 'ui/computers.dart';
 import 'ui/files_space/share_in.dart';
 import 'onboarding/onboarding.dart';
@@ -326,6 +328,11 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
         final chat = network.chats.where((c) => c.id == id).firstOrNull;
         shell.show(InboxChatScreen(network: network, chatId: id, fallback: chat), showing: 'inbox:${network.id}:$id');
       }
+    } else if (req.circle != null) {
+      // A circle's invite link opened from outside the app: the circle where it is held, else its invite to answer.
+      // A link cut short or bent says so, rather than opening a new message with the link in it (Matt, 2026-11-17:
+      // "Finish the missing pieces that went unfinished").
+      if (!openCircleLink(shell, req.circle!) && shell.mounted) toast(shell.context, 'That circle link isn\'t complete. Ask for it again.');
     } else if (req.pairing != null) {
       // A computer's pairing link, opened by the camera: the pairing page, which asks first.
       shell.show(PairComputerScreen(offered: req.pairing));

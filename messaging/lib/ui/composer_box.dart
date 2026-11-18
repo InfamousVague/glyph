@@ -10,6 +10,9 @@ import '../art/app_icon.dart' show LucideIcon;
 import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
 import 'common.dart' show IconTap;
+import 'nav_bar.dart' show NavPill;
+import 'shell.dart' show pillScrolledScale;
+import '../sms.dart' show Sms;
 
 /// The box a message is written in, everywhere one is: a conversation of texts (lib/ui/thread.dart) and a chat on
 /// Telegram or Bluesky (lib/ui/inbox_ui.dart), so the two read and work the same (Matt, 2026-11-15: "Also use the
@@ -270,7 +273,20 @@ class _ComposerFieldState extends State<ComposerField> with WidgetsBindingObserv
 /// does not move when you go from one to another (Matt, 2026-11-17: "unify the compose layout between sms / rcs chats,
 /// telegram and signal chats as well as spaces chats, they should all have the same layout so there is no shift when
 /// switching between them"). [bottom] is what the page leaves under it (the screen's foot, where the page does not).
-EdgeInsets composerFootPadding(Tokens t, {double bottom = 0}) => EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(2), t.space(2) + bottom);
+///
+/// Under the box, the room the dock keeps under itself (NavPill.inset; at its resting size on a computer, where it
+/// rests smaller), so the composer stands as high above the screen's foot as the dock over the list does (Matt,
+/// 2026-11-17: "the space below the navbar and the space below the composer input should be the same increase the
+/// space below the composer bar just a bit"). On a phone in the ghost look that took it from 25 to 34 points, the
+/// dock's own. It was a small step, the same as its sides, and still is under Dial-Up, whose taskbar stands on the
+/// screen's foot with no room under it at all. A whole number of points, so the box lands on the same pixel in every
+/// conversation whatever sums the pages above it make.
+EdgeInsets composerFootPadding(Tokens t, {double bottom = 0}) => EdgeInsets.fromLTRB(
+      t.space(2),
+      t.space(2),
+      t.space(2),
+      (isBevelChrome(t) ? t.space(2) : (NavPill.inset(t) * (Sms.computer ? pillScrolledScale : 1)).roundToDouble()) + bottom,
+    );
 
 /// The buttons of every conversation's composer, in the same places whatever the conversation is: Add an attachment at
 /// its start; emoji (on a computer), stickers and the microphone at its end while nothing is written, Send in the
