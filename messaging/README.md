@@ -43,7 +43,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     stages with their times to `signal.log` beside its store and to standard error, which the app now passes to the
     Developer log (its own lines and signalmeow's warnings only; no message's words). Why Signal itself is slow to
     take a message is not known yet: the next stuck send says where in that log.
-- **MKV and MP4 in the app's own player, everywhere** (not released; `lib/ui/video_engine.dart`, `lib/ui/video_screen.dart`;
+- **MKV and MP4 in the app's own player, everywhere** (0.9.8; `lib/ui/video_engine.dart`, `lib/ui/video_screen.dart`;
   Matt, 2026-11-18: "add support for playing mkv video files and mp4's within the app in a player themed by glacier UI").
   A computer plays videos inside the app now, in the same Glacier player as the phone, by media_kit (libmpv: MKV, WebM,
   HEVC, AV1 ...; LGPL builds on the Mac), in place of the window of its own it had (DeskVideo.swift keeps only the poster and
