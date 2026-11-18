@@ -15,6 +15,7 @@ import 'package:glacier/glacier.dart';
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../circles/circles.dart';
+import '../../files/files_store.dart';
 import '../../friends/buddies.dart';
 import '../../kit/semantic_colors.dart';
 import '../../kit/settings_kit.dart';
@@ -587,7 +588,26 @@ List<CirclePerson> circlePeople(Circle c) {
       if (msg.name.isNotEmpty) names.putIfAbsent(msg.from, () => msg.name);
     }
   }
+  // Whoever added a file to one of its Files spaces, as far as this device has the list (Matt, 2026-11-18: members
+  // posting files were not listed).
+  final files = FilesStore.instance;
+  for (final ch in c.channels) {
+    if (ch.kind != SpaceKind.files) continue;
+    final s = files.of(ch);
+    if (!s.ready) continue;
+    for (final f in s.files.values) {
+      ids.add(f.by);
+      if (f.byName.isNotEmpty) names.putIfAbsent(f.by, () => f.byName);
+    }
+  }
   ids.addAll(here);
+  // And everyone seen in it before, kept on this device: still members once they have gone.
+  final circles = Circles.instance;
+  circles.noteSeen(c, {for (final id in ids) if (id != me) id: names[id] ?? ''});
+  for (final e in circles.seenIn(c).entries) {
+    ids.add(e.key);
+    if (e.value.isNotEmpty) names.putIfAbsent(e.key, () => e.value);
+  }
   if (me != null && me.isNotEmpty) ids.add(me);
   String nameOf(String id) {
     if (id == me) return 'You';

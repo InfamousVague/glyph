@@ -70,7 +70,14 @@ class HangoutRoom extends ChangeNotifier {
     putOut = roster.banned.contains(me) ? 'You were banned from this space.' : null;
     _subs.add(route.packets.where((p) => p.room == channel.chatRoom).listen((p) => _heard(p.from, p.bytes)));
     _subs.add(route.events.where((e) => e.room == channel.chatRoom).listen(_event));
-    final there = await route.join(channel.chatRoom, channel.chatToken);
+    final List<String> there;
+    try {
+      there = await route.join(channel.chatRoom, channel.chatToken);
+    } catch (_) {
+      // Not in yet (the relay server slow to answer): in as soon as it is, when [_event] hears who is here.
+      _dropped = true;
+      return;
+    }
     for (final id in there) {
       present[id] = present[id] ?? HangoutPerson(id);
     }
@@ -111,7 +118,7 @@ class HangoutRoom extends ChangeNotifier {
     if (words.isEmpty || !can(Perm.chat) || putOut != null) return false;
     final m = HangoutMessage(id: NetCrypto.hex(NetCrypto.randomBytes(8)), from: me, name: name, text: words.length > 4000 ? words.substring(0, 4000) : words, at: DateTime.now().millisecondsSinceEpoch);
     _add([m]);
-    _say({'t': 'msg', ...m.toJson()});
+    _say({'t': 'msg', ...m.toJson()}, keep: true);
     return true;
   }
 
@@ -121,7 +128,7 @@ class HangoutRoom extends ChangeNotifier {
   void delete(HangoutMessage m) {
     if (!canDelete(m)) return;
     _drop(m.id);
-    _say({'t': 'del', 'id': m.id});
+    _say({'t': 'del', 'id': m.id}, keep: true);
   }
 
   void _add(Iterable<HangoutMessage> fresh) {
@@ -269,7 +276,7 @@ class HangoutRoom extends ChangeNotifier {
     final signed = await next.signedBy(me, s.publicKey, s.sign);
     if (!signed.trustedFor(channel.owner)) return false;
     _take(signed);
-    _say({'t': 'roster', 'r': signed.toJson()});
+    _say({'t': 'roster', 'r': signed.toJson()}, keep: true);
     return true;
   }
 
@@ -318,7 +325,7 @@ class HangoutRoom extends ChangeNotifier {
     final next = await SpaceAbout.sign(channel.chatRoom, words.length > SpaceAbout.most ? words.substring(0, SpaceAbout.most) : words, (_about?.version ?? 0) + 1, me, s.publicKey, s.sign);
     if (!next.trustedFor(channel.chatRoom, roster)) return false;
     _takeAbout(next);
-    _say({'t': 'about', 'a': next.toJson()});
+    _say({'t': 'about', 'a': next.toJson()}, keep: true);
     return true;
   }
 
@@ -383,7 +390,8 @@ class HangoutRoom extends ChangeNotifier {
       _dropped = true;
       present.clear();
     } else if (e.members != null && _dropped) {
-      // Back in after the relay dropped and came back: who is here now, and what was said meanwhile.
+      // Back in after the relay dropped and came back, or in at last after an answer that came late: who is here now,
+      // and what was said meanwhile.
       _dropped = false;
       present.clear();
       for (final id in e.members!) {
@@ -402,10 +410,19 @@ class HangoutRoom extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _say(Map<String, Object?> what) {
+  /// Says [what] to everyone in the chat room. [keep]: the hub keeps it for whoever comes in later (a message, a
+  /// deletion, the roster, the description), so a phone that was closed when it was said still has it (Matt, 2026-11-18:
+  /// "I can't see their messages in spaces within a circle").
+  void _say(Map<String, Object?> what, {bool keep = false}) {
     if (!opened) return;
     try {
-      route.send(channel.chatRoom, NetCrypto.seal(channel.key, utf8.encode(jsonEncode(what))));
+      final sealed = NetCrypto.seal(channel.key, utf8.encode(jsonEncode(what)));
+      final r = route;
+      if (keep && r is HubVoiceRoute) {
+        r.sendKept(channel.chatRoom, sealed);
+      } else {
+        r.send(channel.chatRoom, sealed);
+      }
     } catch (_) {}
   }
 

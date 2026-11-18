@@ -71,7 +71,11 @@ void main() {
     expect(await hubB.join(room, token), [a.id]);
     hubB.sendRoom(room, Uint8List.fromList(utf8.encode('hello room')));
     expect(utf8.decode((await heard.timeout(const Duration(seconds: 10))).bytes), 'hello room');
-    await expectLater(HubCarrier(url: hub, signer: KeysSigner(NetKeys.generate())).join(room, 'f' * 64), throwsA(isA<CarrierError>()));
+    // A wrong token is refused. Connected first: a room asked for before the connection waits for it (HubCarrier.join).
+    final stranger = HubCarrier(url: hub, signer: KeysSigner(NetKeys.generate()));
+    await _up(stranger);
+    await expectLater(stranger.join(room, 'f' * 64), throwsA(isA<CarrierError>()));
+    await stranger.stop();
     hubA.leave(room);
     hubB.leave(room);
     debugPrint('a room joined by two, heard in, and left');
