@@ -746,7 +746,10 @@ class _HangoutChatState extends State<HangoutChat> {
               // Laid out as every other conversation's foot is (Matt, 2026-11-15: "Use the same compose input on spaces
               // that we use for the rest of the app ... just make it appear like the bottom of all the compose windows look").
               // The screen's foot always, as a conversation of texts leaves it, and the call's dock on top where there is one.
-              padding: composerFootPadding(t, bottom: widget.bottom + MediaQuery.paddingOf(context).bottom),
+              // Over the keyboard while it is up, as a conversation's foot is in GhostPage's footer (Matt, 2026-11-18: "when
+              // typing in a space the chat and chatbar don't slide up above the keyboard"): the list above, being the rest
+              // of the column, shrinks to make room and keeps its newest messages in view.
+              padding: composerFootPadding(t, bottom: MediaQuery.viewInsetsOf(context).bottom > 0 ? MediaQuery.viewInsetsOf(context).bottom : widget.bottom + MediaQuery.paddingOf(context).bottom),
               child: mayWrite
                   ? Builder(builder: (context) {
                       // The same buttons in the same places as every other conversation (lib/ui/composer_box.dart): a
