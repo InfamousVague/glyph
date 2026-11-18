@@ -4,6 +4,7 @@
 /// phone, as a conversation is.
 library;
 
+import 'circle_settings.dart' show openCircleSettingsFull;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -51,17 +52,8 @@ void openCircleSpace(BuildContext context, VoiceChannel c) {
   shell.show(circleSpacePage(c, key: ValueKey('circle-space-page-${c.seed}')), showing: 'circle');
 }
 
-/// Opens [c]'s settings in the pane, as a space opens (`showing: 'circle-settings'`): beside the circle's list in a
-/// wide window, over it on a phone, and the circle's dock marks its Settings while it is there. Pushed over the page
-/// where there is no shell.
-void openCircleSettings(BuildContext context, Circle c) {
-  final shell = AppShell.maybeOf(context);
-  if (shell == null) {
-    push<void>(context, (_) => CircleSettingsScreen(seed: c.seed));
-    return;
-  }
-  shell.show(CircleSettingsScreen(key: ValueKey('circle-settings-${c.seed}'), seed: c.seed), showing: 'circle-settings');
-}
+/// Opens [c]'s settings over the whole window, with their own sidebar (lib/ui/circles/circle_settings.dart).
+void openCircleSettings(BuildContext context, Circle c) => openCircleSettingsFull(context, c.seed);
 
 /// Opens a new space for [c] (under [section], where asked for under one) in the pane, as its settings open.
 void openCircleNewSpace(BuildContext context, Circle c, {String? section}) {

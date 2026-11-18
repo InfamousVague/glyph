@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/kit/settings_kit.dart';
+import 'package:ghost_messaging/ui/circles/circle_settings.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/circles/circles.dart';
 import 'package:ghost_messaging/desktop/ui/qr.dart';
@@ -169,17 +171,47 @@ void main() {
   testWidgets('settings: the owner renames the circle, sees themselves as its owner, and the QR code of its link', (tester) async {
     final c = await joinOwn(tester);
     final sheet = await loadSheet(tester);
-    await pumpScreen(tester, sheet, CircleSettingsScreen(seed: c.seed), AppState(), size: const Size(412, 2400));
+    // On a phone the settings' sidebar is the first page, and each section opens over it (Matt, 2026-11-17: "basic
+    // circle settings with a full screen sidebar and main page settings").
+    await pumpScreen(tester, sheet, CircleSettingsScreen(seed: c.seed), AppState(), size: const Size(412, 1400));
     expect(find.text('Circle settings'), findsOneWidget);
+    for (final s in CircleSettingsSection.values) {
+      expect(find.byKey(ValueKey('circle-settings-tab-${s.name}')), findsOneWidget);
+    }
+    Future<void> open(CircleSettingsSection s) async {
+      await tester.tap(find.byKey(ValueKey('circle-settings-tab-${s.name}')));
+      await settle(tester);
+    }
+
+    Future<void> back() async {
+      Navigator.of(tester.element(find.byType(SettingsPaneScope).last)).pop();
+      await settle(tester);
+    }
+
+    await open(CircleSettingsSection.leave);
     expect(find.byKey(const ValueKey('circle-delete')), findsOneWidget, reason: 'its owner may delete it');
+    await back();
+    await open(CircleSettingsSection.members);
     final you = tester.widget<CircleRoleTag>(find.byType(CircleRoleTag).first);
     expect((you.person.name, you.person.role), ('You', 'Owner'));
+    await back();
+    await open(CircleSettingsSection.roles);
+    expect(find.byKey(const ValueKey('circle-role-owner')), findsOneWidget);
+    expect(find.text('You'), findsWidgets, reason: 'the owner, by name');
+    await back();
+    await open(CircleSettingsSection.spaces);
+    expect(find.byKey(const ValueKey('circle-settings-new-space')), findsOneWidget, reason: 'a space added from settings');
+    expect(find.byKey(ValueKey('circle-settings-space-${c.spaces.first.seed}')), findsOneWidget);
+    await back();
 
+    await open(CircleSettingsSection.invite);
     await tester.tap(find.byKey(const ValueKey('circle-qr')));
     await settle(tester);
     expect(find.byType(QrView), findsOneWidget);
     expect(tester.widget<QrView>(find.byType(QrView)).data, c.link);
+    await back();
 
+    await open(CircleSettingsSection.overview);
     await tester.tap(find.byKey(const ValueKey('circle-rename')));
     await settle(tester);
     await tester.enterText(find.byType(EditableText).last, 'Bookworms');
@@ -189,6 +221,18 @@ void main() {
     expect(Circles.instance.bySeed(c.seed)!.manifest.version, 2, reason: 'a new manifest, signed here');
     await settle(tester);
     expect(find.text('Bookworms'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('settings on a wide window: the sidebar of sections beside the one chosen', (tester) async {
+    final c = await joinOwn(tester);
+    final sheet = await loadSheet(tester);
+    for (final section in [CircleSettingsSection.overview, CircleSettingsSection.spaces, CircleSettingsSection.roles]) {
+      await pumpScreen(tester, sheet, CircleSettingsPage(key: ValueKey(section), seed: c.seed, section: section), AppState(), size: const Size(1100, 760));
+      expect(find.byKey(const ValueKey('circle-settings-sidebar')), findsOneWidget);
+      expect(find.byKey(ValueKey('circle-settings-${section.name}')), findsOneWidget);
+      if (autoUpdateGoldenFiles) await expectLater(find.byType(CircleSettingsPage), matchesGoldenFile('shots/circle-settings-${section.name}.png'));
+    }
     expect(tester.takeException(), isNull);
   });
 

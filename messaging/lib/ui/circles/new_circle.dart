@@ -8,14 +8,13 @@ library;
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextCapitalization;
+import 'package:flutter/services.dart' show TextCapitalization;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../circles/circles.dart';
-import '../../desktop/ui/qr.dart';
 import '../../friends/buddies.dart';
 import '../../kit/semantic_colors.dart';
 import '../../kit/settings_kit.dart';
@@ -25,9 +24,8 @@ import '../../voice/voice.dart';
 import '../common.dart';
 import '../dialup/bevel.dart';
 import '../shell.dart';
-import 'arrange_spaces.dart';
 import 'circle_face.dart';
-import 'circle_invite.dart';
+import 'circle_settings.dart';
 import 'circle_picture.dart';
 
 /// A section of a settings-like page, its rows' icons on [hue] (as Settings' own sections are).
@@ -646,166 +644,18 @@ class CircleRoleTag extends StatelessWidget {
   }
 }
 
-/// A circle's settings: its name, colour, icon and picture, its spaces, its people and their roles, its invite link
-/// and QR code, and leaving it (deleting it, for its owner). Whoever may not change it reads what it is.
-class CircleSettingsScreen extends StatefulWidget {
+/// A circle's settings: the full-screen page with its own sidebar (lib/ui/circles/circle_settings.dart; Matt,
+/// 2026-11-17: "manage roles users etc and other basic circle settings with a full screen sidebar and main page
+/// settings"). Kept by this name for whoever opens it.
+class CircleSettingsScreen extends StatelessWidget {
   const CircleSettingsScreen({super.key, required this.seed, this.qr = false});
   final String seed;
 
-  /// Opened with the QR code showing (a picture of it).
+  /// Opened on the invite link with the QR code showing (a picture of it).
   final bool qr;
 
   @override
-  State<CircleSettingsScreen> createState() => _CircleSettingsScreenState();
-}
-
-class _CircleSettingsScreenState extends State<CircleSettingsScreen> {
-  late bool _qr = widget.qr;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final circles = Circles.instance;
-    return ListenableBuilder(
-      listenable: Listenable.merge([circles, Voice.instance]),
-      builder: (context, _) {
-        final c = circles.bySeed(widget.seed);
-        if (c == null) return GhostPage(title: 'Circle', body: const Center(child: Text('You left this circle.')));
-        final edit = circles.canEdit(c);
-        final owner = c.manifest.ownerId.isNotEmpty && circles.signer?.id == c.manifest.ownerId;
-        final people = circlePeople(c);
-        final online = circles.onlineIn(c);
-        final gap = SizedBox(height: t.space(6));
-        return GhostPage(
-          title: edit ? 'Circle settings' : c.name,
-          body: SettingsPaneScope(
-            finder: SettingsFinder(),
-            child: _form([
-                Center(child: CircleFace.of(c, size: 76, selected: c.picture == null)),
-                SizedBox(height: t.space(2)),
-                Text(c.name, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xl'), weight: 'bold')),
-                Text(
-                  [
-                    '${c.spaces.length} ${c.spaces.length == 1 ? 'space' : 'spaces'}',
-                    '${people.length} ${people.length == 1 ? 'person' : 'people'}',
-                    if (online > 0) '$online on now',
-                  ].join(' · '),
-                  textAlign: TextAlign.center,
-                  style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')),
-                ),
-                SizedBox(height: t.space(5)),
-                if (edit) ...[
-                  _hued('blue', PaneSection(title: 'Circle', children: [
-                    SettingRow(key: const ValueKey('circle-rename'), icon: AppIcon(Lucide.pencil, size: 18), label: 'Name', value: Text(c.name), onPress: () => askCircleWords(context, title: 'Rename circle', initial: c.name, then: (n) => circles.edit(c, name: n))),
-                    ..._pictureRows(context, picture: c.picture, onPicked: (p) => circles.edit(c, picture: p), onCleared: () => circles.edit(c, clearPicture: true)),
-                  ])),
-                  gap,
-                  PaneSection(title: 'Colour', children: [SettingRowBox(child: CircleHuePicker(value: c.hue, onChanged: (h) => circles.edit(c, hue: h)))]),
-                  gap,
-                  PaneSection(title: 'Icon', children: [SettingRowBox(child: CircleIconPicker(hue: c.hue, value: c.icon, onChanged: (i) => circles.edit(c, icon: i)))]),
-                  gap,
-                ] else ...[
-                  SettingsCallout(child: const Text('Only the circle\'s owner and the admins they made can change it.')),
-                  gap,
-                ],
-                _hued('amber', PaneSection(title: 'Spaces', children: [
-                  SettingRow(
-                    key: const ValueKey('circle-arrange'),
-                    icon: AppIcon(Lucide.listTree, size: 18),
-                    label: edit ? 'Arrange spaces' : 'Spaces',
-                    hint: Text(edit ? 'Move, rename, change or delete them' : [for (final k in SpaceKind.values) if (c.spaces.any((s) => s.kind == k)) '${c.spaces.where((s) => s.kind == k).length} ${spaceKindTitle(k).toLowerCase()}'].join(', ')),
-                    value: Text('${c.spaces.length}'),
-                    onPress: () => push<void>(context, (_) => ArrangeCircleSpacesScreen(seed: c.seed)),
-                  ),
-                  if (edit) SettingRow(key: const ValueKey('circle-settings-new-space'), icon: AppIcon(Lucide.plus, size: 18), label: 'New space', onPress: () => push<void>(context, (_) => NewCircleSpaceScreen(circle: c))),
-                ])),
-                gap,
-                _hued('green', PaneSection(
-                  title: 'People',
-                  description: Text(owner ? 'Press someone to make them an admin: admins can change the circle and its spaces too.' : 'The owner makes admins, who can change the circle and its spaces.'),
-                  children: [
-                    SettingRow(key: const ValueKey('circle-settings-invite'), icon: AppIcon(Lucide.userPlus, size: 18), label: 'Invite people', hint: const Text('Friends in the app, anyone by a text, or the link.'), onPress: () => showCircleInvite(context, c)),
-                    for (final p in people)
-                      SettingRow(
-                        key: ValueKey('circle-person-${p.id}'),
-                        icon: AppIcon(p.owner ? Lucide.crown : (p.admin ? Lucide.shieldCheck : Lucide.userRound), size: 18),
-                        label: p.name,
-                        value: CircleRoleTag(person: p),
-                        onPress: owner && !p.owner ? () => _person(context, c, p) : null,
-                      ),
-                  ],
-                )),
-                gap,
-                _hued('purple', PaneSection(
-                  title: 'Invite link',
-                  description: const Text('Whoever has the link is in the circle, so share it with people you know.'),
-                  children: [
-                    SettingRow(
-                      key: const ValueKey('circle-copy-link'),
-                      icon: AppIcon(Lucide.link, size: 18),
-                      label: 'Copy invite link',
-                      onPress: () {
-                        Clipboard.setData(ClipboardData(text: c.link));
-                        toast(context, 'Invite link copied');
-                      },
-                    ),
-                    SettingRow(key: const ValueKey('circle-qr'), icon: AppIcon(Lucide.scanText, size: 18), label: _qr ? 'Hide the QR code' : 'Show a QR code', onPress: () => setState(() => _qr = !_qr)),
-                    if (_qr)
-                      SettingRowBox(
-                        child: Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(t.space(2)),
-                            child: Semantics(label: 'The invite link to ${c.name}, as a QR code', child: ExcludeSemantics(child: QrView(data: c.link, size: 200, radius: isBevelChrome(t) ? 0 : 14))),
-                          ),
-                        ),
-                      ),
-                  ],
-                )),
-                gap,
-                _hued('red', PaneSection(children: [
-                  SettingRow(key: const ValueKey('circle-leave'), icon: AppIcon(Lucide.logOut, size: 18), label: 'Leave circle', hint: const Text('It goes from your list; its link brings you back.'), onPress: () => _leave(context, c)),
-                  if (owner) SettingRow(key: const ValueKey('circle-delete'), icon: AppIcon(Lucide.trash2, size: 18), label: 'Delete circle', hint: const Text('Takes every space out of it for everyone, then leaves it.'), onPress: () => _delete(context, c)),
-                ])),
-            ]),
-          ),
-        );
-      },
-    );
-  }
-
-  void _person(BuildContext context, Circle c, CirclePerson p) => circlePersonMenu(context, c, p);
-
-  void _leave(BuildContext context, Circle c) {
-    showChoices(context, title: 'Leave ${c.name}? It goes from your list; its link brings you back.', choices: [
-      Choice('Leave circle', Lucide.logOut, () => _gone(context, c, () => Circles.instance.leave(c), 'Left ${c.name}'), danger: true),
-    ]);
-  }
-
-  void _delete(BuildContext context, Circle c) {
-    showChoices(context, title: 'Delete ${c.name}? Every space goes from it for everyone in it, and it goes from your list. This can\'t be undone.', choices: [
-      Choice('Delete circle', Lucide.trash2, () => _gone(context, c, () async {
-            // A manifest has no "closed" mark: one with no spaces is said to everyone, then the circle is left here.
-            for (final s in c.spaces) {
-              final now = Circles.instance.bySeed(c.seed);
-              if (now == null) break;
-              await Circles.instance.removeSpace(now, s.seed);
-            }
-            final now = Circles.instance.bySeed(c.seed);
-            if (now != null) await Circles.instance.leave(now);
-          }, '${c.name} deleted'), danger: true),
-    ]);
-  }
-
-  /// Does [away], then puts this page and the circle away, saying [words].
-  Future<void> _gone(BuildContext context, Circle c, Future<void> Function() away, String words) async {
-    final nav = Navigator.of(context);
-    final shell = AppShell.maybeOf(context);
-    final open = shell?.openCircleSeed == c.seed;
-    await away();
-    if (context.mounted) toast(context, words);
-    nav.maybePop();
-    if (open) shell?.go('messages');
-  }
+  Widget build(BuildContext context) => CircleSettingsPage(seed: seed, qr: qr, section: qr ? CircleSettingsSection.invite : CircleSettingsSection.overview);
 }
 
 /// Asks for a line of words (a name, a heading), then gives it to [then].

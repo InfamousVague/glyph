@@ -1,7 +1,6 @@
 import '../circles/circles.dart';
 import 'circles/circle_invite_card.dart' show CircleInviteBanner;
 import 'circles/circle_dock.dart';
-import 'circles/circle_face.dart' show CircleFace;
 import 'circles/circle_screen.dart';
 import 'circles/members_drawer.dart' show showCircleMembers;
 import 'circles/new_circle.dart';
@@ -473,6 +472,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         }
       case CircleDock.members:
         unawaited(showCircleMembers(inside, c));
+      case CircleDock.invite:
+        unawaited(showCircleInvite(inside, c));
       case CircleDock.newSpace:
         openCircleNewSpace(inside, c);
       case CircleDock.settings:
@@ -648,7 +649,6 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
               return NavPill(
                 key: const ValueKey('circle-dock'),
                 upright: upright,
-                head: CircleFace.of(circle, size: context.tokens.len('app-ring') - 8),
                 hue: circle.hue,
                 active: _showing == CircleDock.settings || _showing == CircleDock.newSpace ? _showing! : CircleDock.spaces,
                 onSelect: _circleGo,
@@ -682,7 +682,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// The rings on the pill now: a circle's face and its rings while one is open, else the app's five.
   int get _dockRings {
     final c = circleOpen && _circleSeed != null ? Circles.instance.bySeed(_circleSeed!) : null;
-    return c == null ? 5 : CircleDock.items(c, canEdit: Circles.instance.canEdit(c)).length + 1;
+    return c == null ? 5 : CircleDock.items(c, canEdit: Circles.instance.canEdit(c)).length;
   }
 
   static Widget _lightsIf(bool on, Widget child) => on ? TopBarLights(child: child) : child;

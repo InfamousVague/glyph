@@ -383,12 +383,16 @@ void main() {
     }
 
     // Signal's filter: only those on Signal.
+    // The chips scroll since Friends joined them (2026-11-17): brought into view first.
+    await tester.ensureVisible(find.text('Signal'));
     await tester.tap(find.text('Signal'));
     await settle(tester);
     expect(find.text('Maya Chen'), findsOneWidget);
     expect(find.text('Riley Fox'), findsOneWidget);
     expect(find.text('Jo Park'), findsNothing);
     expect(find.text('Dad'), findsNothing);
+    // The chips scroll since Friends joined them (2026-11-17): brought into view first.
+    await tester.ensureVisible(find.text('All'));
     await tester.tap(find.text('All'));
     await settle(tester);
 

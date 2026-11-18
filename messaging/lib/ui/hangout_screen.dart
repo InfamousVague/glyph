@@ -186,7 +186,8 @@ class _HangoutScreenState extends State<HangoutScreen> {
         // space's page leaves its own out rather than show two of the same button side by side.
         final besideCircle = wide && widget.channel.circle != null;
         final actions = [
-          if (room != null) _membersButton(context, room),
+          // A circle's space leaves Members to the circle's dock (Matt, 2026-11-17: "remove the users icon from the header").
+          if (room != null && widget.channel.circle == null) _membersButton(context, room),
           if ((room == null || room.can(Perm.invite)) && !besideCircle) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
           if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
         ];
@@ -341,7 +342,8 @@ class _HangoutStageState extends State<HangoutStage> {
           title: 'Chat',
           back: false,
           actions: [
-            if (room != null) _membersButton(context, room),
+            // A circle's space leaves Members to the circle's dock (Matt, 2026-11-17: "remove the users icon from the header").
+          if (room != null && widget.channel.circle == null) _membersButton(context, room),
             if (room == null || room.can(Perm.invite)) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
             if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
           ],

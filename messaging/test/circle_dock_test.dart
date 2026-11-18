@@ -3,16 +3,17 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/ui/circles/circle_settings.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/circles/circles.dart';
 import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
 import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner;
 import 'package:ghost_messaging/sms.dart' show Person;
 import 'package:ghost_messaging/ui/circles/members_drawer.dart';
-import 'package:ghost_messaging/ui/circles/new_circle.dart';
 import 'package:ghost_messaging/ui/composer_box.dart';
 import 'package:ghost_messaging/ui/contacts.dart';
 import 'package:ghost_messaging/ui/hangout_screen.dart';
+import 'package:ghost_messaging/ui/circles/circle_dock.dart';
 import 'package:ghost_messaging/ui/nav_bar.dart';
 import 'package:ghost_messaging/ui/shell.dart';
 import 'package:ghost_messaging/ui/thread.dart';
@@ -81,7 +82,7 @@ void main() {
     });
   }
 
-  testWidgets('the circle\'s Settings ring opens its settings and is marked while they are open', (tester) async {
+  testWidgets('the circle\'s Settings ring opens its settings over the whole window, sections in a sidebar', (tester) async {
     Circles.instance.join(_circle);
     final sheet = await loadSheet(tester);
     await pumpScreen(tester, sheet, const AppShell(), AppState(), size: const Size(900, 832));
@@ -89,32 +90,35 @@ void main() {
     await settle(tester);
     await tester.tap(_ring('circle-settings'));
     await settle(tester);
-    expect(find.byType(CircleSettingsScreen), findsOneWidget);
-    expect(AppShell.showingOf(tester.element(find.byType(CircleSettingsScreen))), 'circle-settings');
-    expect(tester.widget<NavPill>(find.byKey(const ValueKey('circle-dock'))).active, 'circle-settings');
-    // Spaces puts a space back beside the list.
-    await tester.tap(_ring('circle-spaces'));
+    // Over the whole window, its sidebar beside the section (Matt, 2026-11-17: "a full screen sidebar and main page").
+    expect(find.byType(CircleSettingsPage), findsOneWidget);
+    expect(find.byKey(const ValueKey('circle-settings-sidebar')), findsOneWidget);
+    expect(tester.getRect(find.byType(CircleSettingsPage)).width, 900, reason: 'the whole window, not the pane');
+    await tester.tap(find.byKey(const ValueKey('circle-settings-tab-roles')));
     await settle(tester);
-    expect(find.byType(CircleSettingsScreen), findsNothing);
+    expect(find.byKey(const ValueKey('circle-role-owner')), findsOneWidget);
+    // Closed, the circle is as it was.
+    await tester.tap(find.byKey(const ValueKey('circle-settings-close')));
+    await settle(tester);
+    expect(find.byType(CircleSettingsPage), findsNothing);
     expect(AppShellState.live!.circleOpen, isTrue);
-    expect(tester.widget<NavPill>(find.byKey(const ValueKey('circle-dock'))).active, 'circle-spaces');
-    expect(AppShell.showingOf(tester.element(find.byType(NavPill))), 'circle', reason: 'a space of the circle beside its list again');
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('the header has the circle\'s settings beside Add people', (tester) async {
+  // Matt, 2026-11-17: "replace the circle icon with the home page, hide the settings cog that's outside of the navbar
+  // remove the users icon from the header as well find some other icon to fill the missing space".
+  testWidgets('the header holds only Add people, and the dock leads with Home, Invite in the face\'s room', (tester) async {
     Circles.instance.join(_circle);
     final sheet = await loadSheet(tester);
     await pumpScreen(tester, sheet, const AppShell(), AppState());
     AppShellState.live!.openCircle(_circle);
     await settle(tester);
-    final invite = tester.getRect(find.byKey(const ValueKey('circle-invite')));
-    final gear = tester.getRect(find.byKey(const ValueKey('circle-header-settings')));
-    expect((gear.center.dy - invite.center.dy).abs(), lessThan(1), reason: 'on the same line');
-    expect(gear.left - invite.right, lessThan(16), reason: 'right beside it');
-    await tester.tap(find.byKey(const ValueKey('circle-header-settings')));
-    await settle(tester);
-    expect(find.byType(CircleSettingsScreen), findsOneWidget);
+    expect(find.byKey(const ValueKey('circle-invite')), findsOneWidget);
+    expect(find.byKey(const ValueKey('circle-header-settings')), findsNothing, reason: 'the dock has Settings');
+    expect(find.byKey(const ValueKey('nav-head')), findsNothing, reason: 'no face at the dock\'s head');
+    final items = tester.widget<NavPill>(find.byKey(const ValueKey('circle-dock'))).items;
+    expect([for (final i in items) i.id].first, CircleDock.home);
+    expect([for (final i in items) i.id], contains(CircleDock.invite));
   });
 
   testWidgets('from a circle, Home then a ring of the app\'s dock: that place in the main layout, nothing of the circle\'s', (tester) async {
