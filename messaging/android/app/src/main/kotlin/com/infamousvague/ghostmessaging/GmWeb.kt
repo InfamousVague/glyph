@@ -185,6 +185,11 @@ object GmWeb {
     private val unreadIn = ConcurrentHashMap<String, Boolean>()
 
     private fun keepMessage(m: JSONObject, notify: Boolean) {
+        // Google Messages' own lines about the conversation are not texts: its tombstones ("Texting with Katelynn
+        // (SMS/MMS)", a switch to or from RCS, someone joining) and a message with nothing in it at all (Matt,
+        // 2026-11-17: a thread full of "Texting with Jade (SMS/MMS)" with a time and an empty line each).
+        if (m.optString("status").contains("tombstone", ignoreCase = true)) return
+        if (m.optString("text").isBlank() && (m.optJSONArray("media")?.length() ?: 0) == 0) return
         val conv = m.getString("conv")
         val thread = threads[conv] ?: run {
             // A message in a conversation not read yet: read it first.

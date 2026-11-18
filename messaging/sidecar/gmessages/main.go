@@ -681,6 +681,11 @@ func message(m *gmproto.Message) map[string]any {
 		reactions = append(reactions, map[string]any{"emoji": r.GetData().GetUnicode(), "from": r.GetParticipantIDs()})
 	}
 	status := m.GetMessageStatus().GetStatus().String()
+	// Google Messages' own lines about the conversation ("Texting with Jade (SMS/MMS)", a switch to RCS) are tombstones,
+	// not texts (Matt, 2026-11-17): marked so every client can leave them out.
+	if strings.Contains(strings.ToLower(status), "tombstone") {
+		status = "tombstone"
+	}
 	return map[string]any{
 		"id": m.GetMessageID(), "conv": m.GetConversationID(), "from": m.GetParticipantID(),
 		"me": strings.HasPrefix(status, "OUTGOING"), "text": strings.Join(text, "\n"),
