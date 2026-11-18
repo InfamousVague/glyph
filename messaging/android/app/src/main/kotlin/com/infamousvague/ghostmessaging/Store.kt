@@ -886,6 +886,9 @@ class Store(private val context: Context) {
         val have = out.map { AndroidCopy(it["outgoing"] as Boolean, (it["body"] as String?)?.trim() ?: "", it["date"] as Long, (it["parts"] as? List<*>)?.isNotEmpty() == true) }
         val used = HashSet<Int>()
         for (m in bridged) {
+            // A picture message still coming down, kept before it was waited for: its words are a stand-in, and Android's
+            // copy is the message itself (Matt, 2026-11-18: "it still shows me the "attachement" and "Sms message from jade"").
+            if (!m.out && GmBridge.downloading(m.status ?: "")) continue
             if (androidCopyOf(have, m.out, m.text, m.time, !m.media.isNullOrBlank() && m.media != "[]", used) != null) continue
             // From the on-phone connection (GmWeb): its pictures, its delivered and read marks, and reactions.
             val parts = m.media?.let { j ->

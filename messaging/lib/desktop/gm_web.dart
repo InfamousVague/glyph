@@ -384,7 +384,11 @@ class GmWeb extends ChangeNotifier {
       // Google Messages' own lines about the conversation ("Texting with Jade (SMS/MMS)", its tombstones) and messages
       // with nothing in them are not texts (Matt, 2026-11-17, a thread full of them), as on the phone (GmWeb.kt).
       if ('${m['status'] ?? ''}'.contains('tombstone')) continue;
-      if ('${m['text'] ?? ''}'.trim().isEmpty && (m['media'] as List? ?? const []).isEmpty) continue;
+      // A picture message still coming down is told of with a stand-in ("Attachment", "SMS message from Jade") and
+      // again once it is had (Matt, 2026-11-18): left out until then, as on the phone (GmBridge.downloading).
+      if (downloading('${m['status'] ?? ''}')) continue;
+      final words = notDownloaded('${m['status'] ?? ''}') ?? '${m['text'] ?? ''}';
+      if (words.trim().isEmpty && (m['media'] as List? ?? const []).isEmpty) continue;
       final id = _hash('m:${m['id']}');
       _messageId[id] = '${m['id']}';
       final from = people['${m['from']}'];
@@ -395,7 +399,7 @@ class GmWeb extends ChangeNotifier {
         'kind': 'gm',
         'address': '${from?['number'] ?? ''}',
         // Its reactions apart from its words, drawn once with the rest (lib/reactions.dart).
-        'body': '${m['text'] ?? ''}',
+        'body': words,
         'reactions': reactions,
         'date': (m['time'] as num?)?.toInt() ?? 0,
         'outgoing': m['me'] == true,
@@ -416,6 +420,22 @@ class GmWeb extends ChangeNotifier {
     out.sort((a, b) => (b['date'] as int).compareTo(a['date'] as int));
     return out;
   }
+
+  /// Whether Google Messages' status says a message is still being brought down (a picture message).
+  static bool downloading(String status) {
+    final s = status.toLowerCase();
+    return s.startsWith('incoming_') && (s.contains('downloading') || s.contains('retrying_auto_download') || s.contains('retrying_manual_download') || s.contains('awaiting_auto_download'));
+  }
+
+  /// What to say of a picture message that will not come down by itself; null for any other status.
+  static String? notDownloaded(String status) => switch (status.toLowerCase()) {
+        'incoming_yet_to_manual_download' => 'Picture message not downloaded: open it in Google Messages to download it',
+        'incoming_download_failed' || 'incoming_download_canceled' => 'Picture message could not be downloaded',
+        'incoming_download_failed_too_large' => 'Picture message too large to download',
+        'incoming_download_failed_sim_has_no_data' => 'Picture message not downloaded: no mobile data',
+        'incoming_expired_or_not_available' => 'Picture message expired before it was downloaded',
+        _ => null,
+      };
 
   static String _state(String status, bool mine) {
     if (!mine) return 'received';

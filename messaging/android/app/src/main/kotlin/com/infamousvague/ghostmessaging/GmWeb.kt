@@ -178,18 +178,48 @@ object GmWeb {
         val thread = GmBridge.threadFor(app, read)
         GmBridge.Db.get(app).keepWebConversation(conv, thread, title, group, addresses)
         threads[conv] = thread
+        if (group && c.optBoolean("rcs")) rcsGroups += conv else rcsGroups -= conv
         unreadIn[conv] = c.optBoolean("unread")
     }
 
     private val threads = ConcurrentHashMap<String, Long>()
+
+    /** The conversations that are RCS groups: only those have a name everyone in them sees ([renameGroup]). */
+    private val rcsGroups: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /**
+     * Gives [thread]'s RCS group [name] for everyone in it, as Google Messages' own Group details does (Matt, 2026-11-18:
+     * "there is no rcs group chat name that is set for other users"). A picture-message (MMS) group has no name to share:
+     * it stays this phone's own. False where nothing was renamed (not connected, not an RCS group, or it would not).
+     */
+    fun renameGroup(thread: Long, name: String): Boolean {
+        if (!connected || name.isBlank()) return false
+        val convs = threads.filterValues { it == thread }.keys.filter { it in rcsGroups }
+        var any = false
+        for (conv in convs) {
+            try { ask("rename", mapOf("conv" to conv, "name" to name.trim())); any = true } catch (e: Exception) { DevLog.add(app, "gmweb", "rename: ${e.message}") }
+        }
+        return any
+    }
+
+    /** Whether [thread] is an RCS group Google Messages knows, whose name can be everyone's. */
+    fun isRcsGroup(thread: Long): Boolean = threads.any { (conv, t) -> t == thread && conv in rcsGroups }
     private val unreadIn = ConcurrentHashMap<String, Boolean>()
 
     private fun keepMessage(m: JSONObject, notify: Boolean) {
         // Google Messages' own lines about the conversation are not texts: its tombstones ("Texting with Katelynn
         // (SMS/MMS)", a switch to or from RCS, someone joining) and a message with nothing in it at all (Matt,
         // 2026-11-17: a thread full of "Texting with Jade (SMS/MMS)" with a time and an empty line each).
-        if (m.optString("status").contains("tombstone", ignoreCase = true)) return
-        if (m.optString("text").isBlank() && (m.optJSONArray("media")?.length() ?: 0) == 0) return
+        val status = m.optString("status")
+        if (status.contains("tombstone", ignoreCase = true)) return
+        // A picture message still being brought down is not one yet (Matt, 2026-11-18: "when i get messages in an RCS
+        // group chat it still shows me the "attachement" and "Sms message from jade""): Google Messages tells of it
+        // with a stand-in, then again under the same id once it is had. Kept, and told of, only then, as
+        // mautrix-gmessages does.
+        if (GmBridge.downloading(status)) return
+        // One that will not come down by itself (auto-download off, or it failed): said so, in place of its stand-in.
+        val text = GmBridge.notDownloaded(status) ?: m.optString("text")
+        if (text.isBlank() && (m.optJSONArray("media")?.length() ?: 0) == 0) return
         val conv = m.getString("conv")
         val thread = threads[conv] ?: run {
             // A message in a conversation not read yet: read it first.
@@ -217,7 +247,7 @@ object GmWeb {
         val time = m.optLong("time")
         // Read where Google Messages has the conversation read and this is not newer than what was read.
         val read = out || unreadIn[conv] == false
-        val fresh = db.keepWebMessage(conv, thread, m.getString("id"), m.optString("text"), time, from?.optString("name")?.ifBlank { null }, from?.optString("number")?.ifBlank { null }, out, m.optString("status"), if (parts.length() > 0) parts.toString() else null, reactions, read)
+        val fresh = db.keepWebMessage(conv, thread, m.getString("id"), text, time, from?.optString("name")?.ifBlank { null }, from?.optString("number")?.ifBlank { null }, out, m.optString("status"), if (parts.length() > 0) parts.toString() else null, reactions, read)
         Bus.changed(thread)
         // A new message of theirs, just now: Ghost's notification (Google Messages' own may be off altogether).
         if (notify && fresh && !out && System.currentTimeMillis() - time < 5 * 60_000) {

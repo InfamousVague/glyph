@@ -263,7 +263,13 @@ class MainActivity : FlutterActivity() {
                     Bus.changed(-1); null
                 }
                 // A conversation's name, this phone's own: a group's (Store.setThreadName).
-                "threadName" -> bg { store.setThreadName(call.argument<Number>("thread")!!.toLong(), call.argument<String>("name") ?: ""); Bus.changed(-1); null }
+                // An RCS group's is everyone's: given to Google Messages too (GmWeb.renameGroup), which renames it for all in it.
+                "rcsGroup" -> bg { GmWeb.isRcsGroup(call.argument<Number>("thread")!!.toLong()) }
+                "threadName" -> bg {
+                    val t = call.argument<Number>("thread")!!.toLong(); val name = call.argument<String>("name") ?: ""
+                    store.setThreadName(t, name); Bus.changed(-1)
+                    GmWeb.renameGroup(t, name)
+                }
                 "draft" -> bg { store.draft(call.argument<Number>("thread")!!.toLong()) }
                 "setDraft" -> bg { store.setDraft(call.argument<Number>("thread")!!.toLong(), call.argument<String>("text") ?: ""); null }
                 "setBlocked" -> bg { store.setBlocked(call.argument<String>("address")!!, call.argument<Boolean>("blocked") ?: true); Bus.changed(-1); null }
