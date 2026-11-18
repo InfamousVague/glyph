@@ -330,7 +330,14 @@ class Store(private val context: Context) {
                 if (people.isEmpty() || !people.all { (it["address"] as? String)?.let(::isRcsStandIn) == true }) continue
                 val words = (row["snippet"] as? String)?.trim().orEmpty()
                 val date = row["date"] as Long
-                val match = groups.firstOrNull { g -> g.thread != row["id"] && g.text.trim() == words && words.isNotEmpty() && kotlin.math.abs(g.time - date) <= 10 * 60_000L }
+                // By its people first: the stand-in's newest message names them, as the group the on-phone connection
+                // keeps does (Matt, 2026-11-18: a picture in a new group came "separately" under the long code, with no
+                // words to match it by). Else by its newest message: the same words within ten minutes, or no words
+                // (a picture) within two.
+                val members = standInMembers(row["id"] as Long)
+                val match = groups.firstOrNull { g -> g.thread != row["id"] && members.isNotEmpty() && g.addresses.size == members.size && g.addresses.all { a -> members.any { m -> sameNumber(a, m) } } }
+                    ?: groups.firstOrNull { g -> g.thread != row["id"] && g.text.trim() == words && words.isNotEmpty() && kotlin.math.abs(g.time - date) <= 10 * 60_000L }
+                    ?: groups.filter { g -> g.thread != row["id"] && words.isEmpty() && g.text.isBlank() && kotlin.math.abs(g.time - date) <= 2 * 60_000L }.singleOrNull()
                     ?: continue
                 learned[row["id"] as Long] = match.thread
                 if (row["unread"] == true) unreadIn += match.thread
@@ -343,6 +350,26 @@ class Store(private val context: Context) {
         }
         if (added) out.sortByDescending { it["date"] as Long }
     }
+
+    /**
+     * Who is in an RCS group's stand-in thread, as its newest picture or group message names them: everyone it went to
+     * and came from but this phone (its own number, Android's type 151) and the stand-in address itself.
+     */
+    private fun standInMembers(thread: Long): Set<String> = try {
+        val id = resolver.query(Telephony.Mms.CONTENT_URI, arrayOf("_id"), "thread_id = ?", arrayOf("$thread"), "date DESC LIMIT 1")?.use { c -> if (c.moveToFirst()) c.getLong(0) else null }
+        if (id == null) emptySet() else buildSet {
+            resolver.query(Uri.parse("content://mms/$id/addr"), arrayOf("address", "type"), null, null, null)?.use { c ->
+                while (c.moveToNext()) {
+                    val a = c.getString(0) ?: continue
+                    if (c.getInt(1) == 151 || isRcsStandIn(a) || a.contains("insert-address-token")) continue
+                    if (none { sameNumber(it, a) }) add(a)
+                }
+            }
+        }
+    } catch (_: Exception) { emptySet() }
+
+    /** The stand-in threads found to be [thread]'s RCS group: their messages are the group's ([messages]). */
+    private fun standInsOf(thread: Long): List<Long> = rcsStandIns().filterValues { it == thread }.keys.toList()
 
     /** Google Messages' address for an RCS group (not a business's, which is …@bot.rcs.google.com). */
     private fun isRcsStandIn(address: String): Boolean =
@@ -527,13 +554,17 @@ class Store(private val context: Context) {
     /** The newest [limit] messages of [thread], SMS and MMS together, the newest first. */
     fun messages(thread: Long, limit: Int = 300): List<Map<String, Any?>> {
         val out = ArrayList<Map<String, Any?>>()
+        // An RCS group's own, and what Google Messages keeps of it under its stand-in address (…@rcs.google.com): one
+        // conversation (Matt, 2026-11-18: "These two came through separately but should habe come through inside the
+        // group").
+        val threads = (listOf(thread) + standInsOf(thread)).joinToString(",")
         val receipts = receipts()
         // The texts that came or went by the app's routes, between friends, not the phone network (Friends.kt).
         val net = Friends.netIds(context)
         resolver.query(
             Telephony.Sms.CONTENT_URI,
             arrayOf("_id", "address", "body", "date", "type", "status", "read", "date_sent"),
-            "thread_id = ?", arrayOf(thread.toString()), "date DESC LIMIT $limit",
+            "thread_id IN ($threads)", null, "date DESC LIMIT $limit",
         )?.use { c ->
             while (c.moveToNext()) {
                 val type = c.getInt(4)
@@ -560,7 +591,7 @@ class Store(private val context: Context) {
         resolver.query(
             Telephony.Mms.CONTENT_URI,
             arrayOf("_id", "date", "msg_box", "read", "m_type", "sub", "m_id", "st"),
-            "thread_id = ?", arrayOf(thread.toString()), "date DESC LIMIT $limit",
+            "thread_id IN ($threads)", null, "date DESC LIMIT $limit",
         )?.use { c ->
             // In a group of friends (Groups.kt): what came or went by the app's routes, and the lines about the group.
             val groupNet = Groups.netIds(context)

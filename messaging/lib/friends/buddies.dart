@@ -110,9 +110,73 @@ class Buddies extends ChangeNotifier {
     return null;
   }
 
+  // --- on a computer paired with a phone (Matt, 2026-11-18: "I don't see the ability to add friends on desktop") ------
+  //
+  // Friends by username are the phone's: its routes reach them and its keys seal to them. A paired computer asks the
+  // phone for each thing done (android DeskCalls "buddies", answered by the phone's [forComputer]) and holds the list
+  // the phone answers with, asked again every little while so a request made to the phone shows here.
+
+  /// Whether this is a computer's, speaking through its phone.
+  bool get _remote => Sms.paired && _port is _AppBuddiesPort;
+  Timer? _poll;
+
+  Future<Map<String, Object?>> _ask(Map<String, Object?> what) async {
+    final Map<String, dynamic> r;
+    try {
+      r = await Sms.instance.buddies(what);
+    } on MeError {
+      rethrow;
+    } catch (e) {
+      final m = RegExp(r'^PlatformException\([^,]*, (.*?), .*\)$', dotAll: true).firstMatch('$e');
+      throw MeError(m?.group(1) ?? '$e');
+    }
+    final list = r['list'];
+    if (list is List) {
+      all = [for (final j in list) ?Buddy.fromJson(j)];
+      notifyListeners();
+    }
+    return r;
+  }
+
+  /// The phone's list read again, on a computer; nothing anywhere else.
+  Future<void> refresh() async {
+    if (!_remote) return;
+    try {
+      await _ask({'op': 'list'});
+    } catch (_) {}
+  }
+
+  /// On the phone: what a paired computer asks of friends by username ([_ask] there). Each answer carries the list.
+  Future<Object?> forComputer(Map<String, Object?> what) async {
+    Buddy want() => byId('${what['id']}') ?? (throw MeError('That friend request is no longer here.'));
+    List<Object> list() => [for (final b in all) b.toJson()];
+    switch (what['op']) {
+      case 'lookup':
+        return {'found': (await lookup('${what['u'] ?? ''}')).name, 'list': list()};
+      case 'add':
+        final b = await add('${what['u'] ?? ''}');
+        return {'buddy': b.toJson(), 'list': list()};
+      case 'accept':
+        final b = await accept(want());
+        return {'buddy': b.toJson(), 'list': list()};
+      case 'decline':
+        await decline(want());
+      case 'remove':
+        await remove(want());
+      case 'share':
+        await shareProfile();
+    }
+    return {'list': list()};
+  }
+
   Future<void> start() async {
     if (_started) return;
     _started = true;
+    if (_remote) {
+      await refresh();
+      _poll = Timer.periodic(const Duration(seconds: 20), (_) => refresh());
+      return;
+    }
     // Invites texted to this phone's number before it had the app, waiting on the relay: taken once the number is
     // verified in Settings › Me (lib/invites/pending_invites.dart; Matt, 2026-11-17: "a link that eventually follows
     // through after they setup their account"). Started with the app's friends, on the phone or an iPhone of its own.
@@ -141,6 +205,7 @@ class Buddies extends ChangeNotifier {
   /// Who [username] is, as the add-friend drawer shows it while it is typed: nobody, this install itself, or someone
   /// (lib/ui/add_friend_drawer.dart). Asks the same server [add] asks.
   Future<BuddyLookup> lookup(String username) async {
+    if (_remote) return BuddyLookup.values.asNameMap()['${(await _ask({'op': 'lookup', 'u': username}))['found']}'] ?? BuddyLookup.nobody;
     final found = await _port.whois(tidyHandle(username));
     if (found == null) return BuddyLookup.nobody;
     if (found.id == (await _port.me()).id) return BuddyLookup.you;
@@ -149,6 +214,7 @@ class Buddies extends ChangeNotifier {
 
   /// Asks [username] to be friends. Throws a [MeError] where nobody has that username, or it is this install's.
   Future<Buddy> add(String username) async {
+    if (_remote) return Buddy.fromJson((await _ask({'op': 'add', 'u': username}))['buddy'])!;
     final name = tidyHandle(username);
     if (_port.username == null) throw MeError('Choose your own username first.');
     final found = await _port.whois(name);
@@ -167,6 +233,7 @@ class Buddies extends ChangeNotifier {
   }
 
   Future<Buddy> accept(Buddy b) async {
+    if (_remote) return Buddy.fromJson((await _ask({'op': 'accept', 'id': b.id}))['buddy'])!;
     final yes = b.copyWith(state: 'yes');
     _put(yes);
     await _save();
@@ -175,6 +242,10 @@ class Buddies extends ChangeNotifier {
   }
 
   Future<void> decline(Buddy b) async {
+    if (_remote) {
+      await _ask({'op': 'decline', 'id': b.id});
+      return;
+    }
     all = [for (final o in all) if (o.id != b.id) o];
     await _save();
     await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'no'}));
@@ -182,6 +253,10 @@ class Buddies extends ChangeNotifier {
 
   /// No longer friends: removed here, and they are told.
   Future<void> remove(Buddy b) async {
+    if (_remote) {
+      await _ask({'op': 'remove', 'id': b.id});
+      return;
+    }
     await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'end'}));
     all = [for (final o in all) if (o.id != b.id) o];
     await _save();
@@ -189,6 +264,10 @@ class Buddies extends ChangeNotifier {
 
   /// Tells every friend this phone's name and line, after they changed.
   Future<void> shareProfile() async {
+    if (_remote) {
+      await _ask({'op': 'share'});
+      return;
+    }
     for (final b in friends) {
       await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'me', ..._profile()}));
     }
@@ -240,6 +319,7 @@ class Buddies extends ChangeNotifier {
 
   @override
   void dispose() {
+    _poll?.cancel();
     for (final s in _subs) {
       s.cancel();
     }

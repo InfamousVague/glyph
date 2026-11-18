@@ -1374,6 +1374,11 @@ class Sms {
   Future<Map<String, dynamic>> voiceSync(Map<String, Object?> what) async =>
       Map<String, dynamic>.from((await _calls.invokeMethod<Map>('voice', {'what': what})) ?? const {});
 
+  /// On a paired computer: friends by username, asked of the phone (android DeskCalls "buddies", answered by the
+  /// phone's [Buddies.forComputer]).
+  Future<Map<String, dynamic>> buddies(Map<String, Object?> what) async =>
+      Map<String, dynamic>.from((await _calls.invokeMethod<Map>('buddies', {'what': what})) ?? const {});
+
   Future<Map<String, dynamic>> me(Map<String, Object?> what) async =>
       Map<String, dynamic>.from((await _calls.invokeMethod<Map>('me', {'what': what})) ?? const {});
 
