@@ -12,6 +12,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import 'friends/buddies.dart';
+import 'friends/handover.dart';
 import 'me/me.dart';
 import 'accent.dart';
 import 'summaries.dart';
@@ -298,6 +299,8 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       Sms.answer('me', Me.instance.forComputer);
       // And friends by username, added and answered from a paired computer (lib/friends/buddies.dart).
       Sms.answer('buddies', Buddies.instance.forComputer);
+      // And what a paired computer is handed to have friends and circles of its own (lib/friends/handover.dart).
+      Sms.answer('handover', answerHandover);
       // A paired computer's voice channels are the phone's (lib/voice/channels.dart).
       Sms.answer('voice', Voice.instance.answerDesk);
       // And its Telegram approves a paired computer's sign-in (lib/inbox/telegram.dart).

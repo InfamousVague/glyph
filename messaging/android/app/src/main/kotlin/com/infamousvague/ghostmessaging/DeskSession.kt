@@ -269,6 +269,9 @@ interface DeskPhone {
     /** Friends by username: listed, looked up, asked, answered, removed (lib/friends/buddies.dart forComputer). */
     fun buddies(what: Map<String, Any?>): Any?
 
+    /** The identity, friends by username and conversations with them, for the computer's own network (handover.dart). */
+    fun handover(what: Map<String, Any?>): Any?
+
     /**
      * Translation done by the phone for the computer (Translate.kt; Matt, 2026-11-17: "add a translate plugin which
      * can automatically translate texts when detected from another language"): [what] has `op` ("text", "languages",
@@ -334,6 +337,8 @@ class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = Syst
         "me" -> phone.me(plain(a.getJSONObject("what")))
         // Friends by username, the phone's, added and answered from the computer (lib/friends/buddies.dart): by Dart.
         "buddies" -> phone.buddies(plain(a.getJSONObject("what")))
+        // The phone's identity and friends, handed to the computer for friends and circles of its own: by Dart.
+        "handover" -> phone.handover(plain(a.getJSONObject("what")))
         // Voice channels, the phone's and the computer's kept in step (lib/voice/channels.dart): answered by Dart.
         "voice" -> phone.voice(plain(a.getJSONObject("what")))
         // The phone's Telegram signs its computer in (lib/inbox/telegram.dart): answered by Dart.
@@ -492,7 +497,7 @@ class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = Syst
             "threadName", "deleteMessage", "deleteThread", "deleteThreads", "editMessage", "resendMms", "setBlocked", "blockedNumbers",
             "e2eOffer", "e2eOff", "e2eVerify", "e2ePlainSeen", "e2eList", "mmsStatus", "voiceLimit",
             "put", "drop", "sendPictures", "sendVoice", "sendSticker", "ownNumber", "me", "voice", "telegram",
-            "translate", "buddies",
+            "translate", "buddies", "handover",
         )
     }
 }

@@ -15,6 +15,29 @@ import 'voice/channels.dart';
 /// The routes to other phones (lib/net/net.dart), friends reached by them, groups, voice and the circles that ride
 /// it, in that order; the accounts linked and the handles watched for (Settings › Me); and friends by username, heard
 /// over the hub while any are kept or there is a username of one's own.
+/// On a computer paired with a phone that has handed over its identity (lib/desktop/own_calls.dart): the routes, the
+/// directory and friends by username run here, beside the phone, under the same identity; texts stay the phone's, and
+/// voice and circles are started as a paired computer's (lib/desktop/main.dart).
+void startOwnFriends(AppState app) {
+  // Friends' words go by the routes ([Friends]): a friend by username's, here; a number's, still by the phone's texts.
+  Net.instance.start(app).then((_) => Friends.instance.start(app));
+  Me.instance.start(AppMeStore(app), Net.instance, () => Net.instance.hub, needHub: (yes) => Net.instance.want('me', yes));
+  _hearBuddies();
+}
+
+void _hearBuddies() {
+  void hear() {
+    Net.instance.want('buddies', Buddies.instance.all.isNotEmpty || Me.instance.username != null);
+    Net.instance.watchToo([for (final b in Buddies.instance.friends) b.id]);
+  }
+
+  Buddies.instance.start().then((_) {
+    hear();
+    Buddies.instance.addListener(hear);
+    Me.instance.addListener(hear);
+  });
+}
+
 void startPeople(AppState app) {
   Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => Groups.instance.start()).then((_) => Voice.instance.start(app)).then((_) => Circles.instance.start(app));
   // The accounts linked and the handles watched for (Settings › Me): spoken of to the relay server only once one has

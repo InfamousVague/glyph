@@ -1,22 +1,20 @@
 import AVFoundation
-import AVKit
 import Cocoa
 import FlutterMacOS
 
 /// A video in a message, on the Mac (Matt, 2026-11-14: "mp4 files are not loading it just shows up as a string of
-/// text for the filename"): a picture of where it starts and how long it runs, for the conversation to draw, and a
-/// window that plays it with the Mac's own player and controls.
+/// text for the filename"): a picture of where it starts and how long it runs, for the conversation to draw. It is
+/// played in the app's own player (lib/ui/video_screen.dart, libmpv), no longer in a window of AVKit's here, which
+/// could not open an .mkv and was not in the app's look (Matt, 2026-11-18: "add support for playing mkv video files
+/// and mp4's within the app in a player themed by glacier UI").
 ///
 /// The video is the phone's: the app brings its bytes over the link (lib/desktop/remote.dart) and hands them here.
 /// AVFoundation reads a file, so the bytes are written to this app's own folder in the temporary directory, readable
-/// by this account alone, for as long as they are needed and no longer: until the picture is made, or until the
-/// player's window is closed. The folder is removed as the app opens and as it quits, so nothing of a conversation
-/// stays on the Mac's disk (docs/desktop.md: the Mac keeps no texts).
-final class DeskVideo: NSObject, NSWindowDelegate {
-  static let shared = DeskVideo()
-
-  /// The player windows open now, and the file each plays.
-  private var playing: [(window: NSWindow, file: URL)] = []
+/// by this account alone, for as long as they are needed and no longer: until the picture is made. The player's own
+/// copy goes in the same folder (remote.dart videoCopy) and is removed when the player closes. The folder is removed
+/// as the app opens and as it quits, so nothing of a conversation stays on the Mac's disk (docs/desktop.md: the Mac
+/// keeps no texts).
+final class DeskVideo {
 
   /// Every run's folders are in here; this run's is named by its process, so two copies of the app open at once
   /// never touch each other's.
@@ -84,60 +82,5 @@ final class DeskVideo: NSObject, NSWindowDelegate {
           let jpeg = NSBitmapImageRep(cgImage: image).representation(using: .jpeg, properties: [.compressionFactor: 0.82])
     else { return ["picture": nil, "millis": millis, "width": 0, "height": 0, "videoWidth": Int(own.width), "videoHeight": Int(own.height)] }
     return ["picture": FlutterStandardTypedData(bytes: jpeg), "millis": millis, "width": image.width, "height": image.height, "videoWidth": Int(own.width), "videoHeight": Int(own.height)]
-  }
-
-  /// Opens a window that plays the video. Nil when it is playing, or why it is not.
-  func play(data: Data, id: Int, ext: String, title: String) -> String? {
-    guard let file = try? DeskVideo.write(data, id: id, ext: ext) else { return "the video could not be made ready to play" }
-    let asset = AVURLAsset(url: file)
-    guard asset.isPlayable else {
-      try? FileManager.default.removeItem(at: file)
-      return "this Mac can’t play this kind of video"
-    }
-    // As large as the video is, within most of the screen; never tiny.
-    var natural = CGSize(width: 640, height: 360)
-    if let track = asset.tracks(withMediaType: .video).first {
-      let turned = track.naturalSize.applying(track.preferredTransform)
-      if abs(turned.width) > 0, abs(turned.height) > 0 { natural = CGSize(width: abs(turned.width), height: abs(turned.height)) }
-    }
-    let screen = NSScreen.main?.visibleFrame.size ?? CGSize(width: 1280, height: 800)
-    let scale = min(1, min(screen.width * 0.7 / natural.width, screen.height * 0.7 / natural.height))
-    let grown = max(1, 360 / (natural.width * scale))
-    let content = CGSize(width: natural.width * scale * grown, height: natural.height * scale * grown)
-
-    let view = AVPlayerView(frame: NSRect(origin: .zero, size: content))
-    view.controlsStyle = .floating
-    view.player = AVPlayer(url: file)
-    let window = NSWindow(contentRect: NSRect(origin: .zero, size: content), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-    window.title = title
-    window.isReleasedWhenClosed = false
-    // Black, as the app's own top bar is.
-    window.titlebarAppearsTransparent = true
-    window.backgroundColor = .black
-    window.appearance = NSAppearance(named: .darkAqua)
-    window.contentView = view
-    window.contentAspectRatio = content
-    window.center()
-    window.delegate = self
-    playing.append((window, file))
-    window.makeKeyAndOrderFront(nil)
-    view.player?.play()
-    return nil
-  }
-
-  /// The player's window closed: it stops, and the file it played is removed.
-  func windowWillClose(_ notification: Notification) {
-    guard let window = notification.object as? NSWindow, let at = playing.firstIndex(where: { $0.window === window }) else { return }
-    let file = playing.remove(at: at).file
-    if let view = window.contentView as? AVPlayerView {
-      view.player?.pause()
-      view.player = nil
-    }
-    try? FileManager.default.removeItem(at: file)
-  }
-
-  /// The app's own window is closing: the players go with it, so the app can quit.
-  func closeAll() {
-    for open in playing { open.window.close() }
   }
 }

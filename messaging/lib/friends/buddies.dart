@@ -117,7 +117,7 @@ class Buddies extends ChangeNotifier {
   // the phone answers with, asked again every little while so a request made to the phone shows here.
 
   /// Whether this is a computer's, speaking through its phone.
-  bool get _remote => Sms.paired && _port is _AppBuddiesPort;
+  bool get _remote => !Sms.ownNetwork && _port is _AppBuddiesPort;
   Timer? _poll;
 
   Future<Map<String, Object?>> _ask(Map<String, Object?> what) async {
@@ -136,6 +136,16 @@ class Buddies extends ChangeNotifier {
       notifyListeners();
     }
     return r;
+  }
+
+  /// Takes [json] as the whole list (a paired computer's and this phone's, put together: lib/friends/handover.dart).
+  Future<void> takeAll(String json) async {
+    try {
+      all = [for (final j in jsonDecode(json) as List) ?Buddy.fromJson(j)];
+    } catch (_) {
+      return;
+    }
+    await _save();
   }
 
   /// The phone's list read again, on a computer; nothing anywhere else.

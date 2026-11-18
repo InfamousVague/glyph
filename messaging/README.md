@@ -43,6 +43,14 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     stages with their times to `signal.log` beside its store and to standard error, which the app now passes to the
     Developer log (its own lines and signalmeow's warnings only; no message's words). Why Signal itself is slow to
     take a message is not known yet: the next stuck send says where in that log.
+- **MKV and MP4 in the app's own player, everywhere** (not released; `lib/ui/video_engine.dart`, `lib/ui/video_screen.dart`;
+  Matt, 2026-11-18: "add support for playing mkv video files and mp4's within the app in a player themed by glacier UI").
+  A computer plays videos inside the app now, in the same Glacier player as the phone, by media_kit (libmpv: MKV, WebM,
+  HEVC, AV1 ...; LGPL builds on the Mac), in place of the window of its own it had (DeskVideo.swift keeps only the poster and
+  the temp folder). The phone stays on ExoPlayer, which reads Matroska. An iPhone plays MP4 and MOV but not MKV (it says
+  so). On a computer: space, arrows, M, F for full screen, Esc, a volume slider, a mouse scrubber; a file nothing here can
+  play says so, with Open with another app. The Mac and iPhone builds use CocoaPods now (media_kit has no Swift Package
+  Manager support): `pod install` is part of a build. About 23 MB more on the Mac. Tests: video_controls_test.
 - **Ghost accounts: recovery words, an Ethereum-style address, a password and the number** (0.9.4–0.9.5; `lib/account/`,
   `lib/ui/account_screens.dart`, `relay/lib/accounts.dart`; Matt, 2026-11-17: "We need to have a way to login to existing
   accounts. We might need to add password based authentication as well as SMS verification for verified numbers", and

@@ -118,7 +118,7 @@ class _WakeState extends State<_Wake> {
   void initState() {
     super.initState();
     // On a computer, Settings › Me is the phone's: asked of it as the page opens (Me.followPhone).
-    WidgetsBinding.instance.addPostFrameCallback((_) => Sms.paired ? Me.instance.followPhone(Sms.instance.me) : Me.instance.wake());
+    WidgetsBinding.instance.addPostFrameCallback((_) => Sms.followsPhone ? Me.instance.followPhone(Sms.instance.me) : Me.instance.wake());
   }
 
   @override
@@ -151,7 +151,7 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
     const _Wake(),
     // A username and a profile, and friends by username (lib/ui/profile.dart; Matt, 2026-11-14: "create a profile
     // and username under "me" to register a username and add friends on the platform").
-    if (!Sms.paired)
+    if (!Sms.followsPhone)
       PaneSection(
         title: 'Profile',
         children: [
@@ -183,7 +183,7 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
         SettingRow(icon: _icon(Lucide.keyRound), label: 'Encryption key', value: Text(m.myKey ?? 'Made when first used')),
       ],
     ),
-    if (Sms.paired)
+    if (Sms.followsPhone)
       SettingsCallout(child: Text(me.ready ? 'Accounts are linked on your phone. Your number can be verified from here: the code is texted to your phone.' : me.phoneSaid ?? 'Asking your phone…'))
     else if (!me.ready)
       SettingsCallout(child: Text(me.reachable ? 'Asking the relay server…' : 'Linking an account needs the relay server, which isn\'t connected right now (Settings › Network).')),
@@ -201,7 +201,7 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
           icon: _icon(Lucide.megaphone),
           label: 'Tell friends I\'m here',
           hint: Text(me.accounts.isEmpty ? 'Link an account first.' : 'People watching for ${me.accounts.length == 1 ? 'your account' : 'one of your accounts'} hear that you joined.'),
-          control: GlacierSwitch(checked: me.listed, onCheckedChange: me.setListed, ariaLabel: 'Tell friends I\'m here', disabled: Sms.paired && !me.ready),
+          control: GlacierSwitch(checked: me.listed, onCheckedChange: me.setListed, ariaLabel: 'Tell friends I\'m here', disabled: Sms.followsPhone && !me.ready),
         ),
       ],
     ),
@@ -509,7 +509,7 @@ class _LinkRow extends StatelessWidget implements PaneRow {
       );
     }
     if (n.soon) return SettingRow(icon: mark, label: n.name, hint: const Text('Coming soon'), disabled: true);
-    if (Sms.paired || !me.ready) return SettingRow(icon: mark, label: n.name, hint: const Text('Not linked'), disabled: true);
+    if (Sms.followsPhone || !me.ready) return SettingRow(icon: mark, label: n.name, hint: const Text('Not linked'), disabled: true);
     if (n.signIn && me.ways[n.id] != 'signin') {
       return SettingRow(icon: mark, label: n.name, hint: Text('Signing in with ${n.name} isn\'t set up on the relay server yet.'), disabled: true);
     }
@@ -667,7 +667,7 @@ List<Widget> friendsPane(BuildContext context, SettingsModel m) {
           ? 'The relay server is given a scrambled form of each handle, never the handle itself.'
           : '${me.watch.length} ${me.watch.length == 1 ? 'handle' : 'handles'}. The relay server holds a scrambled form of each, never the handle itself.'),
       children: [
-        SettingRow(icon: _icon(Lucide.plus), label: 'Add handles', hint: const Text('Type or paste as many as you like.'), disabled: Sms.paired, onPress: () => push<void>(context, (_) => const AddWatchScreen())),
+        SettingRow(icon: _icon(Lucide.plus), label: 'Add handles', hint: const Text('Type or paste as many as you like.'), disabled: Sms.followsPhone, onPress: () => push<void>(context, (_) => const AddWatchScreen())),
         for (final n in importable) _ImportRow(network: n),
         for (final n in networks)
           if (me.watch.any((w) => w.network == n.id))

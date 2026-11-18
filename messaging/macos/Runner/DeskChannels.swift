@@ -69,7 +69,7 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
         result(nil)
       case "voiceLength":
         result((args["bytes"] as? FlutterStandardTypedData).map { DeskSound.length(of: $0.data) } ?? 0)
-      // A video in a message (DeskVideo.swift): a picture of where it starts, and a window that plays it.
+      // A video in a message (DeskVideo.swift): a picture of where it starts. It plays in the app's own player.
       case "videoPreview":
         guard let bytes = (args["bytes"] as? FlutterStandardTypedData)?.data else { return result(nil) }
         let id = args["id"] as? Int ?? 0, ext = args["ext"] as? String ?? "mp4"
@@ -77,9 +77,6 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
           let made = DeskVideo.preview(data: bytes, id: id, ext: ext)
           DispatchQueue.main.async { result(made) }
         }
-      case "videoPlay":
-        guard let bytes = (args["bytes"] as? FlutterStandardTypedData)?.data else { return result("no video") }
-        result(DeskVideo.shared.play(data: bytes, id: args["id"] as? Int ?? 0, ext: args["ext"] as? String ?? "mp4", title: args["title"] as? String ?? "Video"))
       case "browse":
         self?.browse()
         result(nil)

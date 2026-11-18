@@ -51,6 +51,11 @@ class RoomEvent {
 class HubCarrier implements Carrier {
   HubCarrier({required this.url, required this.signer, Duration? retry}) : _retry = retry ?? const Duration(seconds: 3);
 
+  /// Which of its identity's devices this install is, said in the hello (Net.start sets it): a phone and its computer
+  /// can be here at once under one identity, each handed what is sent to it (relay/lib/hub.dart). Empty, as an app
+  /// from before said nothing: then another such connection takes this one's place.
+  static String device = '';
+
   /// The hub's address: `wss://gogho.st/hub`.
   final String url;
   final NetSigner signer;
@@ -257,7 +262,7 @@ class HubCarrier implements Carrier {
       // The hub's number, signed: only the holder of this install's key connects under its name.
       final sig = await signer.sign([...utf8.encode(greeting), ...NetCrypto.unhex(m['hello'] as String)]);
       if (!identical(_ws, ws)) return;
-      ws.add(jsonEncode({'id': signer.id, 'key': base64Encode(signer.publicKey), 'sig': base64Encode(sig)}));
+      ws.add(jsonEncode({'id': signer.id, 'key': base64Encode(signer.publicKey), 'sig': base64Encode(sig), if (device.isNotEmpty) 'device': device}));
     } else if (m.containsKey('ok') && !_ready) {
       if (m['ok'] != true) {
         _drop('refused');

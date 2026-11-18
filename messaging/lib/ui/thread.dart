@@ -26,6 +26,7 @@ import '../plugins/conversation.dart';
 import '../plugins/plugin.dart' show MessageFacts;
 import '../reactions.dart';
 import '../sms.dart';
+import '../standalone/chats.dart' show UsernameChats;
 import '../stickers.dart';
 import 'chat_settings.dart';
 import 'common.dart';
@@ -488,7 +489,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (_isGhost) {
         await _sendWords(body);
       } else {
-        final byRoute = files.isEmpty && to.length == 1 && body.isNotEmpty && !Sms.paired && await Friends.instance.sendText(to.first, body);
+        // A computer with friends of its own (lib/desktop/own_calls.dart) writes to a friend by username itself.
+        final own = !Sms.paired || (Sms.ownNetwork && to.length == 1 && UsernameChats.isUsername(to.first));
+        final byRoute = files.isEmpty && to.length == 1 && body.isNotEmpty && own && await Friends.instance.sendText(to.first, body);
         if (!byRoute) await Sms.instance.send(to, body, attachments: files);
       }
       Sounds.instance.play(UiSound.messageOut);
@@ -1119,7 +1122,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           else if (a.isImage)
             _Picture(id: a.id, radius: BorderRadius.zero, maxWidth: mediaWidth, onTap: failed && _canRetry(m) ? () => _retry(m) : null)
           else if (a.isVideo)
-            VideoBubble(video: a, radius: BorderRadius.zero, maxWidth: mediaWidth, ground: c.chrome, ink: c.onChrome, received: !m.outgoing)
+            VideoBubble(video: a, radius: BorderRadius.zero, maxWidth: mediaWidth, ground: c.chrome, ink: c.onChrome, received: !m.outgoing, title: nameOf(m))
           else if (a.isAudio)
             VoiceBubble(part: a.id, ground: c.chrome, ink: c.onChrome, radius: BorderRadius.zero, rim: Border.all(color: c.shadow), playable: true)
           else
@@ -1745,7 +1748,7 @@ class _Bubble extends StatelessWidget {
           // A video: a picture of where it starts, and a button that plays it (it was drawn as its file's name).
           Padding(
             padding: EdgeInsets.only(bottom: body.isEmpty ? 0 : t.space(1)),
-            child: VideoBubble(video: a, radius: radius, maxWidth: maxWidth, ground: ground, ink: ink, received: !out),
+            child: VideoBubble(video: a, radius: radius, maxWidth: maxWidth, ground: ground, ink: ink, received: !out, title: out ? 'You' : sender),
           )
         else if (a.isAudio)
           // A voice message: a player (on a computer, its name: the sound stays on the phone).

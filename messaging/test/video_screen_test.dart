@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/ui/common.dart' show GhostSpinner;
+import 'package:ghost_messaging/ui/video_engine.dart';
 import 'package:ghost_messaging/ui/video_screen.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
@@ -14,6 +15,10 @@ import 'support/list_harness.dart';
 /// UI right now it looks like a very old android core system player"): it plays as it opens, the dock plays and
 /// pauses and mutes, and a double tap on the right goes on ten seconds.
 void main() {
+  // These drive video_player's engine (the phone's) through its platform stand-in, whatever the machine running them.
+  setUp(() => VideoEngine.make = VideoPlayerEngine.new);
+  tearDown(() => VideoEngine.make = VideoEngine.defaultEngine);
+
   testWidgets('plays as it opens; play, pause, mute and a double tap to skip', (tester) async {
     final fake = FakeVideoPlayer();
     VideoPlayerPlatform.instance = fake;

@@ -1,3 +1,4 @@
+import '../circles/circles.dart' show Circles, CirclePerm;
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -678,7 +679,8 @@ class _HangoutChatState extends State<HangoutChat> {
       listenable: room,
       builder: (context, _) {
         final list = room.messages.reversed.toList();
-        final mayWrite = room.can(Perm.chat);
+        // The space's own roles, and in a circle its roles too (lib/circles: CirclePerm.write).
+        final mayWrite = room.can(Perm.chat) && Circles.instance.allows(room.channel, CirclePerm.write);
         final (mineBg, mineInk) = myBubble(t, AppState.of(context));
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(
@@ -1017,18 +1019,16 @@ class _Message extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.only(top: first ? t.space(2) : 2),
         child: Column(crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start, children: [
-          // The name over a run's first bubble in the app's primary colour, as over a group of texts', and the space's
-          // own role beside it where it is more than a member's.
+          // The name over a run's first bubble in its role's colour (the app's primary colour where the role has none),
+          // and the owner's crown after it.
           if (first && !mine)
             Padding(
               padding: EdgeInsets.only(left: faceGap + t.space(3), bottom: 2),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent')))),
-                if (owner || role.id != room.roster.newcomer) ...[SizedBox(width: t.space(1) + 2), RoleTag(role: role, owner: owner)],
+                Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: roleInk(t, role) ?? t.color('app-accent')))),
+                if (owner) ...[SizedBox(width: t.space(1)), const OwnerCrown(size: 12)],
               ]),
             ),
-          if (first && mine && (owner || role.id != room.roster.newcomer))
-            Padding(padding: EdgeInsets.only(right: t.space(1), bottom: 2), child: RoleTag(role: role, owner: owner)),
           Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
             // Their face by the run's last bubble, as in a group of texts.
             if (!mine) ...[
@@ -1137,7 +1137,8 @@ class SpaceMembers extends StatelessWidget {
                       icon: Opacity(opacity: order(id) == 2 ? 0.5 : 1, child: RippleAvatar(name: id == room.me ? youFaceName() : _nameOf(room, id), level: 0, size: 30, ringed: inVoice.contains(id))),
                       label: id == room.me ? 'You' : _nameOf(room, id),
                       hint: Text(inVoice.contains(id) ? 'In voice' : (room.present.containsKey(id) ? 'Here now' : 'Away')),
-                      value: RoleTag(role: role, owner: r.isOwner(id)),
+                      labelColor: roleInk(t, role),
+                      labelAfter: r.isOwner(id) ? Padding(padding: EdgeInsets.only(left: t.space(1)), child: const OwnerCrown()) : null,
                       onPress: room.canManage && r.outranks(room.me, id) ? () => pickRole(context, room, id, _nameOf(room, id)) : null,
                     ),
                 ],
@@ -1155,6 +1156,9 @@ class SpaceMembers extends StatelessWidget {
 /// the spaces settings"): the rows' icons sit on a wash of it.
 Widget _hued(String hue, Widget section) => GlacierScope(attrs: {'hue': hue}, child: section);
 
+/// A role in words, where a row asks which (Matt, 2026-11-17: "Don't show the badges for owner moderator etc, instead
+/// assign role colors like discord does and for the owner just show a singlular crown icon"): its name in its colour,
+/// and the owner's crown before it.
 class RoleTag extends StatelessWidget {
   const RoleTag({super.key, required this.role, this.owner = false});
   final Role role;
@@ -1163,17 +1167,26 @@ class RoleTag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final strong = owner || role.id == Role.admin;
-    final (fill, words) = strongFill(t);
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: 1),
-      decoration: BoxDecoration(
-        color: strong ? fill : t.color('app-paper-3'),
-        borderRadius: BorderRadius.circular(t.radius('full')),
-      ),
-      child: Text(owner ? 'Owner' : role.name, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: strong ? words : t.color('app-ink-2'))),
-    );
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      if (owner) ...[const OwnerCrown(), SizedBox(width: t.space(1))],
+      Text(role.name, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: roleInk(t, role) ?? t.color('app-ink-2'))),
+    ]);
   }
+}
+
+/// The colour a role's people's names are drawn in; null where it is the text's own ([Role.shownColor]).
+Color? roleInk(Tokens t, Role role) {
+  final c = role.shownColor;
+  return c == null ? null : t.colorOf(c);
+}
+
+/// The space's owner, by their name: a crown, alone (Matt, 2026-11-17).
+class OwnerCrown extends StatelessWidget {
+  const OwnerCrown({super.key, this.size = 14});
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Semantics(label: 'Owner', child: AppIcon(Lucide.crown, size: size, wash: false, color: const Color(0xFFF1C40F)));
 }
 
 /// The line under a space's name in its header: its description, or else what kind of space it is, or how many are
@@ -1310,7 +1323,9 @@ class RolesScreen extends StatelessWidget {
                         SettingRow(
                           icon: AppIcon(Lucide.users, size: 18),
                           label: id == room.me ? 'You' : _nameOf(room, id),
-                          value: RoleTag(role: role, owner: r.isOwner(id)),
+                          labelColor: roleInk(t, role),
+                          labelAfter: r.isOwner(id) ? Padding(padding: EdgeInsets.only(left: t.space(1)), child: const OwnerCrown()) : null,
+                          value: Text(role.name),
                           onPress: manage && r.outranks(room.me, id) ? () => pickRole(context, room, id, _nameOf(room, id)) : null,
                         ),
                   ],
@@ -1463,6 +1478,11 @@ class _RoleScreenState extends State<RoleScreen> {
                     ]),
                   ),
                 ]),
+              // The colour its people's names are drawn in, as a Discord role's (Matt, 2026-11-17: "assign role colors like
+              // discord does"): any role's, the admins' too, by whoever manages the space.
+              PaneSection(title: 'Colour', description: const Text('Names of people with this role are drawn in it, in the chat and the member list.'), children: [
+                SettingRowBox(child: _RoleColours(role: role, enabled: room.canManage, onPick: (c) => room.saveRole(c == null ? role.copyWith(noColor: true) : role.copyWith(color: c)))),
+              ]),
               PaneSection(
                 title: 'What ${role.name.toLowerCase()}s may do',
                 children: [
@@ -1496,6 +1516,55 @@ class _RoleScreenState extends State<RoleScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+/// A role's colour to choose: its own default (Admin red, Moderator blue, the text's own for the rest) and Discord's
+/// role colours, the chosen one ringed.
+class _RoleColours extends StatelessWidget {
+  const _RoleColours({required this.role, required this.enabled, required this.onPick});
+  final Role role;
+  final bool enabled;
+  final ValueChanged<String?> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final size = t.lenOf('2rem');
+    Widget swatch(String? hex, String label) {
+      final shown = hex ?? Role.defaultColor(role.id);
+      final chosen = role.color == hex;
+      return Semantics(
+        button: true,
+        selected: chosen,
+        label: label,
+        child: GestureDetector(
+          onTap: enabled ? () => onPick(hex) : null,
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: shown == null ? t.color('app-paper-3') : t.colorOf(shown),
+              border: Border.all(color: chosen ? t.color('app-ink') : const Color(0x00000000), width: 2.5),
+            ),
+            alignment: Alignment.center,
+            child: hex == null ? AppIcon(chosen ? Lucide.check : Lucide.minus, size: 14, wash: false, color: shown == null ? t.color('app-ink-2') : const Color(0xFFFFFFFF)) : (chosen ? const AppIcon(Lucide.check, size: 14, wash: false, color: Color(0xFFFFFFFF)) : null),
+          ),
+        ),
+      );
+    }
+
+    return Opacity(
+      opacity: enabled ? 1 : 0.6,
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: t.space(1)),
+        child: Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [
+          swatch(null, 'Default colour'),
+          for (final c in Role.palette) swatch(c, 'Colour $c'),
+        ]),
+      ),
     );
   }
 }

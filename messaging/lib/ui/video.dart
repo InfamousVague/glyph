@@ -12,15 +12,20 @@ import 'video_screen.dart';
 import 'voice.dart' show voiceClock, voiceProblem;
 
 /// A video in the conversation (Matt, 2026-11-14: "mp4 files are not loading it just shows up as a string of text
-/// for the filename"): a picture of where it starts, how long it runs, and a button that plays it, the whole screen
-/// on the phone (android/.../Video.kt) and in a window of its own on a computer (macos/Runner/DeskVideo.swift).
+/// for the filename"): a picture of where it starts, how long it runs, and a button that plays it, the whole screen in
+/// the app's own player (lib/ui/video_screen.dart) on the phone and on a computer alike (Matt, 2026-11-18: "add
+/// support for playing mkv video files and mp4's within the app in a player themed by glacier UI"; a computer's had
+/// been a window of AVFoundation's, macos/Runner/DeskVideo.swift, which could not open an .mkv).
 /// Where no picture can be made of it (a kind the device cannot read) it is still named and can still be tried.
 /// Why a video that came small is small.
 const String shrunkNote = 'Shrunk by the sender\'s phone to send as a picture message.';
 
 class VideoBubble extends StatefulWidget {
-  const VideoBubble({super.key, required this.video, required this.radius, required this.maxWidth, required this.ground, required this.ink, this.received = false});
+  const VideoBubble({super.key, required this.video, required this.radius, required this.maxWidth, required this.ground, required this.ink, this.received = false, this.title});
   final Attachment video;
+
+  /// Who sent it, said at the top of the player.
+  final String? title;
 
   /// It came from someone else: where it came small, the line under it says why.
   final bool received;
@@ -50,16 +55,12 @@ class _VideoBubbleState extends State<VideoBubble> {
     if (_starting) return;
     setState(() => _starting = true);
     try {
-      if (Sms.remote) {
-        // A computer plays it in a window of its own (macos/Runner/DeskVideo.swift).
-        await Sms.instance.playVideo(widget.video);
-      } else {
-        // The phone: the app's own player (lib/ui/video_screen.dart), opened at once over the video's picture while
-        // its file is made (Matt, 2026-11-17: "The app has gotten pretty laggy, especially when opening videos").
-        final poster = (await _preview.catchError((_) => const VideoPreview())).picture;
-        if (!mounted) return;
-        await Navigator.of(context, rootNavigator: true).push(videoRoute(VideoScreen.coming(file: Sms.instance.videoFile(widget.video), poster: poster)));
-      }
+      // The app's own player, opened at once over the video's picture while its file is made (Matt, 2026-11-17: "The
+      // app has gotten pretty laggy, especially when opening videos"). A computer's file is a copy of the phone's
+      // bytes, removed once the player has gone.
+      final poster = (await _preview.catchError((_) => const VideoPreview())).picture;
+      if (!mounted) return;
+      await Navigator.of(context, rootNavigator: true).push(videoRoute(VideoScreen.coming(file: Sms.instance.videoFile(widget.video), poster: poster, title: widget.title ?? widget.video.name, dropFile: Sms.remote)));
     } catch (e) {
       if (mounted) toast(context, voiceProblem(e), tone: GlacierToastTone.danger);
     } finally {

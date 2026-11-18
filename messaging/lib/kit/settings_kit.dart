@@ -491,10 +491,14 @@ class SettingRow extends StatelessWidget implements PaneRow {
     this.layout = SettingRowLayout.trailing,
     this.disabled = false,
     this.disabledReason,
+    this.labelColor,
   });
 
   final Widget? icon;
   final String label;
+
+  /// The label's colour where it is not the text's own: a member's name in their role's colour.
+  final Color? labelColor;
 
   /// Something small in the label's line after its words, on their baseline: a chip.
   final Widget? labelAfter;
@@ -547,14 +551,14 @@ class SettingRow extends StatelessWidget implements PaneRow {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (labelAfter == null)
-          ExactLines.of(Text(label, style: pageText(t, t.fontSize('md'), weight: 'medium')), normal: true, dpr: t.css.lineDpr)
+          ExactLines.of(Text(label, style: pageText(t, t.fontSize('md'), weight: 'medium', color: labelColor)), normal: true, dpr: t.css.lineDpr)
         else
           Text.rich(
             TextSpan(
               text: label,
               children: [WidgetSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, child: labelAfter!)],
             ),
-            style: pageText(t, t.fontSize('md'), weight: 'medium'),
+            style: pageText(t, t.fontSize('md'), weight: 'medium', color: labelColor),
           ),
         if (hint != null) ...[
           SizedBox(height: t.lenOf('0.15rem')),

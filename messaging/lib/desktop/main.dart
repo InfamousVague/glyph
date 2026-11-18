@@ -33,6 +33,7 @@ import '../files/files_store.dart';
 import 'gm_web.dart';
 import 'updates.dart';
 import '../people.dart';
+import 'own_calls.dart';
 import '../friends/buddies.dart';
 import '../me/me.dart';
 import '../standalone/standalone.dart';
@@ -83,7 +84,17 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   }
   // Where a voice message the Mac is playing has got to, told to the screens as the phone tells its own.
   MacPlatform.listenToVoice((m) => Sms.instance.voice.add(VoicePlayback.from(m)));
-  if (!alone) Sms.calls = calls;
+  // Paired, and the phone has handed over its identity (lib/desktop/own_calls.dart; Matt, 2026-11-18: "I want desktop
+  // to be able to run standalone for internal friends and circles please fix that even if the desktop is linked"):
+  // friends by username and the routes are this computer's own, texts the phone's.
+  final ownDir = Directory('${store.dir.path}/own');
+  const ownKeychain = bool.fromEnvironment('GHOST_DESK_KEYCHAIN', defaultValue: kReleaseMode);
+  DeskOwnCalls? own;
+  if (!alone && DeskOwnCalls.adoptedIn(ownDir)) {
+    own = DeskOwnCalls(calls, ownDir, keychain: ownKeychain);
+    await own.load();
+  }
+  if (!alone) Sms.calls = own ?? calls;
   // Google Messages on this computer (gm_web.dart): its helper started where this copy carries it, and what changes
   // there told to the screens as the phone's changes are.
   GmWeb.instance.changed.stream.listen(Sms.instance.changes.add);
@@ -104,8 +115,14 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
     startPeople(state);
   } else {
     unawaited(Voice.instance.start(state).then((_) => Circles.instance.start(state)));
-    // Friends by username, the phone's, listed and added through it (lib/friends/buddies.dart).
-    unawaited(Buddies.instance.start());
+    if (own != null) {
+      // Friends by username here, on this computer's own connection, phone or no phone.
+      startOwnFriends(state);
+    } else {
+      // Until the phone hands over its identity: the phone's friends, listed and added through it (buddies.dart).
+      unawaited(Buddies.instance.start());
+    }
+    _handover(link, calls, own, ownDir, ownKeychain, state);
   }
   // Files spaces' files (lib/files/files_store.dart): what was going up when the app closed goes on. And files dropped
   // on the window with no Files space showing are offered to one (lib/ui/files_space/share_in.dart; Matt, 2026-11-17:
@@ -127,6 +144,47 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
     unawaited(macUpdates.start());
   }
   runApp(DesktopApp(sheet: sheet, state: state, link: link, calls: calls, store: store, envPeers: envPeers, updates: macUpdates, accents: accents));
+}
+
+/// While linked: the phone's identity asked for once (then the app opens again on it, with friends of its own), and
+/// after that each side's friends by username taken in by the other each time the two connect (lib/friends/
+/// handover.dart). A phone from before handovers is left as it is: the computer asks it for friends as before.
+void _handover(PhoneLink link, LinkCalls calls, DeskOwnCalls? own, Directory ownDir, bool keychain, AppState state) {
+  var busy = false;
+  DateTime? synced;
+  Future<void> go() async {
+    if (busy || !link.online || !calls.caps.contains('handover')) return;
+    if (own != null && synced != null && DateTime.now().difference(synced!) < const Duration(minutes: 5)) return;
+    busy = true;
+    try {
+      if (own == null) {
+        final h = await Sms.instance.handover(const {});
+        if ('${h['scalar'] ?? ''}'.length != 64) return;
+        await DeskOwnCalls.adopt(ownDir, h, keychain: keychain);
+        // Who this is goes with the identity: the same username, name and line as the phone.
+        final me = (h['me'] as Map?) ?? const {};
+        if ('${me['u'] ?? ''}'.isNotEmpty) state.set('me_username', '${me['u']}');
+        if ('${me['n'] ?? ''}'.isNotEmpty) state.set('me_display', '${me['n']}');
+        if ('${me['b'] ?? ''}'.isNotEmpty) state.set('me_bio', '${me['b']}');
+        await restartApp();
+        return;
+      }
+      final r = await Sms.instance.handover({'only': 'buddies', 'buddies': own.buddyJson});
+      final theirs = '${r['buddies'] ?? ''}';
+      if (theirs.isNotEmpty) {
+        own.takeBuddies(theirs);
+        await Buddies.instance.takeAll(own.buddyJson);
+      }
+      synced = DateTime.now();
+    } catch (_) {
+      // Asked again as the link comes and goes, and every little while.
+    } finally {
+      busy = false;
+    }
+  }
+
+  link.addListener(() => unawaited(go()));
+  Timer.periodic(const Duration(minutes: 1), (_) => unawaited(go()));
 }
 
 class DesktopApp extends StatefulWidget {

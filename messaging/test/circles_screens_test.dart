@@ -236,6 +236,34 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  // Matt, 2026-11-18: "Build custom roles".
+  testWidgets('roles: a new role made, given what it lets people do, and what everyone may do', (tester) async {
+    final c = await joinOwn(tester);
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, CircleSettingsPage(seed: c.seed, section: CircleSettingsSection.roles), AppState(), size: const Size(1100, 1200));
+    expect(find.byKey(const ValueKey('circle-role-new')), findsOneWidget);
+    expect(find.byKey(const ValueKey('circle-everyone-w')), findsOneWidget);
+    expect(find.byKey(const ValueKey('circle-everyone-c')), findsNothing, reason: 'changing the circle is never everyone\'s');
+    await tester.tap(find.byKey(const ValueKey('circle-role-new')));
+    await settle(tester);
+    await tester.enterText(find.byType(EditableText).last, 'Moderators');
+    await tester.tap(find.byKey(const ValueKey('words-save')));
+    await _until(tester, () => Circles.instance.bySeed(c.seed)!.manifest.roles.length == 1);
+    await settle(tester);
+    // Its page: name, colour, what it lets people do.
+    expect(find.text('Moderators'), findsWidgets);
+    await tester.ensureVisible(find.byKey(const ValueKey('role-perm-s')));
+    await tester.tap(find.descendant(of: find.byKey(const ValueKey('role-perm-s')), matching: find.byType(GlacierSwitch)));
+    await _until(tester, () => Circles.instance.bySeed(c.seed)!.manifest.roles.single.perms.contains(CirclePerm.spaces));
+    expect(Circles.instance.bySeed(c.seed)!.manifest.roles.single.perms, containsAll([CirclePerm.spaces, CirclePerm.invite]));
+    if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('shots/circle-settings-role.png'));
+    Navigator.of(tester.element(find.byKey(const ValueKey('role-delete')))).pop();
+    await settle(tester);
+    expect(find.byKey(ValueKey('circle-role-${Circles.instance.bySeed(c.seed)!.manifest.roles.single.id}')), findsOneWidget);
+    if (autoUpdateGoldenFiles) await expectLater(find.byType(CircleSettingsPage), matchesGoldenFile('shots/circle-settings-roles.png'));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a new space: the three kinds as cards, a heading tapped from those the circle has, added to it', (tester) async {
     final c = await joinOwn(tester);
     final sheet = await loadSheet(tester);

@@ -23,12 +23,13 @@ void main() {
     const space = VoiceChannel(seed: '9191919191919191919191919191919191919191919191919191919191919191', name: 'Drop box', kind: SpaceKind.files);
     late Directory dir;
     late FilesStore store;
-    SpaceFile file(int n, String name, int size, int at, {String? folder}) =>
-        SpaceFile(id: n.toRadixString(16).padLeft(32, '0'), name: name, size: size, mime: FileKind.mimeOf(name), sha: '', key: Uint8List(32), prefix: Uint8List(8), by: 'maya', byName: 'Maya', at: at, folder: folder);
+    final me = KeysSigner(NetKeys.generate());
+    SpaceFile file(int n, String name, int size, int at, {String? folder, String by = 'maya'}) =>
+        SpaceFile(id: n.toRadixString(16).padLeft(32, '0'), name: name, size: size, mime: FileKind.mimeOf(name), sha: '', key: Uint8List(32), prefix: Uint8List(8), by: by, byName: 'Maya', at: at, folder: folder);
 
     setUp(() {
       dir = Directory.systemTemp.createTempSync('ghost-files-screen');
-      store = FilesStore.forTest(base: null, signer: KeysSigner(NetKeys.generate()), data: dir);
+      store = FilesStore.forTest(base: null, signer: me, data: dir);
       store.put(space, [file(1, 'b.png', 300, 3), file(2, 'A.pdf', 900, 1, folder: 'Work'), file(3, 'notes.md', 20, 2)], folders: {'Work'}, info: const FilesInfo(used: 1220, quota: 1 << 30));
     });
     tearDown(() async {
@@ -38,29 +39,25 @@ void main() {
 
     List<String> rows() => [for (final e in find.byType(FileRow).evaluate()) (e.widget as FileRow).file.name];
 
-    testWidgets('lists, searches, filters by folder, sorts, turns to a grid, and stops an upload', (tester) async {
+    testWidgets('lists, searches, opens a folder, sorts, turns to a grid, and stops an upload', (tester) async {
       final sheet = await loadSheet(tester);
       final state = AppState();
       await pumpScreen(tester, sheet, FilesSpaceScreen(channel: space, store: store), state);
-      expect(rows(), ['b.png', 'notes.md', 'A.pdf'], reason: 'newest first');
+      // The top: its folder first, then its own files, newest first.
+      expect(find.byType(FolderRow), findsOneWidget);
+      expect(rows(), ['b.png', 'notes.md'], reason: 'newest first, A.pdf in Work');
       expect(find.text('3 files · 1 KB'), findsWidgets);
       expect(find.byKey(const ValueKey('files-quota')), findsOneWidget);
-      // Search: on a phone a magnifier in the controls' row, the field once it is pressed.
+      // Search: on a phone a magnifier in the controls' row, the field once it is pressed. It looks in every folder.
       expect(find.byType(EditableText), findsNothing);
       await tester.tap(find.byKey(const ValueKey('files-search-open')));
       await settle(tester);
       await tester.enterText(find.byType(EditableText).first, 'pdf');
       await settle(tester);
       expect(rows(), ['A.pdf']);
-      await tester.enterText(find.byType(EditableText).first, '');
+      await tester.enterText(find.byType(EditableText).first, 'maya');
       await settle(tester);
-      // A folder's chip shows what is in it; pressed again, everything.
-      await tester.tap(find.byKey(const ValueKey('folder-Work')));
-      await settle(tester);
-      expect(rows(), ['A.pdf']);
-      await tester.tap(find.byKey(const ValueKey('folder-Work')));
-      await settle(tester);
-      expect(rows(), hasLength(3));
+      expect(rows(), ['b.png', 'notes.md', 'A.pdf']);
       // Sorted by name, kept as the person's choice.
       await tester.tap(find.byKey(const ValueKey('files-sort')));
       await settle(tester);
@@ -68,10 +65,22 @@ void main() {
       await settle(tester);
       expect(rows(), ['A.pdf', 'b.png', 'notes.md']);
       expect(state.choice('files_sort', ''), 'name');
-      // The grid.
+      await tester.enterText(find.byType(EditableText).first, '');
+      await settle(tester);
+      // A folder's row opens it; the path's top chip goes back.
+      await tester.tap(find.byKey(const ValueKey('folder-Work')));
+      await settle(tester);
+      expect(rows(), ['A.pdf']);
+      expect(find.byKey(const ValueKey('crumb-Work')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('folder-all')));
+      await settle(tester);
+      expect(rows(), ['b.png', 'notes.md']);
+      expect(find.byKey(const ValueKey('crumb-Work')), findsNothing);
+      // The grid: the folder's tile, then the files'.
       await tester.tap(find.bySemanticsLabel('Grid'));
       await settle(tester);
-      expect(find.byType(FileTile), findsNWidgets(3));
+      expect(find.byType(FolderTile), findsOneWidget);
+      expect(find.byType(FileTile), findsNWidgets(2));
       expect(state.choice('files_view', ''), 'grid');
       // A file going up shows with its progress, and its X stops it.
       final t = Transfer.shown(space: space, name: 'clip.mov', size: 1000, done: 400);
@@ -81,6 +90,51 @@ void main() {
       await tester.tap(find.byKey(ValueKey('cancel-${t.id}')));
       await settle(tester);
       expect(store.transfers, isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+
+    // Matt, 2026-11-18: "allow root level folders in the file sharing tab and nested folders".
+    testWidgets('nested folders: rows before files, a path of chips to go back up, back goes up, and a folder\'s menu', (tester) async {
+      const nested = VoiceChannel(seed: '9494949494949494949494949494949494949494949494949494949494949494', name: 'Shelves', kind: SpaceKind.files);
+      store.put(nested, [file(1, 'plan.pdf', 300, 3, folder: 'Work', by: me.id), file(2, 'q1.xlsx', 900, 1, folder: 'Work/2027/Q1', by: me.id)], folders: {'Empty', 'Work/2027/Q2'});
+      final sheet = await loadSheet(tester);
+      await pumpScreen(tester, sheet, FilesSpaceScreen(channel: nested, store: store), AppState());
+      List<String> folders() => [for (final e in find.byType(FolderRow).evaluate()) (e.widget as FolderRow).name];
+      expect(folders(), ['Empty', 'Work']);
+      expect(rows(), isEmpty);
+      expect(find.text('2 files · 3 folders'), findsOneWidget, reason: 'what Work holds, at any depth');
+      expect(find.text('Empty'), findsWidgets);
+      await tester.tap(find.byKey(const ValueKey('folder-Work')));
+      await settle(tester);
+      expect(folders(), ['2027']);
+      expect(rows(), ['plan.pdf']);
+      await tester.tap(find.byKey(const ValueKey('folder-Work/2027')));
+      await settle(tester);
+      expect(folders(), ['Q1', 'Q2']);
+      expect(find.byKey(const ValueKey('crumb-Work')), findsOneWidget);
+      expect(find.byKey(const ValueKey('crumb-Work/2027')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('folder-Work/2027/Q2')));
+      await settle(tester);
+      expect(find.text('This folder is empty. Add files or folders while it is open and they go in it.'), findsOneWidget);
+      // The path's chip for Work goes straight there.
+      await tester.tap(find.byKey(const ValueKey('crumb-Work')));
+      await settle(tester);
+      expect(rows(), ['plan.pdf']);
+      // Back goes up a folder before it leaves the space.
+      await tester.binding.handlePopRoute();
+      await settle(tester);
+      expect(folders(), ['Empty', 'Work']);
+      expect(find.byType(FilesSpaceScreen), findsOneWidget);
+      // A folder's menu: open, a folder in it, rename, move and delete.
+      await tester.longPress(find.byKey(const ValueKey('folder-Work')));
+      await settle(tester);
+      for (final w in ['Open', 'New folder in it', 'Rename', 'Move to folder', 'Delete']) {
+        expect(find.text(w), findsOneWidget, reason: w);
+      }
+      await tester.tap(find.text('Delete'));
+      await settle(tester);
+      expect(find.text('Delete the folder, keep what\'s in it'), findsOneWidget);
+      expect(find.text('Delete it and everything in it'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

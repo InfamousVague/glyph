@@ -473,7 +473,12 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
       case CircleDock.members:
         unawaited(showCircleMembers(inside, c));
       case CircleDock.invite:
-        unawaited(showCircleInvite(inside, c));
+        // As the circle's roles say (lib/circles: CirclePerm.invite).
+        if (!Circles.instance.can(c, CirclePerm.invite)) {
+          toast(inside, 'Your role in ${c.name} can\'t invite people.');
+        } else {
+          unawaited(showCircleInvite(inside, c));
+        }
       case CircleDock.newSpace:
         openCircleNewSpace(inside, c);
       case CircleDock.settings:
@@ -652,7 +657,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                 hue: circle.hue,
                 active: _showing == CircleDock.settings || _showing == CircleDock.newSpace ? _showing! : CircleDock.spaces,
                 onSelect: _circleGo,
-                items: CircleDock.items(circle, canEdit: Circles.instance.canEdit(circle)),
+                items: CircleDock.items(circle, canEdit: Circles.instance.can(circle, CirclePerm.spaces)),
               );
             }
             return NavPill(
@@ -682,7 +687,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// The rings on the pill now: a circle's face and its rings while one is open, else the app's five.
   int get _dockRings {
     final c = circleOpen && _circleSeed != null ? Circles.instance.bySeed(_circleSeed!) : null;
-    return c == null ? 5 : CircleDock.items(c, canEdit: Circles.instance.canEdit(c)).length;
+    return c == null ? 5 : CircleDock.items(c, canEdit: Circles.instance.can(c, CirclePerm.spaces)).length;
   }
 
   static Widget _lightsIf(bool on, Widget child) => on ? TopBarLights(child: child) : child;

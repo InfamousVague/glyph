@@ -30,7 +30,7 @@ class ArrangeCircleSpacesScreen extends StatelessWidget {
         final c = circles.bySeed(seed);
         if (c == null) return GhostPage(title: 'Spaces', body: const Center(child: Text('You left this circle.')));
         final spaces = c.spaces;
-        final edit = circles.canEdit(c);
+        final edit = circles.can(c, CirclePerm.spaces);
         final bevel = isBevelChrome(t);
         return GhostPage(
           title: 'Spaces in ${c.name}',

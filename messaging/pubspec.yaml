@@ -22,6 +22,10 @@ dependencies:
   # The video player on the phone (lib/ui/video_screen.dart; Matt, 2026-11-15: "id like a video player built with
   # glacier UI right now it looks like a very old android core system player"): ExoPlayer under the app's own controls.
   video_player: ^2.14.1
+  media_kit: ^1.2.6
+  media_kit_video: ^2.0.1
+  media_kit_libs_macos_video: ^1.1.4
+  media_kit_libs_windows_video: ^1.0.11
 
 dev_dependencies:
   flutter_test:

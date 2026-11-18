@@ -409,9 +409,6 @@ void _answerChannel() {
       // A text sent: the phone's thread for it.
       case 'send':
         return 1;
-      case 'videoPlay':
-        _videosPlayed.add((args['part'] as num).toInt());
-        return null;
       // The phone's own player (lib/ui/video_screen.dart) opens the video as a file.
       case 'videoFile':
         _videosPlayed.add((args['part'] as num).toInt());
@@ -1578,11 +1575,14 @@ void main() {
       v.clearHangouts();
     });
     for (final dark in [false, true]) {
-      // In the call: the people, each with their role where it is not Member; the owner marked.
+      // In the call: the people, names in their role's colour and no badges; the owner's crown (Matt, 2026-11-17:
+      // "Don't show the badges for owner moderator etc, instead assign role colors like discord does and for the owner
+      // just show a singlular crown icon").
       await _shoot(tester, sheet, const VoiceScreen(), '21-hangout', dark: dark, prefs: const {'dev_space_design': 'standard'});
       expect(find.byType(HangoutScreen), findsOneWidget);
-      expect(find.text('Owner'), findsOneWidget);
-      expect(find.text('Moderator'), findsOneWidget);
+      expect(find.text('Owner'), findsNothing);
+      expect(find.text('Moderator'), findsNothing);
+      expect(find.byType(OwnerCrown), findsOneWidget);
       // The chat: the run of Maya's two under one name, Riley's, this phone's.
       await tester.tap(find.bySemanticsLabel('Chat'));
       await _settle(tester);

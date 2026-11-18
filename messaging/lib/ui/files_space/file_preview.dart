@@ -11,7 +11,6 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
-import 'package:video_player/video_player.dart';
 
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
@@ -26,12 +25,14 @@ import '../circles/circle_face.dart' show TitleBarMark;
 import '../common.dart';
 import '../dialup/bevel.dart';
 import '../dialup/retro_button.dart';
+import '../video_engine.dart';
 import '../video_screen.dart';
 import 'file_badge.dart';
 import 'files_screen.dart' show fileAction, fileWho, showFileMenu;
 
-/// Whether this device plays video in the app's own player (video_player: Android, iPhone, Mac).
-bool get playsVideo => Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
+/// Whether this device plays video in the app's own player (lib/ui/video_engine.dart): every one, Windows too since
+/// libmpv came in (Matt, 2026-11-18: "add support for playing mkv video files and mp4's within the app").
+bool get playsVideo => true;
 
 /// Opens [f]: a video straight into the player (it comes down behind its picture), anything else in its preview.
 void openSpaceFile(BuildContext context, VoiceChannel c, SpaceFile f, {FilesStore? store}) {
@@ -314,7 +315,8 @@ class _WordsState extends State<_Words> {
   }
 }
 
-/// Sound: play and pause, where it has got to, and a bar to move along it.
+/// Sound: play and pause, where it has got to, and a bar to move along it. Played by the same engine as a video
+/// (lib/ui/video_engine.dart), so a computer's is libmpv's and reads what the video player reads.
 class _AudioPlayer extends StatefulWidget {
   const _AudioPlayer({super.key, required this.path, required this.file});
   final String path;
@@ -325,7 +327,7 @@ class _AudioPlayer extends StatefulWidget {
 }
 
 class _AudioPlayerState extends State<_AudioPlayer> {
-  VideoPlayerController? _player;
+  VideoEngine? _player;
   String? _problem;
 
   @override
@@ -335,23 +337,24 @@ class _AudioPlayerState extends State<_AudioPlayer> {
       _problem = 'Open it to play it.';
       return;
     }
-    final p = _player = VideoPlayerController.file(File(widget.path));
-    unawaited(p.initialize().then((_) {
-      if (mounted) setState(() {});
-    }, onError: (Object e) {
-      if (mounted) setState(() => _problem = 'This sound can\'t be played here. Open it to play it.');
-    }));
+    final p = _player = VideoEngine.make();
     p.addListener(_tick);
+    unawaited(p.open(widget.path));
   }
 
   void _tick() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    if (_player?.value.error != null) _problem = 'This sound can\'t be played here. Open it to play it.';
+    setState(() {});
   }
 
   @override
   void dispose() {
-    _player?.removeListener(_tick);
-    unawaited(_player?.dispose());
+    final p = _player;
+    if (p != null) {
+      p.removeListener(_tick);
+      unawaited(p.release().catchError((_) {}).whenComplete(p.dispose));
+    }
     super.dispose();
   }
 
@@ -364,7 +367,7 @@ class _AudioPlayerState extends State<_AudioPlayer> {
     final v = p?.value;
     final length = v?.duration ?? Duration.zero;
     final at = v?.position ?? Duration.zero;
-    final playing = v?.isPlaying ?? false;
+    final playing = v?.playing ?? false;
     return Center(
       child: Padding(
         padding: EdgeInsets.all(t.space(6)),
@@ -382,8 +385,8 @@ class _AudioPlayerState extends State<_AudioPlayer> {
                 final share = length.inMilliseconds == 0 ? 0.0 : at.inMilliseconds / length.inMilliseconds;
                 return GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTapDown: (d) => p?.seekTo(length * (d.localPosition.dx / box.maxWidth).clamp(0.0, 1.0)),
-                  onHorizontalDragUpdate: (d) => p?.seekTo(length * (d.localPosition.dx / box.maxWidth).clamp(0.0, 1.0)),
+                  onTapDown: (d) => p?.seek(length * (d.localPosition.dx / box.maxWidth).clamp(0.0, 1.0)),
+                  onHorizontalDragUpdate: (d) => p?.seek(length * (d.localPosition.dx / box.maxWidth).clamp(0.0, 1.0)),
                   child: Padding(
                     padding: EdgeInsets.symmetric(vertical: t.space(2)),
                     child: GlacierProgressBar(value: share.clamp(0.0, 1.0) * 100, ariaLabel: 'Where it has got to'),
@@ -401,13 +404,13 @@ class _AudioPlayerState extends State<_AudioPlayer> {
                 label: playing ? 'Pause' : 'Play',
                 filled: true,
                 size: 22,
-                onPressed: v?.isInitialized != true
+                onPressed: v?.ready != true
                     ? null
                     : () {
                         if (playing) {
                           p!.pause();
                         } else {
-                          if (at >= length) p!.seekTo(Duration.zero);
+                          if (at >= length) p!.seek(Duration.zero);
                           p!.play();
                         }
                       },

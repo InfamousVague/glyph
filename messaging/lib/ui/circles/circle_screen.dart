@@ -120,7 +120,8 @@ CircleView circleView(BuildContext context, Circle c, {required VoidCallback onB
         );
       }(),
   ];
-  final canEdit = circles.canEdit(c);
+  // As the circle's roles say (lib/circles: CirclePerm): its spaces, and inviting.
+  final canEdit = circles.can(c, CirclePerm.spaces);
   return CircleView(
     circle: c,
     spaces: spaces,
@@ -132,7 +133,7 @@ CircleView circleView(BuildContext context, Circle c, {required VoidCallback onB
     onSpaceMenu: (s) => showCircleSpaceMenu(context, c, s),
     onNewSpace: ({String? section}) => canEdit ? openCircleNewSpace(context, c, section: section) : null,
     onSettings: () => openCircleSettings(context, c),
-    onInvite: () => showCircleInvite(context, c),
+    onInvite: () => circles.can(c, CirclePerm.invite) ? showCircleInvite(context, c) : toast(context, 'Your role in ${c.name} can\'t invite people.'),
     onBack: onBack,
     onMenu: () => showCircleMenu(context, c),
   );
@@ -140,12 +141,14 @@ CircleView circleView(BuildContext context, Circle c, {required VoidCallback onB
 
 /// A circle's menu: invite, new space, arranging, settings, leave.
 void showCircleMenu(BuildContext context, Circle c) {
-  final canEdit = Circles.instance.canEdit(c);
+  final circles = Circles.instance;
+  final canEdit = circles.can(c, CirclePerm.spaces);
+  final settings = circles.can(c, CirclePerm.circle) || canEdit || circles.can(c, CirclePerm.roles);
   showChoices(context, title: c.name, choices: [
-    Choice('Invite people', Lucide.userPlus, () => showCircleInvite(context, c)),
+    if (circles.can(c, CirclePerm.invite)) Choice('Invite people', Lucide.userPlus, () => showCircleInvite(context, c)),
     if (canEdit) Choice('New space', Lucide.plus, () => openCircleNewSpace(context, c)),
     if (canEdit) Choice('Arrange spaces', Lucide.listTree, () => push<void>(context, (_) => ArrangeCircleSpacesScreen(seed: c.seed)), hint: 'Move, rename or delete them'),
-    Choice(canEdit ? 'Circle settings' : 'About this circle', Lucide.settings, () => openCircleSettings(context, c)),
+    Choice(settings ? 'Circle settings' : 'About this circle', Lucide.settings, () => openCircleSettings(context, c)),
     Choice('Leave circle', Lucide.logOut, () => confirmLeaveCircle(context, c), danger: true),
   ]);
 }
@@ -153,7 +156,7 @@ void showCircleMenu(BuildContext context, Circle c) {
 /// A space's menu in a circle: open, and for whoever may change the circle, rename, heading, kind, arrange and delete.
 void showCircleSpaceMenu(BuildContext context, Circle c, CircleSpaceView s) {
   final circles = Circles.instance;
-  final canEdit = circles.canEdit(c);
+  final canEdit = circles.can(c, CirclePerm.spaces);
   showChoices(context, title: '${s.name} · ${spaceKindTitle(s.kind)}', choices: [
     Choice('Open', spaceKindIcon(s.kind), () => openCircleSpace(context, s.channel)),
     if (canEdit) ...[

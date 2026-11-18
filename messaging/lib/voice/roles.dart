@@ -55,7 +55,7 @@ enum Perm {
 /// A role: its name, what it may do, and its place (a higher rank can act on a lower one, never on its own or above).
 @immutable
 class Role {
-  const Role({required this.id, required this.name, required this.perms, required this.rank, this.extra = const []});
+  const Role({required this.id, required this.name, required this.perms, required this.rank, this.extra = const [], this.color, this.rest = const {}});
   final String id;
   final String name;
   final Set<Perm> perms;
@@ -67,16 +67,53 @@ class Role {
   /// Admin 30, moderator 20, member 10; others in between or below.
   final int rank;
 
+  /// The colour names are drawn in, as a Discord role's (Matt, 2026-11-17: "assign role colors like discord does"):
+  /// `#rrggbb`, chosen on the role's page; null takes [defaultColor]. Written into the roster only where chosen, so a
+  /// roster nobody coloured reads the same to a build from before colours.
+  final String? color;
+
+  /// What a newer build wrote on a role that this one doesn't know: kept and written back, so the roster still checks.
+  final Map<String, Object?> rest;
+
   static const admin = 'admin', moderator = 'moderator', member = 'member';
 
-  Role copyWith({String? name, Set<Perm>? perms, int? rank}) => Role(id: id, name: name ?? this.name, perms: perms ?? this.perms, rank: rank ?? this.rank, extra: extra);
+  /// The colours offered on a role's page: Discord's own role colours.
+  static const palette = ['#1abc9c', '#2ecc71', '#3498db', '#9b59b6', '#e91e63', '#f1c40f', '#e67e22', '#e74c3c', '#95a5a6', '#607d8b'];
 
-  Map<String, Object> toJson() => {'id': id, 'n': name, 'p': [for (final p in Perm.values) if (perms.contains(p)) p.name, ...extra], 'r': rank};
+  /// A role's colour where none was chosen: admins red and moderators blue; members and others the text's own.
+  static String? defaultColor(String id) => switch (id) { admin => '#e74c3c', moderator => '#3498db', _ => null };
+
+  /// The colour its people's names are drawn in; null for the text's own.
+  String? get shownColor => color ?? defaultColor(id);
+
+  Role copyWith({String? name, Set<Perm>? perms, int? rank, String? color, bool noColor = false}) =>
+      Role(id: id, name: name ?? this.name, perms: perms ?? this.perms, rank: rank ?? this.rank, extra: extra, color: noColor ? null : (color ?? this.color), rest: rest);
+
+  Map<String, Object> toJson() => {
+        for (final e in rest.entries)
+          if (e.value != null) e.key: e.value!,
+        'id': id,
+        'n': name,
+        'p': [for (final p in Perm.values) if (perms.contains(p)) p.name, ...extra],
+        'r': rank,
+        'c': ?color,
+      };
+
+  static final _hex = RegExp(r'^#[0-9a-fA-F]{6}$');
 
   static Role? fromJson(Object? j) {
     if (j is! Map || j['id'] is! String || j['n'] is! String || j['r'] is! int || j['p'] is! List) return null;
     final names = [for (final p in j['p'] as List) '$p'];
-    return Role(id: j['id'] as String, name: j['n'] as String, rank: j['r'] as int, perms: {for (final p in names) ?Perm.named(p)}, extra: [for (final p in names) if (Perm.named(p) == null) p]);
+    final c = j['c'];
+    return Role(
+      id: j['id'] as String,
+      name: j['n'] as String,
+      rank: j['r'] as int,
+      perms: {for (final p in names) ?Perm.named(p)},
+      extra: [for (final p in names) if (Perm.named(p) == null) p],
+      color: c is String && _hex.hasMatch(c) ? c.toLowerCase() : null,
+      rest: {for (final e in j.entries) if (!const {'id', 'n', 'p', 'r', 'c'}.contains(e.key)) '${e.key}': e.value},
+    );
   }
 
   /// The three a voice or texting space starts with.
@@ -94,7 +131,7 @@ class Role {
   }
 
   @override
-  bool operator ==(Object other) => other is Role && other.id == id && other.name == name && other.rank == rank && setEquals(other.perms, perms) && listEquals(other.extra, extra);
+  bool operator ==(Object other) => other is Role && other.id == id && other.name == name && other.rank == rank && other.color == color && setEquals(other.perms, perms) && listEquals(other.extra, extra) && mapEquals(other.rest, rest);
 
   @override
   int get hashCode => Object.hash(id, name, rank, perms.length);
