@@ -70,6 +70,10 @@ String settingsGroupLabel(String group) => switch (group) {
 List<SettingsSection> settingsSectionsOn(SettingsWhere here) => SettingsSources.around(_ownSections(), here: here);
 
 List<SettingsSection> _ownSections() => [
+  // Plugins (lib/plugins/settings.dart), first of all (Matt, 2026-11-17: "move plugins to the very top of settings list";
+  // SettingsSources.around keeps them above a computer's own sections too): the band to the Plugins page, and each
+  // plugin's own settings, once the app has one.
+  ...pluginsSettings(),
   SettingsSection(
     id: 'me',
     label: 'Me',
@@ -88,9 +92,6 @@ List<SettingsSection> _ownSections() => [
     summary: friendsSummary,
     page: friendsPane,
   ),
-  // Plugins (lib/plugins/settings.dart), near the top, under Me (Matt, 2026-11-17: "make the plugins towards the top of
-  // the settings page sidebar"): the band to the Plugins page, and each plugin's own settings, once the app has one.
-  ...pluginsSettings(),
   SettingsSection(
     id: 'appearance',
     label: 'Appearance',

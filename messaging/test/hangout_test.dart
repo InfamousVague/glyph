@@ -174,6 +174,10 @@ void main() {
       expect(a.present[owner.id]?.name, 'Matt');
 
       expect(o.send('Who is around?'), isTrue);
+      // The answer is written a moment later, as a person's would be: two messages in the same millisecond have no
+      // order of their own, and every device puts them in the same one by id (HangoutRoom._add), which need not be
+      // the order they were written in. Sent back to back here they sometimes shared a millisecond.
+      await Future<void>.delayed(const Duration(milliseconds: 2));
       expect(a.send('Me!'), isTrue);
       await _settle();
       expect(o.messages.map((m) => m.text), ['Who is around?', 'Me!']);
@@ -330,9 +334,12 @@ void main() {
       expect(a.roster.ranked.map((r) => r.name), ['Admin', 'Moderator', 'DJ', 'Member']);
       expect(a.roster.roleOf(ann.id).id, 'dj');
       expect(a.can(Perm.invite), isFalse);
-      // Admin keeps every permission whatever is saved.
+      // Admin keeps every permission whatever is saved: every one a space of this kind has. Adding and managing files
+      // are a Files space's alone (Perm.of, HangoutRoom.saveRole), so this voice space's admin is not given them; the
+      // test asked for Perm.values from before those two were added.
       await o.saveRole(o.roster.roleById(Role.admin)!.copyWith(perms: {Perm.chat}));
-      expect(o.roster.roleById(Role.admin)!.perms, Perm.values.toSet());
+      expect(o.roster.roleById(Role.admin)!.perms, Perm.of(channel.kind));
+      expect(o.roster.roleById(Role.admin)!.perms.intersection(Perm.files), isEmpty);
       expect(await o.deleteRole('dj'), isFalse, reason: 'newcomers have it');
       await o.setNewcomer(Role.member);
       expect(await o.deleteRole('dj'), isTrue);

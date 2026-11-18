@@ -213,7 +213,9 @@ class _Header extends StatelessWidget {
       height: 58,
       child: Row(children: [
         SizedBox(width: (MacChrome.enabled ? MacChrome.lightsRoom - t.space(3) : 0) + t.space(3)),
-        _IconButton(icon: Lucide.chevronDown, label: SpaceWords.minimize, onPressed: call.onMinimize),
+        // A back arrow, as every page's way back is (Matt, 2026-11-17: "make the down chevron a back arrow as well"): it still
+        // puts the call away to its banner.
+        _IconButton(icon: Lucide.arrowLeft, label: 'Back', onPressed: call.onMinimize),
         Expanded(
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
@@ -634,10 +636,10 @@ class _Controls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tokens;
     Widget side(Widget child) => Expanded(child: Center(child: child));
+    // No rule above the controls: it stopped short of the page's edges (Matt, 2026-11-17: "the border at the bottom for the
+    // controls should span the full width of the page or remove the border completely").
     return Container(
-      decoration: BoxDecoration(border: Border(top: BorderSide(color: t.color('app-rule')))),
       padding: EdgeInsets.fromLTRB(8, 8, 8, bottom + 14),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         side(_RoundButton(

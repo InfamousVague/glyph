@@ -455,10 +455,21 @@ class _SpaceCallPageState extends State<SpaceCallPage> {
   void _changed() {
     if (!mounted) return;
     if (Voice.instance.session == null) {
-      if (!widget.inline) Navigator.of(context).maybePop();
+      if (!widget.inline) _close();
       return;
     }
     setState(() {});
+  }
+
+  /// Closes the page this call is drawn on, once: only while its own route is the one on top. Voice tells its
+  /// listeners again and again as a call ends (the room let go, the relay saying who is left), and those came while
+  /// this page was still sliding away; a Navigator's maybePop then reached the page under it, the shell, whose own
+  /// back put away the circle's space and then the circle itself (Matt, 2026-11-17: "leaving a space call takes us
+  /// out of the circle completely it should take us back to the circle not the whole main screen").
+  void _close() {
+    final route = ModalRoute.of(context);
+    if (route == null || !route.isCurrent) return;
+    Navigator.of(context).maybePop();
   }
 
   @override
@@ -472,12 +483,12 @@ class _SpaceCallPageState extends State<SpaceCallPage> {
 
   @override
   Widget build(BuildContext context) {
-    final call = SpaceCall.live(minimize: () => Navigator.of(context).maybePop());
+    final call = SpaceCall.live(minimize: _close);
     if (call == null) return const SizedBox.shrink();
     return ListenableBuilder(
       listenable: call.changes,
       builder: (context, _) {
-        final now = SpaceCall.live(minimize: () => Navigator.of(context).maybePop()) ?? call;
+        final now = SpaceCall.live(minimize: _close) ?? call;
         return KeyedSubtree(key: ValueKey('space-design-${widget.design.name}'), child: widget.design.page(now));
       },
     );

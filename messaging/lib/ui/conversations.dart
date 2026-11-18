@@ -29,11 +29,9 @@ import 'voice_screen.dart';
 import 'hangout_screen.dart';
 import '../circles/circles.dart';
 import 'circles/circle_face.dart';
+import 'circles/circle_invite_card.dart' show circleInviteRows;
 import 'circles/circle_screen.dart';
 import 'circles/new_circle.dart';
-import 'space_groups_ui.dart';
-import '../voice/discord.dart';
-import '../voice/space_groups.dart';
 import 'space_designs/space_design.dart';
 import '../voice/voice.dart';
 import '../voice/channels.dart';
@@ -81,6 +79,10 @@ class ConversationsScreen extends StatefulWidget {
 
   /// The Circles tab's id among the tabs.
   static const circlesTab = '*circles';
+
+  /// A tab asked for from outside the list (a circle's invite banner pressed, or a circle's link opened from outside the
+  /// app: lib/ui/circles/circle_invite_card.dart): the list shows it, and sets this back to null.
+  static final wantTab = ValueNotifier<String?>(null);
 
   @override
   State<ConversationsScreen> createState() => _ConversationsScreenState();
@@ -163,9 +165,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // A summary made comes into its row; who is in a voice channel comes into its.
     Summaries.instance.addListener(_summed);
     Voice.instance.addListener(_summed);
-    SpaceGroups.instance.addListener(_summed);
-    DiscordServers.instance.addListener(_summed);
     Circles.instance.addListener(_summed);
+    ConversationsScreen.wantTab.addListener(_wanted);
+    _wanted();
     // Telegram's and Bluesky's chats (lib/inbox): each signed-in network is a tab, and its chats come into it.
     _inbox.addListener(_summed);
     _load();
@@ -183,13 +185,28 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     if (mounted) setState(() {});
   }
 
+  /// The Circles tab's rows: circles offered and not yet joined, then each circle. Only circles (Matt, 2026-11-17:
+  /// "there are spaces listed under the circles tab it shouldn't be circles and spaces it should only be circles"):
+  /// spaces of one's own are in Messages among the conversations, a group of friends' in its conversation.
+  List<Object> _circlesTabRows() {
+    final rest = <Object>[...Circles.instance.all];
+    return [if (_query.isEmpty) ...circleInviteRows(context, Circles.instance.invites, circlesFollow: rest.isNotEmpty), ...rest];
+  }
+
+  /// A tab asked for from outside ([ConversationsScreen.wantTab]); not on the Archived page.
+  void _wanted() {
+    final want = ConversationsScreen.wantTab.value;
+    if (want == null || widget.archived) return;
+    ConversationsScreen.wantTab.value = null;
+    if (mounted) setState(() => _section = want);
+  }
+
   @override
   void dispose() {
     Summaries.instance.removeListener(_summed);
     Voice.instance.removeListener(_summed);
-    SpaceGroups.instance.removeListener(_summed);
-    DiscordServers.instance.removeListener(_summed);
     Circles.instance.removeListener(_summed);
+    ConversationsScreen.wantTab.removeListener(_wanted);
     _inbox.removeListener(_summed);
     _shell?.closed.removeListener(_back);
     _plugins.dispose();
@@ -520,18 +537,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   // --- the tabs --------------------------------------------------------------------------------------------------------
 
   /// The Circles tab, where the Spaces tab was (Matt, 2026-11-17: "Let's do a circle for now ... with it's own sidebar
-  /// full of spaces"): each circle, which opens in the list's place (AppShell.openCircle), then spaces of one's own in
-  /// their groups and each linked Discord server's channels, as the Spaces tab had them (lib/ui/space_groups_ui.dart).
+  /// full of spaces"): each circle, which opens in the list's place (AppShell.openCircle), and nothing else (Matt,
+  /// 2026-11-17: "it should only be circles").
   static const circlesTab = ConversationsScreen.circlesTab;
-
-  /// Spaces of one's own (not a circle's), the live ones first, then by when each last had anyone in it.
-  List<VoiceChannel> _voices() {
-    final v = Voice.instance;
-    final all = [for (final c in v.channels) if (c.circle == null) c];
-    int when(VoiceChannel c) => v.lastActive(c)?.millisecondsSinceEpoch ?? 0;
-    all.sort((a, b) => when(b).compareTo(when(a)));
-    return all;
-  }
 
   /// Hops into [c] and shows it.
   Future<void> _openVoice(VoiceChannel c) async {
@@ -594,8 +602,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // the three icons instead of intertwining them remove the other options for now"). Voice is there always: it is
     // where calls are.
     final tabs = _plugins.tabs(_section, (section) => setState(() => _section = section), onMenu: _tabMenu, extra: [
-      // Counted by how many circles have anyone in voice now.
-      (id: circlesTab, icon: Lucide.circleDot, label: 'Circles', count: Circles.instance.all.where((c) => Circles.instance.liveSpaces(c).isNotEmpty).length),
+      // Counted by how many circles have anyone in voice now, and the invites not yet answered or put off.
+      (id: circlesTab, icon: Lucide.circleDot, label: 'Circles', count: Circles.instance.all.where((c) => Circles.instance.liveSpaces(c).isNotEmpty).length + Circles.instance.invites.where((i) => !i.later).length),
     ]);
     final kinds = _plugins.kinds;
     if (tabs == null && kinds.isEmpty) return null;
@@ -986,8 +994,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                 c,
           ]
         : _section == circlesTab
-            // Each circle, then spaces of one's own in their groups and each linked Discord server's channels.
-            ? [...Circles.instance.all, ...spaceRows(_voices())]
+            // Circles offered and not yet joined at the top (lib/ui/circles/circle_invite_card.dart), then each circle.
+            ? _circlesTabRows()
             : _mixed(shown);
     // Android's own count, where it has answered: the ones held are not all of them until the read ends.
     final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length) + Inbox.instance.ready.fold<int>(0, (n, net) => n + net.archivedChats.length);
@@ -1104,14 +1112,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                     ),
             );
           }
-          if (at < rows.length && rows[at] is SpaceGroupHeading) {
-            final h = rows[at] as SpaceGroupHeading;
-            return SpaceGroupRow(key: ValueKey('space-group-${h.id}'), heading: h);
-          }
-          if (at < rows.length && rows[at] is DiscordChannel) {
-            final d = rows[at] as DiscordChannel;
-            return DiscordChannelRow(key: ValueKey('discord-${d.guildId}-${d.id}'), channel: d);
-          }
+          // A circle's invite, or the heading over those put off: drawn already.
+          if (at < rows.length && rows[at] is Widget) return rows[at] as Widget;
           if (at < rows.length && rows[at] is Circle) {
             final c = rows[at] as Circle;
             return CircleRow(key: ValueKey('circle-row-${c.seed}'), circle: c);

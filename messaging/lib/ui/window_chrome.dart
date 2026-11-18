@@ -17,8 +17,13 @@ class MacChrome {
 
   static const _channel = MethodChannel('ghost_desktop/window');
 
-  /// Only in the Mac app, and not under `flutter test` (which runs on a Mac but draws no window).
-  static bool enabled = Platform.isMacOS && !Platform.environment.containsKey('FLUTTER_TEST');
+  /// The Mac's own title bar is back for now, the three buttons in it where the Mac puts them (Matt, 2026-11-17: "let's
+  /// bring back the native top bar and remove the thing where we have the traffic lights pushed down until I work on the
+  /// UI a bit more"). Set true to bring the app's own top bar back (and [MainFlutterWindow.ownTopBar] in Swift with it).
+  static const bool own = false;
+
+  /// Only in the Mac app with its own top bar, and not under `flutter test` (which runs on a Mac but draws no window).
+  static bool enabled = own && Platform.isMacOS && !Platform.environment.containsKey('FLUTTER_TEST');
 
   /// Where the first of the three buttons is, from the window's left.
   static const double lightsX = 20;

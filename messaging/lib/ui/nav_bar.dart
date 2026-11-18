@@ -7,12 +7,13 @@ import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
 import '../kit/semantic_colors.dart';
+import '../kit/settings_kit.dart' show settingsHue;
 import '../kit/settings_type.dart';
 import 'dialup/dialup.dart';
 
 /// One place the navigation pill goes to: one ring.
 class NavItem {
-  const NavItem({required this.id, required this.icon, required this.label, this.count = 0, this.menu});
+  const NavItem({required this.id, required this.icon, required this.label, this.short, this.count = 0, this.menu});
   final String id;
   final LucideIcon icon;
 
@@ -26,6 +27,11 @@ class NavItem {
 
   /// What the ring is read aloud by, and shown by while the pointer rests on it.
   final String label;
+
+  /// The word on Dial-Up's taskbar button where [label] is longer than the others: every button's word is drawn at
+  /// one size, so a long one is said shorter rather than drawn smaller ("New" for New space). [label] stays its tip
+  /// and what it is read aloud by.
+  final String? short;
 
   /// A number worn on the ring's corner (how many are archived); nothing for none.
   final int count;
@@ -50,8 +56,16 @@ class NavItem {
 /// right of the screen like we do in ghost markdown"). The frame gives it that strip (lib/ui/shell.dart), so it
 /// stands over nothing: not the Send button, not the newest messages.
 class NavPill extends StatelessWidget {
-  const NavPill({super.key, required this.items, required this.active, required this.onSelect, this.upright = false});
+  const NavPill({super.key, required this.items, required this.active, required this.onSelect, this.upright = false, this.head, this.hue});
   final List<NavItem> items;
+
+  /// Something worn at the pill's head, before its first ring (above it stood up, left of it laid along): a circle's
+  /// face on the circle's dock, so the dock says whose it is at a glance. Not on Dial-Up's taskbar.
+  final Widget? head;
+
+  /// One of the app's hues (lib/kit/settings_css.dart `data-hue`) the ring shown is filled with, in place of the
+  /// accent: the circle's, on its dock. Each look settles a hue into its own page, as a circle's face is.
+  final String? hue;
 
   /// Stood up, its rings a step apart head to foot, rather than laid along the list's foot and spread across it.
   final bool upright;
@@ -94,8 +108,9 @@ class NavPill extends StatelessWidget {
     // (Matt, 2026-11-16: "make the navbar width fit the full sidebar and justify the space between evenly and make
     // the space on the left and right even to the space on the bottom").
     final rings = [
+      if (head != null) SizedBox.square(key: const ValueKey('nav-head'), dimension: t.len('app-ring'), child: Center(child: head)),
       for (final item in items)
-        _Ring(key: ValueKey('nav-${item.id}'), item: item, shown: item.id == active, upright: upright, onPressed: () => onSelect(item.id)),
+        _Ring(key: ValueKey('nav-${item.id}'), item: item, shown: item.id == active, upright: upright, tinted: hue != null, onPressed: () => onSelect(item.id)),
     ];
     return Padding(
       padding: upright ? EdgeInsets.symmetric(horizontal: _railRoom(t), vertical: inset(t)) : EdgeInsets.fromLTRB(inset(t), 0, inset(t), inset(t)),
@@ -114,10 +129,10 @@ class NavPill extends StatelessWidget {
                 padding: EdgeInsets.all(gap + t.len('glacier-hairline')),
                 foregroundDecoration: BoxDecoration(border: Border.all(color: t.color('glacier-border-subtle'), width: t.len('glacier-hairline')), borderRadius: radius),
                 decoration: BoxDecoration(color: t.colorOf('color-mix(in srgb, var(--glacier-bg) 94%, transparent)'), borderRadius: radius),
-                child: upright
+                child: _hued(upright
                     // Ghost.md's dock as it is there: head to foot, a step between its rings.
                     ? Column(mainAxisSize: MainAxisSize.min, spacing: gap, children: rings)
-                    : Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: rings),
+                    : Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: rings)),
               ),
             ),
           ),
@@ -128,6 +143,8 @@ class NavPill extends StatelessWidget {
 }
 
 extension on NavPill {
+  Widget _hued(Widget child) => hue == null ? child : GlacierScope(attrs: {'hue': hue!}, child: child);
+
   /// Dial-Up's way round (Matt, 2026-11-16: "base one of them heavily on the old AOL chatrooms"): the era's taskbar, a
   /// silver strip the window's width along its foot with a line of light on top, holding one raised button per place,
   /// its picture over its name, the place shown now held in. No start button and no logo: the design keeps the
@@ -166,9 +183,12 @@ extension on NavPill {
 /// One ring of the pill (the dock's `DockRing`): quiet, or filled with ink when it is the one shown. One with a
 /// menu of its own ([NavItem.menu]) hangs it over itself.
 class _Ring extends StatefulWidget {
-  const _Ring({super.key, required this.item, required this.shown, required this.onPressed, this.upright = false});
+  const _Ring({super.key, required this.item, required this.shown, required this.onPressed, this.upright = false, this.tinted = false});
   final NavItem item;
   final bool shown;
+
+  /// Shown, it is filled with the hue round it ([NavPill.hue]) rather than the accent.
+  final bool tinted;
 
   /// In a pill stood up at the window's right: its words keep their right edge on the ring's, inside the window.
   final bool upright;
@@ -236,8 +256,10 @@ class _RingState extends State<_Ring> {
     final ring = t.len('app-ring');
     final size = shown ? 18.0 : t.lenOf('1.15rem');
     final stroke = shown ? 2.2 : 2.0;
-    // The page shown wears the app's accent (lib/accent.dart).
-    final ink = shown ? t.color('app-on-accent') : t.color('glacier-text');
+    // The page shown wears the app's accent (lib/accent.dart); on a circle's dock, the circle's hue, its mark in the
+    // page's ground as a circle's face filled with its hue has it.
+    final tinted = widget.tinted;
+    final ink = shown ? t.color(tinted ? 'glacier-bg' : 'app-on-accent') : t.color('glacier-text');
     return HoverTip(
       message: item.label,
       end: widget.upright,
@@ -263,7 +285,7 @@ class _RingState extends State<_Ring> {
                       width: ring,
                       height: ring,
                       alignment: Alignment.center,
-                      decoration: BoxDecoration(color: t.color('app-accent'), borderRadius: BorderRadius.circular(t.radius('full'))),
+                      decoration: BoxDecoration(color: tinted ? settingsHue(t) : t.color('app-accent'), borderRadius: BorderRadius.circular(t.radius('full'))),
                       child: mark,
                     ),
                   ),
@@ -338,7 +360,7 @@ extension on _RingState {
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         AppIcon(item.icon, size: 18, color: c.onChrome, wash: false),
         const SizedBox(height: 2),
-        FittedBox(fit: BoxFit.scaleDown, child: Text(item.label, maxLines: 1, softWrap: false, style: pageText(t, 12, weight: shown ? 'bold' : 'regular', color: c.onChrome, height: 1.2))),
+        FittedBox(fit: BoxFit.scaleDown, child: Text(item.short ?? item.label, maxLines: 1, softWrap: false, style: pageText(t, 12, weight: shown ? 'bold' : 'regular', color: c.onChrome, height: 1.2))),
       ]),
     );
     return HoverTip(

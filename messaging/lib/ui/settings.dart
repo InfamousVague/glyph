@@ -206,8 +206,12 @@ abstract final class SettingsSources {
   /// computer where the phone is reached through a link, a phone otherwise) left out.
   static List<SettingsSection> around(List<SettingsSection> own, {SettingsWhere? here}) {
     here ??= Sms.remote ? SettingsWhere.computer : SettingsWhere.phone;
+    final all = [for (final source in _first) ...source(), ...own, for (final source in _after) ...source()];
+    // Plugins at the very top of the list, above even a computer's own sections (Matt, 2026-11-17: "move plugins to the
+    // very top of settings list"): the band to the Plugins page, and the plugins' own sections after it.
+    bool plugin(SettingsSection s) => s.group == 'plugins';
     return [
-      for (final s in [for (final source in _first) ...source(), ...own, for (final source in _after) ...source()])
+      for (final s in [...all.where(plugin), ...all.where((s) => !plugin(s))])
         if (s.where == SettingsWhere.everywhere || s.where == here) s,
     ];
   }

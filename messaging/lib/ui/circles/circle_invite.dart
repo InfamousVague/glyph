@@ -15,43 +15,31 @@ import '../../art/lucide_more.dart';
 import '../../circles/circles.dart';
 import '../../desktop/ui/qr.dart';
 import '../../friends/buddies.dart';
-import '../../kit/semantic_colors.dart';
 import '../../kit/settings_type.dart';
 import '../../sms.dart';
 import '../add_friend_drawer.dart';
 import '../common.dart';
 import '../dialup/bevel.dart';
+import '../drawer_head.dart';
+import '../invite_people.dart' show showCircleInvitePeople;
 import '../ripple_avatar.dart';
-import '../shell.dart';
 import 'circle_face.dart';
 
 /// The words an invite to [c] goes with, by a text or the share sheet.
 String circleInviteWords(Circle c) => 'Join my circle ${c.name} on Ghost Messaging: ${c.link}';
 
-/// Raises the invite sheet for [c] over everything. [send], [compose] and [buddies] are for a test; the app's own
-/// otherwise ([compose] opens a new text with the words written, or the share sheet where there is no shell).
+/// Raises the invite drawer for [c] over everything: the one a space has (lib/ui/invite_people.dart), friends sent the
+/// circle in the app, contacts texted its link with a copy waiting on the relay, the link and its QR code. Circles
+/// and spaces invite the same way (Matt, 2026-11-17: "when adding people to the space we should have a suggested list
+/// of our contacts to add"). [send], [compose] and [buddies] are for a test; the app's own otherwise.
 Future<void> showCircleInvite(
   BuildContext context,
   Circle c, {
   Future<List<Buddy>> Function(Circle circle, List<Buddy> friends)? send,
   void Function(String words)? compose,
   Buddies? buddies,
-}) {
-  final shell = AppShell.maybeOf(context);
-  final write = compose ?? (shell == null ? (String words) => unawaited(Sms.instance.shareText(c.name, words)) : (String words) => shell.compose(body: words));
-  return Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(
-    opaque: false,
-    barrierDismissible: true,
-    barrierColor: context.tokens.sheetScrim,
-    transitionDuration: const Duration(milliseconds: 220),
-    reverseTransitionDuration: const Duration(milliseconds: 180),
-    pageBuilder: (context, _, _) => CircleInviteSheet(circle: c, send: send ?? Circles.instance.share, compose: write, buddies: buddies ?? Buddies.instance),
-    transitionsBuilder: (context, a, _, child) => SlideTransition(
-      position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
-      child: child,
-    ),
-  ));
-}
+}) =>
+    showCircleInvitePeople(context, c, send: send, compose: compose, buddies: buddies);
 
 /// The sheet: the circle's face and name, friends to choose and Send invites, then the ways to reach anyone else.
 class CircleInviteSheet extends StatefulWidget {
@@ -125,18 +113,10 @@ class _CircleInviteSheetState extends State<CircleInviteSheet> {
                     final n = _chosen.length;
                     return SingleChildScrollView(
                       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                        // The drawers' one head (lib/ui/drawer_head.dart), as Members and the space's invite drawer have it.
                         Padding(
-                          padding: EdgeInsets.fromLTRB(t.space(4), t.space(4), t.space(4), t.space(1)),
-                          child: Row(children: [
-                            CircleFace.of(c, size: 40),
-                            SizedBox(width: t.space(3)),
-                            Expanded(
-                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                                Text('Invite to ${c.name}', maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
-                                Text('Whoever has the link is in the circle.', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
-                              ]),
-                            ),
-                          ]),
+                          padding: EdgeInsets.only(bottom: t.space(1)),
+                          child: DrawerHead(title: 'Invite people', subtitle: c.name, face: CircleFace.of(c, size: 40), note: 'Whoever has the link is in the circle.'),
                         ),
                         _Heading('Friends on Ghost Messaging'),
                         if (friends.isEmpty) ...[

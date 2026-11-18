@@ -51,6 +51,28 @@ void openCircleSpace(BuildContext context, VoiceChannel c) {
   shell.show(circleSpacePage(c, key: ValueKey('circle-space-page-${c.seed}')), showing: 'circle');
 }
 
+/// Opens [c]'s settings in the pane, as a space opens (`showing: 'circle-settings'`): beside the circle's list in a
+/// wide window, over it on a phone, and the circle's dock marks its Settings while it is there. Pushed over the page
+/// where there is no shell.
+void openCircleSettings(BuildContext context, Circle c) {
+  final shell = AppShell.maybeOf(context);
+  if (shell == null) {
+    push<void>(context, (_) => CircleSettingsScreen(seed: c.seed));
+    return;
+  }
+  shell.show(CircleSettingsScreen(key: ValueKey('circle-settings-${c.seed}'), seed: c.seed), showing: 'circle-settings');
+}
+
+/// Opens a new space for [c] (under [section], where asked for under one) in the pane, as its settings open.
+void openCircleNewSpace(BuildContext context, Circle c, {String? section}) {
+  final shell = AppShell.maybeOf(context);
+  if (shell == null) {
+    push<void>(context, (_) => NewCircleSpaceScreen(circle: c, section: section));
+    return;
+  }
+  shell.show(NewCircleSpaceScreen(key: ValueKey('circle-new-${c.seed}-${section ?? ''}'), circle: c, section: section), showing: 'circle-new');
+}
+
 class CircleScreen extends StatelessWidget {
   const CircleScreen({super.key, required this.seed, this.onBack});
 
@@ -116,8 +138,8 @@ CircleView circleView(BuildContext context, Circle c, {required VoidCallback onB
     online: circles.onlineIn(c),
     onOpen: (s) => openCircleSpace(context, s.channel),
     onSpaceMenu: (s) => showCircleSpaceMenu(context, c, s),
-    onNewSpace: ({String? section}) => canEdit ? push<void>(context, (_) => NewCircleSpaceScreen(circle: c, section: section)) : null,
-    onSettings: () => push<void>(context, (_) => CircleSettingsScreen(seed: c.seed)),
+    onNewSpace: ({String? section}) => canEdit ? openCircleNewSpace(context, c, section: section) : null,
+    onSettings: () => openCircleSettings(context, c),
     onInvite: () => showCircleInvite(context, c),
     onBack: onBack,
     onMenu: () => showCircleMenu(context, c),
@@ -129,9 +151,9 @@ void showCircleMenu(BuildContext context, Circle c) {
   final canEdit = Circles.instance.canEdit(c);
   showChoices(context, title: c.name, choices: [
     Choice('Invite people', Lucide.userPlus, () => showCircleInvite(context, c)),
-    if (canEdit) Choice('New space', Lucide.plus, () => push<void>(context, (_) => NewCircleSpaceScreen(circle: c))),
+    if (canEdit) Choice('New space', Lucide.plus, () => openCircleNewSpace(context, c)),
     if (canEdit) Choice('Arrange spaces', Lucide.listTree, () => push<void>(context, (_) => ArrangeCircleSpacesScreen(seed: c.seed)), hint: 'Move, rename or delete them'),
-    Choice(canEdit ? 'Circle settings' : 'About this circle', Lucide.settings, () => push<void>(context, (_) => CircleSettingsScreen(seed: c.seed))),
+    Choice(canEdit ? 'Circle settings' : 'About this circle', Lucide.settings, () => openCircleSettings(context, c)),
     Choice('Leave circle', Lucide.logOut, () => confirmLeaveCircle(context, c), danger: true),
   ]);
 }
@@ -216,7 +238,7 @@ class CircleRow extends StatelessWidget {
       live: inVoice.isEmpty ? null : inVoice.length,
       timed: newest != null,
       selected: selected,
-      face: (size) => _CircleRowFace(circle: circle, size: size),
+      face: (size) => CircleRowFace(circle: circle, size: size),
       onPress: onPress ?? () => AppShell.maybeOf(context)?.openCircle(circle),
       onLongPress: onLongPress ?? () => showCircleMenu(context, circle),
     );
@@ -225,8 +247,8 @@ class CircleRow extends StatelessWidget {
 
 /// A circle's face in its row: round in its colour; in Dial-Up a small square frame as its people's faces have, its
 /// icon (or picture) in the page's ink set into it.
-class _CircleRowFace extends StatelessWidget {
-  const _CircleRowFace({required this.circle, required this.size});
+class CircleRowFace extends StatelessWidget {
+  const CircleRowFace({super.key, required this.circle, required this.size});
   final Circle circle;
   final double size;
 

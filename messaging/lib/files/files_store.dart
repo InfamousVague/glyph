@@ -52,6 +52,7 @@ class FilesStore extends ChangeNotifier {
     required Directory Function() cache,
     required VoiceRoute? Function() route,
     required FilesRules Function(VoiceChannel c) rules,
+    required Roster? Function(VoiceChannel c) roster,
     required String Function() myName,
     void Function(VoiceChannel c, String words)? announce,
     this.thumbnails = true,
@@ -64,6 +65,7 @@ class FilesStore extends ChangeNotifier {
         _cache = cache,
         _route = route,
         _rules = rules,
+        _roster = roster,
         _myName = myName,
         _announce = announce;
 
@@ -85,6 +87,7 @@ class FilesStore extends ChangeNotifier {
           final room = Voice.instance.hangoutFor(c);
           return room == null ? OwnerRules(_ownerId(c)) : RosterRules(room.roster);
         },
+        roster: (c) => Voice.instance.hangoutFor(c)?.roster,
         myName: _myNameOf,
         announce: (c, words) {
           final room = Voice.instance.hangoutFor(c);
@@ -101,6 +104,7 @@ class FilesStore extends ChangeNotifier {
     Directory? cache,
     VoiceRoute? route,
     FilesRules Function(VoiceChannel c)? rules,
+    Roster? Function(VoiceChannel c)? roster,
     String name = 'Tester',
     int piece = 16,
     Duration poll = const Duration(seconds: 45),
@@ -113,7 +117,8 @@ class FilesStore extends ChangeNotifier {
         data: () => data,
         cache: () => cache ?? Directory('${data.path}/cache'),
         route: () => route,
-        rules: rules ?? (c) => OwnerRules(_ownerId(c)),
+        rules: rules ?? (c) => roster?.call(c) == null ? OwnerRules(_ownerId(c)) : RosterRules(roster!(c)!),
+        roster: roster ?? (_) => null,
         myName: () => name,
         announce: announce,
         thumbnails: false,
@@ -128,6 +133,7 @@ class FilesStore extends ChangeNotifier {
   final Directory Function() _cache;
   final VoiceRoute? Function() _route;
   final FilesRules Function(VoiceChannel c) _rules;
+  final Roster? Function(VoiceChannel c) _roster;
   final String Function() _myName;
   final void Function(VoiceChannel c, String words)? _announce;
 
@@ -139,6 +145,94 @@ class FilesStore extends ChangeNotifier {
   final Duration poll;
 
   static String? _ownerId(VoiceChannel c) => c.owner.isEmpty ? null : NetCrypto.idOf(NetCrypto.unhex(c.owner));
+
+  /// Whether a roster checked out for an owner: each is a few signatures to check, and the same rosters come round on
+  /// every reading of a log. Known by what its signature covers and the signature itself, never the signature alone
+  /// (Matt, 2026-11-17: "Finish the missing pieces that went unfinished"): keyed by the signature's text, a member could
+  /// put a changed roster in the log under the real one's signature and have it believed from here unchecked.
+  static final Map<String, bool> _believed = {};
+  static const _believedMost = 4096;
+
+  /// Only a signature written the one way the app writes it (64 bytes as 128 lower-case hex): NetCrypto.unhex takes
+  /// capitals and drops an odd last letter, so one signature could be written many ways, each a roster to check again.
+  static final _sigHex = RegExp(r'^[0-9a-f]{128}$');
+
+  static bool _trustedFor(Roster r, String owner) {
+    final sig = r.sig;
+    if (sig == null || owner.isEmpty || !_sigHex.hasMatch(sig)) return false;
+    final key = '$owner:${NetCrypto.hex(NetCrypto.sha256(r.signed))}:$sig';
+    final had = _believed.remove(key);
+    if (had != null) return _believed[key] = had;
+    // The oldest goes, one at a time: emptied all at once, a log of many rosters would have each checked again.
+    while (_believed.length >= _believedMost) {
+      _believed.remove(_believed.keys.first);
+    }
+    return _believed[key] = r.trustedFor(owner);
+  }
+
+  /// [c]'s roster as this device holds it, where it is signed and believed for [c]'s owner; null for a roster no one has
+  /// signed yet (a space's first) or none at all.
+  Roster? _trusted(VoiceChannel c) {
+    final r = _roster(c);
+    return r != null && _trustedFor(r, c.owner) ? r : null;
+  }
+
+  /// What a roster carried in [c]'s log says, where it is believed for [c]'s owner after [previous] (FilesList.read).
+  BelievedRoster? _logged(VoiceChannel c, Object? j, BelievedRoster? previous) {
+    final r = Roster.fromJson(j);
+    if (r == null || !_trustedFor(r, c.owner)) return null;
+    final last = previous?.held;
+    if (!chained(r, last is Roster ? last : null, _trusted(c))) return null;
+    return (version: r.version, rules: RosterRules(r), held: r);
+  }
+
+  /// Whether roster [r] (signed and believed for its owner) may follow [last] (the newest believed from the log) when
+  /// this device holds [mine].
+  ///
+  /// An admin's grant has no revision and can't be taken back (lib/voice/roles.dart), so an admin the owner later
+  /// demoted can still sign a roster that checks out, naming themselves admin again at any revision (Matt, 2026-11-17:
+  /// "Finish the missing pieces that went unfinished"). So the owner's word stands at any revision, and an admin's only
+  /// where they are an admin in the roster before it, one revision on: in [last] or [mine] for a roster newer than
+  /// this device holds; in [mine] (still an admin today, or the very roster held) for one no newer, since this device
+  /// knows better than a roster at that revision someone puts in the log.
+  @visibleForTesting
+  static bool chained(Roster r, Roster? last, Roster? mine) {
+    final by = r.by;
+    if (by == null) return false;
+    if (by == r.ownerId) return true;
+    if (mine != null && r.version <= mine.version) {
+      if (r.version == mine.version) return r.sig == mine.sig || listEquals(r.signed, mine.signed);
+      return mine.canManage(by);
+    }
+    bool after(Roster? p) => p != null && r.version <= p.version + 1 && p.canManage(by);
+    return after(last) || after(mine);
+  }
+
+  /// [r] as the relay checks it (relay/lib/files_roster.dart): the bytes its author signed, and the signature. Sent only
+  /// with the delete of someone else's file that needs it.
+  static Map<String, Object?> _proof(Roster r) => {'r': base64Encode(r.signed), 's': r.sig};
+
+  /// What an owner's or admin's device tells the relay of [r] as it opens a space (relay/lib/files.dart's `rv`): its
+  /// revision, the hash of its signed bytes, who its admins are, and (from an admin) the owner's grant making them one;
+  /// signed with the rest of the request. Null where this device doesn't sign rosters.
+  ///
+  /// Not the roster itself (Matt, 2026-11-17: "Finish the missing pieces that went unfinished"): every member's id and
+  /// role, the bans and mutes went to the relay on every open before, tied to the space and its uploaders, while it
+  /// needs the whole roster only to judge a moderator's delete, which sends it then.
+  Map<String, Object?>? _statement(VoiceChannel c, Roster r) {
+    final me = _me();
+    if (me == null || !r.canManage(me)) return null;
+    final admins = [for (final e in r.assigned.entries) if (e.value == Role.admin) e.key]..sort();
+    return {
+      'v': r.version,
+      'h': NetCrypto.hex(NetCrypto.sha256(r.signed)),
+      'ad': admins,
+      if (!r.isOwner(me)) 'g': r.adminGrants[me],
+    };
+  }
+
+  /// The largest roster put in a log (an entry is at most 32 KB sealed on the relay).
+  static const _rosterMost = 24 * 1024;
 
   static String _myNameOf() {
     final v = Voice.instance;
@@ -242,6 +336,7 @@ class FilesStore extends ChangeNotifier {
 
   void _voiceChanged() {
     if (_base() == null) return;
+    _rosterMoved();
     for (final s in _spaces.values.where((s) => s._holds > 0)) {
       s._listen();
       // Voice says something changed many times a minute: an unreachable relay is asked again at most every ten seconds.
@@ -339,7 +434,7 @@ class FilesStore extends ChangeNotifier {
     }
     try {
       await s._ensure(api);
-      final seq = await api.append(FileOp.seal(FileSeal.filesKey(c.seed), op));
+      final seq = await _append(c, api, s, op);
       await s.refresh();
       _ping(c, seq);
       return true;
@@ -347,6 +442,114 @@ class FilesStore extends ChangeNotifier {
       s.error = e;
       notifyListeners();
       return false;
+    }
+  }
+
+  /// Adds [op] to [c]'s log, signed ([FileOp.sign]) for its place: right after the last entry this device has read,
+  /// naming that entry's bytes, under the roster revision it holds. Where the log has moved on meanwhile (someone else
+  /// wrote), it is read again and the entry signed again for its new place. Where this device holds a newer roster
+  /// than the log does, the roster goes in first, so every device can judge the entry by the roster it was written
+  /// under (FilesList.read). With no [op], only the roster.
+  ///
+  /// The revision signed is the one the log has once the roster is in (Matt, 2026-11-17: "Finish the missing pieces
+  /// that went unfinished"): where the roster couldn't go in (too big for an entry, refused), the entry says the older
+  /// revision the log holds, never one no reader can see.
+  Future<int> _append(VoiceChannel c, FilesApi api, FilesSpace s, Map<String, Object?>? op) async {
+    final signer = _signer();
+    if (signer == null) throw FilesError(0, 'Not connected to the relay yet.');
+    final key = FileSeal.filesKey(c.seed), room = FileSeal.filesRoom(c.seed);
+    final roster = _trusted(c);
+    Future<Uint8List> sealed(Map<String, Object?> o, int rv) async {
+      final last = s._log.lastOrNull;
+      final ph = last != null && last.seq == s.seq ? last.sh ?? '' : '';
+      return FileOp.seal(key, await FileOp.sign(o, space: room, prev: s.seq, prevHash: ph, rv: rv, publicKey: signer.publicKey, sign: signer.sign));
+    }
+
+    var wrote = 0;
+    for (var tries = 0;; tries++) {
+      try {
+        if (roster != null && roster.version > s._list.rosterVersion && roster.version != s._rosterRefused) {
+          final rj = roster.toJson();
+          if (utf8.encode(jsonEncode(rj)).length <= _rosterMost) {
+            try {
+              wrote = await api.append(await sealed(FileOp.roster(rj), roster.version), after: s.seq);
+              await s.refresh();
+            } on FilesError catch (e) {
+              // Only a log that moved on, or a relay out of reach, is tried again; a roster the relay won't take (too
+              // big, the list full) is left out until this device holds a newer one, rather than tried again first
+              // on every write, and the entry says the revision the log has.
+              if (e.status == HttpStatus.conflict || e.offline || e.status >= 500 && e.status != HttpStatus.insufficientStorage) rethrow;
+              s._rosterRefused = roster.version;
+            }
+          } else {
+            s._rosterRefused = roster.version;
+          }
+        }
+        if (op == null) return wrote;
+        final rv = math.min(roster?.version ?? 0, s._list.rosterVersion);
+        return await api.append(await sealed(op, rv), after: s.seq);
+      } on FilesError catch (e) {
+        // The relay's list started again (swept after ninety days unused, or the box's data lost) while this device
+        // kept its own: what it kept is let go, or every write would be sent after an entry the relay no longer has.
+        if (e.status == HttpStatus.conflict && e.seq != null && e.seq! < s.seq) s._startOver();
+        // No such space any more (the box's data lost while the app ran): opened again, which reads the new list from
+        // its start, and the entry tried again there, once.
+        if (e.status == HttpStatus.notFound && tries == 0) {
+          s._ensured = false;
+          await s.refresh();
+          if (s.error != null) throw s.error!;
+          continue;
+        }
+        if (e.status != HttpStatus.conflict || tries >= 16) rethrow;
+        // Others writing at the same moment: a short wait of its own length each, so they don't meet again.
+        if (tries > 0) await Future<void>.delayed(Duration(milliseconds: math.Random().nextInt(40 * (tries + 1))));
+        await s.refresh();
+      }
+    }
+  }
+
+  /// The roster revision each Files space was last looked at under ([_rosterMoved]), by seed.
+  final Map<String, int> _rosterSeen = {};
+
+  /// A Files space's roster changed on this device while the app runs, where this device signs rosters (the owner's or
+  /// an admin's): the relay and the log hear of it now, not when someone next opens or writes to the space (Matt,
+  /// 2026-11-17: "Finish the missing pieces that went unfinished"). Until then a demoted or banned moderator's device
+  /// could sign under the roster from before, and its deletes would be judged by that roster for good.
+  void _rosterMoved() {
+    final v = Voice.instance;
+    final me = _me();
+    if (me == null || _base() == null) return;
+    for (final c in v.channels) {
+      if (c.kind != SpaceKind.files) continue;
+      // Only a room already made: a roster changes through its room, and none is made here for every space.
+      final r = v.heldHangout(c)?.roster;
+      if (r == null || r.sig == null) continue;
+      final seen = _rosterSeen[c.seed];
+      _rosterSeen[c.seed] = math.max(r.version, seen ?? -1);
+      // The first look this run only notes it: what a space held at launch reaches the relay when it is opened.
+      if (seen == null || r.version <= seen) continue;
+      if (!r.canManage(me)) continue;
+      unawaited(pushRoster(c));
+    }
+  }
+
+  /// Tells the relay and [c]'s log of the roster this device holds, where it is newer than what they have.
+  @visibleForTesting
+  Future<void> pushRoster(VoiceChannel c) async {
+    final api = _api(c);
+    final roster = _trusted(c);
+    if (api == null || roster == null) return;
+    final s = of(c);
+    try {
+      await s.refresh();
+      if (s.error != null) return;
+      if (roster.version > s._list.rosterVersion) {
+        final seq = await _append(c, api, s, null);
+        await s.refresh();
+        if (seq > 0) _ping(c, seq);
+      }
+    } on FilesError catch (_) {
+      // Tried again on the next write or opening.
     }
   }
 
@@ -377,17 +580,20 @@ class FilesStore extends ChangeNotifier {
 
   Future<bool> removeFolder(VoiceChannel c, String name) => _write(c, FileOp.unfolder(name));
 
-  /// Removes [f] from the list, and its sealed blob from the relay where this device may (whoever added it, or the
-  /// space's owner: the relay holds to that). Someone with Manage files above the uploader takes it off everyone's list;
-  /// the relay lets the blob go once the space is unused.
+  /// Removes [f] from the list, and its sealed blob from the relay: whoever added it and the space's owner by who they
+  /// are; someone with Manage files above the uploader by showing the relay the space's roster, which it checks the
+  /// way every device does (relay/lib/files_roster.dart). Before (Matt, 2026-11-17: "Finish the missing pieces that
+  /// went unfinished"), a moderator's delete only took the file off the list, and the blob stayed until the space went
+  /// unused. A relay from before rosters still keeps the blob then (it says no, and that is no matter here).
   Future<bool> delete(VoiceChannel c, SpaceFile f) async {
     if (!canChange(c, f)) return false;
     final ok = await _write(c, FileOp.delete(f.id));
     if (!ok) return false;
     final me = _me();
-    if (me == f.by || me == _ownerId(c)) {
+    final roster = me == f.by || me == _ownerId(c) ? null : _trusted(c);
+    if (me == f.by || me == _ownerId(c) || roster != null) {
       try {
-        await _api(c)?.deleteBlob(f.id);
+        await _api(c)?.deleteBlob(f.id, roster: roster == null ? null : _proof(roster));
       } catch (_) {}
     }
     _forgetCached(f);
@@ -586,7 +792,7 @@ class FilesStore extends ChangeNotifier {
         width: t.width,
         height: t.height,
       );
-      final seq = await api.append(FileOp.seal(FileSeal.filesKey(c.seed), FileOp.add(f)));
+      final seq = await _append(c, api, s, FileOp.add(f));
       // This device has the file already: kept as if it had come down, so it opens at once.
       await _keepLocal(t, f);
       // Listed before it is called done: whoever watches the upload finds the file in the list once it is.
@@ -597,7 +803,10 @@ class FilesStore extends ChangeNotifier {
       _announce?.call(c, '${f.byName.isEmpty ? 'Someone' : f.byName} added ${f.name} (${fileSize(f.size)})');
       await _settle(t);
     } on FilesError catch (e) {
-      if (e.offline || e.status >= 500 && e.status != HttpStatus.insufficientStorage) {
+      // The space gone from the relay meanwhile: opened again on the next try, which comes by itself.
+      final gone = e.status == HttpStatus.notFound && e.message == 'No such space.';
+      if (gone) s._ensured = false;
+      if (e.offline || e.status >= 500 && e.status != HttpStatus.insufficientStorage || gone) {
         t._wait(e.message);
       } else if (e.status == HttpStatus.requestEntityTooLarge) {
         t._fail(s.info != null && s.info!.maxFile > 0 ? 'Too big: files can be up to ${fileSize(s.info!.maxFile)} each.' : 'Too big for this space.', retryable: false);
@@ -860,6 +1069,7 @@ Future<void> markFromInternet(String path) async {
 Future<String> _shaAside(String path) => Isolate.run(() => shaOfFile(path));
 Future<Uint8List> _sealAside(SealRun run) => Isolate.run(() => FileSeal.sealRun(run));
 Future<Uint8List?> _openAside(OpenRun run) => Isolate.run(() => FileSeal.openRun(run));
+Future<List<LoggedOp>> _checkAside(List<LoggedOp> log, String space) => Isolate.run(() => checkAll(log, space));
 
 /// The SHA-256 of the file at [path], in hex, read a megabyte at a time: run on another isolate.
 String shaOfFile(String path) {
@@ -931,9 +1141,20 @@ class FilesSpace {
 
   /// Read while there was no relay to read from: read again as soon as there is.
   bool _waiting = false;
+
+  /// A roster revision the relay wouldn't take into the log ([FilesStore._append]): not tried again first on every write.
+  int _rosterRefused = -1;
+
+  /// The last entry read when this device first heard the relay say it takes `?after=` (FilesInfo.cas): a signed entry
+  /// after it out of its place was moved by the relay (FilesList.read). Kept.
+  int? _strictAfter;
   DateTime _tried = DateTime.fromMillisecondsSinceEpoch(0);
 
   Map<String, SpaceFile> get files => _list.files;
+
+  /// The log as this device holds it, each entry with how far it is believed.
+  @visibleForTesting
+  List<LoggedOp> get log => _log;
   Set<String> get folders => {..._list.folders};
   int get bytes => _list.bytes;
 
@@ -944,8 +1165,13 @@ class FilesSpace {
       final f = _file;
       if (!f.existsSync()) return;
       final j = jsonDecode(f.readAsStringSync()) as Map;
-      _log = [for (final e in (j['log'] as List? ?? const [])) ?LoggedOp.fromJson(e)];
+      final room = FileSeal.filesRoom(channel.seed);
+      // What was kept was checked as it came (and says how far it is believed), but for what 0.9.2 kept unchecked.
+      _log = [
+        for (final e in (j['log'] as List? ?? const [])) ?switch (LoggedOp.fromJson(e)) { final o? when o.trust == OpTrust.unchecked => o.checked(room), final o => o },
+      ];
       seq = (j['seq'] as num?)?.toInt() ?? 0;
+      _strictAfter = (j['sa'] as num?)?.toInt();
       if (j['info'] is Map) info = FilesInfo.from((j['info'] as Map).cast<String, dynamic>());
       _kept = true;
       _reread();
@@ -956,21 +1182,55 @@ class FilesSpace {
     try {
       final f = _file;
       f.parent.createSync(recursive: true);
-      final tmp = File('${f.path}.tmp')..writeAsStringSync(jsonEncode({'seq': seq, 'log': [for (final e in _log) e.toJson()], if (info != null) 'info': info!.toJson()}));
+      final tmp = File('${f.path}.tmp')..writeAsStringSync(jsonEncode({'seq': seq, 'log': [for (final e in _log) e.toJson()], 'sa': ?_strictAfter, if (info != null) 'info': info!.toJson()}));
       tmp.renameSync(f.path);
     } catch (_) {}
   }
 
-  /// Reads the list again from the log, under the roster as it is now.
-  void _reread() => _list = FilesList.read(_log, _store._rules(channel));
+  /// Reads the list again from the log: each signed entry under the roster it was written under where that is known
+  /// (the log's own rosters, or this device's), the rest under the roster as it is now (FilesList.read).
+  void _reread() => _list = FilesList.read(_log, _store._rules(channel),
+      rosters: (j, previous) => _store._logged(channel, j, previous), rulesVersion: _store._trusted(channel)?.version ?? 0, strictAfter: _strictAfter);
+
+  /// The relay's list has started again, behind what this device kept (swept after ninety days unused, or its data
+  /// lost): what was kept is let go and the list read from its start (Matt, 2026-11-17: "Finish the missing pieces that
+  /// went unfinished"). Before, a newer app went on sending each write after an entry the relay no longer had, and was
+  /// refused for good; 0.9.2, which says no place, wasn't.
+  void _startOver() {
+    _log = const [];
+    seq = 0;
+    _strictAfter = null;
+    _rosterRefused = -1;
+    _reread();
+    _save();
+  }
+
+  /// The roster revision last told to the relay ([_ensure]).
+  int _toldRv = -1;
 
   Future<void> _ensure(FilesApi api) async {
-    if (_ensured) return;
-    info = await api.ensure(owner: channel.owner);
+    final roster = _store._trusted(channel);
+    final rv = roster?.version ?? 0;
+    // Once, and again whenever this device holds a newer roster than it told the relay of: the relay keeps the newest
+    // it has believed and refuses an older one, so a demoted moderator's old roster is refused (files_roster.dart).
+    if (_ensured && rv <= _toldRv) return;
+    final said = roster == null ? null : _store._statement(channel, roster);
+    FilesInfo got;
+    try {
+      got = await api.ensure(owner: channel.owner, rv: said);
+    } on FilesError catch (e) {
+      // A relay from before rosters takes at most 4 KB here, and may say so by closing the connection rather than with
+      // a 413: asked again without it.
+      if (said == null || !(e.status == HttpStatus.requestEntityTooLarge || e.offline)) rethrow;
+      got = await api.ensure(owner: channel.owner);
+    }
+    info = got;
     // The relay names the owner only from the owner's own request; one that names someone else is not this space's.
     final held = info?.owner ?? '';
     if (held.isNotEmpty && channel.owner.isNotEmpty && held != channel.owner) throw FilesError(HttpStatus.forbidden, 'This space\'s files are held by someone else.');
+    if (got.seq < seq) _startOver();
     _ensured = true;
+    _toldRv = rv;
   }
 
   /// Reads what the log has after [seq], and what the relay says of the space.
@@ -992,28 +1252,16 @@ class FilesSpace {
     _waiting = false;
     _store._changed();
     try {
-      await _ensure(api);
-      final key = FileSeal.filesKey(channel.seed);
-      final fresh = <LoggedOp>[];
-      var more = true;
-      while (more) {
-        final page = await api.log(after: seq);
-        for (final o in page.ops) {
-          final s = (o['s'] as num).toInt();
-          if (s <= seq) continue;
-          List<int> sealed;
-          try {
-            sealed = base64Decode(o['o'] as String);
-          } catch (_) {
-            sealed = const [];
-          }
-          fresh.add(LoggedOp(seq: s, by: '${o['by']}', at: (o['at'] as num?)?.toInt() ?? 0, op: FileOp.open(key, sealed)));
-          seq = s;
+      for (var tries = 0;; tries++) {
+        try {
+          await _read(api);
+          break;
+        } on FilesError catch (e) {
+          // No such space any more (swept as unused while the app ran): opened again, once.
+          if (e.status != HttpStatus.notFound || tries > 0) rethrow;
+          _ensured = false;
         }
-        more = page.more && page.ops.isNotEmpty;
       }
-      info = await api.info();
-      if (fresh.isNotEmpty) _log = [..._log, ...fresh];
       error = null;
       _kept = true;
       _reread();
@@ -1025,6 +1273,55 @@ class FilesSpace {
       loading = false;
       _store._changed();
     }
+  }
+
+  Future<void> _read(FilesApi api) async {
+    await _ensure(api);
+    final key = FileSeal.filesKey(channel.seed);
+    var fresh = <LoggedOp>[];
+    var more = true;
+    while (more) {
+      final page = await api.log(after: seq);
+      if (page.seq < seq) {
+        // Behind what this device kept: the relay's list started again.
+        _startOver();
+        fresh = [];
+        continue;
+      }
+      for (final o in page.ops) {
+        final s = (o['s'] as num).toInt();
+        if (s <= seq) continue;
+        List<int> sealed;
+        try {
+          sealed = base64Decode(o['o'] as String);
+        } catch (_) {
+          sealed = const [];
+        }
+        fresh.add(LoggedOp(
+          seq: s,
+          by: '${o['by']}',
+          at: (o['at'] as num?)?.toInt() ?? 0,
+          op: FileOp.open(key, sealed),
+          relayRv: (o['rv'] as num?)?.toInt(),
+          sh: FileOp.sealedHash(sealed),
+          cas: o['c'] == 1,
+        ));
+        seq = s;
+      }
+      more = page.more && page.ops.isNotEmpty;
+    }
+    // Each entry's signature, author and place checked as it comes (FileOp.check): a few at once here, a page of them
+    // on another isolate.
+    final room = FileSeal.filesRoom(channel.seed);
+    if (fresh.length > 8) {
+      fresh = await _checkAside(fresh, room);
+    } else {
+      fresh = checkAll(fresh, room);
+    }
+    info = await api.info();
+    if (fresh.isNotEmpty) _log = [..._log, ...fresh];
+    // Heard for the first time that this relay takes `?after=`: from here on, a signed entry out of its place was moved.
+    if (info!.cas && _strictAfter == null) _strictAfter = seq;
   }
 
   /// Listens in the space's chat room for others saying the log has grown.

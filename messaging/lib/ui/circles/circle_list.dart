@@ -31,7 +31,8 @@ class CircleList extends StatelessWidget {
   Widget build(BuildContext context) => CirclePage(view: view, body: CircleSpaceList(view: view));
 }
 
-/// A circle's page: the way back, its face and name (a press opens its menu), Invite, and [body] under them. Dial-Up's
+/// A circle's page: the way back, its face and name (a press opens its menu), Invite and its settings, and [body]
+/// under them. Dial-Up's
 /// window draws its own title bar from it.
 class CirclePage extends StatelessWidget {
   const CirclePage({super.key, required this.view, required this.body});
@@ -71,7 +72,12 @@ class CirclePage extends StatelessWidget {
           ),
         ]),
       ),
-      actions: [IconTap(key: const ValueKey('circle-invite'), icon: Lucide.userPlus, label: 'Invite people', size: 20, onPressed: view.onInvite)],
+      // The circle's own settings right beside Add people (Matt, 2026-11-17: "move the server settings to the header
+      // next to the add friend"); a gear, where a space's header has its shield.
+      actions: [
+        IconTap(key: const ValueKey('circle-invite'), icon: Lucide.userPlus, label: 'Invite people', size: 20, onPressed: view.onInvite),
+        IconTap(key: const ValueKey('circle-header-settings'), icon: Lucide.settings, label: view.canEdit ? 'Circle settings' : 'About this circle', size: 20, onPressed: view.onSettings),
+      ],
       body: body,
     );
   }

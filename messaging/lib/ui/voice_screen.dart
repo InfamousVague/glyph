@@ -541,7 +541,8 @@ class RingCard extends StatelessWidget {
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                           Text(r.invite ? '${r.from} invited you to ${r.channel.name}' : r.channel.name, maxLines: r.invite ? 2 : 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'bold', color: t.color('app-paper'))),
-                          Text(r.invite ? 'Now in your spaces' : '${r.from} is calling the group', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-paper'))),
+                          // A waiting invite is not in the spaces until Join (Voice.offers): anyone who knows a number could leave one.
+                          Text(r.offer ? 'Join to add it to your spaces' : (r.invite ? 'Now in your spaces' : '${r.from} is calling the group'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-paper'))),
                         ]),
                       ),
                       IconTap(icon: Lucide.x, label: 'Not now', color: t.color('app-paper'), onPressed: v.dismissRing),
@@ -549,7 +550,7 @@ class RingCard extends StatelessWidget {
                       GlacierPressable(
                         onPressed: () async {
                           try {
-                            await v.join(r.channel);
+                            await (r.offer ? v.acceptOffer(r) : v.join(r.channel));
                           } catch (e) {
                             if (context.mounted) toast(context, 'Couldn\'t join: $e', tone: GlacierToastTone.danger);
                           }

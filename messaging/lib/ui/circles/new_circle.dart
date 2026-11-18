@@ -606,6 +606,23 @@ List<CirclePerson> circlePeople(Circle c) {
   return people;
 }
 
+/// What the owner can do with someone in their circle, from its settings or its members drawer: make them an admin,
+/// or take it back.
+void circlePersonMenu(BuildContext context, Circle c, CirclePerson p) {
+  final circles = Circles.instance;
+  showChoices(context, title: '${p.name} · ${p.role}', choices: [
+    p.admin
+        ? Choice('Remove as admin', Lucide.userMinus, () async {
+            final ok = await circles.grantAdmin(c, p.id, on: false);
+            if (context.mounted) toast(context, ok ? '${p.name} is no longer an admin' : 'Couldn\'t change ${p.name}\'s role', tone: ok ? GlacierToastTone.neutral : GlacierToastTone.danger);
+          })
+        : Choice('Make admin', Lucide.crown, () async {
+            final ok = await circles.grantAdmin(c, p.id);
+            if (context.mounted) toast(context, ok ? '${p.name} is an admin' : 'Couldn\'t change ${p.name}\'s role', tone: ok ? GlacierToastTone.neutral : GlacierToastTone.danger);
+          }, hint: 'Can change the circle and its spaces'),
+  ]);
+}
+
 /// A person's role in a circle as a small tag, the owner's and admins' filled; a green dot before it while they are on.
 class CircleRoleTag extends StatelessWidget {
   const CircleRoleTag({super.key, required this.person});
@@ -756,20 +773,7 @@ class _CircleSettingsScreenState extends State<CircleSettingsScreen> {
     );
   }
 
-  void _person(BuildContext context, Circle c, CirclePerson p) {
-    final circles = Circles.instance;
-    showChoices(context, title: '${p.name} · ${p.role}', choices: [
-      p.admin
-          ? Choice('Remove as admin', Lucide.userMinus, () async {
-              final ok = await circles.grantAdmin(c, p.id, on: false);
-              if (context.mounted) toast(context, ok ? '${p.name} is no longer an admin' : 'Couldn\'t change ${p.name}\'s role', tone: ok ? GlacierToastTone.neutral : GlacierToastTone.danger);
-            })
-          : Choice('Make admin', Lucide.crown, () async {
-              final ok = await circles.grantAdmin(c, p.id);
-              if (context.mounted) toast(context, ok ? '${p.name} is an admin' : 'Couldn\'t change ${p.name}\'s role', tone: ok ? GlacierToastTone.neutral : GlacierToastTone.danger);
-            }, hint: 'Can change the circle and its spaces'),
-    ]);
-  }
+  void _person(BuildContext context, Circle c, CirclePerson p) => circlePersonMenu(context, c, p);
 
   void _leave(BuildContext context, Circle c) {
     showChoices(context, title: 'Leave ${c.name}? It goes from your list; its link brings you back.', choices: [

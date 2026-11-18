@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
+import 'channels.dart' show AppHangoutStore;
 import 'roles.dart';
 import 'voice.dart';
 
@@ -30,6 +31,7 @@ class HangoutRoom extends ChangeNotifier {
     roster = this.store.roster(channel.chatRoom) ?? Roster.first(channel.owner, kind: channel.kind);
     if (roster.owner != channel.owner) roster = Roster.first(channel.owner, kind: channel.kind);
     messages = this.store.messages(channel.chatRoom);
+    _loadAbout();
   }
 
   static const keep = 300;
@@ -73,7 +75,7 @@ class HangoutRoom extends ChangeNotifier {
       present[id] = present[id] ?? HangoutPerson(id);
     }
     _hi();
-    _say({'t': 'sync?', 'since': messages.isEmpty ? 0 : messages.last.at, 'v': roster.version});
+    _say({'t': 'sync?', 'since': messages.isEmpty ? 0 : messages.last.at, 'v': roster.version, 'av': _about?.version ?? 0});
     notifyListeners();
   }
 
@@ -126,7 +128,10 @@ class HangoutRoom extends ChangeNotifier {
     final have = {for (final m in messages) m.id};
     final more = [for (final m in fresh) if (have.add(m.id)) m];
     if (more.isEmpty) return;
-    messages = [...messages, ...more]..sort((a, b) => a.at.compareTo(b.at));
+    // By when they were written, and two written in the same millisecond by id: each device kept those in the order it
+    // happened to hear them, so the writer saw its own first and everyone else the other's (hangout_test's chat case
+    // caught the two devices disagreeing).
+    messages = [...messages, ...more]..sort((a, b) => a.at != b.at ? a.at.compareTo(b.at) : a.id.compareTo(b.id));
     if (messages.length > keep) messages = messages.sublist(messages.length - keep);
     store.keepMessages(channel.chatRoom, messages);
     notifyListeners();
@@ -271,11 +276,101 @@ class HangoutRoom extends ChangeNotifier {
   void _take(Roster r) {
     roster = r;
     store.keepRoster(channel.chatRoom, r);
+    // A description by someone this roster no longer makes owner or admin goes from under the name: it stayed there
+    // on every device after its writer was demoted (Matt, 2026-11-17: "Finish the missing pieces that went
+    // unfinished"). It waits, in case they are made one again.
+    final shown = _about;
+    if (shown != null && !shown.trustedFor(channel.chatRoom, r)) {
+      _about = null;
+      if (shown.version > (_waitingAbout?.version ?? 0)) _waitingAbout = shown;
+    }
+    // An about signed by an admin can come before the roster that makes them one: tried again now.
+    final waiting = _waitingAbout;
+    if (waiting != null && waiting.trustedFor(channel.chatRoom, r)) {
+      _waitingAbout = null;
+      _takeAbout(waiting);
+    }
     if (r.banned.contains(me)) {
       putOut = 'You were banned from this space.';
     }
     onRoster?.call(r);
     notifyListeners();
+  }
+
+  // --- the description ---------------------------------------------------------------------------------------------
+
+  /// What the space is for, as its owner or an admin wrote it, shown under its name in the header (Matt, 2026-11-17:
+  /// "make the text header for spaces show the icon and the name and an area for a description of the channel").
+  /// Null where no one has written one, or it was cleared.
+  String? get about => (_about?.text ?? '').isEmpty ? null : _about!.text;
+
+  SpaceAbout? _about;
+
+  /// The newest about heard that the roster doesn't yet trust (its admin's roster not here yet).
+  SpaceAbout? _waitingAbout;
+
+  /// Writes [text] as the space's description, for everyone in it; false where this install may not (only the owner
+  /// and admins, as with the roster).
+  Future<bool> setAbout(String text) async {
+    final s = signer;
+    if (s == null || !canManage) return false;
+    final words = text.trim();
+    final next = await SpaceAbout.sign(channel.chatRoom, words.length > SpaceAbout.most ? words.substring(0, SpaceAbout.most) : words, (_about?.version ?? 0) + 1, me, s.publicKey, s.sign);
+    if (!next.trustedFor(channel.chatRoom, roster)) return false;
+    _takeAbout(next);
+    _say({'t': 'about', 'a': next.toJson()});
+    return true;
+  }
+
+  void _heardAbout(Object? j) {
+    final a = SpaceAbout.fromJson(j);
+    if (a == null) return;
+    // Two admins writing the same version at once: the one whose signature sorts last, on every device alike, rather
+    // than whichever each heard first.
+    final cur = _about;
+    if (cur == null ? a.version <= 0 : (a.version < cur.version || (a.version == cur.version && a.sig.compareTo(cur.sig) <= 0))) return;
+    if (a.trustedFor(channel.chatRoom, roster)) {
+      _takeAbout(a);
+    } else if (a.version > (_waitingAbout?.version ?? 0)) {
+      _waitingAbout = a;
+    }
+  }
+
+  void _takeAbout(SpaceAbout a) {
+    _about = a;
+    if (_waitingAbout != null && _waitingAbout!.version <= a.version) _waitingAbout = null;
+    _keepAbout(a);
+    notifyListeners();
+  }
+
+  /// The about is kept beside the roster, but not in it: an older build rebuilds a roster's signed bytes from the
+  /// fields it knows, so a new field there would have 0.9.2 refuse every roster. The app's store has no slot for it,
+  /// so it goes under a key of its own in the same choices (`hangout_<room>_about`), which keep any key.
+  static String _aboutKey(String room) => 'hangout_${room}_about';
+
+  void _keepAbout(SpaceAbout a) {
+    final s = store, words = jsonEncode(a.toJson());
+    if (s is HangoutAboutStore) {
+      (s as HangoutAboutStore).keepAbout(channel.chatRoom, words);
+    } else if (s is AppHangoutStore) {
+      s.app.set(_aboutKey(channel.chatRoom), words);
+    }
+  }
+
+  void _loadAbout() {
+    final s = store;
+    String? words;
+    if (s is HangoutAboutStore) {
+      words = (s as HangoutAboutStore).aboutOf(channel.chatRoom);
+    } else if (s is AppHangoutStore) {
+      words = s.app.choice(_aboutKey(channel.chatRoom), '');
+    }
+    if (words == null || words.isEmpty) return;
+    try {
+      final a = SpaceAbout.fromJson(jsonDecode(words));
+      if (a == null) return;
+      a.trustedFor(channel.chatRoom, roster) ? _about = a : _waitingAbout = a;
+    } catch (_) {}
   }
 
   // --- the room ------------------------------------------------------------------------------------------------------
@@ -295,7 +390,7 @@ class HangoutRoom extends ChangeNotifier {
         present[id] = HangoutPerson(id);
       }
       _hi();
-      _say({'t': 'sync?', 'since': messages.isEmpty ? 0 : messages.last.at, 'v': roster.version});
+      _say({'t': 'sync?', 'since': messages.isEmpty ? 0 : messages.last.at, 'v': roster.version, 'av': _about?.version ?? 0});
     } else if (e.came != null) {
       present[e.came!] = HangoutPerson(e.came!);
       // Who is here and what they call themselves, for the newcomer.
@@ -358,6 +453,10 @@ class HangoutRoom extends ChangeNotifier {
           if (missed.isNotEmpty) _say({'t': 'hist', 'to': from, 'm': [for (final x in missed.take(keep)) x.toJson()..['f'] = x.from]});
         }
         if (roster.sig != null && (m['v'] is! int || roster.version > (m['v'] as int))) _say({'t': 'roster', 'to': from, 'r': roster.toJson()});
+        // The description the same way, after the roster that trusts its writer. An older build's sync? has no `av`
+        // and gets it anyway; it has no case for `about` and passes over it (this switch has no default).
+        final a = _about;
+        if (a != null && (m['av'] is! int || a.version > (m['av'] as int))) _say({'t': 'about', 'to': from, 'a': a.toJson()});
       case 'hist':
         _add([
           for (final j in (m['m'] as List? ?? const []))
@@ -366,6 +465,8 @@ class HangoutRoom extends ChangeNotifier {
       case 'roster':
         final r = Roster.fromJson(m['r']);
         if (r != null && r.version > roster.version && r.trustedFor(channel.owner)) _take(r);
+      case 'about':
+        _heardAbout(m['a']);
       case 'mute':
         if (roster.can(from, Perm.muteOthers) && roster.outranks(from, '${m['who']}')) _applyMute('${m['who']}', m['on'] == true);
       case 'kick':
@@ -422,6 +523,63 @@ class HangoutMessage {
   Map<String, Object> toStored() => {...toJson(), 'f': from};
 }
 
+/// A space's description: its words, numbered and signed by the owner or an admin, as the roster is but apart from it
+/// ([HangoutRoom.about]). On the wire, in the space's chat room: `{t: about, a: {d, v, by, k, s}}`.
+@immutable
+class SpaceAbout {
+  const SpaceAbout({required this.text, required this.version, required this.by, required this.byKey, required this.sig});
+
+  /// Up to this many characters.
+  static const most = 300;
+
+  final String text;
+  final int version;
+
+  /// Who signed it: their id on the hub, their public key (hex), their signature (hex) over [signedBytes].
+  final String by;
+  final String byKey;
+  final String sig;
+
+  /// The bytes signed: domain-separated, and naming the space's chat room so an about can't be carried to another.
+  static List<int> signedBytes(String room, String text, int version, String by, String byKey) =>
+      utf8.encode('ghost-hangout about|${jsonEncode({'c': room, 'd': text, 'v': version, 'by': by, 'k': byKey})}');
+
+  static Future<SpaceAbout> sign(String room, String text, int version, String by, Uint8List publicKey, Future<Uint8List> Function(List<int>) sign) async {
+    final key = NetCrypto.hex(publicKey);
+    final s = await sign(signedBytes(room, text, version, by, key));
+    return SpaceAbout(text: text, version: version, by: by, byKey: key, sig: NetCrypto.hex(s));
+  }
+
+  Map<String, Object> toJson() => {'d': text, 'v': version, 'by': by, 'k': byKey, 's': sig};
+
+  static SpaceAbout? fromJson(Object? j) {
+    if (j is! Map || j['d'] is! String || j['v'] is! int || j['by'] is! String || j['k'] is! String || j['s'] is! String) return null;
+    if ((j['d'] as String).length > most || (j['v'] as int) < 1) return null;
+    return SpaceAbout(text: j['d'] as String, version: j['v'] as int, by: j['by'] as String, byKey: j['k'] as String, sig: j['s'] as String);
+  }
+
+  /// Whether to believe it in the space whose chat room is [room], by [roster]: signed by the key it names, and that
+  /// key the owner's or an admin's the owner made (Roster.canManage, which checks the owner's grant).
+  bool trustedFor(String room, Roster roster) {
+    if (!roster.hasOwner) return false;
+    try {
+      final k = NetCrypto.unhex(byKey);
+      if (NetCrypto.idOf(k) != by) return false;
+      if (!NetCrypto.verify(k, signedBytes(room, text, version, by, byKey), NetCrypto.unhex(sig))) return false;
+    } catch (_) {
+      return false;
+    }
+    return roster.canManage(by);
+  }
+}
+
+/// A store that keeps a space's description too ([SpaceAbout] as JSON). The app's store ([AppHangoutStore]) does it
+/// under a key of its own instead, until it takes this on.
+abstract class HangoutAboutStore {
+  String? aboutOf(String room);
+  void keepAbout(String room, String about);
+}
+
 /// Where a device keeps a hangout's chat and roster between visits.
 abstract class HangoutStore {
   List<HangoutMessage> messages(String room);
@@ -430,9 +588,14 @@ abstract class HangoutStore {
   void keepRoster(String room, Roster roster);
 }
 
-class MemoryHangoutStore implements HangoutStore {
+class MemoryHangoutStore implements HangoutStore, HangoutAboutStore {
   final Map<String, List<HangoutMessage>> _messages = {};
   final Map<String, Roster> _rosters = {};
+  final Map<String, String> _abouts = {};
+  @override
+  String? aboutOf(String room) => _abouts[room];
+  @override
+  void keepAbout(String room, String about) => _abouts[room] = about;
   @override
   List<HangoutMessage> messages(String room) => _messages[room] ?? const [];
   @override
