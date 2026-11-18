@@ -1022,6 +1022,16 @@ class Sms {
   /// Gives the conversation a name on this phone, or takes it away with an empty one: a group's.
   Future<void> setThreadName(int thread, String name) => _calls.invokeMethod('threadName', {'thread': thread, 'name': name});
 
+  /// Whether [thread] is an RCS group Google Messages knows: its name is then everyone's, renamed through Google
+  /// Messages (GmWeb.renameGroup). False anywhere else, and where nothing answers.
+  Future<bool> isRcsGroup(int thread) async {
+    try {
+      return await _calls.invokeMethod<bool>('rcsGroup', {'thread': thread}) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> threadFlag(String name, int thread, bool on) => _calls.invokeMethod('threadFlag', {'name': name, 'thread': thread, 'on': on});
   Future<String?> draft(int thread) => _calls.invokeMethod<String>('draft', {'thread': thread});
   Future<void> setDraft(int thread, String text) => _calls.invokeMethod('setDraft', {'thread': thread, 'text': text});
