@@ -43,7 +43,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     stages with their times to `signal.log` beside its store and to standard error, which the app now passes to the
     Developer log (its own lines and signalmeow's warnings only; no message's words). Why Signal itself is slow to
     take a message is not known yet: the next stuck send says where in that log.
-- **Files-space videos stream as they play** (not released; `lib/files/file_stream.dart`; Matt, 2026-11-18: "do we need to
+- **Files-space videos stream as they play** (0.9.10; `lib/files/file_stream.dart`; Matt, 2026-11-18: "do we need to
   download the whole file to play? would it be possible to setup streaming and buffering of the file?", then "yes build
   it"). A video or audio file in a Files space plays from a server on the device (127.0.0.1, a random port, a 128-bit
   token in the address) that answers byte ranges by fetching only the sealed chunks needed, decrypting and checking each
