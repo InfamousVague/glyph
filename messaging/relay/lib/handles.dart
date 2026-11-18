@@ -422,54 +422,16 @@ class Handles {
         case 'text':
           // A code, texted to a number by the service (texts.dart). Nothing is linked yet.
           if (network != 'phone') return err('Only a phone number is linked by a text.');
-          final texts = _texts;
-          if (texts == null) return err('Verifying a number by text is not set up on this server yet.');
           final number = said['handle'] is String ? tidyNumber(said['handle'] as String) : '';
-          if (!wellFormed('phone', number)) return err('That does not look like a phone number. Write it with its country code, like +1 555 010 0199.');
-          if (!config.textTo.any(number.startsWith)) return err('Numbers in that country cannot be verified yet.');
-          final k = keyOf('phone', number);
-          final now = _now();
-          sweep();
-          if (!_room(_textedBy[id], now, textsAnHour, textsADay)) return err('You have asked for a few codes already. Try again in an hour.');
-          if (!_room(_textedTo[k], now, textsAnHour, textsADay)) return err('That number has been sent a few codes already. Try again in an hour.');
-          if (!_room(_textedAll, now, config.textsADay, config.textsADay)) return err('No more codes can be sent today. Try again tomorrow.');
-          // Counted before it is sent: one that fails is still one asked of the service.
-          (_textedBy[id] ??= []).add(now);
-          (_textedTo[k] ??= []).add(now);
-          _textedAll.add(now);
-          switch (await texts.send(number)) {
-            case Texted.sent:
-              (_codeFor[k] ??= {})[id] = now;
-              _say('${id.substring(0, 6)} was texted a code');
-              tell({'dir': 'text', 'p': 'phone', 'handle': number});
-            case Texted.cannot:
-              err('That number cannot be sent a text. Check it is a mobile number, with its country code.');
-            case Texted.tooOften:
-              err('That number has been sent a few codes already. Try again in ten minutes.');
-            case Texted.down:
-              _say('the text service did not send');
-              err('The code could not be sent just now. Try again in a while.');
-          }
+          final problem = await sendCode(id, number);
+          if (problem != null) return err(problem);
+          tell({'dir': 'text', 'p': 'phone', 'handle': number});
         case 'code':
           // The code that reached the number, come back: the service says whether it is the one it sent.
           if (network != 'phone') return err('Only a phone number is linked by a text.');
-          final texts = _texts;
-          if (texts == null) return err('Verifying a number by text is not set up on this server yet.');
           final number = said['handle'] is String ? tidyNumber(said['handle'] as String) : '';
-          final code = said['code'] is String ? (said['code'] as String).replaceAll(RegExp(r'[\s-]'), '') : '';
-          if (!wellFormed('phone', number) || !RegExp(r'^[0-9]{4,10}$').hasMatch(code)) return err('That does not look like the code. It is the digits in the text.');
-          final k = keyOf('phone', number);
-          final now = _now();
-          // Only an install the code was sent for may try it: nobody else's guesses are passed on.
-          final asked = _codeFor[k]?[id];
-          if (asked == null || now.difference(asked) > codeLife) return err('Ask for a code first. One lasts ten minutes.');
-          if (!_room(_tried[id], now, triesAnHour, triesAnHour * 3)) return err('Too many tries. Ask for a new code in an hour.');
-          (_tried[id] ??= []).add(now);
-          final right = await texts.check(number, code);
-          if (right == null) return err('The code could not be checked just now. Try again.');
-          if (!right) return err('That is not the code. Look at the text again, or ask for a new one.');
-          _codeFor[k]?.remove(id);
-          if (_codeFor[k]?.isEmpty ?? false) _codeFor.remove(k);
+          final problem = await checkCode(id, number, said['code']);
+          if (problem != null) return err(problem);
           _link(id, 'phone', number, number);
         case 'proof':
         case 'check':
@@ -552,6 +514,63 @@ class Handles {
       _say('error in ${said['dir']}: ${e.runtimeType}');
     }
   }
+
+  /// Texts [number] (tidied) a code for [id], within every limit on texts; null once sent, else why not, in words to
+  /// show. What linking a number says (`text`), and what signing in to an account whose number is verified says
+  /// (accounts.dart), so both are held to the same limits.
+  Future<String?> sendCode(String id, String number) async {
+    final texts = _texts;
+    if (texts == null) return 'Verifying a number by text is not set up on this server yet.';
+    if (!wellFormed('phone', number)) return 'That does not look like a phone number. Write it with its country code, like +1 555 010 0199.';
+    if (!config.textTo.any(number.startsWith)) return 'Numbers in that country cannot be verified yet.';
+    final k = keyOf('phone', number);
+    final now = _now();
+    sweep();
+    if (!_room(_textedBy[id], now, textsAnHour, textsADay)) return 'You have asked for a few codes already. Try again in an hour.';
+    if (!_room(_textedTo[k], now, textsAnHour, textsADay)) return 'That number has been sent a few codes already. Try again in an hour.';
+    if (!_room(_textedAll, now, config.textsADay, config.textsADay)) return 'No more codes can be sent today. Try again tomorrow.';
+    // Counted before it is sent: one that fails is still one asked of the service.
+    (_textedBy[id] ??= []).add(now);
+    (_textedTo[k] ??= []).add(now);
+    _textedAll.add(now);
+    switch (await texts.send(number)) {
+      case Texted.sent:
+        (_codeFor[k] ??= {})[id] = now;
+        _say('${id.substring(0, 6)} was texted a code');
+        return null;
+      case Texted.cannot:
+        return 'That number cannot be sent a text. Check it is a mobile number, with its country code.';
+      case Texted.tooOften:
+        return 'That number has been sent a few codes already. Try again in ten minutes.';
+      case Texted.down:
+        _say('the text service did not send');
+        return 'The code could not be sent just now. Try again in a while.';
+    }
+  }
+
+  /// Whether [code] is the one texted to [number] for [id] ([sendCode]): null where the service says it is, else why
+  /// not. Only an install a code was sent for may try one, a few times an hour.
+  Future<String?> checkCode(String id, String number, Object? code) async {
+    final texts = _texts;
+    if (texts == null) return 'Verifying a number by text is not set up on this server yet.';
+    final typed = code is String ? code.replaceAll(RegExp(r'[\s-]'), '') : '';
+    if (!wellFormed('phone', number) || !RegExp(r'^[0-9]{4,10}$').hasMatch(typed)) return 'That does not look like the code. It is the digits in the text.';
+    final k = keyOf('phone', number);
+    final now = _now();
+    final asked = _codeFor[k]?[id];
+    if (asked == null || now.difference(asked) > codeLife) return 'Ask for a code first. One lasts ten minutes.';
+    if (!_room(_tried[id], now, triesAnHour, triesAnHour * 3)) return 'Too many tries. Ask for a new code in an hour.';
+    (_tried[id] ??= []).add(now);
+    final right = await texts.check(number, typed);
+    if (right == null) return 'The code could not be checked just now. Try again.';
+    if (!right) return 'That is not the code. Look at the text again, or ask for a new one.';
+    _codeFor[k]?.remove(id);
+    if (_codeFor[k]?.isEmpty ?? false) _codeFor.remove(k);
+    return null;
+  }
+
+  /// The install that holds [name] as its username, or null (accounts.dart: signing in by username).
+  String? holderOf(String name) => goodName(name) ? (_names[nameKey(name)]?['id']) : null;
 
   Iterable<String> _listedHolders(String k) sync* {
     for (final e in _links.entries) {

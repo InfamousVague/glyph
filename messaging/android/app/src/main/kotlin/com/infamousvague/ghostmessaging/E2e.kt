@@ -90,6 +90,48 @@ object E2e {
 
     fun hasIdentity(context: Context) = prefs(context).contains("identity")
 
+    /**
+     * This phone's private key as its 32 bytes, for a Ghost account's sealed backup (lib/account in the app; Matt,
+     * 2026-11-17: "We need to have a way to login to existing accounts"): an account made on a phone that had its own key
+     * keeps that key, and a new device signing in gets it back. It goes from here only to be sealed by the app.
+     */
+    fun exportScalar(context: Context): ByteArray {
+        val d = (identity(context).first as java.security.interfaces.ECPrivateKey).s
+        val raw = d.toByteArray()
+        val out = ByteArray(32)
+        val from = maxOf(0, raw.size - 32)
+        System.arraycopy(raw, from, out, 32 - (raw.size - from), raw.size - from)
+        return out
+    }
+
+    /**
+     * Makes [scalar] (its public key [public], 33 bytes, worked out by the app) this phone's key: a device signing in to
+     * an account. As [reset] does, every conversation's encryption ends, since the people in them hold the old key; the
+     * app restarts straight after so nothing goes on as the old one.
+     */
+    @Synchronized
+    fun importScalar(context: Context, scalar: ByteArray, public: ByteArray) {
+        require(scalar.size == 32 && public.size == 33) { "not a key" }
+        val params = E2eCrypto.curve
+        val d = java.math.BigInteger(1, scalar)
+        require(d.signum() > 0 && d < params.order) { "not a key" }
+        val secret = java.security.KeyFactory.getInstance("EC").generatePrivate(java.security.spec.ECPrivateKeySpec(d, params))
+        // The two have to be one pair before anything is reset: a signature by the one that the other checks. Else the
+        // phone would lose its key for one that is no use (or that others know by another public key).
+        val publicKey = E2eCrypto.publicFrom(public) ?: throw IllegalArgumentException("not a key")
+        val probe = "ghost identity import check".toByteArray()
+        val sig = java.security.Signature.getInstance("SHA256withECDSA").apply { initSign(secret); update(probe) }.sign()
+        require(java.security.Signature.getInstance("SHA256withECDSA").apply { initVerify(publicKey); update(probe) }.verify(sig)) { "not a pair" }
+        reset(context)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, wrapKey())
+        val sealed = cipher.iv + cipher.doFinal(secret.encoded)
+        // commit, not apply: the app is restarted right after, and the key must be on the disk by then.
+        prefs(context).edit().putString("identity", Base64.getEncoder().encodeToString(sealed)).putString("identity_pub", Base64.getEncoder().encodeToString(public)).commit()
+            .also { check(it) { "the key could not be written" } }
+        identity = null
+    }
+
     fun myFingerprint(context: Context): String = E2eCrypto.fingerprint(identity(context).second)
 
     // --- the people ----------------------------------------------------------------------------------------------------

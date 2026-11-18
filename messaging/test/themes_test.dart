@@ -52,6 +52,7 @@ import 'package:ghost_messaging/voice/roles.dart';
 import 'package:ghost_messaging/voice/voice.dart';
 import 'package:glacier/glacier.dart';
 
+import 'account_shots.dart';
 import 'circle_sample.dart';
 import 'files_shots.dart';
 import 'files_share_in_shots.dart';
@@ -517,6 +518,9 @@ final themeScreens = <ThemeScreen>[
   // ghost"): All with the friends first under their heading and the Friends chip among the filters, then that chip on.
   ThemeScreen('contacts', () => const ContactsScreen(), before: _twoFriends, after: _noFriends),
   ThemeScreen('contacts-friends', () => const ContactsScreen(), before: _twoFriends, after: _noFriends, choices: (_) => _tapFriendsChipSoon()),
+  // A Ghost account (test/account_shots.dart; Matt, 2026-11-17: "We need to have a way to login to existing accounts"):
+  // making one, its recovery words, signing in each way, and the devices signed in.
+  ...accountThemeScreens,
 ];
 
 /// Theo and Sam, friends on Ghost Messaging; the phone's contacts name them ('searchContacts' in [_answerChannel]).
