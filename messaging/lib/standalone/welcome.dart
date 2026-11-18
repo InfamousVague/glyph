@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/services.dart' show TextCapitalization;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -100,7 +102,10 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
               Text('Ghost Messaging', style: pageText(t, t.fontSize('2xl'), weight: 'bold', color: t.color('app-ink'), height: 1.2)),
               SizedBox(height: t.space(3)),
               Text(
-                'Message and call your friends by username, sealed so only the two of you can read it. An iPhone keeps texts to Apple\'s Messages, so here it is friends, groups and calls over the internet.',
+                // A computer with no phone linked starts here too (lib/desktop/main.dart): its texts are a later, optional step.
+                Platform.isIOS
+                    ? 'Message and call your friends by username, sealed so only the two of you can read it. An iPhone keeps texts to Apple\'s Messages, so here it is friends, groups and calls over the internet.'
+                    : 'Message and call your friends by username, join circles, and bring in Telegram and Signal, sealed so only you and the people you talk to can read it. No phone needed: texts from an Android phone can be linked next, or any time in Settings.',
                 style: pageText(t, t.fontSize('md'), color: t.color('app-ink-2'), height: 1.45),
               ),
               SizedBox(height: t.space(8)),

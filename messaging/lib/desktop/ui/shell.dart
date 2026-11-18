@@ -11,7 +11,7 @@ import '../desk.dart';
 import 'desk_settings.dart';
 import 'wizard.dart';
 
-/// The Mac once a phone is paired: the app's one frame (lib/ui/shell.dart), as the phone has it, with what is the
+/// The Mac's frame, with a phone paired or on its own: the app's one frame (lib/ui/shell.dart), as the phone has it, with what is the
 /// Mac's own handed to it. Matt, 2026-11-14: "Unify the UI experience to match on desktop and mac as well the
 /// desktop app should get all featues its missing from mobile and thr mobile app should gain the nav from desktop".
 ///
@@ -64,7 +64,8 @@ class _DeskShellState extends State<DeskShell> {
     return ListenableBuilder(
       listenable: scope.link,
       builder: (context, _) => AppShell(
-        status: scope.link.via != null ? null : LinkStatus(link: scope.link, waiting: scope.calls.waiting),
+        // With no phone linked there is nothing to be connected to (lib/desktop/main.dart).
+        status: scope.link.via != null || scope.link.phone == null ? null : LinkStatus(link: scope.link, waiting: scope.calls.waiting),
         nothing: (context) => const _Nothing(),
         // Each page that opens in the pane asks for a look for a newer version, as on the phone.
         paneObservers: _observers,

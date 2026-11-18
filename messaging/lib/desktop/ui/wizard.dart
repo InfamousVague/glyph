@@ -22,7 +22,12 @@ import '../../kit/semantic_colors.dart';
 /// option for both in the setup wizard"): how to connect, the code for the phone to scan, the six digits to compare.
 /// What it drives is [PhoneLink]; the phone's half of it is lib/ui/computers.dart.
 class PairWizard extends StatefulWidget {
-  const PairWizard({super.key});
+  const PairWizard({super.key, this.skipLabel, this.onSkip});
+
+  /// A way past linking a phone, which is never required (Matt, 2026-11-18: "make setting up SMS and such and linking
+  /// to a phone an optional step"): "Not now", or "Use without a phone". None where not given.
+  final String? skipLabel;
+  final VoidCallback? onSkip;
 
   @override
   State<PairWizard> createState() => _PairWizardState();
@@ -146,7 +151,7 @@ class _PairWizardState extends State<PairWizard> {
   List<Widget> _choose(Tokens t) {
     final relay = _relay.text.trim();
     return [
-      _title(t, 'Your texts, on your $computerWord', 'Pair this $computerWord with Ghost Messaging on your phone. The phone stays the only thing that sends and receives texts; the $computerWord shows your conversations and sends through it. Everything between the two is sealed with a key only they hold.', mark: true),
+      _title(t, 'Your texts, on your $computerWord', 'Pair this $computerWord with Ghost Messaging on your Android phone to text from it. The phone stays the only thing that sends and receives texts; the $computerWord shows your conversations and sends through it. Everything between the two is sealed with a key only they hold. Friends, circles, Telegram and Signal work without it.', mark: true),
       ConnectionChoice(
         value: relay.isEmpty ? 'local' : _mode,
         onChanged: (m) => setState(() => _mode = m),
@@ -172,6 +177,7 @@ class _PairWizardState extends State<PairWizard> {
         ),
       ]),
       PairButton(label: 'Show the pairing code', icon: LucideMore.qrCode, onPressed: _show),
+      if (widget.onSkip != null) PairButton(label: widget.skipLabel ?? 'Not now', icon: Lucide.arrowRight, quiet: true, onPressed: widget.onSkip),
     ];
   }
 

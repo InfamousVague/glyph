@@ -13,8 +13,11 @@ const defaultRelay = 'wss://gogho.st/relay';
 /// The Mac app's own parts, handed down to its screens: the link to the phone, what answers the phone's screens,
 /// and what is kept on this Mac.
 class DeskScope extends InheritedWidget {
-  const DeskScope({super.key, required this.link, required this.calls, required this.store, this.envPeers = const [], this.updates, required super.child});
+  const DeskScope({super.key, required this.link, required this.calls, required this.store, this.envPeers = const [], this.updates, this.relaunch, required super.child});
   final PhoneLink link;
+
+  /// What opens the app again in place of restarting it (restartApp), for a test.
+  final Future<void> Function()? relaunch;
   final LinkCalls calls;
   final DeskStore store;
 
@@ -46,4 +49,19 @@ Future<bool> relayAnswers(String relay) async {
   } finally {
     client.close(force: true);
   }
+}
+
+/// Opens this app afresh and closes this copy: how a computer moves between using no phone and using a linked one,
+/// since what answers the screens is chosen as it starts (lib/desktop/main.dart). A test passes [relaunch].
+Future<void> restartApp({Future<void> Function()? relaunch}) async {
+  if (relaunch != null) return relaunch();
+  final exe = Platform.resolvedExecutable;
+  if (Platform.isMacOS) {
+    // The .app the running binary is inside, opened as a new copy.
+    final at = exe.indexOf('.app/');
+    if (at > 0) await Process.start('open', ['-n', exe.substring(0, at + 4)], mode: ProcessStartMode.detached);
+  } else {
+    await Process.start(exe, const [], mode: ProcessStartMode.detached);
+  }
+  exit(0);
 }
