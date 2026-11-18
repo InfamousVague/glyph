@@ -357,7 +357,10 @@ void main() {
         [d.maxFile, d.spaceQuota, d.total, d.maxBody, d.maxOp, d.maxOps, d.maxLogBytes, d.spacesPerAddress, d.promisedPerAddress]);
     expect(d.maxLogBytes, 16 << 20);
     expect(d.spacesPerAddress, 20);
-    expect(d.promisedPerAddress, 4 << 30);
+    // Raised with the 50 GB file limit (Matt, 2026-11-17: "Bump the upload limit to 50GB").
+    expect(d.maxFile, greaterThanOrEqualTo(50000000000));
+    expect(d.promisedPerAddress, greaterThanOrEqualTo(d.maxFile));
+    expect(d.spaceQuota, greaterThanOrEqualTo(d.maxFile));
     final env = {for (var i = 0; i < FilesConfig.names.length; i++) FilesConfig.names[i]: '${1000 + i}'};
     final c = FilesConfig.fromEnvironment(env);
     expect([c.maxFile, c.spaceQuota, c.total, c.spacesPerId, c.idleDays, c.writesPerMinute, c.maxBody, c.maxOp, c.maxOps, c.maxLogBytes, c.maxBlobs, c.maxSpaces, c.partHours, c.spacesPerAddress, c.promisedPerAddress],
