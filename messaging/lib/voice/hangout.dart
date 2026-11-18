@@ -70,7 +70,14 @@ class HangoutRoom extends ChangeNotifier {
     putOut = roster.banned.contains(me) ? 'You were banned from this space.' : null;
     _subs.add(route.packets.where((p) => p.room == channel.chatRoom).listen((p) => _heard(p.from, p.bytes)));
     _subs.add(route.events.where((e) => e.room == channel.chatRoom).listen(_event));
-    final there = await route.join(channel.chatRoom, channel.chatToken);
+    final List<String> there;
+    try {
+      there = await route.join(channel.chatRoom, channel.chatToken);
+    } catch (_) {
+      // Not in yet (the relay server slow to answer): in as soon as it is, when [_event] hears who is here.
+      _dropped = true;
+      return;
+    }
     for (final id in there) {
       present[id] = present[id] ?? HangoutPerson(id);
     }
@@ -383,7 +390,8 @@ class HangoutRoom extends ChangeNotifier {
       _dropped = true;
       present.clear();
     } else if (e.members != null && _dropped) {
-      // Back in after the relay dropped and came back: who is here now, and what was said meanwhile.
+      // Back in after the relay dropped and came back, or in at last after an answer that came late: who is here now,
+      // and what was said meanwhile.
       _dropped = false;
       present.clear();
       for (final id in e.members!) {

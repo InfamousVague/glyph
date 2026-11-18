@@ -385,14 +385,20 @@ class HubCarrier implements Carrier {
   }
 
   /// Joins a room, giving who is in it. It is joined again by itself after the route is lost and comes back.
+  ///
+  /// Asked before the relay server is connected (a circle's spaces are held as the app starts), the room is joined as
+  /// soon as it is, as every room this install is in is on reconnecting, and this answers then (Matt, 2026-11-18: a
+  /// circle's members' messages seen on no device: each room asked for too early was never joined, so nothing came
+  /// from it and what was written in it went nowhere). Unanswered once connected, it stays asked for, and is asked again
+  /// on the next connection.
   Future<List<String>> join(String room, String token) {
-    final ws = _ws;
-    if (ws == null || !_ready) return Future.error(CarrierError('not connected to the relay server'));
     _joined[room] = token;
-    final done = _joining[room] = Completer<List<String>>();
+    final done = _joining[room] ??= Completer<List<String>>();
+    final ws = _ws;
+    if (ws == null || !_ready) return done.future;
     ws.add(jsonEncode({'join': room, 'token': token}));
     return done.future.timeout(const Duration(seconds: 8), onTimeout: () {
-      _joining.remove(room);
+      if (identical(_joining[room], done)) _joining.remove(room);
       throw CarrierError('the relay server did not answer');
     });
   }

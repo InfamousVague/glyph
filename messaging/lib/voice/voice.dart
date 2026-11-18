@@ -296,7 +296,9 @@ class VoiceSession extends ChangeNotifier {
     if (withVideo) await media.setVideo(true);
     _subs.add(route.packets.where((p) => p.room == channel.room).listen((p) => _heard(p.from, p.bytes)));
     _subs.add(route.events.where((e) => e.room == channel.room).listen(_event));
-    final there = await route.join(channel.room, channel.token);
+    // A call is joined now or said to have failed: a room asked for before the relay server is up waits for it
+    // (HubCarrier.join), and a call should not.
+    final there = await route.join(channel.room, channel.token).timeout(const Duration(seconds: 15), onTimeout: () => throw StateError('the relay server did not answer'));
     joined = true;
     since = DateTime.now();
     Sounds.instance.play(UiSound.hangoutJoin);

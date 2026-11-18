@@ -307,6 +307,40 @@ void main() {
       expect(c.state.value, CarrierState.up, reason: c.problem);
     }
 
+    // Matt, 2026-11-18: a circle's members' messages seen on no device. A space asked for before the relay server was
+    // connected (as the app starts) was never joined: nothing came from it and what was written went nowhere.
+    test('a room asked for before the connection is up is joined once it is, and what is said there comes', () async {
+      final keys = 'ab' * 16, token = 'cd' * 32;
+      final early = HubCarrier(url: url, signer: KeysSigner(NetKeys.generate()), retry: const Duration(hours: 1));
+      final joined = early.join(keys, token);
+      final other = HubCarrier(url: url, signer: KeysSigner(NetKeys.generate()), retry: const Duration(hours: 1));
+      await up(other);
+      await other.join(keys, token);
+      final heard = <List<int>>[];
+      early.roomPackets.listen((p) => heard.add(p.bytes));
+      await up(early);
+      expect(await joined.timeout(const Duration(seconds: 5)), [other.signer.id]);
+      other.sendRoom(keys, Uint8List.fromList([7, 7, 7]));
+      // And what is kept reaches one who comes later.
+      other.sendRoom(keys, Uint8List.fromList([9]), keep: true);
+      for (var i = 0; i < 100 && heard.length < 2; i++) {
+        await _tick(10);
+      }
+      expect(heard, [[7, 7, 7], [9]]);
+      final late = HubCarrier(url: url, signer: KeysSigner(NetKeys.generate()), retry: const Duration(hours: 1));
+      final lateHeard = <List<int>>[];
+      late.roomPackets.listen((p) => lateHeard.add(p.bytes));
+      await up(late);
+      await late.join(keys, token);
+      for (var i = 0; i < 100 && lateHeard.isEmpty; i++) {
+        await _tick(10);
+      }
+      expect(lateHeard, [[9]]);
+      await early.stop();
+      await other.stop();
+      await late.stop();
+    });
+
     // Matt, 2026-11-16: "Yes, fix delivery". Back on the screen after a while, the app makes the connection again
     // rather than trust one the phone may have let die; a short look away leaves it be; one that is down is tried now.
     test('nudged: made again after a long time away, left after a short one, tried at once when down', () async {

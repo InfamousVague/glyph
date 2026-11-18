@@ -817,7 +817,14 @@ class CircleRoom {
     final room = circle.room;
     _subs.add(route.packets.where((p) => p.room == room).listen((p) => _heard(p.from, p.bytes)));
     _subs.add(route.events.where((e) => e.room == room).listen(_event));
-    final there = await route.join(room, circle.token);
+    final List<String> there;
+    try {
+      there = await route.join(room, circle.token);
+    } catch (_) {
+      // Not in yet: in as soon as the relay server answers, when [_event] hears who is here.
+      _dropped = true;
+      return;
+    }
     present.addAll(there);
     _ask();
   }
