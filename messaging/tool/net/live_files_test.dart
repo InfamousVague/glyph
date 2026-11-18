@@ -76,6 +76,8 @@ void main() {
     try {
       await a.open(space);
       await b.open(space);
+      // Files up to 50 GB (Matt, 2026-11-17: "Bump the upload limit to 50GB"), as the deployed relay says.
+      expect(a.of(space).info?.maxFile ?? 0, greaterThanOrEqualTo(50000000000), reason: 'the relay\'s largest file');
       final r = Random(17);
       final data = Uint8List.fromList(List.generate(700 * 1000, (_) => r.nextInt(256)));
       final input = File('${dir.path}/in/live check.bin')

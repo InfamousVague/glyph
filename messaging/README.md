@@ -43,7 +43,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     stages with their times to `signal.log` beside its store and to standard error, which the app now passes to the
     Developer log (its own lines and signalmeow's warnings only; no message's words). Why Signal itself is slow to
     take a message is not known yet: the next stuck send says where in that log.
-- **Ghost accounts: recovery words, an Ethereum-style address, a password and the number** (not released; `lib/account/`,
+- **Ghost accounts: recovery words, an Ethereum-style address, a password and the number** (0.9.4–0.9.5; `lib/account/`,
   `lib/ui/account_screens.dart`, `relay/lib/accounts.dart`; Matt, 2026-11-17: "We need to have a way to login to existing
   accounts. We might need to add password based authentication as well as SMS verification for verified numbers", and
   "i also want accounts to be generated based on ethereum type addresses with a recovery seed we can back up"). Creating
@@ -54,7 +54,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   from the password, 10 tries an hour per account, plus a texted code where the account has a verified number), or the
   recovery words alone. One device at a time for now (signing in moves the account). Tests: account_crypto_test
   (BIP-39/32, EIP-55, HKDF, Argon2id vectors), account_flow_test, relay accounts_test.
-- **Circles grown up: invites, a circle's dock, members, inviting contacts by text** (not released; Matt, 2026-11-17:
+- **Circles grown up: invites, a circle's dock, members, inviting contacts by text** (0.9.4–0.9.5; Matt, 2026-11-17:
   "Finish the missing pieces", then a run of asks the same evening). Circle invites wait for Join (a banner, a card on
   the Circles tab, Not now / Invites); gogho.st/join opens in the Android app (App Links, site/.well-known/assetlinks.json).
   The Circles tab lists only circles. A circle's dock while it is open: Home, Spaces, Members, New space, Settings;
