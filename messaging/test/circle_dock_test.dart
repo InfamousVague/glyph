@@ -129,12 +129,12 @@ void main() {
     await pumpScreen(tester, sheet, const AppShell(), AppState());
     AppShellState.live!.openCircle(_circle);
     await settle(tester);
-    expect(find.byKey(const ValueKey('circle-invite')), findsOneWidget);
+    expect(find.byKey(const ValueKey('circle-invite')), findsNothing, reason: 'Add people is in the Members drawer');
     expect(find.byKey(const ValueKey('circle-header-settings')), findsNothing, reason: 'the dock has Settings');
     expect(find.byKey(const ValueKey('nav-head')), findsNothing, reason: 'no face at the dock\'s head');
     final items = tester.widget<NavPill>(find.byKey(const ValueKey('circle-dock'))).items;
     expect([for (final i in items) i.id].first, CircleDock.home);
-    expect([for (final i in items) i.id], contains(CircleDock.invite));
+    expect([for (final i in items) i.id], isNot(contains(CircleDock.invite)));
   });
 
   testWidgets('from a circle, Home then a ring of the app\'s dock: that place in the main layout, nothing of the circle\'s', (tester) async {

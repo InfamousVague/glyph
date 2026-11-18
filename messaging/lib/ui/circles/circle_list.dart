@@ -72,11 +72,9 @@ class CirclePage extends StatelessWidget {
           ),
         ]),
       ),
-      // Only Add people here: the circle's settings are the dock's (Matt, 2026-11-17: "hide the settings cog that's outside
-      // of the navbar").
-      actions: [
-        IconTap(key: const ValueKey('circle-invite'), icon: Lucide.userPlus, label: 'Invite people', size: 20, onPressed: view.onInvite),
-      ],
+      // Nothing beside the name: the circle's settings are the dock's, and adding people is the Members drawer's (Matt,
+      // 2026-11-18: "remove the add user from the header next to the circle header and in the dock and simply leave it
+      // under the users drawer").
       body: body,
     );
   }
