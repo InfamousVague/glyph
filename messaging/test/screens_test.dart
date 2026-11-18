@@ -59,6 +59,7 @@ import 'package:ghost_messaging/ui/conversations.dart';
 import 'package:ghost_messaging/ui/gm_guide_screen.dart';
 import 'package:ghost_messaging/ui/gm_web_screen.dart';
 import 'package:ghost_messaging/ui/rcs_setup.dart';
+import 'package:ghost_messaging/ui/video_engine.dart';
 import 'package:ghost_messaging/ui/video_screen.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
@@ -958,11 +959,15 @@ void main() {
       expect(find.text('1. Get the app'), findsOneWidget);
       // The app's own video player (lib/ui/video_screen.dart; Matt, 2026-11-15: "id like a video player built with
       // glacier UI right now it looks like a very old android core system player"), the stand-in engine at 0:42 of 2:40.
+      // The stand-in plays through video_player, so the engine is pinned to it: on a computer (this test's host) the app
+      // would pick media_kit (lib/ui/video_engine.dart), which the stand-in doesn't reach.
       VideoPlayerPlatform.instance = FakeVideoPlayer();
+      VideoEngine.make = VideoPlayerEngine.new;
       await _shoot(tester, sheet, const VideoScreen(path: '/tmp/none.mp4', title: 'Maya Chen'), '21-video', dark: dark);
       expect(find.text('2:40'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 4));
+      VideoEngine.make = VideoEngine.defaultEngine;
       _gmWeb = const {'available': true, 'running': true, 'paired': false, 'connected': false};
       // Ghost is the texting app: each page after, in turn.
       _statusSaid = const {'isDefault': true, 'contacts': false, 'notifications': false, 'phone': true};
@@ -2213,7 +2218,9 @@ void main() {
       expect(find.byType(PluginsPage), findsOneWidget, reason: 'the first section is open beside them');
       expect(tester.getRect(find.byType(PluginsPage)).left, greaterThanOrEqualTo(side));
       expect(tester.state<AppShellState>(find.byType(AppShell)).settingsSection.value, 'plugins');
-      expect(seen(icon('Back')), findsNothing);
+      // Beside its page too, Settings has a back arrow by its big title (Matt, 2026-11-18: "add a back arrow to the settings
+      // page"), which takes it away (AppShellState.closeSettings).
+      expect(seen(icon('Back')), findsOneWidget);
       expect(seen(ring('settings')), findsOneWidget, reason: 'the way round is still at the list\'s foot');
       // A press on a section puts its page in the pane, in place of the last.
       await tester.tap(row('Appearance'));
@@ -2223,7 +2230,8 @@ void main() {
       expect(seen(find.text('Lamplight')), findsOneWidget);
       expect(find.byType(SectionPage), findsOneWidget);
       expect(tester.state<AppShellState>(find.byType(AppShell)).settingsSection.value, 'appearance');
-      expect(seen(icon('Back')), findsNothing);
+      // Only Settings' own back arrow, none on the section's page beside it.
+      expect(seen(icon('Back')), findsOneWidget);
       // Folded shut with a section open: its page is over Settings' list, with its way back; back from it is the
       // list of sections, as a phone has it (its own way back, no bar under it); back again, the conversations.
       tester.view.physicalSize = cover;
