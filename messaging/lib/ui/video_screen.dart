@@ -12,6 +12,7 @@ import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
 import '../backgrounds.dart' show strongFill;
 import '../files/file_platform.dart';
+import '../files/file_stream.dart' show StreamedMedia;
 import '../kit/settings_type.dart';
 import 'common.dart';
 import 'dialup/bevel.dart';
@@ -32,14 +33,32 @@ import 'video_engine.dart';
 /// answer the keyboard (space, the arrows, F for full screen, Esc to go back), show a volume slider, and come back as
 /// the mouse moves. A file that can't be played says so and offers the app the device would open it with.
 class VideoScreen extends StatefulWidget {
-  const VideoScreen({super.key, required String this.path, this.title, this.poster, this.desk, this.dropFile = false}) : file = null;
+  const VideoScreen({super.key, required String this.path, this.title, this.poster, this.desk, this.dropFile = false})
+      : file = null,
+        stream = null;
 
   /// Opened at once, while its file is still being made or brought down ([file]): a spinner over [poster] until it is
   /// here (Matt, 2026-11-17: "The app has gotten pretty laggy, especially when opening videos and exiting them").
-  const VideoScreen.coming({super.key, required Future<String?> this.file, this.title, this.poster, this.desk, this.dropFile = false}) : path = null;
+  const VideoScreen.coming({super.key, required Future<String?> this.file, this.title, this.poster, this.desk, this.dropFile = false})
+      : path = null,
+        stream = null;
+
+  /// Played as it comes down (a Files-space file, lib/files/file_stream.dart), not waited for whole (Matt, 2026-11-18:
+  /// "do we need to download the whole file to play? would it be possible to setup streaming and buffering of the
+  /// file?"). Let go when the screen goes; what of it has come stays for next time.
+  const VideoScreen.stream({super.key, required StreamedMedia this.stream, this.title, this.poster, this.desk})
+      : path = null,
+        file = null,
+        dropFile = false;
 
   final String? path;
   final Future<String?>? file;
+  final StreamedMedia? stream;
+
+  /// How long the player has to become ready (and a stream to give its address) before it is taken as one that can't
+  /// be played here: never a spinner for ever (Matt, 2026-11-18, of MKV files: "right now they load forever in the
+  /// app").
+  static Duration openPatience = const Duration(seconds: 20);
 
   /// Who sent it, or the file's name: said at the top.
   final String? title;
@@ -84,6 +103,9 @@ class _VideoScreenState extends State<VideoScreen> {
   double _volume = 1;
   bool _fullscreen = false;
   bool _handedOn = false;
+
+  /// The whole of a streamed file coming down for another app to open: how much is here, 0 to 1; null while it isn't.
+  double? _getting;
   Timer? _hide;
   final _focus = FocusNode(debugLabel: 'video');
 
@@ -96,7 +118,7 @@ class _VideoScreenState extends State<VideoScreen> {
   Timer? _skipShown;
 
   /// What was last drawn of the player, so a change it reports that shows nothing new draws nothing.
-  (bool, bool, int, int, String?)? _shown;
+  (bool, bool, int, int, String?, int, bool)? _shown;
 
   bool get _desk => widget.desk ?? _deskDevice;
   VideoNow get _now => _engine?.value ?? const VideoNow();
@@ -113,7 +135,19 @@ class _VideoScreenState extends State<VideoScreen> {
   /// The player is made once the screen has come in: its making is work on the thread that draws, and the slide-in
   /// would stutter under it. The file is waited for meanwhile, where it is still coming.
   Future<void> _start() async {
-    final path = widget.path ?? await widget.file;
+    final stream = widget.stream;
+    String? path;
+    if (stream != null) {
+      stream.changes.addListener(_streamChanged);
+      try {
+        path = await stream.open().timeout(VideoScreen.openPatience);
+      } catch (e) {
+        if (mounted) _failed('$e', loading: stream.failure ?? (e is TimeoutException ? null : '$e'));
+        return;
+      }
+    } else {
+      path = widget.path ?? await widget.file;
+    }
     if (!mounted) return;
     _path = path;
     if (path == null) {
@@ -135,10 +169,15 @@ class _VideoScreenState extends State<VideoScreen> {
     final engine = VideoEngine.make();
     _engine = engine;
     engine.addListener(_changed);
-    await engine.open(path);
+    try {
+      await engine.open(path).timeout(VideoScreen.openPatience);
+    } on TimeoutException {
+      if (mounted && _problem == null) _failed('it was not ready in ${VideoScreen.openPatience.inSeconds} s', loading: stream?.failure);
+      return;
+    }
     if (!mounted) return;
-    if (engine.value.error != null) {
-      if (_problem == null) _failed(engine.value.error!);
+    if (engine.value.error != null || !engine.value.ready) {
+      if (_problem == null) _failed(engine.value.error ?? 'it did not start', loading: stream?.failure);
       return;
     }
     setState(() {});
@@ -146,14 +185,26 @@ class _VideoScreenState extends State<VideoScreen> {
     _soon();
   }
 
-  /// Can't be played: said plainly, with the engine's own words kept for the log only.
-  void _failed(String why) {
-    debugPrint('video: $why');
+  /// Can't be played: said plainly, with the engine's own words kept for the log only. [loading] is why a streamed
+  /// file stopped coming (the relay away, a chunk that didn't open), said where that is the reason.
+  void _failed(String why, {String? loading}) {
+    debugPrint('video: $why${loading == null ? '' : ' ($loading)'}');
     setState(() {
-      _problem = 'This video can\'t be played here.';
-      _problemWhy = 'This ${_desk ? 'computer' : 'phone'} can\'t read what\'s inside it. Another app may.';
+      _problem = loading != null ? 'This video couldn\'t be loaded.' : 'This video can\'t be played here.';
+      _problemWhy = loading ?? 'This ${_desk ? 'computer' : 'phone'} can\'t read what\'s inside it. Another app may.';
       _controls = true;
     });
+  }
+
+  /// More of a streamed file is here (the scrubber shows it), or it stopped coming before the player was ready.
+  void _streamChanged() {
+    if (!mounted) return;
+    final failure = widget.stream?.failure;
+    if (failure != null && !_now.ready && _problem == null) {
+      _failed('the stream stopped', loading: failure);
+      return;
+    }
+    if (_now.ready) setState(() {});
   }
 
   @override
@@ -164,6 +215,8 @@ class _VideoScreenState extends State<VideoScreen> {
     if (_fullscreen) unawaited(defaultExitNativeFullscreen());
     final engine = _engine;
     final drop = widget.dropFile && !_handedOn ? _path : null;
+    final stream = widget.stream;
+    stream?.changes.removeListener(_streamChanged);
     if (engine != null) {
       engine.removeListener(_changed);
       // Quiet at once; let go once the screen has gone: ExoPlayer's release waits on its own thread, and done now it
@@ -176,9 +229,12 @@ class _VideoScreenState extends State<VideoScreen> {
         } catch (_) {}
         engine.dispose();
         _drop(drop);
+        // The stream's server goes once the player that read from it has (what has come down stays on the disk).
+        stream?.close();
       });
     } else {
       _drop(drop);
+      stream?.close();
     }
     super.dispose();
   }
@@ -194,13 +250,14 @@ class _VideoScreenState extends State<VideoScreen> {
     if (!mounted) return;
     final v = _now;
     if (v.error != null && _problem == null) {
-      _failed(v.error!);
+      // A streamed file that stopped coming is said as that, not as a file this device can't read.
+      _failed(v.error!, loading: widget.stream?.failure);
       return;
     }
     // At its end: the controls come back, to play it again.
     if (v.ended) _controls = true;
     // Drawn again only where what shows has changed: the second it is at, playing or not, loaded, its length.
-    final now = (v.ready, v.playing, v.position.inSeconds, v.duration.inSeconds, v.error);
+    final now = (v.ready, v.playing, v.position.inSeconds, v.duration.inSeconds, v.error, v.buffered.inSeconds, v.buffering);
     if (now == _shown && _held == null) return;
     _shown = now;
     setState(() {});
@@ -281,6 +338,27 @@ class _VideoScreenState extends State<VideoScreen> {
   }
 
   void _openElsewhere() {
+    final stream = widget.stream;
+    if (stream != null) {
+      // Another app needs the whole file: what has come is kept, the rest brought down with its progress shown.
+      if (_getting != null) return;
+      setState(() => _getting = 0);
+      unawaited(stream.whole((done, size) {
+        if (mounted) setState(() => _getting = size <= 0 ? 1 : done / size);
+      }).then((path) {
+        if (!mounted) return;
+        setState(() => _getting = null);
+        unawaited(FilePlatform.open(path, widget.title ?? path.split(Platform.pathSeparator).last));
+      }, onError: (Object e) {
+        if (mounted) {
+          setState(() {
+            _getting = null;
+            _problemWhy = stream.failure ?? '$e';
+          });
+        }
+      }));
+      return;
+    }
     final path = _path;
     if (path == null) return;
     _handedOn = true;
@@ -334,6 +412,12 @@ class _VideoScreenState extends State<VideoScreen> {
     final at = _held != null ? total * _held! : v.position;
     final part = total.inMilliseconds == 0 ? 0.0 : (at.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0);
     final look = _DockLook.of(t, bevel);
+    // What is ready to play, on the scrubber: the engine's buffer ahead of where it is, and a streamed file's parts
+    // already on this device.
+    final held = <(double, double)>[
+      ...?widget.stream?.held(),
+      if (total.inMilliseconds > 0 && v.buffered > v.position) (v.position.inMilliseconds / total.inMilliseconds, (v.buffered.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0)),
+    ];
 
     final dock = _Dock(
       look: look,
@@ -342,6 +426,7 @@ class _VideoScreenState extends State<VideoScreen> {
       at: _clock(at),
       total: _clock(total),
       part: part,
+      held: held,
       muted: _muted,
       volume: _muted ? 0 : _volume,
       fullscreen: _fullscreen,
@@ -404,7 +489,7 @@ class _VideoScreenState extends State<VideoScreen> {
                   onDoubleTap: () => _skip(_skippedRight),
                   child: _problem != null
                       ? Center(
-                          child: _Problem(look: look, words: _problem!, why: _problemWhy, onOpen: _path != null && !Platform.isIOS ? _openElsewhere : null),
+                          child: _Problem(look: look, words: _problem!, why: _problemWhy, getting: _getting, onOpen: (_path != null || widget.stream != null) && !Platform.isIOS ? _openElsewhere : null),
                         )
                       : !ready
                           // Its picture under the spinner until the video is ready: the screen is there at once.
@@ -417,6 +502,8 @@ class _VideoScreenState extends State<VideoScreen> {
                 );
               }),
             ),
+            // Waiting for more of it (a streamed file not yet here, a slow disk): a small spinner, only while it waits.
+            if (ready && v.buffering) const Positioned.fill(child: IgnorePointer(child: Center(child: GhostSpinner(size: 26)))),
             if (_skipped != null)
               Positioned(
                 top: 0,
@@ -553,6 +640,7 @@ class _Dock extends StatelessWidget {
     required this.at,
     required this.total,
     required this.part,
+    this.held = const [],
     required this.muted,
     required this.volume,
     required this.fullscreen,
@@ -569,13 +657,16 @@ class _Dock extends StatelessWidget {
   final bool desk, playing, muted, fullscreen;
   final String at, total;
   final double part, volume;
+
+  /// The parts ready to play, as fractions of the whole.
+  final List<(double, double)> held;
   final VoidCallback onPlayPause, onMute, onFullscreen;
   final ValueChanged<double> onHold, onLet, onVolume;
 
   /// Room under it for the phone's own bar (Dial-Up's panel runs to the foot of the screen).
   final double foot;
 
-  _Dock withFoot(double foot) => _Dock(look: look, desk: desk, playing: playing, at: at, total: total, part: part, muted: muted, volume: volume, fullscreen: fullscreen, onPlayPause: onPlayPause, onHold: onHold, onLet: onLet, onMute: onMute, onVolume: onVolume, onFullscreen: onFullscreen, foot: foot);
+  _Dock withFoot(double foot) => _Dock(look: look, desk: desk, playing: playing, at: at, total: total, part: part, held: held, muted: muted, volume: volume, fullscreen: fullscreen, onPlayPause: onPlayPause, onHold: onHold, onLet: onLet, onMute: onMute, onVolume: onVolume, onFullscreen: onFullscreen, foot: foot);
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) => _row(context, box.maxWidth));
@@ -591,7 +682,7 @@ class _Dock extends StatelessWidget {
       SizedBox(width: t.space(3)),
       Text(at, style: time),
       SizedBox(width: t.space(3)),
-      Expanded(child: _Track(look: look, part: part, label: 'Where the video is', onHold: onHold, onLet: onLet)),
+      Expanded(child: _Track(look: look, part: part, held: held, label: 'Where the video is', onHold: onHold, onLet: onLet)),
       SizedBox(width: t.space(3)),
       Text(total, style: time.copyWith(color: look.soft, fontWeight: FontWeight.w400)),
       SizedBox(width: t.space(2)),
@@ -620,9 +711,12 @@ class _Dock extends StatelessWidget {
 /// a knob that grows while held. A mouse drags it, or clicks a place on it, as a finger does. Dial-Up's is a white
 /// well sunk into the panel with navy filling it and a raised silver knob.
 class _Track extends StatefulWidget {
-  const _Track({required this.look, required this.part, required this.label, required this.onHold, required this.onLet});
+  const _Track({required this.look, required this.part, required this.label, required this.onHold, required this.onLet, this.held = const []});
   final _DockLook look;
   final double part;
+
+  /// Parts drawn a shade stronger than the line: what is ready to play (Matt, 2026-11-18, streaming and buffering).
+  final List<(double, double)> held;
   final String label;
   final ValueChanged<double> onHold;
   final ValueChanged<double> onLet;
@@ -648,13 +742,25 @@ class _TrackState extends State<_Track> {
       if (look.bevel) {
         final knob = 12.0;
         line = Stack(alignment: Alignment.centerLeft, clipBehavior: Clip.none, children: [
-          SizedBox(width: w, height: 10, child: Sunken(color: look.track, child: FractionallySizedBox(alignment: Alignment.centerLeft, widthFactor: shown, child: ColoredBox(color: look.strong)))),
+          SizedBox(
+            width: w,
+            height: 10,
+            child: Sunken(
+              color: look.track,
+              child: Stack(fit: StackFit.expand, children: [
+                for (final (a, b) in widget.held) Positioned(left: (w - 4) * a, width: ((w - 4) * (b - a)).clamp(0.0, w), top: 0, bottom: 0, child: ColoredBox(color: look.strong.withValues(alpha: 0.3))),
+                FractionallySizedBox(alignment: Alignment.centerLeft, widthFactor: shown, child: ColoredBox(color: look.strong)),
+              ]),
+            ),
+          ),
           Positioned(left: (w * shown - knob / 2).clamp(0.0, w - knob), child: SizedBox(width: knob, height: 20, child: const Bevel())),
         ]);
       } else {
         final knob = big ? 16.0 : 12.0;
         line = Stack(alignment: Alignment.centerLeft, clipBehavior: Clip.none, children: [
           Container(height: 4, decoration: BoxDecoration(color: look.track, borderRadius: BorderRadius.circular(2))),
+          for (final (a, b) in widget.held)
+            Positioned(left: w * a, child: Container(width: (w * (b - a)).clamp(0.0, w), height: 4, decoration: BoxDecoration(color: look.ink.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2)))),
           Container(width: w * shown, height: 4, decoration: BoxDecoration(color: look.strong, borderRadius: BorderRadius.circular(2))),
           Positioned(
             left: (w * shown - knob / 2).clamp(-knob / 2, w - knob / 2),
@@ -701,11 +807,14 @@ class _TrackState extends State<_Track> {
 
 /// A video that can't be played: what is wrong in a card of the look's own, and the device's own app for it.
 class _Problem extends StatelessWidget {
-  const _Problem({required this.look, required this.words, this.why, this.onOpen});
+  const _Problem({required this.look, required this.words, this.why, this.onOpen, this.getting});
   final _DockLook look;
   final String words;
   final String? why;
   final VoidCallback? onOpen;
+
+  /// The whole file coming down for another app, 0 to 1: shown in place of the button while it comes.
+  final double? getting;
 
   @override
   Widget build(BuildContext context) {
@@ -720,7 +829,12 @@ class _Problem extends StatelessWidget {
         SizedBox(height: t.space(1)),
         Text(why!, textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: soft, height: 1.4)),
       ],
-      if (onOpen != null) ...[
+      if (getting != null) ...[
+        SizedBox(height: t.space(4)),
+        SizedBox(width: 220, child: GlacierProgressBar(value: getting! * 100, ariaLabel: 'Getting the whole file')),
+        SizedBox(height: t.space(2)),
+        Text('Getting the whole file… ${(getting! * 100).floor()}%', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: soft)),
+      ] else if (onOpen != null) ...[
         SizedBox(height: t.space(4)),
         if (look.bevel)
           RetroButton(onPressed: onOpen, icon: Lucide.externalLink, label: 'Open with another app', primary: true)

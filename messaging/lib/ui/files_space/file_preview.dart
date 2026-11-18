@@ -34,11 +34,14 @@ import 'files_screen.dart' show fileAction, fileWho, showFileMenu;
 /// libmpv came in (Matt, 2026-11-18: "add support for playing mkv video files and mp4's within the app").
 bool get playsVideo => true;
 
-/// Opens [f]: a video straight into the player (it comes down behind its picture), anything else in its preview.
+/// Opens [f]: a video straight into the player, played as it comes down (lib/files/file_stream.dart; Matt, 2026-11-18:
+/// "do we need to download the whole file to play? would it be possible to setup streaming and buffering of the
+/// file?"), or from the disk where it is here already; anything else in its preview.
 void openSpaceFile(BuildContext context, VoiceChannel c, SpaceFile f, {FilesStore? store}) {
   final s = store ?? FilesStore.instance;
   if (f.kind == FileKind.video && playsVideo) {
-    Navigator.of(context).push(videoRoute(VideoScreen.coming(file: s.fetch(c, f).then<String?>((p) => p, onError: (_) => null), title: f.name, poster: f.thumb)));
+    final have = s.cached(f);
+    Navigator.of(context).push(videoRoute(have != null ? VideoScreen(path: have, title: f.name, poster: f.thumb) : VideoScreen.stream(stream: s.stream(c, f), title: f.name, poster: f.thumb)));
     return;
   }
   push<void>(context, (_) => FilePreviewScreen(channel: c, file: f, store: store));
@@ -59,6 +62,9 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
   String? _path;
   FilesError? _error;
 
+  /// Sound played as it comes down: _AudioPlayer holds the stream itself.
+  bool _streamed = false;
+
   @override
   void initState() {
     super.initState();
@@ -70,6 +76,11 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
     final had = _store.cached(widget.file);
     if (had != null) {
       _path = had;
+      return;
+    }
+    // Sound plays as it comes down, as a video does, rather than after the whole of it (Matt, 2026-11-18).
+    if (widget.file.kind == FileKind.audio && playsVideo) {
+      _streamed = true;
       return;
     }
     unawaited(_store.fetch(widget.channel, widget.file).then((p) {
@@ -135,6 +146,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
     if (_error != null) {
       return _note(t, _error!.offline ? Lucide.wifiOff : Lucide.circleAlert, _error!.message, action: _Pill(label: 'Try again', icon: Lucide.refreshCw, onPressed: () => setState(_bring)));
     }
+    if (_streamed && f.kind == FileKind.audio) return _AudioPlayer(key: ValueKey('stream ${f.id}'), file: f, stream: () => _store.stream(widget.channel, widget.file));
     final path = _path;
     if (path == null) {
       final coming = _store.downloading(f);
@@ -169,7 +181,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
           ),
         );
       case FileKind.audio:
-        return _AudioPlayer(key: ValueKey(path), path: path, file: f);
+        return _AudioPlayer(key: ValueKey(path), path: path, file: f, stream: null);
       case FileKind.text || FileKind.code:
         return _Words(path: path, code: f.kind == FileKind.code);
       case FileKind.video when playsVideo:
@@ -318,9 +330,12 @@ class _WordsState extends State<_Words> {
 /// Sound: play and pause, where it has got to, and a bar to move along it. Played by the same engine as a video
 /// (lib/ui/video_engine.dart), so a computer's is libmpv's and reads what the video player reads.
 class _AudioPlayer extends StatefulWidget {
-  const _AudioPlayer({super.key, required this.path, required this.file});
-  final String path;
+  const _AudioPlayer({super.key, this.path, required this.file, required this.stream});
+  final String? path;
   final SpaceFile file;
+
+  /// Where it isn't here yet: the stream to play it from as it comes, made when the player is.
+  final StreamedMedia Function()? stream;
 
   @override
   State<_AudioPlayer> createState() => _AudioPlayerState();
@@ -328,6 +343,7 @@ class _AudioPlayer extends StatefulWidget {
 
 class _AudioPlayerState extends State<_AudioPlayer> {
   VideoEngine? _player;
+  StreamedMedia? _stream;
   String? _problem;
 
   @override
@@ -339,21 +355,48 @@ class _AudioPlayerState extends State<_AudioPlayer> {
     }
     final p = _player = VideoEngine.make();
     p.addListener(_tick);
-    unawaited(p.open(widget.path));
+    unawaited(_open(p));
+  }
+
+  /// Opened from the disk or from the stream, with the same patience as a video's: a sound that isn't ready by then
+  /// says so, never a spinner for ever.
+  Future<void> _open(VideoEngine p) async {
+    try {
+      var path = widget.path;
+      if (path == null) {
+        final s = _stream = widget.stream!();
+        s.changes.addListener(_tick);
+        path = await s.open().timeout(VideoScreen.openPatience);
+      }
+      if (!mounted) return;
+      await p.open(path).timeout(VideoScreen.openPatience);
+      if (mounted && !p.value.ready && _problem == null) setState(() => _problem = 'This sound can\'t be played here. Open it to play it.');
+    } catch (e) {
+      if (mounted && _problem == null) setState(() => _problem = _stream?.failure ?? 'This sound can\'t be played here. Open it to play it.');
+    }
   }
 
   void _tick() {
     if (!mounted) return;
     if (_player?.value.error != null) _problem = 'This sound can\'t be played here. Open it to play it.';
+    final failure = _stream?.failure;
+    if (failure != null && _player?.value.ready != true) _problem = failure;
     setState(() {});
   }
 
   @override
   void dispose() {
     final p = _player;
+    final s = _stream;
+    s?.changes.removeListener(_tick);
     if (p != null) {
       p.removeListener(_tick);
-      unawaited(p.release().catchError((_) {}).whenComplete(p.dispose));
+      unawaited(p.release().catchError((_) {}).whenComplete(() {
+        p.dispose();
+        s?.close();
+      }));
+    } else {
+      s?.close();
     }
     super.dispose();
   }

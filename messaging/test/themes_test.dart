@@ -276,6 +276,9 @@ void main() {
         ('video-paused', () => FakeVideoEngine(still: true, at: const Duration(minutes: 1, seconds: 7)), desk, true),
         ('video-paused-phone', () => FakeVideoEngine(still: true, at: const Duration(minutes: 1, seconds: 7)), ThemeScreen.phone, false),
         ('video-error', () => FakeVideoEngine(fails: true), desk, true),
+        // Streamed (Matt, 2026-11-18: "would it be possible to setup streaming and buffering of the file?"): what is
+        // ready ahead shown on the scrubber, and the small spinner while it waits for more.
+        ('video-buffering', () => FakeVideoEngine(still: true, at: const Duration(minutes: 1, seconds: 7), buffered: const Duration(minutes: 1, seconds: 50), buffering: true), desk, true),
       ]) {
         VideoEngine.make = engine;
         await shootLook(tester, sheet, look, b, ThemeScreen(name, () => VideoScreen(path: '/tmp/holiday.mkv', title: 'Maya Chen', desk: onDesk), size: size), write: shots);

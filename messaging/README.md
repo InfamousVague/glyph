@@ -43,6 +43,14 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     stages with their times to `signal.log` beside its store and to standard error, which the app now passes to the
     Developer log (its own lines and signalmeow's warnings only; no message's words). Why Signal itself is slow to
     take a message is not known yet: the next stuck send says where in that log.
+- **Files-space videos stream as they play** (not released; `lib/files/file_stream.dart`; Matt, 2026-11-18: "do we need to
+  download the whole file to play? would it be possible to setup streaming and buffering of the file?", then "yes build
+  it"). A video or audio file in a Files space plays from a server on the device (127.0.0.1, a random port, a 128-bit
+  token in the address) that answers byte ranges by fetching only the sealed chunks needed, decrypting and checking each
+  on the device, and reading 8 MB ahead. Chunks are kept as they come; once all are in, they become the normal download,
+  checked by SHA-256. Other partial caches are held to 1 GiB and 14 days. The scrubber shows what is loaded; a spinner only
+  while stalled; nothing spins past 20 s (it says why, with Open with another app, which downloads the rest with its
+  progress). Android allows cleartext to 127.0.0.1 alone. Tests: files_stream_test, video_stream_screen_test.
 - **MKV and MP4 in the app's own player, everywhere** (0.9.8; `lib/ui/video_engine.dart`, `lib/ui/video_screen.dart`;
   Matt, 2026-11-18: "add support for playing mkv video files and mp4's within the app in a player themed by glacier UI").
   A computer plays videos inside the app now, in the same Glacier player as the phone, by media_kit (libmpv: MKV, WebM,

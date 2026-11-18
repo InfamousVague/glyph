@@ -11,7 +11,7 @@ import 'package:video_player/video_player.dart';
 /// this alone, so they are the same over either).
 @immutable
 class VideoNow {
-  const VideoNow({this.ready = false, this.playing = false, this.position = Duration.zero, this.duration = Duration.zero, this.aspect = 0, this.error});
+  const VideoNow({this.ready = false, this.playing = false, this.position = Duration.zero, this.duration = Duration.zero, this.aspect = 0, this.error, this.buffered = Duration.zero, this.buffering = false});
   final bool ready;
   final bool playing;
   final Duration position;
@@ -23,16 +23,31 @@ class VideoNow {
   /// Why it cannot be played, in the engine's words; null while it can.
   final String? error;
 
+  /// How far the engine has it ready to play from where it is (Duration.zero where it doesn't say), and whether it is
+  /// waiting for more (Matt, 2026-11-18: "would it be possible to setup streaming and buffering of the file?"): the
+  /// scrubber shows the one, a small spinner the other.
+  final Duration buffered;
+  final bool buffering;
+
   bool get ended => ready && !playing && duration > Duration.zero && position >= duration;
 
-  VideoNow copyWith({bool? ready, bool? playing, Duration? position, Duration? duration, double? aspect, String? error}) =>
-      VideoNow(ready: ready ?? this.ready, playing: playing ?? this.playing, position: position ?? this.position, duration: duration ?? this.duration, aspect: aspect ?? this.aspect, error: error ?? this.error);
+  VideoNow copyWith({bool? ready, bool? playing, Duration? position, Duration? duration, double? aspect, String? error, Duration? buffered, bool? buffering}) => VideoNow(
+        ready: ready ?? this.ready,
+        playing: playing ?? this.playing,
+        position: position ?? this.position,
+        duration: duration ?? this.duration,
+        aspect: aspect ?? this.aspect,
+        error: error ?? this.error,
+        buffered: buffered ?? this.buffered,
+        buffering: buffering ?? this.buffering,
+      );
 
   @override
-  bool operator ==(Object other) => other is VideoNow && other.ready == ready && other.playing == playing && other.position == position && other.duration == duration && other.aspect == aspect && other.error == error;
+  bool operator ==(Object other) =>
+      other is VideoNow && other.ready == ready && other.playing == playing && other.position == position && other.duration == duration && other.aspect == aspect && other.error == error && other.buffered == buffered && other.buffering == buffering;
 
   @override
-  int get hashCode => Object.hash(ready, playing, position, duration, aspect, error);
+  int get hashCode => Object.hash(ready, playing, position, duration, aspect, error, buffered, buffering);
 }
 
 /// What plays a video under the app's own controls (Matt, 2026-11-18: "add support for playing mkv video files and
@@ -56,8 +71,11 @@ abstract class VideoEngine extends ValueNotifier<VideoNow> {
   /// Whether this device plays through libmpv: the computers.
   static bool get usesMediaKit => !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
 
-  /// Opens [path]; once it is ready [value] says so, or says why not in [VideoNow.error]. Never throws.
+  /// Opens [path], a file or an http address (a Files-space file served as it comes down, lib/files/file_stream.dart);
+  /// once it is ready [value] says so, or says why not in [VideoNow.error]. Never throws.
   Future<void> open(String path);
+
+  static bool isAddress(String path) => path.startsWith('http://') || path.startsWith('https://');
   Future<void> play();
   Future<void> pause();
   Future<void> seek(Duration to);
@@ -91,7 +109,7 @@ class VideoPlayerEngine extends VideoEngine {
 
   @override
   Future<void> open(String path) async {
-    final video = VideoPlayerController.file(File(path));
+    final video = VideoEngine.isAddress(path) ? VideoPlayerController.networkUrl(Uri.parse(path)) : VideoPlayerController.file(File(path));
     _video = video;
     video.addListener(_changed);
     try {
@@ -112,10 +130,21 @@ class VideoPlayerEngine extends VideoEngine {
       duration: v.duration,
       aspect: v.isInitialized ? v.aspectRatio : 0,
       error: v.hasError ? (v.errorDescription ?? 'unknown') : null,
+      buffered: _bufferedFrom(v.buffered, v.position),
+      buffering: v.isBuffering,
     ));
   }
 
   static String _words(Object e) => e is Exception ? e.toString() : '$e';
+
+  /// The end of the buffered range the position is in (or the first one past it, just begun): how far it can play on.
+  static Duration _bufferedFrom(List<DurationRange> ranges, Duration at) {
+    var end = Duration.zero;
+    for (final r in ranges) {
+      if (r.end >= at && r.start <= at + const Duration(seconds: 1) && r.end > end) end = r.end;
+    }
+    return end;
+  }
 
   @override
   Future<void> play() async => _video?.play();
@@ -150,8 +179,10 @@ class MediaKitEngine extends VideoEngine {
   mkv.VideoController? _controller;
   final _listening = <StreamSubscription<Object?>>[];
 
-  /// How long a file has to say how long it runs before it is taken as one libmpv can't read.
+  /// How long a file has to say how long it runs before it is taken as one libmpv can't read; longer for one served as
+  /// it comes down, whose first chunks (and, for an MKV, its index at the end) come from the relay first.
   static const _patience = Duration(seconds: 12);
+  static const _patienceStreamed = Duration(seconds: 20);
 
   @override
   Future<void> open(String path) async {
@@ -169,6 +200,8 @@ class MediaKitEngine extends VideoEngine {
           _set(value.copyWith(duration: d));
           if (d > Duration.zero && !loaded.isCompleted) loaded.complete();
         }))
+        ..add(s.buffer.listen((b) => _set(value.copyWith(buffered: b))))
+        ..add(s.buffering.listen((b) => _set(value.copyWith(buffering: b))))
         ..add(s.width.listen((_) => _aspect()))
         ..add(s.height.listen((_) => _aspect()))
         ..add(s.completed.listen((done) {
@@ -181,8 +214,9 @@ class MediaKitEngine extends VideoEngine {
             loaded.completeError(e);
           }
         }));
-      await player.open(mk.Media(Uri.file(path).toString()), play: false);
-      await loaded.future.timeout(_patience);
+      final address = VideoEngine.isAddress(path);
+      await player.open(mk.Media(address ? path : Uri.file(path).toString()), play: false);
+      await loaded.future.timeout(address ? _patienceStreamed : _patience);
       _aspect();
       _set(value.copyWith(ready: true));
     } on TimeoutException {
