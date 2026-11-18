@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 import 'package:media_kit_video/media_kit_video.dart' show defaultEnterNativeFullscreen, defaultExitNativeFullscreen;
 
+import '../app_state.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
@@ -20,6 +21,7 @@ import 'dialup/parts.dart' show DialupTool;
 import 'dialup/retro_button.dart';
 import 'dialup/title_bar.dart';
 import 'video_engine.dart';
+import 'video_tracks.dart';
 
 /// A video, the whole screen, in the app's own look (Matt, 2026-11-15: "id like a video player built with glacier UI
 /// right now it looks like a very old android core system player"): the picture on black, a way back at the top, and
@@ -118,7 +120,15 @@ class _VideoScreenState extends State<VideoScreen> {
   Timer? _skipShown;
 
   /// What was last drawn of the player, so a change it reports that shows nothing new draws nothing.
-  (bool, bool, int, int, String?, int, bool)? _shown;
+  (bool, bool, int, int, String?, int, bool, VideoTracks)? _shown;
+
+  /// The list of sounds and subtitles, open over the dock (Matt, 2026-11-18: "on the video player add support for
+  /// switching audio and subtitles for files that support dual languages").
+  bool _tracksOpen = false;
+
+  /// The languages last chosen, matched once this video says what it carries.
+  TrackMemory? _memory;
+  bool _tracksMatched = false;
 
   bool get _desk => widget.desk ?? _deskDevice;
   VideoNow get _now => _engine?.value ?? const VideoNow();
@@ -208,6 +218,13 @@ class _VideoScreenState extends State<VideoScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final app = AppState.maybeOf(context);
+    _memory = app == null ? null : TrackMemory.of(app);
+  }
+
+  @override
   void dispose() {
     _hide?.cancel();
     _skipShown?.cancel();
@@ -256,18 +273,55 @@ class _VideoScreenState extends State<VideoScreen> {
     }
     // At its end: the controls come back, to play it again.
     if (v.ended) _controls = true;
-    // Drawn again only where what shows has changed: the second it is at, playing or not, loaded, its length.
-    final now = (v.ready, v.playing, v.position.inSeconds, v.duration.inSeconds, v.error, v.buffered.inSeconds, v.buffering);
+    if (v.ready && !_tracksMatched && (v.tracks.audio.isNotEmpty || v.tracks.subtitles.isNotEmpty)) _matchTracks(v.tracks);
+    // Drawn again only where what shows has changed: the second it is at, playing or not, loaded, its length, its
+    // sounds and subtitles.
+    final now = (v.ready, v.playing, v.position.inSeconds, v.duration.inSeconds, v.error, v.buffered.inSeconds, v.buffering, v.tracks);
     if (now == _shown && _held == null) return;
     _shown = now;
     setState(() {});
   }
 
-  /// The controls go by themselves a few seconds after the last touch, while it plays.
+  /// The sound and subtitles in the languages last chosen, once, as the video first says what it carries.
+  void _matchTracks(VideoTracks tracks) {
+    _tracksMatched = true;
+    final engine = _engine;
+    final plan = _memory?.plan(tracks);
+    if (engine == null || plan == null || plan.isEmpty) return;
+    if (plan.audio != null) unawaited(engine.chooseAudio(plan.audio!));
+    if (plan.subtitle != null || plan.subtitlesOff) unawaited(engine.chooseSubtitle(plan.subtitle));
+  }
+
+  void _chooseAudio(MediaTrack track) {
+    unawaited(_engine?.chooseAudio(track.id));
+    _memory?.choseAudio(track);
+    setState(() => _tracksOpen = false);
+    _soon();
+  }
+
+  /// Subtitles shown, or off (null).
+  void _chooseSubtitle(MediaTrack? track) {
+    unawaited(_engine?.chooseSubtitle(track?.id));
+    _memory?.choseSubtitle(track);
+    setState(() => _tracksOpen = false);
+    _soon();
+  }
+
+  void _toggleTracks() {
+    setState(() => _tracksOpen = !_tracksOpen);
+    if (_tracksOpen) {
+      _hide?.cancel();
+    } else {
+      _soon();
+    }
+  }
+
+  /// The controls go by themselves a few seconds after the last touch, while it plays (not while the list of sounds
+  /// and subtitles is open).
   void _soon() {
     _hide?.cancel();
     _hide = Timer(const Duration(seconds: 3), () {
-      if (mounted && _now.playing && _held == null && _problem == null) setState(() => _controls = false);
+      if (mounted && _now.playing && _held == null && _problem == null && !_tracksOpen) setState(() => _controls = false);
     });
   }
 
@@ -277,6 +331,11 @@ class _VideoScreenState extends State<VideoScreen> {
   }
 
   void _toggleControls() {
+    // A tap on the picture puts the open list away first.
+    if (_tracksOpen) {
+      _toggleTracks();
+      return;
+    }
     setState(() => _controls = !_controls);
     if (_controls) _soon();
   }
@@ -371,7 +430,9 @@ class _VideoScreenState extends State<VideoScreen> {
     if (e is KeyUpEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
     final repeat = e is KeyRepeatEvent;
-    if (k == LogicalKeyboardKey.escape && !repeat) {
+    if (k == LogicalKeyboardKey.escape && !repeat && _tracksOpen) {
+      _toggleTracks();
+    } else if (k == LogicalKeyboardKey.escape && !repeat) {
       unawaited(_back());
     } else if (k == LogicalKeyboardKey.space && !repeat) {
       _playPause();
@@ -443,6 +504,8 @@ class _VideoScreenState extends State<VideoScreen> {
       onMute: _toggleMute,
       onVolume: _setVolume,
       onFullscreen: () => unawaited(_toggleFullscreen()),
+      onTracks: v.tracks.choosable ? _toggleTracks : null,
+      tracksOpen: _tracksOpen,
     );
 
     final top = bevel
@@ -553,6 +616,13 @@ class _VideoScreenState extends State<VideoScreen> {
                           ),
                         ),
                       ),
+                    // The sounds and subtitles, over the dock's right end.
+                    if (ready && _tracksOpen && v.tracks.choosable)
+                      Positioned(
+                        right: bevel ? t.space(2) : t.space(4),
+                        bottom: (bevel ? pad.bottom : pad.bottom + t.space(4)) + 72,
+                        child: _TrackPanel(look: look, tracks: v.tracks, maxHeight: MediaQuery.sizeOf(context).height * 0.6, onAudio: _chooseAudio, onSubtitle: _chooseSubtitle),
+                      ),
                   ]),
                 ),
               ),
@@ -650,6 +720,8 @@ class _Dock extends StatelessWidget {
     required this.onMute,
     required this.onVolume,
     required this.onFullscreen,
+    this.onTracks,
+    this.tracksOpen = false,
     this.foot = 0,
   });
 
@@ -663,10 +735,14 @@ class _Dock extends StatelessWidget {
   final VoidCallback onPlayPause, onMute, onFullscreen;
   final ValueChanged<double> onHold, onLet, onVolume;
 
+  /// Opens the list of sounds and subtitles; null (no button) for a video with one sound and no subtitles.
+  final VoidCallback? onTracks;
+  final bool tracksOpen;
+
   /// Room under it for the phone's own bar (Dial-Up's panel runs to the foot of the screen).
   final double foot;
 
-  _Dock withFoot(double foot) => _Dock(look: look, desk: desk, playing: playing, at: at, total: total, part: part, held: held, muted: muted, volume: volume, fullscreen: fullscreen, onPlayPause: onPlayPause, onHold: onHold, onLet: onLet, onMute: onMute, onVolume: onVolume, onFullscreen: onFullscreen, foot: foot);
+  _Dock withFoot(double foot) => _Dock(look: look, desk: desk, playing: playing, at: at, total: total, part: part, held: held, muted: muted, volume: volume, fullscreen: fullscreen, onPlayPause: onPlayPause, onHold: onHold, onLet: onLet, onMute: onMute, onVolume: onVolume, onFullscreen: onFullscreen, onTracks: onTracks, tracksOpen: tracksOpen, foot: foot);
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) => _row(context, box.maxWidth));
@@ -686,6 +762,7 @@ class _Dock extends StatelessWidget {
       SizedBox(width: t.space(3)),
       Text(total, style: time.copyWith(color: look.soft, fontWeight: FontWeight.w400)),
       SizedBox(width: t.space(2)),
+      if (onTracks != null) _Round(look: look, icon: LucideMore.languages, label: tracksOpen ? 'Close audio and subtitles' : 'Audio and subtitles', onPressed: onTracks!, size: 40, flat: true),
       _Round(look: look, icon: muted ? LucideMore.volumeX : Lucide.volume2, label: muted ? 'Sound on' : 'Mute', onPressed: onMute, size: 40, flat: true),
       if (slider) ...[
         SizedBox(width: t.lenOf('6rem'), child: _Track(look: look, part: volume, label: 'Volume', onHold: onVolume, onLet: onVolume)),
@@ -802,6 +879,78 @@ class _TrackState extends State<_Track> {
         ),
       );
     });
+  }
+}
+
+/// The sounds and subtitles a video carries, to choose from: each named by its language and title, the one on marked,
+/// Off first among the subtitles. In the look's own card (Dial-Up's raised silver panel).
+class _TrackPanel extends StatelessWidget {
+  const _TrackPanel({required this.look, required this.tracks, required this.maxHeight, required this.onAudio, required this.onSubtitle});
+  final _DockLook look;
+  final VideoTracks tracks;
+  final double maxHeight;
+  final ValueChanged<MediaTrack> onAudio;
+  final ValueChanged<MediaTrack?> onSubtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final ink = look.bevel ? DialupColors.of(t).ink : look.ink;
+    final soft = look.bevel ? DialupColors.of(t).inkSoft : look.soft;
+    Widget heading(String words) => Padding(
+          padding: EdgeInsets.fromLTRB(t.space(3), t.space(3), t.space(3), t.space(1)),
+          child: Text(words.toUpperCase(), style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: soft)),
+        );
+    Widget row(String words, bool on, VoidCallback pick) => GlacierPressable(
+          onPressed: pick,
+          semanticLabel: words,
+          selected: on,
+          builder: (context, state) => Container(
+            padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+            decoration: BoxDecoration(
+              color: look.bevel
+                  ? (state.pressed || state.hovered ? DialupColors.of(t).titlebar.withValues(alpha: 0.15) : null)
+                  : ink.withValues(alpha: state.pressed ? 0.12 : (state.hovered ? 0.06 : 0)),
+              borderRadius: BorderRadius.circular(look.bevel ? 0 : t.radius('md')),
+            ),
+            child: Row(children: [
+              SizedBox(width: 20, child: on ? AppIcon(Lucide.check, size: 16, color: ink, wash: false) : null),
+              SizedBox(width: t.space(2)),
+              Flexible(child: ExcludeSemantics(child: Text(words, maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: on ? 'semibold' : 'regular', color: ink)))),
+            ]),
+          ),
+        );
+    final audioNames = trackLabels(tracks.audio);
+    final subtitleNames = trackLabels(tracks.subtitles);
+    final audioOn = tracks.audioShown;
+    final subtitleOn = tracks.subtitleShown;
+    final body = SingleChildScrollView(
+      padding: EdgeInsets.only(bottom: t.space(2)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+        if (tracks.audio.length > 1) ...[
+          heading('Audio'),
+          for (var i = 0; i < tracks.audio.length; i++) row(audioNames[i], tracks.audio[i].id == audioOn, () => onAudio(tracks.audio[i])),
+        ],
+        if (tracks.subtitles.isNotEmpty || !tracks.innerSubtitles) heading('Subtitles'),
+        if (tracks.subtitles.isNotEmpty) ...[
+          row('Off', subtitleOn == null, () => onSubtitle(null)),
+          for (var i = 0; i < tracks.subtitles.length; i++) row(subtitleNames[i], tracks.subtitles[i].id == subtitleOn, () => onSubtitle(tracks.subtitles[i])),
+        ],
+        // The phone's player shows only a subtitle file beside the video, never those inside it: said, not hidden.
+        if (!tracks.innerSubtitles)
+          Padding(
+            padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), t.space(1)),
+            child: Text('Subtitles inside a video can\'t be shown on this device yet.', style: pageText(t, t.fontSize('xs'), color: soft, height: 1.4)),
+          ),
+      ]),
+    );
+    final box = ConstrainedBox(constraints: BoxConstraints(maxWidth: t.lenOf('18rem'), minWidth: t.lenOf('12rem'), maxHeight: maxHeight), child: body);
+    if (look.bevel) return Bevel(padding: EdgeInsets.all(t.space(1)), child: box);
+    return Container(
+      decoration: BoxDecoration(color: t.color('app-paper'), borderRadius: BorderRadius.circular(t.radius('lg')), border: Border.all(color: look.rim)),
+      padding: EdgeInsets.symmetric(horizontal: t.space(1)),
+      child: box,
+    );
   }
 }
 
