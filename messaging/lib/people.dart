@@ -1,3 +1,4 @@
+import 'account/account.dart';
 import 'app_state.dart';
 import 'circles/circles.dart';
 import 'friends/buddies.dart';
@@ -19,6 +20,9 @@ void startPeople(AppState app) {
   // The accounts linked and the handles watched for (Settings › Me): spoken of to the relay server only once one has
   // been.
   Me.instance.start(AppMeStore(app), Net.instance, () => Net.instance.hub, needHub: (yes) => Net.instance.want('me', yes));
+  // A Ghost account (lib/account; Matt, 2026-11-17: "We need to have a way to login to existing accounts"): where this
+  // device is signed in to one, the relay is asked whether it still is.
+  Account.instance.start(AppMeStore(app));
   // Friends by username (lib/friends/buddies.dart): heard over the hub, so it is dialled while any are kept, and from
   // the moment there is a username of your own, so a first friend request reaches you (Matt, 2026-11-16: "We need a
   // way to add friends on the network by username on the contacts page and see friend requests").

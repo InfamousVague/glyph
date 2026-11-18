@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:ghost_relay/accounts.dart';
 import 'package:ghost_relay/files.dart';
 import 'package:ghost_relay/handles.dart';
 import 'package:ghost_relay/pushes.dart';
@@ -38,7 +39,10 @@ Future<void> main(List<String> args) async {
   // Invites waiting for someone not on the app yet, kept by a hash of their number and taken only by the install that
   // verified it (invites.dart; Matt, 2026-11-17: "a link that eventually follows through after they setup their account").
   final invites = Invites(dataDir: data, phoneKeyOf: handles.phoneKeyOf, whoOf: handles.whoOf, verbose: verbose);
-  final relay = Relay(dataDir: data, verbose: verbose, hub: Hub(verbose: verbose, handles: handles, pushes: pushes, invites: invites), files: files);
+  // Ghost accounts' sealed backups, by address (accounts.dart; Matt, 2026-11-17: "We need to have a way to login to
+  // existing accounts"): usernames and the texted code for a verified number are handles'.
+  final accounts = Accounts(dataDir: data, handles: handles, verbose: verbose);
+  final relay = Relay(dataDir: data, verbose: verbose, hub: Hub(verbose: verbose, handles: handles, pushes: pushes, invites: invites, accounts: accounts), files: files);
   final got = await relay.start(host: host, port: port);
   stdout.writeln('Ghost Messaging relay listening on ws://$host:$got (${relay.channelCount} pairings kept; ${handles.linked} handles linked; ${files.spaces} Files spaces; sign-ins: ${handles.ways.entries.where((e) => e.value == 'signin').map((e) => e.key).join(', ').padRight(1, '-')})');
   for (final signal in [ProcessSignal.sigint, ProcessSignal.sigterm]) {

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'accounts.dart';
 import 'handles.dart';
 import 'invites.dart';
 import 'pushes.dart';
@@ -41,7 +42,7 @@ import 'sha256.dart';
 /// - **What it does not carry:** a call's sound and picture. Those go between the phones directly (or through a
 ///   media relay); the hub carries only what sets a call up.
 class Hub {
-  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites})
+  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts})
       : _now = now ?? DateTime.now,
         _random = random ?? Random.secure();
 
@@ -60,6 +61,10 @@ class Hub {
   /// messages it names ([Invites.dirs]) are its to answer, not [handles]'s. None where null, and they are then
   /// answered that there are none.
   final Invites? invites;
+
+  /// Ghost accounts (accounts.dart): the `{"dir": "acct-…"}` messages ([Accounts.dirs]) are its to answer. None where
+  /// null, and they are then answered that there are none. An app from before accounts never says them.
+  final Accounts? accounts;
 
   /// What is signed to connect: these words, then the hub's number.
   static const greeting = 'ghost-hub v1 ';
@@ -125,9 +130,12 @@ class Hub {
   void start() {
     handles?.load();
     invites?.load();
+    accounts?.load();
     _sweeper ??= Timer.periodic(const Duration(minutes: 10), (_) {
       sweep();
       handles?.sweep();
+      accounts?.sweep();
+      accounts?.save();
       final i = invites;
       if (i != null) unawaited(i.sweep());
     });
@@ -138,6 +146,7 @@ class Hub {
     _sweeper = null;
     handles?.save();
     invites?.save();
+    accounts?.save();
     for (final end in _here.values.toList()) {
       end.ws.close(WebSocketStatus.goingAway);
     }
@@ -284,6 +293,13 @@ class Hub {
         // This install's token for push notifications (an iPhone), or null to forget it.
         pushes?.said(e.id, said['push']);
         _tell(ws, {'push': pushes != null});
+      } else if (said['dir'] is String && Accounts.dirs.contains(said['dir'])) {
+        final a = accounts;
+        if (a == null) {
+          _tell(ws, {'dir': 'err', 'about': said['dir'], 'err': 'This server keeps no accounts.'});
+        } else {
+          a.said(e.id, said, (m) => _tell(ws, m));
+        }
       } else if (said['dir'] is String && Invites.dirs.contains(said['dir'])) {
         final i = invites;
         if (i == null) {

@@ -1,14 +1,19 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/services.dart' show TextCapitalization;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../account/account.dart';
 import '../art/lucide.g.dart';
+import '../art/app_icon.dart';
 import '../friends/buddies.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart';
+import '../ui/account_screens.dart';
+import '../ui/common.dart' show push;
 import '../ui/computers.dart' show PairButton;
 import '../kit/semantic_colors.dart';
 
@@ -61,6 +66,8 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
         Me.instance.setProfile(displayName: name, bio: Me.instance.bio);
         Buddies.instance.shareProfile();
       }
+      // An account made a moment ago, before there was a username: its backup carries the username from now.
+      if (Account.instance.signedIn) unawaited(Account.instance.refresh(force: true).catchError((_) => false));
       widget.onDone();
     } catch (e) {
       if (mounted) setState(() => _problem = e is MeError ? e.message : '$e');
@@ -123,6 +130,15 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
               ),
               SizedBox(height: t.space(8)),
               PairButton(label: _busy ? 'Checking…' : me.ready ? 'Continue' : 'Connecting to the relay server…', icon: Lucide.arrowRight, onPressed: _busy || !me.ready ? null : _go),
+              // Someone who already has an account (Matt, 2026-11-17: "We need to have a way to login to existing
+              // accounts"): signed in here instead of starting as someone new; or an account made before the username.
+              if (!Account.instance.signedIn) ...[
+                SizedBox(height: t.space(8)),
+                PaneSection(children: [
+                  SettingRow(icon: AppIcon(Lucide.keyRound, size: 18), label: 'Sign in to an account', hint: const Text('With your username and password, or your recovery words'), onPress: () => push(context, (_) => const SignInScreen())),
+                  SettingRow(icon: AppIcon(Lucide.userPlus, size: 18), label: 'Create an account', hint: const Text('So you can sign in on another device'), onPress: () => push(context, (_) => const CreateAccountScreen())),
+                ]),
+              ],
             ],
           ),
         ),
