@@ -854,6 +854,19 @@ class Sms {
   /// person is asked to.
   Future<bool> restartApp() async => (await _calls.invokeMethod<bool>('restartApp')) ?? false;
 
+  /// Lets go of this install's identity where it has one to go back to: a computer paired with a phone forgets the
+  /// phone's identity it took on, and takes it on again from the phone as it starts (lib/desktop/own_calls.dart), so
+  /// signing out of an account there leaves it the same you as the phone. False everywhere else, where signing out
+  /// makes a new identity instead; and never asked of the phone across a link.
+  Future<bool> identityForget() async {
+    if (followsPhone) return false;
+    try {
+      return (await _calls.invokeMethod<bool>('identityForget')) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // --- groups of friends (lib/friends/groups.dart, android Groups.kt) ------------------------------------------------
 
   /// The groups this phone is in, each as android Groups.view gives it.

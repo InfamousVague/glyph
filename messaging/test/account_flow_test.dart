@@ -87,6 +87,9 @@ class Device implements AccountPort, AccountRelay, AccountProfiles {
     return true;
   }
 
+  @override
+  Future<bool> identityForget() async => false;
+
   // AccountProfiles
   @override
   bool get fresh => username.isEmpty && !hasFriends;

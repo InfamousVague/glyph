@@ -239,6 +239,18 @@ class Account extends ChangeNotifier {
     return restart();
   }
 
+  /// Whether making [restore] this install would change who it is: its identity is not the one here now. On a computer
+  /// paired with a phone, whose identity is the phone's, that splits the two into different people to everyone who
+  /// writes to them, so Settings asks first (Matt, 2026-11-18: "messages from desktop are coming through differently
+  /// than messages on mobile even though they're both me").
+  Future<bool> wouldChangeIdentity(AccountRestore restore) async {
+    try {
+      return NetKeys.fromScalar(await port.identityExport()).id != NetKeys.fromScalar(NetCrypto.unhex(restore.backup.identity)).id;
+    } catch (_) {
+      return true;
+    }
+  }
+
   /// Starts the app again; false where it cannot by itself.
   Future<bool> restart() async {
     await profiles.stopAll();
@@ -344,8 +356,12 @@ class Account extends ChangeNotifier {
       await relay.ask(_signed('acct-devices', 'devices', await _keys(), {'remove': device}));
     } catch (_) {}
     await _forgetHere();
-    final fresh = NetKeys.generate();
-    await port.identityImport(fresh.scalar, fresh.public);
+    // A computer paired with a phone goes back to the phone's identity (it is taken on again as the app starts);
+    // anywhere else, a new identity of its own.
+    if (!await port.identityForget()) {
+      final fresh = NetKeys.generate();
+      await port.identityImport(fresh.scalar, fresh.public);
+    }
     await profiles.forget();
     return restart();
   }
@@ -455,19 +471,32 @@ abstract class AccountPort {
   Future<void> secretKeep(String name, String value);
   Future<String?> secretRead(String name);
   Future<bool> restart();
+
+  /// Lets go of this install's identity where it has one to go back to (a computer paired with a phone takes the
+  /// phone's on again); false where it has none, and signing out makes a new one.
+  Future<bool> identityForget();
 }
 
 class SmsAccountPort implements AccountPort {
+  /// A paired computer that has not taken on an identity of its own asks everything of the phone: an account's calls
+  /// would change the phone's identity and vault from the computer, so none is made from there.
+  static Future<T> _own<T>(Future<T> Function() call) async {
+    if (Sms.followsPhone) throw AccountError('This computer hasn\'t become the same you as your phone yet.');
+    return call();
+  }
+
   @override
-  Future<Uint8List> identityExport() => Sms.instance.identityExport();
+  Future<Uint8List> identityExport() => _own(() => Sms.instance.identityExport());
   @override
-  Future<void> identityImport(List<int> scalar, List<int> public) => Sms.instance.identityImport(scalar, public);
+  Future<void> identityImport(List<int> scalar, List<int> public) => _own(() => Sms.instance.identityImport(scalar, public));
   @override
-  Future<void> secretKeep(String name, String value) => Sms.instance.secretKeep(name, value);
+  Future<void> secretKeep(String name, String value) => _own(() => Sms.instance.secretKeep(name, value));
   @override
-  Future<String?> secretRead(String name) => Sms.instance.secretRead(name);
+  Future<String?> secretRead(String name) => _own(() => Sms.instance.secretRead(name));
   @override
-  Future<bool> restart() => Sms.instance.restartApp();
+  Future<bool> restart() => _own(() => Sms.instance.restartApp());
+  @override
+  Future<bool> identityForget() => Sms.instance.identityForget();
 }
 
 /// What an account carries besides its identity: the profile, friends by username, circles, the key Ghost's own kept
@@ -496,7 +525,9 @@ class AppAccountProfiles implements AccountProfiles {
   MeStore? get _store => Account.instance.store is _NoStore ? null : Account.instance.store;
 
   @override
-  bool get fresh => Me.instance.username == null && Buddies.instance.all.isEmpty && Circles.instance.all.isEmpty && Me.instance.links.isEmpty;
+  // A computer paired with a phone is never fresh: its identity is the phone's, and an account made there keeps it
+  // (bound), so the two stay one person rather than the computer taking the words' identity alone.
+  bool get fresh => !Sms.paired && Me.instance.username == null && Buddies.instance.all.isEmpty && Circles.instance.all.isEmpty && Me.instance.links.isEmpty;
 
   @override
   String get deviceName {

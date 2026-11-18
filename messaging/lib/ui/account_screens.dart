@@ -16,10 +16,12 @@ import '../account/account.dart';
 import '../account/account_crypto.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
+import '../desktop/own_calls.dart' show DeskOwnCalls;
 import '../kit/semantic_colors.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart' show Me, tidyHandle;
+import '../sms.dart';
 import 'common.dart';
 import 'computers.dart' show PairButton;
 
@@ -35,17 +37,45 @@ String shortAddress(String a) => a.length < 14 ? a : '${a.substring(0, 6)}…${a
 /// Settings › Me's Account section: the address and what can be done with it, or the two ways in.
 Widget accountSection(BuildContext context) => ListenableBuilder(listenable: Account.instance, builder: (context, _) => _accountSection(context));
 
+/// The account the phone this computer is paired with is signed in to, as it last said; null anywhere else.
+({String address, String username})? phoneAccountHere() {
+  final calls = Sms.calls;
+  return calls is DeskOwnCalls ? calls.phoneAccount : null;
+}
+
 Widget _accountSection(BuildContext context) {
   final account = Account.instance;
   final address = account.address;
   if (address == null) {
+    // A computer paired with a phone, with the phone's identity (Matt, 2026-11-18: "On my fold vs on my desktop, both
+    // with the same number linked but it seems i'm not logged in on desktop"): signing in to the phone's own account
+    // keeps it the same you, and is offered first, by name, where the phone has said which it is.
+    final paired = Sms.paired;
+    final phones = paired ? phoneAccountHere() : null;
     return PaneSection(
         title: 'Account',
-        description: const Text('Keep who you are on Ghost Messaging, your friends and circles, and sign in with them on another device.'),
+        description: Text(paired
+            ? 'Sign in to the account your phone is in, so this computer is the same you as your phone, or make one for who you are now.'
+            : 'Keep who you are on Ghost Messaging, your friends and circles, and sign in with them on another device.'),
         footer: account.removedHere ? const Text('This device was signed out of your account from another device.') : null,
         children: [
-          SettingRow(icon: _icon(Lucide.userPlus), label: 'Create an account', hint: const Text('A password and 12 recovery words'), onPress: () => push(context, (_) => const CreateAccountScreen())),
-          SettingRow(icon: _icon(Lucide.keyRound), label: 'Sign in to an account', hint: const Text('With your username and password, or your recovery words'), onPress: () => push(context, (_) => const SignInScreen())),
+          if (phones != null)
+            SettingRow(
+              icon: _icon(Lucide.smartphone),
+              label: 'Sign in to your Ghost account',
+              hint: Text(phones.username.isEmpty ? 'The account your phone is in, ${shortAddress(phones.address)}' : '@${phones.username}, the account your phone is in'),
+              onPress: () => push(context, (_) => SignInScreen(username: phones.username)),
+            ),
+          SettingRow(
+            icon: _icon(Lucide.userPlus),
+            label: 'Create an account',
+            hint: Text(paired ? 'Keeps who you are now, the same you as your phone' : 'A password and 12 recovery words'),
+            onPress: () => push(context, (_) => const CreateAccountScreen()),
+          ),
+          if (phones == null || phones.username.isEmpty)
+            SettingRow(icon: _icon(Lucide.keyRound), label: paired ? 'Sign in to your Ghost account' : 'Sign in to an account', hint: const Text('With your username and password, or your recovery words'), onPress: () => push(context, (_) => const SignInScreen()))
+          else
+            SettingRow(icon: _icon(Lucide.keyRound), label: 'Sign in to another account', hint: const Text('With your username and password, or your recovery words'), onPress: () => push(context, (_) => const SignInScreen())),
         ],
       );
   }
@@ -411,7 +441,10 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 /// Signing in on this device: username and password (and the code texted to the account's number, where it has a
 /// verified one), or the recovery words. What is found replaces this install's identity and the app starts again.
 class SignInScreen extends StatefulWidget {
-  const SignInScreen({super.key, this.words = false, this.needsCode = false, this.needsPassword = false});
+  const SignInScreen({super.key, this.words = false, this.needsCode = false, this.needsPassword = false, this.username = ''});
+
+  /// The username typed in to start with: the phone's account's, on a computer paired with it.
+  final String username;
 
   /// Starting on the words' tab, or at the texted code, or at a new password: for the pictures.
   final bool words;
@@ -424,7 +457,7 @@ class SignInScreen extends StatefulWidget {
 
 class _SignInScreenState extends State<SignInScreen> {
   late bool _words = widget.words;
-  final _username = TextEditingController();
+  late final _username = TextEditingController(text: widget.username);
   final _password = TextEditingController();
   final _number = TextEditingController();
   final _code = TextEditingController();
@@ -497,6 +530,22 @@ class _SignInScreenState extends State<SignInScreen> {
       });
 
   Future<void> _finish(AccountRestore restore, {String? password}) async {
+    // On a computer paired with a phone this computer is the phone's identity; an account with another one splits
+    // them, to everyone who writes, into two people (Matt, 2026-11-18: "messages from desktop are coming through
+    // differently than messages on mobile even though they're both me"). Asked first.
+    if (Sms.paired && await Account.instance.wouldChangeIdentity(restore)) {
+      if (!mounted) return;
+      final phones = phoneAccountHere();
+      var go = false;
+      await showChoices(
+        context,
+        title: phones != null && phones.address.toLowerCase() != restore.address.toLowerCase()
+            ? 'This isn\'t the account your phone is in. Signed in to it, this computer and your phone are different people to your friends: messages from each come from someone else.'
+            : 'This account is someone other than your phone. Signed in to it, this computer and your phone are different people to your friends: messages from each come from someone else.',
+        choices: [Choice('Sign in anyway', Lucide.keyRound, () => go = true, danger: true)],
+      );
+      if (!go) return;
+    }
     final again = await Account.instance.finish(restore, password: password);
     if (!again && mounted) await Navigator.of(context).pushReplacement(PageRouteBuilder<void>(pageBuilder: (_, _, _) => const RestartScreen()));
   }

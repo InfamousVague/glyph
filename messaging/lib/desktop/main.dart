@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../accent.dart';
+import '../account/account.dart';
 import '../app_state.dart';
 import '../kit/settings_css.dart';
 import '../looks.dart';
@@ -37,7 +38,10 @@ import 'own_calls.dart';
 import '../friends/buddies.dart';
 import '../me/me.dart';
 import '../standalone/standalone.dart';
+import '../friends/handover.dart' show DeskHandover;
 import '../standalone/welcome.dart';
+import '../ui/account_screens.dart' show SignInScreen;
+import '../ui/common.dart' show push;
 import 'ui/link_offer.dart';
 
 /// Ghost Messaging on a computer (Matt, 2026-11-13: "a companion desktop app that can proxy messages encrypted from
@@ -152,20 +156,35 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
 void _handover(PhoneLink link, LinkCalls calls, DeskOwnCalls? own, Directory ownDir, bool keychain, AppState state) {
   var busy = false;
   DateTime? synced;
-  Future<void> go() async {
-    if (busy || !link.online || !calls.caps.contains('handover')) return;
-    if (own != null && synced != null && DateTime.now().difference(synced!) < const Duration(minutes: 5)) return;
+  void say(String phase, [String? problem]) => DeskHandover.state.value = (phase: phase, problem: problem);
+  Future<void> go({bool asked = false}) async {
+    if (busy) return;
+    if (!link.online) {
+      if (own == null) say('waiting');
+      return;
+    }
+    // A phone from before handovers: said, so Settings › Me can ask for it to be updated rather than wait silently.
+    if (!calls.caps.contains('handover')) {
+      if (own == null) say('old');
+      return;
+    }
+    if (own != null && !asked && synced != null && DateTime.now().difference(synced!) < const Duration(minutes: 5)) return;
     busy = true;
     try {
       if (own == null) {
+        say('asking');
         final h = await Sms.instance.handover(const {});
-        if ('${h['scalar'] ?? ''}'.length != 64) return;
+        if ('${h['scalar'] ?? ''}'.length != 64) {
+          say('failed', 'Your phone didn\'t hand over who you are.');
+          return;
+        }
         await DeskOwnCalls.adopt(ownDir, h, keychain: keychain);
         // Who this is goes with the identity: the same username, name and line as the phone.
         final me = (h['me'] as Map?) ?? const {};
         if ('${me['u'] ?? ''}'.isNotEmpty) state.set('me_username', '${me['u']}');
         if ('${me['n'] ?? ''}'.isNotEmpty) state.set('me_display', '${me['n']}');
         if ('${me['b'] ?? ''}'.isNotEmpty) state.set('me_bio', '${me['b']}');
+        say('done');
         await restartApp();
         return;
       }
@@ -175,14 +194,20 @@ void _handover(PhoneLink link, LinkCalls calls, DeskOwnCalls? own, Directory own
         own.takeBuddies(theirs);
         await Buddies.instance.takeAll(own.buddyJson);
       }
+      // The phone's account, as it is now (a phone from before says nothing, and what was known stays).
+      if (r.containsKey('account')) own.takePhoneAccount(r['account']);
       synced = DateTime.now();
-    } catch (_) {
-      // Asked again as the link comes and goes, and every little while.
+    } catch (e) {
+      // Asked again as the link comes and goes, and every little while; why it failed is shown in Settings › Me
+      // (DartAsk's words: most often "Open Ghost Messaging on your phone, then try again.").
+      if (own == null) say('failed', '$e'.replaceFirst(RegExp(r'^[A-Za-z]*(Exception|Error)(\([^)]*\))?: ?'), ''));
     } finally {
       busy = false;
     }
   }
 
+  if (own != null) say('done');
+  DeskHandover.retry = () => unawaited(go(asked: true));
   link.addListener(() => unawaited(go()));
   Timer.periodic(const Duration(minutes: 1), (_) => unawaited(go()));
 }
@@ -275,9 +300,17 @@ class _DeskHomeState extends State<DeskHome> {
   bool _linking = false;
   bool _restarting = false;
 
+  /// Whether signing in to an account has been offered on this paired computer (AccountOffer); null until read.
+  bool? _accountOffered;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (_accountOffered == null && Sms.paired && Sms.ownNetwork) {
+      DeskScope.of(context).store.prefs().then((p) {
+        if (mounted) setState(() => _accountOffered = p['account_offered'] == '1');
+      });
+    }
     if (_offered != null || !Sms.standalone) return;
     DeskScope.of(context).store.prefs().then((p) {
       if (mounted) setState(() => _offered = p['phone_offered'] == '1');
@@ -292,6 +325,13 @@ class _DeskHomeState extends State<DeskHome> {
       _linking = false;
     });
     unawaited(store.prefs().then((p) => store.savePrefs({...p, 'phone_offered': '1'})));
+  }
+
+  /// Signing in passed by, or taken up: not offered again (Settings › Me has it).
+  void _accountPassedBy() {
+    final store = DeskScope.of(context).store;
+    setState(() => _accountOffered = true);
+    unawaited(store.prefs().then((p) => store.savePrefs({...p, 'account_offered': '1'})));
   }
 
   /// Opens the app again on its new footing, once.
@@ -311,14 +351,34 @@ class _DeskHomeState extends State<DeskHome> {
   Widget build(BuildContext context) {
     final link = DeskScope.of(context).link;
     return ListenableBuilder(
-      listenable: Listenable.merge([link, Me.instance]),
+      listenable: Listenable.merge([link, Me.instance, Account.instance]),
       builder: (context, _) {
         final a = link.attempt;
         // Paired a moment ago: the wizard's last step is the conversations themselves.
         if (a != null && a.phase == 'done') WidgetsBinding.instance.addPostFrameCallback((_) => link.pairingShown());
         final linked = link.phone != null && (a == null || a.phase == 'done');
         if (!Sms.standalone) {
-          if (linked) return DeskShell(key: ValueKey(link.phone!.id));
+          if (linked) {
+            // Become the same you as the phone a moment ago, and in no account: signing in offered once.
+            if (Sms.ownNetwork && _accountOffered == false && !Account.instance.signedIn) {
+              final calls = Sms.calls;
+              return Stack(children: [
+                Positioned.fill(
+                  child: AccountOffer(
+                    phoneUsername: calls is DeskOwnCalls ? calls.phoneAccount?.username : null,
+                    onSignIn: () {
+                      _accountPassedBy();
+                      final name = calls is DeskOwnCalls ? calls.phoneAccount?.username ?? '' : '';
+                      push(context, (_) => SignInScreen(username: name));
+                    },
+                    onSkip: _accountPassedBy,
+                  ),
+                ),
+                Positioned(left: 0, right: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),
+              ]);
+            }
+            return DeskShell(key: ValueKey(link.phone!.id));
+          }
           // Unpaired since it opened: the wizard, or the app of its own again.
           return _wizard(skipLabel: 'Use without a phone', onSkip: _restart);
         }

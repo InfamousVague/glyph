@@ -8,6 +8,7 @@ import '../net/crypto.dart';
 import '../sms.dart';
 import '../standalone/chats.dart';
 import '../standalone/overlay.dart';
+import 'desk.dart' show restartApp;
 import 'platform.dart';
 import 'remote.dart';
 
@@ -36,11 +37,67 @@ class DeskOwnCalls extends UsernameOverlay implements CapableCalls, OwnNetworkCa
 
   LinkCalls get link => inner as LinkCalls;
 
+  /// Opens the app again ('restartApp'): a new copy, as desk.dart does; false under a test, which sets its own.
+  Future<bool> Function() restart = _restartHere;
+
+  static Future<bool> _restartHere() async {
+    if (Platform.environment.containsKey('FLUTTER_TEST')) return false;
+    await restartApp();
+    return true;
+  }
+
+  /// What a Ghost account asks of the install it is on (lib/account/account.dart, SmsAccountPort): answered here, on
+  /// this computer, and never passed to the phone. Passed on, as every call this does not answer is, a sign-in here
+  /// would have put the account's identity into the phone and its words in the phone's vault (2026-11-18, found as
+  /// Matt asked for "a way to login on desktop just to claim a username").
+  static const accountCalls = {'identityExport', 'identityImport', 'identityForget', 'secretKeep', 'secretRead', 'restartApp'};
+
   @override
   Set<String> get caps => link.caps;
 
   File get _buddyFile => File('${dir.path}/buddies.json');
   File get _keyFile => File('${dir.path}/identity.key');
+  File _secretFile(String name) => File('${dir.path}/secret-${name.replaceAll(RegExp(r'[^a-z0-9_]'), '')}.key');
+  File get _phoneAccountFile => File('${dir.path}/phone_account.json');
+
+  /// The Ghost account the phone is signed in to, as it last said in a handover: its address and username, so Settings
+  /// › Me can ask this computer to sign in to the same one, and warn before another. Null where it is in none, or is a
+  /// phone from before it said.
+  ({String address, String username})? get phoneAccount {
+    try {
+      final m = jsonDecode(_phoneAccountFile.readAsStringSync()) as Map;
+      final a = '${m['a'] ?? ''}';
+      return a.isEmpty ? null : (address: a, username: '${m['u'] ?? ''}');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// What the phone said of its account in a handover ([handover]'s `account`), kept for [phoneAccount].
+  void takePhoneAccount(Object? account) => keepPhoneAccount(dir, account);
+
+  static void keepPhoneAccount(Directory dir, Object? account) {
+    try {
+      final f = File('${dir.path}/phone_account.json');
+      if (account is Map && '${account['a'] ?? ''}'.isNotEmpty) {
+        f.writeAsStringSync(jsonEncode({'a': '${account['a']}', 'u': '${account['u'] ?? ''}'}));
+      } else if (account is Map && f.existsSync()) {
+        // The phone answered, and is in no account now.
+        f.deleteSync();
+      }
+    } catch (_) {}
+  }
+
+  /// The phone's identity let go of here ('identityForget', signing out of an account on this computer): the next
+  /// start finds nothing adopted, and the handover takes the phone's identity on again, so a computer signed out goes
+  /// back to being the same you as its phone rather than someone new beside it.
+  Future<void> _forgetIdentity() async {
+    if (keychain) await MacPlatform.keyDelete(_account);
+    for (final f in [_keyFile, File('${dir.path}/adopted.json')]) {
+      if (f.existsSync()) f.deleteSync();
+    }
+    _keys = null;
+  }
 
   /// Whether the phone's identity has been taken on here: only then is this used (lib/desktop/main.dart).
   static bool adoptedIn(Directory dir) => File('${dir.path}/adopted.json').existsSync();
@@ -71,6 +128,7 @@ class DeskOwnCalls extends UsernameOverlay implements CapableCalls, OwnNetworkCa
     final scalar = '${handover['scalar'] ?? ''}';
     final keys = NetKeys.fromScalar(NetCrypto.unhex(scalar));
     if (!keychain || !await MacPlatform.keyWrite(_account, scalar)) File('${dir.path}/identity.key').writeAsStringSync(scalar);
+    keepPhoneAccount(dir, handover['account']);
     File('${dir.path}/buddies.json').writeAsStringSync('${handover['buddies'] ?? '[]'}');
     final chats = handover['chats'];
     if (chats is Map && !File('${dir.path}/chats.json').existsSync()) File('${dir.path}/chats.json').writeAsStringSync(jsonEncode(chats));
@@ -123,6 +181,45 @@ class DeskOwnCalls extends UsernameOverlay implements CapableCalls, OwnNetworkCa
         return NetCrypto.sign(keys, (a['message'] as List).cast<int>());
       case 'netPeers' when keys != null:
         return UsernameChats.peersOf(buddyList, keys);
+      // A Ghost account on this computer ([accountCalls]): its identity, the account's words and password key kept
+      // beside it (the Keychain, or this folder in a build of one's own, as the standalone computer keeps them), and a
+      // clean start. None of these reaches the phone.
+      case 'identityExport':
+        if (keys == null) throw StateError('This computer has not taken on an identity yet');
+        return keys.scalar;
+      case 'identityImport':
+        final made = NetKeys.fromScalar((a['scalar'] as List).cast<int>());
+        final hex = NetCrypto.hex(made.scalar);
+        if (!keychain || !await MacPlatform.keyWrite(_account, hex)) {
+          _keyFile.writeAsStringSync(hex, flush: true);
+        } else if (_keyFile.existsSync()) {
+          // The Keychain took it: a key left in the folder from before would be read in its place by a build without it.
+          _keyFile.deleteSync();
+        }
+        _keys = made;
+        return null;
+      case 'identityForget':
+        await _forgetIdentity();
+        return true;
+      case 'secretKeep':
+        final name = '${a['name']}', value = '${a['value'] ?? ''}';
+        final file = _secretFile(name);
+        if (value.isEmpty) {
+          if (keychain) await MacPlatform.keyDelete('desk-own-secret-$name');
+          if (file.existsSync()) file.deleteSync();
+          return null;
+        }
+        if (!keychain || !await MacPlatform.keyWrite('desk-own-secret-$name', value)) file.writeAsStringSync(value, flush: true);
+        return null;
+      case 'secretRead':
+        final name = '${a['name']}';
+        final kept = keychain ? await MacPlatform.keyRead('desk-own-secret-$name') : null;
+        if (kept != null) return kept;
+        final file = _secretFile(name);
+        return file.existsSync() ? file.readAsStringSync() : null;
+      case 'restartApp':
+        // What an account changes here (the identity, the friends' list) is written as it is changed, before this.
+        return restart();
       // Friends by username, kept here.
       case 'buddiesKeep':
         _keepBuddyJson((a['json'] as String?) ?? '[]');
@@ -147,6 +244,8 @@ class DeskOwnCalls extends UsernameOverlay implements CapableCalls, OwnNetworkCa
       case 'notifyChat' || 'cancelChat':
         return null;
     }
+    // Whatever is left of the account's calls (none should be) is refused rather than passed to the phone.
+    if (accountCalls.contains(method)) throw StateError('$method is this computer\'s, not the phone\'s');
     return UsernameOverlay.pass;
   }
 
