@@ -108,7 +108,7 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // on the window with no Files space showing are offered to one (lib/ui/files_space/share_in.dart; Matt, 2026-11-17:
   // "Finish the missing pieces that went unfinished").
   unawaited(FilesStore.instance.start());
-  FilesShareIn.attach(FilesShareIn.desk);
+  FilesShareIn.attach();
   SpaceGroups.instance.start(state);
   DiscordServers.instance.start(state);
   // Telegram's and Bluesky's chats (lib/inbox): the computer signs in to them itself, as their own apps do.
@@ -126,7 +126,7 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   runApp(DesktopApp(sheet: sheet, state: state, link: link, calls: calls, store: store, envPeers: envPeers, updates: macUpdates, accents: accents));
 }
 
-class DesktopApp extends StatelessWidget {
+class DesktopApp extends StatefulWidget {
   const DesktopApp({super.key, required this.sheet, required this.state, required this.link, required this.calls, required this.store, this.envPeers = const [], this.updates, this.accents, this.relaunch});
   final TokenSheet sheet;
 
@@ -144,7 +144,23 @@ class DesktopApp extends StatelessWidget {
   final Future<void> Function()? relaunch;
 
   @override
+  State<DesktopApp> createState() => _DesktopAppState();
+}
+
+class _DesktopAppState extends State<DesktopApp> {
+  /// This copy's navigator, its own: files dropped on the window are asked about on it (FilesShareIn). A key shared by
+  /// every copy (a static one) carried one copy's pages, with the link they were made with, into the next mounted.
+  final _navigator = GlobalKey<NavigatorState>(debugLabel: 'desk');
+
+  @override
+  void initState() {
+    super.initState();
+    FilesShareIn.navigateWith(_navigator);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final DesktopApp(:relaunch, :link, :calls, :store, :envPeers, :updates, :state, :accents, :sheet) = widget;
     return DeskScope(
       relaunch: relaunch,
       link: link,
@@ -160,7 +176,7 @@ class DesktopApp extends StatelessWidget {
             title: 'Ghost Messaging',
             color: const Color(0xFF4F5BD5),
             debugShowCheckedModeBanner: false,
-            navigatorKey: FilesShareIn.desk,
+            navigatorKey: _navigator,
             pageRouteBuilder: <T>(RouteSettings settings, WidgetBuilder builder) => PageRouteBuilder<T>(settings: settings, pageBuilder: (context, _, _) => builder(context)),
             // Each page that opens asks for a look for a newer version, as on the phone.
             navigatorObservers: [UpdateWatch()],

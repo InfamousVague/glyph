@@ -216,14 +216,17 @@ class FilesShareIn {
   static StreamSubscription<List<String>>? _drops;
   static GlobalKey<NavigatorState>? _navigator;
 
-  /// The computer's app's navigator (lib/desktop/main.dart), so files dropped on its window can be asked about there.
-  static final desk = GlobalKey<NavigatorState>(debugLabel: 'desk');
+  /// The navigator files brought in are asked about on, from here on: a computer's app hands over its own as it
+  /// mounts (lib/desktop/main.dart), each copy of it a key of its own. One key shared by every copy moved the first
+  /// copy's whole Navigator, pages and their State, into the next one mounted in the same frame.
+  static void navigateWith(GlobalKey<NavigatorState> navigator) => _navigator = navigator;
 
   /// Listens for files brought in, asking on [navigator]'s page which Files space they go to: files shared in on a
   /// phone, and files dropped on a Mac's window while no Files space is showing (one that is showing takes them
-  /// itself, lib/ui/files_space/files_screen.dart).
-  static void attach(GlobalKey<NavigatorState> navigator) {
-    _navigator = navigator;
+  /// itself, lib/ui/files_space/files_screen.dart). A computer gives no [navigator] here: its app hands one over as it
+  /// mounts ([navigateWith]).
+  static void attach([GlobalKey<NavigatorState>? navigator]) {
+    if (navigator != null) _navigator = navigator;
     _sub ??= FilePlatform.sharedIn().listen((uris) {
       if (uris.isEmpty) return;
       // The app's first frame may not be up yet when it was opened by the share.
