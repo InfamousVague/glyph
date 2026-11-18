@@ -510,6 +510,11 @@ final themeScreens = <ThemeScreen>[
   // list of spaces on a phone and as the sidebar of a wide window, the Circles tab, and making one.
   ThemeScreen('circle', () => CircleScreen(seed: _circle.seed), before: _joinCircle, after: _leaveCircle),
   ThemeScreen('circle-wide', () => const AppShell(), size: ThemeScreen.wide, before: _joinCircle, after: _leaveCircle, choices: (_) => _openCircleSoon()),
+  // The other pages that take the list's place in a wide window, Settings and Archived: under Dial-Up each sits in
+  // the same white well as the Chat List (Matt, 2026-11-18: "the sidebar in circles on the dial up theme is missing
+  // the border bevel").
+  ThemeScreen('settings-side-wide', () => const AppShell(), size: ThemeScreen.wide, choices: (_) => _goSoon('settings')),
+  ThemeScreen('archived-wide', () => const AppShell(), size: ThemeScreen.wide, choices: (_) => _goSoon('archive')),
   ThemeScreen('new-circle', () => const NewCircleScreen()),
   // The Circles tab, where the Spaces tab was: each circle and nothing else (Matt, 2026-11-17: "it should only be
   // circles"); on a phone and a wide window.
@@ -703,6 +708,9 @@ void _tapCirclesTabSoon() => WidgetsBinding.instance.addPostFrameCallback((_) {
 
 /// The circle opened in the list's place once the frame is up.
 void _openCircleSoon() => WidgetsBinding.instance.addPostFrameCallback((_) => AppShellState.live?.openCircle(_circle));
+
+/// The shell's page [id] (`settings`, `archive`) opened once the frame is up.
+void _goSoon(String id) => WidgetsBinding.instance.addPostFrameCallback((_) => AppShellState.live?.go(id));
 
 /// The circle of one's own opened in the list's place once the frame is up.
 void _openOwnCircleSoon() => WidgetsBinding.instance.addPostFrameCallback((_) => AppShellState.live?.openCircle(_ownCircle));

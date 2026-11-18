@@ -120,3 +120,49 @@ class RetroButton extends StatelessWidget {
     );
   }
 }
+
+/// One segment of a segmented toggle under Dial-Up, drawn for the kit through GlacierOverrides (lib/main.dart's
+/// InkOverrides), so every GlacierSegmentedControl in the app turns into a row of push buttons in one place (Matt,
+/// 2026-11-18: "make sure every segmented toggle also has beveled button like apperances"). Each segment is a silver
+/// raised square; the chosen one is held in, its label a pixel right and down, as a [RetroButton] that stays in.
+class RetroSegment extends StatelessWidget {
+  const RetroSegment({super.key, required this.look});
+  final GlacierSegmentLook look;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = DialupColors.of(context.tokens);
+    final held = look.selected || (look.pressed && !look.disabled);
+    final ink = look.disabled ? c.disabled : c.onChrome;
+    return Padding(
+      // A pixel of silver between neighbours, so each reads as a button of its own rather than one bar.
+      padding: const EdgeInsets.symmetric(horizontal: 1),
+      child: GlacierFocusRing(
+        visible: look.focused,
+        radius: 0,
+        offset: 1,
+        width: 1,
+        color: c.onChrome,
+        child: Bevel(
+          style: held ? BevelStyle.pressed : BevelStyle.raised,
+          // The chosen one on the bevel's inner light, as the taskbar draws the page shown (nav_bar.dart): a shade
+          // lighter in Daytime, and grey in After Hours, whose held and raised bevels are drawn alike, so an
+          // icon-only toggle (the Files view, the list's tabs) still shows which is chosen.
+          color: look.selected ? c.lo : null,
+          padding: EdgeInsets.symmetric(horizontal: look.padding),
+          child: Transform.translate(
+            offset: held ? const Offset(1, 1) : Offset.zero,
+            child: Center(
+              child: DefaultTextStyle(
+                style: look.style.copyWith(color: ink),
+                softWrap: false,
+                overflow: TextOverflow.visible,
+                child: IconTheme.merge(data: IconThemeData(color: ink), child: look.label),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
