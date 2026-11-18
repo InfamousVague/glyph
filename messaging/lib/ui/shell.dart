@@ -650,6 +650,16 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// Takes the list back to the conversations, from Archived or from Settings.
   void home() => _side.currentState?.popUntil((r) => r.isFirst);
 
+  /// Takes Settings away, back to what was in the list's place under it: the conversations, or the circle it was
+  /// opened from (Settings' back arrow; Matt, 2026-11-18: "add a back arrow to the settings page"). Popping the route
+  /// puts Settings' page away with it (settings(): route.popped).
+  void closeSettings() {
+    final r = _settings, side = _side.currentState;
+    if (r == null || side == null) return;
+    side.popUntil((x) => x == r);
+    if (r.isCurrent) side.pop();
+  }
+
   /// Says that [child] stands in a column of the window [width] wide, where it does: the list beside a pane.
   /// Always there, so the list keeps its place in the tree as the window changes: a width without end says the
   /// list is the whole window.
