@@ -336,6 +336,18 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// Opens the new-message page, [body] already written where another app sent some words to text.
   void compose({String? body}) => show(ComposeScreen(key: UniqueKey(), body: body), showing: 'new');
 
+  /// Takes Settings away, back to whatever it was opened over (the conversations, or a circle), its page going with it
+  /// (Matt, 2026-11-18: "add a back arrow to the settings page"; Settings' back arrow beside its page).
+  void closeSettings() {
+    final route = _settings;
+    if (route == null) return;
+    final side = _side.currentState;
+    if (side != null && route.isActive) side.removeRoute(route);
+    // removeRoute does not complete [route.popped] the way a pop does: Settings' page is put away here instead.
+    if (_settings == route) setState(() => _settings = null);
+    if (_showing == 'settings') close();
+  }
+
   /// Opens Settings, or the one [section] of it ([seek]: a setting on that section's page to scroll to). Settings'
   /// list of sections takes the list's place, and the section's page is the pane's: beside the list in a wide
   /// window, where the first section is opened if none is named, and over it on a phone.
@@ -637,15 +649,6 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
 
   /// Takes the list back to the conversations, from Archived or from Settings.
   void home() => _side.currentState?.popUntil((r) => r.isFirst);
-
-  /// Takes Settings away, back to what was in the list's place under it: the conversations, or the circle it was
-  /// opened from (Settings' back arrow).
-  void closeSettings() {
-    final r = _settings, side = _side.currentState;
-    if (r == null || side == null) return;
-    side.popUntil((x) => x == r);
-    if (r.isCurrent) side.pop();
-  }
 
   /// Says that [child] stands in a column of the window [width] wide, where it does: the list beside a pane.
   /// Always there, so the list keeps its place in the tree as the window changes: a width without end says the
