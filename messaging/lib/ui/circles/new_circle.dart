@@ -27,6 +27,8 @@ import '../shell.dart';
 import 'circle_face.dart';
 import 'circle_settings.dart';
 import 'circle_picture.dart';
+import '../../voice/roles.dart' show Role;
+import '../hangout_screen.dart' show OwnerCrown;
 
 /// A section of a settings-like page, its rows' icons on [hue] (as Settings' own sections are).
 Widget _hued(String hue, Widget section) => GlacierScope(attrs: {'hue': hue}, child: section);
@@ -621,7 +623,10 @@ void circlePersonMenu(BuildContext context, Circle c, CirclePerson p) {
   ]);
 }
 
-/// A person's role in a circle as a small tag, the owner's and admins' filled; a green dot before it while they are on.
+/// A person's role in a circle in words, where a row asks which: a green dot before it while they are on, the owner's
+/// crown alone, and an admin's word in the admins' colour; a member says nothing (Matt, 2026-11-17: "Don't show the
+/// badges for owner moderator etc, instead assign role colors like discord does and for the owner just show a
+/// singlular crown icon").
 class CircleRoleTag extends StatelessWidget {
   const CircleRoleTag({super.key, required this.person});
   final CirclePerson person;
@@ -629,20 +634,22 @@ class CircleRoleTag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final strong = person.owner || person.admin;
     return Row(mainAxisSize: MainAxisSize.min, children: [
       if (person.here) ...[
         Container(width: 7, height: 7, decoration: BoxDecoration(shape: BoxShape.circle, color: t.online)),
         SizedBox(width: t.space(2)),
       ],
-      Container(
-        padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: 1),
-        decoration: BoxDecoration(color: strong ? t.color('app-ink') : t.color('app-paper-3'), borderRadius: BorderRadius.circular(isBevelChrome(t) ? 0 : t.radius('full'))),
-        child: Text(person.role, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: strong ? t.color('app-paper') : t.color('app-ink-2'))),
-      ),
+      if (person.owner)
+        const OwnerCrown()
+      else if (person.admin)
+        Text(person.role, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: circleRoleInk(t, person))),
     ]);
   }
 }
+
+/// The colour a circle member's name is drawn in: the owner's and admins' red, as a space's admins (Role.defaultColor);
+/// null for a member, the text's own.
+Color? circleRoleInk(Tokens t, CirclePerson p) => p.owner || p.admin ? t.colorOf(Role.defaultColor(Role.admin)!) : null;
 
 /// A circle's settings: the full-screen page with its own sidebar (lib/ui/circles/circle_settings.dart; Matt,
 /// 2026-11-17: "manage roles users etc and other basic circle settings with a full screen sidebar and main page

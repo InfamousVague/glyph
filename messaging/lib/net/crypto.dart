@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:pointycastle/export.dart';
+import 'fast_gcm.dart';
 
 /// A key pair on P-256: who an install is to the others it talks to (lib/net). On a phone the app's own pair is
 /// the one its encryption already has (android/.../E2e.kt), kept by Android; this is the same thing in Dart, for
@@ -92,16 +93,15 @@ class NetCrypto {
   /// [clear] sealed with [key]: twelve random bytes, then AES-256-GCM's output and its tag.
   static Uint8List seal(List<int> key, List<int> clear) {
     final nonce = randomBytes(12);
-    final c = GCMBlockCipher(AESEngine())..init(true, AEADParameters(KeyParameter(Uint8List.fromList(key)), 128, nonce, _aad));
-    return Uint8List.fromList([...nonce, ...c.process(Uint8List.fromList(clear))]);
+    // FastGcm: pointycastle's GCM bytes, about ten times faster (lib/net/fast_gcm.dart).
+    return Uint8List.fromList([...nonce, ...FastGcm(key).seal(nonce, _aad, Uint8List.fromList(clear))]);
   }
 
   /// What was sealed, or null when [sealed] was changed, cut short, or made under another key.
   static Uint8List? open(List<int> key, List<int> sealed) {
     if (sealed.length < 12 + 16) return null;
     try {
-      final c = GCMBlockCipher(AESEngine())..init(false, AEADParameters(KeyParameter(Uint8List.fromList(key)), 128, Uint8List.fromList(sealed.sublist(0, 12)), _aad));
-      return c.process(Uint8List.fromList(sealed.sublist(12)));
+      return FastGcm(key).open(Uint8List.fromList(sealed.sublist(0, 12)), _aad, Uint8List.fromList(sealed.sublist(12)));
     } catch (_) {
       return null;
     }

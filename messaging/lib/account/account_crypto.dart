@@ -7,6 +7,7 @@ import 'package:pointycastle/export.dart';
 
 import '../net/crypto.dart';
 import 'bip39_words.dart';
+import '../net/fast_gcm.dart';
 
 /// The cryptography of a Ghost account (Matt, 2026-11-17: "We need to have a way to login to existing accounts. We might
 /// need to add password based authentication as well as SMS verification for verified numbers", and "i also want
@@ -254,15 +255,13 @@ class AccountCrypto {
   /// a blob moved to another account or swapped between the two kinds does not open.
   static Uint8List gcmSeal(List<int> key, List<int> clear, String address, String kind) {
     final nonce = NetCrypto.randomBytes(12);
-    final c = GCMBlockCipher(AESEngine())..init(true, AEADParameters(KeyParameter(Uint8List.fromList(key)), 128, nonce, _aad(address, kind)));
-    return Uint8List.fromList([...nonce, ...c.process(Uint8List.fromList(clear))]);
+    return Uint8List.fromList([...nonce, ...FastGcm(key).seal(nonce, _aad(address, kind), Uint8List.fromList(clear))]);
   }
 
   static Uint8List? gcmOpen(List<int> key, List<int> sealed, String address, String kind) {
     if (sealed.length < 28) return null;
     try {
-      final c = GCMBlockCipher(AESEngine())..init(false, AEADParameters(KeyParameter(Uint8List.fromList(key)), 128, Uint8List.fromList(sealed.sublist(0, 12)), _aad(address, kind)));
-      return c.process(Uint8List.fromList(sealed.sublist(12)));
+      return FastGcm(key).open(Uint8List.fromList(sealed.sublist(0, 12)), _aad(address, kind), Uint8List.fromList(sealed.sublist(12)));
     } catch (_) {
       return null;
     }

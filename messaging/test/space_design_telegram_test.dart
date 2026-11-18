@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ghost_messaging/ui/hangout_screen.dart' show RoleTag;
+import 'package:ghost_messaging/ui/hangout_screen.dart' show OwnerCrown, RoleTag;
 import 'package:ghost_messaging/ui/ripple_avatar.dart';
 import 'package:ghost_messaging/ui/space_designs/space_design.dart';
 import 'package:ghost_messaging/ui/space_designs/telegram.dart';
@@ -191,9 +191,12 @@ void main() {
     expect(find.text('Mic on'), findsOneWidget);
     expect(find.text('Tap to mute'), findsOneWidget);
     expect(find.text('Invite to space'), findsOneWidget);
-    // The owner (this device) and Maya the moderator wear the app's own RoleTag; Riley is a quiet "guest".
-    expect(find.byType(RoleTag), findsNWidgets(2));
-    expect(find.descendant(of: find.byType(RoleTag), matching: find.text('Owner')), findsOneWidget);
+    // No role tags: names in their role's colour, and the owner (this device) has a crown alone (Matt, 2026-11-17:
+    // "Don't show the badges for owner moderator etc, instead assign role colors like discord does and for the owner
+    // just show a singlular crown icon"); Riley is a quiet "guest".
+    expect(find.byType(RoleTag), findsNothing);
+    expect(find.byType(OwnerCrown), findsOneWidget);
+    expect(find.text('Owner'), findsNothing);
     expect(find.text('guest'), findsOneWidget);
 
     await h.shoot(tester, TelegramCall(call: h.call(muted: true)), 'space-telegram-muted');
