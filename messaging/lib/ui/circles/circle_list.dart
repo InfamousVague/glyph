@@ -72,11 +72,10 @@ class CirclePage extends StatelessWidget {
           ),
         ]),
       ),
-      // The circle's own settings right beside Add people (Matt, 2026-11-17: "move the server settings to the header
-      // next to the add friend"); a gear, where a space's header has its shield.
+      // Only Add people here: the circle's settings are the dock's (Matt, 2026-11-17: "hide the settings cog that's outside
+      // of the navbar").
       actions: [
         IconTap(key: const ValueKey('circle-invite'), icon: Lucide.userPlus, label: 'Invite people', size: 20, onPressed: view.onInvite),
-        IconTap(key: const ValueKey('circle-header-settings'), icon: Lucide.settings, label: view.canEdit ? 'Circle settings' : 'About this circle', size: 20, onPressed: view.onSettings),
       ],
       body: body,
     );
