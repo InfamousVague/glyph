@@ -718,7 +718,9 @@ class LinkCalls implements SmsCalls, CapableCalls {
       case 'part':
         return _part((a['id'] as num).toInt());
       // A video (lib/ui/video.dart): its bytes are the phone's, brought over as a picture's are; the Mac makes the
-      // picture of where it starts, and plays it in a window of its own (macos/Runner/DeskVideo.swift).
+      // picture of where it starts (macos/Runner/DeskVideo.swift), and the app's own player plays it from a file
+      // (lib/ui/video_screen.dart; Matt, 2026-11-18: "add support for playing mkv video files and mp4's within the app
+      // in a player themed by glacier UI").
       case 'videoPreview':
         final id = (a['part'] as num).toInt();
         final bytes = await _video(id);
@@ -726,13 +728,11 @@ class LinkCalls implements SmsCalls, CapableCalls {
         final preview = await MacPlatform.videoPreview(id, bytes, '${a['ending'] ?? 'mp4'}');
         // How large its file is: the Mac holds it, having fetched it.
         return preview is Map ? {...preview, 'bytes': bytes.length} : preview;
-      case 'videoPlay':
+      case 'videoFile':
         final id = (a['part'] as num).toInt();
         final bytes = await _video(id);
-        if (bytes == null) throw const LinkDown('Your phone isn\'t reachable, and the video is on it. Try again when it is back.');
-        final why = await MacPlatform.videoPlay(id, bytes, '${a['ending'] ?? 'mp4'}', 'Video');
-        if (why != null) throw PhoneError('Couldn\'t play it: $why.');
-        return null;
+        if (bytes == null) return null;
+        return videoCopy(id, bytes, '${a['ending'] ?? 'mp4'}');
       case 'threadFlag':
       case 'threadName':
       case 'archive':
@@ -887,6 +887,23 @@ class LinkCalls implements SmsCalls, CapableCalls {
       _videos.remove(_videos.keys.first);
     }
     return bytes;
+  }
+
+  /// The phone's video [bytes] as a file for the player, in the folder the Mac's DeskVideo.swift sweeps as the app
+  /// opens and quits (`ghost-messaging-video/<this run's pid>`), in the account's own temporary folder (the Mac's
+  /// per-user TMPDIR, Windows' %TEMP%), which no other account can read. The player removes it
+  /// once its screen has gone (VideoScreen.dropFile), so nothing of a conversation stays on the computer's disk.
+  static Future<String?> videoCopy(int id, Uint8List bytes, String ending, {Directory? under}) async {
+    try {
+      final folder = Directory('${(under ?? Directory.systemTemp).path}/ghost-messaging-video/$pid');
+      await folder.create(recursive: true);
+      final safe = RegExp(r'^[a-z0-9]{1,5}$').hasMatch(ending.toLowerCase()) ? ending.toLowerCase() : 'mp4';
+      final file = File('${folder.path}/$id-${DateTime.now().microsecondsSinceEpoch}.$safe');
+      await file.writeAsBytes(bytes, flush: true);
+      return file.path;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<Uint8List?> _part(int id) async {

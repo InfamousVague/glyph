@@ -6,11 +6,10 @@ import 'package:ghost_messaging/desktop/platform.dart';
 import 'package:integration_test/integration_test.dart';
 
 /// The Mac's half of a video in a message (macos/Runner/DeskVideo.swift), with a real video and the Mac's own
-/// AVFoundation: a picture is made of where it starts, its length is read, and a window plays it.
+/// AVFoundation: a picture is made of where it starts and its length is read. (It is played in the app's own player
+/// since 2026-11-18, lib/ui/video_screen.dart, no longer in a window of DeskVideo's.)
 ///
 ///   flutter test integration_test/desk_video_test.dart -d macos --dart-define=DESK_VIDEO=/path/to/clip.mp4
-///
-/// DESK_VIDEO_HOLD (seconds) keeps the player's window open that long, to look at it from outside.
 ///
 /// With --dart-define=DESK_SOUND=/path/to/voice.m4a the Mac's half of a voice message is run too (DeskSound.swift):
 /// its length read, and it played, paused and stopped, with where it has got to told back. Give it a silent one:
@@ -18,13 +17,12 @@ import 'package:integration_test/integration_test.dart';
 /// for the microphone.
 const _video = String.fromEnvironment('DESK_VIDEO');
 const _sound = String.fromEnvironment('DESK_SOUND');
-const _hold = int.fromEnvironment('DESK_VIDEO_HOLD', defaultValue: 1);
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
-  testWidgets('a video\'s picture and length are made, and a window plays it', (tester) async {
+  testWidgets('a video\'s picture and length are made', (tester) async {
     await tester.pumpWidget(const SizedBox());
     expect(_video, isNotEmpty, reason: 'give a video: --dart-define=DESK_VIDEO=/path/to/clip.mp4');
     final bytes = File(_video).readAsBytesSync();
@@ -36,14 +34,9 @@ void main() {
     expect(preview['millis'] as int, greaterThan(500));
     expect(preview['width'] as int, greaterThan(0));
     expect((preview['width'] as int) <= 720 && (preview['height'] as int) <= 720, isTrue);
-    // What is not a video has no picture, and is not played.
+    // What is not a video has no picture.
     final nothing = (await MacPlatform.videoPreview(8, File(_video).readAsBytesSync().sublist(0, 2000), 'mp4'))!;
     expect(nothing['picture'], isNull);
-    expect(await MacPlatform.videoPlay(8, File(_video).readAsBytesSync().sublist(0, 2000), 'mp4', 'Not a video'), isNotNull);
-    // And the real one plays, in a window of its own.
-    expect(await MacPlatform.videoPlay(7, bytes, 'mp4', 'Video'), isNull);
-    debugPrint('DESK-VIDEO-PLAYING pid $pid');
-    await Future<void>.delayed(const Duration(seconds: _hold));
   });
 
   testWidgets('a voice message\'s length is read, and it plays, pauses and stops, saying where it has got to', (tester) async {

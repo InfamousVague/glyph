@@ -27,6 +27,8 @@ abstract final class LucideMore {
   static const type = LucideIcon('type', ['M12 4v16', 'M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2', 'M9 20h6'], []);
   // The video player's mute (lib/ui/video_screen.dart).
   static const volumeX = LucideIcon('volume-x', ['M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z', 'M22 9l-6 6', 'm16 9 6 6'], []);
+  // The video player leaving full screen (lib/ui/video_screen.dart).
+  static const minimize = LucideIcon('minimize', ['M8 3v3a2 2 0 0 1-2 2H3', 'M21 8h-3a2 2 0 0 1-2-2V3', 'M3 16h3a2 2 0 0 1 2 2v3', 'M16 21v-3a2 2 0 0 1 2-2h3'], []);
   // Settings › Voice and video's Music mode.
   static const music = LucideIcon('music', ['M9 18V5l12-2v13', 'M3 18A3 3 0 1 0 9 18A3 3 0 1 0 3 18Z', 'M15 16A3 3 0 1 0 21 16A3 3 0 1 0 15 16Z'], [1, 2]);
   static const audioLines = LucideIcon('audio-lines', ['M2 10v3', 'M6 6v11', 'M10 3v18', 'M14 8v7', 'M18 5v13', 'M22 10v3'], []);

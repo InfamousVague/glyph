@@ -409,9 +409,6 @@ void _answerChannel() {
       // A text sent: the phone's thread for it.
       case 'send':
         return 1;
-      case 'videoPlay':
-        _videosPlayed.add((args['part'] as num).toInt());
-        return null;
       // The phone's own player (lib/ui/video_screen.dart) opens the video as a file.
       case 'videoFile':
         _videosPlayed.add((args['part'] as num).toInt());

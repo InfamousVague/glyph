@@ -46,6 +46,8 @@ import 'package:ghost_messaging/ui/jump_to_latest.dart';
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/ui/shell.dart';
 import 'package:ghost_messaging/ui/thread.dart';
+import 'package:ghost_messaging/ui/video_engine.dart';
+import 'package:ghost_messaging/ui/video_screen.dart';
 import 'package:ghost_messaging/voice/channels.dart';
 import 'package:ghost_messaging/voice/hangout.dart';
 import 'package:ghost_messaging/voice/roles.dart';
@@ -57,6 +59,7 @@ import 'circle_sample.dart';
 import 'files_shots.dart';
 import 'files_share_in_shots.dart';
 import 'support/fake_friends.dart';
+import 'support/fake_video.dart';
 
 /// The looks (lib/looks.dart; Matt, 2026-11-16: "spend some time making a few themes for ghost, base one of them
 /// heavily on the old AOL chatrooms").
@@ -255,6 +258,32 @@ void main() {
         if (shots) await _capture(tester, 'dialup-$b-typing-360');
       }
     });
+  });
+
+  // The video player (lib/ui/video_screen.dart; Matt, 2026-11-18: "add support for playing mkv video files and mp4's
+  // within the app in a player themed by glacier UI"): playing with its controls up, paused, and a file that can't be
+  // played, on a computer's window and (paused) a phone, in Ghost light and dark and Dial-Up's Daytime.
+  testWidgets('the video player in Ghost and Dial-Up', (tester) async {
+    _answerChannel();
+    final shots = Platform.environment['THEME_SHOTS'] == '1' || autoUpdateGoldenFiles;
+    await tester.runAsync(_fonts);
+    final sheet = (await tester.runAsync(_loadSheet))!;
+    addTearDown(() => VideoEngine.make = VideoEngine.defaultEngine);
+    const desk = Size(1100, 700);
+    for (final (look, b) in [(Look.ghost, 'light'), (Look.ghost, 'dark'), (Look.dialup, 'light')]) {
+      for (final (name, engine, size, onDesk) in [
+        ('video-playing', () => FakeVideoEngine(), desk, true),
+        ('video-paused', () => FakeVideoEngine(still: true, at: const Duration(minutes: 1, seconds: 7)), desk, true),
+        ('video-paused-phone', () => FakeVideoEngine(still: true, at: const Duration(minutes: 1, seconds: 7)), ThemeScreen.phone, false),
+        ('video-error', () => FakeVideoEngine(fails: true), desk, true),
+      ]) {
+        VideoEngine.make = engine;
+        await shootLook(tester, sheet, look, b, ThemeScreen(name, () => VideoScreen(path: '/tmp/holiday.mkv', title: 'Maya Chen', desk: onDesk), size: size), write: shots);
+        expect(find.bySemanticsLabel('Back'), findsWidgets, reason: '${look.name} $b $name');
+      }
+    }
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 4));
   });
 
   group('screens in every look', () {

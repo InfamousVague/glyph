@@ -1281,11 +1281,9 @@ class Sms {
     return preview;
   }
 
-  /// Plays the video [a]: the whole screen on the phone, a window of its own on a computer.
-  /// On the phone: the video as a file the app's own player opens (android Video.kt videoFile); null where it can't be had.
+  /// The video [a] as a file the app's own player opens (lib/ui/video_screen.dart): on the phone android Video.kt's
+  /// videoFile; on a computer a copy of the phone's bytes (lib/desktop/remote.dart videoCopy). Null where it can't be had.
   Future<String?> videoFile(Attachment a) => _calls.invokeMethod<String>('videoFile', {'part': a.id, 'ending': a.ending});
-
-  Future<void> playVideo(Attachment a) => _calls.invokeMethod('videoPlay', {'part': a.id, 'type': a.type, 'ending': a.ending, 'name': a.name});
 
   /// Opens the computer's own panel of emoji, which types what is chosen where the cursor is. A phone's keyboard has
   /// its own, so this is a computer's alone ([remote]).

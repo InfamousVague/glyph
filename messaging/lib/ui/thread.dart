@@ -1119,7 +1119,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           else if (a.isImage)
             _Picture(id: a.id, radius: BorderRadius.zero, maxWidth: mediaWidth, onTap: failed && _canRetry(m) ? () => _retry(m) : null)
           else if (a.isVideo)
-            VideoBubble(video: a, radius: BorderRadius.zero, maxWidth: mediaWidth, ground: c.chrome, ink: c.onChrome, received: !m.outgoing)
+            VideoBubble(video: a, radius: BorderRadius.zero, maxWidth: mediaWidth, ground: c.chrome, ink: c.onChrome, received: !m.outgoing, title: nameOf(m))
           else if (a.isAudio)
             VoiceBubble(part: a.id, ground: c.chrome, ink: c.onChrome, radius: BorderRadius.zero, rim: Border.all(color: c.shadow), playable: true)
           else
@@ -1745,7 +1745,7 @@ class _Bubble extends StatelessWidget {
           // A video: a picture of where it starts, and a button that plays it (it was drawn as its file's name).
           Padding(
             padding: EdgeInsets.only(bottom: body.isEmpty ? 0 : t.space(1)),
-            child: VideoBubble(video: a, radius: radius, maxWidth: maxWidth, ground: ground, ink: ink, received: !out),
+            child: VideoBubble(video: a, radius: radius, maxWidth: maxWidth, ground: ground, ink: ink, received: !out, title: out ? 'You' : sender),
           )
         else if (a.isAudio)
           // A voice message: a player (on a computer, its name: the sound stays on the phone).

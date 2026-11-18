@@ -149,10 +149,4 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
       b.setFrameOrigin(NSPoint(x: lightsX + CGFloat(i) * step, y: (barHeight - size) / 2))
     }
   }
-
-  /// The app's window closing takes any video's window with it, so the app quits as it did.
-  override func close() {
-    DeskVideo.shared.closeAll()
-    super.close()
-  }
 }
