@@ -11,6 +11,7 @@ import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import 'friends/buddies.dart';
 import 'me/me.dart';
 import 'accent.dart';
 import 'summaries.dart';
@@ -295,6 +296,8 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       Summaries.instance.start(app);
       // And the number's verification, done here for a paired computer that asks (Sms.me on the computer).
       Sms.answer('me', Me.instance.forComputer);
+      // And friends by username, added and answered from a paired computer (lib/friends/buddies.dart).
+      Sms.answer('buddies', Buddies.instance.forComputer);
       // A paired computer's voice channels are the phone's (lib/voice/channels.dart).
       Sms.answer('voice', Voice.instance.answerDesk);
       // And its Telegram approves a paired computer's sign-in (lib/inbox/telegram.dart).

@@ -41,6 +41,7 @@ class DeskSessionTest {
         override fun ownNumber(): String? = "+14436537451"
         val asked = ArrayList<Map<String, Any?>>()
         override fun me(what: Map<String, Any?>): Any? { asked.add(what); return mapOf("dir" to "text", "handle" to what["handle"]) }
+        override fun buddies(what: Map<String, Any?>): Any? { asked.add(what); return mapOf("list" to emptyList<Any>()) }
         override fun part(id: Long): ByteArray? = if (id == 5L) picture else null
         override fun send(addresses: List<String>, body: String): Long { sentTexts += addresses to body; return 7L }
         override fun markRead(thread: Long) { read += thread }

@@ -254,7 +254,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
           // search and have it open a drawer"). On the phone, whose friends they are.
           child: Row(children: [
             Expanded(child: GlacierSearchField(placeholder: 'Search contacts', size: GlacierFieldSize.md, onValueChange: _typed)),
-            if (!Sms.paired) ...[SizedBox(width: t.space(2)), const AddFriendButton()],
+            // On a computer too, through its phone (Matt, 2026-11-18: "I don't see the ability to add friends on desktop").
+            ...[SizedBox(width: t.space(2)), const AddFriendButton()],
           ]),
         ),
         // A filter for each linked network with contacts, beside All, Friends and Phone; none until a network is linked
@@ -310,7 +311,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     // Friends by username first (lib/ui/username_friends.dart; Matt, 2026-11-16: "We need a way to add
                     // friends on the network by username on the contacts page and see friend requests"), on the phone,
                     // whose they are, while nothing is searched for.
-                    final friends = !Sms.paired && _query.isEmpty;
+                    final friends = _query.isEmpty;
                     return rows.isEmpty
                   ? ListView(padding: EdgeInsets.only(bottom: t.space(6)), children: [
                       if (friends) const UsernameFriends(),

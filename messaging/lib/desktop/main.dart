@@ -33,6 +33,7 @@ import '../files/files_store.dart';
 import 'gm_web.dart';
 import 'updates.dart';
 import '../people.dart';
+import '../friends/buddies.dart';
 import '../me/me.dart';
 import '../standalone/standalone.dart';
 import '../standalone/welcome.dart';
@@ -103,6 +104,8 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
     startPeople(state);
   } else {
     unawaited(Voice.instance.start(state).then((_) => Circles.instance.start(state)));
+    // Friends by username, the phone's, listed and added through it (lib/friends/buddies.dart).
+    unawaited(Buddies.instance.start());
   }
   // Files spaces' files (lib/files/files_store.dart): what was going up when the app closed goes on. And files dropped
   // on the window with no Files space showing are offered to one (lib/ui/files_space/share_in.dart; Matt, 2026-11-17:
