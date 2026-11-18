@@ -870,9 +870,12 @@ class Files {
 /// What the files store may hold, from the environment where it is set (`GHOST_FILES_*`, tool/deploy-relay.mjs).
 class FilesConfig {
   const FilesConfig({
-    this.maxFile = 2 << 30,
-    this.spaceQuota = 2 << 30,
-    this.total = 20 << 30,
+    // 50 GB a file as the app shows sizes (decimal), with room for its sealing (16 bytes a 256 KiB chunk, about 3.1 MB)
+    // (Matt, 2026-11-17: "Bump the upload limit to 50GB"); a space holds two of them, the store about half the box's
+    // free disk (640 GB that day).
+    this.maxFile = 50000000000 + (4 << 20),
+    this.spaceQuota = 100000000000,
+    this.total = 300000000000,
     this.spacesPerId = 20,
     this.idleDays = 90,
     this.writesPerMinute = 600,
@@ -884,7 +887,8 @@ class FilesConfig {
     this.maxSpaces = 100000,
     this.partHours = 24,
     this.spacesPerAddress = 20,
-    this.promisedPerAddress = 4 << 30,
+    // Room promised to uploads not yet written, per address: one whole 50 GB file and some.
+    this.promisedPerAddress = 60000000000,
   });
 
   /// The largest blob (a sealed file: its size and 16 bytes a chunk), in bytes.
