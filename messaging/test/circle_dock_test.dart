@@ -12,6 +12,7 @@ import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
 import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner;
 import 'package:ghost_messaging/sms.dart' show Person;
 import 'package:ghost_messaging/ui/circles/members_drawer.dart';
+import 'package:ghost_messaging/ui/common.dart' show IconTap;
 import 'package:ghost_messaging/ui/composer_box.dart';
 import 'package:ghost_messaging/ui/contacts.dart';
 import 'package:ghost_messaging/ui/hangout_screen.dart';
@@ -97,6 +98,11 @@ void main() {
     await settle(tester);
     expect(find.byType(SettingsScreen), findsOneWidget, reason: 'the app\'s own Settings');
     expect(find.byType(CircleSettingsPage), findsNothing);
+    // Its back arrow (Matt, 2026-11-18: "add a back arrow to the settings page") takes it away, back to the circle.
+    await tester.tap(find.descendant(of: find.byType(SettingsScreen), matching: find.byWidgetPredicate((w) => w is IconTap && w.label == 'Back')).first);
+    await settle(tester);
+    expect(find.byType(SettingsScreen), findsNothing);
+    expect(AppShellState.live!.circleOpen, isTrue);
     AppShellState.live!.home();
     await settle(tester);
     AppShellState.live!.openCircle(_circle);

@@ -358,8 +358,10 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
         }
         return GhostPage(
           title: 'Settings',
-          // Beside its page the way out is the bar at the list's foot, as it is from the conversations.
-          back: !beside,
+          // A back arrow always (Matt, 2026-11-18: "add a back arrow to the settings page"): on a phone it is the page's
+          // own, beside its page it takes Settings away, back to the conversations or the circle it was opened from.
+          onBack: beside ? shell.closeSettings : null,
+          bigTitle: beside ? true : null,
           body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Padding(
               padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(3)),
