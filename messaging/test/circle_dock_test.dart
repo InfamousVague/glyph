@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/ui/circles/circle_screen.dart' show showCircleMenu;
 import 'package:ghost_messaging/ui/circles/circle_settings.dart';
+import 'package:ghost_messaging/ui/settings.dart' show SettingsScreen;
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/circles/circles.dart';
 import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
@@ -82,13 +84,27 @@ void main() {
     });
   }
 
-  testWidgets('the circle\'s Settings ring opens its settings over the whole window, sections in a sidebar', (tester) async {
+  // Matt, 2026-11-18: "make the settings button in circles dock open the global app settings, to manage settings in a
+  // given circle we shoould click the circle name and chevron in the top of the sidebar and replace "about this circle"
+  // with "Circle Settings"".
+  testWidgets('the dock\'s Settings is the app\'s; the circle\'s are in its menu, over the whole window', (tester) async {
     Circles.instance.join(_circle);
     final sheet = await loadSheet(tester);
     await pumpScreen(tester, sheet, const AppShell(), AppState(), size: const Size(900, 832));
     AppShellState.live!.openCircle(_circle);
     await settle(tester);
     await tester.tap(_ring('circle-settings'));
+    await settle(tester);
+    expect(find.byType(SettingsScreen), findsOneWidget, reason: 'the app\'s own Settings');
+    expect(find.byType(CircleSettingsPage), findsNothing);
+    AppShellState.live!.home();
+    await settle(tester);
+    AppShellState.live!.openCircle(_circle);
+    await settle(tester);
+    showCircleMenu(tester.element(find.byType(AppShell)), _circle);
+    await settle(tester);
+    expect(find.text('About this circle'), findsNothing);
+    await tester.tap(find.text('Circle settings'));
     await settle(tester);
     // Over the whole window, its sidebar beside the section (Matt, 2026-11-17: "a full screen sidebar and main page").
     expect(find.byType(CircleSettingsPage), findsOneWidget);
