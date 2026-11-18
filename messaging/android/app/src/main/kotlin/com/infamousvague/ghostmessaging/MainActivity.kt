@@ -356,6 +356,27 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 "blockedNumbers" -> bg { store.blockedNumbers() }
+                // A frame of the video at `path` as a PNG, for its preview in a Files space (Matt, 2026-11-18: "videos
+                // having a frame from the first minute of the video"): a tenth of the way in, at least a second, never
+                // past the first minute; at most 480 across. Null where Android can't read it.
+                "videoFrame" -> bg {
+                    val path = call.argument<String>("path")
+                    if (path == null) null else try {
+                        val r = android.media.MediaMetadataRetriever()
+                        try {
+                            r.setDataSource(path)
+                            val dur = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                            val atMs = if (dur > 0) minOf(maxOf(dur / 10, minOf(1000L, dur / 2)), 60_000L) else 1000L
+                            val frame = r.getScaledFrameAtTime(atMs * 1000, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 480, 480)
+                                ?: r.getFrameAtTime(atMs * 1000)
+                            if (frame == null) null else java.io.ByteArrayOutputStream().also { frame.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it); frame.recycle() }.toByteArray()
+                        } finally {
+                            r.release()
+                        }
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
                 // Android's page for the "Paired with…" notification alone, where it can be turned off.
                 "deskNotificationSettings" -> {
                     try {

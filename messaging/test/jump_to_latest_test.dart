@@ -138,6 +138,7 @@ Future<void> _up(WidgetTester tester, double by) async {
 }
 
 void main() {
+  keyboardTests();
   late TokenSheet sheet;
   setUp(ScrollMemory.clear);
 
@@ -384,6 +385,20 @@ void main() {
     expect(_list(tester).pixels, 1000);
     expect(_arrow(), isTrue);
     semantics.dispose();
+  });
+}
+
+/// Matt, 2026-11-18: "when typing in a space the chat and chatbar don't slide up above the keyboard".
+void keyboardTests() {
+  testWidgets('with the keyboard up, a space\'s composer and newest message are above it', (tester) async {
+    final sheet = await loadSheet(tester);
+    final room = _room('Lounge');
+    await _open(tester, sheet, Builder(builder: (context) => MediaQuery(data: MediaQuery.of(context).copyWith(viewInsets: const EdgeInsets.only(bottom: 300)), child: HangoutChat(room: room))), AppState());
+    final screen = tester.view.physicalSize.height / tester.view.devicePixelRatio;
+    final field = tester.getRect(find.byType(EditableText));
+    expect(field.bottom, lessThanOrEqualTo(screen - 300), reason: 'the field is over the keyboard');
+    final newest = tester.getRect(find.textContaining('Line 59 in Lounge'));
+    expect(newest.bottom, lessThanOrEqualTo(field.top), reason: 'the newest message is above the composer, in view');
   });
 }
 

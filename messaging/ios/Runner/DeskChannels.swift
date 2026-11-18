@@ -1,5 +1,6 @@
 import Flutter
 import PhotosUI
+import AVFoundation
 import Security
 import UIKit
 import UserNotifications
@@ -44,6 +45,15 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
     system.setMethodCallHandler { [weak self] call, result in
       let args = call.arguments as? [String: Any] ?? [:]
       switch call.method {
+      case "videoFrame":
+        // A frame of the video at `path` as a PNG, for its preview in a Files space (Matt, 2026-11-18: "videos having a
+        // frame from the first minute of the video"): a tenth of the way in, at least a second, never past the first
+        // minute; at most 480 across. Nil where AVFoundation can't read it.
+        guard let path = args["path"] as? String else { return result(nil) }
+        DispatchQueue.global(qos: .userInitiated).async {
+          let png = videoFramePNG(path)
+          DispatchQueue.main.async { result(png.map { FlutterStandardTypedData(bytes: $0) }) }
+        }
       case "name":
         // iOS gives apps "iPhone" rather than the name in Settings › General › About.
         result(UIDevice.current.name)
@@ -242,4 +252,23 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
     }
     sink?(list)
   }
+}
+
+/// A frame of the video at [path], a tenth of the way in (at least a second, never past the first minute), as a CGImage
+/// at most 480 across.
+func videoFrameImage(_ path: String) -> CGImage? {
+  let asset = AVURLAsset(url: URL(fileURLWithPath: path))
+  let secs = CMTimeGetSeconds(asset.duration)
+  let at = secs.isFinite && secs > 0 ? min(max(secs * 0.1, min(1, secs / 2)), 60) : 1
+  let gen = AVAssetImageGenerator(asset: asset)
+  gen.appliesPreferredTrackTransform = true
+  gen.maximumSize = CGSize(width: 480, height: 480)
+  gen.requestedTimeToleranceBefore = CMTime(seconds: 2, preferredTimescale: 600)
+  gen.requestedTimeToleranceAfter = CMTime(seconds: 2, preferredTimescale: 600)
+  return try? gen.copyCGImage(at: CMTime(seconds: at, preferredTimescale: 600), actualTime: nil)
+}
+
+func videoFramePNG(_ path: String) -> Data? {
+  guard let cg = videoFrameImage(path) else { return nil }
+  return UIImage(cgImage: cg).pngData()
 }
