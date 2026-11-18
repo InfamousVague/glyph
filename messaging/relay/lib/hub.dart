@@ -433,9 +433,10 @@ class Hub {
       // [2][the room, 16 bytes][the packet]: to everyone else in it.
       final name = hexOf(data.sublist(1, 17));
       final room = _rooms[name];
-      if (room == null || !room.members.containsKey(from.id)) return;
+      if (room == null || !(room.members[from.id]?.contains(from) ?? false)) return;
       final frame = Uint8List.fromList([toRoom, ...data.sublist(1, 17), ..._unhex(from.id), ...data.sublist(17)]);
-      for (final m in room.members.values) {
+      // To every device of everyone in it, the sender's other devices too, but not the connection it came from.
+      for (final m in room.members.values.expand((d) => d)) {
         if (!identical(m, from) && m.ws.readyState == WebSocket.open) m.ws.add(frame);
       }
     }
@@ -488,11 +489,20 @@ class Hub {
       return;
     }
     final others = room.members.keys.where((id) => id != e.id).toList();
-    room.members[e.id] = e;
+    // Every device of a member is in the room, each handed what is sent there (Matt, 2026-11-18: his phone stopped
+    // seeing a circle's messages and members once his computer, the same identity, joined its rooms and took the one
+    // place a member had). The others hear that someone came only with their first device.
+    final devices = room.members.putIfAbsent(e.id, () => <_End>[]);
+    final first = devices.isEmpty;
+    if (!devices.any((d) => identical(d, e))) devices.add(e);
     e.rooms.add(name);
     _tell(e.ws, {'room': name, 'ok': true, 'members': others});
-    for (final id in others) {
-      _tell(room.members[id]?.ws, {'room': name, 'came': e.id});
+    if (first) {
+      for (final id in others) {
+        for (final d in room.members[id] ?? const <_End>[]) {
+          _tell(d.ws, {'room': name, 'came': e.id});
+        }
+      }
     }
     _showLookers(name);
     _say('${e.id.substring(0, 6)} joined room ${name.substring(0, 6)} (${room.members.length} in it)');
@@ -501,12 +511,16 @@ class Hub {
   void _leave(_End e, String name) {
     e.rooms.remove(name);
     final room = _rooms[name];
-    if (room == null || !identical(room.members[e.id], e)) return;
+    final devices = room?.members[e.id];
+    if (room == null || devices == null || !devices.any((d) => identical(d, e))) return;
+    devices.removeWhere((d) => identical(d, e));
+    // Another device of theirs is still in it: they have not gone.
+    if (devices.isNotEmpty) return;
     room.members.remove(e.id);
     if (room.members.isEmpty) {
       _rooms.remove(name);
     } else {
-      for (final m in room.members.values) {
+      for (final m in room.members.values.expand((d) => d)) {
         _tell(m.ws, {'room': name, 'went': e.id});
       }
     }
@@ -557,5 +571,6 @@ class _Room {
 
   /// SHA-256 of the room's token, in hex.
   final String hash;
-  final Map<String, _End> members = {};
+  /// Each member by name, with every device of theirs in the room.
+  final Map<String, List<_End>> members = {};
 }
