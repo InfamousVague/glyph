@@ -147,6 +147,10 @@ class Circles extends ChangeNotifier {
     try {
       all = [for (final j in jsonDecode(app.choice('circles', '[]')) as List) ?Circle.fromJson(j)];
       _gone.addAll((jsonDecode(app.choice('circles_gone', '[]')) as List).whereType<String>());
+      final seen = jsonDecode(app.choice('circles_seen', '{}')) as Map;
+      for (final e in seen.entries) {
+        _seen['${e.key}'] = {for (final p in ((e.value as Map?) ?? const {}).entries) '${p.key}': '${p.value}'};
+      }
     } catch (_) {}
     try {
       // One for a circle joined meanwhile (on the phone or computer) has been answered.
@@ -166,6 +170,30 @@ class Circles extends ChangeNotifier {
 
   /// Who is in a call in [c] now, by id, each once.
   List<String> inVoice(Circle c) => {for (final s in c.channels) if (s.hasVoice) ...Voice.instance.inChannel(s)}.toList();
+
+  /// Everyone this device has seen in each circle, by circle seed, then id, with the name they gave: who was here, wrote
+  /// in a space or added a file, kept so they are still among its members once they have gone (Matt, 2026-11-18: "I
+  /// still don't see memebers i added in the members list on mobile even though they are posting files").
+  final Map<String, Map<String, String>> _seen = {};
+
+  /// Who has been seen in [c], by id, with their name ('' where none was given).
+  Map<String, String> seenIn(Circle c) => _seen[c.seed] ?? const {};
+
+  /// Keeps [people] (id to name) as seen in [c]; a name is kept over none, a newer over an older. Saved only where
+  /// something is new, and told no one: it is asked while the members list is drawn.
+  void noteSeen(Circle c, Map<String, String> people) {
+    final have = _seen.putIfAbsent(c.seed, () => {});
+    var changed = false;
+    for (final e in people.entries) {
+      if (e.key.isEmpty) continue;
+      final had = have[e.key];
+      if (had == null || (e.value.isNotEmpty && e.value != had)) {
+        have[e.key] = e.value.isNotEmpty ? e.value : (had ?? '');
+        changed = true;
+      }
+    }
+    if (changed) _app?.set('circles_seen', jsonEncode(_seen));
+  }
 
   /// How many are in [c]'s room now, this device among them; 0 before it is joined.
   int onlineIn(Circle c) {
@@ -811,14 +839,21 @@ class CircleRoom {
   }
 
   /// Says [m] to everyone in the room.
-  void say(CircleManifest m) => _say({'t': 'circle', 'm': m.toJson()});
+  void say(CircleManifest m) => _say({'t': 'circle', 'm': m.toJson()}, keep: true);
 
   void _ask() => _say({'t': 'sync?', 'v': circle.manifest.version});
 
-  void _say(Map<String, Object?> what) {
+  /// [keep]: a change to the circle is kept by the hub for whoever comes in later.
+  void _say(Map<String, Object?> what, {bool keep = false}) {
     if (!opened) return;
     try {
-      route.send(circle.room, NetCrypto.seal(circle.key, utf8.encode(jsonEncode(what))));
+      final sealed = NetCrypto.seal(circle.key, utf8.encode(jsonEncode(what)));
+      final r = route;
+      if (keep && r is HubVoiceRoute) {
+        r.sendKept(circle.room, sealed);
+      } else {
+        r.send(circle.room, sealed);
+      }
     } catch (_) {}
   }
 

@@ -402,8 +402,11 @@ class HubCarrier implements Carrier {
   }
 
   /// Sends a packet to everyone else in a room this install is in.
-  void sendRoom(String room, Uint8List packet) {
+  ///
+  /// [keep]: the hub keeps it too, sealed as it is, for whoever joins the room later (relay/lib/hub.dart toRoomKept):
+  /// what a space's members wrote reaches a phone that was closed at the time.
+  void sendRoom(String room, Uint8List packet, {bool keep = false}) {
     if (!_ready || !_joined.containsKey(room)) throw CarrierError('not in that room');
-    _ws?.add([2, ...NetCrypto.unhex(room), ...packet]);
+    _ws?.add([keep ? 3 : 2, ...NetCrypto.unhex(room), ...packet]);
   }
 }

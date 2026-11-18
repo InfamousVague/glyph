@@ -171,6 +171,9 @@ class HubVoiceRoute implements VoiceRoute {
   void leave(String room) => hub.leave(room);
   @override
   void send(String room, Uint8List bytes) => hub.sendRoom(room, bytes);
+
+  /// Sends [bytes] to the room and has the hub keep them for whoever joins later (HubCarrier.sendRoom's keep).
+  void sendKept(String room, Uint8List bytes) => hub.sendRoom(room, bytes, keep: true);
   @override
   void look(String room, String token) => hub.look(room, token);
   @override

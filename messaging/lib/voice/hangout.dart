@@ -111,7 +111,7 @@ class HangoutRoom extends ChangeNotifier {
     if (words.isEmpty || !can(Perm.chat) || putOut != null) return false;
     final m = HangoutMessage(id: NetCrypto.hex(NetCrypto.randomBytes(8)), from: me, name: name, text: words.length > 4000 ? words.substring(0, 4000) : words, at: DateTime.now().millisecondsSinceEpoch);
     _add([m]);
-    _say({'t': 'msg', ...m.toJson()});
+    _say({'t': 'msg', ...m.toJson()}, keep: true);
     return true;
   }
 
@@ -121,7 +121,7 @@ class HangoutRoom extends ChangeNotifier {
   void delete(HangoutMessage m) {
     if (!canDelete(m)) return;
     _drop(m.id);
-    _say({'t': 'del', 'id': m.id});
+    _say({'t': 'del', 'id': m.id}, keep: true);
   }
 
   void _add(Iterable<HangoutMessage> fresh) {
@@ -269,7 +269,7 @@ class HangoutRoom extends ChangeNotifier {
     final signed = await next.signedBy(me, s.publicKey, s.sign);
     if (!signed.trustedFor(channel.owner)) return false;
     _take(signed);
-    _say({'t': 'roster', 'r': signed.toJson()});
+    _say({'t': 'roster', 'r': signed.toJson()}, keep: true);
     return true;
   }
 
@@ -318,7 +318,7 @@ class HangoutRoom extends ChangeNotifier {
     final next = await SpaceAbout.sign(channel.chatRoom, words.length > SpaceAbout.most ? words.substring(0, SpaceAbout.most) : words, (_about?.version ?? 0) + 1, me, s.publicKey, s.sign);
     if (!next.trustedFor(channel.chatRoom, roster)) return false;
     _takeAbout(next);
-    _say({'t': 'about', 'a': next.toJson()});
+    _say({'t': 'about', 'a': next.toJson()}, keep: true);
     return true;
   }
 
@@ -402,10 +402,19 @@ class HangoutRoom extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _say(Map<String, Object?> what) {
+  /// Says [what] to everyone in the chat room. [keep]: the hub keeps it for whoever comes in later (a message, a
+  /// deletion, the roster, the description), so a phone that was closed when it was said still has it (Matt, 2026-11-18:
+  /// "I can't see their messages in spaces within a circle").
+  void _say(Map<String, Object?> what, {bool keep = false}) {
     if (!opened) return;
     try {
-      route.send(channel.chatRoom, NetCrypto.seal(channel.key, utf8.encode(jsonEncode(what))));
+      final sealed = NetCrypto.seal(channel.key, utf8.encode(jsonEncode(what)));
+      final r = route;
+      if (keep && r is HubVoiceRoute) {
+        r.sendKept(channel.chatRoom, sealed);
+      } else {
+        r.send(channel.chatRoom, sealed);
+      }
     } catch (_) {}
   }
 
