@@ -1,3 +1,4 @@
+import '../circles/circles.dart' show Circles, CirclePerm;
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -678,7 +679,8 @@ class _HangoutChatState extends State<HangoutChat> {
       listenable: room,
       builder: (context, _) {
         final list = room.messages.reversed.toList();
-        final mayWrite = room.can(Perm.chat);
+        // The space's own roles, and in a circle its roles too (lib/circles: CirclePerm.write).
+        final mayWrite = room.can(Perm.chat) && Circles.instance.allows(room.channel, CirclePerm.write);
         final (mineBg, mineInk) = myBubble(t, AppState.of(context));
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(

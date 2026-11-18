@@ -276,6 +276,93 @@ class Circles extends ChangeNotifier {
     return _publish(c, (m) => m.next(adminGrants: grants, grantsVersion: gv, grantsSig: gs, restart: true));
   }
 
+  // --- roles (Matt, 2026-11-18: "Build custom roles") -----------------------------------------------------------------
+  // A role that can change the circle, its spaces or its roles gives its holder the owner's admin grant too: every
+  // version of the app checks a manifest by who signed it, so whoever may change the circle must be able to sign. Only
+  // the owner can give that grant, so only the owner gives such a role; the finer permissions are this version's.
+
+  /// What this install may do in [c].
+  Set<CirclePerm> myPerms(Circle c) {
+    final id = signer?.id;
+    return id == null ? const {} : (bySeed(c.seed) ?? c).manifest.permsOf(id);
+  }
+
+  bool can(Circle c, CirclePerm p) => myPerms(c).contains(p);
+
+  /// Whether this install may do [p] in [space]: always outside a circle; inside one, as its roles say.
+  bool allows(VoiceChannel space, CirclePerm p) {
+    final c = circleOf(space);
+    return c == null || signer == null || can(c, p);
+  }
+
+  /// Adds [role] to [c], or changes the one with its id. One that can change things is the owner's alone to give.
+  Future<bool> saveRole(Circle c, CircleRole role) async {
+    final have = bySeed(c.seed) ?? c;
+    if (!can(have, CirclePerm.roles) || role.name.trim().isEmpty) return false;
+    final before = have.manifest.roles.where((r) => r.id == role.id).firstOrNull;
+    final isOwner = signer?.id == have.manifest.ownerId;
+    if (!isOwner && role.signs && !(before?.signs ?? false)) return false;
+    final roles = before == null ? [...have.manifest.roles, role] : [for (final r in have.manifest.roles) r.id == role.id ? role : r];
+    if (roles.length > circleRolesMax) return false;
+    final holders = [for (final e in have.manifest.roleAssignments.entries) if (e.value.contains(role.id)) e.key];
+    final ok = await _publish(have, (m) => m.next(extra: m.withRoles(roles: roles)));
+    if (ok) await _grantsFor(have, holders);
+    return ok;
+  }
+
+  /// Takes [roleId] out of [c], and from everyone who had it.
+  Future<bool> deleteRole(Circle c, String roleId) async {
+    final have = bySeed(c.seed) ?? c;
+    if (!can(have, CirclePerm.roles)) return false;
+    final holders = [for (final e in have.manifest.roleAssignments.entries) if (e.value.contains(roleId)) e.key];
+    final ok = await _publish(have, (m) => m.next(
+          extra: m.withRoles(
+            roles: [for (final r in m.roles) if (r.id != roleId) r],
+            assignments: {for (final e in m.roleAssignments.entries) e.key: [for (final id in e.value) if (id != roleId) id]},
+          ),
+        ));
+    if (ok) await _grantsFor(have, holders);
+    return ok;
+  }
+
+  /// Gives [member] exactly [roleIds] in [c] (none takes every role away).
+  Future<bool> setRolesOf(Circle c, String member, List<String> roleIds) async {
+    final have = bySeed(c.seed) ?? c;
+    if (!can(have, CirclePerm.roles) || member == have.manifest.ownerId) return false;
+    final isOwner = signer?.id == have.manifest.ownerId;
+    final giving = [for (final r in have.manifest.roles) if (roleIds.contains(r.id)) r];
+    final had = have.manifest.rolesOf(member);
+    if (!isOwner && giving.any((r) => r.signs) != had.any((r) => r.signs)) return false;
+    final ok = await _publish(have, (m) => m.next(extra: m.withRoles(assignments: {...m.roleAssignments, member: [for (final r in giving) r.id]})));
+    if (ok) await _grantsFor(have, [member]);
+    return ok;
+  }
+
+  /// What everyone in [c] may do. Changing the circle, its spaces or roles is never everyone's.
+  Future<bool> setEveryone(Circle c, Set<CirclePerm> perms) {
+    final have = bySeed(c.seed) ?? c;
+    if (!can(have, CirclePerm.roles)) return Future.value(false);
+    return _publish(have, (m) => m.next(extra: m.withRoles(everyone: {for (final p in perms) if (!p.signs) p})));
+  }
+
+  /// The owner's admin grant for each of [ids], whose roles just changed, as their roles now ask: given where a role can
+  /// change things, taken back where none does. Someone given roles is governed by them from then on; an admin made by
+  /// hand and never given a role is not among [ids], and is left as they are.
+  Future<void> _grantsFor(Circle c, List<String> ids) async {
+    if (signer?.id != (bySeed(c.seed) ?? c).manifest.ownerId) return;
+    for (final id in ids) {
+      final m = (bySeed(c.seed) ?? c).manifest;
+      final mine = m.rolesOf(id);
+      final needs = mine.any((r) => r.signs);
+      final has = m.granted(id);
+      if (needs && !has) {
+        await grantAdmin(c, id);
+      } else if (!needs && has) {
+        await grantAdmin(c, id, on: false);
+      }
+    }
+  }
+
   /// [c]'s next manifest, made by [change], signed here, taken, and said to the circle and the phone. Refused (false)
   /// where it would not fit one packet on the hub, which a reader would drop on the floor: a member's copy would never
   /// change again, and the next launch here would lose the circle.

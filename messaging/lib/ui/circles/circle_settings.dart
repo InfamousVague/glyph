@@ -13,6 +13,7 @@ import 'package:glacier/glacier.dart';
 
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
+import '../../circles/circle.dart';
 import '../../circles/circles.dart';
 import '../../desktop/ui/qr.dart';
 import '../../kit/semantic_colors.dart';
@@ -237,7 +238,8 @@ class _SectionBody extends StatelessWidget {
     final t = context.tokens;
     final c = circle;
     final circles = Circles.instance;
-    final edit = circles.canEdit(c);
+    // As the circle's roles say (lib/circles: CirclePerm): its look, its spaces.
+    final edit = section == CircleSettingsSection.spaces ? circles.can(c, CirclePerm.spaces) : circles.can(c, CirclePerm.circle);
     final owner = _isOwner(c);
     final gap = SizedBox(height: t.space(6));
     final readOnly = SettingsCallout(child: const Text('Only the circle\'s owner and the admins they made can change it.'));
@@ -293,56 +295,95 @@ class _SectionBody extends StatelessWidget {
       CircleSettingsSection.members => [
           PaneSection(
             title: '${circlePeople(c).length} ${circlePeople(c).length == 1 ? 'person' : 'people'}',
-            description: Text(owner ? 'Press someone to make them an admin, or take it back.' : 'Who is in ${c.name}. The owner makes admins.'),
+            description: Text(circles.can(c, CirclePerm.roles) ? 'Press someone to give them roles${owner ? ', or make them an admin' : ''}.' : 'Who is in ${c.name}, and their roles.'),
             children: [
-              SettingRow(key: const ValueKey('circle-settings-invite'), icon: AppIcon(Lucide.userPlus, size: 18), label: 'Invite people', hint: const Text('Friends in the app, anyone by a text, or the link.'), onPress: () => showCircleInvite(context, c)),
+              if (circles.can(c, CirclePerm.invite)) SettingRow(key: const ValueKey('circle-settings-invite'), icon: AppIcon(Lucide.userPlus, size: 18), label: 'Invite people', hint: const Text('Friends in the app, anyone by a text, or the link.'), onPress: () => showCircleInvite(context, c)),
               for (final p in circlePeople(c))
                 SettingRow(
                   key: ValueKey('circle-person-${p.id}'),
                   icon: AppIcon(p.owner ? Lucide.crown : (p.admin ? Lucide.shieldCheck : Lucide.userRound), size: 18),
                   label: p.me ? '${p.name} (you)' : p.name,
+                  hint: c.manifest.rolesOf(p.id).isEmpty ? null : Text(c.manifest.rolesOf(p.id).map((r) => r.name).join(', ')),
                   value: CircleRoleTag(person: p),
-                  onPress: owner && !p.owner ? () => circlePersonMenu(context, c, p) : null,
+                  onPress: !p.owner && (owner || circles.can(c, CirclePerm.roles)) ? () => _personMenu(context, c, p) : null,
                 ),
             ],
           ),
         ],
       CircleSettingsSection.roles => () {
           final people = circlePeople(c);
-          final admins = [for (final p in people) if (p.admin) p];
+          final m = c.manifest;
+          final manage = circles.can(c, CirclePerm.roles);
           final owners = [for (final p in people) if (p.owner) p];
-          final others = [for (final p in people) if (!p.owner && !p.admin) p];
+          // Admins made by hand, with no role: everything, as before roles.
+          final admins = [for (final p in people) if (p.admin && m.rolesOf(p.id).isEmpty) p];
           String names(List<CirclePerson> l) => l.isEmpty ? 'No one yet' : l.map((p) => p.me ? 'You' : p.name).join(', ');
+          String perms(Set<CirclePerm> ps) => ps.isEmpty ? 'Nothing more than everyone' : [for (final p in CirclePerm.values) if (ps.contains(p)) p.label].join(', ');
           return [
             PaneSection(
-              title: 'Owner',
-              description: const Text('Made the circle. Can change everything, make and remove admins, and delete the circle.'),
-              children: [SettingRow(key: const ValueKey('circle-role-owner'), icon: AppIcon(Lucide.crown, size: 18), label: names(owners))],
-            ),
-            gap,
-            PaneSection(
-              title: 'Admins',
-              description: const Text('Can change the circle\'s name and look, and add, change, arrange and delete its spaces.'),
+              title: 'Roles',
+              description: Text(manage ? 'Each a name, a colour and what it lets people do. Press one to change it and choose who has it.' : 'The roles in ${c.name}, and what each lets people do.'),
               children: [
-                for (final p in admins)
-                  SettingRow(key: ValueKey('circle-role-admin-${p.id}'), icon: AppIcon(Lucide.shieldCheck, size: 18), label: p.me ? 'You' : p.name, onPress: owner ? () => circlePersonMenu(context, c, p) : null),
-                if (admins.isEmpty) SettingRow(icon: AppIcon(Lucide.shieldCheck, size: 18), label: 'No admins yet', disabled: true),
-                if (owner && others.isNotEmpty)
+                for (final r in m.roles)
                   SettingRow(
-                    key: const ValueKey('circle-role-add-admin'),
+                    key: ValueKey('circle-role-${r.id}'),
+                    icon: GlacierScope(attrs: {'hue': r.hue}, child: AppIcon(Lucide.shieldCheck, size: 18)),
+                    label: r.name,
+                    hint: Text(perms(r.perms)),
+                    value: Text('${m.roleAssignments.values.where((ids) => ids.contains(r.id)).length}'),
+                    onPress: manage ? () => push<void>(context, (_) => _RolePage(seed: c.seed, roleId: r.id)) : null,
+                  ),
+                if (m.roles.isEmpty) SettingRow(icon: AppIcon(Lucide.shieldCheck, size: 18), label: 'No roles yet', disabled: true),
+                if (manage && m.roles.length < circleRolesMax)
+                  SettingRow(
+                    key: const ValueKey('circle-role-new'),
                     icon: AppIcon(Lucide.plus, size: 18),
-                    label: 'Make someone an admin',
-                    onPress: () => showChoices(context, title: 'Make an admin of ${c.name}', choices: [
-                      for (final p in others) Choice(p.name, Lucide.userRound, () => circlePersonMenu(context, c, p)),
-                    ]),
+                    label: 'New role',
+                    onPress: () => askCircleWords(context, title: 'New role', then: (name) async {
+                      final r = CircleRole.make(name, hue: circleHues[m.roles.length % circleHues.length], perms: const {CirclePerm.invite});
+                      final ok = await circles.saveRole(circles.bySeed(c.seed) ?? c, r);
+                      if (!context.mounted) return;
+                      if (!ok) return toast(context, 'Couldn\'t make the role', tone: GlacierToastTone.danger);
+                      push<void>(context, (_) => _RolePage(seed: c.seed, roleId: r.id));
+                    }),
                   ),
               ],
             ),
             gap,
             PaneSection(
-              title: 'Members',
-              description: const Text('Everyone else: they read and write in the spaces, talk in voice spaces and share files in files spaces. Each space\'s own roles (its settings) can give or take more there.'),
-              children: [SettingRow(key: const ValueKey('circle-role-members'), icon: AppIcon(Lucide.users, size: 18), label: names(others))],
+              title: 'Everyone',
+              description: const Text('What everyone in the circle may do, whatever their roles. Changing the circle, its spaces or its roles is never everyone\'s.'),
+              children: [
+                for (final p in CirclePerm.values)
+                  if (!p.signs)
+                    SettingRow(
+                      key: ValueKey('circle-everyone-${p.wire}'),
+                      label: p.label,
+                      hint: Text(p.blurb),
+                      control: GlacierSwitch(
+                        checked: m.everyone.contains(p),
+                        disabled: !manage,
+                        ariaLabel: 'Everyone may ${p.label.toLowerCase()}',
+                        onCheckedChange: (on) => circles.setEveryone(circles.bySeed(c.seed) ?? c, on ? {...m.everyone, p} : ({...m.everyone}..remove(p))),
+                      ),
+                    ),
+              ],
+            ),
+            gap,
+            PaneSection(
+              title: 'Owner',
+              description: const Text('Made the circle. Can do everything, give any role, make admins, and delete the circle.'),
+              children: [SettingRow(key: const ValueKey('circle-role-owner'), icon: AppIcon(Lucide.crown, size: 18), label: names(owners))],
+            ),
+            gap,
+            PaneSection(
+              title: 'Admins',
+              description: const Text('Made by the owner, with no role: they can do everything but delete the circle or make admins.'),
+              children: [
+                for (final p in admins)
+                  SettingRow(key: ValueKey('circle-role-admin-${p.id}'), icon: AppIcon(Lucide.shieldCheck, size: 18), label: p.me ? 'You' : p.name, onPress: owner ? () => circlePersonMenu(context, c, p) : null),
+                if (admins.isEmpty) SettingRow(icon: AppIcon(Lucide.shieldCheck, size: 18), label: 'No admins', disabled: true),
+              ],
             ),
           ];
         }(),
@@ -351,7 +392,7 @@ class _SectionBody extends StatelessWidget {
             title: 'Invite link',
             description: const Text('Whoever has the link is in the circle, so share it with people you know.'),
             children: [
-              SettingRow(key: const ValueKey('circle-settings-invite-people'), icon: AppIcon(Lucide.userPlus, size: 18), label: 'Invite people', onPress: () => showCircleInvite(context, c)),
+              if (circles.can(c, CirclePerm.invite)) SettingRow(key: const ValueKey('circle-settings-invite-people'), icon: AppIcon(Lucide.userPlus, size: 18), label: 'Invite people', onPress: () => showCircleInvite(context, c)),
               SettingRow(
                 key: const ValueKey('circle-copy-link'),
                 icon: AppIcon(Lucide.copy, size: 18),
@@ -393,6 +434,19 @@ class _SectionBody extends StatelessWidget {
     );
   }
 
+  /// What can be done with someone from Members: their roles, and (the owner's) making them an admin by hand.
+  void _personMenu(BuildContext context, Circle c, CirclePerson p) {
+    final circles = Circles.instance;
+    final owner = _isOwner(c);
+    showChoices(context, title: '${p.name} · ${c.manifest.rolesOf(p.id).isEmpty ? p.role : c.manifest.rolesOf(p.id).map((r) => r.name).join(', ')}', choices: [
+      if (circles.can(c, CirclePerm.roles)) Choice('Roles…', Lucide.shieldCheck, () => push<void>(context, (_) => _PersonRolesPage(seed: c.seed, person: p)), hint: c.manifest.roles.isEmpty ? 'Make roles in Roles first' : null),
+      if (owner && c.manifest.rolesOf(p.id).isEmpty)
+        p.admin
+            ? Choice('Remove as admin', Lucide.userMinus, () => circles.grantAdmin(c, p.id, on: false))
+            : Choice('Make admin', Lucide.crown, () => circles.grantAdmin(c, p.id), hint: 'Everything but deleting the circle'),
+    ]);
+  }
+
   void _leave(BuildContext context, Circle c) {
     showChoices(context, title: 'Leave ${c.name}? It goes from your list; its link brings you back.', choices: [
       Choice('Leave circle', Lucide.logOut, () => _gone(context, c, () => Circles.instance.leave(c), 'Left ${c.name}'), danger: true),
@@ -423,5 +477,162 @@ class _SectionBody extends StatelessWidget {
     if (context.mounted) toast(context, words);
     nav.popUntil((r) => r.settings.name != 'circle-settings' || r.isFirst);
     if (open) shell?.go('messages');
+  }
+}
+
+
+/// A role: its name and colour, what it lets people do, and who has it (lib/circles: CircleRole). What can change the
+/// circle, its spaces or its roles is the owner's alone to give, since whoever has it becomes an admin too.
+class _RolePage extends StatelessWidget {
+  const _RolePage({required this.seed, required this.roleId});
+  final String seed;
+  final String roleId;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final circles = Circles.instance;
+    return ListenableBuilder(
+      listenable: circles,
+      builder: (context, _) {
+        final c = circles.bySeed(seed);
+        final r = c?.manifest.roles.where((x) => x.id == roleId).firstOrNull;
+        if (c == null || r == null) return GhostPage(title: 'Role', body: const Center(child: Text('This role is gone.')));
+        final owner = _isOwner(c);
+        Future<void> save(CircleRole next) async {
+          final ok = await circles.saveRole(circles.bySeed(seed) ?? c, next);
+          if (!ok && context.mounted) toast(context, 'Couldn\'t change the role', tone: GlacierToastTone.danger);
+        }
+
+        final people = [for (final p in circlePeople(c)) if (!p.owner) p];
+        final holders = c.manifest.roleAssignments;
+        return GhostPage(
+          title: r.name,
+          body: ListView(
+            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            children: [
+              PaneSection(title: 'Role', children: [
+                SettingRow(key: const ValueKey('role-rename'), icon: AppIcon(Lucide.pencil, size: 18), label: 'Name', value: Text(r.name), onPress: () => askCircleWords(context, title: 'Rename role', initial: r.name, then: (n) => save(r.copyWith(name: n)))),
+              ]),
+              SizedBox(height: t.space(6)),
+              PaneSection(title: 'Colour', children: [SettingRowBox(child: CircleHuePicker(value: r.hue, onChanged: (h) => save(r.copyWith(hue: h))))]),
+              SizedBox(height: t.space(6)),
+              PaneSection(
+                title: 'What it lets people do',
+                description: Text(owner ? 'Changing the circle, its spaces or its roles makes whoever has the role an admin too.' : 'Changing the circle, its spaces or its roles is the owner\'s to give.'),
+                children: [
+                  for (final p in CirclePerm.values)
+                    SettingRow(
+                      key: ValueKey('role-perm-${p.wire}'),
+                      label: p.label,
+                      hint: Text(p.blurb),
+                      control: GlacierSwitch(
+                        checked: r.perms.contains(p),
+                        disabled: p.signs && !owner,
+                        ariaLabel: p.label,
+                        onCheckedChange: (on) => save(r.copyWith(perms: on ? {...r.perms, p} : ({...r.perms}..remove(p)))),
+                      ),
+                    ),
+                ],
+              ),
+              SizedBox(height: t.space(6)),
+              PaneSection(
+                title: 'Who has it',
+                children: [
+                  for (final p in people)
+                    SettingRow(
+                      key: ValueKey('role-holder-${p.id}'),
+                      label: p.me ? '${p.name} (you)' : p.name,
+                      control: GlacierSwitch(
+                        checked: holders[p.id]?.contains(r.id) ?? false,
+                        disabled: r.signs && !owner,
+                        ariaLabel: '${p.name} has ${r.name}',
+                        onCheckedChange: (on) async {
+                          final now = circles.bySeed(seed) ?? c;
+                          final mine = [...?now.manifest.roleAssignments[p.id]];
+                          on ? mine.add(r.id) : mine.remove(r.id);
+                          final ok = await circles.setRolesOf(now, p.id, mine);
+                          if (!ok && context.mounted) toast(context, 'Couldn\'t change ${p.name}\'s roles', tone: GlacierToastTone.danger);
+                        },
+                      ),
+                    ),
+                  if (people.isEmpty) SettingRow(label: 'No one else is in the circle yet', disabled: true),
+                ],
+              ),
+              SizedBox(height: t.space(6)),
+              PaneSection(children: [
+                SettingRow(
+                  key: const ValueKey('role-delete'),
+                  icon: AppIcon(Lucide.trash2, size: 18),
+                  label: 'Delete role',
+                  onPress: () => showChoices(context, title: 'Delete ${r.name}? Whoever has it loses what it gave.', choices: [
+                    Choice('Delete role', Lucide.trash2, () async {
+                      final nav = Navigator.of(context);
+                      await circles.deleteRole(circles.bySeed(seed) ?? c, r.id);
+                      nav.maybePop();
+                    }, danger: true),
+                  ]),
+                ),
+              ]),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Someone's roles in a circle, each switched on or off.
+class _PersonRolesPage extends StatelessWidget {
+  const _PersonRolesPage({required this.seed, required this.person});
+  final String seed;
+  final CirclePerson person;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final circles = Circles.instance;
+    return ListenableBuilder(
+      listenable: circles,
+      builder: (context, _) {
+        final c = circles.bySeed(seed);
+        if (c == null) return GhostPage(title: person.name, body: const Center(child: Text('You left this circle.')));
+        final owner = _isOwner(c);
+        final mine = c.manifest.roleAssignments[person.id] ?? const [];
+        return GhostPage(
+          title: '${person.name}\'s roles',
+          body: ListView(
+            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            children: [
+              PaneSection(
+                description: Text('What ${person.name} may do: what everyone may, and what these give.'),
+                children: [
+                  for (final r in c.manifest.roles)
+                    SettingRow(
+                      key: ValueKey('person-role-${r.id}'),
+                      icon: GlacierScope(attrs: {'hue': r.hue}, child: AppIcon(Lucide.shieldCheck, size: 18)),
+                      label: r.name,
+                      hint: Text(r.perms.isEmpty ? 'Nothing more than everyone' : [for (final p in CirclePerm.values) if (r.perms.contains(p)) p.label].join(', ')),
+                      control: GlacierSwitch(
+                        checked: mine.contains(r.id),
+                        disabled: r.signs && !owner,
+                        ariaLabel: '${person.name} has ${r.name}',
+                        onCheckedChange: (on) async {
+                          final now = circles.bySeed(seed) ?? c;
+                          final next = [...?now.manifest.roleAssignments[person.id]];
+                          on ? next.add(r.id) : next.remove(r.id);
+                          final ok = await circles.setRolesOf(now, person.id, next);
+                          if (!ok && context.mounted) toast(context, 'Couldn\'t change ${person.name}\'s roles', tone: GlacierToastTone.danger);
+                        },
+                      ),
+                    ),
+                  if (c.manifest.roles.isEmpty) SettingRow(label: 'No roles yet: make them in Roles', disabled: true),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
