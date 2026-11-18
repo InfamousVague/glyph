@@ -42,6 +42,25 @@ object GmBridge {
     /** What Android puts in place of a message it hides from notification readers (Android 15+, a one-time code). */
     private val HIDDEN = setOf("Sensitive notification content hidden")
 
+    /**
+     * Whether Google Messages' status for a message says it is still being brought down (a picture message, MMS): it
+     * is told of then with a stand-in in place of its words ("Attachment", "SMS message from Jade"), and again under
+     * the same id once it is had. Its statuses as the on-phone connection gives them, in lower case.
+     */
+    fun downloading(status: String): Boolean = status.lowercase().let { s ->
+        s.startsWith("incoming_") && (s.contains("downloading") || s.contains("retrying_auto_download") || s.contains("retrying_manual_download") || s.contains("awaiting_auto_download"))
+    }
+
+    /** What to say of a picture message that will not come down by itself; null for any other status. */
+    fun notDownloaded(status: String): String? = when (status.lowercase()) {
+        "incoming_yet_to_manual_download" -> "Picture message not downloaded: open it in Google Messages to download it"
+        "incoming_download_failed", "incoming_download_canceled" -> "Picture message could not be downloaded"
+        "incoming_download_failed_too_large" -> "Picture message too large to download"
+        "incoming_download_failed_sim_has_no_data" -> "Picture message not downloaded: no mobile data"
+        "incoming_expired_or_not_available" -> "Picture message expired before it was downloaded"
+        else -> null
+    }
+
     /** Whether the person has given Ghost notification access (Settings › Notifications › Device & app notifications). */
     fun hasAccess(context: Context): Boolean {
         val enabled = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners") ?: return false
@@ -247,19 +266,25 @@ object GmBridge {
     // --- keeping what was read -----------------------------------------------------------------------------------------
 
     /** What reading a notification came to: its thread, whether anything was new, and whether a new one is theirs. */
-    data class Kept(val thread: Long, val fresh: Boolean, val incoming: Boolean, val hidden: Boolean)
+    data class Kept(val thread: Long, val fresh: Boolean, val incoming: Boolean, val hidden: Boolean, val conv: String = "", val group: Boolean = false, val senders: List<String> = emptyList())
 
     /** What a notification said, kept; null for one that is not a conversation. */
     fun heard(context: Context, sbn: StatusBarNotification): Kept? {
         val r = read(context, sbn) ?: return null
         actionsOf(sbn.notification)?.let { actions[r.conv] = it }
         val db = Db.get(context)
-        val thread = pickThread(r.group, r.title?.let { db.webGroupNamed(it, r.conv) }, syntheticThread(r.conv)) { threadFor(context, r) }
+        val senders = r.messages.filter { !it.out }.mapNotNull { it.senderAddress }
+        // A group: the one of its name the on-phone connection knows; else the group picture message (MMS) Android has
+        // just been given from one of its writers, so its notification and messages are the group's, not a thread of
+        // the writer's own (Matt, 2026-11-18: "the notification comes through as a message from jade not from the
+        // group chat").
+        val named = if (!r.group) null else r.title?.let { db.webGroupNamed(it, r.conv) } ?: groupThreadNear(context, sbn.postTime, senders)
+        val thread = pickThread(r.group, named, syntheticThread(r.conv)) { threadFor(context, r) }
         db.keepConversation(r, thread)
         var fresh = false
         var incoming = false
         for (m in r.messages) if (db.keepMessage(r.conv, m)) { fresh = true; if (!m.out) incoming = true }
-        return Kept(thread, fresh, incoming, hidden = r.messages.isEmpty())
+        return Kept(thread, fresh, incoming, hidden = r.messages.isEmpty(), conv = r.conv, group = r.group, senders = senders)
     }
 
     /**
@@ -293,6 +318,32 @@ object GmBridge {
         context.contentResolver.query(
             Telephony.Sms.Inbox.CONTENT_URI, arrayOf("thread_id", "date"), "date >= ?", arrayOf("${at - 120_000}"), "date DESC LIMIT 1",
         )?.use { c -> if (c.moveToFirst()) c.getLong(0) else null }
+    } catch (_: Exception) { null }
+
+    /**
+     * The thread of the group picture message (MMS, three people or more) Android was given within two minutes of [at]
+     * from one of [senders] (any, where none is known); null where there is none yet. Google Messages notifies a group's
+     * message as it comes and writes it to Android's database a moment after, so a caller may ask again.
+     */
+    fun groupThreadNear(context: Context, at: Long, senders: List<String>): Long? = try {
+        val r = context.contentResolver
+        r.query(Uri.parse("content://mms/inbox"), arrayOf("_id", "thread_id"), "date >= ?", arrayOf("${(at - 120_000) / 1000}"), "date DESC LIMIT 6")?.use { c ->
+            var found: Long? = null
+            while (found == null && c.moveToNext()) {
+                val id = c.getLong(0)
+                var from: String? = null
+                var count = 0
+                r.query(Uri.parse("content://mms/$id/addr"), arrayOf("address", "type"), null, null, null)?.use { a ->
+                    while (a.moveToNext()) {
+                        count++
+                        if (a.getInt(1) == 137) from = a.getString(0)
+                    }
+                }
+                val fromOk = senders.isEmpty() || from?.let { f -> senders.any { Store.sameNumber(it, f) } } == true
+                if (count >= 3 && fromOk) found = c.getLong(1)
+            }
+            found
+        }
     } catch (_: Exception) { null }
 
     /** A thread number of the bridge's own, below zero so it is never one of Android's. */
@@ -479,7 +530,9 @@ object GmBridge {
         fun keepWebMessage(conv: String, thread: Long, gmId: String, text: String, time: Long, sender: String?, address: String?, out: Boolean, status: String, media: String?, reactions: String?, read: Boolean): Boolean {
             val db = writableDatabase
             val update = ContentValues().apply { put("status", status); put("reactions", reactions); if (media != null) put("media", media); if (read) put("read", 1) }
-            if (db.update("msg", update, "gm_id = ?", arrayOf(gmId)) > 0) return false
+            // Told of again: its words too, where they have changed (a stand-in kept before this fix, now had in full;
+            // an edit), so it is the same as Android's copy and shown once.
+            if (db.update("msg", ContentValues(update).apply { if (text.isNotBlank()) put("text", text) }, "gm_id = ?", arrayOf(gmId)) > 0) return false
             db.rawQuery(
                 "SELECT m.id FROM msg m JOIN conv c ON c.conv = m.conv WHERE c.thread = ? AND m.gm_id IS NULL AND m.out = ? AND m.text = ? AND ABS(m.time - ?) < 180000 LIMIT 1",
                 arrayOf("$thread", if (out) "1" else "0", text, "$time"),
@@ -525,6 +578,11 @@ object GmBridge {
             "SELECT c.thread FROM conv c WHERE c.grp = 1 AND c.title = ? AND c.conv != ? AND EXISTS (SELECT 1 FROM msg m WHERE m.conv = c.conv AND m.gm_id IS NOT NULL) ORDER BY c.updated DESC LIMIT 1",
             arrayOf(title, except),
         ).use { c -> if (c.moveToFirst()) c.getLong(0) else null }
+
+        /** Moves the bridge's conversation [conv] to [thread] (its group found in Android's database after all). */
+        fun moveConversation(conv: String, thread: Long) {
+            writableDatabase.update("conv", ContentValues().apply { put("thread", thread) }, "conv = ?", arrayOf(conv))
+        }
 
         fun keepConversation(r: Read, thread: Long) {
             writableDatabase.insertWithOnConflict("conv", null, ContentValues().apply {
@@ -627,7 +685,13 @@ class GmListener : NotificationListenerService() {
                         Thread.sleep(wait)
                         // A hidden text hides its conversation's name too, so the bridge could not tell which thread it
                         // is: the text Android has just been given, the newest received in the last two minutes, is it.
-                        val thread = if (kept.thread >= 0 || !kept.hidden) kept.thread else GmBridge.justArrived(context, sbn.postTime) ?: continue
+                        var thread = if (kept.thread >= 0 || !kept.hidden) kept.thread else GmBridge.justArrived(context, sbn.postTime) ?: continue
+                        // A group not yet found in Android's database: its picture message may have been written since.
+                        if (thread < 0 && kept.group) GmBridge.groupThreadNear(context, sbn.postTime, kept.senders)?.let { found ->
+                            GmBridge.Db.get(context).moveConversation(kept.conv, found)
+                            Bus.changed(-1)
+                            thread = found
+                        }
                         shown = try { Notifier.incoming(context, thread) } catch (e: Exception) {
                             DevLog.add(context, "bridge", "Ghost's notification could not be shown: ${e.javaClass.simpleName}: ${e.message}"); false
                         }

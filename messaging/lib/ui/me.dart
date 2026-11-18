@@ -18,6 +18,7 @@ import '../me/me.dart';
 import '../me/network_marks.g.dart';
 import '../sms.dart';
 import '../friends/buddies.dart';
+import 'account_screens.dart';
 import 'common.dart';
 import 'profile.dart';
 import 'settings.dart';
@@ -172,6 +173,9 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
           ),
         ],
       ),
+    // A Ghost account (Matt, 2026-11-17: "We need to have a way to login to existing accounts"): made, signed in to,
+    // and looked after here; on a paired computer the account is the phone's.
+    if (!Sms.paired) accountSection(context),
     PaneSection(
       title: 'You',
       children: [

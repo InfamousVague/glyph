@@ -163,8 +163,12 @@ object Notifier {
         if (unread.isEmpty()) { cancel(context, thread); return false }
         val ui = context.getSharedPreferences("ui", Context.MODE_PRIVATE)
         val previews = ui.getString("notif_preview", "on") != "off"
-        val group = people.size > 1
-        val title = people.joinToString(", ") { (it["name"] as String?) ?: (it["address"] as String) }
+        // A group only the bridge has (its people named only as they write): still a group, under the name Google
+        // Messages gave it, never titled as the one who wrote (Matt, 2026-11-18: "the notification comes through as a
+        // message from jade not from the group chat").
+        val bridgedGroup = if (thread >= 0) null else try { GmBridge.Db.get(context).conversations().firstOrNull { it.thread == thread && it.group } } catch (_: Exception) { null }
+        val group = people.size > 1 || bridgedGroup != null
+        val title = store.threadName(thread) ?: bridgedGroup?.title?.takeIf { it.isNotBlank() } ?: people.joinToString(", ") { (it["name"] as String?) ?: (it["address"] as String) }
         val me = Person.Builder().setName("You").build()
         val senders = LinkedHashMap<String, Person>()
         val style = Notification.MessagingStyle(me).setGroupConversation(group)

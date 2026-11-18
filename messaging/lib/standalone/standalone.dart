@@ -49,6 +49,20 @@ class StandaloneCalls implements SmsCalls {
 
   File get _file => File('${dir.path}/standalone.json');
   File get _keyFile => File('${dir.path}/identity.key');
+  File _secretFile(String name) => File('${dir.path}/secret-${name.replaceAll(RegExp(r'[^a-z0-9_]'), '')}.key');
+
+  /// Starts the app again: on a Mac a new copy of the app is opened and this one ends; an iPhone cannot, and says so
+  /// (false), and the person is asked to. Never under a test.
+  Future<bool> Function() restart = _restartHere;
+
+  static Future<bool> _restartHere() async {
+    if (Platform.environment.containsKey('FLUTTER_TEST') || !Platform.isMacOS) return false;
+    // …/Ghost Messaging.app/Contents/MacOS/Ghost Messaging, three folders up.
+    final app = File(Platform.resolvedExecutable).parent.parent.parent.path;
+    if (!app.endsWith('.app')) return false;
+    await Process.start('/bin/sh', ['-c', 'sleep 1; /usr/bin/open -n "\$0"', app], mode: ProcessStartMode.detached);
+    exit(0);
+  }
 
   /// The address a friend by username is spoken of by: `@` and their username.
   static String addressOf(String username) => UsernameChats.addressOf(username);
@@ -141,6 +155,43 @@ class StandaloneCalls implements SmsCalls {
         return NetCrypto.sign(_keys!, (a['message'] as List).cast<int>());
       case 'netPeers':
         return UsernameChats.peersOf(_buddyList, _keys!);
+
+      // A Ghost account (lib/account; Matt, 2026-11-17: "We need to have a way to login to existing accounts"): this
+      // install's key to seal into the account's backup, a restored key put in its place, the account's words kept
+      // beside the key in the Keychain, and a clean start once a device has signed in.
+      case 'identityExport':
+        return _keys!.scalar;
+      case 'identityImport':
+        final made = NetKeys.fromScalar((a['scalar'] as List).cast<int>());
+        final hex = NetCrypto.hex(made.scalar);
+        if (!keychain || !await MacPlatform.keyWrite(_account, hex)) {
+          _keyFile.writeAsStringSync(hex, flush: true);
+        } else if (_keyFile.existsSync()) {
+          // The Keychain took it: a key left in the folder from before would be read first on a build without it.
+          _keyFile.deleteSync();
+        }
+        _keys = made;
+        return null;
+      case 'secretKeep':
+        final name = '${a['name']}', value = '${a['value'] ?? ''}';
+        final file = _secretFile(name);
+        if (value.isEmpty) {
+          if (keychain) await MacPlatform.keyDelete('standalone-secret-$name');
+          if (file.existsSync()) file.deleteSync();
+          return null;
+        }
+        // The Keychain where it takes it; else the app's own folder, as the identity's key itself is kept then.
+        if (!keychain || !await MacPlatform.keyWrite('standalone-secret-$name', value)) file.writeAsStringSync(value, flush: true);
+        return null;
+      case 'secretRead':
+        final name = '${a['name']}';
+        final kept = keychain ? await MacPlatform.keyRead('standalone-secret-$name') : null;
+        if (kept != null) return kept;
+        final file = _secretFile(name);
+        return file.existsSync() ? file.readAsStringSync() : null;
+      case 'restartApp':
+        await flushed();
+        return restart();
       case 'buddiesKeep':
         _buddies = (a['json'] as String?) ?? '[]';
         _save();

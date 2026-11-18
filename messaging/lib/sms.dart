@@ -820,6 +820,27 @@ class Sms {
   /// This phone's signature over [message], r then s.
   Future<Uint8List> netSign(List<int> message) async => (await _calls.invokeMethod('netSign', {'message': Uint8List.fromList(message)})) as Uint8List;
 
+  // --- a Ghost account (lib/account; Matt, 2026-11-17: "We need to have a way to login to existing accounts") ----------
+
+  /// This install's identity's private key, 32 bytes, for an account's sealed backup: an account made on an install
+  /// that had its own key keeps that key, and a new device signing in gets it back. Asked only to seal it.
+  Future<Uint8List> identityExport() async => Uint8List.fromList(((await _calls.invokeMethod('identityExport')) as List).cast<int>());
+
+  /// Makes [scalar] (32 bytes, whose public key is [public]) this install's identity, in place of the one it had: a
+  /// device signing in to an account. Everything sealed to the old key ends with it (as resetting encryption does);
+  /// the app is restarted straight after ([restartApp]) so nothing goes on as the old one.
+  Future<void> identityImport(List<int> scalar, List<int> public) => _calls.invokeMethod('identityImport', {'scalar': Uint8List.fromList(scalar), 'public': Uint8List.fromList(public)});
+
+  /// Keeps [value] under [name] where the install keeps its keys (Android's Keystore-sealed vault, the Keychain), never
+  /// in the preferences; an empty value forgets it.
+  Future<void> secretKeep(String name, String value) => _calls.invokeMethod('secretKeep', {'name': name, 'value': value});
+
+  Future<String?> secretRead(String name) => _calls.invokeMethod<String>('secretRead', {'name': name});
+
+  /// Starts the app again from nothing, with every choice written first; false where it cannot (an iPhone), and the
+  /// person is asked to.
+  Future<bool> restartApp() async => (await _calls.invokeMethod<bool>('restartApp')) ?? false;
+
   // --- groups of friends (lib/friends/groups.dart, android Groups.kt) ------------------------------------------------
 
   /// The groups this phone is in, each as android Groups.view gives it.
@@ -1000,6 +1021,16 @@ class Sms {
   Future<void> archive(int thread, bool archived) => _calls.invokeMethod('archive', {'thread': thread, 'archived': archived});
   /// Gives the conversation a name on this phone, or takes it away with an empty one: a group's.
   Future<void> setThreadName(int thread, String name) => _calls.invokeMethod('threadName', {'thread': thread, 'name': name});
+
+  /// Whether [thread] is an RCS group Google Messages knows: its name is then everyone's, renamed through Google
+  /// Messages (GmWeb.renameGroup). False anywhere else, and where nothing answers.
+  Future<bool> isRcsGroup(int thread) async {
+    try {
+      return await _calls.invokeMethod<bool>('rcsGroup', {'thread': thread}) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 
   Future<void> threadFlag(String name, int thread, bool on) => _calls.invokeMethod('threadFlag', {'name': name, 'thread': thread, 'on': on});
   Future<String?> draft(int thread) => _calls.invokeMethod<String>('draft', {'thread': thread});

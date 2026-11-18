@@ -31,6 +31,9 @@ class ChatSettingsScreen extends StatefulWidget {
 }
 
 class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
+  /// Whether this is an RCS group Google Messages knows, whose name is everyone's.
+  bool _rcsGroup = false;
+
   Conversation? _conversation;
   E2eState _e2e = const E2eState();
 
@@ -122,6 +125,11 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       final c = await Sms.instance.conversation(widget.thread);
       if (mounted) setState(() => _conversation = c);
     } catch (_) {}
+    // An RCS group's name is everyone's (Matt, 2026-11-18: "there is no rcs group chat name that is set for other users").
+    if (_group) {
+      final rcs = await Sms.instance.isRcsGroup(widget.thread);
+      if (mounted && rcs != _rcsGroup) setState(() => _rcsGroup = rcs);
+    }
     if (_group || widget.people.isEmpty) return;
     try {
       final e = await Sms.instance.e2e(widget.people.first.address);
@@ -210,7 +218,12 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   SizedBox(height: t.space(5)),
                 ],
                 if (ghost == null && _group && Sms.can('threadName')) ...[
-                  PaneSection(title: 'Group name', footer: const Text('Only you see this name. The others in the group see it as they always have.'), children: [
+                  PaneSection(
+                      title: 'Group name',
+                      // An RCS group's name goes to everyone through Google Messages; a picture-message (MMS) group has no
+                      // name of its own to share, so it is this phone's alone.
+                      footer: Text(_rcsGroup ? 'Everyone in the group sees this name: it is renamed through Google Messages.' : 'Only you see this name. Picture-message (MMS) groups have no shared name, so the others see the group as they always have.'),
+                      children: [
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
                       child: _GroupName(key: ValueKey('name-${c?.name}'), thread: thread, name: c?.name, people: people, onSaved: _load),

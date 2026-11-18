@@ -28,4 +28,19 @@ class GroupNoticeTest {
         // A contact kept under a nickname stays a one-to-one.
         assertFalse(GmBridge.looksLikeGroup(flagged = false, title = "Mama", senders = listOf("Mom")))
     }
+
+    // Matt, 2026-11-18: "when i get messages in an RCS group chat it still shows me the "attachement" and "Sms message
+    // from jade"": a picture message still coming down is told of with a stand-in, and kept only once it is had.
+    @Test
+    fun aPictureMessageStillComingDownIsNotKeptYet() {
+        assertTrue(GmBridge.downloading("incoming_auto_downloading"))
+        assertTrue(GmBridge.downloading("INCOMING_RETRYING_AUTO_DOWNLOAD"))
+        assertTrue(GmBridge.downloading("incoming_manual_downloading"))
+        assertTrue(GmBridge.downloading("incoming_awaiting_auto_download"))
+        assertFalse(GmBridge.downloading("incoming_complete"))
+        assertFalse("one that will not come by itself is said so instead", GmBridge.downloading("incoming_yet_to_manual_download"))
+        assertFalse(GmBridge.downloading("outgoing_sending"))
+        assertEquals(null, GmBridge.notDownloaded("incoming_complete"))
+        assertTrue(GmBridge.notDownloaded("incoming_yet_to_manual_download")!!.contains("Google Messages"))
+    }
 }

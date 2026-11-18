@@ -263,7 +263,13 @@ class MainActivity : FlutterActivity() {
                     Bus.changed(-1); null
                 }
                 // A conversation's name, this phone's own: a group's (Store.setThreadName).
-                "threadName" -> bg { store.setThreadName(call.argument<Number>("thread")!!.toLong(), call.argument<String>("name") ?: ""); Bus.changed(-1); null }
+                // An RCS group's is everyone's: given to Google Messages too (GmWeb.renameGroup), which renames it for all in it.
+                "rcsGroup" -> bg { GmWeb.isRcsGroup(call.argument<Number>("thread")!!.toLong()) }
+                "threadName" -> bg {
+                    val t = call.argument<Number>("thread")!!.toLong(); val name = call.argument<String>("name") ?: ""
+                    store.setThreadName(t, name); Bus.changed(-1)
+                    GmWeb.renameGroup(t, name)
+                }
                 "draft" -> bg { store.draft(call.argument<Number>("thread")!!.toLong()) }
                 "setDraft" -> bg { store.setDraft(call.argument<Number>("thread")!!.toLong(), call.argument<String>("text") ?: ""); null }
                 "setBlocked" -> bg { store.setBlocked(call.argument<String>("address")!!, call.argument<Boolean>("blocked") ?: true); Bus.changed(-1); null }
@@ -327,6 +333,28 @@ class MainActivity : FlutterActivity() {
                 "e2ePlainSeen" -> bg { E2e.plainSeen(applicationContext, call.argument<String>("address")!!); Bus.changed(-1); null }
                 "e2eVerify" -> bg { E2e.setVerified(applicationContext, call.argument<String>("address")!!, call.argument<Boolean>("verified") ?: true); null }
                 "e2eReset" -> bg { E2e.reset(applicationContext); Bus.changed(-1); null }
+                // A Ghost account (lib/account; Matt, 2026-11-17: "We need to have a way to login to existing accounts"):
+                // this phone's key to seal into its backup, a restored key put in its place, the account's words kept
+                // in the Keystore-sealed vault (AccountVault.kt), and a clean restart once a device has signed in.
+                "identityExport" -> bg { E2e.exportScalar(applicationContext) }
+                "identityImport" -> bg { E2e.importScalar(applicationContext, call.argument<ByteArray>("scalar")!!, call.argument<ByteArray>("public")!!); Bus.changed(-1); null }
+                "secretKeep" -> bg { AccountVault.keep(applicationContext, call.argument<String>("name")!!, call.argument<String>("value") ?: ""); null }
+                "secretRead" -> bg { AccountVault.read(applicationContext, call.argument<String>("name")!!) }
+                "restartApp" -> {
+                    // Every choice on the disk first (an empty commit writes what apply() still holds), then this task
+                    // started again and the process ended, so the new identity is read from nothing.
+                    getSharedPreferences("ui", MODE_PRIVATE).edit().commit()
+                    val again = packageManager.getLaunchIntentForPackage(packageName)?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    if (again == null) {
+                        result.success(false)
+                    } else {
+                        result.success(true)
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            startActivity(again)
+                            android.os.Process.killProcess(android.os.Process.myPid())
+                        }, 250)
+                    }
+                }
                 "blockedNumbers" -> bg { store.blockedNumbers() }
                 // Android's page for the "Paired with…" notification alone, where it can be turned off.
                 "deskNotificationSettings" -> {
