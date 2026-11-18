@@ -791,7 +791,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
         ],
       ),
       _gap(context),
-      const SettingsCallout(child: Text('For now one device at a time is connected as your account: the one used last takes over, and the others wait until they are opened again.')),
+      // Every device signed in is connected at once since the hub keeps each of a name's devices (relay/lib/hub.dart).
+      const SettingsCallout(child: Text('Every device signed in is connected as your account at once, and each gets what is sent to you.')),
     ]);
   }
 }
