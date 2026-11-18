@@ -13,6 +13,7 @@ import 'package:ghost_messaging/ui/circles/new_circle.dart';
 import 'package:ghost_messaging/ui/composer_box.dart';
 import 'package:ghost_messaging/ui/contacts.dart';
 import 'package:ghost_messaging/ui/hangout_screen.dart';
+import 'package:ghost_messaging/ui/circles/circle_dock.dart';
 import 'package:ghost_messaging/ui/nav_bar.dart';
 import 'package:ghost_messaging/ui/shell.dart';
 import 'package:ghost_messaging/ui/thread.dart';
@@ -102,19 +103,20 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('the header has the circle\'s settings beside Add people', (tester) async {
+  // Matt, 2026-11-17: "replace the circle icon with the home page, hide the settings cog that's outside of the navbar
+  // remove the users icon from the header as well find some other icon to fill the missing space".
+  testWidgets('the header holds only Add people, and the dock leads with Home, Invite in the face\'s room', (tester) async {
     Circles.instance.join(_circle);
     final sheet = await loadSheet(tester);
     await pumpScreen(tester, sheet, const AppShell(), AppState());
     AppShellState.live!.openCircle(_circle);
     await settle(tester);
-    final invite = tester.getRect(find.byKey(const ValueKey('circle-invite')));
-    final gear = tester.getRect(find.byKey(const ValueKey('circle-header-settings')));
-    expect((gear.center.dy - invite.center.dy).abs(), lessThan(1), reason: 'on the same line');
-    expect(gear.left - invite.right, lessThan(16), reason: 'right beside it');
-    await tester.tap(find.byKey(const ValueKey('circle-header-settings')));
-    await settle(tester);
-    expect(find.byType(CircleSettingsScreen), findsOneWidget);
+    expect(find.byKey(const ValueKey('circle-invite')), findsOneWidget);
+    expect(find.byKey(const ValueKey('circle-header-settings')), findsNothing, reason: 'the dock has Settings');
+    expect(find.byKey(const ValueKey('nav-head')), findsNothing, reason: 'no face at the dock\'s head');
+    final items = tester.widget<NavPill>(find.byKey(const ValueKey('circle-dock'))).items;
+    expect([for (final i in items) i.id].first, CircleDock.home);
+    expect([for (final i in items) i.id], contains(CircleDock.invite));
   });
 
   testWidgets('from a circle, Home then a ring of the app\'s dock: that place in the main layout, nothing of the circle\'s', (tester) async {
