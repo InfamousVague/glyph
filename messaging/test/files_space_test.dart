@@ -11,6 +11,7 @@ import 'package:ghost_messaging/files/files_store.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/file_seal.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart';
+import 'package:ghost_messaging/voice/hangout.dart' show OutgoingFile;
 import 'package:ghost_messaging/voice/voice.dart';
 import 'package:ghost_relay/files.dart';
 import 'package:ghost_relay/relay.dart';
@@ -318,6 +319,45 @@ void main() {
       stores.add(again);
       expect(again.of(space).files.values.single.name, 'report.pdf');
       expect(again.cached(f), path);
+    });
+
+    // Matt, 2026-11-18: "I also want full support for uploading attachements gifs stickers etc like we support in other
+    // chats". A chat space's files go up sealed under its own seed, as a Files space's do, and in no list.
+    test('a file for a chat space\'s message goes up sealed under its own seed, in no list, and comes down whole on the other device', () async {
+      final said = <String>[];
+      final chat = VoiceChannel(seed: NetCrypto.hex(NetCrypto.randomBytes(32)), name: 'Lounge', kind: SpaceKind.text, owner: NetCrypto.hex(maya.publicKey));
+      final a = device(sam, 'Sam', said: said), b = device(maya, 'Maya');
+      await a.start();
+      final data = bytesOf(600 * 1000, 3);
+      final f = OutgoingFile(path: fileOf('beach.gif', data).path, name: 'beach.gif', size: data.length, mime: 'image/gif');
+      var moved = 0;
+      final up = await a.uploadForChat(chat, f, byName: 'Sam', thumbMost: 4096, moved: () => moved++);
+      expect(up.name, 'beach.gif');
+      expect(up.by, sam.id);
+      expect(up.byName, 'Sam');
+      expect(up.size, data.length);
+      expect(moved, greaterThan(0));
+      expect(f.progress, 1);
+      expect(said, isEmpty, reason: 'nothing said in the chat: the message is the word');
+      expect(a.of(chat).files, isEmpty, reason: 'no `add` in the space\'s log');
+      expect(a.cached(up), isNotNull, reason: 'the sender has it already');
+      await until(() => a.transfers.isEmpty);
+      expect(File('${dir.path}/Sam/queue.json').existsSync() ? File('${dir.path}/Sam/queue.json').readAsStringSync() : '[]', '[]');
+
+      // Maya, from the message alone: brought down and opened with the file's own key.
+      final path = await b.fetch(chat, up);
+      expect(await File(path).readAsBytes(), data);
+      await b.open(chat);
+      expect(b.of(chat).files, isEmpty);
+      expect(b.of(chat).info!.used, greaterThanOrEqualTo(FileSeal.sealedSize(data.length)));
+
+      // One that fails says why, and asked again goes on.
+      final gone = OutgoingFile(path: '${dir.path}/in/none.txt', name: 'none.txt', size: 4, mime: 'text/plain');
+      await expectLater(a.uploadForChat(chat, gone, byName: 'Sam', thumbMost: 4096, moved: () {}), throwsA(isA<FilesError>()));
+      expect(gone.retryable, isTrue);
+      fileOf('none.txt', Uint8List.fromList([1, 2, 3, 4]));
+      final later = await a.uploadForChat(chat, gone, byName: 'Sam', thumbMost: 4096, moved: () {});
+      expect(await File(await b.fetch(chat, later)).readAsBytes(), [1, 2, 3, 4]);
     });
 
     test('a download cut short goes on from its last whole chunk', () async {

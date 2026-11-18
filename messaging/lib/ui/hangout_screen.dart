@@ -1,4 +1,4 @@
-import '../circles/circles.dart' show Circles, CirclePerm;
+import '../circles/circles.dart' show Circles;
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -39,6 +39,12 @@ import 'space_designs/space_design.dart';
 import 'space_invite.dart';
 import 'voice_screen.dart';
 import 'jump_to_latest.dart';
+import 'space_chat_files.dart';
+import 'sticker_picker.dart';
+import 'voice.dart' show VoiceRecorder, voiceProblem;
+import '../files/file_platform.dart';
+import '../files/files_store.dart' show FilesStore;
+import '../stickers.dart' show stickerName;
 
 /// A hangout: its chat, who is in it, and its call (Matt, 2026-11-15: "add a chat to hangouts so the whole group can
 /// send messages to the hangout as well as voice and video"; roles: "Implement a permissions system similar to
@@ -435,11 +441,16 @@ class _JoinButton extends StatelessWidget {
 /// A hangout's chat: its messages, newest at the foot, and the composer, which says why where this device may not
 /// write. A message held down offers to delete it where this device may.
 class HangoutChat extends StatefulWidget {
-  const HangoutChat({super.key, required this.room, this.bottom = 0});
+  const HangoutChat({super.key, required this.room, this.bottom = 0, this.uploads, this.circles});
   final HangoutRoom room;
 
   /// Room left under the composer (the call's dock).
   final double bottom;
+
+  /// What sends the chat's files up (the app's FilesStore), and the circles whose roles say who may (the app's): a
+  /// test's own in a test.
+  final ChatUploads? uploads;
+  final Circles? circles;
 
   @override
   State<HangoutChat> createState() => _HangoutChatState();
@@ -549,8 +560,110 @@ class _HangoutChatState extends State<HangoutChat> {
     super.dispose();
   }
 
+  /// Files chosen to go with the next message, and a voice message being recorded: its most seconds (Matt,
+  /// 2026-11-18: "I also want full support for uploading attachements gifs stickers etc like we support in other chats").
+  final List<({String path, bool owned})> _picked = [];
+  int? _recording;
+
+  ChatUploads get _uploads => widget.uploads ?? FilesStore.instance;
+  bool get _mayAttach => spaceMayAttach(widget.room, circles: widget.circles);
+
   void _send() {
-    if (widget.room.send(_text.text)) _text.clear();
+    final room = widget.room;
+    if (_picked.isNotEmpty) {
+      if (!_mayAttach) {
+        toast(context, 'Your role here can\'t send files.', tone: GlacierToastTone.danger);
+        return;
+      }
+      if (room.sendFiles(List.of(_picked), _uploads, text: _text.text) != null) {
+        setState(_picked.clear);
+        _text.clear();
+      }
+      return;
+    }
+    if (room.send(_text.text)) _text.clear();
+  }
+
+  /// The + : any files, pictures, videos and GIFs among them, up to ten with one message, chosen with the device's own
+  /// picker (a phone's copied into the app's folder first, as a Files space's are).
+  Future<void> _attach() async {
+    if (!FilePlatform.canPick) {
+      toast(context, 'Files can\'t be chosen on this device yet.');
+      return;
+    }
+    try {
+      final picked = await FilePlatform.pick();
+      if (!mounted || picked.isEmpty) return;
+      setState(() => _picked.addAll(picked.take(HangoutMessage.mostFiles - _picked.length)));
+      if (picked.length + _picked.length > HangoutMessage.mostFiles) toast(context, 'Up to ${HangoutMessage.mostFiles} files go with one message.');
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t add that: $e', tone: GlacierToastTone.danger);
+    }
+  }
+
+  /// The stickers' sheet; the one tapped is sent straight away, by its name: every app carries the stickers, so nothing
+  /// goes up, and it is sealed as any message here is.
+  Future<void> _sticker() async {
+    final asset = await pickSticker(context);
+    if (asset == null || !mounted) return;
+    HapticFeedback.lightImpact();
+    if (!widget.room.sendWith(sticker: stickerName(asset))) toast(context, 'Couldn\'t send the sticker.', tone: GlacierToastTone.danger);
+  }
+
+  /// The microphone, on the phone itself (android/.../Voice.kt, as a Telegram chat records): recorded, then sent up as
+  /// a file and its message, as any other file here.
+  Future<void> _record() async {
+    try {
+      final limit = await Sms.instance.startVoice();
+      if (!mounted) {
+        if (limit != null) Sms.instance.cancelVoice().catchError((_) {});
+        return;
+      }
+      if (limit == null) {
+        toast(context, 'Allow the microphone for Ghost Messaging in Android\'s settings to record a voice message.', tone: GlacierToastTone.danger);
+        return;
+      }
+      HapticFeedback.lightImpact();
+      setState(() => _recording = limit);
+    } catch (e) {
+      if (mounted) toast(context, voiceProblem(e), tone: GlacierToastTone.danger);
+    }
+  }
+
+  Future<void> _sendVoice() async {
+    setState(() => _recording = null);
+    try {
+      final path = await Sms.instance.finishVoice();
+      if (widget.room.sendFiles([(path: path, owned: true)], _uploads, voice: true) == null && mounted) toast(context, 'Couldn\'t send the voice message.', tone: GlacierToastTone.danger);
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t send the voice message: ${voiceProblem(e)}', tone: GlacierToastTone.danger);
+    }
+  }
+
+  void _discardVoice() {
+    Sms.instance.cancelVoice().catchError((_) {});
+    setState(() => _recording = null);
+  }
+
+  /// A message with files on its way, at the right as your own are ([SpaceOutgoing]).
+  Widget _outgoing(HangoutRoom room, OutgoingMessage o, Color mineBg, Color mineInk) {
+    final t = context.tokens;
+    return Padding(
+      key: ValueKey('going-${o.id}'),
+      padding: EdgeInsets.only(top: t.space(2)),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: SpaceOutgoing(
+          message: o,
+          maxWidth: MediaQuery.sizeOf(context).width * 0.72,
+          ground: mineBg,
+          ink: mineInk,
+          rim: bubbleNeedsRim(mineBg, t.color('glacier-bg')) ? Border.all(color: t.color('app-ink-4'), width: 1) : null,
+          onRetry: () => room.retry(o, _uploads),
+          onDiscard: () => room.discard(o, _uploads),
+        ),
+      ),
+    );
   }
 
   /// Pressed and held under Dial-Up: what a bubble's press offers ([_Message]), copy, or delete at once with a puff.
@@ -586,6 +699,7 @@ class _HangoutChatState extends State<HangoutChat> {
       for (final e in _comings) (at: e.at, m: null, e: e),
     ]..sort((a, b) => a.at.compareTo(b.at));
     final list = entries.reversed.toList();
+    final going = room.outgoing.reversed.toList();
     bool sameDay(int a, int b) {
       final x = DateTime.fromMillisecondsSinceEpoch(a), y = DateTime.fromMillisecondsSinceEpoch(b);
       return x.year == y.year && x.month == y.month && x.day == y.day;
@@ -601,8 +715,21 @@ class _HangoutChatState extends State<HangoutChat> {
         controller: _scroll,
         reverse: true,
         padding: const EdgeInsets.symmetric(vertical: 4),
-        itemCount: list.length + 1,
-        itemBuilder: (context, i) {
+        itemCount: going.length + list.length + 1,
+        itemBuilder: (context, at) {
+          // Messages with files on their way, at the foot (the era drew none: the same as the other looks').
+          if (at < going.length) {
+            final o = going[at];
+            return Padding(
+              key: ValueKey('going-${o.id}'),
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: SpaceOutgoing(message: o, maxWidth: 280, ground: c.paper, ink: c.ink, rim: Border.all(color: c.shadow), onRetry: () => room.retry(o, _uploads), onDiscard: () => room.discard(o, _uploads)),
+              ),
+            );
+          }
+          final i = at - going.length;
           // The oldest end: where the room starts, and that what is said in it is sealed (each space's own key).
           if (i == list.length) {
             return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -640,6 +767,11 @@ class _HangoutChatState extends State<HangoutChat> {
                 mine: mine,
                 body: shown?.bubble ?? m.text,
                 original: shown == null ? null : OriginalLine(view: shown),
+                // What went with it under the words, square, as the era's lines carry pictures (Matt, 2026-11-18).
+                media: [
+                  if (m.sticker != null) SpaceSticker(name: m.sticker!, side: 120),
+                  if (m.files.isNotEmpty) SpaceChatFiles(channel: room.channel, message: m, maxWidth: 280, ground: c.paper, ink: c.ink, rim: Border.all(color: c.shadow)),
+                ],
                 status: lastOfRun ? clock(DateTime.fromMillisecondsSinceEpoch(m.at)) : null,
                 onLongPress: (_) => _menu(m),
               )),
@@ -679,15 +811,17 @@ class _HangoutChatState extends State<HangoutChat> {
       listenable: room,
       builder: (context, _) {
         final list = room.messages.reversed.toList();
-        // The space's own roles, and in a circle its roles too (lib/circles: CirclePerm.write).
-        final mayWrite = room.can(Perm.chat) && Circles.instance.allows(room.channel, CirclePerm.write);
+        // Messages with files on their way, newest at the foot, under everything sent.
+        final going = room.outgoing.reversed.toList();
+        // The space's own roles, and in a circle its roles too (lib/circles: CirclePerm.write; spaceMayWrite).
+        final mayWrite = spaceMayWrite(room, circles: widget.circles);
         final (mineBg, mineInk) = myBubble(t, AppState.of(context));
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(
             // Dial-Up writes the space as a chat room: its transcript, and who is here beside it or over it.
             child: isDialup(context)
                 ? _chatRoom(room)
-                : list.isEmpty
+                : list.isEmpty && going.isEmpty
                 ? Center(child: Text('No messages yet', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))
                 // The down arrow over the list's foot, back to the newest message (Matt, 2026-11-17: "add a down arrow
                 // that pops up when we enter a chat and we're not scrolled to the bottom or after we scroll up a certain
@@ -701,8 +835,10 @@ class _HangoutChatState extends State<HangoutChat> {
                     controller: _scroll,
                     reverse: true,
                     padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
-                    itemCount: list.length,
+                    itemCount: going.length + list.length,
                     itemBuilder: (context, i) {
+                      if (i < going.length) return _outgoing(room, going[i], mineBg, mineInk);
+                      i -= going.length;
                       final m = list[i];
                       // Laid out as a conversation of texts is (Matt, 2026-11-16: "update the chat inside spaces to match
                       // the look and layout of the normal chats"): a run from one person is one stack of bubbles, the
@@ -752,28 +888,34 @@ class _HangoutChatState extends State<HangoutChat> {
               padding: composerFootPadding(t, bottom: MediaQuery.viewInsetsOf(context).bottom > 0 ? MediaQuery.viewInsetsOf(context).bottom : widget.bottom + MediaQuery.paddingOf(context).bottom),
               child: mayWrite
                   ? Builder(builder: (context) {
-                      // The same buttons in the same places as every other conversation (lib/ui/composer_box.dart): a
-                      // space's chat is words only, so Add an attachment, stickers and the microphone are greyed out.
+                      if (_recording != null) return VoiceRecorder(limit: _recording!, onDiscard: _discardVoice, onSend: _sendVoice);
+                      // The same buttons in the same places as every other conversation (lib/ui/composer_box.dart): files,
+                      // stickers and, on the phone itself, voice messages, as in other chats (Matt, 2026-11-18). Files
+                      // only where the circle's roles let this person share them (spaceMayAttach).
+                      final attach = _mayAttach;
                       final buttons = composerButtons(
                         t,
-                        hasSomething: _text.text.isNotEmpty,
-                        onAttach: null,
-                        onSticker: null,
-                        onRecord: null,
-                        onSend: _text.text.trim().isEmpty ? null : _send,
+                        hasSomething: _text.text.isNotEmpty || _picked.isNotEmpty,
+                        onAttach: attach && FilePlatform.canPick && _picked.length < HangoutMessage.mostFiles ? _attach : null,
+                        onSticker: _picked.isEmpty ? _sticker : null,
+                        onRecord: attach && !Sms.remote && _picked.isEmpty ? _record : null,
+                        onSend: _text.text.trim().isEmpty && _picked.isEmpty ? null : _send,
                         emoji: Sms.remote,
                         onEmoji: () {
                           _focus.requestFocus();
                           Sms.instance.emojiPanel().catchError((_) {});
                         },
                       );
-                      return ComposerBox(
-                        typing: _typing,
-                        plus: buttons.plus,
-                        ends: buttons.ends,
-                        below: buttons.below,
-                        field: ComposerField(controller: _text, focusNode: _focus, hint: 'Message ${room.channel.name}', onSubmitted: _send, enterSends: AppState.of(context).enterSends),
-                      );
+                      return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                        if (_picked.isNotEmpty) SpacePickedStrip(files: _picked, onRemove: (p) => setState(() => _picked.remove(p))),
+                        ComposerBox(
+                          typing: _typing,
+                          plus: buttons.plus,
+                          ends: buttons.ends,
+                          below: buttons.below,
+                          field: ComposerField(controller: _text, focusNode: _focus, hint: 'Message ${room.channel.name}', onSubmitted: _send, enterSends: AppState.of(context).enterSends),
+                        ),
+                      ]);
                     })
                   : Text('Your role can\'t send messages here.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
             ),
@@ -1014,6 +1156,28 @@ class _Message extends StatelessWidget {
         child: Text(shown?.bubble ?? m.text, style: pageText(t, t.fontSize('md'), color: mine ? mineInk : t.color('app-ink'), height: 1.3)),
       ),
     );
+    // A sticker on the page with no bubble; files over the words, the words' bubble only where there are any (Matt,
+    // 2026-11-18: "I also want full support for uploading attachements gifs stickers etc like we support in other chats").
+    final words = shown == null ? bubble : Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [OriginalCard(view: shown, maxWidth: maxWidth), bubble]);
+    final Widget body;
+    if (m.sticker != null) {
+      body = SpaceSticker(name: m.sticker!, side: math.min(t.lenOf('9.5rem'), maxWidth));
+    } else if (m.files.isNotEmpty) {
+      body = Column(crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        SpaceChatFiles(
+          channel: room.channel,
+          message: m,
+          mine: mine,
+          maxWidth: maxWidth,
+          ground: mine ? mineBg : theirBubble(t, onBackground: false),
+          ink: mine ? mineInk : t.color('app-ink'),
+          rim: !mine ? theirRim(t) : bubbleNeedsRim(mineBg, t.color('glacier-bg')) ? Border.all(color: t.color('app-ink-4'), width: 1) : null,
+        ),
+        if (m.text.isNotEmpty) ...[SizedBox(height: t.space(1)), words],
+      ]);
+    } else {
+      body = words;
+    }
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -1039,7 +1203,7 @@ class _Message extends StatelessWidget {
               SizedBox(width: t.space(2)),
             ],
             // The words as they came, dimmed, in a card over a translated bubble.
-            Flexible(child: shown == null ? bubble : Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [OriginalCard(view: shown, maxWidth: maxWidth), bubble])),
+            Flexible(child: body),
           ]),
           if (last)
             Padding(

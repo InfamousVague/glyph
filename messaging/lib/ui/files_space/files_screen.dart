@@ -330,7 +330,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
       subs = space.subfolders(here);
       shown = sort.apply(space.filesIn(here));
     }
-    final going = [for (final x in _store.transfers) if (x.space.seed == _c.seed && x.up) x];
+    final going = [for (final x in _store.transfers) if (x.space.seed == _c.seed && x.up && !x.chat) x];
     final canFolder = _store.canFolder(_c);
     final canUpload = _store.canUpload(_c);
 

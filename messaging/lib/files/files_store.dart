@@ -18,6 +18,7 @@ import '../net/file_seal.dart';
 import '../net/hub_carrier.dart' show NetSigner;
 import '../voice/channels.dart';
 import '../voice/roles.dart';
+import '../voice/hangout.dart' show ChatUploads, OutgoingFile;
 import '../voice/voice.dart';
 import 'file_kinds.dart';
 import 'file_stream.dart';
@@ -47,7 +48,7 @@ export 'files_model.dart';
 ///   said in the space's chat ("Maya added report.pdf (2.1 MB)") so older builds see something.
 /// - **Coming down** ([fetch]): opened chunk by chunk into a file of its own as it comes, so a download cut short goes on
 ///   from the last whole chunk, then checked against the SHA-256 its description gives.
-class FilesStore extends ChangeNotifier {
+class FilesStore extends ChangeNotifier implements ChatUploads {
   FilesStore._({
     required Uri? Function() base,
     required NetSigner? Function() signer,
@@ -370,7 +371,7 @@ class FilesStore extends ChangeNotifier {
     try {
       final d = _data()..createSync(recursive: true);
       final tmp = File('${d.path}/queue.json.tmp');
-      await tmp.writeAsString(jsonEncode([for (final t in transfers) if (t.up && t.state != TransferState.done) t._toJson()]));
+      await tmp.writeAsString(jsonEncode([for (final t in transfers) if (t.up && !t.chat && t.state != TransferState.done) t._toJson()]));
       await tmp.rename('${d.path}/queue.json');
     } catch (_) {}
   }
@@ -764,14 +765,14 @@ class FilesStore extends ChangeNotifier {
         // its first minute (lib/files/video_frame.dart; Matt, 2026-11-18: "videos having a frame from the first minute").
         final kind = FileKind.of(t.name, t.mime);
         if (thumbnails && kind == FileKind.image && t.size <= 40 << 20) {
-          final made = await thumbnailOfFile(path, kind);
+          final made = await thumbnailOfFile(path, kind, most: t.thumbMost);
           t.thumb = made?.png;
           t.width = made?.width ?? 0;
           t.height = made?.height ?? 0;
         } else if (thumbnails && kind == FileKind.video) {
           // A video's frame takes a player to open it: made while the file goes up, and waited for only at the end
           // (videoFrame gives up after frameLimit), so the upload never stands waiting on it.
-          _videoThumbs[t] = thumbnailOfFile(path, kind);
+          _videoThumbs[t] = thumbnailOfFile(path, kind, most: t.thumbMost);
         }
         await _saveQueue();
       }
@@ -876,13 +877,25 @@ class FilesStore extends ChangeNotifier {
         key: t.fileKey!,
         prefix: t.prefix!,
         by: me,
-        byName: _myName(),
+        byName: t.chat ? (t.chatName ?? '') : _myName(),
         at: DateTime.now().millisecondsSinceEpoch,
         folder: t.folder,
         thumb: t.thumb,
         width: t.width,
         height: t.height,
       );
+      if (t.chat) {
+        // A chat's file: up, and nothing more here. It goes in no list (no `add` in the log, no word in the chat): the
+        // message that carries it is what says it is there ([uploadForChat]).
+        await _keepLocal(t, f);
+        t.state = TransferState.done;
+        t.done = t.size;
+        t._chatFile = f;
+        final done = t._chatDone;
+        if (done != null && !done.isCompleted) done.complete(f);
+        await _settle(t);
+        return;
+      }
       final seq = await _append(c, api, s, FileOp.add(f));
       // This device has the file already: kept as if it had come down, so it opens at once.
       await _keepLocal(t, f);
@@ -919,6 +932,12 @@ class FilesStore extends ChangeNotifier {
   /// A finished or failed upload: off the queue on disk, and (done) off the list a moment later.
   Future<void> _settle(Transfer t) async {
     await _saveQueue();
+    // A chat's file that stopped: its message is told why, and asks again to try again ([uploadForChat]).
+    final waiting = t._chatDone;
+    if (t.chat && t.state == TransferState.failed && waiting != null && !waiting.isCompleted) {
+      waiting.future.ignore();
+      waiting.completeError(FilesError(t.retryable ? 0 : HttpStatus.requestEntityTooLarge, t.error ?? 'It didn\'t go up.'));
+    }
     notifyListeners();
     if (t.state == TransferState.done) {
       if (t.owned) _deleteQuietly(t.path!);
@@ -947,6 +966,11 @@ class FilesStore extends ChangeNotifier {
     transfers.remove(t);
     notifyListeners();
     if (t.up) {
+      final waiting = t._chatDone;
+      if (waiting != null && !waiting.isCompleted) {
+        waiting.future.ignore();
+        waiting.completeError(FilesError(-1, 'Stopped.'));
+      }
       await _saveQueue();
       if (t.blob != null) {
         try {
@@ -970,6 +994,57 @@ class FilesStore extends ChangeNotifier {
     t.tries = 0;
     notifyListeners();
     _pump();
+  }
+
+  // --- a space's chat --------------------------------------------------------------------------------------------------
+
+  /// [f] up for a message in [c]'s chat (Matt, 2026-11-18: "I also want full support for uploading attachements gifs
+  /// stickers etc like we support in other chats"): sealed and kept on the relay as a Files space's file is, under the
+  /// chat space's own seed (FileSeal.filesRoom), by the same queue ([upload]'s), and in no list. The relay asks only for the space's
+  /// token and a signature by the uploader's hub key (relay/lib/files.dart): who may send a file is whoever may write
+  /// in the chat, which each device judges by the roster, as it does the message itself.
+  @override
+  Future<SpaceFile> uploadForChat(VoiceChannel c, OutgoingFile f, {required String byName, required int thumbMost, required void Function() moved}) {
+    final had = f.handle;
+    if (had is Transfer && had._chatFile != null) return Future.value(had._chatFile);
+    final done = Completer<SpaceFile>();
+    final Transfer t;
+    if (had is Transfer && transfers.contains(had)) {
+      // Asked again after it stopped: it goes on from where the relay says it got to.
+      t = had
+        ..state = TransferState.queued
+        ..error = null
+        ..tries = 0;
+    } else {
+      t = Transfer._up(space: c, path: f.path, name: f.name, size: f.size, mime: f.mime, owned: f.owned)
+        ..chat = true
+        ..chatName = byName;
+      transfers.add(t);
+      f.handle = t;
+    }
+    t.thumbMost = thumbMost;
+    t._chatDone = done;
+    void watch() {
+      f.progress = t.progress;
+      f.waiting = t.state == TransferState.waiting ? (t.error ?? 'Waiting for the relay') : null;
+      f.retryable = t.retryable;
+      moved();
+    }
+
+    addListener(watch);
+    done.future.then((_) {
+      f.progress = 1;
+      f.waiting = null;
+    }, onError: (_) => watch()).whenComplete(() => removeListener(watch));
+    notifyListeners();
+    _pump();
+    return done.future;
+  }
+
+  @override
+  void drop(OutgoingFile f) {
+    final t = f.handle;
+    if (t is Transfer) unawaited(cancel(t));
   }
 
   // --- coming down ---------------------------------------------------------------------------------------------------
@@ -1170,24 +1245,25 @@ class FilesStore extends ChangeNotifier {
 
   /// A small PNG of the picture or video at [path] ([kind] says which), no more than 160 across and 18 KB: what the list
   /// and grid show of it. A video's is a frame from its first minute.
-  static Future<({Uint8List png, int width, int height})?> thumbnailOfFile(String path, FileKind kind) async {
+  static Future<({Uint8List png, int width, int height})?> thumbnailOfFile(String path, FileKind kind, {int most = SpaceFile.maxThumb}) async {
     try {
       final bytes = kind == FileKind.video ? await videoFrame(path) : await File(path).readAsBytes();
-      return bytes == null ? null : await thumbnailOf(bytes);
+      return bytes == null ? null : await thumbnailOf(bytes, most: most);
     } catch (_) {
       return null;
     }
   }
 
-  /// A small PNG of the encoded picture [bytes], no more than 160 across and 18 KB.
-  static Future<({Uint8List png, int width, int height})?> thumbnailOf(Uint8List bytes) async {
+  /// A small PNG of the encoded picture [bytes], no more than 160 across and [most] bytes (18 KB).
+  static Future<({Uint8List png, int width, int height})?> thumbnailOf(Uint8List bytes, {int most = SpaceFile.maxThumb}) async {
     try {
       final full = await ui.ImmutableBuffer.fromUint8List(bytes);
       final desc = await ui.ImageDescriptor.encoded(full);
       final w = desc.width, h = desc.height;
       desc.dispose();
       full.dispose();
-      for (final side in [160, 120, 88, 64]) {
+      // Smaller still for a space's chat, whose message carries several in one packet ([most] below 18 KB).
+      for (final side in [160, 120, 88, 64, if (most < SpaceFile.maxThumb) ...[48, 32]]) {
         final codec = await ui.instantiateImageCodec(bytes, targetWidth: w >= h ? side : null, targetHeight: h > w ? side : null);
         final frame = await codec.getNextFrame();
         final data = await frame.image.toByteData(format: ui.ImageByteFormat.png);
@@ -1195,7 +1271,7 @@ class FilesStore extends ChangeNotifier {
         codec.dispose();
         if (data == null) return null;
         final png = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-        if (png.length <= 18 * 1024) return (png: Uint8List.fromList(png), width: w, height: h);
+        if (png.length <= most) return (png: Uint8List.fromList(png), width: w, height: h);
       }
     } catch (_) {}
     return null;
@@ -1586,6 +1662,15 @@ class Transfer {
 
   /// When the file was last changed as it was sealed: a file changed since is not sent on.
   int? modified;
+
+  /// A file for a message in a space's chat ([FilesStore.upload]): kept off the queue on disk and out of the Files
+  /// screen, and written in no list. Its small picture no more than [thumbMost] bytes, the name it goes under, what
+  /// waits for it, and what it came to.
+  bool chat = false;
+  int thumbMost = SpaceFile.maxThumb;
+  String? chatName;
+  Completer<SpaceFile>? _chatDone;
+  SpaceFile? _chatFile;
 
   bool _cancel = false;
   bool _held = false;

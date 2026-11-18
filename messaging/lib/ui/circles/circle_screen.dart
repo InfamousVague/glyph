@@ -112,7 +112,7 @@ CircleView circleView(BuildContext context, Circle c, {required VoidCallback onB
           space: s,
           channel: channel,
           unread: voice.unreadIn(channel),
-          lastMessage: last == null ? null : '${who(last)}: ${last.text}',
+          lastMessage: last == null ? null : '${who(last)}: ${last.summary}',
           lastAt: last == null ? null : DateTime.fromMillisecondsSinceEpoch(last.at),
           inVoice: [for (final id in ids) id == 'me' ? 'You' : voice.nameOf(id)],
           here: here,
@@ -215,7 +215,7 @@ class CircleRow extends StatelessWidget {
     } else if (newest != null) {
       final me = voice.hangoutFor(where!)?.me;
       final who = newest.from == me ? 'You' : (newest.name.isNotEmpty ? newest.name : voice.nameOf(newest.from));
-      line = '${where.name} · $who: ${newest.text}';
+      line = '${where.name} · $who: ${newest.summary}';
     } else {
       line = count;
     }
