@@ -87,6 +87,10 @@ class SpaceFile {
         verified: verified,
       );
 
+  /// The same file with no small picture: a message in a space's chat that would not go in one packet with it
+  /// (HangoutRoom.fitted).
+  SpaceFile withoutThumb() => SpaceFile(id: id, name: name, size: size, mime: mime, sha: sha, key: key, prefix: prefix, by: by, byName: byName, at: at, chunk: chunk, folder: folder, width: width, height: height, verified: verified);
+
   /// What the log's `add` carries (the [by] is the relay's, so it is not in here).
   Map<String, Object?> toJson() => {
         'id': id,

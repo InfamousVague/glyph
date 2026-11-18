@@ -364,7 +364,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // An archived one is in Archive instead (Voice.archive). A circle's spaces are in their circle (the Circles tab).
     final spaces = _section != null ? const <(DateTime, Object)>[] : [
       for (final v in Voice.instance.channels)
-        if (v.hangout && v.circle == null && Voice.instance.archived(v) == widget.archived && (q.isEmpty || v.name.toLowerCase().contains(q) || (Voice.instance.lastMessage(v)?.text.toLowerCase().contains(q) ?? false))) (_spaceDate(v), v as Object),
+        if (v.hangout && v.circle == null && Voice.instance.archived(v) == widget.archived && (q.isEmpty || v.name.toLowerCase().contains(q) || (Voice.instance.lastMessage(v)?.summary.toLowerCase().contains(q) ?? false))) (_spaceDate(v), v as Object),
     ];
     if (chats.isEmpty && spaces.isEmpty) return shown;
     if (_section != null) {
@@ -417,7 +417,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final String snippet;
     if (last != null) {
       final who = last.from == me ? 'You' : (last.name.isNotEmpty ? last.name : voice.nameOf(last.from));
-      snippet = '$who: ${last.text}';
+      snippet = '$who: ${last.summary}';
     } else if (inCall > 0) {
       snippet = '$inCall in voice · Join any time';
     } else {

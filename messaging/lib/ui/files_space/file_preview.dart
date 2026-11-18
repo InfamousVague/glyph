@@ -37,21 +37,25 @@ bool get playsVideo => true;
 /// Opens [f]: a video straight into the player, played as it comes down (lib/files/file_stream.dart; Matt, 2026-11-18:
 /// "do we need to download the whole file to play? would it be possible to setup streaming and buffering of the
 /// file?"), or from the disk where it is here already; anything else in its preview.
-void openSpaceFile(BuildContext context, VoiceChannel c, SpaceFile f, {FilesStore? store}) {
+void openSpaceFile(BuildContext context, VoiceChannel c, SpaceFile f, {FilesStore? store, bool chat = false}) {
   final s = store ?? FilesStore.instance;
   if (f.kind == FileKind.video && playsVideo) {
     final have = s.cached(f);
     Navigator.of(context).push(videoRoute(have != null ? VideoScreen(path: have, title: f.name, poster: f.thumb) : VideoScreen.stream(stream: s.stream(c, f), title: f.name, poster: f.thumb)));
     return;
   }
-  push<void>(context, (_) => FilePreviewScreen(channel: c, file: f, store: store));
+  push<void>(context, (_) => FilePreviewScreen(channel: c, file: f, store: store, chat: chat));
 }
 
 class FilePreviewScreen extends StatefulWidget {
-  const FilePreviewScreen({super.key, required this.channel, required this.file, this.store});
+  const FilePreviewScreen({super.key, required this.channel, required this.file, this.store, this.chat = false});
   final VoiceChannel channel;
   final SpaceFile file;
   final FilesStore? store;
+
+  /// A file sent in a space's chat (lib/ui/space_chat_files.dart): in no list, so never "removed from the space", and
+  /// nothing to rename, move or delete; Save and Share in the … menu's place.
+  final bool chat;
 
   @override
   State<FilePreviewScreen> createState() => _FilePreviewScreenState();
@@ -91,7 +95,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
   }
 
   /// The file as it is now in the list: renamed or moved meanwhile, it keeps up.
-  SpaceFile get _file => _store.of(widget.channel).files[widget.file.id] ?? widget.file;
+  SpaceFile get _file => widget.chat ? widget.file : _store.of(widget.channel).files[widget.file.id] ?? widget.file;
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +104,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
       listenable: _store,
       builder: (context, _) {
         final f = _file;
-        final gone = _store.of(widget.channel).ready && !_store.of(widget.channel).files.containsKey(f.id);
+        final gone = !widget.chat && _store.of(widget.channel).ready && !_store.of(widget.channel).files.containsKey(f.id);
         final line = '${fileSize(f.size)} · ${fileWho(f)} · ${listWhen(f.when)}';
         final wide = MediaQuery.sizeOf(context).width >= 640;
         return GhostPage(
@@ -120,9 +124,9 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
           // Save and Share once each: in the body's buttons for a file this page can't show (a PDF), in the … menu
           // otherwise; beside the … only on a wide window, for a file shown here. On a phone the title keeps the room.
           actions: [
-            if (wide && shownHere(f) && FilePlatform.canSave) IconTap(icon: LucideMore.download, label: FilePlatform.canShare ? 'Save' : 'Download', onPressed: () => fileAction(context, widget.channel, f, _store, (p) => FilePlatform.save(p, f.name, f.mime), doneWords: true)),
-            if (wide && shownHere(f) && FilePlatform.canShare) IconTap(icon: Lucide.share2, label: 'Share', onPressed: () => fileAction(context, widget.channel, f, _store, (p) => FilePlatform.share(p, f.name, f.mime))),
-            IconTap(icon: Lucide.ellipsisVertical, label: 'More', onPressed: () => showFileMenu(context, widget.channel, f, store: _store)),
+            if ((wide || widget.chat) && shownHere(f) && FilePlatform.canSave) IconTap(icon: LucideMore.download, label: FilePlatform.canShare ? 'Save' : 'Download', onPressed: () => fileAction(context, widget.channel, f, _store, (p) => FilePlatform.save(p, f.name, f.mime), doneWords: true)),
+            if ((wide || widget.chat) && shownHere(f) && FilePlatform.canShare) IconTap(icon: Lucide.share2, label: 'Share', onPressed: () => fileAction(context, widget.channel, f, _store, (p) => FilePlatform.share(p, f.name, f.mime))),
+            if (!widget.chat) IconTap(icon: Lucide.ellipsisVertical, label: 'More', onPressed: () => showFileMenu(context, widget.channel, f, store: _store)),
           ],
           body: gone ? _note(t, Lucide.trash2, 'This file was removed from the space.') : _body(context, t, f),
         );

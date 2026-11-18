@@ -14,6 +14,8 @@ import 'package:ghost_messaging/ui/circles/circle_screen.dart';
 import 'package:ghost_messaging/ui/common.dart' show IconTap;
 import 'package:ghost_messaging/ui/circles/circle_list.dart';
 import 'package:ghost_messaging/ui/shell.dart';
+import 'package:ghost_messaging/ui/space_chat_files.dart' show spaceMayAttach, spaceMayWrite;
+import 'package:ghost_messaging/voice/hangout.dart' show HangoutRoom, MemoryHangoutStore;
 import 'package:ghost_messaging/voice/channels.dart';
 import 'package:ghost_messaging/voice/roles.dart';
 import 'package:ghost_messaging/voice/voice.dart';
@@ -307,6 +309,37 @@ void main() {
     await mine.setRolesOf(mine.bySeed(c.seed)!, maya.id, [writers.id]);
     await _until(() => hers.allows(general, CirclePerm.write));
     expect(hers.allows(general, CirclePerm.write), isTrue, reason: 'her role gives it back');
+  });
+
+  // Matt, 2026-11-18: "I also want full support for uploading attachements gifs stickers etc like we support in other
+  // chats". Whoever may write in a circle's chat space may send a sticker; files need the circle's Share files too.
+  test('in a circle\'s chat space, files need Share files and stickers only writing; neither without writing', () async {
+    final hub = _Hub();
+    final owner = NetKeys.generate(), maya = NetKeys.generate();
+    final mine = Circles.forTest(signer: KeysSigner(owner), route: _Route(hub, owner.id));
+    final hers = Circles.forTest(signer: KeysSigner(maya), route: _Route(hub, maya.id));
+    addTearDown(() async {
+      await mine.clear();
+      await hers.clear();
+    });
+    final c = (await mine.make(name: 'Book club'))!;
+    await _settle();
+    hers.join(Circle.fromLink(c.link)!);
+    await _until(() => hers.bySeed(c.seed)!.manifest.version >= 1);
+    final general = hers.bySeed(c.seed)!.channels.first;
+    final room = HangoutRoom(channel: general, route: _Route(hub, maya.id), name: 'Maya', store: MemoryHangoutStore());
+    expect(spaceMayWrite(room, circles: hers), isTrue);
+    expect(spaceMayAttach(room, circles: hers), isTrue, reason: 'everyone shares files, to start');
+
+    await mine.setEveryone(mine.bySeed(c.seed)!, {CirclePerm.write, CirclePerm.voice});
+    await _until(() => !hers.allows(general, CirclePerm.files));
+    expect(spaceMayWrite(room, circles: hers), isTrue, reason: 'stickers and words still go');
+    expect(spaceMayAttach(room, circles: hers), isFalse);
+
+    await mine.setEveryone(mine.bySeed(c.seed)!, {CirclePerm.voice, CirclePerm.files});
+    await _until(() => !hers.allows(general, CirclePerm.write));
+    expect(spaceMayWrite(room, circles: hers), isFalse);
+    expect(spaceMayAttach(room, circles: hers), isFalse, reason: 'Share files without writing sends nothing in a chat');
   });
 
   group('gossip', () {
