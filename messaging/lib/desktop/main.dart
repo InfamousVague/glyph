@@ -32,6 +32,11 @@ import '../circles/circles.dart';
 import '../files/files_store.dart';
 import 'gm_web.dart';
 import 'updates.dart';
+import '../people.dart';
+import '../me/me.dart';
+import '../standalone/standalone.dart';
+import '../standalone/welcome.dart';
+import 'ui/link_offer.dart';
 
 /// Ghost Messaging on a computer (Matt, 2026-11-13: "a companion desktop app that can proxy messages encrypted from
 /// my phone to my desktop and then send back to the phone to send again"; docs/desktop.md). The phone's screens,
@@ -64,9 +69,20 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   );
   final calls = LinkCalls(link, store);
   await calls.init();
+  // With no phone linked, the computer is Ghost Messaging of its own, as an iPhone is (lib/standalone; Matt, 2026-11-18:
+  // "a user can use the app without linking the phone since some people may be joining just to enter circles or use
+  // telegram and signal but not SMS"): friends by username, circles, Telegram and Signal, answered here. Linking a
+  // phone later is a step of its own, and the app opens again on its link (restartApp).
+  final alone = await store.load() == null;
+  if (alone) {
+    final own = StandaloneCalls(Directory('${store.dir.path}/standalone'), keychain: const bool.fromEnvironment('GHOST_DESK_KEYCHAIN', defaultValue: kReleaseMode));
+    await own.load();
+    Sms.calls = own;
+    Sms.standalone = true;
+  }
   // Where a voice message the Mac is playing has got to, told to the screens as the phone tells its own.
   MacPlatform.listenToVoice((m) => Sms.instance.voice.add(VoicePlayback.from(m)));
-  Sms.calls = calls;
+  if (!alone) Sms.calls = calls;
   // Google Messages on this computer (gm_web.dart): its helper started where this copy carries it, and what changes
   // there told to the screens as the phone's changes are.
   GmWeb.instance.changed.stream.listen(Sms.instance.changes.add);
@@ -81,7 +97,13 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // The interface sounds (lib/sounds.dart) read the person's choices from here.
   Sounds.instance.start(state);
   // And the circles, whose rooms ride Voice's connection (lib/circles/circles.dart).
-  unawaited(Voice.instance.start(state).then((_) => Circles.instance.start(state)));
+  // On its own it runs the app's network itself, as the phone does: the routes, friends, groups, then voice and circles
+  // (lib/people.dart). Paired, those are the phone's, asked across the link.
+  if (alone) {
+    startPeople(state);
+  } else {
+    unawaited(Voice.instance.start(state).then((_) => Circles.instance.start(state)));
+  }
   // Files spaces' files (lib/files/files_store.dart): what was going up when the app closed goes on. And files dropped
   // on the window with no Files space showing are offered to one (lib/ui/files_space/share_in.dart; Matt, 2026-11-17:
   // "Finish the missing pieces that went unfinished").
@@ -105,7 +127,7 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
 }
 
 class DesktopApp extends StatelessWidget {
-  const DesktopApp({super.key, required this.sheet, required this.state, required this.link, required this.calls, required this.store, this.envPeers = const [], this.updates, this.accents});
+  const DesktopApp({super.key, required this.sheet, required this.state, required this.link, required this.calls, required this.store, this.envPeers = const [], this.updates, this.accents, this.relaunch});
   final TokenSheet sheet;
 
   /// The stylesheets with the bubble colour chosen everywhere as the accent (lib/accent.dart); [sheet] alone where
@@ -118,9 +140,13 @@ class DesktopApp extends StatelessWidget {
   final List<Peer> envPeers;
   final MacUpdates? updates;
 
+  /// In place of opening the app again (restartApp), for a test.
+  final Future<void> Function()? relaunch;
+
   @override
   Widget build(BuildContext context) {
     return DeskScope(
+      relaunch: relaunch,
       link: link,
       calls: calls,
       store: store,
@@ -153,25 +179,101 @@ class DesktopApp extends StatelessWidget {
   }
 }
 
-/// The wizard until a phone is paired, then the conversations.
-class DeskHome extends StatelessWidget {
+/// What a computer opens on. With a phone linked as it started: the conversations, or the wizard once it has been
+/// unpaired. On its own (Sms.standalone): a username first, then linking a phone offered once and passed by as easily
+/// (Matt, 2026-11-18: "make setting up SMS and such and linking to a phone an optional step"), then the conversations;
+/// a phone linked later, from here or Settings › Your phone, opens the app again on it.
+class DeskHome extends StatefulWidget {
   const DeskHome({super.key});
+
+  @override
+  State<DeskHome> createState() => _DeskHomeState();
+}
+
+class _DeskHomeState extends State<DeskHome> {
+  /// Whether linking a phone has been offered and passed by; null until the choices are read.
+  bool? _offered;
+
+  /// The wizard, asked for from the offer.
+  bool _linking = false;
+  bool _restarting = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_offered != null || !Sms.standalone) return;
+    DeskScope.of(context).store.prefs().then((p) {
+      if (mounted) setState(() => _offered = p['phone_offered'] == '1');
+    });
+  }
+
+  /// Linking passed by: the app at once, and the choice kept so it is not offered again (Settings › Your phone has it).
+  void _passBy() {
+    final store = DeskScope.of(context).store;
+    setState(() {
+      _offered = true;
+      _linking = false;
+    });
+    unawaited(store.prefs().then((p) => store.savePrefs({...p, 'phone_offered': '1'})));
+  }
+
+  /// Opens the app again on its new footing, once.
+  void _restart() {
+    if (_restarting) return;
+    _restarting = true;
+    final relaunch = DeskScope.of(context).relaunch;
+    Future.delayed(const Duration(milliseconds: 900), () => restartApp(relaunch: relaunch));
+  }
+
+  Widget _wizard({String? skipLabel, VoidCallback? onSkip}) => Stack(children: [
+        Positioned.fill(child: PairWizard(skipLabel: skipLabel, onSkip: onSkip)),
+        Positioned(left: 0, right: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),
+      ]);
 
   @override
   Widget build(BuildContext context) {
     final link = DeskScope.of(context).link;
     return ListenableBuilder(
-      listenable: link,
+      listenable: Listenable.merge([link, Me.instance]),
       builder: (context, _) {
         final a = link.attempt;
         // Paired a moment ago: the wizard's last step is the conversations themselves.
         if (a != null && a.phase == 'done') WidgetsBinding.instance.addPostFrameCallback((_) => link.pairingShown());
-        if (link.phone != null && (a == null || a.phase == 'done')) return DeskShell(key: ValueKey(link.phone!.id));
-        // The wizard has no header: its top edge is the bar the window is dragged by (lib/ui/window_chrome.dart).
-        return Stack(children: [
-          const Positioned.fill(child: PairWizard()),
-          Positioned(left: 0, right: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),
-        ]);
+        final linked = link.phone != null && (a == null || a.phase == 'done');
+        if (!Sms.standalone) {
+          if (linked) return DeskShell(key: ValueKey(link.phone!.id));
+          // Unpaired since it opened: the wizard, or the app of its own again.
+          return _wizard(skipLabel: 'Use without a phone', onSkip: _restart);
+        }
+        // Linked from here or from Settings: the app opens again on the phone.
+        if (linked) {
+          _restart();
+          return LinkRestarting(phone: link.phone!.name);
+        }
+        if (_linking) {
+          return _wizard(
+            skipLabel: 'Not now',
+            onSkip: () {
+              unawaited(link.cancelPairing());
+              _passBy();
+            },
+          );
+        }
+        // The username is how anyone reaches someone here (lib/standalone/welcome.dart).
+        if (Me.instance.username == null) {
+          return Stack(children: [
+            Positioned.fill(child: StandaloneWelcome(onDone: () => setState(() {}))),
+            Positioned(left: 0, right: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),
+          ]);
+        }
+        if (_offered == null) return ColoredBox(color: context.tokens.color('glacier-bg'));
+        if (!_offered!) {
+          return Stack(children: [
+            Positioned.fill(child: LinkOffer(onLink: () => setState(() => _linking = true), onSkip: _passBy)),
+            Positioned(left: 0, right: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),
+          ]);
+        }
+        return const DeskShell(key: ValueKey('alone'));
       },
     );
   }

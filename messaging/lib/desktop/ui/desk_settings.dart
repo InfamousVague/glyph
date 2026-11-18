@@ -72,7 +72,7 @@ class DeskSettings extends ChangeNotifier {
           icon: const AppIcon(LucideMore.smartphone, size: 18),
           hue: 'blue',
           group: 'computer',
-          summary: (m) => link.phone == null ? 'Not paired' : '${link.phone!.name} · ${_linkShort(link)}',
+          summary: (m) => link.phone == null ? 'Optional · not linked' : '${link.phone!.name} · ${_linkShort(link)}',
           page: (context, m) => _phonePage(context, this),
         ),
         // Google Messages on this computer (lib/desktop/gm_web.dart), where this copy carries its helper.
@@ -94,6 +94,8 @@ class DeskSettings extends ChangeNotifier {
         SettingsSection(
           id: 'kept',
           where: SettingsWhere.computer,
+          // What is kept is the phone's conversations: nothing to keep without one.
+          when: (m) => link.phone != null,
           label: 'Kept on this $computerWord',
           icon: const AppIcon(Lucide.hardDrive, size: 18),
           hue: 'slate',
@@ -260,7 +262,25 @@ extension on String {
 List<Widget> _phonePage(BuildContext context, DeskSettings d) {
   final link = d.link;
   final phone = link.phone;
-  if (phone == null) return const [];
+  // None linked: linking one is offered, never needed (Matt, 2026-11-18: "make setting up SMS and such and linking to a
+  // phone an optional step"). Once it is, the app opens again on it (lib/desktop/main.dart, DeskHome).
+  if (phone == null) {
+    return [
+      PaneSection(
+        title: 'Texts from an Android phone',
+        description: Text('Optional. Link Ghost Messaging on your Android phone and this $computerWord shows your texts and sends through it. Friends, circles, Telegram and Signal work without one.'),
+        children: [
+          SettingRow(
+            key: const ValueKey('link-phone'),
+            icon: _icon(LucideMore.qrCode),
+            label: 'Link an Android phone',
+            hint: const Text('Scan a code with the phone. Ghost Messaging opens again once it is linked.'),
+            onPress: () => push<void>(context, (_) => const GhostPage(title: 'Link an Android phone', body: PairWizard())),
+          ),
+        ],
+      ),
+    ];
+  }
   return [
     PaneSection(title: 'Paired with', children: [
       SettingRow(
