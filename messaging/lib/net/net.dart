@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../app_state.dart';
 import '../sms.dart';
 import 'carrier.dart';
+import 'crypto.dart';
 import 'hub_carrier.dart';
 import 'packet.dart';
 import 'sms_carrier.dart';
@@ -138,8 +139,15 @@ class Net extends ChangeNotifier implements PeerBook {
   /// Sets the routes up. On a computer there are none yet: it speaks through the phone it is paired with.
   /// [carriers] stands in for the phone's own routes (a test).
   Future<void> start(AppState app, {List<Carrier>? carriers}) async {
-    if (Sms.paired || _board != null) return;
+    if ((Sms.paired && !Sms.ownNetwork) || _board != null) return;
     _app = app;
+    // This install's own name among its identity's devices, made once and kept.
+    var device = app.choice('hub_device', '');
+    if (device.length != 32) {
+      device = NetCrypto.hex(NetCrypto.randomBytes(16));
+      app.set('hub_device', device);
+    }
+    HubCarrier.device = device;
     try {
       final me = await Sms.instance.netIdentity();
       id = me.id;

@@ -19,31 +19,46 @@ import 'chats.dart';
 ///
 /// Its ids start at [UsernameChats.base], 2^40, far past any Android hands out. A paired computer, which asks the
 /// phone's Android side, does not see these conversations yet.
-class OverlayCalls implements SmsCalls, PhoneSide {
-  OverlayCalls(this.inner, this.file) {
+class OverlayCalls extends UsernameOverlay implements PhoneSide {
+  OverlayCalls(super.inner, super.file);
+
+  static const base = UsernameOverlay.base;
+
+  /// Where the phone keeps it: the app's own files.
+  static File defaultFile() => File('${Directory.systemTemp.parent.path}/files/username_chats.json');
+}
+
+/// Friends by username kept in Dart in front of other calls ([inner]): the phone's ([OverlayCalls]), and a computer
+/// paired with one that has friends and circles of its own (lib/desktop/own_calls.dart). [answerOwn] answers first
+/// what the one built on this keeps itself.
+abstract class UsernameOverlay implements SmsCalls {
+  UsernameOverlay(this.inner, this.file) {
     chats = UsernameChats(base: base, save: _save, buddies: () => _buddies);
   }
 
   static const base = 1 << 40;
+
+  /// What the one built on this answers itself, before anything here; [pass] for what it leaves to this.
+  Future<Object?> answerOwn(String method, Map a) async => pass;
+
+  /// The friends by username kept, as their list was last given.
+  List<Buddy> get buddyList => _buddies;
 
   final SmsCalls inner;
   final File file;
   late final UsernameChats chats;
   List<Buddy> _buddies = const [];
 
-  /// Where the phone keeps it: the app's own files.
-  static File defaultFile() => File('${Directory.systemTemp.parent.path}/files/username_chats.json');
-
   Future<void> load() async {
     try {
       chats.load(jsonDecode(await file.readAsString()) as Map);
     } catch (_) {}
     try {
-      _keepBuddies(await inner.invokeMethod<String>('buddiesKept') ?? '[]');
+      keepBuddies(await inner.invokeMethod<String>('buddiesKept') ?? '[]');
     } catch (_) {}
   }
 
-  void _keepBuddies(String json) {
+  void keepBuddies(String json) {
     try {
       _buddies = [for (final j in jsonDecode(json) as List) ?Buddy.fromJson(j)];
     } catch (_) {
@@ -75,18 +90,21 @@ class OverlayCalls implements SmsCalls, PhoneSide {
   }
 
   /// Not answered here: the phone's.
-  static const _pass = Object();
+  static const pass = Object();
+  static const _pass = pass;
 
   bool _isName(Object? address) => address is String && UsernameChats.isUsername(address);
 
   Future<Object?> _answer(String method, Map a) async {
+    final own = await answerOwn(method, a);
+    if (!identical(own, pass)) return own;
     final thread = (a['thread'] as num?)?.toInt();
     final ours = thread != null && chats.ownsThread(thread);
     final row = (a['id'] as num?)?.toInt();
     switch (method) {
       // The list kept where the phone works out the sealing keys: passed on, and read here too.
       case 'buddiesKeep':
-        _keepBuddies((a['json'] as String?) ?? '[]');
+        keepBuddies((a['json'] as String?) ?? '[]');
         return _pass;
 
       // What friends write.

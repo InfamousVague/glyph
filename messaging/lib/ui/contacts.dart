@@ -299,7 +299,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                           child: SettingsEmpty(
                             icon: AppIcon(Lucide.contactRound, size: 28, color: t.color('app-ink-3')),
                             title: 'Your contacts couldn\'t be read',
-                            body: Text(Sms.paired ? 'They are on the phone, which isn\'t reachable just now.' : _error!),
+                            body: Text(Sms.followsPhone ? 'They are on the phone, which isn\'t reachable just now.' : _error!),
                             action: SettingsEmptyAction('Try again', () => _look(_query)),
                           ),
                         ),

@@ -91,7 +91,20 @@ class Hub {
   static const toPeer = 1;
   static const toRoom = 2;
 
-  final Map<String, _End> _here = {};
+  /// Who is here, by name: every device signed in under it (Matt, 2026-11-18: "I want desktop to be able to run
+  /// standalone for internal friends and circles ... even if the desktop is linked": a phone and its computer, one
+  /// identity, both here). Each says which device it is (`device` in its hello); a connection from the same device
+  /// takes its place, as one name's connection always did. An app from before says none, and takes the place of any
+  /// other that said none.
+  final Map<String, List<_End>> _here = {};
+
+  /// The most devices here under one name at once; one more takes the place of the longest here.
+  static const maxDevices = 8;
+
+  bool _isHere(String id) => _here[id]?.isNotEmpty ?? false;
+
+  /// Away, under a name with several devices here, is every one of them away.
+  bool _allAway(String id) => (_here[id] ?? const <_End>[]).every((e) => e.away);
   final Map<String, List<_Held>> _mail = {};
   final Map<String, _Room> _rooms = {};
   final Map<String, Set<_End>> _watching = {};
@@ -120,7 +133,7 @@ class Hub {
   Timer? _sweeper;
 
   int _open = 0;
-  int get connected => _here.length;
+  int get connected => _here.values.fold(0, (n, l) => n + l.length);
 
   /// How much is held for people who are away, in bytes.
   int get holding => _held;
@@ -147,7 +160,7 @@ class Hub {
     handles?.save();
     invites?.save();
     accounts?.save();
-    for (final end in _here.values.toList()) {
+    for (final end in _here.values.expand((l) => l).toList()) {
       end.ws.close(WebSocketStatus.goingAway);
     }
   }
@@ -217,7 +230,24 @@ class Hub {
         if (set != null && set.isEmpty) _watching.remove(id);
       }
       handles?.went(e.id, e.tell);
-      if (!identical(_here[e.id], e)) return; // replaced by a newer connection under the same name
+      final list = _here[e.id];
+      if (list == null || !list.remove(e)) return; // replaced by a newer connection from the same device
+      if (list.isNotEmpty) {
+        // Another device of theirs is still here: not gone, though maybe now away (every one left is).
+        final away = _allAway(e.id);
+        if (away != _awaySince.containsKey(e.id)) {
+          final at = _now().millisecondsSinceEpoch;
+          if (away) {
+            _awaySince[e.id] = at;
+          } else {
+            _awaySince.remove(e.id);
+          }
+          for (final w in _watching[e.id] ?? const <_End>{}) {
+            _tell(w.ws, {'away': e.id, 'is': away, 'at': at});
+          }
+        }
+        return;
+      }
       _here.remove(e.id);
       // Last seen: when they put the app away, where they had, else now.
       final at = _awaySince.remove(e.id) ?? _now().millisecondsSinceEpoch;
@@ -254,14 +284,26 @@ class Hub {
         if (hello?['peek'] == true) {
           final cutoff = _now().subtract(holdFor);
           final count = (_mail[id] ?? const <_Held>[]).where((h) => h.at.isAfter(cutoff)).length;
-          _tell(ws, {'ok': true, 'held': count, 'peek': true, 'here': _here.containsKey(id)});
+          _tell(ws, {'ok': true, 'held': count, 'peek': true, 'here': _isHere(id as String)});
           ws.close(1000, 'looked');
           return;
         }
-        final made = _End(id as String, ws, (what) => _tell(ws, what));
-        _here[made.id]?.ws.close(4409, 'replaced');
-        _here[made.id] = made;
-        _awaySince.remove(made.id);
+        final device = hello?['device'] is String && (hello!['device'] as String).length <= 64 ? hello['device'] as String : '';
+        final made = _End(id as String, ws, (what) => _tell(ws, what), device: device);
+        final list = _here[made.id] ??= [];
+        final first = list.isEmpty;
+        // The same device again (a reconnect) takes its own place; the longest here goes where there are too many.
+        for (final old in [...list.where((o) => o.device == device), if (list.length >= maxDevices) list.first]) {
+          list.remove(old);
+          old.ws.close(4409, 'replaced');
+        }
+        list.add(made);
+        // Another device coming while the others were put away: back, to whoever watches.
+        if (_awaySince.remove(made.id) != null && !first) {
+          for (final w in _watching[made.id] ?? const <_End>{}) {
+            _tell(w.ws, {'away': made.id, 'is': false, 'at': _now().millisecondsSinceEpoch});
+          }
+        }
         end = made;
         handles?.came(made.id, made.tell, key: key);
         final held = _mail.remove(made.id) ?? const <_Held>[];
@@ -272,8 +314,10 @@ class Hub {
         for (final h in fresh) {
           ws.add(h.frame);
         }
-        for (final w in _watching[made.id] ?? const <_End>{}) {
-          _tell(w.ws, {'came': made.id});
+        if (first) {
+          for (final w in _watching[made.id] ?? const <_End>{}) {
+            _tell(w.ws, {'came': made.id});
+          }
         }
         _say('${made.id.substring(0, 6)} came${fresh.isEmpty ? '' : ', ${fresh.length} held'}');
         return;
@@ -322,13 +366,14 @@ class Hub {
           (_watching[id] ??= {}).add(e);
         }
         _tell(ws, {
-          'here': [for (final id in ids) if (_here.containsKey(id)) id],
-          'away': [for (final id in ids) if (_here.containsKey(id) && _awaySince.containsKey(id)) id],
-          'seen': {for (final id in ids) if (!_here.containsKey(id) && _seen.containsKey(id)) id: _seen[id]},
+          'here': [for (final id in ids) if (_isHere(id)) id],
+          'away': [for (final id in ids) if (_isHere(id) && _awaySince.containsKey(id)) id],
+          'seen': {for (final id in ids) if (!_isHere(id) && _seen.containsKey(id)) id: _seen[id]},
         });
       } else if (said['away'] is bool) {
         // The app put away, or back in use: told to whoever watches them, once a change.
-        final away = said['away'] as bool;
+        e.away = said['away'] as bool;
+        final away = _allAway(e.id);
         if (away == _awaySince.containsKey(e.id)) return;
         final at = _now().millisecondsSinceEpoch;
         if (away) {
@@ -363,9 +408,12 @@ class Hub {
       final seq = ByteData.sublistView(Uint8List.fromList(data.sublist(1, 5))).getUint32(0);
       final to = hexOf(data.sublist(5, 21));
       final frame = Uint8List.fromList([toPeer, ..._unhex(from.id), ...data.sublist(21)]);
-      final there = _here[to];
-      if (there != null && there.ws.readyState == WebSocket.open) {
-        there.ws.add(frame);
+      // To every device of theirs that is here (but the one sending it, where they write to themselves).
+      final there = [for (final t in _here[to] ?? const <_End>[]) if (!identical(t, from) && t.ws.readyState == WebSocket.open) t];
+      if (there.isNotEmpty) {
+        for (final t in there) {
+          t.ws.add(frame);
+        }
         _tell(from.ws, {'ack': seq, 'here': true});
         return;
       }
@@ -481,9 +529,15 @@ class Hub {
 }
 
 class _End {
-  _End(this.id, this.ws, this.tell);
+  _End(this.id, this.ws, this.tell, {this.device = ''});
   final String id;
   final WebSocket ws;
+
+  /// Which of its name's devices this is, as it said; empty from an app from before devices.
+  final String device;
+
+  /// Whether this device has the app put away.
+  bool away = false;
 
   /// Says something to this connection, as JSON.
   final void Function(Map<String, Object?>) tell;

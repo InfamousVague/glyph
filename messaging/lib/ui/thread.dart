@@ -26,6 +26,7 @@ import '../plugins/conversation.dart';
 import '../plugins/plugin.dart' show MessageFacts;
 import '../reactions.dart';
 import '../sms.dart';
+import '../standalone/chats.dart' show UsernameChats;
 import '../stickers.dart';
 import 'chat_settings.dart';
 import 'common.dart';
@@ -488,7 +489,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (_isGhost) {
         await _sendWords(body);
       } else {
-        final byRoute = files.isEmpty && to.length == 1 && body.isNotEmpty && !Sms.paired && await Friends.instance.sendText(to.first, body);
+        // A computer with friends of its own (lib/desktop/own_calls.dart) writes to a friend by username itself.
+        final own = !Sms.paired || (Sms.ownNetwork && to.length == 1 && UsernameChats.isUsername(to.first));
+        final byRoute = files.isEmpty && to.length == 1 && body.isNotEmpty && own && await Friends.instance.sendText(to.first, body);
         if (!byRoute) await Sms.instance.send(to, body, attachments: files);
       }
       Sounds.instance.play(UiSound.messageOut);
