@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/ui/plugins_page/plugins_page.dart' show PluginsPage;
 import 'package:ghost_messaging/ui/split_handle.dart';
 import 'package:ghost_messaging/net/packet.dart';
 import 'package:ghost_messaging/friends/buddies.dart';
@@ -2207,9 +2208,11 @@ void main() {
       expect(find.byType(SettingsScreen), findsOneWidget);
       expect(tester.getRect(find.byType(SettingsScreen)).right, closeTo(side, 1), reason: 'Settings\' list is the list\'s column');
       expect(seen(find.text('Dad')), findsNothing, reason: 'the conversations have given way to Settings\' sections');
-      expect(find.byType(SectionPage), findsOneWidget, reason: 'the first section is open beside them');
-      expect(tester.getRect(find.byType(SectionPage)).left, greaterThanOrEqualTo(side));
-      expect(tester.state<AppShellState>(find.byType(AppShell)).settingsSection.value, 'me');
+      // The first section is Plugins since 2026-11-17 (Matt: "move plugins to the very top of settings list"): its page,
+      // the Plugins page, open beside them.
+      expect(find.byType(PluginsPage), findsOneWidget, reason: 'the first section is open beside them');
+      expect(tester.getRect(find.byType(PluginsPage)).left, greaterThanOrEqualTo(side));
+      expect(tester.state<AppShellState>(find.byType(AppShell)).settingsSection.value, 'plugins');
       expect(seen(icon('Back')), findsNothing);
       expect(seen(ring('settings')), findsOneWidget, reason: 'the way round is still at the list\'s foot');
       // A press on a section puts its page in the pane, in place of the last.
