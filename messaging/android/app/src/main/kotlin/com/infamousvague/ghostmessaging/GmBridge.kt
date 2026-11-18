@@ -414,7 +414,7 @@ object GmBridge {
     // --- the database ------------------------------------------------------------------------------------------------
 
     /** The bridge's own small database: conversations Google Messages showed, and their messages. */
-    class Db private constructor(context: Context) : SQLiteOpenHelper(context, "gm_bridge.db", null, 3) {
+    class Db private constructor(context: Context) : SQLiteOpenHelper(context, "gm_bridge.db", null, 4) {
         companion object {
             @Volatile private var one: Db? = null
             fun get(context: Context): Db = one ?: synchronized(this) { one ?: Db(context.applicationContext).also { one = it } }
@@ -429,7 +429,7 @@ object GmBridge {
             db.execSQL("CREATE TABLE conv (conv TEXT PRIMARY KEY, thread INTEGER, title TEXT, grp INTEGER, addresses TEXT, updated INTEGER)")
             db.execSQL("CREATE TABLE msg (id INTEGER PRIMARY KEY AUTOINCREMENT, conv TEXT, text TEXT, time INTEGER, sender TEXT, address TEXT, out INTEGER, read INTEGER DEFAULT 0, UNIQUE(conv, time, text, out))")
             db.execSQL("CREATE INDEX msg_conv ON msg(conv, time)")
-            onUpgrade(db, 1, 3)
+            onUpgrade(db, 1, 4)
         }
 
         override fun onUpgrade(db: SQLiteDatabase, old: Int, new: Int) {
@@ -447,6 +447,12 @@ object GmBridge {
             if (old < 3) {
                 db.execSQL("ALTER TABLE part ADD COLUMN thumb TEXT")
                 db.execSQL("ALTER TABLE part ADD COLUMN thumb_key TEXT")
+            }
+            // 4: Google Messages' own lines about the conversation ("Texting with Katelynn (SMS/MMS)", its tombstones) and
+            // the empty messages that came with them were kept as texts, one after another (Matt, 2026-11-17, with two
+            // screenshots of a thread full of them): taken out, as GmWeb.keepMessage now leaves them out.
+            if (old < 4) {
+                db.execSQL("DELETE FROM msg WHERE status LIKE '%tombstone%' OR (TRIM(COALESCE(text, '')) = '' AND media IS NULL AND gm_id IS NOT NULL)")
             }
         }
 

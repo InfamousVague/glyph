@@ -381,6 +381,10 @@ class GmWeb extends ChangeNotifier {
     final out = <Map<String, dynamic>>[];
     for (final raw in (r['items'] as List? ?? const [])) {
       final m = (raw as Map).cast<String, dynamic>();
+      // Google Messages' own lines about the conversation ("Texting with Jade (SMS/MMS)", its tombstones) and messages
+      // with nothing in them are not texts (Matt, 2026-11-17, a thread full of them), as on the phone (GmWeb.kt).
+      if ('${m['status'] ?? ''}'.contains('tombstone')) continue;
+      if ('${m['text'] ?? ''}'.trim().isEmpty && (m['media'] as List? ?? const []).isEmpty) continue;
       final id = _hash('m:${m['id']}');
       _messageId[id] = '${m['id']}';
       final from = people['${m['from']}'];
