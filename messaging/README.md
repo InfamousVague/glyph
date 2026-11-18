@@ -43,6 +43,20 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     stages with their times to `signal.log` beside its store and to standard error, which the app now passes to the
     Developer log (its own lines and signalmeow's warnings only; no message's words). Why Signal itself is slow to
     take a message is not known yet: the next stuck send says where in that log.
+- **Circles grown up: invites, a circle's dock, members, inviting contacts by text** (not released; Matt, 2026-11-17:
+  "Finish the missing pieces", then a run of asks the same evening). Circle invites wait for Join (a banner, a card on
+  the Circles tab, Not now / Invites); gogho.st/join opens in the Android app (App Links, site/.well-known/assetlinks.json).
+  The Circles tab lists only circles. A circle's dock while it is open: Home, Spaces, Members, New space, Settings;
+  the main dock's places close a circle first; leaving a circle's call lands back in the circle. Members is a drawer
+  with Add people at its top; circle settings sit beside Add people. Add people suggests friends first, then contacts,
+  and texts those not on Ghost (after a confirm showing the words); the invite waits on the relay (`/invites`, sealed by
+  a key from their number, 30 days) until they verify that number. A space's header has its kind, name and a signed
+  description (`about`). Contacts have a Friends filter. The gap under the composer matches the dock's. Dial-Up's
+  sidebar is wrapped in its bevel (no teal strip). Files: entries signed by their author and chained, moderator
+  deletes free the blob (owner-signed roster), uploads checked before the body, every relay limit set by env. The Mac
+  has its own title bar back for now (MacChrome.own). Plugins head Settings. A call's minimise is a back arrow.
+  Tests: circles_invites, circle_dock, circle_call_leave, circles_tab, contacts_friends, invite_people, space_about,
+  files_space_signed, files_space_share_in, relay invites_test and files_hardening_test.
 - **Circles, and Files spaces** (0.9.2; `lib/circles/`, `lib/ui/circles/`, `lib/files/`, `lib/ui/files_space/`,
   `lib/net/file_seal.dart`, `relay/lib/files.dart`; Matt, 2026-11-17: "remove all of the code related to the server UIs and
   make a new design ... with it's own sidebar full of spaces each space should be able to act as a chat and a voice chat,

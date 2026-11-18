@@ -1,5 +1,9 @@
 import '../circles/circles.dart';
+import 'circles/circle_invite_card.dart' show CircleInviteBanner;
+import 'circles/circle_dock.dart';
+import 'circles/circle_face.dart' show CircleFace;
 import 'circles/circle_screen.dart';
+import 'circles/members_drawer.dart' show showCircleMembers;
 import 'circles/new_circle.dart';
 import 'split_handle.dart';
 import 'window_chrome.dart';
@@ -113,7 +117,7 @@ class AppShell extends StatefulWidget {
     if (scope?.rail ?? false) return t.space(4);
     // Stood up in the list's corner: the list's last rows scroll clear of the whole column, as Ghost.md's pages
     // keep room for its dock.
-    if (scope?.docked ?? false) return NavPill.railHeight(t, AppShellState._rings);
+    if (scope?.docked ?? false) return NavPill.railHeight(t, scope!.rings);
     return NavPill.clearance(t);
   }
 
@@ -405,8 +409,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         _circle = null;
         _circleSeed = null;
       });
-      // Its spaces go with it.
-      if (_showing == 'circle') close();
+      // Its spaces go with it, and its settings or a new space of it open in the pane.
+      if (_circlePage) close();
     });
     if (_wide) {
       final first = circle.channels.firstOrNull;
@@ -416,6 +420,63 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
           if (mounted && _circle == route && ctx != null) openCircleSpace(ctx, first);
         });
       }
+    }
+  }
+
+  /// What is open in the pane is the circle's own: one of its spaces, its settings, or a new space of it.
+  bool get _circlePage => _showing == 'circle' || _showing == CircleDock.settings || _showing == CircleDock.newSpace;
+
+  /// A space is open in the pane on its own, not as a circle's: the Voice page, which a space from the list opens in,
+  /// or a Files space's files.
+  bool get _loosePage => _showing == 'voice' || (_showing?.startsWith('files:') ?? false);
+
+  /// Back to the main layout: the circle in the list's place is closed, with whatever of it is open in the pane, and
+  /// the list is the conversations again (Home on the circle's dock).
+  void leaveCircle() {
+    if (_circlePage) close();
+    home();
+  }
+
+  /// A ring of the app's own dock. From inside a circle, or with a space open on its own, the circle and the space are
+  /// put away first, so every place the dock goes to is the main layout's (Matt, 2026-11-17: "when we're inside a
+  /// space navigating to archive, contacts, settings, new, chat should take us back to the main home layout"). Only
+  /// the dock's presses: a press inside a circle's space that asks for the call ([go] 'voice') leaves the circle
+  /// where it is.
+  void _dockGo(String id) {
+    if (circleOpen || _circlePage) leaveCircle();
+    if (_loosePage) close();
+    go(id);
+  }
+
+  /// A ring of the circle's dock ([CircleDock.items]), for the circle open in the list's place.
+  void _circleGo(String id) {
+    final c = _circleSeed == null ? null : Circles.instance.bySeed(_circleSeed!);
+    final side = _side.currentState;
+    if (id == CircleDock.home || c == null || side == null) return leaveCircle();
+    // Opened from inside the frame, so what opens finds the shell (a text's invite goes to a new chat here).
+    final inside = _side.currentContext ?? context;
+    switch (id) {
+      case CircleDock.spaces:
+        // The circle's list, with anything opened over it in the list's place taken away. Beside it the pane shows
+        // a space again, the one last open there (else its first); on a phone the list is the screen.
+        side.popUntil((r) => r == _circle || r.isFirst);
+        if (_showing == 'circle') return;
+        if (!_wide) {
+          if (_open != null) close();
+          return;
+        }
+        final last = c.channels.where((ch) => ch.seed == openCircleSpaceSeed.value).firstOrNull ?? c.channels.firstOrNull;
+        if (last != null) {
+          openCircleSpace(inside, last);
+        } else if (_open != null) {
+          close();
+        }
+      case CircleDock.members:
+        unawaited(showCircleMembers(inside, c));
+      case CircleDock.newSpace:
+        openCircleNewSpace(inside, c);
+      case CircleDock.settings:
+        openCircleSettings(inside, c);
     }
   }
 
@@ -579,11 +640,25 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   Widget _pill({required bool upright}) => ValueListenableBuilder<int>(
         valueListenable: archived,
         builder: (context, count, _) => ListenableBuilder(
-          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance]),
-          builder: (context, _) => NavPill(
+          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance]),
+          builder: (context, _) {
+            // A circle in the list's place: its own dock, Home first (lib/ui/circles/circle_dock.dart).
+            final circle = circleOpen && _circleSeed != null ? Circles.instance.bySeed(_circleSeed!) : null;
+            if (circle != null) {
+              return NavPill(
+                key: const ValueKey('circle-dock'),
+                upright: upright,
+                head: CircleFace.of(circle, size: context.tokens.len('app-ring') - 8),
+                hue: circle.hue,
+                active: _showing == CircleDock.settings || _showing == CircleDock.newSpace ? _showing! : CircleDock.spaces,
+                onSelect: _circleGo,
+                items: CircleDock.items(circle, canEdit: Circles.instance.canEdit(circle)),
+              );
+            }
+            return NavPill(
             upright: upright,
             active: _showing ?? (settingsOpen ? 'settings' : (_archivedOpen ? 'archive' : 'messages')),
-            onSelect: go,
+            onSelect: _dockGo,
             items: [
               // A plain plus that says New: it starts a chat, a group or a space (Matt, 2026-11-17: "change the new chat
               // button to be a generic plus button and change the tooltip to simply say \"new\"").
@@ -595,15 +670,20 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
               NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: count, menu: _archiveRows),
               NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings', count: Me.instance.unseen, menu: _settingsRows),
             ],
-          ),
+          );
+          },
         ),
       );
 
-  /// How many rings the pill has: what a window must be tall enough for, to have it stood up.
-  static const _rings = 5;
+  /// How many rings the pill has: what a window must be tall enough for, to have it stood up. The most any dock has:
+  /// a circle's, its face and five rings; the app's own has five, and a list leaves room for the one it has.
+  static const _rings = 6;
 
-  /// Dial-Up's strip of desktop between the list and the pane in a wide window.
-  static const double _dialupGap = 6;
+  /// The rings on the pill now: a circle's face and its rings while one is open, else the app's five.
+  int get _dockRings {
+    final c = circleOpen && _circleSeed != null ? Circles.instance.bySeed(_circleSeed!) : null;
+    return c == null ? 5 : CircleDock.items(c, canEdit: Circles.instance.canEdit(c)).length + 1;
+  }
 
   static Widget _lightsIf(bool on, Widget child) => on ? TopBarLights(child: child) : child;
 
@@ -641,6 +721,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         docked: docked,
         thread: _open == null ? null : _thread,
         showing: _open == null ? null : _showing,
+        rings: _dockRings,
         child: PopScope(
           canPop: !(_paneBack || _sideBack),
           onPopInvokedWithResult: (didPop, _) {
@@ -668,7 +749,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                       covered: !wide && _open != null,
                       // Beside a pane the list is a column of the window: what hangs under its header (the update
                       // banner) is as wide as the list, not laid across list and pane both.
-                      child: _column(wide, side, _sized(Stack(children: [
+                      // Dial-Up beside a pane: the whole list in the era's raised window border, as its other windows
+                      // are (_SideFrame).
+                      child: _column(wide, side, _SideFrame(on: dialup && wide, child: _sized(Stack(children: [
                         Positioned.fill(
                           child: NotificationListener<NavigationNotification>(
                             onNotification: (n) {
@@ -770,18 +853,20 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                               if (!openSpaceCall(context)) go('voice');
                             }),
                           ),
-                      ]))),
+                      ])))),
                     )),
                   ),
                 ),
               ),
-              // Dial-Up: the list and the pane are two windows on the era's teal desktop, a gap of it between them
-              // (the design: "two windows side by side on the teal desktop with a 6px gap"). The teal is only ever
-              // here, in a wide window's gutter; on a phone it would read as a fault.
-              if (wide) Positioned(key: const ValueKey('shell-rule'), left: side, top: 0, bottom: 0, width: dialup ? _dialupGap : 1, child: ColoredBox(color: dialup ? DialupColors.of(t).desktop : t.color('app-rule'))),
+              // The line between the list and the pane. Not under Dial-Up, where the list's own raised border ends it
+              // (_SideFrame): the strip of teal desktop that stood there is gone (Matt, 2026-11-17: "remove the teal
+              // divider line that we have on the dial up theme to the right of the sidebar, instead we should just use
+              // the normal border here wrapping the whole sidebar in the standard border like we do for the rest of
+              // elements").
+              if (wide && !dialup) Positioned(key: const ValueKey('shell-rule'), left: side, top: 0, bottom: 0, width: 1, child: ColoredBox(color: t.color('app-rule'))),
               Positioned(
                 key: const ValueKey('shell-pane'),
-                left: wide ? side + (dialup ? _dialupGap : 1) : 0,
+                left: wide ? side + (dialup ? 0 : 1) : 0,
                 top: 0,
                 bottom: 0,
                 right: 0,
@@ -807,7 +892,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
               if (wide)
                 Positioned(
                   key: const ValueKey('shell-split'),
-                  left: side + (dialup ? _dialupGap / 2 : 0.5) - SplitHandle.widthOf(context) / 2,
+                  left: side + (dialup ? 0 : 0.5) - SplitHandle.widthOf(context) / 2,
                   top: 0,
                   bottom: 0,
                   width: SplitHandle.widthOf(context),
@@ -823,6 +908,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                 ),
               // A group calling (lib/voice): over everything, until joined or put away.
               const Positioned(left: 0, right: 0, top: 0, child: RingCard()),
+              // A friend's invite into a circle, or a circle's link opened from outside the app: said over everything
+              // as it comes, with Join and Not now (lib/ui/circles/circle_invite_card.dart); it gives way to a call.
+              const Positioned(left: 0, right: 0, top: 0, child: CircleInviteBanner()),
             ]),
           ),
         ),
@@ -832,7 +920,10 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
 }
 
 class _ShellScope extends InheritedWidget {
-  const _ShellScope({required this.shell, required this.wide, required this.rail, required this.docked, required this.thread, this.showing, required super.child});
+  const _ShellScope({required this.shell, required this.wide, required this.rail, required this.docked, required this.thread, this.showing, this.rings = 5, required super.child});
+
+  /// How many rings the pill stood up has, its circle's face among them: what a list leaves room for under it.
+  final int rings;
 
   /// What else is open in the pane, by its name ([AppShell.show]'s `showing`): a Signal or Telegram chat is
   /// `inbox:<network>:<chat>`.
@@ -844,7 +935,7 @@ class _ShellScope extends InheritedWidget {
   final int? thread;
 
   @override
-  bool updateShouldNotify(_ShellScope old) => old.wide != wide || old.rail != rail || old.docked != docked || old.thread != thread || old.showing != showing;
+  bool updateShouldNotify(_ShellScope old) => old.wide != wide || old.rail != rail || old.docked != docked || old.thread != thread || old.showing != showing || old.rings != rings;
 }
 
 /// A page open in the pane: it draws its way back only while the list is not beside it.
@@ -876,12 +967,13 @@ class _Nothing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    // Dial-Up: with no window open there, the pane is the era's bare desktop, its words white on it (4.8:1 on the
-    // teal, more on After Hours' black).
+    // Dial-Up: with no window open there, the pane is the window's own silver and its words the window's ink; it was
+    // the era's teal desktop, which Matt took out with the strip of it beside the list (2026-11-17: "use the normal
+    // window colour").
     final dialup = isBevelChrome(t);
-    final ink = dialup ? const Color(0xFFFFFFFF) : null;
+    final ink = dialup ? DialupColors.of(t).onChrome : null;
     return ColoredBox(
-      color: dialup ? DialupColors.of(t).desktop : t.color('glacier-bg'),
+      color: dialup ? DialupColors.of(t).chrome : t.color('glacier-bg'),
       child: Center(
         child: Padding(
           padding: EdgeInsets.all(t.space(6)),
@@ -903,6 +995,25 @@ class _Nothing extends StatelessWidget {
           ]),
         ),
       ),
+    );
+  }
+}
+
+/// Dial-Up's list beside a pane in the era's raised window border, two rings of light and shade round all of it, the
+/// shade down its right where the pane begins (Bevel's own painter). Always in the tree, drawing nothing where [on] is
+/// false (every other look, a phone's narrow screen), so the list keeps its place, and what is open in it, as the
+/// window changes.
+class _SideFrame extends StatelessWidget {
+  const _SideFrame({required this.on, required this.child});
+  final bool on;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final edge = on ? Bevel.edgeOf(context) : 0.0;
+    return CustomPaint(
+      painter: on ? BevelPainter(colors: DialupColors.of(context.tokens), style: BevelStyle.raised, face: DialupColors.of(context.tokens).chrome, ring: Bevel.ringOf(context)) : null,
+      child: Padding(padding: EdgeInsets.all(edge), child: child),
     );
   }
 }

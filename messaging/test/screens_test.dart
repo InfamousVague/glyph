@@ -1634,15 +1634,17 @@ void main() {
       await _shoot(tester, sheet, HangoutScreen(channel: channel), '21-hangout-out', dark: dark);
       expect(find.text('Join voice'), findsOneWidget);
       expect(find.text('Saving you a seat'), findsOneWidget);
-      // The members in the chat's place, and the chat back (Matt, 2026-11-17: "add a button to switch the chat to a member
-      // list").
+      // The members in a drawer over the chat, Add people at its top, and closed again (Matt, 2026-11-17: "the member
+      // list should show up as a drawer like the add user, it should include a button to switch to add user at the
+      // top"; it had put them in the chat's place).
       await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Members'));
       await _settle(tester);
       await _shootAgain(tester, '21-hangout-members', dark: dark);
       expect(find.byType(SpaceMembers), findsOneWidget);
+      expect(find.byKey(const ValueKey('members-add-people')), findsOneWidget);
       expect(find.text('Maya Chen'), findsWidgets);
-      expect(find.text('Saving you a seat'), findsNothing);
-      await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Show the chat'));
+      expect(find.text('Saving you a seat'), findsOneWidget, reason: 'the chat stays under the drawer');
+      await tester.tap(find.byKey(const ValueKey('members-close')));
       await _settle(tester);
       expect(find.byType(SpaceMembers), findsNothing);
       expect(find.text('Saving you a seat'), findsOneWidget);
@@ -1790,8 +1792,8 @@ void main() {
       await tester.tap(circlesTab);
       await _settle(tester);
       await _shootAgain(tester, '20-layout-tabs-circles', dark: dark);
-      // No circles here: spaces of one's own, as the Spaces tab listed them.
-      expect(find.text('Study room'), findsWidgets);
+      // No circles here: the Circles tab lists circles alone (spaces of one's own are in Messages), and says so.
+      expect(find.text('No circles yet'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     }
   });

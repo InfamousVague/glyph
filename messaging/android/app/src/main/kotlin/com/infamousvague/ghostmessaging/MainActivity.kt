@@ -106,7 +106,7 @@ class MainActivity : FlutterActivity() {
         try { contentResolver.registerContentObserver(android.provider.ContactsContract.Contacts.CONTENT_URI, true, contactsWatcher) } catch (_: Exception) {}
         // Over an engine already running (the screen closed and opened again, by a notification): Dart has asked for
         // its first open request long ago, so what this screen was opened for is told as an event.
-        val asked = openRequest(intent)
+        val asked = openRequest(intent, fresh = true)
         if (sharedEvents != null && asked != null) main.post { sharedEvents?.success(mapOf("type" to "open") + asked) } else pendingOpen = asked
         sharedFiles(intent)?.let { uris -> if (sharedEvents != null) main.post { sharedEvents?.success(mapOf("type" to "sharedFiles", "uris" to uris)) } else pendingShared = uris }
         // The computers this phone is paired with (Desk.kt): the service that keeps it reachable by them runs while
@@ -393,6 +393,9 @@ class MainActivity : FlutterActivity() {
                 "saveFile" -> saveFile(result, File(call.argument<String>("path")!!), call.argument<String>("name") ?: "file", call.argument<String>("mime") ?: "application/octet-stream")
                 "shareFile" -> bg { shareFile(File(call.argument<String>("path")!!), call.argument<String>("name"), call.argument<String>("mime")); null }
                 "sharedFiles" -> { result.success(pendingShared ?: emptyList<String>()); pendingShared = null }
+                // What files shared in are, read before any is copied, so the "Add … to" sheet can name them (Matt,
+                // 2026-11-17: "Finish the missing pieces that went unfinished"): copying waits for a space to be chosen.
+                "describeFiles" -> bg { describeFiles(call.argument<List<String>>("uris") ?: emptyList()) }
                 "setOpenThread" -> {
                     openThread = call.argument<Number>("thread")?.toLong() ?: -1
                     if (openThread >= 0) Notifier.cancel(applicationContext, openThread)
@@ -602,7 +605,7 @@ class MainActivity : FlutterActivity() {
     }
 
     /** What the intent asks to open: a conversation (a notification), or a new message to someone (sms: links, shares). */
-    private fun openRequest(intent: Intent?): Map<String, Any?>? {
+    private fun openRequest(intent: Intent?, fresh: Boolean = false): Map<String, Any?>? {
         intent ?: return null
         val thread = intent.getLongExtra(Notifier.EXTRA_THREAD, -1)
         if (thread >= 0) return mapOf("thread" to thread)
@@ -613,6 +616,29 @@ class MainActivity : FlutterActivity() {
         // A computer's pairing link, opened by the phone's camera or anything else: the pairing page, which asks
         // before it does anything with a code that came from outside the app.
         intent.data?.let { link -> if (link.scheme.equals("ghostmsg", ignoreCase = true) && link.host == "pair") return mapOf("pair" to link.toString()) }
+        // A circle's invite link (https://gogho.st/join/#c.…) opened here: the app raises the circle's invite, with Join
+        // and Not now (lib/ui/circles/circle_invite_card.dart). Matt, 2026-11-17: "Finish the missing pieces that went
+        // unfinished". A shared text holding one is still a text to send, as any shared text is.
+        intent.data?.let { link ->
+            if (link.scheme == "https" && link.host == "gogho.st" && (link.path ?: "").startsWith("/join")) {
+                // Handled once. The link is taken off the intent as it is read, since Android hands the same intent
+                // back when the screen is made again (after its process was stopped) and when the app is reopened
+                // from Recents, which raised the circle's invite, or threw up the browser, each time. One reopened
+                // from Recents is not the link being opened again.
+                setIntent(Intent(intent).setData(null))
+                if ((intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) return null
+                if ((link.fragment ?: "").startsWith("c.")) return mapOf("circle" to link.toString())
+                // Any other /join link is a space's. With the filter verified as an App Link (assetlinks.json; Matt,
+                // 2026-11-17: invites texted to contacts open the app straight away) Android no longer offers the
+                // browser for it, and the app has no page for a space's link opened from outside yet: it goes on to a
+                // browser, where the space opens as it always did (site/join). The App Link fragment is not matched by
+                // a filter, so this is the one place the two are told apart. Where the app was opened only for the
+                // link, it steps back out of the way rather than staying behind the browser.
+                openInBrowser(link)
+                if (fresh && isTaskRoot) moveTaskToBack(true)
+                return null
+            }
+        }
         val data = intent.data
         if (data != null && data.scheme in setOf("sms", "smsto", "mms", "mmsto")) {
             val to = data.schemeSpecificPart.substringBefore('?').split(',', ';').map { Uri.decode(it).trim() }.filter { it.isNotEmpty() }
@@ -623,6 +649,18 @@ class MainActivity : FlutterActivity() {
             return mapOf("addresses" to emptyList<String>(), "body" to intent.getStringExtra(Intent.EXTRA_TEXT))
         }
         return null
+    }
+
+    /** [link] in a browser, never back in this app: the selector lets only a browser answer it. */
+    private fun openInBrowser(link: Uri) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, link).apply {
+                selector = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_BROWSER)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+        } catch (e: Exception) {
+            DevLog.add(this, "links", "no browser for a space's link: ${e.message}")
+        }
     }
 
     private fun Uri.getQueryParameterSafe(name: String): String? = try {
@@ -792,6 +830,38 @@ class MainActivity : FlutterActivity() {
     private fun cleanFileName(name: String): String {
         val plain = name.replace('/', '_').replace('\\', '_').filter { c -> !Character.isISOControl(c) && Character.getType(c) != Character.FORMAT.toInt() }.trim().trimEnd('.', ' ')
         return if (plain.isEmpty() || plain.all { it == '.' }) "file" else plain
+    }
+
+    /**
+     * Each shared file's name, size and type, asked of the app that shares it (its provider's OpenableColumns), without
+     * opening the file itself: nothing is copied until the person picks a Files space. A size the provider does not
+     * give is -1. Only another app's content addresses are described, as [keepFile] only copies those.
+     */
+    private fun describeFiles(uris: List<String>): List<Map<String, Any?>> = uris.mapNotNull { s ->
+        val uri = Uri.parse(s)
+        if (!foreign(uri)) return@mapNotNull null
+        var name: String? = null
+        var size = -1L
+        try {
+            contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME, android.provider.OpenableColumns.SIZE), null, null, null)?.use { c ->
+                if (c.moveToFirst()) {
+                    val n = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    val z = c.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                    if (n >= 0 && !c.isNull(n)) name = c.getString(n)
+                    if (z >= 0 && !c.isNull(z)) size = c.getLong(z)
+                }
+            }
+        } catch (e: Exception) {
+            // A provider that refuses the question still lets the file be read; it is named from its address.
+            DevLog.add(this, "files", "describe: ${e.message}")
+        }
+        // Named exactly as keepFile will name its copy, so the sheet shows the name the space will.
+        val type = try { contentResolver.getType(uri) } catch (_: Exception) { null }
+        val mime = type ?: "application/octet-stream"
+        val ext = android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(type ?: "")
+        val shown = cleanFileName(name ?: uri.lastPathSegment ?: "file")
+        val named = if (shown.contains('.') || ext == null) shown else "$shown.$ext"
+        mapOf("uri" to s, "name" to named, "size" to size, "mime" to mime)
     }
 
     /**

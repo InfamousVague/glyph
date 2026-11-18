@@ -12,6 +12,7 @@ import '../looks.dart';
 import '../main.dart' show InkOverrides, ghostTypography;
 import '../sounds.dart';
 import '../sms.dart';
+import '../ui/files_space/share_in.dart';
 import '../ui/window_chrome.dart';
 import '../ui/settings_panes.dart' show appVersion;
 import 'desk.dart';
@@ -81,8 +82,11 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   Sounds.instance.start(state);
   // And the circles, whose rooms ride Voice's connection (lib/circles/circles.dart).
   unawaited(Voice.instance.start(state).then((_) => Circles.instance.start(state)));
-  // Files spaces' files (lib/files/files_store.dart): what was going up when the app closed goes on.
+  // Files spaces' files (lib/files/files_store.dart): what was going up when the app closed goes on. And files dropped
+  // on the window with no Files space showing are offered to one (lib/ui/files_space/share_in.dart; Matt, 2026-11-17:
+  // "Finish the missing pieces that went unfinished").
   unawaited(FilesStore.instance.start());
+  FilesShareIn.attach(FilesShareIn.desk);
   SpaceGroups.instance.start(state);
   DiscordServers.instance.start(state);
   // Telegram's and Bluesky's chats (lib/inbox): the computer signs in to them itself, as their own apps do.
@@ -130,6 +134,7 @@ class DesktopApp extends StatelessWidget {
             title: 'Ghost Messaging',
             color: const Color(0xFF4F5BD5),
             debugShowCheckedModeBanner: false,
+            navigatorKey: FilesShareIn.desk,
             pageRouteBuilder: <T>(RouteSettings settings, WidgetBuilder builder) => PageRouteBuilder<T>(settings: settings, pageBuilder: (context, _, _) => builder(context)),
             // Each page that opens asks for a look for a newer version, as on the phone.
             navigatorObservers: [UpdateWatch()],

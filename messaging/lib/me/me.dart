@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../app_state.dart';
+import '../invites/invite_seal.dart' show WaitingInvite;
+import '../invites/text_invites.dart';
 import '../kept_lists.dart';
 import '../net/carrier.dart';
 import '../net/crypto.dart';
@@ -457,6 +459,13 @@ class Me extends ChangeNotifier {
       case 'unlink' when what['p'] == 'phone':
         await unlink('phone');
         return {'dir': 'unlinked', 'p': 'phone'};
+      case 'invite-leave':
+        // The copies of a computer's text invites, left by the phone that sent the texts: signed with the phone's key
+        // and over its connection, which the relay knows by its verified number (lib/invites/text_invites.dart).
+        final invite = WaitingInvite.fromJson(what['invite']);
+        final who = what['who'];
+        if (invite == null || who is! List || who.length > 200) throw MeError('That is not an invite.');
+        return {'left': await TextInvites().leave([for (final n in who) if (n is String) TextInvitee('', n)], invite)};
     }
     throw MeError('The phone does not do that for a computer.');
   }

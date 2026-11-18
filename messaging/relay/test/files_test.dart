@@ -94,13 +94,13 @@ void main() {
     }
   });
 
-  test('a space is made by the first to name it, and refused with another token', () async {
+  test('a space is made by the first to name it, and not found with another token', () async {
     final made = await call('PUT', '/files/$space', as: maya, body: json({'owner': owner.keyHex}));
     expect(made.status, HttpStatus.created);
     expect(made.json['owner'], '', reason: 'an owner is taken only from the owner\'s own signed request');
     expect((await call('PUT', '/files/$space', as: owner, body: json({'owner': owner.keyHex}))).json['owner'], owner.keyHex, reason: 'the owner opening it becomes it');
     expect((await call('PUT', '/files/$space', as: sam, body: json({}))).status, HttpStatus.ok, reason: 'found, not made again');
-    expect((await call('GET', '/files/$space', tok: 'c' * 64)).status, HttpStatus.forbidden);
+    expect((await call('GET', '/files/$space', tok: 'c' * 64)).status, HttpStatus.notFound, reason: 'a wrong token is no space at all');
     expect((await call('GET', '/files/$space', tok: 'nope')).status, HttpStatus.unauthorized);
     expect((await call('GET', '/files/ffffffffffffffffffffffffffffffff')).status, HttpStatus.notFound);
     final info = await call('GET', '/files/$space');

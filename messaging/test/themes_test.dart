@@ -15,6 +15,7 @@ import 'package:ghost_messaging/art/lucide.g.dart';
 import 'package:ghost_messaging/backgrounds.dart';
 import 'package:ghost_messaging/circles/circles.dart';
 import 'package:ghost_messaging/friends/buddies.dart';
+import 'package:ghost_messaging/friends/friends.dart';
 import 'package:ghost_messaging/net/packet.dart' show Envelope;
 import 'package:ghost_messaging/inbox/inbox.dart';
 import 'package:ghost_messaging/kit/semantic_colors.dart';
@@ -33,8 +34,11 @@ import 'package:ghost_messaging/ui/circles/arrange_spaces.dart';
 import 'package:ghost_messaging/ui/circles/circle_invite.dart';
 import 'package:ghost_messaging/ui/circles/circle_list.dart';
 import 'package:ghost_messaging/ui/circles/circle_screen.dart';
+import 'package:ghost_messaging/ui/circles/members_drawer.dart';
+import 'package:ghost_messaging/ui/circles/circle_face.dart' show CircleFace;
 import 'package:ghost_messaging/ui/circles/new_circle.dart';
 import 'package:ghost_messaging/ui/compose.dart';
+import 'package:ghost_messaging/ui/contacts.dart';
 import 'package:ghost_messaging/ui/dialup/dialup.dart';
 import 'package:ghost_messaging/ui/hangout_screen.dart';
 import 'package:ghost_messaging/ui/inbox_ui.dart';
@@ -50,6 +54,8 @@ import 'package:glacier/glacier.dart';
 
 import 'circle_sample.dart';
 import 'files_shots.dart';
+import 'files_share_in_shots.dart';
+import 'support/fake_friends.dart';
 
 /// The looks (lib/looks.dart; Matt, 2026-11-16: "spend some time making a few themes for ghost, base one of them
 /// heavily on the old AOL chatrooms").
@@ -294,9 +300,11 @@ void main() {
           for (final key in ['composer-plus', 'composer-stickers', 'composer-mic']) key: tester.getRect(find.byKey(ValueKey(key))),
         };
       }
+      // To within a ten-billionth of a point: the pages above sum their heights in different orders, and with the
+      // composer's foot at the dock's room (18 points, 2026-11-17) the sums came out 1e-13 apart.
       for (final part in at['thread']!.keys) {
-        expect(at['inbox']![part], at['thread']![part], reason: '$part: Telegram as a text');
-        expect(at['space']![part], at['thread']![part], reason: '$part: a space as a text');
+        expect(at['inbox']![part], rectMoreOrLessEquals(at['thread']![part]!), reason: '$part: Telegram as a text');
+        expect(at['space']![part], rectMoreOrLessEquals(at['thread']![part]!), reason: '$part: a space as a text');
       }
     });
   });
@@ -407,8 +415,9 @@ class ThemeScreen {
   /// The person's choices for this screen alone, made on the [AppState] it is drawn with (a plugin switched on).
   final void Function(AppState state)? choices;
 
-  /// Put back after it is drawn (what [before] changed that would outlive the test: a timer).
-  final void Function()? after;
+  /// Put back after it is drawn (what [before] changed that would outlive the test: a timer); waited for, so the next
+  /// screen starts from nothing (the circles' invites leaked into the next picture while their clear was not awaited).
+  final FutureOr<void> Function()? after;
 
   static const phone = Size(412, 892), wide = Size(750, 832);
 }
@@ -429,6 +438,9 @@ final themeScreens = <ThemeScreen>[
   ThemeScreen('group-narrow', () => ThreadScreen(thread: 2, people: [for (final p in _conversations[1]['people'] as List) Person.from(p as Map)]), size: const Size(360, 780)),
   ThemeScreen('group-wide', () => ThreadScreen(thread: 2, people: [for (final p in _conversations[1]['people'] as List) Person.from(p as Map)]), size: ThemeScreen.wide),
   ThemeScreen('space-room', () => HangoutScreen(channel: _busySpace('phone').channel), before: () => Voice.instance.putHangout(_busySpace('phone'))),
+  // A texting space with a description: its mark, name and description in the header, at a conversation's height
+  // (Matt, 2026-11-17: "make the text header for spaces show the icon and the name and an area for a description").
+  ThemeScreen('space-text-about', () => HangoutScreen(channel: _aboutSpace().channel), before: () => Voice.instance.putHangout(_aboutSpace())),
   ThemeScreen('space-room-wide', () => HangoutScreen(channel: _busySpace('wide').channel), size: ThemeScreen.wide, before: () => Voice.instance.putHangout(_busySpace('wide'))),
   // The Plugins page (Matt, 2026-11-17: "redo how the plugins look with their own dedicated plugins page with a
   // marketplace like look how ghostmd has"): Settings' list with its band leading there, the page on a phone, a
@@ -466,11 +478,15 @@ final themeScreens = <ThemeScreen>[
   ThemeScreen('circle', () => CircleScreen(seed: _circle.seed), before: _joinCircle, after: _leaveCircle),
   ThemeScreen('circle-wide', () => const AppShell(), size: ThemeScreen.wide, before: _joinCircle, after: _leaveCircle, choices: (_) => _openCircleSoon()),
   ThemeScreen('new-circle', () => const NewCircleScreen()),
-  // The Circles tab, where the Spaces tab was: each circle, then spaces of one's own; on a phone and a wide window.
+  // The Circles tab, where the Spaces tab was: each circle and nothing else (Matt, 2026-11-17: "it should only be
+  // circles"); on a phone and a wide window.
   ThemeScreen('circles-tab', () => const AppShell(), before: _joinBothCircles, after: _leaveOwnCircle, choices: (_) => _tapCirclesTabSoon()),
   ThemeScreen('circles-tab-wide', () => const AppShell(), size: ThemeScreen.wide, before: _joinBothCircles, after: _leaveOwnCircle, choices: (_) => _tapCirclesTabSoon()),
   // A Files space (test/files_shots.dart): its list, grid, a wide window, files going up, an empty one, a picture opened.
   ...filesThemeScreens,
+  // Files brought in from outside a Files space (test/files_share_in_shots.dart): the "Add … to" sheet, and the hint
+  // over a Mac's window while files are dragged onto it.
+  ...shareInThemeScreens,
   // A circle's list, the one way a circle is drawn (Matt, 2026-11-17: "Lets remove the other views and focus on the list
   // view / layout it's the most practical of them all so far"), with something going on: people talking, new messages,
   // files counted; on a phone and as a wide window's sidebar with a space open beside it.
@@ -482,8 +498,46 @@ final themeScreens = <ThemeScreen>[
   ThemeScreen('circle-space-new-wide', () => NewCircleSpaceScreen(circle: _ownCircle), size: ThemeScreen.wide, before: _joinOwnCircle, after: _leaveOwnCircle),
   ThemeScreen('circle-settings', () => CircleSettingsScreen(seed: _ownCircle.seed, qr: true), size: const Size(412, 2300), before: _joinOwnCircle, after: _leaveOwnCircle),
   ThemeScreen('circle-arrange', () => ArrangeCircleSpacesScreen(seed: _ownCircle.seed), before: _joinOwnCircle, after: _leaveOwnCircle),
+  // Inside a circle the dock is the circle's, Home first (Matt, 2026-11-17: "add a 'home' button on the dock while on
+  // the space and transform all the icons inside the dock to be related to the circle"), its settings beside Add people
+  // in its header ("move the server settings to the header next to the add friend"): a circle of one's own, so New
+  // space is among the rings, on a phone and a wide window. Then a circle's and a space's members in the drawer, Add
+  // people at its top ("the member list should show up as a drawer like the add user").
+  ThemeScreen('circle-dock', () => const AppShell(), before: _joinOwnCircle, after: _leaveOwnCircle, choices: (_) => _openOwnCircleSoon()),
+  ThemeScreen('circle-dock-wide', () => const AppShell(), size: ThemeScreen.wide, before: _joinOwnCircle, after: _leaveOwnCircle, choices: (_) => _openOwnCircleSoon()),
+  ThemeScreen('circle-members', () => _overPage(MembersDrawer(title: 'Members', subtitle: _ownCircle.name, face: CircleFace.of(_ownCircle, size: 40), list: (_) => CircleMembersList(seed: _ownCircle.seed), onAddPeople: () {})), before: _joinOwnCircle, after: _leaveOwnCircle),
+  ThemeScreen('space-members', () => _overPage(MembersDrawer(title: 'Members', subtitle: 'Saturday hike', list: (_) => SpaceMembers(room: _busySpace('members'), shrinkWrap: true), onAddPeople: () {})), before: () => Voice.instance.putHangout(_busySpace('members'))),
   ThemeScreen('circle-invite', () => CircleInviteSheet(circle: _ownCircle, send: (_, _) async => const [], compose: (_) {}, buddies: _inviteFriends, qr: true), before: _joinOwnCircle, after: _leaveOwnCircle),
+  // A circle offered and not yet joined (Matt, 2026-11-17: "Finish the missing pieces that went unfinished"): its
+  // banner over the conversations as it comes, and in the Circles tab a card for a new one and a row under Invites for
+  // one put off with Not now.
+  ThemeScreen('circle-invite-banner', () => const AppShell(), before: _inviteToCircles, after: _leaveCircle),
+  ThemeScreen('circle-invites-tab', () => const AppShell(), before: _inviteToCircles, after: _leaveCircle, choices: (_) => _tapCirclesTabSoon()),
+  // Contacts with two friends on Ghost Messaging (Matt, 2026-11-17: "add the ability to sort contacts by friends in
+  // ghost"): All with the friends first under their heading and the Friends chip among the filters, then that chip on.
+  ThemeScreen('contacts', () => const ContactsScreen(), before: _twoFriends, after: _noFriends),
+  ThemeScreen('contacts-friends', () => const ContactsScreen(), before: _twoFriends, after: _noFriends, choices: (_) => _tapFriendsChipSoon()),
 ];
+
+/// Theo and Sam, friends on Ghost Messaging; the phone's contacts name them ('searchContacts' in [_answerChannel]).
+void _twoFriends() {
+  Friends.instance = Friends(FakePort('+15551239999')
+    ..stand('+15551230002', friend: 'yes')
+    ..stand('+15551230003', friend: 'yes'));
+  unawaited(Friends.instance.refresh());
+}
+
+void _noFriends() => Friends.instance = null;
+
+/// The Friends chip pressed once Contacts is up, as a finger would.
+void _tapFriendsChipSoon() => WidgetsBinding.instance.addPostFrameCallback((_) {
+      final chip = find.text('Friends').evaluate();
+      if (chip.isEmpty) return;
+      final box = chip.first.renderObject! as RenderBox;
+      final at = box.localToGlobal(box.size.center(Offset.zero));
+      GestureBinding.instance.handlePointerEvent(PointerDownEvent(position: at, pointer: 9002));
+      GestureBinding.instance.handlePointerEvent(PointerUpEvent(position: at, pointer: 9002));
+    });
 
 /// A circle to draw: three spaces, one of each kind, one under a heading. Unsigned: drawn, never checked.
 final _circle = Circle(
@@ -545,9 +599,9 @@ void _joinOwnCircle() {
   Circles.instance.join(_ownCircle);
 }
 
-void _leaveOwnCircle() {
+Future<void> _leaveOwnCircle() {
   Circles.instance.signerOverride = null;
-  unawaited(Circles.instance.clear());
+  return Circles.instance.clear();
 }
 
 void _joinCircle() {
@@ -570,7 +624,30 @@ HangoutRoom _circleGeneral() => _general ??= () {
       return HangoutRoom(channel: channel, route: _NoRoute(keys.id), name: 'Me', signer: KeysSigner(keys), store: store);
     }();
 HangoutRoom? _general;
-void _leaveCircle() => unawaited(Circles.instance.clear());
+Future<void> _leaveCircle() => Circles.instance.clear();
+
+/// Night Owls held, Film Night offered by a friend just now, and Climbing's link opened before and put off.
+void _inviteToCircles() {
+  Circles.instance.join(_circle);
+  Circles.instance.offerLink(_climbing.link);
+  Circles.instance.laterInvite(_climbing.seed);
+  Circles.instance.offer(_filmNight, from: 'Maya Chen');
+}
+
+/// A friend's circle to be invited to: its manifest came with the invite, so its spaces are counted.
+final _filmNight = Circle(
+  seed: '5' * 64,
+  owner: '',
+  manifest: CircleManifest(owner: '', version: 1, name: 'Film Night', hue: 'rose', icon: 'film', spaces: const [
+    CircleSpace(seed: '5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a', name: 'General', kind: SpaceKind.text),
+    CircleSpace(seed: '5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b', name: 'Watch party', order: 1),
+    CircleSpace(seed: '5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c', name: 'Posters', kind: SpaceKind.files, order: 2),
+    CircleSpace(seed: '5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d', name: 'Picks', kind: SpaceKind.text, order: 3),
+  ]),
+);
+
+/// A circle known only by its link: its name, nothing more, until it is joined.
+final _climbing = Circle(seed: '4' * 64, owner: '', manifest: CircleManifest.placeholder(owner: '', name: 'Climbing', hue: 'green'));
 
 void _joinBothCircles() {
   _joinOwnCircle();
@@ -590,6 +667,18 @@ void _tapCirclesTabSoon() => WidgetsBinding.instance.addPostFrameCallback((_) {
 
 /// The circle opened in the list's place once the frame is up.
 void _openCircleSoon() => WidgetsBinding.instance.addPostFrameCallback((_) => AppShellState.live?.openCircle(_circle));
+
+/// The circle of one's own opened in the list's place once the frame is up.
+void _openOwnCircleSoon() => WidgetsBinding.instance.addPostFrameCallback((_) => AppShellState.live?.openCircle(_ownCircle));
+
+/// [drawer] as it is raised: over a page, dimmed by the sheets' scrim.
+Widget _overPage(Widget drawer) => Builder(
+      builder: (context) => Stack(children: [
+        Positioned.fill(child: ColoredBox(color: context.tokens.color('glacier-bg'))),
+        Positioned.fill(child: ColoredBox(color: context.tokens.sheetScrim)),
+        Positioned.fill(child: drawer),
+      ]),
+    );
 
 void _translateOn(AppState state) => state.set('plugin_translate', 'on');
 
@@ -822,6 +911,14 @@ void _answerChannel() {
         return {'phase': 'idle', 'current': '0.8.2', 'auto': true, 'canInstall': true, 'source': 'https://gogho.st'};
       case 'ownNumber':
         return '+15551239999';
+      // The phone's contacts, for Contacts ('contacts' above): two of them friends there.
+      case 'searchContacts':
+        return [
+          {'name': 'Maya Chen', 'address': '+1 555-123-0001', 'photo': null, 'label': 'Mobile'},
+          {'name': 'Theo Park', 'address': '+1 555-123-0002', 'photo': null, 'label': 'Mobile'},
+          {'name': 'Sam Rivera', 'address': '+1 555-123-0003', 'photo': null, 'label': 'Work'},
+          {'name': 'Mom', 'address': '+1 555-123-0010', 'photo': null, 'label': 'Mobile'},
+        ];
       case 'contact':
         return _p(args['address'] as String);
       case 'e2e':
@@ -917,6 +1014,25 @@ HangoutRoom _space() => _room ??= () {
       return HangoutRoom(channel: channel, route: _NoRoute(keys.id), name: 'Me', signer: KeysSigner(keys), store: store);
     }();
 HangoutRoom? _room;
+
+/// A texting space with a description its owner signed ('space-text-about').
+HangoutRoom _aboutSpace() => _about ??= () {
+      final keys = NetKeys.generate();
+      final channel = VoiceChannel.make('Book club', owner: NetCrypto.hex(keys.public), kind: SpaceKind.text);
+      final store = MemoryHangoutStore();
+      final at = _now.subtract(const Duration(minutes: 30)).millisecondsSinceEpoch;
+      store.keepMessages(channel.chatRoom, [
+        HangoutMessage(id: '1', from: 'a', name: 'Maya Chen', text: 'Chapter 4 by Friday?', at: at),
+        HangoutMessage(id: '2', from: keys.id, name: 'Me', text: 'Works for me', at: at + 60000),
+      ]);
+      store.keepRoster(channel.chatRoom, Roster.first(channel.owner, kind: SpaceKind.text));
+      const words = 'Fiction on Fridays. One chapter a week, spoilers in threads please.';
+      final key = NetCrypto.hex(keys.public);
+      final sig = NetCrypto.sign(keys, SpaceAbout.signedBytes(channel.chatRoom, words, 1, keys.id, key));
+      store.keepAbout(channel.chatRoom, jsonEncode(SpaceAbout(text: words, version: 1, by: keys.id, byKey: key, sig: NetCrypto.hex(sig)).toJson()));
+      return HangoutRoom(channel: channel, route: _NoRoute(keys.id), name: 'Me', signer: KeysSigner(keys), store: store);
+    }();
+HangoutRoom? _about;
 
 /// A space whose chat runs several screens, for the down arrow over a space's chat ('space-scrolled').
 HangoutRoom _longSpace() => _long2 ??= () {

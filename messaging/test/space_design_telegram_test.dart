@@ -56,7 +56,7 @@ void main() {
     await tap('Video');
     await tap('Deafen');
     await tap('Leave');
-    await tap('Minimise');
+    await tap('Back'); // the way back puts the call away (it was a chevron, Minimise)
     await tap('Invite to space');
     await tap('Maya Chen');
     await tap('More: invite, devices, settings, leave');

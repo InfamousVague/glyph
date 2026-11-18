@@ -124,6 +124,27 @@ class Handles {
   Timer? _saver;
 
   int get linked => _links.values.fold(0, (n, m) => n + m.length);
+
+  /// The hash of the phone number [id] verified by a texted code, or null: who may take the invites waiting for that
+  /// number (invites.dart).
+  String? phoneKeyOf(String id) => _links[id]?['phone']?['k'];
+
+  /// Who [id] is beyond its key, for counting what it may leave on the relay (invites.dart): the number it verified
+  /// by a texted code, else an account it linked by signing in there, else null. A fresh key costs nothing, so a limit
+  /// counted by key is no limit; a number or an account costs something to have, and a new key that proves the same
+  /// one is counted as the same someone. A username alone is not enough, since any new key can claim one.
+  String? whoOf(String id) {
+    final phone = phoneKeyOf(id);
+    if (phone != null) return 'phone|$phone';
+    final links = _links[id];
+    if (links == null) return null;
+    for (final e in links.entries) {
+      final account = e.value['a'] ?? e.value['k'];
+      if (account != null) return '${e.key}|$account';
+    }
+    return null;
+  }
+
   int get names => _names.length;
 
   /// The hash a username is kept and looked up by: the same in the app (lib/me/profile.dart).

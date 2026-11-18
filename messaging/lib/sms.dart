@@ -494,7 +494,7 @@ class UpdateState {
 
 /// What a notification or another app asked to open.
 class OpenRequest {
-  const OpenRequest({this.thread, this.addresses = const [], this.body, this.computers = false, this.pairing, this.inbox});
+  const OpenRequest({this.thread, this.addresses = const [], this.body, this.computers = false, this.pairing, this.inbox, this.circle});
   final int? thread;
 
   /// A chat on Signal or Telegram (`network:chat`), from its notification (lib/inbox/alerts.dart).
@@ -507,6 +507,10 @@ class OpenRequest {
 
   /// A computer's pairing link was opened (the phone's camera read its QR code): the pairing page, with it.
   final String? pairing;
+
+  /// A circle's invite link was opened (https://gogho.st/join/#c.…): its invite, to Join or put off
+  /// (lib/ui/circles/circle_invite_card.dart).
+  final String? circle;
   factory OpenRequest.from(Map m) => OpenRequest(
         thread: (m['thread'] as num?)?.toInt(),
         addresses: [for (final a in (m['addresses'] as List? ?? const [])) a as String],
@@ -514,6 +518,7 @@ class OpenRequest {
         computers: m['desk'] == true,
         pairing: m['pair'] as String?,
         inbox: m['inbox'] as String?,
+        circle: m['circle'] as String?,
       );
 }
 
@@ -1308,6 +1313,20 @@ class Sms {
 
   /// Files another app shared into this one before anything listened for them ([sharedIn] has the ones after).
   Future<List<String>> sharedFiles() async => [for (final u in (await _calls.invokeMethod<List>('sharedFiles')) ?? const []) u as String];
+
+  /// What files shared in are, asked of the app that shares them without copying them (android MainActivity
+  /// "describeFiles"): each one's address, name, size (-1 where the app doesn't say) and type. Addresses this app would
+  /// not copy (its own, a file:// one) are left out. Matt, 2026-11-17: "Finish the missing pieces that went unfinished".
+  Future<List<({String uri, String name, int size, String mime})>> describeFiles(List<String> uris) async => [
+        for (final m in (await _calls.invokeMethod<List>('describeFiles', {'uris': uris})) ?? const [])
+          if (m is Map)
+            (
+              uri: '${m['uri']}',
+              name: '${m['name'] ?? 'file'}',
+              size: (m['size'] as num?)?.toInt() ?? -1,
+              mime: '${m['mime'] ?? 'application/octet-stream'}',
+            ),
+      ];
 
   Future<String?> ownNumber() => _calls.invokeMethod<String>('ownNumber');
 

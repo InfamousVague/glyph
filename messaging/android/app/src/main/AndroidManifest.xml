@@ -85,6 +85,17 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="ghostmsg" android:host="pair" />
             </intent-filter>
+            <!-- A circle's invite link (https://gogho.st/join/#c.…): the circle's invite in the app. Verified as an App
+                 Link (Matt, 2026-11-17: invites texted to contacts should open the app straight away once it is set
+                 up): gogho.st/.well-known/assetlinks.json names this package and the release key's SHA-256, so Android
+                 opens the app for it without asking. A debug build, signed with another key, is not verified and is
+                 offered only under "Open by default". -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="gogho.st" android:pathPrefix="/join" />
+            </intent-filter>
             <!-- Shared text from other apps. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />

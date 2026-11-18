@@ -34,13 +34,46 @@ import 'circle.dart';
 
 export 'circle.dart';
 
-/// A friend gave this device a circle (Circles.share): to show, until it is put away.
+/// A circle offered to this device and not yet taken up: a friend's invite (Circles.share), or a circle's link opened
+/// from outside the app. It waits, with Join and Not now, until it is joined or dismissed (Matt, 2026-11-17: "Finish the
+/// missing pieces that went unfinished", of Circles: until then a friend's invite joined the circle at once, unasked,
+/// and was never shown).
 @immutable
 class CircleInvite {
-  const CircleInvite(this.circle, this.from, this.at);
+  const CircleInvite(this.circle, this.from, this.at, {this.later = false, this.link = false, this.fresh = false});
+
+  /// The circle as the invite or link gave it: a link's has only its name until it is joined.
   final Circle circle;
+
+  /// Who invited this device, as it knows them; empty for a link.
   final String from;
   final DateTime at;
+
+  /// Not now was pressed: kept under Invites in the Circles tab, without the card or the banner.
+  final bool later;
+
+  /// The circle (its owner above all) came from a link, which a friend's invite for the same circle doesn't override.
+  final bool link;
+
+  /// Came since the app started, and not yet answered: the banner over everything says it. Not kept.
+  final bool fresh;
+
+  String get seed => circle.seed;
+
+  /// How many spaces the circle has, where that is known: a link says only its name until the circle is joined.
+  int? get spaceCount => circle.manifest.isSigned || circle.spaces.isNotEmpty ? circle.spaces.length : null;
+
+  CircleInvite copyWith({Circle? circle, String? from, bool? later, bool? link, bool? fresh}) =>
+      CircleInvite(circle ?? this.circle, from ?? this.from, at, later: later ?? this.later, link: link ?? this.link, fresh: fresh ?? this.fresh);
+
+  Map<String, Object?> toJson() => {'c': circle.toJson(), 'f': from, 'at': at.millisecondsSinceEpoch, if (later) 'l': 1, if (link) 'k': 1};
+
+  static CircleInvite? fromJson(Object? j) {
+    if (j is! Map) return null;
+    final c = Circle.fromJson(j['c']);
+    if (c == null) return null;
+    return CircleInvite(c, j['f'] is String ? j['f'] as String : '', DateTime.fromMillisecondsSinceEpoch(j['at'] is int ? j['at'] as int : 0), later: j['l'] == 1, link: j['k'] == 1);
+  }
 }
 
 /// [words] trimmed and cut to 100 characters, as a circle's, a space's or a heading's name is kept: a pasted page of
@@ -57,9 +90,16 @@ class Circles extends ChangeNotifier {
 
   /// For a test: a manager of its own, with no device choices.
   @visibleForTesting
-  factory Circles.forTest({NetSigner? signer, VoiceRoute? route}) => Circles._()
-    ..signerOverride = signer
-    .._route = route;
+  factory Circles.forTest({NetSigner? signer, VoiceRoute? route, AppState? app}) {
+    final c = Circles._()
+      ..signerOverride = signer
+      .._route = route;
+    if (app != null) {
+      c._app = app;
+      c._load(app);
+    }
+    return c;
+  }
 
   AppState? _app;
   VoiceRoute? _route;
@@ -73,8 +113,17 @@ class Circles extends ChangeNotifier {
 
   final Map<String, CircleRoom> _rooms = {};
 
-  /// A friend's invite into a circle, until it is put away ([dismissInvite]).
-  CircleInvite? invite;
+  /// Circles offered to this device and not yet joined, the newest first: friends' invites and links opened from
+  /// outside the app, until each is joined ([acceptInvite]) or dismissed ([dismissInvite]). Kept (`circle_invites`), so
+  /// Not now keeps one for later, across launches.
+  List<CircleInvite> invites = [];
+  static const _invitesKept = 20;
+
+  /// The invite the banner over everything shows: the newest that came since the app started and hasn't been answered.
+  CircleInvite? get invite => invites.where((i) => i.fresh && !i.later).firstOrNull;
+
+  /// The invite waiting for [seed]'s circle, where there is one.
+  CircleInvite? inviteFor(String seed) => invites.where((i) => i.seed == seed).firstOrNull;
 
   /// For a test: what signs manifests in place of Voice's signer.
   @visibleForTesting
@@ -87,14 +136,22 @@ class Circles extends ChangeNotifier {
   Future<void> start(AppState app) async {
     if (_app != null) return;
     _app = app;
-    try {
-      all = [for (final j in jsonDecode(app.choice('circles', '[]')) as List) ?Circle.fromJson(j)];
-      _gone.addAll((jsonDecode(app.choice('circles_gone', '[]')) as List).whereType<String>());
-    } catch (_) {}
+    _load(app);
     Net.instance.listen(_received);
     Voice.instance.addListener(_follow);
     _changed(keep: false);
     _follow();
+  }
+
+  void _load(AppState app) {
+    try {
+      all = [for (final j in jsonDecode(app.choice('circles', '[]')) as List) ?Circle.fromJson(j)];
+      _gone.addAll((jsonDecode(app.choice('circles_gone', '[]')) as List).whereType<String>());
+    } catch (_) {}
+    try {
+      // One for a circle joined meanwhile (on the phone or computer) has been answered.
+      invites = [for (final j in jsonDecode(app.choice('circle_invites', '[]')) as List) ?CircleInvite.fromJson(j)].where((i) => bySeed(i.seed) == null).toList();
+    } catch (_) {}
   }
 
   Circle? bySeed(String seed) => all.where((c) => c.seed == seed).firstOrNull;
@@ -250,6 +307,8 @@ class Circles extends ChangeNotifier {
   /// its spaces' chats held. One already here takes [c]'s manifest only where it is newer.
   Circle join(Circle c) {
     _unmarkGone(c.seed);
+    // Joined some other way (its link pasted, or on the phone or computer): its invite has been answered.
+    if (invites.any((i) => i.seed == c.seed)) _setInvites([for (final i in invites) if (i.seed != c.seed) i]);
     final have = bySeed(c.seed);
     if (have != null) {
       final next = have.merged(c.manifest);
@@ -264,10 +323,64 @@ class Circles extends ChangeNotifier {
     return c;
   }
 
-  /// Comes into the circle a link is; null where it is not a circle's link.
+  /// Comes into the circle a link is; null where it is not a circle's link. For a link pasted into the app (+ New ›
+  /// Join a circle by link), which is asking to join; one opened from outside the app is [offerLink].
   Circle? joinLink(String link) {
     final c = Circle.fromLink(link);
-    return c == null ? null : join(c);
+    if (c == null) return null;
+    // An invite from a friend may have named another owner: the link is the one to go by.
+    final waiting = inviteFor(c.seed);
+    return join(waiting != null && waiting.circle.owner == c.owner ? (waiting.circle.merged(c.manifest) ?? waiting.circle) : c);
+  }
+
+  /// The first circle's link in [text] (the link alone, or an invite's words with it, as circleInviteWords writes
+  /// them); null where there is none.
+  static String? linkIn(String? text) {
+    if (text == null) return null;
+    final m = RegExp(r'https://gogho\.st/join/#c\.[0-9a-f]{64}(?:\.[A-Za-z0-9_-]*)?(?:\.0[23][0-9a-f]{64})?').firstMatch(text);
+    return m == null || Circle.fromLink(m.group(0)!) == null ? null : m.group(0);
+  }
+
+  /// A circle's link opened from outside the app (a tap on gogho.st/join/#c.…, or the link shared to the app): the
+  /// circle itself where it is held already, to open; else an invite to it, to Join or put off, as a friend's is. Null
+  /// where [link] is not a circle's.
+  ({Circle? held, CircleInvite? invite})? offerLink(String link) {
+    final c = Circle.fromLink(link);
+    if (c == null) return null;
+    final held = bySeed(c.seed);
+    if (held != null) return (held: held, invite: null);
+    return (held: null, invite: offer(c, from: '', link: true));
+  }
+
+  /// [c], offered by [from] (a friend's name, or empty for a link): waiting among [invites] until it is joined or
+  /// dismissed. One already held only takes the offer's manifest where it is newer, and gives back null.
+  ///
+  /// Offered again, it comes back to the top as new, Not now or not. Where a link and a friend's invite name different
+  /// owners for the same circle, the link is believed: the circle's owner decides whose list of spaces is taken.
+  CircleInvite? offer(Circle c, {required String from, bool link = false}) {
+    if (bySeed(c.seed) != null) {
+      join(c);
+      return null;
+    }
+    final had = inviteFor(c.seed);
+    var circle = c;
+    var linked = link;
+    if (had != null) {
+      if (had.link && !link && had.circle.owner != c.owner) {
+        // A friend's invite naming another owner than the link did: the link's circle stays.
+        circle = had.circle;
+        linked = true;
+      } else if (had.circle.owner == c.owner) {
+        // The same circle: the newer of the two manifests.
+        circle = c.merged(had.circle.manifest) ?? had.circle.merged(c.manifest) ?? (c.manifest.isSigned || !had.circle.manifest.isSigned ? c : had.circle);
+        linked = link || had.link;
+      }
+    }
+    // A link says nobody: the friend who sent it before stays named.
+    final i = CircleInvite(circle, from.isNotEmpty ? from : (had?.from ?? ''), DateTime.now(), link: linked, fresh: true);
+    final rest = [for (final x in invites) if (x.seed != c.seed) x];
+    _setInvites([i, ...rest.take(_invitesKept - 1)]);
+    return i;
   }
 
   /// Leaves [c]: off this device and its phone or computer. Its link brings it back.
@@ -277,21 +390,54 @@ class Circles extends ChangeNotifier {
     final room = _rooms.remove(c.seed);
     if (room != null) await room.close();
     if (Sms.paired) unawaited(Sms.instance.voiceSync({'op': 'circle-forget', 's': c.seed}).catchError((_) => <String, dynamic>{}));
-    if (invite?.circle.seed == c.seed) invite = null;
+    if (invites.any((i) => i.seed == c.seed)) _setInvites([for (final i in invites) if (i.seed != c.seed) i], tell: false);
     _changed();
   }
 
-  /// Takes the invite up: the circle joined (even one left before).
-  Circle? acceptInvite() {
-    final i = invite;
+  /// Takes an invite up ([seed]'s, or the banner's): the circle joined, even one left before, and given back to open.
+  /// Null where there is no such invite.
+  Circle? acceptInvite([String? seed]) {
+    final i = seed == null ? invite : inviteFor(seed);
     if (i == null) return null;
-    invite = null;
+    _setInvites([for (final x in invites) if (x.seed != i.seed) x], tell: false);
     return join(i.circle);
   }
 
-  void dismissInvite() {
-    invite = null;
-    notifyListeners();
+  /// Not now: [seed]'s invite (or the banner's) put off, kept under Invites in the Circles tab until it is joined or
+  /// dismissed.
+  void laterInvite([String? seed]) {
+    final i = seed == null ? invite : inviteFor(seed);
+    if (i == null) return;
+    _setInvites([for (final x in invites) x.seed == i.seed ? x.copyWith(later: true, fresh: false) : x]);
+  }
+
+  /// Puts [seed]'s invite (or the banner's) away for good: the circle isn't joined. A friend sending it again brings it
+  /// back.
+  void dismissInvite([String? seed]) {
+    final i = seed == null ? invite : inviteFor(seed);
+    if (i == null) return;
+    _setInvites([for (final x in invites) if (x.seed != i.seed) x]);
+  }
+
+  /// [seed]'s invite seen where it waits (its banner pressed, to show the Circles tab): no banner for it any more, but
+  /// it is not put off, so its card stays at the top of the tab.
+  void seenInvite(String seed) {
+    if (inviteFor(seed)?.fresh != true) return;
+    _setInvites([for (final x in invites) x.seed == seed ? x.copyWith(fresh: false) : x]);
+  }
+
+  /// [seed]'s invite answered elsewhere: the circle joined or left on the paired phone or computer (answerDesk,
+  /// fromPhone), so this device shows no card or banner for a circle it already holds or has left (Matt, 2026-11-17:
+  /// "Finish the missing pieces that went unfinished"). Before, only Join here cleared it, and the other device kept the
+  /// card, and the Circles tab's count, until its next launch.
+  void _answered(String seed) {
+    if (invites.any((i) => i.seed == seed)) _setInvites([for (final i in invites) if (i.seed != seed) i]);
+  }
+
+  void _setInvites(List<CircleInvite> next, {bool tell = true}) {
+    invites = next;
+    _app?.set('circle_invites', jsonEncode([for (final i in invites) i.toJson()]));
+    if (tell) notifyListeners();
   }
 
   void _markGone(String seed) {
@@ -366,15 +512,10 @@ class Circles extends ChangeNotifier {
     final c = fromInvite(r.envelope.body.cast<String, Object?>());
     if (c == null) return;
     final from = Buddies.instance.byId(r.peer.id)?.shown ?? '${r.envelope.body['by'] ?? 'A friend'}';
-    // A circle this device left is not brought back by a friend sending it again: it waits as an invite, to accept.
-    if (removed(c.seed)) {
-      invite = CircleInvite(c, from, DateTime.now());
-      notifyListeners();
-      return;
-    }
-    final joined = join(c);
-    invite = CircleInvite(joined, from, DateTime.now());
-    notifyListeners();
+    // Waits, said on screen with Join and Not now, rather than joined at once: the circle's room is not entered (where
+    // its members would see this device) until the person says so, and a circle left before is not brought back by a
+    // friend sending it again. One already held takes the invite's manifest where it is newer.
+    offer(c, from: from);
   }
 
   // --- the phone and its computer, in step ---------------------------------------------------------------------------
@@ -390,6 +531,7 @@ class Circles extends ChangeNotifier {
         await leave(c);
       } else if (what['s'] is String) {
         _markGone(what['s'] as String);
+        _answered(what['s'] as String);
       }
       return {'ok': true};
     }
@@ -399,6 +541,8 @@ class Circles extends ChangeNotifier {
     if (what['op'] == 'circle-join') _unmarkGone(c.seed);
     if (removed(c.seed)) return {'ok': false, 'gone': true};
     final have = bySeed(c.seed);
+    // Joined (or held) on the computer: its invite here is answered too, card and banner.
+    _answered(c.seed);
     if (have == null) {
       all = [...all, c.copyWith(mine: true)];
       _changed();
@@ -419,6 +563,7 @@ class Circles extends ChangeNotifier {
         _markGone(s);
         changed = true;
       }
+      _answered(s);
       final c = bySeed(s);
       if (c != null) {
         all = [for (final x in all) if (x.seed != s) x];
@@ -438,6 +583,7 @@ class Circles extends ChangeNotifier {
         changed = true;
       }
       final have = bySeed(c.seed);
+      _answered(c.seed);
       if (have == null) {
         all = [...all, c];
         changed = true;
@@ -509,15 +655,18 @@ class Circles extends ChangeNotifier {
   /// For a test: everything forgotten.
   @visibleForTesting
   Future<void> clear() async {
-    for (final r in _rooms.values) {
-      await r.close();
-    }
+    // Forgotten at once, before the rooms close: a test that does not wait for this (or the next test's first frame)
+    // must not find the last one's circles and invites still there.
+    final rooms = [..._rooms.values];
     _rooms.clear();
     all = [];
     _gone.clear();
-    invite = null;
+    invites = [];
     Voice.instance.setCircled(const []);
     notifyListeners();
+    for (final r in rooms) {
+      await r.close();
+    }
   }
 }
 

@@ -2,6 +2,8 @@ import Cocoa
 import FlutterMacOS
 
 class MainFlutterWindow: NSWindow, NSDraggingDestination {
+  /// The app's own top bar, with the three buttons folded down into it; off for now (see awakeFromNib).
+  static let ownTopBar = false
   private var desk: DeskChannels?
   /// Files dropped on the window (lib/files/file_platform.dart): taken only while a Files space is on the screen, which
   /// says so with "target"; then "over" as files are dragged over the window and "dropped" with their paths.
@@ -26,9 +28,18 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
     // 2026-11-17: "move the toolbar top bar into our own topbar component so it can match themes on mac make it fold
     // the traffic lights down and shift over the chat list on the sidebar and make the top bars draggable areas").
     // The app says how tall its header is and whether its look is dark (lib/desktop/window_chrome.dart).
-    self.styleMask.insert(.fullSizeContentView)
-    self.titlebarAppearsTransparent = true
-    self.titleVisibility = .hidden
+    // For now the Mac's own title bar is back, above the app, with the three buttons where the Mac puts them (Matt,
+    // 2026-11-17: "let's bring back the native top bar and remove the thing where we have the traffic lights pushed
+    // down until I work on the UI a bit more"): black, as before the app's own top bar (lib/ui/window_chrome.dart
+    // MacChrome.own says the same to the app).
+    if MainFlutterWindow.ownTopBar {
+      self.styleMask.insert(.fullSizeContentView)
+      self.titlebarAppearsTransparent = true
+      self.titleVisibility = .hidden
+    } else {
+      self.titlebarAppearsTransparent = true
+      self.appearance = NSAppearance(named: .darkAqua)
+    }
     self.isMovableByWindowBackground = false
     self.backgroundColor = .black
     chrome = FlutterMethodChannel(name: "ghost_desktop/window", binaryMessenger: flutterViewController.engine.binaryMessenger)
@@ -39,7 +50,7 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
         let a = call.arguments as? [String: Any] ?? [:]
         if let h = a["height"] as? Double { self.barHeight = CGFloat(h) }
         if let x = a["x"] as? Double { self.lightsX = CGFloat(x) }
-        if let dark = a["dark"] as? Bool { self.appearance = NSAppearance(named: dark ? .darkAqua : .aqua) }
+        if MainFlutterWindow.ownTopBar, let dark = a["dark"] as? Bool { self.appearance = NSAppearance(named: dark ? .darkAqua : .aqua) }
         self.placeLights()
         result(nil)
       case "drag":
@@ -122,7 +133,7 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
   /// The three buttons centred in the app's header: the strip that holds them made as tall as the header, and each
   /// placed in it. AppKit puts them back at its own height on some changes, so this runs again after each.
   func placeLights() {
-    guard !styleMask.contains(.fullScreen),
+    guard MainFlutterWindow.ownTopBar, !styleMask.contains(.fullScreen),
           let close = standardWindowButton(.closeButton),
           let mini = standardWindowButton(.miniaturizeButton),
           let zoom = standardWindowButton(.zoomButton),
