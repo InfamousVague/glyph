@@ -44,6 +44,71 @@ String hueOfSeed(String seed) {
 const circlePictureMax = 24000;
 
 /// One space in a circle's list.
+/// What a circle's roles can give (Matt, 2026-11-18: "Build custom roles"): changing the circle itself, its spaces and
+/// its roles, inviting, and writing, talking and sharing files in its spaces. Kept by a letter each in the manifest.
+enum CirclePerm {
+  circle('c', 'Change the circle', 'Its name, picture, colour and icon'),
+  spaces('s', 'Manage spaces', 'Add, rename, change, arrange and delete spaces'),
+  roles('r', 'Manage roles', 'Make and change roles, and give them to people'),
+  invite('i', 'Invite people', 'Bring people in, and see the invite link'),
+  write('w', 'Write', 'Send messages in chat spaces'),
+  voice('v', 'Talk', 'Join voice spaces and talk'),
+  files('f', 'Share files', 'Add files in files spaces');
+
+  const CirclePerm(this.wire, this.label, this.blurb);
+  final String wire;
+  final String label;
+  final String blurb;
+
+  /// Those that change the circle's manifest: whoever has one must be able to sign it, so a role with one also makes its
+  /// holder an admin the owner granted (what every version of the app checks a manifest by).
+  bool get signs => this == circle || this == spaces || this == roles;
+
+  static CirclePerm? of(Object? wire) => values.where((p) => p.wire == wire).firstOrNull;
+
+  /// What everyone in a circle may do where its owner has said nothing else.
+  static const everyoneDefault = {invite, write, voice, files};
+}
+
+/// A role in a circle: its name and colour, and what it gives.
+@immutable
+class CircleRole {
+  const CircleRole({required this.id, required this.name, this.hue = 'blue', this.perms = const {}});
+  factory CircleRole.make(String name, {String hue = 'blue', Set<CirclePerm> perms = const {}}) => CircleRole(id: NetCrypto.hex(NetCrypto.randomBytes(6)), name: name, hue: hue, perms: perms);
+
+  final String id;
+  final String name;
+  final String hue;
+  final Set<CirclePerm> perms;
+
+  bool get signs => perms.any((p) => p.signs);
+
+  CircleRole copyWith({String? name, String? hue, Set<CirclePerm>? perms}) => CircleRole(id: id, name: name ?? this.name, hue: hue ?? this.hue, perms: perms ?? this.perms);
+
+  Map<String, Object?> toJson() => {'id': id, 'n': name, 'h': hue, 'p': [for (final p in CirclePerm.values) if (perms.contains(p)) p.wire]};
+
+  static CircleRole? fromJson(Object? j) {
+    if (j is! Map || j['id'] is! String || j['n'] is! String) return null;
+    final name = (j['n'] as String).trim();
+    if (name.isEmpty || name.length > 40) return null;
+    return CircleRole(
+      id: j['id'] as String,
+      name: name,
+      hue: j['h'] is String && circleHues.contains(j['h']) ? j['h'] as String : 'blue',
+      perms: {for (final w in (j['p'] is List ? j['p'] as List : const [])) ?CirclePerm.of(w)},
+    );
+  }
+
+  @override
+  bool operator ==(Object other) => other is CircleRole && other.id == id && other.name == name && other.hue == hue && setEquals(other.perms, perms);
+
+  @override
+  int get hashCode => Object.hash(id, name, hue, Object.hashAllUnordered(perms));
+}
+
+/// At most this many roles in a circle.
+const circleRolesMax = 30;
+
 @immutable
 class CircleSpace {
   const CircleSpace({required this.seed, required this.name, this.kind = SpaceKind.voice, this.order = 0, this.section, this.kindWire, this.extra = const {}});
@@ -260,6 +325,58 @@ class CircleManifest {
   /// Whether [id] may sign a manifest: the owner, or an admin they granted.
   bool canSign(String id) => id.isNotEmpty && (id == ownerId || granted(id));
 
+  // --- roles (Matt, 2026-11-18: "Build custom roles") -----------------------------------------------------------------
+  // Kept in fields of the manifest's own ('ro' the roles, 'ra' who has which, 're' what everyone may do), signed with
+  // the rest. A version from before roles keeps and passes them on but does not read them: there whoever may sign the
+  // manifest (the owner and admins) may change everything, as before.
+
+  /// The circle's roles, in their order (the first the highest).
+  List<CircleRole> get roles {
+    final seen = <String>{};
+    final list = extra['ro'] is List ? extra['ro'] as List : const [];
+    return [for (final r in list.take(circleRolesMax)) if (CircleRole.fromJson(r) case final x? when seen.add(x.id)) x];
+  }
+
+  /// Each person's roles, by their id: the ids of roles that exist.
+  Map<String, List<String>> get roleAssignments {
+    final known = {for (final r in roles) r.id};
+    final a = extra['ra'] is Map ? extra['ra'] as Map : const {};
+    return {
+      for (final e in a.entries)
+        if (e.value is List) '${e.key}': [for (final id in e.value as List) if (id is String && known.contains(id)) id],
+    }..removeWhere((_, v) => v.isEmpty);
+  }
+
+  /// What everyone in the circle may do.
+  Set<CirclePerm> get everyone => extra['re'] is List ? {for (final w in extra['re'] as List) ?CirclePerm.of(w)} : CirclePerm.everyoneDefault;
+
+  /// [id]'s roles, in the circle's order.
+  List<CircleRole> rolesOf(String id) {
+    final mine = roleAssignments[id] ?? const [];
+    return [for (final r in roles) if (mine.contains(r.id)) r];
+  }
+
+  /// What [id] may do: everything for the owner, and for an admin given no role (an admin as before roles); otherwise
+  /// what everyone may, and what their roles give. One of [CirclePerm.signs] needs the owner's grant too, which signing
+  /// the manifest is checked by.
+  Set<CirclePerm> permsOf(String id) {
+    if (id.isEmpty) return const {};
+    if (id == ownerId) return CirclePerm.values.toSet();
+    final mine = rolesOf(id);
+    if (granted(id) && mine.isEmpty) return CirclePerm.values.toSet();
+    final all = {...everyone, for (final r in mine) ...r.perms};
+    if (!granted(id)) all.removeWhere((p) => p.signs);
+    return all;
+  }
+
+  /// The next version's fields of roles: [roles], [assignments] and [everyone] in place of these.
+  Map<String, Object?> withRoles({List<CircleRole>? roles, Map<String, List<String>>? assignments, Set<CirclePerm>? everyone}) => {
+        ...extra,
+        if (roles != null) 'ro': [for (final r in roles.take(circleRolesMax)) r.toJson()],
+        if (assignments != null) 'ra': {for (final e in (Map.fromEntries(assignments.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))).entries) if (e.value.isNotEmpty) e.key: e.value},
+        if (everyone != null) 're': [for (final p in CirclePerm.values) if (everyone.contains(p)) p.wire],
+      };
+
   /// The bytes a signature covers.
   List<int> get signed => utf8.encode('ghost-circle manifest|$raw|${by ?? ''}|${byKey ?? ''}');
 
@@ -345,7 +462,7 @@ class CircleManifest {
   ///
   /// A new admin list comes with its generation and the owner's signature ([grantsVersion], [grantsSig]); with
   /// [restart] the versions start again at 1 under it (it outranks every version of the list before).
-  CircleManifest next({String? name, String? hue, String? icon, String? picture, bool clearPicture = false, List<CircleSpace>? spaces, Map<String, String>? adminGrants, int? grantsVersion, String? grantsSig, bool restart = false}) => CircleManifest(
+  CircleManifest next({String? name, String? hue, String? icon, String? picture, bool clearPicture = false, List<CircleSpace>? spaces, Map<String, String>? adminGrants, int? grantsVersion, String? grantsSig, bool restart = false, Map<String, Object?>? extra}) => CircleManifest(
         owner: owner,
         version: restart ? 1 : version + 1,
         name: name ?? this.name,
@@ -356,7 +473,7 @@ class CircleManifest {
         adminGrants: adminGrants ?? this.adminGrants,
         grantsVersion: grantsVersion ?? this.grantsVersion,
         grantsSig: grantsVersion != null ? grantsSig : this.grantsSig,
-        extra: extra,
+        extra: extra ?? this.extra,
       );
 
   /// This manifest as [id] (with [publicKey]) signs it, with [sign] the signer.

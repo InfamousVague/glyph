@@ -843,6 +843,10 @@ class LinkCalls implements SmsCalls, CapableCalls {
         } catch (_) {
           return method == 'translate' ? const {'state': 'failed'} : none;
         }
+      case 'handover':
+        // The phone's identity and friends, for this computer's own network (lib/friends/handover.dart).
+        if (!_caps.contains('handover')) throw const PhoneError('Update Ghost Messaging on your phone to have friends on this computer.');
+        return link.request('handover', a, const Duration(seconds: 40));
       case 'buddies':
         // Friends by username, the phone's (lib/friends/buddies.dart forComputer): added, answered and listed through it.
         if (!_caps.contains('buddies')) throw const PhoneError('Update Ghost Messaging on your phone to add friends from here.');

@@ -222,6 +222,93 @@ void main() {
     });
   });
 
+  // Matt, 2026-11-18: "Build custom roles".
+  group('roles', () {
+    test('what each may do: the owner everything, an admin with no role everything, everyone the circle\'s default, a role its own', () async {
+      final owner = NetKeys.generate(), admin = NetKeys.generate(), mod = NetKeys.generate(), member = NetKeys.generate();
+      final ownerKey = NetCrypto.hex(owner.public);
+      final grant = (NetKeys k) => NetCrypto.hex(NetCrypto.sign(owner, CircleManifest.grantMessage(ownerKey, k.id)));
+      final mods = CircleRole.make('Mods', hue: 'green', perms: {CirclePerm.spaces, CirclePerm.invite});
+      final quiet = CircleRole.make('Quiet', perms: {});
+      final base = CircleManifest(owner: ownerKey, version: 1, name: 'C', adminGrants: {admin.id: grant(admin), mod.id: grant(mod)});
+      final m = await _sign(base.next(extra: base.withRoles(roles: [mods, quiet], assignments: {mod.id: [mods.id], member.id: [quiet.id]}, everyone: {CirclePerm.write, CirclePerm.voice})), owner);
+      expect(m.permsOf(owner.id), CirclePerm.values.toSet());
+      expect(m.permsOf(admin.id), CirclePerm.values.toSet(), reason: 'an admin as before roles');
+      expect(m.permsOf(mod.id), {CirclePerm.spaces, CirclePerm.invite, CirclePerm.write, CirclePerm.voice}, reason: 'the role and everyone\'s, not the circle itself');
+      expect(m.permsOf(member.id), {CirclePerm.write, CirclePerm.voice});
+      expect(m.permsOf(NetKeys.generate().id), {CirclePerm.write, CirclePerm.voice}, reason: 'everyone else: the circle\'s default');
+      // Round its JSON, and as a version from before roles keeps it (its own fields, signed with the rest).
+      final back = CircleManifest.fromJson(jsonDecode(jsonEncode(m.toJson())))!;
+      expect(back.trustedFor(ownerKey), isTrue);
+      expect(back.roles, [mods, quiet]);
+      expect(back.rolesOf(mod.id).single.name, 'Mods');
+      // A role that changes things, held by someone without the owner's grant: not theirs.
+      final ungranted = await _sign(m.next(extra: m.withRoles(assignments: {member.id: [mods.id]})), owner);
+      expect(ungranted.permsOf(member.id).contains(CirclePerm.spaces), isFalse, reason: 'no grant, no signing, no managing');
+      expect(ungranted.permsOf(member.id).contains(CirclePerm.invite), isTrue);
+    });
+
+    test('roles made, given and taken: a role that manages brings the owner\'s admin grant, and taking it away takes the grant', () async {
+      final hub = _Hub();
+      final owner = NetKeys.generate(), maya = NetKeys.generate();
+      final mine = Circles.forTest(signer: KeysSigner(owner), route: _Route(hub, owner.id));
+      addTearDown(() => mine.clear());
+      final c = (await mine.make(name: 'Book club'))!;
+      expect(mine.can(c, CirclePerm.roles), isTrue);
+      final mods = CircleRole.make('Mods', perms: {CirclePerm.spaces});
+      final talkers = CircleRole.make('Talkers', perms: {CirclePerm.voice});
+      expect(await mine.saveRole(c, mods), isTrue);
+      expect(await mine.saveRole(mine.bySeed(c.seed)!, talkers), isTrue);
+      expect(mine.bySeed(c.seed)!.manifest.roles.map((r) => r.name), ['Mods', 'Talkers']);
+
+      expect(await mine.setRolesOf(mine.bySeed(c.seed)!, maya.id, [talkers.id]), isTrue);
+      expect(mine.bySeed(c.seed)!.manifest.granted(maya.id), isFalse, reason: 'talking signs nothing');
+      expect(await mine.setRolesOf(mine.bySeed(c.seed)!, maya.id, [mods.id, talkers.id]), isTrue);
+      var m = mine.bySeed(c.seed)!.manifest;
+      expect(m.granted(maya.id), isTrue, reason: 'managing spaces: she must be able to sign');
+      expect(m.permsOf(maya.id), containsAll([CirclePerm.spaces, CirclePerm.voice]));
+      expect(m.permsOf(maya.id).contains(CirclePerm.circle), isFalse);
+
+      expect(await mine.deleteRole(mine.bySeed(c.seed)!, mods.id), isTrue);
+      m = mine.bySeed(c.seed)!.manifest;
+      expect(m.roles.map((r) => r.name), ['Talkers']);
+      expect(m.granted(maya.id), isFalse, reason: 'the role that made her an admin is gone');
+      expect(m.rolesOf(maya.id).map((r) => r.name), ['Talkers']);
+
+      // Everyone may never change the circle.
+      expect(await mine.setEveryone(mine.bySeed(c.seed)!, {CirclePerm.write, CirclePerm.circle}), isTrue);
+      expect(mine.bySeed(c.seed)!.manifest.everyone, {CirclePerm.write});
+    });
+  });
+
+  test('roles reach the others: with writing taken from everyone, a member may not write in its spaces, then may with a role', () async {
+    final hub = _Hub();
+    final owner = NetKeys.generate(), maya = NetKeys.generate();
+    final mine = Circles.forTest(signer: KeysSigner(owner), route: _Route(hub, owner.id));
+    final hers = Circles.forTest(signer: KeysSigner(maya), route: _Route(hub, maya.id));
+    addTearDown(() async {
+      await mine.clear();
+      await hers.clear();
+    });
+    final c = (await mine.make(name: 'Book club'))!;
+    await _settle();
+    hers.join(Circle.fromLink(c.link)!);
+    await _until(() => hers.bySeed(c.seed)!.manifest.version >= 1);
+    final general = hers.bySeed(c.seed)!.channels.first;
+    expect(hers.allows(general, CirclePerm.write), isTrue, reason: 'everyone writes, to start');
+    expect(hers.can(hers.bySeed(c.seed)!, CirclePerm.spaces), isFalse);
+
+    await mine.setEveryone(mine.bySeed(c.seed)!, {CirclePerm.voice, CirclePerm.files});
+    await _until(() => !hers.allows(general, CirclePerm.write));
+    expect(hers.allows(general, CirclePerm.write), isFalse);
+
+    final writers = CircleRole.make('Writers', perms: {CirclePerm.write});
+    await mine.saveRole(mine.bySeed(c.seed)!, writers);
+    await mine.setRolesOf(mine.bySeed(c.seed)!, maya.id, [writers.id]);
+    await _until(() => hers.allows(general, CirclePerm.write));
+    expect(hers.allows(general, CirclePerm.write), isTrue, reason: 'her role gives it back');
+  });
+
   group('gossip', () {
     test('a change goes round the circle\'s room; a newcomer is given the newest manifest; a forged one is refused', () async {
       final hub = _Hub();

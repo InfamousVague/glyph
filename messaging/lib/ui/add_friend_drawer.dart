@@ -216,7 +216,7 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
             ),
           ),
           SizedBox(width: t.space(2)),
-          _Button(key: const ValueKey('claim-username'), label: _busy ? 'Saving…' : 'Save', filled: true, onPress: _busy || Sms.paired ? null : _claim),
+          _Button(key: const ValueKey('claim-username'), label: _busy ? 'Saving…' : 'Save', filled: true, onPress: _busy || Sms.followsPhone ? null : _claim),
         ]),
         ?_problemLine(t),
       ]);

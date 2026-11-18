@@ -1,3 +1,4 @@
+import '../circles/circles.dart' show Circles, CirclePerm;
 import 'dart:async';
 import 'dart:convert';
 
@@ -740,6 +741,8 @@ class Voice extends ChangeNotifier {
     if (route == null) throw StateError('The relay server isn\'t connected.');
     // A texting or Files space has no call (SpaceKind).
     if (!c.hasVoice) throw StateError('${c.name} is a ${c.kind.label.toLowerCase()} space, with no voice.');
+    // In a circle, as its roles say (lib/circles: CirclePerm.voice).
+    if (!Circles.instance.allows(c, CirclePerm.voice)) throw StateError('Your role in this circle can\'t talk in voice spaces.');
     if (session?.channel.room == c.room) return;
     await leave();
     if (ringing?.channel.room == c.room) {

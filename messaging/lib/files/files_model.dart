@@ -57,7 +57,8 @@ class SpaceFile {
   /// When it was added, ms since 1970.
   final int at;
 
-  /// The folder it is in; null for the space's top.
+  /// The folder it is in, as its path from the space's top ("Trip/Day 2"); null for the top itself. A file from before
+  /// folders nested (one level, a name with no slashes) is in a folder whose path is that one name.
   final String? folder;
 
   /// A small PNG of it, for a picture; null for anything else.
@@ -167,12 +168,48 @@ class SpaceFile {
     return n.length > 200 ? n.substring(0, 200) : n;
   }
 
-  /// A folder's name, or null for none: one level, so no slashes.
+  /// A folder's path, or null for the space's top: its names from the top down joined with slashes ("Trip/Day 2"),
+  /// each one cleaned as a file's name is ([cleanName]) and cut to 80 characters, with no empty names and none of only
+  /// dots (no "..", which would climb out of the space), and at most [maxDepth] of them (Matt, 2026-11-18: "allow root
+  /// level folders in the file sharing tab and nested folders"). A one-level name from before is a path of one name,
+  /// as it was; 0.9.6 and older, which took the slashes out ("Trip_Day 2"), list a nested folder's files in a folder
+  /// of that name.
   static String? cleanFolder(Object? folder) {
     if (folder is! String) return null;
-    final f = cleanName(folder);
-    return f.isEmpty ? null : (f.length > 80 ? f.substring(0, 80) : f);
+    final names = [
+      for (final part in folder.split('/'))
+        if (part.trim().isNotEmpty && !RegExp(r'^[. ]+$').hasMatch(part.trim())) cleanName(part),
+    ];
+    if (names.isEmpty) return null;
+    return [for (final n in names.take(maxDepth)) n.length > 80 ? n.substring(0, 80) : n].join('/');
   }
+
+  /// How deep folders go.
+  static const maxDepth = 8;
+
+  /// [path]'s names from the top down; none for the top.
+  static List<String> folderNames(String? path) => path == null || path.isEmpty ? const [] : path.split('/');
+
+  /// The folder [path] is in; null for one at the top.
+  static String? folderParent(String path) {
+    final i = path.lastIndexOf('/');
+    return i < 0 ? null : path.substring(0, i);
+  }
+
+  /// [path]'s own name, its last.
+  static String folderName(String path) => path.substring(path.lastIndexOf('/') + 1);
+
+  /// [path] with every folder it is in, from the top down: "a/b/c" is "a", "a/b" and "a/b/c".
+  static List<String> folderLine(String path) {
+    final names = folderNames(path);
+    return [for (var i = 1; i <= names.length; i++) names.take(i).join('/')];
+  }
+
+  /// Whether [folder] is [path] or anywhere inside it.
+  static bool inFolder(String? folder, String path) => folder != null && (folder == path || folder.startsWith('$path/'));
+
+  /// The folder [name] (which may be a path itself) in [parent] (null for the top), cleaned.
+  static String? joinFolder(String? parent, String name) => cleanFolder(parent == null ? name : '$parent/$name');
 }
 
 /// How far an entry of the log is believed ([FileOp.check]).
@@ -258,8 +295,16 @@ class LoggedOp {
 List<LoggedOp> checkAll(List<LoggedOp> log, String space) => [for (final e in log) e.checked(space)];
 
 /// The operations a space's log holds, each sealed with the files key: a file added (`add`), renamed (`ren`), moved to
-/// a folder (`mv`), removed (`del`), and a folder made (`dir`) or let go (`rmdir`). An older build reading a newer
-/// kind skips it.
+/// a folder (`mv`), removed (`del`), and a folder made (`dir`), let go (`rmdir`) or renamed or moved with all it holds
+/// (`mvdir`). An older build reading a newer kind skips it.
+///
+/// **Nested folders** (Matt, 2026-11-18: "allow root level folders in the file sharing tab and nested folders"). A
+/// folder is a path ([SpaceFile.cleanFolder]) wherever one was a name: a file's `d`, a `mv`'s, a `dir`'s, a `rmdir`'s.
+/// A folder is kept from its `dir` (empty or not) until a `rmdir` lets it go, and a `rmdir` lets go of everything in it
+/// when it holds no file. `mvdir` (`d` to `to`; no `to` empties it into the folder it is in) is one entry, so a folder
+/// of many files moves at once, and it is let through only whole: by someone who may make folders and may move every
+/// file in it, and only where nothing would end up deeper than [SpaceFile.maxDepth]. 0.9.6 and older skip `mvdir`, and
+/// show a moved folder's files where they were.
 ///
 /// **Signed** (Matt, 2026-11-17: "Finish the missing pieces that went unfinished" (of Circles and Files spaces,
 /// released in 0.9.2)). Who wrote an entry was the relay's word, and nothing in the sealed entry tied it to its
@@ -281,6 +326,7 @@ class FileOp {
   static Map<String, Object?> delete(String id) => {'t': 'del', 'id': id};
   static Map<String, Object?> folder(String name) => {'t': 'dir', 'd': name};
   static Map<String, Object?> unfolder(String name) => {'t': 'rmdir', 'd': name};
+  static Map<String, Object?> moveFolder(String from, String? to) => {'t': 'mvdir', 'd': from, 'to': to};
   static Map<String, Object?> roster(Map<String, Object?> signedRoster) => {'t': 'roster', 'r': signedRoster};
 
   /// What an entry's signature covers starts with these words.
@@ -409,8 +455,24 @@ class FilesList {
   /// By id, in the order they were added.
   final Map<String, SpaceFile> files;
 
-  /// Folders made, by name, with the files in them besides.
+  /// Folders, by path: those made, with those files are in and every folder those are in besides.
   final Set<String> folders;
+
+  /// The folders right inside [parent] (null for the top), by path, in order of their names.
+  List<String> subfolders(String? parent) =>
+      [for (final f in folders) if (SpaceFile.folderParent(f) == parent) f]..sort((a, b) => SpaceFile.folderName(a).toLowerCase().compareTo(SpaceFile.folderName(b).toLowerCase()));
+
+  /// The files right in [folder] (null for the top); and those anywhere inside [path].
+  Iterable<SpaceFile> filesIn(String? folder) => files.values.where((f) => f.folder == folder);
+  Iterable<SpaceFile> filesUnder(String path) => files.values.where((f) => SpaceFile.inFolder(f.folder, path));
+
+  /// The folders inside [path], at any depth (not [path] itself).
+  Iterable<String> foldersUnder(String path) => folders.where((f) => f != path && SpaceFile.inFolder(f, path));
+
+  /// [path] and every folder it is in, kept in [folders].
+  static void _keep(Set<String> folders, String? path) {
+    if (path != null) folders.addAll(SpaceFile.folderLine(path));
+  }
 
   /// The newest roster revision the log holds (0 for none): a device writing under a newer one puts it in first.
   final int rosterVersion;
@@ -495,7 +557,7 @@ class FilesList {
           final f = SpaceFile.fromJson(op['f'], by: e.by, at: e.at, verified: e.trust == OpTrust.signed);
           if (f != null && seen.add(f.id) && judge.mayAdd(e.by)) {
             files[f.id] = f;
-            if (f.folder != null) folders.add(f.folder!);
+            _keep(folders, f.folder);
           }
         case 'ren':
           final f = files[op['id']];
@@ -506,18 +568,45 @@ class FilesList {
           if (f != null && judge.mayChange(e.by, f)) {
             final d = SpaceFile.cleanFolder(op['d']);
             files[f.id] = f.copyWith(folder: d, clearFolder: d == null);
-            if (d != null) folders.add(d);
+            _keep(folders, d);
           }
         case 'del':
           final f = files[op['id']];
           if (f != null && judge.mayChange(e.by, f)) files.remove(f.id);
         case 'dir':
           final d = SpaceFile.cleanFolder(op['d']);
-          if (d != null && judge.mayFolder(e.by)) folders.add(d);
+          if (d != null && judge.mayFolder(e.by)) _keep(folders, d);
         case 'rmdir':
           final d = SpaceFile.cleanFolder(op['d']);
-          // Only an empty folder goes: what is in it stays where it is.
-          if (d != null && judge.mayFolder(e.by) && !files.values.any((f) => f.folder == d)) folders.remove(d);
+          // Only a folder with no file in it (at any depth) goes, with the empty folders inside it: a file never leaves
+          // the list because its folder went.
+          if (d != null && judge.mayFolder(e.by) && !files.values.any((f) => SpaceFile.inFolder(f.folder, d))) folders.removeWhere((x) => SpaceFile.inFolder(x, d));
+        case 'mvdir':
+          final from = SpaceFile.cleanFolder(op['d']);
+          final to = SpaceFile.cleanFolder(op['to']);
+          // A `to` that cleans to nothing is no place; none at all empties the folder into the one it is in.
+          if (from == null || (op['to'] != null && to == null) || (to != null && SpaceFile.inFolder(to, from)) || !judge.mayFolder(e.by)) break;
+          final inside = [for (final f in files.values) if (SpaceFile.inFolder(f.folder, from)) f];
+          final subs = [for (final x in folders) if (SpaceFile.inFolder(x, from)) x];
+          if (subs.isEmpty || inside.any((f) => !judge.mayChange(e.by, f))) break;
+          final parent = SpaceFile.folderParent(from);
+          // Where a path inside it goes: under `to` in its place, or (no `to`) into the folder it was in.
+          String? moved(String p) {
+            final rest = p == from ? '' : p.substring(from.length + 1);
+            final base = to ?? parent;
+            if (rest.isEmpty) return base;
+            return base == null ? rest : '$base/$rest';
+          }
+
+          if (subs.any((p) => SpaceFile.folderNames(moved(p)).length > SpaceFile.maxDepth)) break;
+          for (final f in inside) {
+            final d = moved(f.folder!);
+            files[f.id] = f.copyWith(folder: d, clearFolder: d == null);
+          }
+          folders.removeAll(subs);
+          for (final p in subs) {
+            _keep(folders, moved(p));
+          }
       }
     }
     return FilesList._(files, folders, floor);
