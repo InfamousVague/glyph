@@ -572,13 +572,62 @@ class FilesStore extends ChangeNotifier {
     return _write(c, FileOp.move(f.id, d));
   }
 
-  Future<bool> newFolder(VoiceChannel c, String name) async {
-    final d = SpaceFile.cleanFolder(name);
+  /// Makes the folder [name] in [parent] (null for the top), empty (Matt, 2026-11-18: "allow root level folders in the
+  /// file sharing tab and nested folders"). No deeper than [SpaceFile.maxDepth], and not one there already.
+  Future<bool> newFolder(VoiceChannel c, String name, {String? parent}) async {
+    final top = SpaceFile.cleanFolder(parent);
+    final d = SpaceFile.joinFolder(top, name);
     if (d == null || of(c).folders.contains(d)) return false;
+    if (SpaceFile.folderNames(top).length + SpaceFile.folderNames(SpaceFile.cleanFolder(name)).length > SpaceFile.maxDepth) return false;
     return _write(c, FileOp.folder(d));
   }
 
-  Future<bool> removeFolder(VoiceChannel c, String name) => _write(c, FileOp.unfolder(name));
+  /// Why the folder [from] can't be moved to [to] (null: emptied into the folder it is in), in words; null where it can.
+  /// Every device reads a `mvdir` the same way and lets it through only whole (FilesList.read), so what it would refuse
+  /// is refused here first, in words.
+  String? whyNotMoveFolder(VoiceChannel c, String from, String? to) {
+    final s = of(c);
+    if (!canFolder(c)) return 'Your role here can\'t change folders.';
+    if (!s.folders.contains(from)) return 'That folder isn\'t here any more.';
+    if (to != null && SpaceFile.inFolder(to, from)) return 'A folder can\'t go inside itself.';
+    if (to != null && s.folders.contains(to)) return 'There\'s already a folder called ${SpaceFile.folderName(to)} there.';
+    final base = SpaceFile.folderNames(to ?? SpaceFile.folderParent(from)).length;
+    final from0 = SpaceFile.folderNames(from).length;
+    final deepest = [from, ...s._list.foldersUnder(from)].fold(0, (n, p) => math.max(n, SpaceFile.folderNames(p).length - from0));
+    if (base + deepest > SpaceFile.maxDepth) return 'Folders go at most ${SpaceFile.maxDepth} deep.';
+    if (s._list.filesUnder(from).any((f) => !canChange(c, f))) return 'Some of the files in it are someone else\'s, and only they or someone who manages files can move them.';
+    return null;
+  }
+
+  /// Moves the folder [from], with all it holds, to [to] (a path; null empties it into the folder it is in). A rename is
+  /// a move to another name in the same folder ([renameFolder]).
+  Future<bool> moveFolder(VoiceChannel c, String from, String? to) async {
+    final d = to == null ? null : SpaceFile.cleanFolder(to);
+    if ((to != null && d == null) || d == from || whyNotMoveFolder(c, from, d) != null) return false;
+    return _write(c, FileOp.moveFolder(from, d));
+  }
+
+  Future<bool> renameFolder(VoiceChannel c, String path, String name) async {
+    final n = SpaceFile.cleanFolder(name);
+    if (n == null || n.contains('/')) return false;
+    return moveFolder(c, path, SpaceFile.joinFolder(SpaceFile.folderParent(path), n));
+  }
+
+  /// Lets the folder at [path] go. One that holds nothing simply goes; what one holds is either moved up into the
+  /// folder it is in ([deleteFiles] false: its files and folders go up a level, kept) or deleted, file by file, for
+  /// everyone ([deleteFiles] true) before it goes.
+  Future<bool> removeFolder(VoiceChannel c, String path, {bool deleteFiles = false}) async {
+    final s = of(c);
+    final inside = s._list.filesUnder(path).toList();
+    final subs = s._list.foldersUnder(path).toList();
+    if (inside.isEmpty && subs.isEmpty) return _write(c, FileOp.unfolder(path));
+    if (!deleteFiles) return moveFolder(c, path, null);
+    if (inside.any((f) => !canChange(c, f))) return false;
+    for (final f in inside) {
+      if (!await delete(c, of(c).files[f.id] ?? f)) return false;
+    }
+    return _write(c, FileOp.unfolder(path));
+  }
 
   /// Removes [f] from the list, and its sealed blob from the relay: whoever added it and the space's owner by who they
   /// are; someone with Manage files above the uploader by showing the relay the space's roster, which it checks the
@@ -1156,6 +1205,13 @@ class FilesSpace {
   @visibleForTesting
   List<LoggedOp> get log => _log;
   Set<String> get folders => {..._list.folders};
+
+  /// The folders right inside [parent] (null for the top), in order of their names; the files right in [folder]; and
+  /// what is anywhere inside [path] (FilesList).
+  List<String> subfolders(String? parent) => _list.subfolders(parent);
+  Iterable<SpaceFile> filesIn(String? folder) => _list.filesIn(folder);
+  Iterable<SpaceFile> filesUnder(String path) => _list.filesUnder(path);
+  Iterable<String> foldersUnder(String path) => _list.foldersUnder(path);
   int get bytes => _list.bytes;
 
   File get _file => File('${_store._data().path}/spaces/${FileSeal.filesRoom(channel.seed)}.json');

@@ -140,6 +140,94 @@ void main() {
       expect(after.folders, isEmpty);
     });
 
+    // Matt, 2026-11-18: "allow root level folders in the file sharing tab and nested folders".
+    test('a folder path is cleaned name by name, no deeper than eight, and a one-level folder is still one', () {
+      expect(SpaceFile.cleanFolder('Photos'), 'Photos');
+      expect(SpaceFile.cleanFolder('Trip/Day 2'), 'Trip/Day 2');
+      expect(SpaceFile.cleanFolder('/Trip//../Day 2/./'), 'Trip/Day 2');
+      expect(SpaceFile.cleanFolder('Trip/CON/a:b'), 'Trip/_CON/a_b');
+      expect(SpaceFile.cleanFolder('..'), isNull);
+      expect(SpaceFile.cleanFolder(''), isNull);
+      expect(SpaceFile.cleanFolder(' / '), isNull);
+      expect(SpaceFile.cleanFolder(7), isNull);
+      expect(SpaceFile.cleanFolder(List.filled(12, 'a').join('/')), List.filled(8, 'a').join('/'));
+      expect(SpaceFile.cleanFolder('x' * 200), 'x' * 80);
+      expect(SpaceFile.folderLine('a/b/c'), ['a', 'a/b', 'a/b/c']);
+      expect(SpaceFile.folderParent('a/b'), 'a');
+      expect(SpaceFile.folderParent('a'), isNull);
+      expect(SpaceFile.inFolder('ab', 'a'), isFalse);
+      expect(SpaceFile.inFolder('a/b', 'a'), isTrue);
+      // A file written by 0.9.6 (its `d` one name) reads as it did, in a folder of one name.
+      final old = SpaceFile.fromJson({...file('c' * 32, 'maya').toJson(), 'd': 'Work'}, by: 'maya')!;
+      expect(old.folder, 'Work');
+      final nested = SpaceFile.fromJson({...file('c' * 32, 'maya').toJson(), 'd': 'Work/2027'}, by: 'maya')!;
+      expect(nested.folder, 'Work/2027');
+      expect(nested.toJson()['d'], 'Work/2027', reason: 'still the field 0.9.6 reads as the folder');
+    });
+
+    test('folders nest, stay when empty, move whole, and go only when nothing is in them', () {
+      final a = file('a' * 32, 'maya'), b = file('b' * 32, 'sam');
+      final list = FilesList.read([
+        e(1, 'maya', FileOp.folder('Empty')),
+        e(2, 'maya', FileOp.folder('Trip/Day 1/Morning')),
+        e(3, 'maya', FileOp.add(a.copyWith(folder: 'Trip/Day 1'))),
+        e(4, 'sam', FileOp.add(b)),
+        e(5, 'sam', FileOp.move(b.id, 'Trip/Day 2')),
+      ], const OwnerRules('owner'));
+      expect(list.folders, {'Empty', 'Trip', 'Trip/Day 1', 'Trip/Day 1/Morning', 'Trip/Day 2'});
+      expect(list.subfolders(null), ['Empty', 'Trip']);
+      expect(list.subfolders('Trip'), ['Trip/Day 1', 'Trip/Day 2']);
+      expect(list.filesIn('Trip/Day 1').single.id, a.id);
+      expect(list.filesUnder('Trip').length, 2);
+      expect(list.filesIn(null), isEmpty);
+
+      List<LoggedOp> log(List<(String, Map<String, Object?>)> more) => [
+            e(1, 'maya', FileOp.folder('Trip/Day 1/Morning')),
+            e(2, 'maya', FileOp.add(a.copyWith(folder: 'Trip/Day 1'))),
+            e(3, 'sam', FileOp.add(b.copyWith(folder: 'Trip'))),
+            e(4, 'maya', FileOp.folder('Other')),
+            for (final (i, (by, op)) in more.indexed) e(5 + i, by, op),
+          ];
+
+      // Renamed with all it holds, by the owner (who may move Sam's file in it too).
+      var l = FilesList.read(log([('owner', FileOp.moveFolder('Trip', 'Holiday'))]), const OwnerRules('owner'));
+      expect(l.folders, {'Holiday', 'Holiday/Day 1', 'Holiday/Day 1/Morning', 'Other'});
+      expect(l.files[a.id]!.folder, 'Holiday/Day 1');
+      expect(l.files[b.id]!.folder, 'Holiday');
+      // Moved into another folder.
+      l = FilesList.read(log([('owner', FileOp.moveFolder('Trip/Day 1', 'Other/Day 1'))]), const OwnerRules('owner'));
+      expect(l.files[a.id]!.folder, 'Other/Day 1');
+      expect(l.folders, containsAll(['Other/Day 1/Morning', 'Trip']));
+      expect(l.folders, isNot(contains('Trip/Day 1')));
+      // Emptied into the folder it is in (no `to`): what it held goes up a level.
+      l = FilesList.read(log([('owner', FileOp.moveFolder('Trip/Day 1', null))]), const OwnerRules('owner'));
+      expect(l.files[a.id]!.folder, 'Trip');
+      expect(l.folders, {'Trip', 'Trip/Morning', 'Other'});
+      l = FilesList.read(log([('owner', FileOp.moveFolder('Trip', null))]), const OwnerRules('owner'));
+      expect(l.files[b.id]!.folder, isNull);
+      expect(l.files[a.id]!.folder, 'Day 1');
+      // Not let through: Maya moving a folder with Sam's file in it, a folder into itself, one past eight deep, one that
+      // isn't there, and a `to` that cleans to nothing. All or nothing: nothing moved.
+      for (final (by, op) in [
+        ('maya', FileOp.moveFolder('Trip', 'Holiday')),
+        ('owner', FileOp.moveFolder('Trip', 'Trip/Day 1/Trip')),
+        ('owner', FileOp.moveFolder('Trip/Day 1', List.filled(8, 'x').join('/'))),
+        ('owner', FileOp.moveFolder('Nowhere', 'Somewhere')),
+        ('owner', {'t': 'mvdir', 'd': 'Trip', 'to': '..'}),
+      ]) {
+        l = FilesList.read(log([(by, op)]), const OwnerRules('owner'));
+        expect(l.files[a.id]!.folder, 'Trip/Day 1', reason: '$op');
+        expect(l.folders, {'Trip', 'Trip/Day 1', 'Trip/Day 1/Morning', 'Other'}, reason: '$op');
+      }
+      // A folder with a file anywhere in it stays; an empty one goes with the empty folders in it.
+      l = FilesList.read(log([('owner', FileOp.unfolder('Trip'))]), const OwnerRules('owner'));
+      expect(l.folders, contains('Trip/Day 1/Morning'));
+      l = FilesList.read(log([('owner', FileOp.delete(a.id)), ('owner', FileOp.delete(b.id)), ('owner', FileOp.unfolder('Trip'))]), const OwnerRules('owner'));
+      expect(l.folders, {'Other'});
+      // A build that doesn't know `mvdir` skips it, as every older build skips a kind it doesn't know.
+      expect(FileOp.moveFolder('a', null), {'t': 'mvdir', 'd': 'a', 'to': null});
+    });
+
     test('sorts by newest, name, size and type', () {
       final f = [
         SpaceFile(id: '1' * 32, name: 'b.png', size: 10, mime: '', sha: '', key: Uint8List(32), prefix: Uint8List(8), by: 'x', byName: '', at: 3),
@@ -299,6 +387,38 @@ void main() {
       // The owner's delete let the blob go on the relay too.
       expect(Directory('${dir.path}/relay/${FileSeal.filesRoom(space.seed)}/blobs').listSync().length, 1);
       expect(b.of(space).info!.used, inInclusiveRange(FileSeal.sealedSize(10), FileSeal.sealedSize(10) + 8192), reason: 'the file left and the list');
+    });
+
+    // Matt, 2026-11-18: "allow root level folders in the file sharing tab and nested folders".
+    test('nested folders are made empty, renamed, moved and deleted, and the other device sees each', () async {
+      final a = device(maya, 'Maya'), b = device(sam, 'Sam');
+      await b.open(space);
+      await a.open(space);
+      expect(await a.newFolder(space, 'Trip'), isTrue);
+      expect(await a.newFolder(space, 'Day 1', parent: 'Trip'), isTrue);
+      expect(await a.newFolder(space, 'Day 1', parent: 'Trip'), isFalse, reason: 'there already');
+      expect(await a.newFolder(space, 'x', parent: List.filled(8, 'd').join('/')), isFalse, reason: 'nine deep');
+      await until(() => b.of(space).folders.contains('Trip/Day 1'), reason: 'an empty nested folder reaches Sam');
+      a.upload(space, [fileOf('pier.jpg', bytesOf(10, 3)).path], folder: 'Trip/Day 1');
+      await until(() => b.of(space).files.length == 1);
+      expect(b.of(space).files.values.single.folder, 'Trip/Day 1');
+      b.upload(space, [fileOf('sams.txt', bytesOf(10, 4)).path], folder: 'Trip');
+      await until(() => a.of(space).files.length == 2);
+      // Sam can't move a folder with Maya's file in it; Maya (the owner) can rename hers, Sam's file and all.
+      expect(b.whyNotMoveFolder(space, 'Trip', 'Holiday'), isNotNull);
+      expect(await b.moveFolder(space, 'Trip', 'Holiday'), isFalse);
+      expect(a.whyNotMoveFolder(space, 'Trip', 'Trip/Day 1/Trip'), 'A folder can\'t go inside itself.');
+      expect(await a.renameFolder(space, 'Trip', 'Holiday'), isTrue);
+      await until(() => b.of(space).folders.containsAll(['Holiday', 'Holiday/Day 1']) && !b.of(space).folders.contains('Trip'));
+      expect({for (final f in b.of(space).files.values) f.name: f.folder}, {'pier.jpg': 'Holiday/Day 1', 'sams.txt': 'Holiday'});
+      // Moved to the top, then let go keeping what it held (it goes up a level), then deleted with its file.
+      expect(await a.moveFolder(space, 'Holiday/Day 1', 'Day 1'), isTrue);
+      expect(await a.newFolder(space, 'Inner', parent: 'Day 1'), isTrue);
+      expect(await a.removeFolder(space, 'Holiday'), isTrue);
+      await until(() => b.of(space).files.values.any((f) => f.name == 'sams.txt' && f.folder == null) && !b.of(space).folders.contains('Holiday'));
+      expect(await a.removeFolder(space, 'Day 1', deleteFiles: true), isTrue);
+      await until(() => b.of(space).files.length == 1 && b.of(space).folders.isEmpty, reason: 'Day 1, Inner and pier.jpg gone');
+      expect(b.of(space).files.values.single.name, 'sams.txt');
     });
 
     test('a file too big for the relay fails with its words, and nothing is kept for it', () async {
