@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:pointycastle/export.dart';
 
 import 'crypto.dart';
+import 'fast_gcm.dart';
 
 /// A Files space's files sealed end to end (Matt, 2026-11-17: "add full functionality for filesharing in a space when
 /// the space is designated a Files Space"). The relay keeps them (relay/lib/files.dart) and never has a key to them.
@@ -56,16 +56,15 @@ class FileSeal {
 
   /// Chunk [index] of a file, sealed: its bytes then GCM's tag.
   static Uint8List sealChunk(List<int> key, List<int> prefix, String fileId, int index, bool last, List<int> plain) {
-    final c = GCMBlockCipher(AESEngine())..init(true, AEADParameters(KeyParameter(Uint8List.fromList(key)), 128, _nonce(prefix, index), _aad(fileId, index, last)));
-    return c.process(plain is Uint8List ? plain : Uint8List.fromList(plain));
+    // FastGcm: the same bytes as pointycastle's GCM at about ten times the speed (lib/net/fast_gcm.dart).
+    return FastGcm(key).seal(_nonce(prefix, index), _aad(fileId, index, last), plain is Uint8List ? plain : Uint8List.fromList(plain));
   }
 
   /// Chunk [index] opened, or null where it was changed, moved, cut short or sealed under another key.
   static Uint8List? openChunk(List<int> key, List<int> prefix, String fileId, int index, bool last, List<int> sealed) {
     if (sealed.length < tag) return null;
     try {
-      final c = GCMBlockCipher(AESEngine())..init(false, AEADParameters(KeyParameter(Uint8List.fromList(key)), 128, _nonce(prefix, index), _aad(fileId, index, last)));
-      return c.process(sealed is Uint8List ? sealed : Uint8List.fromList(sealed));
+      return FastGcm(key).open(_nonce(prefix, index), _aad(fileId, index, last), sealed is Uint8List ? sealed : Uint8List.fromList(sealed));
     } catch (_) {
       return null;
     }

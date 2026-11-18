@@ -7,9 +7,9 @@ library;
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:pointycastle/export.dart';
 
 import '../desktop/link/crypto.dart' show DeskCrypto;
+import '../net/fast_gcm.dart';
 
 class ApiSeal {
   ApiSeal(List<int> secret)
@@ -41,16 +41,14 @@ class ApiSeal {
   /// [clear] sealed: a 12-byte nonce, then the cipher text with GCM's 16-byte tag at its end.
   Uint8List seal(List<int> clear) {
     final nonce = DeskCrypto.randomBytes(12);
-    final c = GCMBlockCipher(AESEngine())..init(true, AEADParameters(KeyParameter(key), 128, nonce, _aad));
-    return DeskCrypto.concat([nonce, c.process(Uint8List.fromList(clear))]);
+    return DeskCrypto.concat([nonce, FastGcm(key).seal(nonce, _aad, Uint8List.fromList(clear))]);
   }
 
   /// [sealed] opened; null where it is not one sealed with this key.
   Uint8List? open(List<int> sealed) {
     if (sealed.length < 12 + 16) return null;
     try {
-      final c = GCMBlockCipher(AESEngine())..init(false, AEADParameters(KeyParameter(key), 128, Uint8List.fromList(sealed.sublist(0, 12)), _aad));
-      return c.process(Uint8List.fromList(sealed.sublist(12)));
+      return FastGcm(key).open(Uint8List.fromList(sealed.sublist(0, 12)), _aad, Uint8List.fromList(sealed.sublist(12)));
     } catch (_) {
       return null;
     }

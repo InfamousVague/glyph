@@ -303,6 +303,7 @@ class _SectionBody extends StatelessWidget {
                   key: ValueKey('circle-person-${p.id}'),
                   icon: AppIcon(p.owner ? Lucide.crown : (p.admin ? Lucide.shieldCheck : Lucide.userRound), size: 18),
                   label: p.me ? '${p.name} (you)' : p.name,
+                  labelColor: circleRoleInk(t, p),
                   hint: c.manifest.rolesOf(p.id).isEmpty ? null : Text(c.manifest.rolesOf(p.id).map((r) => r.name).join(', ')),
                   value: CircleRoleTag(person: p),
                   onPress: !p.owner && (owner || circles.can(c, CirclePerm.roles)) ? () => _personMenu(context, c, p) : null,

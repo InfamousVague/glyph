@@ -790,20 +790,47 @@ class FilesStore extends ChangeNotifier {
         return;
       }
       t.status = null;
-      final raf = await file.open();
-      try {
-        const step = FileSeal.chunk + FileSeal.tag;
-        while (have < sealed) {
-          if (t._cancel) break;
-          final first = have ~/ step;
-          final count = math.min(piece, FileSeal.chunks(t.size) - first);
-          final from = first * FileSeal.chunk;
-          final length = math.min(t.size - from, count * FileSeal.chunk);
+      const step = FileSeal.chunk + FileSeal.tag;
+      final total = FileSeal.chunks(t.size);
+      // Each piece is read and sealed on its own (its own handle on the file, so one sealed ahead while another goes up
+      // never shares a position), across several cores (_sealParallel).
+      Future<Uint8List> sealPiece(int first) async {
+        final count = math.min(piece, total - first);
+        final from = first * FileSeal.chunk;
+        final length = math.min(t.size - from, count * FileSeal.chunk);
+        final raf = await file.open();
+        try {
           await raf.setPosition(from);
           final plain = await raf.read(length);
           if (plain.length != length) throw const FileSystemException('The file changed while it was going up.');
           final run = SealRun(key: t.fileKey!, prefix: t.prefix!, fileId: t.blob!, size: t.size, first: first, plain: plain);
-          final sealedRun = run.plain.length > 64 * 1024 ? await _sealAside(run) : FileSeal.sealRun(run);
+          return run.plain.length > 64 * 1024 ? await _sealParallel(run) : FileSeal.sealRun(run);
+        } finally {
+          await raf.close();
+        }
+      }
+
+      // The next piece is sealed while this one goes up (Matt, 2026-11-18, of uploading to a circle being slow), so
+      // sealing and sending overlap rather than take turns.
+      Future<Uint8List>? ahead;
+      var aheadFirst = -1;
+      try {
+        while (have < sealed) {
+          if (t._cancel) break;
+          final first = have ~/ step;
+          final Uint8List sealedRun;
+          if (ahead != null && aheadFirst == first) {
+            sealedRun = await ahead;
+          } else {
+            ahead?.ignore();
+            sealedRun = await sealPiece(first);
+          }
+          ahead = null;
+          final next = first + math.min<int>(piece, total - first);
+          if (next < total) {
+            aheadFirst = next;
+            ahead = sealPiece(next);
+          }
           // Where the relay has part of a chunk (a restart in the middle of a write), the rest of it: sealing the same
           // chunk again under the same nonce gives the same bytes, so what was there joins up with what follows.
           final skip = have - first * step;
@@ -823,7 +850,7 @@ class FilesStore extends ChangeNotifier {
           _moved();
         }
       } finally {
-        await raf.close();
+        ahead?.ignore();
       }
       if (t._cancel) return;
       await api.done(t.blob!);
@@ -1120,6 +1147,27 @@ Future<void> markFromInternet(String path) async {
 
 Future<String> _shaAside(String path) => Isolate.run(() => shaOfFile(path));
 Future<Uint8List> _sealAside(SealRun run) => Isolate.run(() => FileSeal.sealRun(run));
+
+/// [run] sealed on as many isolates as there are cores to spare (up to four), each a share of its chunks: AES on one
+/// core runs at about 25 MB/s, under most connections (Matt, 2026-11-18, of uploading to a circle being slow).
+Future<Uint8List> _sealParallel(SealRun run) async {
+  final n = FileSeal.chunks(run.size, chunkSize: run.chunkSize);
+  final count = (run.plain.length + run.chunkSize - 1) ~/ run.chunkSize;
+  final ways = math.min(math.min(4, math.max(1, Platform.numberOfProcessors - 1)), count);
+  if (ways <= 1 || run.first + count > n) return _sealAside(run);
+  final per = (count + ways - 1) ~/ ways;
+  final parts = <Future<Uint8List>>[];
+  for (var k = 0; k < count; k += per) {
+    final from = k * run.chunkSize;
+    final to = math.min(run.plain.length, (k + per) * run.chunkSize);
+    parts.add(_sealAside(SealRun(key: run.key, prefix: run.prefix, fileId: run.fileId, size: run.size, first: run.first + k, plain: Uint8List.sublistView(run.plain, from, to), chunkSize: run.chunkSize)));
+  }
+  final out = BytesBuilder(copy: false);
+  for (final p in await Future.wait(parts)) {
+    out.add(p);
+  }
+  return out.takeBytes();
+}
 Future<Uint8List?> _openAside(OpenRun run) => Isolate.run(() => FileSeal.openRun(run));
 Future<List<LoggedOp>> _checkAside(List<LoggedOp> log, String space) => Isolate.run(() => checkAll(log, space));
 

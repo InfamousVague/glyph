@@ -11,7 +11,7 @@ import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
 import '../../kit/settings_type.dart';
 import '../../voice/roles.dart';
-import '../hangout_screen.dart' show RoleTag;
+import '../hangout_screen.dart' show OwnerCrown, roleInk;
 import '../ripple_avatar.dart';
 import 'space_design.dart';
 
@@ -486,11 +486,12 @@ class _PersonRow extends StatelessWidget {
                 child: ExcludeSemantics(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Flexible(child: Text(p.shown, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink')))),
+                    // Their role's colour, and the owner's crown, instead of a tag (Matt, 2026-11-17).
+                    Flexible(child: Text(p.shown, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: (role != null ? roleInk(t, p.role ?? _ownerRole) : null) ?? t.color('app-ink')))),
                     // A guest as the app's call list shows one: the word, quiet, after the name.
                     if (p.guest) ...[SizedBox(width: t.space(2)), Text('guest', maxLines: 1, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))],
                     if (p.tag != null) ...[SizedBox(width: t.space(2)), Text(p.tag!, maxLines: 1, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))],
-                    if (role != null) ...[SizedBox(width: t.space(2)), RoleTag(role: p.role ?? _ownerRole, owner: p.owner)],
+                    if (p.owner) ...[SizedBox(width: t.space(1)), const OwnerCrown()],
                   ]),
                   const SizedBox(height: 2),
                   Text(s.words, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: s.words == 'listening' ? 'regular' : 'semibold', color: s.color)),
