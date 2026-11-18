@@ -13,6 +13,7 @@ import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
 import '../../files/files_store.dart';
+import '../../files/local_thumbs.dart';
 import '../../kit/settings_kit.dart';
 import '../../kit/settings_type.dart';
 import '../dialup/bevel.dart';
@@ -104,15 +105,46 @@ class FileFace extends StatelessWidget {
   final double size;
 
   @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        // Its own small picture, or one made here from its copy (lib/files/local_thumbs.dart).
+        listenable: LocalThumbs.instance,
+        builder: (context, _) {
+          final thumb = LocalThumbs.instance.of(file);
+          if (thumb == null) return FileBadge(kind: file.kind, size: size);
+          final t = context.tokens;
+          final bevel = isBevelChrome(t);
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(bevel ? 0 : size * 0.28),
+            child: _VideoMark(
+              on: file.kind == FileKind.video,
+              size: size * 0.42,
+              child: _Thumb(bytes: thumb, width: size, height: size, fallback: FileBadge(kind: file.kind, size: size)),
+            ),
+          );
+        },
+      );
+}
+
+/// A play mark over a video's picture, so it reads as a video and not a photo.
+class _VideoMark extends StatelessWidget {
+  const _VideoMark({required this.on, required this.size, required this.child});
+  final bool on;
+  final double size;
+  final Widget child;
+
+  @override
   Widget build(BuildContext context) {
-    final thumb = file.thumb;
-    if (thumb == null) return FileBadge(kind: file.kind, size: size);
-    final t = context.tokens;
-    final bevel = isBevelChrome(t);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(bevel ? 0 : size * 0.28),
-      child: _Thumb(bytes: thumb, width: size, height: size, fallback: FileBadge(kind: file.kind, size: size)),
-    );
+    if (!on) return child;
+    return Stack(alignment: Alignment.center, children: [
+      child,
+      Container(
+        key: const ValueKey('file-video-mark'),
+        width: size,
+        height: size,
+        decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0x8C000000)),
+        child: Center(child: AppIcon(Lucide.play, size: size * 0.5, color: const Color(0xFFFFFFFF))),
+      ),
+    ]);
   }
 }
 
@@ -138,11 +170,18 @@ class FileTilePicture extends StatelessWidget {
   final SpaceFile file;
 
   @override
-  Widget build(BuildContext context) {
-    final thumb = file.thumb;
+  Widget build(BuildContext context) => ListenableBuilder(listenable: LocalThumbs.instance, builder: (context, _) => _build(context, LocalThumbs.instance.of(file)));
+
+  Widget _build(BuildContext context, Uint8List? thumb) {
     return LayoutBuilder(builder: (context, box) {
       final side = box.maxWidth;
-      if (thumb != null) return _Thumb(bytes: thumb, width: side, height: box.maxHeight, fallback: const SizedBox.shrink());
+      if (thumb != null) {
+        return _VideoMark(
+          on: file.kind == FileKind.video,
+          size: (side * 0.28).clamp(28.0, 56.0),
+          child: _Thumb(bytes: thumb, width: side, height: box.maxHeight, fallback: const SizedBox.shrink()),
+        );
+      }
       return GlacierScope(
         attrs: {'hue': fileHue(file.kind)},
         child: Builder(builder: (context) {

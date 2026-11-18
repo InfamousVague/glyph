@@ -1,3 +1,4 @@
+import 'video_frame.dart';
 import '../circles/circles.dart' show Circles, CirclePerm;
 import 'dart:async';
 import 'dart:convert';
@@ -759,11 +760,18 @@ class FilesStore extends ChangeNotifier {
         t.sha = await _shaAside(path);
         t.fileKey ??= NetCrypto.randomBytes(32);
         t.prefix ??= NetCrypto.randomBytes(8);
-        if (thumbnails && FileKind.of(t.name, t.mime) == FileKind.image && t.size <= 40 << 20) {
-          final made = await _thumbnail(path);
+        // Its small picture, for everyone's list and grid: a picture's own (a GIF's first frame), or a video's frame from
+        // its first minute (lib/files/video_frame.dart; Matt, 2026-11-18: "videos having a frame from the first minute").
+        final kind = FileKind.of(t.name, t.mime);
+        if (thumbnails && kind == FileKind.image && t.size <= 40 << 20) {
+          final made = await thumbnailOfFile(path, kind);
           t.thumb = made?.png;
           t.width = made?.width ?? 0;
           t.height = made?.height ?? 0;
+        } else if (thumbnails && kind == FileKind.video) {
+          // A video's frame takes a player to open it: made while the file goes up, and waited for only at the end
+          // (videoFrame gives up after frameLimit), so the upload never stands waiting on it.
+          _videoThumbs[t] = thumbnailOfFile(path, kind);
         }
         await _saveQueue();
       }
@@ -856,6 +864,8 @@ class FilesStore extends ChangeNotifier {
       }
       if (t._cancel) return;
       await api.done(t.blob!);
+      final videoThumb = _videoThumbs.remove(t);
+      if (videoThumb != null) t.thumb = (await videoThumb)?.png ?? t.thumb;
       final me = _signer()!.id;
       final f = SpaceFile(
         id: t.blob!,
@@ -1155,10 +1165,23 @@ class FilesStore extends ChangeNotifier {
     } catch (_) {}
   }
 
-  /// A small PNG of the picture at [path], no more than 160 across and 18 KB: what the grid shows before it comes down.
-  static Future<({Uint8List png, int width, int height})?> _thumbnail(String path) async {
+  /// Videos' small pictures being made while they go up, by their upload.
+  final Map<Object, Future<({Uint8List png, int width, int height})?>> _videoThumbs = {};
+
+  /// A small PNG of the picture or video at [path] ([kind] says which), no more than 160 across and 18 KB: what the list
+  /// and grid show of it. A video's is a frame from its first minute.
+  static Future<({Uint8List png, int width, int height})?> thumbnailOfFile(String path, FileKind kind) async {
     try {
-      final bytes = await File(path).readAsBytes();
+      final bytes = kind == FileKind.video ? await videoFrame(path) : await File(path).readAsBytes();
+      return bytes == null ? null : await thumbnailOf(bytes);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// A small PNG of the encoded picture [bytes], no more than 160 across and 18 KB.
+  static Future<({Uint8List png, int width, int height})?> thumbnailOf(Uint8List bytes) async {
+    try {
       final full = await ui.ImmutableBuffer.fromUint8List(bytes);
       final desc = await ui.ImageDescriptor.encoded(full);
       final w = desc.width, h = desc.height;
