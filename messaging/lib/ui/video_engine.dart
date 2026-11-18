@@ -7,11 +7,13 @@ import 'package:media_kit/media_kit.dart' as mk;
 import 'package:media_kit_video/media_kit_video.dart' as mkv;
 import 'package:video_player/video_player.dart';
 
+import 'video_tracks.dart';
+
 /// What the player shows of a video, from whichever engine plays it (lib/ui/video_screen.dart draws its controls from
 /// this alone, so they are the same over either).
 @immutable
 class VideoNow {
-  const VideoNow({this.ready = false, this.playing = false, this.position = Duration.zero, this.duration = Duration.zero, this.aspect = 0, this.error, this.buffered = Duration.zero, this.buffering = false});
+  const VideoNow({this.ready = false, this.playing = false, this.position = Duration.zero, this.duration = Duration.zero, this.aspect = 0, this.error, this.buffered = Duration.zero, this.buffering = false, this.tracks = const VideoTracks()});
   final bool ready;
   final bool playing;
   final Duration position;
@@ -29,9 +31,12 @@ class VideoNow {
   final Duration buffered;
   final bool buffering;
 
+  /// The sounds and subtitles it carries, and which are on (lib/ui/video_tracks.dart).
+  final VideoTracks tracks;
+
   bool get ended => ready && !playing && duration > Duration.zero && position >= duration;
 
-  VideoNow copyWith({bool? ready, bool? playing, Duration? position, Duration? duration, double? aspect, String? error, Duration? buffered, bool? buffering}) => VideoNow(
+  VideoNow copyWith({bool? ready, bool? playing, Duration? position, Duration? duration, double? aspect, String? error, Duration? buffered, bool? buffering, VideoTracks? tracks}) => VideoNow(
         ready: ready ?? this.ready,
         playing: playing ?? this.playing,
         position: position ?? this.position,
@@ -40,14 +45,15 @@ class VideoNow {
         error: error ?? this.error,
         buffered: buffered ?? this.buffered,
         buffering: buffering ?? this.buffering,
+        tracks: tracks ?? this.tracks,
       );
 
   @override
   bool operator ==(Object other) =>
-      other is VideoNow && other.ready == ready && other.playing == playing && other.position == position && other.duration == duration && other.aspect == aspect && other.error == error && other.buffered == buffered && other.buffering == buffering;
+      other is VideoNow && other.ready == ready && other.playing == playing && other.position == position && other.duration == duration && other.aspect == aspect && other.error == error && other.buffered == buffered && other.buffering == buffering && other.tracks == tracks;
 
   @override
-  int get hashCode => Object.hash(ready, playing, position, duration, aspect, error, buffered, buffering);
+  int get hashCode => Object.hash(ready, playing, position, duration, aspect, error, buffered, buffering, tracks);
 }
 
 /// What plays a video under the app's own controls (Matt, 2026-11-18: "add support for playing mkv video files and
@@ -83,6 +89,12 @@ abstract class VideoEngine extends ValueNotifier<VideoNow> {
   /// From 0 (silent) to 1.
   Future<void> setVolume(double volume);
 
+  /// Plays the sound [id] of [VideoNow.tracks]; nothing where the engine can't choose.
+  Future<void> chooseAudio(String id) async {}
+
+  /// Shows the subtitles [id] of [VideoNow.tracks], or none (null).
+  Future<void> chooseSubtitle(String? id) async {}
+
   /// The picture, filling the box it is given and fitting the video inside it on black.
   Widget view();
 
@@ -104,19 +116,75 @@ abstract class VideoEngine extends ValueNotifier<VideoNow> {
 }
 
 /// video_player under the controls: ExoPlayer on Android, AVFoundation on an iPhone.
+///
+/// Its sound can be chosen (video_player 2.14: ExoPlayer and AVFoundation both list a file's audio tracks), but it
+/// can't show subtitles carried inside the file; a .srt or .vtt beside it is read and drawn over the picture instead.
 class VideoPlayerEngine extends VideoEngine {
   VideoPlayerController? _video;
+  String? _path;
 
   @override
   Future<void> open(String path) async {
     final video = VideoEngine.isAddress(path) ? VideoPlayerController.networkUrl(Uri.parse(path)) : VideoPlayerController.file(File(path));
     _video = video;
+    _path = path;
     video.addListener(_changed);
     try {
       await video.initialize();
       _changed();
     } catch (e) {
       _set(value.copyWith(error: _words(e)));
+      return;
+    }
+    // Not waited for: a slow folder never holds up the picture.
+    unawaited(_readTracks());
+  }
+
+  /// The file's sounds, where the platform lists them, and the subtitle files beside it.
+  Future<void> _readTracks() async {
+    final video = _video;
+    if (video == null) return;
+    var audio = const <MediaTrack>[];
+    String? on;
+    try {
+      if (video.isAudioTrackSupportAvailable()) {
+        final found = await video.getAudioTracks();
+        audio = [for (final t in found) MediaTrack(id: t.id, kind: TrackKind.audio, language: t.language, title: t.label)];
+        on = found.where((t) => t.isSelected).firstOrNull?.id;
+      }
+    } catch (_) {}
+    final path = _path;
+    final subtitles = path == null || VideoEngine.isAddress(path) ? const <MediaTrack>[] : await subtitleFilesBeside(path, extensions: const ['srt', 'vtt']);
+    if (_video != video) return;
+    _set(value.copyWith(tracks: VideoTracks(audio: audio, audioOn: on, subtitles: subtitles, innerSubtitles: false)));
+  }
+
+  @override
+  Future<void> chooseAudio(String id) async {
+    final video = _video;
+    if (video == null) return;
+    try {
+      await video.selectAudioTrack(id);
+      _set(value.copyWith(tracks: value.tracks.copyWith(audioOn: id)));
+    } catch (e) {
+      debugPrint('video: audio track $id: $e');
+    }
+  }
+
+  @override
+  Future<void> chooseSubtitle(String? id) async {
+    final video = _video;
+    if (video == null) return;
+    try {
+      if (id == null) {
+        await video.setClosedCaptionFile(null);
+      } else {
+        final text = await File(id).readAsString();
+        await video.setClosedCaptionFile(Future.value(id.toLowerCase().endsWith('.vtt') ? WebVTTCaptionFile(text) : SubRipCaptionFile(text)));
+      }
+      _set(value.copyWith(tracks: value.tracks.copyWith(subtitleOn: () => id)));
+    } catch (e) {
+      debugPrint('video: subtitles $id: $e');
     }
   }
 
@@ -159,7 +227,20 @@ class VideoPlayerEngine extends VideoEngine {
   Widget view() {
     final video = _video;
     if (video == null) return const SizedBox.expand();
-    return Center(child: AspectRatio(aspectRatio: value.aspect == 0 ? 16 / 9 : value.aspect, child: VideoPlayer(video)));
+    return Center(
+      child: AspectRatio(
+        aspectRatio: value.aspect == 0 ? 16 / 9 : value.aspect,
+        child: Stack(fit: StackFit.expand, children: [
+          VideoPlayer(video),
+          // The subtitle file's line for this moment, drawn here (video_player's own ClosedCaption is Material's).
+          if (value.tracks.subtitleOn != null)
+            ValueListenableBuilder<VideoPlayerValue>(
+              valueListenable: video,
+              builder: (context, v, _) => SubtitleLine(v.caption.text),
+            ),
+        ]),
+      ),
+    );
   }
 
   @override
@@ -202,6 +283,8 @@ class MediaKitEngine extends VideoEngine {
         }))
         ..add(s.buffer.listen((b) => _set(value.copyWith(buffered: b))))
         ..add(s.buffering.listen((b) => _set(value.copyWith(buffering: b))))
+        ..add(s.tracks.listen(_tracks))
+        ..add(s.track.listen(_track))
         ..add(s.width.listen((_) => _aspect()))
         ..add(s.height.listen((_) => _aspect()))
         ..add(s.completed.listen((done) {
@@ -224,6 +307,42 @@ class MediaKitEngine extends VideoEngine {
     } catch (e) {
       _set(value.copyWith(error: '$e'));
     }
+  }
+
+  /// libmpv's lists, less its own 'auto' and 'no' entries. A subtitle file beside the video (name.srt, name.en.ass) is
+  /// among them: libmpv loads those itself (its sub-auto).
+  mk.Tracks _all = const mk.Tracks();
+  void _tracks(mk.Tracks all) {
+    _all = all;
+    bool real(String id) => id != 'auto' && id != 'no';
+    _set(value.copyWith(
+      tracks: value.tracks.copyWith(
+        audio: [for (final t in all.audio) if (real(t.id)) MediaTrack(id: t.id, kind: TrackKind.audio, language: t.language, title: t.title)],
+        subtitles: [for (final t in all.subtitle) if (real(t.id)) MediaTrack(id: t.id, kind: TrackKind.subtitle, language: t.language, title: t.title, external: t.uri)],
+      ),
+    ));
+  }
+
+  void _track(mk.Track on) {
+    final sub = on.subtitle.id;
+    _set(value.copyWith(tracks: value.tracks.copyWith(audioOn: on.audio.id, subtitleOn: () => sub == 'no' || sub == 'auto' ? null : sub)));
+  }
+
+  @override
+  Future<void> chooseAudio(String id) async {
+    final player = _player;
+    final track = _all.audio.where((t) => t.id == id).firstOrNull;
+    if (player == null || track == null) return;
+    await player.setAudioTrack(track);
+  }
+
+  @override
+  Future<void> chooseSubtitle(String? id) async {
+    final player = _player;
+    if (player == null) return;
+    final track = id == null ? mk.SubtitleTrack.no() : _all.subtitle.where((t) => t.id == id).firstOrNull;
+    if (track == null) return;
+    await player.setSubtitleTrack(track);
   }
 
   void _aspect() {
@@ -268,5 +387,62 @@ class MediaKitEngine extends VideoEngine {
     _player = null;
     _controller = null;
     await player?.dispose();
+  }
+}
+
+/// Subtitle files beside [video]: its own name with a subtitle ending, and a language or a word between
+/// ("film.srt", "film.en.srt", "film.forced.vtt"), each a track whose id is its path.
+Future<List<MediaTrack>> subtitleFilesBeside(String video, {List<String> extensions = const ['srt', 'vtt', 'ass', 'ssa']}) async {
+  final file = File(video);
+  final name = file.uri.pathSegments.last;
+  final dot = name.lastIndexOf('.');
+  final stem = (dot > 0 ? name.substring(0, dot) : name).toLowerCase();
+  final found = <MediaTrack>[];
+  try {
+    await for (final e in file.parent.list(followLinks: false)) {
+      if (e is! File) continue;
+      final other = e.uri.pathSegments.last;
+      final lower = other.toLowerCase();
+      final end = lower.lastIndexOf('.');
+      if (end <= 0 || !extensions.contains(lower.substring(end + 1))) continue;
+      final base = lower.substring(0, end);
+      if (base != stem && !base.startsWith('$stem.')) continue;
+      final middle = base == stem ? '' : base.substring(stem.length + 1);
+      // "film.en.forced" → 'en'; a word that isn't a language is kept only as the title.
+      final first = middle.split('.').first;
+      final language = knownLanguage(first) ? first : null;
+      found.add(MediaTrack(id: e.path, kind: TrackKind.subtitle, language: language, title: other, external: true));
+      if (found.length >= 20) break;
+    }
+  } catch (_) {}
+  found.sort((a, b) => a.id.compareTo(b.id));
+  return found;
+}
+
+/// A line of subtitles at the foot of the picture: white on a soft dark shade, as players draw them.
+class SubtitleLine extends StatelessWidget {
+  const SubtitleLine(this.text, {super.key});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    if (text.trim().isEmpty) return const SizedBox.shrink();
+    return Align(
+      alignment: const Alignment(0, 0.92),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: DecoratedBox(
+          decoration: BoxDecoration(color: const Color(0x99000000), borderRadius: BorderRadius.circular(4)),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 18, height: 1.3, shadows: [Shadow(blurRadius: 3, color: Color(0xCC000000))]),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

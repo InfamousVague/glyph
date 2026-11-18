@@ -1,8 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/files/file_kinds.dart';
+import 'package:ghost_messaging/files/files_api.dart' show FilesError;
+import 'package:ghost_messaging/files/files_model.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/voice/hangout.dart';
@@ -66,6 +70,27 @@ class _Route implements VoiceRoute {
   Stream<({String room, String from, Uint8List bytes})> get packets => _packets.stream;
   @override
   Stream<({String room, List<String> members})> get looks => _looks.stream;
+}
+
+/// A chat's files sent up nowhere: each named in [failing] fails, the rest come back as a file at once.
+class _Uploads implements ChatUploads {
+  final Set<String> failing = {};
+  final Map<String, int> asked = {};
+  final List<String> dropped = [];
+  int? thumbMost;
+
+  @override
+  Future<SpaceFile> uploadForChat(VoiceChannel c, OutgoingFile f, {required String byName, required int thumbMost, required void Function() moved}) async {
+    asked[f.name] = (asked[f.name] ?? 0) + 1;
+    this.thumbMost = thumbMost;
+    f.progress = 0.5;
+    moved();
+    if (failing.contains(f.name)) throw FilesError(0, 'Can\'t reach the files server.');
+    return SpaceFile(id: NetCrypto.hex(NetCrypto.randomBytes(16)), name: f.name, size: f.size, mime: f.mime, sha: '', key: NetCrypto.randomBytes(32), prefix: NetCrypto.randomBytes(8), by: c.owner, byName: byName, at: 0);
+  }
+
+  @override
+  void drop(OutgoingFile f) => dropped.add(f.name);
 }
 
 class _Install {
@@ -229,6 +254,143 @@ void main() {
       expect(a.can(Perm.chat), isFalse);
       expect(a.send('hello?'), isFalse);
       expect(o.messages, isEmpty);
+    });
+  });
+
+  // Matt, 2026-11-18: "I also want full support for uploading attachements gifs stickers etc like we support in other
+  // chats".
+  group('files and stickers', () {
+    SpaceFile file(String name, {int size = 2048, Uint8List? thumb, int w = 0, int h = 0}) => SpaceFile(
+          id: NetCrypto.hex(NetCrypto.randomBytes(16)),
+          name: name,
+          size: size,
+          mime: FileKind.mimeOf(name),
+          sha: NetCrypto.hex(NetCrypto.randomBytes(32)),
+          key: NetCrypto.randomBytes(32),
+          prefix: NetCrypto.randomBytes(8),
+          by: '',
+          byName: '',
+          at: 0,
+          thumb: thumb,
+          width: w,
+          height: h,
+        );
+
+    test('files and a sticker reach the others with their words; a build from before reads a line saying what came', () async {
+      final o = owner.room(channel), a = ann.room(channel);
+      await o.open();
+      await a.open();
+      await _settle();
+      final photo = file('photo.jpg', thumb: Uint8List.fromList(List.filled(300, 7)), w: 1200, h: 800), report = file('report.pdf', size: 90000);
+      expect(o.sendWith(text: 'From Friday', files: [photo, report]), isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+      expect(o.sendWith(sticker: 'love-03'), isTrue);
+      await _settle();
+      expect(a.messages, hasLength(2));
+      final got = a.messages.first;
+      expect(got.text, 'From Friday');
+      expect(got.files.map((f) => f.name), ['photo.jpg', 'report.pdf']);
+      expect(got.files.first.by, owner.id, reason: 'who added it is who the hub says sent the message');
+      expect(got.files.first.byName, 'Matt');
+      expect(got.files.first.id, photo.id);
+      expect(got.files.first.key, photo.key);
+      expect(got.files.first.sha, photo.sha);
+      expect(got.files.first.thumb, photo.thumb);
+      expect((got.files.first.width, got.files.first.height), (1200, 800));
+      expect(got.files.last.size, 90000);
+      expect(a.messages.last.sticker, 'love-03');
+      expect(a.messages.last.text, isEmpty);
+
+      // On the wire: `x` is what a build from before shows (it reads only id, x, at, n and drops a message whose x is
+      // empty), so it says what came.
+      final wire = got.toJson();
+      expect(wire['x'], '📎 photo.jpg, report.pdf\nFrom Friday');
+      expect(wire['w'], 'From Friday');
+      expect(a.messages.last.toJson()['x'], 'Sticker');
+      expect(a.messages.last.toJson().containsKey('a'), isFalse, reason: 'a sticker goes by its name; nothing went up');
+      // As 0.9.13 reads it: the fallback words, and nothing else.
+      final old = HangoutMessage.fromJson({'id': wire['id'], 'x': wire['x'], 'at': wire['at'], 'n': wire['n']}, owner.id)!;
+      expect(old.text, '📎 photo.jpg, report.pdf\nFrom Friday');
+      expect(old.files, isEmpty);
+
+      // Kept on the device and read back the same (AppHangoutStore keeps toStored()).
+      final back = HangoutMessage.fromJson(jsonDecode(jsonEncode(got.toStored())) as Map<String, dynamic>, owner.id)!;
+      expect(back.files.map((f) => (f.id, f.name, f.size, f.mime)), got.files.map((f) => (f.id, f.name, f.size, f.mime)));
+      expect(back.text, 'From Friday');
+      expect(back.summary, '📎 photo.jpg, report.pdf · From Friday');
+    });
+
+    test('a message from a build from before still reads, and one whose files can\'t be read shows its line', () {
+      expect(HangoutMessage.fromJson({'id': 'a', 'x': 'hello', 'at': 1, 'n': 'Ann'}, ann.id)!.text, 'hello');
+      expect(HangoutMessage.fromJson({'id': 'a', 'x': '', 'at': 1, 'n': 'Ann'}, ann.id), isNull);
+      final broken = HangoutMessage.fromJson({'id': 'b', 'x': '📎 a.png', 'w': '', 'a': [{'id': 'nope'}], 'at': 1}, ann.id)!;
+      expect(broken.files, isEmpty);
+      expect(broken.text, '📎 a.png');
+      expect(HangoutMessage.fromJson({'id': 'c', 'x': 'Sticker', 'st': '../../etc', 'at': 1}, ann.id)!.sticker, isNull, reason: 'a sticker name is a pack and a number, nothing else');
+      final voice = HangoutMessage(id: 'v', from: ann.id, name: 'Ann', text: '', at: 1, files: [file('voice.m4a')], voice: true);
+      expect(voice.toJson()['x'], '🎤 Voice message');
+      expect(HangoutMessage.fromJson(voice.toJson(), ann.id)!.voice, isTrue);
+    });
+
+    test('a message too big for one packet lets its small pictures go; what was missed comes in lots that each fit', () {
+      final big = [for (var i = 0; i < 10; i++) file('p$i.png', thumb: Uint8List.fromList(List.generate(SpaceFile.maxThumb, (j) => (i * 31 + j) & 0xff)))];
+      final m = HangoutRoom.fitted(HangoutMessage(id: 'x', from: owner.id, name: 'Matt', text: 'lots', at: 1, files: big));
+      expect(utf8.encode(jsonEncode({'t': 'msg', ...m.toJson()})).length, lessThanOrEqualTo(HangoutRoom.wireMost));
+      expect(m.files, hasLength(10), reason: 'every file still goes');
+      expect(m.files.where((f) => f.thumb != null), isNotEmpty, reason: 'as many pictures as fit stay');
+      final lots = HangoutRoom.histLots([for (var i = 0; i < 6; i++) HangoutMessage(id: '$i', from: owner.id, name: 'Matt', text: '', at: i, files: m.files)]);
+      expect(lots.length, greaterThan(1));
+      expect(lots.expand((l) => l).length, 6);
+      for (final l in lots) {
+        expect(utf8.encode(jsonEncode({'t': 'hist', 'to': ann.id, 'm': l})).length, lessThan(HangoutRoom.wireMost + 1024));
+      }
+    });
+
+    test('files go up first, then the message; one that fails is kept with a try again; someone who may not write sends nothing', () async {
+      final o = owner.room(channel), a = ann.room(channel);
+      await o.open();
+      await a.open();
+      await _settle();
+      final dir = await Directory.systemTemp.createTemp('space-files');
+      addTearDown(() => dir.delete(recursive: true));
+      final one = File('${dir.path}/beach.gif')..writeAsBytesSync(List.filled(4000, 1));
+      final two = File('${dir.path}/notes.txt')..writeAsBytesSync(List.filled(10, 2));
+      final up = _Uploads()..failing.add('notes.txt');
+      final sent = a.sendFiles([(path: one.path, owned: false), (path: two.path, owned: false)], up, text: 'Look');
+      expect(sent, isNotNull);
+      expect(a.outgoing, [sent]);
+      await _settle();
+      expect(sent!.failed, isTrue);
+      expect(sent.retryable, isTrue);
+      expect(o.messages, isEmpty, reason: 'nothing is said until every file is there');
+      expect(up.asked['beach.gif'], 1);
+      expect(up.thumbMost, lessThanOrEqualTo(SpaceFile.maxThumb));
+
+      up.failing.clear();
+      a.retry(sent, up);
+      await _settle();
+      expect(a.outgoing, isEmpty);
+      expect(up.asked['beach.gif'], 1, reason: 'the one that went up is not sent again');
+      expect(up.asked['notes.txt'], 2);
+      expect(o.messages.single.files.map((f) => f.name), ['beach.gif', 'notes.txt']);
+      expect(o.messages.single.text, 'Look');
+      expect(o.messages.single.id, sent.id);
+      expect(a.messages.single.id, sent.id);
+
+      // Not sent after all: its files are let go of.
+      final gone = a.sendFiles([(path: two.path, owned: false)], up..failing.add('notes.txt'));
+      await _settle();
+      a.discard(gone!, up);
+      expect(a.outgoing, isEmpty);
+      expect(up.dropped, ['notes.txt']);
+
+      // A role without Send messages: no files, no sticker (the rule: HangoutRoom.mayWrite).
+      final member = o.roster.roleById(Role.member)!;
+      expect(await o.saveRole(member.copyWith(perms: {...member.perms}..remove(Perm.chat))), isTrue);
+      await _settle();
+      expect(a.mayWrite, isFalse);
+      expect(a.sendFiles([(path: one.path, owned: false)], up), isNull);
+      expect(a.sendWith(sticker: 'love-03'), isFalse);
     });
   });
 

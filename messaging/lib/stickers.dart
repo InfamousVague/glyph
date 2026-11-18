@@ -39,3 +39,14 @@ String stickerName(String asset) {
   final parts = asset.split('/');
   return '${parts[parts.length - 2]}-${parts.last.replaceAll('.webp', '').replaceAll('.png', '')}';
 }
+
+/// The asset of the sticker named [name] ([stickerName]), where this app carries it: a space's chat sends a sticker by
+/// its name alone (lib/voice/hangout.dart), and each app draws its own copy.
+Future<String?> stickerAsset(String name) async {
+  for (final p in await stickerPacks()) {
+    for (final a in p.stickers) {
+      if (stickerName(a) == name) return a;
+    }
+  }
+  return null;
+}

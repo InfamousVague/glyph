@@ -1,8 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
+import '../files/file_kinds.dart';
+import '../files/files_model.dart';
 import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
 import 'channels.dart' show AppHangoutStore;
@@ -113,13 +117,147 @@ class HangoutRoom extends ChangeNotifier {
   // --- chat --------------------------------------------------------------------------------------------------------
 
   /// Writes [text] to the hangout; false where this device may not.
-  bool send(String text) {
-    final words = text.trim();
-    if (words.isEmpty || !can(Perm.chat) || putOut != null) return false;
-    final m = HangoutMessage(id: NetCrypto.hex(NetCrypto.randomBytes(8)), from: me, name: name, text: words.length > 4000 ? words.substring(0, 4000) : words, at: DateTime.now().millisecondsSinceEpoch);
+  bool send(String text) => sendWith(text: text);
+
+  /// Whether this device may write here at all: the roster's Send messages, and not put out. Files and stickers are
+  /// part of writing (Matt, 2026-11-18): whoever may write may send them (in a circle its roles say more:
+  /// lib/ui/space_chat_files.dart spaceMayAttach).
+  bool get mayWrite => can(Perm.chat) && putOut == null;
+
+  /// Writes [text], with [files] that are up already or a [sticker], to the hangout; false where this device may not or
+  /// there is nothing to send. [id]: the one an [OutgoingMessage] was shown under.
+  bool sendWith({String text = '', List<SpaceFile> files = const [], String? sticker, bool voice = false, String? id}) {
+    var words = text.trim();
+    if (sticker != null && !HangoutMessage.stickerPattern.hasMatch(sticker)) return false;
+    final extra = files.isNotEmpty || sticker != null;
+    if ((words.isEmpty && !extra) || !mayWrite) return false;
+    final most = extra ? HangoutMessage.mostWordsWith : 4000;
+    if (words.length > most) words = words.substring(0, most);
+    final m = fitted(HangoutMessage(
+      id: id ?? NetCrypto.hex(NetCrypto.randomBytes(8)),
+      from: me,
+      name: name,
+      text: words,
+      at: DateTime.now().millisecondsSinceEpoch,
+      files: sticker != null ? const [] : files.take(HangoutMessage.mostFiles).toList(),
+      sticker: sticker,
+      voice: voice && files.length == 1 && sticker == null,
+    ));
     _add([m]);
     _say({'t': 'msg', ...m.toJson()}, keep: true);
     return true;
+  }
+
+  /// The most of a message's sealed words that go in one of the hub's packets (60 KB), with room for the sealing.
+  static const wireMost = 52 * 1024;
+
+  /// [messages] as they go in a `hist` answer, in lots that each go in one packet.
+  static List<List<Map<String, Object>>> histLots(Iterable<HangoutMessage> messages) {
+    final lots = <List<Map<String, Object>>>[];
+    var lot = <Map<String, Object>>[];
+    var bytes = 0;
+    for (final x in messages) {
+      final j = x.toJson()..['f'] = x.from;
+      final n = utf8.encode(jsonEncode(j)).length + 1;
+      if (lot.isNotEmpty && bytes + n > wireMost - 128) {
+        lots.add(lot);
+        lot = [];
+        bytes = 0;
+      }
+      lot.add(j);
+      bytes += n;
+    }
+    if (lot.isNotEmpty) lots.add(lot);
+    return lots;
+  }
+
+  /// [m], its files' small pictures let go of, the biggest first, until it goes in one packet ([wireMost]).
+  static HangoutMessage fitted(HangoutMessage m) {
+    int size(HangoutMessage x) => utf8.encode(jsonEncode({'t': 'msg', ...x.toJson()})).length;
+    var files = m.files;
+    while (size(m.copyWith(files: files)) > wireMost) {
+      final withThumb = [for (final f in files) if (f.thumb != null) f];
+      if (withThumb.isEmpty) break;
+      final biggest = withThumb.reduce((a, b) => a.thumb!.length >= b.thumb!.length ? a : b);
+      files = [for (final f in files) f == biggest ? f.withoutThumb() : f];
+    }
+    return m.copyWith(files: files);
+  }
+
+  /// Messages with files on their way up (Matt, 2026-11-18): shown under the rest until they are sent.
+  final List<OutgoingMessage> outgoing = [];
+
+  /// Sends [picked] (files on this device) up, sealed, with [text], and the message once they are all there; null where
+  /// this device may not write here or nothing could be read. [voice]: the one file is a voice message.
+  OutgoingMessage? sendFiles(List<({String path, bool owned})> picked, ChatUploads uploads, {String text = '', bool voice = false}) {
+    if (!mayWrite) return null;
+    final files = <OutgoingFile>[];
+    for (final p in picked.take(HangoutMessage.mostFiles)) {
+      int size;
+      try {
+        size = File(p.path).lengthSync();
+      } catch (_) {
+        continue;
+      }
+      final cleaned = SpaceFile.cleanName(p.path.split(Platform.pathSeparator).last.split('/').last);
+      final name = cleaned.isEmpty ? 'File' : cleaned;
+      files.add(OutgoingFile(path: p.path, name: name, size: size, mime: FileKind.mimeOf(name), owned: p.owned));
+    }
+    if (files.isEmpty) return null;
+    var words = text.trim();
+    if (words.length > HangoutMessage.mostWordsWith) words = words.substring(0, HangoutMessage.mostWordsWith);
+    final o = OutgoingMessage(id: NetCrypto.hex(NetCrypto.randomBytes(8)), text: words, files: files, at: DateTime.now().millisecondsSinceEpoch, voice: voice && files.length == 1);
+    outgoing.add(o);
+    notifyListeners();
+    unawaited(_push(o, uploads));
+    return o;
+  }
+
+  /// [o] tried again where it failed.
+  void retry(OutgoingMessage o, ChatUploads uploads) {
+    if (!outgoing.contains(o)) return;
+    o.error = null;
+    for (final f in o.files) {
+      f.error = null;
+    }
+    notifyListeners();
+    unawaited(_push(o, uploads));
+  }
+
+  /// [o] not sent after all: its files stopped and let go of.
+  void discard(OutgoingMessage o, ChatUploads uploads) {
+    if (!outgoing.remove(o)) return;
+    for (final f in o.files) {
+      if (f.file == null) uploads.drop(f);
+    }
+    notifyListeners();
+  }
+
+  Future<void> _push(OutgoingMessage o, ChatUploads uploads) async {
+    // Each file's small picture its share of what a message may carry: a few pictures each get a clear one, ten a
+    // smaller one each, and the message still goes in one packet ([fitted] lets go of any that would not).
+    final thumbMost = math.min(SpaceFile.maxThumb, (24 * 1024) ~/ o.files.length);
+    await Future.wait([
+      for (final f in o.files)
+        if (f.file == null)
+          () async {
+            try {
+              f.file = await uploads.uploadForChat(channel, f, byName: name, thumbMost: thumbMost, moved: notifyListeners);
+              f.error = null;
+              f.waiting = null;
+            } catch (e) {
+              f.error = e.toString().isEmpty ? 'It didn\'t go up.' : e.toString();
+            }
+            if (outgoing.contains(o)) notifyListeners();
+          }(),
+    ]);
+    if (!outgoing.contains(o) || o.files.any((f) => f.file == null)) return;
+    if (sendWith(id: o.id, text: o.text, files: [for (final f in o.files) f.file!], voice: o.voice)) {
+      outgoing.remove(o);
+    } else {
+      o.error = putOut ?? 'Your role can\'t send messages here.';
+    }
+    notifyListeners();
   }
 
   /// Whether this device may delete [m]: its own, or anyone's with Manage messages.
@@ -467,7 +605,11 @@ class HangoutRoom extends ChangeNotifier {
         if (_answers(from)) {
           final since = m['since'] is int ? m['since'] as int : 0;
           final missed = [for (final x in messages) if (x.at > since) x];
-          if (missed.isNotEmpty) _say({'t': 'hist', 'to': from, 'm': [for (final x in missed.take(keep)) x.toJson()..['f'] = x.from]});
+          // In as many packets as it takes: one packet holds 60 KB, and a message with files carries their small
+          // pictures, so what was missed all in one could be too big to go at all.
+          for (final lot in histLots(missed.take(keep))) {
+            _say({'t': 'hist', 'to': from, 'm': lot});
+          }
         }
         if (roster.sig != null && (m['v'] is! int || roster.version > (m['v'] as int))) _say({'t': 'roster', 'to': from, 'r': roster.toJson()});
         // The description the same way, after the roster that trusts its writer. An older build's sync? has no `av`
@@ -513,31 +655,177 @@ class HangoutPerson {
   final bool guest;
 }
 
-/// One message in a hangout's chat.
+/// One message in a hangout's chat: words, and since 2026-11-18 files, a sticker or a voice message with them (Matt,
+/// 2026-11-18: "I also want full support for uploading attachements gifs stickers etc like we support in other chats").
+///
+/// **On the wire** `{id, x, at, n}`, and with something besides words `w` (the words), `a` (the files, each a
+/// [SpaceFile]'s description less who and when, which the message says), `st` (a sticker's name, `love-03`: the
+/// sticker is in every app already, so nothing goes up) and `vo` (the one file is a voice message). A build from before
+/// reads only `x`, so there it is a line saying what came ([fallback]: "📎 photo.jpg", "Sticker"), the words under it.
+///
+/// **The files** are sealed and kept on the relay under the space's own seed, as a Files space's are
+/// (lib/files/files_store.dart, [ChatUploads]), but never written in its list: only the message knows of them.
 @immutable
 class HangoutMessage {
-  const HangoutMessage({required this.id, required this.from, required this.name, required this.text, required this.at});
+  const HangoutMessage({required this.id, required this.from, required this.name, required this.text, required this.at, this.files = const [], this.sticker, this.voice = false});
   final String id;
 
   /// Who wrote it (their id on the hub, as the hub said), and the name they wrote it under.
   final String from;
   final String name;
+
+  /// The words: all of it for a message of words, any that went with files or a sticker otherwise (often none).
   final String text;
 
   /// When, in milliseconds since 1970, by the writer's clock.
   final int at;
 
-  Map<String, Object> toJson() => {'id': id, 'x': text, 'at': at, 'n': name};
+  /// Pictures, videos, GIFs and any other files with it, at most [mostFiles]; who added them is [from].
+  final List<SpaceFile> files;
 
-  /// From what [from] said: its id, words and time; null where it is not a message.
+  /// A sticker the app carries, by its name (stickerName in lib/stickers.dart).
+  final String? sticker;
+
+  /// Its one file is a voice message, recorded in the chat.
+  final bool voice;
+
+  /// The most files one message carries, and the most words beside them (the message, its small pictures and its words
+  /// twice over, in [fallback] and `w`, must go in one of the hub's packets).
+  static const mostFiles = 10;
+  static const mostWordsWith = 2000;
+
+  /// A sticker's name as it travels: its pack and its number.
+  static final stickerPattern = RegExp(r'^[a-z]{1,24}-[0-9a-z_]{1,24}$');
+
+  /// Something besides words.
+  bool get extras => files.isNotEmpty || sticker != null;
+
+  /// What came, in a line: what a build from before shows, and a preview where there are no words.
+  String get what {
+    if (sticker != null) return 'Sticker';
+    if (voice) return '🎤 Voice message';
+    if (files.isEmpty) return '';
+    final names = [for (final f in files) f.name];
+    if (names.length <= 3) return '📎 ${names.join(', ')}';
+    return '📎 ${names.take(2).join(', ')} and ${names.length - 2} more';
+  }
+
+  /// `x` for a build from before attachments: what came, and the words under it.
+  String get fallback => !extras ? text : (text.isEmpty ? what : '$what\n$text');
+
+  /// The message in a line, for a list's preview: its words, or what came.
+  String get summary => !extras ? text : (text.isEmpty ? what : '$what · $text');
+
+  HangoutMessage copyWith({List<SpaceFile>? files}) => HangoutMessage(id: id, from: from, name: name, text: text, at: at, files: files ?? this.files, sticker: sticker, voice: voice);
+
+  Map<String, Object> toJson() => {
+        'id': id,
+        'x': fallback,
+        'at': at,
+        'n': name,
+        if (extras) 'w': text,
+        // Who added each file and when are the message's own, so they are not said again for every one.
+        if (files.isNotEmpty) 'a': [for (final f in files) f.toJson()..remove('u')..remove('at')],
+        'st': ?sticker,
+        if (voice && files.isNotEmpty) 'vo': 1,
+      };
+
+  /// From what [from] said: its id, words and time; null where it is not a message. A message whose files and sticker
+  /// can't be read is shown as a build from before shows it, by its `x`.
   static HangoutMessage? fromJson(Map<String, dynamic> j, String from) {
     if (j['id'] is! String || j['x'] is! String || j['at'] is! int) return null;
-    final text = (j['x'] as String).trim();
-    if (text.isEmpty) return null;
-    return HangoutMessage(id: j['id'] as String, from: from, name: j['n'] is String ? j['n'] as String : '', text: text.length > 4000 ? text.substring(0, 4000) : text, at: j['at'] as int);
+    final at = j['at'] as int;
+    final name = j['n'] is String ? j['n'] as String : '';
+    final files = <SpaceFile>[
+      if (j['a'] is List)
+        for (final a in (j['a'] as List).take(mostFiles))
+          if (a is Map) ?SpaceFile.fromJson({...a, 'u': name}, by: from, at: at),
+    ];
+    final st = j['st'];
+    final sticker = st is String && stickerPattern.hasMatch(st) ? st : null;
+    final extras = files.isNotEmpty || sticker != null;
+    final text = (extras ? (j['w'] is String ? j['w'] as String : '') : j['x'] as String).trim();
+    if (text.isEmpty && !extras) return null;
+    final most = extras ? mostWordsWith : 4000;
+    return HangoutMessage(
+      id: j['id'] as String,
+      from: from,
+      name: name,
+      text: text.length > most ? text.substring(0, most) : text,
+      at: at,
+      files: sticker != null ? const [] : files,
+      sticker: sticker,
+      voice: j['vo'] == 1 && files.length == 1 && sticker == null,
+    );
   }
 
   Map<String, Object> toStored() => {...toJson(), 'f': from};
+}
+
+/// A file on its way up for a message in a space's chat ([OutgoingMessage]): where it is here, and how far it has got.
+class OutgoingFile {
+  OutgoingFile({required this.path, required this.name, required this.size, required this.mime, this.owned = false});
+
+  /// Where it is on this device; [owned]: a copy the app made (a phone's pick, a recording), let go once it is up.
+  final String path;
+  final bool owned;
+  final String name;
+  final int size;
+  final String mime;
+
+  /// From 0 to 1, as it goes up.
+  double progress = 0;
+
+  /// What it waits for (the relay, out of reach), while it waits: it goes on by itself.
+  String? waiting;
+
+  /// Why it stopped, where it did; and whether a try again could mend that.
+  String? error;
+  bool retryable = true;
+
+  /// Once it is all there: what the message carries of it.
+  SpaceFile? file;
+
+  /// What [ChatUploads] keeps of it between tries.
+  Object? handle;
+
+  FileKind get kind => FileKind.of(name, mime);
+}
+
+/// A message with files, shown in the chat while they go up (Matt, 2026-11-18): sent once all of them are there, kept
+/// with a try again where one fails. Only on this device, and only while the app is open.
+class OutgoingMessage {
+  OutgoingMessage({required this.id, required this.text, required this.files, required this.at, this.voice = false});
+  final String id;
+  final String text;
+  final List<OutgoingFile> files;
+  final int at;
+  final bool voice;
+
+  /// Why it wasn't sent, where all its files went up and the message itself was refused.
+  String? error;
+
+  bool get failed => error != null || files.any((f) => f.error != null);
+  bool get retryable => error == null && files.every((f) => f.error == null || f.retryable);
+
+  /// How far all of it has got, by size.
+  double get progress {
+    final total = files.fold<int>(0, (n, f) => n + f.size);
+    if (total <= 0) return files.every((f) => f.file != null) ? 1 : 0;
+    return files.fold<double>(0, (n, f) => n + (f.file != null ? 1 : f.progress) * f.size) / total;
+  }
+}
+
+/// What sends a chat's files up, sealed, into the space's own storage on the relay (FilesStore in the app; a test's
+/// own in a test).
+abstract class ChatUploads {
+  /// [f] up into [c]'s storage: its description once it is all there, with a small picture of no more than
+  /// [thumbMost] bytes where it is a picture or a video. [moved] is told as it goes; it fails with why where it stops,
+  /// and asked again for the same [f], goes on from where it got to.
+  Future<SpaceFile> uploadForChat(VoiceChannel c, OutgoingFile f, {required String byName, required int thumbMost, required void Function() moved});
+
+  /// Stops [f] and lets go of what of it is on the relay.
+  void drop(OutgoingFile f);
 }
 
 /// A space's description: its words, numbered and signed by the owner or an admin, as the roster is but apart from it

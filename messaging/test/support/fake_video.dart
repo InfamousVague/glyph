@@ -2,12 +2,17 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:ghost_messaging/ui/video_engine.dart';
+import 'package:ghost_messaging/ui/video_tracks.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
 /// The app's own video player (lib/ui/video_screen.dart; Matt, 2026-11-15: "id like a video player built with glacier
 /// UI right now it looks like a very old android core system player"), with a stand-in for ExoPlayer that says it has
 /// a 2:40 video, 1920 by 1080, at 0:42.
 class FakeVideoPlayer extends VideoPlayerPlatform {
+  FakeVideoPlayer({this.audioTracks});
+
+  /// The sounds ExoPlayer lists, for choosing among (null: a platform that can't choose).
+  final List<VideoAudioTrack>? audioTracks;
   final _events = StreamController<VideoEvent>.broadcast();
   final calls = <String>[];
 
@@ -44,14 +49,23 @@ class FakeVideoPlayer extends VideoPlayerPlatform {
   Widget buildView(int playerId) => const ColoredBox(color: Color(0xFF2A3B4C));
   @override
   Future<void> setMixWithOthers(bool mixWithOthers) async {}
+  @override
+  bool isAudioTrackSupportAvailable() => audioTracks != null;
+  @override
+  Future<List<VideoAudioTrack>> getAudioTracks(int playerId) async => audioTracks ?? const [];
+  @override
+  Future<void> selectAudioTrack(int playerId, String trackId) async => calls.add('audio $trackId');
 }
 
 /// A stand-in for whichever engine plays a video (lib/ui/video_engine.dart; Matt, 2026-11-18: "add support for playing
 /// mkv video files and mp4's within the app in a player themed by glacier UI"): a 2:40 video, 16 by 9, that does what
 /// it is told at once and says so in [calls]. [fails] makes it one that can't be played.
 class FakeVideoEngine extends VideoEngine {
-  FakeVideoEngine({this.fails = false, this.still = false, this.hangs = false, this.at = const Duration(seconds: 42), this.buffered = Duration.zero, this.buffering = false});
+  FakeVideoEngine({this.fails = false, this.still = false, this.hangs = false, this.at = const Duration(seconds: 42), this.buffered = Duration.zero, this.buffering = false, this.tracks = const VideoTracks()});
   final bool fails;
+
+  /// The sounds and subtitles it says it carries (Matt, 2026-11-18: switching audio and subtitles).
+  final VideoTracks tracks;
 
   /// How far it says it has ready to play, and whether it says it is waiting for more (a streamed file).
   final Duration buffered;
@@ -71,7 +85,7 @@ class FakeVideoEngine extends VideoEngine {
     opened = path;
     calls.add('open $path');
     if (hangs) return Completer<void>().future;
-    value = fails ? const VideoNow(error: 'Failed to recognize file format.') : VideoNow(ready: true, position: at, duration: const Duration(minutes: 2, seconds: 40), aspect: 16 / 9, buffered: buffered, buffering: buffering);
+    value = fails ? const VideoNow(error: 'Failed to recognize file format.') : VideoNow(ready: true, position: at, duration: const Duration(minutes: 2, seconds: 40), aspect: 16 / 9, buffered: buffered, buffering: buffering, tracks: tracks);
   }
 
   @override
@@ -94,6 +108,18 @@ class FakeVideoEngine extends VideoEngine {
 
   @override
   Future<void> setVolume(double volume) async => calls.add('volume ${volume.toStringAsFixed(1)}');
+
+  @override
+  Future<void> chooseAudio(String id) async {
+    calls.add('audio $id');
+    value = value.copyWith(tracks: value.tracks.copyWith(audioOn: id));
+  }
+
+  @override
+  Future<void> chooseSubtitle(String? id) async {
+    calls.add('subtitle ${id ?? 'off'}');
+    value = value.copyWith(tracks: value.tracks.copyWith(subtitleOn: () => id));
+  }
 
   /// A picture to tell apart from the black round it: a dusk sky over a hill.
   @override
