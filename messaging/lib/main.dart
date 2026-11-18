@@ -37,6 +37,7 @@ import 'sounds.dart';
 import 'sms.dart';
 import 'ui/circles/circle_invite_card.dart' show openCircleLink;
 import 'ui/common.dart' show toast;
+import 'ui/dialup/dialup.dart' show RetroSegment, isBevelChrome;
 import 'ui/computers.dart';
 import 'ui/files_space/share_in.dart';
 import 'onboarding/onboarding.dart';
@@ -385,7 +386,17 @@ class InkOverrides extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => GlacierOverrides(switchThumbColor: _paper, segmentedSelectedLabelColor: _onAccent, segmentedThumbShadow: _none, child: child);
+  Widget build(BuildContext context) => GlacierOverrides(
+        switchThumbColor: _paper,
+        segmentedSelectedLabelColor: _onAccent,
+        segmentedThumbShadow: _none,
+        // Under Dial-Up every segmented toggle is a row of push buttons, the chosen one held in (RetroSegment); every
+        // other look keeps the kit's track and sliding thumb.
+        segmentedSegment: isBevelChrome(context.tokens) ? _retroSegment : null,
+        child: child,
+      );
+
+  static Widget _retroSegment(BuildContext context, GlacierSegmentLook look) => RetroSegment(look: look);
 
   static Color _paper(Tokens t) => t.color('app-paper');
 

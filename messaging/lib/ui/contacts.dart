@@ -13,6 +13,7 @@ import '../inbox/inbox.dart';
 import '../inbox/people.dart';
 import '../sms.dart';
 import 'common.dart';
+import 'dialup/dialup.dart' show DialupColors, RetroButton, isBevelChrome;
 import 'inbox_ui.dart' show inboxMark, openInboxChat;
 import 'shell.dart';
 import 'thread.dart';
@@ -207,8 +208,24 @@ class _ContactsScreenState extends State<ContactsScreen> {
   /// The filters: everyone, friends on Ghost Messaging (Matt, 2026-11-17: "add the ability to sort contacts by friends
   /// in ghost"), the phone's contacts, and each linked network's, with its mark.
   Widget _filters(Tokens t, List<InboxNetwork> networks) {
+    final dialup = isBevelChrome(t);
     Widget chip(String id, String label, Widget? mark) {
       final on = _filter == id;
+      // Under Dial-Up the filters are a row of push buttons, the one shown held in, as every segmented toggle there is
+      // (Matt, 2026-11-18: "make sure every segmented toggle also has beveled button like apperances").
+      if (dialup) {
+        return RetroButton(
+          onPressed: () => setState(() => _filter = id),
+          toggled: on,
+          face: on ? DialupColors.of(t).lo : null,
+          faceHeight: 32,
+          semanticLabel: '$label${on ? ', shown' : ''}',
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (mark != null) ...[mark, SizedBox(width: t.space(1) + 2)],
+            Text(label, maxLines: 1, style: pageText(t, t.fontSize('sm'), weight: on ? 'bold' : 'regular', color: DialupColors.of(t).onChrome)),
+          ]),
+        );
+      }
       return GlacierPressable(
         onPressed: () => setState(() => _filter = id),
         semanticLabel: '$label${on ? ', shown' : ''}',
@@ -227,13 +244,16 @@ class _ContactsScreenState extends State<ContactsScreen> {
       );
     }
 
+    // A mark's ink: the chosen chip's paper on its filled face, or the bevel's ink on Dial-Up's silver buttons.
+    Color markInk(String id) => dialup ? DialupColors.of(t).onChrome : (_filter == id ? t.color('app-paper') : t.color('app-ink'));
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(2)),
-      child: Row(spacing: t.space(2), children: [
+      child: Row(spacing: dialup ? t.space(1) : t.space(2), children: [
         chip('all', 'All', null),
-        chip('friends', 'Friends', AppIcon(Lucide.userCheck, size: 15, wash: false, color: _filter == 'friends' ? t.color('app-paper') : t.color('app-ink'))),
-        chip('phone', 'Phone', AppIcon(Lucide.smartphone, size: 15, wash: false, color: _filter == 'phone' ? t.color('app-paper') : t.color('app-ink'))),
+        chip('friends', 'Friends', AppIcon(Lucide.userCheck, size: 15, wash: false, color: markInk('friends'))),
+        chip('phone', 'Phone', AppIcon(Lucide.smartphone, size: 15, wash: false, color: markInk('phone'))),
         for (final n in networks) chip(n.id, n.name, inboxMark(n, size: 16, badge: true)),
       ]),
     );

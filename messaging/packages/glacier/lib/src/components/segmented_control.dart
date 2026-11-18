@@ -253,10 +253,45 @@ class _GlacierSegmentedControlState extends State<GlacierSegmentedControl> with 
       child: GlacierInsetShadows(shadows: ownShadow == null ? thumbShadows : const [], radius: radius),
     );
 
+    // An app's own segments (GlacierOverrides.segmentedSegment): no track and no thumb, each segment as tall as the
+    // control, drawn by the app.
+    final drawn = overrides?.segmentedSegment;
+    final fullHeight = t.len('glacier-control-height-$size');
+
     Widget segment(int index) {
       final option = widget.options[index];
       final isSelected = index == selected;
       final isDisabled = _isDisabled(index);
+      if (drawn != null) {
+        return Semantics(
+          container: true,
+          inMutuallyExclusiveGroup: true,
+          checked: isSelected,
+          enabled: !isDisabled,
+          child: GlacierPressable(
+            onPressed: isDisabled ? null : () => _select(index),
+            haptic: HapticKind.selection,
+            focusNode: _nodes[index],
+            excludeSemantics: true,
+            builder: (context, state) => SizedBox(
+              height: fullHeight,
+              child: drawn(
+                context,
+                GlacierSegmentLook(
+                  label: option.label,
+                  style: t.text(font, weight: isSelected ? 'semibold' : 'medium').copyWith(height: 1),
+                  padding: padding,
+                  selected: isSelected,
+                  pressed: state.pressed,
+                  hovered: state.hovered,
+                  focused: state.focused,
+                  disabled: isDisabled,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
       // `.segment.disabled .label` comes after `.segment[data-selected] .label` at the same weight, so it wins.
       final kitColor = t.color(isDisabled ? 'glacier-text-disabled' : (isSelected ? 'glacier-text' : 'glacier-text-muted'));
       final color = isSelected ? (widget.selectedLabelColor ?? overrides?.segmentedSelectedLabelColor?.call(t) ?? kitColor) : kitColor;
@@ -311,7 +346,9 @@ class _GlacierSegmentedControlState extends State<GlacierSegmentedControl> with 
       );
     }
 
-    Widget root = DecoratedBox(
+    Widget root = drawn != null
+        ? Row(children: [for (var i = 0; i < count; i++) Expanded(child: segment(i))])
+        : DecoratedBox(
       decoration: BoxDecoration(
         color: trackColor,
         border: Border.all(color: t.color('glacier-glass-border'), width: hairline),
@@ -343,7 +380,7 @@ class _GlacierSegmentedControlState extends State<GlacierSegmentedControl> with 
       ),
     );
     // The track's blur shows only through a see-through track colour.
-    root = GlacierBackdrop(radius: radius, enabled: trackColor.a < 1, child: root);
+    if (drawn == null) root = GlacierBackdrop(radius: radius, enabled: trackColor.a < 1, child: root);
     // An inline grid of equal columns, each as wide as the widest label asks for. Such a grid has no narrower size
     // to fall back to, so in a row too narrow for it it runs out past the end rather than squeezing its labels.
     root = widget.fullWidth
