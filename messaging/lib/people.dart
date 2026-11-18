@@ -22,6 +22,9 @@ void startOwnFriends(AppState app) {
   // Friends' words go by the routes ([Friends]): a friend by username's, here; a number's, still by the phone's texts.
   Net.instance.start(app).then((_) => Friends.instance.start(app));
   Me.instance.start(AppMeStore(app), Net.instance, () => Net.instance.hub, needHub: (yes) => Net.instance.want('me', yes));
+  // A Ghost account of this computer's own, under the identity it took on (Matt, 2026-11-18: "there doesn't seem to be
+  // a way to login on desktop just to claim a username, i would like to be able to link a session to a new account").
+  Account.instance.start(AppMeStore(app));
   _hearBuddies();
 }
 

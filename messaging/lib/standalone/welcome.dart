@@ -115,6 +115,20 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
                     : 'Message and call your friends by username, join circles, and bring in Telegram and Signal, sealed so only you and the people you talk to can read it. No phone needed: texts from an Android phone can be linked next, or any time in Settings.',
                 style: pageText(t, t.fontSize('md'), color: t.color('app-ink-2'), height: 1.45),
               ),
+              // Signing in first, where it is seen before the username (Matt, 2026-11-18: "there doesn't seem to be a way to
+              // login on desktop just to claim a username"): someone with an account becomes it here, username and all.
+              if (!Account.instance.signedIn) ...[
+                SizedBox(height: t.space(6)),
+                PaneSection(children: [
+                  SettingRow(
+                    key: const ValueKey('welcome-sign-in'),
+                    icon: AppIcon(Lucide.keyRound, size: 18),
+                    label: 'I have a Ghost account',
+                    hint: const Text('Sign in with your username and password, or your recovery words'),
+                    onPress: () => push(context, (_) => const SignInScreen()),
+                  ),
+                ]),
+              ],
               SizedBox(height: t.space(8)),
               PaneSection(
                 title: 'Your username',
@@ -135,7 +149,6 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
               if (!Account.instance.signedIn) ...[
                 SizedBox(height: t.space(8)),
                 PaneSection(children: [
-                  SettingRow(icon: AppIcon(Lucide.keyRound, size: 18), label: 'Sign in to an account', hint: const Text('With your username and password, or your recovery words'), onPress: () => push(context, (_) => const SignInScreen())),
                   SettingRow(icon: AppIcon(Lucide.userPlus, size: 18), label: 'Create an account', hint: const Text('So you can sign in on another device'), onPress: () => push(context, (_) => const CreateAccountScreen())),
                 ]),
               ],

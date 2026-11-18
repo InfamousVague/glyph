@@ -18,6 +18,7 @@ import '../me/me.dart';
 import '../me/network_marks.g.dart';
 import '../sms.dart';
 import '../friends/buddies.dart';
+import '../friends/handover.dart' show DeskHandover;
 import 'account_screens.dart';
 import 'common.dart';
 import 'profile.dart';
@@ -174,8 +175,11 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
         ],
       ),
     // A Ghost account (Matt, 2026-11-17: "We need to have a way to login to existing accounts"): made, signed in to,
-    // and looked after here; on a paired computer the account is the phone's.
-    if (!Sms.paired) accountSection(context),
+    // and looked after wherever friends and circles run under this install's identity, a computer paired with a phone
+    // that has taken on the phone's identity among them (Matt, 2026-11-18: "there doesn't seem to be a way to login on
+    // desktop just to claim a username, i would like to be able to link a session to a new account"). A paired
+    // computer that has not taken it on yet says where that stands, and asks again.
+    if (Sms.ownNetwork) accountSection(context) else if (Sms.followsPhone) const _SameYou(),
     PaneSection(
       title: 'You',
       children: [
@@ -923,3 +927,37 @@ const Map<String, String> inboxOnlyMarks = {
   // Google Chat
   'googlechat': 'M1.637 0C.733 0 0 .733 0 1.637v16.5c0 .904.733 1.636 1.637 1.636h3.955v3.323c0 .804.97 1.207 1.539.638l3.963-3.96h11.27c.903 0 1.636-.733 1.636-1.637V5.592L18.408 0Zm3.955 5.592h12.816v8.59H8.455l-2.863 2.863Z',
 };
+
+/// On a paired computer that has not yet taken on the phone's identity (lib/desktop/main.dart's handover): why not,
+/// and a way to ask again. Until then friends, the profile and the account are the phone's, and nothing can be signed
+/// in to here (Matt, 2026-11-18: "it seems i'm not logged in on desktop").
+class _SameYou extends StatelessWidget {
+  const _SameYou();
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder(
+        valueListenable: DeskHandover.state,
+        builder: (context, s, _) {
+          final (hint, canAsk) = switch (s.phase) {
+            'old' => ('Update Ghost Messaging on your phone, then this computer can have your friends, circles and account itself.', false),
+            'asking' => ('Asking your phone…', false),
+            'done' => ('Done. Ghost Messaging opens again.', false),
+            'failed' => (s.problem == null || s.problem!.isEmpty ? 'Your phone didn\'t answer. Open Ghost Messaging on it, then try again.' : s.problem!, true),
+            _ => ('Waiting for your phone to connect.', true),
+          };
+          return PaneSection(
+            title: 'Account',
+            description: const Text('Your phone hands over who you are, your friends and your conversations with them, so this computer is the same you, with your phone switched off too. Then you can sign in to your Ghost account here.'),
+            children: [
+              SettingRow(
+                icon: _icon(Lucide.refreshCw),
+                label: 'Become the same you as your phone',
+                hint: Text(hint),
+                disabled: !canAsk || DeskHandover.retry == null,
+                onPress: () => DeskHandover.retry?.call(),
+              ),
+            ],
+          );
+        },
+      );
+}
