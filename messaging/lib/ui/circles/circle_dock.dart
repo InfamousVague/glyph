@@ -27,8 +27,8 @@ abstract final class CircleDock {
   static const settings = 'circle-settings';
   static const invite = 'circle-invite';
 
-  /// The rings for [c]: Home, its spaces, its members (the drawer), a new space where this device may add one, and its
-  /// settings. Read by the name the circle's own menu gives them.
+  /// The rings for [c]: Home, its spaces, its members (the drawer), a new space where this device may add one, and the
+  /// app's Settings. Read by the name the circle's own menu gives them.
   static List<NavItem> items(Circle c, {required bool canEdit}) => [
         const NavItem(id: home, icon: houseIcon, label: 'Home'),
         const NavItem(id: spaces, icon: Lucide.layoutList, label: 'Spaces'),
@@ -38,6 +38,7 @@ abstract final class CircleDock {
         const NavItem(id: invite, icon: Lucide.userPlus, label: 'Invite people', short: 'Invite'),
         // "New" on Dial-Up's taskbar, where "New space" was drawn smaller than the other words to fit.
         if (canEdit) const NavItem(id: newSpace, icon: Lucide.plus, label: 'New space', short: 'New'),
-        NavItem(id: settings, icon: Lucide.settings, label: canEdit ? 'Settings' : 'About'),
+        // The app's Settings (Matt, 2026-11-18); the circle's own are in its menu, under its name.
+        const NavItem(id: settings, icon: Lucide.settings, label: 'Settings'),
       ];
 }

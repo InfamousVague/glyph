@@ -50,8 +50,15 @@ class FakeVideoPlayer extends VideoPlayerPlatform {
 /// mkv video files and mp4's within the app in a player themed by glacier UI"): a 2:40 video, 16 by 9, that does what
 /// it is told at once and says so in [calls]. [fails] makes it one that can't be played.
 class FakeVideoEngine extends VideoEngine {
-  FakeVideoEngine({this.fails = false, this.still = false, this.at = const Duration(seconds: 42)});
+  FakeVideoEngine({this.fails = false, this.still = false, this.hangs = false, this.at = const Duration(seconds: 42), this.buffered = Duration.zero, this.buffering = false});
   final bool fails;
+
+  /// How far it says it has ready to play, and whether it says it is waiting for more (a streamed file).
+  final Duration buffered;
+  final bool buffering;
+
+  /// Never becomes ready nor says why: an engine waiting on a stream that never comes (the screen's patience ends it).
+  final bool hangs;
 
   /// Stays paused when told to play: the player as it is once paused, its controls up.
   final bool still;
@@ -63,7 +70,8 @@ class FakeVideoEngine extends VideoEngine {
   Future<void> open(String path) async {
     opened = path;
     calls.add('open $path');
-    value = fails ? const VideoNow(error: 'Failed to recognize file format.') : VideoNow(ready: true, position: at, duration: const Duration(minutes: 2, seconds: 40), aspect: 16 / 9);
+    if (hangs) return Completer<void>().future;
+    value = fails ? const VideoNow(error: 'Failed to recognize file format.') : VideoNow(ready: true, position: at, duration: const Duration(minutes: 2, seconds: 40), aspect: 16 / 9, buffered: buffered, buffering: buffering);
   }
 
   @override

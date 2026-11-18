@@ -482,7 +482,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
       case CircleDock.newSpace:
         openCircleNewSpace(inside, c);
       case CircleDock.settings:
-        openCircleSettings(inside, c);
+        // The app's own Settings, as the dock's cog is everywhere else (Matt, 2026-11-18: "make the settings button in
+        // circles dock open the global app settings"); a circle's are under its name at the top of the sidebar.
+        settings();
     }
   }
 

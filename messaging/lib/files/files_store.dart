@@ -19,10 +19,12 @@ import '../voice/channels.dart';
 import '../voice/roles.dart';
 import '../voice/voice.dart';
 import 'file_kinds.dart';
+import 'file_stream.dart';
 import 'files_api.dart';
 import 'files_model.dart';
 
 export 'file_kinds.dart';
+export 'file_stream.dart' show FileStream, StreamedMedia;
 export 'files_api.dart' show FilesError, FilesInfo;
 export 'files_model.dart';
 
@@ -988,9 +990,42 @@ class FilesStore extends ChangeNotifier {
       if (dir.existsSync()) dir.deleteSync(recursive: true);
     } catch (_) {}
     _deleteQuietly(_partPath(f));
+    _deleteQuietly('${_cache().path}/${f.id}.stream');
+    _deleteQuietly('${_cache().path}/${f.id}.chunks');
   }
 
   final Map<String, Transfer> _downloads = {};
+
+  /// Files being played as they come down, by id: one [FileStream] each, however many hold it.
+  final Map<String, FileStream> _streams = {};
+
+  /// [f] served to the app's player as it comes down, a few chunks at a time, rather than brought down whole first
+  /// (Matt, 2026-11-18: "would it be possible to setup streaming and buffering of the file?" ... "yes build it").
+  /// [FileStream.close] it when done; once all of it has come it is the ordinary download ([cached]).
+  FileStream stream(VoiceChannel c, SpaceFile f) {
+    final had = _streams[f.id];
+    if (had != null && !had.closed) {
+      had.hold();
+      return had;
+    }
+    late final FileStream s;
+    s = FileStream(
+      file: f,
+      cacheDir: _cache(),
+      assembledPath: cachedPath(f),
+      read: (start, end) async {
+        final api = _api(c);
+        if (api == null) throw FilesError(0, 'Not connected to the relay yet.');
+        return api.read(f.id, start: start, end: end);
+      },
+      onWhole: (_) => notifyListeners(),
+      onClosed: () {
+        if (identical(_streams[f.id], s)) _streams.remove(f.id);
+      },
+    );
+    _streams[f.id] = s;
+    return s;
+  }
 
   /// The download of [f] under way, if one is.
   Transfer? downloading(SpaceFile f) => _downloads[f.id];
@@ -1005,6 +1040,20 @@ class FilesStore extends ChangeNotifier {
     _downloads[f.id] = t;
     transfers.add(t);
     notifyListeners();
+    final streaming = _streams[f.id];
+    if (streaming != null && !streaming.closed) {
+      // Being played as it comes: the rest is brought into the same chunks, not down a second time beside them.
+      streaming.hold();
+      t.state = TransferState.running;
+      unawaited(streaming.whole((done, _) {
+        t.done = done;
+        _moved();
+      }).then((path) {
+        t.state = TransferState.done;
+        _endDownload(t, path: path);
+      }, onError: (Object e) => _endDownload(t, error: e is FilesError ? e : FilesError(0, '$e'))).whenComplete(streaming.close));
+      return t._done!.future;
+    }
     unawaited(_runDownload(t));
     return t._done!.future;
   }

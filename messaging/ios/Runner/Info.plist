@@ -61,6 +61,15 @@
 			</array>
 		</dict>
 	</dict>
+	<!-- A Files-space video or sound plays as it comes down, from a server the app runs on the phone itself at
+	     http://127.0.0.1 (lib/files/file_stream.dart; Matt, 2026-11-18: "would it be possible to setup streaming and
+	     buffering of the file?"). App Transport Security leaves loopback alone already; this says so for local
+	     addresses only, and every other connection stays HTTPS. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

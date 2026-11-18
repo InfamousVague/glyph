@@ -143,12 +143,14 @@ CircleView circleView(BuildContext context, Circle c, {required VoidCallback onB
 void showCircleMenu(BuildContext context, Circle c) {
   final circles = Circles.instance;
   final canEdit = circles.can(c, CirclePerm.spaces);
-  final settings = circles.can(c, CirclePerm.circle) || canEdit || circles.can(c, CirclePerm.roles);
   showChoices(context, title: c.name, choices: [
     if (circles.can(c, CirclePerm.invite)) Choice('Invite people', Lucide.userPlus, () => showCircleInvite(context, c)),
     if (canEdit) Choice('New space', Lucide.plus, () => openCircleNewSpace(context, c)),
     if (canEdit) Choice('Arrange spaces', Lucide.listTree, () => push<void>(context, (_) => ArrangeCircleSpacesScreen(seed: c.seed)), hint: 'Move, rename or delete them'),
-    Choice(settings ? 'Circle settings' : 'About this circle', Lucide.settings, () => openCircleSettings(context, c)),
+    // Where a circle's settings are, the dock's cog being the app's (Matt, 2026-11-18: "to manage settings in a given
+    // circle we shoould click the circle name and chevron in the top of the sidebar and replace "about this circle" with
+    // "Circle Settings""). Someone who may change nothing still sees them, read only (circle_settings.dart).
+    Choice('Circle settings', Lucide.settings, () => openCircleSettings(context, c)),
     Choice('Leave circle', Lucide.logOut, () => confirmLeaveCircle(context, c), danger: true),
   ]);
 }
