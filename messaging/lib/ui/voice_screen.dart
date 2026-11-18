@@ -196,7 +196,12 @@ class CallPanel extends StatelessWidget {
                       Expanded(
                         child: Text.rich(
                           TextSpan(children: [
-                            TextSpan(text: p.name),
+                            TextSpan(
+                              text: p.name,
+                              // Their role's colour, as Discord draws names (Matt, 2026-11-17).
+                              style: room == null ? null : TextStyle(color: roleInk(t, room.roster.roleOf(p.me ? room.me : p.id))),
+                            ),
+                            if (room != null && room.roster.isOwner(p.me ? room.me : p.id)) WidgetSpan(alignment: PlaceholderAlignment.middle, child: Padding(padding: EdgeInsets.only(left: t.space(1)), child: const OwnerCrown())),
                             if (p.guest) TextSpan(text: '  guest', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
                           ]),
                           maxLines: 1,
@@ -204,9 +209,6 @@ class CallPanel extends StatelessWidget {
                           style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink')),
                         ),
                       ),
-                      if (room != null)
-                        if ((p.me ? room.me : p.id) case final who when room.roster.isOwner(who) || room.roster.roleOf(who).id != room.roster.newcomer)
-                          Padding(padding: EdgeInsets.only(right: t.space(2)), child: RoleTag(role: room.roster.roleOf(who), owner: room.roster.isOwner(who))),
                       if (p.video != null) Padding(padding: EdgeInsets.only(right: t.space(2)), child: AppIcon(Lucide.video, size: 16, color: t.color('app-ink-3'))),
                       if (p.muted) Padding(padding: EdgeInsets.only(right: t.space(3)), child: AppIcon(LucideMore.micOff, size: 16, wash: false, color: t.danger)),
                     ]),

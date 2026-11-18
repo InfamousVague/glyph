@@ -422,7 +422,7 @@ export class Roster {
     const k = unhex(j.k);
     if ((await idOf(k)) !== j.by) return false;
     const sorted = (o) => Object.fromEntries(Object.entries(o ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
-    const body = { o: j.o, v: j.v, roles: (j.roles ?? []).map((r) => ({ id: r.id, n: r.n, p: [...PERMS.filter((p) => r.p.includes(p)), ...r.p.filter((p) => !PERMS.includes(p))], r: r.r })), a: sorted(j.a), g: sorted(j.g), b: [...(j.b ?? [])].sort(), m: [...(j.m ?? [])].sort(), n: j.n, by: j.by, k: j.k };
+    const body = { o: j.o, v: j.v, roles: (j.roles ?? []).map((r) => ({ id: r.id, n: r.n, p: [...PERMS.filter((p) => r.p.includes(p)), ...r.p.filter((p) => !PERMS.includes(p))], r: r.r, ...(typeof r.c === 'string' ? { c: r.c } : {}) })), a: sorted(j.a), g: sorted(j.g), b: [...(j.b ?? [])].sort(), m: [...(j.m ?? [])].sort(), n: j.n, by: j.by, k: j.k };
     if (!(await verify(k, enc.encode('ghost-hangout roster|' + JSON.stringify(body)), unhex(j.s)))) return false;
     await this.checkGrants();
     if (!(this.isOwner(j.by) || this.roleOf(j.by).id === 'admin')) return false;
