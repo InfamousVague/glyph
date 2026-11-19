@@ -66,6 +66,8 @@ object VoiceFx : AudioProcessingAdapter.ExternalAudioFrameProcessing {
     override fun process(numBands: Int, numFrames: Int, buffer: ByteBuffer) {
         // One block of 10 ms: its rate is its length (webrtc-sdk's ExternalAudioProcessor says the same).
         nativeProcess(handle, buffer, numFrames, numFrames * 100)
+        // The voice as it is sent, for a recording of the call being made here (CallRecorder.kt).
+        CallRecorder.mic(buffer, numFrames, numFrames * 100)
     }
 
     private external fun nativeCreate(): Long

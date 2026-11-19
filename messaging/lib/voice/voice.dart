@@ -232,9 +232,19 @@ class DiscordPerson {
 /// Someone in the call, as they said they are.
 @immutable
 class VoiceMember {
-  const VoiceMember(this.id, {this.name = '', this.muted = false, this.video = false, this.guest = false, this.username});
+  const VoiceMember(this.id, {this.name = '', this.muted = false, this.video = false, this.guest = false, this.username, this.notices = false, this.recording, this.agreed = const {}, this.declined = const {}});
   final String id;
   final String name;
+
+  /// Their app shows that a call is being recorded and asks before their voice is in it ('rs' in their 'me'). One that
+  /// doesn't (an older build, the browser page, the Discord bridge) is never recorded: it can't have agreed.
+  final bool notices;
+
+  /// The recording they are making of this call, by its id; null while they make none ('r').
+  final String? recording;
+
+  /// The recordings of this call they said their voice may be in ('ry'), and those they said it may not ('rn').
+  final Set<String> agreed, declined;
 
   /// Their username on Ghost Messaging, where they have one and said it: to add them as a friend.
   final String? username;
@@ -244,7 +254,10 @@ class VoiceMember {
   /// Joined from a browser by the link, with no username: a guest.
   final bool guest;
   VoiceMember copyWith({String? name, bool? muted, bool? video, bool? guest, String? username}) =>
-      VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video, guest: guest ?? this.guest, username: username ?? this.username);
+      VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video, guest: guest ?? this.guest, username: username ?? this.username, notices: notices, recording: recording, agreed: agreed, declined: declined);
+
+  VoiceMember withRecording({required bool notices, String? recording, Set<String> agreed = const {}, Set<String> declined = const {}}) =>
+      VoiceMember(id, name: name, muted: muted, video: video, guest: guest, username: username, notices: notices, recording: recording, agreed: agreed, declined: declined);
 }
 
 /// Being in one channel: joined on the hub, a connection to each member, and what each says of themselves.
@@ -302,6 +315,39 @@ class VoiceSession extends ChangeNotifier {
 
   /// The join each other member's last offer came from ('j'): a new one is another of their devices, or them again.
   final Map<String, Object?> _offerJoin = {};
+
+  // --- recording (Matt, 2026-11-19: "a "record call" plugin where it records the call to an MP4 with multiple named
+  // audio tracks") ---------------------------------------------------------------------------------------------------
+  // Said in 'me', which every build reads only the fields it knows of: 'rs' this build shows recording and asks, 'r'
+  // the recording this device makes, 'ry' and 'rn' the recordings this device's person let their voice be in, or not.
+  // A voice is in a recording only once its own device said yes: lib/voice/recorder.dart taps nobody else.
+
+  /// The recording this device is making, by its id; null while none.
+  String? recording;
+
+  /// The recordings of this call this device's person said yes to, and no to.
+  final Set<String> agreed = {}, declined = {};
+
+  /// The recordings being made of this call by others, by their id, with who makes each.
+  Map<String, String> get recordingsByOthers => {for (final m in members.values) if (m.recording != null) m.recording!: m.id};
+
+  /// Recordings being made by others that this device's person hasn't answered yet.
+  List<String> get unanswered => [for (final r in recordingsByOthers.keys) if (!agreed.contains(r) && !declined.contains(r)) r];
+
+  /// Says this device is recording ([id]) or has stopped (null).
+  void setRecording(String? id) {
+    recording = id;
+    _sayState();
+    notifyListeners();
+  }
+
+  /// Answers whether this device's voice may be in the recording [id].
+  void answerRecording(String id, bool yes) {
+    (yes ? agreed : declined).add(id);
+    (yes ? declined : agreed).remove(id);
+    _sayState();
+    notifyListeners();
+  }
 
   Future<void> join({bool withVideo = false}) async {
     video = withVideo;
@@ -403,7 +449,17 @@ class VoiceSession extends ChangeNotifier {
     _say({'t': 'offer', 'to': id, 'sdp': highestOpus(sdp, kbps: kbps, stereo: stereo), 'j': _join});
   }
 
-  void _sayState() => _say({'t': 'me', 'n': name, 'm': muted || deafened, 'v': video, if (username != null) 'u': username});
+  void _sayState() => _say({
+        't': 'me',
+        'n': name,
+        'm': muted || deafened,
+        'v': video,
+        if (username != null) 'u': username,
+        'rs': 1,
+        if (recording != null) 'r': recording,
+        if (agreed.isNotEmpty) 'ry': [...agreed],
+        if (declined.isNotEmpty) 'rn': [...declined],
+      });
 
   void _say(Map<String, Object?> what) {
     if (!joined) return;
@@ -451,7 +507,10 @@ class VoiceSession extends ChangeNotifier {
         notifyListeners();
       case 'me':
         final had = members[from] ?? VoiceMember(from);
-        members[from] = had.copyWith(name: bareName('${m['n'] ?? ''}'), muted: m['m'] == true, video: m['v'] == true, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null);
+        Set<String> ids(Object? l) => {for (final x in (l is List ? l : const [])) if (x is String) x};
+        members[from] = had
+            .copyWith(name: bareName('${m['n'] ?? ''}'), muted: m['m'] == true, video: m['v'] == true, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null)
+            .withRecording(notices: m['rs'] == 1, recording: m['r'] is String ? m['r'] as String : null, agreed: ids(m['ry']), declined: ids(m['rn']));
         notifyListeners();
       case 'offer':
         members.putIfAbsent(from, () => VoiceMember(from));

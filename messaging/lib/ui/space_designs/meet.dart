@@ -360,6 +360,7 @@ class _MeetCallState extends State<MeetCall> {
       _MenuRow(c: c, icon: LucideMore.settings, label: SpaceWords.settings, onPressed: call.onSettings == null ? null : () => run(() => call.onSettings!(context))),
       _MenuRow(c: c, icon: Lucide.slidersHorizontal, label: SpaceWords.devices, onPressed: call.onDevices == null ? null : () => run(() => call.onDevices!(context))),
       _MenuRow(c: c, icon: Lucide.userPlus, label: SpaceWords.invite, onPressed: call.onInvite == null ? null : () => run(() => _invite(context))),
+      for (final x in call.extras) _MenuRow(c: c, icon: x.icon, label: x.label, onPressed: () => run(() => x.run(context))),
       if (!wide) _MenuRow(c: c, icon: Lucide.info, label: 'Details', onPressed: () => run(() => _toggle(_Panel.details))),
       _MenuRow(c: c, icon: _minimise, label: SpaceWords.minimize, onPressed: call.onMinimize == null ? null : () => run(call.onMinimize!)),
     ];

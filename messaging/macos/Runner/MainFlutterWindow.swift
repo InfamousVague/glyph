@@ -90,6 +90,10 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
     desk = DeskChannels(messenger: flutterViewController.engine.binaryMessenger)
     // The microphone's processing in calls (VoiceFx.swift).
     VoiceFx.shared.register(messenger: flutterViewController.engine.binaryMessenger)
+    // Recording a call (CallRecorder.swift, lib/voice/recorder.dart).
+    CallRecorder.shared.register(messenger: flutterViewController.engine.binaryMessenger)
+    // Words from a recorded call (Scribe.swift, lib/voice/scribe.dart).
+    Scribe.shared.register(messenger: flutterViewController.engine.binaryMessenger)
     Sounds.shared.register(messenger: flutterViewController.engine.binaryMessenger)
     // The app's own updates (UpdatesChannel.swift): its first act is to say this version opened, which an update
     // put in place a moment ago is waiting to hear.

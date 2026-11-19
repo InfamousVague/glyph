@@ -1,0 +1,49 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/circles/circle.dart';
+import 'package:ghost_messaging/circles/sms_space.dart';
+import 'package:ghost_messaging/voice/hangout.dart';
+import 'package:ghost_messaging/voice/voice.dart';
+
+/// SMS spaces (lib/circles/sms_space.dart; Matt, 2026-11-19: "a special space in the circle called a "SMS Space" to
+/// text members"): what goes out by text, what comes in, and how a space says it is one.
+void main() {
+  HangoutMessage m(String text, {String name = 'Maya', String? sticker}) => HangoutMessage(id: 'x', from: 'maya-id', name: name, text: text, at: 0, sticker: sticker);
+
+  test('a space\'s message goes out by text as "Name: words", and a sticker as words', () {
+    expect(textFor(m('See you at 7')), 'Maya: See you at 7');
+    expect(textFor(m('', sticker: 'ghost/03')), 'Maya: (a sticker)');
+    expect(textFor(m('  ', name: '')), 'Someone: ');
+  });
+
+  test('what came in by text is never texted back out, nor an empty message', () {
+    final inFromText = m(broughtIn('Dad', ' On my way '));
+    expect(inFromText.text, '📱 Dad: On my way');
+    expect(textsOut(inFromText), isFalse);
+    expect(textsOut(m('hello')), isTrue);
+    expect(textsOut(m('   ')), isFalse);
+  });
+
+  test('STOP and its usual words take someone out; a sentence with "stop" in it does not', () {
+    for (final w in ['STOP', 'stop', ' Stop ', 'unsubscribe', 'QUIT']) {
+      expect(isStop(w), isTrue, reason: w);
+    }
+    expect(isStop('stop by the shop'), isFalse);
+  });
+
+  test('a space says it is an SMS space, and whose phone texts for it, in its own entry; an older build passes it on', () {
+    final s = CircleSpace.make('Texts', kind: SpaceKind.text, extra: {'sms': {'by': 'maya-id'}});
+    expect(smsTexterOf(s), 'maya-id');
+    final again = CircleSpace.fromJson(s.toJson())!;
+    expect(smsTexterOf(again), 'maya-id');
+    expect(smsTexterOf(again.copyWith(name: 'Family texts')), 'maya-id', reason: 'renamed by someone, it stays one');
+    expect(smsTexterOf(CircleSpace.make('Chat', kind: SpaceKind.text)), isNull);
+  });
+
+  test('who is texted is kept with when their newest text came in', () {
+    const p = TextedPerson(number: '+15551230001', name: 'Dad', seen: 10);
+    final again = TextedPerson.fromJson(p.withSeen(20).toJson())!;
+    expect(again.number, '+15551230001');
+    expect(again.name, 'Dad');
+    expect(again.seen, 20);
+  });
+}

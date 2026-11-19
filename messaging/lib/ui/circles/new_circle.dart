@@ -6,8 +6,10 @@
 library;
 
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart' show TextCapitalization;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -15,6 +17,7 @@ import 'package:glacier/glacier.dart';
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../circles/circles.dart';
+import '../../circles/sms_space.dart';
 import '../../files/files_store.dart';
 import '../../friends/buddies.dart';
 import '../../kit/semantic_colors.dart';
@@ -457,6 +460,12 @@ class _NewCircleSpaceScreenState extends State<NewCircleSpaceScreen> {
   SpaceKind _kind = SpaceKind.text;
   bool _adding = false;
 
+  /// An SMS space: people without the app are in it by text from this phone (lib/circles/sms_space.dart).
+  bool _sms = false;
+
+  /// Whether this device can text for a space: an Android phone, the phone's texting app being this one.
+  static bool get _canText => !kIsWeb && Platform.isAndroid;
+
   @override
   void initState() {
     super.initState();
@@ -474,7 +483,9 @@ class _NewCircleSpaceScreenState extends State<NewCircleSpaceScreen> {
     if (_adding) return;
     setState(() => _adding = true);
     final circle = Circles.instance.bySeed(widget.circle.seed) ?? widget.circle;
-    final s = await Circles.instance.addSpace(circle, _name.text.trim().isEmpty ? spaceKindTitle(_kind) : _name.text, kind: _kind, section: _section.text);
+    final me = SmsSpaces.instance.me;
+    final sms = _sms && _kind == SpaceKind.text && _canText && me != null;
+    final s = await Circles.instance.addSpace(circle, _name.text.trim().isEmpty ? (sms ? 'Texts' : spaceKindTitle(_kind)) : _name.text, kind: _kind, section: _section.text, extra: sms ? {'sms': {'by': me}} : const {});
     if (!mounted) return;
     setState(() => _adding = false);
     if (s == null) {
@@ -500,6 +511,20 @@ class _NewCircleSpaceScreenState extends State<NewCircleSpaceScreen> {
         child: _form([
             SizedBox(height: t.space(2)),
             SpaceKindCards(value: _kind, onChanged: (k) => setState(() => _kind = k)),
+            // A texting space may be an SMS space, texted for by this phone (Matt, 2026-11-19: "a special space in the
+            // circle called a "SMS Space" to text members").
+            if (_kind == SpaceKind.text && _canText) ...[
+              gap,
+              PaneSection(children: [
+                SettingRow(
+                  key: const ValueKey('new-space-sms'),
+                  icon: AppIcon(Lucide.smartphone, size: 18),
+                  label: 'SMS space',
+                  hint: const Text('People without the app are in it by text, sent from your phone and your number.'),
+                  control: GlacierSwitch(checked: _sms, ariaLabel: 'SMS space', onCheckedChange: (v) => setState(() => _sms = v)),
+                ),
+              ]),
+            ],
             gap,
             PaneSection(title: 'Name', children: [
               SettingRowBox(

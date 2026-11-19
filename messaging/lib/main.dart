@@ -11,6 +11,7 @@ import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import 'circles/sms_space.dart';
 import 'friends/buddies.dart';
 import 'friends/handover.dart';
 import 'me/me.dart';
@@ -304,6 +305,8 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       // Summaries of unread conversations by the phone's own model (lib/summaries.dart): where it stands, and asked
       // for where it can be had.
       Summaries.instance.start(app);
+      // SMS spaces this phone texts for (lib/circles/sms_space.dart): their messages out by text, and the replies in.
+      SmsSpaces.instance.start(app);
       // And the number's verification, done here for a paired computer that asks (Sms.me on the computer).
       Sms.answer('me', Me.instance.forComputer);
       // And friends by username, added and answered from a paired computer (lib/friends/buddies.dart).
