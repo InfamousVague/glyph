@@ -60,6 +60,46 @@ class RecordCallPlugin extends GhostPlugin {
     return 'Saving to ${to.space.name} › ${to.folder}';
   }
 
+  /// Its notes in a space's chat as cards (Matt, 2026-11-19: "use icons for starting and stopping recording and allow
+  /// plugins to render messages like these as cards with iconography and details"): "started" on red, as it is going
+  /// on; "stopped" with how long, how many voices and where it went.
+  @override
+  PluginChatCard? card(PluginChatNote note, {required bool mine}) {
+    final by = mine ? 'You' : (note.details['by']?.trim().isNotEmpty ?? false ? note.details['by']!.trim() : 'Someone');
+    switch (note.kind) {
+      case 'started':
+        return PluginChatCard(
+          icon: Lucide.circleDot,
+          alert: true,
+          title: '$by started recording',
+          detail: 'Everyone in the call is asked first. Only voices whose owners say yes are in it.',
+        );
+      case 'stopped':
+        final seconds = int.tryParse(note.details['seconds'] ?? '');
+        final voices = int.tryParse(note.details['voices'] ?? '');
+        final saved = note.details['savedTo'] ?? '';
+        return PluginChatCard(
+          icon: Lucide.circleStop,
+          title: '$by stopped recording',
+          detail: saved,
+          facts: [
+            if (seconds != null) (Lucide.clock, recordingLength(seconds)),
+            if (voices != null && voices > 0) (Lucide.users, voices == 1 ? '1 voice' : '$voices voices'),
+            (Lucide.audioLines, 'MP4, a track each'),
+          ],
+        );
+    }
+    return null;
+  }
+
+  /// [seconds] as a recording's length: "45 s", "12 min", "1 h 5 min".
+  static String recordingLength(int seconds) {
+    if (seconds < 60) return '$seconds s';
+    final m = (seconds / 60).round();
+    if (m < 60) return '$m min';
+    return m % 60 == 0 ? '${m ~/ 60} h' : '${m ~/ 60} h ${m % 60} min';
+  }
+
   @override
   String get id => 'recordcall';
 

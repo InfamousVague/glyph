@@ -899,6 +899,14 @@ class Telegram extends InboxNetwork {
     return found;
   }
 
+  @override
+  Future<InboxProfile?> ownProfile() async {
+    if (_state != InboxState.ready) return null;
+    _meId ??= ((await _ask({'@type': 'getMe'}))['id'] as num?)?.toInt();
+    final me = _meId;
+    return me == null ? null : _profileOfUser(me);
+  }
+
   Future<InboxProfile?> _profileOfUser(int id) async {
     var u = _people[id];
     if (u == null) {

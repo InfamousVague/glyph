@@ -10,6 +10,7 @@ import '../me/me.dart';
 import 'circles/circle_picture.dart' show pickCirclePicture;
 import 'common.dart';
 import 'profile_card.dart' show ProfileFace;
+import 'sign_up_from.dart';
 import '../kit/semantic_colors.dart';
 
 /// Your profile on Ghost Messaging (Matt, 2026-11-14: "create a profile and username under "me" to register a
@@ -60,6 +61,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  void _fill(SignUpProfile p) {
+    setState(() {
+      if (p.username.isNotEmpty) _username.text = p.username;
+      if (p.name.isNotEmpty) _name.text = p.name;
+      if (p.status.isNotEmpty) _status.text = p.status;
+      if (p.bio.isNotEmpty && _bio.text.trim().isEmpty) _bio.text = p.bio;
+    });
+    if (p.picture != null) Me.instance.setProfile(picture: p.picture);
+    toast(context, 'Filled in from ${p.from}. Claim the username and save to keep it.');
+  }
+
   void _saveProfile() {
     final me = Me.instance;
     if (_name.text.trim() == me.displayName && _bio.text.trim() == me.bio && _status.text.trim() == me.status) return;
@@ -108,6 +120,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
+              // Before a username is claimed, the profile can be filled in from an account the person has (Matt,
+              // 2026-11-19: "add a sign up with discord sign up with telegram or signal option"): the username, name
+              // and status put in the fields to look over, the picture set.
+              if (me.username == null) ...[
+                SignUpFromSection(onFilled: _fill),
+                SizedBox(height: t.space(6)),
+              ],
               PaneSection(
                 title: 'Username',
                 description: Text(me.username == null ? 'How people find you to add you as a friend. Nobody sees your number.' : 'People add you as @${me.username}.'),

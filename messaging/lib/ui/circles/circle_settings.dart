@@ -1101,6 +1101,20 @@ class _SpacePermissionsState extends State<_SpacePermissions> {
           value: Text(s.section ?? 'None'),
           onPress: edit ? () => askCircleWords(context, title: 'Heading for ${s.name}', initial: s.section ?? '', hint: 'Spaces with the same heading are listed together. Leave it empty for none.', then: (h) => circles.updateSpace(circles.bySeed(c.seed) ?? c, s.seed, section: h.isEmpty ? null : h, clearSection: h.isEmpty)) : null,
         ),
+        // Each person may write once in so long (Matt, 2026-11-19: "add ... slow mode"); not those who manage spaces.
+        SettingRow(
+          key: const ValueKey('space-slow'),
+          icon: AppIcon(Lucide.hourglass, size: 18),
+          label: 'Slow mode',
+          hint: const Text('How long each person waits between messages here. Those who manage spaces don\'t wait.'),
+          value: Text(slowModeLabel(slowModeOf(s))),
+          onPress: edit
+              ? () => showChoices(context, title: 'Slow mode in ${s.name}', choices: [
+                    for (final secs in slowModeChoices)
+                      Choice(secs == 0 ? 'Off' : 'One message every ${slowModeLabel(secs)}', secs == slowModeOf(s) ? Lucide.check : Lucide.hourglass, () => circles.setSlowMode(circles.bySeed(c.seed) ?? c, s.seed, secs)),
+                  ])
+              : null,
+        ),
       ]),
       gap,
       PaneSection(

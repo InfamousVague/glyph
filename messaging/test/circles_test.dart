@@ -425,6 +425,36 @@ void main() {
       expect(mine.bySeed(c.seed)!.manifest.roles.last.name, 'Top');
     });
 
+    test('slow mode is a space\'s, set by whoever manages spaces, and holds members, not those who manage spaces (Matt, 2026-11-19: "add ... slow mode")', () async {
+      final hub = _Hub();
+      final owner = NetKeys.generate(), maya = NetKeys.generate();
+      final mine = Circles.forTest(signer: KeysSigner(owner), route: _Route(hub, owner.id));
+      final hers = Circles.forTest(signer: KeysSigner(maya), route: _Route(hub, maya.id));
+      addTearDown(() async {
+        await mine.clear();
+        await hers.clear();
+      });
+      final c = (await mine.make(name: 'Book club'))!;
+      await _settle();
+      hers.join(Circle.fromLink(c.link)!);
+      await _until(() => hers.bySeed(c.seed)!.manifest.version >= 1);
+      final general = c.spaces.firstWhere((s) => s.kind == SpaceKind.text);
+      VoiceChannel ch(Circles who) => who.bySeed(c.seed)!.channelOf(general);
+      expect(hers.slowModeFor(ch(hers)), 0, reason: 'off to start with');
+      expect(await mine.setSlowMode(mine.bySeed(c.seed)!, general.seed, 42), isFalse, reason: 'not one of the waits offered');
+      expect(await mine.setSlowMode(mine.bySeed(c.seed)!, general.seed, 30), isTrue);
+      await _until(() => hers.slowModeFor(ch(hers)) == 30);
+      expect(slowModeOf(hers.bySeed(c.seed)!.space(general.seed)!), 30);
+      expect(mine.slowModeFor(ch(mine)), 0, reason: 'the owner manages spaces and does not wait');
+      expect(await hers.setSlowMode(hers.bySeed(c.seed)!, general.seed, 0), isFalse, reason: 'she does not manage spaces');
+      expect(await mine.setSlowMode(mine.bySeed(c.seed)!, general.seed, 0), isTrue);
+      await _until(() => hers.slowModeFor(ch(hers)) == 0);
+      expect(hers.bySeed(c.seed)!.space(general.seed)!.extra.containsKey('slow'), isFalse, reason: 'off says nothing');
+      expect([slowModeLabel(0), slowModeLabel(30), slowModeLabel(60), slowModeLabel(300), slowModeLabel(3600)], ['Off', '30 seconds', '1 minute', '5 minutes', '1 hour']);
+      expect(slowModeLeft(const Duration(seconds: 11, milliseconds: 200)), '0:12');
+      expect(slowModeLeft(const Duration(minutes: 4, seconds: 5)), '4:05');
+    });
+
     test('allows() obeys a space\'s overrides: writing taken away in one space alone, then given back to a role there', () async {
       final hub = _Hub();
       final owner = NetKeys.generate(), maya = NetKeys.generate();

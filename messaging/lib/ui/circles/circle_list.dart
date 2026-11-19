@@ -9,6 +9,7 @@
 library;
 
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'dart:io';
 
@@ -41,13 +42,52 @@ class CircleList extends StatelessWidget {
 /// A circle's page: the way back, its face and name (a press opens its menu), Invite and its settings, and [body]
 /// under them. Dial-Up's
 /// window draws its own title bar from it.
-class CirclePage extends StatelessWidget {
+class CirclePage extends StatefulWidget {
   const CirclePage({super.key, required this.view, required this.body});
   final CircleView view;
   final Widget body;
 
   @override
+  State<CirclePage> createState() => _CirclePageState();
+}
+
+class _CirclePageState extends State<CirclePage> {
+  /// How far the list under the header is scrolled: the banner gives up that much of its height below the header,
+  /// as it goes (Matt, 2026-11-19: "When scrolling up in a sidebar collapse the header background image to only take
+  /// up the space where the header text and avatar is at the same time as we scroll").
+  final _scrolled = ValueNotifier<double>(0);
+
+  @override
+  void dispose() {
+    _scrolled.dispose();
+    super.dispose();
+  }
+
+  void _follow(ScrollMetrics m) => _scrolled.value = m.pixels.clamp(0, double.infinity);
+
+  @override
   Widget build(BuildContext context) {
+    // Made once: the list keeps its place while the header above it changes height. The list's own scrolling (not a
+    // row's, nor a sideways one inside it), and where it is put back without scrolling: a short list snaps back to its
+    // top as the header grows or shrinks, and the banner would have stayed as small as it was.
+    final body = NotificationListener<ScrollMetricsNotification>(
+      onNotification: (n) {
+        if (n.depth == 0 && n.metrics.axis == Axis.vertical) _follow(n.metrics);
+        return false;
+      },
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (n) {
+          if (n.depth == 0 && n.metrics.axis == Axis.vertical) _follow(n.metrics);
+          return false;
+        },
+        child: widget.body,
+      ),
+    );
+    return ValueListenableBuilder<double>(valueListenable: _scrolled, builder: (context, scrolled, _) => _page(context, body, scrolled));
+  }
+
+  Widget _page(BuildContext context, Widget body, double scrolled) {
+    final view = widget.view;
     final t = context.tokens;
     final c = view.circle;
     final live = view.live.fold(0, (n, s) => n + s.inVoice.length);
@@ -96,7 +136,9 @@ class CirclePage extends StatelessWidget {
       // for the header of circles needs to be taller and the back arrow and other header content should render inside the
       // background image not above it").
       headerBackground: isBevelChrome(t) ? null : CircleBanner(circle: c, onPress: view.onMenu),
-      headerExtra: t.lenOf(pictured ? '5rem' : '0.75rem'),
+      // Taller at the top of the list; scrolled, down to the header row alone with as much room under it as over it
+      // (the banner's own margin and the row's), a point for each point scrolled.
+      headerExtra: math.max(t.space(2) * 2, math.max(t.space(2) * 2, t.lenOf(pictured ? '5rem' : '0.75rem')) - scrolled),
       headerInk: ink,
       body: body,
     );

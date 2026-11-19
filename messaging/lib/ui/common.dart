@@ -74,7 +74,10 @@ class GhostPage extends StatelessWidget {
         height: bar,
         child: Row(
           children: [
-            SizedBox(width: lights + t.space(back ? 1 : 4)),
+            // Over a background (a circle's banner) the back arrow's round hover and press mark stays inside the picture's
+            // rounded edge, as far in as the rest of the header (Matt, 2026-11-19: "when hovering the back arrow the
+            // hover state goes over the left edge of the banner").
+            SizedBox(width: lights + t.space(back ? (headerBackground == null ? 1 : 2) : 4)),
             if (back) IconTap(icon: Lucide.arrowLeft, label: 'Back', size: 22, color: headerBackground == null ? null : headerInk, onPressed: onBack ?? () => Navigator.of(context).maybePop()),
             Expanded(
               child: titleWidget ??

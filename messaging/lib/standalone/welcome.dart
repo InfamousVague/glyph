@@ -15,6 +15,7 @@ import '../me/me.dart';
 import '../ui/account_screens.dart';
 import '../ui/common.dart' show push;
 import '../ui/computers.dart' show PairButton;
+import '../ui/sign_up_from.dart';
 import '../kit/semantic_colors.dart';
 
 /// The first thing an iPhone of its own shows (lib/standalone; Matt, 2026-11-15: "roll a version of the app that works
@@ -34,6 +35,18 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
   final _name = TextEditingController();
   String? _problem;
   bool _busy = false;
+
+  /// What an account the person has gave (lib/ui/sign_up_from.dart): the form filled from it, the picture and status
+  /// kept until Continue.
+  SignUpProfile? _from;
+
+  void _fill(SignUpProfile p) {
+    setState(() {
+      _from = p;
+      if (p.username.isNotEmpty) _username.text = p.username;
+      if (p.name.isNotEmpty) _name.text = p.name;
+    });
+  }
 
   @override
   void initState() {
@@ -62,8 +75,14 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
     try {
       await Me.instance.claimUsername(want);
       final name = _name.text.trim();
-      if (name.isNotEmpty) {
-        Me.instance.setProfile(displayName: name, bio: Me.instance.bio);
+      final from = _from;
+      if (name.isNotEmpty || from != null) {
+        Me.instance.setProfile(
+          displayName: name.isNotEmpty ? name : null,
+          bio: from != null && from.bio.isNotEmpty && Me.instance.bio.isEmpty ? from.bio : Me.instance.bio,
+          picture: from?.picture,
+          status: from != null && from.status.isNotEmpty ? from.status : null,
+        );
         Buddies.instance.shareProfile();
       }
       // An account made a moment ago, before there was a username: its backup carries the username from now.
@@ -129,6 +148,13 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
                   ),
                 ]),
               ],
+              // From an account they have (Matt, 2026-11-19: "add a sign up with discord sign up with telegram or
+              // signal option"): the form filled in for them.
+              SizedBox(height: t.space(6)),
+              if (_from == null)
+                SignUpFromSection(onFilled: _fill)
+              else
+                SignUpFilled(profile: _from!, onClear: () => setState(() => _from = null)),
               SizedBox(height: t.space(8)),
               PaneSection(
                 title: 'Your username',

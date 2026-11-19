@@ -217,7 +217,7 @@ class CircleSpace {
   /// What a newer build wrote of the space that this one doesn't read, written back unchanged ([toJson]).
   final Map<String, Object?> extra;
 
-  CircleSpace copyWith({String? name, SpaceKind? kind, int? order, String? section, bool clearSection = false}) => CircleSpace(
+  CircleSpace copyWith({String? name, SpaceKind? kind, int? order, String? section, bool clearSection = false, Map<String, Object?>? extra}) => CircleSpace(
         seed: seed,
         name: name ?? this.name,
         kind: kind ?? this.kind,
@@ -225,7 +225,7 @@ class CircleSpace {
         section: clearSection ? null : (section ?? this.section),
         // A kind chosen here replaces the one this build couldn't read.
         kindWire: kind == null ? kindWire : null,
-        extra: extra,
+        extra: extra ?? this.extra,
       );
 
   static const _known = {'s', 'n', 'k', 'o', 'g'};

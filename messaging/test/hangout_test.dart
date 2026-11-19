@@ -582,4 +582,74 @@ void main() {
       expect(await o.deleteRole('dj'), isTrue);
     });
   });
+
+  // Matt, 2026-11-19: "add Polls as a default feature".
+  group('polls', () {
+    test('a poll is asked as a message; votes are counted on each device, one per person, the latest theirs; a latecomer gets them', () async {
+      final o = owner.room(channel), a = ann.room(channel);
+      await o.open();
+      await a.open();
+      await _settle();
+      expect(o.sendPoll('  Pizza or tacos?  ', PollSpec.of(['Pizza', 'Tacos', '  '])!), isTrue);
+      await _settle();
+      final poll = a.messages.single;
+      expect(poll.text, 'Pizza or tacos?');
+      expect(poll.poll, const PollSpec(options: ['Pizza', 'Tacos']));
+      expect(poll.summary, '📊 Poll · Pizza or tacos?', reason: 'a list\'s preview');
+      expect(poll.toJson()['x'], '📊 Poll\nPizza or tacos?', reason: 'what a build from before shows');
+
+      expect(a.vote(poll, [1]), isTrue);
+      await _settle();
+      expect(o.tally(o.messages.single).counts, [0, 1]);
+      expect(a.tally(poll).mine, [1]);
+      // Ann changes her mind; still one vote of hers.
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+      a.vote(poll, [0, 1]);
+      await _settle();
+      expect(o.tally(o.messages.single).counts, [1, 0], reason: 'one answer where only one may be chosen');
+      expect(o.tally(o.messages.single).voters, 1);
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+      o.vote(o.messages.single, [0]);
+      await _settle();
+      expect(a.tally(poll).counts, [2, 0]);
+
+      // Bob comes later and is told every vote with the poll.
+      final b = bob.room(channel);
+      await b.open();
+      await _settle();
+      expect(b.tally(b.messages.single).counts, [2, 0]);
+      expect(b.tally(b.messages.single).voters, 2);
+
+      // Ann takes hers back.
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+      a.vote(poll, []);
+      await _settle();
+      expect(b.tally(b.messages.single).voters, 1);
+      expect(o.tally(o.messages.single).counts, [1, 0]);
+    });
+
+    test('where more than one may be chosen each counts; votes are kept with the room; a vote for no answer it has is nothing', () async {
+      final o = owner.room(channel);
+      await o.open();
+      expect(o.sendPoll('Which days?', PollSpec.of(['Fri', 'Sat', 'Sun'], multi: true)!), isTrue);
+      final poll = o.messages.single;
+      o.vote(poll, [2, 0, 0, 9]);
+      expect(o.tally(poll).mine, [0, 2]);
+      expect(o.tally(poll).counts, [1, 0, 1]);
+      await o.close();
+      // Opened again from what the device kept.
+      final again = owner.room(channel);
+      await again.open();
+      expect(again.tally(again.messages.single).mine, [0, 2]);
+    });
+
+    test('a poll needs a question and two answers; at most ten, each cut to its length', () {
+      expect(PollSpec.of(['Only one']), isNull);
+      expect(PollSpec.fromJson({'o': ['a']}), isNull);
+      final many = PollSpec.of([for (var i = 0; i < 14; i++) 'Answer $i', 'x' * 200])!;
+      expect(many.options, hasLength(PollSpec.most));
+      expect(PollSpec.fromJson({'o': ['a', 'b' * 200]})!.options.last.length, PollSpec.optionMost);
+      expect(PollSpec.fromJson({'o': ['a', 'b'], 'm': 1})!.multi, isTrue);
+    });
+  });
 }

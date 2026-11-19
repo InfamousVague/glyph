@@ -622,6 +622,15 @@ class Signal extends InboxNetwork {
     return found;
   }
 
+  /// This account's own profile, as Signal keeps it for another of its devices: its name, picture and About line.
+  @override
+  Future<InboxProfile?> ownProfile() async {
+    final me = _aci;
+    if (me == null || me.isEmpty) return null;
+    _profiles.remove(me);
+    return profileOf(user: me);
+  }
+
   String? _quoteName(String? aci) {
     if (aci == null || aci.isEmpty) return null;
     if (aci == _aci) return 'You';

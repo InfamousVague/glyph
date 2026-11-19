@@ -139,6 +139,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
   /// A press on someone: straight to them where there is one way to write, else which way, each with its mark.
   void _pressed(Someone s) {
     if (s.reaches.length == 1) return _reach(s, s.reaches.single);
+    // No way to write to them is known: said, not a choice of nothing.
+    if (s.reaches.isEmpty) {
+      toast(context, 'There\'s no way to message ${s.name} from here yet');
+      return;
+    }
     showChoices(context, title: 'Message ${s.name} with', choices: [
       for (final r in s.reaches)
         if (r.contact == null)

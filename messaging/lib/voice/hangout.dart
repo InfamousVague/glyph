@@ -16,6 +16,11 @@ import 'roles.dart';
 import 'voice.dart';
 import '../me/me.dart' show Me;
 import '../me/pictures.dart';
+import 'plugin_note.dart';
+import 'polls.dart';
+
+export 'plugin_note.dart';
+export 'polls.dart';
 
 /// A hangout's chat, and its roles kept and enforced (Matt, 2026-11-15: "Implement a permissions system similar to
 /// discord for hangouts and add a chat to hangouts so the whole group can send messages to the hangout as well as
@@ -43,6 +48,7 @@ class HangoutRoom extends ChangeNotifier {
     if (roster.owner != channel.owner) roster = Roster.first(channel.owner, kind: channel.kind);
     messages = this.store.messages(channel.chatRoom);
     _loadAbout();
+    _loadVotes();
   }
 
   static const keep = 300;
@@ -197,7 +203,8 @@ class HangoutRoom extends ChangeNotifier {
   /// Writes [text], with [files] that are up already or a [sticker], to the hangout; false where this device may not or
   /// there is nothing to send. [id]: the one an [OutgoingMessage] was shown under.
   /// [mentions]: who is meant by an "@Name" in [text], counted in [text] as given (lib/mentions.dart).
-  bool sendWith({String text = '', List<SpaceFile> files = const [], String? sticker, bool voice = false, String? id, List<Mention> mentions = const []}) {
+  /// [note]: a plugin's, for it to draw as a card over [text] (lib/voice/plugin_note.dart); only with words alone.
+  bool sendWith({String text = '', List<SpaceFile> files = const [], String? sticker, bool voice = false, String? id, List<Mention> mentions = const [], PluginChatNote? note}) {
     var words = text.trim();
     if (sticker != null && !HangoutMessage.stickerPattern.hasMatch(sticker)) return false;
     final extra = files.isNotEmpty || sticker != null;
@@ -215,10 +222,116 @@ class HangoutRoom extends ChangeNotifier {
       voice: voice && files.length == 1 && sticker == null,
       // Counted in the words as sent: trimmed, and cut short where too long (a mention past the cut goes).
       mentions: Mention.checked(Mention.trimmed(mentions, text), words),
+      note: extra ? null : note,
     ));
     _add([m]);
     _say({'t': 'msg', ...m.toJson()}, keep: true);
     return true;
+  }
+
+  // --- polls (Matt, 2026-11-19: "add Polls as a default feature"; lib/voice/polls.dart) --------------------------------
+
+  /// Each poll's votes: by the poll's id, then by the voter's id.
+  final Map<String, Map<String, PollVote>> _votes = {};
+
+  /// The most polls whose votes are kept, newest first ([_keepVotes]): older polls' votes go.
+  static const pollsKept = 200;
+
+  /// Asks [question] with [poll]'s answers; false where this device may not write here or it is not a poll.
+  bool sendPoll(String question, PollSpec poll) {
+    var q = question.trim();
+    if (q.isEmpty || poll.options.length < PollSpec.least || !mayWrite) return false;
+    if (q.length > PollSpec.questionMost) q = q.substring(0, PollSpec.questionMost);
+    final m = HangoutMessage(id: NetCrypto.hex(NetCrypto.randomBytes(8)), from: me, name: name, text: q, at: DateTime.now().millisecondsSinceEpoch, poll: poll);
+    _add([m]);
+    _say({'t': 'msg', ...m.toJson()}, keep: true);
+    return true;
+  }
+
+  /// Votes for [choices] (answers' indexes) in [poll]; none takes this person's vote back. False where it can't be.
+  bool vote(HangoutMessage poll, List<int> choices) {
+    final spec = poll.poll;
+    if (spec == null || !mayWrite) return false;
+    final chosen = PollVote.valid(spec, choices);
+    final v = PollVote(chosen, DateTime.now().millisecondsSinceEpoch);
+    _takeVote(poll.id, me, v);
+    _say({'t': 'vote', 'p': poll.id, 'c': chosen, 'at': v.at}, keep: true);
+    _keepVotes();
+    notifyListeners();
+    return true;
+  }
+
+  /// [poll]'s answers counted, each person once (by their username, where they said it, across their devices).
+  PollTally tally(HangoutMessage poll) => tallyPoll(poll.poll!, _votes[poll.id] ?? const {}, personOf: _personOf, me: me);
+
+  String _personOf(String id) {
+    final u = id == me ? Me.instance.username : usernames[id];
+    return u == null || u.isEmpty ? id : 'u:${u.toLowerCase()}';
+  }
+
+  /// [v] as [voter]'s vote in [poll], where it is later than the one had.
+  bool _takeVote(String poll, String voter, PollVote v) {
+    final of = _votes[poll] ??= {};
+    final had = of[voter];
+    if (had != null && had.at >= v.at) return false;
+    of[voter] = v;
+    return true;
+  }
+
+  void _heardVote(String from, Map<String, dynamic> m) {
+    final poll = m['p'], c = m['c'], at = m['at'];
+    if (poll is! String || c is! List || at is! int || !roster.can(from, Perm.chat)) return;
+    if (_takeVote(poll, from, PollVote([for (final x in c.take(PollSpec.most)) if (x is int) x], at))) {
+      _keepVotes();
+      notifyListeners();
+    }
+  }
+
+  void _heardVotes(Object? all) {
+    if (all is! Map) return;
+    var any = false;
+    for (final p in all.entries.take(pollsKept)) {
+      if (p.key is! String || p.value is! Map) continue;
+      for (final v in (p.value as Map).entries) {
+        final vote = PollVote.fromJson(v.value);
+        if (v.key is String && vote != null && roster.can(v.key as String, Perm.chat)) any = _takeVote(p.key as String, v.key as String, vote) || any;
+      }
+    }
+    if (any) {
+      _keepVotes();
+      notifyListeners();
+    }
+  }
+
+  /// The votes of the polls among [of], as a `votes` answer carries them.
+  Map<String, Object> _votesOf(Iterable<HangoutMessage> of) => {
+        for (final m in of)
+          if (m.poll != null && (_votes[m.id]?.isNotEmpty ?? false)) m.id: {for (final e in _votes[m.id]!.entries) e.key: e.value.toJson()},
+      };
+
+  void _keepVotes() {
+    final s = store;
+    if (s is! HangoutVotesStore) return;
+    // The newest polls' votes, those of polls still here first.
+    final here = {for (final m in messages) if (m.poll != null) m.id};
+    final ids = [..._votes.keys.where(here.contains), ..._votes.keys.where((k) => !here.contains(k))].reversed.take(pollsKept);
+    (s as HangoutVotesStore).keepVotes(channel.chatRoom, jsonEncode({for (final id in ids) id: {for (final e in _votes[id]!.entries) e.key: e.value.toJson()}}));
+  }
+
+  void _loadVotes() {
+    final s = store;
+    if (s is! HangoutVotesStore) return;
+    try {
+      final all = jsonDecode((s as HangoutVotesStore).votesOf(channel.chatRoom) ?? '{}');
+      if (all is! Map) return;
+      for (final p in all.entries) {
+        if (p.value is! Map) continue;
+        for (final v in (p.value as Map).entries) {
+          final vote = PollVote.fromJson(v.value);
+          if (vote != null) _takeVote('${p.key}', '${v.key}', vote);
+        }
+      }
+    } catch (_) {}
   }
 
   /// The most of a message's sealed words that go in one of the hub's packets (60 KB), with room for the sealing.
@@ -710,6 +823,10 @@ class HangoutRoom extends ChangeNotifier {
       case 'msg':
         final msg = HangoutMessage.fromJson(m, from);
         if (msg != null && roster.can(from, Perm.chat)) _add([msg]);
+      case 'vote':
+        _heardVote(from, m);
+      case 'votes':
+        _heardVotes(m['v']);
       case 'del':
         final id = '${m['id']}';
         final msg = messages.where((x) => x.id == id).firstOrNull;
@@ -723,6 +840,9 @@ class HangoutRoom extends ChangeNotifier {
           for (final lot in histLots(missed.take(keep))) {
             _say({'t': 'hist', 'to': from, 'm': lot});
           }
+          // Every vote in the polls it has, after them: an older build has no case for `votes` and passes over it.
+          final votes = _votesOf(messages);
+          if (votes.isNotEmpty) _say({'t': 'votes', 'to': from, 'v': votes});
         }
         if (roster.sig != null && (m['v'] is! int || roster.version > (m['v'] as int))) _say({'t': 'roster', 'to': from, 'r': roster.toJson()});
         // The description the same way, after the roster that trusts its writer. An older build's sync? has no `av`
@@ -788,7 +908,7 @@ class HangoutPerson {
 /// (lib/files/files_store.dart, [ChatUploads]), but never written in its list: only the message knows of them.
 @immutable
 class HangoutMessage {
-  const HangoutMessage({required this.id, required this.from, required this.name, required this.text, required this.at, this.files = const [], this.sticker, this.voice = false, this.mentions = const []});
+  const HangoutMessage({required this.id, required this.from, required this.name, required this.text, required this.at, this.files = const [], this.sticker, this.voice = false, this.mentions = const [], this.poll, this.note});
   final String id;
 
   /// Who wrote it (their id on the hub, as the hub said), and the name they wrote it under.
@@ -813,6 +933,13 @@ class HangoutMessage {
   /// Who its words mention, by where each "@Name" is in [text]; only ones that check out against it (Mention.checked).
   final List<Mention> mentions;
 
+  /// A poll, whose question is [text] (lib/voice/polls.dart); null for any other message.
+  final PollSpec? poll;
+
+  /// What a plugin is saying, for it to draw as a card (lib/voice/plugin_note.dart); [text] is the same in words, which
+  /// is what a build without the plugin shows. Since 2026-11-19 (`pn`).
+  final PluginChatNote? note;
+
   /// Whether it mentions [id].
   bool mentionsOf(String id) => Mention.names(mentions, id);
 
@@ -825,11 +952,12 @@ class HangoutMessage {
   static final stickerPattern = RegExp(r'^[a-z]{1,24}-[0-9a-z_]{1,24}$');
 
   /// Something besides words.
-  bool get extras => files.isNotEmpty || sticker != null;
+  bool get extras => files.isNotEmpty || sticker != null || poll != null;
 
   /// What came, in a line: what a build from before shows, and a preview where there are no words.
   String get what {
     if (sticker != null) return 'Sticker';
+    if (poll != null) return '📊 Poll';
     if (voice) return '🎤 Voice message';
     if (files.isEmpty) return '';
     final names = [for (final f in files) f.name];
@@ -843,7 +971,7 @@ class HangoutMessage {
   /// The message in a line, for a list's preview: its words, or what came.
   String get summary => !extras ? text : (text.isEmpty ? what : '$what · $text');
 
-  HangoutMessage copyWith({List<SpaceFile>? files}) => HangoutMessage(id: id, from: from, name: name, text: text, at: at, files: files ?? this.files, sticker: sticker, voice: voice, mentions: mentions);
+  HangoutMessage copyWith({List<SpaceFile>? files}) => HangoutMessage(id: id, from: from, name: name, text: text, at: at, files: files ?? this.files, sticker: sticker, voice: voice, mentions: mentions, poll: poll, note: note);
 
   Map<String, Object> toJson() => {
         'id': id,
@@ -856,6 +984,8 @@ class HangoutMessage {
         'st': ?sticker,
         if (voice && files.isNotEmpty) 'vo': 1,
         if (mentions.isNotEmpty) 'mn': [for (final m in mentions) m.toJson()],
+        if (poll != null) 'pl': poll!.toJson(),
+        if (note != null) 'pn': note!.toJson(),
       };
 
   /// From what [from] said: its id, words and time; null where it is not a message. A message whose files and sticker
@@ -871,11 +1001,13 @@ class HangoutMessage {
     ];
     final st = j['st'];
     final sticker = st is String && stickerPattern.hasMatch(st) ? st : null;
-    final extras = files.isNotEmpty || sticker != null;
+    // A poll is its question and answers alone: no files or sticker with it.
+    final poll = sticker == null && files.isEmpty ? PollSpec.fromJson(j['pl']) : null;
+    final extras = files.isNotEmpty || sticker != null || poll != null;
     final raw = extras ? (j['w'] is String ? j['w'] as String : '') : j['x'] as String;
     final text = raw.trim();
-    if (text.isEmpty && !extras) return null;
-    final most = extras ? mostWordsWith : 4000;
+    if (text.isEmpty && (!extras || poll != null)) return null;
+    final most = poll != null ? PollSpec.questionMost : (extras ? mostWordsWith : 4000);
     final kept = text.length > most ? text.substring(0, most) : text;
     // Counted in the words as they came, then in the words as kept: trimmed and cut short, a mention past the cut goes.
     final lead = raw.length - raw.trimLeft().length;
@@ -890,6 +1022,9 @@ class HangoutMessage {
       sticker: sticker,
       voice: j['vo'] == 1 && files.length == 1 && sticker == null,
       mentions: Mention.checked(mentions, kept),
+      poll: poll,
+      // A plugin's note is words with a card over them: never with files, a sticker or a poll.
+      note: extras ? null : PluginChatNote.fromJson(j['pn']),
     );
   }
 
@@ -1015,6 +1150,12 @@ class SpaceAbout {
   }
 }
 
+/// A store that keeps a space's polls' votes too (JSON: poll's id, then voter's id, to [PollVote.toJson]).
+abstract class HangoutVotesStore {
+  String? votesOf(String room);
+  void keepVotes(String room, String votes);
+}
+
 /// A store that keeps a space's description too ([SpaceAbout] as JSON). The app's store ([AppHangoutStore]) does it
 /// under a key of its own instead, until it takes this on.
 abstract class HangoutAboutStore {
@@ -1030,7 +1171,12 @@ abstract class HangoutStore {
   void keepRoster(String room, Roster roster);
 }
 
-class MemoryHangoutStore implements HangoutStore, HangoutAboutStore {
+class MemoryHangoutStore implements HangoutStore, HangoutAboutStore, HangoutVotesStore {
+  final Map<String, String> _votes = {};
+  @override
+  String? votesOf(String room) => _votes[room];
+  @override
+  void keepVotes(String room, String votes) => _votes[room] = votes;
   final Map<String, List<HangoutMessage>> _messages = {};
   final Map<String, Roster> _rosters = {};
   final Map<String, String> _abouts = {};

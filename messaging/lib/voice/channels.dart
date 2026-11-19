@@ -940,9 +940,15 @@ class Voice extends ChangeNotifier {
 }
 
 /// A hangout's chat and roster kept with the device's choices (`hangout_<room>_m`, `hangout_<room>_r`).
-class AppHangoutStore implements HangoutStore {
+class AppHangoutStore implements HangoutStore, HangoutVotesStore {
   AppHangoutStore(this.app);
   final AppState app;
+
+  @override
+  String? votesOf(String room) => app.choice('hangout_${room}_v', '');
+
+  @override
+  void keepVotes(String room, String votes) => app.set('hangout_${room}_v', votes);
 
   @override
   List<HangoutMessage> messages(String room) {

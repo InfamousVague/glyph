@@ -94,6 +94,54 @@ void main() {
     });
   }
 
+  testWidgets('the banner gives up its height as the list scrolls up, down to the header alone', (tester) async {
+    // Matt, 2026-11-19: "When scrolling up in a sidebar collapse the header background image to only take up the space
+    // where the header text and avatar is at the same time as we scroll".
+    final m = sampleCircle.manifest;
+    // A picture banner (any small PNG will do for its size), and a short screen so the list scrolls.
+    const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    final c = sampleCircle.copyWith(manifest: m.next(extra: {...m.extra, 'bn': png}));
+    await draw(tester, CircleList(view: sampleCircleView(circle: c, onBack: () {})), size: const Size(412, 520));
+    Rect banner() => tester.getRect(find.byKey(const ValueKey('circle-banner-strip')));
+    Rect face() => tester.getRect(find.descendant(of: find.byType(CirclePage), matching: find.byType(CircleFace)).last);
+    final list = find.byType(Scrollable).last;
+    double scrolled() => tester.state<ScrollableState>(list).position.pixels;
+    final full = banner().height;
+    final faceAtRest = face();
+    // A finger on the list, moved a step at a time, the frame drawn after each.
+    Future<void> scroll(double by, {int steps = 10}) async {
+      final g = await tester.startGesture(Offset(200, banner().bottom + 40));
+      for (var i = 0; i < steps; i++) {
+        await g.moveBy(Offset(0, -by / steps));
+        await tester.pump();
+      }
+      await g.up();
+      await tester.pumpAndSettle();
+    }
+
+    // A little: as much shorter as it was scrolled, as it goes.
+    await scroll(30, steps: 3);
+    expect(full - banner().height, closeTo(scrolled(), 1), reason: 'shorter by what was scrolled');
+    // A lot: down to the header, the face and name inside it with room, and the header itself as it was.
+    await scroll(300);
+    final small = banner();
+    expect(small.height, lessThan(full - 50));
+    expect(face().size, faceAtRest.size);
+    expect(face().top - small.top, greaterThanOrEqualTo(8));
+    expect(small.bottom - face().bottom, greaterThanOrEqualTo(8), reason: 'the face inside it with room, not cut off');
+    await keep(tester, 'banner-collapsed');
+    // Steady, not shrinking and growing in turn.
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(banner().height, small.height);
+    }
+    // Back at the top it is whole again.
+    await scroll(-600, steps: 20);
+    expect(scrolled(), 0);
+    expect(banner().height, closeTo(full, 0.5));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a banner is behind the header, taller, with the back arrow, face and name drawn on it', (tester) async {
     // Matt, 2026-11-19: "the background image for the header of circles needs to be taller and the back arrow and
     // other header content should render inside the background image not above it".
@@ -135,8 +183,11 @@ void main() {
         expect(r.top - banner.top, greaterThanOrEqualTo(8), reason: '$what clear of the banner\'s top');
         expect(r.left - banner.left, greaterThanOrEqualTo(8), reason: '$what clear of the banner\'s left');
       }
-      // The arrow by its middle: its box is the larger place a finger may press.
-      expect(back.center.dx - banner.left, greaterThanOrEqualTo(20), reason: 'the back arrow clear of the banner\'s left');
+      // The arrow's whole round mark, which shows on hover and press, inside the banner with room (Matt, 2026-11-19: "when
+      // hovering the back arrow the hover state goes over the left edge of the banner").
+      expect(back.left - banner.left, greaterThanOrEqualTo(8), reason: 'the back arrow\'s hover mark clear of the banner\'s left');
+      expect(back.top, greaterThanOrEqualTo(banner.top), reason: 'and of its top');
+      expect(back.bottom, lessThanOrEqualTo(banner.bottom), reason: 'and of its foot');
       expect(back.center.dy, closeTo(face.center.dy, 1), reason: 'the arrow level with the face');
       // The picture drawn, for the eye.
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));

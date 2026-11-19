@@ -61,7 +61,7 @@ class Net {
     }
     if (url.host == 'discord.com' && url.path == '/api/users/@me') {
       final who = codes[headers['Authorization']!.substring('Bearer tok-'.length)]!;
-      return Fetched(200, jsonEncode({'id': who.$1, 'username': who.$2}));
+      return Fetched(200, jsonEncode({'id': who.$1, 'username': who.$2, 'global_name': 'Name of ${who.$2}', 'avatar': 'av${who.$1}'}));
     }
     if (url.host == 'api.x.com' && url.path == '/2/oauth2/token') {
       final form = Uri.splitQueryString(body ?? '');
@@ -632,7 +632,16 @@ void main() {
       final done = await get('/link/discord/callback?code=good&state=$s2');
       expect(done.status, 200);
       expect(done.body, contains('@maya on Discord is linked'));
-      expect(last(alice, 'linked'), {'dir': 'linked', 'p': 'discord', 'handle': 'maya', 'k': Handles.keyOf('discord', 'maya')});
+      // What Discord said of the account comes with it, for the app to fill in a profile from (Matt, 2026-11-19: "sign
+      // up with discord"); it is not kept.
+      expect(last(alice, 'linked'), {
+        'dir': 'linked',
+        'p': 'discord',
+        'handle': 'maya',
+        'k': Handles.keyOf('discord', 'maya'),
+        'about': {'name': 'Name of Maya', 'picture': 'https://cdn.discordapp.com/avatars/9001/av9001.png?size=256'},
+      });
+      expect(File('${dir.path}/handles.json').existsSync() ? File('${dir.path}/handles.json').readAsStringSync() : '', isNot(contains('Name of Maya')));
     });
 
     test('X: with a challenge whose answer only this server has', () async {

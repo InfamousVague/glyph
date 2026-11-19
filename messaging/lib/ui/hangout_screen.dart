@@ -1,4 +1,4 @@
-import '../circles/circles.dart' show Circles, CirclePerm;
+import '../circles/circles.dart' show Circles, CirclePerm, slowModeLabel, slowModeLeft;
 import 'package:flutter/foundation.dart' show listEquals;
 import 'dart:async';
 import 'dart:convert' show base64Decode;
@@ -21,6 +21,7 @@ import '../voice/mention_alerts.dart';
 import '../voice/roles.dart';
 import '../voice/voice.dart';
 import 'common.dart';
+import 'plugin_note_card.dart';
 import 'profile_card.dart';
 import '../app_state.dart';
 import '../backgrounds.dart';
@@ -57,6 +58,7 @@ import '../mentions.dart';
 import '../me/me.dart' show Me;
 import '../me/pictures.dart';
 import 'mention_field.dart';
+import 'poll_card.dart';
 import 'thread.dart' show LinkedText;
 
 /// A hangout: its chat, who is in it, and its call (Matt, 2026-11-15: "add a chat to hangouts so the whole group can
@@ -587,6 +589,7 @@ class _HangoutChatState extends State<HangoutChat> {
   void dispose() {
     if (MentionAlerts.showing == widget.room.channel.seed) MentionAlerts.showing = null;
     widget.room.removeListener(_roomChanged);
+    _slowTimer?.cancel();
     _text.dispose();
     _focus.dispose();
     _scroll.dispose();
@@ -603,6 +606,7 @@ class _HangoutChatState extends State<HangoutChat> {
 
   void _send() {
     final room = widget.room;
+    if (_slowLeft > Duration.zero) return;
     if (_picked.isNotEmpty) {
       if (!_mayAttach) {
         toast(context, 'Your role here can\'t send files.', tone: GlacierToastTone.danger);
@@ -670,6 +674,26 @@ class _HangoutChatState extends State<HangoutChat> {
     _focus.requestFocus();
   }
 
+  /// The computer's own emoji panel, once the box takes typing: the Mac's opens on the field typing goes to, and on
+  /// nothing where there is none. Focus asked for here lands a moment later, and the panel was asked for before it
+  /// (Matt, 2026-11-19: "the emoji picker doesn't open anything on desktop when in a circle").
+  void _emoji() {
+    void open() => Sms.instance.emojiPanel().catchError((_) {});
+    if (_focus.hasFocus) {
+      open();
+      return;
+    }
+    void landed() {
+      if (!_focus.hasFocus) return;
+      _focus.removeListener(landed);
+      open();
+    }
+
+    // After the field's own listener, which opens its text input as focus lands.
+    _focus.addListener(landed);
+    _focus.requestFocus();
+  }
+
   KeyEventResult _mentionKeys(FocusNode node, KeyEvent e) {
     if (_query == null) return _enterKey(e);
     return mentionKey(
@@ -729,6 +753,46 @@ class _HangoutChatState extends State<HangoutChat> {
 
   /// The + : any files, pictures, videos and GIFs among them, up to ten with one message, chosen with the device's own
   /// picker (a phone's copied into the app's folder first, as a Files space's are).
+  // --- slow mode (Matt, 2026-11-19: "add ... slow mode"; lib/circles/slow_mode.dart) ----------------------------------
+
+  /// This space's wait between this person's messages, in seconds; 0 where there is none for them.
+  int get _slowSeconds => (widget.circles ?? Circles.instance).slowModeFor(widget.room.channel);
+
+  /// How long until this person may write here again: none where slow mode is off or they wrote long enough ago.
+  Duration get _slowLeft {
+    final secs = _slowSeconds;
+    if (secs == 0) return Duration.zero;
+    final room = widget.room;
+    final last = room.messages.lastWhere((m) => m.from == room.me, orElse: () => const HangoutMessage(id: '', from: '', name: '', text: '', at: 0)).at;
+    final left = last + secs * 1000 - DateTime.now().millisecondsSinceEpoch;
+    return left > 0 ? Duration(milliseconds: left) : Duration.zero;
+  }
+
+  /// Redraws the countdown each second while there is one.
+  Timer? _slowTimer;
+  void _tickSlowMode() {
+    _slowTimer ??= Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return timer.cancel();
+      setState(() {});
+      if (_slowLeft <= Duration.zero) {
+        timer.cancel();
+        _slowTimer = null;
+      }
+    });
+  }
+
+  /// The +: files and pictures where they may go, and a poll (Matt, 2026-11-19: "add Polls as a default feature")
+  /// where this device may write; a choice between them where both may. Null where neither.
+  VoidCallback? _plusAction(bool files, {bool polls = true}) {
+    polls = polls && widget.room.mayWrite && _picked.isEmpty;
+    if (!files && !polls) return null;
+    if (!polls) return _attach;
+    return () => showChoices(context, choices: [
+          if (files) Choice('Photos and files', Lucide.imagePlus, () => unawaited(_attach())),
+          Choice('Poll', LucideMore.chartColumn, () => push(context, (_) => NewPollScreen(room: widget.room))),
+        ]);
+  }
+
   Future<void> _attach() async {
     if (!FilePlatform.canPick) {
       toast(context, 'Files can\'t be chosen on this device yet.');
@@ -747,6 +811,7 @@ class _HangoutChatState extends State<HangoutChat> {
   /// The stickers' sheet; the one tapped is sent straight away, by its name: every app carries the stickers, so nothing
   /// goes up, and it is sealed as any message here is.
   Future<void> _sticker() async {
+    if (_slowLeft > Duration.zero) return;
     final asset = await pickSticker(context);
     if (asset == null || !mounted) return;
     HapticFeedback.lightImpact();
@@ -910,7 +975,8 @@ class _HangoutChatState extends State<HangoutChat> {
                 // Each person keeps one of the room's six colours, by their id, and yours is your own.
                 nameColor: mine ? c.nameMine : c.nameFor(m.from),
                 mine: mine,
-                body: shown?.bubble ?? m.text,
+                // A poll's question is on its card, and a plugin's note is its card (lib/ui/plugin_note_card.dart).
+                body: m.poll != null || pluginCardOf(m, mine: mine) != null ? '' : (shown?.bubble ?? m.text),
                 // A translation's words are not the words the mentions are counted in.
                 mentions: shown == null ? m.mentions : const [],
                 mentionStyle: mentionStyle(context.tokens, on: c.ink),
@@ -920,6 +986,8 @@ class _HangoutChatState extends State<HangoutChat> {
                 original: shown == null ? null : OriginalLine(view: shown),
                 // What went with it under the words, square, as the era's lines carry pictures (Matt, 2026-11-18).
                 media: [
+                  if (pluginCardOf(m, mine: mine) case final pc?) PluginChatCardView(card: pc.card, plugin: pc.plugin, maxWidth: 320, ground: c.paper, ink: c.ink),
+                  if (m.poll != null) PollCard(room: room, message: m, maxWidth: 320),
                   if (m.sticker != null) SpaceSticker(name: m.sticker!, side: 120),
                   if (m.files.isNotEmpty) SpaceChatFiles(channel: room.channel, message: m, maxWidth: 280, ground: c.paper, ink: c.ink, rim: Border.all(color: c.shadow)),
                 ],
@@ -1048,18 +1116,20 @@ class _HangoutChatState extends State<HangoutChat> {
                       // stickers and, on the phone itself, voice messages, as in other chats (Matt, 2026-11-18). Files
                       // only where the circle's roles let this person share them (spaceMayAttach).
                       final attach = _mayAttach;
+                      // Slow mode: how long until this person may write again here (Matt, 2026-11-19).
+                      final slow = _slowSeconds;
+                      final left = _slowLeft;
+                      final waiting = left > Duration.zero;
+                      if (waiting) _tickSlowMode();
                       final buttons = composerButtons(
                         t,
                         hasSomething: _text.text.isNotEmpty || _picked.isNotEmpty,
-                        onAttach: attach && FilePlatform.canPick && _picked.length < HangoutMessage.mostFiles ? _attach : null,
-                        onSticker: _picked.isEmpty ? _sticker : null,
-                        onRecord: attach && !Sms.remote && _picked.isEmpty ? _record : null,
-                        onSend: _text.text.trim().isEmpty && _picked.isEmpty ? null : _send,
+                        onAttach: _plusAction(attach && FilePlatform.canPick && _picked.length < HangoutMessage.mostFiles, polls: !waiting),
+                        onSticker: _picked.isEmpty && !waiting ? _sticker : null,
+                        onRecord: attach && !Sms.remote && _picked.isEmpty && !waiting ? _record : null,
+                        onSend: (_text.text.trim().isEmpty && _picked.isEmpty) || waiting ? null : _send,
                         emoji: Sms.remote,
-                        onEmoji: () {
-                          _focus.requestFocus();
-                          Sms.instance.emojiPanel().catchError((_) {});
-                        },
+                        onEmoji: _emoji,
                       );
                       _text.style = mentionStyle(t);
                       return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1067,6 +1137,7 @@ class _HangoutChatState extends State<HangoutChat> {
                         // and circles with the @user prefix").
                         if (_query != null && _found.isNotEmpty)
                           MentionSuggestions(people: _found, chosen: _chosen, onPick: _pickMention, inkOf: (p) => p.role is Role ? roleInk(t, p.role as Role) : null),
+                        if (slow > 0) _SlowModeLine(seconds: slow, left: left),
                         if (_picked.isNotEmpty) SpacePickedStrip(files: _picked, onRemove: (p) => setState(() => _picked.remove(p))),
                         ComposerBox(
                           typing: _typing,
@@ -1345,7 +1416,13 @@ class _Message extends StatelessWidget {
     // 2026-11-18: "I also want full support for uploading attachements gifs stickers etc like we support in other chats").
     final words = shown == null ? bubble : Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [OriginalCard(view: shown, maxWidth: maxWidth), bubble]);
     final Widget body;
-    if (m.sticker != null) {
+    final plugin = pluginCardOf(m, mine: mine);
+    if (plugin != null) {
+      // A plugin's note: its card, in place of the bubble (lib/ui/plugin_note_card.dart).
+      body = PluginChatCardView(card: plugin.card, plugin: plugin.plugin, maxWidth: maxWidth);
+    } else if (m.poll != null) {
+      body = PollCard(room: room, message: m, maxWidth: maxWidth);
+    } else if (m.sticker != null) {
       body = SpaceSticker(name: m.sticker!, side: math.min(t.lenOf('9.5rem'), maxWidth));
     } else if (m.files.isNotEmpty) {
       body = Column(crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -1428,7 +1505,12 @@ extension on _Message {
     final ink = t.color('app-ink');
     final words = _words(t, shown, pageText(t, t.fontSize('md'), color: ink, height: 1.4), ink);
     final Widget body;
-    if (m.sticker != null) {
+    final plugin = pluginCardOf(m, mine: mine);
+    if (plugin != null) {
+      body = PluginChatCardView(card: plugin.card, plugin: plugin.plugin, maxWidth: math.min(maxWidth, t.lenOf('26rem')));
+    } else if (m.poll != null) {
+      body = PollCard(room: room, message: m, maxWidth: maxWidth);
+    } else if (m.sticker != null) {
       body = SpaceSticker(name: m.sticker!, side: math.min(t.lenOf('8rem'), maxWidth));
     } else {
       body = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -2261,5 +2343,33 @@ class _SpaceFaceState extends State<SpaceFace> {
     // Dial-Up's faces are square in a sunken ring, as Avatar draws them there.
     if (isBevelChrome(t)) return DialupFace(size: size, child: image);
     return ClipOval(child: SizedBox(width: size, height: size, child: image));
+  }
+}
+
+/// Over a space's box where it has slow mode: how long each person waits, and while this one waits, how long is left
+/// (Matt, 2026-11-19: "add ... slow mode").
+class _SlowModeLine extends StatelessWidget {
+  const _SlowModeLine({required this.seconds, required this.left});
+  final int seconds;
+  final Duration left;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final waiting = left > Duration.zero;
+    return Padding(
+      key: ValueKey(waiting ? 'slow-mode-wait' : 'slow-mode-on'),
+      padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), t.space(1)),
+      child: Row(children: [
+        AppIcon(Lucide.hourglass, size: 13, color: t.color('app-ink-3')),
+        SizedBox(width: t.space(1) + 2),
+        Expanded(
+          child: Text(
+            waiting ? 'Slow mode: you can write again in ${slowModeLeft(left)}' : 'Slow mode: one message every ${slowModeLabel(seconds)}',
+            style: pageText(t, t.fontSize('xs'), weight: waiting ? 'semibold' : 'regular', color: t.color(waiting ? 'app-ink-2' : 'app-ink-3')),
+          ),
+        ),
+      ]),
+    );
   }
 }
