@@ -670,6 +670,26 @@ class _HangoutChatState extends State<HangoutChat> {
     _focus.requestFocus();
   }
 
+  /// The computer's own emoji panel, once the box takes typing: the Mac's opens on the field typing goes to, and on
+  /// nothing where there is none. Focus asked for here lands a moment later, and the panel was asked for before it
+  /// (Matt, 2026-11-19: "the emoji picker doesn't open anything on desktop when in a circle").
+  void _emoji() {
+    void open() => Sms.instance.emojiPanel().catchError((_) {});
+    if (_focus.hasFocus) {
+      open();
+      return;
+    }
+    void landed() {
+      if (!_focus.hasFocus) return;
+      _focus.removeListener(landed);
+      open();
+    }
+
+    // After the field's own listener, which opens its text input as focus lands.
+    _focus.addListener(landed);
+    _focus.requestFocus();
+  }
+
   KeyEventResult _mentionKeys(FocusNode node, KeyEvent e) {
     if (_query == null) return _enterKey(e);
     return mentionKey(
@@ -1056,10 +1076,7 @@ class _HangoutChatState extends State<HangoutChat> {
                         onRecord: attach && !Sms.remote && _picked.isEmpty ? _record : null,
                         onSend: _text.text.trim().isEmpty && _picked.isEmpty ? null : _send,
                         emoji: Sms.remote,
-                        onEmoji: () {
-                          _focus.requestFocus();
-                          Sms.instance.emojiPanel().catchError((_) {});
-                        },
+                        onEmoji: _emoji,
                       );
                       _text.style = mentionStyle(t);
                       return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [

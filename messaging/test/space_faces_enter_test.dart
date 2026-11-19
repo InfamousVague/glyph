@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/me/pictures.dart';
+import 'package:ghost_messaging/sms.dart' show Sms, SmsCalls;
 import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
 import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner;
 import 'package:ghost_messaging/ui/common.dart' show GhostPage;
@@ -74,7 +75,40 @@ Future<void> _type(WidgetTester tester, String words) async {
   await tester.pump();
 }
 
+/// A computer's calls (Sms.remote), saying which were made.
+class _Computer implements SmsCalls {
+  _Computer(this.typing);
+
+  /// Whether a text field is taking typing: the Mac's emoji panel types into that one, and opens on nothing without it.
+  final bool Function() typing;
+  final made = <String>[];
+  bool typingAtEmoji = false;
+  @override
+  Future<T?> invokeMethod<T>(String method, [dynamic arguments]) async {
+    made.add(method);
+    if (method == 'emoji') typingAtEmoji = typing();
+    return null;
+  }
+}
+
 void main() {
+  testWidgets('on a computer, Emoji opens the box\'s text input and then the emoji panel (Matt, 2026-11-19: "the emoji picker doesn\'t open anything on desktop when in a circle")', (tester) async {
+    final h = await SpaceHarness.load(tester);
+    final (:room, route: _) = _room();
+    await room.open();
+    final was = Sms.calls;
+    final computer = _Computer(() => tester.testTextInput.hasAnyClients);
+    Sms.calls = computer;
+    addTearDown(() => Sms.calls = was);
+    await h.shoot(tester, GhostPage(title: '# general', body: HangoutChat(room: room)), 'space-emoji');
+    expect(tester.testTextInput.hasAnyClients, isFalse, reason: 'nothing typed in yet');
+    await tester.tap(find.byKey(const ValueKey('composer-emoji')));
+    await tester.pump();
+    expect(computer.made, contains('emoji'));
+    expect(computer.typingAtEmoji, isTrue, reason: 'the box takes typing already when the panel is asked for');
+    await tester.pump(const Duration(seconds: 1));
+  });
+
   tearDown(() => ProfilePictures.instance.keep(_maya, ''));
 
   for (final on in [true, false]) {
