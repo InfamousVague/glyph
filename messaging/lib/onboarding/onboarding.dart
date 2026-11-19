@@ -9,6 +9,8 @@
 /// replays it. On the texts page Next waits until Ghost can send texts, and Skip appears once it can.
 library;
 
+import '../ui/whats_new.dart' show changelogSeenKey;
+import '../ui/settings_panes.dart' show appVersion;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -172,6 +174,8 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
   void _finish() {
     widget.voice.stop();
     AppState.of(context).setFlag('onboarded', true);
+    // A new install has nothing new to be told of: the notes start after the version it began with (lib/ui/whats_new.dart).
+    if (AppState.of(context).choice(changelogSeenKey, '').isEmpty) AppState.of(context).set(changelogSeenKey, appVersion);
     if (widget.onDone != null) {
       widget.onDone!();
     } else {

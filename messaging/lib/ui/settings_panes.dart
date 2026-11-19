@@ -2,6 +2,7 @@
 /// cards and rows, handed over plain, so the search can read every setting's name off it.
 library;
 
+import 'whats_new.dart' show showWhatsNew;
 import '../api/remote.dart';
 import '../api/server.dart';
 import 'api_pane.dart';
@@ -339,7 +340,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.9.21';
+const appVersion = '0.9.22';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -1279,6 +1280,8 @@ List<Widget> _about(BuildContext context, SettingsModel m) {
       footer: const Text('Your messages stay in Android\'s own message store, so they\'re all still there if you switch back to another app.'),
       children: [
         SettingRow(icon: _icon(Lucide.ghost), label: 'Version', value: Text(m.update.current.isEmpty ? appVersion : m.update.current)),
+        // The release notes again (lib/ui/whats_new.dart).
+        SettingRow(icon: _icon(Lucide.sparkles), label: 'What\'s new', hint: const Text('What the last update brought.'), onPress: () => showWhatsNew(context)),
         // The first-run walkthrough again (lib/onboarding), on the phone, whose setup it is.
         if (!Sms.remote) SettingRow(icon: _icon(LucideMore.rocket), label: 'Watch the walkthrough again', onPress: () => openOnboarding(context)),
         SettingRow(

@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart' show TextCapitalization;
+import '../../ui/whats_new.dart' show showWhatsNew;
 import 'package:flutter/widgets.dart';
 
 import '../platform.dart';
@@ -447,6 +448,8 @@ List<Widget> _aboutPage(BuildContext context, DeskSettings d) {
   return [
     PaneSection(title: 'Ghost Messaging for $desktopName', children: [
       SettingRow(icon: _icon(Lucide.ghost), label: 'Version', value: Text(d.link.app)),
+      // The release notes again (lib/ui/whats_new.dart).
+      SettingRow(icon: _icon(Lucide.sparkles), label: 'What\'s new', hint: const Text('What the last update brought.'), onPress: () => showWhatsNew(context)),
       SettingRow(
         icon: _icon(LucideMore.smartphone),
         label: 'Your phone sends and receives',

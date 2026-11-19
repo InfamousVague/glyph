@@ -37,6 +37,7 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { telegramDefines } from './telegram-defines.mjs';
+import { requireNotes } from './lib/notes.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // The site's address since 2026-11-15 (tool/deploy-site.mjs); /opt/ghost-sms-* keep their names on the box.
@@ -162,6 +163,7 @@ ensureSigningKey();
 const live = await liveRelease();
 const pub = pubspecVersion();
 const versionName = flag('version') ?? pub.name;
+requireNotes(ROOT, versionName, args, fail);
 const versionCode = Math.max((live?.versionCode ?? 0) + 1, pub.build);
 // A version that is live already is not published a second time (tool/release-mac.mjs says why): the same name
 // live means someone has released it since this was started. --again says it is meant.
