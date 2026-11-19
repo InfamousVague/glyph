@@ -20,7 +20,7 @@ DISCORD_TOKEN=… DISCORD_APP_ID=… npm start   # a real bot; logs the invite l
 ## How linking works
 
 1. Someone with **Manage Server** runs `/ghost link` in the Discord server. The bot answers only them
-   (ephemeral): *"Your code is ABC123. In Ghost Messaging open Spaces › Add a Discord server and enter it. It works
+   (ephemeral): *"Your code is ABC123. In Ghost Messaging tap New › Add a Discord server and enter it. It works
    once, for 10 minutes."*
 2. The app sends the code to `POST /discord/claim` and gets back a token for that server.
 3. The app asks `GET /discord/state?token=…` whenever it wants the server's voice channels and who is in them.

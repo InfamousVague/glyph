@@ -276,7 +276,9 @@ List<SettingsSection> _ownSections() => [
     id: 'network',
     // The routes run on the phone; a computer speaks through it.
     where: SettingsWhere.phone,
-    label: 'Network',
+    // "Routes", not "Network": Connections is your linked accounts, and this is how messages travel (Matt, 2026-11-19:
+    // "Rename 'Network' to 'Routes'").
+    label: 'Routes',
     icon: _icon(Lucide.network),
     hue: 'blue',
     group: 'phone',
@@ -1236,6 +1238,8 @@ List<Widget> _about(BuildContext context, SettingsModel m) {
         SettingRow(icon: _icon(Lucide.sparkles), label: 'What\'s new', hint: const Text('What the last update brought.'), onPress: () => showWhatsNew(context)),
         // The first-run walkthrough again (lib/onboarding), on the phone, whose setup it is.
         if (!Sms.remote) SettingRow(icon: _icon(LucideMore.rocket), label: 'Watch the walkthrough again', onPress: () => openOnboarding(context)),
+        // gogho.st/docs, in the browser.
+        SettingRow(icon: _icon(Lucide.bookOpen), label: 'Help and docs', hint: const Text('How everything works, step by step, at gogho.st/docs.'), onPress: openDocs),
         SettingRow(
           icon: _icon(Lucide.info),
           label: 'Texts and picture messages',
@@ -1243,8 +1247,9 @@ List<Widget> _about(BuildContext context, SettingsModel m) {
         ),
         SettingRow(
           icon: _icon(Lucide.lock),
-          label: 'Nothing leaves the phone',
-          hint: const Text('No account and no server of ours. The app connects to gogho.st for its own updates and to nothing else.'),
+          // Since accounts, friends and circles, the relay at gogho.st carries sealed messages: said as it is.
+          label: 'Sealed, end to end',
+          hint: const Text('Your texts stay on this phone. Friends, circles and spaces go through gogho.st\'s relay, sealed so it can\'t read them.'),
         ),
       ],
     ),

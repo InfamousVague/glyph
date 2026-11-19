@@ -67,7 +67,7 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
               ? 'Reached them by $by in ${r.took.inMilliseconds} ms'
               : d.handed == Handed.held
                   ? 'They are away: the relay server is keeping it for them'
-                  : 'Sent by $by. Their phone shows it under Settings › Network.',
+                  : 'Sent by $by. Their phone shows it under Settings › Routes.',
       tone: d.sent ? GlacierToastTone.neutral : GlacierToastTone.danger,
     );
   }
