@@ -17,7 +17,7 @@ import 'window_chrome.dart';
 
 /// The page under every screen: the ground, a bar with the way back (or a big title), its actions, and the body.
 class GhostPage extends StatelessWidget {
-  const GhostPage({super.key, required this.title, required this.body, this.back = true, this.actions = const [], this.titleWidget, this.footer, this.top, this.subtitle, this.onTitle, this.titleLeading, this.onBack, this.bigTitle});
+  const GhostPage({super.key, required this.title, required this.body, this.back = true, this.actions = const [], this.titleWidget, this.footer, this.top, this.subtitle, this.onTitle, this.titleLeading, this.onBack, this.bigTitle, this.headerBackground, this.headerExtra = 0, this.headerInk});
 
   final String title;
   final Widget? titleWidget;
@@ -47,6 +47,15 @@ class GhostPage extends StatelessWidget {
   /// Above the title, under the status bar: the list's update card (lib/ui/update_banner.dart).
   final Widget? top;
 
+  /// Drawn behind the top of the page, the status bar and the header row in it, and [headerExtra] further down (Matt,
+  /// 2026-11-19, of a circle's banner: "needs to be taller and the back arrow and other header content should render
+  /// inside the background image not above it"). Not under Dial-Up, whose title bar is its own.
+  final Widget? headerBackground;
+  final double headerExtra;
+
+  /// The back arrow's colour over [headerBackground]; the page's ink where null.
+  final Color? headerInk;
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
@@ -58,37 +67,46 @@ class GhostPage extends StatelessWidget {
     final lights = TopBarLights.roomOf(context);
     if (pad.top == 0) MacChrome.say(height: isBevelChrome(t) ? TitleBar.heightOf(t) : bar, dark: t.color('glacier-bg').computeLuminance() < 0.4);
     if (isBevelChrome(t)) return _dialup(context, t, pad, inset, back);
+    // The top bar: on the Mac the window's own strip is gone and this is where it was, dragged to move the window, with
+    // the three buttons centred in it at the window's left (lib/ui/window_chrome.dart).
+    final row = WindowDragArea(
+      child: SizedBox(
+        height: bar,
+        child: Row(
+          children: [
+            SizedBox(width: lights + t.space(back ? 1 : 4)),
+            if (back) IconTap(icon: Lucide.arrowLeft, label: 'Back', size: 22, color: headerBackground == null ? null : headerInk, onPressed: onBack ?? () => Navigator.of(context).maybePop()),
+            Expanded(
+              child: titleWidget ??
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: pageText(t, (bigTitle ?? !back) ? t.fontSize('2xl') : t.fontSize('lg'), weight: (bigTitle ?? !back) ? 'bold' : 'semibold', color: t.color('app-ink')),
+                  ),
+            ),
+            ...actions,
+            SizedBox(width: t.space(2)),
+          ],
+        ),
+      ),
+    );
     return ColoredBox(
       color: t.color('glacier-bg'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(height: pad.top),
-          ?top,
-          // The top bar: on the Mac the window's own strip is gone and this is where it was, dragged to move the
-          // window, with the three buttons centred in it at the window's left (lib/ui/window_chrome.dart).
-          WindowDragArea(
-            child: SizedBox(
-            height: bar,
-            child: Row(
-              children: [
-                SizedBox(width: lights + t.space(back ? 1 : 4)),
-                if (back) IconTap(icon: Lucide.arrowLeft, label: 'Back', size: 22, onPressed: onBack ?? () => Navigator.of(context).maybePop()),
-                Expanded(
-                  child: titleWidget ??
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: pageText(t, (bigTitle ?? !back) ? t.fontSize('2xl') : t.fontSize('lg'), weight: (bigTitle ?? !back) ? 'bold' : 'semibold', color: t.color('app-ink')),
-                      ),
-                ),
-                ...actions,
-                SizedBox(width: t.space(2)),
-              ],
+          if (headerBackground == null) ...[SizedBox(height: pad.top), ?top, row] else ...[
+            // The header inside its background: the picture from the screen's top edge, the row where it always is.
+            SizedBox(
+              height: pad.top + bar + headerExtra,
+              child: Stack(fit: StackFit.expand, children: [
+                headerBackground!,
+                Positioned(top: pad.top, left: 0, right: 0, height: bar, child: row),
+              ]),
             ),
-          ),
-          ),
+            ?top,
+          ],
           const HeaderEnd(),
           Expanded(child: body),
           if (footer != null) Padding(padding: EdgeInsets.only(bottom: inset > 0 ? inset : pad.bottom), child: footer!),

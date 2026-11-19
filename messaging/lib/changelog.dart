@@ -24,6 +24,7 @@ class ReleaseNotes {
 
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.9.25', '2026-11-19', [
+    'Pictures in a space\'s or circle\'s chat, and on Telegram and Signal, open full screen over the chat: pinch or scroll to zoom, tap or press Escape to go back.',
     'SMS spaces list their members, you first: who gets the space\'s messages by text, at which number, and who reads them in the app.',
   ]),
   ReleaseNotes('0.9.24', '2026-11-19', [

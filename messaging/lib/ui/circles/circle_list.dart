@@ -9,12 +9,14 @@
 library;
 
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/app_icon.dart';
 import '../../circles/circle.dart';
+import '../../files/files_store.dart';
 import '../../art/lucide.g.dart';
 import '../../kit/semantic_colors.dart';
 import '../../kit/settings_type.dart';
@@ -48,6 +50,11 @@ class CirclePage extends StatelessWidget {
     final t = context.tokens;
     final c = view.circle;
     final live = view.live.fold(0, (n, s) => n + s.inVoice.length);
+    // Over its banner's picture the header is white, shaded so it reads on any picture; over its colour, the page's ink.
+    final pictured = !isBevelChrome(t) && c.banner != null;
+    final ink = pictured ? const Color(0xFFFFFFFF) : t.color('app-ink');
+    final ink2 = pictured ? const Color(0xE6FFFFFF) : t.color('app-ink-3');
+    const shade = [Shadow(color: Color(0x99000000), blurRadius: 6)];
     final line = [
       '${view.spaces.length} ${view.spaces.length == 1 ? 'space' : 'spaces'}',
       if (view.online > 0) '${view.online} on now',
@@ -69,10 +76,10 @@ class CirclePage extends StatelessWidget {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
               Row(children: [
-                Flexible(child: Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'bold'))),
-                AppIcon(Lucide.chevronDown, size: 16, color: t.color('app-ink-2')),
+                Flexible(child: Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: ink).copyWith(shadows: pictured ? shade : null))),
+                AppIcon(Lucide.chevronDown, size: 16, color: pictured ? ink : t.color('app-ink-2')),
               ]),
-              Text(line, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+              Text(line, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: ink2).copyWith(shadows: pictured ? shade : null)),
             ]),
           ),
         ]),
@@ -83,46 +90,104 @@ class CirclePage extends StatelessWidget {
       // A banner across the top of its sidebar, as a Discord server has (Matt, 2026-11-19: "make circles have a
       // background image for the header like discord does"): its own picture where it has one, else its colour. Dial-Up
       // draws its window plain.
-      body: isBevelChrome(t) ? body : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [CircleBanner(circle: c, onPress: view.onMenu), Expanded(child: body)]),
+      // Behind the header itself, the back arrow, its face and name inside it (Matt, 2026-11-19: "the background image
+      // for the header of circles needs to be taller and the back arrow and other header content should render inside the
+      // background image not above it").
+      headerBackground: isBevelChrome(t) ? null : CircleBanner(circle: c, onPress: view.onMenu),
+      headerExtra: t.lenOf(pictured ? '5rem' : '0.75rem'),
+      headerInk: ink,
+      body: body,
     );
   }
 }
 
-/// A circle's banner: its picture, three wide to one high, or a wash of its colour; a press opens the circle's menu.
-class CircleBanner extends StatelessWidget {
+/// A circle's banner behind the top of its page (GhostPage.headerBackground): its picture, edge to edge from the top of
+/// the screen, shaded at the top and the foot so the header and the list read on it; or a wash of its colour. A press
+/// opens the circle's menu.
+class CircleBanner extends StatefulWidget {
   const CircleBanner({super.key, required this.circle, this.onPress});
   final Circle circle;
   final VoidCallback? onPress;
 
   @override
+  State<CircleBanner> createState() => _CircleBannerState();
+}
+
+class _CircleBannerState extends State<CircleBanner> {
+  /// The full picture on this device, once it is here (Circle.bannerFile).
+  String? _full;
+  String? _asked;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  @override
+  void didUpdateWidget(CircleBanner old) {
+    super.didUpdateWidget(old);
+    _fetch();
+  }
+
+  /// Brings the full picture down once, where the circle has one and it isn't here yet; the stand-in shows meanwhile.
+  void _fetch() {
+    final c = widget.circle;
+    final j = c.manifest.bannerFile;
+    final f = j == null ? null : SpaceFile.fromJson(j, by: c.manifest.by ?? '');
+    if (f == null) {
+      _full = null;
+      return;
+    }
+    final have = FilesStore.instance.cached(f);
+    if (have != null) {
+      _full = have;
+      return;
+    }
+    if (_asked == f.id) return;
+    _asked = f.id;
+    FilesStore.instance.fetch(c.bannerChannel, f).then((path) {
+      if (mounted && _asked == f.id) setState(() => _full = path);
+    }, onError: (_) {});
+  }
+
+  @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final circle = widget.circle;
     final hue = circleHueInk(t, circle.hue);
     Widget? image;
     final b = circle.banner;
-    if (b != null) {
+    final full = _full;
+    if (full != null) {
+      image = Image.file(File(full), fit: BoxFit.cover, gaplessPlayback: true, filterQuality: FilterQuality.medium, errorBuilder: (_, _, _) => const SizedBox.shrink());
+    } else if (b != null) {
       try {
         image = Image.memory(base64Decode(b), fit: BoxFit.cover, gaplessPlayback: true, filterQuality: FilterQuality.medium);
       } catch (_) {}
     }
-    return Padding(
+    return GestureDetector(
       key: const ValueKey('circle-banner-strip'),
-      padding: EdgeInsets.fromLTRB(t.space(2), t.space(1), t.space(2), 0),
-      child: GestureDetector(
-        onTap: onPress,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(t.radius('md')),
-          child: SizedBox(
-            height: t.lenOf(b == null ? '3.5rem' : '6rem'),
-            child: image ??
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hue.withValues(alpha: 0.55), hue.withValues(alpha: 0.18)]),
+      onTap: widget.onPress,
+      child: image == null
+          ? DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hue.withValues(alpha: 0.45), hue.withValues(alpha: 0.12)]),
+              ),
+            )
+          : Stack(fit: StackFit.expand, children: [
+              image,
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0x8C000000), Color(0x26000000), Color(0x00000000), Color(0x33000000)],
+                    stops: [0, 0.45, 0.7, 1],
                   ),
                 ),
-          ),
-        ),
-      ),
+              ),
+            ]),
     );
   }
 }

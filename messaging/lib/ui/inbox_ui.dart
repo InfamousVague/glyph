@@ -34,6 +34,7 @@ import '../plugins/embeds.dart' show EmbedCard, EmbedsPlugin;
 import '../plugins/plugin.dart' show MessageFacts;
 import '../plugins/registry.dart' show AppStore, PluginRegistry;
 import 'common.dart';
+import 'picture_overlay.dart';
 import 'mention_field.dart' show mentionStyle;
 import 'profile_card.dart';
 import 'composer_box.dart';
@@ -1429,13 +1430,8 @@ class InboxMediaView extends StatelessWidget {
     if (path == null || !context.mounted) return;
     switch (media.kind) {
       case 'photo':
-        await Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(
-          opaque: false,
-          pageBuilder: (context, _, _) => ColoredBox(
-            color: const Color(0xF0000000),
-            child: GestureDetector(onTap: () => Navigator.of(context).pop(), child: InteractiveViewer(maxScale: 5, child: Center(child: Image.file(File(path))))),
-          ),
-        ));
+        // The same full-screen overlay as a picture in a space's chat (lib/ui/picture_overlay.dart).
+        await showPictureOverlay(context, path: path, title: media.name);
       default:
         await Sms.instance.openFile(path, name: media.name);
     }

@@ -30,6 +30,7 @@ import '../voice/hangout.dart';
 import '../voice/voice.dart' show VoiceChannel;
 import '../kit/semantic_colors.dart';
 import 'common.dart';
+import 'picture_overlay.dart';
 import 'files_space/file_badge.dart';
 import 'files_space/file_preview.dart' show openSpaceFile;
 
@@ -155,7 +156,21 @@ class _PictureState extends State<_Picture> {
       excludeSemantics: true,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => openSpaceFile(context, widget.channel, f, store: widget.store, chat: true),
+        // A picture or GIF full screen over everything, the chat under it (Matt, 2026-11-19: "when clicking a picture in
+        // a chat, like in a circle make it a full screen overlay"); a video in the player, as before. The … has the
+        // file's own page (Save, Share).
+        onTap: () {
+          if (video) return openSpaceFile(context, widget.channel, f, store: widget.store, chat: true);
+          final have = _path ?? widget.store.cached(f);
+          unawaited(showPictureOverlay(
+            context,
+            path: have,
+            coming: have == null ? widget.store.fetch(widget.channel, f) : null,
+            thumb: f.thumb,
+            title: f.name,
+            more: () => openSpaceFile(context, widget.channel, f, store: widget.store, chat: true),
+          ));
+        },
         child: ClipRRect(
           borderRadius: widget.radius,
           child: SizedBox(

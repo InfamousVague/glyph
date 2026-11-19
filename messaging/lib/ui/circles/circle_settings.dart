@@ -392,8 +392,7 @@ class _SectionBody extends StatelessWidget {
             label: c.banner == null ? 'Choose a banner' : 'Change the banner',
             hint: const Text('A wide picture across the top of the circle\'s sidebar'),
             onPress: () async {
-              final b = await pickCircleBanner(context);
-              if (b != null) circles.edit(c, banner: b);
+              await chooseCircleBanner(context, c);
             },
           ),
           if (c.banner != null) SettingRow(icon: AppIcon(Lucide.trash2, size: 18), label: 'Remove the banner', onPress: () => circles.edit(c, clearBanner: true)),

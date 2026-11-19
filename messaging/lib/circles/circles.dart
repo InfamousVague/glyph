@@ -289,13 +289,13 @@ class Circles extends ChangeNotifier {
   }
 
   /// Changes [c]'s name, colour, icon or picture.
-  Future<bool> edit(Circle c, {String? name, String? hue, String? icon, String? picture, bool clearPicture = false, String? banner, bool clearBanner = false}) {
+  Future<bool> edit(Circle c, {String? name, String? hue, String? icon, String? picture, bool clearPicture = false, String? banner, Map<String, Object?>? bannerFile, bool clearBanner = false}) {
     if (hue != null && !circleHues.contains(hue)) return Future.value(false);
     if (picture != null && picture.length > circlePictureMax) return Future.value(false);
     if (banner != null && banner.length > circleBannerMax) return Future.value(false);
     final n = capName(name);
     return _publish(c, (m) {
-      final extra = banner != null || clearBanner ? ({...m.extra}..remove('bn')..addAll({if (banner != null) 'bn': banner})) : null;
+      final extra = banner != null || clearBanner ? ({...m.extra}..remove('bn')..remove('bf')..addAll({if (banner != null) 'bn': banner, if (banner != null && bannerFile != null) 'bf': bannerFile})) : null;
       return m.next(name: n == null || n.isEmpty ? null : n, hue: hue, icon: icon, picture: picture, clearPicture: clearPicture, extra: extra);
     });
   }
