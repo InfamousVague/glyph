@@ -133,24 +133,25 @@ class _NewSpaceRow extends StatelessWidget {
       semanticLabel: 'New space',
       builder: (context, state) => Container(
         margin: bevel ? EdgeInsets.only(top: t.space(1)) : EdgeInsets.fromLTRB(t.space(2), t.space(1), t.space(2), 0),
-        padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.space(2)),
+        padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: bevel ? t.space(2) : t.space(3)),
         decoration: BoxDecoration(
           color: !bevel && (state.pressed || state.hovered) ? t.color('app-paper-2') : null,
           borderRadius: bevel ? null : BorderRadius.circular(t.radius('md')),
         ),
         child: Row(children: [
+          // As large as a space's mark beside it (CircleSpaceTile).
           Container(
-            width: 28,
-            height: 28,
+            width: bevel ? 28 : t.lenOf('2.5rem'),
+            height: bevel ? 28 : t.lenOf('2.5rem'),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               border: Border.all(color: bevel ? DialupColors.of(t).shadow : t.color('app-rule'), width: 1),
-              borderRadius: BorderRadius.circular(bevel ? 0 : 9),
+              borderRadius: BorderRadius.circular(bevel ? 0 : t.lenOf('2.5rem') * 0.32),
             ),
-            child: AppIcon(Lucide.plus, size: 16, color: t.color('app-ink-3')),
+            child: AppIcon(Lucide.plus, size: bevel ? 16 : t.lenOf('2.5rem') * 0.5, color: t.color('app-ink-3')),
           ),
-          SizedBox(width: t.space(3)),
-          Text('New space', style: pageText(t, t.fontSize('md'), color: t.color('app-ink-3'))),
+          SizedBox(width: t.space(3) + 2),
+          Text('New space', style: pageText(t, t.fontSize('lg'), color: t.color('app-ink-3'))),
         ]),
       ),
     );
@@ -205,32 +206,36 @@ class CircleSpaceTile extends StatelessWidget {
     final bold = space.unread > 0 || selected;
     final ink = highlit ? d.onHighlight : t.color(bold ? 'app-ink' : 'app-ink-2');
     final sub = circleSpaceLine(space);
+    // The kind's mark, as large as a conversation's face less a little: 2.5rem, Dial-Up's as small as its rows.
+    final mark = bevel ? 28.0 : t.lenOf('2.5rem');
     return GlacierPressable(
       key: ValueKey('circle-space-${space.seed}'),
       onPressed: onPress,
       onLongPress: onLongPress,
       semanticLabel: [space.name, spaceKindTitle(space.kind), if (space.unread > 0) '${space.unread} unread', ?sub].join(', '),
       builder: (context, state) => Container(
-        margin: bevel ? EdgeInsets.zero : EdgeInsets.symmetric(horizontal: t.space(2), vertical: 1),
-        padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.space(2)),
+        // A size nearer the conversations' rows (Matt, 2026-11-18: "The spaces should be a bit larger in the sidebar they
+        // feel small compared to the rest of the app"): a larger mark, name and line, and more room round them.
+        margin: bevel ? EdgeInsets.zero : EdgeInsets.symmetric(horizontal: t.space(2), vertical: 2),
+        padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: bevel ? t.space(2) : t.space(3)),
         decoration: BoxDecoration(
           color: d != null ? (selected ? d.highlight : null) : (selected ? t.color('app-paper-3') : (state.pressed || state.hovered ? t.color('app-paper-2') : null)),
           borderRadius: bevel ? null : BorderRadius.circular(t.radius('md')),
         ),
         child: Row(children: [
           // Dial-Up's chosen row is its navy highlight: the mark in the highlight's own ink, where its hue would sink.
-          if (highlit) SizedBox.square(dimension: 28, child: Center(child: AppIcon(space.icon, size: 16, color: d.onHighlight, wash: false))) else SpaceKindBadge(kind: space.kind, live: space.live),
-          SizedBox(width: t.space(3)),
+          if (highlit) SizedBox.square(dimension: mark, child: Center(child: AppIcon(space.icon, size: mark * 0.56, color: d.onHighlight, wash: false))) else SpaceKindBadge(kind: space.kind, live: space.live, size: mark),
+          SizedBox(width: t.space(3) + 2),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Text(space.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: bold ? 'semibold' : 'regular', color: ink)),
+              Text(space.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: bold ? 'semibold' : 'medium', color: ink)),
               if (sub != null && sub.isNotEmpty)
                 Row(children: [
                   if (space.live) ...[
                     Container(width: 6, height: 6, decoration: BoxDecoration(color: highlit ? d.onHighlight : t.online, shape: bevel ? BoxShape.rectangle : BoxShape.circle)),
                     SizedBox(width: t.space(1) + 2),
                   ],
-                  Flexible(child: Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: space.unread > 0 && !space.live ? 'medium' : 'regular', color: highlit ? d.onHighlight : (space.live ? t.online : t.color(space.unread > 0 ? 'app-ink-2' : 'app-ink-3'))))),
+                  Flexible(child: Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: space.unread > 0 && !space.live ? 'medium' : 'regular', color: highlit ? d.onHighlight : (space.live ? t.online : t.color(space.unread > 0 ? 'app-ink-2' : 'app-ink-3'))))),
                 ]),
             ]),
           ),
