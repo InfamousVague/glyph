@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/widgets.dart' show Semantics, Text, WidgetBuilder;
+import 'package:flutter/widgets.dart';
+import 'package:glacier/glacier.dart';
+import 'package:ghost_messaging/looks.dart';
+import 'package:ghost_messaging/main.dart' show InkOverrides;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/plugins/codes.dart';
@@ -180,6 +183,35 @@ void main() {
       expect(tester.widget<SectionTabs>(find.byType(SectionTabs)).chosen, 'codes', reason: 'it stays chosen with nothing in it');
       expect(find.text('No codes yet'), findsOneWidget);
       expect(find.byType(ConversationRow), findsNothing);
+    });
+
+    testWidgets('the toggle is the same from the first frame: Messages, Codes and Circles, none coming in later', (tester) async {
+      // Matt, 2026-11-19: "when I load the app on my phone for a split second the circles don't show up in the segmented
+      // toggle". Codes came a moment after the first frame, between Messages and Circles, and moved Circles along.
+      ListPhone(phone()).install();
+      final sheet = await loadSheet(tester);
+      final state = AppState();
+      tester.view.physicalSize = const Size(824, 1784);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(AppScope(
+        state: state,
+        child: WidgetsApp(
+          color: const Color(0xFF4F5BD5),
+          pageRouteBuilder: <T>(RouteSettings s, WidgetBuilder b) => PageRouteBuilder<T>(settings: s, pageBuilder: (c, _, _) => b(c)),
+          builder: (context, child) => GlacierTheme(sheet: sheet, attrs: {'theme': 'light', ...ghostAttrs(state, 'mobile')}, child: InkOverrides(child: GlacierToastProvider(child: child!))),
+          home: const ConversationsScreen(),
+        ),
+      ));
+      List<String> options() => [
+            for (final o in tester.widget<GlacierSegmentedControl>(find.descendant(of: find.byType(SectionTabs), matching: find.byType(GlacierSegmentedControl)).first).options) o.value,
+          ];
+      final first = options();
+      expect(first, ['', 'codes', ConversationsScreen.circlesTab]);
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(options(), first, reason: 'frame ${i + 1}');
+      }
     });
 
     testWidgets('switched off in the person\'s choices, the list has no Codes', (tester) async {

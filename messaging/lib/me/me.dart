@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import '../names.dart';
 export '../names.dart';
 import 'dart:convert';
@@ -15,6 +16,7 @@ import '../net/carrier.dart';
 import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
 import '../plugins/codes.dart' show signInCode;
+import '../sms.dart' show Sms;
 
 /// A network an account can be linked on (Matt, 2026-11-14: "allow linking popular social like telegram, discord, x,
 /// etc"). Discord, Telegram and X are proved by signing in there; Bluesky, Mastodon and GitHub by a code put in the
@@ -257,6 +259,8 @@ class Me extends ChangeNotifier {
     if (app == null) return;
     try {
       links = (jsonDecode(app.choice('me_links', '{}')) as Map).cast<String, String>();
+      // A number verified before the phone was told it (the separate "Your number" setting is gone).
+      _tellPhoneItsNumber();
       watch = [for (final w in jsonDecode(app.choice('me_watch', '[]')) as List) Watched((w as String).substring(0, w.indexOf(':')), w.substring(w.indexOf(':') + 1))];
       joined = [for (final j in jsonDecode(app.choice('me_joined', '[]')) as List) Joined((j as Map)['p'] as String, j['h'] as String, DateTime.fromMillisecondsSinceEpoch(j['at'] as int), seen: j['seen'] == true)];
       listed = app.flag('me_listed', fallback: false);
@@ -270,7 +274,19 @@ class Me extends ChangeNotifier {
     app.set('me_watch', jsonEncode([for (final w in watch) w.id]));
     app.set('me_joined', jsonEncode([for (final j in joined) {'p': j.network, 'h': j.handle, 'at': j.at.millisecondsSinceEpoch, 'seen': j.seen}]));
     app.setFlag('me_listed', listed);
+    _tellPhoneItsNumber();
     notifyListeners();
+  }
+
+  /// The verified number is this phone's own (Matt, 2026-11-19: "remove the duplicate "your number" setting it's
+  /// already handled under me"): told to Android's side, which leaves it out of a group picture message's people
+  /// where Android itself doesn't know the phone's number. Only on the phone; once for each number.
+  String? _toldNumber;
+  void _tellPhoneItsNumber() {
+    final n = number;
+    if (n == null || n == _toldNumber || kIsWeb || !Platform.isAndroid || Sms.remote) return;
+    _toldNumber = n;
+    unawaited(Sms.instance.setOwnNumber(n).catchError((_) {}));
   }
 
   // --- the server ----------------------------------------------------------------------------------------------------

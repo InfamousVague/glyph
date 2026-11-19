@@ -24,6 +24,8 @@ class ReleaseNotes {
 
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.9.26', '2026-11-19', [
+    'The Messages, Codes and Circles tabs are all there the moment the app opens, without Circles jumping along.',
+    'Your phone number is set once, with your profile in Settings › Me › Number: the separate Your number setting is gone.',
     'Record call: Record and Stop are in a space\'s header while you\'re in its call. In a circle, recordings are saved to a folder in one of its Files spaces; choose which in Circle settings › Plugins.',
     'A circle\'s banner is softly blurred and shaded behind its name, so the name reads on any picture.',
   ]),

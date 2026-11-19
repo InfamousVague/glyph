@@ -300,7 +300,13 @@ class ListPlugins {
   Widget? tabs(String? chosen, ValueChanged<String?> onPick, {ValueChanged<String?>? onMenu, List<({String id, LucideIcon icon, String label, int count})> extra = const []}) {
     // The kinds are the filter's, not tabs.
     final s = _sorted;
-    final tabs = [for (final t in s.sections) if (!t.section.filter) t];
+    // A tab that is there always (Codes) is there from the first frame, before the list has been sorted: it came a
+    // moment after, between Messages and Circles, and the toggle changed shape as the app opened (Matt, 2026-11-19:
+    // "when I load the app on my phone for a split second the circles don't show up in the segmented toggle").
+    final store = _store;
+    final tabs = store == null
+        ? [for (final t in s.sections) if (!t.section.filter) t]
+        : [for (final t in registry.sections(store)) if (!t.section.filter && (t.section.always || s.sections.any((x) => x.id == t.id))) t];
     if (tabs.isEmpty && extra.isEmpty) return null;
     return SectionTabs(sections: tabs, counts: s.unreadCounts, unread: s.unread, chosen: chosen, onPick: onPick, onMenu: onMenu, extra: extra);
   }
