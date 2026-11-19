@@ -109,7 +109,12 @@ a { color: var(--teal-ink); text-underline-offset: .18em; }
 .sidebar { position: sticky; top: 4.2rem; align-self: start; max-height: calc(100vh - 4.2rem); overflow: auto; padding: 1.5rem 0 3rem; }
 .nav-group { margin-bottom: 1.4rem; }
 .nav-title { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 .4rem .7rem; }
-.sidebar a { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .38rem .7rem; border-radius: var(--r-md); color: var(--ink-2); text-decoration: none; font-size: .93rem; }
+.sidebar a { display: flex; align-items: center; gap: .6rem; padding: .42rem .7rem; margin-bottom: .2rem; border-radius: var(--r-md); color: var(--ink-2); text-decoration: none; font-size: .93rem; }
+/* Each page's icon (docs-src/pages.mjs), and a little room between the rows (Matt, 2026-11-19: "docs need a bit of gap
+   between sidebar items also include iconography in the sidebar links"). */
+.sidebar a .i { width: 1.05rem; height: 1.05rem; color: var(--ink-3); }
+.sidebar a > span:first-of-type { flex: 1; min-width: 0; }
+.sidebar a:hover .i, .sidebar a[aria-current="page"] .i { color: var(--teal-ink); }
 .sidebar a:hover { background: var(--mist); color: var(--ink); }
 .sidebar a[aria-current="page"] { background: var(--mist); color: var(--teal-ink); font-weight: 650; }
 .toc { position: sticky; top: 4.2rem; align-self: start; padding: 1.9rem 0; font-size: .86rem; }

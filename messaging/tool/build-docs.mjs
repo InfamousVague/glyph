@@ -177,7 +177,7 @@ function shell(p, body, outline, i) {
   const prev = pages[i - 1];
   const next = pages[i + 1];
   const nav = sections
-    .map((s) => `<div class="nav-group"><div class="nav-title">${esc(s.title)}</div>${s.pages.map((q) => `<a href="${hrefOf(q)}"${q.slug === p.slug ? ' aria-current="page"' : ''}>${esc(q.title)}${q.soon ? ' <span class="badge soon">Soon</span>' : ''}</a>`).join('')}</div>`)
+    .map((s) => `<div class="nav-group"><div class="nav-title">${esc(s.title)}</div>${s.pages.map((q) => `<a href="${hrefOf(q)}"${q.slug === p.slug ? ' aria-current="page"' : ''}>${icon(q.icon)}<span>${esc(q.title)}</span>${q.soon ? ' <span class="badge soon">Soon</span>' : ''}</a>`).join('')}</div>`)
     .join('');
   const toc = outline.length > 1 ? `<nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div>${outline.map((h) => `<a href="#${h.id}">${esc(h.text)}</a>`).join('')}</nav>` : '';
   const title = p.slug === 'index' ? 'Ghost Messaging docs' : `${p.title} · Ghost Messaging docs`;
