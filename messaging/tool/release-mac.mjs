@@ -433,15 +433,22 @@ rm -rf ${STAGE}
 echo "ok placed in ${RELEASE}"`);
 
 // Is it served? gogho.st's block names the files it serves from that folder (tool/deploy-site.mjs).
-const res = await fetch(`${HOST_URL}/${FEED}?t=${Date.now()}`, { cache: 'no-store' }).catch((e) => ({ ok: false, status: e.message }));
-const said = res.ok ? await res.json().catch(() => null) : null;
+// Asked a few times: twice (0.9.31, 0.9.32) the first ask, just after the upload, failed to reach the site at all
+// ("fetch failed") while the release was live and whole, and the step said it had failed.
+let res = { ok: false, status: 'not asked' };
+let said = null;
+for (let i = 0; i < 6 && said?.sha256 !== info.sha256; i++) {
+  if (i) await new Promise((r) => setTimeout(r, 5000));
+  res = await fetch(`${HOST_URL}/${FEED}?t=${Date.now()}`, { cache: 'no-store' }).catch((e) => ({ ok: false, status: e.message }));
+  said = res.ok ? await res.json().catch(() => null) : null;
+}
 if (!keepConnection) box.close();
 if (said?.sha256 !== info.sha256) {
   say(`x ${HOST_URL}/${FEED} answered ${res.status}, not this release. The release is in ${RELEASE} on the box.`);
   say(`  gogho.st's Caddy block should name /${FEED} and /${ZIP} (it has since 2026-11-14). If it no longer does: node tool/deploy-site.mjs --caddy`);
   process.exit(1);
 }
-const head = await fetch(`${HOST_URL}/${ZIP}`, { method: 'HEAD' });
+const head = await fetch(`${HOST_URL}/${ZIP}`, { method: 'HEAD' }).catch(() => ({ headers: { get: () => '?' } }));
 say(`ok live: ${HOST_URL}/${FEED} — Ghost Messaging for the Mac ${info.version} (${info.versionCode}), zip served at ${head.headers.get('content-length')} bytes (${info.bytes} expected)`);
 if (dmg) {
   const d = await fetch(`${HOST_URL}/${DMG}`, { method: 'HEAD' }).catch(() => null);

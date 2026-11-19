@@ -987,3 +987,12 @@ class _ChoiceSheet extends StatelessWidget {
         child: Column(children: [SizedBox(height: 1, child: ColoredBox(color: c.shadow)), SizedBox(height: 1, child: ColoredBox(color: c.hi))]),
       );
 }
+
+
+/// Opens gogho.st's docs at [page] ("pairing", "discord"; the docs' home where empty) in the browser (Matt, 2026-11-19:
+/// "Spend time creating a /docs/ page on ghost messaging", linked "In the app": Settings › About and a "?" on screens
+/// that need it).
+void openDocs([String page = '']) => Sms.instance.openLink('https://gogho.st/docs/${page.isEmpty ? '' : '$page/'}');
+
+/// The "?" in a screen's header that opens its page in the docs ([openDocs]).
+Widget docsButton(String page, {String label = 'Help with this'}) => IconTap(icon: Lucide.info, label: label, onPressed: () => openDocs(page));

@@ -450,6 +450,7 @@ List<Widget> _aboutPage(BuildContext context, DeskSettings d) {
       SettingRow(icon: _icon(Lucide.ghost), label: 'Version', value: Text(d.link.app)),
       // The release notes again (lib/ui/whats_new.dart).
       SettingRow(icon: _icon(Lucide.sparkles), label: 'What\'s new', hint: const Text('What the last update brought.'), onPress: () => showWhatsNew(context)),
+      SettingRow(icon: _icon(Lucide.bookOpen), label: 'Help and docs', hint: const Text('How everything works, step by step, at gogho.st/docs.'), onPress: openDocs),
       SettingRow(
         icon: _icon(LucideMore.smartphone),
         label: 'Your phone sends and receives',

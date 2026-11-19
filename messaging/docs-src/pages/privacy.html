@@ -1,0 +1,38 @@
+<p>Ghost Messaging is built so the people running its server can't read what you say. There are no ads, and the app is open source, so anyone can check.</p>
+
+<h2 id="sealed">What's sealed end to end</h2>
+<table>
+  <tr><th>What</th><th>Sealed end to end?</th></tr>
+  <tr><td>Messages between friends, and in groups of friends</td><td>Yes</td></tr>
+  <tr><td>Circles and spaces: chat, files, polls</td><td>Yes, with a key the circle's members share</td></tr>
+  <tr><td>Calls</td><td>Yes, directly between the people in them</td></tr>
+  <tr><td>Your texts with one person, with <a href="/docs/encryption/">encryption</a> on</td><td>Yes</td></tr>
+  <tr><td>Ordinary texts and picture messages</td><td>No: they go through your carrier, as all texts do</td></tr>
+  <tr><td>Telegram, Signal, WhatsApp and Matrix chats</td><td>As those networks seal them; they go between your device and the network, not through Ghost</td></tr>
+</table>
+
+<h2 id="server">What the server sees</h2>
+<ul>
+  <li>Which installs talk to each other, and when, as any server passing messages would.</li>
+  <li>Your username, and your account backup sealed with your password (which it never sees).</li>
+  <li>Your verified number, if you verify one, to text you codes. It's shown to nobody unless you choose.</li>
+  <li>Never: what you write, your files, your recovery words or your password.</li>
+</ul>
+
+<h2 id="device">On your device</h2>
+<p>Spam filtering, sorting, translation, summaries, captions and transcripts all happen on your device. Your texts stay in your phone's own store. Plugins say on their pages what they can see.</p>
+
+<h2 id="block">Blocking and archiving</h2>
+<ul>
+  <li><b>Block</b> someone from a conversation's menu or their card. <ui>Settings › Blocked</ui> lists everyone you've blocked, Telegram and Signal people too, and unblocks them.</li>
+  <li><b>Archive</b> a conversation by swiping it left. <ui>Settings › Archived</ui> (or the dock's Archive) has them; a new message brings one back.</li>
+</ul>
+
+<h2 id="circles">In circles</h2>
+<p>A circle's messages are sealed with a key everyone in it has. Removing someone stops their app joining, but doesn't change that key: for anything a removed person mustn't read, make a new circle. See <a href="/docs/roles/#remove">Removing someone</a>.</p>
+
+<h2 id="leave">Leaving</h2>
+<ul>
+  <li><ui>Settings › Me › Remove everything about me</ui> unlinks every account and your number, and clears your watch list, on the phone and on the server.</li>
+  <li><ui>Settings › Me › Account › Sign out of this device</ui> signs the device out; remove other devices from <b>Signed in on these devices</b>.</li>
+</ul>

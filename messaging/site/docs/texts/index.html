@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Texts and conversations · Ghost Messaging docs</title>
+<meta name="description" content="Sending, reactions, edits, ticks, stickers, effects and conversation settings.">
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/docs/glacier-tokens.css">
+<link rel="stylesheet" href="/docs/docs.css">
+<script>try{var t=localStorage.getItem('docs-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the page</a>
+<header class="top">
+  <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
+  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand-docs" href="/docs/">Docs</a>
+  <div class="search">
+    <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
+    <input id="search" type="search" placeholder="Search the docs" aria-label="Search the docs" autocomplete="off">
+    <div class="results" id="results" role="listbox" hidden></div>
+  </div>
+  <button class="theme-btn" type="button" aria-label="Switch between light and dark"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#sun-moon"/></svg></button>
+  <a class="get" href="/#get">Get the app</a>
+</header>
+<div class="frame">
+  <aside class="sidebar" id="sidebar"><div class="nav-group"><div class="nav-title">Getting started</div><a href="/docs/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#ghost"/></svg><span>Welcome</span></a><a href="/docs/alpha/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#flask-conical"/></svg><span>Join the alpha</span></a><a href="/docs/install/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#download"/></svg><span>Install the app</span></a><a href="/docs/first-run/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#rocket"/></svg><span>The first time you open it</span></a><a href="/docs/account/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#key-round"/></svg><span>Your account</span></a><a href="/docs/how-accounts-work/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#badge-check"/></svg><span>How your account works</span></a><a href="/docs/profile/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#circle-user"/></svg><span>Your profile and number</span></a></div><div class="nav-group"><div class="nav-title">Circles, spaces and calls</div><a href="/docs/circles/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#users"/></svg><span>Make a circle and invite people</span></a><a href="/docs/spaces/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#message-circle"/></svg><span>Spaces</span></a><a href="/docs/roles/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#shield-check"/></svg><span>Roles and permissions</span></a><a href="/docs/sms-spaces/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#smartphone"/></svg><span>SMS spaces</span></a><a href="/docs/calls/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#headphones"/></svg><span>Calls</span></a><a href="/docs/files/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#folder"/></svg><span>Files spaces</span></a></div><div class="nav-group"><div class="nav-title">Plugins</div><a href="/docs/plugins/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#puzzle"/></svg><span>About plugins</span></a><a href="/docs/record-call/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#circle-dot"/></svg><span>Record call</span></a><a href="/docs/scribe/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#file-text"/></svg><span>Scribe</span></a><a href="/docs/live-captions/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#type"/></svg><span>Live captions</span></a><a href="/docs/watch-together/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#film"/></svg><span>Watch together</span></a><a href="/docs/translate/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#languages"/></svg><span>Translate</span></a><a href="/docs/codes/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#key-round"/></svg><span>Codes</span></a><a href="/docs/spam/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#ban"/></svg><span>Spam filter</span></a><a href="/docs/kinds/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#list-filter"/></svg><span>Kinds of text</span></a><a href="/docs/unknown-numbers/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#user-round-search"/></svg><span>Unknown numbers</span></a><a href="/docs/quiet-hours/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#clock"/></svg><span>Quiet hours</span></a><a href="/docs/link-previews/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#link"/></svg><span>Link previews</span></a><a href="/docs/quick-actions/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#calendar-plus"/></svg><span>Quick actions</span></a><a href="/docs/replies/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#reply"/></svg><span>Replies</span></a><a href="/docs/cleaner/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#brush-cleaning"/></svg><span>Cleaner</span></a><a href="/docs/discord/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#bot"/></svg><span>Discord servers</span></a></div><div class="nav-group"><div class="nav-title">Messaging</div><a href="/docs/texts/" aria-current="page"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#message-square"/></svg><span>Texts and conversations</span></a><a href="/docs/google-messages/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#message-circle"/></svg><span>Beside Google Messages</span></a><a href="/docs/friends/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#user-plus"/></svg><span>Friends</span></a><a href="/docs/networks/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#send"/></svg><span>Telegram, Signal and more</span></a><a href="/docs/encryption/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#lock"/></svg><span>Encrypted texts</span></a></div><div class="nav-group"><div class="nav-title">Computers</div><a href="/docs/computers/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#laptop"/></svg><span>Mac and Windows apps</span></a><a href="/docs/pairing/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#qr-code"/></svg><span>Pair a computer with your phone</span></a></div><div class="nav-group"><div class="nav-title">Privacy and settings</div><a href="/docs/privacy/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#eye"/></svg><span>Privacy and safety</span></a><a href="/docs/settings/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#settings"/></svg><span>Settings, at a glance</span></a><a href="/docs/routes/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#globe"/></svg><span>Routes</span></a><a href="/docs/coming-soon/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#clock"/></svg><span>Coming soon</span> <span class="badge soon">Soon</span></a><a href="/docs/developer/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#braces"/></svg><span>Developer API</span></a></div></aside>
+  <main id="main" class="page">
+    <div class="crumb">Messaging</div>
+    <h1>Texts and conversations</h1>
+    <p class="lede">Sending, reactions, edits, ticks, stickers, effects and conversation settings.</p>
+    <p>Your texts (SMS and picture messages) work as in any texting app, with more: reactions, edits, effects, stickers and voice messages.</p>
+
+<h2 id="list">The conversations list</h2>
+<ul>
+  <li><b>Swipe</b> a conversation left to archive it; keep swiping to delete. Swipe right to pin it to the top.</li>
+  <li><b>Long-press</b> one for pin, mute, block, delete and more, or to choose several.</li>
+  <li><b>Search</b> at the top finds names, numbers and words.</li>
+  <li><b>Mark all read</b> (the round button by the title) covers spaces, Telegram and Signal too.</li>
+</ul>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-title">Messages</span><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#check-check"/></svg></span><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#plus"/></svg></span></div><div class="m-body">
+  <div class="m-convo tap"><span class="m-avatar" data-hue="mint">MC</span><span class="m-txt"><b>Maya Chen</b><small>See you at 7!</small></span><span class="m-end"><small>4:12</small><span class="m-count">2</span></span></div>
+  <div class="m-convo"><span class="m-avatar" data-hue="indigo">D</span><span class="m-txt"><b>Dad</b><small>📷 Picture</small></span><span class="m-end"><small>Yesterday</small></span></div>
+</div></div></figure>
+
+<h2 id="send">Sending</h2>
+<p>Type and send as usual. Beside the box: pictures (up to five in one message), stickers, GIFs and emoji, and the microphone for a voice message (press and hold where Send would be).</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Maya Chen</span><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#settings"/></svg></span></div><div class="m-body">
+  <div class="m-msg them"><span class="m-bubble">Dinner at Luca's?</span><small class="m-time">4:10</small></div>
+  <div class="m-msg me"><span class="m-bubble">Yes! 7?</span><small class="m-time">4:12</small></div>
+  <div class="m-row m-raw"><span class="m-iconbtn"><svg class="i"><use href="/docs/icons.svg#plus"/></svg></span><label class="m-field"><span class="m-input empty">Text message</span></label><span class="m-iconbtn"><svg class="i"><use href="/docs/icons.svg#mic"/></svg></span></div>
+</div></div></figure>
+
+<h2 id="ticks">Ticks</h2>
+<table>
+  <tr><th>Mark</th><th>Means</th></tr>
+  <tr><td>A clock</td><td>Sending.</td></tr>
+  <tr><td>One tick</td><td>Sent.</td></tr>
+  <tr><td>Two ticks</td><td>Delivered to their phone. In colour: read (picture and group messages, from phones that say so).</td></tr>
+  <tr><td>A lock</td><td>Encrypted: see <a href="/docs/encryption/">Encrypted texts</a>.</td></tr>
+</table>
+<p>Delivery reports and read receipts are in <span class="ui-path">Settings › Receipts</span>.</p>
+
+<h2 id="hold">Press and hold a message</h2>
+<figure class="mock"><div class="m-screen"><div class="m-body">
+  <div class="m-row m-raw"><span style="font-size:1.5rem">❤️ 👍 👎 😂 ‼️ ❓</span></div>
+  <div class="m-menu"><div class="m-item"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#pencil"/></svg><span>Edit</span></div><div class="m-item"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#copy"/></svg><span>Copy text</span></div><div class="m-item"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#sparkles"/></svg><span>Effects</span></div><div class="m-item danger"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#trash-2"/></svg><span>Delete message</span></div></div>
+</div></div></figure>
+<ul>
+  <li><b>React</b> with an emoji; it shows under the message.</li>
+  <li><b>Edit</b>: a text can't change once it's on their phone, so you choose <b>Change on this phone only</b> or <b>Send correction</b>.</li>
+  <li><b>Effects</b>: send it with a screen effect (confetti, hearts and 18 more), seen by anyone using Ghost.</li>
+</ul>
+
+<h2 id="settings">A conversation's settings</h2>
+<p>Tap the cog, or the conversation's name at the top:</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Maya Chen</span></div><div class="m-body">
+  <div class="m-section"><div class="m-card">
+    <div class="m-row"><span class="m-ico" data-hue="amber"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#pin"/></svg></span><span class="m-txt"><b>Pin to top</b></span><span class="m-end"><span class="m-switch"></span></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="slate"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#volume-x"/></svg></span><span class="m-txt"><b>Mute notifications</b></span><span class="m-end"><span class="m-switch"></span></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="purple"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#image"/></svg></span><span class="m-txt"><b>Chat background</b></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="rose"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#palette"/></svg></span><span class="m-txt"><b>Your bubbles here</b></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="green"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#lock"/></svg></span><span class="m-txt"><b>Encryption</b></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
+  </div></div>
+</div></div></figure>
+<p>A group text also has <b>Group name</b>, <b>Add people</b> and <b>Leave group</b>. A chat background syncs to the others if they use Ghost too.</p>
+
+<h2 id="look">Looks, stickers and effects</h2>
+<p><span class="ui-path">Settings › Appearance</span> has the looks (Ghost, Mist, Lamplight, Sharp, Phosphor and Dial-Up), light and dark, your bubble colour and text size. <span class="ui-path">Settings › Emoji</span>, <span class="ui-path">Settings › Effects</span> and <span class="ui-path">Settings › Sounds</span> have the rest.</p>
+
+    <nav class="prevnext"><a class="prev" href="/docs/discord/"><small>Previous</small>Discord servers</a><a class="next" href="/docs/google-messages/"><small>Next</small>Beside Google Messages</a></nav>
+    <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
+  </main>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#list">The conversations list</a><a href="#send">Sending</a><a href="#ticks">Ticks</a><a href="#hold">Press and hold a message</a><a href="#settings">A conversation's settings</a><a href="#look">Looks, stickers and effects</a></nav>
+</div>
+<script src="/docs/docs.js" defer></script>
+</body>
+</html>

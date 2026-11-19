@@ -14,7 +14,8 @@ import 'voice.dart';
 /// The first step is presence: Ghost Messaging's Discord bot (messaging/discord/, on the box at gogho.st/discord) is added to
 /// a server, someone with Manage Server types `/ghost link` there and enters the code it gives in the app, and from
 /// then on the app shows that server's voice channels as a group of spaces, with who is in each, read from the bot
-/// every few seconds. Joining opens the channel in Discord; carrying the sound into a space is a later step.
+/// every few seconds. Pressing one joins it from the app: the bot joins that Discord channel and carries the sound and
+/// the chat both ways (lib/ui/space_groups_ui.dart).
 ///
 /// Each link is a token only this device holds (kept with its choices, `discord_links`); `/ghost unlink` on the server
 /// takes them all away, and the server's group says so.

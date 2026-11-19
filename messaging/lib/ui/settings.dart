@@ -22,6 +22,7 @@ import '../net/net.dart';
 import '../sms.dart';
 import 'common.dart';
 import 'nav_bar.dart';
+import 'nav_style.dart';
 import 'settings_panes.dart';
 import 'shell.dart';
 
@@ -372,7 +373,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             const HeaderEnd(),
             Expanded(
               child: ListView(
-                padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), MediaQuery.paddingOf(context).bottom + (beside && !AppShell.railOf(context) ? NavPill.clearance(t) : t.space(8))),
+                padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), MediaQuery.paddingOf(context).bottom + (beside && !AppShell.railOf(context) ? NavPill.clearance(t) : (AppShell.maybeOf(context) != null && NavStyle.of(AppState.of(context)).unified ? AppShell.pillRoom(context) + t.space(4) : t.space(8)))),
                 keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 children: [
                   if (query.isEmpty)

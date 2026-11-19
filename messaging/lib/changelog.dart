@@ -23,6 +23,11 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.9.34', '2026-11-19', [
+    'Help and docs: step-by-step guides for everything at gogho.st/docs, from Settings › About, and a ? on Pair a computer and Add a Discord server.',
+    'Settings › Network is called Routes now, so it isn\'t mixed up with Connections (your linked accounts).',
+    'Add a Discord server says what pressing a channel does now: you join it from Ghost, sound and chat both ways.',
+  ]),
   ReleaseNotes('0.9.33', '2026-11-19', [
     'Verified numbers: a badge beside the names of people who verified their phone number, in spaces, circles and profiles.',
     'Slow mode: in a circle\'s space settings, let each person write only once in so many seconds. Those who manage spaces don\'t wait.',

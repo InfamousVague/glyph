@@ -1,0 +1,23 @@
+<p>Between Ghost apps (friends, groups, encrypted texts), messages can travel more than one way. <ui>Settings › Routes</ui> shows the ways your phone reaches others, tried from the top: one that fails or gets no answer gives way to the next.</p>
+
+<m-screen title="Routes" back caption="Settings › Routes on the phone.">
+  <m-section title="Routes" foot="The ways this phone reaches another, tried from the top.">
+    <m-row icon="globe" hue="blue" label="Relay server" hint="Through a server on the internet. The server sees who talks to whom, never what is said." switch="on"/>
+    <m-row icon="message-square" hue="green" label="SMS" hint="As data texts over the phone network. Each counts as a text on your plan." switch="on"/>
+  </m-section>
+  <m-section title="People you can reach" foot="Press one to send a test and see which route carries it.">
+    <m-row-raw><span class="m-avatar" data-hue="rose">MC</span><span class="m-txt"><b>Maya Chen</b><small>Last by the relay server</small></span></m-row-raw>
+  </m-section>
+</m-screen>
+
+<h2 id="relay">The relay server</h2>
+<p>Ghost's relay server (at gogho.st) passes sealed packets between apps: friends, circles, spaces and calls' setup. It can't read them; it sees only which installs are talking, as any server would. It's also where your username, your sealed account backup and a circle's sealed files are kept.</p>
+
+<h2 id="texts">SMS as a route</h2>
+<p>When the relay can't be reached, a message to a friend can go as a data text over the phone network instead: still sealed, needing no internet, and reaching a phone whose app is closed. Each one counts as a text on your plan, so only small messages go this way.</p>
+
+<h2 id="test">Test a route</h2>
+<p>Under <b>People you can reach</b>, press someone and choose <b>Send a test</b>, <b>By the relay server only</b>, or <b>By SMS only (one text on your plan)</b>. <b>Lately</b> shows how recent messages went.</p>
+
+<h2 id="invite">Invite someone by text</h2>
+<p><b>Invite someone by text</b> opens a new chat with an invitation written. Choose who, change the words if you like, and send it as any text. Once they have the app and you text each other, it offers to turn encryption on between you.</p>

@@ -107,6 +107,7 @@ void main() {
     expect(noteIcon('The Codes tab is always there'), Lucide.keyRound);
     expect(noteIcon('Tap someone\'s picture or name in a space to open their profile.'), Lucide.circleUser, reason: 'a profile, though it says picture');
     expect(noteIcon('Windows: the app and its installer are signed'), Lucide.shieldCheck);
+    expect(noteIcon('Help and docs: step-by-step guides at gogho.st/docs'), Lucide.bookOpen);
     expect(noteIcon('Something nobody has a word for'), Lucide.sparkles);
     expect(LucideMore.headphones, isNotNull);
     // Every note written so far has a mark of its own, not the sparkle left for nothing.

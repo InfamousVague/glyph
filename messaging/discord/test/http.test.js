@@ -160,7 +160,7 @@ test('commands: link and unlink need Manage Server; status counts links', () => 
   assert.match(answer({ sub: 'link', guildId: G, canManage: false }, { codes, store }), /Manage Server/);
   assert.match(answer({ sub: 'unlink', guildId: G, canManage: false }, { codes, store }), /Manage Server/);
   const text = answer({ sub: 'link', guildId: G, canManage: true }, { codes, store });
-  assert.match(text, /^Your code is [23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}\. In Ghost Messaging open Spaces › Add a Discord server and enter it\. It works once, for 10 minutes\.$/);
+  assert.match(text, /^Your code is [23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}\. In Ghost Messaging tap New › Add a Discord server and enter it\. It works once, for 10 minutes\.$/);
   assert.match(answer({ sub: 'status', guildId: G, canManage: false }, { codes, store }), /no Ghost Messaging links/);
   store.add(G); store.add(G);
   assert.equal(answer({ sub: 'status', guildId: G, canManage: false }, { codes, store }), 'This server has 2 Ghost Messaging links.');

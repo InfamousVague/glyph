@@ -41,6 +41,7 @@ import 'encryption.dart';
 import 'me.dart';
 import 'network.dart';
 import 'settings.dart';
+import 'nav_style.dart';
 import 'space_designs/space_design.dart';
 import '../summaries.dart';
 
@@ -275,7 +276,9 @@ List<SettingsSection> _ownSections() => [
     id: 'network',
     // The routes run on the phone; a computer speaks through it.
     where: SettingsWhere.phone,
-    label: 'Network',
+    // "Routes", not "Network": Connections is your linked accounts, and this is how messages travel (Matt, 2026-11-19:
+    // "Rename 'Network' to 'Routes'").
+    label: 'Routes',
     icon: _icon(Lucide.network),
     hue: 'blue',
     group: 'phone',
@@ -331,7 +334,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.9.33';
+const appVersion = '0.9.34';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -1137,6 +1140,24 @@ List<Widget> _developer(BuildContext context, SettingsModel m) {
         ),
       ],
     ),
+    // How the app is got round (Matt, 2026-11-19: "work on a unified navigation across the whole app instead of it
+    // changing navigations on every page ... give me a setting in developer settings to switch between the different
+    // views"; lib/ui/nav_style.dart).
+    PaneSection(
+      title: 'Navigation',
+      description: const Text('How you get round the app. The two newer ways are the same on every page; the rail adds your circles down the left, as Discord and Slack have.'),
+      children: [
+        for (final n in NavStyle.values)
+          SettingRow(
+            key: ValueKey('nav-style-${n.name}'),
+            icon: _icon(n.icon),
+            label: '${n.label}${n == NavStyle.fallback ? ' (default)' : ''}',
+            hint: Text(n.description),
+            value: n == NavStyle.of(app) ? AppIcon(Lucide.check, size: 18, color: t.color('app-ink')) : null,
+            onPress: () => app.set(NavStyle.pref, n.name),
+          ),
+      ],
+    ),
     // Six other ways a space's call can look (Matt, 2026-11-16: "give me 6 alternate designs for the calling chat and
     // video screens for spaces ... release all 6 versions under a developer setting flag so I can toggle them on and
     // off"). Chosen here; the next call in a space opens in it, or press the call banner in one already.
@@ -1217,6 +1238,8 @@ List<Widget> _about(BuildContext context, SettingsModel m) {
         SettingRow(icon: _icon(Lucide.sparkles), label: 'What\'s new', hint: const Text('What the last update brought.'), onPress: () => showWhatsNew(context)),
         // The first-run walkthrough again (lib/onboarding), on the phone, whose setup it is.
         if (!Sms.remote) SettingRow(icon: _icon(LucideMore.rocket), label: 'Watch the walkthrough again', onPress: () => openOnboarding(context)),
+        // gogho.st/docs, in the browser.
+        SettingRow(icon: _icon(Lucide.bookOpen), label: 'Help and docs', hint: const Text('How everything works, step by step, at gogho.st/docs.'), onPress: openDocs),
         SettingRow(
           icon: _icon(Lucide.info),
           label: 'Texts and picture messages',
@@ -1224,8 +1247,9 @@ List<Widget> _about(BuildContext context, SettingsModel m) {
         ),
         SettingRow(
           icon: _icon(Lucide.lock),
-          label: 'Nothing leaves the phone',
-          hint: const Text('No account and no server of ours. The app connects to gogho.st for its own updates and to nothing else.'),
+          // Since accounts, friends and circles, the relay at gogho.st carries sealed messages: said as it is.
+          label: 'Sealed, end to end',
+          hint: const Text('Your texts stay on this phone. Friends, circles and spaces go through gogho.st\'s relay, sealed so it can\'t read them.'),
         ),
       ],
     ),
