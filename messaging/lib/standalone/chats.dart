@@ -62,7 +62,7 @@ class UsernameChats {
 
   Map<String, Object?> person(String address) {
     final b = buddyAt(address);
-    return {'address': address, 'name': b == null ? null : (b.name.isEmpty ? '@${b.username}' : b.name)};
+    return {'address': address, 'name': b?.shown};
   }
 
   /// Where things stand with each friend, as the phone's encryption record has it: on, and friends.
@@ -262,7 +262,7 @@ class UsernameChats {
     return [
       for (final b in buddies())
         if (b.state == 'yes' && (q.isEmpty || b.username.toLowerCase().contains(q) || b.name.toLowerCase().contains(q)))
-          {'name': b.name.isEmpty ? '@${b.username}' : b.name, 'address': addressOf(b.username)},
+          {'name': b.shown, 'address': addressOf(b.username)},
     ];
   }
 }

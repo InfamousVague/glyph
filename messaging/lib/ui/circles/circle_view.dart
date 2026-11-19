@@ -20,6 +20,7 @@ class CircleSpaceView {
     required this.space,
     required this.channel,
     this.unread = 0,
+    this.mentions = 0,
     this.lastMessage,
     this.lastAt,
     this.inVoice = const [],
@@ -33,6 +34,9 @@ class CircleSpaceView {
 
   /// How many messages from others came after this device last read it.
   final int unread;
+
+  /// How many of those mention this device: an "@" on its mark.
+  final int mentions;
 
   /// Its newest message as a line ("Maya: see you at eight"), and when; null where it has none.
   final String? lastMessage;

@@ -112,6 +112,7 @@ CircleView circleView(BuildContext context, Circle c, {required VoidCallback onB
           space: s,
           channel: channel,
           unread: voice.unreadIn(channel),
+          mentions: voice.mentionsIn(channel),
           lastMessage: last == null ? null : '${who(last)}: ${last.summary}',
           lastAt: last == null ? null : DateTime.fromMillisecondsSinceEpoch(last.at),
           inVoice: [for (final id in ids) id == 'me' ? 'You' : voice.nameOf(id)],
@@ -232,6 +233,7 @@ class CircleRow extends StatelessWidget {
     return ConversationRow(
       conversation: c,
       unreadCount: unread,
+      mentioned: circles.mentions(circle) > 0,
       live: inVoice.isEmpty ? null : inVoice.length,
       timed: newest != null,
       selected: selected,

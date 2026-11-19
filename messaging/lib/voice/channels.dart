@@ -17,6 +17,7 @@ import '../sms.dart';
 import '../sounds.dart';
 import '../circles/circles.dart';
 import 'hangout.dart';
+import 'mention_alerts.dart';
 import 'roles.dart';
 import 'rtc.dart';
 import 'voice.dart';
@@ -306,7 +307,7 @@ class Voice extends ChangeNotifier {
           ...Circles.instance.forDesk(),
           // What was removed, here or from a computer, for every computer to take away too.
           'gone': _gone,
-          'name': me.displayName.isNotEmpty ? me.displayName : (me.username == null ? '' : '@${me.username}'),
+          'name': me.shownName,
           if (me.username != null) 'u': me.username,
         };
     }
@@ -396,13 +397,13 @@ class Voice extends ChangeNotifier {
   /// A name for [id]: a friend's, a group member's, or what they said in the call.
   String nameOf(String id) {
     if (id == me) return 'You';
-    final said = session?.members[id]?.name;
-    if (said != null && said.isNotEmpty) return said;
+    final said = bareName(session?.members[id]?.name ?? '');
+    if (said.isNotEmpty) return said;
     final b = Buddies.instance.byId(id);
     if (b != null) return b.shown;
     for (final g in Groups.instance.all) {
       final m = g.member(id);
-      if (m != null) return m.label;
+      if (m != null) return bareName(m.label);
     }
     return 'Someone';
   }
@@ -565,12 +566,22 @@ class Voice extends ChangeNotifier {
     return room.messages.where((m) => m.at > since && m.from != room.me).length;
   }
 
+  /// How many of [c]'s unread messages ([unreadIn]) mention this device (Matt, 2026-11-19: "Add mentions support to
+  /// spaces and circles with the @user prefix"): what an "@" on its unread mark counts.
+  int mentionsIn(VoiceChannel c) {
+    final room = _hangouts[c.seed];
+    if (room == null) return 0;
+    final since = _readAt[c.seed] ?? 0;
+    return room.messages.where((m) => m.at > since && m.from != room.me && room.mentionsMe(m)).length;
+  }
+
   /// [c]'s chat is read to its newest message.
   void markRead(VoiceChannel c) {
     final at = lastMessage(c)?.at ?? DateTime.now().millisecondsSinceEpoch;
     if ((_readAt[c.seed] ?? 0) >= at) return;
     _readAt[c.seed] = at;
     _app?.set('voice_read', jsonEncode(_readAt));
+    MentionAlerts.instance?.read(c);
     notifyListeners();
   }
 
@@ -626,7 +637,7 @@ class Voice extends ChangeNotifier {
   /// Rings everyone in [group]: their apps say the group is calling.
   Future<int> ring(Group group) async {
     var told = 0;
-    final name = Me.instance.displayName.isNotEmpty ? Me.instance.displayName : (Me.instance.username == null ? 'Someone' : '@${Me.instance.username}');
+    final name = Me.instance.shownName.isEmpty ? 'Someone' : Me.instance.shownName;
     for (final m in group.others) {
       final peer = Net.instance.byId(m.id);
       if (peer == null) continue;
@@ -728,6 +739,8 @@ class Voice extends ChangeNotifier {
       store: _app == null ? null : AppHangoutStore(_app!),
     );
     room.onRoster = (_) => _enforce();
+    // Someone mentioning this device: its notification (lib/voice/mention_alerts.dart).
+    room.onFresh = (fresh) => MentionAlerts.instance?.heard(room, fresh, readAt: _readAt[c.seed] ?? 0, nameOf: nameOf);
     room.addListener(notifyListeners);
     return _hangouts[c.seed] = room;
   }
@@ -780,7 +793,7 @@ class Voice extends ChangeNotifier {
     await _hangouts[c.seed]?.close();
   }
 
-  String get _myName => _deskName ?? (Me.instance.displayName.isNotEmpty ? Me.instance.displayName : (Me.instance.username == null ? '' : '@${Me.instance.username}'));
+  String get _myName => _deskName != null ? bareName(_deskName!) : Me.instance.shownName;
 
   /// Does in the call what the hangout's roster says: who is heard (not muted for everyone, allowed to speak, not
   /// silenced here), whether this device may speak or show video, and leaving when put out.
@@ -824,7 +837,7 @@ class Voice extends ChangeNotifier {
     for (final id in _silenced) {
       m.setPeerMuted(id, true);
     }
-    final name = _deskName ?? (Me.instance.displayName.isNotEmpty ? Me.instance.displayName : (Me.instance.username == null ? '' : '@${Me.instance.username}'));
+    final name = _deskName != null ? bareName(_deskName!) : Me.instance.shownName;
     final s = session = VoiceSession(channel: c, route: route, media: m, name: name, username: _deskName == null ? Me.instance.username : _deskUsername, kbps: settings.sendKbps, stereo: settings.sendStereo);
     // Taken over by another device of this identity coming into the call (VoiceSession.join): this one leaves it, as
     // Leave does.

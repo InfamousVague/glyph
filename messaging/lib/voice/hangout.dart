@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../names.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -7,6 +8,7 @@ import 'package:flutter/foundation.dart';
 
 import '../files/file_kinds.dart';
 import '../files/files_model.dart';
+import '../mentions.dart';
 import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
 import 'channels.dart' show AppHangoutStore;
@@ -56,12 +58,31 @@ class HangoutRoom extends ChangeNotifier {
   /// Who is in the chat room now, with what they said of themselves.
   final Map<String, HangoutPerson> present = {};
 
+  /// The username each install here has said it goes by, kept after it leaves: one person's phone and paired computer
+  /// are two installs here under one username.
+  final Map<String, String> usernames = {};
+
+  /// Whether [m] mentions the person on this device: this install, or another install of theirs (their phone, their
+  /// computer), known by saying the same username as this one does (Matt, 2026-11-19: "Add mentions support to spaces
+  /// and circles with the @user prefix").
+  bool mentionsMe(HangoutMessage m) {
+    if (m.mentions.isEmpty || m.from == me) return false;
+    final mine = username;
+    // Written by another install of this person's: not a mention to be told of.
+    if (mine != null && mine.isNotEmpty && usernames[m.from] == mine) return false;
+    return m.mentions.any((x) => x.id == me || (mine != null && mine.isNotEmpty && usernames[x.id] == mine));
+  }
+
   /// Set when someone with the right to told this device to leave, or it was banned: why.
   String? putOut;
   bool opened = false;
 
   /// Told when the roster changes, to do what it says in the call (who is heard, who is seen).
   void Function(Roster roster)? onRoster;
+
+  /// Told of the messages the chat takes in that it did not have, sent here or heard (a mention's notification:
+  /// lib/voice/mention_alerts.dart).
+  void Function(List<HangoutMessage> fresh)? onFresh;
 
   final List<StreamSubscription<Object?>> _subs = [];
 
@@ -130,7 +151,7 @@ class HangoutRoom extends ChangeNotifier {
   // --- chat --------------------------------------------------------------------------------------------------------
 
   /// Writes [text] to the hangout; false where this device may not.
-  bool send(String text) => sendWith(text: text);
+  bool send(String text, {List<Mention> mentions = const []}) => sendWith(text: text, mentions: mentions);
 
   /// Whether this device may write here at all: the roster's Send messages, and not put out. Files and stickers are
   /// part of writing (Matt, 2026-11-18): whoever may write may send them (in a circle its roles say more:
@@ -139,7 +160,8 @@ class HangoutRoom extends ChangeNotifier {
 
   /// Writes [text], with [files] that are up already or a [sticker], to the hangout; false where this device may not or
   /// there is nothing to send. [id]: the one an [OutgoingMessage] was shown under.
-  bool sendWith({String text = '', List<SpaceFile> files = const [], String? sticker, bool voice = false, String? id}) {
+  /// [mentions]: who is meant by an "@Name" in [text], counted in [text] as given (lib/mentions.dart).
+  bool sendWith({String text = '', List<SpaceFile> files = const [], String? sticker, bool voice = false, String? id, List<Mention> mentions = const []}) {
     var words = text.trim();
     if (sticker != null && !HangoutMessage.stickerPattern.hasMatch(sticker)) return false;
     final extra = files.isNotEmpty || sticker != null;
@@ -155,6 +177,8 @@ class HangoutRoom extends ChangeNotifier {
       files: sticker != null ? const [] : files.take(HangoutMessage.mostFiles).toList(),
       sticker: sticker,
       voice: voice && files.length == 1 && sticker == null,
+      // Counted in the words as sent: trimmed, and cut short where too long (a mention past the cut goes).
+      mentions: Mention.checked(Mention.trimmed(mentions, text), words),
     ));
     _add([m]);
     _say({'t': 'msg', ...m.toJson()}, keep: true);
@@ -202,7 +226,7 @@ class HangoutRoom extends ChangeNotifier {
 
   /// Sends [picked] (files on this device) up, sealed, with [text], and the message once they are all there; null where
   /// this device may not write here or nothing could be read. [voice]: the one file is a voice message.
-  OutgoingMessage? sendFiles(List<({String path, bool owned})> picked, ChatUploads uploads, {String text = '', bool voice = false}) {
+  OutgoingMessage? sendFiles(List<({String path, bool owned})> picked, ChatUploads uploads, {String text = '', bool voice = false, List<Mention> mentions = const []}) {
     if (!mayWrite) return null;
     final files = <OutgoingFile>[];
     for (final p in picked.take(HangoutMessage.mostFiles)) {
@@ -219,7 +243,7 @@ class HangoutRoom extends ChangeNotifier {
     if (files.isEmpty) return null;
     var words = text.trim();
     if (words.length > HangoutMessage.mostWordsWith) words = words.substring(0, HangoutMessage.mostWordsWith);
-    final o = OutgoingMessage(id: NetCrypto.hex(NetCrypto.randomBytes(8)), text: words, files: files, at: DateTime.now().millisecondsSinceEpoch, voice: voice && files.length == 1);
+    final o = OutgoingMessage(id: NetCrypto.hex(NetCrypto.randomBytes(8)), text: words, files: files, at: DateTime.now().millisecondsSinceEpoch, voice: voice && files.length == 1, mentions: Mention.trimmed(mentions, text));
     outgoing.add(o);
     notifyListeners();
     unawaited(_push(o, uploads));
@@ -265,7 +289,7 @@ class HangoutRoom extends ChangeNotifier {
           }(),
     ]);
     if (!outgoing.contains(o) || o.files.any((f) => f.file == null)) return;
-    if (sendWith(id: o.id, text: o.text, files: [for (final f in o.files) f.file!], voice: o.voice)) {
+    if (sendWith(id: o.id, text: o.text, files: [for (final f in o.files) f.file!], voice: o.voice, mentions: o.mentions)) {
       outgoing.remove(o);
     } else {
       o.error = putOut ?? 'Your role can\'t send messages here.';
@@ -293,6 +317,7 @@ class HangoutRoom extends ChangeNotifier {
     if (messages.length > keep) messages = messages.sublist(messages.length - keep);
     store.keepMessages(channel.chatRoom, messages);
     notifyListeners();
+    onFresh?.call(more);
   }
 
   void _drop(String id) {
@@ -622,7 +647,8 @@ class HangoutRoom extends ChangeNotifier {
       case 'hi':
         // Another device of this identity is this person, not someone else here (counted with "here" otherwise).
         if (from == me) return;
-        present[from] = HangoutPerson(from, name: '${m['n'] ?? ''}', username: m['u'] is String ? m['u'] as String : null, inVoice: m['a'] == true, guest: m['g'] == true);
+        present[from] = HangoutPerson(from, name: bareName('${m['n'] ?? ''}'), username: m['u'] is String ? m['u'] as String : null, inVoice: m['a'] == true, guest: m['g'] == true);
+        if (m['u'] is String && (m['u'] as String).isNotEmpty) usernames[from] = m['u'] as String;
         notifyListeners();
         // Come in asking who is here (a person's second device, whom the relay announces to nobody): told, once.
         if (m['q'] == true) _greet(from);
@@ -695,11 +721,14 @@ class HangoutPerson {
 /// sticker is in every app already, so nothing goes up) and `vo` (the one file is a voice message). A build from before
 /// reads only `x`, so there it is a line saying what came ([fallback]: "📎 photo.jpg", "Sticker"), the words under it.
 ///
+/// Since 2026-11-19 `mn`, who its words mention ([Mention]: `[start, length, id]` each, counted in the words): a build
+/// from before reads the "@Name" in the words as words, and so does anyone where a mention does not check out.
+///
 /// **The files** are sealed and kept on the relay under the space's own seed, as a Files space's are
 /// (lib/files/files_store.dart, [ChatUploads]), but never written in its list: only the message knows of them.
 @immutable
 class HangoutMessage {
-  const HangoutMessage({required this.id, required this.from, required this.name, required this.text, required this.at, this.files = const [], this.sticker, this.voice = false});
+  const HangoutMessage({required this.id, required this.from, required this.name, required this.text, required this.at, this.files = const [], this.sticker, this.voice = false, this.mentions = const []});
   final String id;
 
   /// Who wrote it (their id on the hub, as the hub said), and the name they wrote it under.
@@ -720,6 +749,12 @@ class HangoutMessage {
 
   /// Its one file is a voice message, recorded in the chat.
   final bool voice;
+
+  /// Who its words mention, by where each "@Name" is in [text]; only ones that check out against it (Mention.checked).
+  final List<Mention> mentions;
+
+  /// Whether it mentions [id].
+  bool mentionsOf(String id) => Mention.names(mentions, id);
 
   /// The most files one message carries, and the most words beside them (the message, its small pictures and its words
   /// twice over, in [fallback] and `w`, must go in one of the hub's packets).
@@ -748,7 +783,7 @@ class HangoutMessage {
   /// The message in a line, for a list's preview: its words, or what came.
   String get summary => !extras ? text : (text.isEmpty ? what : '$what · $text');
 
-  HangoutMessage copyWith({List<SpaceFile>? files}) => HangoutMessage(id: id, from: from, name: name, text: text, at: at, files: files ?? this.files, sticker: sticker, voice: voice);
+  HangoutMessage copyWith({List<SpaceFile>? files}) => HangoutMessage(id: id, from: from, name: name, text: text, at: at, files: files ?? this.files, sticker: sticker, voice: voice, mentions: mentions);
 
   Map<String, Object> toJson() => {
         'id': id,
@@ -760,6 +795,7 @@ class HangoutMessage {
         if (files.isNotEmpty) 'a': [for (final f in files) f.toJson()..remove('u')..remove('at')],
         'st': ?sticker,
         if (voice && files.isNotEmpty) 'vo': 1,
+        if (mentions.isNotEmpty) 'mn': [for (final m in mentions) m.toJson()],
       };
 
   /// From what [from] said: its id, words and time; null where it is not a message. A message whose files and sticker
@@ -767,7 +803,7 @@ class HangoutMessage {
   static HangoutMessage? fromJson(Map<String, dynamic> j, String from) {
     if (j['id'] is! String || j['x'] is! String || j['at'] is! int) return null;
     final at = j['at'] as int;
-    final name = j['n'] is String ? j['n'] as String : '';
+    final name = j['n'] is String ? bareName(j['n'] as String) : '';
     final files = <SpaceFile>[
       if (j['a'] is List)
         for (final a in (j['a'] as List).take(mostFiles))
@@ -776,18 +812,24 @@ class HangoutMessage {
     final st = j['st'];
     final sticker = st is String && stickerPattern.hasMatch(st) ? st : null;
     final extras = files.isNotEmpty || sticker != null;
-    final text = (extras ? (j['w'] is String ? j['w'] as String : '') : j['x'] as String).trim();
+    final raw = extras ? (j['w'] is String ? j['w'] as String : '') : j['x'] as String;
+    final text = raw.trim();
     if (text.isEmpty && !extras) return null;
     final most = extras ? mostWordsWith : 4000;
+    final kept = text.length > most ? text.substring(0, most) : text;
+    // Counted in the words as they came, then in the words as kept: trimmed and cut short, a mention past the cut goes.
+    final lead = raw.length - raw.trimLeft().length;
+    final mentions = Mention.listFromJson(j['mn'], raw).map((m) => m.moved(-lead)).toList();
     return HangoutMessage(
       id: j['id'] as String,
       from: from,
       name: name,
-      text: text.length > most ? text.substring(0, most) : text,
+      text: kept,
       at: at,
       files: sticker != null ? const [] : files,
       sticker: sticker,
       voice: j['vo'] == 1 && files.length == 1 && sticker == null,
+      mentions: Mention.checked(mentions, kept),
     );
   }
 
@@ -827,9 +869,12 @@ class OutgoingFile {
 /// A message with files, shown in the chat while they go up (Matt, 2026-11-18): sent once all of them are there, kept
 /// with a try again where one fails. Only on this device, and only while the app is open.
 class OutgoingMessage {
-  OutgoingMessage({required this.id, required this.text, required this.files, required this.at, this.voice = false});
+  OutgoingMessage({required this.id, required this.text, required this.files, required this.at, this.voice = false, this.mentions = const []});
   final String id;
   final String text;
+
+  /// Who [text] mentions, counted in [text].
+  final List<Mention> mentions;
   final List<OutgoingFile> files;
   final int at;
   final bool voice;

@@ -252,7 +252,7 @@ class _BuddiesScreenState extends State<BuddiesScreen> {
                   for (final a in b.asked)
                     SettingRow(
                       icon: AppIcon(Lucide.clock, size: 18),
-                      label: '@${a.username}',
+                      label: a.shown,
                       hint: const Text('Asked'),
                       onPress: () => showChoices(context, title: 'Take back your request to @${a.username}?', choices: [
                         Choice('Take it back', Lucide.x, () => b.remove(a), danger: true),

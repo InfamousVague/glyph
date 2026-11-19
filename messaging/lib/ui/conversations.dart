@@ -438,6 +438,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       key: ValueKey('space-row-${v.room}'),
       conversation: c,
       unreadCount: unread,
+      mentioned: voice.mentionsIn(v) > 0,
       selected: selected,
       live: inCall,
       // Its kind's mark: headphones, a speech bubble for texting, a folder for files (lib/ui/circles/circle_face.dart).
@@ -1418,7 +1419,7 @@ class _RcsNotice extends StatelessWidget {
 /// One conversation in the list: its face, its name, its last words and when. The Mac's list (lib/desktop) draws its
 /// rows with it too.
 class ConversationRow extends StatelessWidget {
-  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false, this.summary, this.badge, this.unreadCount, this.live, this.face, this.timed = true});
+  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false, this.summary, this.badge, this.unreadCount, this.live, this.face, this.timed = true, this.mentioned = false});
   final Conversation conversation;
 
   /// Its face at a size, in place of the people's: a circle's own (the Circles tab draws its circles as conversations,
@@ -1434,6 +1435,9 @@ class ConversationRow extends StatelessWidget {
   /// How many are unread, where that is known (a chat on Telegram or Signal): Dial-Up's row says it after the name,
   /// "Maya (3)". A conversation of texts knows only that some are, and says "(new)".
   final int? unreadCount;
+
+  /// Something unread in it mentions the person (a space's, a circle's): an "@" on its mark.
+  final bool mentioned;
 
   /// A mark on the face's corner: the network a chat from Telegram or Bluesky is on (lib/ui/inbox_ui.dart).
   final Widget? badge;
@@ -1577,7 +1581,7 @@ class ConversationRow extends StatelessWidget {
                         if (unread) ...[
                           SizedBox(width: t.space(2)),
                           // The count where it is known (a network's chat), else a dot, both large enough to see.
-                          UnreadBadge(count: unreadCount, color: t.unread),
+                          UnreadBadge(count: unreadCount, mentioned: mentioned, color: t.unread),
                         ],
                       ]),
                     ],
@@ -1608,7 +1612,7 @@ class ConversationRow extends StatelessWidget {
         builder: (context, state) {
           final ink = selected ? d.onHighlight : d.ink;
           final soft = selected ? d.onHighlight : d.inkSoft;
-          final count = unread ? (unreadCount != null && unreadCount! > 0 ? ' ($unreadCount)' : ' (new)') : '';
+          final count = unread ? (unreadCount != null && unreadCount! > 0 ? ' (${mentioned ? '@' : ''}$unreadCount)' : (mentioned ? ' (@)' : ' (new)')) : '';
           final words = c.draft != null && c.draft!.trim().isNotEmpty
               ? TextSpan(children: [
                   TextSpan(text: 'Draft: ', style: TextStyle(color: selected ? d.onHighlight : t.danger)),

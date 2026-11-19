@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/files/file_kinds.dart';
 import 'package:ghost_messaging/files/files_api.dart' show FilesError;
 import 'package:ghost_messaging/files/files_model.dart';
+import 'package:ghost_messaging/mentions.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/voice/hangout.dart';
@@ -318,6 +319,80 @@ void main() {
       expect(back.files.map((f) => (f.id, f.name, f.size, f.mime)), got.files.map((f) => (f.id, f.name, f.size, f.mime)));
       expect(back.text, 'From Friday');
       expect(back.summary, '📎 photo.jpg, report.pdf · From Friday');
+    });
+
+    // Matt, 2026-11-19: "Add mentions support to spaces and circles with the @user prefix".
+    test('a mention reaches everyone with the words, and only the one meant is mentioned', () async {
+      final o = owner.room(channel), a = ann.room(channel), b = bob.room(channel);
+      await o.open();
+      await a.open();
+      await b.open();
+      await _settle();
+      // Written with space round it in the composer: counted from the words as sent.
+      expect(o.send('  @Ann are you in?  ', mentions: [Mention(2, 4, ann.id)]), isTrue);
+      await _settle();
+      for (final r in [o, a, b]) {
+        final m = r.messages.single;
+        expect(m.text, '@Ann are you in?');
+        expect(m.mentions, [Mention(0, 4, ann.id)]);
+      }
+      expect(a.messages.single.mentionsOf(ann.id), isTrue);
+      expect(b.messages.single.mentionsOf(bob.id), isFalse);
+      // Someone coming in later gets it with its mention, from the history.
+      final c = cat.room(channel);
+      await c.open();
+      await _settle();
+      expect(c.messages.single.mentions, [Mention(0, 4, ann.id)]);
+    });
+
+    test('a mention that the words do not show is not believed, and a build from before reads the name as words', () {
+      final m = HangoutMessage.fromJson({'id': 'a', 'x': 'hey @Ann', 'at': 1, 'n': 'Bob', 'mn': [[4, 4, ann.id], [0, 3, cat.id], [4, 40, cat.id]]}, bob.id)!;
+      expect(m.mentions, [Mention(4, 4, ann.id)], reason: 'only the one at an @ in the words');
+      expect(m.mentionsOf(cat.id), isFalse, reason: 'Cat is named nowhere in the words: no hidden call');
+      final sent = HangoutMessage(id: 'b', from: bob.id, name: 'Bob', text: 'hey @Ann', at: 1, mentions: const [Mention(4, 4, 'aa')]);
+      final wire = sent.toJson();
+      expect(wire['x'], 'hey @Ann', reason: 'what a build from before reads');
+      expect(wire['mn'], [[4, 4, 'aa']]);
+      expect(HangoutMessage(id: 'c', from: bob.id, name: 'Bob', text: 'plain', at: 1).toJson().containsKey('mn'), isFalse);
+      // With words that came with space round them, and with files, where the words are `w`.
+      expect(HangoutMessage.fromJson({'id': 'd', 'x': '  @Ann hi', 'at': 1, 'mn': [[2, 4, ann.id]]}, bob.id)!.mentions, [Mention(0, 4, ann.id)]);
+      final withFiles = HangoutMessage.fromJson({'id': 'e', 'x': 'Sticker\n@Ann', 'w': '@Ann', 'st': 'love-03', 'at': 1, 'mn': [[0, 4, ann.id]]}, bob.id)!;
+      expect(withFiles.mentions, [Mention(0, 4, ann.id)]);
+      // Words cut short to the most a message holds take the mentions past the cut with them.
+      final long = '${'a' * 3998} @Ann';
+      expect(HangoutMessage.fromJson({'id': 'f', 'x': long, 'at': 1, 'mn': [[3999, 4, ann.id]]}, bob.id)!.mentions, isEmpty);
+    });
+
+    test('a mention of someone\'s phone is a mention of their paired computer too, known by the same username', () async {
+      // Ann's phone and her computer, two installs that say one username.
+      final phone = ann.room(channel)..username = 'ann';
+      final desk = _Install(hub, 'Ann').room(channel)..username = 'ann';
+      final o = owner.room(channel);
+      await phone.open();
+      await desk.open();
+      await o.open();
+      await _settle();
+      expect(o.send('@Ann look', mentions: [Mention(0, 4, ann.id)]), isTrue);
+      await _settle();
+      expect(phone.mentionsMe(phone.messages.single), isTrue);
+      expect(desk.mentionsMe(desk.messages.single), isTrue, reason: 'her computer heard her phone say its username');
+      expect(o.mentionsMe(o.messages.single), isFalse);
+      // Written on her phone, naming her computer: hers, not news to her.
+      expect(phone.send('@Ann note to self', mentions: [Mention(0, 4, desk.me)]), isTrue);
+      await _settle();
+      expect(desk.mentionsMe(desk.messages.last), isFalse);
+    });
+
+    test('the chat says what it took in that it did not have, once', () async {
+      final o = owner.room(channel), a = ann.room(channel);
+      final heard = <String>[];
+      a.onFresh = (fresh) => heard.addAll(fresh.map((m) => m.text));
+      await o.open();
+      await a.open();
+      await _settle();
+      expect(o.send('one'), isTrue);
+      await _settle();
+      expect(heard, ['one']);
     });
 
     test('a message from a build from before still reads, and one whose files can\'t be read shows its line', () {

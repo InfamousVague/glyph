@@ -9,9 +9,11 @@ import '../me/me.dart';
 import '../sms.dart';
 import 'common.dart';
 
-/// Friends by username at the top of Contacts (Matt, 2026-11-16: "We need a way to add friends on the network by
-/// username on the contacts page and see friend requests"): the requests waiting for an answer with Accept and
-/// Decline on each, the ones you sent, and the friends you have. Asking someone, and choosing a username of your own,
+/// Friend requests at the top of Contacts (Matt, 2026-11-16: "We need a way to add friends on the network by username
+/// on the contacts page and see friend requests"): the requests waiting for an answer with Accept and Decline on each,
+/// and the ones you sent. The friends themselves are listed On Ghost Messaging with the friends by number (Matt,
+/// 2026-11-19: "remove the Friends by username section on the contacts page"); Remove friend is in their chat's settings
+/// and on Me. Asking someone, and choosing a username of your own,
 /// is the drawer the Add button beside the search opens (lib/ui/add_friend_drawer.dart). Buddies
 /// (lib/friends/buddies.dart) does the asking.
 class UsernameFriends extends StatefulWidget {
@@ -56,25 +58,13 @@ class _UsernameFriendsState extends State<UsernameFriends> {
                 ]),
               ),
           ],
-          if (b.friends.isNotEmpty) ...[
-            heading('Friends by username'),
-            for (final f in b.friends)
-              _Row(
-                name: f.shown,
-                title: f.shown,
-                sub: f.name.isEmpty ? (f.bio.isEmpty ? 'Friends' : f.bio) : '@${f.username}${f.bio.isEmpty ? '' : ' · ${f.bio}'}',
-                onPress: () => showChoices(context, title: f.shown, choices: [
-                  Choice('Remove friend', Lucide.userX, () => b.remove(f), danger: true),
-                ]),
-              ),
-          ],
           // The ones sent: a press takes one back.
           if (b.asked.isNotEmpty) ...[
             heading('Waiting for them'),
             for (final a in b.asked)
               _Row(
                 icon: Lucide.clock,
-                title: '@${a.username}',
+                title: a.shown,
                 sub: 'Friend request sent',
                 onPress: () => showChoices(context, title: 'Take back your request to @${a.username}?', choices: [
                   Choice('Take it back', Lucide.x, () => b.remove(a), danger: true),
