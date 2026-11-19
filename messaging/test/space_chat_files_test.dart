@@ -43,6 +43,31 @@ void main() {
     expect(find.text('Your role can\'t send messages here.'), findsOneWidget);
   });
 
+  testWidgets('a picture pressed opens full screen over the chat; Escape or the cross takes it away', (tester) async {
+    // Matt, 2026-11-19: "when clicking a picture in a chat, like in a circle make it a full screen overlay".
+    final sheet = await loadSheet(tester);
+    final room = _room();
+    room.store.keepMessages(room.channel.chatRoom, [
+      HangoutMessage(id: 'p', from: 'maya', name: 'Maya', text: '', at: DateTime(2026, 11, 19).millisecondsSinceEpoch, files: [_file('beach.jpg', 9000000)]),
+    ]);
+    final fresh = HangoutRoom(channel: room.channel, route: room.route, name: 'Me', signer: room.signer, store: room.store);
+    await pumpScreen(tester, sheet, HangoutChat(room: fresh, uploads: _Uploads()), AppState());
+    final picture = find.bySemanticsLabel(RegExp(r'^Picture beach\.jpg'));
+    expect(picture, findsOneWidget);
+    await tester.tap(picture);
+    await settle(tester);
+    expect(find.byKey(const ValueKey('picture-overlay')), findsOneWidget);
+    expect(find.text('beach.jpg'), findsOneWidget, reason: 'its name over it');
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await settle(tester);
+    expect(find.byKey(const ValueKey('picture-overlay')), findsNothing);
+    await tester.tap(picture);
+    await settle(tester);
+    await tester.tap(find.byKey(const ValueKey('picture-overlay-close')));
+    await settle(tester);
+    expect(find.byKey(const ValueKey('picture-overlay')), findsNothing);
+  });
+
   testWidgets('a file, a voice message and a sticker are drawn in place of words; one on its way shows why it stopped, and Try again', (tester) async {
     final sheet = await loadSheet(tester);
     final room = _room();
