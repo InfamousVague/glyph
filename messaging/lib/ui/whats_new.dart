@@ -2,6 +2,9 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../app_state.dart';
+import '../art/app_icon.dart';
+import '../art/lucide.g.dart';
+import '../art/lucide_more.dart';
 import '../changelog.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart' show Sms;
@@ -46,7 +49,45 @@ Future<void> showWhatsNew(BuildContext context, [List<ReleaseNotes>? notes]) {
   );
 }
 
-/// The notes of each release, as a list of lines under its version.
+/// The mark a note is shown with (Matt, 2026-11-19: "use iconography and smaller text on release notes"): read from what
+/// the note is about, its name before a colon first ("Record call: …") and then its words, so the notes stay plain lines
+/// in lib/changelog.dart. The first rule that matches wins; a sparkle where none does.
+LucideIcon noteIcon(String note) {
+  final colon = note.indexOf(':');
+  final title = (colon > 0 && colon < 40 ? note.substring(0, colon) : '').toLowerCase();
+  final all = note.toLowerCase();
+  for (final words in [title, all]) {
+    if (words.isEmpty) continue;
+    for (final (keys, icon) in _noteIcons) {
+      if (keys.any(words.contains)) return icon;
+    }
+  }
+  return Lucide.sparkles;
+}
+
+final List<(List<String>, LucideIcon)> _noteIcons = [
+  (['record'], Lucide.circleDot),
+  (['scribe', 'written out', 'transcri'], Lucide.scrollText),
+  (['caption'], Lucide.text),
+  (['watch together', 'video', 'film'], Lucide.film),
+  (['sms', 'by text', 'texting'], Lucide.smartphone),
+  (['mention', '@'], Lucide.atSign),
+  (['what\'s new', 'changelog'], Lucide.sparkles),
+  (['plugin'], Lucide.puzzle),
+  (['profile', 'status'], Lucide.circleUser),
+  (['banner', 'picture', 'photo'], Lucide.image),
+  (['remove', 'ban'], Lucide.userMinus),
+  (['code'], Lucide.keyRound),
+  (['contact', 'friend'], Lucide.contactRound),
+  (['name', 'username'], Lucide.userRound),
+  (['unread', 'notification'], Lucide.bell),
+  (['voice', 'call', 'sound'], LucideMore.headphones),
+  (['circle', 'space'], Lucide.users),
+  (['message', 'chat'], LucideMore.messageCircle),
+];
+
+/// The notes of each release under its version: each a small tile with its mark, its name in bold where it has one
+/// ("Record call:"), and the rest of its words, small.
 class WhatsNewList extends StatelessWidget {
   const WhatsNewList({super.key, required this.notes});
   final List<ReleaseNotes> notes;
@@ -55,6 +96,7 @@ class WhatsNewList extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final gutter = DrawerHead.gutter(t);
+    final small = t.fontSize('sm');
     return ListView(
       shrinkWrap: true,
       padding: EdgeInsets.fromLTRB(gutter, t.space(3), gutter, t.space(4)),
@@ -65,16 +107,42 @@ class WhatsNewList extends StatelessWidget {
             Padding(
               padding: EdgeInsets.only(bottom: t.space(3)),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Padding(
-                  padding: EdgeInsets.only(top: t.lenOf('0.5rem'), right: t.space(3)),
-                  child: Container(width: 6, height: 6, decoration: BoxDecoration(color: t.color('app-accent'), shape: BoxShape.circle)),
+                Container(
+                  width: 28,
+                  height: 28,
+                  margin: EdgeInsets.only(right: t.space(3)),
+                  decoration: BoxDecoration(color: t.color('app-accent').withValues(alpha: 0.14), borderRadius: BorderRadius.circular(8)),
+                  alignment: Alignment.center,
+                  child: AppIcon(noteIcon(line), size: 15, wash: false, color: t.color('app-accent')),
                 ),
-                Expanded(child: Text(line, style: pageText(t, t.fontSize('md'), color: t.color('app-ink'), height: 1.4))),
+                Expanded(child: _NoteWords(line, size: small)),
               ]),
             ),
           SizedBox(height: t.space(2)),
         ],
       ],
+    );
+  }
+}
+
+/// A note's words: its name before a colon in bold, where it starts with one, and the rest as they are.
+class _NoteWords extends StatelessWidget {
+  const _NoteWords(this.line, {required this.size});
+  final String line;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final colon = line.indexOf(': ');
+    final named = colon > 0 && colon < 40;
+    final plain = pageText(t, size, color: t.color('app-ink-2'), height: 1.4);
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Text.rich(TextSpan(children: [
+        if (named) TextSpan(text: line.substring(0, colon + 1), style: pageText(t, size, weight: 'semibold', color: t.color('app-ink'), height: 1.4)),
+        TextSpan(text: named ? line.substring(colon + 1) : line, style: plain),
+      ])),
     );
   }
 }

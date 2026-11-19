@@ -34,6 +34,9 @@ import '../me/pictures.dart';
 /// device ([onRoster]: lib/voice/channels.dart), someone banned is not answered at all, and a device told to leave by
 /// someone above it with the right to remove people leaves.
 class HangoutRoom extends ChangeNotifier {
+  /// Someone not heard here at all besides the banned: put out of the circle this space is in (Voice sets it).
+  bool Function(String id)? shut;
+
   HangoutRoom({required this.channel, required this.route, required this.name, this.username, this.signer, HangoutStore? store})
       : store = store ?? MemoryHangoutStore() {
     roster = this.store.roster(channel.chatRoom) ?? Roster.first(channel.owner, kind: channel.kind);
@@ -85,6 +88,13 @@ class HangoutRoom extends ChangeNotifier {
   /// Told of the messages the chat takes in that it did not have, sent here or heard (a mention's notification:
   /// lib/voice/mention_alerts.dart).
   void Function(List<HangoutMessage> fresh)? onFresh;
+
+  /// Told of the words between an SMS space's texting phone and its members' phones, each a map whose `t` is `sms?`
+  /// or `sms#` (lib/circles/sms_space.dart): said to one device alone, never kept, ignored by an older build.
+  void Function(String from, Map<String, dynamic> said)? onSignal;
+
+  /// Says [what] to the chat room, for [onSignal]'s words: with `to`, to that one person's devices alone.
+  void signal(Map<String, Object?> what) => _say(what);
 
   final List<StreamSubscription<Object?>> _subs = [];
 
@@ -668,7 +678,7 @@ class HangoutRoom extends ChangeNotifier {
       return;
     }
     // Someone banned is not heard at all.
-    if (roster.banned.contains(from)) return;
+    if (roster.banned.contains(from) || (shut?.call(from) ?? false)) return;
     switch (m['t']) {
       case 'hi':
         // Another device of this identity is this person, not someone else here (counted with "here" otherwise).
@@ -695,6 +705,8 @@ class HangoutRoom extends ChangeNotifier {
           final asked = _askedPictures[from];
           if (asked != null && !asked.isCompleted) asked.complete(ProfilePictures.instance.of(from));
         }
+      case 'sms?' || 'sms#':
+        onSignal?.call(from, m);
       case 'msg':
         final msg = HangoutMessage.fromJson(m, from);
         if (msg != null && roster.can(from, Perm.chat)) _add([msg]);

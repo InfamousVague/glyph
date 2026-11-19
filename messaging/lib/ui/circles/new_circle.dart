@@ -26,6 +26,7 @@ import '../../kit/settings_type.dart';
 import '../../voice/channels.dart';
 import '../../voice/voice.dart';
 import '../common.dart';
+import '../profile_card.dart';
 import '../dialup/bevel.dart';
 import '../shell.dart';
 import 'circle_face.dart';
@@ -645,6 +646,8 @@ List<CirclePerson> circlePeople(Circle c) {
     if (e.value.isNotEmpty) names.putIfAbsent(same(e.key), () => e.value);
   }
   if (me != null && me.isNotEmpty) folded.add(me);
+  // Put out by its owner or an admin: no longer among its members (Circles.removeMember).
+  folded.removeAll(m.removed);
   final ownerNow = m.ownerId;
   String nameOf(String id) {
     if (id == me) return 'You';
@@ -667,19 +670,45 @@ List<CirclePerson> circlePeople(Circle c) {
 
 /// What the owner can do with someone in their circle, from its settings or its members drawer: make them an admin,
 /// or take it back.
-void circlePersonMenu(BuildContext context, Circle c, CirclePerson p) {
+List<Choice> circlePersonChoices(BuildContext context, Circle c, CirclePerson p) {
+  // Their profile card, with what can be done with them in this circle under it (Matt, 2026-11-19: "clicking on a member
+  // in the member list should also show the users profile popup with linked numbers, and other details in addition to
+  // things like changing the role").
   final circles = Circles.instance;
-  showChoices(context, title: '${p.name} · ${p.role}', choices: [
-    p.admin
-        ? Choice('Remove as admin', Lucide.userMinus, () async {
-            final ok = await circles.grantAdmin(c, p.id, on: false);
-            if (context.mounted) toast(context, ok ? '${p.name} is no longer an admin' : 'Couldn\'t change ${p.name}\'s role', tone: ok ? GlacierToastTone.neutral : GlacierToastTone.danger);
-          })
-        : Choice('Make admin', Lucide.shieldCheck, () async {
-            final ok = await circles.grantAdmin(c, p.id);
-            if (context.mounted) toast(context, ok ? '${p.name} is an admin' : 'Couldn\'t change ${p.name}\'s role', tone: ok ? GlacierToastTone.neutral : GlacierToastTone.danger);
-          }, hint: 'Can change the circle and its spaces'),
-  ]);
+  final m = (circles.bySeed(c.seed) ?? c).manifest;
+  final me = circles.signer?.id ?? '';
+  void said(bool ok, String done) {
+    if (context.mounted) toast(context, ok ? done : 'Couldn\'t change that for ${p.name}', tone: ok ? GlacierToastTone.neutral : GlacierToastTone.danger);
+  }
+
+  final roles = [for (final r in m.roles) if (circles.mayManageRole(c, r.id)) r];
+  final theirs = {for (final r in m.rolesOf(p.id)) r.id};
+  final more = <Choice>[
+    if (!p.me && !p.owner)
+      for (final r in roles)
+        theirs.contains(r.id)
+            ? Choice('Take away ${r.name}', Lucide.userMinus, () async => said(await circles.setRolesOf(c, p.id, [...theirs.where((x) => x != r.id)]), '${p.name} no longer has ${r.name}'))
+            : Choice('Give ${r.name}', Lucide.userPlus, () async => said(await circles.setRolesOf(c, p.id, [...theirs, r.id]), '${p.name} has ${r.name}')),
+    if (!p.me && !p.owner && me == m.ownerId)
+      p.admin
+          ? Choice('Remove as admin', Lucide.userMinus, () async => said(await circles.grantAdmin(c, p.id, on: false), '${p.name} is no longer an admin'))
+          : Choice('Make admin', Lucide.shieldCheck, () async => said(await circles.grantAdmin(c, p.id), '${p.name} is an admin'), hint: 'Can change the circle and its spaces'),
+    if (m.mayRemove(me, p.id))
+      Choice('Remove from ${m.name}', Lucide.userMinus, danger: true, hint: 'Their app leaves the circle, and nobody here hears them again', () {
+        showChoices(context, title: 'Remove ${p.name} from ${m.name}?', choices: [
+          Choice('Remove ${p.name}', Lucide.userMinus, danger: true, () async => said(await circles.removeMember(c, p.id), '${p.name} was removed')),
+        ]);
+      }),
+  ];
+  return more;
+}
+
+/// [p]'s profile card from a circle's members, with what this device may change about them there ([circlePersonChoices]).
+void circlePersonMenu(BuildContext context, Circle c, CirclePerson p) {
+  final m = (Circles.instance.bySeed(c.seed) ?? c).manifest;
+  final roles = [for (final r in m.rolesOf(p.id)) r.name];
+  final detail = [p.me ? 'You' : p.role, if (roles.isNotEmpty) roles.join(', '), p.here ? 'On now' : 'Away'].join(' · ');
+  showProfile(context, ProfileSubject.ghost(id: p.id, name: p.name, detail: detail), more: circlePersonChoices(context, c, p));
 }
 
 /// A person's role in a circle in words, where a row asks which: a green dot before it while they are on, and the

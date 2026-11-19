@@ -385,6 +385,17 @@ class _SectionBody extends StatelessWidget {
             },
           ),
           if (c.picture != null) SettingRow(icon: AppIcon(Lucide.trash2, size: 18), label: 'Use the icon instead', onPress: () => circles.edit(c, clearPicture: true)),
+          // Behind the top of its sidebar, as a Discord server's banner (Matt, 2026-11-19).
+          SettingRow(
+            key: const ValueKey('circle-banner'),
+            icon: AppIcon(Lucide.imagePlus, size: 18),
+            label: c.banner == null ? 'Choose a banner' : 'Change the banner',
+            hint: const Text('A wide picture across the top of the circle\'s sidebar'),
+            onPress: () async {
+              await chooseCircleBanner(context, c);
+            },
+          ),
+          if (c.banner != null) SettingRow(icon: AppIcon(Lucide.trash2, size: 18), label: 'Remove the banner', onPress: () => circles.edit(c, clearBanner: true)),
         ]),
         gap,
         PaneSection(title: 'Colour', children: [SettingRowBox(child: CircleHuePicker(value: c.hue, onChanged: (h) => circles.edit(c, hue: h)))]),

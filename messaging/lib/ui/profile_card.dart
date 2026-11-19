@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'composer_box.dart' show ComposerBox, ComposerField;
 import 'dart:convert';
 import 'dart:io';
 
@@ -29,8 +30,8 @@ import 'thread.dart';
 /// Ghost, by their id on the hub or their username, or someone on another network ([network]), by its own id or
 /// username. [room] is the space it was opened in, for what makes sense there.
 class ProfileSubject {
-  const ProfileSubject.ghost({this.id = '', this.username = '', this.name = '', this.room, this.onMention}) : network = null;
-  const ProfileSubject.on(InboxNetwork this.network, {this.id = '', this.username = '', this.name = '', this.onMention}) : room = null;
+  const ProfileSubject.ghost({this.id = '', this.username = '', this.name = '', this.room, this.onMention, this.detail = ''}) : network = null;
+  const ProfileSubject.on(InboxNetwork this.network, {this.id = '', this.username = '', this.name = '', this.onMention, this.detail = ''}) : room = null;
 
   final InboxNetwork? network;
   final String id;
@@ -40,6 +41,9 @@ class ProfileSubject {
 
   /// Puts an "@Name" for them in the composer where the card was opened from, where that can be done.
   final VoidCallback? onMention;
+
+  /// A line of what they are where the card was opened ("Admin · On now" in a circle's members).
+  final String detail;
 }
 
 /// A mention's [id] as the message lines carry it, made a subject: a Ghost id in a space ([room]), `u:<name>` for a
@@ -115,8 +119,15 @@ List<Choice> _actions(BuildContext context, ProfileSubject who, _Ghost? g) {
   if (ghost.me) {
     return [Choice('Edit your profile', Lucide.pencil, () => push<void>(context, (_) => const ProfileScreen()))];
   }
+  final links = ghost.buddy?.links ?? const <String, String>{};
+  final phone = links['phone'];
   return [
     if (ghost.friend) Choice('Open chat', Lucide.messageSquare, () => unawaited(_openGhostChat(context, ghost))),
+    if (phone != null && phone.isNotEmpty) Choice('Text $phone', Lucide.messageSquare, () => unawaited(_openNumber(context, phone, ghost.name)), hint: 'Their number, as they shared it'),
+    for (final e in links.entries)
+      if (e.key != 'phone' && Inbox.instance.named(e.key)?.state == InboxState.ready)
+        Choice('Message on ${Inbox.instance.named(e.key)!.name}', Lucide.messageSquare, () => unawaited(_openNetworkChat(context, ProfileSubject.on(Inbox.instance.named(e.key)!, username: e.value.replaceFirst('@', ''), name: ghost.name))),
+            mark: inboxMark(Inbox.instance.named(e.key)!, size: 20), hint: e.value),
     if (!ghost.friend && ghost.buddy == null && ghost.username.isNotEmpty && Me.instance.username != null)
       Choice('Add @${ghost.username} as a friend', Lucide.userPlus, () => unawaited(_addFriend(context, ghost.username)), hint: 'You can write to them once they say yes'),
     if (ghost.buddy?.state == 'invited') Choice('Accept friend request', Lucide.userCheck, () => unawaited(Buddies.instance.accept(ghost.buddy!))),
@@ -146,6 +157,19 @@ Future<void> _openGhostChat(BuildContext context, _Ghost g) async {
   final shell = AppShell.maybeOf(context);
   if (shell != null) return shell.openThread(thread, [person]);
   push<void>(context, (_) => ThreadScreen(thread: thread, people: [person]));
+}
+
+Future<void> _openNumber(BuildContext context, String number, String name) async {
+  try {
+    final person = Person(address: number, name: name);
+    final thread = await Sms.instance.threadFor([number]);
+    if (!context.mounted) return;
+    final shell = AppShell.maybeOf(context);
+    if (shell != null) return shell.openThread(thread, [person]);
+    push<void>(context, (_) => ThreadScreen(thread: thread, people: [person]));
+  } catch (e) {
+    if (context.mounted) toast(context, 'Couldn\'t start that chat: $e', tone: GlacierToastTone.danger);
+  }
 }
 
 Future<void> _openNetworkChat(BuildContext context, ProfileSubject who) async {
@@ -185,6 +209,7 @@ class _ProfileCardState extends State<_ProfileCard> {
   String? _picture;
   bool _looking = true;
   final _dm = TextEditingController();
+  final _dmFocus = FocusNode();
   bool _sending = false;
 
   @override
@@ -196,6 +221,7 @@ class _ProfileCardState extends State<_ProfileCard> {
   @override
   void dispose() {
     _dm.dispose();
+    _dmFocus.dispose();
     super.dispose();
   }
 
@@ -243,6 +269,11 @@ class _ProfileCardState extends State<_ProfileCard> {
     final bio = n?.bio.isNotEmpty == true ? n!.bio : (g?.me == true ? Me.instance.bio : (g?.buddy?.bio ?? ''));
     final where = who.network?.name ?? 'Ghost';
     final sub = [if (username.isNotEmpty) '@$username', where, if (n != null && n.seen.isNotEmpty) n.seen, if (n != null && n.bot) 'bot'].join(' · ');
+    // What they shared beyond Ghost: their number and the accounts they linked (Me.shareLinks), or a network's number.
+    final links = <(String, String)>[
+      for (final e in (g?.buddy?.links ?? const <String, String>{}).entries) (e.key == 'phone' ? 'Phone' : (Inbox.instance.named(e.key)?.name ?? _titled(e.key)), e.value),
+      if (n != null && n.number.isNotEmpty) ('Phone', n.number),
+    ];
     return Padding(
       padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), t.space(2)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
@@ -261,26 +292,50 @@ class _ProfileCardState extends State<_ProfileCard> {
           ),
           if (_looking) const GhostSpinner(size: 16),
         ]),
+        if (who.detail.isNotEmpty) ...[
+          SizedBox(height: t.space(2)),
+          Text(who.detail, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink-2'))),
+        ],
+        if (links.isNotEmpty) ...[
+          SizedBox(height: t.space(2)),
+          for (final (label, value) in links)
+            Padding(
+              padding: EdgeInsets.only(top: t.space(1)),
+              child: Row(children: [
+                SizedBox(width: t.lenOf('5.5rem'), child: Text(label, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
+                Expanded(child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink')))),
+              ]),
+            ),
+        ],
         if (bio.isNotEmpty) ...[
           SizedBox(height: t.space(3)),
           Text(bio, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.4)),
         ],
         if (g != null && g.friend && !g.me) ...[
           SizedBox(height: t.space(3)),
-          Row(children: [
-            Expanded(
-              child: GlacierInput(
-                key: const ValueKey('profile-dm'),
-                controller: _dm,
-                placeholder: 'Message ${g.name.isNotEmpty ? g.name : '@${g.username}'}',
-                ariaLabel: 'Message ${g.name.isNotEmpty ? g.name : '@${g.username}'}',
-                size: GlacierFieldSize.md,
-                onSubmitted: (_) => unawaited(_send()),
-              ),
+          // The box every conversation writes in, Send inside it at its end (Matt, 2026-11-19: "move the send message
+          // button inside the input like we have on the rest of the app as well within that drawer").
+          ListenableBuilder(
+            listenable: _dm,
+            builder: (context, _) => ComposerBox(
+              key: const ValueKey('profile-dm'),
+              typing: false,
+              // The card is the composer's grey already: the box in the page's own colour stands out on it.
+              ground: t.color('app-paper'),
+              ends: [
+                IconTap(
+                  key: const ValueKey('profile-dm-send'),
+                  icon: Lucide.arrowUp,
+                  label: 'Send',
+                  filled: true,
+                  size: 19,
+                  box: t.lenOf('2.25rem'),
+                  onPressed: _sending || _dm.text.trim().isEmpty ? null : () => unawaited(_send()),
+                ),
+              ],
+              field: ComposerField(controller: _dm, focusNode: _dmFocus, hint: 'Message ${g.name.isNotEmpty ? g.name : g.username}', onSubmitted: () => unawaited(_send()), enterSends: true),
             ),
-            SizedBox(width: t.space(2)),
-            IconTap(icon: Lucide.send, label: 'Send', filled: true, onPressed: _sending ? null : () => unawaited(_send())),
-          ]),
+          ),
         ],
       ]),
     );
@@ -346,3 +401,5 @@ List<Mention> inboxMentions(InboxMessage m) => Mention.checked([
       for (final x in m.mentions)
         if (x.user.isNotEmpty || x.username.isNotEmpty) Mention(x.start, x.length, x.user.isNotEmpty ? 'n:${x.user}' : 'u:${x.username}'),
     ], m.text);
+
+String _titled(String network) => network.isEmpty ? network : network[0].toUpperCase() + network.substring(1);

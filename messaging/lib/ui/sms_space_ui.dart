@@ -77,13 +77,14 @@ class _TextedPeopleScreenState extends State<TextedPeopleScreen> {
             if (mine) ...[
               SizedBox(height: t.space(5)),
               PaneSection(title: 'In it by text', children: [
-                if (people.isEmpty) const SettingRowBox(child: Text('Nobody yet. Add someone below; they get a text saying how it works and how to leave.')),
+                if (people.isEmpty) const SettingRowBox(child: Text('Nobody yet. Members whose number is linked to Ghost Messaging are added by themselves when they come in; add anyone else below. Each gets a text saying how it works and how to leave.')),
                 for (final p in people)
                   SettingRow(
                     key: ValueKey('texted-${p.number}'),
                     icon: AppIcon(Lucide.smartphone, size: 18),
                     label: p.name,
-                    hint: Text(p.number),
+                    // A member come in by themselves, or someone added here.
+                    hint: Text(p.member != null ? '${p.number} · a member, by their linked number' : p.number),
                     onPress: () => showChoices(context, title: p.name, choices: [
                       Choice('Take out of the space', Lucide.userMinus, () => SmsSpaces.instance.remove(widget.space, p.number), danger: true),
                     ]),

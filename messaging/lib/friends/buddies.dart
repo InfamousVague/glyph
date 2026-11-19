@@ -18,7 +18,7 @@ import '../sounds.dart';
 /// "create a profile and username under "me" to register a username and add friends on the platform").
 @immutable
 class Buddy {
-  const Buddy({required this.username, required this.id, required this.key, this.name = '', this.bio = '', this.state = 'yes', this.at = 0, this.picture = '', this.status = ''});
+  const Buddy({required this.username, required this.id, required this.key, this.name = '', this.bio = '', this.state = 'yes', this.at = 0, this.picture = '', this.status = '', this.links = const {}});
 
   /// Their username, as the relay server's directory has it.
   final String username;
@@ -36,6 +36,9 @@ class Buddy {
   final String picture;
   final String status;
 
+  /// Their number (`phone`) and the accounts they linked (network to handle), where they chose to tell friends.
+  final Map<String, String> links;
+
   /// Where the two stand: `asked` (this phone asked them), `invited` (they asked this phone), `yes`.
   final String state;
   final int at;
@@ -43,17 +46,23 @@ class Buddy {
   /// Their name, else their username, with no "@" in front (bareName).
   String get shown => name.isEmpty ? bareName(username) : bareName(name);
 
-  Buddy copyWith({String? name, String? bio, String? state, String? picture, String? status}) =>
-      Buddy(username: username, id: id, key: key, name: name ?? this.name, bio: bio ?? this.bio, state: state ?? this.state, at: at, picture: picture ?? this.picture, status: status ?? this.status);
+  Buddy copyWith({String? name, String? bio, String? state, String? picture, String? status, Map<String, String>? links}) => Buddy(
+      username: username, id: id, key: key, name: name ?? this.name, bio: bio ?? this.bio, state: state ?? this.state, at: at, picture: picture ?? this.picture, status: status ?? this.status, links: links ?? this.links);
 
-  Map<String, Object> toJson() => {'u': username, 'i': id, 'k': key, 'n': name, 'b': bio, 's': state, 'a': at, if (picture.isNotEmpty) 'p': picture, if (status.isNotEmpty) 'st': status};
+  Map<String, Object> toJson() => {'u': username, 'i': id, 'k': key, 'n': name, 'b': bio, 's': state, 'a': at, if (picture.isNotEmpty) 'p': picture, if (status.isNotEmpty) 'st': status, if (links.isNotEmpty) 'l': links};
+
+  /// Links as sent or kept: network to handle, short strings only; null where none were said.
+  static Map<String, String>? _linksOf(Object? l) {
+    if (l is! Map) return null;
+    return {for (final e in l.entries.take(12)) if (e.key is String && e.value is String && (e.value as String).length <= 80) e.key as String: e.value as String};
+  }
 
   static Buddy? fromJson(Object? j) {
     if (j is! Map) return null;
     final u = j['u'], i = j['i'], k = j['k'];
     if (u is! String || i is! String || k is! String) return null;
     final p = j['p'] is String && (j['p'] as String).length <= ProfilePictures.most ? j['p'] as String : '';
-    return Buddy(username: u, id: i, key: k, name: '${j['n'] ?? ''}', bio: '${j['b'] ?? ''}', state: '${j['s'] ?? 'yes'}', at: (j['a'] as num?)?.toInt() ?? 0, picture: p, status: '${j['st'] ?? ''}');
+    return Buddy(username: u, id: i, key: k, name: '${j['n'] ?? ''}', bio: '${j['b'] ?? ''}', state: '${j['s'] ?? 'yes'}', at: (j['a'] as num?)?.toInt() ?? 0, picture: p, status: '${j['st'] ?? ''}', links: _linksOf(j['l']) ?? const {});
   }
 }
 
@@ -223,13 +232,13 @@ class Buddies extends ChangeNotifier {
   /// passes over them.
   Map<String, Object> _profile() {
     final me = Me.instance;
-    return {'u': _port.username ?? '', 'n': _port.displayName, 'b': _port.bio, if (me.picture.isNotEmpty) 'p': me.picture, 'st': me.status};
+    return {'u': _port.username ?? '', 'n': _port.displayName, 'b': _port.bio, if (me.picture.isNotEmpty) 'p': me.picture, 'st': me.status, 'l': me.shareLinks ? me.links : const <String, String>{}};
   }
 
   /// A picture and status said in [body], where it says them: null for each it does not (a build from before).
-  static ({String? picture, String? status}) _said(Map body) {
+  static ({String? picture, String? status, Map<String, String>? links}) _said(Map body) {
     final p = body['p'];
-    return (picture: p is String && p.length <= ProfilePictures.most ? p : (body.containsKey('st') ? '' : null), status: body['st'] is String ? body['st'] as String : null);
+    return (picture: p is String && p.length <= ProfilePictures.most ? p : (body.containsKey('st') ? '' : null), status: body['st'] is String ? body['st'] as String : null, links: Buddy._linksOf(body['l']));
   }
 
   /// Who [username] is, as the add-friend drawer shows it while it is typed: nobody, this install itself, or someone
@@ -319,12 +328,12 @@ class Buddies extends ChangeNotifier {
     if (had?.state == 'yes') return;
     if (had?.state == 'asked') {
       // Both asked: friends.
-      unawaited(accept(had!.copyWith(name: name, bio: bio, picture: said.picture, status: said.status)));
+      unawaited(accept(had!.copyWith(name: name, bio: bio, picture: said.picture, status: said.status, links: said.links)));
       return;
     }
     // A request new to this phone: the friend request's sound (lib/sounds.dart), once.
     if (had?.state != 'invited') Sounds.instance.play(UiSound.friendRequest);
-    _put(Buddy(username: tidyHandle(username), id: from, key: key, name: name, bio: bio, state: 'invited', at: DateTime.now().millisecondsSinceEpoch, picture: said.picture ?? '', status: said.status ?? ''));
+    _put(Buddy(username: tidyHandle(username), id: from, key: key, name: name, bio: bio, state: 'invited', at: DateTime.now().millisecondsSinceEpoch, picture: said.picture ?? '', status: said.status ?? '', links: said.links ?? const {}));
     unawaited(_save());
   }
 
@@ -337,9 +346,9 @@ class Buddies extends ChangeNotifier {
     switch (e.body['s']) {
       case 'yes':
         if (had.state == 'asked') Sounds.instance.play(UiSound.friendAccepted);
-        if (had.state == 'asked' || had.state == 'yes') _put(had.copyWith(state: 'yes', name: name, bio: bio, picture: said.picture, status: said.status));
+        if (had.state == 'asked' || had.state == 'yes') _put(had.copyWith(state: 'yes', name: name, bio: bio, picture: said.picture, status: said.status, links: said.links));
       case 'me':
-        if (had.state == 'yes') _put(had.copyWith(name: name, bio: bio, picture: said.picture, status: said.status));
+        if (had.state == 'yes') _put(had.copyWith(name: name, bio: bio, picture: said.picture, status: said.status, links: said.links));
       case 'no':
       case 'end':
         all = [for (final o in all) if (o.id != from) o];

@@ -745,12 +745,17 @@ class Voice extends ChangeNotifier {
       store: _app == null ? null : AppHangoutStore(_app!),
     );
     room.onRoster = (_) => _enforce();
+    // In a circle's space, whoever the circle put out is not heard (Circles.removeMember).
+    room.shut = (id) => Circles.instance.putOutOf(c, id);
     // Someone mentioning this device: its notification (lib/voice/mention_alerts.dart).
     room.onFresh = (fresh) {
       MentionAlerts.instance?.heard(room, fresh, readAt: _readAt[c.seed] ?? 0, nameOf: nameOf);
       // An SMS space this phone texts for: what is written there goes out by text (lib/circles/sms_space.dart).
       SmsSpaces.instance.heard(room, fresh);
     };
+    // An SMS space's phone asking members' phones for their numbers, and their answers (lib/circles/sms_space.dart).
+    room.onSignal = (from, said) => SmsSpaces.instance.signal(room, from, said);
+    room.addListener(() => SmsSpaces.instance.roomChanged(room));
     room.addListener(notifyListeners);
     return _hangouts[c.seed] = room;
   }
@@ -863,7 +868,7 @@ class Voice extends ChangeNotifier {
         await release(c);
         throw StateError(room.putOut!);
       }
-      s.refuse = (id) => room.roster.banned.contains(id);
+      s.refuse = (id) => room.roster.banned.contains(id) || Circles.instance.putOutOf(c, id);
       room.sayMe(inVoice: true);
     }
     _saw(c.room);

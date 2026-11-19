@@ -8,10 +8,15 @@
 /// and dark, through the app's tokens.
 library;
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/app_icon.dart';
+import '../../circles/circle.dart';
+import '../../files/files_store.dart';
 import '../../art/lucide.g.dart';
 import '../../kit/semantic_colors.dart';
 import '../../kit/settings_type.dart';
@@ -21,6 +26,7 @@ import '../dialup/bevel.dart';
 import '../shell.dart';
 import 'circle_face.dart';
 import 'circle_view.dart';
+import 'new_circle.dart' show circleHueInk;
 
 /// [view] as the circle's page: [CirclePage] round its [CircleSpaceList].
 class CircleList extends StatelessWidget {
@@ -44,6 +50,11 @@ class CirclePage extends StatelessWidget {
     final t = context.tokens;
     final c = view.circle;
     final live = view.live.fold(0, (n, s) => n + s.inVoice.length);
+    // Over its banner's picture the header is white, shaded so it reads on any picture; over its colour, the page's ink.
+    final pictured = !isBevelChrome(t) && c.banner != null;
+    final ink = pictured ? const Color(0xFFFFFFFF) : t.color('app-ink');
+    final ink2 = pictured ? const Color(0xE6FFFFFF) : t.color('app-ink-3');
+    const shade = [Shadow(color: Color(0x99000000), blurRadius: 6)];
     final line = [
       '${view.spaces.length} ${view.spaces.length == 1 ? 'space' : 'spaces'}',
       if (view.online > 0) '${view.online} on now',
@@ -59,15 +70,16 @@ class CirclePage extends StatelessWidget {
         onPressed: view.onMenu,
         semanticLabel: '${c.name}, $line, options',
         builder: (context, _) => Row(children: [
-          CircleFace.of(c, size: 32),
-          SizedBox(width: t.space(2) + 2),
+          // Larger beside its name (Matt, 2026-11-19: "make the circle profile picture larger").
+          CircleFace.of(c, size: 44),
+          SizedBox(width: t.space(3)),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
               Row(children: [
-                Flexible(child: Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'bold'))),
-                AppIcon(Lucide.chevronDown, size: 16, color: t.color('app-ink-2')),
+                Flexible(child: Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: ink).copyWith(shadows: pictured ? shade : null))),
+                AppIcon(Lucide.chevronDown, size: 16, color: pictured ? ink : t.color('app-ink-2')),
               ]),
-              Text(line, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+              Text(line, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: ink2).copyWith(shadows: pictured ? shade : null)),
             ]),
           ),
         ]),
@@ -75,7 +87,107 @@ class CirclePage extends StatelessWidget {
       // Nothing beside the name: the circle's settings are the dock's, and adding people is the Members drawer's (Matt,
       // 2026-11-18: "remove the add user from the header next to the circle header and in the dock and simply leave it
       // under the users drawer").
+      // A banner across the top of its sidebar, as a Discord server has (Matt, 2026-11-19: "make circles have a
+      // background image for the header like discord does"): its own picture where it has one, else its colour. Dial-Up
+      // draws its window plain.
+      // Behind the header itself, the back arrow, its face and name inside it (Matt, 2026-11-19: "the background image
+      // for the header of circles needs to be taller and the back arrow and other header content should render inside the
+      // background image not above it").
+      headerBackground: isBevelChrome(t) ? null : CircleBanner(circle: c, onPress: view.onMenu),
+      headerExtra: t.lenOf(pictured ? '5rem' : '0.75rem'),
+      headerInk: ink,
       body: body,
+    );
+  }
+}
+
+/// A circle's banner behind the top of its page (GhostPage.headerBackground): its picture, edge to edge from the top of
+/// the screen, shaded at the top and the foot so the header and the list read on it; or a wash of its colour. A press
+/// opens the circle's menu.
+class CircleBanner extends StatefulWidget {
+  const CircleBanner({super.key, required this.circle, this.onPress});
+  final Circle circle;
+  final VoidCallback? onPress;
+
+  @override
+  State<CircleBanner> createState() => _CircleBannerState();
+}
+
+class _CircleBannerState extends State<CircleBanner> {
+  /// The full picture on this device, once it is here (Circle.bannerFile).
+  String? _full;
+  String? _asked;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  @override
+  void didUpdateWidget(CircleBanner old) {
+    super.didUpdateWidget(old);
+    _fetch();
+  }
+
+  /// Brings the full picture down once, where the circle has one and it isn't here yet; the stand-in shows meanwhile.
+  void _fetch() {
+    final c = widget.circle;
+    final j = c.manifest.bannerFile;
+    final f = j == null ? null : SpaceFile.fromJson(j, by: c.manifest.by ?? '');
+    if (f == null) {
+      _full = null;
+      return;
+    }
+    final have = FilesStore.instance.cached(f);
+    if (have != null) {
+      _full = have;
+      return;
+    }
+    if (_asked == f.id) return;
+    _asked = f.id;
+    FilesStore.instance.fetch(c.bannerChannel, f).then((path) {
+      if (mounted && _asked == f.id) setState(() => _full = path);
+    }, onError: (_) {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final circle = widget.circle;
+    final hue = circleHueInk(t, circle.hue);
+    Widget? image;
+    final b = circle.banner;
+    final full = _full;
+    if (full != null) {
+      image = Image.file(File(full), fit: BoxFit.cover, gaplessPlayback: true, filterQuality: FilterQuality.medium, errorBuilder: (_, _, _) => const SizedBox.shrink());
+    } else if (b != null) {
+      try {
+        image = Image.memory(base64Decode(b), fit: BoxFit.cover, gaplessPlayback: true, filterQuality: FilterQuality.medium);
+      } catch (_) {}
+    }
+    return GestureDetector(
+      key: const ValueKey('circle-banner-strip'),
+      onTap: widget.onPress,
+      child: image == null
+          ? DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hue.withValues(alpha: 0.45), hue.withValues(alpha: 0.12)]),
+              ),
+            )
+          : Stack(fit: StackFit.expand, children: [
+              image,
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0x8C000000), Color(0x26000000), Color(0x00000000), Color(0x33000000)],
+                    stops: [0, 0.45, 0.7, 1],
+                  ),
+                ),
+              ),
+            ]),
     );
   }
 }
@@ -133,7 +245,7 @@ class _NewSpaceRow extends StatelessWidget {
       semanticLabel: 'New space',
       builder: (context, state) => Container(
         margin: bevel ? EdgeInsets.only(top: t.space(1)) : EdgeInsets.fromLTRB(t.space(2), t.space(1), t.space(2), 0),
-        padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: bevel ? t.space(2) : t.space(3)),
+        padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
         decoration: BoxDecoration(
           color: !bevel && (state.pressed || state.hovered) ? t.color('app-paper-2') : null,
           borderRadius: bevel ? null : BorderRadius.circular(t.radius('md')),
@@ -141,17 +253,17 @@ class _NewSpaceRow extends StatelessWidget {
         child: Row(children: [
           // As large as a space's mark beside it (CircleSpaceTile).
           Container(
-            width: bevel ? 28 : t.lenOf('2.1rem'),
-            height: bevel ? 28 : t.lenOf('2.1rem'),
+            width: bevel ? 28 : t.lenOf('1.875rem'),
+            height: bevel ? 28 : t.lenOf('1.875rem'),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               border: Border.all(color: bevel ? DialupColors.of(t).shadow : t.color('app-rule'), width: 1),
-              borderRadius: BorderRadius.circular(bevel ? 0 : t.lenOf('2.1rem') * 0.32),
+              borderRadius: BorderRadius.circular(bevel ? 0 : t.lenOf('1.875rem') * 0.32),
             ),
-            child: AppIcon(Lucide.plus, size: bevel ? 16 : t.lenOf('2.1rem') * 0.5, color: t.color('app-ink-3')),
+            child: AppIcon(Lucide.plus, size: bevel ? 16 : t.lenOf('1.875rem') * 0.5, color: t.color('app-ink-3')),
           ),
           SizedBox(width: t.space(3) + 2),
-          Text('New space', style: pageText(t, t.fontSize('lg'), color: t.color('app-ink-3'))),
+          Text('New space', style: pageText(t, t.fontSize('md'), color: t.color('app-ink-3'))),
         ]),
       ),
     );
@@ -209,7 +321,8 @@ class CircleSpaceTile extends StatelessWidget {
     // The kind's mark as large as the one by a space's name in its header (hangout_screen.dart), 2.1rem (Matt,
     // 2026-11-19: "make the circles spaces in the sidebar a tad bit smaller to match the icon size of the header icon
     // for a space"); Dial-Up's as small as its rows.
-    final mark = bevel ? 28.0 : t.lenOf('2.1rem');
+    // A step smaller again (Matt, 2026-11-19: "make the spaces slightly smaller still in the sidebar on circles").
+    final mark = bevel ? 28.0 : t.lenOf('1.875rem');
     return GlacierPressable(
       key: ValueKey('circle-space-${space.seed}'),
       onPressed: onPress,
@@ -219,7 +332,7 @@ class CircleSpaceTile extends StatelessWidget {
         // A size nearer the conversations' rows (Matt, 2026-11-18: "The spaces should be a bit larger in the sidebar they
         // feel small compared to the rest of the app"): a larger mark, name and line, and more room round them.
         margin: bevel ? EdgeInsets.zero : EdgeInsets.symmetric(horizontal: t.space(2), vertical: 2),
-        padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: bevel ? t.space(2) : t.space(3)),
+        padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
         decoration: BoxDecoration(
           color: d != null ? (selected ? d.highlight : null) : (selected ? t.color('app-paper-3') : (state.pressed || state.hovered ? t.color('app-paper-2') : null)),
           borderRadius: bevel ? null : BorderRadius.circular(t.radius('md')),
@@ -230,14 +343,14 @@ class CircleSpaceTile extends StatelessWidget {
           SizedBox(width: t.space(3) + 2),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Text(space.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: bold ? 'semibold' : 'medium', color: ink)),
+              Text(space.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: bold ? 'semibold' : 'medium', color: ink)),
               if (sub != null && sub.isNotEmpty)
                 Row(children: [
                   if (space.live) ...[
                     Container(width: 6, height: 6, decoration: BoxDecoration(color: highlit ? d.onHighlight : t.online, shape: bevel ? BoxShape.rectangle : BoxShape.circle)),
                     SizedBox(width: t.space(1) + 2),
                   ],
-                  Flexible(child: Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: space.unread > 0 && !space.live ? 'medium' : 'regular', color: highlit ? d.onHighlight : (space.live ? t.online : t.color(space.unread > 0 ? 'app-ink-2' : 'app-ink-3'))))),
+                  Flexible(child: Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: space.unread > 0 && !space.live ? 'medium' : 'regular', color: highlit ? d.onHighlight : (space.live ? t.online : t.color(space.unread > 0 ? 'app-ink-2' : 'app-ink-3'))))),
                 ]),
             ]),
           ),

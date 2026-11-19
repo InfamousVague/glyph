@@ -6,6 +6,8 @@ import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/changelog.dart';
 import 'package:ghost_messaging/ui/settings_panes.dart' show appVersion;
 import 'package:ghost_messaging/ui/whats_new.dart';
+import 'package:ghost_messaging/art/lucide.g.dart';
+import 'package:ghost_messaging/art/lucide_more.dart';
 
 import 'support/space_call_harness.dart';
 
@@ -93,5 +95,25 @@ void main() {
     expect(find.text('What\'s new'), findsOneWidget);
     expect(find.text('Ghost Messaging ${changelog.first.version}'), findsOneWidget);
     await tester.pump(const Duration(seconds: 1));
+  });
+
+  test('each note has a mark for what it is about, its name first (Matt, 2026-11-19: "use iconography and smaller text on release notes")', () {
+    expect(noteIcon('Record call: record a space\'s call to one video file'), Lucide.circleDot, reason: 'by its name, not the "video" in its words');
+    expect(noteIcon('Scribe: a recorded call written out'), Lucide.scrollText);
+    expect(noteIcon('Live captions: in a call, see what everyone says'), Lucide.text);
+    expect(noteIcon('Watch together: play a video'), Lucide.film);
+    expect(noteIcon('SMS spaces: members whose phone number is linked'), Lucide.smartphone);
+    expect(noteIcon('Mentions: type @ in a space'), Lucide.atSign);
+    expect(noteIcon('The Codes tab is always there'), Lucide.keyRound);
+    expect(noteIcon('Tap someone\'s picture or name in a space to open their profile.'), Lucide.circleUser, reason: 'a profile, though it says picture');
+    expect(noteIcon('Something nobody has a word for'), Lucide.sparkles);
+    expect(LucideMore.headphones, isNotNull);
+    // Every note written so far has a mark of its own, not the sparkle left for nothing.
+    for (final r in changelog) {
+      for (final n in r.notes) {
+        if (n.startsWith('What\'s new')) continue;
+        expect(noteIcon(n), isNot(Lucide.sparkles), reason: n);
+      }
+    }
   });
 }
