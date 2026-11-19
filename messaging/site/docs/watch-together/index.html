@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Watch together · Ghost Messaging docs</title>
+<meta name="description" content="Play a video or song for everyone in a call, in step.">
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/docs/glacier-tokens.css">
+<link rel="stylesheet" href="/docs/docs.css">
+<script>try{var t=localStorage.getItem('docs-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the page</a>
+<header class="top">
+  <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
+  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand-docs" href="/docs/">Docs</a>
+  <div class="search">
+    <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
+    <input id="search" type="search" placeholder="Search the docs" aria-label="Search the docs" autocomplete="off">
+    <div class="results" id="results" role="listbox" hidden></div>
+  </div>
+  <button class="theme-btn" type="button" aria-label="Switch between light and dark"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#sun-moon"/></svg></button>
+  <a class="get" href="/#get">Get the app</a>
+</header>
+<div class="frame">
+  <aside class="sidebar" id="sidebar"><div class="nav-group"><div class="nav-title">Getting started</div><a href="/docs/">Welcome</a><a href="/docs/alpha/">Join the alpha</a><a href="/docs/install/">Install the app</a><a href="/docs/first-run/">The first time you open it</a><a href="/docs/account/">Your account</a><a href="/docs/how-accounts-work/">How your account works</a><a href="/docs/profile/">Your profile and number</a></div><div class="nav-group"><div class="nav-title">Circles, spaces and calls</div><a href="/docs/circles/">Make a circle and invite people</a><a href="/docs/spaces/">Spaces</a><a href="/docs/roles/">Roles and permissions</a><a href="/docs/sms-spaces/">SMS spaces</a><a href="/docs/calls/">Calls</a><a href="/docs/files/">Files spaces</a></div><div class="nav-group"><div class="nav-title">Plugins</div><a href="/docs/plugins/">About plugins</a><a href="/docs/record-call/">Record call</a><a href="/docs/scribe/">Scribe</a><a href="/docs/live-captions/">Live captions</a><a href="/docs/watch-together/" aria-current="page">Watch together</a><a href="/docs/translate/">Translate</a><a href="/docs/codes/">Codes</a><a href="/docs/spam/">Spam filter</a><a href="/docs/kinds/">Kinds of text</a><a href="/docs/unknown-numbers/">Unknown numbers</a><a href="/docs/quiet-hours/">Quiet hours</a><a href="/docs/link-previews/">Link previews</a><a href="/docs/quick-actions/">Quick actions</a><a href="/docs/replies/">Replies</a><a href="/docs/cleaner/">Cleaner</a><a href="/docs/discord/">Discord servers</a></div><div class="nav-group"><div class="nav-title">Messaging</div><a href="/docs/texts/">Texts and conversations</a><a href="/docs/google-messages/">Beside Google Messages</a><a href="/docs/friends/">Friends</a><a href="/docs/networks/">Telegram, Signal and more</a><a href="/docs/encryption/">Encrypted texts</a></div><div class="nav-group"><div class="nav-title">Computers</div><a href="/docs/computers/">Mac and Windows apps</a><a href="/docs/pairing/">Pair a computer with your phone</a></div><div class="nav-group"><div class="nav-title">Privacy and settings</div><a href="/docs/privacy/">Privacy and safety</a><a href="/docs/settings/">Settings, at a glance</a><a href="/docs/routes/">Routes</a><a href="/docs/coming-soon/">Coming soon <span class="badge soon">Soon</span></a><a href="/docs/developer/">Developer API</a></div></aside>
+  <main id="main" class="page">
+    <div class="crumb">Plugins</div>
+    <h1>Watch together</h1>
+    <p class="lede">Play a video or song for everyone in a call, in step.</p>
+    <p>Watch together plays a video or a song from a Files space on everyone's device in a call, in step. Pause it, and it pauses for everyone.</p>
+<p><b>Add it:</b> <span class="ui-path">Settings › Plugins › Watch together › Add</span>, or for a whole circle.</p>
+
+<h2 id="start">Start watching</h2>
+<ol class="steps">
+<li class="step"><div class="step-body"><h3>Be in a call</h3>
+<p>Join the call of a chat-and-voice space first.</p>
+</div></li>
+<li class="step"><div class="step-body"><h3>Pick a file</h3>
+<p>Open a Files space in the same circle, press and hold a video or song, and tap <b>Watch together in the call</b>.</p>
+<figure class="mock"><div class="m-screen"><div class="m-body">
+  <div class="m-menu"><div class="m-menu-title">Highlights.mp4</div><div class="m-item"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#play"/></svg><span>Play</span></div><div class="m-item tap"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#film"/></svg><span>Watch together in the call</span></div><div class="m-item"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#share-2"/></svg><span>Share</span></div></div>
+</div></div></figure>
+</div></li>
+<li class="step"><div class="step-body"><h3>Everyone sees it</h3>
+<p>A line over the call says who's watching what: tap <b>Watch</b> to join in. <b>Stop</b> ends it. Play, pause and moving through it happen for everyone.</p>
+<figure class="mock"><div class="m-screen"><div class="m-body">
+  <div class="m-banner"><b>Alex is watching Highlights.mp4 together</b></div>
+  <div class="m-row m-raw"><span class="m-btn primary tap"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#play"/></svg><span>Watch</span></span><span class="m-btn secondary"><span>Stop</span></span></div>
+</div></div></figure>
+</div></li>
+</ol>
+<p>Everyone in the call needs to be able to open the Files space the file is in.</p>
+
+    <nav class="prevnext"><a class="prev" href="/docs/live-captions/"><small>Previous</small>Live captions</a><a class="next" href="/docs/translate/"><small>Next</small>Translate</a></nav>
+    <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
+  </main>
+  
+</div>
+<script src="/docs/docs.js" defer></script>
+</body>
+</html>

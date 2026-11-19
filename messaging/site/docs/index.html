@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ghost Messaging docs</title>
+<meta name="description" content="What Ghost Messaging is, and where to start.">
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/docs/glacier-tokens.css">
+<link rel="stylesheet" href="/docs/docs.css">
+<script>try{var t=localStorage.getItem('docs-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the page</a>
+<header class="top">
+  <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
+  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand-docs" href="/docs/">Docs</a>
+  <div class="search">
+    <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
+    <input id="search" type="search" placeholder="Search the docs" aria-label="Search the docs" autocomplete="off">
+    <div class="results" id="results" role="listbox" hidden></div>
+  </div>
+  <button class="theme-btn" type="button" aria-label="Switch between light and dark"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#sun-moon"/></svg></button>
+  <a class="get" href="/#get">Get the app</a>
+</header>
+<div class="frame">
+  <aside class="sidebar" id="sidebar"><div class="nav-group"><div class="nav-title">Getting started</div><a href="/docs/" aria-current="page">Welcome</a><a href="/docs/alpha/">Join the alpha</a><a href="/docs/install/">Install the app</a><a href="/docs/first-run/">The first time you open it</a><a href="/docs/account/">Your account</a><a href="/docs/how-accounts-work/">How your account works</a><a href="/docs/profile/">Your profile and number</a></div><div class="nav-group"><div class="nav-title">Circles, spaces and calls</div><a href="/docs/circles/">Make a circle and invite people</a><a href="/docs/spaces/">Spaces</a><a href="/docs/roles/">Roles and permissions</a><a href="/docs/sms-spaces/">SMS spaces</a><a href="/docs/calls/">Calls</a><a href="/docs/files/">Files spaces</a></div><div class="nav-group"><div class="nav-title">Plugins</div><a href="/docs/plugins/">About plugins</a><a href="/docs/record-call/">Record call</a><a href="/docs/scribe/">Scribe</a><a href="/docs/live-captions/">Live captions</a><a href="/docs/watch-together/">Watch together</a><a href="/docs/translate/">Translate</a><a href="/docs/codes/">Codes</a><a href="/docs/spam/">Spam filter</a><a href="/docs/kinds/">Kinds of text</a><a href="/docs/unknown-numbers/">Unknown numbers</a><a href="/docs/quiet-hours/">Quiet hours</a><a href="/docs/link-previews/">Link previews</a><a href="/docs/quick-actions/">Quick actions</a><a href="/docs/replies/">Replies</a><a href="/docs/cleaner/">Cleaner</a><a href="/docs/discord/">Discord servers</a></div><div class="nav-group"><div class="nav-title">Messaging</div><a href="/docs/texts/">Texts and conversations</a><a href="/docs/google-messages/">Beside Google Messages</a><a href="/docs/friends/">Friends</a><a href="/docs/networks/">Telegram, Signal and more</a><a href="/docs/encryption/">Encrypted texts</a></div><div class="nav-group"><div class="nav-title">Computers</div><a href="/docs/computers/">Mac and Windows apps</a><a href="/docs/pairing/">Pair a computer with your phone</a></div><div class="nav-group"><div class="nav-title">Privacy and settings</div><a href="/docs/privacy/">Privacy and safety</a><a href="/docs/settings/">Settings, at a glance</a><a href="/docs/routes/">Routes</a><a href="/docs/coming-soon/">Coming soon <span class="badge soon">Soon</span></a><a href="/docs/developer/">Developer API</a></div></aside>
+  <main id="main" class="page">
+    <div class="crumb">Getting started</div>
+    <h1>Welcome</h1>
+    <p class="lede">What Ghost Messaging is, and where to start.</p>
+    <p>Ghost Messaging is one app for the people you talk to: your texts, your friends on Ghost, your circles with their chats, calls and files, and your Telegram, Signal and other chats, side by side. Messages between Ghost apps are sealed end to end, there are no ads, and the app is open source.</p>
+
+<aside class="note alpha"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#flask-conical"/></svg><div><b>Ghost Messaging is in alpha</b>
+<p>It works well enough to use every day, but things still change quickly and some features are marked <span class="badge soon">Coming soon</span>. If you're testing it, start with <a href="/docs/alpha/">Join the alpha</a>, and tell us anything odd in the Alpha testers circle.</p>
+</div></aside>
+
+<h2 id="start">Start here</h2>
+<div class="cards">
+  <a href="/docs/install/"><svg class="i"><use href="/docs/icons.svg#download"/></svg><b>Install the app</b><small>Android, Mac or Windows, and what to say yes to.</small></a>
+  <a href="/docs/first-run/"><svg class="i"><use href="/docs/icons.svg#rocket"/></svg><b>The first time you open it</b><small>The welcome, and whether Ghost takes over your texts.</small></a>
+  <a href="/docs/account/"><svg class="i"><use href="/docs/icons.svg#key-round"/></svg><b>Your account</b><small>Create one, keep your recovery words safe, sign in elsewhere.</small></a>
+  <a href="/docs/circles/"><svg class="i"><use href="/docs/icons.svg#users"/></svg><b>Circles</b><small>A group with its own spaces: chat, voice, files and texts.</small></a>
+  <a href="/docs/plugins/"><svg class="i"><use href="/docs/icons.svg#puzzle"/></svg><b>Plugins</b><small>Record calls, live captions, watch together, and more.</small></a>
+  <a href="/docs/pairing/"><svg class="i"><use href="/docs/icons.svg#laptop"/></svg><b>Your texts on a computer</b><small>Pair the Mac or Windows app with your phone.</small></a>
+</div>
+
+<h2 id="tour">Finding your way around</h2>
+<p>Everything starts from the <b>dock</b> at the foot of the screen. From left to right: <b>New</b> (start a conversation, a circle or a space, or join one), <b>Messages</b>, <b>Contacts</b>, <b>Archive</b> and <b>Settings</b>.</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-title">Messages</span></div><div class="m-body">
+  <div class="m-tabs"><span class="on">Messages</span><span class="">Codes</span><span class="">Circles</span></div>
+  <div class="m-convo"><span class="m-avatar" data-hue="mint">MC</span><span class="m-txt"><b>Maya Chen</b><small>See you at 7!</small></span><span class="m-end"><small>4:12</small><span class="m-count">2</span></span></div>
+  <div class="m-convo"><span class="m-avatar" data-hue="indigo">D</span><span class="m-txt"><b>Dad</b><small>📷 Picture</small></span><span class="m-end"><small>Yesterday</small></span></div>
+  <div class="m-convo"><span class="m-avatar" data-hue="cyan">BC</span><span class="m-txt"><b>Book Club</b><small>Sam: Chapter 9 tonight?</small></span><span class="m-end"><small>Mon</small></span></div>
+  <div class="m-dock" role="img" aria-label="The dock: New, Messages, Contacts, Archive, Settings"><span class="m-ring" title="New"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#plus"/></svg></span><span class="m-ring on" title="Messages"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#message-circle"/></svg></span><span class="m-ring" title="Contacts"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#contact-round"/></svg></span><span class="m-ring" title="Archive"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#archive"/></svg></span><span class="m-ring" title="Settings"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#settings"/></svg></span></div>
+</div></div><figcaption>The conversations list, with its tabs at the top and the dock at the foot.</figcaption></figure>
+<p>At the top of Messages are three tabs: <b>Messages</b> (texts and chats), <b>Codes</b> (sign-in codes, kept out of the way) and <b>Circles</b>.</p>
+
+<h2 id="words">A few words we use</h2>
+<table>
+  <tr><th>Word</th><th>What it means</th></tr>
+  <tr><td>Circle</td><td>A group of people with a sidebar of spaces, a bit like a small server. You can be in as many as you like.</td></tr>
+  <tr><td>Space</td><td>A room in a circle (or on its own): chat and voice, text only, files, or an SMS space for people without the app.</td></tr>
+  <tr><td>Friend</td><td>Someone you talk to over Ghost rather than by text: added by their username, or by their number once you've sealed your texts together.</td></tr>
+  <tr><td>Connections</td><td>Your other chat accounts linked into Ghost: Telegram, Signal, WhatsApp, Matrix.</td></tr>
+  <tr><td>Routes</td><td>How messages travel between Ghost apps: over the relay, or by text.</td></tr>
+  <tr><td>Plugin</td><td>An extra you add from <span class="ui-path">Settings › Plugins</span>: for yourself, or for everyone in a circle.</td></tr>
+</table>
+
+<h2 id="devices">On which devices</h2>
+<ul>
+  <li><b>Android phone</b>: everything, including your texts (SMS and picture messages).</li>
+  <li><b>Mac and Windows</b>: friends, circles, calls, files and your other chats on their own, and your texts when paired with your Android phone.</li>
+  <li><b>iPhone</b> <span class="badge soon">Coming soon</span>: friends, circles and calls. Apple doesn't let apps send or read texts outside the EU, so no texts.</li>
+</ul>
+
+    <nav class="prevnext"><span></span><a class="next" href="/docs/alpha/"><small>Next</small>Join the alpha</a></nav>
+    <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
+  </main>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#start">Start here</a><a href="#tour">Finding your way around</a><a href="#words">A few words we use</a><a href="#devices">On which devices</a></nav>
+</div>
+<script src="/docs/docs.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Routes · Ghost Messaging docs</title>
+<meta name="description" content="How messages travel between Ghost apps: the relay, texts, and testing them.">
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/docs/glacier-tokens.css">
+<link rel="stylesheet" href="/docs/docs.css">
+<script>try{var t=localStorage.getItem('docs-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the page</a>
+<header class="top">
+  <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
+  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand-docs" href="/docs/">Docs</a>
+  <div class="search">
+    <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
+    <input id="search" type="search" placeholder="Search the docs" aria-label="Search the docs" autocomplete="off">
+    <div class="results" id="results" role="listbox" hidden></div>
+  </div>
+  <button class="theme-btn" type="button" aria-label="Switch between light and dark"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#sun-moon"/></svg></button>
+  <a class="get" href="/#get">Get the app</a>
+</header>
+<div class="frame">
+  <aside class="sidebar" id="sidebar"><div class="nav-group"><div class="nav-title">Getting started</div><a href="/docs/">Welcome</a><a href="/docs/alpha/">Join the alpha</a><a href="/docs/install/">Install the app</a><a href="/docs/first-run/">The first time you open it</a><a href="/docs/account/">Your account</a><a href="/docs/how-accounts-work/">How your account works</a><a href="/docs/profile/">Your profile and number</a></div><div class="nav-group"><div class="nav-title">Circles, spaces and calls</div><a href="/docs/circles/">Make a circle and invite people</a><a href="/docs/spaces/">Spaces</a><a href="/docs/roles/">Roles and permissions</a><a href="/docs/sms-spaces/">SMS spaces</a><a href="/docs/calls/">Calls</a><a href="/docs/files/">Files spaces</a></div><div class="nav-group"><div class="nav-title">Plugins</div><a href="/docs/plugins/">About plugins</a><a href="/docs/record-call/">Record call</a><a href="/docs/scribe/">Scribe</a><a href="/docs/live-captions/">Live captions</a><a href="/docs/watch-together/">Watch together</a><a href="/docs/translate/">Translate</a><a href="/docs/codes/">Codes</a><a href="/docs/spam/">Spam filter</a><a href="/docs/kinds/">Kinds of text</a><a href="/docs/unknown-numbers/">Unknown numbers</a><a href="/docs/quiet-hours/">Quiet hours</a><a href="/docs/link-previews/">Link previews</a><a href="/docs/quick-actions/">Quick actions</a><a href="/docs/replies/">Replies</a><a href="/docs/cleaner/">Cleaner</a><a href="/docs/discord/">Discord servers</a></div><div class="nav-group"><div class="nav-title">Messaging</div><a href="/docs/texts/">Texts and conversations</a><a href="/docs/google-messages/">Beside Google Messages</a><a href="/docs/friends/">Friends</a><a href="/docs/networks/">Telegram, Signal and more</a><a href="/docs/encryption/">Encrypted texts</a></div><div class="nav-group"><div class="nav-title">Computers</div><a href="/docs/computers/">Mac and Windows apps</a><a href="/docs/pairing/">Pair a computer with your phone</a></div><div class="nav-group"><div class="nav-title">Privacy and settings</div><a href="/docs/privacy/">Privacy and safety</a><a href="/docs/settings/">Settings, at a glance</a><a href="/docs/routes/" aria-current="page">Routes</a><a href="/docs/coming-soon/">Coming soon <span class="badge soon">Soon</span></a><a href="/docs/developer/">Developer API</a></div></aside>
+  <main id="main" class="page">
+    <div class="crumb">Privacy and settings</div>
+    <h1>Routes</h1>
+    <p class="lede">How messages travel between Ghost apps: the relay, texts, and testing them.</p>
+    <p>Between Ghost apps (friends, groups, encrypted texts), messages can travel more than one way. <span class="ui-path">Settings › Routes</span> shows the ways your phone reaches others, tried from the top: one that fails or gets no answer gives way to the next.</p>
+
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Routes</span></div><div class="m-body">
+  <div class="m-section"><div class="m-section-title">Routes</div><div class="m-card">
+    <div class="m-row"><span class="m-ico" data-hue="blue"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#globe"/></svg></span><span class="m-txt"><b>Relay server</b><small>Through a server on the internet. The server sees who talks to whom, never what is said.</small></span><span class="m-end"><span class="m-switch on"></span></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="green"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#message-square"/></svg></span><span class="m-txt"><b>SMS</b><small>As data texts over the phone network. Each counts as a text on your plan.</small></span><span class="m-end"><span class="m-switch on"></span></span></div>
+  </div><p class="m-foot">The ways this phone reaches another, tried from the top.</p></div>
+  <div class="m-section"><div class="m-section-title">People you can reach</div><div class="m-card">
+    <div class="m-row m-raw"><span class="m-avatar" data-hue="rose">MC</span><span class="m-txt"><b>Maya Chen</b><small>Last by the relay server</small></span></div>
+  </div><p class="m-foot">Press one to send a test and see which route carries it.</p></div>
+</div></div><figcaption>Settings › Routes on the phone.</figcaption></figure>
+
+<h2 id="relay">The relay server</h2>
+<p>Ghost's relay server (at gogho.st) passes sealed packets between apps: friends, circles, spaces and calls' setup. It can't read them; it sees only which installs are talking, as any server would. It's also where your username, your sealed account backup and a circle's sealed files are kept.</p>
+
+<h2 id="texts">SMS as a route</h2>
+<p>When the relay can't be reached, a message to a friend can go as a data text over the phone network instead: still sealed, needing no internet, and reaching a phone whose app is closed. Each one counts as a text on your plan, so only small messages go this way.</p>
+
+<h2 id="test">Test a route</h2>
+<p>Under <b>People you can reach</b>, press someone and choose <b>Send a test</b>, <b>By the relay server only</b>, or <b>By SMS only (one text on your plan)</b>. <b>Lately</b> shows how recent messages went.</p>
+
+<h2 id="invite">Invite someone by text</h2>
+<p><b>Invite someone by text</b> opens a new chat with an invitation written. Choose who, change the words if you like, and send it as any text. Once they have the app and you text each other, it offers to turn encryption on between you.</p>
+
+    <nav class="prevnext"><a class="prev" href="/docs/settings/"><small>Previous</small>Settings, at a glance</a><a class="next" href="/docs/coming-soon/"><small>Next</small>Coming soon</a></nav>
+    <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
+  </main>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#relay">The relay server</a><a href="#texts">SMS as a route</a><a href="#test">Test a route</a><a href="#invite">Invite someone by text</a></nav>
+</div>
+<script src="/docs/docs.js" defer></script>
+</body>
+</html>

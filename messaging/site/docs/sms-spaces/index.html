@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SMS spaces · Ghost Messaging docs</title>
+<meta name="description" content="A space that people without the app are in by text.">
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/docs/glacier-tokens.css">
+<link rel="stylesheet" href="/docs/docs.css">
+<script>try{var t=localStorage.getItem('docs-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the page</a>
+<header class="top">
+  <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
+  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand-docs" href="/docs/">Docs</a>
+  <div class="search">
+    <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
+    <input id="search" type="search" placeholder="Search the docs" aria-label="Search the docs" autocomplete="off">
+    <div class="results" id="results" role="listbox" hidden></div>
+  </div>
+  <button class="theme-btn" type="button" aria-label="Switch between light and dark"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#sun-moon"/></svg></button>
+  <a class="get" href="/#get">Get the app</a>
+</header>
+<div class="frame">
+  <aside class="sidebar" id="sidebar"><div class="nav-group"><div class="nav-title">Getting started</div><a href="/docs/">Welcome</a><a href="/docs/alpha/">Join the alpha</a><a href="/docs/install/">Install the app</a><a href="/docs/first-run/">The first time you open it</a><a href="/docs/account/">Your account</a><a href="/docs/how-accounts-work/">How your account works</a><a href="/docs/profile/">Your profile and number</a></div><div class="nav-group"><div class="nav-title">Circles, spaces and calls</div><a href="/docs/circles/">Make a circle and invite people</a><a href="/docs/spaces/">Spaces</a><a href="/docs/roles/">Roles and permissions</a><a href="/docs/sms-spaces/" aria-current="page">SMS spaces</a><a href="/docs/calls/">Calls</a><a href="/docs/files/">Files spaces</a></div><div class="nav-group"><div class="nav-title">Plugins</div><a href="/docs/plugins/">About plugins</a><a href="/docs/record-call/">Record call</a><a href="/docs/scribe/">Scribe</a><a href="/docs/live-captions/">Live captions</a><a href="/docs/watch-together/">Watch together</a><a href="/docs/translate/">Translate</a><a href="/docs/codes/">Codes</a><a href="/docs/spam/">Spam filter</a><a href="/docs/kinds/">Kinds of text</a><a href="/docs/unknown-numbers/">Unknown numbers</a><a href="/docs/quiet-hours/">Quiet hours</a><a href="/docs/link-previews/">Link previews</a><a href="/docs/quick-actions/">Quick actions</a><a href="/docs/replies/">Replies</a><a href="/docs/cleaner/">Cleaner</a><a href="/docs/discord/">Discord servers</a></div><div class="nav-group"><div class="nav-title">Messaging</div><a href="/docs/texts/">Texts and conversations</a><a href="/docs/google-messages/">Beside Google Messages</a><a href="/docs/friends/">Friends</a><a href="/docs/networks/">Telegram, Signal and more</a><a href="/docs/encryption/">Encrypted texts</a></div><div class="nav-group"><div class="nav-title">Computers</div><a href="/docs/computers/">Mac and Windows apps</a><a href="/docs/pairing/">Pair a computer with your phone</a></div><div class="nav-group"><div class="nav-title">Privacy and settings</div><a href="/docs/privacy/">Privacy and safety</a><a href="/docs/settings/">Settings, at a glance</a><a href="/docs/routes/">Routes</a><a href="/docs/coming-soon/">Coming soon <span class="badge soon">Soon</span></a><a href="/docs/developer/">Developer API</a></div></aside>
+  <main id="main" class="page">
+    <div class="crumb">Circles, spaces and calls</div>
+    <h1>SMS spaces</h1>
+    <p class="lede">A space that people without the app are in by text.</p>
+    <p>An SMS space is a circle's chat that people without the app can be in, by text. One member's Android phone does the texting: it texts each message to everyone in it by text, and brings their replies back into the space.</p>
+
+<h2 id="how">How it works</h2>
+<ul>
+  <li>Every message written in the space is texted from the texter's phone to each person in it by text, as <b>Name: words</b>. A picture or file is said in words, like <i>(a file: menu.pdf)</i>.</li>
+  <li>What they text back comes into the space marked 📱, so everyone in the app sees it.</li>
+  <li>Each person is texted on their own, so nobody's number goes to the others.</li>
+  <li>The texts are sent from the texter's number and count on their phone plan.</li>
+</ul>
+<div class="pair">
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Family texts</span></div><div class="m-body">
+  <div class="m-msg them"><small class="m-name">Mum</small><span class="m-bubble">📱 Mum: Dinner at 6?</span></div>
+  <div class="m-msg me"><span class="m-bubble">Yes, I'll bring dessert</span></div>
+</div></div><figcaption>In the app.</figcaption></figure>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Alex</span></div><div class="m-body">
+  <div class="m-msg them"><span class="m-bubble">Alex: Yes, I'll bring dessert</span></div>
+  <div class="m-msg me"><span class="m-bubble">Dinner at 6?</span></div>
+</div></div><figcaption>On Mum's phone, in her usual texting app.</figcaption></figure>
+</div>
+
+<h2 id="make">Make one</h2>
+<ol class="steps">
+<li class="step"><div class="step-body"><h3>New space › SMS space</h3>
+<p>In the circle, tap <b>New space</b> and choose <b>SMS space</b>. Your phone becomes its texter.</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">New space</span></div><div class="m-body">
+  <div class="m-section"><div class="m-card"><div class="m-spacerow tap"><span class="m-ico" data-hue="orange"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#smartphone"/></svg></span><span class="m-txt"><b>SMS space</b><small>People without the app are in it by text, sent from your phone and your number.</small></span></div></div></div>
+</div></div></figure>
+<aside class="note info"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#info"/></svg><div><b>The texter's phone</b><p>It must be an Android phone with Ghost as its texting app, and Ghost must be running for texts to go and come. Only that phone knows the numbers of the people in it.</p></div></aside>
+</div></li>
+<li class="step"><div class="step-body"><h3>Add people by text</h3>
+<p>Open the space, tap <b>People by text</b> in its header, and under <b>Add someone by text</b> enter a name and number, then <b>Add and text them</b>. They get a text saying how it works and how to leave.</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">People by text</span></div><div class="m-body">
+  <div class="m-section"><div class="m-section-title">Add someone by text</div><div class="m-card">
+    <label class="m-field"><span class="m-input">Mum</span></label>
+    <label class="m-field"><span class="m-input">+1 555 010 0142</span></label>
+  </div></div>
+  <span class="m-btn primary tap"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#user-plus"/></svg><span>Add and text them</span></span>
+</div></div></figure>
+</div></li>
+</ol>
+
+<h2 id="automatic">Members with a verified number are in it by themselves</h2>
+<p>Members of the circle who have <a href="/docs/profile/#number">verified their number</a> don't need adding: when their app comes into the space, it gives the texter's phone their number, sealed so only that phone can read it, and they're texted from then on. They aren't texted their own messages. <b>People by text</b> marks them <i>a member, by their linked number</i>.</p>
+
+<h2 id="leave">Leaving</h2>
+<ul>
+  <li>Anyone in it by text can text <b>STOP</b> to leave. They're told, and stay out.</li>
+  <li>The texter can take someone out: in <b>People by text</b>, tap them, then <b>Take out of the space</b>. They stay out too, until added again by hand.</li>
+</ul>
+
+    <nav class="prevnext"><a class="prev" href="/docs/roles/"><small>Previous</small>Roles and permissions</a><a class="next" href="/docs/calls/"><small>Next</small>Calls</a></nav>
+    <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
+  </main>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#how">How it works</a><a href="#make">Make one</a><a href="#automatic">Members with a verified number are in it by themselves</a><a href="#leave">Leaving</a></nav>
+</div>
+<script src="/docs/docs.js" defer></script>
+</body>
+</html>

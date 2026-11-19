@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Discord servers · Ghost Messaging docs</title>
+<meta name="description" content="Link a Discord server, see who is in its voice channels, and talk in them from Ghost.">
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/docs/glacier-tokens.css">
+<link rel="stylesheet" href="/docs/docs.css">
+<script>try{var t=localStorage.getItem('docs-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the page</a>
+<header class="top">
+  <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
+  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand-docs" href="/docs/">Docs</a>
+  <div class="search">
+    <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
+    <input id="search" type="search" placeholder="Search the docs" aria-label="Search the docs" autocomplete="off">
+    <div class="results" id="results" role="listbox" hidden></div>
+  </div>
+  <button class="theme-btn" type="button" aria-label="Switch between light and dark"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#sun-moon"/></svg></button>
+  <a class="get" href="/#get">Get the app</a>
+</header>
+<div class="frame">
+  <aside class="sidebar" id="sidebar"><div class="nav-group"><div class="nav-title">Getting started</div><a href="/docs/">Welcome</a><a href="/docs/alpha/">Join the alpha</a><a href="/docs/install/">Install the app</a><a href="/docs/first-run/">The first time you open it</a><a href="/docs/account/">Your account</a><a href="/docs/how-accounts-work/">How your account works</a><a href="/docs/profile/">Your profile and number</a></div><div class="nav-group"><div class="nav-title">Circles, spaces and calls</div><a href="/docs/circles/">Make a circle and invite people</a><a href="/docs/spaces/">Spaces</a><a href="/docs/roles/">Roles and permissions</a><a href="/docs/sms-spaces/">SMS spaces</a><a href="/docs/calls/">Calls</a><a href="/docs/files/">Files spaces</a></div><div class="nav-group"><div class="nav-title">Plugins</div><a href="/docs/plugins/">About plugins</a><a href="/docs/record-call/">Record call</a><a href="/docs/scribe/">Scribe</a><a href="/docs/live-captions/">Live captions</a><a href="/docs/watch-together/">Watch together</a><a href="/docs/translate/">Translate</a><a href="/docs/codes/">Codes</a><a href="/docs/spam/">Spam filter</a><a href="/docs/kinds/">Kinds of text</a><a href="/docs/unknown-numbers/">Unknown numbers</a><a href="/docs/quiet-hours/">Quiet hours</a><a href="/docs/link-previews/">Link previews</a><a href="/docs/quick-actions/">Quick actions</a><a href="/docs/replies/">Replies</a><a href="/docs/cleaner/">Cleaner</a><a href="/docs/discord/" aria-current="page">Discord servers</a></div><div class="nav-group"><div class="nav-title">Messaging</div><a href="/docs/texts/">Texts and conversations</a><a href="/docs/google-messages/">Beside Google Messages</a><a href="/docs/friends/">Friends</a><a href="/docs/networks/">Telegram, Signal and more</a><a href="/docs/encryption/">Encrypted texts</a></div><div class="nav-group"><div class="nav-title">Computers</div><a href="/docs/computers/">Mac and Windows apps</a><a href="/docs/pairing/">Pair a computer with your phone</a></div><div class="nav-group"><div class="nav-title">Privacy and settings</div><a href="/docs/privacy/">Privacy and safety</a><a href="/docs/settings/">Settings, at a glance</a><a href="/docs/routes/">Routes</a><a href="/docs/coming-soon/">Coming soon <span class="badge soon">Soon</span></a><a href="/docs/developer/">Developer API</a></div></aside>
+  <main id="main" class="page">
+    <div class="crumb">Plugins</div>
+    <h1>Discord servers</h1>
+    <p class="lede">Link a Discord server, see who is in its voice channels, and talk in them from Ghost.</p>
+    <p>Link a Discord server and its voice channels show in Ghost as a group of spaces, with who's in each. Press one and you're in that Discord channel from Ghost: Ghost's bot joins it and carries the sound and the chat both ways, so people in Discord hear you and you hear them.</p>
+
+<h2 id="link">Link a server</h2>
+<p>You need someone who can manage the Discord server for the first step. After that, anyone with the code can link it in their app.</p>
+<ol class="steps">
+<li class="step"><div class="step-body"><h3>New › Add a Discord server</h3>
+<figure class="mock"><div class="m-screen"><div class="m-body">
+  <div class="m-menu"><div class="m-menu-title">Start something new</div><div class="m-item"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#users"/></svg><span>New circle</span></div><div class="m-item"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#headphones"/></svg><span>New space</span></div><div class="m-item tap"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#message-circle"/></svg><span>Add a Discord server</span></div></div>
+  <div class="m-dock" role="img" aria-label="The dock: New, Messages, Contacts, Archive, Settings"><span class="m-ring tap" title="New"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#plus"/></svg></span><span class="m-ring" title="Messages"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#message-circle"/></svg></span><span class="m-ring" title="Contacts"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#contact-round"/></svg></span><span class="m-ring" title="Archive"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#archive"/></svg></span><span class="m-ring" title="Settings"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#settings"/></svg></span></div>
+</div></div></figure>
+</div></li>
+<li class="step"><div class="step-body"><h3>Add the bot to the server</h3>
+<p>Tap <b>Add the bot to your server</b>. Discord opens: pick the server and authorise it. Skip this if the bot is already there.</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Add a Discord server</span></div><div class="m-body">
+  <div class="m-section"><div class="m-section-title">1. Add the bot</div><div class="m-card"><div class="m-row tap"><span class="m-ico" data-hue="indigo"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#bot"/></svg></span><span class="m-txt"><b>Add the bot to your server</b></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div></div><p class="m-foot">Opens Discord. Skip this if the bot is already there.</p></div>
+</div></div></figure>
+</div></li>
+<li class="step"><div class="step-body"><h3>Get a code in Discord</h3>
+<p>In any channel of the server, type <code>/ghost link</code>. The bot answers with a six-character code only you see. It works once, for 10 minutes.</p>
+<figure class="mock wide"><div class="m-screen"><div class="m-head"><span class="m-title">#general</span></div><div class="m-body">
+  <div class="m-msg me"><span class="m-bubble">/ghost link</span></div>
+  <div class="m-msg them"><small class="m-name">Ghost Messaging</small><span class="m-bubble">Your code is K7Q2XM. In Ghost Messaging tap New › Add a Discord server and enter it. It works once, for 10 minutes.</span></div>
+</div></div><figcaption>In Discord. Only you see the bot's reply.</figcaption></figure>
+</div></li>
+<li class="step"><div class="step-body"><h3>Enter it</h3>
+<p>Back in Ghost, type the code and tap <b>Link the server</b>.</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Add a Discord server</span></div><div class="m-body">
+  <div class="m-section"><div class="m-section-title">3. Enter it</div><div class="m-card"><div class="m-row m-raw"><span class="m-code"><span>K</span><span>7</span><span>Q</span><span>2</span><span>X</span><span>M</span></span></div></div></div>
+  <span class="m-btn primary tap"><span>Link the server</span></span>
+</div></div></figure>
+</div></li>
+</ol>
+
+<h2 id="use">Talk in a Discord voice channel</h2>
+<p>The server shows as a group in Messages, its voice and stage channels as spaces, with who's in each. Press one to join: Ghost's bot joins that channel for you, and you talk to the people there.</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-title">Messages</span></div><div class="m-body">
+  <div class="m-section"><div class="m-section-title">My Discord server</div><div class="m-card">
+    <div class="m-spacerow tap"><span class="m-ico" data-hue="green"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#headphones"/></svg></span><span class="m-txt"><b>General voice</b><small>Riley, Sam in Discord</small></span></div>
+    <div class="m-spacerow"><span class="m-ico" data-hue="green"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#headphones"/></svg></span><span class="m-txt"><b>Gaming</b><small>Nobody yet</small></span></div>
+  </div></div>
+</div></div></figure>
+<ul>
+  <li>People in Discord see the bot speak as <b>Ghost · your name</b>.</li>
+  <li>Messages in the space go to the channel's chat in Discord, and theirs come back.</li>
+  <li>People in Discord are marked as such in the call; their volume and mute work as anyone's.</li>
+</ul>
+
+<h2 id="commands">The bot's commands</h2>
+<table>
+  <tr><th>In Discord</th><th>Does</th></tr>
+  <tr><td><code>/ghost link</code></td><td>Gives a one-time code to link the server in Ghost.</td></tr>
+  <tr><td><code>/ghost status</code></td><td>Says how many Ghost Messaging links the server has.</td></tr>
+  <tr><td><code>/ghost unlink</code></td><td>Takes every link away. The server's group in Ghost says so.</td></tr>
+</table>
+<aside class="note info"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#info"/></svg><div><b>What the bot can see</b><p>The bot sees what any member of a voice channel sees: who is in it, and the sound and chat of the channel it's bridging while someone from Ghost is in it. The link is a token kept on your device only.</p></div></aside>
+
+    <nav class="prevnext"><a class="prev" href="/docs/cleaner/"><small>Previous</small>Cleaner</a><a class="next" href="/docs/texts/"><small>Next</small>Texts and conversations</a></nav>
+    <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
+  </main>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#link">Link a server</a><a href="#use">Talk in a Discord voice channel</a><a href="#commands">The bot's commands</a></nav>
+</div>
+<script src="/docs/docs.js" defer></script>
+</body>
+</html>

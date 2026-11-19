@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>How your account works · Ghost Messaging docs</title>
+<meta name="description" content="Recovery words, your password, the account address, and being the same you on every device.">
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/docs/glacier-tokens.css">
+<link rel="stylesheet" href="/docs/docs.css">
+<script>try{var t=localStorage.getItem('docs-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the page</a>
+<header class="top">
+  <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
+  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand-docs" href="/docs/">Docs</a>
+  <div class="search">
+    <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
+    <input id="search" type="search" placeholder="Search the docs" aria-label="Search the docs" autocomplete="off">
+    <div class="results" id="results" role="listbox" hidden></div>
+  </div>
+  <button class="theme-btn" type="button" aria-label="Switch between light and dark"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#sun-moon"/></svg></button>
+  <a class="get" href="/#get">Get the app</a>
+</header>
+<div class="frame">
+  <aside class="sidebar" id="sidebar"><div class="nav-group"><div class="nav-title">Getting started</div><a href="/docs/">Welcome</a><a href="/docs/alpha/">Join the alpha</a><a href="/docs/install/">Install the app</a><a href="/docs/first-run/">The first time you open it</a><a href="/docs/account/">Your account</a><a href="/docs/how-accounts-work/" aria-current="page">How your account works</a><a href="/docs/profile/">Your profile and number</a></div><div class="nav-group"><div class="nav-title">Circles, spaces and calls</div><a href="/docs/circles/">Make a circle and invite people</a><a href="/docs/spaces/">Spaces</a><a href="/docs/roles/">Roles and permissions</a><a href="/docs/sms-spaces/">SMS spaces</a><a href="/docs/calls/">Calls</a><a href="/docs/files/">Files spaces</a></div><div class="nav-group"><div class="nav-title">Plugins</div><a href="/docs/plugins/">About plugins</a><a href="/docs/record-call/">Record call</a><a href="/docs/scribe/">Scribe</a><a href="/docs/live-captions/">Live captions</a><a href="/docs/watch-together/">Watch together</a><a href="/docs/translate/">Translate</a><a href="/docs/codes/">Codes</a><a href="/docs/spam/">Spam filter</a><a href="/docs/kinds/">Kinds of text</a><a href="/docs/unknown-numbers/">Unknown numbers</a><a href="/docs/quiet-hours/">Quiet hours</a><a href="/docs/link-previews/">Link previews</a><a href="/docs/quick-actions/">Quick actions</a><a href="/docs/replies/">Replies</a><a href="/docs/cleaner/">Cleaner</a><a href="/docs/discord/">Discord servers</a></div><div class="nav-group"><div class="nav-title">Messaging</div><a href="/docs/texts/">Texts and conversations</a><a href="/docs/google-messages/">Beside Google Messages</a><a href="/docs/friends/">Friends</a><a href="/docs/networks/">Telegram, Signal and more</a><a href="/docs/encryption/">Encrypted texts</a></div><div class="nav-group"><div class="nav-title">Computers</div><a href="/docs/computers/">Mac and Windows apps</a><a href="/docs/pairing/">Pair a computer with your phone</a></div><div class="nav-group"><div class="nav-title">Privacy and settings</div><a href="/docs/privacy/">Privacy and safety</a><a href="/docs/settings/">Settings, at a glance</a><a href="/docs/routes/">Routes</a><a href="/docs/coming-soon/">Coming soon <span class="badge soon">Soon</span></a><a href="/docs/developer/">Developer API</a></div></aside>
+  <main id="main" class="page">
+    <div class="crumb">Getting started</div>
+    <h1>How your account works</h1>
+    <p class="lede">Recovery words, your password, the account address, and being the same you on every device.</p>
+    <p>You don't need any of this to use Ghost Messaging. It's here for when you want to know what your account is, where it's kept, and what happens when you sign in somewhere else.</p>
+
+<h2 id="identity">One identity, on every device</h2>
+<p>Your account is a key that's yours alone, made from your 12 recovery words. Every device you sign in on becomes that same you: your friends see one person, a circle sees one member, and everything sent to you reaches each of your devices.</p>
+<ul>
+  <li><b>Your username</b> (like <code>@alex</code>) is how friends find you. It points at your key.</li>
+  <li><b>Your password</b> unlocks a sealed backup of your key, so you can sign in with a username and password instead of the words.</li>
+  <li><b>Your 12 recovery words</b> <i>are</i> the key. They work without the password, and nothing else can replace them.</li>
+</ul>
+
+<h2 id="address">The account address</h2>
+<p>The address that starts with <code>0x</code>, shown when your account is made and in <span class="ui-path">Settings › Me › Account</span>, is your account's public name. It's the same in any wallet app that takes your 12 words, because it's made from them in the same standard way. Ghost doesn't use it for money; it's simply the one name your account has everywhere. Sharing it is safe; sharing your words is not.</p>
+
+<h2 id="backup">What the server keeps</h2>
+<p>The relay server at gogho.st keeps your username and a backup of your key, sealed with your password, which is stretched on your device first. The server can't open it. It never sees your recovery words, your password, or your messages.</p>
+<table>
+  <tr><th>Kept by the server</th><th>Never sent to it</th></tr>
+  <tr><td>Your username, and the key it points to</td><td>Your recovery words</td></tr>
+  <tr><td>Your sealed backup (only your password opens it)</td><td>Your password</td></tr>
+  <tr><td>Your verified number, if you verify one, to text you codes</td><td>What you write, to anyone</td></tr>
+</table>
+
+<h2 id="computer">A computer paired with your phone</h2>
+<p>A Mac or PC paired with your phone used to be someone of its own. Now it can be the same you: in <span class="ui-path">Settings › Me › Account</span> on the computer, tap <b>Become the same you as your phone</b>, or sign in to the account your phone is in.</p>
+<figure class="mock wide"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Account</span></div><div class="m-body">
+  <div class="m-section"><div class="m-card">
+    <div class="m-row tap"><span class="m-ico" data-hue="green"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#smartphone"/></svg></span><span class="m-txt"><b>Become the same you as your phone</b><small>Keeps who you are now, the same you as your phone</small></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="blue"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#key-round"/></svg></span><span class="m-txt"><b>Sign in to your Ghost account</b><small>The account your phone is in</small></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
+  </div></div>
+</div></div><figcaption>On a paired computer.</figcaption></figure>
+
+<h2 id="lost">If you lose a device</h2>
+<ol>
+  <li>Sign in on another device, with your username and password or your words.</li>
+  <li>In <span class="ui-path">Settings › Me › Account › Signed in on these devices</span>, remove the lost one. It's signed out the next time it connects.</li>
+  <li>If you think someone has your words, make a new account and tell your friends; the words can't be changed.</li>
+</ol>
+
+    <nav class="prevnext"><a class="prev" href="/docs/account/"><small>Previous</small>Your account</a><a class="next" href="/docs/profile/"><small>Next</small>Your profile and number</a></nav>
+    <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
+  </main>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#identity">One identity, on every device</a><a href="#address">The account address</a><a href="#backup">What the server keeps</a><a href="#computer">A computer paired with your phone</a><a href="#lost">If you lose a device</a></nav>
+</div>
+<script src="/docs/docs.js" defer></script>
+</body>
+</html>

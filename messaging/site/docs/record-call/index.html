@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Record call · Ghost Messaging docs</title>
+<meta name="description" content="Record a call to one file with a named track for each voice.">
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/docs/glacier-tokens.css">
+<link rel="stylesheet" href="/docs/docs.css">
+<script>try{var t=localStorage.getItem('docs-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the page</a>
+<header class="top">
+  <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
+  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand-docs" href="/docs/">Docs</a>
+  <div class="search">
+    <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
+    <input id="search" type="search" placeholder="Search the docs" aria-label="Search the docs" autocomplete="off">
+    <div class="results" id="results" role="listbox" hidden></div>
+  </div>
+  <button class="theme-btn" type="button" aria-label="Switch between light and dark"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#sun-moon"/></svg></button>
+  <a class="get" href="/#get">Get the app</a>
+</header>
+<div class="frame">
+  <aside class="sidebar" id="sidebar"><div class="nav-group"><div class="nav-title">Getting started</div><a href="/docs/">Welcome</a><a href="/docs/alpha/">Join the alpha</a><a href="/docs/install/">Install the app</a><a href="/docs/first-run/">The first time you open it</a><a href="/docs/account/">Your account</a><a href="/docs/how-accounts-work/">How your account works</a><a href="/docs/profile/">Your profile and number</a></div><div class="nav-group"><div class="nav-title">Circles, spaces and calls</div><a href="/docs/circles/">Make a circle and invite people</a><a href="/docs/spaces/">Spaces</a><a href="/docs/roles/">Roles and permissions</a><a href="/docs/sms-spaces/">SMS spaces</a><a href="/docs/calls/">Calls</a><a href="/docs/files/">Files spaces</a></div><div class="nav-group"><div class="nav-title">Plugins</div><a href="/docs/plugins/">About plugins</a><a href="/docs/record-call/" aria-current="page">Record call</a><a href="/docs/scribe/">Scribe</a><a href="/docs/live-captions/">Live captions</a><a href="/docs/watch-together/">Watch together</a><a href="/docs/translate/">Translate</a><a href="/docs/codes/">Codes</a><a href="/docs/spam/">Spam filter</a><a href="/docs/kinds/">Kinds of text</a><a href="/docs/unknown-numbers/">Unknown numbers</a><a href="/docs/quiet-hours/">Quiet hours</a><a href="/docs/link-previews/">Link previews</a><a href="/docs/quick-actions/">Quick actions</a><a href="/docs/replies/">Replies</a><a href="/docs/cleaner/">Cleaner</a><a href="/docs/discord/">Discord servers</a></div><div class="nav-group"><div class="nav-title">Messaging</div><a href="/docs/texts/">Texts and conversations</a><a href="/docs/google-messages/">Beside Google Messages</a><a href="/docs/friends/">Friends</a><a href="/docs/networks/">Telegram, Signal and more</a><a href="/docs/encryption/">Encrypted texts</a></div><div class="nav-group"><div class="nav-title">Computers</div><a href="/docs/computers/">Mac and Windows apps</a><a href="/docs/pairing/">Pair a computer with your phone</a></div><div class="nav-group"><div class="nav-title">Privacy and settings</div><a href="/docs/privacy/">Privacy and safety</a><a href="/docs/settings/">Settings, at a glance</a><a href="/docs/routes/">Routes</a><a href="/docs/coming-soon/">Coming soon <span class="badge soon">Soon</span></a><a href="/docs/developer/">Developer API</a></div></aside>
+  <main id="main" class="page">
+    <div class="crumb">Plugins</div>
+    <h1>Record call</h1>
+    <p class="lede">Record a call to one file with a named track for each voice.</p>
+    <p>Record call records a space's call to one video file (MP4): first everyone together, then each voice on a track of its own, named for them. Edit one person's voice without the others, or listen to just one. Everyone in the call is asked first, and only people who say yes are in it.</p>
+<p><b>Add it:</b> <span class="ui-path">Settings › Plugins › Record call › Add</span>, or for a whole circle in <span class="ui-path">Circle settings › Plugins</span>. Works on Android, Mac and iPhone; not yet on Windows.</p>
+
+<h2 id="record">Record a call</h2>
+<ol class="steps">
+<li class="step"><div class="step-body"><h3>Join the call, then Record</h3>
+<p>While you're in a space's call, a <b>Record</b> button sits in the space's header, beside its settings. It's also in the call's menu.</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Lounge</span><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#shield-check"/></svg></span></div><div class="m-body">
+  <div class="m-row m-raw"><span class="m-txt"><b>Lounge</b><small>3 in voice</small></span><span class="m-btn secondary tap"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#circle-dot"/></svg><span>Record</span></span></div>
+</div></div></figure>
+</div></li>
+<li class="step"><div class="step-body"><h3>Everyone is asked</h3>
+<p>A red line goes over the call for everyone. Each person's app asks whether their voice may be in it. Until they tap <b>Include me</b>, it isn't.</p>
+<div class="pair">
+<figure class="mock"><div class="m-screen"><div class="m-body">
+  <div class="m-banner"><b>● Recording 0:42</b> · Maya, Jo</div>
+  <span class="m-btn danger"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#circle-stop"/></svg><span>Stop</span></span>
+</div></div><figcaption>What you see.</figcaption></figure>
+<figure class="mock"><div class="m-screen"><div class="m-body">
+  <div class="m-banner"><b>Alex is recording this call.</b> Include your voice?</div>
+  <div class="m-row m-raw"><span class="m-btn secondary"><span>Leave me out</span></span><span class="m-btn primary tap"><span>Include me</span></span></div>
+</div></div><figcaption>What everyone else sees.</figcaption></figure>
+</div>
+<p>A line in the space's chat says it too, so people on older versions know.</p>
+</div></li>
+<li class="step"><div class="step-body"><h3>Stop</h3>
+<p>Tap <b>Stop</b> (in red, in the same place). The file is made on your device: it takes a moment. You're told where it went.</p>
+</div></li>
+</ol>
+
+<h2 id="where">Where recordings go</h2>
+<ul>
+  <li><b>On your device</b>, always: in <b>Recordings</b> (from the call's menu), to play, share, save a copy, or delete.</li>
+  <li><b>In a circle</b>, also into a folder of one of its Files spaces, for everyone in the circle. Until the circle chooses, that's its first Files space, in a folder named <b>Recordings</b>. If the circle has no Files space, or you can't add files there, it stays on your device and says why.</li>
+</ul>
+<h3 id="save-location">Choose where a circle's recordings are saved</h3>
+<p>In <span class="ui-path">Circle settings › Plugins</span>, under <b>Call recordings</b> (if you may change the circle):</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Plugins</span></div><div class="m-body">
+  <div class="m-section"><div class="m-section-title">Call recordings</div><div class="m-card">
+    <div class="m-row tap"><span class="m-ico" data-hue="amber"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#folder-open"/></svg></span><span class="m-txt"><b>Files space</b></span><span class="m-end"><span class="m-value">Shared</span><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="amber"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#folder"/></svg></span><span class="m-txt"><b>Folder</b></span><span class="m-end"><span class="m-value">Recordings</span><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
+  </div><p class="m-foot">A call recorded in any of Book Club's spaces is saved here for the circle, as well as on the device that recorded it.</p></div>
+</div></div></figure>
+<p>Use <code>/</code> for a folder inside another, like <code>Sessions/2026</code>.</p>
+
+<h2 id="recordings">Recordings</h2>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Recordings</span></div><div class="m-body">
+  <div class="m-section"><div class="m-card">
+    <div class="m-row tap"><span class="m-ico" data-hue="coral"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#audio-lines"/></svg></span><span class="m-txt"><b>Lounge · Nov 19</b><small>42:10 · Maya, Jo, Sam</small></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
+  </div></div>
+  <div class="m-menu"><div class="m-item"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#play"/></svg><span>Play</span></div><div class="m-item"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#type"/></svg><span>Write out the words</span></div><div class="m-item"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#send"/></svg><span>Send to Lounge</span></div><div class="m-item"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#share-2"/></svg><span>Share</span></div><div class="m-item danger"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#trash-2"/></svg><span>Delete</span></div></div>
+</div></div></figure>
+<p><b>Write out the words</b> needs <a href="/docs/scribe/">Scribe</a>.</p>
+
+<h2 id="consent">Consent and the law</h2>
+<p>Everyone is told and asked, and nobody's voice is in a recording without their yes. Laws on recording conversations differ by place; asking is on you as well as the app.</p>
+
+    <nav class="prevnext"><a class="prev" href="/docs/plugins/"><small>Previous</small>About plugins</a><a class="next" href="/docs/scribe/"><small>Next</small>Scribe</a></nav>
+    <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
+  </main>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#record">Record a call</a><a href="#where">Where recordings go</a><a href="#recordings">Recordings</a><a href="#consent">Consent and the law</a></nav>
+</div>
+<script src="/docs/docs.js" defer></script>
+</body>
+</html>

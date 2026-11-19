@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Privacy and safety · Ghost Messaging docs</title>
+<meta name="description" content="What is sealed, what the server sees, blocking, and signing out.">
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/docs/glacier-tokens.css">
+<link rel="stylesheet" href="/docs/docs.css">
+<script>try{var t=localStorage.getItem('docs-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the page</a>
+<header class="top">
+  <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
+  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand-docs" href="/docs/">Docs</a>
+  <div class="search">
+    <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
+    <input id="search" type="search" placeholder="Search the docs" aria-label="Search the docs" autocomplete="off">
+    <div class="results" id="results" role="listbox" hidden></div>
+  </div>
+  <button class="theme-btn" type="button" aria-label="Switch between light and dark"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#sun-moon"/></svg></button>
+  <a class="get" href="/#get">Get the app</a>
+</header>
+<div class="frame">
+  <aside class="sidebar" id="sidebar"><div class="nav-group"><div class="nav-title">Getting started</div><a href="/docs/">Welcome</a><a href="/docs/alpha/">Join the alpha</a><a href="/docs/install/">Install the app</a><a href="/docs/first-run/">The first time you open it</a><a href="/docs/account/">Your account</a><a href="/docs/how-accounts-work/">How your account works</a><a href="/docs/profile/">Your profile and number</a></div><div class="nav-group"><div class="nav-title">Circles, spaces and calls</div><a href="/docs/circles/">Make a circle and invite people</a><a href="/docs/spaces/">Spaces</a><a href="/docs/roles/">Roles and permissions</a><a href="/docs/sms-spaces/">SMS spaces</a><a href="/docs/calls/">Calls</a><a href="/docs/files/">Files spaces</a></div><div class="nav-group"><div class="nav-title">Plugins</div><a href="/docs/plugins/">About plugins</a><a href="/docs/record-call/">Record call</a><a href="/docs/scribe/">Scribe</a><a href="/docs/live-captions/">Live captions</a><a href="/docs/watch-together/">Watch together</a><a href="/docs/translate/">Translate</a><a href="/docs/codes/">Codes</a><a href="/docs/spam/">Spam filter</a><a href="/docs/kinds/">Kinds of text</a><a href="/docs/unknown-numbers/">Unknown numbers</a><a href="/docs/quiet-hours/">Quiet hours</a><a href="/docs/link-previews/">Link previews</a><a href="/docs/quick-actions/">Quick actions</a><a href="/docs/replies/">Replies</a><a href="/docs/cleaner/">Cleaner</a><a href="/docs/discord/">Discord servers</a></div><div class="nav-group"><div class="nav-title">Messaging</div><a href="/docs/texts/">Texts and conversations</a><a href="/docs/google-messages/">Beside Google Messages</a><a href="/docs/friends/">Friends</a><a href="/docs/networks/">Telegram, Signal and more</a><a href="/docs/encryption/">Encrypted texts</a></div><div class="nav-group"><div class="nav-title">Computers</div><a href="/docs/computers/">Mac and Windows apps</a><a href="/docs/pairing/">Pair a computer with your phone</a></div><div class="nav-group"><div class="nav-title">Privacy and settings</div><a href="/docs/privacy/" aria-current="page">Privacy and safety</a><a href="/docs/settings/">Settings, at a glance</a><a href="/docs/routes/">Routes</a><a href="/docs/coming-soon/">Coming soon <span class="badge soon">Soon</span></a><a href="/docs/developer/">Developer API</a></div></aside>
+  <main id="main" class="page">
+    <div class="crumb">Privacy and settings</div>
+    <h1>Privacy and safety</h1>
+    <p class="lede">What is sealed, what the server sees, blocking, and signing out.</p>
+    <p>Ghost Messaging is built so the people running its server can't read what you say. There are no ads, and the app is open source, so anyone can check.</p>
+
+<h2 id="sealed">What's sealed end to end</h2>
+<table>
+  <tr><th>What</th><th>Sealed end to end?</th></tr>
+  <tr><td>Messages between friends, and in groups of friends</td><td>Yes</td></tr>
+  <tr><td>Circles and spaces: chat, files, polls</td><td>Yes, with a key the circle's members share</td></tr>
+  <tr><td>Calls</td><td>Yes, directly between the people in them</td></tr>
+  <tr><td>Your texts with one person, with <a href="/docs/encryption/">encryption</a> on</td><td>Yes</td></tr>
+  <tr><td>Ordinary texts and picture messages</td><td>No: they go through your carrier, as all texts do</td></tr>
+  <tr><td>Telegram, Signal, WhatsApp and Matrix chats</td><td>As those networks seal them; they go between your device and the network, not through Ghost</td></tr>
+</table>
+
+<h2 id="server">What the server sees</h2>
+<ul>
+  <li>Which installs talk to each other, and when, as any server passing messages would.</li>
+  <li>Your username, and your account backup sealed with your password (which it never sees).</li>
+  <li>Your verified number, if you verify one, to text you codes. It's shown to nobody unless you choose.</li>
+  <li>Never: what you write, your files, your recovery words or your password.</li>
+</ul>
+
+<h2 id="device">On your device</h2>
+<p>Spam filtering, sorting, translation, summaries, captions and transcripts all happen on your device. Your texts stay in your phone's own store. Plugins say on their pages what they can see.</p>
+
+<h2 id="block">Blocking and archiving</h2>
+<ul>
+  <li><b>Block</b> someone from a conversation's menu or their card. <span class="ui-path">Settings › Blocked</span> lists everyone you've blocked, Telegram and Signal people too, and unblocks them.</li>
+  <li><b>Archive</b> a conversation by swiping it left. <span class="ui-path">Settings › Archived</span> (or the dock's Archive) has them; a new message brings one back.</li>
+</ul>
+
+<h2 id="circles">In circles</h2>
+<p>A circle's messages are sealed with a key everyone in it has. Removing someone stops their app joining, but doesn't change that key: for anything a removed person mustn't read, make a new circle. See <a href="/docs/roles/#remove">Removing someone</a>.</p>
+
+<h2 id="leave">Leaving</h2>
+<ul>
+  <li><span class="ui-path">Settings › Me › Remove everything about me</span> unlinks every account and your number, and clears your watch list, on the phone and on the server.</li>
+  <li><span class="ui-path">Settings › Me › Account › Sign out of this device</span> signs the device out; remove other devices from <b>Signed in on these devices</b>.</li>
+</ul>
+
+    <nav class="prevnext"><a class="prev" href="/docs/pairing/"><small>Previous</small>Pair a computer with your phone</a><a class="next" href="/docs/settings/"><small>Next</small>Settings, at a glance</a></nav>
+    <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
+  </main>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#sealed">What's sealed end to end</a><a href="#server">What the server sees</a><a href="#device">On your device</a><a href="#block">Blocking and archiving</a><a href="#circles">In circles</a><a href="#leave">Leaving</a></nav>
+</div>
+<script src="/docs/docs.js" defer></script>
+</body>
+</html>

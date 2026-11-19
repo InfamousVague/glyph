@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>About plugins · Ghost Messaging docs</title>
+<meta name="description" content="Add features you want, for yourself or for a whole circle.">
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/docs/glacier-tokens.css">
+<link rel="stylesheet" href="/docs/docs.css">
+<script>try{var t=localStorage.getItem('docs-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the page</a>
+<header class="top">
+  <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
+  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand-docs" href="/docs/">Docs</a>
+  <div class="search">
+    <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
+    <input id="search" type="search" placeholder="Search the docs" aria-label="Search the docs" autocomplete="off">
+    <div class="results" id="results" role="listbox" hidden></div>
+  </div>
+  <button class="theme-btn" type="button" aria-label="Switch between light and dark"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#sun-moon"/></svg></button>
+  <a class="get" href="/#get">Get the app</a>
+</header>
+<div class="frame">
+  <aside class="sidebar" id="sidebar"><div class="nav-group"><div class="nav-title">Getting started</div><a href="/docs/">Welcome</a><a href="/docs/alpha/">Join the alpha</a><a href="/docs/install/">Install the app</a><a href="/docs/first-run/">The first time you open it</a><a href="/docs/account/">Your account</a><a href="/docs/how-accounts-work/">How your account works</a><a href="/docs/profile/">Your profile and number</a></div><div class="nav-group"><div class="nav-title">Circles, spaces and calls</div><a href="/docs/circles/">Make a circle and invite people</a><a href="/docs/spaces/">Spaces</a><a href="/docs/roles/">Roles and permissions</a><a href="/docs/sms-spaces/">SMS spaces</a><a href="/docs/calls/">Calls</a><a href="/docs/files/">Files spaces</a></div><div class="nav-group"><div class="nav-title">Plugins</div><a href="/docs/plugins/" aria-current="page">About plugins</a><a href="/docs/record-call/">Record call</a><a href="/docs/scribe/">Scribe</a><a href="/docs/live-captions/">Live captions</a><a href="/docs/watch-together/">Watch together</a><a href="/docs/translate/">Translate</a><a href="/docs/codes/">Codes</a><a href="/docs/spam/">Spam filter</a><a href="/docs/kinds/">Kinds of text</a><a href="/docs/unknown-numbers/">Unknown numbers</a><a href="/docs/quiet-hours/">Quiet hours</a><a href="/docs/link-previews/">Link previews</a><a href="/docs/quick-actions/">Quick actions</a><a href="/docs/replies/">Replies</a><a href="/docs/cleaner/">Cleaner</a><a href="/docs/discord/">Discord servers</a></div><div class="nav-group"><div class="nav-title">Messaging</div><a href="/docs/texts/">Texts and conversations</a><a href="/docs/google-messages/">Beside Google Messages</a><a href="/docs/friends/">Friends</a><a href="/docs/networks/">Telegram, Signal and more</a><a href="/docs/encryption/">Encrypted texts</a></div><div class="nav-group"><div class="nav-title">Computers</div><a href="/docs/computers/">Mac and Windows apps</a><a href="/docs/pairing/">Pair a computer with your phone</a></div><div class="nav-group"><div class="nav-title">Privacy and settings</div><a href="/docs/privacy/">Privacy and safety</a><a href="/docs/settings/">Settings, at a glance</a><a href="/docs/routes/">Routes</a><a href="/docs/coming-soon/">Coming soon <span class="badge soon">Soon</span></a><a href="/docs/developer/">Developer API</a></div></aside>
+  <main id="main" class="page">
+    <div class="crumb">Plugins</div>
+    <h1>About plugins</h1>
+    <p class="lede">Add features you want, for yourself or for a whole circle.</p>
+    <p>Plugins are extras you choose: sort your texts, translate them, record calls, watch together. Some are on from the start; others you add when you want them. Everything a plugin does happens on your device unless its page says otherwise.</p>
+
+<h2 id="find">Add or remove a plugin</h2>
+<p>Open <span class="ui-path">Settings › Plugins</span>. Featured ones are at the top, then the rest by what they're for. Tap one to see what it adds and what it can see, then <b>Add</b> or switch it off. A plugin that's on gets its own section in Settings for its choices.</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Plugins</span></div><div class="m-body">
+  <div class="m-section"><div class="m-section-title">Featured</div><div class="m-card">
+    <div class="m-row tap"><span class="m-ico" data-hue="blue"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#languages"/></svg></span><span class="m-txt"><b>Translate</b><small>Read texts in other languages</small></span><span class="m-end"><span class="m-value">Add</span></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="green"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#key-round"/></svg></span><span class="m-txt"><b>Codes</b><small>Sign-in codes in a tab of their own</small></span><span class="m-end"><span class="m-switch on"></span></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="coral"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#ban"/></svg></span><span class="m-txt"><b>Spam filter</b><small>Texts that look like spam, out of the way</small></span><span class="m-end"><span class="m-switch on"></span></span></div>
+  </div></div>
+  <div class="m-section"><div class="m-section-title">For calls</div><div class="m-card">
+    <div class="m-row"><span class="m-ico" data-hue="coral"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#circle-dot"/></svg></span><span class="m-txt"><b>Record call</b><small>A track for each voice, named, in one MP4</small></span><span class="m-end"><span class="m-value">Add</span></span></div>
+  </div></div>
+</div></div></figure>
+
+<h2 id="circle">For a whole circle</h2>
+<p>Some plugins (marked <b>Circle</b> below) can be turned on for everyone in a circle, so every member has them in its spaces without adding them. Whoever may change the circle turns them on in <span class="ui-path">Circle settings › Plugins</span>.</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Plugins</span></div><div class="m-body">
+  <div class="m-section"><div class="m-section-title">For everyone in the circle</div><div class="m-card">
+    <div class="m-row"><span class="m-ico" data-hue="coral"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#circle-dot"/></svg></span><span class="m-txt"><b>Record call</b></span><span class="m-end"><span class="m-switch on"></span></span></div>
+    <div class="m-row tap"><span class="m-ico" data-hue="blue"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#type"/></svg></span><span class="m-txt"><b>Live captions</b></span><span class="m-end"><span class="m-switch"></span></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="purple"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#film"/></svg></span><span class="m-txt"><b>Watch together</b></span><span class="m-end"><span class="m-switch on"></span></span></div>
+  </div><p class="m-foot">Turned on here, a plugin works in this circle's spaces for every member, without anyone adding it.</p></div>
+</div></div><figcaption>Circle settings › Plugins.</figcaption></figure>
+
+<h2 id="all">Every plugin</h2>
+<table>
+  <tr><th>Plugin</th><th>What it does</th><th>Starts</th></tr>
+  <tr><td><a href="/docs/record-call/">Record call</a></td><td>Record a call, a named track for each voice. Circle.</td><td>Off</td></tr>
+  <tr><td><a href="/docs/scribe/">Scribe</a></td><td>Write out a recording, who said what. Circle.</td><td>Off</td></tr>
+  <tr><td><a href="/docs/live-captions/">Live captions</a></td><td>Everyone's words in a call, as they're said. Circle.</td><td>Off</td></tr>
+  <tr><td><a href="/docs/watch-together/">Watch together</a></td><td>Play a video for everyone in a call. Circle.</td><td>Off</td></tr>
+  <tr><td><a href="/docs/translate/">Translate</a></td><td>Translate texts on your phone.</td><td>Off</td></tr>
+  <tr><td><a href="/docs/codes/">Codes</a></td><td>Sign-in codes in their own tab.</td><td>On</td></tr>
+  <tr><td><a href="/docs/spam/">Spam filter</a></td><td>Spam in its own tab.</td><td>On</td></tr>
+  <tr><td><a href="/docs/kinds/">Kinds of text</a></td><td>Sorts strangers' texts by kind, with a filter.</td><td>On</td></tr>
+  <tr><td><a href="/docs/unknown-numbers/">Unknown numbers</a></td><td>What an unknown number likely is.</td><td>On</td></tr>
+  <tr><td><a href="/docs/quiet-hours/">Quiet hours</a></td><td>Strangers silent at night.</td><td>On</td></tr>
+  <tr><td><a href="/docs/link-previews/">Link previews</a></td><td>Links as cards.</td><td>On</td></tr>
+  <tr><td><a href="/docs/quick-actions/">Quick actions</a></td><td>Buttons for dates, addresses, tracking numbers.</td><td>On</td></tr>
+  <tr><td><a href="/docs/replies/">Replies</a></td><td>Suggested replies and reminders.</td><td>On</td></tr>
+  <tr><td><a href="/docs/cleaner/">Cleaner</a></td><td>Delete conversations by kind.</td><td>On</td></tr>
+</table>
+
+    <nav class="prevnext"><a class="prev" href="/docs/files/"><small>Previous</small>Files spaces</a><a class="next" href="/docs/record-call/"><small>Next</small>Record call</a></nav>
+    <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
+  </main>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#find">Add or remove a plugin</a><a href="#circle">For a whole circle</a><a href="#all">Every plugin</a></nav>
+</div>
+<script src="/docs/docs.js" defer></script>
+</body>
+</html>

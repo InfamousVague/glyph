@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Codes · Ghost Messaging docs</title>
+<meta name="description" content="Sign-in codes in a tab of their own, a tap to copy.">
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/docs/glacier-tokens.css">
+<link rel="stylesheet" href="/docs/docs.css">
+<script>try{var t=localStorage.getItem('docs-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the page</a>
+<header class="top">
+  <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
+  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand-docs" href="/docs/">Docs</a>
+  <div class="search">
+    <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
+    <input id="search" type="search" placeholder="Search the docs" aria-label="Search the docs" autocomplete="off">
+    <div class="results" id="results" role="listbox" hidden></div>
+  </div>
+  <button class="theme-btn" type="button" aria-label="Switch between light and dark"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#sun-moon"/></svg></button>
+  <a class="get" href="/#get">Get the app</a>
+</header>
+<div class="frame">
+  <aside class="sidebar" id="sidebar"><div class="nav-group"><div class="nav-title">Getting started</div><a href="/docs/">Welcome</a><a href="/docs/alpha/">Join the alpha</a><a href="/docs/install/">Install the app</a><a href="/docs/first-run/">The first time you open it</a><a href="/docs/account/">Your account</a><a href="/docs/how-accounts-work/">How your account works</a><a href="/docs/profile/">Your profile and number</a></div><div class="nav-group"><div class="nav-title">Circles, spaces and calls</div><a href="/docs/circles/">Make a circle and invite people</a><a href="/docs/spaces/">Spaces</a><a href="/docs/roles/">Roles and permissions</a><a href="/docs/sms-spaces/">SMS spaces</a><a href="/docs/calls/">Calls</a><a href="/docs/files/">Files spaces</a></div><div class="nav-group"><div class="nav-title">Plugins</div><a href="/docs/plugins/">About plugins</a><a href="/docs/record-call/">Record call</a><a href="/docs/scribe/">Scribe</a><a href="/docs/live-captions/">Live captions</a><a href="/docs/watch-together/">Watch together</a><a href="/docs/translate/">Translate</a><a href="/docs/codes/" aria-current="page">Codes</a><a href="/docs/spam/">Spam filter</a><a href="/docs/kinds/">Kinds of text</a><a href="/docs/unknown-numbers/">Unknown numbers</a><a href="/docs/quiet-hours/">Quiet hours</a><a href="/docs/link-previews/">Link previews</a><a href="/docs/quick-actions/">Quick actions</a><a href="/docs/replies/">Replies</a><a href="/docs/cleaner/">Cleaner</a><a href="/docs/discord/">Discord servers</a></div><div class="nav-group"><div class="nav-title">Messaging</div><a href="/docs/texts/">Texts and conversations</a><a href="/docs/google-messages/">Beside Google Messages</a><a href="/docs/friends/">Friends</a><a href="/docs/networks/">Telegram, Signal and more</a><a href="/docs/encryption/">Encrypted texts</a></div><div class="nav-group"><div class="nav-title">Computers</div><a href="/docs/computers/">Mac and Windows apps</a><a href="/docs/pairing/">Pair a computer with your phone</a></div><div class="nav-group"><div class="nav-title">Privacy and settings</div><a href="/docs/privacy/">Privacy and safety</a><a href="/docs/settings/">Settings, at a glance</a><a href="/docs/routes/">Routes</a><a href="/docs/coming-soon/">Coming soon <span class="badge soon">Soon</span></a><a href="/docs/developer/">Developer API</a></div></aside>
+  <main id="main" class="page">
+    <div class="crumb">Plugins</div>
+    <h1>Codes</h1>
+    <p class="lede">Sign-in codes in a tab of their own, a tap to copy.</p>
+    <p>Codes moves sign-in codes (the "your code is 482913" texts) out of your conversations into a <b>Codes</b> tab of their own, newest first. Tap one to copy it.</p>
+<p>On from the start. Switch it off in <span class="ui-path">Settings › Plugins</span>.</p>
+
+<h2 id="use">Copy a code</h2>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-title">Messages</span></div><div class="m-body">
+  <div class="m-tabs"><span class="">Messages</span><span class="on">Codes</span><span class="">Circles</span></div>
+  <div class="m-row m-raw"><span class="m-avatar" data-hue="blue">CB</span><span class="m-txt"><b>482 913</b><small>Coinbase · 2 min</small></span><span class="m-btn secondary tap"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#copy"/></svg><span>Copy</span></span></div>
+  <div class="m-row m-raw"><span class="m-avatar" data-hue="orange">DI</span><span class="m-txt"><b>771 204</b><small>Discover · 1 h</small></span><span class="m-btn secondary"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#copy"/></svg><span>Copy</span></span></div>
+</div></div><figcaption>The Codes tab. Who a code is from shows as the company's logo where the text says.</figcaption></figure>
+<ul>
+  <li>A code's notification has a <b>Copy</b> button too.</li>
+  <li>Long-press a conversation for <b>Move to Codes</b> or <b>Keep in Messages</b>.</li>
+  <li>Telegram's own sign-in codes go here as well.</li>
+</ul>
+
+<h2 id="what">What counts as a code</h2>
+<p>Four to eight digits in a text that speaks of a code, a PIN, a password or signing in, from a number that isn't in your contacts. A friend's "the door code is 4417" stays a conversation.</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Codes</span></div><div class="m-body">
+  <div class="m-section"><div class="m-card">
+    <div class="m-row"><span class="m-txt"><b>Mark as read when copied</b></span><span class="m-end"><span class="m-switch on"></span></span></div>
+    <div class="m-row"><span class="m-txt"><b>Show who a code is from</b><small>Named by the company its text is from, where the text says</small></span><span class="m-end"><span class="m-switch on"></span></span></div>
+  </div></div>
+</div></div></figure>
+<p>With <b>Ghost Keyboard</b> on your phone, <span class="ui-path">Settings › Ghost Keyboard</span> can offer it your codes, so they're a tap away as you type.</p>
+
+    <nav class="prevnext"><a class="prev" href="/docs/translate/"><small>Previous</small>Translate</a><a class="next" href="/docs/spam/"><small>Next</small>Spam filter</a></nav>
+    <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
+  </main>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#use">Copy a code</a><a href="#what">What counts as a code</a></nav>
+</div>
+<script src="/docs/docs.js" defer></script>
+</body>
+</html>
