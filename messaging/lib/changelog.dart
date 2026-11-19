@@ -23,6 +23,10 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.9.33', '2026-11-19', [
+    'Verified numbers: a badge beside the names of people who verified their phone number, in spaces, circles and profiles.',
+    'Slow mode: in a circle\'s space settings, let each person write only once in so many seconds. Those who manage spaces don\'t wait.',
+  ]),
   ReleaseNotes('0.9.32', '2026-11-19', [
     'Polls in spaces and circles: ask one from the +, with two to ten answers. Tap an answer to vote, tap again to take it back.',
     'A circle\'s back arrow stays inside its banner when you point at it or press it.',
