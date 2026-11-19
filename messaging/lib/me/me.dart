@@ -373,6 +373,7 @@ class Me extends ChangeNotifier {
       case 'forgotten':
       case 'claim':
       case 'whois':
+      case 'badges':
       case 'released':
       case 'keep':
       case 'kept':
@@ -607,6 +608,16 @@ class Me extends ChangeNotifier {
     await _ask({'dir': 'release'}, 'released');
     _app?.set('me_username', '');
     notifyListeners();
+  }
+
+  /// Which of [ids] and [usernames] verified a phone number by a texted code, as the relay knows it: the badge beside
+  /// people in spaces and circles (lib/me/verified_numbers.dart). Yes or no only, never the number.
+  Future<({Set<String> ids, Set<String> names})> badges(List<String> ids, List<String> usernames) async {
+    final got = await _ask({'dir': 'badges', 'ids': ids, 'names': usernames}, 'badges');
+    return (
+      ids: {for (final x in (got['ids'] as List? ?? const [])) if (x is String) x},
+      names: {for (final x in (got['names'] as List? ?? const [])) if (x is String) x.toLowerCase()},
+    );
   }
 
   /// Who has the username [name]: their install and its public key, or null where nobody does.

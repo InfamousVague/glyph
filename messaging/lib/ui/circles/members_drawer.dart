@@ -19,6 +19,7 @@ import '../../kit/settings_kit.dart';
 import '../../kit/settings_type.dart';
 import '../../voice/channels.dart' show Voice;
 import '../dialup/bevel.dart';
+import '../verified_badge.dart';
 import '../drawer_head.dart';
 import '../ripple_avatar.dart';
 import 'circle_face.dart';
@@ -204,6 +205,8 @@ class CircleMembersList extends StatelessWidget {
                         // Your face from your own name, as a space's members list draws it.
                         icon: Opacity(opacity: p.here ? 1 : 0.5, child: RippleAvatar(name: p.me ? youFaceName() : p.name, level: 0, size: 30)),
                         label: p.name,
+                        // The verified-number badge where they verified a number (Matt, 2026-11-19).
+                        labelAfter: VerifiedBadge(id: p.id, me: p.me, size: 14),
                         // Their role's colour instead of a tag (Matt, 2026-11-17; the owner's crown went 2026-11-18).
                         labelColor: circleRoleInk(t, p),
                         hint: Text(p.here ? 'On now' : 'Away'),

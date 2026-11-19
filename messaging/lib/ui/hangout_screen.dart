@@ -59,6 +59,7 @@ import '../me/me.dart' show Me;
 import '../me/pictures.dart';
 import 'mention_field.dart';
 import 'poll_card.dart';
+import 'verified_badge.dart';
 import 'thread.dart' show LinkedText;
 
 /// A hangout: its chat, who is in it, and its call (Matt, 2026-11-15: "add a chat to hangouts so the whole group can
@@ -1455,6 +1456,7 @@ class _Message extends StatelessWidget {
               padding: EdgeInsets.only(left: faceGap + t.space(3), bottom: 2),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Flexible(child: _toPerson(Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: roleInk(t, role) ?? t.color('app-accent'))))),
+                VerifiedBadge(id: m.from, username: room.usernames[m.from], me: m.from == room.me, size: 12),
               ]),
             ),
           Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -1548,6 +1550,7 @@ extension on _Message {
                   padding: EdgeInsets.only(bottom: 2),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
                     Flexible(child: _toPerson(Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: roleInk(t, role) ?? ink)))),
+                    Baseline(baseline: 13, baselineType: TextBaseline.alphabetic, child: VerifiedBadge(id: m.from, username: room.usernames[m.from], me: m.from == room.me, size: 15)),
                     SizedBox(width: t.space(2)),
                     Text(clock(at), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
                   ]),
@@ -1658,6 +1661,7 @@ class SpaceMembers extends StatelessWidget {
                             : SpaceFace(room: room, id: id, name: id == room.me ? youFaceName() : _nameOf(room, id), size: 30),
                       ),
                       label: id == room.me ? 'You' : _nameOf(room, id),
+                      labelAfter: VerifiedBadge(id: id, username: room.usernames[id], me: id == room.me, size: 14),
                       hint: Text(inVoice.contains(id) ? 'In voice' : (room.present.containsKey(id) ? 'Here now' : 'Away')),
                       labelColor: roleInk(t, role),
                       // Their profile card (Matt, 2026-11-19: "Clicking on a users profile picture or name should open the profile
@@ -2373,3 +2377,4 @@ class _SlowModeLine extends StatelessWidget {
     );
   }
 }
+

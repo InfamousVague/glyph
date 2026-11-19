@@ -414,6 +414,21 @@ void main() {
       expect(HandlesConfig.fromEnvironment(const {}).textTo, ['+1']);
     });
 
+    test('badges: whether ids and usernames verified a number, yes or no, never the number (Matt, 2026-11-19: "add the verfied by number badge")', () async {
+      await t.said(alice, {'dir': 'claim', 'name': 'maya'});
+      await t.said(carol, {'dir': 'claim', 'name': 'cara'});
+      await text(alice, hers);
+      await code(alice, hers, net.texted[hers]!);
+      expect(t.linked, 1);
+      await t.said(bob, {'dir': 'badges', 'ids': [alice, carol, 'nobody'], 'names': ['@Maya', 'cara', 'nobody', 'not a name!']});
+      expect(last(bob, 'badges'), {'dir': 'badges', 'ids': [alice], 'names': ['maya']});
+      // Asked too often in an hour: told to wait.
+      for (var i = 0; i < Handles.badgesAnHour; i++) {
+        await t.said(bob, {'dir': 'badges', 'ids': [alice]});
+      }
+      expect(last(bob, 'err')!['err'], contains('Too many'));
+    });
+
     test('the code that reached the number links it; a wrong one, and someone else\'s try, do not', () async {
       await text(alice, '(555) 010-0199');
       expect(last(alice, 'text'), {'dir': 'text', 'p': 'phone', 'handle': hers});
