@@ -23,6 +23,10 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.9.32', '2026-11-19', [
+    'Polls in spaces and circles: ask one from the +, with two to ten answers. Tap an answer to vote, tap again to take it back.',
+    'A circle\'s back arrow stays inside its banner when you point at it or press it.',
+  ]),
   ReleaseNotes('0.9.31', '2026-11-19', [
     'On a computer, Emoji in a space\'s or circle\'s chat opens your computer\'s emoji panel.',
     'A circle\'s name, picture and back arrow sit inside its banner picture, clear of its rounded edges.',
