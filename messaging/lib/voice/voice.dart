@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../names.dart';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -474,7 +475,7 @@ class VoiceSession extends ChangeNotifier {
         final had = members[from] ?? VoiceMember(from);
         Set<String> ids(Object? l) => {for (final x in (l is List ? l : const [])) if (x is String) x};
         members[from] = had
-            .copyWith(name: '${m['n'] ?? ''}', muted: m['m'] == true, video: m['v'] == true, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null)
+            .copyWith(name: bareName('${m['n'] ?? ''}'), muted: m['m'] == true, video: m['v'] == true, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null)
             .withRecording(notices: m['rs'] == 1, recording: m['r'] is String ? m['r'] as String : null, agreed: ids(m['ry']), declined: ids(m['rn']));
         notifyListeners();
       case 'offer':

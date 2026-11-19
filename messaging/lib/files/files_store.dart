@@ -247,7 +247,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
       if (room != null && room.name.isNotEmpty) return room.name;
     }
     final me = Me.instance;
-    return me.displayName.isNotEmpty ? me.displayName : (me.username == null ? '' : '@${me.username}');
+    return me.shownName;
   }
 
   static Directory _appDir() {

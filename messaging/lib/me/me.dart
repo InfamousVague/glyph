@@ -1,4 +1,6 @@
 import 'dart:async';
+import '../names.dart';
+export '../names.dart';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -63,6 +65,7 @@ const networks = [
 List<Network> get openNetworks => [for (final n in networks) if (!n.soon) n];
 
 Network networkOf(String id) => networks.firstWhere((n) => n.id == id, orElse: () => networks.first);
+
 
 /// A handle as it is compared: no "@" in front, no spaces around, lower case (the server's `Handles.tidy`).
 String tidyHandle(String handle) {
@@ -533,6 +536,10 @@ class Me extends ChangeNotifier {
   /// What friends see: a name to show and a line about you, kept on the phone and sent to friends, never to the
   /// server.
   String get displayName => _app?.choice('me_display', '') ?? '';
+
+  /// The name this person goes by to others: their display name, else their username, never with an "@" ([bareName]);
+  /// '' where they have neither.
+  String get shownName => displayName.isNotEmpty ? bareName(displayName) : bareName(username ?? '');
   String get bio => _app?.choice('me_bio', '') ?? '';
 
   void setProfile({String? displayName, String? bio}) {

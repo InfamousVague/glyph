@@ -150,7 +150,7 @@ void main() {
       );
       expect(find.text('Invite people'), findsOneWidget);
       expect(find.text('Maya Chen'), findsOneWidget);
-      expect(find.text('@jordan'), findsOneWidget, reason: 'no name: the username is the name, said once');
+      expect(find.text('jordan'), findsOneWidget, reason: 'no name: the username is the name, said once, with no "@" (Matt, 2026-11-19)');
       expect(find.text('Noor Haddad'), findsNothing, reason: 'asked, not yet a friend');
       expect(find.text('In the space'), findsOneWidget, reason: 'Riley is in the call already');
       await tester.tap(find.text('Maya Chen'));

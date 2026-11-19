@@ -180,7 +180,7 @@ class Circles extends ChangeNotifier {
   final Map<String, Map<String, String>> _seen = {};
 
   /// Who has been seen in [c], by id, with their name ('' where none was given).
-  Map<String, String> seenIn(Circle c) => _seen[c.seed] ?? const {};
+  Map<String, String> seenIn(Circle c) => {for (final e in (_seen[c.seed] ?? const <String, String>{}).entries) e.key: bareName(e.value)};
 
   /// Keeps [people] (id to name) as seen in [c]; a name is kept over none, a newer over an older. Saved only where
   /// something is new, and told no one: it is asked while the members list is drawn.
@@ -190,8 +190,9 @@ class Circles extends ChangeNotifier {
     for (final e in people.entries) {
       if (e.key.isEmpty) continue;
       final had = have[e.key];
-      if (had == null || (e.value.isNotEmpty && e.value != had)) {
-        have[e.key] = e.value.isNotEmpty ? e.value : (had ?? '');
+      final name = bareName(e.value);
+      if (had == null || (name.isNotEmpty && name != had)) {
+        have[e.key] = name.isNotEmpty ? name : (had ?? '');
         changed = true;
       }
     }
@@ -670,7 +671,7 @@ class Circles extends ChangeNotifier {
   /// Gives [c] to [friends], with its manifest, as a space is given (Voice.share). Gives back those it could not reach.
   Future<List<Buddy>> share(Circle c, List<Buddy> friends) async {
     final me = Me.instance;
-    final by = me.displayName.isNotEmpty ? me.displayName : (me.username == null ? 'Someone' : '@${me.username}');
+    final by = me.shownName.isEmpty ? 'Someone' : me.shownName;
     final missed = <Buddy>[];
     for (final f in friends) {
       final peer = Net.instance.byId(f.id);
