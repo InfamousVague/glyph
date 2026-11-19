@@ -19,6 +19,7 @@ import 'shell.dart';
 import 'thread.dart';
 import 'add_friend_drawer.dart';
 import 'username_friends.dart';
+import '../friends/buddies.dart';
 
 /// The address book (Matt, 2026-11-14: "add an address book icon"): the phone's contacts, searched by name or
 /// number, and a press on one opens the conversation with them. It is the phone's own list, asked of the phone: with
@@ -130,7 +131,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
     if (c != null) {
       unawaited(_openOn(c));
     } else {
-      unawaited(_open(Person(address: r.address!, name: s.inPhone ? s.name : null, photo: s.photo)));
+      // A friend by username's name is theirs, not a contact's, and goes with them.
+      unawaited(_open(Person(address: r.address!, name: s.inPhone || r.address!.startsWith('@') ? s.name : null, photo: s.photo)));
     }
   }
 
@@ -188,6 +190,14 @@ class _ContactsScreenState extends State<ContactsScreen> {
     final contacts = [for (final n in _networks) ...n.contacts];
     // The phone answered the search itself; the networks' contacts are searched here.
     var people = [for (final s in gather(phone, contacts)) if (s.inPhone || s.friend || answers(s, _query)) s];
+    // Friends by username are on Ghost Messaging as much as friends by number are, so they are among them under the
+    // one heading, not a section of their own (Matt, 2026-11-19: "friends by username and friends on ghost messaging
+    // are about equal, just show the On Ghost Messaging and remove the Friends by username section on the contacts
+    // page"). A press opens their chat, as one from Messages does.
+    for (final b in Buddies.instance.friends) {
+      if (q.isNotEmpty && !b.shown.toLowerCase().contains(q) && !b.username.toLowerCase().contains(q.replaceFirst('@', ''))) continue;
+      people.add(Someone(name: b.shown, number: '@${b.username}', friend: true, reaches: [Reach.phone('@${b.username}')]));
+    }
     people = friendsFirst(narrowed(people, _filter));
     final friends = [for (final s in people) if (s.friend) s];
     final rest = [for (final s in people) if (!s.friend) s];
@@ -203,7 +213,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   /// Whether the filters are offered: with a network linked, or anyone added on Ghost Messaging to narrow to (with
   /// neither, All and Phone would be the same list).
-  bool _filtersShown(List<InboxNetwork> networks) => networks.isNotEmpty || Friends.instance.friends.isNotEmpty;
+  bool _filtersShown(List<InboxNetwork> networks) => networks.isNotEmpty || Friends.instance.friends.isNotEmpty || Buddies.instance.friends.isNotEmpty;
 
   /// The filters: everyone, friends on Ghost Messaging (Matt, 2026-11-17: "add the ability to sort contacts by friends
   /// in ghost"), the phone's contacts, and each linked network's, with its mark.
@@ -325,12 +335,12 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         ),
                 )
               : ListenableBuilder(
-                  listenable: Listenable.merge([Friends.instance, Inbox.instance.changes]),
+                  listenable: Listenable.merge([Friends.instance, Buddies.instance, Inbox.instance.changes]),
                   builder: (context, _) {
                     final rows = _rows(found);
-                    // Friends by username first (lib/ui/username_friends.dart; Matt, 2026-11-16: "We need a way to add
-                    // friends on the network by username on the contacts page and see friend requests"), on the phone,
-                    // whose they are, while nothing is searched for.
+                    // Friend requests and the ones sent first (lib/ui/username_friends.dart; Matt, 2026-11-16: "We need a
+                    // way to add friends on the network by username on the contacts page and see friend requests"), while
+                    // nothing is searched for; the friends themselves are On Ghost Messaging below.
                     final friends = _query.isEmpty;
                     return rows.isEmpty
                   ? ListView(padding: EdgeInsets.only(bottom: t.space(6)), children: [
