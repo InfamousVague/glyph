@@ -151,6 +151,7 @@ class Circles extends ChangeNotifier {
       for (final e in seen.entries) {
         _seen['${e.key}'] = {for (final p in ((e.value as Map?) ?? const {}).entries) '${p.key}': '${p.value}'};
       }
+      _was.addAll((jsonDecode(app.choice('circles_was', '{}')) as Map).map((k, v) => MapEntry('$k', '$v')));
     } catch (_) {}
     try {
       // One for a circle joined meanwhile (on the phone or computer) has been answered.
@@ -173,6 +174,47 @@ class Circles extends ChangeNotifier {
 
   /// Who is in a call in [c] now, by id, each once.
   List<String> inVoice(Circle c) => {for (final s in c.channels) if (s.hasVoice) ...Voice.instance.inChannel(s)}.toList();
+
+  /// Ids that were someone's before they spoke as their identity, to the id they are now: a paired computer's key of its
+  /// own ([carryOver]; Matt, 2026-11-19: each computer had been "a new matt" in every circle), said in each circle's
+  /// room signed by that key, so every device lists the two as one person. Kept (`circles_was`).
+  final Map<String, String> _was = {};
+
+  /// The id [id] stands for now: itself, or the identity it was carried over to ([_was]), and on from there where that
+  /// one was carried over in turn.
+  String sameAs(String id) {
+    var at = id;
+    for (var hops = 0; hops < 8; hops++) {
+      final next = _was[at];
+      if (next == null || next == at || next == id) break;
+      at = next;
+    }
+    return at;
+  }
+
+  /// A 'was' heard in [seed]'s circle: taken only for an id that means something there (seen in it, its owner or an
+  /// admin), so nobody can fill this device with ids of keys made for the purpose; and at most [_wasKept] in all.
+  void _heardWas(String seed, String old, String now) {
+    final c = bySeed(seed);
+    final known = (_seen[seed]?.containsKey(old) ?? false) || (c != null && (c.manifest.ownerId == old || c.manifest.granted(old)));
+    if (!known || (_was.length >= _wasKept && !_was.containsKey(old))) return;
+    _takeWas(old, now);
+  }
+
+  static const _wasKept = 500;
+
+  /// Takes [old] as [now]'s from here on: out of every circle's members seen, its rows folded into [now]'s.
+  void _takeWas(String old, String now) {
+    if (old.isEmpty || now.isEmpty || old == now || _was[old] == now) return;
+    _was[old] = now;
+    var seen = false;
+    for (final people in _seen.values) {
+      if (people.remove(old) != null) seen = true;
+    }
+    _app?.set('circles_was', jsonEncode(_was));
+    if (seen) _app?.set('circles_seen', jsonEncode(_seen));
+    notifyListeners();
+  }
 
   /// Everyone this device has seen in each circle, by circle seed, then id, with the name they gave: who was here, wrote
   /// in a space or added a file, kept so they are still among its members once they have gone (Matt, 2026-11-18: "I
@@ -294,9 +336,11 @@ class Circles extends ChangeNotifier {
     return _publish(c, (m) => m.next(spaces: [for (final (i, s) in list.indexed) s.copyWith(order: i)]));
   }
 
-  /// Makes [id] an admin of [c], who may then change it too; the owner's alone to do.
-  Future<bool> grantAdmin(Circle c, String id, {bool on = true}) async {
-    final s = signer;
+  /// Makes [id] an admin of [c], who may then change it too; the owner's alone to do. [as] signs in place of this
+  /// install's identity: a paired computer's key from before it spoke as that identity, giving what it made then to it
+  /// (Voice.carryOver).
+  Future<bool> grantAdmin(Circle c, String id, {bool on = true, NetSigner? as}) async {
+    final s = as ?? signer;
     if (s == null || s.id != c.manifest.ownerId) return false;
     final have = bySeed(c.seed) ?? c;
     final grants = {...have.manifest.adminGrants};
@@ -309,7 +353,7 @@ class Circles extends ChangeNotifier {
     // list, so a removed admin's manifests (however high they numbered them) lose to this one, for new joiners too.
     final gv = have.manifest.grantsVersion + 1;
     final gs = NetCrypto.hex(await s.sign(CircleManifest.grantsMessage(c.owner, gv, grants)));
-    return _publish(c, (m) => m.next(adminGrants: grants, grantsVersion: gv, grantsSig: gs, restart: true));
+    return _publish(c, (m) => m.next(adminGrants: grants, grantsVersion: gv, grantsSig: gs, restart: true), as: as);
   }
 
   // --- roles (Matt, 2026-11-18: "Build custom roles") -----------------------------------------------------------------
@@ -477,10 +521,12 @@ class Circles extends ChangeNotifier {
   /// [c]'s next manifest, made by [change], signed here, taken, and said to the circle and the phone. Refused (false)
   /// where it would not fit one packet on the hub, which a reader would drop on the floor: a member's copy would never
   /// change again, and the next launch here would lose the circle.
-  Future<bool> _publish(Circle c, CircleManifest Function(CircleManifest m) change) async {
-    final s = signer;
+  Future<bool> _publish(Circle c, CircleManifest Function(CircleManifest m) change, {NetSigner? as}) async {
+    final s = as ?? signer;
     final have = bySeed(c.seed) ?? c;
-    if (s == null || !have.manifest.canSign(s.id)) return false;
+    // Never over what only a link said of it (unsigned, before its manifest came): with the owner's key on every device
+    // of theirs now, a change made there would have been signed over the circle's real spaces and roles.
+    if (s == null || !have.manifest.isSigned || !have.manifest.canSign(s.id)) return false;
     var draft = change(have.manifest);
     // Numbered to the top: the owner starts the numbers again under a new admin list (CircleManifest.versionCap).
     if (draft.version >= CircleManifest.versionCap) {
@@ -497,6 +543,27 @@ class Circles extends ChangeNotifier {
     _rooms[next.seed]?.say(next.manifest);
     _toPhone(next);
     return true;
+  }
+
+  /// What [old] (a paired computer's key from before it spoke as its identity: Voice.carryOver) was in each circle is
+  /// [now]'s: [now] made an admin of every circle [old] owns, signed by [old] as their owner, and [old]'s id said to be
+  /// [now]'s in every circle's room ('was', signed by [old] too). Each room is waited for, since a new admin list is
+  /// said there and nowhere else. True once it has been done in every circle.
+  Future<bool> carryOver(NetSigner old, String now) async {
+    _takeWas(old.id, now);
+    final oldKey = NetCrypto.hex(old.publicKey);
+    var done = true;
+    for (final c in [...all]) {
+      final room = _rooms[c.seed];
+      if (room == null || !await room.joined.timeout(const Duration(seconds: 20), onTimeout: () => false)) {
+        done = false;
+        continue;
+      }
+      final have = bySeed(c.seed) ?? c;
+      if (have.owner == oldKey && !have.manifest.canSign(now) && !await grantAdmin(have, now, as: old)) done = false;
+      room.sayWas(old.publicKey, await old.sign(CircleRoom.wasMessage(c.seed, now)));
+    }
+    return done;
   }
 
   // --- joining and leaving ------------------------------------------------------------------------------------------
@@ -659,8 +726,9 @@ class Circles extends ChangeNotifier {
   /// Kept, handed to Voice, the rooms followed, and told.
   void _changed({bool keep = true}) {
     if (keep) _app?.set('circles', jsonEncode([for (final c in all) c.toJson()]));
-    // The hub dialled on a phone while there are circles, even one with no spaces yet: its room is how its list comes.
-    if (_app != null && !Sms.paired) unawaited(Net.instance.want('circles', all.isNotEmpty));
+    // The install's own hub dialled while there are circles, even one with no spaces yet: its room is how its list comes
+    // (a paired computer's key of its own dials its own: Voice.separateKey).
+    if (_app != null && !Voice.separateKey) unawaited(Net.instance.want('circles', all.isNotEmpty));
     Voice.instance.setCircled([for (final c in all) ...c.channels]);
     _openRooms();
     notifyListeners();
@@ -821,6 +889,8 @@ class Circles extends ChangeNotifier {
     }
     _rooms.clear();
     _openRooms();
+    // What a paired computer made under a key of its own, given to the identity it speaks as now.
+    if (route != null) unawaited(Voice.instance.carryOver());
   }
 
   void _openRooms() {
@@ -832,7 +902,7 @@ class Circles extends ChangeNotifier {
     if (route == null) return;
     for (final c in all) {
       if (_rooms.containsKey(c.seed)) continue;
-      final room = _rooms[c.seed] = CircleRoom(circle: c, route: route, onManifest: _heard);
+      final room = _rooms[c.seed] = CircleRoom(circle: c, route: route, onManifest: _heard, onWas: (old, now) => _heardWas(c.seed, old, now));
       unawaited(room.open().catchError((_) {}));
     }
   }
@@ -876,12 +946,20 @@ class Circles extends ChangeNotifier {
 /// - A change is said to everyone (`circle`).
 /// - What is heard is checked by [Circle.merged] before it is taken ([onManifest]).
 class CircleRoom {
-  CircleRoom({required this.circle, required this.route, required this.onManifest});
+  CircleRoom({required this.circle, required this.route, required this.onManifest, this.onWas});
 
   /// The circle as it stands here: changed by its manager as its manifest changes.
   Circle circle;
   final VoiceRoute route;
   final void Function(Circle circle, CircleManifest manifest) onManifest;
+
+  /// Told an id that was someone else's before they spoke as their identity, and theirs now (`was`).
+  final void Function(String old, String now)? onWas;
+
+  final Completer<bool> _in = Completer();
+
+  /// True once this device is in the room (what is said goes nowhere before); false if it is closed first.
+  Future<bool> get joined => _in.future;
 
   final Set<String> present = {};
   final List<StreamSubscription<Object?>> _subs = [];
@@ -909,12 +987,14 @@ class CircleRoom {
       return;
     }
     present.addAll(there);
+    if (!_in.isCompleted) _in.complete(true);
     _ask();
   }
 
   Future<void> close() async {
     if (!opened) return;
     opened = false;
+    if (!_in.isCompleted) _in.complete(false);
     route.leave(circle.room);
     for (final t in _answering.values) {
       t.cancel();
@@ -931,7 +1011,21 @@ class CircleRoom {
   /// Says [m] to everyone in the room.
   void say(CircleManifest m) => _say({'t': 'circle', 'm': m.toJson()}, keep: true);
 
-  void _ask() => _say({'t': 'sync?', 'v': circle.manifest.version});
+  void _ask() => _say({'t': 'sync?', 'v': circle.manifest.version, 'gv': circle.manifest.grantsVersion});
+
+  /// Whether this device's manifest is newer than one at [gv] and [v], as CircleManifest.follows orders them: the admin
+  /// list's generation first (a new admin list numbers its versions again from 1), then the version.
+  bool _newerThan(int gv, int v) {
+    final m = circle.manifest;
+    return m.grantsVersion != gv ? m.grantsVersion > gv : m.version > v;
+  }
+
+  /// What an old key signs to say its id is [now]'s in [seed]'s circle ([sayWas]).
+  static List<int> wasMessage(String seed, String now) => utf8.encode('ghost-circle was|$seed|$now');
+
+  /// Says that [oldKey]'s id is this device's identity's now, with [sig] by [oldKey] ([wasMessage]): kept by the hub,
+  /// so whoever comes in later folds the two together too.
+  void sayWas(Uint8List oldKey, Uint8List sig) => _say({'t': 'was', 'k': NetCrypto.hex(oldKey), 'sig': NetCrypto.hex(sig)}, keep: true);
 
   /// [keep]: a change to the circle is kept by the hub for whoever comes in later.
   void _say(Map<String, Object?> what, {bool keep = false}) {
@@ -957,6 +1051,7 @@ class CircleRoom {
       present
         ..clear()
         ..addAll(e.members!);
+      if (!_in.isCompleted) _in.complete(true);
       _ask();
     } else if (e.came != null) {
       present.add(e.came!);
@@ -978,7 +1073,9 @@ class CircleRoom {
     switch (m['t']) {
       case 'sync?':
         final v = m['v'] is int ? m['v'] as int : 0;
-        if (!circle.manifest.isSigned || circle.manifest.version <= v) return;
+        // Without 'gv' (an older build), the generation it has is taken to be this one's, as it always was.
+        final gv = m['gv'] is int ? m['gv'] as int : circle.manifest.grantsVersion;
+        if (!circle.manifest.isSigned || !_newerThan(gv, v)) return;
         // The lowest id of those here answers at once, the next a step later, and so on.
         final ids = [me, ...present.where((id) => id != from && id != me)]..sort();
         final wait = step * ids.indexOf(me).clamp(0, 12);
@@ -992,8 +1089,17 @@ class CircleRoom {
         if (got == null) return;
         // Answered by someone else, as new as what this device would say: no need to say it too.
         final to = m['to'];
-        if (to is String && to != me && got.version >= circle.manifest.version) _answering.remove(to)?.cancel();
+        if (to is String && to != me && !_newerThan(got.grantsVersion, got.version)) _answering.remove(to)?.cancel();
         if (got.follows(circle.manifest, circle.owner)) onManifest(circle, got);
+      case 'was':
+        // An id that was [from]'s before it spoke as its identity: taken only on the old key's own word, which names
+        // [from] (stamped by the relay) and this circle.
+        final k = m['k'], sig = m['sig'];
+        if (k is! String || sig is! String) return;
+        try {
+          final key = NetCrypto.unhex(k);
+          if (NetCrypto.verify(key, wasMessage(circle.seed, from), NetCrypto.unhex(sig))) onWas?.call(NetCrypto.idOf(key), from);
+        } catch (_) {}
     }
   }
 }

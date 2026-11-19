@@ -97,8 +97,29 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   sealed twice (Argon2id of the password, 64 MiB/3; and a key from the words; AES-256-GCM, the address bound in) is kept
   on the relay, which never sees either. Signing in: username + password (the relay hands the copy over only on a proof
   from the password, 10 tries an hour per account, plus a texted code where the account has a verified number), or the
-  recovery words alone. One device at a time for now (signing in moves the account). Tests: account_crypto_test
+  recovery words alone. Every device signed in is the same identity at once (below). Tests: account_crypto_test
   (BIP-39/32, EIP-55, HKDF, Argon2id vectors), account_flow_test, relay accounts_test.
+- **One identity on every device, in circles and spaces too** (0.9.20, not released; Matt, 2026-11-19: "when i join a
+  server on my other logged in machines it's joining as a new matt every time instead of reusing my existing keys and
+  owner account, when I login on ghost i should have the same identity across all devices"). Every computer paired with
+  a phone was in each circle and space under a key made for it alone (`voice_key`), even after taking on the phone's
+  identity or signing in, so each was another Matt and never the owner.
+  - Spaces, circles and Files spaces ride the install's own hub connection under its identity wherever it has one
+    (`Voice.separateKey`: only a paired computer that has not yet taken on the phone's identity keeps a key of its own).
+  - A call moves to the device that comes in last, as Discord does: it says `moved` on joining, another device of the
+    same identity leaves, and everyone else lets go of the connection they had and takes the new one's offer.
+  - A space's chat no longer counts one's other device as someone here, and greets a person's second device (`hi`
+    with `q`), which the relay announces to nobody.
+  - What an old key made or was is carried over once (`Voice.carryOver`): a paired computer's `voice_key`, and the
+    identity an install had before signing in (`was_key`, kept beside the account's words). That key makes the identity
+    an admin of every circle and space it owns, and says in each circle's room, signed, that its id is the identity's
+    (`was`, kept by the hub); every device then lists the two as one person (`Circles.sameAs`).
+  - A circle known only by its link is never signed over. Choices are written before the app starts again (a paired
+    computer's sign-in came back signed out, its last choices lost as it closed), and a sign-in cut short that way is
+    taken up again at the next start from the words in the vault (`Account.resume`). The start-of-day check with the
+    relay waits for the hub, which it never reached before, and sealing the backup again keeps what another device put
+    in it. A paired computer takes the phone's username and name where it has none.
+  - Tests: one_identity_test (a stand-in relay with several devices of one identity). Not seen on real devices yet.
 - **Circles grown up: invites, a circle's dock, members, inviting contacts by text** (0.9.4–0.9.5; Matt, 2026-11-17:
   "Finish the missing pieces", then a run of asks the same evening). Circle invites wait for Join (a banner, a card on
   the Circles tab, Not now / Invites); gogho.st/join opens in the Android app (App Links, site/.well-known/assetlinks.json).
@@ -893,9 +914,8 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   - **The browser** (site/join): the same chat beside the call, role tags, and the same rules. It checks rosters
     itself (P-256 by WebCrypto; tool/voicebench/roster_check.mjs checks rosters the app signed) and leaves when
     removed or banned. tool/voicebench/join_test.mjs covers the chat both ways and history for a latecomer.
-  - **Not yet:** a moderator's mute is held only while they are in the hangout; Matt's phone and computer are two
-    people to a hangout (the computer has its own key), so a hangout made on one makes the other a member until the
-    owner makes it an admin; the site's join page needs `tool/deploy-site.mjs` to go live.
+  - **Not yet:** a moderator's mute is held only while they are in the hangout; the site's join page needs
+    `tool/deploy-site.mjs` to go live. (A phone and its computer are one person in a hangout since 0.9.20.)
 - **Delivery to friends: sent again until answered; the relay connection made again on coming back** (not
   released; Matt, 2026-11-16: "Yes, fix delivery"). A message the relay server had handed to a connection of the
   friend's that had just died (the app in the background) was lost with nothing to say so.

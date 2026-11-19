@@ -233,10 +233,23 @@ object GmWeb {
         val db = GmBridge.Db.get(app)
         if (media != null) for (i in 0 until media.length()) {
             val p = media.getJSONObject(i)
-            // Your own picture is first told of before it is uploaded, with no id yet: it is had once it is told of
-            // again with one, and the message is drawn without it meanwhile (the screen holds the picture sending).
-            if (p.optString("id").isBlank()) continue
+            // Your own picture is first told of before it is uploaded, with no id yet, and is told of again with one;
+            // but not always, and the message then stood as nothing but its "Delivered" (Matt, 2026-11-19: "when I'm
+            // sending pictures and voice messages sometimes I don't see my outbound messages just the delivered tag").
+            // Yours with no id is the file sent from here, under a stand-in named by the message, until an id comes.
+            val stand = "sent:${m.optString("id")}:$i"
+            if (p.optString("id").isBlank()) {
+                if (!out) continue
+                val id = partId(stand)
+                db.keepPart(id, stand, "", p.optString("mime"), p.optString("name").ifBlank { null })
+                claimSent(conv, id, p.optString("mime").ifBlank { null })
+                if (!hasFile(id)) continue
+                parts.put(JSONObject().put("id", id).put("type", p.optString("mime")).put("name", p.optString("name")))
+                continue
+            }
             val id = partId(p.getString("id"))
+            // Its id come at last: the file kept under the stand-in is its picture.
+            if (out) adopt(partId(stand), id, p.optString("mime").ifBlank { null })
             db.keepPart(id, p.getString("id"), p.optString("key"), p.optString("mime"), p.optString("name").ifBlank { null },
                 p.optString("thumb").ifBlank { null }, p.optString("thumbKey").ifBlank { null })
             // Your own, just sent from here: its preview is the file sent, whatever Google Messages names it.
@@ -314,6 +327,19 @@ object GmWeb {
             val ending = android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: next.first.extension.ifBlank { "bin" }
             dir.mkdirs()
             next.first.copyTo(File(dir, "$id.$ending"), overwrite = true)
+        } catch (e: Exception) { DevLog.add(app, "gmweb", "sent copy: ${e.message}") }
+    }
+
+    /** Whether a picture's file is kept in the cache already. */
+    private fun hasFile(id: Long) = File(app.cacheDir, "gmmedia").listFiles { x -> x.nameWithoutExtension == "$id" && x.length() > 0 }?.isNotEmpty() == true
+
+    /** The file kept under the stand-in [from], kept for the picture [to] too, where [to] has none yet. */
+    private fun adopt(from: Long, to: Long, mime: String?) {
+        if (hasFile(to)) return
+        val had = File(app.cacheDir, "gmmedia").listFiles { x -> x.nameWithoutExtension == "$from" && x.length() > 0 }?.firstOrNull() ?: return
+        try {
+            val ending = android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: had.extension.ifBlank { "bin" }
+            had.copyTo(File(had.parentFile, "$to.$ending"), overwrite = true)
         } catch (e: Exception) { DevLog.add(app, "gmweb", "sent copy: ${e.message}") }
     }
 

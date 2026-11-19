@@ -1800,6 +1800,9 @@ class _Bubble extends StatelessWidget {
                 ),
         ),
     ];
+    // A message with nothing in it to draw (a picture message whose picture this phone was never told of) is still a
+    // message: a pill says what it was, where only its "Delivered" stood (Matt, 2026-11-19).
+    if (content.isEmpty) content.add(_Pill(text: m.outgoing ? 'Picture or file, not kept on this phone' : 'Attachment', ground: ground, ink: ink));
 
     Widget bubble = Column(crossAxisAlignment: out ? CrossAxisAlignment.end : CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: content);
     final ink0 = sent.bubble == BubbleEffect.invisibleInk && concealed;
@@ -2040,7 +2043,10 @@ class _Picture extends StatelessWidget {
             borderRadius: radius,
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxWidth * 1.3),
-              child: Image.memory(bytes, fit: BoxFit.cover, cacheWidth: (maxWidth * MediaQuery.devicePixelRatioOf(context)).round(), gaplessPlayback: true),
+              // One that cannot be drawn keeps its place as the grey of one coming: it drew as nothing at all, and
+              // a picture message showed only its "Delivered".
+              child: Image.memory(bytes, fit: BoxFit.cover, cacheWidth: (maxWidth * MediaQuery.devicePixelRatioOf(context)).round(), gaplessPlayback: true,
+                  errorBuilder: (context, _, _) => Container(width: maxWidth * 0.7, height: maxWidth * 0.7, decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: radius))),
             ),
           ),
         );
