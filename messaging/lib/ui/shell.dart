@@ -27,6 +27,7 @@ import 'hangout_screen.dart';
 import 'space_designs/space_design.dart';
 import 'space_groups_ui.dart';
 import '../voice/channels.dart';
+import '../voice/voice.dart' show VoiceChannel;
 import 'compose.dart';
 import 'dialup/dialup.dart';
 import 'contacts.dart';
@@ -389,6 +390,23 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// Opens [circle] in the list's place, with a way back at its top (lib/ui/circles/circle_screen.dart); beside it in
   /// a wide window its first space is opened, as Settings opens its first section. Its spaces open in the pane
   /// (`showing: 'circle'`), and go with it when it is left.
+  /// Opens [c]'s chat where it is listed: a circle's space in its circle, a space of one's own in the Voice page (a
+  /// mention's notification; Matt, 2026-11-19: "Add mentions support to spaces and circles with the @user prefix").
+  void openSpace(VoiceChannel c) {
+    final circle = Circles.instance.circleOf(c);
+    if (circle != null) {
+      openCircleSpaceSeed.value = c.seed;
+      if (_circleSeed != circle.seed) openCircle(circle);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final ctx = _side.currentContext;
+        if (mounted && ctx != null) openCircleSpace(ctx, c);
+      });
+      return;
+    }
+    Voice.instance.view(c);
+    go('voice');
+  }
+
   void openCircle(Circle circle) {
     final side = _side.currentState;
     if (side == null) {

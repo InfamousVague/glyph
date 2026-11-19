@@ -31,6 +31,7 @@ import 'kit/settings_css.dart';
 import 'net/net.dart';
 import 'people.dart';
 import 'voice/channels.dart';
+import 'voice/mention_alerts.dart';
 import 'voice/discord.dart';
 import 'voice/space_groups.dart';
 import 'sounds.dart';
@@ -293,6 +294,13 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
         keepAlive: Sms.instance.keepNetworks,
         inFront: () => WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
       )..watch(Inbox.instance);
+      // Mentions of this device in spaces' chats, notified (lib/voice/mention_alerts.dart).
+      MentionAlerts.instance ??= MentionAlerts(
+        notify: (a) => Sms.instance.notifyInbox(a.key, network: a.where, title: a.title, body: a.body, group: true),
+        cancel: Sms.instance.cancelInbox,
+        inFront: () => WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
+        on: () => app.flag('notif_mentions'),
+      );
       // Summaries of unread conversations by the phone's own model (lib/summaries.dart): where it stands, and asked
       // for where it can be had.
       Summaries.instance.start(app);
@@ -326,7 +334,12 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     final shell = _shell.currentState;
     if (shell == null) return;
     shell.home();
-    if (req.inbox != null) {
+    if (req.inbox != null && req.inbox!.startsWith('space:')) {
+      // A mention's notification (lib/voice/mention_alerts.dart): the space it was in, where it is listed.
+      final seed = req.inbox!.substring('space:'.length);
+      final c = Voice.instance.channels.where((x) => x.seed == seed).firstOrNull;
+      if (c != null) shell.openSpace(c);
+    } else if (req.inbox != null) {
       // A Signal or Telegram message's notification: its chat.
       final at = req.inbox!.indexOf(':');
       final network = at < 0 ? null : Inbox.instance.named(req.inbox!.substring(0, at));

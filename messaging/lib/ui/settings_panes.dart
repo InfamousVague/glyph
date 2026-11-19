@@ -703,6 +703,13 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
           hint: const Text('A text with a sign-in code gets a button that copies it.'),
           control: GlacierSwitch(checked: app.flag('notif_code'), onCheckedChange: (v) => app.setFlag('notif_code', v), ariaLabel: 'Copy code button'),
         ),
+        // Matt, 2026-11-19: "Add mentions support to spaces and circles with the @user prefix".
+        SettingRow(
+          icon: _icon(Lucide.atSign),
+          label: 'Mentions in spaces',
+          hint: const Text('A notification when someone writes @ and your name in a space or a circle. A space\'s other messages don\'t notify.'),
+          control: GlacierSwitch(checked: app.flag('notif_mentions'), onCheckedChange: (v) => app.setFlag('notif_mentions', v), ariaLabel: 'Mentions in spaces'),
+        ),
       ],
     ),
     // Beside Google Messages (android GmBridge.kt; Matt, 2026-11-15: "I can turn off notifications from google messages

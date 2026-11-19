@@ -419,7 +419,7 @@ class NewMessagesDivider extends StatelessWidget {
 /// small"): at least 1.375rem round, the count in 13-point bold, 99+ past ninety-nine; where no count is known, a dot
 /// half as large. In [color], its words in whichever of black and white reads on it, or [ink].
 class UnreadBadge extends StatelessWidget {
-  const UnreadBadge({super.key, this.count, required this.color, this.ink, this.square = false});
+  const UnreadBadge({super.key, this.count, required this.color, this.ink, this.square = false, this.mentioned = false});
   final int? count;
   final Color color;
   final Color? ink;
@@ -427,11 +427,15 @@ class UnreadBadge extends StatelessWidget {
   /// Square corners, for Dial-Up's rows.
   final bool square;
 
+  /// Something unread mentions the person: an "@" before the count, as other chat apps mark it (Matt, 2026-11-19:
+  /// "Add mentions support to spaces and circles with the @user prefix").
+  final bool mentioned;
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final n = count;
-    if (n == null || n <= 0) {
+    if ((n == null || n <= 0) && !mentioned) {
       final dot = t.lenOf('0.75rem');
       return Container(width: dot, height: dot, decoration: BoxDecoration(color: color, shape: square ? BoxShape.rectangle : BoxShape.circle));
     }
@@ -442,7 +446,7 @@ class UnreadBadge extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: t.space(2) - 1),
       alignment: Alignment.center,
       decoration: BoxDecoration(color: color, borderRadius: square ? null : BorderRadius.circular(side / 2)),
-      child: Text(n > 99 ? '99+' : '$n', style: t.textAt(13, weight: 'bold', height: 1.15, color: words)),
+      child: Text('${mentioned ? '@' : ''}${n == null || n <= 0 ? '' : (n > 99 ? '99+' : '$n')}', semanticsLabel: mentioned ? 'Mentions you${n == null || n <= 0 ? '' : ', $n unread'}' : null, style: t.textAt(13, weight: 'bold', height: 1.15, color: words)),
     );
   }
 }

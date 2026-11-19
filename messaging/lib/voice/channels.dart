@@ -17,6 +17,7 @@ import '../sms.dart';
 import '../sounds.dart';
 import '../circles/circles.dart';
 import 'hangout.dart';
+import 'mention_alerts.dart';
 import 'roles.dart';
 import 'rtc.dart';
 import 'voice.dart';
@@ -498,12 +499,22 @@ class Voice extends ChangeNotifier {
     return room.messages.where((m) => m.at > since && m.from != room.me).length;
   }
 
+  /// How many of [c]'s unread messages ([unreadIn]) mention this device (Matt, 2026-11-19: "Add mentions support to
+  /// spaces and circles with the @user prefix"): what an "@" on its unread mark counts.
+  int mentionsIn(VoiceChannel c) {
+    final room = _hangouts[c.seed];
+    if (room == null) return 0;
+    final since = _readAt[c.seed] ?? 0;
+    return room.messages.where((m) => m.at > since && m.from != room.me && room.mentionsMe(m)).length;
+  }
+
   /// [c]'s chat is read to its newest message.
   void markRead(VoiceChannel c) {
     final at = lastMessage(c)?.at ?? DateTime.now().millisecondsSinceEpoch;
     if ((_readAt[c.seed] ?? 0) >= at) return;
     _readAt[c.seed] = at;
     _app?.set('voice_read', jsonEncode(_readAt));
+    MentionAlerts.instance?.read(c);
     notifyListeners();
   }
 
@@ -661,6 +672,8 @@ class Voice extends ChangeNotifier {
       store: _app == null ? null : AppHangoutStore(_app!),
     );
     room.onRoster = (_) => _enforce();
+    // Someone mentioning this device: its notification (lib/voice/mention_alerts.dart).
+    room.onFresh = (fresh) => MentionAlerts.instance?.heard(room, fresh, readAt: _readAt[c.seed] ?? 0, nameOf: nameOf);
     room.addListener(notifyListeners);
     return _hangouts[c.seed] = room;
   }

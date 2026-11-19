@@ -5,6 +5,7 @@ import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -12,6 +13,7 @@ import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
 import '../app_state.dart';
+import '../mentions.dart';
 import '../desktop/platform.dart' show MacPlatform;
 import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
@@ -2142,10 +2144,17 @@ class _ReactionRow extends StatelessWidget {
 /// A message's words with its links underlined, and a press on one opening it in the browser (lib/links.dart).
 /// A long press is still the message's own, wherever it lands.
 class LinkedText extends StatefulWidget {
-  const LinkedText(this.text, {super.key, required this.ink, required this.style, this.before = const [], this.after = const []});
+  const LinkedText(this.text, {super.key, required this.ink, required this.style, this.before = const [], this.after = const [], this.mentions = const [], this.mentionStyle, this.onMention});
   final String text;
   final Color ink;
   final TextStyle style;
+
+  /// The "@Name"s in [text] that mean someone (lib/mentions.dart), drawn in [mentionStyle] and pressed for [onMention]
+  /// (Matt, 2026-11-19: "Add mentions support to spaces and circles with the @user prefix"). A link inside one is
+  /// part of the mention.
+  final List<Mention> mentions;
+  final TextStyle? mentionStyle;
+  final ValueChanged<Mention>? onMention;
 
   /// Drawn in the same run of words, before and after the message's own: Dial-Up's bold "Name: " and its small status,
   /// so a wrapped line goes back to the left edge under the name (lib/ui/message_line.dart).
@@ -2158,6 +2167,8 @@ class LinkedText extends StatefulWidget {
 class _LinkedTextState extends State<LinkedText> {
   List<MessageLink> _links = const [];
   final List<TapGestureRecognizer> _taps = [];
+  List<Mention> _mentions = const [];
+  final List<TapGestureRecognizer> _mentionTaps = [];
 
   @override
   void initState() {
@@ -2168,7 +2179,7 @@ class _LinkedTextState extends State<LinkedText> {
   @override
   void didUpdateWidget(LinkedText old) {
     super.didUpdateWidget(old);
-    if (old.text != widget.text) _read();
+    if (old.text != widget.text || !listEquals(old.mentions, widget.mentions) || (old.onMention == null) != (widget.onMention == null)) _read();
   }
 
   void _read() {
@@ -2176,9 +2187,18 @@ class _LinkedTextState extends State<LinkedText> {
       t.dispose();
     }
     _taps.clear();
-    _links = MessageLink.find(widget.text);
+    for (final t in _mentionTaps) {
+      t.dispose();
+    }
+    _mentionTaps.clear();
+    _mentions = Mention.checked(widget.mentions, widget.text);
+    bool inMention(MessageLink l) => _mentions.any((m) => l.start < m.end && l.end > m.start);
+    _links = [for (final l in MessageLink.find(widget.text)) if (!inMention(l)) l];
     for (final link in _links) {
       _taps.add(TapGestureRecognizer()..onTap = () => _open(link.address));
+    }
+    for (final m in _mentions) {
+      _mentionTaps.add(TapGestureRecognizer()..onTap = () => widget.onMention?.call(m));
     }
   }
 
@@ -2192,7 +2212,7 @@ class _LinkedTextState extends State<LinkedText> {
 
   @override
   void dispose() {
-    for (final t in _taps) {
+    for (final t in [..._taps, ..._mentionTaps]) {
       t.dispose();
     }
     super.dispose();
@@ -2203,17 +2223,33 @@ class _LinkedTextState extends State<LinkedText> {
     final text = widget.text;
     final spans = <InlineSpan>[...widget.before];
     var at = 0;
-    for (var i = 0; i < _links.length; i++) {
-      final link = _links[i];
-      if (link.start > at) spans.add(TextSpan(text: text.substring(at, link.start)));
-      spans.add(TextSpan(
-        text: text.substring(link.start, link.end),
-        style: TextStyle(decoration: TextDecoration.underline, decorationColor: widget.ink),
-        recognizer: _taps[i],
-        mouseCursor: SystemMouseCursors.click,
-        semanticsLabel: 'Link: ${text.substring(link.start, link.end)}',
-      ));
-      at = link.end;
+    // Links and mentions in the order they come in the words (none over another: a link in a mention was left out).
+    final marks = <(int, int, bool, int)>[
+      for (var i = 0; i < _links.length; i++) (_links[i].start, _links[i].end, false, i),
+      for (var i = 0; i < _mentions.length; i++) (_mentions[i].start, _mentions[i].end, true, i),
+    ]..sort((a, b) => a.$1.compareTo(b.$1));
+    for (final (start, end, mention, i) in marks) {
+      if (start > at) spans.add(TextSpan(text: text.substring(at, start)));
+      final words = text.substring(start, end);
+      if (mention) {
+        final press = widget.onMention != null;
+        spans.add(TextSpan(
+          text: words,
+          style: widget.mentionStyle ?? const TextStyle(fontWeight: FontWeight.w600),
+          recognizer: press ? _mentionTaps[i] : null,
+          mouseCursor: press ? SystemMouseCursors.click : null,
+          semanticsLabel: 'Mention: ${words.substring(1)}',
+        ));
+      } else {
+        spans.add(TextSpan(
+          text: words,
+          style: TextStyle(decoration: TextDecoration.underline, decorationColor: widget.ink),
+          recognizer: _taps[i],
+          mouseCursor: SystemMouseCursors.click,
+          semanticsLabel: 'Link: $words',
+        ));
+      }
+      at = end;
     }
     if (at < text.length) spans.add(TextSpan(text: text.substring(at)));
     spans.addAll(widget.after);

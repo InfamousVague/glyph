@@ -168,6 +168,9 @@ class Circles extends ChangeNotifier {
   /// How many messages from others in [c]'s spaces came after this device last read each.
   int unread(Circle c) => c.channels.fold(0, (n, s) => n + Voice.instance.unreadIn(s));
 
+  /// How many of those mention this device (Voice.mentionsIn).
+  int mentions(Circle c) => c.channels.fold(0, (n, s) => n + Voice.instance.mentionsIn(s));
+
   /// Who is in a call in [c] now, by id, each once.
   List<String> inVoice(Circle c) => {for (final s in c.channels) if (s.hasVoice) ...Voice.instance.inChannel(s)}.toList();
 
