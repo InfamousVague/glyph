@@ -21,6 +21,7 @@ import '../voice/mention_alerts.dart';
 import '../voice/roles.dart';
 import '../voice/voice.dart';
 import 'common.dart';
+import 'plugin_note_card.dart';
 import 'profile_card.dart';
 import '../app_state.dart';
 import '../backgrounds.dart';
@@ -943,8 +944,8 @@ class _HangoutChatState extends State<HangoutChat> {
                 // Each person keeps one of the room's six colours, by their id, and yours is your own.
                 nameColor: mine ? c.nameMine : c.nameFor(m.from),
                 mine: mine,
-                // A poll's question is on its card.
-                body: m.poll != null ? '' : (shown?.bubble ?? m.text),
+                // A poll's question is on its card, and a plugin's note is its card (lib/ui/plugin_note_card.dart).
+                body: m.poll != null || pluginCardOf(m, mine: mine) != null ? '' : (shown?.bubble ?? m.text),
                 // A translation's words are not the words the mentions are counted in.
                 mentions: shown == null ? m.mentions : const [],
                 mentionStyle: mentionStyle(context.tokens, on: c.ink),
@@ -954,6 +955,7 @@ class _HangoutChatState extends State<HangoutChat> {
                 original: shown == null ? null : OriginalLine(view: shown),
                 // What went with it under the words, square, as the era's lines carry pictures (Matt, 2026-11-18).
                 media: [
+                  if (pluginCardOf(m, mine: mine) case final pc?) PluginChatCardView(card: pc.card, plugin: pc.plugin, maxWidth: 320, ground: c.paper, ink: c.ink),
                   if (m.poll != null) PollCard(room: room, message: m, maxWidth: 320),
                   if (m.sticker != null) SpaceSticker(name: m.sticker!, side: 120),
                   if (m.files.isNotEmpty) SpaceChatFiles(channel: room.channel, message: m, maxWidth: 280, ground: c.paper, ink: c.ink, rim: Border.all(color: c.shadow)),
@@ -1377,7 +1379,11 @@ class _Message extends StatelessWidget {
     // 2026-11-18: "I also want full support for uploading attachements gifs stickers etc like we support in other chats").
     final words = shown == null ? bubble : Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [OriginalCard(view: shown, maxWidth: maxWidth), bubble]);
     final Widget body;
-    if (m.poll != null) {
+    final plugin = pluginCardOf(m, mine: mine);
+    if (plugin != null) {
+      // A plugin's note: its card, in place of the bubble (lib/ui/plugin_note_card.dart).
+      body = PluginChatCardView(card: plugin.card, plugin: plugin.plugin, maxWidth: maxWidth);
+    } else if (m.poll != null) {
       body = PollCard(room: room, message: m, maxWidth: maxWidth);
     } else if (m.sticker != null) {
       body = SpaceSticker(name: m.sticker!, side: math.min(t.lenOf('9.5rem'), maxWidth));
@@ -1462,7 +1468,10 @@ extension on _Message {
     final ink = t.color('app-ink');
     final words = _words(t, shown, pageText(t, t.fontSize('md'), color: ink, height: 1.4), ink);
     final Widget body;
-    if (m.poll != null) {
+    final plugin = pluginCardOf(m, mine: mine);
+    if (plugin != null) {
+      body = PluginChatCardView(card: plugin.card, plugin: plugin.plugin, maxWidth: math.min(maxWidth, t.lenOf('26rem')));
+    } else if (m.poll != null) {
       body = PollCard(room: room, message: m, maxWidth: maxWidth);
     } else if (m.sticker != null) {
       body = SpaceSticker(name: m.sticker!, side: math.min(t.lenOf('8rem'), maxWidth));

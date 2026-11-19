@@ -44,7 +44,8 @@ class RecordingBanner extends StatelessWidget {
         final t = context.tokens;
         final rec = CallRecorder.instance;
         final lines = <Widget>[];
-        Widget pill(String label, VoidCallback onPressed, {bool solid = false}) => Padding(
+        // [icon] before the words: Stop has its square (Matt, 2026-11-19: "use icons for starting and stopping recording").
+        Widget pill(String label, VoidCallback onPressed, {bool solid = false, LucideIcon? icon}) => Padding(
               padding: EdgeInsets.only(left: t.space(2)),
               child: GlacierPressable(
                 onPressed: onPressed,
@@ -52,7 +53,10 @@ class RecordingBanner extends StatelessWidget {
                 builder: (context, state) => Container(
                   padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1)),
                   decoration: BoxDecoration(color: solid ? const Color(0xFFFFFFFF) : const Color(0x33FFFFFF), borderRadius: BorderRadius.circular(999)),
-                  child: Text(label, style: pageText(t, t.fontSize('xs'), weight: 'bold', color: solid ? red : const Color(0xFFFFFFFF))),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    if (icon != null) ...[AppIcon(icon, size: 13, strokeWidth: 2.4, color: solid ? red : const Color(0xFFFFFFFF)), SizedBox(width: t.space(1))],
+                    Text(label, style: pageText(t, t.fontSize('xs'), weight: 'bold', color: solid ? red : const Color(0xFFFFFFFF))),
+                  ]),
                 ),
               ),
             );
@@ -62,7 +66,7 @@ class RecordingBanner extends StatelessWidget {
               padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
               decoration: BoxDecoration(color: red, borderRadius: BorderRadius.circular(t.radius('lg'))),
               child: Row(children: [
-                Container(width: 10, height: 10, decoration: const BoxDecoration(color: Color(0xFFFFFFFF), shape: BoxShape.circle)),
+                const AppIcon(Lucide.circleDot, size: 16, strokeWidth: 2.4, color: Color(0xFFFFFFFF)),
                 SizedBox(width: t.space(2)),
                 Expanded(child: Text(words, maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: const Color(0xFFFFFFFF)))),
                 ...buttons,
@@ -73,7 +77,7 @@ class RecordingBanner extends StatelessWidget {
           final clock = since == null ? '' : ' · ${_clock(DateTime.now().difference(since))}';
           final names = rec.recordedNames;
           final others = names.length <= 1 ? 'only your voice so far' : names.skip(1).join(', ');
-          lines.add(line('Recording$clock · $others', [pill('Stop', () => _stop(context), solid: true)], key: 'recording-mine'));
+          lines.add(line('Recording$clock · $others', [pill('Stop', () => _stop(context), solid: true, icon: Lucide.square)], key: 'recording-mine'));
         } else if (rec.finishing) {
           lines.add(line('Saving the recording…', const [], key: 'recording-saving'));
         }

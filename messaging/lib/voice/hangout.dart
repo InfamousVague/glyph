@@ -16,8 +16,10 @@ import 'roles.dart';
 import 'voice.dart';
 import '../me/me.dart' show Me;
 import '../me/pictures.dart';
+import 'plugin_note.dart';
 import 'polls.dart';
 
+export 'plugin_note.dart';
 export 'polls.dart';
 
 /// A hangout's chat, and its roles kept and enforced (Matt, 2026-11-15: "Implement a permissions system similar to
@@ -201,7 +203,8 @@ class HangoutRoom extends ChangeNotifier {
   /// Writes [text], with [files] that are up already or a [sticker], to the hangout; false where this device may not or
   /// there is nothing to send. [id]: the one an [OutgoingMessage] was shown under.
   /// [mentions]: who is meant by an "@Name" in [text], counted in [text] as given (lib/mentions.dart).
-  bool sendWith({String text = '', List<SpaceFile> files = const [], String? sticker, bool voice = false, String? id, List<Mention> mentions = const []}) {
+  /// [note]: a plugin's, for it to draw as a card over [text] (lib/voice/plugin_note.dart); only with words alone.
+  bool sendWith({String text = '', List<SpaceFile> files = const [], String? sticker, bool voice = false, String? id, List<Mention> mentions = const [], PluginChatNote? note}) {
     var words = text.trim();
     if (sticker != null && !HangoutMessage.stickerPattern.hasMatch(sticker)) return false;
     final extra = files.isNotEmpty || sticker != null;
@@ -219,6 +222,7 @@ class HangoutRoom extends ChangeNotifier {
       voice: voice && files.length == 1 && sticker == null,
       // Counted in the words as sent: trimmed, and cut short where too long (a mention past the cut goes).
       mentions: Mention.checked(Mention.trimmed(mentions, text), words),
+      note: extra ? null : note,
     ));
     _add([m]);
     _say({'t': 'msg', ...m.toJson()}, keep: true);
@@ -904,7 +908,7 @@ class HangoutPerson {
 /// (lib/files/files_store.dart, [ChatUploads]), but never written in its list: only the message knows of them.
 @immutable
 class HangoutMessage {
-  const HangoutMessage({required this.id, required this.from, required this.name, required this.text, required this.at, this.files = const [], this.sticker, this.voice = false, this.mentions = const [], this.poll});
+  const HangoutMessage({required this.id, required this.from, required this.name, required this.text, required this.at, this.files = const [], this.sticker, this.voice = false, this.mentions = const [], this.poll, this.note});
   final String id;
 
   /// Who wrote it (their id on the hub, as the hub said), and the name they wrote it under.
@@ -931,6 +935,10 @@ class HangoutMessage {
 
   /// A poll, whose question is [text] (lib/voice/polls.dart); null for any other message.
   final PollSpec? poll;
+
+  /// What a plugin is saying, for it to draw as a card (lib/voice/plugin_note.dart); [text] is the same in words, which
+  /// is what a build without the plugin shows. Since 2026-11-19 (`pn`).
+  final PluginChatNote? note;
 
   /// Whether it mentions [id].
   bool mentionsOf(String id) => Mention.names(mentions, id);
@@ -963,7 +971,7 @@ class HangoutMessage {
   /// The message in a line, for a list's preview: its words, or what came.
   String get summary => !extras ? text : (text.isEmpty ? what : '$what · $text');
 
-  HangoutMessage copyWith({List<SpaceFile>? files}) => HangoutMessage(id: id, from: from, name: name, text: text, at: at, files: files ?? this.files, sticker: sticker, voice: voice, mentions: mentions, poll: poll);
+  HangoutMessage copyWith({List<SpaceFile>? files}) => HangoutMessage(id: id, from: from, name: name, text: text, at: at, files: files ?? this.files, sticker: sticker, voice: voice, mentions: mentions, poll: poll, note: note);
 
   Map<String, Object> toJson() => {
         'id': id,
@@ -977,6 +985,7 @@ class HangoutMessage {
         if (voice && files.isNotEmpty) 'vo': 1,
         if (mentions.isNotEmpty) 'mn': [for (final m in mentions) m.toJson()],
         if (poll != null) 'pl': poll!.toJson(),
+        if (note != null) 'pn': note!.toJson(),
       };
 
   /// From what [from] said: its id, words and time; null where it is not a message. A message whose files and sticker
@@ -1014,6 +1023,8 @@ class HangoutMessage {
       voice: j['vo'] == 1 && files.length == 1 && sticker == null,
       mentions: Mention.checked(mentions, kept),
       poll: poll,
+      // A plugin's note is words with a card over them: never with files, a sticker or a poll.
+      note: extras ? null : PluginChatNote.fromJson(j['pn']),
     );
   }
 

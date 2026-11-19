@@ -25,6 +25,9 @@ import 'package:flutter/widgets.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../sms.dart';
+import '../voice/plugin_note.dart';
+
+export '../voice/plugin_note.dart' show PluginChatNote;
 
 // --- what a plugin is shown ------------------------------------------------------------------------------------------
 
@@ -868,8 +871,35 @@ class PluginReach {
 // --- the plugin ------------------------------------------------------------------------------------------------------
 
 /// A plugin. The ones the app ships with are compiled in and listed in registry.dart.
+/// How a plugin's note in a space's chat is drawn (Matt, 2026-11-19: "allow plugins to render messages like these as
+/// cards with iconography and details"): its icon on its colour, a title, a line under it, and facts in a row.
+@immutable
+class PluginChatCard {
+  const PluginChatCard({required this.icon, required this.title, this.detail = '', this.facts = const [], this.hue, this.alert = false});
+  final LucideIcon icon;
+
+  /// "Maya started recording".
+  final String title;
+
+  /// A line under it: "Only the voices of people who say yes are in it."
+  final String detail;
+
+  /// Short facts, each an icon and words: (clock, "12 min"), (users, "3 voices").
+  final List<(LucideIcon, String)> facts;
+
+  /// Its colour among Settings' hues; the plugin's own where null.
+  final String? hue;
+
+  /// Something going on now (a recording): its icon on red.
+  final bool alert;
+}
+
 abstract class GhostPlugin {
   const GhostPlugin();
+
+  /// [note], something this plugin said in a space's chat (lib/voice/plugin_note.dart), as a card; null to show its
+  /// words as any message's are. [mine]: this device said it.
+  PluginChatCard? card(PluginChatNote note, {required bool mine}) => null;
 
   /// Its name in the person's choices (`plugin_<id>`) and nowhere on the screen: lower-case letters and digits.
   String get id;

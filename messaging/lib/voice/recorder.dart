@@ -32,6 +32,7 @@ import 'channels.dart';
 import '../plugins/record_call.dart' show RecordCallPlugin;
 import '../plugins/scribe.dart' show ScribePlugin;
 import 'mp4_names.dart';
+import 'plugin_note.dart';
 import 'scribe.dart';
 import 'voice.dart';
 
@@ -187,7 +188,12 @@ class CallRecorder extends ChangeNotifier {
     s.setRecording(id);
     s.answerRecording(id, true);
     // A line every build shows, the browser page and older apps among them.
-    v.hangoutFor(s.channel)?.send('🔴 ${t.names['me']} started recording this call. Only the voices of people who say yes are in it.');
+    // With Record call's note, which draws it as a card with its icon (lib/plugins/record_call.dart); the words are what
+    // a build without it shows.
+    v.hangoutFor(s.channel)?.sendWith(
+      text: '🔴 ${t.names['me']} started recording this call. Only the voices of people who say yes are in it.',
+      note: PluginChatNote('recordcall', 'started', {'by': t.names['me']!}),
+    );
     _watch = _changes(s).listen((_) => _follow(s));
     _follow(s);
     notifyListeners();
@@ -253,6 +259,9 @@ class CallRecorder extends ChangeNotifier {
     if (s != null && s.recording == t.id) s.setRecording(null);
     finishing = true;
     notifyListeners();
+    // What the "stopped" card says (lib/plugins/record_call.dart): how long, how many voices, where it went.
+    var seconds = DateTime.now().difference(t.started).inSeconds;
+    var voices = 0;
     try {
       final counts = ((await _channel.invokeMethod<Map>('stop')) ?? const {}).map((k, v) => MapEntry('$k', (v as num).toInt()));
       // Every voice that has any sound, 'me' first, in the order they came.
@@ -268,7 +277,8 @@ class CallRecorder extends ChangeNotifier {
       });
       final names = ['Everyone', for (final k in keys) t.names[k]!];
       await Mp4Names.apply(out, names);
-      final seconds = (counts.values.fold<int>(0, (a, b) => a > b ? a : b) / 48000).round();
+      seconds = (counts.values.fold<int>(0, (a, b) => a > b ? a : b) / 48000).round();
+      voices = keys.length;
       final r = Recording(id: t.id, path: out, space: t.space, at: t.started, seconds: seconds, people: names.skip(1).toList(), by: t.names['me']!, seed: t.seed);
       _readKept();
       _kept.insert(0, r);
@@ -292,7 +302,15 @@ class CallRecorder extends ChangeNotifier {
       finishing = false;
       notifyListeners();
       final room = s == null ? null : Voice.instance.hangoutFor(s.channel);
-      room?.send('⏹ ${t.names['me']} stopped recording.');
+      room?.sendWith(
+        text: '⏹ ${t.names['me']} stopped recording.',
+        note: PluginChatNote('recordcall', 'stopped', {
+          'by': t.names['me']!,
+          'seconds': '$seconds',
+          if (voices > 0) 'voices': '$voices',
+          if (savedTo != null) 'savedTo': savedTo!,
+        }),
+      );
     }
   }
 
