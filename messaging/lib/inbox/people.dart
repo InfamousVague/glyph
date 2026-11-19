@@ -153,8 +153,11 @@ class _Building {
       friend: phone?.friend ?? false,
       inPhone: phone != null,
       reaches: [
-        // A number known from anywhere can be texted, a network contact's too.
-        if (number != null && numberKey(number).isNotEmpty) Reach.phone(number),
+        // A number known from anywhere can be texted, a network contact's too; a friend by username is written to on
+        // Ghost by their @username, which has no digits to make a number of (Matt, 2026-11-19: "the message with isn't
+        // working we should be able to see message phill with his internal account": a friend by username had no
+        // way listed, so the choice opened empty).
+        if (number != null && (numberKey(number).isNotEmpty || (phone?.friend == true && number.startsWith('@')))) Reach.phone(number),
         for (final c in ordered) Reach.on(c),
       ],
     );

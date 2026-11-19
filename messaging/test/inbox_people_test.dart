@@ -75,4 +75,11 @@ void main() {
     expect(answers(s, 'jopark'), isTrue);
     expect(answers(s, 'maya'), isFalse);
   });
+
+  test('a friend by username is written to on Ghost by it (Matt, 2026-11-19: "the message with isn\'t working")', () {
+    final phil = gather([const PhoneContact(address: '@phil_test', name: 'philtestaccount', friend: true)], const []).single;
+    expect([for (final r in phil.reaches) r.address], ['@phil_test'], reason: 'one way, so a press opens the chat');
+    // Someone not a friend whose "number" has no digits is still not something to text.
+    expect(gather([const PhoneContact(address: 'Unknown', name: 'Odd')], const []).single.reaches, isEmpty);
+  });
 }
