@@ -31,6 +31,9 @@ import '../sms.dart';
 import '../voice/channels.dart';
 import '../voice/voice.dart';
 import 'circle.dart';
+import 'slow_mode.dart';
+
+export 'slow_mode.dart';
 
 export 'circle.dart';
 
@@ -346,6 +349,26 @@ class Circles extends ChangeNotifier {
     return _publish(c, (m) => m.next(spaces: [
           for (final s in m.spaces) s.seed == seed ? s.copyWith(name: n == null || n.isEmpty ? null : n, kind: kind, section: capName(section), clearSection: clearSection) : s,
         ]));
+  }
+
+  /// Sets [seed]'s slow mode in [c] to [seconds] (one of [slowModeChoices]; 0 turns it off): each person may write
+  /// there once in that many seconds, save those who manage spaces (Matt, 2026-11-19: "add ... slow mode").
+  Future<bool> setSlowMode(Circle c, String seed, int seconds) {
+    final space = c.space(seed);
+    if (space == null || !slowModeChoices.contains(seconds)) return Future.value(false);
+    return _publish(c, (m) => m.next(spaces: [
+          for (final s in m.spaces) s.seed == seed ? s.copyWith(extra: {...s.extra, 'slow': seconds == 0 ? null : seconds}) : s,
+        ]));
+  }
+
+  /// How long this install waits between messages in [space]: its slow mode, where this install doesn't manage spaces
+  /// there; 0 outside a circle, with slow mode off, and for those who manage spaces.
+  int slowModeFor(VoiceChannel space) {
+    final c = circleOf(space);
+    final s = c?.space(space.seed);
+    if (c == null || s == null) return 0;
+    final seconds = slowModeOf(s);
+    return seconds == 0 || allows(space, CirclePerm.spaces) ? 0 : seconds;
   }
 
   /// Takes a space out of [c]'s list, with what it said of each role. Its chat stays with whoever has it; it is just no

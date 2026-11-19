@@ -1,4 +1,4 @@
-import '../circles/circles.dart' show Circles, CirclePerm;
+import '../circles/circles.dart' show Circles, CirclePerm, slowModeLabel, slowModeLeft;
 import 'package:flutter/foundation.dart' show listEquals;
 import 'dart:async';
 import 'dart:convert' show base64Decode;
@@ -589,6 +589,7 @@ class _HangoutChatState extends State<HangoutChat> {
   void dispose() {
     if (MentionAlerts.showing == widget.room.channel.seed) MentionAlerts.showing = null;
     widget.room.removeListener(_roomChanged);
+    _slowTimer?.cancel();
     _text.dispose();
     _focus.dispose();
     _scroll.dispose();
@@ -605,6 +606,7 @@ class _HangoutChatState extends State<HangoutChat> {
 
   void _send() {
     final room = widget.room;
+    if (_slowLeft > Duration.zero) return;
     if (_picked.isNotEmpty) {
       if (!_mayAttach) {
         toast(context, 'Your role here can\'t send files.', tone: GlacierToastTone.danger);
@@ -751,10 +753,38 @@ class _HangoutChatState extends State<HangoutChat> {
 
   /// The + : any files, pictures, videos and GIFs among them, up to ten with one message, chosen with the device's own
   /// picker (a phone's copied into the app's folder first, as a Files space's are).
+  // --- slow mode (Matt, 2026-11-19: "add ... slow mode"; lib/circles/slow_mode.dart) ----------------------------------
+
+  /// This space's wait between this person's messages, in seconds; 0 where there is none for them.
+  int get _slowSeconds => (widget.circles ?? Circles.instance).slowModeFor(widget.room.channel);
+
+  /// How long until this person may write here again: none where slow mode is off or they wrote long enough ago.
+  Duration get _slowLeft {
+    final secs = _slowSeconds;
+    if (secs == 0) return Duration.zero;
+    final room = widget.room;
+    final last = room.messages.lastWhere((m) => m.from == room.me, orElse: () => const HangoutMessage(id: '', from: '', name: '', text: '', at: 0)).at;
+    final left = last + secs * 1000 - DateTime.now().millisecondsSinceEpoch;
+    return left > 0 ? Duration(milliseconds: left) : Duration.zero;
+  }
+
+  /// Redraws the countdown each second while there is one.
+  Timer? _slowTimer;
+  void _tickSlowMode() {
+    _slowTimer ??= Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return timer.cancel();
+      setState(() {});
+      if (_slowLeft <= Duration.zero) {
+        timer.cancel();
+        _slowTimer = null;
+      }
+    });
+  }
+
   /// The +: files and pictures where they may go, and a poll (Matt, 2026-11-19: "add Polls as a default feature")
   /// where this device may write; a choice between them where both may. Null where neither.
-  VoidCallback? _plusAction(bool files) {
-    final polls = widget.room.mayWrite && _picked.isEmpty;
+  VoidCallback? _plusAction(bool files, {bool polls = true}) {
+    polls = polls && widget.room.mayWrite && _picked.isEmpty;
     if (!files && !polls) return null;
     if (!polls) return _attach;
     return () => showChoices(context, choices: [
@@ -781,6 +811,7 @@ class _HangoutChatState extends State<HangoutChat> {
   /// The stickers' sheet; the one tapped is sent straight away, by its name: every app carries the stickers, so nothing
   /// goes up, and it is sealed as any message here is.
   Future<void> _sticker() async {
+    if (_slowLeft > Duration.zero) return;
     final asset = await pickSticker(context);
     if (asset == null || !mounted) return;
     HapticFeedback.lightImpact();
@@ -1085,13 +1116,18 @@ class _HangoutChatState extends State<HangoutChat> {
                       // stickers and, on the phone itself, voice messages, as in other chats (Matt, 2026-11-18). Files
                       // only where the circle's roles let this person share them (spaceMayAttach).
                       final attach = _mayAttach;
+                      // Slow mode: how long until this person may write again here (Matt, 2026-11-19).
+                      final slow = _slowSeconds;
+                      final left = _slowLeft;
+                      final waiting = left > Duration.zero;
+                      if (waiting) _tickSlowMode();
                       final buttons = composerButtons(
                         t,
                         hasSomething: _text.text.isNotEmpty || _picked.isNotEmpty,
-                        onAttach: _plusAction(attach && FilePlatform.canPick && _picked.length < HangoutMessage.mostFiles),
-                        onSticker: _picked.isEmpty ? _sticker : null,
-                        onRecord: attach && !Sms.remote && _picked.isEmpty ? _record : null,
-                        onSend: _text.text.trim().isEmpty && _picked.isEmpty ? null : _send,
+                        onAttach: _plusAction(attach && FilePlatform.canPick && _picked.length < HangoutMessage.mostFiles, polls: !waiting),
+                        onSticker: _picked.isEmpty && !waiting ? _sticker : null,
+                        onRecord: attach && !Sms.remote && _picked.isEmpty && !waiting ? _record : null,
+                        onSend: (_text.text.trim().isEmpty && _picked.isEmpty) || waiting ? null : _send,
                         emoji: Sms.remote,
                         onEmoji: _emoji,
                       );
@@ -1101,6 +1137,7 @@ class _HangoutChatState extends State<HangoutChat> {
                         // and circles with the @user prefix").
                         if (_query != null && _found.isNotEmpty)
                           MentionSuggestions(people: _found, chosen: _chosen, onPick: _pickMention, inkOf: (p) => p.role is Role ? roleInk(t, p.role as Role) : null),
+                        if (slow > 0) _SlowModeLine(seconds: slow, left: left),
                         if (_picked.isNotEmpty) SpacePickedStrip(files: _picked, onRemove: (p) => setState(() => _picked.remove(p))),
                         ComposerBox(
                           typing: _typing,
@@ -2306,5 +2343,33 @@ class _SpaceFaceState extends State<SpaceFace> {
     // Dial-Up's faces are square in a sunken ring, as Avatar draws them there.
     if (isBevelChrome(t)) return DialupFace(size: size, child: image);
     return ClipOval(child: SizedBox(width: size, height: size, child: image));
+  }
+}
+
+/// Over a space's box where it has slow mode: how long each person waits, and while this one waits, how long is left
+/// (Matt, 2026-11-19: "add ... slow mode").
+class _SlowModeLine extends StatelessWidget {
+  const _SlowModeLine({required this.seconds, required this.left});
+  final int seconds;
+  final Duration left;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final waiting = left > Duration.zero;
+    return Padding(
+      key: ValueKey(waiting ? 'slow-mode-wait' : 'slow-mode-on'),
+      padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), t.space(1)),
+      child: Row(children: [
+        AppIcon(Lucide.hourglass, size: 13, color: t.color('app-ink-3')),
+        SizedBox(width: t.space(1) + 2),
+        Expanded(
+          child: Text(
+            waiting ? 'Slow mode: you can write again in ${slowModeLeft(left)}' : 'Slow mode: one message every ${slowModeLabel(seconds)}',
+            style: pageText(t, t.fontSize('xs'), weight: waiting ? 'semibold' : 'regular', color: t.color(waiting ? 'app-ink-2' : 'app-ink-3')),
+          ),
+        ),
+      ]),
+    );
   }
 }
