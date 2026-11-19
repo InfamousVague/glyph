@@ -60,6 +60,9 @@ flutter:
     - assets/art/
     # The interface sounds, made by tool/ui_sounds.py (lib/sounds.dart).
     - assets/sounds/
+    # Every emoji with its names, keywords and skin tones, for the app's own picker (lib/emoji_data.dart; emojibase,
+    # MIT, assets/emoji/LICENSE-emojibase).
+    - assets/emoji/emoji.tsv
   fonts:
     - family: Inter Variable
       fonts:

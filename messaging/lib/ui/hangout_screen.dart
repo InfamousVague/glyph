@@ -21,6 +21,7 @@ import '../voice/mention_alerts.dart';
 import '../voice/roles.dart';
 import '../voice/voice.dart';
 import 'common.dart';
+import 'emoji_picker.dart';
 import 'plugin_note_card.dart';
 import 'profile_card.dart';
 import '../app_state.dart';
@@ -675,24 +676,12 @@ class _HangoutChatState extends State<HangoutChat> {
     _focus.requestFocus();
   }
 
-  /// The computer's own emoji panel, once the box takes typing: the Mac's opens on the field typing goes to, and on
-  /// nothing where there is none. Focus asked for here lands a moment later, and the panel was asked for before it
-  /// (Matt, 2026-11-19: "the emoji picker doesn't open anything on desktop when in a circle").
-  void _emoji() {
-    void open() => Sms.instance.emojiPanel().catchError((_) {});
-    if (_focus.hasFocus) {
-      open();
-      return;
-    }
-    void landed() {
-      if (!_focus.hasFocus) return;
-      _focus.removeListener(landed);
-      open();
-    }
-
-    // After the field's own listener, which opens its text input as focus lands.
-    _focus.addListener(landed);
-    _focus.requestFocus();
+  /// The app's own emoji picker (lib/ui/emoji_picker.dart; Matt, 2026-11-19: "roll an in house emoji picker"): each
+  /// emoji picked goes in where the cursor is, and the box has the typing again once it is put away. Before it, the
+  /// computer's own panel, which opened on nothing where the box had no focus yet.
+  Future<void> _emoji() async {
+    await showEmojiPicker(context, onPick: (e) => insertEmoji(_text, e));
+    if (mounted) _focus.requestFocus();
   }
 
   KeyEventResult _mentionKeys(FocusNode node, KeyEvent e) {

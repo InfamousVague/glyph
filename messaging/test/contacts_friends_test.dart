@@ -52,23 +52,24 @@ void main() {
       expect(find.text('Friends'), findsOneWidget, reason: 'the chip');
       expect(_names(tester), ['Sam Rivera', 'Theo Park', 'Maya Chen', 'Mom']);
       expect(find.text('On Ghost Messaging'), findsOneWidget);
-      expect(find.text('Blocked'), findsOneWidget, reason: 'the block list heads All');
+      // Blocked is a round button beside Add, under every filter (Matt, 2026-11-19: "move blocked to the right of the
+      // add friend button instead of making it it's whole own rown"), not a row of the list.
+      expect(find.byKey(const ValueKey('contacts-blocked')), findsOneWidget);
+      expect(find.text('Blocked'), findsNothing);
 
       await tester.tap(find.text('Friends'));
       await _pumps(tester);
       expect(_names(tester), ['Sam Rivera', 'Theo Park']);
       expect(find.text('On Ghost Messaging'), findsNothing, reason: 'under Friends everyone is one');
-      expect(find.text('Blocked'), findsNothing, reason: 'the blocked are not friends');
       expect(find.text('The people you text most. Search to find anyone else.'), findsNothing);
 
       await tester.tap(find.text('Phone'));
       await _pumps(tester);
-      expect(find.text('Blocked'), findsNothing, reason: 'nor under a network\'s chip');
+      expect(find.byKey(const ValueKey('contacts-blocked')), findsOneWidget);
 
       await tester.tap(find.text('All'));
       await _pumps(tester);
       expect(_names(tester), ['Sam Rivera', 'Theo Park', 'Maya Chen', 'Mom']);
-      expect(find.text('Blocked'), findsOneWidget);
     });
 
     testWidgets('with no friends and no network linked there is nothing to filter by', (tester) async {
