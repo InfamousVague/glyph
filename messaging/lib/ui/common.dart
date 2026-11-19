@@ -47,7 +47,7 @@ class GhostPage extends StatelessWidget {
   /// Above the title, under the status bar: the list's update card (lib/ui/update_banner.dart).
   final Widget? top;
 
-  /// Drawn behind the top of the page, the status bar and the header row in it, and [headerExtra] further down (Matt,
+  /// Drawn behind the top of the page under the status bar, the header row in it, and [headerExtra] further down (Matt,
   /// 2026-11-19, of a circle's banner: "needs to be taller and the back arrow and other header content should render
   /// inside the background image not above it"). Not under Dial-Up, whose title bar is its own.
   final Widget? headerBackground;
@@ -97,12 +97,16 @@ class GhostPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (headerBackground == null) ...[SizedBox(height: pad.top), ?top, row] else ...[
-            // The header inside its background: the picture from the screen's top edge, the row where it always is.
+            // The header inside its background, the background under the phone's status bar (its clock and battery)
+            // rather than behind it (Matt, 2026-11-19: "add a safe area above in the app to give room for the top bar
+            // on the phone like the settings batteries and clock"); the row where it always is.
+            // The row a step down, inside a background set in from its edges (CircleBanner's margin).
+            SizedBox(height: pad.top),
             SizedBox(
-              height: pad.top + bar + headerExtra,
+              height: t.space(2) + bar + headerExtra,
               child: Stack(fit: StackFit.expand, children: [
                 headerBackground!,
-                Positioned(top: pad.top, left: 0, right: 0, height: bar, child: row),
+                Positioned(top: t.space(2), left: 0, right: 0, height: bar, child: row),
               ]),
             ),
             ?top,

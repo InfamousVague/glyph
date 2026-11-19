@@ -102,8 +102,8 @@ class CirclePage extends StatelessWidget {
   }
 }
 
-/// A circle's banner behind the top of its page (GhostPage.headerBackground): its picture, a little in from the edges
-/// with rounded corners, shaded at the top and the foot so the header and the list read on it; or a wash of its colour. A press
+/// A circle's banner behind the top of its page (GhostPage.headerBackground), under the phone's status bar: its
+/// picture, a little in from the edges with rounded corners, shaded at the top and the foot so the header and the list read on it; or a wash of its colour. A press
 /// opens the circle's menu.
 class CircleBanner extends StatefulWidget {
   const CircleBanner({super.key, required this.circle, this.onPress});
