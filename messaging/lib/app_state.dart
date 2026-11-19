@@ -101,7 +101,9 @@ class AppState extends ChangeNotifier {
   bool get foldReactions => flag('fold_reactions');
 
   /// The keyboard's Enter sends, where it otherwise starts a new line.
-  bool get enterSends => flag('enter_sends', fallback: false);
+  /// Settings › Messages › Enter sends: on a computer unless turned off, as every desktop messenger has it; on a phone
+  /// off unless turned on.
+  bool get enterSends => flag('enter_sends', fallback: Sms.computer);
 
   /// Picture and group messages ask the other phone to say when they are read.
   bool get readReports => flag('read_reports');
