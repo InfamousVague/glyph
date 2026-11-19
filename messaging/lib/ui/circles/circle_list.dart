@@ -9,6 +9,7 @@
 library;
 
 import 'dart:convert';
+import 'dart:ui' as ui;
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
@@ -175,15 +176,32 @@ class _CircleBannerState extends State<CircleBanner> {
                 gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hue.withValues(alpha: 0.45), hue.withValues(alpha: 0.12)]),
               ),
             )
-          : Stack(fit: StackFit.expand, children: [
+          : Stack(fit: StackFit.expand, clipBehavior: Clip.hardEdge, children: [
               image,
+              // Behind the header's words a blur that fades out downward (Matt, 2026-11-19: "add a blur gradient with a
+              // subtle black gradient behind the text on the banner header image on circles"): the picture again,
+              // blurred, shown fully at the top where the name is and not at all past the middle, so the rest stays
+              // sharp.
+              ShaderMask(
+                key: const ValueKey('circle-banner-blur'),
+                blendMode: BlendMode.dstIn,
+                shaderCallback: (r) => const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFF000000), Color(0xCC000000), Color(0x00000000)],
+                  stops: [0, 0.35, 0.65],
+                ).createShader(r),
+                // Clipped to the banner: a blur draws past its own edges, and spilled over the list's first row.
+                child: ClipRect(child: ImageFiltered(imageFilter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14, tileMode: TileMode.mirror), child: image)),
+              ),
+              // And a subtle black under the words, gone by the middle; a touch at the foot against the list.
               const DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Color(0x8C000000), Color(0x26000000), Color(0x00000000), Color(0x33000000)],
-                    stops: [0, 0.45, 0.7, 1],
+                    colors: [Color(0x73000000), Color(0x33000000), Color(0x00000000), Color(0x26000000)],
+                    stops: [0, 0.4, 0.68, 1],
                   ),
                 ),
               ),

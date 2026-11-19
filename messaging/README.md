@@ -117,6 +117,11 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     bio, photo, emoji status and last seen; Signal's name, number, avatar and about line. Message them there, copy the
     username. The Signal helper (sidecar/signal) sends the mentions and the about line; the next release builds it.
   - Tests: profile_card_test, inbox_mentions_telegram_test, inbox_mentions_signal_test, sidecar main_test.
+- **Pictures full screen** (0.9.25, not released; Matt, 2026-11-19: "when clicking a picture in a chat, like in a circle
+  make it a full screen overlay"): a picture or GIF in a space's or circle's chat, and a Telegram or Signal photo, opens
+  over everything on a dark ground (lib/ui/picture_overlay.dart): its small picture at once and the file as it comes,
+  pinched or scrolled to zoom, a tap, Escape or the cross to go back, and … for the file's own page (Save, Share).
+  Tests: space_chat_files_test.
 - **Removing someone from a circle; every member's card** (0.9.24, not released; Matt, 2026-11-19: "add the ability to
   remove members from a circle as an admin", then "clicking on a member in the member list should also show the users
   profile popup with linked numbers, and other details in addition to things like changing the role").
