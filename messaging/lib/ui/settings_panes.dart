@@ -339,7 +339,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.9.17';
+const appVersion = '0.9.18';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -541,7 +541,7 @@ List<Widget> _sounds(BuildContext context, SettingsModel m) {
             SizedBox(width: t.lenOf('3rem'), child: Text('${s.quiet}%', textAlign: TextAlign.right, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
           ]),
         ),
-        SettingRow(icon: _icon(Lucide.volume2), label: 'Hear it', hint: const Text('The sound of a message going out, at this loudness.'), onPress: () => s.play(UiSound.messageOut)),
+        SettingRow(icon: _icon(Lucide.volume2), label: 'Hear it', hint: const Text('The sound of a reaction, at this loudness.'), onPress: () => s.play(UiSound.reaction)),
       ],
     ),
   ];

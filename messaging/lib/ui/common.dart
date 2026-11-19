@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -397,7 +398,9 @@ class NewMessagesDivider extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.symmetric(vertical: t.space(2)),
         child: Row(children: [
-          Expanded(child: Container(height: 1, color: red)),
+          // Wavy like a ghost's hem (Matt, 2026-11-18: "Make the new chat marker wavy like a ghost").
+          Expanded(child: SizedBox(height: t.lenOf('0.75rem'), child: const CustomPaint(painter: GhostHem(color: red, stroke: 1.75)))),
+          SizedBox(width: t.space(1)),
           Container(
             padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: 1),
             decoration: BoxDecoration(color: red, borderRadius: BorderRadius.circular(t.radius('sm'))),
@@ -407,6 +410,31 @@ class NewMessagesDivider extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A ghost's hem as a line: a row of small scallops, each a half circle bulging down, run edge to edge, drawn in
+/// [color]. Whole scallops only, centred, so neither end is cut off mid-wave.
+class GhostHem extends CustomPainter {
+  const GhostHem({required this.color, this.stroke = 1.5});
+  final Color color;
+  final double stroke;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = math.max(2.0, size.height / 2 - stroke / 2);
+    final count = (size.width / (2 * r)).floor();
+    if (count < 1) return;
+    final start = (size.width - count * 2 * r) / 2;
+    final top = size.height / 2 - r / 2;
+    final path = Path()..moveTo(start, top);
+    for (var i = 0; i < count; i++) {
+      path.arcToPoint(Offset(start + (i + 1) * 2 * r, top), radius: Radius.circular(r), clockwise: false);
+    }
+    canvas.drawPath(path, Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = stroke..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round..isAntiAlias = true);
+  }
+
+  @override
+  bool shouldRepaint(GhostHem old) => old.color != color || old.stroke != stroke;
 }
 
 /// The app's logo: the white ghost that is a speech bubble, on black, as the icon on the home screen has it

@@ -59,13 +59,13 @@ class VideoNow {
 /// What plays a video under the app's own controls (Matt, 2026-11-18: "add support for playing mkv video files and
 /// mp4's within the app in a player themed by glacier UI"). Two engines, because no one engine is right everywhere:
 ///
-/// - Android and iPhone: [VideoPlayerEngine], the video_player package. On Android that is ExoPlayer, whose default
-///   extractors read Matroska as well as MP4 (video_player_android's LocalVideoAsset uses DefaultMediaSourceFactory),
-///   so an .mkv plays where the phone has a decoder for what is inside it; it adds nothing to the APK. On an iPhone it
-///   is AVFoundation, which reads MP4 and MOV but not Matroska: an .mkv there says it can't be played and offers
-///   another app.
-/// - Mac and Windows: [MediaKitEngine], libmpv by way of media_kit, which reads MKV, WebM, HEVC, AV1 and the rest.
-///   AVFoundation (the Mac's old DeskVideo window) could not open an .mkv at all, and Windows had no player.
+/// - Android, Mac and Windows: [MediaKitEngine], libmpv by way of media_kit, which reads MKV, WebM, HEVC, AV1 and the
+///   rest, and shows the subtitles inside a file and every sound it carries. AVFoundation (the Mac's old DeskVideo
+///   window) could not open an .mkv at all, and Windows had no player. Android had ExoPlayer (video_player), which
+///   plays an .mkv but shows no subtitle carried inside it, so a show's subtitles could not be turned on (Matt,
+///   2026-11-18: "I still don't see subtitle or audio track selection options"; "Yes switch it").
+/// - iPhone: [VideoPlayerEngine], the video_player package: AVFoundation, which reads MP4 and MOV but not Matroska: an
+///   .mkv there says it can't be played and offers another app.
 abstract class VideoEngine extends ValueNotifier<VideoNow> {
   VideoEngine() : super(const VideoNow());
 
@@ -74,8 +74,8 @@ abstract class VideoEngine extends ValueNotifier<VideoNow> {
 
   static VideoEngine defaultEngine() => usesMediaKit ? MediaKitEngine() : VideoPlayerEngine();
 
-  /// Whether this device plays through libmpv: the computers.
-  static bool get usesMediaKit => !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
+  /// Whether this device plays through libmpv: the computers and the Android phone.
+  static bool get usesMediaKit => !kIsWeb && (Platform.isAndroid || Platform.isMacOS || Platform.isWindows || Platform.isLinux);
 
   /// Opens [path], a file or an http address (a Files-space file served as it comes down, lib/files/file_stream.dart);
   /// once it is ready [value] says so, or says why not in [VideoNow.error]. Never throws.
@@ -321,11 +321,24 @@ class MediaKitEngine extends VideoEngine {
         subtitles: [for (final t in all.subtitle) if (real(t.id)) MediaTrack(id: t.id, kind: TrackKind.subtitle, language: t.language, title: t.title, external: t.uri)],
       ),
     ));
+    final on = _on;
+    if (on != null) _track(on);
   }
 
+  mk.Track? _on;
+
+  /// Which sound and subtitles are playing. libmpv's own choice says 'auto': that is the file's default subtitles where
+  /// it marks one (what libmpv then shows), and none where it marks none, so the list marks what is on screen (it had
+  /// said Off over subtitles being shown).
   void _track(mk.Track on) {
+    _on = on;
     final sub = on.subtitle.id;
-    _set(value.copyWith(tracks: value.tracks.copyWith(audioOn: on.audio.id, subtitleOn: () => sub == 'no' || sub == 'auto' ? null : sub)));
+    final shown = switch (sub) {
+      'no' => null,
+      'auto' => _all.subtitle.where((t) => t.id != 'auto' && t.id != 'no' && t.isDefault == true).firstOrNull?.id,
+      _ => sub,
+    };
+    _set(value.copyWith(tracks: value.tracks.copyWith(audioOn: on.audio.id, subtitleOn: () => shown)));
   }
 
   @override
