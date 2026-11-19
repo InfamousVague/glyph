@@ -232,9 +232,19 @@ class DiscordPerson {
 /// Someone in the call, as they said they are.
 @immutable
 class VoiceMember {
-  const VoiceMember(this.id, {this.name = '', this.muted = false, this.video = false, this.guest = false, this.username});
+  const VoiceMember(this.id, {this.name = '', this.muted = false, this.video = false, this.guest = false, this.username, this.notices = false, this.recording, this.agreed = const {}, this.declined = const {}});
   final String id;
   final String name;
+
+  /// Their app shows that a call is being recorded and asks before their voice is in it ('rs' in their 'me'). One that
+  /// doesn't (an older build, the browser page, the Discord bridge) is never recorded: it can't have agreed.
+  final bool notices;
+
+  /// The recording they are making of this call, by its id; null while they make none ('r').
+  final String? recording;
+
+  /// The recordings of this call they said their voice may be in ('ry'), and those they said it may not ('rn').
+  final Set<String> agreed, declined;
 
   /// Their username on Ghost Messaging, where they have one and said it: to add them as a friend.
   final String? username;
@@ -244,7 +254,10 @@ class VoiceMember {
   /// Joined from a browser by the link, with no username: a guest.
   final bool guest;
   VoiceMember copyWith({String? name, bool? muted, bool? video, bool? guest, String? username}) =>
-      VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video, guest: guest ?? this.guest, username: username ?? this.username);
+      VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video, guest: guest ?? this.guest, username: username ?? this.username, notices: notices, recording: recording, agreed: agreed, declined: declined);
+
+  VoiceMember withRecording({required bool notices, String? recording, Set<String> agreed = const {}, Set<String> declined = const {}}) =>
+      VoiceMember(id, name: name, muted: muted, video: video, guest: guest, username: username, notices: notices, recording: recording, agreed: agreed, declined: declined);
 }
 
 /// Being in one channel: joined on the hub, a connection to each member, and what each says of themselves.
@@ -291,6 +304,51 @@ class VoiceSession extends ChangeNotifier {
   /// When this device came into the call.
   DateTime? since;
 
+  /// Told when another device of this identity came into the call and took it over ([join]); without it the session
+  /// just leaves.
+  Future<void> Function()? onMovedAway;
+  bool _moving = false;
+
+  /// This join's own mark, said with 'moved', offers and answers: so of two devices of one identity the one that came
+  /// in later stays, and an answer meant for the other is never taken here.
+  final String _join = NetCrypto.hex(NetCrypto.randomBytes(8));
+
+  /// The join each other member's last offer came from ('j'): a new one is another of their devices, or them again.
+  final Map<String, Object?> _offerJoin = {};
+
+  // --- recording (Matt, 2026-11-19: "a "record call" plugin where it records the call to an MP4 with multiple named
+  // audio tracks") ---------------------------------------------------------------------------------------------------
+  // Said in 'me', which every build reads only the fields it knows of: 'rs' this build shows recording and asks, 'r'
+  // the recording this device makes, 'ry' and 'rn' the recordings this device's person let their voice be in, or not.
+  // A voice is in a recording only once its own device said yes: lib/voice/recorder.dart taps nobody else.
+
+  /// The recording this device is making, by its id; null while none.
+  String? recording;
+
+  /// The recordings of this call this device's person said yes to, and no to.
+  final Set<String> agreed = {}, declined = {};
+
+  /// The recordings being made of this call by others, by their id, with who makes each.
+  Map<String, String> get recordingsByOthers => {for (final m in members.values) if (m.recording != null) m.recording!: m.id};
+
+  /// Recordings being made by others that this device's person hasn't answered yet.
+  List<String> get unanswered => [for (final r in recordingsByOthers.keys) if (!agreed.contains(r) && !declined.contains(r)) r];
+
+  /// Says this device is recording ([id]) or has stopped (null).
+  void setRecording(String? id) {
+    recording = id;
+    _sayState();
+    notifyListeners();
+  }
+
+  /// Answers whether this device's voice may be in the recording [id].
+  void answerRecording(String id, bool yes) {
+    (yes ? agreed : declined).add(id);
+    (yes ? declined : agreed).remove(id);
+    _sayState();
+    notifyListeners();
+  }
+
   Future<void> join({bool withVideo = false}) async {
     video = withVideo;
     await media.start();
@@ -303,8 +361,14 @@ class VoiceSession extends ChangeNotifier {
     joined = true;
     since = DateTime.now();
     Sounds.instance.play(UiSound.hangoutJoin);
+    // This identity is in the call on this device now ('moved'): another of its devices already in it (a phone and its
+    // computer, or two computers signed in to one account, are one identity: Voice.separateKey) leaves, as Discord does
+    // when one joins from elsewhere, and everyone else lets go of any connection they had with this identity, so the
+    // offers below make new ones. Said on every join: the relay never names one's own identity among those here, and to
+    // whoever had no such connection it means nothing. Two devices answering the same offers would have broken the call.
+    _say({'t': 'moved', 'at': since!.millisecondsSinceEpoch, 'j': _join});
     for (final id in there) {
-      if (refuse?.call(id) ?? false) continue;
+      if (id == route.me || (refuse?.call(id) ?? false)) continue;
       members[id] = VoiceMember(id);
     }
     _sayState();
@@ -358,6 +422,8 @@ class VoiceSession extends ChangeNotifier {
   }
 
   void _event(RoomEvent e) {
+    // Another device of this identity is not someone else in the call.
+    if (e.came == route.me || e.went == route.me) return;
     if (e.came != null) {
       if (refuse?.call(e.came!) ?? false) return;
       // They offer: they came in.
@@ -380,10 +446,20 @@ class VoiceSession extends ChangeNotifier {
 
   Future<void> _offer(String id) async {
     final sdp = await _peerFor(id).makeOffer();
-    _say({'t': 'offer', 'to': id, 'sdp': highestOpus(sdp, kbps: kbps, stereo: stereo)});
+    _say({'t': 'offer', 'to': id, 'sdp': highestOpus(sdp, kbps: kbps, stereo: stereo), 'j': _join});
   }
 
-  void _sayState() => _say({'t': 'me', 'n': name, 'm': muted || deafened, 'v': video, if (username != null) 'u': username});
+  void _sayState() => _say({
+        't': 'me',
+        'n': name,
+        'm': muted || deafened,
+        'v': video,
+        if (username != null) 'u': username,
+        'rs': 1,
+        if (recording != null) 'r': recording,
+        if (agreed.isNotEmpty) 'ry': [...agreed],
+        if (declined.isNotEmpty) 'rn': [...declined],
+      });
 
   void _say(Map<String, Object?> what) {
     if (!joined) return;
@@ -401,6 +477,20 @@ class VoiceSession extends ChangeNotifier {
     } catch (_) {
       return;
     }
+    // Said by another device of this identity: it took the call over ([join]), so this one goes. Nothing else it says is
+    // for this device (an offer it makes is to the others, never to itself).
+    if (from == route.me) {
+      // Only for a join later than this one (two coming in at once: the later stays, and the earlier hears it).
+      final at = (m['at'] as num?)?.toInt() ?? 0, mine = since?.millisecondsSinceEpoch ?? 0;
+      final later = at > mine || (at == mine && '${m['j'] ?? ''}'.compareTo(_join) > 0);
+      if (m['t'] == 'moved' && joined && !_moving && later) {
+        _moving = true;
+        unawaited(_movedAway());
+      }
+      return;
+    }
+    // Going, for the device that took over: what the others answer it is not for this one.
+    if (_moving) return;
     final to = m['to'];
     if (to != null && to != route.me) return;
     if (refuse?.call(from) ?? false) {
@@ -417,19 +507,41 @@ class VoiceSession extends ChangeNotifier {
         notifyListeners();
       case 'me':
         final had = members[from] ?? VoiceMember(from);
-        members[from] = had.copyWith(name: bareName('${m['n'] ?? ''}'), muted: m['m'] == true, video: m['v'] == true, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null);
+        Set<String> ids(Object? l) => {for (final x in (l is List ? l : const [])) if (x is String) x};
+        members[from] = had
+            .copyWith(name: bareName('${m['n'] ?? ''}'), muted: m['m'] == true, video: m['v'] == true, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null)
+            .withRecording(notices: m['rs'] == 1, recording: m['r'] is String ? m['r'] as String : null, agreed: ids(m['ry']), declined: ids(m['rn']));
         notifyListeners();
       case 'offer':
         members.putIfAbsent(from, () => VoiceMember(from));
+        // An offer from another join of theirs (another device, or the app opened again) is a new connection: the old
+        // one goes first, whether or not 'moved' got here (an older build says none).
+        final j = m['j'];
+        if (_peers.containsKey(from) && j != null && _offerJoin[from] != j) await _peers.remove(from)?.close();
+        _offerJoin[from] = j;
         final answer = await _peerFor(from).takeOffer('${m['sdp']}');
-        _say({'t': 'answer', 'to': from, 'sdp': highestOpus(answer, kbps: kbps, stereo: stereo)});
+        _say({'t': 'answer', 'to': from, 'sdp': highestOpus(answer, kbps: kbps, stereo: stereo), 'j': ?j});
         // Said again for the newcomer, who may have joined after it was said.
         _sayState();
+      case 'moved':
+        // They came in on another of their devices: the connection to the one they left goes, and their offer makes a
+        // new one.
+        unawaited(_peers.remove(from)?.close());
+        notifyListeners();
       case 'answer':
+        // One meant for another device of this identity's (its offer's mark, not this one's) is not taken here.
+        final j = m['j'];
+        if (j != null && j != _join) return;
         await _peers[from]?.takeAnswer('${m['sdp']}');
       case 'ice':
         if (m['c'] is Map) await _peerFor(from).addCandidate((m['c'] as Map).cast<String, dynamic>());
     }
+  }
+
+  Future<void> _movedAway() async {
+    final told = onMovedAway;
+    if (told != null) return told();
+    await leave();
   }
 
   @override

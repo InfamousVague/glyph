@@ -480,6 +480,63 @@ class SettingsPlace {
   const SettingsPlace();
 }
 
+/// Someone in a call, as a plugin is shown them.
+@immutable
+class CallPerson {
+  const CallPerson({required this.id, required this.name, this.me = false, this.muted = false});
+
+  /// Their id in the call ('me' for this device).
+  final String id;
+  final String name;
+  final bool me;
+  final bool muted;
+}
+
+/// A call a space is in: which space and circle, and who is in it (Matt, 2026-11-19, of plugins that integrate with
+/// circles: "I'd like to have a "record call" plugin").
+@immutable
+class CallPlace {
+  const CallPlace({required this.space, required this.spaceName, this.circle, this.people = const []});
+
+  /// The space's seed: what the call's rooms come from.
+  final String space;
+  final String spaceName;
+
+  /// The circle's seed, for a circle's space; null for a space of one's own or a group's call.
+  final String? circle;
+  final List<CallPerson> people;
+}
+
+/// A circle, for its own menu.
+@immutable
+class CirclePlace {
+  const CirclePlace({required this.circle, required this.name, this.canChange = false});
+  final String circle;
+  final String name;
+
+  /// This device may change the circle (its owner or an admin): may turn its plugins on or off.
+  final bool canChange;
+}
+
+/// Where a plugin may be on (Matt, 2026-11-19: "Some plugins should be serverside / cirlce side as well").
+enum PluginScope {
+  /// On this device, by its own switch: what every plugin is.
+  device('On this device', 'You add it for yourself'),
+
+  /// On for everyone in a circle, as the circle's owner or an admin says: kept in the circle's signed manifest, so
+  /// every member's app does it in that circle's spaces without adding it themselves.
+  circle('For a whole circle', 'A circle\'s owner or admins turn it on for everyone in it'),
+
+  /// Run on the relay server as a member of the space, for what no phone can do alone (record while nobody has the
+  /// app open, send an event's reminders on time). Such a member holds the space's key, so a space with one is not
+  /// end-to-end encrypted against the server: always said where it is on.
+  server('On the server', 'Runs on the relay server, which then holds the space\'s key');
+
+  const PluginScope(this.label, this.hint);
+  final String label;
+  final String hint;
+}
+
 /// Every place there is. The ones in the list of conversations and in Settings are drawn (lib/ui/conversations.dart,
 /// settings.dart here); the ones in a conversation are defined and wait for lib/ui/thread.dart to ask for them.
 abstract final class Slots {
@@ -511,7 +568,16 @@ abstract final class Slots {
   /// Rows in the plugin's own card on Settings › Plugins, after its [GhostPlugin.settings].
   static const settings = WidgetSlot<SettingsPlace>('settings.plugin');
 
-  static const List<Slot<Object?>> all = [listHeader, aboveList, conversationMenu, conversationHeader, composer, messageMenu, underMessage, aboveComposer, settings];
+  /// Buttons in a call's menu, beside Invite and Devices: drawn by every call design (lib/ui/space_designs).
+  static const callControls = ActionSlot<CallPlace>('call.controls');
+
+  /// Over a call's page, under its header, whatever its design: a line everyone must see (Recording).
+  static const callBanner = WidgetSlot<CallPlace>('call.banner');
+
+  /// Lines in a circle's own menu (lib/ui/circles/circle_screen.dart).
+  static const circleMenu = ActionSlot<CirclePlace>('circle.menu');
+
+  static const List<Slot<Object?>> all = [listHeader, aboveList, conversationMenu, conversationHeader, composer, messageMenu, underMessage, aboveComposer, settings, callControls, callBanner, circleMenu];
 }
 
 // --- (d) messages that have just come --------------------------------------------------------------------------------
@@ -835,4 +901,8 @@ abstract class GhostPlugin {
   /// What it reads, keeps or sends, a line each, for the card on its page that says so. None: the page says it
   /// works on what is on the screen and sends nothing.
   List<PluginReach> get reaches => const [];
+
+  /// Where it may be on ([PluginScope]): this device alone unless it says more. One that names [PluginScope.circle] is
+  /// listed in Circle settings › Plugins, and in a circle's spaces is on as the circle says, not as this device's switch.
+  Set<PluginScope> get scopes => const {PluginScope.device};
 }

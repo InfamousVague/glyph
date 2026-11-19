@@ -1055,6 +1055,7 @@ class _MoreSheet extends StatelessWidget {
         row(Lucide.userPlus, SpaceWords.invite, then(call.onInvite)),
         row(LucideMore.headphones, SpaceWords.devices, then(call.onDevices)),
         row(Lucide.settings, SpaceWords.settings, then(call.onSettings)),
+        for (final x in call.extras) row(x.icon, x.label, then(x.run)),
         Container(height: 1, margin: const EdgeInsets.symmetric(vertical: 4), color: t.color('app-rule')),
         row(Lucide.x, _W.cancel, onClose),
       ]),

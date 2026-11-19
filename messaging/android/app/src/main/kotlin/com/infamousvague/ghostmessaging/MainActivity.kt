@@ -135,6 +135,10 @@ class MainActivity : FlutterActivity() {
 
         // The microphone's processing in calls (VoiceFx.kt).
         VoiceFx.register(messenger)
+        // Recording a call (CallRecorder.kt, lib/voice/recorder.dart).
+        CallRecorder.register(messenger)
+        // Words from a recorded call, by the phone's own speech recognition (Scribe.kt, lib/voice/scribe.dart).
+        Scribe.register(applicationContext, messenger)
         // The interface sounds (Sounds.kt, lib/sounds.dart).
         Sounds.register(this, messenger)
         // The walkthrough's voice (GuideVoice.kt).

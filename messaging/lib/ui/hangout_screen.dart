@@ -38,6 +38,7 @@ import 'nav_bar.dart';
 import 'ripple_avatar.dart';
 import 'shell.dart';
 import 'space_designs/space_design.dart';
+import 'sms_space_ui.dart';
 import 'space_invite.dart';
 import 'voice_screen.dart';
 import 'jump_to_latest.dart';
@@ -201,6 +202,8 @@ class _HangoutScreenState extends State<HangoutScreen> {
           // A circle's space leaves Members to the circle's dock (Matt, 2026-11-17: "remove the users icon from the header").
           if (room != null && widget.channel.circle == null) _membersButton(context, room),
           if ((room == null || room.can(Perm.invite)) && _circleInvites(widget.channel) && !besideCircle) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
+          // An SMS space: who is in it by text (lib/ui/sms_space_ui.dart).
+          if (smsSpaceOf(widget.channel) != null) IconTap(icon: Lucide.smartphone, label: 'People by text', onPressed: () => push(context, (_) => TextedPeopleScreen(space: widget.channel))),
           if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
         ];
         if (room?.putOut != null) {
@@ -357,6 +360,8 @@ class _HangoutStageState extends State<HangoutStage> {
             // A circle's space leaves Members to the circle's dock (Matt, 2026-11-17: "remove the users icon from the header").
           if (room != null && widget.channel.circle == null) _membersButton(context, room),
             if ((room == null || room.can(Perm.invite)) && _circleInvites(widget.channel)) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
+            // An SMS space: who is in it by text (lib/ui/sms_space_ui.dart).
+            if (smsSpaceOf(widget.channel) != null) IconTap(icon: Lucide.smartphone, label: 'People by text', onPressed: () => push(context, (_) => TextedPeopleScreen(space: widget.channel))),
             if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
           ],
           body: videos

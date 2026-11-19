@@ -1,3 +1,4 @@
+export 'call_plugins.dart' show SpaceExtra;
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -12,15 +13,18 @@ import '../../art/lucide_more.dart';
 import '../../kit/settings_type.dart';
 import '../../voice/channels.dart';
 import '../../voice/hangout.dart';
+import '../../voice/recorder.dart';
 import '../../voice/roles.dart';
 import '../../voice/voice.dart';
 import '../common.dart';
 import '../hangout_screen.dart';
+import '../recording_ui.dart';
 import '../ripple_avatar.dart';
 import '../settings.dart';
 import '../shell.dart';
 import '../space_invite.dart';
 import '../voice_screen.dart';
+import 'call_plugins.dart';
 import 'discord.dart';
 import 'facetime.dart';
 import 'meet.dart';
@@ -156,6 +160,7 @@ class SpaceCall {
     this.onDevices,
     this.chatBuilder,
     this.bridged = false,
+    this.extras = const [],
   });
 
   /// Whether this device may invite people into [channel]'s call: never a group's (its members' alone, and it has no
@@ -205,7 +210,7 @@ class SpaceCall {
       channel: s.channel,
       people: people,
       levels: s.discordPeople.isEmpty ? (media?.levels ?? s.media.levels) : MergedLevels(media?.levels ?? s.media.levels, s.discordLevels),
-      changes: Listenable.merge([v, s, ?room, ?media?.remote, ?media?.localVideo]),
+      changes: Listenable.merge([v, s, ?room, ?media?.remote, ?media?.localVideo, CallRecorder.instance]),
       bridged: s.channel.discord != null,
       room: room,
       muted: s.muted,
@@ -227,6 +232,7 @@ class SpaceCall {
       onInvite: mayInvite(s.channel, room) ? (context) => showSpaceInvite(context, s.channel) : null,
       onDevices: (context) => push(context, (_) => const SettingsSectionScreen('voice')),
       chatBuilder: room == null ? null : ({double bottom = 0}) => HangoutChat(room: room, bottom: bottom),
+      extras: CallPlugins.extras(),
     );
   }
 
@@ -262,6 +268,9 @@ class SpaceCall {
   /// The space is bridged to a Discord voice channel: its sound and chat go through the bridge, so it is not
   /// end-to-end encrypted. A design says so.
   final bool bridged;
+
+  /// What the plugins that are on in this call offer in its menu (Slots.callControls): Record, for one.
+  final List<SpaceExtra> extras;
 
   /// The level at which someone counts as talking (RippleAvatar.talking).
   static const talking = RippleAvatar.talking;
@@ -489,7 +498,21 @@ class _SpaceCallPageState extends State<SpaceCallPage> {
       listenable: call.changes,
       builder: (context, _) {
         final now = SpaceCall.live(minimize: _close) ?? call;
-        return KeyedSubtree(key: ValueKey('space-design-${widget.design.name}'), child: widget.design.page(now));
+        final page = KeyedSubtree(key: ValueKey('space-design-${widget.design.name}'), child: widget.design.page(now));
+        // What the plugins put over the call, whatever its design (Slots.callBanner): a line everyone must see.
+        final session = Voice.instance.session;
+        // A recording is told to everyone, whatever plugins are on (lib/ui/recording_ui.dart).
+        final banners = [if (session != null && RecordingBanner.shows(session)) const RecordingBanner(), ...CallPlugins.banners(context)];
+        if (banners.isEmpty) return page;
+        return Stack(children: [
+          page,
+          Positioned(
+            left: 0,
+            right: 0,
+            top: MediaQuery.paddingOf(context).top + 62,
+            child: Column(mainAxisSize: MainAxisSize.min, children: banners),
+          ),
+        ]);
       },
     );
   }

@@ -6,6 +6,7 @@ import '../account/account.dart';
 import '../desktop/own_calls.dart' show DeskOwnCalls;
 import '../me/me.dart';
 import '../net/crypto.dart';
+import '../net/net.dart';
 import '../sms.dart';
 import '../standalone/overlay.dart';
 import 'buddies.dart';
@@ -30,15 +31,17 @@ Future<Object?> answerHandover(Map<String, Object?> what) async {
   // the computer asks to be signed in to the same one, and warns before another, which would make the two different
   // people (Matt, 2026-11-18: "i would like to be able to link a session to a new account").
   final account = {'a': Account.instance.address ?? '', 'u': Account.instance.address == null ? '' : (Me.instance.username ?? '')};
-  if (what['only'] == 'buddies') return {'buddies': list, 'account': account};
+  final me = Me.instance;
+  // Who this is, with each sync too: the computer is the same person, by the same username and name.
+  final who = {'u': me.username ?? '', 'n': me.displayName, 'b': me.bio, if (Net.instance.id != null) 'id': Net.instance.id};
+  if (what['only'] == 'buddies') return {'buddies': list, 'account': account, 'me': who};
   final scalar = await Sms.instance.identityExport();
   final calls = Sms.calls;
-  final me = Me.instance;
   return {
     'scalar': NetCrypto.hex(scalar),
     'buddies': list,
     if (calls is OverlayCalls) 'chats': calls.chats.toJson(),
-    'me': {'u': me.username ?? '', 'n': me.displayName, 'b': me.bio},
+    'me': who,
     'account': account,
   };
 }

@@ -124,6 +124,43 @@ Future<void> _settle() async {
 }
 
 void main() {
+  test('a recording is told to everyone in the call, and a voice is in it only once its own device says yes', () async {
+    // Matt, 2026-11-19: "a "record call" plugin where it records the call to an MP4 with multiple named audio tracks".
+    final hub = _Hub();
+    final c = VoiceChannel.make('Session zero');
+    final maya = VoiceSession(channel: c, route: _Route(hub, 'maya-id'), media: _Media(), name: 'Maya');
+    final sam = VoiceSession(channel: c, route: _Route(hub, 'sam-id'), media: _Media(), name: 'Sam');
+    await maya.join();
+    await sam.join();
+    await _settle();
+    expect(maya.members['sam-id']!.notices, isTrue, reason: 'this build says it shows recordings and asks');
+    expect(sam.recordingsByOthers, isEmpty);
+
+    maya.setRecording('rec1');
+    maya.answerRecording('rec1', true);
+    await _settle();
+    expect(sam.members['maya-id']!.recording, 'rec1');
+    expect(sam.recordingsByOthers, {'rec1': 'maya-id'});
+    expect(sam.unanswered, ['rec1'], reason: 'asked, and not in it until answered');
+    expect(maya.members['sam-id']!.agreed, isEmpty);
+
+    sam.answerRecording('rec1', true);
+    await _settle();
+    expect(maya.members['sam-id']!.agreed, {'rec1'});
+    expect(sam.unanswered, isEmpty);
+
+    sam.answerRecording('rec1', false);
+    await _settle();
+    expect(maya.members['sam-id']!.agreed, isEmpty, reason: 'taking it back takes the voice out');
+    expect(maya.members['sam-id']!.declined, {'rec1'});
+
+    maya.setRecording(null);
+    await _settle();
+    expect(sam.recordingsByOthers, isEmpty);
+    await maya.leave();
+    await sam.leave();
+  });
+
   test('a channel is made from its seed: the same room, token and key for every member; a group\'s from its id', () {
     final a = VoiceChannel.ofGroup('00112233445566778899aabbccddeeff', 'Climbing');
     final b = VoiceChannel.ofGroup('00112233445566778899aabbccddeeff', 'Climbing crew');

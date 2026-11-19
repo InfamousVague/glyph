@@ -6,8 +6,10 @@
 library;
 
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart' show TextCapitalization;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -15,6 +17,7 @@ import 'package:glacier/glacier.dart';
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../circles/circles.dart';
+import '../../circles/sms_space.dart';
 import '../../files/files_store.dart';
 import '../../friends/buddies.dart';
 import '../../kit/semantic_colors.dart';
@@ -457,6 +460,12 @@ class _NewCircleSpaceScreenState extends State<NewCircleSpaceScreen> {
   SpaceKind _kind = SpaceKind.text;
   bool _adding = false;
 
+  /// An SMS space: people without the app are in it by text from this phone (lib/circles/sms_space.dart).
+  bool _sms = false;
+
+  /// Whether this device can text for a space: an Android phone, the phone's texting app being this one.
+  static bool get _canText => !kIsWeb && Platform.isAndroid;
+
   @override
   void initState() {
     super.initState();
@@ -474,7 +483,9 @@ class _NewCircleSpaceScreenState extends State<NewCircleSpaceScreen> {
     if (_adding) return;
     setState(() => _adding = true);
     final circle = Circles.instance.bySeed(widget.circle.seed) ?? widget.circle;
-    final s = await Circles.instance.addSpace(circle, _name.text.trim().isEmpty ? spaceKindTitle(_kind) : _name.text, kind: _kind, section: _section.text);
+    final me = SmsSpaces.instance.me;
+    final sms = _sms && _kind == SpaceKind.text && _canText && me != null;
+    final s = await Circles.instance.addSpace(circle, _name.text.trim().isEmpty ? (sms ? 'Texts' : spaceKindTitle(_kind)) : _name.text, kind: _kind, section: _section.text, extra: sms ? {'sms': {'by': me}} : const {});
     if (!mounted) return;
     setState(() => _adding = false);
     if (s == null) {
@@ -500,6 +511,20 @@ class _NewCircleSpaceScreenState extends State<NewCircleSpaceScreen> {
         child: _form([
             SizedBox(height: t.space(2)),
             SpaceKindCards(value: _kind, onChanged: (k) => setState(() => _kind = k)),
+            // A texting space may be an SMS space, texted for by this phone (Matt, 2026-11-19: "a special space in the
+            // circle called a "SMS Space" to text members").
+            if (_kind == SpaceKind.text && _canText) ...[
+              gap,
+              PaneSection(children: [
+                SettingRow(
+                  key: const ValueKey('new-space-sms'),
+                  icon: AppIcon(Lucide.smartphone, size: 18),
+                  label: 'SMS space',
+                  hint: const Text('People without the app are in it by text, sent from your phone and your number.'),
+                  control: GlacierSwitch(checked: _sms, ariaLabel: 'SMS space', onCheckedChange: (v) => setState(() => _sms = v)),
+                ),
+              ]),
+            ],
             gap,
             PaneSection(title: 'Name', children: [
               SettingRowBox(
@@ -603,14 +628,24 @@ List<CirclePerson> circlePeople(Circle c) {
     }
   }
   ids.addAll(here);
-  // And everyone seen in it before, kept on this device: still members once they have gone.
+  // A device's id from before it spoke as its identity is that identity (Circles.sameAs; Matt, 2026-11-19: every
+  // computer had been "a new matt"): one person, not two.
   final circles = Circles.instance;
-  circles.noteSeen(c, {for (final id in ids) if (id != me) id: names[id] ?? ''});
-  for (final e in circles.seenIn(c).entries) {
-    ids.add(e.key);
-    if (e.value.isNotEmpty) names.putIfAbsent(e.key, () => e.value);
+  // The owner's own id stays its own: the row says Owner only where that one is, as the powers go by it.
+  String same(String id) => id == m.ownerId ? id : circles.sameAs(id);
+  for (final e in [...names.entries]) {
+    if (same(e.key) != e.key) names.putIfAbsent(same(e.key), () => e.value);
   }
-  if (me != null && me.isNotEmpty) ids.add(me);
+  final folded = {for (final id in ids) same(id)};
+  final hereNow = {for (final id in here) same(id)};
+  // And everyone seen in it before, kept on this device: still members once they have gone.
+  circles.noteSeen(c, {for (final id in folded) if (id != me) id: names[id] ?? ''});
+  for (final e in circles.seenIn(c).entries) {
+    folded.add(same(e.key));
+    if (e.value.isNotEmpty) names.putIfAbsent(same(e.key), () => e.value);
+  }
+  if (me != null && me.isNotEmpty) folded.add(me);
+  final ownerNow = m.ownerId;
   String nameOf(String id) {
     if (id == me) return 'You';
     final said = names[id];
@@ -620,8 +655,8 @@ List<CirclePerson> circlePeople(Circle c) {
   }
 
   final people = [
-    for (final id in ids)
-      if (id.isNotEmpty) CirclePerson(id: id, name: nameOf(id), owner: id == m.ownerId, admin: id != m.ownerId && m.granted(id), here: id == me || here.contains(id), me: id == me, hue: m.nameHueOf(id)),
+    for (final id in folded)
+      if (id.isNotEmpty) CirclePerson(id: id, name: nameOf(id), owner: id == ownerNow, admin: id != ownerNow && m.granted(id), here: id == me || hereNow.contains(id), me: id == me, hue: m.nameHueOf(id)),
   ];
   // As the roles stand (Matt, 2026-11-18: "permission hierarchy"): the owner, admins made by hand, then by each one's
   // highest role, then everyone else; by name within each.
