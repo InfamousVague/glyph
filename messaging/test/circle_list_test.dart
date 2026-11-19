@@ -16,6 +16,7 @@ import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/looks.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
+import 'package:ghost_messaging/ui/circles/circle_face.dart';
 import 'package:ghost_messaging/ui/circles/circle_list.dart';
 import 'package:ghost_messaging/ui/circles/circle_view.dart';
 import 'package:ghost_messaging/ui/settings.dart';
@@ -127,6 +128,19 @@ void main() {
       expect(find.ancestor(of: find.byKey(const ValueKey('circle-banner-strip')), matching: find.byType(ClipRRect)), findsWidgets, reason: 'rounded');
       expect(banner.height, greaterThan(110), reason: 'taller, less its margin and the status bar over it');
       expect(banner.contains(back.center) && banner.contains(name.center), isTrue, reason: 'the header is inside it');
+      // Lined up inside it, a margin from every edge (Matt, 2026-11-19: "the header doesn't line up with the header
+      // background image correctly"): the circle's face touched, and on the Mac crossed, the picture's rounded top.
+      final face = tester.getRect(find.descendant(of: find.byType(CirclePage), matching: find.byType(CircleFace)).last);
+      for (final (what, r) in [('face', face), ('name', name)]) {
+        expect(r.top - banner.top, greaterThanOrEqualTo(8), reason: '$what clear of the banner\'s top');
+        expect(r.left - banner.left, greaterThanOrEqualTo(8), reason: '$what clear of the banner\'s left');
+      }
+      // The arrow by its middle: its box is the larger place a finger may press.
+      expect(back.center.dx - banner.left, greaterThanOrEqualTo(20), reason: 'the back arrow clear of the banner\'s left');
+      expect(back.center.dy, closeTo(face.center.dy, 1), reason: 'the arrow level with the face');
+      // The picture drawn, for the eye.
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+      await tester.pump();
       await keep(tester, 'banner-$theme');
     }
   });
