@@ -100,6 +100,8 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
     // The app's own updates (UpdatesChannel.swift): its first act is to say this version opened, which an update
     // put in place a moment ago is waiting to hear.
     updates = UpdatesChannel(messenger: flutterViewController.engine.binaryMessenger)
+    // Circles' invite links opened into the app (AppDelegate).
+    DeskLinks.shared.attach(messenger: flutterViewController.engine.binaryMessenger)
 
     super.awakeFromNib()
   }

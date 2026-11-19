@@ -24,6 +24,18 @@
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>$(PRODUCT_COPYRIGHT)</string>
+	<!-- A circle's invite opened from its page (site/join: ghostmsg://join/#c.…), handed to the app by AppDelegate. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Ghost Messaging invite</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>ghostmsg</string>
+			</array>
+		</dict>
+	</array>
 	<!-- Finding the phone on the local network (Bonjour): macOS asks once, with these words. -->
 	<key>NSBonjourServices</key>
 	<array>

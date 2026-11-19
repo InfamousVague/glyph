@@ -30,6 +30,23 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Joins told of; a circle's link that brings the app with it** (0.9.27, not released; Matt, 2026-11-19: "add join
+  notifications for memebers in circles", and "make a route to allow people to click a link on their phone or desktop
+  to join a circle, have it prompt them to download the app if it's not downloaded already and then have it redirect to
+  the circle after they sign up for their account").
+  - Coming into a circle, a device says so once in its room (`joined`, with its name and when), kept by the hub for
+    whoever is away. Every other member is told of a join after their own, once per person whichever of their devices
+    said it (`circles_joins`), unless it is days old: a notification on a phone in the background (`circle:<seed>`,
+    which opens the circle), a toast with Open in the app. Settings › Notifications › Joins in circles turns it off.
+    Joins also name people in the members list.
+  - site/join, for a circle's link: the download for the device it is opened on (Android, Mac, Windows; the home page
+    otherwise) and three steps. Get the app copies the invite; the app reads the clipboard once, on a new install's
+    first setup with no circles yet, and joins and opens the circle (`lib/circles/pending_link.dart`). Open in Ghost
+    Messaging opens `ghostmsg://join/#c.…`, which the Android app (MainActivity), the Mac's (CFBundleURLTypes,
+    AppDelegate) and Windows' (`windows/runner/links.cpp`: the scheme registered for the user at each start; a second
+    copy hands the link to the running one by WM_COPYDATA) take, on "ghost_desktop/links" (`lib/desktop/links.dart`).
+    A link opened while the app is still being set up is held and opened once it is.
+  - Tests: circle_joins_test.
 - **Plugins for whole circles: Record call, Scribe, Live captions, Watch together, and SMS spaces** (0.9.21, not
   released; Matt, 2026-11-19: "Start with the recording plugin, then scribe, then a special space in the circle called a
   "SMS Space" to text members, Live captions, and watch together"; "Some plugins should be serverside / cirlce side as

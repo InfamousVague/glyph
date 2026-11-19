@@ -1,4 +1,5 @@
 import '../circles/circles.dart';
+import '../circles/pending_link.dart';
 import 'whats_new.dart' show showWhatsNewIfUpdated;
 import 'circles/circle_invite_card.dart' show CircleInviteBanner;
 import 'circles/circle_dock.dart';
@@ -260,6 +261,10 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     live = this;
     Voice.instance.addListener(_voiceChanged);
     Circles.instance.removedFrom.addListener(_removed);
+    _joins = Circles.instance.joined.listen(_someoneJoined);
+    // A circle's link held while the app was being set up, or copied by the invite page before the app was got
+    // (lib/circles/pending_link.dart): the circle joined and opened, now there is a list to open it in.
+    WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_takeHeldLink()));
     // What's new, once after an update (Matt, 2026-11-19: "Implement a changelog that pops up ever time a new update is
     // released with release notes"): a moment after the frame is up, over it.
     Future<void>.delayed(const Duration(milliseconds: 600), () {
@@ -275,11 +280,39 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     toast(context, 'You were removed from $name');
   }
 
+  StreamSubscription<CircleJoin>? _joins;
+
+  /// Someone new in one of this device's circles, while the app is in front: said, with the way to the circle (Matt,
+  /// 2026-11-19: "add join notifications for memebers in circles"). A phone in the background notifies instead
+  /// (lib/main.dart). Not while that circle is the one open, whose members list has them already.
+  void _someoneJoined(CircleJoin j) {
+    if (!mounted || !AppState.of(context).flag('notif_joins')) return;
+    if (WidgetsBinding.instance.lifecycleState case final s? when s != AppLifecycleState.resumed) return;
+    if (openCircleSeed == j.circle.seed) {
+      toast(context, j.line);
+      return;
+    }
+    toast(context, j.line, action: GlacierToastAction(label: 'Open', onPress: () {
+      final c = Circles.instance.bySeed(j.circle.seed);
+      if (c != null && mounted) openCircle(c);
+    }));
+  }
+
+  Future<void> _takeHeldLink() async {
+    final link = await PendingCircleLink.take(fresh: Circles.instance.all.isEmpty);
+    if (link == null || !mounted) return;
+    final c = Circles.instance.joinLink(link);
+    if (c == null || !mounted) return;
+    openCircle(c);
+    toast(context, 'You joined ${c.name}');
+  }
+
   @override
   void dispose() {
     if (identical(live, this)) live = null;
     Voice.instance.removeListener(_voiceChanged);
     Circles.instance.removedFrom.removeListener(_removed);
+    unawaited(_joins?.cancel());
     _small.dispose();
     closed.dispose();
     archived.dispose();

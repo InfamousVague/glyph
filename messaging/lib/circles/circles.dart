@@ -34,6 +34,18 @@ import 'circle.dart';
 
 export 'circle.dart';
 
+/// Someone who has come into a circle (Circles.joined): its id, and the name they gave ('' where none).
+@immutable
+class CircleJoin {
+  const CircleJoin(this.circle, this.id, this.name);
+  final Circle circle;
+  final String id;
+  final String name;
+
+  /// "Maya joined Night Owls".
+  String get line => '${name.isNotEmpty ? name : 'Someone new'} joined ${circle.name}';
+}
+
 /// A circle offered to this device and not yet taken up: a friend's invite (Circles.share), or a circle's link opened
 /// from outside the app. It waits, with Join and Not now, until it is joined or dismissed (Matt, 2026-11-17: "Finish the
 /// missing pieces that went unfinished", of Circles: until then a friend's invite joined the circle at once, unasked,
@@ -153,6 +165,23 @@ class Circles extends ChangeNotifier {
       }
       _was.addAll((jsonDecode(app.choice('circles_was', '{}')) as Map).map((k, v) => MapEntry('$k', '$v')));
     } catch (_) {}
+    try {
+      _joinedAt.addAll((jsonDecode(app.choice('circles_joined_at', '{}')) as Map).map((k, v) => MapEntry('$k', v is int ? v : 0)));
+      for (final e in (jsonDecode(app.choice('circles_joins', '{}')) as Map).entries) {
+        _joins['${e.key}'] = {for (final p in ((e.value as Map?) ?? const {}).entries) '${p.key}': p.value is int ? p.value as int : 0};
+      }
+      _announce.addAll((jsonDecode(app.choice('circles_announce', '[]')) as List).whereType<String>());
+    } catch (_) {}
+    // A circle held from before joins were said: when this device came in is taken as now, so whoever came before is
+    // not told of as coming now.
+    final now = DateTime.now().millisecondsSinceEpoch;
+    var dated = false;
+    for (final c in all) {
+      if (_joinedAt.containsKey(c.seed)) continue;
+      _joinedAt[c.seed] = now;
+      dated = true;
+    }
+    if (dated) app.set('circles_joined_at', jsonEncode(_joinedAt));
     try {
       // One for a circle joined meanwhile (on the phone or computer) has been answered.
       invites = [for (final j in jsonDecode(app.choice('circle_invites', '[]')) as List) ?CircleInvite.fromJson(j)].where((i) => bySeed(i.seed) == null).toList();
@@ -585,6 +614,7 @@ class Circles extends ChangeNotifier {
       return bySeed(c.seed)!;
     }
     all = [...all, c];
+    _cameInto(c.seed);
     _changed();
     // A join is said as one (circle-join), so a phone that had it as left takes it back rather than leaving it again
     // on the next sync, as a plain `circle` did.
@@ -928,10 +958,87 @@ class Circles extends ChangeNotifier {
     if (route == null) return;
     for (final c in all) {
       if (_rooms.containsKey(c.seed)) continue;
-      final room = _rooms[c.seed] = CircleRoom(circle: c, route: route, onManifest: _heard, onWas: (old, now) => _heardWas(c.seed, old, now));
+      final room = _rooms[c.seed] = CircleRoom(
+        circle: c,
+        route: route,
+        onManifest: _heard,
+        onWas: (old, now) => _heardWas(c.seed, old, now),
+        onJoined: (from, name, at) => _heardJoined(c.seed, from, name, at),
+      );
       unawaited(room.open().catchError((_) {}));
+      if (_announce.contains(c.seed)) unawaited(_sayJoined(room));
     }
   }
+
+  // --- who joins ----------------------------------------------------------------------------------------------------
+
+  /// When this device came into each circle (ms), by seed (`circles_joined_at`): only those who join after it are told
+  /// of, not everyone who came before, whose joins the hub hands over with what it kept.
+  final Map<String, int> _joinedAt = {};
+
+  /// Who has been told of as joining each circle, by seed, then id, with when (`circles_joins`): each once, however
+  /// often the hub hands the join over again, and whichever of their devices said it.
+  final Map<String, Map<String, int>> _joins = {};
+  static const _joinsKept = 400;
+
+  /// Circles this device came into and has not yet said so in (`circles_announce`): said as soon as its room is in.
+  final Set<String> _announce = {};
+
+  /// A join is told of only this long after it was said: one kept by the hub while this device was away for longer is
+  /// old news, taken in quietly.
+  static const joinNews = Duration(days: 3);
+
+  /// Someone new in one of this device's circles (Matt, 2026-11-19: "add join notifications for memebers in circles"):
+  /// the notification on a phone, a toast in the app (lib/main.dart, lib/ui/shell.dart).
+  final StreamController<CircleJoin> _joined = StreamController.broadcast();
+  Stream<CircleJoin> get joined => _joined.stream;
+
+  /// Who has joined [c] since this device was in it, with when (ms), newest last.
+  Map<String, int> joinsIn(Circle c) => Map.unmodifiable(_joins[c.seed] ?? const <String, int>{});
+
+  void _cameInto(String seed) {
+    _joinedAt[seed] = DateTime.now().millisecondsSinceEpoch;
+    _announce.add(seed);
+    _app?.set('circles_joined_at', jsonEncode(_joinedAt));
+    _app?.set('circles_announce', jsonEncode([..._announce]));
+  }
+
+  /// Says in [room] that this device's person has come in, kept by the hub for whoever is away; once.
+  Future<void> _sayJoined(CircleRoom room) async {
+    if (!await room.joined.timeout(const Duration(seconds: 30), onTimeout: () => false)) return;
+    final seed = room.circle.seed;
+    if (!_announce.remove(seed)) return;
+    final name = Voice.instance.myName;
+    room.sayJoined(name, _joinedAt[seed] ?? DateTime.now().millisecondsSinceEpoch);
+    _app?.set('circles_announce', jsonEncode([..._announce]));
+  }
+
+  /// [from] said they joined [seed]'s circle as [name] at [at] (ms).
+  void _heardJoined(String seed, String from, String name, int at) {
+    final c = bySeed(seed);
+    if (c == null) return;
+    final id = sameAs(from);
+    final mine = {Voice.instance.me, if (signer != null) signer!.id};
+    if (mine.contains(from) || mine.contains(id) || c.manifest.removed.contains(id) || c.manifest.removed.contains(from)) return;
+    final heard = _joins.putIfAbsent(seed, () => {});
+    final clean = bareName(name);
+    if (clean.isNotEmpty) noteSeen(c, {id: clean});
+    if (heard.containsKey(id)) return;
+    heard[id] = at;
+    while (heard.length > _joinsKept) {
+      heard.remove(heard.keys.first);
+    }
+    _app?.set('circles_joins', jsonEncode(_joins));
+    final now = DateTime.now().millisecondsSinceEpoch;
+    // Before this device came in, or long ago: taken in, not told of. The circle's owner never joins it.
+    if (at <= (_joinedAt[seed] ?? now) || now - at > joinNews.inMilliseconds || id == c.manifest.ownerId) return;
+    notifyListeners();
+    _joined.add(CircleJoin(c, id, clean));
+  }
+
+  /// For a test: [from] heard joining [c] as [name] at [at].
+  @visibleForTesting
+  void heardJoined(Circle c, String from, String name, int at) => _heardJoined(c.seed, from, name, at);
 
   /// A newer manifest heard in a circle's room.
   void _heard(Circle c, CircleManifest m) {
@@ -956,6 +1063,9 @@ class Circles extends ChangeNotifier {
     all = [];
     _gone.clear();
     invites = [];
+    _joinedAt.clear();
+    _joins.clear();
+    _announce.clear();
     Voice.instance.setCircled(const []);
     notifyListeners();
     for (final r in rooms) {
@@ -972,7 +1082,7 @@ class Circles extends ChangeNotifier {
 /// - A change is said to everyone (`circle`).
 /// - What is heard is checked by [Circle.merged] before it is taken ([onManifest]).
 class CircleRoom {
-  CircleRoom({required this.circle, required this.route, required this.onManifest, this.onWas});
+  CircleRoom({required this.circle, required this.route, required this.onManifest, this.onWas, this.onJoined});
 
   /// The circle as it stands here: changed by its manager as its manifest changes.
   Circle circle;
@@ -981,6 +1091,9 @@ class CircleRoom {
 
   /// Told an id that was someone else's before they spoke as their identity, and theirs now (`was`).
   final void Function(String old, String now)? onWas;
+
+  /// Told someone said they joined the circle: their id (stamped by the relay), the name they gave, and when (ms).
+  final void Function(String from, String name, int at)? onJoined;
 
   final Completer<bool> _in = Completer();
 
@@ -1053,6 +1166,10 @@ class CircleRoom {
   /// so whoever comes in later folds the two together too.
   void sayWas(Uint8List oldKey, Uint8List sig) => _say({'t': 'was', 'k': NetCrypto.hex(oldKey), 'sig': NetCrypto.hex(sig)}, keep: true);
 
+  /// Says this device's person came into the circle as [name] at [at] (ms): kept by the hub, so whoever is away is told
+  /// when they are back.
+  void sayJoined(String name, int at) => _say({'t': 'joined', 'n': name, 'at': at}, keep: true);
+
   /// [keep]: a change to the circle is kept by the hub for whoever comes in later.
   void _say(Map<String, Object?> what, {bool keep = false}) {
     if (!opened) return;
@@ -1117,6 +1234,9 @@ class CircleRoom {
         final to = m['to'];
         if (to is String && to != me && !_newerThan(got.grantsVersion, got.version)) _answering.remove(to)?.cancel();
         if (got.follows(circle.manifest, circle.owner)) onManifest(circle, got);
+      case 'joined':
+        final at = m['at'] is int ? m['at'] as int : 0;
+        onJoined?.call(from, m['n'] is String ? m['n'] as String : '', at);
       case 'was':
         // An id that was [from]'s before it spoke as its identity: taken only on the old key's own word, which names
         // [from] (stamped by the relay) and this circle.

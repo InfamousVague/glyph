@@ -702,6 +702,13 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
           hint: const Text('A notification when someone writes @ and your name in a space or a circle. A space\'s other messages don\'t notify.'),
           control: GlacierSwitch(checked: app.flag('notif_mentions'), onCheckedChange: (v) => app.setFlag('notif_mentions', v), ariaLabel: 'Mentions in spaces'),
         ),
+        // Matt, 2026-11-19: "add join notifications for memebers in circles".
+        SettingRow(
+          icon: _icon(Lucide.userPlus),
+          label: 'Joins in circles',
+          hint: const Text('Told when someone new joins a circle you\'re in.'),
+          control: GlacierSwitch(checked: app.flag('notif_joins'), onCheckedChange: (v) => app.setFlag('notif_joins', v), ariaLabel: 'Joins in circles'),
+        ),
       ],
     ),
     // Beside Google Messages (android GmBridge.kt; Matt, 2026-11-15: "I can turn off notifications from google messages
