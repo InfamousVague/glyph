@@ -1226,7 +1226,11 @@ class Sms {
   static const _partsKept = 40;
   Future<Uint8List?> part(int id) {
     final had = _parts.remove(id);
-    final bytes = had ?? _calls.invokeMethod<Uint8List>('part', {'id': id});
+    // An empty file is not there yet either: a picture you send is written as a part first and its bytes after, and
+    // read in between it came back empty, was kept, and the message drew as nothing but "Delivered" for as long as
+    // the app was open (Matt, 2026-11-19: "when I'm sending pictures and voice messages sometimes I don't see my
+    // outbound messages just the delivered tag").
+    final bytes = had ?? _calls.invokeMethod<Uint8List>('part', {'id': id}).then((b) => b == null || b.isEmpty ? null : b);
     _parts[id] = bytes;
     while (_parts.length > _partsKept) {
       _parts.remove(_parts.keys.first);

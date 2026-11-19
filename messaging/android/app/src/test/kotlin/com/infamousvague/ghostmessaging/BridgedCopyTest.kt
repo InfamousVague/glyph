@@ -38,6 +38,16 @@ class BridgedCopyTest {
     }
 
     @Test
+    fun aCopyToldOfWithNoPictureIsTheSameAsAndroidsPictureMessage() {
+        // Matt, 2026-11-19: "sometimes I don't see my outbound messages just the delivered tag". Google Messages told of
+        // the picture and never gave its id, so the bridge's copy has nothing in it; Android's MMS went 4 minutes on.
+        val have = listOf(Store.AndroidCopy(out = true, words = "", time = 4 * min, media = true))
+        assertEquals(0, Store.androidCopyOf(have, out = true, text = "", time = 0, media = false, used = HashSet()))
+        // Words are still words: a text is not a picture message minutes later.
+        assertNull(Store.androidCopyOf(have, out = true, text = "ok", time = 0, media = false, used = HashSet()))
+    }
+
+    @Test
     fun theirsIsNeverYours() {
         val have = listOf(Store.AndroidCopy(out = false, words = "", time = 0, media = true))
         assertNull(Store.androidCopyOf(have, out = true, text = "", time = 0, media = true, used = HashSet()))

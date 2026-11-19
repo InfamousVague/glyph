@@ -1263,7 +1263,10 @@ class Store(private val context: Context) {
             for ((i, h) in have.withIndex()) {
                 if (i in used || h.out != out || h.words != words) continue
                 val d = kotlin.math.abs(h.time - time)
-                val near = if (media && h.media) d < 15 * 60_000 else d < 180_000
+                // The bridge's copy with no words and no picture is a picture message whose picture it was never told
+                // of (your own, mostly): as near as a picture's (Matt, 2026-11-19: "when I'm sending pictures and voice
+                // messages sometimes I don't see my outbound messages just the delivered tag").
+                val near = if (h.media && (media || words.isEmpty())) d < 15 * 60_000 else d < 180_000
                 if (near && d < gap) { best = i; gap = d }
             }
             best?.let { used += it }
