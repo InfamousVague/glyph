@@ -398,10 +398,12 @@ class NewMessagesDivider extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.symmetric(vertical: t.space(2)),
         // Wavy like a ghost's hem, running on behind the tag (Matt, 2026-11-18: "Make the new chat marker wavy like a
-        // ghost"; "make the new message more wavy and make the wave dissaper behind the tag that says new").
-        child: Stack(alignment: Alignment.centerRight, children: [
-          // Ending under the tag's middle, so none of it shows past the tag's round corners.
-          Padding(padding: EdgeInsets.only(right: t.space(4)), child: SizedBox(width: double.infinity, height: t.lenOf('1rem'), child: const CustomPaint(painter: GhostHem(color: red, stroke: 2)))),
+        // ghost"; "make the new message more wavy and make the wave dissaper behind the tag that says new"). The wave is
+        // measured from the tag, not from the far edge: it comes to the line's middle exactly at the tag's edge and
+        // runs level under it, whatever the width (Matt, 2026-11-19: "the squiggle always ends in the middle of the
+        // "new" tag i suggest starting the squiggle from that end so it's always lined up").
+        child: Row(children: [
+          Expanded(child: SizedBox(height: t.lenOf('1rem'), child: CustomPaint(painter: GhostHem(color: red, stroke: 2, tail: t.space(2))))),
           Container(
             padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: 1),
             decoration: BoxDecoration(color: red, borderRadius: BorderRadius.circular(t.radius('sm'))),
@@ -445,37 +447,45 @@ class UnreadBadge extends StatelessWidget {
   }
 }
 
-/// A ghost's hem as a line: a wave rising and falling as deep as it is drawn tall, from the left edge on, drawn in
-/// [color]; what stands over its right end (the New tag) hides where it stops.
+/// A ghost's hem as a line: a wave rising and falling as deep as it is drawn tall, drawn in [color]. It is measured
+/// from its right end, so it always meets that end on its middle line, at the start of a wave, however wide it is;
+/// whatever is cut short is at the left. [tail] carries it on level past the right edge, under what stands there (the
+/// New tag), so the two join with no gap.
 class GhostHem extends CustomPainter {
-  const GhostHem({required this.color, this.stroke = 1.5});
+  const GhostHem({required this.color, this.stroke = 1.5, this.tail = 0});
   final Color color;
   final double stroke;
+  final double tail;
+
+  /// Half a wave's length for a line drawn [height] tall: as long as the wave is deep, and a little more, which is
+  /// round and not a zigzag.
+  static double halfWave(double height, double stroke) => math.max(1.5, height / 2 - stroke / 2) * 2.2;
 
   @override
   void paint(Canvas canvas, Size size) {
     final mid = size.height / 2;
     final depth = math.max(1.5, mid - stroke / 2);
-    // A half wave as long as the wave is deep, and a little more: round, not a zigzag.
-    final half = depth * 2.2;
-    final path = Path()..moveTo(0, mid);
-    var x = 0.0;
+    final half = halfWave(size.height, stroke);
+    final path = Path()
+      ..moveTo(size.width + tail, mid)
+      ..lineTo(size.width, mid);
+    var x = size.width;
     var up = true;
-    while (x < size.width + half) {
+    while (x > -half) {
       final peak = up ? mid - depth : mid + depth;
       // A cubic whose handles sit level with the peak gives a sine's soft crest.
-      path.cubicTo(x + half * 0.36, peak, x + half * 0.64, peak, x + half, mid);
-      x += half;
+      path.cubicTo(x - half * 0.36, peak, x - half * 0.64, peak, x - half, mid);
+      x -= half;
       up = !up;
     }
     canvas.save();
-    canvas.clipRect(Offset.zero & size);
+    canvas.clipRect(Rect.fromLTRB(0, 0, size.width + tail, size.height));
     canvas.drawPath(path, Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = stroke..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round..isAntiAlias = true);
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(GhostHem old) => old.color != color || old.stroke != stroke;
+  bool shouldRepaint(GhostHem old) => old.color != color || old.stroke != stroke || old.tail != tail;
 }
 
 /// The app's logo: the white ghost that is a speech bubble, on black, as the icon on the home screen has it
