@@ -23,6 +23,9 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.9.31', '2026-11-19', [
+    'A circle\'s name, picture and back arrow sit inside its banner picture, clear of its rounded edges.',
+  ]),
   ReleaseNotes('0.9.30', '2026-11-19', [
     'Mac download: Ghost Messaging for the Mac is a disk image now, signed and checked by Apple. Open it and drag the app to Applications; it opens on any Mac without a warning.',
     'Friends show once each in Contacts and when you choose people to invite, not twice.',
