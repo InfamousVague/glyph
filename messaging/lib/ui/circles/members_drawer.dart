@@ -177,7 +177,6 @@ class CircleMembersList extends StatelessWidget {
         final c = circles.bySeed(seed);
         if (c == null) return Padding(padding: EdgeInsets.all(t.space(6)), child: Text('You left this circle.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))));
         final people = circlePeople(c);
-        final owner = c.manifest.ownerId.isNotEmpty && circles.signer?.id == c.manifest.ownerId;
         final here = people.where((p) => p.here).length;
         final groups = [
           ('Owner', [for (final p in people) if (p.owner) p]),
@@ -208,7 +207,8 @@ class CircleMembersList extends StatelessWidget {
                         // Their role's colour instead of a tag (Matt, 2026-11-17; the owner's crown went 2026-11-18).
                         labelColor: circleRoleInk(t, p),
                         hint: Text(p.here ? 'On now' : 'Away'),
-                        onPress: owner && !p.owner ? () => circlePersonMenu(context, c, p) : null,
+                        // Anyone's card on a press (Matt, 2026-11-19), its circle actions as this device may take them.
+                        onPress: () => circlePersonMenu(context, c, p),
                       ),
                   ],
                 ),

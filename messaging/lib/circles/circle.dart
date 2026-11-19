@@ -43,6 +43,11 @@ String hueOfSeed(String seed) {
 /// (64 KB) and one invite.
 const circlePictureMax = 24000;
 
+/// The largest banner a manifest carries, as base64: a wide picture behind the top of the circle's sidebar (Matt,
+/// 2026-11-19: "make circles have a background image for the header like discord does"), small enough that it and a
+/// picture still go round in one packet.
+const circleBannerMax = 26000;
+
 /// One space in a circle's list.
 /// What a circle's roles can give (Matt, 2026-11-18: "Build custom roles"): changing the circle itself, its spaces and
 /// its roles, inviting, and writing, talking and sharing files in its spaces. Kept by a letter each in the manifest.
@@ -438,11 +443,34 @@ class CircleManifest {
   Set<CirclePerm> permsOf(String id) {
     if (id.isEmpty) return const {};
     if (id == ownerId) return CirclePerm.values.toSet();
+    if (removed.contains(id)) return const {};
     final mine = rolesOf(id);
     if (granted(id) && mine.isEmpty) return CirclePerm.values.toSet();
     final all = {...everyone, for (final r in mine) ...r.perms};
     if (!granted(id)) all.removeWhere((p) => p.signs);
     return all;
+  }
+
+  /// Its banner (`bn`, base64 PNG, at most [circleBannerMax]); null for none, where the sidebar's top wears its colour.
+  String? get banner => extra['bn'] is String && (extra['bn'] as String).length <= circleBannerMax ? extra['bn'] as String : null;
+
+  /// Who was put out of the circle by its owner or an admin (`rm`, ids; Matt, 2026-11-19: "add the ability to remove
+  /// members from a circle as an admin"). Every member's app leaves them out: not listed, not heard in its spaces or
+  /// calls, and their own app leaves the circle and keeps out of it. A build from before reads none, as it would any
+  /// field it does not know. The owner is never among them.
+  Set<String> get removed => {for (final x in (extra['rm'] is List ? extra['rm'] as List : const [])) if (x is String && x != ownerId) x};
+
+  /// Whether [by] may put [id] out: the owner anyone but themselves; an admin anyone neither the owner nor an admin.
+  bool mayRemove(String by, String id) {
+    if (id.isEmpty || by == id || id == ownerId || !canSign(by)) return false;
+    return by == ownerId || !granted(id);
+  }
+
+  /// The next version's fields with [id] put out ([removed]), or let back ([back]).
+  Map<String, Object?> withRemoved(String id, {bool back = false}) {
+    final now = {...removed};
+    back ? now.remove(id) : now.add(id);
+    return {...extra, 'rm': [...now]..sort()};
   }
 
   /// The next version's fields of roles: [roles], [assignments] and [everyone] in place of these.
@@ -727,6 +755,7 @@ class Circle {
   String get hue => manifest.hue;
   String get icon => manifest.icon;
   String? get picture => manifest.picture;
+  String? get banner => manifest.banner;
 
   /// Its spaces, in their order.
   List<CircleSpace> get spaces => manifest.ordered;

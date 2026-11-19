@@ -554,6 +554,14 @@ class Me extends ChangeNotifier {
   String get status => _app?.choice('me_status', '') ?? '';
   static const statusMost = 80;
 
+  /// Whether friends are told this person's number and the accounts they linked, with their profile (Matt, 2026-11-19:
+  /// "show the users profile popup with linked numbers"). Off until switched on: nobody is told the number otherwise.
+  bool get shareLinks => _app?.flag('me_share_links', fallback: false) ?? false;
+  void setShareLinks(bool on) {
+    _app?.setFlag('me_share_links', on);
+    notifyListeners();
+  }
+
   void setProfile({String? displayName, String? bio, String? picture, String? status}) {
     if (displayName != null) _app?.set('me_display', displayName.trim());
     if (bio != null) _app?.set('me_bio', bio.trim());

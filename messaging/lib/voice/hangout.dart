@@ -34,6 +34,9 @@ import '../me/pictures.dart';
 /// device ([onRoster]: lib/voice/channels.dart), someone banned is not answered at all, and a device told to leave by
 /// someone above it with the right to remove people leaves.
 class HangoutRoom extends ChangeNotifier {
+  /// Someone not heard here at all besides the banned: put out of the circle this space is in (Voice sets it).
+  bool Function(String id)? shut;
+
   HangoutRoom({required this.channel, required this.route, required this.name, this.username, this.signer, HangoutStore? store})
       : store = store ?? MemoryHangoutStore() {
     roster = this.store.roster(channel.chatRoom) ?? Roster.first(channel.owner, kind: channel.kind);
@@ -668,7 +671,7 @@ class HangoutRoom extends ChangeNotifier {
       return;
     }
     // Someone banned is not heard at all.
-    if (roster.banned.contains(from)) return;
+    if (roster.banned.contains(from) || (shut?.call(from) ?? false)) return;
     switch (m['t']) {
       case 'hi':
         // Another device of this identity is this person, not someone else here (counted with "here" otherwise).

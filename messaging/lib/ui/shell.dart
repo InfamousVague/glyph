@@ -259,6 +259,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     super.initState();
     live = this;
     Voice.instance.addListener(_voiceChanged);
+    Circles.instance.removedFrom.addListener(_removed);
     // What's new, once after an update (Matt, 2026-11-19: "Implement a changelog that pops up ever time a new update is
     // released with release notes"): a moment after the frame is up, over it.
     Future<void>.delayed(const Duration(milliseconds: 600), () {
@@ -266,10 +267,19 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     });
   }
 
+  /// Put out of a circle by its owner or an admin (Circles.removeMember): said, since the circle just goes.
+  void _removed() {
+    final name = Circles.instance.removedFrom.value;
+    if (name == null || !mounted) return;
+    Circles.instance.removedFrom.value = null;
+    toast(context, 'You were removed from $name');
+  }
+
   @override
   void dispose() {
     if (identical(live, this)) live = null;
     Voice.instance.removeListener(_voiceChanged);
+    Circles.instance.removedFrom.removeListener(_removed);
     _small.dispose();
     closed.dispose();
     archived.dispose();

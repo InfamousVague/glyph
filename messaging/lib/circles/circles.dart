@@ -289,11 +289,15 @@ class Circles extends ChangeNotifier {
   }
 
   /// Changes [c]'s name, colour, icon or picture.
-  Future<bool> edit(Circle c, {String? name, String? hue, String? icon, String? picture, bool clearPicture = false}) {
+  Future<bool> edit(Circle c, {String? name, String? hue, String? icon, String? picture, bool clearPicture = false, String? banner, bool clearBanner = false}) {
     if (hue != null && !circleHues.contains(hue)) return Future.value(false);
     if (picture != null && picture.length > circlePictureMax) return Future.value(false);
+    if (banner != null && banner.length > circleBannerMax) return Future.value(false);
     final n = capName(name);
-    return _publish(c, (m) => m.next(name: n == null || n.isEmpty ? null : n, hue: hue, icon: icon, picture: picture, clearPicture: clearPicture));
+    return _publish(c, (m) {
+      final extra = banner != null || clearBanner ? ({...m.extra}..remove('bn')..addAll({if (banner != null) 'bn': banner})) : null;
+      return m.next(name: n == null || n.isEmpty ? null : n, hue: hue, icon: icon, picture: picture, clearPicture: clearPicture, extra: extra);
+    });
   }
 
   /// Adds a space named [name] of [kind] to [c], at the end of [section] (or of the list); gives it back.
@@ -721,7 +725,29 @@ class Circles extends ChangeNotifier {
     all = [for (final x in all) x.seed == c.seed ? c : x];
     _rooms[c.seed]?.circle = c;
     _changed();
+    // Put out of it by its owner or an admin: this device leaves, and says so once.
+    final me = signer?.id;
+    if (me != null && c.manifest.isSigned && c.manifest.removed.contains(me)) {
+      removedFrom.value = c.manifest.name;
+      unawaited(leave(c));
+    }
   }
+
+  /// The name of the circle this device was last put out of, for the screens to say so; null after.
+  final ValueNotifier<String?> removedFrom = ValueNotifier(null);
+
+  /// Puts [id] out of [c] (Matt, 2026-11-19: "add the ability to remove members from a circle as an admin"), or lets
+  /// them back ([back]): the owner or an admin, as [CircleManifest.mayRemove] says. An admin put out stops being one.
+  Future<bool> removeMember(Circle c, String id, {bool back = false}) async {
+    final s = signer;
+    final have = bySeed(c.seed) ?? c;
+    if (s == null || (!back && !have.manifest.mayRemove(s.id, id)) || (back && !have.manifest.canSign(s.id))) return false;
+    if (!back && have.manifest.granted(id) && !await grantAdmin(have, id, on: false)) return false;
+    return _publish(bySeed(c.seed) ?? have, (m) => m.next(extra: m.withRemoved(id, back: back)));
+  }
+
+  /// Whether [id] was put out of the circle [space] is in: not heard there (lib/voice/channels.dart).
+  bool putOutOf(VoiceChannel space, String id) => circleOf(space)?.manifest.removed.contains(id) ?? false;
 
   /// Kept, handed to Voice, the rooms followed, and told.
   void _changed({bool keep = true}) {

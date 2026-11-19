@@ -146,6 +146,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   field(_name, 'Your name', 'Name'),
                   field(_status, 'A status: what you\'re up to', 'Status'),
                   field(_bio, 'A line about you', 'About'),
+                  SettingRow(
+                    icon: AppIcon(Lucide.link, size: 18),
+                    label: 'Show friends my number and linked accounts',
+                    hint: Text(me.links.isEmpty ? 'None linked yet (Settings › Me).' : 'On your profile card, for friends only.'),
+                    control: GlacierSwitch(
+                      checked: me.shareLinks,
+                      onCheckedChange: (v) {
+                        me.setShareLinks(v);
+                        Buddies.instance.shareProfile();
+                      },
+                      ariaLabel: 'Show friends my number and linked accounts',
+                    ),
+                  ),
                   SettingRow(icon: AppIcon(Lucide.check, size: 18), label: 'Save', onPress: _saveProfile),
                 ],
               ),

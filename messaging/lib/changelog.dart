@@ -23,6 +23,13 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.9.24', '2026-11-19', [
+    'Circles: the owner or an admin can remove someone from a circle. Tap them in the members list: their card has their roles to change, admin, and Remove.',
+    'Tap anyone in a circle\'s members list to see their profile card.',
+    'Your profile can show friends your number and linked accounts, if you switch it on in Settings › Me › Profile.',
+    'Plugins meant for circles have their own section on the Plugins page.',
+    'Circles can have a banner across the top of their sidebar: choose one in Circle settings › Overview.',
+  ]),
   ReleaseNotes('0.9.23', '2026-11-19', [
     'What\'s new: after each update, a short list of what changed, like this one. Find it again in Settings › About.',
     'Profiles: set a picture and a status in Settings › Me › Profile. Tap an @ anywhere to see someone\'s card, with what you can do from there.',

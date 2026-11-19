@@ -117,6 +117,24 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     bio, photo, emoji status and last seen; Signal's name, number, avatar and about line. Message them there, copy the
     username. The Signal helper (sidecar/signal) sends the mentions and the about line; the next release builds it.
   - Tests: profile_card_test, inbox_mentions_telegram_test, inbox_mentions_signal_test, sidecar main_test.
+- **Removing someone from a circle; every member's card** (0.9.24, not released; Matt, 2026-11-19: "add the ability to
+  remove members from a circle as an admin", then "clicking on a member in the member list should also show the users
+  profile popup with linked numbers, and other details in addition to things like changing the role").
+  - The owner removes anyone but themselves, an admin anyone but the owner and admins (`CircleManifest.mayRemove`); an
+    admin removed stops being one. It is said in the circle's signed manifest (`rm`), so every member's app leaves them
+    out: not listed, not heard in its spaces or calls. Their own app leaves the circle, says "You were removed from …",
+    and leaves again if they come back by its link. Let back from the same card. A build from before knows nothing of
+    it, and anyone keeping the circle's link and an older app could still read it: a removal is not a new key.
+  - Pressing a member opens their profile card, with their roles and whether they are on, then the circle's actions as
+    this device may take them: give or take away each role, make or stop an admin (the owner), remove.
+  - A profile can show friends its number and linked accounts (Settings › Me › Profile, off until switched on); the card
+    lists them, with Text and Message on the network where it is linked here.
+  - A circle's banner (Matt, 2026-11-19: "make circles have a background image for the header like discord does and make
+    the circle profile picture larger"): a wide picture, three by one, chosen in Circle settings › Overview, across the
+    top of its sidebar (`bn` in the manifest, at most 26,000 characters so it still goes in one packet with the
+    picture); a circle without one shows a wash of its colour there. The picture beside its name is larger, and its
+    spaces a step smaller again ("make the spaces slightly smaller still in the sidebar on circles").
+  - Tests: circle_remove_test.
 - **One identity on every device, in circles and spaces too** (0.9.20, not released; Matt, 2026-11-19: "when i join a
   server on my other logged in machines it's joining as a new matt every time instead of reusing my existing keys and
   owner account, when I login on ghost i should have the same identity across all devices"). Every computer paired with
