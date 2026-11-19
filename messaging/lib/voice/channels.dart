@@ -751,6 +751,9 @@ class Voice extends ChangeNotifier {
       // An SMS space this phone texts for: what is written there goes out by text (lib/circles/sms_space.dart).
       SmsSpaces.instance.heard(room, fresh);
     };
+    // An SMS space's phone asking members' phones for their numbers, and their answers (lib/circles/sms_space.dart).
+    room.onSignal = (from, said) => SmsSpaces.instance.signal(room, from, said);
+    room.addListener(() => SmsSpaces.instance.roomChanged(room));
     room.addListener(notifyListeners);
     return _hangouts[c.seed] = room;
   }
