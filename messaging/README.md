@@ -30,6 +30,12 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Plugins' messages as cards** (0.9.32, not released; Matt, 2026-11-19: "use icons for starting and stopping
+  recording and allow plugins to render messages like these as cards with iconography and details"). A space's
+  message may carry a plugin's note (`lib/voice/plugin_note.dart`, `pn`: plugin id, kind, short details) beside its
+  words, which older builds, the browser page and previews show. `GhostPlugin.card` makes a `PluginChatCard` of it
+  (icon on the plugin's hue or on red, title, line, facts with icons), drawn by `lib/ui/plugin_note_card.dart` in
+  place of the words in every chat look. Record call's started and stopped are the first. Tests: plugin_cards_test.
 - **Sign up with Discord, Telegram or Signal** (0.9.31, not released; Matt, 2026-11-19: "add a sign up with discord
   sign up with telegram or signal option where it pre populates your connection, loads your picture and username and
   status"). `lib/ui/sign_up_from.dart`, on the welcome and on Settings › Me › Profile until a username is claimed.
