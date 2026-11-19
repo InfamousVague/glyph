@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ghost_messaging/ui/hangout_screen.dart' show OwnerCrown, RoleTag;
+import 'package:ghost_messaging/ui/hangout_screen.dart' show RoleTag;
 import 'package:ghost_messaging/ui/ripple_avatar.dart';
 import 'package:ghost_messaging/ui/space_designs/space_design.dart';
 import 'package:ghost_messaging/ui/space_designs/telegram.dart';
@@ -195,7 +195,8 @@ void main() {
     // "Don't show the badges for owner moderator etc, instead assign role colors like discord does and for the owner
     // just show a singlular crown icon"); Riley is a quiet "guest".
     expect(find.byType(RoleTag), findsNothing);
-    expect(find.byType(OwnerCrown), findsOneWidget);
+    // No crown: the owner shows by their role's colour alone (Matt, 2026-11-18: "Remove the crown icon").
+    expect(find.bySemanticsLabel('Owner'), findsNothing);
     expect(find.text('Owner'), findsNothing);
     expect(find.text('guest'), findsOneWidget);
 

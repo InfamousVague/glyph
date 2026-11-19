@@ -24,7 +24,6 @@ import '../ripple_avatar.dart';
 import 'circle_face.dart';
 import 'circle_invite.dart';
 import 'new_circle.dart';
-import '../hangout_screen.dart' show OwnerCrown;
 
 /// Raises the members drawer over everything: [title] and [subtitle] at its top, then Add people, then [list] (a
 /// scrollable that shrinks to what it holds, so a short list makes a short drawer). [onAddPeople] is what Add people
@@ -206,9 +205,8 @@ class CircleMembersList extends StatelessWidget {
                         // Your face from your own name, as a space's members list draws it.
                         icon: Opacity(opacity: p.here ? 1 : 0.5, child: RippleAvatar(name: p.me ? youFaceName() : p.name, level: 0, size: 30)),
                         label: p.name,
-                        // Their role's colour, and the owner's crown, instead of a tag (Matt, 2026-11-17).
+                        // Their role's colour instead of a tag (Matt, 2026-11-17; the owner's crown went 2026-11-18).
                         labelColor: circleRoleInk(t, p),
-                        labelAfter: p.owner ? Padding(padding: EdgeInsets.only(left: t.space(1)), child: const OwnerCrown()) : null,
                         hint: Text(p.here ? 'On now' : 'Away'),
                         onPress: owner && !p.owner ? () => circlePersonMenu(context, c, p) : null,
                       ),

@@ -43,7 +43,11 @@ android {
 
     // The Google Messages sidecar (libgmsidecar.so, an executable): unpacked on install, so the app may run it from
     // its native library folder (GmWeb.kt).
-    packaging { jniLibs { useLegacyPackaging = true } }
+    // Only arm64's native libraries: the Flutter engine is built for arm64 alone (abiFilters above), so the app can't
+    // start on any other kind of phone, yet some libraries brought their armeabi-v7a and x86_64 copies along anyway
+    // (libmpv, WebRTC, translation, voice effects: about 85 MB unpacked that no phone could use; Matt, 2026-11-18,
+    // "I am okay with the trim").
+    packaging { jniLibs { useLegacyPackaging = true; excludes += listOf("lib/armeabi-v7a/**", "lib/armeabi/**", "lib/x86/**", "lib/x86_64/**") } }
 
     // TDLib for the Telegram inbox (lib/inbox/telegram.dart), built by tool/build-tdlib.sh android into the app's
     // build folder: taken in where it is there; without it, Telegram says it isn't in this build.

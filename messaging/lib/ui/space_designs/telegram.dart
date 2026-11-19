@@ -11,7 +11,7 @@ import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
 import '../../kit/settings_type.dart';
 import '../../voice/roles.dart';
-import '../hangout_screen.dart' show OwnerCrown, roleInk;
+import '../hangout_screen.dart' show roleInk;
 import '../ripple_avatar.dart';
 import 'space_design.dart';
 
@@ -491,7 +491,6 @@ class _PersonRow extends StatelessWidget {
                     // A guest as the app's call list shows one: the word, quiet, after the name.
                     if (p.guest) ...[SizedBox(width: t.space(2)), Text('guest', maxLines: 1, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))],
                     if (p.tag != null) ...[SizedBox(width: t.space(2)), Text(p.tag!, maxLines: 1, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))],
-                    if (p.owner) ...[SizedBox(width: t.space(1)), const OwnerCrown()],
                   ]),
                   const SizedBox(height: 2),
                   Text(s.words, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: s.words == 'listening' ? 'regular' : 'semibold', color: s.color)),

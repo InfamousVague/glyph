@@ -397,10 +397,11 @@ class NewMessagesDivider extends StatelessWidget {
       label: 'New messages',
       child: Padding(
         padding: EdgeInsets.symmetric(vertical: t.space(2)),
-        child: Row(children: [
-          // Wavy like a ghost's hem (Matt, 2026-11-18: "Make the new chat marker wavy like a ghost").
-          Expanded(child: SizedBox(height: t.lenOf('0.75rem'), child: const CustomPaint(painter: GhostHem(color: red, stroke: 1.75)))),
-          SizedBox(width: t.space(1)),
+        // Wavy like a ghost's hem, running on behind the tag (Matt, 2026-11-18: "Make the new chat marker wavy like a
+        // ghost"; "make the new message more wavy and make the wave dissaper behind the tag that says new").
+        child: Stack(alignment: Alignment.centerRight, children: [
+          // Ending under the tag's middle, so none of it shows past the tag's round corners.
+          Padding(padding: EdgeInsets.only(right: t.space(4)), child: SizedBox(width: double.infinity, height: t.lenOf('1rem'), child: const CustomPaint(painter: GhostHem(color: red, stroke: 2)))),
           Container(
             padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: 1),
             decoration: BoxDecoration(color: red, borderRadius: BorderRadius.circular(t.radius('sm'))),
@@ -412,8 +413,8 @@ class NewMessagesDivider extends StatelessWidget {
   }
 }
 
-/// A ghost's hem as a line: a row of small scallops, each a half circle bulging down, run edge to edge, drawn in
-/// [color]. Whole scallops only, centred, so neither end is cut off mid-wave.
+/// A ghost's hem as a line: a wave rising and falling as deep as it is drawn tall, from the left edge on, drawn in
+/// [color]; what stands over its right end (the New tag) hides where it stops.
 class GhostHem extends CustomPainter {
   const GhostHem({required this.color, this.stroke = 1.5});
   final Color color;
@@ -421,16 +422,24 @@ class GhostHem extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final r = math.max(2.0, size.height / 2 - stroke / 2);
-    final count = (size.width / (2 * r)).floor();
-    if (count < 1) return;
-    final start = (size.width - count * 2 * r) / 2;
-    final top = size.height / 2 - r / 2;
-    final path = Path()..moveTo(start, top);
-    for (var i = 0; i < count; i++) {
-      path.arcToPoint(Offset(start + (i + 1) * 2 * r, top), radius: Radius.circular(r), clockwise: false);
+    final mid = size.height / 2;
+    final depth = math.max(1.5, mid - stroke / 2);
+    // A half wave as long as the wave is deep, and a little more: round, not a zigzag.
+    final half = depth * 2.2;
+    final path = Path()..moveTo(0, mid);
+    var x = 0.0;
+    var up = true;
+    while (x < size.width + half) {
+      final peak = up ? mid - depth : mid + depth;
+      // A cubic whose handles sit level with the peak gives a sine's soft crest.
+      path.cubicTo(x + half * 0.36, peak, x + half * 0.64, peak, x + half, mid);
+      x += half;
+      up = !up;
     }
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
     canvas.drawPath(path, Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = stroke..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round..isAntiAlias = true);
+    canvas.restore();
   }
 
   @override

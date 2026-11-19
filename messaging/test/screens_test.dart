@@ -1587,7 +1587,8 @@ void main() {
       expect(find.byType(HangoutScreen), findsOneWidget);
       expect(find.text('Owner'), findsNothing);
       expect(find.text('Moderator'), findsNothing);
-      expect(find.byType(OwnerCrown), findsOneWidget);
+      // No crown: the owner shows by their role's colour alone (Matt, 2026-11-18: "Remove the crown icon").
+      expect(find.bySemanticsLabel('Owner'), findsNothing);
       // The chat: the run of Maya's two under one name, Riley's, this phone's.
       await tester.tap(find.bySemanticsLabel('Chat'));
       await _settle(tester);

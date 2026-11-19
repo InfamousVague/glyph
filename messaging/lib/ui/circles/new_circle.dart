@@ -29,7 +29,6 @@ import 'circle_face.dart';
 import 'circle_settings.dart';
 import 'circle_picture.dart';
 import '../../voice/roles.dart' show Role;
-import '../hangout_screen.dart' show OwnerCrown;
 
 /// A section of a settings-like page, its rows' icons on [hue] (as Settings' own sections are).
 Widget _hued(String hue, Widget section) => GlacierScope(attrs: {'hue': hue}, child: section);
@@ -643,10 +642,10 @@ void circlePersonMenu(BuildContext context, Circle c, CirclePerson p) {
   ]);
 }
 
-/// A person's role in a circle in words, where a row asks which: a green dot before it while they are on, the owner's
-/// crown alone, and an admin's word in the admins' colour; a member says nothing (Matt, 2026-11-17: "Don't show the
-/// badges for owner moderator etc, instead assign role colors like discord does and for the owner just show a
-/// singlular crown icon").
+/// A person's role in a circle in words, where a row asks which: a green dot before it while they are on, and the
+/// owner's or an admin's word in the admins' colour; a member says nothing (Matt, 2026-11-17: "Don't show the badges for
+/// owner moderator etc, instead assign role colors like discord does"; 2026-11-18: "Remove the crown icon just use role
+/// colors for members and such").
 class CircleRoleTag extends StatelessWidget {
   const CircleRoleTag({super.key, required this.person});
   final CirclePerson person;
@@ -659,10 +658,7 @@ class CircleRoleTag extends StatelessWidget {
         Container(width: 7, height: 7, decoration: BoxDecoration(shape: BoxShape.circle, color: t.online)),
         SizedBox(width: t.space(2)),
       ],
-      if (person.owner)
-        const OwnerCrown()
-      else if (person.admin)
-        Text(person.role, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: circleRoleInk(t, person))),
+      if (person.owner || person.admin) Text(person.owner ? 'Owner' : person.role, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: circleRoleInk(t, person))),
     ]);
   }
 }
