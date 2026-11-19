@@ -381,10 +381,17 @@ class Signal extends InboxNetwork {
         if (held == null) return;
         final now = '${m['text'] ?? ''}';
         final was = '${held['text'] ?? ''}';
-        if (now == was) return;
-        held['versions'] = [...((held['versions'] as List?) ?? const []).map((v) => '$v'), was];
+        if (now == was && jsonEncode(m['mentions'] ?? const []) == jsonEncode(held['mentions'] ?? const [])) return;
+        // What it said before is kept as it was shown, its @mentions named: the earlier words' places are not kept.
+        held['versions'] = [...((held['versions'] as List?) ?? const []).map((v) => '$v'), signalMentions(was, held['mentions'] as List?, nameOf: _mentionName).text];
         held['text'] = now;
+        if (m['mentions'] is List) {
+          held['mentions'] = m['mentions'];
+        } else {
+          held.remove('mentions');
+        }
         held['edited'] = true;
+        _nameMentioned(m['mentions'] as List?);
         _save();
         notifyListeners();
     }
@@ -409,7 +416,9 @@ class Signal extends InboxNetwork {
       'media': m['media'] ?? const [],
       'state': m['mine'] == true ? 'sent' : 'received',
       if (m['quote'] is Map) 'quote': m['quote'],
+      if (m['mentions'] is List && (m['mentions'] as List).isNotEmpty) 'mentions': m['mentions'],
     });
+    _nameMentioned(m['mentions'] as List?);
     list.sort((a, b) => (a['ts'] as int).compareTo(b['ts'] as int));
     final fresh = !_chats.containsKey(chat);
     final c = _chats.putIfAbsent(chat, () => {'unread': 0});
@@ -522,8 +531,8 @@ class Signal extends InboxNetwork {
     return out;
   }
 
-  static String _snippet(Map<String, Object?> m) {
-    final text = '${m['text'] ?? ''}'.trim();
+  String _snippet(Map<String, Object?> m) {
+    final text = signalMentions('${m['text'] ?? ''}', m['mentions'] as List?, nameOf: _mentionName).text.trim();
     if (text.isNotEmpty) return text;
     final media = (m['media'] as List?) ?? const [];
     if (media.isEmpty) return '';
@@ -533,23 +542,85 @@ class Signal extends InboxNetwork {
 
   @override
   List<InboxMessage> messagesOf(String chatId) => [
-        for (final m in _messages[chatId] ?? const <Map<String, Object?>>[])
-          InboxMessage(
-            id: '${m['ts']}',
-            text: '${m['text'] ?? ''}',
-            date: DateTime.fromMillisecondsSinceEpoch(m['ts'] as int),
-            mine: m['mine'] == true,
-            sender: m['mine'] == true ? '' : (_names['${m['from']}'] ?? ''),
-            state: switch (m['state']) { 'sending' => 'sending', 'failed' => 'failed', _ => 'sent' },
-            media: [for (final a in (m['media'] as List? ?? const [])) _media(a as Map)],
-            reactions: signalReactions(m['reactions'] as Map?, me: _aci),
-            replyTo: (m['quote'] as Map?)?['ts']?.toString(),
-            replyText: (m['quote'] as Map?)?['text'] as String?,
-            replySender: _quoteName((m['quote'] as Map?)?['author'] as String?),
-            edited: m['edited'] == true,
-            versions: [for (final v in (m['versions'] as List? ?? const [])) '$v'],
-          ),
+        for (final m in _messages[chatId] ?? const <Map<String, Object?>>[]) _shown(m),
       ];
+
+  InboxMessage _shown(Map<String, Object?> m) {
+    final words = signalMentions('${m['text'] ?? ''}', m['mentions'] as List?, nameOf: _mentionName);
+    return InboxMessage(
+      id: '${m['ts']}',
+      text: words.text,
+      mentions: words.mentions,
+      senderId: m['mine'] == true ? (_aci ?? '') : '${m['from'] ?? ''}',
+      date: DateTime.fromMillisecondsSinceEpoch(m['ts'] as int),
+      mine: m['mine'] == true,
+      sender: m['mine'] == true ? '' : (_names['${m['from']}'] ?? ''),
+      state: switch (m['state']) { 'sending' => 'sending', 'failed' => 'failed', _ => 'sent' },
+      media: [for (final a in (m['media'] as List? ?? const [])) _media(a as Map)],
+      reactions: signalReactions(m['reactions'] as Map?, me: _aci),
+      replyTo: (m['quote'] as Map?)?['ts']?.toString(),
+      replyText: (m['quote'] as Map?)?['text'] as String?,
+      replySender: _quoteName((m['quote'] as Map?)?['author'] as String?),
+      edited: m['edited'] == true,
+      versions: [for (final v in (m['versions'] as List? ?? const [])) '$v'],
+    );
+  }
+
+  // --- @mentions and profiles (Matt, 2026-11-19: "when clicking on a @mention anywhere including signal and telegram
+  // chats show this profile popup with actions available for the user in context of where it's placed") ------------
+
+  /// A mentioned person's name as this device knows it: "You" for this account, else their name, else their number.
+  String? _mentionName(String aci) {
+    if (aci.isNotEmpty && aci == _aci) return _names[aci] ?? 'You';
+    final name = _names[aci]?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return _numbers[aci] ?? _contacts[aci];
+  }
+
+  /// Asks the helper who each person [mentions] names is, where nothing here names them yet (once a run each).
+  void _nameMentioned(List? mentions) {
+    if (mentions == null || _state != InboxState.ready) return;
+    for (final x in mentions) {
+      final aci = x is Map ? '${x['aci'] ?? ''}' : '';
+      if (aci.isEmpty || aci == _aci || _mentionName(aci) != null || !_askedWho.add(aci)) continue;
+      unawaited(_ask('who', {'aci': aci}).then((got) {
+        if (got is Map) {
+          _takeName(got);
+          _save();
+          notifyListeners();
+        }
+      }, onError: (_) {}));
+    }
+  }
+
+  /// Profiles asked for, each kept five minutes, so a card opened again asks the helper nothing.
+  final Map<String, (DateTime, InboxProfile?)> _profiles = {};
+
+  /// Someone's Signal profile, by their ACI (sidecar/signal `who` with profile: their name, number, picture and the
+  /// "About" line they wrote). Signal has no way to look anyone up by a username from here, and keeps no presence.
+  @override
+  Future<InboxProfile?> profileOf({String user = '', String username = ''}) async {
+    if (user.isEmpty || _state != InboxState.ready) return null;
+    final kept = _profiles[user];
+    if (kept != null && DateTime.now().difference(kept.$1) < const Duration(minutes: 5)) return kept.$2;
+    Map? got;
+    try {
+      got = await _ask('who', {'aci': user, 'profile': true}) as Map?;
+    } catch (_) {}
+    if (got != null) {
+      _takeName(got);
+      _save();
+    }
+    final name = _names[user]?.trim() ?? '';
+    final number = '${got?['number'] ?? ''}'.trim().isNotEmpty ? '${got!['number']}'.trim() : (_numbers[user] ?? _contacts[user] ?? '');
+    final about = '${got?['about'] ?? ''}'.trim();
+    final emoji = '${got?['aboutEmoji'] ?? ''}'.trim();
+    final InboxProfile? found = got == null && name.isEmpty && number.isEmpty
+        ? null
+        : InboxProfile(network: id, id: user, name: name == number ? '' : name, bio: about, status: emoji, avatar: (got?['avatar'] as String?) ?? _avatars[user], number: number);
+    _profiles[user] = (DateTime.now(), found);
+    return found;
+  }
 
   String? _quoteName(String? aci) {
     if (aci == null || aci.isEmpty) return null;
@@ -961,4 +1032,40 @@ List<InboxReaction> signalReactions(Map? byWho, {String? me}) {
     if (who == '' || who == me) mine.add(e);
   });
   return [for (final e in order) InboxReaction(emoji: e, count: count[e]!, mine: mine.contains(e))];
+}
+
+/// A Signal message's words as the app shows them, and its @mentions (Matt, 2026-11-19: "when clicking on a @mention
+/// anywhere including signal and telegram chats show this profile popup"). Signal sends each mention as the character
+/// U+FFFC with a range saying whose it is ([mentions]: `{"start", "length", "aci"}` from sidecar/signal, UTF-16 units of
+/// [text]); each is put back as "@Name" ([nameOf], by ACI; "@Someone" where it knows none), and every later place moved
+/// by what that adds. A range that is not over U+FFFC (a newer Signal, or words already named) is kept as it stands,
+/// still a mention. Words from a helper that sends no mentions come back as they are.
+({String text, List<InboxMention> mentions}) signalMentions(String text, List? mentions, {String? Function(String aci)? nameOf}) {
+  if (mentions == null || mentions.isEmpty) return (text: text, mentions: const []);
+  final ranges = <({int start, int length, String aci})>[];
+  for (final x in mentions) {
+    if (x is! Map) continue;
+    final start = (x['start'] as num?)?.toInt();
+    final length = (x['length'] as num?)?.toInt();
+    final aci = '${x['aci'] ?? ''}';
+    if (start == null || length == null || start < 0 || length <= 0 || start + length > text.length || aci.isEmpty) continue;
+    ranges.add((start: start, length: length, aci: aci));
+  }
+  ranges.sort((a, b) => a.start.compareTo(b.start));
+  final out = StringBuffer();
+  final found = <InboxMention>[];
+  var at = 0;
+  for (final r in ranges) {
+    if (r.start < at) continue; // overlapping another: the first is kept
+    out.write(text.substring(at, r.start));
+    final over = text.substring(r.start, r.start + r.length);
+    final placeholder = over.runes.every((c) => c == 0xFFFC);
+    final name = nameOf?.call(r.aci)?.trim();
+    final words = placeholder ? '@${name == null || name.isEmpty ? 'Someone' : name}' : over;
+    found.add(InboxMention(start: out.length, length: words.length, user: r.aci));
+    out.write(words);
+    at = r.start + r.length;
+  }
+  out.write(text.substring(at));
+  return (text: out.toString(), mentions: found);
 }

@@ -94,6 +94,8 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
     CallRecorder.shared.register(messenger: flutterViewController.engine.binaryMessenger)
     // Words from a recorded call (Scribe.swift, lib/voice/scribe.dart).
     Scribe.shared.register(messenger: flutterViewController.engine.binaryMessenger)
+    // A call's captions (LiveCaptions.swift, lib/voice/captions.dart).
+    LiveCaptions.shared.register(messenger: flutterViewController.engine.binaryMessenger)
     Sounds.shared.register(messenger: flutterViewController.engine.binaryMessenger)
     // The app's own updates (UpdatesChannel.swift): its first act is to say this version opened, which an update
     // put in place a moment ago is waiting to hear.

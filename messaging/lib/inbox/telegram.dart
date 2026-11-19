@@ -509,7 +509,7 @@ class Telegram extends InboxNetwork {
         final msg = (m['message'] as Map).cast<String, Object?>();
         final chat = '${msg['chat_id']}';
         final old = '${m['old_message_id']}';
-        _messages[chat] = [for (final x in messagesOf(chat)) x.id == old ? InboxMessage(id: x.id, text: x.text, date: x.date, mine: true, state: 'failed') : x];
+        _messages[chat] = [for (final x in messagesOf(chat)) x.id == old ? InboxMessage(id: x.id, text: x.text, date: x.date, mine: true, state: 'failed', mentions: x.mentions, senderId: x.senderId) : x];
         _error = _plain(m['error'] as Map? ?? const {});
         notifyListeners();
       case 'updateMessageInteractionInfo':
@@ -740,13 +740,16 @@ class Telegram extends InboxNetwork {
     final key = '${m['chat_id']}/${m['id']}';
     _raw[key] = m;
     final versions = _versions[key] ?? const <String>[];
+    // A picture's or a file's words are its caption alone: the picture itself is drawn.
+    final text = event ?? (media.isEmpty ? _text(m) : ((((m['content'] as Map?)?['caption'] as Map?)?['text'] as String?) ?? '').trim());
     return InboxMessage(
       id: '${m['id']}',
       event: event != null,
       edited: event == null && (((m['edit_date'] as num?) ?? 0) > 0 || versions.isNotEmpty),
       versions: versions,
-      // A picture's or a file's words are its caption alone: the picture itself is drawn.
-      text: event ?? (media.isEmpty ? _text(m) : ((((m['content'] as Map?)?['caption'] as Map?)?['text'] as String?) ?? '').trim()),
+      text: text,
+      mentions: event == null ? telegramMentions(m, shown: text) : const [],
+      senderId: user == null ? '' : '$user',
       media: media,
       date: DateTime.fromMillisecondsSinceEpoch(((m['date'] as num?) ?? 0).toInt() * 1000),
       mine: m['is_outgoing'] == true,
@@ -775,6 +778,8 @@ class Telegram extends InboxNetwork {
         event: x.event,
         edited: x.edited,
         versions: x.versions,
+        mentions: x.mentions,
+        senderId: x.senderId,
       );
 
   // --- edits (Matt, 2026-11-17: "Add support for edited messages on telegram and signal and the ability to see the
@@ -854,6 +859,96 @@ class Telegram extends InboxNetwork {
   InboxPresence? presenceOfNumber(String digits) {
     final user = _byNumber[digits.length > 10 ? digits.substring(digits.length - 10) : digits];
     return user == null ? null : presenceOf('$user');
+  }
+
+  // --- profiles, for the card a tapped @mention opens (Matt, 2026-11-19: "when using telegram and other outside apps we
+  // should proxy through any profile information their APIs make available") ----------------------------------------
+  // Asked of TDLib as few times as can be: the user as updateUser last gave them (else getUser), their bio from
+  // getUserFullInfo, their small picture; each answer kept five minutes, so a card opened again asks nothing.
+
+  final Map<String, (DateTime, InboxProfile?)> _profiles = {};
+
+  @override
+  Future<InboxProfile?> profileOf({String user = '', String username = ''}) async {
+    if (_state != InboxState.ready) return null;
+    final name = username.trim().replaceFirst(RegExp(r'^@'), '');
+    final key = user.isNotEmpty ? 'u:$user' : 'n:${name.toLowerCase()}';
+    if (user.isEmpty && name.isEmpty) return null;
+    final kept = _profiles[key];
+    if (kept != null && DateTime.now().difference(kept.$1) < const Duration(minutes: 5)) return kept.$2;
+    InboxProfile? found;
+    final id = int.tryParse(user);
+    if (id != null) {
+      found = await _profileOfUser(id);
+    } else if (name.isNotEmpty) {
+      // A username: the public chat it names, and the person behind it where it is one; a channel or a group
+      // (an @mention may name one) as Telegram shows it, its title and picture.
+      final chat = await _ask({'@type': 'searchPublicChat', 'username': name});
+      if (chat['@type'] == 'chat') {
+        final type = chat['type'] as Map?;
+        if (type?['@type'] == 'chatTypePrivate') {
+          found = await _profileOfUser((type!['user_id'] as num).toInt());
+        } else {
+          found = InboxProfile(network: this.id, id: '${chat['id']}', name: '${chat['title'] ?? ''}', username: name, avatar: _photo(chat));
+        }
+      }
+    }
+    _profiles[key] = (DateTime.now(), found);
+    if (found != null && found.username.isNotEmpty) _profiles['n:${found.username.toLowerCase()}'] = (DateTime.now(), found);
+    if (found != null && int.tryParse(found.id) != null && int.parse(found.id) > 0) _profiles['u:${found.id}'] = (DateTime.now(), found);
+    return found;
+  }
+
+  Future<InboxProfile?> _profileOfUser(int id) async {
+    var u = _people[id];
+    if (u == null) {
+      final got = await _ask({'@type': 'getUser', 'user_id': id});
+      if (got['@type'] != 'user') return null;
+      u = _people[id] = got;
+    }
+    final full = await _ask({'@type': 'getUserFullInfo', 'user_id': id});
+    final bot = (u['type'] as Map?)?['@type'] == 'userTypeBot';
+    // A person's bio; a bot's is its short description.
+    var bio = full['@type'] == 'userFullInfo' ? '${((full['bio'] as Map?)?['text']) ?? ''}'.trim() : '';
+    if (bio.isEmpty && full['@type'] == 'userFullInfo') bio = '${(full['bot_info'] as Map?)?['short_description'] ?? ''}'.trim();
+    final usernames = (u['usernames'] as Map?)?['active_usernames'] as List?;
+    final phone = '${u['phone_number'] ?? ''}'.replaceAll(RegExp(r'\D'), '');
+    return InboxProfile(
+      network: this.id,
+      id: '$id',
+      name: [u['first_name'], u['last_name']].whereType<String>().where((x) => x.trim().isNotEmpty).join(' ').trim(),
+      username: usernames != null && usernames.isNotEmpty ? '${usernames.first}' : '',
+      bio: bio,
+      status: await _emojiStatus(u['emoji_status'] as Map?),
+      avatar: await _profilePhoto(u),
+      number: phone.isEmpty ? '' : '+$phone',
+      bot: bot,
+      seen: bot ? '' : (telegramPresence((_statuses[id] ?? u['status']) as Map?)?.words() ?? ''),
+    );
+  }
+
+  /// A user's small picture on this device: brought down now where it isn't yet (a small file), else none.
+  Future<String?> _profilePhoto(Map u) async {
+    final there = _userPhoto(u);
+    if (there != null) return there;
+    final file = ((((u['profile_photo'] as Map?)?['small'] as Map?)?['id']) as num?)?.toInt();
+    if (file == null) return null;
+    final r = await _ask({'@type': 'downloadFile', 'file_id': file, 'priority': 8, 'offset': 0, 'limit': 0, 'synchronous': true}, wait: const Duration(seconds: 15));
+    if (r['@type'] != 'file') return null;
+    _fileUpdated(r);
+    return _localOf(r);
+  }
+
+  /// The emoji a user's emoji status is drawn from, where Telegram says: one more request, kept with the card.
+  Future<String> _emojiStatus(Map? status) async {
+    if (status == null) return '';
+    // TDLib before 1.8.40 kept the id on the status itself; after, under its type.
+    final type = status['type'] as Map?;
+    final custom = (type?['custom_emoji_id'] ?? status['custom_emoji_id'])?.toString();
+    if (custom == null || custom.isEmpty) return '';
+    final r = await _ask({'@type': 'getCustomEmojiStickers', 'custom_emoji_ids': [int.tryParse(custom) ?? custom]});
+    final stickers = r['stickers'] as List?;
+    return stickers == null || stickers.isEmpty ? '' : '${(stickers.first as Map)['emoji'] ?? ''}';
   }
 
   @override
@@ -981,7 +1076,24 @@ class Telegram extends InboxNetwork {
       _messages[chat] = [
         for (final m in held)
           m.media.any((x) => x.fileId == id || x.thumbId == id)
-              ? InboxMessage(id: m.id, text: m.text, date: m.date, mine: m.mine, sender: m.sender, state: m.state, media: [for (final x in m.media) x.withPath(id, path)])
+              ? InboxMessage(
+                  id: m.id,
+                  text: m.text,
+                  date: m.date,
+                  mine: m.mine,
+                  sender: m.sender,
+                  state: m.state,
+                  media: [for (final x in m.media) x.withPath(id, path)],
+                  reactions: m.reactions,
+                  replyTo: m.replyTo,
+                  replyText: m.replyText,
+                  replySender: m.replySender,
+                  event: m.event,
+                  edited: m.edited,
+                  versions: m.versions,
+                  mentions: m.mentions,
+                  senderId: m.senderId,
+                )
               : m,
       ];
     }
@@ -1462,4 +1574,48 @@ InboxPresence? telegramPresence(Map? status, {DateTime? now}) {
       return const InboxPresence(network: 'Telegram', rough: 'within a month');
   }
   return null;
+}
+
+/// The @mentions in a TDLib message's words ([m], as TDLib gives it), as offsets into [shown], the words the app shows
+/// for it (the message's own words where null). TDLib marks each with an entity: textEntityTypeMention for "@username"
+/// typed out, textEntityTypeMentionName for a person named without one (its user_id). Its offsets are UTF-16 units, as
+/// Dart's are; where the app shows the words trimmed, or after a word of its own ("Audio: …"), they are moved to match,
+/// and a mention that would fall outside what is shown is left out.
+List<InboxMention> telegramMentions(Map m, {String? shown}) {
+  final c = m['content'] as Map? ?? const {};
+  final formatted = (c['@type'] == 'messageText' ? c['text'] : c['caption']) as Map?;
+  final raw = formatted?['text'] as String?;
+  final entities = formatted?['entities'] as List?;
+  if (raw == null || raw.isEmpty || entities == null || entities.isEmpty) return const [];
+  final words = shown ?? raw;
+  // Where the raw words begin in what is shown: the same; trimmed; or at the end, after a word of the app's own.
+  int base;
+  if (words == raw) {
+    base = 0;
+  } else {
+    final trimmed = raw.trim();
+    final lead = raw.length - raw.trimLeft().length;
+    if (trimmed.isEmpty || !words.endsWith(trimmed)) return const [];
+    base = words.length - trimmed.length - lead;
+  }
+  final out = <InboxMention>[];
+  for (final e in entities) {
+    if (e is! Map) continue;
+    final type = e['type'] as Map?;
+    final offset = (e['offset'] as num?)?.toInt();
+    final length = (e['length'] as num?)?.toInt();
+    if (type == null || offset == null || length == null || length <= 0 || offset + length > raw.length) continue;
+    final start = base + offset;
+    if (start < 0 || start + length > words.length) continue;
+    switch (type['@type']) {
+      case 'textEntityTypeMention':
+        final said = raw.substring(offset, offset + length);
+        out.add(InboxMention(start: start, length: length, username: said.startsWith('@') ? said.substring(1) : said));
+      case 'textEntityTypeMentionName':
+        final user = (type['user_id'] as num?)?.toInt();
+        if (user != null) out.add(InboxMention(start: start, length: length, user: '$user'));
+    }
+  }
+  out.sort((a, b) => a.start.compareTo(b.start));
+  return out;
 }

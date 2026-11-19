@@ -62,6 +62,8 @@ final class VoiceFx: NSObject, ExternalAudioProcessingDelegate {
     voicefx_process(fx, first, Int32(frames), Int32(frames * 100))
     // The voice as it is sent, for a recording of the call being made here (CallRecorder.swift).
     CallRecorder.shared.mic(first, frames: frames, rate: frames * 100)
+    // And for the call's captions, where they are on (LiveCaptions.swift).
+    LiveCaptions.shared.feed(first, frames: frames, rate: frames * 100)
     for c in 1..<max(1, audioBuffer.channels) {
       audioBuffer.rawBuffer(forChannel: c).update(from: first, count: frames)
     }

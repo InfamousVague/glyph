@@ -37,5 +37,7 @@ import UIKit
     CallRecorder.shared.register(messenger: messenger)
     // Words from a recorded call (Scribe.swift, lib/voice/scribe.dart).
     Scribe.shared.register(messenger: messenger)
+    // A call's captions (LiveCaptions.swift, lib/voice/captions.dart).
+    LiveCaptions.shared.register(messenger: messenger)
   }
 }

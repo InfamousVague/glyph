@@ -23,12 +23,18 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
-  ReleaseNotes('0.9.22', '2026-11-19', [
+  ReleaseNotes('0.9.23', '2026-11-19', [
     'What\'s new: after each update, a short list of what changed, like this one. Find it again in Settings › About.',
+    'Profiles: set a picture and a status in Settings › Me › Profile. Tap an @ anywhere to see someone\'s card, with what you can do from there.',
+    'Live captions: in a call, see what everyone says written out as they talk, translated where you have Translate. Turn them on from the call\'s menu.',
+    'Watch together: play a video or song from a Files space for everyone in the call, kept in step on each device.',
+  ]),
+  ReleaseNotes('0.9.22', '2026-11-19', [
     'Record call: record a space\'s call to one video file with a sound track for each person, named for them. Everyone in the call is asked, and only those who say yes are recorded. Add it in Plugins, or turn it on for a whole circle.',
     'Scribe: a recorded call written out on your device, each line with who said it and when, with a summary where your phone can make one.',
     'SMS spaces: a circle\'s texting space that friends without the app join by text, from one member\'s phone.',
     'Circle plugins: whoever can change a circle can turn a plugin on for everyone in it, in Circle settings › Plugins.',
+    'A picture or voice message you send always shows what it is, not just "Delivered".',
   ]),
   ReleaseNotes('0.9.21', '2026-11-19', [
     'Names no longer start with "@". Someone without a display name now goes by their username, the same as everyone else\'s name.',
