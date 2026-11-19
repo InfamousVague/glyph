@@ -26,11 +26,12 @@ const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.9.33', '2026-11-19', [
     'Verified numbers: a badge beside the names of people who verified their phone number, in spaces, circles and profiles.',
     'Slow mode: in a circle\'s space settings, let each person write only once in so many seconds. Those who manage spaces don\'t wait.',
+    'Recording a call shows as cards in the chat, with icons: who started it, and when it stops, how long it ran, how many voices are in it and where it was saved.',
+    'Contacts: tapping a friend you added by username opens your chat with them again.',
   ]),
   ReleaseNotes('0.9.32', '2026-11-19', [
     'Polls in spaces and circles: ask one from the +, with two to ten answers. Tap an answer to vote, tap again to take it back.',
     'A circle\'s back arrow stays inside its banner when you point at it or press it.',
-    'Recording a call shows as cards in the chat, with icons: who started it, and when it stops, how long it ran, how many voices are in it and where it was saved.',
   ]),
   ReleaseNotes('0.9.31', '2026-11-19', [
     'On a computer, Emoji in a space\'s or circle\'s chat opens your computer\'s emoji panel.',
