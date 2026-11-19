@@ -23,6 +23,12 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.9.29', '2026-11-19', [
+    'Profile pictures show by people\'s messages in spaces and circles, and in a space\'s members list.',
+    'On a computer, Enter sends in a space\'s or circle\'s chat; Shift+Enter starts a new line.',
+    'A circle\'s banner sits a little in from the edges, with rounded corners.',
+    'Mentions: an @name\'s highlight sits evenly round its letters.',
+  ]),
   ReleaseNotes('0.9.28', '2026-11-19', [
     'Windows: the app and its installer are signed under Matt Wisniewski\'s name, so Windows no longer warns about an unknown publisher when you download or install it.',
   ]),
