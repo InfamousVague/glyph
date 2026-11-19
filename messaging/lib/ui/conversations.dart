@@ -1042,6 +1042,16 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           action: SettingsEmptyAction('New circle', () => _shell != null ? _shell!.show(const NewCircleScreen(key: ValueKey('new-circle')), showing: 'new') : push(context, (_) => const NewCircleScreen())),
         ),
       ]);
+    } else if (rows.isEmpty && _section == CodesPlugin.section && _query.isEmpty) {
+      // Its tab is there before any code is (Matt, 2026-11-19: "always show the codes tab even if we don't have any
+      // codes yet"), so it says what will be here.
+      body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
+        SettingsEmpty(
+          icon: AppIcon(Lucide.keyRound, size: 28, color: t.color('app-ink-3')),
+          title: 'No codes yet',
+          body: const Text('Sign-in codes sent to you wait here, the newest first. A tap copies one.'),
+        ),
+      ]);
     } else if (rows.isEmpty) {
       final rcs = _query.isEmpty && !widget.archived && _arriving.rcsLikely;
       body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
