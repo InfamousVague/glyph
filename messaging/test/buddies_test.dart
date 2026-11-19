@@ -187,7 +187,9 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('accept-maya')));
       await settle(tester);
       expect(find.text('Friend request'), findsNothing);
-      expect(find.text('Friends by username'), findsOneWidget);
+      // A friend now: listed On Ghost Messaging in Contacts with the friends by number, not here (2026-11-19).
+      expect(find.text('Friends by username'), findsNothing);
+      expect(find.text('Maya Chen'), findsNothing);
       expect(b.friends.single.username, 'maya');
       expect(a.friends.single.username, 'sam', reason: 'Maya hears the yes');
     });
