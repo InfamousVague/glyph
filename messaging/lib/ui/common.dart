@@ -101,12 +101,15 @@ class GhostPage extends StatelessWidget {
             // rather than behind it (Matt, 2026-11-19: "add a safe area above in the app to give room for the top bar
             // on the phone like the settings batteries and clock"); the row where it always is.
             // The row a step down, inside a background set in from its edges (CircleBanner's margin).
+            // Inside it with a margin of its own on every side, as the picture's rounded edge has (Matt, 2026-11-19: "the
+            // header doesn't line up with the header background image correctly"): the row stood on the picture's top
+            // edge and out to the page's sides, so the circle's face touched or crossed the rounded top.
             SizedBox(height: pad.top),
             SizedBox(
-              height: t.space(2) + bar + headerExtra,
+              height: t.space(2) + t.space(2) + bar + headerExtra,
               child: Stack(fit: StackFit.expand, children: [
                 headerBackground!,
-                Positioned(top: t.space(2), left: 0, right: 0, height: bar, child: row),
+                Positioned(top: t.space(2) + t.space(2), left: t.space(2), right: t.space(2), height: bar, child: row),
               ]),
             ),
             ?top,

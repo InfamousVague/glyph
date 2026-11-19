@@ -236,7 +236,7 @@ if (circle) {
   const iphone = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
   const kind = /Android/.test(ua) ? 'apk' : iphone ? null : /Mac OS X|Macintosh/.test(ua) ? 'mac' : /Windows/.test(ua) ? 'windows' : null;
   const where = { apk: 'for Android', mac: 'for Mac', windows: 'for Windows' };
-  const files = { apk: '/ghost-messaging.apk', mac: '/ghost-messaging-mac.zip', windows: '/ghost-messaging-setup.exe' };
+  const files = { apk: '/ghost-messaging.apk', mac: '/ghost-messaging-mac.dmg', windows: '/ghost-messaging-setup.exe' };
   if (kind) {
     $('circle-for').textContent = where[kind];
     $('circle-get').textContent = 'Get the app ' + where[kind];

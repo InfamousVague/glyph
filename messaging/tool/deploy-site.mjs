@@ -35,6 +35,8 @@ const RELEASE = '/opt/ghost-sms-release';
 const APK = 'ghost-messaging.apk';
 // The Mac app's (tool/release-mac.mjs): what an installed copy reads, and the zip it updates itself from.
 const MAC_ZIP = 'ghost-messaging-mac.zip';
+// The Mac download as the site offers it, a notarised disk image (tool/release-mac.mjs; Matt, 2026-11-19: "deploy it from a dmg").
+const MAC_DMG = 'ghost-messaging-mac.dmg';
 const DOMAIN = 'gogho.st';
 // The site's first address (Matt, 2026-11-15: "I got the domain gogho.st hooked up the box, please update all the links
 // in app and everything to point through that domain instead of the ghost-sms one also point that domain to the
@@ -65,7 +67,7 @@ ${DOMAIN} {
 	# The release's own files (tool/release.mjs, tool/release-mac.mjs), so a release updates this site's download
 	# and version. Installed copies update from these addresses (the phone's Updater.BASE, the Mac's macFeed): they
 	# must never stop answering.
-	@release path /${APK} /apk.json /${MAC_ZIP} /mac.json /ghost-messaging-setup.exe /windows.json
+	@release path /${APK} /apk.json /${MAC_ZIP} /${MAC_DMG} /mac.json /ghost-messaging-setup.exe /windows.json
 	handle @release {
 		root * ${RELEASE}
 		header Cache-Control "no-cache"
@@ -130,7 +132,7 @@ www.${DOMAIN} {
 }
 ${OLD} {
 	encode zstd gzip
-	@release path /${APK} /apk.json /${MAC_ZIP} /mac.json /ghost-messaging-setup.exe /windows.json
+	@release path /${APK} /apk.json /${MAC_ZIP} /${MAC_DMG} /mac.json /ghost-messaging-setup.exe /windows.json
 	handle @release {
 		root * ${RELEASE}
 		header Cache-Control "no-cache"

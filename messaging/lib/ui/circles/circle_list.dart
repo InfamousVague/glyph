@@ -72,7 +72,8 @@ class CirclePage extends StatelessWidget {
         semanticLabel: '${c.name}, $line, options',
         builder: (context, _) => Row(children: [
           // Larger beside its name (Matt, 2026-11-19: "make the circle profile picture larger").
-          CircleFace.of(c, size: 44),
+          // As the bar is tall less a margin, so it sits inside the banner wherever the bar is shorter (the Mac's).
+          CircleFace.of(c, size: t.lenOf('2.75rem')),
           SizedBox(width: t.space(3)),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
