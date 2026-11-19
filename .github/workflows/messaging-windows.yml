@@ -37,7 +37,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 60
     env:
-      SIGNING: ${{ secrets.AZURE_SIGNING_ACCOUNT != '' && secrets.AZURE_CLIENT_ID != '' }}
+      # All three, the profile last: it exists only once Microsoft has checked who signs.
+      SIGNING: ${{ secrets.AZURE_SIGNING_ACCOUNT != '' && secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_SIGNING_PROFILE != '' }}
       CLIENT_SECRET_SET: ${{ secrets.AZURE_CLIENT_SECRET != '' }}
       AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
       AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}

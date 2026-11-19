@@ -23,6 +23,10 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.9.27', '2026-11-19', [
+    'When someone new joins a circle you\'re in, you\'re told: a notification on your phone, or a note in the app with a way to the circle. Turn it off in Settings › Notifications › Joins in circles.',
+    'A circle\'s invite link works for people without the app: its page offers the right download, and once the app is set up it opens the circle for you. With the app already there, Open in Ghost Messaging opens it, on a computer too.',
+  ]),
   ReleaseNotes('0.9.26', '2026-11-19', [
     'The Messages, Codes and Circles tabs are all there the moment the app opens, without Circles jumping along.',
     'Your phone number is set once, with your profile in Settings › Me › Number: the separate Your number setting is gone.',

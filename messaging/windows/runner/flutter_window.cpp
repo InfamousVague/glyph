@@ -3,13 +3,15 @@
 #include "voice_fx.h"
 #include "sounds.h"
 #include "clipboard.h"
+#include "links.h"
 
 #include <optional>
+#include <utility>
 
 #include "flutter/generated_plugin_registrant.h"
 
-FlutterWindow::FlutterWindow(const flutter::DartProject& project)
-    : project_(project) {}
+FlutterWindow::FlutterWindow(const flutter::DartProject& project, std::wstring link)
+    : project_(project), link_(std::move(link)) {}
 
 FlutterWindow::~FlutterWindow() {}
 
@@ -35,6 +37,8 @@ bool FlutterWindow::OnCreate() {
   RegisterSounds(flutter_controller_->engine()->messenger());
   // A picture on the clipboard, for the message field (clipboard.cpp).
   RegisterClipboard(flutter_controller_->engine()->messenger());
+  // Circles' invite links opened into the app (links.cpp).
+  RegisterLinks(flutter_controller_->engine()->messenger(), link_);
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -72,6 +76,10 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case WM_COPYDATA:
+      // Another copy, started by a circle's link, handing it over (links.cpp).
+      if (LinkCopied(hwnd, lparam)) return 1;
+      break;
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;

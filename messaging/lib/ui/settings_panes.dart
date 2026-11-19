@@ -331,7 +331,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.9.27';
+const appVersion = '0.9.28';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -701,6 +701,13 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
           label: 'Mentions in spaces',
           hint: const Text('A notification when someone writes @ and your name in a space or a circle. A space\'s other messages don\'t notify.'),
           control: GlacierSwitch(checked: app.flag('notif_mentions'), onCheckedChange: (v) => app.setFlag('notif_mentions', v), ariaLabel: 'Mentions in spaces'),
+        ),
+        // Matt, 2026-11-19: "add join notifications for memebers in circles".
+        SettingRow(
+          icon: _icon(Lucide.userPlus),
+          label: 'Joins in circles',
+          hint: const Text('Told when someone new joins a circle you\'re in.'),
+          control: GlacierSwitch(checked: app.flag('notif_joins'), onCheckedChange: (v) => app.setFlag('notif_joins', v), ariaLabel: 'Joins in circles'),
         ),
       ],
     ),
