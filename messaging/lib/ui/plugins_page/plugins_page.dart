@@ -47,6 +47,9 @@ String pluginsLine() => 'Extras for your messages, each on this ${pluginsHere()}
 /// What a shelf chip stands for: every plugin (null), those added, or one shelf.
 const String _added = 'added';
 
+/// The chip for the plugins meant for circles.
+const String _circles = 'circles';
+
 class PluginsPage extends StatefulWidget {
   const PluginsPage({super.key, this.registry, this.open, this.settingsOf, this.summaryOf});
 
@@ -235,9 +238,14 @@ class _PluginsPageState extends State<PluginsPage> {
     final shelf = _shelf;
     final query = _query.trim();
     final searching = query.isNotEmpty;
+    // Meant for circles (a circle's owner or admins turn them on for everyone in it) or for this device alone: shown
+    // apart (Matt, 2026-11-19: "Label plugins meant for circles in a separate section from the ones that are global").
+    bool forCircles(GhostPlugin p) => p.scopes.contains(PluginScope.circle);
+    final circled = [for (final p in all) if (forCircles(p)) p];
     bool chosen(GhostPlugin p) => switch (shelf) {
           null => true,
           _added => _registry.isOn(p, store),
+          _circles => forCircles(p),
           final name => p.shelf.name == name,
         };
     final found = [for (final p in all) if (chosen(p) && (!searching || _matches(p, query))) p];
@@ -266,6 +274,23 @@ class _PluginsPageState extends State<PluginsPage> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [MarketHeading(title: title, meta: meta, icon: icon), cards(plugins)]),
         );
 
+    // A circle's plugins under their own heading, with a line saying who turns them on.
+    Widget circleShelf(List<GhostPlugin> plugins) => Padding(
+          key: const ValueKey('plugins-shelf-circles'),
+          padding: EdgeInsets.only(top: gap),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            MarketHeading(title: 'For circles', meta: '${plugins.length}', icon: Lucide.circleDot),
+            Padding(
+              padding: EdgeInsets.only(bottom: t.space(3)),
+              child: Text(
+                'A circle\'s owner or admins turn these on for everyone in it, in the circle\'s settings. Added here, one works for you in your own spaces and calls too.',
+                style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.4),
+              ),
+            ),
+            cards(plugins),
+          ]),
+        );
+
     final parts = <Widget>[
       PluginsBand(plugins: [...featured, ...all.where((p) => !featured.contains(p))], added: added.length, line: pluginsLine(), wide: wide),
       SizedBox(height: t.space(4)),
@@ -274,6 +299,7 @@ class _PluginsPageState extends State<PluginsPage> {
       _chips(t, [
         MarketChip(key: const ValueKey('plugins-chip-all'), label: 'All', chosen: shelf == null, onPress: () => setState(() => _shelf = null)),
         MarketChip(key: const ValueKey('plugins-chip-added'), label: 'Added', count: added.length, chosen: shelf == _added, onPress: () => setState(() => _shelf = _added)),
+        if (circled.isNotEmpty) MarketChip(key: const ValueKey('plugins-chip-circles'), label: 'For circles', chosen: shelf == _circles, onPress: () => setState(() => _shelf = _circles)),
         for (final s in shelves) MarketChip(key: ValueKey('plugins-chip-${s.name}'), label: s.label, chosen: shelf == s.name, onPress: () => setState(() => _shelf = s.name)),
       ], wide: wide),
     ];
@@ -329,12 +355,19 @@ class _PluginsPageState extends State<PluginsPage> {
           ]),
         ));
       }
-      final discover = [for (final p in all) if (!_registry.isOn(p, store)) p];
-      if (added.isNotEmpty) parts.add(shelfOf('Added', added, meta: '${added.length} of ${all.length}', key: const ValueKey('plugins-shelf-added')));
+      final mine = [for (final p in added) if (!forCircles(p)) p];
+      final global = [for (final p in all) if (!forCircles(p)) p];
+      final discover = [for (final p in global) if (!_registry.isOn(p, store)) p];
+      if (mine.isNotEmpty) parts.add(shelfOf('Added', mine, meta: '${mine.length} of ${global.length}', key: const ValueKey('plugins-shelf-added')));
       if (discover.isNotEmpty) parts.add(shelfOf('Discover', discover, meta: '${discover.length}', key: const ValueKey('plugins-shelf-discover')));
+      if (circled.isNotEmpty) parts.add(circleShelf(circled));
       return parts;
     }
 
+    if (shelf == _circles) {
+      parts.add(circleShelf(found));
+      return parts;
+    }
     final title = shelf == _added ? 'Added' : PluginShelf.values.byName(shelf).label;
     parts.add(shelfOf(title, found, meta: '${found.length}', key: ValueKey('plugins-shelf-$shelf')));
     return parts;
