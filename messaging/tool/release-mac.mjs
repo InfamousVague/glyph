@@ -18,6 +18,11 @@
  *   https://gogho.st/mac.json                 { version, versionCode, sha256, bytes, url, build, minimumSystemVersion }
  *   https://gogho.st/ghost-messaging-mac.zip  the signed app, zipped by ditto
  *
+ * WHAT A PERSON DOWNLOADS from the site (Matt, 2026-11-19: "deploy it from a dmg"): ghost-messaging-mac.dmg, the
+ * notarised app beside a shortcut to Applications, the disk image itself signed, notarised and stapled, so it opens
+ * in Finder with nothing to unpack and macOS checks it as it is mounted. Made only with --notarize; mac.json names it
+ * (`dmg`), which an installed copy leaves alone: updates stay the zip.
+ *
  * beside the phone app's apk.json, in /opt/ghost-sms-release. ghost-sms.com's Caddy block serves that folder's
  * files by name (tool/deploy-site.mjs): the two above were added to it with this tool, and the block on the box
  * has named them since 2026-11-14 (it went up again with the relay), so the first Mac release needs nothing first.
@@ -56,6 +61,7 @@ const HOST_URL = 'https://gogho.st';
 const RELEASE = '/opt/ghost-sms-release';
 const BACKUPS = '/opt/ghost-sms-releases';
 const ZIP = 'ghost-messaging-mac.zip';
+const DMG = 'ghost-messaging-mac.dmg';
 const FEED = 'mac.json';
 const APP = 'Ghost Messaging.app';
 const BUNDLE_ID = 'com.infamousvague.ghostmessaging.mac';
@@ -312,6 +318,34 @@ const bytes = readFileSync(zip);
 // Under 200 MB, Signal's helper and all (Matt, 2026-11-16: "it's okay as long as our app bundle stays under 200mb").
 if (bytes.length > 200 * 1048576) fail(`The Mac app's zip is ${(bytes.length / 1048576).toFixed(1)} MB: over 200 MB. Nothing was published.`);
 say(`  the zip is ${(bytes.length / 1048576).toFixed(1)} MB`);
+// --- what a person downloads: a disk image, notarised in its own right -------------------------------------------------
+
+let dmg = null;
+if (notarised) {
+  say('> Making the disk image');
+  const stage = join(OUT, 'dmg-stage');
+  rmSync(stage, { recursive: true, force: true });
+  mkdirSync(stage, { recursive: true });
+  run('ditto', ['--norsrc', '--noextattr', '--noqtn', '--noacl', app, join(stage, APP)]);
+  run('ln', ['-s', '/Applications', join(stage, 'Applications')]);
+  const path = join(OUT, DMG);
+  rmSync(path, { force: true });
+  run('hdiutil', ['create', '-volname', 'Ghost Messaging', '-srcfolder', stage, '-fs', 'HFS+', '-format', 'UDZO', '-imagekey', 'zlib-level=9', '-ov', path]);
+  rmSync(stage, { recursive: true, force: true });
+  run('codesign', ['--sign', IDENTITY, '--timestamp', path]);
+  say('> Notarising the disk image (a few minutes)');
+  const notary = notaryCredentials();
+  run('xcrun', ['notarytool', 'submit', path, '--key', notary.keyPath, '--key-id', notary.keyId, '--issuer', notary.issuer, '--wait']);
+  run('xcrun', ['stapler', 'staple', path]);
+  if (spawnSync('xcrun', ['stapler', 'validate', path], { encoding: 'utf8' }).status !== 0) fail('The disk image has no notarisation ticket stapled to it.');
+  // As Gatekeeper asks of a downloaded disk image when it is opened.
+  const gate = spawnSync('spctl', ['-a', '-t', 'open', '--context', 'context:primary-signature', '-vv', path], { encoding: 'utf8' });
+  if (gate.status !== 0 || !/source=Notarized Developer ID/.test(gate.stderr)) fail(`Gatekeeper would not open the disk image:\n${gate.stderr}`);
+  const image = readFileSync(path);
+  dmg = { url: DMG, sha256: createHash('sha256').update(image).digest('hex'), bytes: image.length };
+  say(`ok the disk image is ${(image.length / 1048576).toFixed(1)} MB, signed, notarised and stapled`);
+}
+
 const info = {
   version: versionName,
   versionCode,
@@ -320,6 +354,7 @@ const info = {
   url: ZIP,
   build: new Date().toISOString().replace(/\D/g, '').slice(0, 14),
   minimumSystemVersion: String(plist.LSMinimumSystemVersion ?? ''),
+  ...(dmg ? { dmg } : {}),
 };
 writeFileSync(join(OUT, FEED), `${JSON.stringify(info, null, 2)}\n`);
 say(`ok Ghost Messaging for the Mac ${info.version} (${info.versionCode}), ${(info.bytes / 1e6).toFixed(1)} MB zipped${notarised ? ', notarised' : ''}, in build/release-mac`);
@@ -374,6 +409,7 @@ const STAGE = '/tmp/ghost-messaging-mac-stage';
 box.ssh(`rm -rf ${STAGE} && mkdir -p ${STAGE}`);
 say(`> Uploading (${(info.bytes / 1e6).toFixed(1)} MB)`);
 box.rsync(['--progress'], zip, `${STAGE}/${ZIP}`);
+if (dmg) box.rsync(['--progress'], join(OUT, DMG), `${STAGE}/${DMG}`);
 box.rsync([], join(OUT, FEED), `${STAGE}/${FEED}`);
 say('> Publishing');
 // The zip first, whole, by rename; mac.json last, so no installed copy is told of a zip still arriving. The live
@@ -384,8 +420,12 @@ SUDO=; [ "$(id -u)" -eq 0 ] || SUDO=sudo
 stamp=$(date -u +%Y%m%d%H%M%S)
 $SUDO mkdir -p ${RELEASE} ${BACKUPS}
 if [ -f ${RELEASE}/${FEED} ]; then $SUDO mkdir -p ${BACKUPS}/mac-before-$stamp && $SUDO cp -p ${RELEASE}/${FEED} ${RELEASE}/${ZIP} ${BACKUPS}/mac-before-$stamp/; fi
+if [ -f ${RELEASE}/${DMG} ]; then $SUDO cp -p ${RELEASE}/${DMG} ${BACKUPS}/mac-before-$stamp/ 2>/dev/null || true; fi
 $SUDO install -m 644 -o root -g root ${STAGE}/${ZIP} ${RELEASE}/.${ZIP}.new
 $SUDO mv -f ${RELEASE}/.${ZIP}.new ${RELEASE}/${ZIP}
+${dmg ? `[ "$(sha256sum ${STAGE}/${DMG} | cut -d' ' -f1)" = "${dmg.sha256}" ] || { echo "x the disk image arrived changed"; exit 1; }
+$SUDO install -m 644 -o root -g root ${STAGE}/${DMG} ${RELEASE}/.${DMG}.new
+$SUDO mv -f ${RELEASE}/.${DMG}.new ${RELEASE}/${DMG}` : ''}
 $SUDO install -m 644 -o root -g root ${STAGE}/${FEED} ${RELEASE}/.${FEED}.new
 $SUDO mv -f ${RELEASE}/.${FEED}.new ${RELEASE}/${FEED}
 $SUDO chmod 755 ${RELEASE}
@@ -403,6 +443,13 @@ if (said?.sha256 !== info.sha256) {
 }
 const head = await fetch(`${HOST_URL}/${ZIP}`, { method: 'HEAD' });
 say(`ok live: ${HOST_URL}/${FEED} — Ghost Messaging for the Mac ${info.version} (${info.versionCode}), zip served at ${head.headers.get('content-length')} bytes (${info.bytes} expected)`);
+if (dmg) {
+  const d = await fetch(`${HOST_URL}/${DMG}`, { method: 'HEAD' }).catch(() => null);
+  const served = d?.ok ? Number(d.headers.get('content-length')) : 0;
+  say(served === dmg.bytes
+    ? `ok live: ${HOST_URL}/${DMG}, served at ${served} bytes`
+    : `! ${HOST_URL}/${DMG} isn't served yet (${d?.status ?? 'no answer'}): it is in ${RELEASE}; gogho.st's Caddy block must name it (node tool/deploy-site.mjs --caddy).`);
+}
 
 // The source, published as this release has it (tool/publish-source.mjs; Matt, 2026-11-15: "update the notes on claude
 // so that each release runs this automatically"). The release is live either way: a failure here is said, not fatal.
