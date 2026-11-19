@@ -57,6 +57,7 @@ import '../mentions.dart';
 import '../me/me.dart' show Me;
 import '../me/pictures.dart';
 import 'mention_field.dart';
+import 'poll_card.dart';
 import 'thread.dart' show LinkedText;
 
 /// A hangout: its chat, who is in it, and its call (Matt, 2026-11-15: "add a chat to hangouts so the whole group can
@@ -749,6 +750,18 @@ class _HangoutChatState extends State<HangoutChat> {
 
   /// The + : any files, pictures, videos and GIFs among them, up to ten with one message, chosen with the device's own
   /// picker (a phone's copied into the app's folder first, as a Files space's are).
+  /// The +: files and pictures where they may go, and a poll (Matt, 2026-11-19: "add Polls as a default feature")
+  /// where this device may write; a choice between them where both may. Null where neither.
+  VoidCallback? _plusAction(bool files) {
+    final polls = widget.room.mayWrite && _picked.isEmpty;
+    if (!files && !polls) return null;
+    if (!polls) return _attach;
+    return () => showChoices(context, choices: [
+          if (files) Choice('Photos and files', Lucide.imagePlus, () => unawaited(_attach())),
+          Choice('Poll', LucideMore.chartColumn, () => push(context, (_) => NewPollScreen(room: widget.room))),
+        ]);
+  }
+
   Future<void> _attach() async {
     if (!FilePlatform.canPick) {
       toast(context, 'Files can\'t be chosen on this device yet.');
@@ -930,7 +943,8 @@ class _HangoutChatState extends State<HangoutChat> {
                 // Each person keeps one of the room's six colours, by their id, and yours is your own.
                 nameColor: mine ? c.nameMine : c.nameFor(m.from),
                 mine: mine,
-                body: shown?.bubble ?? m.text,
+                // A poll's question is on its card.
+                body: m.poll != null ? '' : (shown?.bubble ?? m.text),
                 // A translation's words are not the words the mentions are counted in.
                 mentions: shown == null ? m.mentions : const [],
                 mentionStyle: mentionStyle(context.tokens, on: c.ink),
@@ -940,6 +954,7 @@ class _HangoutChatState extends State<HangoutChat> {
                 original: shown == null ? null : OriginalLine(view: shown),
                 // What went with it under the words, square, as the era's lines carry pictures (Matt, 2026-11-18).
                 media: [
+                  if (m.poll != null) PollCard(room: room, message: m, maxWidth: 320),
                   if (m.sticker != null) SpaceSticker(name: m.sticker!, side: 120),
                   if (m.files.isNotEmpty) SpaceChatFiles(channel: room.channel, message: m, maxWidth: 280, ground: c.paper, ink: c.ink, rim: Border.all(color: c.shadow)),
                 ],
@@ -1071,7 +1086,7 @@ class _HangoutChatState extends State<HangoutChat> {
                       final buttons = composerButtons(
                         t,
                         hasSomething: _text.text.isNotEmpty || _picked.isNotEmpty,
-                        onAttach: attach && FilePlatform.canPick && _picked.length < HangoutMessage.mostFiles ? _attach : null,
+                        onAttach: _plusAction(attach && FilePlatform.canPick && _picked.length < HangoutMessage.mostFiles),
                         onSticker: _picked.isEmpty ? _sticker : null,
                         onRecord: attach && !Sms.remote && _picked.isEmpty ? _record : null,
                         onSend: _text.text.trim().isEmpty && _picked.isEmpty ? null : _send,
@@ -1362,7 +1377,9 @@ class _Message extends StatelessWidget {
     // 2026-11-18: "I also want full support for uploading attachements gifs stickers etc like we support in other chats").
     final words = shown == null ? bubble : Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [OriginalCard(view: shown, maxWidth: maxWidth), bubble]);
     final Widget body;
-    if (m.sticker != null) {
+    if (m.poll != null) {
+      body = PollCard(room: room, message: m, maxWidth: maxWidth);
+    } else if (m.sticker != null) {
       body = SpaceSticker(name: m.sticker!, side: math.min(t.lenOf('9.5rem'), maxWidth));
     } else if (m.files.isNotEmpty) {
       body = Column(crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -1445,7 +1462,9 @@ extension on _Message {
     final ink = t.color('app-ink');
     final words = _words(t, shown, pageText(t, t.fontSize('md'), color: ink, height: 1.4), ink);
     final Widget body;
-    if (m.sticker != null) {
+    if (m.poll != null) {
+      body = PollCard(room: room, message: m, maxWidth: maxWidth);
+    } else if (m.sticker != null) {
       body = SpaceSticker(name: m.sticker!, side: math.min(t.lenOf('8rem'), maxWidth));
     } else {
       body = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
