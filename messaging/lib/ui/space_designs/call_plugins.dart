@@ -62,6 +62,19 @@ abstract final class CallPlugins {
     ];
   }
 
+  /// What the plugins that are on in [c] put in its header (Slots.spaceHeader): in a circle's space as the circle says.
+  static List<SpaceExtra> header(VoiceChannel c) {
+    final v = Voice.instance;
+    final app = v.app;
+    if (app == null) return const [];
+    final place = SpacePlace(space: c.seed, spaceName: c.name, circle: c.circle, voice: c.hasVoice, inCall: v.session?.channel.room == c.room);
+    final reg = PluginRegistry.instance;
+    return [
+      for (final b in reg.actionsIn(Slots.spaceHeader, place, AppStore(app), inCircle: c.circle != null, circleOn: _circleOn(c)))
+        SpaceExtra(label: b.action.label, icon: b.action.icon, danger: b.action.danger, run: (context) => b.action.run(_CallHost(reg, b.plugin, context))),
+    ];
+  }
+
   /// What the plugins that are on in this call put over its page.
   static List<Widget> banners(BuildContext context) {
     final v = Voice.instance;

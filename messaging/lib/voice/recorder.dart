@@ -29,6 +29,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 
 import '../desktop/store.dart' show DeskStore;
 import 'channels.dart';
+import '../plugins/record_call.dart' show RecordCallPlugin;
 import '../plugins/scribe.dart' show ScribePlugin;
 import 'mp4_names.dart';
 import 'scribe.dart';
@@ -105,6 +106,10 @@ class CallRecorder extends ChangeNotifier {
 
   /// Being made into a file after stopping.
   bool finishing = false;
+
+  /// Where the last recording went beyond this device, or why it didn't: a circle's Files space (Record call's choice,
+  /// lib/plugins/record_call.dart); null outside a circle.
+  String? savedTo;
 
   /// The recording being made now, by its id.
   String? get recording => _now?.id;
@@ -241,6 +246,7 @@ class CallRecorder extends ChangeNotifier {
     final t = _now;
     if (t == null) return null;
     _now = null;
+    savedTo = null;
     await _watch?.cancel();
     _watch = null;
     final s = Voice.instance.session;
@@ -270,6 +276,12 @@ class CallRecorder extends ChangeNotifier {
       try {
         Directory(t.dir).deleteSync(recursive: true);
       } catch (_) {}
+      // Into its circle's Files space, in the folder the circle chose (lib/plugins/record_call.dart).
+      try {
+        savedTo = RecordCallPlugin.saveInCircle(r);
+      } catch (e) {
+        savedTo = 'Kept on this device: it couldn\'t be saved to the circle ($e)';
+      }
       // Written out at once where Scribe is on for it and says so (lib/plugins/scribe.dart).
       if (ScribePlugin.autoFor(r)) unawaited(CallScribe.instance.transcribe(r));
       return r;
