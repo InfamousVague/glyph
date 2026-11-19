@@ -300,7 +300,14 @@ if (has('notarize')) {
 // --- what an installed copy reads -----------------------------------------------------------------------------------
 
 const zip = join(OUT, ZIP);
-run('ditto', ['-c', '-k', '--keepParent', app, zip]);
+// Without the files' extended attributes (Matt, 2026-11-19: "my friend is not able to launch the mac app it says apple
+// can't verify it's free from malware"). ditto keeps them in a zip as "._" files beside each file; Finder folds those
+// back, but unzip and most other unarchivers write them into the app as files of their own, inside a sealed, signed
+// framework (784 of them, Dav1d.framework's first), so the signature no longer holds and Gatekeeper refuses the app.
+// The signature and the stapled ticket are files of the bundle's own and need none of them.
+run('ditto', ['-c', '-k', '--norsrc', '--noextattr', '--noqtn', '--noacl', '--keepParent', app, zip]);
+// What a person downloads must open however it is unpacked: no "._" file in it.
+if (spawnSync('unzip', ['-Z1', zip], { encoding: 'utf8', maxBuffer: 64 * 1048576 }).stdout.split('\n').some((n) => /(^|\/)\._/.test(n) || n.startsWith('__MACOSX'))) fail('The zip still carries "._" files, which break the app\'s signature where unzip unpacks it. Nothing was published.');
 const bytes = readFileSync(zip);
 // Under 200 MB, Signal's helper and all (Matt, 2026-11-16: "it's okay as long as our app bundle stays under 200mb").
 if (bytes.length > 200 * 1048576) fail(`The Mac app's zip is ${(bytes.length / 1048576).toFixed(1)} MB: over 200 MB. Nothing was published.`);
