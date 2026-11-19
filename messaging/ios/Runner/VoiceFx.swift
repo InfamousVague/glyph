@@ -60,6 +60,8 @@ final class VoiceFx: NSObject, ExternalAudioProcessingDelegate {
     // The first channel is cleaned; any other is given the same, so a stereo microphone stays one voice.
     let first = audioBuffer.rawBuffer(forChannel: 0)
     voicefx_process(fx, first, Int32(frames), Int32(frames * 100))
+    // The voice as it is sent, for a recording of the call being made here (CallRecorder.swift).
+    CallRecorder.shared.mic(first, frames: frames, rate: frames * 100)
     for c in 1..<max(1, audioBuffer.channels) {
       audioBuffer.rawBuffer(forChannel: c).update(from: first, count: frames)
     }

@@ -190,8 +190,8 @@ class CircleSpace {
   const CircleSpace({required this.seed, required this.name, this.kind = SpaceKind.voice, this.order = 0, this.section, this.kindWire, this.extra = const {}});
 
   /// A new space, with a seed of its own.
-  factory CircleSpace.make(String name, {SpaceKind kind = SpaceKind.voice, int order = 0, String? section}) =>
-      CircleSpace(seed: NetCrypto.hex(NetCrypto.randomBytes(32)), name: name, kind: kind, order: order, section: section);
+  factory CircleSpace.make(String name, {SpaceKind kind = SpaceKind.voice, int order = 0, String? section, Map<String, Object?> extra = const {}}) =>
+      CircleSpace(seed: NetCrypto.hex(NetCrypto.randomBytes(32)), name: name, kind: kind, order: order, section: section, extra: extra);
 
   /// The space's own seed (32 bytes in hex), as any space's: its rooms and key come from it.
   final String seed;
@@ -452,6 +452,33 @@ class CircleManifest {
         if (assignments != null) 'ra': {for (final e in (Map.fromEntries(assignments.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))).entries) if (e.value.isNotEmpty) e.key: e.value},
         if (everyone != null) 're': [for (final p in CirclePerm.values) if (everyone.contains(p)) p.wire],
       };
+
+  // --- plugins for the whole circle (Matt, 2026-11-19: "Some plugins should be serverside / cirlce side as well") ---
+  // Kept in a field of the manifest's own ('pl': each plugin's id, and its choices for the circle), signed with the rest,
+  // so whoever may change the circle turns a plugin on for everyone in it. A build from before keeps and passes it on.
+
+  /// What the circle says of each plugin, by its id: its choices for the circle, with 'on' true where it is on.
+  Map<String, Map<String, Object?>> get plugins {
+    final pl = extra['pl'] is Map ? extra['pl'] as Map : const {};
+    return {
+      for (final e in pl.entries)
+        if (e.value is Map) '${e.key}': (e.value as Map).map((k, v) => MapEntry('$k', v)),
+    };
+  }
+
+  /// Whether the circle has turned the plugin [id] on; null where it has said nothing of it.
+  bool? pluginOn(String id) {
+    final p = plugins[id];
+    return p == null ? null : p['on'] == true;
+  }
+
+  /// The next version's fields with the plugin [id] turned [on], its choices [choices] added (or kept).
+  Map<String, Object?> withPlugin(String id, {required bool on, Map<String, Object?> choices = const {}}) {
+    final all = plugins;
+    all[id] = {...?all[id], ...choices, 'on': on};
+    final sorted = Map.fromEntries(all.entries.toList()..sort((a, b) => a.key.compareTo(b.key)));
+    return {...extra, 'pl': sorted};
+  }
 
   // --- the roles' order (Matt, 2026-11-18: "permission hierarchy") ------------------------------------------------
   // The order is the roles list's own ('ro', the first the highest), as Discord's role list, with everyone ("@everyone")

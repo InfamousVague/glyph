@@ -28,6 +28,8 @@ import '../../desktop/ui/qr.dart';
 import '../../kit/semantic_colors.dart';
 import '../../kit/settings_kit.dart';
 import '../../kit/settings_type.dart';
+import '../../plugins/plugin.dart' show PluginScope;
+import '../../plugins/registry.dart' show PluginRegistry;
 import '../../voice/channels.dart';
 import '../../voice/voice.dart' show SpaceKind;
 import '../common.dart';
@@ -44,6 +46,7 @@ import 'perm_toggle.dart';
 enum CircleSettingsSection {
   overview('Overview', Lucide.layoutGrid, 'blue', 'Circle'),
   roles('Roles', Lucide.shieldCheck, 'indigo', 'Circle'),
+  plugins('Plugins', Lucide.puzzle, 'rose', 'Circle'),
   members('Members', Lucide.users, 'green', 'People'),
   invite('Invites', Lucide.link, 'purple', 'People'),
   spaces('Spaces', Lucide.listTree, 'amber', 'Spaces');
@@ -339,6 +342,7 @@ class _SectionBody extends StatelessWidget {
     return switch (section) {
       CircleSettingsSection.overview => _Scroll(hue: section.hue, children: _overview(context, c)),
       CircleSettingsSection.roles => _Scroll(hue: section.hue, children: [_RolesList(circle: c, onOpen: onOpen)]),
+      CircleSettingsSection.plugins => _Scroll(hue: section.hue, children: _plugins(context, c)),
       CircleSettingsSection.members => _Members(circle: c, hue: section.hue, onOpen: onOpen),
       CircleSettingsSection.invite => _Scroll(hue: section.hue, children: _invites(context, c)),
       CircleSettingsSection.spaces => _Scroll(hue: section.hue, children: _spaces(context, c)),
@@ -387,6 +391,41 @@ class _SectionBody extends StatelessWidget {
         gap,
         PaneSection(title: 'Icon', children: [SettingRowBox(child: CircleIconPicker(hue: c.hue, value: c.icon, onChanged: (i) => circles.edit(c, icon: i)))]),
       ],
+    ];
+  }
+
+  /// The plugins a circle may hold, each turned on or off for everyone in it (Matt, 2026-11-19: "Some plugins should
+  /// be serverside / cirlce side as well"): kept in the circle's signed manifest, so every member's app does it in this
+  /// circle's spaces without adding it themselves.
+  List<Widget> _plugins(BuildContext context, Circle c) {
+    final circles = Circles.instance;
+    final edit = circles.can(c, CirclePerm.circle);
+    final list = PluginRegistry.instance.circlePlugins;
+    return [
+      if (!edit) ...[SettingsCallout(child: Text('Whoever has Change the circle turns plugins on or off for everyone in ${c.name}.')), SizedBox(height: context.tokens.space(4))],
+      PaneSection(
+        title: 'For everyone in the circle',
+        description: const Text('Turned on here, a plugin works in this circle\'s spaces for every member, without anyone adding it.'),
+        children: [
+          if (list.isEmpty) const SettingRowBox(child: Text('No plugin works for a whole circle yet.')),
+          for (final p in list)
+            SettingRow(
+              key: ValueKey('circle-plugin-${p.id}'),
+              icon: AppIcon(p.icon, size: 18),
+              label: p.name,
+              hint: Text(p.scopes.contains(PluginScope.server) ? '${p.description} ${PluginScope.server.hint}.' : p.description),
+              control: GlacierSwitch(
+                checked: c.manifest.pluginOn(p.id) ?? false,
+                disabled: !edit,
+                ariaLabel: '${p.name} for everyone in ${c.name}',
+                onCheckedChange: (v) async {
+                  final ok = await circles.setPlugin(c, p.id, on: v);
+                  if (!ok && context.mounted) toast(context, 'Couldn\'t change ${p.name} for the circle');
+                },
+              ),
+            ),
+        ],
+      ),
     ];
   }
 

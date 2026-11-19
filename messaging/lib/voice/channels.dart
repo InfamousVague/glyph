@@ -16,6 +16,7 @@ import '../net/switchboard.dart';
 import '../sms.dart';
 import '../sounds.dart';
 import '../circles/circles.dart';
+import '../circles/sms_space.dart';
 import 'hangout.dart';
 import 'mention_alerts.dart';
 import 'roles.dart';
@@ -64,6 +65,9 @@ class Voice extends ChangeNotifier {
   StreamSubscription<void>? _leaveCall;
 
   AppState? _app;
+
+  /// The person's choices, once the app has started Voice: for what a call's plugins read.
+  AppState? get app => _app;
   HubCarrier? _ownHub;
   VoiceRoute? _route;
   final List<StreamSubscription<Object?>> _subs = [];
@@ -673,7 +677,11 @@ class Voice extends ChangeNotifier {
     );
     room.onRoster = (_) => _enforce();
     // Someone mentioning this device: its notification (lib/voice/mention_alerts.dart).
-    room.onFresh = (fresh) => MentionAlerts.instance?.heard(room, fresh, readAt: _readAt[c.seed] ?? 0, nameOf: nameOf);
+    room.onFresh = (fresh) {
+      MentionAlerts.instance?.heard(room, fresh, readAt: _readAt[c.seed] ?? 0, nameOf: nameOf);
+      // An SMS space this phone texts for: what is written there goes out by text (lib/circles/sms_space.dart).
+      SmsSpaces.instance.heard(room, fresh);
+    };
     room.addListener(notifyListeners);
     return _hangouts[c.seed] = room;
   }

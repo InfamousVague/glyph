@@ -13,6 +13,8 @@ import 'cleaner.dart';
 import 'embeds.dart';
 import 'kinds.dart';
 import 'quiet.dart';
+import 'record_call.dart';
+import 'scribe.dart';
 import 'replies.dart';
 import 'strangers.dart';
 import 'plugin.dart';
@@ -25,7 +27,7 @@ import 'translate_host.dart';
 // Kinds before Spam: a text that is plainly political or a debt collector is that, whatever else it shows; the kinds
 // that are shown (deliveries, reminders) leave a text that looks like spam to Spam.
 // Translate last: it adds to a conversation and takes nothing from the list, and is off until it is added.
-const List<GhostPlugin> shippedPlugins = [CodesPlugin(), KindsPlugin(), SpamPlugin(), EmbedsPlugin(), ActionsPlugin(), RepliesPlugin(), QuietPlugin(), StrangersPlugin(), CleanerPlugin(), TranslatePlugin()];
+const List<GhostPlugin> shippedPlugins = [CodesPlugin(), KindsPlugin(), SpamPlugin(), EmbedsPlugin(), ActionsPlugin(), RepliesPlugin(), QuietPlugin(), StrangersPlugin(), CleanerPlugin(), TranslatePlugin(), RecordCallPlugin(), ScribePlugin()];
 
 /// The person's choices as the plugins' side reads and writes them: the app's own ([AppStore]), or a map in a test.
 abstract interface class PluginStore {
@@ -245,6 +247,46 @@ class PluginRegistry {
   }
 
   void setOn(GhostPlugin plugin, PluginStore store, bool on) => store.write(switchKey(plugin), on ? 'on' : 'off');
+
+  /// Whether [plugin] is on where [circleOn] says what a circle has said of it: in a circle's space a plugin a circle
+  /// may hold ([PluginScope.circle]) is on as the circle says (null: the circle has said nothing, so off), whatever this
+  /// device's switch; anywhere else, and for any other plugin, as this device's switch says.
+  bool isOnIn(GhostPlugin plugin, PluginStore store, {bool inCircle = false, bool? circleOn}) {
+    if (inCircle && plugin.scopes.contains(PluginScope.circle)) return circleOn ?? false;
+    return isOn(plugin, store);
+  }
+
+  /// What the plugins that are on in a call (or a circle) have to press at [slot]: [circleOn] says what the circle has
+  /// said of each plugin, by its id ([isOnIn]).
+  List<BoundAction> actionsIn<P>(ActionSlot<P> slot, P place, PluginStore store, {bool inCircle = false, bool? Function(String id)? circleOn}) {
+    final out = <BoundAction>[];
+    for (final e in _entries) {
+      if (!isOnIn(e.plugin, store, inCircle: inCircle, circleOn: circleOn?.call(e.plugin.id))) continue;
+      for (final fill in e.slots) {
+        if (fill is! ActionFill<P> || fill.slot.name != slot.name) continue;
+        for (final action in _ask(e.plugin, const <PluginAction>[], () => fill.build(place, prefsOf(e.plugin, store)))) {
+          out.add(BoundAction(e.plugin, action));
+        }
+      }
+    }
+    return out;
+  }
+
+  /// The widgets the plugins that are on in a call (or a circle) put at [slot] ([actionsIn]).
+  List<Widget> widgetsIn<P>(WidgetSlot<P> slot, BuildContext context, P place, PluginStore store, {bool inCircle = false, bool? Function(String id)? circleOn}) {
+    final out = <Widget>[];
+    for (final e in _entries) {
+      if (!isOnIn(e.plugin, store, inCircle: inCircle, circleOn: circleOn?.call(e.plugin.id))) continue;
+      for (final fill in e.slots) {
+        if (fill is! WidgetFill<P> || fill.slot.name != slot.name) continue;
+        out.addAll(_ask(e.plugin, const <Widget>[], () => fill.build(context, place, prefsOf(e.plugin, store))));
+      }
+    }
+    return out;
+  }
+
+  /// The plugins a circle may hold, for Circle settings › Plugins.
+  List<GhostPlugin> get circlePlugins => [for (final e in _entries) if (e.plugin.scopes.contains(PluginScope.circle)) e.plugin];
 
   /// Which plugins are on, as a mark that changes only when one is switched. What the classifiers said of a
   /// conversation holds until it does: they are given none of the person's other choices.

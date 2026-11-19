@@ -254,11 +254,11 @@ class Circles extends ChangeNotifier {
   }
 
   /// Adds a space named [name] of [kind] to [c], at the end of [section] (or of the list); gives it back.
-  Future<CircleSpace?> addSpace(Circle c, String name, {SpaceKind kind = SpaceKind.voice, String? section}) async {
+  Future<CircleSpace?> addSpace(Circle c, String name, {SpaceKind kind = SpaceKind.voice, String? section, Map<String, Object?> extra = const {}}) async {
     final words = capName(name)!;
     final heading = capName(section);
     final last = c.manifest.spaces.fold(-1, (n, s) => s.order > n ? s.order : n);
-    final space = CircleSpace.make(words.isEmpty ? kind.label : words, kind: kind, order: last + 1, section: heading == null || heading.isEmpty ? null : heading);
+    final space = CircleSpace.make(words.isEmpty ? kind.label : words, kind: kind, order: last + 1, section: heading == null || heading.isEmpty ? null : heading, extra: extra);
     final ok = await _publish(c, (m) => m.next(spaces: [...m.spaces, space]));
     return ok ? space : null;
   }
@@ -438,6 +438,17 @@ class Circles extends ChangeNotifier {
   }
 
   /// What everyone in [c] may do. Changing the circle, its spaces or roles is never everyone's.
+  /// Turns the plugin [id] on or off for everyone in [c], with [choices] for the circle: only whoever may change the
+  /// circle (its owner, or an admin with Change the circle).
+  Future<bool> setPlugin(Circle c, String id, {required bool on, Map<String, Object?> choices = const {}}) {
+    final have = bySeed(c.seed) ?? c;
+    if (!can(have, CirclePerm.circle)) return Future.value(false);
+    return _publish(have, (m) => m.next(extra: m.withPlugin(id, on: on, choices: choices)));
+  }
+
+  /// What [space]'s circle says of the plugin [id]: null outside a circle, or where it has said nothing.
+  bool? pluginOnIn(VoiceChannel space, String id) => circleOf(space)?.manifest.pluginOn(id);
+
   Future<bool> setEveryone(Circle c, Set<CirclePerm> perms) {
     final have = bySeed(c.seed) ?? c;
     if (!can(have, CirclePerm.roles)) return Future.value(false);

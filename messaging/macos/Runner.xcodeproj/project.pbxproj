@@ -34,6 +34,8 @@
 		47D364DC2F0A0B0C00000006 /* DeskVideo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47D364DC2F0A0B0C00000005 /* DeskVideo.swift */; };
 		47D364DC2F0A0B0C00000008 /* DeskSound.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47D364DC2F0A0B0C00000007 /* DeskSound.swift */; };
 		47D364DC2F0A0B0C000000F2 /* VoiceFx.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47D364DC2F0A0B0C000000F1 /* VoiceFx.swift */; };
+		47D364DC2F0A0B0C00005C1B /* Scribe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47D364DC2F0A0B0C00005C1F /* Scribe.swift */; };
+		47D364DC2F0A0B0C0000C0DE /* CallRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47D364DC2F0A0B0C0000C0DF /* CallRecorder.swift */; };
 		47D364DC2F0A0B0C000000F5 /* VoiceFxC in Frameworks */ = {isa = PBXBuildFile; productRef = 47D364DC2F0A0B0C000000F4 /* VoiceFxC */; };
 		5D0E1C7A2F0B11AA000000B2 /* Sounds.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E1C7A2F0B11AA000000B1 /* Sounds.swift */; };
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
@@ -94,6 +96,8 @@
 		47D364DC2F0A0B0C00000005 /* DeskVideo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeskVideo.swift; sourceTree = "<group>"; };
 		47D364DC2F0A0B0C00000007 /* DeskSound.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeskSound.swift; sourceTree = "<group>"; };
 		47D364DC2F0A0B0C000000F1 /* VoiceFx.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceFx.swift; sourceTree = "<group>"; };
+		47D364DC2F0A0B0C00005C1F /* Scribe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scribe.swift; sourceTree = "<group>"; };
+		47D364DC2F0A0B0C0000C0DF /* CallRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallRecorder.swift; sourceTree = "<group>"; };
 		5D0E1C7A2F0B11AA000000B1 /* Sounds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sounds.swift; sourceTree = "<group>"; };
 		63EFD7B8EDAF21553E16D10F /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		78E0A7A72DC9AD7400C4905E /* FlutterGeneratedPluginSwiftPackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlutterGeneratedPluginSwiftPackage; path = ephemeral/Packages/FlutterGeneratedPluginSwiftPackage; sourceTree = "<group>"; };
@@ -200,6 +204,8 @@
 				47D364DC2F0A0B0C00000005 /* DeskVideo.swift */,
 				47D364DC2F0A0B0C00000007 /* DeskSound.swift */,
 				47D364DC2F0A0B0C000000F1 /* VoiceFx.swift */,
+				47D364DC2F0A0B0C00005C1F /* Scribe.swift */,
+				47D364DC2F0A0B0C0000C0DF /* CallRecorder.swift */,
 				5D0E1C7A2F0B11AA000000B1 /* Sounds.swift */,
 				33E51913231747F40026EE4D /* DebugProfile.entitlements */,
 				33E51914231749380026EE4D /* Release.entitlements */,
@@ -475,6 +481,8 @@
 				47D364DC2F0A0B0C00000006 /* DeskVideo.swift in Sources */,
 				47D364DC2F0A0B0C00000008 /* DeskSound.swift in Sources */,
 				47D364DC2F0A0B0C000000F2 /* VoiceFx.swift in Sources */,
+				47D364DC2F0A0B0C00005C1B /* Scribe.swift in Sources */,
+				47D364DC2F0A0B0C0000C0DE /* CallRecorder.swift in Sources */,
 				5D0E1C7A2F0B11AA000000B2 /* Sounds.swift in Sources */,
 				33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */,
 				335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */,
