@@ -27,6 +27,8 @@ const List<ReleaseNotes> changelog = [
     'Help and docs: step-by-step guides for everything at gogho.st/docs, from Settings › About, and a ? on Pair a computer and Add a Discord server.',
     'Settings › Network is called Routes now, so it isn\'t mixed up with Connections (your linked accounts).',
     'Add a Discord server says what pressing a channel does now: you join it from Ghost, sound and chat both ways.',
+    'An emoji picker of Ghost\'s own, from the smiley button in any chat: search by name, pick a skin tone, and your recent ones come first. It stays open while you pick a few.',
+    'Contacts: Blocked is a button beside Add, not a row of its own.',
   ]),
   ReleaseNotes('0.9.33', '2026-11-19', [
     'Verified numbers: a badge beside the names of people who verified their phone number, in spaces, circles and profiles.',
