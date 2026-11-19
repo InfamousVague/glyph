@@ -7,7 +7,9 @@ import '../art/lucide.g.dart';
 import '../friends/buddies.dart';
 import '../kit/settings_kit.dart';
 import '../me/me.dart';
+import 'circles/circle_picture.dart' show pickCirclePicture;
 import 'common.dart';
+import 'profile_card.dart' show ProfileFace;
 import '../kit/semantic_colors.dart';
 
 /// Your profile on Ghost Messaging (Matt, 2026-11-14: "create a profile and username under "me" to register a
@@ -24,6 +26,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late final _username = TextEditingController(text: Me.instance.username ?? '');
   late final _name = TextEditingController(text: Me.instance.displayName);
   late final _bio = TextEditingController(text: Me.instance.bio);
+  late final _status = TextEditingController(text: Me.instance.status);
   String? _problem;
   bool _busy = false;
 
@@ -32,6 +35,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _username.dispose();
     _name.dispose();
     _bio.dispose();
+    _status.dispose();
     super.dispose();
   }
 
@@ -58,10 +62,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _saveProfile() {
     final me = Me.instance;
-    if (_name.text.trim() == me.displayName && _bio.text.trim() == me.bio) return;
-    me.setProfile(displayName: _name.text, bio: _bio.text);
+    if (_name.text.trim() == me.displayName && _bio.text.trim() == me.bio && _status.text.trim() == me.status) return;
+    me.setProfile(displayName: _name.text, bio: _bio.text, status: _status.text);
+    _status.text = me.status;
     Buddies.instance.shareProfile();
     toast(context, 'Saved. Your friends will see it.');
+  }
+
+  /// A picture chosen, made square and small (as a circle's is), kept and sent to friends at once.
+  Future<void> _choosePicture() async {
+    final picked = await pickCirclePicture(context);
+    if (picked == null) return;
+    Me.instance.setProfile(picture: picked);
+    Buddies.instance.shareProfile();
+    if (mounted) toast(context, 'Your picture is set. Your friends will see it.');
+  }
+
+  void _removePicture() {
+    Me.instance.setProfile(picture: '');
+    Buddies.instance.shareProfile();
   }
 
   @override
@@ -105,11 +124,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
               SizedBox(height: t.space(6)),
+              // Matt, 2026-11-19: "build a profile section in the app that allows us to set profile pictures and status
+              // messages".
+              PaneSection(
+                title: 'Picture',
+                description: const Text('Shown to your friends, and to people in your spaces and circles who open your profile.'),
+                children: [
+                  SettingRow(
+                    icon: ProfileFace(key: const ValueKey('profile-picture'), name: me.shownName, picture: me.picture, size: 40),
+                    label: me.picture.isEmpty ? 'Choose a picture' : 'Change your picture',
+                    onPress: () => _choosePicture(),
+                  ),
+                  if (me.picture.isNotEmpty) SettingRow(icon: AppIcon(Lucide.trash2, size: 18), label: 'Remove your picture', onPress: _removePicture),
+                ],
+              ),
+              SizedBox(height: t.space(6)),
               PaneSection(
                 title: 'What friends see',
-                description: const Text('Sent to your friends only, never to the relay server.'),
+                description: const Text('Sent to your friends only, never to the relay server. Your status shows in spaces and circles too.'),
                 children: [
                   field(_name, 'Your name', 'Name'),
+                  field(_status, 'A status: what you\'re up to', 'Status'),
                   field(_bio, 'A line about you', 'About'),
                   SettingRow(icon: AppIcon(Lucide.check, size: 18), label: 'Save', onPress: _saveProfile),
                 ],

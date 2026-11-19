@@ -5,6 +5,8 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import 'pictures.dart';
+
 import '../app_state.dart';
 import '../invites/invite_seal.dart' show WaitingInvite;
 import '../invites/text_invites.dart';
@@ -542,9 +544,24 @@ class Me extends ChangeNotifier {
   String get shownName => displayName.isNotEmpty ? bareName(displayName) : bareName(username ?? '');
   String get bio => _app?.choice('me_bio', '') ?? '';
 
-  void setProfile({String? displayName, String? bio}) {
+  /// This person's picture: a square base64 PNG (lib/me/pictures.dart), sent to friends with the name and line, and
+  /// to those in a space who look at their profile; '' for none (Matt, 2026-11-19: "build a profile section in the app
+  /// that allows us to set profile pictures and status messages").
+  String get picture => _app?.choice('me_picture', '') ?? '';
+
+  /// A short line saying how they are now ("Out walking", "🎧 heads down"), shown under their name everywhere they are
+  /// seen: to friends, in spaces and circles. At most [statusMost] characters; '' for none.
+  String get status => _app?.choice('me_status', '') ?? '';
+  static const statusMost = 80;
+
+  void setProfile({String? displayName, String? bio, String? picture, String? status}) {
     if (displayName != null) _app?.set('me_display', displayName.trim());
     if (bio != null) _app?.set('me_bio', bio.trim());
+    if (picture != null) _app?.set('me_picture', picture.length <= ProfilePictures.most ? picture : '');
+    if (status != null) {
+      final s = status.trim().replaceAll(RegExp(r'\s+'), ' ');
+      _app?.set('me_status', String.fromCharCodes(s.runes.take(statusMost)));
+    }
     notifyListeners();
   }
 

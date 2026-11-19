@@ -149,6 +149,67 @@ class InboxReaction {
   final bool mine;
 }
 
+/// One "@…" in a message's words that names a person on the network (Matt, 2026-11-19: "when clicking on a @mention
+/// anywhere including signal and telegram chats show this profile popup with actions available for the user in context
+/// of where it's placed"). [start] and [length] are UTF-16 offsets into [InboxMessage.text], as Dart's string indices
+/// are; [user] is the network's own id for the person ('' where only a username is known), [username] their username
+/// without the '@' ('' where only an id is known).
+@immutable
+class InboxMention {
+  const InboxMention({required this.start, required this.length, this.user = '', this.username = ''});
+  final int start;
+  final int length;
+  final String user;
+  final String username;
+
+  @override
+  bool operator ==(Object other) => other is InboxMention && other.start == start && other.length == length && other.user == user && other.username == username;
+
+  @override
+  int get hashCode => Object.hash(start, length, user, username);
+
+  @override
+  String toString() => 'InboxMention($start+$length, user: $user, username: $username)';
+}
+
+/// What a network's API says of a person, for the profile card a tapped @mention opens (Matt, 2026-11-19: "when using
+/// telegram and other outside apps we should proxy through any profile information their APIs make available").
+@immutable
+class InboxProfile {
+  const InboxProfile({
+    required this.network,
+    required this.id,
+    this.name = '',
+    this.username = '',
+    this.bio = '',
+    this.status = '',
+    this.avatar,
+    this.number = '',
+    this.bot = false,
+    this.seen = '',
+  });
+
+  /// [InboxNetwork.id] of the network they are on, and the network's own id for them.
+  final String network;
+  final String id;
+  final String name;
+
+  /// Without the '@'.
+  final String username;
+  final String bio;
+
+  /// A line of their own beside the name: Signal's about-emoji and about, or a Telegram emoji status; '' where none.
+  final String status;
+
+  /// Their picture on this device, as [InboxContact.avatar].
+  final String? avatar;
+  final String number;
+  final bool bot;
+
+  /// Their presence in words where known ("online", "last seen recently"), else ''.
+  final String seen;
+}
+
 @immutable
 class InboxMessage {
   const InboxMessage({
@@ -166,8 +227,16 @@ class InboxMessage {
     this.event = false,
     this.edited = false,
     this.versions = const [],
+    this.mentions = const [],
+    this.senderId = '',
   });
   final String id;
+
+  /// The people its words @mention, in order ([InboxMention]).
+  final List<InboxMention> mentions;
+
+  /// Who wrote it, as the network's own id for them (Telegram's user id, Signal's ACI), where known; '' else.
+  final String senderId;
 
   /// Changed by whoever wrote it since it was sent (Matt, 2026-11-17: "Add support for edited messages on telegram and
   /// signal and the ability to see the original message"), and what it said before, the first first: [original] is
@@ -576,6 +645,10 @@ abstract class InboxNetwork extends ChangeNotifier {
   /// Makes [change] to the group [chatId] on the network itself, where everyone in it sees it, and answers with the
   /// group as it then is (null once you have left). Throws with the network's reason where it refuses.
   Future<GroupDetails?> changeGroup(String chatId, GroupChange change) => Future.error(UnsupportedError('$name groups can\'t be changed from here'));
+
+  /// What the network says of someone, by its own id for them ([user]) or their username ([username], without '@'),
+  /// for the profile card a tapped @mention opens; null where it says nothing or knows no one by that.
+  Future<InboxProfile?> profileOf({String user = '', String username = ''}) async => null;
 
   /// Unread chats.
   int get unreadChats => chats.where((c) => c.unread > 0).length;

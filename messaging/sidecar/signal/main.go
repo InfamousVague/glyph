@@ -14,12 +14,13 @@
 //	{"id":9,"op":"react","to":"…","author":"…","ts":…,"emoji":"👍","remove":false} → null
 //	{"id":10,"op":"delete","to":"…","ts":…}                  → null
 //	{"id":11,"op":"download","pointer":{…},"path":"…"}       → null once written
-//	{"id":12,"op":"who","aci":"…"}                           → {"aci","name","number","avatar"}: the person's Signal profile fetched where nothing names them
+//	{"id":12,"op":"who","aci":"…","profile":false}           → {"aci","name","number","avatar","about","aboutEmoji"}: the person's Signal profile fetched where nothing names them (always, with "profile":true)
 //	{"id":13,"op":"group_info","to":"<group id>"}            → the group in full (groupInfo): title, description, picture, timer, members with roles, who may do what
 //	{"id":14,"op":"group_update","to":"…","change":{…}}      → the group in full once changed: any of title, description, avatar (a picture's path, "" none), timer (seconds, 0 off), add, remove, admin, unadmin (ACIs), announcements_only, edit_info and add_members ("members" or "admins"), leave
 //
 // Answers: {"id":1,"ok":true,"result":…} or {"id":1,"ok":false,"error":"…"}. Events, unasked, each with "ev": ready,
-// qr, linked, link_failed, connected, disconnected, message, receipt, reaction, deleted, contacts, unlinked, and
+// qr, linked, link_failed, connected, disconnected, message and edited (each with "mentions":[{"start","length","aci"}]),
+// receipt, reaction, deleted, contacts, unlinked, and
 // name ({"aci","name","number","avatar"}: someone who wrote with nothing naming them, once their profile is fetched).
 package main
 
@@ -107,6 +108,9 @@ type request struct {
 	ACI     string          `json:"aci"`
 	Change  *groupEdit      `json:"change"`
 	On      bool            `json:"on"`
+	// Profile asks `who` for the person's Signal profile even where the store names them: for a profile card, whose
+	// about line the contact sync never carries.
+	Profile bool `json:"profile"`
 }
 
 // groupEdit is a change to a group the person asks for (Matt, 2026-11-16: "Add them to a drawer when pressing and
@@ -446,7 +450,7 @@ func do(r request) (any, error) {
 		if err != nil {
 			return nil, errors.New("who: no aci")
 		}
-		return who(ctx, c, aci)
+		return who(ctx, c, aci, r.Profile)
 	case "groups":
 		c, err := client()
 		if err != nil {
@@ -923,7 +927,13 @@ func contact(ctx context.Context, c *signalmeow.Client, r *types.Recipient) map[
 			}
 		}
 	}
-	return map[string]any{"aci": r.ACI.String(), "name": recipientName(r), "number": r.E164, "avatar": nullable(avatar)}
+	// Their "about" line and its emoji, as their Signal profile has them: shown on the card a tapped @mention opens (Matt,
+	// 2026-11-19: "when using telegram and other outside apps we should proxy through any profile information their APIs
+	// make available"). Empty where they wrote none.
+	return map[string]any{
+		"aci": r.ACI.String(), "name": recipientName(r), "number": r.E164, "avatar": nullable(avatar),
+		"about": strings.TrimSpace(r.Profile.About), "aboutEmoji": strings.TrimSpace(r.Profile.AboutEmoji),
+	}
 }
 
 func contacts(ctx context.Context, c *signalmeow.Client) ([]map[string]any, error) {
@@ -1002,12 +1012,14 @@ func blocked(ctx context.Context, c *signalmeow.Client) ([]map[string]any, error
 }
 
 // who is [aci] as the app shows them: from the store, and from their Signal profile where the store names them not.
-func who(ctx context.Context, c *signalmeow.Client, aci uuid.UUID) (map[string]any, error) {
+// With [profile] the profile is fetched whatever the store holds (signalmeow keeps one an hour, so a card opened
+// again asks Signal nothing).
+func who(ctx context.Context, c *signalmeow.Client, aci uuid.UUID, profile bool) (map[string]any, error) {
 	r, err := c.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, uuid.Nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	if r == nil || recipientName(r) == "" {
+	if r == nil || recipientName(r) == "" || profile {
 		if fetched, err := c.ContactByACI(ctx, aci); err == nil && fetched != nil {
 			r = fetched
 		} else if err != nil {
@@ -1034,7 +1046,7 @@ func announceName(c *signalmeow.Client, aci uuid.UUID) {
 	go func() {
 		ctx, cancel := context.WithTimeout(bg(), 30*time.Second)
 		defer cancel()
-		m, err := who(ctx, c, aci)
+		m, err := who(ctx, c, aci, false)
 		if err != nil || m["name"] == "" {
 			return
 		}
@@ -1356,6 +1368,7 @@ func chatEvent(c *signalmeow.Client, evt *events.ChatEvent) {
 		event("edited", map[string]any{
 			"chat": evt.Info.ChatID, "from": evt.Info.Sender.String(), "target_ts": em.GetTargetSentTimestamp(),
 			"ts": em.GetDataMessage().GetTimestamp(), "text": em.GetDataMessage().GetBody(),
+			"mentions": mentionsOf(em.GetDataMessage()),
 		})
 		return
 	}
@@ -1419,12 +1432,32 @@ func message(c *signalmeow.Client, chat string, group bool, sender uuid.UUID, dm
 	m := map[string]any{
 		"chat": chat, "group": group, "from": sender.String(), "name": name,
 		"mine": sender == c.Store.ACI, "ts": dm.GetTimestamp(), "text": dm.GetBody(), "media": media,
+		"mentions": mentionsOf(dm),
 	}
 	if q := dm.GetQuote(); q != nil {
 		author, _ := signalmeow.ParseStringOrBinaryUUID(q.GetAuthorAci(), q.GetAuthorAciBinary())
 		m["quote"] = map[string]any{"ts": q.GetId(), "author": author.String(), "text": q.GetText()}
 	}
 	return m
+}
+
+// mentionsOf is each @mention in a message's words, as Signal sends them (Matt, 2026-11-19: "when clicking on a @mention
+// anywhere including signal and telegram chats show this profile popup"): the body holds U+FFFC where each person is
+// named, and a body range says where (start and length in UTF-16 units, as Signal counts) and whose ACI it is. Ranges
+// that are only styles (bold, a spoiler) are left out. Never null, so the app always finds a list.
+func mentionsOf(dm *signalpb.DataMessage) []map[string]any {
+	out := make([]map[string]any, 0)
+	for _, r := range dm.GetBodyRanges() {
+		if r.GetMentionAci() == "" && len(r.GetMentionAciBinary()) == 0 {
+			continue
+		}
+		aci, err := signalmeow.ParseStringOrBinaryUUID(r.GetMentionAci(), r.GetMentionAciBinary())
+		if err != nil || aci == uuid.Nil {
+			continue
+		}
+		out = append(out, map[string]any{"start": r.GetStart(), "length": r.GetLength(), "aci": aci.String()})
+	}
+	return out
 }
 
 func mediaOf(a *signalpb.AttachmentPointer) map[string]any {

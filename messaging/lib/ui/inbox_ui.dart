@@ -34,6 +34,8 @@ import '../plugins/embeds.dart' show EmbedCard, EmbedsPlugin;
 import '../plugins/plugin.dart' show MessageFacts;
 import '../plugins/registry.dart' show AppStore, PluginRegistry;
 import 'common.dart';
+import 'mention_field.dart' show mentionStyle;
+import 'profile_card.dart';
 import 'composer_box.dart';
 import 'poof.dart';
 import 'sticker_picker.dart' show pickSticker;
@@ -780,7 +782,18 @@ class _InboxBubble extends StatelessWidget {
                 for (final x in m.media) Padding(padding: EdgeInsets.only(bottom: text.isEmpty ? 0 : t.space(2)), child: InboxMediaView(network: network, media: x, ink: m.mine ? mineInk : t.color('app-ink'))),
                 // Links underlined and opened by a press, as in a conversation of texts (Matt, 2026-11-16: "links are
                 // not expanding or clickable on telegram and signal chats").
-                if (text.isNotEmpty) LinkedText(text, ink: m.mine ? mineInk : t.color('app-ink'), style: pageText(t, t.fontSize('md'), color: m.mine ? mineInk : t.color('app-ink'), height: 1.3)),
+                if (text.isNotEmpty)
+                  LinkedText(
+                    text,
+                    ink: m.mine ? mineInk : t.color('app-ink'),
+                    style: pageText(t, t.fontSize('md'), color: m.mine ? mineInk : t.color('app-ink'), height: 1.3),
+                    // Who an "@" means, as the network said (or the "@username" written, where it said nothing or the
+                    // words shown are a translation), pressed for their profile (Matt, 2026-11-19: "when clicking on a
+                    // @mention anywhere including signal and telegram chats show this profile popup").
+                    mentions: text == m.text && m.mentions.isNotEmpty ? inboxMentions(m) : handleMentions(text),
+                    mentionStyle: mentionStyle(t, on: m.mine ? mineInk : null),
+                    onMention: (x) => showProfile(context, subjectOfMention(x.id, words: text.substring(x.start, x.end), network: network)),
+                  ),
               ]),
             ),
           ),

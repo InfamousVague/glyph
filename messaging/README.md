@@ -70,6 +70,24 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   from the password, 10 tries an hour per account, plus a texted code where the account has a verified number), or the
   recovery words alone. Every device signed in is the same identity at once (below). Tests: account_crypto_test
   (BIP-39/32, EIP-55, HKDF, Argon2id vectors), account_flow_test, relay accounts_test.
+- **Profiles: a picture, a status, and a card behind every "@"** (0.9.21, not released; Matt, 2026-11-19: "build a
+  profile section in the app that allows us to set profile pictures and status messages, when clicking on a @mention
+  anywhere including signal and telegram chats show this profile popup with actions available for the user in context
+  of where it's placed when using telegram and other outside apps we should proxy through any profile information their
+  APIs make available and in app it should have a small input to send a DM to a user").
+  - Settings › Me › Profile has a picture (square and small, made as a circle's is: `pickCirclePicture`) and a status
+    line (80 characters). Both go to friends with the name and line (`p`, `st` in the profile; a build from before
+    passes over them). In a space the greeting says the status and a mark of the picture (`ph`); the picture itself is
+    asked of its owner when someone opens their card (`pic?` / `pic`), so greetings stay small (lib/me/pictures.dart).
+  - Pressing an "@" opens the person's card (lib/ui/profile_card.dart, `showProfile`): picture, name, username, status
+    and line, then what can be done from there. In a space: mention them back and the members. On Ghost: open the chat,
+    add them as a friend or answer their request, copy the username, and for a friend a field to write to them without
+    leaving the page. In a text or a Ghost chat an "@username" written in the words is pressable too (`handleMentions`).
+  - Telegram and Signal: mentions come through (Telegram's text entities; Signal's mention ranges, whose placeholder
+    becomes "@Name"), and the card shows what their APIs give (`InboxNetwork.profileOf`): Telegram's name, username,
+    bio, photo, emoji status and last seen; Signal's name, number, avatar and about line. Message them there, copy the
+    username. The Signal helper (sidecar/signal) sends the mentions and the about line; the next release builds it.
+  - Tests: profile_card_test, inbox_mentions_telegram_test, inbox_mentions_signal_test, sidecar main_test.
 - **One identity on every device, in circles and spaces too** (0.9.20, not released; Matt, 2026-11-19: "when i join a
   server on my other logged in machines it's joining as a new matt every time instead of reusing my existing keys and
   owner account, when I login on ghost i should have the same identity across all devices"). Every computer paired with
