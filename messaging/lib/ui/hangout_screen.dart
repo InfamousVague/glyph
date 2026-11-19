@@ -1199,13 +1199,12 @@ class _Message extends StatelessWidget {
         padding: EdgeInsets.only(top: first ? t.space(2) : 2),
         child: Column(crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start, children: [
           // The name over a run's first bubble in its role's colour (the app's primary colour where the role has none),
-          // and the owner's crown after it.
+          // by their role's colour alone (Matt, 2026-11-18: "Remove the crown icon just use role colors").
           if (first && !mine)
             Padding(
               padding: EdgeInsets.only(left: faceGap + t.space(3), bottom: 2),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: roleInk(t, role) ?? t.color('app-accent')))),
-                if (owner) ...[SizedBox(width: t.space(1)), const OwnerCrown(size: 12)],
               ]),
             ),
           Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -1230,7 +1229,7 @@ class _Message extends StatelessWidget {
 
 extension on _Message {
   /// The message as a channel's line ([flat]): the face in a gutter by a run's first message, the name in its role's
-  /// colour with the owner's crown and the time beside it, and the words, files or sticker under them on the page.
+  /// colour and the time beside it, and the words, files or sticker under them on the page.
   Widget _flat(BuildContext context, ShownView? shown, VoidCallback menu) {
     final t = context.tokens;
     final m = message;
@@ -1276,7 +1275,6 @@ extension on _Message {
                   padding: EdgeInsets.only(bottom: 2),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
                     Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: roleInk(t, role) ?? ink))),
-                    if (owner) ...[SizedBox(width: t.space(1)), const OwnerCrown(size: 13)],
                     SizedBox(width: t.space(2)),
                     Text(clock(at), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
                   ]),
@@ -1379,7 +1377,6 @@ class SpaceMembers extends StatelessWidget {
                       label: id == room.me ? 'You' : _nameOf(room, id),
                       hint: Text(inVoice.contains(id) ? 'In voice' : (room.present.containsKey(id) ? 'Here now' : 'Away')),
                       labelColor: roleInk(t, role),
-                      labelAfter: r.isOwner(id) ? Padding(padding: EdgeInsets.only(left: t.space(1)), child: const OwnerCrown()) : null,
                       onPress: room.canManage && r.outranks(room.me, id) ? () => pickRole(context, room, id, _nameOf(room, id)) : null,
                     ),
                 ],
@@ -1398,8 +1395,8 @@ class SpaceMembers extends StatelessWidget {
 Widget _hued(String hue, Widget section) => GlacierScope(attrs: {'hue': hue}, child: section);
 
 /// A role in words, where a row asks which (Matt, 2026-11-17: "Don't show the badges for owner moderator etc, instead
-/// assign role colors like discord does and for the owner just show a singlular crown icon"): its name in its colour,
-/// and the owner's crown before it.
+/// assign role colors like discord does"): its name in its colour (the crown that marked the owner went on 2026-11-18:
+/// "Remove the crown icon just use role colors for members and such").
 class RoleTag extends StatelessWidget {
   const RoleTag({super.key, required this.role, this.owner = false});
   final Role role;
@@ -1409,7 +1406,6 @@ class RoleTag extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      if (owner) ...[const OwnerCrown(), SizedBox(width: t.space(1))],
       Text(role.name, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: roleInk(t, role) ?? t.color('app-ink-2'))),
     ]);
   }
@@ -1421,14 +1417,6 @@ Color? roleInk(Tokens t, Role role) {
   return c == null ? null : t.colorOf(c);
 }
 
-/// The space's owner, by their name: a crown, alone (Matt, 2026-11-17).
-class OwnerCrown extends StatelessWidget {
-  const OwnerCrown({super.key, this.size = 14});
-  final double size;
-
-  @override
-  Widget build(BuildContext context) => Semantics(label: 'Owner', child: AppIcon(Lucide.crown, size: size, wash: false, color: const Color(0xFFF1C40F)));
-}
 
 /// The line under a space's name in its header: its description, or else what kind of space it is, or how many are
 /// here in a voice space with people in it.
@@ -1565,8 +1553,7 @@ class RolesScreen extends StatelessWidget {
                           icon: AppIcon(Lucide.users, size: 18),
                           label: id == room.me ? 'You' : _nameOf(room, id),
                           labelColor: roleInk(t, role),
-                          labelAfter: r.isOwner(id) ? Padding(padding: EdgeInsets.only(left: t.space(1)), child: const OwnerCrown()) : null,
-                          value: Text(role.name),
+                              value: Text(role.name),
                           onPress: manage && r.outranks(room.me, id) ? () => pickRole(context, room, id, _nameOf(room, id)) : null,
                         ),
                   ],

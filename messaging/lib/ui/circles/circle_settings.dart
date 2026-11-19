@@ -301,7 +301,7 @@ class _SectionBody extends StatelessWidget {
               for (final p in circlePeople(c))
                 SettingRow(
                   key: ValueKey('circle-person-${p.id}'),
-                  icon: AppIcon(p.owner ? Lucide.crown : (p.admin ? Lucide.shieldCheck : Lucide.userRound), size: 18),
+                  icon: AppIcon(p.owner || p.admin ? Lucide.shieldCheck : Lucide.userRound, size: 18),
                   label: p.me ? '${p.name} (you)' : p.name,
                   labelColor: circleRoleInk(t, p),
                   hint: c.manifest.rolesOf(p.id).isEmpty ? null : Text(c.manifest.rolesOf(p.id).map((r) => r.name).join(', ')),
@@ -374,7 +374,7 @@ class _SectionBody extends StatelessWidget {
             PaneSection(
               title: 'Owner',
               description: const Text('Made the circle. Can do everything, give any role, make admins, and delete the circle.'),
-              children: [SettingRow(key: const ValueKey('circle-role-owner'), icon: AppIcon(Lucide.crown, size: 18), label: names(owners))],
+              children: [SettingRow(key: const ValueKey('circle-role-owner'), icon: AppIcon(Lucide.shieldCheck, size: 18), label: names(owners))],
             ),
             gap,
             PaneSection(

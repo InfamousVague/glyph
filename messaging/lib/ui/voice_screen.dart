@@ -201,7 +201,6 @@ class CallPanel extends StatelessWidget {
                               // Their role's colour, as Discord draws names (Matt, 2026-11-17).
                               style: room == null ? null : TextStyle(color: roleInk(t, room.roster.roleOf(p.me ? room.me : p.id))),
                             ),
-                            if (room != null && room.roster.isOwner(p.me ? room.me : p.id)) WidgetSpan(alignment: PlaceholderAlignment.middle, child: Padding(padding: EdgeInsets.only(left: t.space(1)), child: const OwnerCrown())),
                             if (p.guest) TextSpan(text: '  guest', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
                           ]),
                           maxLines: 1,
