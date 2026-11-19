@@ -66,6 +66,7 @@ LucideIcon noteIcon(String note) {
 }
 
 final List<(List<String>, LucideIcon)> _noteIcons = [
+  (['signed', 'publisher'], Lucide.shieldCheck),
   (['record'], Lucide.circleDot),
   (['scribe', 'written out', 'transcri'], Lucide.scrollText),
   (['caption'], Lucide.text),
