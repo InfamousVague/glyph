@@ -5,6 +5,7 @@
 // New space ends the list for whoever may add one; and nothing offers a choice of layout any more.
 //
 // With THEME_SHOTS=1 each is also kept as a picture at build/themes/circle-list/<look>-<theme>[-wide].png.
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -91,6 +92,37 @@ void main() {
       }
     });
   }
+
+  testWidgets('a banner is behind the header, taller, with the back arrow, face and name drawn on it', (tester) async {
+    // Matt, 2026-11-19: "the background image for the header of circles needs to be taller and the back arrow and
+    // other header content should render inside the background image not above it".
+    final png = await tester.runAsync(() async {
+      final r = ui.PictureRecorder();
+      final canvas = Canvas(r);
+      const size = Size(240, 80);
+      canvas.drawRect(Offset.zero & size, Paint()..shader = ui.Gradient.linear(Offset.zero, const Offset(240, 80), [const Color(0xFF2E7D6B), const Color(0xFFE0A84A)]));
+      for (var i = 0; i < 12; i++) {
+        canvas.drawCircle(Offset(16.0 + i * 20, 24.0 + (i % 3) * 16), 7, Paint()..color = const Color(0x55FFFFFF));
+      }
+      final img = await r.endRecording().toImage(240, 80);
+      final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
+      return base64Encode(bytes!.buffer.asUint8List());
+    });
+    final m = sampleCircle.manifest;
+    expect(png!.length, lessThan(26000), reason: 'small enough for a manifest');
+    final c = sampleCircle.copyWith(manifest: m.next(extra: {...m.extra, 'bn': png}));
+    for (final theme in ['light', 'dark']) {
+      await draw(tester, CircleList(view: sampleCircleView(circle: c, onBack: () {})), size: const Size(412, 892), theme: theme);
+      expect(tester.takeException(), isNull);
+      final banner = tester.getRect(find.byKey(const ValueKey('circle-banner-strip')));
+      final back = tester.getRect(find.bySemanticsLabel('Back'));
+      final name = tester.getRect(find.text('Night Owls').first);
+      expect(banner.top, 0, reason: 'from the top of the screen');
+      expect(banner.height, greaterThan(150), reason: 'taller');
+      expect(banner.contains(back.center) && banner.contains(name.center), isTrue, reason: 'the header is inside it');
+      await keep(tester, 'banner-$theme');
+    }
+  });
 
   testWidgets('each space says what is going on in it, under its heading, and New space ends the list', (tester) async {
     String? under = 'unset';

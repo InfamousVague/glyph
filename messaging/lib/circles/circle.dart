@@ -454,6 +454,12 @@ class CircleManifest {
   /// Its banner (`bn`, base64 PNG, at most [circleBannerMax]); null for none, where the sidebar's top wears its colour.
   String? get banner => extra['bn'] is String && (extra['bn'] as String).length <= circleBannerMax ? extra['bn'] as String : null;
 
+  /// Its banner at full size (`bf`, Matt, 2026-11-19: "when uploading a banner from camera roll it's not uploading the
+  /// full resolution image"): the picture as it was chosen, sealed on the relay under the circle's own seed as a chat's
+  /// file is (Circle.bannerChannel), named here with its key; [banner] is its small stand-in, shown until it is here.
+  /// The entry as a Files space's carries it (SpaceFile.toJson), so it is read by lib/files.
+  Map<String, Object?>? get bannerFile => extra['bf'] is Map ? (extra['bf'] as Map).cast<String, Object?>() : null;
+
   /// Who was put out of the circle by its owner or an admin (`rm`, ids; Matt, 2026-11-19: "add the ability to remove
   /// members from a circle as an admin"). Every member's app leaves them out: not listed, not heard in its spaces or
   /// calls, and their own app leaves the circle and keeps out of it. A build from before reads none, as it would any
@@ -764,6 +770,10 @@ class Circle {
   String get room => NetCrypto.hex(NetCrypto.derive(_seed, 'circle room').sublist(0, 16));
   String get token => NetCrypto.hex(NetCrypto.derive(_seed, 'circle token'));
   Uint8List get key => NetCrypto.derive(_seed, 'circle key');
+
+  /// Where the circle's own files are kept on the relay (its full banner): a space of no kind anyone opens, its seed the
+  /// circle's, so whoever is in the circle can fetch what is there.
+  VoiceChannel get bannerChannel => VoiceChannel(seed: seed, name: name, kind: SpaceKind.files, owner: owner, circle: seed);
 
   /// [space] as a space of this circle: owned by the circle's owner, marked as the circle's.
   VoiceChannel channelOf(CircleSpace space) => VoiceChannel(seed: space.seed, name: space.name, kind: space.kind, owner: owner, circle: seed);
