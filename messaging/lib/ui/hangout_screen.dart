@@ -1434,7 +1434,12 @@ extension on _Message {
       child: Container(
         // A message that mentions you on a wash of the accent with a bar of it at its edge, as Slack and Discord mark one.
         decoration: mentionsMe ? BoxDecoration(color: t.color('app-accent').withValues(alpha: 0.10), border: Border(left: BorderSide(color: t.color('app-accent'), width: 3))) : null,
-        padding: EdgeInsets.only(top: first ? t.space(3) : 2, left: t.space(1), right: t.space(1), bottom: mentionsMe ? 2 : 0),
+        // The gap above a run's first message is outside the wash, so a mention's is as tight above as below (Matt,
+        // 2026-11-19: "the mention highlight has too much padding on the top").
+        margin: EdgeInsets.only(top: first && mentionsMe ? t.space(2) : 0),
+        padding: mentionsMe
+            ? EdgeInsets.fromLTRB(t.space(1), first ? t.space(1) : 2, t.space(1), first ? t.space(1) : 2)
+            : EdgeInsets.only(top: first ? t.space(3) : 2, left: t.space(1), right: t.space(1)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           SizedBox(
             width: gutter,
