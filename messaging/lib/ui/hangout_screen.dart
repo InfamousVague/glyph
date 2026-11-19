@@ -645,20 +645,22 @@ class _HangoutChatState extends State<HangoutChat> {
     setState(() => _recording = null);
   }
 
-  /// A message with files on its way, at the right as your own are ([SpaceOutgoing]).
+  /// A message with files on its way, at the right as your own are ([SpaceOutgoing]); in a circle's channel on the left
+  /// under the messages' column, as everyone's are there ([_Message.flat]).
   Widget _outgoing(HangoutRoom room, OutgoingMessage o, Color mineBg, Color mineInk) {
     final t = context.tokens;
+    final flat = room.channel.circle != null;
     return Padding(
       key: ValueKey('going-${o.id}'),
-      padding: EdgeInsets.only(top: t.space(2)),
+      padding: EdgeInsets.only(top: t.space(2), left: flat ? t.lenOf('2.25rem') + t.space(4) : 0),
       child: Align(
-        alignment: Alignment.centerRight,
+        alignment: flat ? Alignment.centerLeft : Alignment.centerRight,
         child: SpaceOutgoing(
           message: o,
           maxWidth: MediaQuery.sizeOf(context).width * 0.72,
-          ground: mineBg,
-          ink: mineInk,
-          rim: bubbleNeedsRim(mineBg, t.color('glacier-bg')) ? Border.all(color: t.color('app-ink-4'), width: 1) : null,
+          ground: flat ? theirBubble(t, onBackground: false) : mineBg,
+          ink: flat ? t.color('app-ink') : mineInk,
+          rim: flat ? theirRim(t) : bubbleNeedsRim(mineBg, t.color('glacier-bg')) ? Border.all(color: t.color('app-ink-4'), width: 1) : null,
           onRetry: () => room.retry(o, _uploads),
           onDiscard: () => room.discard(o, _uploads),
         ),
@@ -853,8 +855,12 @@ class _HangoutChatState extends State<HangoutChat> {
                         return d.year == at.year && d.month == at.month && d.day == at.day;
                       }
                       final newDay = !sameDay(before);
-                      final first = newDay || before!.from != m.from;
-                      final last = !sameDay(after) || after!.from != m.from;
+                      // In a circle's channel a pause of five minutes starts a new run, its name and time shown again,
+                      // as Slack and Discord do.
+                      final flat = room.channel.circle != null;
+                      bool apart(HangoutMessage a, HangoutMessage b) => flat && (a.at - b.at).abs() > 5 * 60 * 1000;
+                      final first = newDay || before!.from != m.from || apart(m, before);
+                      final last = !sameDay(after) || after!.from != m.from || apart(after, m);
                       final message = Poof(
                         key: ValueKey('poof-${m.id}'),
                         gone: _poofing.contains(m.id),
@@ -863,7 +869,7 @@ class _HangoutChatState extends State<HangoutChat> {
                           _poofing.remove(m.id);
                           room.delete(m);
                         },
-                        child: _Message(key: ValueKey(m.id), room: room, message: m, first: first, last: last, mineBg: mineBg, mineInk: mineInk, onDelete: () => setState(() => _poofing.add(m.id))),
+                        child: _Message(key: ValueKey(m.id), room: room, message: m, first: first, last: last, mineBg: mineBg, mineInk: mineInk, flat: flat, onDelete: () => setState(() => _poofing.add(m.id))),
                       );
                       if (!newDay) return message;
                       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1099,9 +1105,14 @@ MessageFacts? spaceFacts(HangoutMessage m, {required bool mine}) =>
     mine || m.text.trim().isEmpty ? null : MessageFacts(thread: -1, senders: [m.from], text: m.text, contact: false, outgoing: false, date: DateTime.fromMillisecondsSinceEpoch(m.at), id: 'space:${m.id}', network: 'space');
 
 class _Message extends StatelessWidget {
-  const _Message({super.key, required this.room, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onDelete});
+  const _Message({super.key, required this.room, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onDelete, this.flat = false});
   final HangoutRoom room;
   final HangoutMessage message;
+
+  /// Drawn as Slack and Discord draw a channel (Matt, 2026-11-18: "Id like the chats in circles to be more like discord
+  /// or slack and keep the bubbles for dms and small groups"): everyone on the left, yourself too, a run's first message
+  /// with the face, the name and the time over it, the words on the page with no bubble.
+  final bool flat;
 
   /// The first and the last of a run from one person on one day.
   final bool first, last;
@@ -1138,6 +1149,7 @@ class _Message extends StatelessWidget {
       ]);
     }
 
+    if (flat) return _flat(context, shown, menu);
     final maxWidth = MediaQuery.sizeOf(context).width * 0.72;
     final bubble = ConstrainedBox(
       constraints: BoxConstraints(maxWidth: maxWidth),
@@ -1210,6 +1222,68 @@ class _Message extends StatelessWidget {
               padding: EdgeInsets.only(top: 2, left: faceGap + t.space(2), right: t.space(2)),
               child: Text(clock(DateTime.fromMillisecondsSinceEpoch(m.at)), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
             ),
+        ]),
+      ),
+    );
+  }
+}
+
+extension on _Message {
+  /// The message as a channel's line ([flat]): the face in a gutter by a run's first message, the name in its role's
+  /// colour with the owner's crown and the time beside it, and the words, files or sticker under them on the page.
+  Widget _flat(BuildContext context, ShownView? shown, VoidCallback menu) {
+    final t = context.tokens;
+    final m = message;
+    final mine = m.from == room.me;
+    final role = room.roster.roleOf(m.from);
+    final owner = room.roster.isOwner(m.from);
+    final name = mine ? 'You' : (m.name.isEmpty ? Voice.instance.nameOf(m.from) : m.name);
+    final faceSize = t.lenOf('2.25rem');
+    final gutter = faceSize + t.space(3);
+    final width = MediaQuery.sizeOf(context).width - gutter - t.space(6);
+    final maxWidth = math.min(width, t.lenOf('34rem'));
+    final ink = t.color('app-ink');
+    final words = Text(shown?.bubble ?? m.text, style: pageText(t, t.fontSize('md'), color: ink, height: 1.4));
+    final Widget body;
+    if (m.sticker != null) {
+      body = SpaceSticker(name: m.sticker!, side: math.min(t.lenOf('8rem'), maxWidth));
+    } else {
+      body = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        if (m.files.isNotEmpty) ...[
+          SpaceChatFiles(channel: room.channel, message: m, mine: false, maxWidth: maxWidth, ground: theirBubble(t, onBackground: false), ink: ink, rim: theirRim(t)),
+          if (m.text.isNotEmpty) SizedBox(height: t.space(1)),
+        ],
+        if (shown != null) OriginalCard(view: shown, maxWidth: maxWidth),
+        if (m.text.isNotEmpty) words,
+      ]);
+    }
+    final at = DateTime.fromMillisecondsSinceEpoch(m.at);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: menu,
+      onSecondaryTap: menu,
+      child: Padding(
+        padding: EdgeInsets.only(top: first ? t.space(3) : 2, left: t.space(1), right: t.space(1)),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SizedBox(
+            width: gutter,
+            child: first ? Align(alignment: Alignment.topLeft, child: Avatar(people: [Person(address: 'space:${m.from}', name: mine ? (room.name.isEmpty ? 'You' : room.name) : name)], size: faceSize)) : null,
+          ),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              if (first)
+                Padding(
+                  padding: EdgeInsets.only(bottom: 2),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+                    Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: roleInk(t, role) ?? ink))),
+                    if (owner) ...[SizedBox(width: t.space(1)), const OwnerCrown(size: 13)],
+                    SizedBox(width: t.space(2)),
+                    Text(clock(at), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+                  ]),
+                ),
+              Align(alignment: Alignment.centerLeft, child: ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: body)),
+            ]),
+          ),
         ]),
       ),
     );
