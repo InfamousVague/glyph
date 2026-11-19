@@ -11,7 +11,9 @@ import 'dart:ui' as ui;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import '../../circles/circle.dart';
+import '../../circles/circles.dart';
+import '../../files/files_store.dart';
+import '../../voice/hangout.dart' show OutgoingFile;
 import '../../sms.dart';
 import '../common.dart';
 
@@ -59,19 +61,30 @@ Future<String?> circlePictureOf(Uint8List bytes) async {
   }
 }
 
-/// Asks for a picture and gives it back as a wide base64 PNG for a circle's banner (about 3 by 1, cut from the middle)
-/// of at most [circleBannerMax] characters; null where none was chosen or it couldn't be read (said in a toast).
-Future<String?> pickCircleBanner(BuildContext context) async {
+/// Asks for a picture and sets it as [c]'s banner (Matt, 2026-11-19: "when uploading a banner from camera roll it's not
+/// uploading the full resolution image"): the picture as it was chosen goes up sealed to the relay under the circle's
+/// own seed, and the circle names it beside a small stand-in of it ([circleBannerOf], at most [circleBannerMax]) that
+/// shows at once and wherever the full one hasn't come yet. False where none was chosen or it couldn't be set (said).
+Future<bool> chooseCircleBanner(BuildContext context, Circle c) async {
   try {
     final picked = await Sms.instance.pickImages();
-    if (picked.isEmpty) return null;
+    if (picked.isEmpty) return false;
     final path = await Sms.instance.cacheCopy(picked.first);
-    final small = await circleBannerOf(await File(path).readAsBytes());
-    if (small == null && context.mounted) toast(context, 'Couldn\'t use that picture.', tone: GlacierToastTone.danger);
-    return small;
+    final file = File(path);
+    final small = await circleBannerOf(await file.readAsBytes());
+    if (small == null) {
+      if (context.mounted) toast(context, 'Couldn\'t use that picture.', tone: GlacierToastTone.danger);
+      return false;
+    }
+    if (context.mounted) toast(context, 'Uploading the banner…');
+    final name = 'banner${path.contains('.') ? path.substring(path.lastIndexOf('.')).toLowerCase() : '.jpg'}';
+    final full = await FilesStore.instance.uploadForChat(c.bannerChannel, OutgoingFile(path: path, name: name, size: file.lengthSync(), mime: FileKind.mimeOf(name), owned: true), byName: c.name, thumbMost: 0, moved: () {});
+    final ok = await Circles.instance.edit(c, banner: small, bannerFile: full.withoutThumb().toJson());
+    if (context.mounted) toast(context, ok ? 'Banner set' : 'Couldn\'t set the banner.', tone: ok ? GlacierToastTone.neutral : GlacierToastTone.danger);
+    return ok;
   } catch (e) {
     if (context.mounted) toast(context, 'Couldn\'t use that picture: $e', tone: GlacierToastTone.danger);
-    return null;
+    return false;
   }
 }
 

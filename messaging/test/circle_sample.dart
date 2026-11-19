@@ -31,6 +31,7 @@ CircleView sampleCircleView({
   void Function(CircleSpaceView space)? onSpaceMenu,
   void Function({String? section})? onNewSpace,
   VoidCallback? onBack,
+  Circle? circle,
 }) {
   final night = DateTime(2026, 11, 17, 21, 40);
   DateTime ago(int minutes) => night.subtract(Duration(minutes: minutes));
@@ -44,7 +45,7 @@ CircleView sampleCircleView({
   const unread = {'General': 3, 'Movie night': 1, 'Drop box': 2};
   const talking = {'Lounge': ['Maya', 'Theo', 'Sam']};
   const files = {'Drop box': 12, 'Photos': 48};
-  final c = sampleCircle;
+  final c = circle ?? sampleCircle;
   return CircleView(
     circle: c,
     spaces: [
