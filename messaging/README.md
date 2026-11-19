@@ -30,6 +30,35 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Plugins for whole circles: Record call, Scribe, Live captions, Watch together, and SMS spaces** (0.9.21, not
+  released; Matt, 2026-11-19: "Start with the recording plugin, then scribe, then a special space in the circle called a
+  "SMS Space" to text members, Live captions, and watch together"; "Some plugins should be serverside / cirlce side as
+  well"). A plugin says where it may be on (`PluginScope`: this device, a whole circle, the server); a circle's owner or
+  an admin turns one on for everyone in Circle settings › Plugins, kept in the circle's signed manifest (`pl`). Calls
+  have places for plugins: the call's menu in every design (`Slots.callControls`) and lines over the call
+  (`Slots.callBanner`). Server plugins are a scope only so far: nothing runs on the relay yet.
+  - **Record call** (`lib/voice/recorder.dart`, android `CallRecorder.kt`, macos/ios `CallRecorder.swift`,
+    `lib/voice/mp4_names.dart`): one MP4, track 1 everyone mixed (the default), then one AAC track per voice, named
+    (`udta/name`, `udta/©nam`, the handler's name). Each other person's decoded sound is tapped natively
+    (`AudioTrack.addSink`, `RTCAudioTrack.addRenderer`), this device's own after VoiceFx, each to its own file held to
+    the clock, encoded and joined at the end. Everyone is told by a red line over the call whatever their plugins, and
+    asked; only voices whose own device said yes (`ry` in the call's `me`) are in it. Recordings stay on the device
+    (Recordings: play with a track per voice, share, save, send to the space). Not on Windows.
+  - **Scribe** (`lib/voice/scribe.dart`, android `Scribe.kt`, macos/ios `Scribe.swift`): a recording written out by
+    the device's own speech recognition, each voice's track on its own, cut at pauses, lines named and timed; a line
+    summing it up on a phone with its model; kept as `.txt` and as `.srt` subtitles the player shows. Android 13+.
+  - **Live captions** (`lib/voice/captions.dart`, android `LiveCaptions.kt`, macos/ios `LiveCaptions.swift`): each
+    device writes out its own voice while anyone in the call wants captions (`cw`), and says the words in the call's
+    room (`cap`); others' lines are translated where Translate is added.
+  - **Watch together** (`lib/voice/watch_together.dart`): a Files-space video or song played on everyone's device in a
+    call from its own sealed copy; play, pause and where it is said in the call (`wt`), a player more than 1.5 s out
+    moved.
+  - **SMS spaces** (`lib/circles/sms_space.dart`, `lib/ui/sms_space_ui.dart`): a circle's texting space whose people
+    without the app are in it by text from one member's phone (`CircleSpace.extra.sms.by`); their numbers kept on that
+    phone alone; messages out as "Name: words", replies in marked 📱, STOP takes someone out.
+  - Checked: two-member protocol tests for each; on an emulator, a four-track MP4 read by ffprobe and Scribe writing out a
+    two-voice recording; the Mac's encoder on its own. Not yet: a real call between two devices recording, captions or
+    watching; real texts through an SMS space.
 - **Signal: group names, and sends that say why they stall** (0.7.42, not released; `sidecar/signal/main.go`,
   `lib/inbox/signal.dart`; Matt, 2026-11-16: "Sending signal messages get stuck on sending... and the group titles
   are not coming through", then "It says bad state signal took too long to answer").

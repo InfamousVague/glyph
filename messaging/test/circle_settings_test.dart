@@ -290,13 +290,16 @@ void main() {
       'members': (wide) async {
         if (!wide) await tap(tester, find.byKey(const ValueKey('circle-settings-tab-members')));
       },
+      'plugins': (wide) async {
+        if (!wide) await tap(tester, find.byKey(const ValueKey('circle-settings-tab-plugins')));
+      },
       'space': (wide) async {
         if (!wide) await tap(tester, find.byKey(const ValueKey('circle-settings-tab-spaces')));
         await tap(tester, find.byKey(ValueKey('circle-settings-space-${cast.general.seed}')));
         await tap(tester, find.byKey(ValueKey('space-perm-role-${cast.readers.id}')));
       },
     };
-    const sections = {'overview': CircleSettingsSection.overview, 'roles': CircleSettingsSection.roles, 'role': CircleSettingsSection.roles, 'members': CircleSettingsSection.members, 'space': CircleSettingsSection.spaces};
+    const sections = {'overview': CircleSettingsSection.overview, 'roles': CircleSettingsSection.roles, 'role': CircleSettingsSection.roles, 'members': CircleSettingsSection.members, 'plugins': CircleSettingsSection.plugins, 'space': CircleSettingsSection.spaces};
     for (final MapEntry(key: name, value: go) in views.entries) {
       for (final wide in [false, true]) {
         for (final dark in [false, true]) {

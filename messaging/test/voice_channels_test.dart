@@ -8,6 +8,10 @@ import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/voice/channels.dart';
 import 'package:ghost_messaging/voice/voice.dart';
+import 'package:ghost_messaging/voice/watch_together.dart';
+import 'package:ghost_messaging/files/files_model.dart';
+import 'package:ghost_messaging/ui/video_engine.dart';
+import 'package:flutter/widgets.dart' show Widget, SizedBox;
 
 /// Voice and video channels (lib/voice/voice.dart). Matt, 2026-11-14: "jump in audio chats like discord has always
 /// open voice channels that you can jump in and out at any time and you can see who's connected and also toggle video
@@ -123,7 +127,111 @@ Future<void> _settle() async {
   }
 }
 
+/// A player that only keeps what it is told, for watching together.
+class _Engine extends VideoEngine {
+  final said = <String>[];
+  @override
+  Future<void> open(String path) async => value = value.copyWith(ready: true, duration: const Duration(minutes: 90));
+  @override
+  Future<void> play() async {
+    said.add('play');
+    value = value.copyWith(playing: true);
+  }
+
+  @override
+  Future<void> pause() async {
+    said.add('pause');
+    value = value.copyWith(playing: false);
+  }
+
+  @override
+  Future<void> seek(Duration to) async {
+    said.add('seek ${to.inSeconds}');
+    value = value.copyWith(position: to);
+  }
+
+  @override
+  Future<void> setVolume(double volume) async {}
+  @override
+  Widget view() => const SizedBox();
+  @override
+  Future<void> release() async {}
+}
+
 void main() {
+  test('watching together: the file and where it is go to the call, and a player that is out of step is moved', () async {
+    // Matt, 2026-11-19: "watch together".
+    final hub = _Hub();
+    final c = VoiceChannel.make('Film night');
+    final maya = VoiceSession(channel: c, route: _Route(hub, 'maya-id'), media: _Media(), name: 'Maya');
+    final sam = VoiceSession(channel: c, route: _Route(hub, 'sam-id'), media: _Media(), name: 'Sam');
+    await maya.join();
+    await sam.join();
+    await _settle();
+    final file = SpaceFile.fromJson({'id': '0123456789abcdef0123456789abcdef', 'n': 'Film.mkv', 'z': 1000, 'm': 'video/x-matroska', 'k': base64Encode(List.filled(32, 7)), 'p': base64Encode(List.filled(8, 1)), 'u': 'Maya', 'at': 1}, by: 'maya-id')!;
+    final w = WatchTogether.instance..followSession(sam);
+    final engine = _Engine();
+    await engine.open('x');
+    w.attach(engine);
+    expect(engine.said, ['play'], reason: 'nothing to follow yet: it plays from the start');
+
+    maya.sayWatch(Watching(file: file, space: c.seed, by: 'me', position: const Duration(minutes: 20), playing: true, at: DateTime.now()).toWire());
+    await _settle();
+    expect(w.watching!.file.name, 'Film.mkv');
+    expect(w.watching!.by, 'maya-id');
+    expect(engine.said.last, 'seek 1200', reason: 'twenty minutes in, where Maya is');
+
+    engine.said.clear();
+    maya.sayWatch(Watching(file: file, space: c.seed, by: 'me', position: const Duration(minutes: 20, seconds: 1), playing: false, at: DateTime.now()).toWire());
+    await _settle();
+    expect(engine.said, ['pause'], reason: 'a second away is left alone; paused is paused');
+
+    // Sam moves it: Maya's side hears where.
+    final heard = <String>[];
+    maya.onWatch = (from, m) => heard.add('$from ${m['p']} ${m['g']}');
+    w.user(playing: true, position: const Duration(minutes: 30));
+    await _settle();
+    expect(heard, ['sam-id 1800000 true']);
+
+    maya.sayWatch({'e': true});
+    await _settle();
+    expect(w.watching, isNull);
+    w.detach(engine);
+    w.followSession(null);
+    await maya.leave();
+    await sam.leave();
+  });
+
+  test('captions: who wants them is said, and each line of words goes to everyone in the call', () async {
+    // Matt, 2026-11-19: "Live captions".
+    final hub = _Hub();
+    final c = VoiceChannel.make('Study hall');
+    final maya = VoiceSession(channel: c, route: _Route(hub, 'maya-id'), media: _Media(), name: 'Maya');
+    final sam = VoiceSession(channel: c, route: _Route(hub, 'sam-id'), media: _Media(), name: 'Sam');
+    await maya.join();
+    await sam.join();
+    await _settle();
+    expect(maya.anyoneWantsCaptions, isFalse);
+
+    sam.setWantsCaptions(true);
+    await _settle();
+    expect(maya.members['sam-id']!.captions, isTrue);
+    expect(maya.anyoneWantsCaptions, isTrue, reason: 'Maya\'s device writes out her voice for Sam');
+
+    final heard = <String>[];
+    sam.onCaption = (from, words, done) => heard.add('$from $words $done');
+    maya.sayCaption('the troll is', done: false);
+    maya.sayCaption('the troll is under the bridge', done: true);
+    await _settle();
+    expect(heard, ['maya-id the troll is false', 'maya-id the troll is under the bridge true']);
+
+    sam.setWantsCaptions(false);
+    await _settle();
+    expect(maya.anyoneWantsCaptions, isFalse);
+    await maya.leave();
+    await sam.leave();
+  });
+
   test('a recording is told to everyone in the call, and a voice is in it only once its own device says yes', () async {
     // Matt, 2026-11-19: "a "record call" plugin where it records the call to an MP4 with multiple named audio tracks".
     final hub = _Hub();

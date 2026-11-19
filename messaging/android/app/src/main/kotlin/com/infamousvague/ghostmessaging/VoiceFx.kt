@@ -68,6 +68,8 @@ object VoiceFx : AudioProcessingAdapter.ExternalAudioFrameProcessing {
         nativeProcess(handle, buffer, numFrames, numFrames * 100)
         // The voice as it is sent, for a recording of the call being made here (CallRecorder.kt).
         CallRecorder.mic(buffer, numFrames, numFrames * 100)
+        // And for the call's captions, where they are on (LiveCaptions.kt).
+        LiveCaptions.feed(buffer, numFrames, numFrames * 100)
     }
 
     private external fun nativeCreate(): Long

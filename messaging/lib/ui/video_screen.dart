@@ -35,20 +35,20 @@ import 'video_tracks.dart';
 /// answer the keyboard (space, the arrows, F for full screen, Esc to go back), show a volume slider, and come back as
 /// the mouse moves. A file that can't be played says so and offers the app the device would open it with.
 class VideoScreen extends StatefulWidget {
-  const VideoScreen({super.key, required String this.path, this.title, this.poster, this.desk, this.dropFile = false})
+  const VideoScreen({super.key, required String this.path, this.title, this.poster, this.desk, this.dropFile = false, this.sync})
       : file = null,
         stream = null;
 
   /// Opened at once, while its file is still being made or brought down ([file]): a spinner over [poster] until it is
   /// here (Matt, 2026-11-17: "The app has gotten pretty laggy, especially when opening videos and exiting them").
-  const VideoScreen.coming({super.key, required Future<String?> this.file, this.title, this.poster, this.desk, this.dropFile = false})
+  const VideoScreen.coming({super.key, required Future<String?> this.file, this.title, this.poster, this.desk, this.dropFile = false, this.sync})
       : path = null,
         stream = null;
 
   /// Played as it comes down (a Files-space file, lib/files/file_stream.dart), not waited for whole (Matt, 2026-11-18:
   /// "do we need to download the whole file to play? would it be possible to setup streaming and buffering of the
   /// file?"). Let go when the screen goes; what of it has come stays for next time.
-  const VideoScreen.stream({super.key, required StreamedMedia this.stream, this.title, this.poster, this.desk})
+  const VideoScreen.stream({super.key, required StreamedMedia this.stream, this.title, this.poster, this.desk, this.sync})
       : path = null,
         file = null,
         dropFile = false;
@@ -64,6 +64,9 @@ class VideoScreen extends StatefulWidget {
 
   /// Who sent it, or the file's name: said at the top.
   final String? title;
+
+  /// Kept in step with others watching the same file (lib/voice/watch_together.dart); null to play alone.
+  final VideoSync? sync;
 
   /// Its picture, shown until the video itself is ready.
   final Uint8List? poster;
@@ -191,7 +194,12 @@ class _VideoScreenState extends State<VideoScreen> {
       return;
     }
     setState(() {});
-    unawaited(engine.play());
+    // Watched together: where the others are, playing or not; alone: from the start.
+    if (widget.sync != null) {
+      widget.sync!.attach(engine);
+    } else {
+      unawaited(engine.play());
+    }
     _soon();
   }
 
@@ -235,6 +243,7 @@ class _VideoScreenState extends State<VideoScreen> {
     final stream = widget.stream;
     stream?.changes.removeListener(_streamChanged);
     if (engine != null) {
+      widget.sync?.detach(engine);
       engine.removeListener(_changed);
       // Quiet at once; let go once the screen has gone: ExoPlayer's release waits on its own thread, and done now it
       // would hold up the frames that take the screen away.
@@ -343,11 +352,13 @@ class _VideoScreenState extends State<VideoScreen> {
   void _playPause() {
     final engine = _engine;
     if (engine == null || !_now.ready) return;
+    final playing = !_now.playing;
     if (_now.playing) {
       engine.pause();
     } else {
       engine.play();
     }
+    widget.sync?.user(playing: playing, position: _now.position);
     _show();
   }
 
@@ -356,7 +367,9 @@ class _VideoScreenState extends State<VideoScreen> {
     if (engine == null || !_now.ready) return;
     final v = _now;
     final to = v.position + Duration(seconds: right ? 10 : -10);
-    engine.seek(to < Duration.zero ? Duration.zero : (to > v.duration ? v.duration : to));
+    final at = to < Duration.zero ? Duration.zero : (to > v.duration ? v.duration : to);
+    engine.seek(at);
+    widget.sync?.user(playing: v.playing, position: at);
     _skipShown?.cancel();
     setState(() {
       _skipped = right ? '+10 s' : '−10 s';
@@ -498,6 +511,7 @@ class _VideoScreenState extends State<VideoScreen> {
       },
       onLet: (p) {
         _engine?.seek(total * p);
+        widget.sync?.user(playing: _now.playing, position: total * p);
         setState(() => _held = null);
         _soon();
       },
