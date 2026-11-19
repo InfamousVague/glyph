@@ -188,9 +188,9 @@ void main() {
       await settle(tester);
     }
 
-    await open(CircleSettingsSection.leave);
+    // Leaving, and deleting for its owner, at the sidebar's foot (Matt, 2026-11-18: "closer to discord server settings").
+    expect(find.byKey(const ValueKey('circle-leave')), findsOneWidget);
     expect(find.byKey(const ValueKey('circle-delete')), findsOneWidget, reason: 'its owner may delete it');
-    await back();
     await open(CircleSettingsSection.members);
     final you = tester.widget<CircleRoleTag>(find.byType(CircleRoleTag).first);
     expect((you.person.name, you.person.role), ('You', 'Owner'));
@@ -231,7 +231,6 @@ void main() {
       await pumpScreen(tester, sheet, CircleSettingsPage(key: ValueKey(section), seed: c.seed, section: section), AppState(), size: const Size(1100, 760));
       expect(find.byKey(const ValueKey('circle-settings-sidebar')), findsOneWidget);
       expect(find.byKey(ValueKey('circle-settings-${section.name}')), findsOneWidget);
-      if (autoUpdateGoldenFiles) await expectLater(find.byType(CircleSettingsPage), matchesGoldenFile('shots/circle-settings-${section.name}.png'));
     }
     expect(tester.takeException(), isNull);
   });
@@ -242,8 +241,14 @@ void main() {
     final sheet = await loadSheet(tester);
     await pumpScreen(tester, sheet, CircleSettingsPage(seed: c.seed, section: CircleSettingsSection.roles), AppState(), size: const Size(1100, 1200));
     expect(find.byKey(const ValueKey('circle-role-new')), findsOneWidget);
-    expect(find.byKey(const ValueKey('circle-everyone-w')), findsOneWidget);
-    expect(find.byKey(const ValueKey('circle-everyone-c')), findsNothing, reason: 'changing the circle is never everyone\'s');
+    // Everyone (@everyone) last, opened in the section's own pane: changing the circle is never everyone's.
+    await tester.tap(find.byKey(const ValueKey('circle-role-everyone')));
+    await settle(tester);
+    GlacierSwitch perm(String wire) => tester.widget<GlacierSwitch>(find.descendant(of: find.byKey(ValueKey('role-perm-$wire')), matching: find.byType(GlacierSwitch)));
+    expect(perm('w').disabled, isFalse);
+    expect(perm('c').disabled, isTrue, reason: 'changing the circle is never everyone\'s');
+    await tester.tap(find.byKey(const ValueKey('circle-settings-tab-roles')));
+    await settle(tester);
     await tester.tap(find.byKey(const ValueKey('circle-role-new')));
     await settle(tester);
     await tester.enterText(find.byType(EditableText).last, 'Moderators');
@@ -252,15 +257,15 @@ void main() {
     await settle(tester);
     // Its page: name, colour, what it lets people do.
     expect(find.text('Moderators'), findsWidgets);
+    await tester.tap(find.text('Permissions'));
+    await settle(tester);
     await tester.ensureVisible(find.byKey(const ValueKey('role-perm-s')));
     await tester.tap(find.descendant(of: find.byKey(const ValueKey('role-perm-s')), matching: find.byType(GlacierSwitch)));
     await _until(tester, () => Circles.instance.bySeed(c.seed)!.manifest.roles.single.perms.contains(CirclePerm.spaces));
-    expect(Circles.instance.bySeed(c.seed)!.manifest.roles.single.perms, containsAll([CirclePerm.spaces, CirclePerm.invite]));
-    if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('shots/circle-settings-role.png'));
-    Navigator.of(tester.element(find.byKey(const ValueKey('role-delete')))).pop();
+    expect(Circles.instance.bySeed(c.seed)!.manifest.roles.single.perms, {CirclePerm.spaces});
+    await tester.tap(find.byKey(const ValueKey('circle-settings-tab-roles')));
     await settle(tester);
     expect(find.byKey(ValueKey('circle-role-${Circles.instance.bySeed(c.seed)!.manifest.roles.single.id}')), findsOneWidget);
-    if (autoUpdateGoldenFiles) await expectLater(find.byType(CircleSettingsPage), matchesGoldenFile('shots/circle-settings-roles.png'));
     expect(tester.takeException(), isNull);
   });
 

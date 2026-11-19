@@ -551,10 +551,13 @@ class _NewCircleSpaceScreenState extends State<NewCircleSpaceScreen> {
 /// Someone in a circle, as its settings list them.
 @immutable
 class CirclePerson {
-  const CirclePerson({required this.id, required this.name, this.owner = false, this.admin = false, this.here = false, this.me = false});
+  const CirclePerson({required this.id, required this.name, this.owner = false, this.admin = false, this.here = false, this.me = false, this.hue});
   final String id;
   final String name;
   final bool owner, admin;
+
+  /// Their name's colour: their highest role's that has one (CircleManifest.nameHueOf); null for none.
+  final String? hue;
 
   /// In the circle's room, or one of its spaces, now.
   final bool here;
@@ -618,10 +621,12 @@ List<CirclePerson> circlePeople(Circle c) {
 
   final people = [
     for (final id in ids)
-      if (id.isNotEmpty) CirclePerson(id: id, name: nameOf(id), owner: id == m.ownerId, admin: id != m.ownerId && m.granted(id), here: id == me || here.contains(id), me: id == me),
+      if (id.isNotEmpty) CirclePerson(id: id, name: nameOf(id), owner: id == m.ownerId, admin: id != m.ownerId && m.granted(id), here: id == me || here.contains(id), me: id == me, hue: m.nameHueOf(id)),
   ];
-  int rank(CirclePerson p) => p.owner ? 0 : (p.admin ? 1 : 2);
-  people.sort((a, b) => rank(a) != rank(b) ? rank(a) - rank(b) : a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  // As the roles stand (Matt, 2026-11-18: "permission hierarchy"): the owner, admins made by hand, then by each one's
+  // highest role, then everyone else; by name within each.
+  final rank = {for (final p in people) p.id: m.rankOf(p.id)};
+  people.sort((a, b) => rank[a.id] != rank[b.id] ? rank[a.id]! - rank[b.id]! : a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   return people;
 }
 
@@ -635,7 +640,7 @@ void circlePersonMenu(BuildContext context, Circle c, CirclePerson p) {
             final ok = await circles.grantAdmin(c, p.id, on: false);
             if (context.mounted) toast(context, ok ? '${p.name} is no longer an admin' : 'Couldn\'t change ${p.name}\'s role', tone: ok ? GlacierToastTone.neutral : GlacierToastTone.danger);
           })
-        : Choice('Make admin', Lucide.crown, () async {
+        : Choice('Make admin', Lucide.shieldCheck, () async {
             final ok = await circles.grantAdmin(c, p.id);
             if (context.mounted) toast(context, ok ? '${p.name} is an admin' : 'Couldn\'t change ${p.name}\'s role', tone: ok ? GlacierToastTone.neutral : GlacierToastTone.danger);
           }, hint: 'Can change the circle and its spaces'),
@@ -663,9 +668,13 @@ class CircleRoleTag extends StatelessWidget {
   }
 }
 
-/// The colour a circle member's name is drawn in: the owner's and admins' red, as a space's admins (Role.defaultColor);
-/// null for a member, the text's own.
-Color? circleRoleInk(Tokens t, CirclePerson p) => p.owner || p.admin ? t.colorOf(Role.defaultColor(Role.admin)!) : null;
+/// The colour a circle member's name is drawn in: their highest coloured role's, as Discord does (Matt, 2026-11-18:
+/// "closer to discord server settings"); with none, the owner's and admins' red, as a space's admins
+/// (Role.defaultColor); null for a member with neither, the text's own.
+Color? circleRoleInk(Tokens t, CirclePerson p) => p.hue != null ? circleHueInk(t, p.hue!) : (p.owner || p.admin ? t.colorOf(Role.defaultColor(Role.admin)!) : null);
+
+/// A circle hue as words are drawn in it on this page: the look's own reading of it, as a settings row's icon.
+Color circleHueInk(Tokens t, String hue) => settingsHue(t.child(attrs: {'hue': hue}));
 
 /// A circle's settings: the full-screen page with its own sidebar (lib/ui/circles/circle_settings.dart; Matt,
 /// 2026-11-17: "manage roles users etc and other basic circle settings with a full screen sidebar and main page

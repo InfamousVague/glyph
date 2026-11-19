@@ -269,10 +269,14 @@ class Circles extends ChangeNotifier {
         ]));
   }
 
-  /// Takes a space out of [c]'s list. Its chat stays with whoever has it; it is just no longer the circle's.
+  /// Takes a space out of [c]'s list, with what it said of each role. Its chat stays with whoever has it; it is just no
+  /// longer the circle's.
   Future<bool> removeSpace(Circle c, String seed) {
     if (c.space(seed) == null) return Future.value(false);
-    return _publish(c, (m) => m.next(spaces: [for (final s in m.spaces) if (s.seed != seed) s]));
+    return _publish(c, (m) {
+      final left = [for (final s in m.spaces) if (s.seed != seed) s];
+      return m.next(spaces: left, extra: m.overrides.containsKey(seed) ? m.withOverrides(m.overrides, spaces: left) : null);
+    });
   }
 
   /// Moves a space to [index] in [c]'s list (and under [section], where given): every space is numbered again in its
@@ -317,16 +321,27 @@ class Circles extends ChangeNotifier {
 
   bool can(Circle c, CirclePerm p) => myPerms(c).contains(p);
 
-  /// Whether this install may do [p] in [space]: always outside a circle; inside one, as its roles say.
+  /// Whether this install may do [p] in [space]: always outside a circle; inside one, as its roles say and then as the
+  /// space says of them (CircleManifest.permsIn: its overrides, Deny, As the circle says or Allow for each role). Every
+  /// place that asks (writing in a chat, joining a call, adding a file, inviting) obeys a space's overrides by this.
   bool allows(VoiceChannel space, CirclePerm p) {
     final c = circleOf(space);
-    return c == null || signer == null || can(c, p);
+    final id = signer?.id;
+    return c == null || id == null || c.manifest.permsIn(id, space.seed).contains(p);
   }
 
-  /// Adds [role] to [c], or changes the one with its id. One that can change things is the owner's alone to give.
+  /// Whether this install may change, move, give or take away [roleId] in [c]: one under their own highest role, or any
+  /// for the owner (CircleManifest.mayManageRole).
+  bool mayManageRole(Circle c, String roleId) {
+    final id = signer?.id;
+    return id != null && (bySeed(c.seed) ?? c).manifest.mayManageRole(id, roleId);
+  }
+
+  /// Adds [role] to [c] (at the bottom of the list, over everyone), or changes the one with its id. One that can change
+  /// things is the owner's alone to give; one at or above this install's own highest role isn't theirs to change.
   Future<bool> saveRole(Circle c, CircleRole role) async {
     final have = bySeed(c.seed) ?? c;
-    if (!can(have, CirclePerm.roles) || role.name.trim().isEmpty) return false;
+    if (!can(have, CirclePerm.roles) || role.name.trim().isEmpty || !mayManageRole(have, role.id)) return false;
     final before = have.manifest.roles.where((r) => r.id == role.id).firstOrNull;
     final isOwner = signer?.id == have.manifest.ownerId;
     if (!isOwner && role.signs && !(before?.signs ?? false)) return false;
@@ -341,29 +356,82 @@ class Circles extends ChangeNotifier {
   /// Takes [roleId] out of [c], and from everyone who had it.
   Future<bool> deleteRole(Circle c, String roleId) async {
     final have = bySeed(c.seed) ?? c;
-    if (!can(have, CirclePerm.roles)) return false;
+    if (!can(have, CirclePerm.roles) || !mayManageRole(have, roleId)) return false;
     final holders = [for (final e in have.manifest.roleAssignments.entries) if (e.value.contains(roleId)) e.key];
-    final ok = await _publish(have, (m) => m.next(
-          extra: m.withRoles(
-            roles: [for (final r in m.roles) if (r.id != roleId) r],
-            assignments: {for (final e in m.roleAssignments.entries) e.key: [for (final id in e.value) if (id != roleId) id]},
-          ),
-        ));
+    final ok = await _publish(have, (m) {
+      final left = [for (final r in m.roles) if (r.id != roleId) r];
+      final roles = m.withRoles(roles: left, assignments: {for (final e in m.roleAssignments.entries) e.key: [for (final id in e.value) if (id != roleId) id]});
+      // What each space said of it goes with it.
+      final spoke = m.overrides.values.any((per) => per.containsKey(roleId));
+      return m.next(extra: spoke ? CircleManifest(owner: m.owner, name: m.name, spaces: m.spaces, extra: roles).withOverrides(m.overrides, roles: left) : roles);
+    });
     if (ok) await _grantsFor(have, holders);
     return ok;
   }
 
-  /// Gives [member] exactly [roleIds] in [c] (none takes every role away).
+  /// Gives [member] exactly [roleIds] in [c] (none takes every role away). Each role given or taken away must be under
+  /// this install's own highest (the owner's: any).
   Future<bool> setRolesOf(Circle c, String member, List<String> roleIds) async {
     final have = bySeed(c.seed) ?? c;
     if (!can(have, CirclePerm.roles) || member == have.manifest.ownerId) return false;
     final isOwner = signer?.id == have.manifest.ownerId;
     final giving = [for (final r in have.manifest.roles) if (roleIds.contains(r.id)) r];
     final had = have.manifest.rolesOf(member);
+    final changed = {...giving.map((r) => r.id)}.difference({...had.map((r) => r.id)}).union({...had.map((r) => r.id)}.difference({...giving.map((r) => r.id)}));
+    if (changed.any((id) => !mayManageRole(have, id))) return false;
     if (!isOwner && giving.any((r) => r.signs) != had.any((r) => r.signs)) return false;
     final ok = await _publish(have, (m) => m.next(extra: m.withRoles(assignments: {...m.roleAssignments, member: [for (final r in giving) r.id]})));
     if (ok) await _grantsFor(have, [member]);
     return ok;
+  }
+
+  /// Puts [c]'s roles in the [order] given (their ids, highest first; Matt, 2026-11-18: "permission hierarchy"). Only
+  /// the roles under this install's own highest may move, and only among themselves (CircleManifest.mayOrder).
+  Future<bool> orderRoles(Circle c, List<String> order) {
+    final have = bySeed(c.seed) ?? c;
+    final id = signer?.id;
+    if (id == null || !have.manifest.mayOrder(id, order)) return Future.value(false);
+    final byId = {for (final r in have.manifest.roles) r.id: r};
+    if (order.indexed.every((e) => have.manifest.roles[e.$1].id == e.$2)) return Future.value(true);
+    return _publish(have, (m) => m.next(extra: m.withRoles(roles: [for (final rid in order) ?byId[rid]])));
+  }
+
+  /// Moves [roleId] from its place to [index] in [c]'s list (0 the highest): a drag, or Move up / Move down.
+  Future<bool> moveRole(Circle c, String roleId, int index) {
+    final have = bySeed(c.seed) ?? c;
+    final ids = [for (final r in have.manifest.roles) r.id];
+    if (!ids.remove(roleId)) return Future.value(false);
+    ids.insert(index.clamp(0, ids.length), roleId);
+    return orderRoles(have, ids);
+  }
+
+  /// What the space [spaceSeed] of [c] says of [perm] for [roleId] (or everyone, CircleManifest.everyoneId): Deny,
+  /// As the circle says, or Allow. For whoever may manage spaces, and only for everyone or a role under their own.
+  Future<bool> setOverride(Circle c, String spaceSeed, String roleId, CirclePerm perm, PermOverride state) {
+    final have = bySeed(c.seed) ?? c;
+    final space = have.space(spaceSeed);
+    if (space == null || !can(have, CirclePerm.spaces) || !CirclePerm.inSpace(space.kind).contains(perm)) return Future.value(false);
+    if (roleId != CircleManifest.everyoneId && (!have.manifest.roles.any((r) => r.id == roleId) || !mayManageRole(have, roleId))) return Future.value(false);
+    if (have.manifest.overrideOf(spaceSeed, roleId).of(perm) == state) return Future.value(true);
+    return _publish(have, (m) {
+      final all = {for (final e in m.overrides.entries) e.key: {...e.value}};
+      final per = all[spaceSeed] ??= {};
+      per[roleId] = (per[roleId] ?? CircleOverride.none).withState(perm, state);
+      return m.next(extra: m.withOverrides(all));
+    });
+  }
+
+  /// Puts every override [spaceSeed] has for [roleId] back to As the circle says.
+  Future<bool> clearOverrides(Circle c, String spaceSeed, String roleId) {
+    final have = bySeed(c.seed) ?? c;
+    if (have.space(spaceSeed) == null || !can(have, CirclePerm.spaces)) return Future.value(false);
+    if (roleId != CircleManifest.everyoneId && !mayManageRole(have, roleId)) return Future.value(false);
+    if (have.manifest.overrideOf(spaceSeed, roleId).isEmpty) return Future.value(true);
+    return _publish(have, (m) {
+      final all = {for (final e in m.overrides.entries) e.key: {...e.value}};
+      all[spaceSeed]?.remove(roleId);
+      return m.next(extra: m.withOverrides(all));
+    });
   }
 
   /// What everyone in [c] may do. Changing the circle, its spaces or roles is never everyone's.

@@ -1,4 +1,4 @@
-import '../circles/circles.dart' show Circles;
+import '../circles/circles.dart' show Circles, CirclePerm;
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -195,7 +195,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
         final actions = [
           // A circle's space leaves Members to the circle's dock (Matt, 2026-11-17: "remove the users icon from the header").
           if (room != null && widget.channel.circle == null) _membersButton(context, room),
-          if ((room == null || room.can(Perm.invite)) && !besideCircle) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
+          if ((room == null || room.can(Perm.invite)) && _circleInvites(widget.channel) && !besideCircle) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
           if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
         ];
         if (room?.putOut != null) {
@@ -351,7 +351,7 @@ class _HangoutStageState extends State<HangoutStage> {
           actions: [
             // A circle's space leaves Members to the circle's dock (Matt, 2026-11-17: "remove the users icon from the header").
           if (room != null && widget.channel.circle == null) _membersButton(context, room),
-            if (room == null || room.can(Perm.invite)) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
+            if ((room == null || room.can(Perm.invite)) && _circleInvites(widget.channel)) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
             if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
           ],
           body: videos
@@ -1304,8 +1304,12 @@ Future<void> showSpaceMembers(BuildContext context, HangoutRoom room) => showMem
       subtitle: room.channel.name,
       list: (_) => SpaceMembers(room: room, shrinkWrap: true),
       onAddPeople: room.channel.group != null ? null : () => showSpaceInvite(context, room.channel),
-      mayAdd: room.can(Perm.invite),
+      mayAdd: room.can(Perm.invite) && _circleInvites(room.channel),
     );
+
+/// Whether a circle's space lets this install invite people (its roles, then the space's own overrides: Deny, As the
+/// circle says or Allow; Matt, 2026-11-18: "tri toggles for permissions"). Always outside a circle.
+bool _circleInvites(VoiceChannel channel) => Circles.instance.allows(channel, CirclePerm.invite);
 
 /// Everyone a space knows, for its member list and its settings: the owner, whoever is here now, whoever has been given
 /// a role, and you; not the banned.
@@ -1526,7 +1530,7 @@ class RolesScreen extends StatelessWidget {
             children: [
               if (settings) ...[
                 _hued('blue', PaneSection(title: 'Space', children: [
-                  if (room.can(Perm.invite)) SettingRow(icon: AppIcon(Lucide.userPlus, size: 18), label: 'Invite people', hint: const Text('Friends in the app, anyone by a text, or the link.'), onPress: () => showSpaceInvite(context, c)),
+                  if (room.can(Perm.invite) && _circleInvites(c)) SettingRow(icon: AppIcon(Lucide.userPlus, size: 18), label: 'Invite people', hint: const Text('Friends in the app, anyone by a text, or the link.'), onPress: () => showSpaceInvite(context, c)),
                   SettingRow(icon: AppIcon(Lucide.users, size: 18), label: 'Owner', value: Text(r.isOwner(room.me) ? 'You' : (r.hasOwner ? _nameOf(room, r.ownerId) : 'None'))),
                   // What the space is for, under its name in the header; the owner and admins write it (Matt, 2026-11-17).
                   SettingRow(
@@ -1878,7 +1882,7 @@ void showHangoutMenu(BuildContext context, VoiceChannel channel, {VoidCallback? 
   showChoices(context, title: channel.name, choices: [
     if (onOpen != null) Choice('Open', LucideMore.messageCircle, onOpen),
     Choice('Settings and permissions', Lucide.shieldCheck, () => push(context, (_) => HangoutSettingsScreen(channel: channel))),
-    if (room == null || room.can(Perm.invite)) Choice('Invite people', Lucide.userPlus, () => showSpaceInvite(context, channel)),
+    if ((room == null || room.can(Perm.invite)) && _circleInvites(channel)) Choice('Invite people', Lucide.userPlus, () => showSpaceInvite(context, channel)),
     Choice('Delete space', Lucide.trash2, () => confirmDeleteHangout(context, channel), danger: true),
   ]);
 }

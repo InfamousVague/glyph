@@ -68,7 +68,83 @@ enum CirclePerm {
 
   /// What everyone in a circle may do where its owner has said nothing else.
   static const everyoneDefault = {invite, write, voice, files};
+
+  /// How the role editor groups them, as Discord's role page does (Matt, 2026-11-18: "closer to discord server
+  /// settings"): the circle's own, then each kind of space's.
+  static const groups = [
+    ('General', [circle, spaces, roles, invite]),
+    ('Text', [write]),
+    ('Voice', [voice]),
+    ('Files', [files]),
+  ];
+
+  /// What a space of [kind] can be told otherwise than the circle says, per role ([CircleOverride]; Matt, 2026-11-18:
+  /// "tri toggles for permissions"): writing in a chat space, talking in a voice space, adding files in a files space, and
+  /// inviting in every one; and writing in the chat a voice or files space has beside it, and adding a file to a chat
+  /// space's messages (lib/ui/space_chat_files.dart asks for both).
+  /// Never one that [signs]: whoever may change the circle can sign a manifest without the override anyway.
+  static List<CirclePerm> inSpace(SpaceKind kind) => switch (kind) {
+        SpaceKind.text => const [write, files, invite],
+        SpaceKind.voice => const [voice, write, invite],
+        SpaceKind.files => const [files, write, invite],
+      };
+
+  /// Letters for [perms], in the enum's order: how roles and overrides write a set.
+  static String lettersOf(Set<CirclePerm> perms) => [for (final p in values) if (perms.contains(p)) p.wire].join();
 }
+
+/// One of a space's three answers for a permission, for one role (Discord's channel overrides): taken away, as the
+/// circle says, or given.
+enum PermOverride {
+  deny('Deny'),
+  inherit('As the circle says'),
+  allow('Allow');
+
+  const PermOverride(this.label);
+  final String label;
+}
+
+/// What a space says of one role (or of everyone) otherwise than the circle does: the permissions it gives there and
+/// those it takes away. Written as `allow/deny` in letters ("w/f": may write, may not add files), so a circle of
+/// many spaces and roles still fits its packet.
+@immutable
+class CircleOverride {
+  const CircleOverride({this.allow = const {}, this.deny = const {}});
+  final Set<CirclePerm> allow;
+  final Set<CirclePerm> deny;
+
+  static const none = CircleOverride();
+
+  bool get isEmpty => allow.isEmpty && deny.isEmpty;
+
+  /// Its answer for [p]: a permission written both ways is denied, as a reader can't tell which was meant.
+  PermOverride of(CirclePerm p) => deny.contains(p) ? PermOverride.deny : (allow.contains(p) ? PermOverride.allow : PermOverride.inherit);
+
+  CircleOverride withState(CirclePerm p, PermOverride s) => CircleOverride(
+        allow: {...allow.where((x) => x != p), if (s == PermOverride.allow) p},
+        deny: {...deny.where((x) => x != p), if (s == PermOverride.deny) p},
+      );
+
+  String toWire() => '${CirclePerm.lettersOf(allow)}/${CirclePerm.lettersOf(deny)}';
+
+  static CircleOverride fromWire(Object? w) {
+    if (w is! String || !w.contains('/')) return none;
+    final at = w.indexOf('/');
+    Set<CirclePerm> read(String s) => {for (final c in s.split('')) ?CirclePerm.of(c)};
+    final deny = read(w.substring(at + 1));
+    return CircleOverride(allow: read(w.substring(0, at)).difference(deny), deny: deny);
+  }
+
+  @override
+  bool operator ==(Object other) => other is CircleOverride && setEquals(other.allow, allow) && setEquals(other.deny, deny);
+
+  @override
+  int get hashCode => Object.hash(Object.hashAllUnordered(allow), Object.hashAllUnordered(deny));
+}
+
+/// A role's hue where it gives its people's names no colour (Discord's default): any other build reads it as blue,
+/// which it only writes back if it changes that role.
+const circleRoleNoHue = 'none';
 
 /// A role in a circle: its name and colour, and what it gives.
 @immutable
@@ -94,7 +170,7 @@ class CircleRole {
     return CircleRole(
       id: j['id'] as String,
       name: name,
-      hue: j['h'] is String && circleHues.contains(j['h']) ? j['h'] as String : 'blue',
+      hue: j['h'] is String && (circleHues.contains(j['h']) || j['h'] == circleRoleNoHue) ? j['h'] as String : 'blue',
       perms: {for (final w in (j['p'] is List ? j['p'] as List : const [])) ?CirclePerm.of(w)},
     );
   }
@@ -376,6 +452,126 @@ class CircleManifest {
         if (assignments != null) 'ra': {for (final e in (Map.fromEntries(assignments.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))).entries) if (e.value.isNotEmpty) e.key: e.value},
         if (everyone != null) 're': [for (final p in CirclePerm.values) if (everyone.contains(p)) p.wire],
       };
+
+  // --- the roles' order (Matt, 2026-11-18: "permission hierarchy") ------------------------------------------------
+  // The order is the roles list's own ('ro', the first the highest), as Discord's role list, with everyone ("@everyone")
+  // always under the last. A build from before the order keeps the list as it came and adds a new role at its end
+  // (the lowest), so nothing new is written for it: older builds just don't hold anyone to it.
+
+  /// Where [id] stands: the owner above every role (-2), an admin made by hand with no role just under them (-1, as
+  /// before roles: they can do everything), then the place of their highest role, and everyone else under every role
+  /// ([roles]'s length).
+  int rankOf(String id) {
+    if (id.isNotEmpty && id == ownerId) return -2;
+    final mine = roleAssignments[id] ?? const [];
+    final list = roles;
+    final at = list.indexWhere((r) => mine.contains(r.id));
+    if (at >= 0) return at;
+    if (granted(id)) return -1;
+    return list.length;
+  }
+
+  /// Whether [actor] may change, move, give or take away the role [roleId]: the owner any; someone who may manage roles
+  /// only one under their own highest, never theirs or one above it (Discord's rule). A role not yet in the list is a
+  /// new one, made at the bottom.
+  bool mayManageRole(String actor, String roleId) {
+    if (actor.isEmpty) return false;
+    if (actor == ownerId) return true;
+    if (!permsOf(actor).contains(CirclePerm.roles)) return false;
+    final at = roles.indexWhere((r) => r.id == roleId);
+    return at < 0 || rankOf(actor) < at;
+  }
+
+  /// Whether [actor] may put the roles in the [order] given (their ids, highest first): every role they may not manage
+  /// stays where it is, and none goes above them.
+  bool mayOrder(String actor, List<String> order) {
+    final list = roles;
+    if (order.length != list.length || !setEquals(order.toSet(), {for (final r in list) r.id})) return false;
+    if (actor == ownerId) return true;
+    if (!permsOf(actor).contains(CirclePerm.roles)) return false;
+    final top = rankOf(actor);
+    for (var i = 0; i < list.length; i++) {
+      if (i <= top && order[i] != list[i].id) return false;
+    }
+    return true;
+  }
+
+  /// How many people have [roleId].
+  int holdersOf(String roleId) => roleAssignments.values.where((ids) => ids.contains(roleId)).length;
+
+  /// The hue [id]'s name is drawn in: their highest role's that has one (Discord's rule); null for none.
+  String? nameHueOf(String id) => rolesOf(id).where((r) => r.hue != circleRoleNoHue && circleHues.contains(r.hue)).firstOrNull?.hue;
+
+  // --- each space's overrides (Matt, 2026-11-18: "tri toggles for permissions") --------------------------------------
+  // In a field of the manifest's own ('po'): for each space's seed, for each role's id (or [everyoneId]), what the space
+  // gives and takes away there ([CircleOverride], `allow/deny` in letters). Signed with the rest. A build from before
+  // them (0.9.2 to 0.9.18) keeps and passes the field on, but doesn't read it: there a space allows what the circle's
+  // roles do, as before.
+
+  /// The id everyone's override is kept under (Discord's @everyone).
+  static const everyoneId = '@';
+
+  /// Every space's overrides: by its seed, then by role id (or [everyoneId]); roles that are gone are left out.
+  Map<String, Map<String, CircleOverride>> get overrides {
+    final po = extra['po'];
+    if (po is! Map) return const {};
+    final known = {everyoneId, for (final r in roles) r.id};
+    final out = <String, Map<String, CircleOverride>>{};
+    for (final e in po.entries) {
+      if (e.value is! Map) continue;
+      final per = <String, CircleOverride>{
+        for (final r in (e.value as Map).entries)
+          if (known.contains('${r.key}') && !CircleOverride.fromWire(r.value).isEmpty) '${r.key}': CircleOverride.fromWire(r.value),
+      };
+      if (per.isNotEmpty) out['${e.key}'] = per;
+    }
+    return out;
+  }
+
+  /// What [space] says of [roleId] (or [everyoneId]).
+  CircleOverride overrideOf(String space, String roleId) => overrides[space]?[roleId] ?? CircleOverride.none;
+
+  /// The next version's field of overrides: [o] in place of these, with empty ones, spaces that are gone and roles that
+  /// are gone left out (the field goes altogether when nothing is left).
+  Map<String, Object?> withOverrides(Map<String, Map<String, CircleOverride>> o, {List<CircleSpace>? spaces, List<CircleRole>? roles}) {
+    final seeds = {for (final s in spaces ?? this.spaces) s.seed};
+    final known = {everyoneId, for (final r in roles ?? this.roles) r.id};
+    final kept = <String, Map<String, String>>{};
+    for (final seed in o.keys.toList()..sort()) {
+      if (!seeds.contains(seed)) continue;
+      final per = {
+        for (final id in o[seed]!.keys.toList()..sort())
+          if (known.contains(id) && !o[seed]![id]!.isEmpty) id: o[seed]![id]!.toWire(),
+      };
+      if (per.isNotEmpty) kept[seed] = per;
+    }
+    return {...extra, 'po': kept}..removeWhere((k, v) => k == 'po' && kept.isEmpty);
+  }
+
+  /// What [id] may do in the space [spaceSeed], as Discord works a channel out: their permissions in the circle
+  /// ([permsOf]: everyone's and their roles'); then the space's word for everyone, what it takes away and then what
+  /// it gives; then its words for their roles together, what any takes away and then what any gives (so one role's
+  /// Allow outweighs another's Deny, and either outweighs everyone's). Only what a space of its kind can say is changed
+  /// ([CirclePerm.inSpace]). The owner, and anyone who may sign the circle's manifest (an admin, or a role that manages
+  /// the circle, its spaces or roles), is never held back by a space: they could take the override away themselves.
+  Set<CirclePerm> permsIn(String id, String spaceSeed) {
+    final base = permsOf(id);
+    if (id.isEmpty || canSign(id)) return base;
+    final space = spaces.where((s) => s.seed == spaceSeed).firstOrNull;
+    final per = overrides[spaceSeed];
+    if (space == null || per == null) return base;
+    final open = CirclePerm.inSpace(space.kind).toSet();
+    final out = {...base};
+    final all = per[everyoneId];
+    if (all != null) {
+      out.removeAll(all.deny.intersection(open));
+      out.addAll(all.allow.intersection(open));
+    }
+    final mine = [for (final r in rolesOf(id)) ?per[r.id]];
+    out.removeAll({for (final o in mine) ...o.deny}.intersection(open));
+    out.addAll({for (final o in mine) ...o.allow}.intersection(open));
+    return out;
+  }
 
   /// The bytes a signature covers.
   List<int> get signed => utf8.encode('ghost-circle manifest|$raw|${by ?? ''}|${byKey ?? ''}');

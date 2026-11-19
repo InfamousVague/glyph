@@ -283,6 +283,188 @@ void main() {
     });
   });
 
+  // Matt, 2026-11-18: "The roles and settings in circles can be cleaned up a lot to be closer to discord server settings
+  // please overhaul them and make it easier to use with tri toggles for permissions and permission hierarchy".
+  group('hierarchy and overrides', () {
+    test('roles in their order: who stands where, who may manage which, and a name in its highest coloured role\'s colour', () async {
+      final owner = NetKeys.generate(), lead = NetKeys.generate(), mod = NetKeys.generate(), member = NetKeys.generate(), admin = NetKeys.generate();
+      final ownerKey = NetCrypto.hex(owner.public);
+      String grant(NetKeys k) => NetCrypto.hex(NetCrypto.sign(owner, CircleManifest.grantMessage(ownerKey, k.id)));
+      final leads = CircleRole.make('Leads', hue: 'rose', perms: {CirclePerm.roles});
+      final mods = CircleRole.make('Mods', hue: circleRoleNoHue, perms: {CirclePerm.roles});
+      final helpers = CircleRole.make('Helpers', hue: 'green');
+      final base = CircleManifest(owner: ownerKey, version: 1, name: 'C', adminGrants: {lead.id: grant(lead), mod.id: grant(mod), admin.id: grant(admin)});
+      final m = await _sign(base.next(extra: base.withRoles(roles: [leads, mods, helpers], assignments: {lead.id: [leads.id], mod.id: [mods.id, helpers.id], member.id: [helpers.id]})), owner);
+      expect([m.rankOf(owner.id), m.rankOf(admin.id), m.rankOf(lead.id), m.rankOf(mod.id), m.rankOf(member.id), m.rankOf(NetKeys.generate().id)], [-2, -1, 0, 1, 2, 3]);
+      // Only roles under one's own highest; the owner any.
+      expect(m.mayManageRole(owner.id, leads.id), isTrue);
+      expect(m.mayManageRole(lead.id, leads.id), isFalse, reason: 'not their own');
+      expect(m.mayManageRole(lead.id, mods.id), isTrue);
+      expect(m.mayManageRole(mod.id, mods.id), isFalse);
+      expect(m.mayManageRole(mod.id, leads.id), isFalse, reason: 'not one above');
+      expect(m.mayManageRole(mod.id, helpers.id), isTrue);
+      expect(m.mayManageRole(member.id, helpers.id), isFalse, reason: 'Helpers can\'t manage roles at all');
+      expect(m.mayManageRole(mod.id, 'new-role'), isTrue, reason: 'a new role is made at the bottom');
+      // Ordering: only what is under one's own highest moves.
+      expect(m.mayOrder(mod.id, [leads.id, mods.id, helpers.id]), isTrue);
+      expect(m.mayOrder(mod.id, [leads.id, helpers.id, mods.id]), isFalse, reason: 'Helpers can\'t go above Mods for a Mod');
+      expect(m.mayOrder(lead.id, [leads.id, helpers.id, mods.id]), isTrue);
+      expect(m.mayOrder(lead.id, [mods.id, leads.id, helpers.id]), isFalse);
+      expect(m.mayOrder(owner.id, [helpers.id, mods.id, leads.id]), isTrue);
+      expect(m.mayOrder(owner.id, [helpers.id, mods.id]), isFalse, reason: 'every role, once');
+      // A name takes the highest role's colour that has one: Mods have none, so Helpers' green.
+      expect(m.nameHueOf(lead.id), 'rose');
+      expect(m.nameHueOf(mod.id), 'green');
+      expect(m.nameHueOf(NetKeys.generate().id), isNull);
+      expect(m.holdersOf(helpers.id), 2);
+    });
+
+    test('a space\'s overrides as Discord works them out: everyone\'s, then the roles\' (deny, then allow); the owner and admins never held back', () async {
+      final owner = NetKeys.generate(), admin = NetKeys.generate(), quiet = NetKeys.generate(), both = NetKeys.generate(), plain = NetKeys.generate();
+      final ownerKey = NetCrypto.hex(owner.public);
+      final grant = NetCrypto.hex(NetCrypto.sign(owner, CircleManifest.grantMessage(ownerKey, admin.id)));
+      final general = CircleSpace.make('General', kind: SpaceKind.text), lounge = CircleSpace.make('Lounge', order: 1);
+      final muted = CircleRole.make('Muted'), speakers = CircleRole.make('Speakers');
+      final base = CircleManifest(owner: ownerKey, version: 1, name: 'C', spaces: [general, lounge], adminGrants: {admin.id: grant});
+      final roles = base.next(extra: base.withRoles(roles: [speakers, muted], assignments: {quiet.id: [muted.id], both.id: [muted.id, speakers.id]}));
+      final m = await _sign(roles.next(extra: roles.withOverrides({
+        general.seed: {
+          CircleManifest.everyoneId: const CircleOverride(allow: {CirclePerm.write}, deny: {CirclePerm.invite}),
+          muted.id: const CircleOverride(deny: {CirclePerm.write}),
+          speakers.id: const CircleOverride(allow: {CirclePerm.write, CirclePerm.invite}),
+        },
+        // Files can't be said of a voice space: left alone.
+        lounge.seed: {muted.id: const CircleOverride(deny: {CirclePerm.voice, CirclePerm.files})},
+        'gone': {muted.id: const CircleOverride(deny: {CirclePerm.voice})},
+      })), owner);
+      expect(m.overrides.keys.toSet(), {general.seed, lounge.seed}, reason: 'a space that is gone is left out');
+      expect(m.overrideOf(general.seed, muted.id).of(CirclePerm.write), PermOverride.deny);
+      expect(m.overrideOf(general.seed, muted.id).of(CirclePerm.voice), PermOverride.inherit);
+      // Everyone's: invite taken away here, writing as the circle gives it.
+      expect(m.permsIn(plain.id, general.seed), {CirclePerm.write, CirclePerm.voice, CirclePerm.files});
+      // A role's Deny outweighs everyone's Allow.
+      expect(m.permsIn(quiet.id, general.seed).contains(CirclePerm.write), isFalse);
+      // One role's Allow outweighs another's Deny (deny first, then allow), and everyone's Deny.
+      expect(m.permsIn(both.id, general.seed), containsAll([CirclePerm.write, CirclePerm.invite]));
+      // Only what a space of its kind can say.
+      expect(m.permsIn(quiet.id, lounge.seed).contains(CirclePerm.voice), isFalse);
+      expect(m.permsIn(quiet.id, lounge.seed).contains(CirclePerm.files), isTrue);
+      expect(m.permsIn(quiet.id, 'elsewhere'), m.permsOf(quiet.id), reason: 'a space with no overrides: as the circle says');
+      // Never the owner or an admin.
+      expect(m.permsIn(owner.id, general.seed), CirclePerm.values.toSet());
+      expect(m.permsIn(admin.id, general.seed), CirclePerm.values.toSet());
+
+      // Round its JSON, signed; written compactly as allow/deny letters.
+      final back = CircleManifest.fromJson(jsonDecode(jsonEncode(m.toJson())))!;
+      expect(back.trustedFor(ownerKey), isTrue);
+      expect(back.overrides, m.overrides);
+      expect((jsonDecode(m.raw) as Map)['po'][general.seed][muted.id], '/w');
+      expect((jsonDecode(m.raw) as Map)['po'][general.seed][CircleManifest.everyoneId], 'w/i');
+      expect(m.fitsAPacket, isTrue);
+    });
+
+    test('a manifest with overrides and order, as an older build passes it on: its fields kept and still signed', () async {
+      final owner = NetKeys.generate(), maya = NetKeys.generate();
+      final ownerKey = NetCrypto.hex(owner.public);
+      final s = CircleSpace.make('General', kind: SpaceKind.text);
+      final a = CircleRole.make('A'), b = CircleRole.make('B');
+      final base = CircleManifest(owner: ownerKey, version: 1, name: 'C', spaces: [s], extra: const {'zz': 'from a newer build'});
+      final roles = base.next(extra: base.withRoles(roles: [b, a], assignments: {maya.id: [a.id]}));
+      final m = await _sign(roles.next(extra: roles.withOverrides({s.seed: {a.id: const CircleOverride(deny: {CirclePerm.write})}})), owner);
+      // An older build reads the body as fields it knows and keeps the rest ('ro', 'ra', 'po' among them) as they came.
+      final raw = jsonDecode(m.raw) as Map;
+      expect(raw.keys, containsAll(['ro', 'ra', 'po', 'zz']));
+      final old = CircleManifest.fromJson(jsonDecode(jsonEncode(m.toJson())))!;
+      expect(old.extra['zz'], 'from a newer build');
+      // Changed there (its name), the next version still has them, in their order.
+      final renamed = await _sign(old.next(name: 'Renamed'), owner);
+      expect(renamed.roles.map((r) => r.name), ['B', 'A']);
+      expect(renamed.overrideOf(s.seed, a.id).of(CirclePerm.write), PermOverride.deny);
+      expect(renamed.extra['zz'], 'from a newer build');
+      // Clearing every override takes the field away altogether.
+      expect(renamed.withOverrides(const {}).containsKey('po'), isFalse);
+      // A role's hue as this build writes "no colour" reads as blue to a build that doesn't know it, never as an error.
+      expect(CircleRole.fromJson({'id': 'x', 'n': 'X', 'h': 'mauve'})!.hue, 'blue');
+      expect(CircleRole.fromJson({'id': 'x', 'n': 'X', 'h': circleRoleNoHue})!.hue, circleRoleNoHue);
+      expect(CircleOverride.fromWire('wv/w'), const CircleOverride(allow: {CirclePerm.voice}, deny: {CirclePerm.write}), reason: 'written both ways: denied');
+      expect(CircleOverride.fromWire(42), CircleOverride.none);
+    });
+
+    test('Circles holds everyone to the order: a member who manages roles changes only those under theirs', () async {
+      final hub = _Hub();
+      final owner = NetKeys.generate(), lead = NetKeys.generate();
+      final mine = Circles.forTest(signer: KeysSigner(owner), route: _Route(hub, owner.id));
+      final hers = Circles.forTest(signer: KeysSigner(lead), route: _Route(hub, lead.id));
+      addTearDown(() async {
+        await mine.clear();
+        await hers.clear();
+      });
+      final c = (await mine.make(name: 'Book club'))!;
+      final top = CircleRole.make('Top'), leads = CircleRole.make('Leads', perms: {CirclePerm.roles}), helpers = CircleRole.make('Helpers'), guests = CircleRole.make('Guests');
+      for (final r in [top, leads, helpers, guests]) {
+        expect(await mine.saveRole(mine.bySeed(c.seed)!, r), isTrue);
+      }
+      expect(await mine.setRolesOf(mine.bySeed(c.seed)!, lead.id, [leads.id]), isTrue);
+      expect(mine.bySeed(c.seed)!.manifest.granted(lead.id), isTrue, reason: 'managing roles signs');
+      await _settle();
+      hers.join(Circle.fromLink(c.link)!);
+      await _until(() => hers.bySeed(c.seed)!.manifest.roles.length == 4 && hers.bySeed(c.seed)!.manifest.granted(lead.id));
+      final h = hers.bySeed(c.seed)!;
+      expect(hers.mayManageRole(h, top.id), isFalse);
+      expect(await hers.saveRole(h, top.copyWith(name: 'Mine now')), isFalse, reason: 'above her');
+      expect(await hers.saveRole(h, leads.copyWith(hue: 'rose')), isFalse, reason: 'her own');
+      expect(await hers.deleteRole(h, top.id), isFalse);
+      expect(await hers.moveRole(h, guests.id, 0), isFalse, reason: 'not above her');
+      expect(await hers.moveRole(h, guests.id, 2), isTrue, reason: 'Guests over Helpers, both under her');
+      expect(hers.bySeed(c.seed)!.manifest.roles.map((r) => r.name), ['Top', 'Leads', 'Guests', 'Helpers']);
+      expect(await hers.setRolesOf(hers.bySeed(c.seed)!, NetKeys.generate().id, [top.id]), isFalse, reason: 'she can\'t give a role above her');
+      expect(await hers.saveRole(hers.bySeed(c.seed)!, helpers.copyWith(name: 'Helping hands')), isTrue);
+      // The owner moves anything.
+      await _until(() => mine.bySeed(c.seed)!.manifest.roles.any((r) => r.name == 'Helping hands'));
+      expect(await mine.moveRole(mine.bySeed(c.seed)!, top.id, 3), isTrue);
+      expect(mine.bySeed(c.seed)!.manifest.roles.last.name, 'Top');
+    });
+
+    test('allows() obeys a space\'s overrides: writing taken away in one space alone, then given back to a role there', () async {
+      final hub = _Hub();
+      final owner = NetKeys.generate(), maya = NetKeys.generate();
+      final mine = Circles.forTest(signer: KeysSigner(owner), route: _Route(hub, owner.id));
+      final hers = Circles.forTest(signer: KeysSigner(maya), route: _Route(hub, maya.id));
+      addTearDown(() async {
+        await mine.clear();
+        await hers.clear();
+      });
+      final c = (await mine.make(name: 'Book club'))!;
+      await _settle();
+      hers.join(Circle.fromLink(c.link)!);
+      await _until(() => hers.bySeed(c.seed)!.manifest.version >= 1);
+      final general = c.spaces.firstWhere((s) => s.kind == SpaceKind.text), lounge = c.spaces.firstWhere((s) => s.kind == SpaceKind.voice);
+      VoiceChannel ch(CircleSpace s) => hers.bySeed(c.seed)!.channelOf(s);
+      expect(hers.allows(ch(general), CirclePerm.write), isTrue);
+      expect(await mine.setOverride(mine.bySeed(c.seed)!, general.seed, CircleManifest.everyoneId, CirclePerm.write, PermOverride.deny), isTrue);
+      expect(await mine.setOverride(mine.bySeed(c.seed)!, general.seed, CircleManifest.everyoneId, CirclePerm.voice, PermOverride.deny), isFalse, reason: 'a texting space has no talking to take away');
+      await _until(() => !hers.allows(ch(general), CirclePerm.write));
+      expect(hers.allows(ch(general), CirclePerm.write), isFalse);
+      expect(hers.allows(ch(lounge), CirclePerm.write), isTrue, reason: 'only that space');
+      expect(mine.allows(mine.bySeed(c.seed)!.channelOf(general), CirclePerm.write), isTrue, reason: 'the owner is never held back');
+      final room = HangoutRoom(channel: ch(general), route: _Route(hub, maya.id), name: 'Maya', store: MemoryHangoutStore());
+      expect(spaceMayWrite(room, circles: hers), isFalse, reason: 'the chat asks allows()');
+
+      final writers = CircleRole.make('Writers');
+      await mine.saveRole(mine.bySeed(c.seed)!, writers);
+      await mine.setRolesOf(mine.bySeed(c.seed)!, maya.id, [writers.id]);
+      expect(await mine.setOverride(mine.bySeed(c.seed)!, general.seed, writers.id, CirclePerm.write, PermOverride.allow), isTrue);
+      await _until(() => hers.allows(ch(general), CirclePerm.write));
+      expect(hers.allows(ch(general), CirclePerm.write), isTrue, reason: 'her role\'s Allow outweighs everyone\'s Deny');
+      // Deleting the role takes its overrides with it.
+      expect(await mine.deleteRole(mine.bySeed(c.seed)!, writers.id), isTrue);
+      expect(mine.bySeed(c.seed)!.manifest.overrideOf(general.seed, writers.id).isEmpty, isTrue);
+      expect(await mine.clearOverrides(mine.bySeed(c.seed)!, general.seed, CircleManifest.everyoneId), isTrue);
+      expect(mine.bySeed(c.seed)!.manifest.overrides, isEmpty);
+      expect(mine.bySeed(c.seed)!.manifest.extra.containsKey('po'), isFalse);
+    });
+  });
+
   test('roles reach the others: with writing taken from everyone, a member may not write in its spaces, then may with a role', () async {
     final hub = _Hub();
     final owner = NetKeys.generate(), maya = NetKeys.generate();
