@@ -24,8 +24,9 @@ class ReleaseNotes {
 
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.9.24', '2026-11-19', [
+    'SMS spaces: members whose phone number is linked get the space\'s messages by text by themselves, and what they text back comes into the space. Text STOP to leave.',
+    'Tap someone\'s picture or name in a space, or in a members list, to open their profile. Write to a friend right from it, Send inside the box as everywhere else.',
     'Circles: the owner or an admin can remove someone from a circle. Tap them in the members list: their card has their roles to change, admin, and Remove.',
-    'Tap anyone in a circle\'s members list to see their profile card.',
     'Your profile can show friends your number and linked accounts, if you switch it on in Settings › Me › Profile.',
     'Plugins meant for circles have their own section on the Plugins page.',
     'Circles can have a banner across the top of their sidebar: choose one in Circle settings › Overview.',

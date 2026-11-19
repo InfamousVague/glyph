@@ -28,8 +28,12 @@ import '../sms.dart' show Sms;
 /// first"); the words' room widens to the box's edges as they go. [field] keeps its place in the tree throughout,
 /// so the keyboard stays up.
 class ComposerBox extends StatefulWidget {
-  const ComposerBox({super.key, required this.field, required this.typing, this.plus, this.ends = const [], this.below = const []});
+  const ComposerBox({super.key, required this.field, required this.typing, this.plus, this.ends = const [], this.below = const [], this.ground});
   final Widget field;
+
+  /// The box's colour where it stands on something already the composer's grey (a profile card's drawer); the
+  /// look's composer colour where null.
+  final Color? ground;
   final bool typing;
   final Widget? plus;
   final List<Widget> ends;
@@ -72,7 +76,7 @@ class _ComposerBoxState extends State<ComposerBox> {
         padding: EdgeInsets.all(t.lenOf('0.25rem')),
         // Its corners under the look's radius scale, and a rule round it where the look draws them (Sharp's paper-2
         // field on white was 1.2:1 and all but vanished beside its ruled search field).
-        decoration: BoxDecoration(color: t.color('app-paper-2'), border: lookRim(t), borderRadius: BorderRadius.circular(lookCorner(t, '1.375rem', most: 1))),
+        decoration: BoxDecoration(color: widget.ground ?? t.color('app-paper-2'), border: lookRim(t), borderRadius: BorderRadius.circular(lookCorner(t, '1.375rem', most: 1))),
         child: Stack(children: [
           Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             AnimatedPadding(

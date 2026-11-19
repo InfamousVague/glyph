@@ -682,18 +682,23 @@ class _HangoutChatState extends State<HangoutChat> {
   /// A mention pressed in a message: who it is, with a way to mention them back and the space's members.
   /// Their profile card (Matt, 2026-11-19: "when clicking on a @mention anywhere ... show this profile popup with actions
   /// available for the user in context of where it's placed"): here, mention them back and the space's members too.
-  void _mentionPressed(Mention m) {
+  void _mentionPressed(Mention m) => _openPerson(m.id);
+
+  /// [id]'s profile card, from their mention, their face or their name in a message (Matt, 2026-11-19: "Clicking on a
+  /// users profile picture or name should open the profile drawer as well"): here, mention them back and the space's
+  /// members too.
+  void _openPerson(String id) {
     final room = widget.room;
     showProfile(
       context,
       ProfileSubject.ghost(
-        id: m.id,
-        name: spaceNameOf(room, m.id),
+        id: id,
+        name: spaceNameOf(room, id),
         room: room,
-        onMention: m.id == room.me || !room.mayWrite
+        onMention: id == room.me || !room.mayWrite
             ? null
             : () {
-                _text.mention(MentionPerson(id: m.id, name: spaceNameOf(room, m.id)));
+                _text.mention(MentionPerson(id: id, name: spaceNameOf(room, id)));
                 _focus.requestFocus();
               },
       ),
@@ -889,6 +894,8 @@ class _HangoutChatState extends State<HangoutChat> {
                 mentions: shown == null ? m.mentions : const [],
                 mentionStyle: mentionStyle(context.tokens, on: c.ink),
                 onMention: _mentionPressed,
+                // Their name opens their profile card.
+                onNameTap: () => _openPerson(m.from),
                 original: shown == null ? null : OriginalLine(view: shown),
                 // What went with it under the words, square, as the era's lines carry pictures (Matt, 2026-11-18).
                 media: [
@@ -990,7 +997,7 @@ class _HangoutChatState extends State<HangoutChat> {
                           _poofing.remove(m.id);
                           room.delete(m);
                         },
-                        child: _Message(key: ValueKey(m.id), room: room, message: m, first: first, last: last, mineBg: mineBg, mineInk: mineInk, flat: flat, onDelete: () => setState(() => _poofing.add(m.id)), onMention: _mentionPressed),
+                        child: _Message(key: ValueKey(m.id), room: room, message: m, first: first, last: last, mineBg: mineBg, mineInk: mineInk, flat: flat, onDelete: () => setState(() => _poofing.add(m.id)), onMention: _mentionPressed, onPerson: _openPerson),
                       );
                       if (!newDay) return message;
                       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1231,7 +1238,7 @@ MessageFacts? spaceFacts(HangoutMessage m, {required bool mine}) =>
     mine || m.text.trim().isEmpty ? null : MessageFacts(thread: -1, senders: [m.from], text: m.text, contact: false, outgoing: false, date: DateTime.fromMillisecondsSinceEpoch(m.at), id: 'space:${m.id}', network: 'space');
 
 class _Message extends StatelessWidget {
-  const _Message({super.key, required this.room, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onDelete, this.flat = false, this.onMention});
+  const _Message({super.key, required this.room, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onDelete, this.flat = false, this.onMention, this.onPerson});
   final HangoutRoom room;
   final HangoutMessage message;
 
@@ -1251,6 +1258,19 @@ class _Message extends StatelessWidget {
 
   /// A mention in it pressed.
   final ValueChanged<Mention>? onMention;
+
+  /// Their face or name pressed: their profile card.
+  final ValueChanged<String>? onPerson;
+
+  /// [child], pressed for [message]'s writer's profile card, with a hand over it on a computer.
+  Widget _toPerson(Widget child) {
+    final on = onPerson;
+    if (on == null) return child;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: () => on(message.from), child: Semantics(button: true, child: child)),
+    );
+  }
 
   /// Someone else's message that mentions you: drawn so it stands out, as other chat apps draw one.
   bool get mentionsMe => message.from != room.me && room.mentionsMe(message);
@@ -1336,13 +1356,13 @@ class _Message extends StatelessWidget {
             Padding(
               padding: EdgeInsets.only(left: faceGap + t.space(3), bottom: 2),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: roleInk(t, role) ?? t.color('app-accent')))),
+                Flexible(child: _toPerson(Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: roleInk(t, role) ?? t.color('app-accent'))))),
               ]),
             ),
           Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
             // Their face by the run's last bubble, as in a group of texts.
             if (!mine) ...[
-              SizedBox(width: faceSize, child: last ? Avatar(people: [Person(address: 'space:${m.from}', name: name)], size: faceSize) : null),
+              SizedBox(width: faceSize, child: last ? _toPerson(Avatar(people: [Person(address: 'space:${m.from}', name: name)], size: faceSize)) : null),
               SizedBox(width: t.space(2)),
             ],
             // The words as they came, dimmed, in a card over a translated bubble.
@@ -1411,7 +1431,7 @@ extension on _Message {
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           SizedBox(
             width: gutter,
-            child: first ? Align(alignment: Alignment.topLeft, child: Avatar(people: [Person(address: 'space:${m.from}', name: mine ? (room.name.isEmpty ? 'You' : room.name) : name)], size: faceSize)) : null,
+            child: first ? Align(alignment: Alignment.topLeft, child: _toPerson(Avatar(people: [Person(address: 'space:${m.from}', name: mine ? (room.name.isEmpty ? 'You' : room.name) : name)], size: faceSize))) : null,
           ),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -1419,7 +1439,7 @@ extension on _Message {
                 Padding(
                   padding: EdgeInsets.only(bottom: 2),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                    Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: roleInk(t, role) ?? ink))),
+                    Flexible(child: _toPerson(Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: roleInk(t, role) ?? ink)))),
                     SizedBox(width: t.space(2)),
                     Text(clock(at), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
                   ]),
@@ -1526,7 +1546,11 @@ class SpaceMembers extends StatelessWidget {
                       label: id == room.me ? 'You' : _nameOf(room, id),
                       hint: Text(inVoice.contains(id) ? 'In voice' : (room.present.containsKey(id) ? 'Here now' : 'Away')),
                       labelColor: roleInk(t, role),
-                      onPress: room.canManage && r.outranks(room.me, id) ? () => pickRole(context, room, id, _nameOf(room, id)) : null,
+                      // Their profile card (Matt, 2026-11-19: "Clicking on a users profile picture or name should open the profile
+                      // drawer as well"), with Change role where this device may.
+                      onPress: () => showProfile(context, ProfileSubject.ghost(id: id, name: _nameOf(room, id), room: room), more: [
+                        if (room.canManage && r.outranks(room.me, id)) Choice('Change role', Lucide.shieldCheck, () => pickRole(context, room, id, _nameOf(room, id))),
+                      ]),
                     ),
                 ],
               ),

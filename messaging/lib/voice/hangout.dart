@@ -89,6 +89,13 @@ class HangoutRoom extends ChangeNotifier {
   /// lib/voice/mention_alerts.dart).
   void Function(List<HangoutMessage> fresh)? onFresh;
 
+  /// Told of the words between an SMS space's texting phone and its members' phones, each a map whose `t` is `sms?`
+  /// or `sms#` (lib/circles/sms_space.dart): said to one device alone, never kept, ignored by an older build.
+  void Function(String from, Map<String, dynamic> said)? onSignal;
+
+  /// Says [what] to the chat room, for [onSignal]'s words: with `to`, to that one person's devices alone.
+  void signal(Map<String, Object?> what) => _say(what);
+
   final List<StreamSubscription<Object?>> _subs = [];
 
   String get me => route.me;
@@ -698,6 +705,8 @@ class HangoutRoom extends ChangeNotifier {
           final asked = _askedPictures[from];
           if (asked != null && !asked.isCompleted) asked.complete(ProfilePictures.instance.of(from));
         }
+      case 'sms?' || 'sms#':
+        onSignal?.call(from, m);
       case 'msg':
         final msg = HangoutMessage.fromJson(m, from);
         if (msg != null && roster.can(from, Perm.chat)) _add([msg]);

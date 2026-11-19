@@ -670,7 +670,7 @@ List<CirclePerson> circlePeople(Circle c) {
 
 /// What the owner can do with someone in their circle, from its settings or its members drawer: make them an admin,
 /// or take it back.
-void circlePersonMenu(BuildContext context, Circle c, CirclePerson p) {
+List<Choice> circlePersonChoices(BuildContext context, Circle c, CirclePerson p) {
   // Their profile card, with what can be done with them in this circle under it (Matt, 2026-11-19: "clicking on a member
   // in the member list should also show the users profile popup with linked numbers, and other details in addition to
   // things like changing the role").
@@ -700,8 +700,15 @@ void circlePersonMenu(BuildContext context, Circle c, CirclePerson p) {
         ]);
       }),
   ];
-  final detail = [p.me ? 'You' : p.role, if (theirs.isNotEmpty) [for (final r in m.rolesOf(p.id)) r.name].join(', '), p.here ? 'On now' : 'Away'].join(' · ');
-  showProfile(context, ProfileSubject.ghost(id: p.id, name: p.name, detail: detail), more: more);
+  return more;
+}
+
+/// [p]'s profile card from a circle's members, with what this device may change about them there ([circlePersonChoices]).
+void circlePersonMenu(BuildContext context, Circle c, CirclePerson p) {
+  final m = (Circles.instance.bySeed(c.seed) ?? c).manifest;
+  final roles = [for (final r in m.rolesOf(p.id)) r.name];
+  final detail = [p.me ? 'You' : p.role, if (roles.isNotEmpty) roles.join(', '), p.here ? 'On now' : 'Away'].join(' · ');
+  showProfile(context, ProfileSubject.ghost(id: p.id, name: p.name, detail: detail), more: circlePersonChoices(context, c, p));
 }
 
 /// A person's role in a circle in words, where a row asks which: a green dot before it while they are on, and the

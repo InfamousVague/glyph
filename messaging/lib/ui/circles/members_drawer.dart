@@ -207,7 +207,8 @@ class CircleMembersList extends StatelessWidget {
                         // Their role's colour instead of a tag (Matt, 2026-11-17; the owner's crown went 2026-11-18).
                         labelColor: circleRoleInk(t, p),
                         hint: Text(p.here ? 'On now' : 'Away'),
-                        // Anyone's card on a press (Matt, 2026-11-19), its circle actions as this device may take them.
+                        // Their profile card (Matt, 2026-11-19: "Clicking on a users profile picture or name should open
+                        // the profile drawer as well"), with what this device may change about them in the circle.
                         onPress: () => circlePersonMenu(context, c, p),
                       ),
                   ],
