@@ -586,7 +586,10 @@ class Handles {
   /// [id] has proved [handle] on [network] is theirs. [account] is the network's own number for it, which stays
   /// the same when a handle is renamed and is what makes one account one install's: linked again from another
   /// install, the first one's link goes.
-  void _link(String id, String network, String handle, String account) {
+  /// [about]: what the network said of the account as it signed in (its name, its picture's address), handed to the
+  /// install there and then so it can fill in a profile (Matt, 2026-11-19: "sign up with discord ... loads your picture
+  /// and username"), and never kept: one told later, by [_done], is told without it.
+  void _link(String id, String network, String handle, String account, {Map<String, String> about = const {}}) {
     final k = keyOf(network, handle);
     final a = hexOf(sha256(utf8.encode('ghost-account v1|$network|$account')));
     final before = _account[a];
@@ -602,7 +605,7 @@ class Handles {
     final told = {'p': network, 'handle': handle, 'k': k};
     final tell = _here[id];
     if (tell != null) {
-      tell({'dir': 'linked', ...told});
+      tell({'dir': 'linked', ...told, if (about.isNotEmpty) 'about': about});
     } else {
       (_done[id] ??= []).add(told);
     }
@@ -789,7 +792,7 @@ class Handles {
         await _sorry(request, 'This sign-in was not started from the app, or took longer than ten minutes.');
         return true;
       }
-      final ({String account, String handle})? who;
+      final ({String account, String handle, Map<String, String> about})? who;
       if (network == 'telegram') {
         who = _telegram(q);
       } else {
@@ -809,7 +812,7 @@ class Handles {
         return true;
       }
       final handle = tidy(network, who.handle);
-      _link(asked.id, network, handle, who.account);
+      _link(asked.id, network, handle, who.account, about: who.about);
       await _thanks(request, network, handle);
     } catch (e) {
       _say('sign-in error on $network: ${e.runtimeType}');
@@ -820,7 +823,7 @@ class Handles {
 
   static String _form(Map<String, String> fields) => fields.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}').join('&');
 
-  Future<({String account, String handle})?> _discord(String code) async {
+  Future<({String account, String handle, Map<String, String> about})?> _discord(String code) async {
     final token = await _fetch('POST', Uri.https('discord.com', '/api/oauth2/token'),
         headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Authorization': 'Basic ${base64Encode(utf8.encode('${config.discordId}:${config.discordSecret}'))}'},
         body: _form({'grant_type': 'authorization_code', 'code': code, 'redirect_uri': _redirect('discord')}));
@@ -830,10 +833,18 @@ class Handles {
     final me = await _fetch('GET', Uri.https('discord.com', '/api/users/@me'), headers: {'Authorization': 'Bearer $access'});
     if (me.status != 200) return null;
     final m = jsonDecode(me.body) as Map;
-    return (account: '${m['id']}', handle: '${m['username'] ?? ''}');
+    final avatar = m['avatar'];
+    return (
+      account: '${m['id']}',
+      handle: '${m['username'] ?? ''}',
+      about: {
+        if (m['global_name'] is String) 'name': m['global_name'] as String,
+        if (avatar is String && avatar.isNotEmpty) 'picture': 'https://cdn.discordapp.com/avatars/${m['id']}/$avatar.png?size=256',
+      },
+    );
   }
 
-  Future<({String account, String handle})?> _x(String code, String verifier) async {
+  Future<({String account, String handle, Map<String, String> about})?> _x(String code, String verifier) async {
     final token = await _fetch('POST', Uri.https('api.x.com', '/2/oauth2/token'),
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -848,12 +859,12 @@ class Handles {
     if (me.status != 200) return null;
     final m = (jsonDecode(me.body) as Map)['data'] as Map?;
     if (m == null) return null;
-    return (account: '${m['id']}', handle: '${m['username'] ?? ''}');
+    return (account: '${m['id']}', handle: '${m['username'] ?? ''}', about: {if (m['name'] is String) 'name': m['name'] as String});
   }
 
   /// Who Telegram's button says signed in: every field it sent, in order, signed with a key made from our bot's
   /// token (core.telegram.org/widgets/login). Good for a day.
-  ({String account, String handle})? _telegram(Map<String, String> q) {
+  ({String account, String handle, Map<String, String> about})? _telegram(Map<String, String> q) {
     final hash = q['hash'];
     final when = int.tryParse(q['auth_date'] ?? '');
     if (hash == null || when == null || q['id'] == null) return null;
@@ -862,7 +873,9 @@ class Handles {
     final want = hexOf(hmacSha256(sha256(utf8.encode(config.telegramToken)), utf8.encode(lines)));
     if (!_same(want, hash.toLowerCase())) return null;
     if (_now().toUtc().millisecondsSinceEpoch ~/ 1000 - when > 86400) return null;
-    return (account: q['id']!, handle: q['username'] ?? '');
+    final name = [q['first_name'], q['last_name']].whereType<String>().where((x) => x.trim().isNotEmpty).join(' ').trim();
+    final photo = q['photo_url'] ?? '';
+    return (account: q['id']!, handle: q['username'] ?? '', about: {if (name.isNotEmpty) 'name': name, if (photo.startsWith('https://')) 'picture': photo});
   }
 
   /// Compared without stopping at the first difference.

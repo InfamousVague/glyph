@@ -620,6 +620,28 @@ class Me extends ChangeNotifier {
   /// later, when the sign-in is done ([links] changes).
   Future<String> signInAddress(String network) async => (await _ask({'dir': 'link', 'p': network}, 'link'))['url'] as String;
 
+  /// Signs in with [network] ("discord", "telegram", "x") in the browser [open] opens, and waits for it: what the relay
+  /// heard of the account as it signed in (`handle`, and `about`: its `name` and `picture` address where the network
+  /// said them), for a profile to be filled in from (Matt, 2026-11-19: "sign up with discord ... loads your picture and
+  /// username"). The account is linked as it is from Settings › Me. Null where no browser could be opened.
+  Future<({String handle, Map<String, String> about})?> signInWith(String network, Future<bool> Function(String url) open, {Duration wait = const Duration(minutes: 10)}) async {
+    final url = await signInAddress(network);
+    final key = 'linked:$network';
+    _waiting.remove(key);
+    final done = _waiting[key] = Completer<Map<String, dynamic>>();
+    if (!await open(url)) {
+      _waiting.remove(key);
+      return null;
+    }
+    final m = await done.future.timeout(wait, onTimeout: () {
+      _waiting.remove(key);
+      throw MeError('The sign-in took too long. Try again.');
+    });
+    if (m['dir'] != 'linked') throw MeError('${m['err'] ?? 'That account could not be linked.'}');
+    final about = m['about'] is Map ? {for (final e in (m['about'] as Map).entries) if (e.value is String) '${e.key}': e.value as String} : <String, String>{};
+    return (handle: '${m['handle'] ?? ''}', about: about);
+  }
+
   /// The code to put in [handle]'s public profile on [network].
   Future<String> proofCode(String network, String handle) async => (await _ask({'dir': 'proof', 'p': network, 'handle': tidyHandle(handle)}, 'proof'))['code'] as String;
 
@@ -734,6 +756,10 @@ class Me extends ChangeNotifier {
   }
 
   /// What the pages show, set by hand: a picture of them with no server (test/screens_test.dart).
+  /// For a test: [m] heard from the relay server.
+  @visibleForTesting
+  void hear(Map<String, dynamic> m) => _heard(m);
+
   @visibleForTesting
   void seed({Map<String, String>? links, bool? listed, List<Watched>? watch, List<Joined>? joined, Map<String, String>? ways, bool? ready}) {
     this.links = links ?? this.links;

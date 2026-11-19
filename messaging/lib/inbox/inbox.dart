@@ -650,6 +650,11 @@ abstract class InboxNetwork extends ChangeNotifier {
   /// for the profile card a tapped @mention opens; null where it says nothing or knows no one by that.
   Future<InboxProfile?> profileOf({String user = '', String username = ''}) async => null;
 
+  /// What the network says of the account signed in here: its name, username, picture and about line, for a profile
+  /// to be filled in from (Matt, 2026-11-19: "sign up with ... telegram or signal ... loads your picture and username
+  /// and status"). Null where it says nothing.
+  Future<InboxProfile?> ownProfile() async => null;
+
   /// Unread chats.
   int get unreadChats => chats.where((c) => c.unread > 0).length;
 }
