@@ -494,7 +494,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         final byRoute = files.isEmpty && to.length == 1 && body.isNotEmpty && own && await Friends.instance.sendText(to.first, body);
         if (!byRoute) await Sms.instance.send(to, body, attachments: files);
       }
-      Sounds.instance.play(UiSound.messageOut);
+      // No sound for one's own message going: only one coming in is heard (Matt, 2026-11-18: "remove the sound for
+      // sending a message we only need to hear when were sent a message not when we send one").
     } catch (e) {
       Sounds.instance.play(UiSound.messageFailed);
       if (pending != null && mounted) _dropPending(pending);
