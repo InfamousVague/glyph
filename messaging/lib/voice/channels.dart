@@ -810,6 +810,9 @@ class Voice extends ChangeNotifier {
 
   String get _myName => _deskName != null ? bareName(_deskName!) : Me.instance.shownName;
 
+  /// The name this device goes by in spaces and circles.
+  String get myName => _myName;
+
   /// Does in the call what the hangout's roster says: who is heard (not muted for everyone, allowed to speak, not
   /// silenced here), whether this device may speak or show video, and leaving when put out.
   void _enforce() {

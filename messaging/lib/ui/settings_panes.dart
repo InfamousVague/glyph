@@ -231,17 +231,8 @@ List<SettingsSection> _ownSections() => [
     page: (context, m) => const [],
     screen: (context, m) => const ConversationsScreen(archived: true),
   ),
-  SettingsSection(
-    id: 'number',
-    // The phone's own.
-    where: SettingsWhere.phone,
-    label: 'Your number',
-    icon: _icon(Lucide.phone),
-    hue: 'orange',
-    group: 'phone',
-    summary: (m) => m.ownNumber == null || m.ownNumber!.isEmpty ? 'Not known' : m.ownNumber!,
-    page: _number,
-  ),
+  // No "Your number" here: the phone's own number is Me › Number's, verified there and told to Android's side
+  // (Matt, 2026-11-19: "remove the duplicate "your number" setting it's already handled under me").
   SettingsSection(
     id: 'android',
     // The phone's own.
@@ -340,7 +331,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.9.24';
+const appVersion = '0.9.27';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -711,6 +702,13 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
           hint: const Text('A notification when someone writes @ and your name in a space or a circle. A space\'s other messages don\'t notify.'),
           control: GlacierSwitch(checked: app.flag('notif_mentions'), onCheckedChange: (v) => app.setFlag('notif_mentions', v), ariaLabel: 'Mentions in spaces'),
         ),
+        // Matt, 2026-11-19: "add join notifications for memebers in circles".
+        SettingRow(
+          icon: _icon(Lucide.userPlus),
+          label: 'Joins in circles',
+          hint: const Text('Told when someone new joins a circle you\'re in.'),
+          control: GlacierSwitch(checked: app.flag('notif_joins'), onCheckedChange: (v) => app.setFlag('notif_joins', v), ariaLabel: 'Joins in circles'),
+        ),
       ],
     ),
     // Beside Google Messages (android GmBridge.kt; Matt, 2026-11-15: "I can turn off notifications from google messages
@@ -832,71 +830,6 @@ List<Widget> _encryption(BuildContext context, SettingsModel m) {
 // --- Blocked: numbers, and Telegram and Signal people (lib/ui/blocking.dart) -----------------------------------------
 
 List<Widget> _blocked(BuildContext context, SettingsModel m) => const [BlockedList()];
-
-// --- Your number ------------------------------------------------------------------------------------------------------
-
-List<Widget> _number(BuildContext context, SettingsModel m) {
-  final own = m.ownNumber;
-  return [
-    PaneSection(
-      title: 'This phone',
-      footer: Text(own == null || own.isEmpty
-          ? 'Android didn\'t say this phone\'s number. Type it here so group picture messages don\'t list you as one of the people.'
-          : 'Used to leave you out of a group message\'s list of people.'),
-      children: [
-        SettingRow(
-          icon: _icon(Lucide.phone),
-          label: 'Your number',
-          layout: SettingRowLayout.stacked,
-          control: _OwnNumberField(model: m),
-        ),
-      ],
-    ),
-  ];
-}
-
-class _OwnNumberField extends StatefulWidget {
-  const _OwnNumberField({required this.model});
-  final SettingsModel model;
-
-  @override
-  State<_OwnNumberField> createState() => _OwnNumberFieldState();
-}
-
-class _OwnNumberFieldState extends State<_OwnNumberField> {
-  late final _number = TextEditingController(text: widget.model.ownNumber ?? '');
-
-  @override
-  void didUpdateWidget(_OwnNumberField old) {
-    super.didUpdateWidget(old);
-    // Android's answer came after the page was drawn.
-    final own = widget.model.ownNumber;
-    if (_number.text.isEmpty && own != null && own.isNotEmpty) _number.text = own;
-  }
-
-  @override
-  void dispose() {
-    _number.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save({bool say = false}) async {
-    await Sms.instance.setOwnNumber(_number.text.trim());
-    if (say && mounted) toast(context, 'Saved');
-    widget.model.refresh();
-  }
-
-  @override
-  Widget build(BuildContext context) => GlacierInput(
-        controller: _number,
-        placeholder: '+1 555 123 4567',
-        ariaLabel: 'This phone\'s number',
-        inputMode: TextInputType.phone,
-        size: GlacierFieldSize.md,
-        onSubmitted: (_) => _save(say: true),
-        onBlur: _save,
-      );
-}
 
 // --- Android ----------------------------------------------------------------------------------------------------------
 

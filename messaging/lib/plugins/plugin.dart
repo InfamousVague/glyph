@@ -480,6 +480,23 @@ class SettingsPlace {
   const SettingsPlace();
 }
 
+/// A space's page, for what a plugin puts in its header ([Slots.spaceHeader]).
+@immutable
+class SpacePlace {
+  const SpacePlace({required this.space, required this.spaceName, this.circle, this.voice = true, this.inCall = false});
+
+  /// The space's seed.
+  final String space;
+  final String spaceName;
+
+  /// The circle's seed, for a circle's space.
+  final String? circle;
+
+  /// It has a call (a voice space), and this device is in that call now.
+  final bool voice;
+  final bool inCall;
+}
+
 /// Someone in a call, as a plugin is shown them.
 @immutable
 class CallPerson {
@@ -574,10 +591,15 @@ abstract final class Slots {
   /// Over a call's page, under its header, whatever its design: a line everyone must see (Recording).
   static const callBanner = WidgetSlot<CallPlace>('call.banner');
 
+  /// Icons in a space's header, beside its settings (Matt, 2026-11-19: "add icons in the compose window or header
+  /// depending on what makes sense for plugins like the recording plugin"): what a plugin does to the space or its
+  /// call at a glance, a press away rather than in a menu. Keep to one or two; the call's menu has the rest.
+  static const spaceHeader = ActionSlot<SpacePlace>('space.header');
+
   /// Lines in a circle's own menu (lib/ui/circles/circle_screen.dart).
   static const circleMenu = ActionSlot<CirclePlace>('circle.menu');
 
-  static const List<Slot<Object?>> all = [listHeader, aboveList, conversationMenu, conversationHeader, composer, messageMenu, underMessage, aboveComposer, settings, callControls, callBanner, circleMenu];
+  static const List<Slot<Object?>> all = [listHeader, aboveList, conversationMenu, conversationHeader, composer, messageMenu, underMessage, aboveComposer, settings, callControls, callBanner, spaceHeader, circleMenu];
 }
 
 // --- (d) messages that have just come --------------------------------------------------------------------------------

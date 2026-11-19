@@ -11,7 +11,10 @@ import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import 'circles/circles.dart';
+import 'circles/pending_link.dart';
 import 'circles/sms_space.dart';
+import 'voice/voice.dart' show SpaceKind;
 import 'friends/buddies.dart';
 import 'friends/handover.dart';
 import 'me/me.dart';
@@ -225,6 +228,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
   /// The walkthrough is open (it opened because Ghost could not send texts), until it is finished.
   bool _walking = false;
 
+  /// Joins in circles, notified (once for the app's life).
+  static StreamSubscription<CircleJoin>? _circleJoins;
+
   /// The default SMS app, or beside Google Messages (SmsStatus.usable); null until asked.
   bool? _isDefault;
   StreamSubscription<OpenRequest>? _opens;
@@ -302,6 +308,19 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
         inFront: () => WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
         on: () => app.flag('notif_mentions'),
       );
+      // Someone new in one of this phone's circles, notified while Ghost is in the background (in front, the list says
+      // it: lib/ui/shell.dart). Matt, 2026-11-19: "add join notifications for memebers in circles".
+      _circleJoins ??= Circles.instance.joined.listen((j) {
+        if (!app.flag('notif_joins') || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) return;
+        final firstChat = j.circle.channels.where((c) => c.kind != SpaceKind.files).firstOrNull;
+        unawaited(Sms.instance.notifyInbox(
+          'circle:${j.circle.seed}',
+          network: j.circle.name,
+          title: j.line,
+          body: firstChat != null ? 'Say hello in #${firstChat.name}' : 'Say hello',
+          group: true,
+        ));
+      });
       // Summaries of unread conversations by the phone's own model (lib/summaries.dart): where it stands, and asked
       // for where it can be had.
       Summaries.instance.start(app);
@@ -328,6 +347,11 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
   }
 
   Future<void> _open(OpenRequest req) async {
+    // A circle's link opened before the app is set up: held, and the circle opened once it is (lib/circles/pending_link.dart).
+    if (req.circle != null && (_isDefault != true || _walking || (Sms.standalone && Me.instance.username == null))) {
+      if (!await PendingCircleLink.hold(req.circle!) && mounted) toast(context, 'That circle link isn\'t complete. Ask for it again.');
+      return;
+    }
     final nav = _navigator.currentState;
     if (nav == null || _isDefault != true) return;
     nav.popUntil((r) => r.isFirst);
@@ -337,7 +361,11 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     final shell = _shell.currentState;
     if (shell == null) return;
     shell.home();
-    if (req.inbox != null && req.inbox!.startsWith('space:')) {
+    if (req.inbox != null && req.inbox!.startsWith('circle:')) {
+      // Someone joined a circle (above): the circle.
+      final c = Circles.instance.bySeed(req.inbox!.substring('circle:'.length));
+      if (c != null) shell.openCircle(c);
+    } else if (req.inbox != null && req.inbox!.startsWith('space:')) {
       // A mention's notification (lib/voice/mention_alerts.dart): the space it was in, where it is listed.
       final seed = req.inbox!.substring('space:'.length);
       final c = Voice.instance.channels.where((x) => x.seed == seed).firstOrNull;

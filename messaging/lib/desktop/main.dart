@@ -1,3 +1,4 @@
+import 'links.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -111,6 +112,8 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   final sheet = accents.base;
   installSettingsStyles(sheet);
   await link.start();
+  // Circles' invite links opened into the app (lib/desktop/links.dart).
+  unawaited(DeskLinks.start());
   // Voice channels (lib/voice): the computer's own connection to the hub, made once it has a channel.
   // The interface sounds (lib/sounds.dart) read the person's choices from here.
   Sounds.instance.start(state);

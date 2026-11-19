@@ -17,6 +17,8 @@
 /// something reads what it is, with a word on why.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -30,6 +32,9 @@ import '../../kit/settings_kit.dart';
 import '../../kit/settings_type.dart';
 import '../../plugins/plugin.dart' show PluginScope;
 import '../../plugins/registry.dart' show PluginRegistry;
+import '../../plugins/record_call.dart' show RecordCallPlugin;
+import '../../files/files_model.dart' show SpaceFile;
+import '../files_space/files_screen.dart' show askFileWords;
 import '../../voice/channels.dart';
 import '../../voice/voice.dart' show SpaceKind;
 import '../common.dart';
@@ -437,7 +442,63 @@ class _SectionBody extends StatelessWidget {
             ),
         ],
       ),
+      // Record call's save location (Matt, 2026-11-19: "allow for changing settings like save location (expect saving to
+      // have at least one file space in a circle we'll save to a folder in a given space within the circle)").
+      if (list.any((p) => p.id == 'recordcall')) ...[
+        SizedBox(height: context.tokens.space(5)),
+        _recordingsTo(context, c, edit),
+      ],
     ];
+  }
+
+  /// Where this circle's call recordings are saved: one of its Files spaces, and a folder in it.
+  Widget _recordingsTo(BuildContext context, Circle c, bool edit) {
+    final to = RecordCallPlugin.saveToIn(c);
+    final files = [for (final s in c.spaces) if (s.kind == SpaceKind.files) s];
+    Future<void> set({String? space, String? folder}) async {
+      final now = RecordCallPlugin.saveToIn(c);
+      final ok = await Circles.instance.setPlugin(c, 'recordcall',
+          on: c.manifest.pluginOn('recordcall') ?? false, choices: {'space': space ?? now?.space.seed, 'folder': folder ?? now?.folder ?? RecordCallPlugin.defaultFolder});
+      if (!ok && context.mounted) toast(context, 'Couldn\'t change where recordings are saved');
+    }
+
+    return PaneSection(
+      title: 'Call recordings',
+      description: Text(to == null
+          ? 'Record call saves a recording made in this circle into one of its Files spaces. Add a Files space to save them there; until then they stay on the device that recorded.'
+          : 'A call recorded in any of ${c.name}\'s spaces is saved here for the circle, as well as on the device that recorded it.'),
+      children: [
+        if (to != null) ...[
+          SettingRow(
+            key: const ValueKey('recordings-space'),
+            icon: AppIcon(Lucide.folderOpen, size: 18),
+            label: 'Files space',
+            hint: Text(to.space.name),
+            onPress: !edit || files.length < 2
+                ? null
+                : () => showChoices(context, title: 'Save recordings in', choices: [
+                      for (final s in files) Choice(s.name, s.seed == to.space.seed ? Lucide.check : Lucide.folderOpen, () => set(space: s.seed)),
+                    ]),
+          ),
+          SettingRow(
+            key: const ValueKey('recordings-folder'),
+            icon: AppIcon(Lucide.folder, size: 18),
+            label: 'Folder',
+            hint: Text(to.folder),
+            onPress: !edit
+                ? null
+                : () => askFileWords(context, title: 'Folder for recordings', initial: to.folder, hint: 'In ${to.space.name}. Use / for a folder inside another.', then: (words) {
+                      final folder = SpaceFile.cleanFolder(words.trim());
+                      if (folder == null) {
+                        toast(context, 'That can\'t be a folder\'s name');
+                        return;
+                      }
+                      unawaited(set(folder: folder));
+                    }),
+          ),
+        ],
+      ],
+    );
   }
 
   List<Widget> _invites(BuildContext context, Circle c) {

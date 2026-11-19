@@ -23,6 +23,20 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.9.27', '2026-11-19', [
+    'When someone new joins a circle you\'re in, you\'re told: a notification on your phone, or a note in the app with a way to the circle. Turn it off in Settings › Notifications › Joins in circles.',
+    'A circle\'s invite link works for people without the app: its page offers the right download, and once the app is set up it opens the circle for you. With the app already there, Open in Ghost Messaging opens it, on a computer too.',
+  ]),
+  ReleaseNotes('0.9.26', '2026-11-19', [
+    'The Messages, Codes and Circles tabs are all there the moment the app opens, without Circles jumping along.',
+    'Your phone number is set once, with your profile in Settings › Me › Number: the separate Your number setting is gone.',
+    'Record call: Record and Stop are in a space\'s header while you\'re in its call. In a circle, recordings are saved to a folder in one of its Files spaces; choose which in Circle settings › Plugins.',
+    'A circle\'s banner is softly blurred and shaded behind its name, so the name reads on any picture.',
+  ]),
+  ReleaseNotes('0.9.25', '2026-11-19', [
+    'Pictures in a space\'s or circle\'s chat, and on Telegram and Signal, open full screen over the chat: pinch or scroll to zoom, tap or press Escape to go back.',
+    'SMS spaces list their members, you first: who gets the space\'s messages by text, at which number, and who reads them in the app.',
+  ]),
   ReleaseNotes('0.9.24', '2026-11-19', [
     'SMS spaces: members whose phone number is linked get the space\'s messages by text by themselves, and what they text back comes into the space. Text STOP to leave.',
     'Tap someone\'s picture or name in a space, or in a members list, to open their profile. Write to a friend right from it, Send inside the box as everywhere else.',

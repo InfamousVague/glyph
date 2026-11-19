@@ -3,6 +3,7 @@
 #include <windows.h>
 
 #include "flutter_window.h"
+#include "links.h"
 #include "utils.h"
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
@@ -12,6 +13,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {
     CreateAndAttachConsole();
   }
+
+  // A circle's invite link (links.cpp): handed to the copy already running, if one is, and this one goes.
+  std::wstring link = LinkInCommandLine();
+  if (!link.empty() && HandToRunningCopy(link)) {
+    return EXIT_SUCCESS;
+  }
+  RegisterLinkScheme();
 
   // Initialize COM, so that it is available for use in the library and/or
   // plugins.
@@ -24,7 +32,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
-  FlutterWindow window(project);
+  FlutterWindow window(project, link);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1100, 740);
   if (!window.Create(L"Ghost Messaging", origin, size)) {

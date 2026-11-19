@@ -674,6 +674,15 @@ class MainActivity : FlutterActivity() {
         // A circle's invite link (https://gogho.st/join/#c.…) opened here: the app raises the circle's invite, with Join
         // and Not now (lib/ui/circles/circle_invite_card.dart). Matt, 2026-11-17: "Finish the missing pieces that went
         // unfinished". A shared text holding one is still a text to send, as any shared text is.
+        // The invite page's Open in Ghost Messaging (site/join): ghostmsg://join/#c.…, the https link's words.
+        intent.data?.let { link ->
+            if (link.scheme.equals("ghostmsg", ignoreCase = true) && link.host == "join") {
+                setIntent(Intent(intent).setData(null))
+                if ((intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) return null
+                val fragment = link.encodedFragment ?: ""
+                return if (fragment.startsWith("c.")) mapOf("circle" to "https://gogho.st/join/#$fragment") else null
+            }
+        }
         intent.data?.let { link ->
             if (link.scheme == "https" && link.host == "gogho.st" && (link.path ?: "").startsWith("/join")) {
                 // Handled once. The link is taken off the intent as it is read, since Android hands the same intent

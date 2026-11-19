@@ -9,8 +9,9 @@
  * `gh`, then put beside the APK and the Mac's zip in /opt/ghost-sms-release as ghost-messaging-setup.exe, with
  * windows.json saying its version, size and SHA-256. The site's Windows button reads windows.json.
  *
- * One login to the box (the same box code as tool/release-mac.mjs, from Ghost.md's checkout). The installer is
- * unsigned: Windows asks before running it the first time.
+ * One login to the box (the same box code as tool/release-mac.mjs, from Ghost.md's checkout). The workflow signs the
+ * app and its installer once the repository has the Azure Artifact Signing secrets (its header lists them); until
+ * then the installer is unsigned and Windows asks before running it the first time.
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';

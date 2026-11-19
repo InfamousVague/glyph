@@ -30,6 +30,23 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Joins told of; a circle's link that brings the app with it** (0.9.27, not released; Matt, 2026-11-19: "add join
+  notifications for memebers in circles", and "make a route to allow people to click a link on their phone or desktop
+  to join a circle, have it prompt them to download the app if it's not downloaded already and then have it redirect to
+  the circle after they sign up for their account").
+  - Coming into a circle, a device says so once in its room (`joined`, with its name and when), kept by the hub for
+    whoever is away. Every other member is told of a join after their own, once per person whichever of their devices
+    said it (`circles_joins`), unless it is days old: a notification on a phone in the background (`circle:<seed>`,
+    which opens the circle), a toast with Open in the app. Settings › Notifications › Joins in circles turns it off.
+    Joins also name people in the members list.
+  - site/join, for a circle's link: the download for the device it is opened on (Android, Mac, Windows; the home page
+    otherwise) and three steps. Get the app copies the invite; the app reads the clipboard once, on a new install's
+    first setup with no circles yet, and joins and opens the circle (`lib/circles/pending_link.dart`). Open in Ghost
+    Messaging opens `ghostmsg://join/#c.…`, which the Android app (MainActivity), the Mac's (CFBundleURLTypes,
+    AppDelegate) and Windows' (`windows/runner/links.cpp`: the scheme registered for the user at each start; a second
+    copy hands the link to the running one by WM_COPYDATA) take, on "ghost_desktop/links" (`lib/desktop/links.dart`).
+    A link opened while the app is still being set up is held and opened once it is.
+  - Tests: circle_joins_test.
 - **Plugins for whole circles: Record call, Scribe, Live captions, Watch together, and SMS spaces** (0.9.21, not
   released; Matt, 2026-11-19: "Start with the recording plugin, then scribe, then a special space in the circle called a
   "SMS Space" to text members, Live captions, and watch together"; "Some plugins should be serverside / cirlce side as
@@ -117,6 +134,11 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     bio, photo, emoji status and last seen; Signal's name, number, avatar and about line. Message them there, copy the
     username. The Signal helper (sidecar/signal) sends the mentions and the about line; the next release builds it.
   - Tests: profile_card_test, inbox_mentions_telegram_test, inbox_mentions_signal_test, sidecar main_test.
+- **Pictures full screen** (0.9.25, not released; Matt, 2026-11-19: "when clicking a picture in a chat, like in a circle
+  make it a full screen overlay"): a picture or GIF in a space's or circle's chat, and a Telegram or Signal photo, opens
+  over everything on a dark ground (lib/ui/picture_overlay.dart): its small picture at once and the file as it comes,
+  pinched or scrolled to zoom, a tap, Escape or the cross to go back, and … for the file's own page (Save, Share).
+  Tests: space_chat_files_test.
 - **Removing someone from a circle; every member's card** (0.9.24, not released; Matt, 2026-11-19: "add the ability to
   remove members from a circle as an admin", then "clicking on a member in the member list should also show the users
   profile popup with linked numbers, and other details in addition to things like changing the role").

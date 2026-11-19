@@ -2,7 +2,11 @@
 # build to ghost-sms.com"). A Mac cannot build a Windows Flutter app, so this does, by hand (Run workflow, or
 # `gh workflow run messaging-windows.yml -f version=0.7.21 -f build=33`). What it makes is the installer
 # (messaging/windows/installer.iss) as an artifact; messaging/tool/release-windows.mjs fetches it and puts it on
-# ghost-sms.com. Unsigned: Windows asks before running it the first time.
+# ghost-sms.com. Signed where the repository has the Azure Artifact Signing account (Matt, 2026-11-19: "get the windows
+# build deployed without the warning when downloading so it can be signed"): the secrets AZURE_TENANT_ID,
+# AZURE_CLIENT_ID, AZURE_CLIENT_SECRET (or none, signing in by GitHub's OIDC token through a federated credential),
+# AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT and AZURE_SIGNING_PROFILE. Without them it builds unsigned as before,
+# and Windows asks before running it the first time.
 name: Ghost Messaging for Windows
 
 on:
@@ -23,10 +27,22 @@ defaults:
   run:
     working-directory: messaging
 
+# The OIDC token, for signing in to Azure without a client secret.
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   installer:
     runs-on: windows-latest
     timeout-minutes: 60
+    env:
+      # All three, the profile last: it exists only once Microsoft has checked who signs.
+      SIGNING: ${{ secrets.AZURE_SIGNING_ACCOUNT != '' && secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_SIGNING_PROFILE != '' }}
+      CLIENT_SECRET_SET: ${{ secrets.AZURE_CLIENT_SECRET != '' }}
+      AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+      AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+      AZURE_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
     steps:
       - uses: actions/checkout@v4
 
@@ -67,15 +83,55 @@ jobs:
           Copy-Item sidecar\gmessages\LICENSE build\windows\x64\runner\Release\gmsidecar-LICENSE.txt
           Copy-Item sidecar\gmessages\SOURCE_URL build\windows\x64\runner\Release\gmsidecar-SOURCE.txt
 
+      # Signing, where the account is set up: the app's own files first (the exe, its DLLs, the sidecars), then the
+      # installer and its uninstaller as Inno Setup writes them (windows/installer.iss, windows/sign.ps1).
+      - name: Sign in to Azure (OIDC)
+        if: env.SIGNING == 'true' && env.CLIENT_SECRET_SET != 'true'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Sign the app
+        if: env.SIGNING == 'true'
+        uses: Azure/artifact-signing-action@v2.0.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\messaging\build\windows\x64\runner\Release
+          files-folder-filter: exe,dll
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: Ghost Messaging
+          description-url: https://gogho.st
+
       - name: Build the installer
         shell: pwsh
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: |
           if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
             $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
             if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
             $env:PATH += ';C:\Program Files (x86)\Inno Setup 6'
           }
-          iscc /DAppVersion=${{ inputs.version }} /DSource=build\windows\x64\runner\Release windows\installer.iss
+          $sign = @()
+          if ($env:SIGNING -eq 'true') {
+            # Inno puts the quoted file name where $f is; the script's own path has no spaces on a runner.
+            $script = Join-Path $PWD 'windows\sign.ps1'
+            $sign = @('/DSign', ("/Sghost=pwsh -NoProfile -ExecutionPolicy Bypass -File $script " + '$f'))
+          }
+          iscc /DAppVersion=${{ inputs.version }} /DSource=build\windows\x64\runner\Release @sign windows\installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "iscc failed (exit $LASTEXITCODE)" }
           Get-Item ..\messaging\build\windows-installer\ghost-messaging-setup.exe | Format-List Name, Length
 
       # It built; does it run? Installed silently as a person's double click would, started, and looked at twenty
@@ -89,6 +145,12 @@ jobs:
           if ($setup.ExitCode -ne 0) { throw "the installer failed (exit $($setup.ExitCode))" }
           $exe = "$env:LOCALAPPDATA\Programs\Ghost Messaging\ghost_messaging.exe"
           if (-not (Test-Path $exe)) { throw "not installed at $exe" }
+          # Signed where it should be: the installer, the app and the uninstaller.
+          foreach ($f in @('build\windows-installer\ghost-messaging-setup.exe', $exe, "$env:LOCALAPPDATA\Programs\Ghost Messaging\unins000.exe")) {
+            $sig = Get-AuthenticodeSignature -FilePath $f
+            Write-Host "$f : $($sig.Status) $($sig.SignerCertificate.Subject)"
+            if ($env:SIGNING -eq 'true' -and $sig.Status -ne 'Valid') { throw "$f is not signed ($($sig.Status))" }
+          }
           $p = Start-Process -FilePath $exe -PassThru
           Start-Sleep -Seconds 20
           $p.Refresh()

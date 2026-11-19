@@ -11,6 +11,7 @@ import 'package:ghost_messaging/plugins/scribe.dart';
 import 'package:ghost_messaging/voice/mp4_names.dart';
 import 'package:ghost_messaging/voice/recorder.dart';
 import 'package:ghost_messaging/voice/scribe.dart';
+import 'package:ghost_messaging/voice/voice.dart' show SpaceKind;
 
 /// Recording a call (lib/voice/recorder.dart, lib/voice/mp4_names.dart, lib/plugins/record_call.dart; Matt,
 /// 2026-11-19: "a "record call" plugin where it records the call to an MP4 with multiple named audio tracks", and
@@ -211,6 +212,57 @@ void main() {
       expect(s.onByDefault, isFalse);
       expect(s.scopes, contains(PluginScope.circle));
       expect(shippedPlugins.whereType<ScribePlugin>(), hasLength(1));
+    });
+  });
+
+  // Matt, 2026-11-19: "add icons in the compose window or header depending on what makes sense for plugins like the
+  // recording plugin and allow for changing settings like save location (expect saving to have at least one file space in
+  // a circle we'll save to a folder in a given space within the circle)".
+  group('where a circle\'s recordings go', () {
+    Circle circle(List<CircleSpace> spaces, {Map<String, Object?> extra = const {}}) =>
+        Circle(seed: '5' * 64, owner: '', manifest: CircleManifest(owner: '', name: 'Band', spaces: spaces, extra: extra));
+    final chat = CircleSpace.make('Chat', kind: SpaceKind.text);
+    final shared = CircleSpace.make('Shared', kind: SpaceKind.files, order: 1);
+    final takes = CircleSpace.make('Takes', kind: SpaceKind.files, order: 2);
+
+    test('until the circle chooses: its first Files space, in a folder named Recordings', () {
+      final to = RecordCallPlugin.saveToIn(circle([chat, shared, takes]))!;
+      expect(to.space.seed, shared.seed);
+      expect(to.folder, 'Recordings');
+      expect(to.channel.circle, '5' * 64, reason: 'the space as its circle has it');
+    });
+
+    test('the circle\'s choice of space and folder, kept with the plugin in its manifest', () {
+      final c = circle([chat, shared, takes]);
+      final chosen = circle([chat, shared, takes], extra: c.manifest.withPlugin('recordcall', on: true, choices: {'space': takes.seed, 'folder': 'Sessions/2026'}));
+      final to = RecordCallPlugin.saveToIn(chosen)!;
+      expect(to.space.seed, takes.seed);
+      expect(to.folder, 'Sessions/2026');
+      expect(chosen.manifest.pluginOn('recordcall'), isTrue, reason: 'choosing a place leaves the switch as it was');
+    });
+
+    test('a chosen space that is gone, or a folder that is no folder, falls back', () {
+      final c = circle([chat, shared]);
+      final to = RecordCallPlugin.saveToIn(circle([chat, shared], extra: c.manifest.withPlugin('recordcall', on: true, choices: {'space': 'gone', 'folder': '../..'})))!;
+      expect(to.space.seed, shared.seed);
+      expect(to.folder, 'Recordings');
+    });
+
+    test('with no Files space there is nowhere in the circle to save to', () {
+      expect(RecordCallPlugin.saveToIn(circle([chat])), isNull);
+    });
+
+    test('Record and Stop are in the space\'s header only while this device is in its call', () {
+      List<String> header(SpacePlace p) => [
+            for (final f in const RecordCallPlugin().slots)
+              if (f is ActionFill<SpacePlace>) ...[for (final a in f.build(p, PluginPrefs.none)) a.label],
+          ];
+      const space = SpacePlace(space: 's', spaceName: 'Lounge', circle: 'c');
+      expect(header(space), isEmpty, reason: 'not in its call');
+      expect(header(const SpacePlace(space: 's', spaceName: 'Notes', voice: false, inCall: true)), isEmpty, reason: 'no call in a texting space');
+      if (CallRecorder.supported) {
+        expect(header(const SpacePlace(space: 's', spaceName: 'Lounge', circle: 'c', inCall: true)), ['Record this call']);
+      }
     });
   });
 }
