@@ -35,7 +35,8 @@ class Buddy {
   final String state;
   final int at;
 
-  String get shown => name.isEmpty ? '@$username' : name;
+  /// Their name, else their username, with no "@" in front (bareName).
+  String get shown => name.isEmpty ? bareName(username) : bareName(name);
 
   Buddy copyWith({String? name, String? bio, String? state}) => Buddy(username: username, id: id, key: key, name: name ?? this.name, bio: bio ?? this.bio, state: state ?? this.state, at: at);
 

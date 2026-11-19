@@ -1259,7 +1259,13 @@ void main() {
       expect(find.text('Friend request'), findsOneWidget);
       expect(find.text('Accept'), findsOneWidget);
       expect(find.text('Waiting for them'), findsOneWidget);
-      expect(find.text('Friends by username'), findsOneWidget);
+      // Jamie, a friend by username, is On Ghost Messaging with the friends by number: no section of their own (Matt,
+      // 2026-11-19: "just show the On Ghost Messaging and remove the Friends by username section on the contacts page").
+      expect(find.text('Friends by username'), findsNothing);
+      expect(find.text('On Ghost Messaging'), findsOneWidget);
+      expect(find.text('Jamie Lee'), findsOneWidget);
+      expect(find.text('@jamie'), findsOneWidget);
+      expect(tester.getTopLeft(find.text('Jamie Lee')).dy, lessThan(tester.getTopLeft(find.text('Contacts').last).dy));
       Buddies.instance = null;
       await tester.runAsync(() => Me.instance.start(MemoryMeStore(), ValueNotifier(0), () => null));
       expect(find.text('New group'), findsNothing);

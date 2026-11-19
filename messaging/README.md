@@ -750,6 +750,22 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   work for telegram and signal as well as standard messages"). The button counts the tab's unread chats from every
   network with its unread texts, so it is no longer grey when only chats are unread, and reads them all; a network's
   own tab and its menu read that network's chats (`_unreadTexts`, `_unreadChats` in lib/ui/conversations.dart).
+- **Mentions in spaces and circles** (0.9.20, not released; Matt, 2026-11-19: "Add mentions support to spaces and
+  circles with the @user prefix"). "@" at the start of a word in a space's chat opens a list over the composer of the
+  space's people (its members list, whoever wrote there, and in a circle everyone seen in it), narrowed as the name is
+  written and best first: a name that begins with it, then a later word or a username, people here now, then whoever
+  wrote last. A press, or Enter or Tab on a keyboard, puts in "@Name"; the arrows choose, Escape closes it. The
+  message carries who each "@Name" means beside its words (`mn`: `[start, length, id]`, counted in the words), so a
+  build from before reads the words as they are and two people of one name are told apart; a mention is believed
+  only where the words show it at an "@" (`Mention.checked`), so nobody is called by one hidden from the reader.
+  Typing into a mention makes it plain words; a backspace into one takes all of it (`MentionEdit`). A mention is drawn
+  in the accent and pressed for who it is, with Mention them back; a message that mentions you has the accent's bar
+  (a circle's channel) or rim (bubbles); an unread mark reads "@" where something unread mentions you; and on the
+  phone a mention is notified, opening its space (Settings › Notifications › Mentions in spaces; a space's other
+  messages still don't notify). Someone's phone and paired computer are one person: a mention of either reaches both,
+  known by their username (`HangoutRoom.mentionsMe`). lib/mentions.dart, lib/ui/mention_field.dart,
+  lib/voice/mention_alerts.dart. Not done: @everyone and roles; a notification while the app is closed (the relay
+  holds a space's messages for nobody in particular); a computer's or iPhone's own notification.
 - **Spaces in Messages; a group's space is its conversation** (0.8.10, not released; Matt, 2026-11-17: "each group
   should come with a space but I'd also like spaces to show up in the main chats list with a preview of the last
   message sent in the space"; he chose one chat per group, staying connected for previews, and side by side when wide).

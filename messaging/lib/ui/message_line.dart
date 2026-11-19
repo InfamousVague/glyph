@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../app_state.dart';
+import '../mentions.dart';
 import '../kit/semantic_colors.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart' show Sms;
@@ -114,6 +115,9 @@ class MessageLine extends StatefulWidget {
     this.highlighted = false,
     this.faded = false,
     this.onLongPress,
+    this.mentions = const [],
+    this.mentionStyle,
+    this.onMention,
   });
 
   /// Who said it ("You" for your own), cut past 16 letters ([lineName]).
@@ -155,6 +159,11 @@ class MessageLine extends StatefulWidget {
   /// Still going (a network's message being sent): drawn fainter.
   final bool faded;
   final ValueChanged<Rect>? onLongPress;
+
+  /// Who [body] mentions, drawn and pressed as LinkedText draws them.
+  final List<Mention> mentions;
+  final TextStyle? mentionStyle;
+  final ValueChanged<Mention>? onMention;
 
   @override
   State<MessageLine> createState() => _MessageLineState();
@@ -210,6 +219,9 @@ class _MessageLineState extends State<MessageLine> {
         style: w.italic ? text.copyWith(fontStyle: FontStyle.italic) : text,
         before: [TextSpan(text: '$name: ', style: nameStyle.copyWith(fontStyle: FontStyle.normal))],
         after: after,
+        mentions: w.mentions,
+        mentionStyle: w.mentionStyle,
+        onMention: w.onMention,
       );
     }
     final kinds = <String>[];

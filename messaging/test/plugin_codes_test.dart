@@ -165,6 +165,23 @@ void main() {
       expect(listed.prefs[Filing.key], '3:codes');
     });
 
+    testWidgets('with no code yet its tab is there all the same, and says what it is for', (tester) async {
+      // Matt, 2026-11-19: "always show the codes tab even if we don't have any codes yet".
+      ListPhone([
+        ListPhone.conversation(1, '+15551230001', 'Sounds good, see you at 7', name: 'Maya Chen', minutes: 4),
+        ListPhone.conversation(5, '+15551230007', 'Your package was delivered', minutes: 300),
+      ]).install();
+      final sheet = await loadSheet(tester);
+      await pumpScreen(tester, sheet, const ConversationsScreen(), AppState());
+      expect([for (final s in tester.widget<SectionTabs>(find.byType(SectionTabs)).sections) s.id], ['codes']);
+      expect(find.byType(ConversationRow), findsNWidgets(2));
+      await tester.tap(_chip('Codes').first);
+      await settle(tester);
+      expect(tester.widget<SectionTabs>(find.byType(SectionTabs)).chosen, 'codes', reason: 'it stays chosen with nothing in it');
+      expect(find.text('No codes yet'), findsOneWidget);
+      expect(find.byType(ConversationRow), findsNothing);
+    });
+
     testWidgets('switched off in the person\'s choices, the list has no Codes', (tester) async {
       ListPhone(phone()).install();
       final sheet = await loadSheet(tester);

@@ -319,7 +319,11 @@ class RowFace {
 /// when the chip is chosen, the newest first. The chip is there only while the section has conversations.
 @immutable
 class ListSection {
-  const ListSection({required this.id, required this.label, required this.icon, required this.takes, this.leavesMain = true, this.row, this.filter = false, this.hidden = false});
+  const ListSection({required this.id, required this.label, required this.icon, required this.takes, this.leavesMain = true, this.row, this.filter = false, this.hidden = false, this.always = false});
+
+  /// Its tab is in the list's toggle even with nothing in it (Matt, 2026-11-19: "always show the codes tab even if we
+  /// don't have any codes yet"); the others' tabs come with their first conversation.
+  final bool always;
 
   /// A kind the list's filter shows or hides (lib/plugins/kinds.dart), not a tab of its own: its conversations stay
   /// in Messages while it is shown and leave it while it is hidden, and the filter can show it alone. Matt,

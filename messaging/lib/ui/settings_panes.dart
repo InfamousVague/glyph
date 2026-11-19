@@ -339,7 +339,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.9.20';
+const appVersion = '0.9.21';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -702,6 +702,13 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
           label: 'Copy code button',
           hint: const Text('A text with a sign-in code gets a button that copies it.'),
           control: GlacierSwitch(checked: app.flag('notif_code'), onCheckedChange: (v) => app.setFlag('notif_code', v), ariaLabel: 'Copy code button'),
+        ),
+        // Matt, 2026-11-19: "Add mentions support to spaces and circles with the @user prefix".
+        SettingRow(
+          icon: _icon(Lucide.atSign),
+          label: 'Mentions in spaces',
+          hint: const Text('A notification when someone writes @ and your name in a space or a circle. A space\'s other messages don\'t notify.'),
+          control: GlacierSwitch(checked: app.flag('notif_mentions'), onCheckedChange: (v) => app.setFlag('notif_mentions', v), ariaLabel: 'Mentions in spaces'),
         ),
       ],
     ),

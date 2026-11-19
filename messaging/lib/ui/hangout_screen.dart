@@ -1,4 +1,5 @@
 import '../circles/circles.dart' show Circles, CirclePerm;
+import 'package:flutter/foundation.dart' show listEquals;
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -15,6 +16,7 @@ import '../kit/settings_type.dart';
 import '../kit/semantic_colors.dart';
 import '../voice/channels.dart';
 import '../voice/hangout.dart';
+import '../voice/mention_alerts.dart';
 import '../voice/roles.dart';
 import '../voice/voice.dart';
 import 'common.dart';
@@ -45,6 +47,9 @@ import 'voice.dart' show VoiceRecorder, voiceProblem;
 import '../files/file_platform.dart';
 import '../files/files_store.dart' show FilesStore;
 import '../stickers.dart' show stickerName;
+import '../mentions.dart';
+import 'mention_field.dart';
+import 'thread.dart' show LinkedText;
 
 /// A hangout: its chat, who is in it, and its call (Matt, 2026-11-15: "add a chat to hangouts so the whole group can
 /// send messages to the hangout as well as voice and video"; roles: "Implement a permissions system similar to
@@ -457,8 +462,16 @@ class HangoutChat extends StatefulWidget {
 }
 
 class _HangoutChatState extends State<HangoutChat> {
-  final _text = TextEditingController();
-  final _focus = FocusNode();
+  /// The words being written, and who the "@Name"s in them mean (lib/ui/mention_field.dart).
+  final _text = MentionController();
+  late final _focus = FocusNode(onKeyEvent: _mentionKeys);
+
+  /// The "@…" being written and the people it finds, while the list over the composer is open; which of them is
+  /// chosen for Enter; and the query Escape closed it on, which keeps it closed until the query changes.
+  MentionQuery? _query;
+  List<MentionPerson> _found = const [];
+  int _chosen = 0;
+  MentionQuery? _closedOn;
 
   /// Where this space's chat was left, and its list's controller, which starts there (lib/ui/jump_to_latest.dart; Matt,
   /// 2026-11-17: "remember the scroll position when switching between chats"). The page can stay as the room changes
@@ -486,8 +499,10 @@ class _HangoutChatState extends State<HangoutChat> {
   /// Dial-Up's "People Here" opened out under its strip, on a phone.
   bool _peopleOpen = false;
 
-  /// What is shown here is read: its unread mark in the list goes (Voice.markRead).
+  /// What is shown here is read: its unread mark in the list goes (Voice.markRead), and a mention in it is not
+  /// notified while it is on the screen.
   void _read() {
+    MentionAlerts.showing = widget.room.channel.seed;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) Voice.instance.markRead(widget.room.channel);
     });
@@ -548,11 +563,13 @@ class _HangoutChatState extends State<HangoutChat> {
     _text.addListener(() {
       final typing = _text.text.isNotEmpty;
       if (typing != _typing && mounted) setState(() => _typing = typing);
+      _findMentions();
     });
   }
 
   @override
   void dispose() {
+    if (MentionAlerts.showing == widget.room.channel.seed) MentionAlerts.showing = null;
     widget.room.removeListener(_roomChanged);
     _text.dispose();
     _focus.dispose();
@@ -575,13 +592,99 @@ class _HangoutChatState extends State<HangoutChat> {
         toast(context, 'Your role here can\'t send files.', tone: GlacierToastTone.danger);
         return;
       }
-      if (room.sendFiles(List.of(_picked), _uploads, text: _text.text) != null) {
+      if (room.sendFiles(List.of(_picked), _uploads, text: _text.text, mentions: _text.mentions) != null) {
         setState(_picked.clear);
         _text.clear();
       }
       return;
     }
-    if (room.send(_text.text)) _text.clear();
+    if (room.send(_text.text, mentions: _text.mentions)) _text.clear();
+  }
+
+  // --- mentions (Matt, 2026-11-19: "Add mentions support to spaces and circles with the @user prefix") ------------
+
+  /// Who can be mentioned here: everyone the space knows (its members list's people), whoever has written in it, and
+  /// in a circle its members; not you, not the banned.
+  List<MentionPerson> _mentionable() {
+    final room = widget.room;
+    final last = <String, int>{};
+    for (final m in room.messages) {
+      last[m.from] = m.at;
+    }
+    final ids = <String>{...spacePeopleByRole(room).values.expand((l) => l), ...last.keys, ...spaceCircleMembers(room)}
+      ..remove(room.me)
+      ..removeWhere((id) => id.isEmpty || room.roster.banned.contains(id));
+    // One person's phone and computer are two installs here: offered once, as the one here now (else the one that
+    // wrote last). Your own other install is not offered at all.
+    final people = <MentionPerson>[];
+    final byUser = <String, int>{};
+    for (final id in ids) {
+      final user = room.present[id]?.username ?? room.usernames[id];
+      if (user != null && user.isNotEmpty && user == room.username) continue;
+      final p = MentionPerson(id: id, name: spaceNameOf(room, id), username: user, here: room.present.containsKey(id), last: last[id] ?? 0, role: room.roster.roleOf(id));
+      final had = user == null || user.isEmpty ? null : byUser[user];
+      if (had == null) {
+        if (user != null && user.isNotEmpty) byUser[user] = people.length;
+        people.add(p);
+      } else if ((p.here && !people[had].here) || (p.here == people[had].here && p.last > people[had].last)) {
+        people[had] = p;
+      }
+    }
+    return people;
+  }
+
+  /// The list over the composer, as the words and the cursor are now.
+  void _findMentions() {
+    final q = _text.query;
+    final found = q == null || q == _closedOn ? const <MentionPerson>[] : matchMentions(q.text, _mentionable());
+    if (q != _closedOn) _closedOn = null;
+    if (q == _query && listEquals(found.map((p) => p.id).toList(), _found.map((p) => p.id).toList())) return;
+    if (!mounted) return;
+    setState(() {
+      _query = found.isEmpty ? null : q;
+      _found = found;
+      if (_chosen >= found.length || q?.start != _query?.start) _chosen = 0;
+    });
+  }
+
+  void _pickMention(MentionPerson p) {
+    final q = _query;
+    if (q == null) return;
+    _text.pick(q, p);
+    _focus.requestFocus();
+  }
+
+  KeyEventResult _mentionKeys(FocusNode node, KeyEvent e) {
+    if (_query == null) return KeyEventResult.ignored;
+    return mentionKey(
+          e,
+          count: _found.length,
+          chosen: _chosen,
+          choose: (i) => setState(() => _chosen = i),
+          pick: () => _pickMention(_found[_chosen]),
+          close: () {
+            _closedOn = _text.query;
+            setState(() {
+              _query = null;
+              _found = const [];
+            });
+          },
+        ) ??
+        KeyEventResult.ignored;
+  }
+
+  /// A mention pressed in a message: who it is, with a way to mention them back and the space's members.
+  void _mentionPressed(Mention m) {
+    final room = widget.room;
+    final name = m.id == room.me ? 'You' : spaceNameOf(room, m.id);
+    showChoices(context, title: name, choices: [
+      if (m.id != room.me && widget.room.mayWrite)
+        Choice('Mention $name', Lucide.atSign, () {
+          _text.mention(MentionPerson(id: m.id, name: spaceNameOf(room, m.id)));
+          _focus.requestFocus();
+        }),
+      Choice('Members', Lucide.users, () => showSpaceMembers(context, room)),
+    ]);
   }
 
   /// The + : any files, pictures, videos and GIFs among them, up to ten with one message, chosen with the device's own
@@ -768,6 +871,10 @@ class _HangoutChatState extends State<HangoutChat> {
                 nameColor: mine ? c.nameMine : c.nameFor(m.from),
                 mine: mine,
                 body: shown?.bubble ?? m.text,
+                // A translation's words are not the words the mentions are counted in.
+                mentions: shown == null ? m.mentions : const [],
+                mentionStyle: mentionStyle(context.tokens, on: c.ink),
+                onMention: _mentionPressed,
                 original: shown == null ? null : OriginalLine(view: shown),
                 // What went with it under the words, square, as the era's lines carry pictures (Matt, 2026-11-18).
                 media: [
@@ -869,7 +976,7 @@ class _HangoutChatState extends State<HangoutChat> {
                           _poofing.remove(m.id);
                           room.delete(m);
                         },
-                        child: _Message(key: ValueKey(m.id), room: room, message: m, first: first, last: last, mineBg: mineBg, mineInk: mineInk, flat: flat, onDelete: () => setState(() => _poofing.add(m.id))),
+                        child: _Message(key: ValueKey(m.id), room: room, message: m, first: first, last: last, mineBg: mineBg, mineInk: mineInk, flat: flat, onDelete: () => setState(() => _poofing.add(m.id)), onMention: _mentionPressed),
                       );
                       if (!newDay) return message;
                       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -912,7 +1019,12 @@ class _HangoutChatState extends State<HangoutChat> {
                           Sms.instance.emojiPanel().catchError((_) {});
                         },
                       );
+                      _text.style = mentionStyle(t);
                       return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                        // Who an "@…" being written finds, over the box (Matt, 2026-11-19: "Add mentions support to spaces
+                        // and circles with the @user prefix").
+                        if (_query != null && _found.isNotEmpty)
+                          MentionSuggestions(people: _found, chosen: _chosen, onPick: _pickMention, inkOf: (p) => p.role is Role ? roleInk(t, p.role as Role) : null),
                         if (_picked.isNotEmpty) SpacePickedStrip(files: _picked, onRemove: (p) => setState(() => _picked.remove(p))),
                         ComposerBox(
                           typing: _typing,
@@ -1105,7 +1217,7 @@ MessageFacts? spaceFacts(HangoutMessage m, {required bool mine}) =>
     mine || m.text.trim().isEmpty ? null : MessageFacts(thread: -1, senders: [m.from], text: m.text, contact: false, outgoing: false, date: DateTime.fromMillisecondsSinceEpoch(m.at), id: 'space:${m.id}', network: 'space');
 
 class _Message extends StatelessWidget {
-  const _Message({super.key, required this.room, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onDelete, this.flat = false});
+  const _Message({super.key, required this.room, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onDelete, this.flat = false, this.onMention});
   final HangoutRoom room;
   final HangoutMessage message;
 
@@ -1122,6 +1234,12 @@ class _Message extends StatelessWidget {
 
   /// Deletes it, with its puff.
   final VoidCallback? onDelete;
+
+  /// A mention in it pressed.
+  final ValueChanged<Mention>? onMention;
+
+  /// Someone else's message that mentions you: drawn so it stands out, as other chat apps draw one.
+  bool get mentionsMe => message.from != room.me && room.mentionsMe(message);
 
   @override
   Widget build(BuildContext context) => ShownWords(facts: spaceFacts(message, mine: message.from == room.me), builder: _build);
@@ -1156,8 +1274,8 @@ class _Message extends StatelessWidget {
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
         decoration: BoxDecoration(
-          color: mine ? mineBg : theirBubble(t, onBackground: false),
-          border: !mine ? theirRim(t) : bubbleNeedsRim(mineBg, t.color('glacier-bg')) ? Border.all(color: t.color('app-ink-4'), width: 1) : null,
+          color: mentionsMe ? Color.alphaBlend(t.color('app-accent').withValues(alpha: 0.12), theirBubble(t, onBackground: false)) : (mine ? mineBg : theirBubble(t, onBackground: false)),
+          border: mentionsMe ? Border.all(color: t.color('app-accent'), width: 1.5) : (!mine ? theirRim(t) : bubbleNeedsRim(mineBg, t.color('glacier-bg')) ? Border.all(color: t.color('app-ink-4'), width: 1) : null),
           borderRadius: BorderRadius.only(
             topLeft: !mine && !first ? tight : round,
             bottomLeft: !mine && !last ? tight : round,
@@ -1165,7 +1283,7 @@ class _Message extends StatelessWidget {
             bottomRight: mine && !last ? tight : round,
           ),
         ),
-        child: Text(shown?.bubble ?? m.text, style: pageText(t, t.fontSize('md'), color: mine ? mineInk : t.color('app-ink'), height: 1.3)),
+        child: _words(t, shown, pageText(t, t.fontSize('md'), color: mine ? mineInk : t.color('app-ink'), height: 1.3), mine ? mineInk : t.color('app-ink')),
       ),
     );
     // A sticker on the page with no bubble; files over the words, the words' bubble only where there are any (Matt,
@@ -1228,6 +1346,17 @@ class _Message extends StatelessWidget {
 }
 
 extension on _Message {
+  /// The words, with their links and mentions pressable; a translation's as they are (the mentions are counted in the
+  /// words as they came).
+  Widget _words(Tokens t, ShownView? shown, TextStyle style, Color ink) => LinkedText(
+        shown?.bubble ?? message.text,
+        ink: ink,
+        style: style,
+        mentions: shown == null ? message.mentions : const [],
+        mentionStyle: mentionStyle(t, on: message.from == room.me && !flat ? ink : null),
+        onMention: onMention,
+      );
+
   /// The message as a channel's line ([flat]): the face in a gutter by a run's first message, the name in its role's
   /// colour and the time beside it, and the words, files or sticker under them on the page.
   Widget _flat(BuildContext context, ShownView? shown, VoidCallback menu) {
@@ -1242,7 +1371,7 @@ extension on _Message {
     final width = MediaQuery.sizeOf(context).width - gutter - t.space(6);
     final maxWidth = math.min(width, t.lenOf('34rem'));
     final ink = t.color('app-ink');
-    final words = Text(shown?.bubble ?? m.text, style: pageText(t, t.fontSize('md'), color: ink, height: 1.4));
+    final words = _words(t, shown, pageText(t, t.fontSize('md'), color: ink, height: 1.4), ink);
     final Widget body;
     if (m.sticker != null) {
       body = SpaceSticker(name: m.sticker!, side: math.min(t.lenOf('8rem'), maxWidth));
@@ -1261,8 +1390,10 @@ extension on _Message {
       behavior: HitTestBehavior.opaque,
       onLongPress: menu,
       onSecondaryTap: menu,
-      child: Padding(
-        padding: EdgeInsets.only(top: first ? t.space(3) : 2, left: t.space(1), right: t.space(1)),
+      child: Container(
+        // A message that mentions you on a wash of the accent with a bar of it at its edge, as Slack and Discord mark one.
+        decoration: mentionsMe ? BoxDecoration(color: t.color('app-accent').withValues(alpha: 0.10), border: Border(left: BorderSide(color: t.color('app-accent'), width: 3))) : null,
+        padding: EdgeInsets.only(top: first ? t.space(3) : 2, left: t.space(1), right: t.space(1), bottom: mentionsMe ? 2 : 0),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           SizedBox(
             width: gutter,
@@ -1635,12 +1766,26 @@ class RolesScreen extends StatelessWidget {
   }
 }
 
+/// The name [id] goes by in [room]: what they said here, what they last wrote under, a friend's or a group's name.
+String spaceNameOf(HangoutRoom room, String id) => _nameOf(room, id);
+
+/// The members a circle's space has through its circle (they need not have been in the space); none outside a circle.
+Iterable<String> spaceCircleMembers(HangoutRoom room) {
+  final circle = Circles.instance.circleOf(room.channel);
+  if (circle == null) return const [];
+  return {...Circles.instance.seenIn(circle).keys, ...Circles.instance.presentIn(circle)};
+}
+
 String _nameOf(HangoutRoom room, String id) {
   final said = room.present[id]?.name;
   if (said != null && said.isNotEmpty) return said;
   for (final m in room.messages.reversed) {
     if (m.from == id && m.name.isNotEmpty) return m.name;
   }
+  // Someone seen elsewhere in the space's circle, by the name they gave there.
+  final circle = Circles.instance.circleOf(room.channel);
+  final seen = circle == null ? '' : (Circles.instance.seenIn(circle)[id] ?? '');
+  if (seen.isNotEmpty) return seen;
   final named = Voice.instance.nameOf(id);
   return named == 'Someone' ? 'Someone (${id.substring(0, 6)})' : named;
 }

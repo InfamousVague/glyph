@@ -438,6 +438,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       key: ValueKey('space-row-${v.room}'),
       conversation: c,
       unreadCount: unread,
+      mentioned: voice.mentionsIn(v) > 0,
       selected: selected,
       live: inCall,
       // Its kind's mark: headphones, a speech bubble for texting, a folder for files (lib/ui/circles/circle_face.dart).
@@ -1042,6 +1043,16 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           action: SettingsEmptyAction('New circle', () => _shell != null ? _shell!.show(const NewCircleScreen(key: ValueKey('new-circle')), showing: 'new') : push(context, (_) => const NewCircleScreen())),
         ),
       ]);
+    } else if (rows.isEmpty && _section == CodesPlugin.section && _query.isEmpty) {
+      // Its tab is there before any code is (Matt, 2026-11-19: "always show the codes tab even if we don't have any
+      // codes yet"), so it says what will be here.
+      body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
+        SettingsEmpty(
+          icon: AppIcon(Lucide.keyRound, size: 28, color: t.color('app-ink-3')),
+          title: 'No codes yet',
+          body: const Text('Sign-in codes sent to you wait here, the newest first. A tap copies one.'),
+        ),
+      ]);
     } else if (rows.isEmpty) {
       final rcs = _query.isEmpty && !widget.archived && _arriving.rcsLikely;
       body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
@@ -1408,7 +1419,7 @@ class _RcsNotice extends StatelessWidget {
 /// One conversation in the list: its face, its name, its last words and when. The Mac's list (lib/desktop) draws its
 /// rows with it too.
 class ConversationRow extends StatelessWidget {
-  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false, this.summary, this.badge, this.unreadCount, this.live, this.face, this.timed = true});
+  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false, this.summary, this.badge, this.unreadCount, this.live, this.face, this.timed = true, this.mentioned = false});
   final Conversation conversation;
 
   /// Its face at a size, in place of the people's: a circle's own (the Circles tab draws its circles as conversations,
@@ -1424,6 +1435,9 @@ class ConversationRow extends StatelessWidget {
   /// How many are unread, where that is known (a chat on Telegram or Signal): Dial-Up's row says it after the name,
   /// "Maya (3)". A conversation of texts knows only that some are, and says "(new)".
   final int? unreadCount;
+
+  /// Something unread in it mentions the person (a space's, a circle's): an "@" on its mark.
+  final bool mentioned;
 
   /// A mark on the face's corner: the network a chat from Telegram or Bluesky is on (lib/ui/inbox_ui.dart).
   final Widget? badge;
@@ -1567,7 +1581,7 @@ class ConversationRow extends StatelessWidget {
                         if (unread) ...[
                           SizedBox(width: t.space(2)),
                           // The count where it is known (a network's chat), else a dot, both large enough to see.
-                          UnreadBadge(count: unreadCount, color: t.unread),
+                          UnreadBadge(count: unreadCount, mentioned: mentioned, color: t.unread),
                         ],
                       ]),
                     ],
@@ -1598,7 +1612,7 @@ class ConversationRow extends StatelessWidget {
         builder: (context, state) {
           final ink = selected ? d.onHighlight : d.ink;
           final soft = selected ? d.onHighlight : d.inkSoft;
-          final count = unread ? (unreadCount != null && unreadCount! > 0 ? ' ($unreadCount)' : ' (new)') : '';
+          final count = unread ? (unreadCount != null && unreadCount! > 0 ? ' (${mentioned ? '@' : ''}$unreadCount)' : (mentioned ? ' (@)' : ' (new)')) : '';
           final words = c.draft != null && c.draft!.trim().isNotEmpty
               ? TextSpan(children: [
                   TextSpan(text: 'Draft: ', style: TextStyle(color: selected ? d.onHighlight : t.danger)),

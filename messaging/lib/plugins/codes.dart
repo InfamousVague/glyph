@@ -94,6 +94,8 @@ class CodesPlugin extends GhostPlugin {
           id: section,
           label: 'Codes',
           icon: Lucide.keyRound,
+          // There from the start, before any code has come.
+          always: true,
           // One number, not a contact: a friend's "the door code is 4417" is a conversation, not a code.
           takes: (facts, tags, prefs) => tags.has(tag) && !facts.contact && !facts.group,
           row: (facts, tags, prefs) {

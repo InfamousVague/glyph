@@ -63,7 +63,8 @@ class Sorted {
   /// How many conversations no section has: personal texts and everything else the filter's kinds leave alone.
   final int others;
 
-  bool has(String? section) => section != null && counts.containsKey(section);
+  /// Whether [section] is one to show: it has a conversation, or its tab is there always.
+  bool has(String? section) => section != null && (counts.containsKey(section) || sections.any((s) => s.id == section && s.section.always));
 }
 
 class ListPlugins {
@@ -190,7 +191,7 @@ class ListPlugins {
       }
     }
     _chatAt = chatAt;
-    return _sorted = Sorted(at, [for (final s in sections) if (counts.containsKey(s.id)) s], counts, unread, others: others, unreadCounts: unreadCounts);
+    return _sorted = Sorted(at, [for (final s in sections) if (counts.containsKey(s.id) || s.section.always) s], counts, unread, others: others, unreadCounts: unreadCounts);
   }
 
   /// The section a chat on another network was sorted into ([sort]); null for none.
@@ -294,7 +295,7 @@ class ListPlugins {
 
   // --- what the screen draws ----------------------------------------------------------------------------------------
 
-  /// The tabs under the search field, or null while no section has a conversation in it. [onMenu] is asked for a
+  /// The tabs under the search field, or null while no section has a conversation in it and none is there always. [onMenu] is asked for a
   /// tab's menu (a press with the other button, or a long one).
   Widget? tabs(String? chosen, ValueChanged<String?> onPick, {ValueChanged<String?>? onMenu, List<({String id, LucideIcon icon, String label, int count})> extra = const []}) {
     // The kinds are the filter's, not tabs.
