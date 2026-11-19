@@ -241,11 +241,7 @@ class CircleSpaceTile extends StatelessWidget {
           ),
           if (space.unread > 0) ...[
             SizedBox(width: t.space(2)),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: 1),
-              decoration: BoxDecoration(color: highlit ? d.onHighlight : t.color('app-accent'), borderRadius: BorderRadius.circular(bevel ? 0 : 99)),
-              child: Text('${space.unread}', style: pageText(t, t.fontSize('xs'), weight: 'bold', color: highlit ? d.highlight : t.color('app-on-accent'))),
-            ),
+            UnreadBadge(count: space.unread, color: highlit ? d.onHighlight : t.color('app-accent'), ink: highlit ? d.highlight : t.color('app-on-accent'), square: bevel),
           ] else if (space.live) ...[
             SizedBox(width: t.space(2)),
             AppIcon(spaceKindIcon(SpaceKind.voice), size: 14, color: highlit ? d.onHighlight : t.online, wash: false),

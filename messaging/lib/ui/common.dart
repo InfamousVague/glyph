@@ -413,6 +413,38 @@ class NewMessagesDivider extends StatelessWidget {
   }
 }
 
+/// How many are unread, in a pill large enough to read at a glance (Matt, 2026-11-18: "The notification badges are too
+/// small"): at least 1.375rem round, the count in 13-point bold, 99+ past ninety-nine; where no count is known, a dot
+/// half as large. In [color], its words in whichever of black and white reads on it, or [ink].
+class UnreadBadge extends StatelessWidget {
+  const UnreadBadge({super.key, this.count, required this.color, this.ink, this.square = false});
+  final int? count;
+  final Color color;
+  final Color? ink;
+
+  /// Square corners, for Dial-Up's rows.
+  final bool square;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final n = count;
+    if (n == null || n <= 0) {
+      final dot = t.lenOf('0.75rem');
+      return Container(width: dot, height: dot, decoration: BoxDecoration(color: color, shape: square ? BoxShape.rectangle : BoxShape.circle));
+    }
+    final side = t.lenOf('1.375rem');
+    final words = ink ?? (color.computeLuminance() > 0.5 ? const Color(0xFF000000) : const Color(0xFFFFFFFF));
+    return Container(
+      constraints: BoxConstraints(minWidth: side, minHeight: side),
+      padding: EdgeInsets.symmetric(horizontal: t.space(2) - 1),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: color, borderRadius: square ? null : BorderRadius.circular(side / 2)),
+      child: Text(n > 99 ? '99+' : '$n', style: t.textAt(13, weight: 'bold', height: 1.15, color: words)),
+    );
+  }
+}
+
 /// A ghost's hem as a line: a wave rising and falling as deep as it is drawn tall, from the left edge on, drawn in
 /// [color]; what stands over its right end (the New tag) hides where it stops.
 class GhostHem extends CustomPainter {

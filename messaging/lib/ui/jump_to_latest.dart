@@ -450,15 +450,15 @@ class _Arrow extends StatelessWidget {
           child: Container(
             // As the navigation pill's counts are (lib/ui/nav_bar.dart): red, with a line of the page round it; square
             // under Dial-Up, as its taskbar's are.
-            constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
-            padding: const EdgeInsets.symmetric(horizontal: 5),
+            constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+            padding: const EdgeInsets.symmetric(horizontal: 6),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: t.danger,
-              borderRadius: dialup ? null : BorderRadius.circular(lookCorner(t, '10px', most: 1)),
+              borderRadius: dialup ? null : BorderRadius.circular(lookCorner(t, '11px', most: 1)),
               border: Border.all(color: c?.chrome ?? t.color('glacier-bg'), width: dialup ? 1 : 2),
             ),
-            child: Text(unread > 99 ? '99+' : '$unread', style: t.textAt(11, weight: 'bold', height: 1.15, color: _onDanger(t))),
+            child: Text(unread > 99 ? '99+' : '$unread', style: t.textAt(12, weight: 'bold', height: 1.15, color: _onDanger(t))),
           ),
         ),
       ),

@@ -1566,7 +1566,8 @@ class ConversationRow extends StatelessWidget {
                         ),
                         if (unread) ...[
                           SizedBox(width: t.space(2)),
-                          Container(width: 9, height: 9, decoration: BoxDecoration(shape: BoxShape.circle, color: t.unread)),
+                          // The count where it is known (a network's chat), else a dot, both large enough to see.
+                          UnreadBadge(count: unreadCount, color: t.unread),
                         ],
                       ]),
                     ],

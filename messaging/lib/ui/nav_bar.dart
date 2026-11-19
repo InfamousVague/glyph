@@ -321,11 +321,12 @@ class _RingState extends State<_Ring> {
                     // that is shown (itself ink) read as a hole in it. A line of the page's ground round it keeps
                     // it off the ring in either case.
                     // A size larger again (Matt, 2026-11-15: "make the notification count badges a bit bigger").
-                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    // And larger once more (Matt, 2026-11-18: "The notification badges are too small").
+                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                    padding: const EdgeInsets.symmetric(horizontal: 7),
                     alignment: Alignment.center,
-                    decoration: BoxDecoration(color: t.danger, borderRadius: BorderRadius.circular(12), border: Border.all(color: t.color('glacier-bg'), width: 2)),
-                    child: Text(item.count > 99 ? '99+' : '${item.count}', style: t.textAt(13, weight: 'bold', height: 1.15, color: const Color(0xFFFFFFFF))),
+                    decoration: BoxDecoration(color: t.danger, borderRadius: BorderRadius.circular(13), border: Border.all(color: t.color('glacier-bg'), width: 2)),
+                    child: Text(item.count > 99 ? '99+' : '${item.count}', style: t.textAt(14, weight: 'bold', height: 1.15, color: const Color(0xFFFFFFFF))),
                   ),
                 ),
               ),
