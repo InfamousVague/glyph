@@ -117,6 +117,27 @@ class Buddies extends ChangeNotifier {
   bool _started = false;
 
   List<Buddy> get friends => [for (final b in all) if (b.state == 'yes') b];
+
+  /// [friends] as a list shows them: one each, by username (Matt, 2026-11-19: "my friends are duplicated I have two
+  /// copies of all my friends on the app"). The same person can be here twice, under two ids (an install of theirs
+  /// that came again with a new key, or a list put together from a phone's and a computer's); the newest stands for
+  /// them. [friends] keeps every id, for what is sent to each.
+  List<Buddy> get shownFriends => onePerUsername(friends);
+
+  /// [list] with one [Buddy] for each username (letters' case aside), the latest ([Buddy.at]) of each, in [list]'s order.
+  static List<Buddy> onePerUsername(List<Buddy> list) {
+    final best = <String, Buddy>{};
+    for (final b in list) {
+      final k = b.username.toLowerCase();
+      final had = best[k];
+      if (had == null || b.at > had.at) best[k] = b;
+    }
+    final seen = <String>{};
+    return [
+      for (final b in list)
+        if (identical(best[b.username.toLowerCase()], b) && seen.add(b.username.toLowerCase())) b,
+    ];
+  }
   List<Buddy> get requests => [for (final b in all) if (b.state == 'invited') b];
   List<Buddy> get asked => [for (final b in all) if (b.state == 'asked') b];
 

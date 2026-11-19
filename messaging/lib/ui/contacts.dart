@@ -194,8 +194,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
     // one heading, not a section of their own (Matt, 2026-11-19: "friends by username and friends on ghost messaging
     // are about equal, just show the On Ghost Messaging and remove the Friends by username section on the contacts
     // page"). A press opens their chat, as one from Messages does.
-    for (final b in Buddies.instance.friends) {
+    // Each once (Buddies.shownFriends), and not again where the list has them already by their @username.
+    final listed = {for (final s in people) if (s.number != null && s.number!.startsWith('@')) s.number!.toLowerCase()};
+    for (final b in Buddies.instance.shownFriends) {
       if (q.isNotEmpty && !b.shown.toLowerCase().contains(q) && !b.username.toLowerCase().contains(q.replaceFirst('@', ''))) continue;
+      if (!listed.add('@${b.username}'.toLowerCase())) continue;
       people.add(Someone(name: b.shown, number: '@${b.username}', friend: true, reaches: [Reach.phone('@${b.username}')]));
     }
     people = friendsFirst(narrowed(people, _filter));

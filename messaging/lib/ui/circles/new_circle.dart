@@ -385,7 +385,7 @@ class _NewCircleScreenState extends State<NewCircleScreen> {
         child: ListenableBuilder(
           listenable: _buddies,
           builder: (context, _) {
-            final friends = _buddies.friends;
+            final friends = _buddies.shownFriends;
             return _form([
                 // The circle as it will look: its face, name and first spaces.
                 Center(child: CircleFace(key: const ValueKey('new-circle-face'), hue: _hue, icon: _icon, picture: _picture, size: 76, selected: _picture == null)),

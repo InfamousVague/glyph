@@ -1252,6 +1252,9 @@ void main() {
         const Buddy(username: 'riley', id: 'r1', key: 'k', name: 'Riley Fox', bio: 'Climbing on Saturdays', state: 'invited'),
         const Buddy(username: 'noor', id: 'n1', key: 'k', state: 'asked'),
         const Buddy(username: 'jamie', id: 'j1', key: 'k', name: 'Jamie Lee', state: 'yes'),
+        // Jamie again under another id (a reinstall of theirs, or a phone's and a computer's lists put together): shown
+        // once (Matt, 2026-11-19: "my friends are duplicated I have two copies of all my friends on the app").
+        const Buddy(username: 'jamie', id: 'j2', key: 'k2', name: 'Jamie Lee', state: 'yes', at: 2),
       ]));
       Buddies.instance = buddies;
       await tester.runAsync(buddies.start);
