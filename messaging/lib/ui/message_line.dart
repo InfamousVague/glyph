@@ -118,6 +118,7 @@ class MessageLine extends StatefulWidget {
     this.mentions = const [],
     this.mentionStyle,
     this.onMention,
+    this.onNameTap,
   });
 
   /// Who said it ("You" for your own), cut past 16 letters ([lineName]).
@@ -165,16 +166,21 @@ class MessageLine extends StatefulWidget {
   final TextStyle? mentionStyle;
   final ValueChanged<Mention>? onMention;
 
+  /// The name pressed: whose profile card (lib/ui/profile_card.dart).
+  final VoidCallback? onNameTap;
+
   @override
   State<MessageLine> createState() => _MessageLineState();
 }
 
 class _MessageLineState extends State<MessageLine> {
   final _editedTap = TapGestureRecognizer();
+  final _nameTap = TapGestureRecognizer();
 
   @override
   void dispose() {
     _editedTap.dispose();
+    _nameTap.dispose();
     super.dispose();
   }
 
@@ -195,6 +201,7 @@ class _MessageLineState extends State<MessageLine> {
     final nameStyle = pageText(t, px, weight: 'bold', color: w.nameColor, height: 1.35);
     final small = pageText(t, lineSize(context, 12), color: c.inkSoft, height: 1.35);
     _editedTap.onTap = w.onEditedTap;
+    _nameTap.onTap = w.onNameTap;
     final after = <InlineSpan>[
       if (w.edited != null) TextSpan(text: ' (${w.edited!.toLowerCase()})', style: small, recognizer: w.onEditedTap == null ? null : _editedTap),
       // Held together, so a time never breaks between "5:43" and "PM".
@@ -217,7 +224,10 @@ class _MessageLineState extends State<MessageLine> {
         w.body,
         ink: c.ink,
         style: w.italic ? text.copyWith(fontStyle: FontStyle.italic) : text,
-        before: [TextSpan(text: '$name: ', style: nameStyle.copyWith(fontStyle: FontStyle.normal))],
+        before: [
+          TextSpan(text: name, style: nameStyle.copyWith(fontStyle: FontStyle.normal), recognizer: w.onNameTap == null ? null : _nameTap, mouseCursor: w.onNameTap == null ? null : SystemMouseCursors.click),
+          TextSpan(text: ': ', style: nameStyle.copyWith(fontStyle: FontStyle.normal)),
+        ],
         after: after,
         mentions: w.mentions,
         mentionStyle: w.mentionStyle,

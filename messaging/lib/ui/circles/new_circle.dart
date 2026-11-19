@@ -667,9 +667,12 @@ List<CirclePerson> circlePeople(Circle c) {
 
 /// What the owner can do with someone in their circle, from its settings or its members drawer: make them an admin,
 /// or take it back.
-void circlePersonMenu(BuildContext context, Circle c, CirclePerson p) {
+void circlePersonMenu(BuildContext context, Circle c, CirclePerson p) => showChoices(context, title: '${p.name} · ${p.role}', choices: circlePersonChoices(context, c, p));
+
+/// What the circle's owner can do about [p]: make them an admin, or no longer one.
+List<Choice> circlePersonChoices(BuildContext context, Circle c, CirclePerson p) {
   final circles = Circles.instance;
-  showChoices(context, title: '${p.name} · ${p.role}', choices: [
+  return [
     p.admin
         ? Choice('Remove as admin', Lucide.userMinus, () async {
             final ok = await circles.grantAdmin(c, p.id, on: false);
@@ -679,7 +682,7 @@ void circlePersonMenu(BuildContext context, Circle c, CirclePerson p) {
             final ok = await circles.grantAdmin(c, p.id);
             if (context.mounted) toast(context, ok ? '${p.name} is an admin' : 'Couldn\'t change ${p.name}\'s role', tone: ok ? GlacierToastTone.neutral : GlacierToastTone.danger);
           }, hint: 'Can change the circle and its spaces'),
-  ]);
+  ];
 }
 
 /// A person's role in a circle in words, where a row asks which: a green dot before it while they are on, and the

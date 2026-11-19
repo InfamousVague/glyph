@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'composer_box.dart' show ComposerBox, ComposerField;
 import 'dart:convert';
 import 'dart:io';
 
@@ -185,6 +186,7 @@ class _ProfileCardState extends State<_ProfileCard> {
   String? _picture;
   bool _looking = true;
   final _dm = TextEditingController();
+  final _dmFocus = FocusNode();
   bool _sending = false;
 
   @override
@@ -196,6 +198,7 @@ class _ProfileCardState extends State<_ProfileCard> {
   @override
   void dispose() {
     _dm.dispose();
+    _dmFocus.dispose();
     super.dispose();
   }
 
@@ -267,20 +270,29 @@ class _ProfileCardState extends State<_ProfileCard> {
         ],
         if (g != null && g.friend && !g.me) ...[
           SizedBox(height: t.space(3)),
-          Row(children: [
-            Expanded(
-              child: GlacierInput(
-                key: const ValueKey('profile-dm'),
-                controller: _dm,
-                placeholder: 'Message ${g.name.isNotEmpty ? g.name : '@${g.username}'}',
-                ariaLabel: 'Message ${g.name.isNotEmpty ? g.name : '@${g.username}'}',
-                size: GlacierFieldSize.md,
-                onSubmitted: (_) => unawaited(_send()),
-              ),
+          // The box every conversation writes in, Send inside it at its end (Matt, 2026-11-19: "move the send message
+          // button inside the input like we have on the rest of the app as well within that drawer").
+          ListenableBuilder(
+            listenable: _dm,
+            builder: (context, _) => ComposerBox(
+              key: const ValueKey('profile-dm'),
+              typing: false,
+              // The card is the composer's grey already: the box in the page's own colour stands out on it.
+              ground: t.color('app-paper'),
+              ends: [
+                IconTap(
+                  key: const ValueKey('profile-dm-send'),
+                  icon: Lucide.arrowUp,
+                  label: 'Send',
+                  filled: true,
+                  size: 19,
+                  box: t.lenOf('2.25rem'),
+                  onPressed: _sending || _dm.text.trim().isEmpty ? null : () => unawaited(_send()),
+                ),
+              ],
+              field: ComposerField(controller: _dm, focusNode: _dmFocus, hint: 'Message ${g.name.isNotEmpty ? g.name : g.username}', onSubmitted: () => unawaited(_send()), enterSends: true),
             ),
-            SizedBox(width: t.space(2)),
-            IconTap(icon: Lucide.send, label: 'Send', filled: true, onPressed: _sending ? null : () => unawaited(_send())),
-          ]),
+          ),
         ],
       ]),
     );

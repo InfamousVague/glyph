@@ -8,6 +8,7 @@
 /// window). Add people at its top closes it and opens that drawer in its place.
 library;
 
+import '../profile_card.dart' show showProfile, ProfileSubject;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -208,7 +209,9 @@ class CircleMembersList extends StatelessWidget {
                         // Their role's colour instead of a tag (Matt, 2026-11-17; the owner's crown went 2026-11-18).
                         labelColor: circleRoleInk(t, p),
                         hint: Text(p.here ? 'On now' : 'Away'),
-                        onPress: owner && !p.owner ? () => circlePersonMenu(context, c, p) : null,
+                        // Their profile card (Matt, 2026-11-19: "Clicking on a users profile picture or name should open
+                        // the profile drawer as well"), with what the owner can change about them.
+                        onPress: () => showProfile(context, ProfileSubject.ghost(id: p.id, name: p.name), more: [if (owner && !p.owner) ...circlePersonChoices(context, c, p)]),
                       ),
                   ],
                 ),
