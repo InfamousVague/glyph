@@ -141,14 +141,14 @@ class _NewSpaceRow extends StatelessWidget {
         child: Row(children: [
           // As large as a space's mark beside it (CircleSpaceTile).
           Container(
-            width: bevel ? 28 : t.lenOf('2.5rem'),
-            height: bevel ? 28 : t.lenOf('2.5rem'),
+            width: bevel ? 28 : t.lenOf('2.1rem'),
+            height: bevel ? 28 : t.lenOf('2.1rem'),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               border: Border.all(color: bevel ? DialupColors.of(t).shadow : t.color('app-rule'), width: 1),
-              borderRadius: BorderRadius.circular(bevel ? 0 : t.lenOf('2.5rem') * 0.32),
+              borderRadius: BorderRadius.circular(bevel ? 0 : t.lenOf('2.1rem') * 0.32),
             ),
-            child: AppIcon(Lucide.plus, size: bevel ? 16 : t.lenOf('2.5rem') * 0.5, color: t.color('app-ink-3')),
+            child: AppIcon(Lucide.plus, size: bevel ? 16 : t.lenOf('2.1rem') * 0.5, color: t.color('app-ink-3')),
           ),
           SizedBox(width: t.space(3) + 2),
           Text('New space', style: pageText(t, t.fontSize('lg'), color: t.color('app-ink-3'))),
@@ -206,8 +206,10 @@ class CircleSpaceTile extends StatelessWidget {
     final bold = space.unread > 0 || selected;
     final ink = highlit ? d.onHighlight : t.color(bold ? 'app-ink' : 'app-ink-2');
     final sub = circleSpaceLine(space);
-    // The kind's mark, as large as a conversation's face less a little: 2.5rem, Dial-Up's as small as its rows.
-    final mark = bevel ? 28.0 : t.lenOf('2.5rem');
+    // The kind's mark as large as the one by a space's name in its header (hangout_screen.dart), 2.1rem (Matt,
+    // 2026-11-19: "make the circles spaces in the sidebar a tad bit smaller to match the icon size of the header icon
+    // for a space"); Dial-Up's as small as its rows.
+    final mark = bevel ? 28.0 : t.lenOf('2.1rem');
     return GlacierPressable(
       key: ValueKey('circle-space-${space.seed}'),
       onPressed: onPress,
