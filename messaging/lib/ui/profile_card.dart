@@ -24,6 +24,7 @@ import 'inbox_ui.dart' show openInboxChat, inboxMark;
 import 'profile.dart';
 import 'shell.dart';
 import 'thread.dart';
+import 'verified_badge.dart';
 
 /// Who a profile card is about (Matt, 2026-11-19: "when clicking on a @mention anywhere including signal and telegram
 /// chats show this profile popup with actions available for the user in context of where it's placed"): someone on
@@ -282,7 +283,11 @@ class _ProfileCardState extends State<_ProfileCard> {
           SizedBox(width: t.space(3)),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Text(name.isEmpty ? 'Someone' : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
+              Row(children: [
+                Flexible(child: Text(name.isEmpty ? 'Someone' : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink')))),
+                // On Ghost: the verified-number badge, where they verified a number (Matt, 2026-11-19).
+                if (g != null && g.id.isNotEmpty) VerifiedBadge(id: g.id, username: g.username, me: g.me, size: 18),
+              ]),
               Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
               if (status.isNotEmpty) ...[
                 SizedBox(height: t.space(1)),

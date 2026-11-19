@@ -180,10 +180,22 @@ extension on NavPill {
   }
 }
 
+/// One ring as the pill draws it, on its own: for the rail at the window's left (lib/ui/nav_rail.dart), whose rings
+/// are the pill's, with their counts, their menus and their words, these to their right.
+class NavRing extends StatelessWidget {
+  const NavRing({super.key, required this.item, required this.shown, required this.onPressed});
+  final NavItem item;
+  final bool shown;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => _Ring(item: item, shown: shown, onPressed: onPressed, beside: true);
+}
+
 /// One ring of the pill (the dock's `DockRing`): quiet, or filled with ink when it is the one shown. One with a
 /// menu of its own ([NavItem.menu]) hangs it over itself.
 class _Ring extends StatefulWidget {
-  const _Ring({super.key, required this.item, required this.shown, required this.onPressed, this.upright = false, this.tinted = false});
+  const _Ring({super.key, required this.item, required this.shown, required this.onPressed, this.upright = false, this.tinted = false, this.beside = false});
   final NavItem item;
   final bool shown;
 
@@ -192,6 +204,9 @@ class _Ring extends StatefulWidget {
 
   /// In a pill stood up at the window's right: its words keep their right edge on the ring's, inside the window.
   final bool upright;
+
+  /// In the rail at the window's left (lib/ui/nav_rail.dart): its words and its menu to its right, towards the list.
+  final bool beside;
   final VoidCallback onPressed;
 
   @override
@@ -233,8 +248,8 @@ class _RingState extends State<_Ring> {
       },
       // Over the ring where the pill is laid along; beside it, towards the pane, where the pill is stood up and
       // over the ring is another ring. From the pill's edge either way, not the ring's.
-      anchor: _RingAnchor(_ringKey, t.space(2) + t.len('glacier-hairline'), sideways: widget.upright),
-      placement: widget.upright ? Placement.leftEnd : Placement.topEnd,
+      anchor: _RingAnchor(_ringKey, t.space(2) + t.len('glacier-hairline'), sideways: widget.upright || widget.beside),
+      placement: widget.beside ? Placement.rightEnd : (widget.upright ? Placement.leftEnd : Placement.topEnd),
       ariaLabel: widget.item.label,
       style: GlacierMenuStyle(
         minWidth: t.lenOf('12.5rem'),
@@ -263,6 +278,7 @@ class _RingState extends State<_Ring> {
     return HoverTip(
       message: item.label,
       end: widget.upright,
+      beside: widget.beside,
       child: GestureDetector(
        behavior: HitTestBehavior.translucent,
        onSecondaryTapUp: onMenu == null ? null : (_) => onMenu(),
@@ -424,11 +440,14 @@ class _RingAnchor extends GlacierAnchor {
 /// Any button that is a picture alone can wear one ([below]: under it, for one near the top of its column; [end]:
 /// its right edge on the button's, for one at its column's right).
 class HoverTip extends StatefulWidget {
-  const HoverTip({super.key, required this.message, required this.child, this.below = false, this.end = false});
+  const HoverTip({super.key, required this.message, required this.child, this.below = false, this.end = false, this.beside = false});
   final String message;
   final Widget child;
   final bool below;
   final bool end;
+
+  /// To its right, level with it: for a button in a column at the window's left (the rail).
+  final bool beside;
 
   @override
   State<HoverTip> createState() => _HoverTipState();
@@ -473,9 +492,9 @@ class _HoverTipState extends State<HoverTip> {
             child: CompositedTransformFollower(
               link: _link,
               showWhenUnlinked: false,
-              targetAnchor: widget.below ? (widget.end ? Alignment.bottomRight : Alignment.bottomCenter) : (widget.end ? Alignment.topRight : Alignment.topCenter),
-              followerAnchor: widget.below ? (widget.end ? Alignment.topRight : Alignment.topCenter) : (widget.end ? Alignment.bottomRight : Alignment.bottomCenter),
-              offset: Offset(0, widget.below ? t.space(2) : -t.space(3)),
+              targetAnchor: widget.beside ? Alignment.centerRight : widget.below ? (widget.end ? Alignment.bottomRight : Alignment.bottomCenter) : (widget.end ? Alignment.topRight : Alignment.topCenter),
+              followerAnchor: widget.beside ? Alignment.centerLeft : widget.below ? (widget.end ? Alignment.topRight : Alignment.topCenter) : (widget.end ? Alignment.bottomRight : Alignment.bottomCenter),
+              offset: widget.beside ? Offset(t.space(3), 0) : Offset(0, widget.below ? t.space(2) : -t.space(3)),
               child: IgnorePointer(
                 child: ExcludeSemantics(
                   // Dial-Up's tip is the era's pale yellow in a thin black line (in After Hours black in a white one).

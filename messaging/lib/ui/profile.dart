@@ -139,7 +139,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     disabled: _busy || !me.ready,
                     onPress: _claim,
                   ),
-                  if (!me.ready) SettingRow(label: 'The relay server isn\'t connected (Settings › Network).', disabled: true),
+                  if (!me.ready) SettingRow(label: 'The relay server isn\'t connected (Settings › Routes).', disabled: true),
                 ],
               ),
               SizedBox(height: t.space(6)),

@@ -103,6 +103,11 @@ class Handles {
   final Map<String, List<DateTime>> _lookups = {};
   static const lookupsAnHour = 120;
 
+  /// Badge questions ('badges') by each id in the last hour, and how many ids and usernames one may ask of.
+  final Map<String, List<DateTime>> _badgeAsks = {};
+  static const badgesAnHour = 240;
+  static const badgesAtOnce = 64;
+
   /// What a sign-in that finished while its install was away has to tell it: install -> [{p, handle, k}].
   final Map<String, List<Map<String, String>>> _done = {};
   String _secret = '';
@@ -412,6 +417,22 @@ class Handles {
           final found = _names[nameKey(name)];
           if (found == null) return tell({'dir': 'whois', 'name': tidyName(name), 'none': true});
           tell({'dir': 'whois', 'name': tidyName(name), 'id': found['id'], 'key': found['key']});
+        case 'badges':
+          // Which of these verified a phone number by a texted code: the verified-number badge beside people in spaces
+          // and circles (Matt, 2026-11-19: "add the verfied by number badge as a default feature"). Only yes or no, never
+          // the number; by id, and by username for the id that holds it. Up to [badgesAtOnce] of each, so many an hour.
+          final now = _now();
+          final asked = _badgeAsks[id] ??= [];
+          asked.removeWhere((t) => now.difference(t) > const Duration(hours: 1));
+          if (asked.length >= badgesAnHour) return err('Too many lookups. Try again in a while.');
+          asked.add(now);
+          final ids = [for (final x in (said['ids'] is List ? said['ids'] as List : const []).take(badgesAtOnce)) if (x is String && x.length <= 128) x];
+          final names = [for (final x in (said['names'] is List ? said['names'] as List : const []).take(badgesAtOnce)) if (x is String && goodName(x)) tidyName(x)];
+          tell({
+            'dir': 'badges',
+            'ids': [for (final x in ids) if (phoneKeyOf(x) != null) x],
+            'names': [for (final n in names) if (_names[nameKey(n)] case final found? when found['id'] is String && phoneKeyOf(found['id'] as String) != null) n],
+          });
         case 'link':
           if (!known || !_signIn.contains(network)) return err('That network is not linked by signing in.');
           if (ways[network] != 'signin') return err('Signing in with that network is not set up on this server yet.');

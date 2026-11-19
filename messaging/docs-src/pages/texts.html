@@ -1,0 +1,58 @@
+<p>Your texts (SMS and picture messages) work as in any texting app, with more: reactions, edits, effects, stickers and voice messages.</p>
+
+<h2 id="list">The conversations list</h2>
+<ul>
+  <li><b>Swipe</b> a conversation left to archive it; keep swiping to delete. Swipe right to pin it to the top.</li>
+  <li><b>Long-press</b> one for pin, mute, block, delete and more, or to choose several.</li>
+  <li><b>Search</b> at the top finds names, numbers and words.</li>
+  <li><b>Mark all read</b> (the round button by the title) covers spaces, Telegram and Signal too.</li>
+</ul>
+<m-screen title="Messages" actions="check-check,plus">
+  <m-convo name="Maya Chen" preview="See you at 7!" time="4:12" unread="2" tap/>
+  <m-convo name="Dad" preview="📷 Picture" time="Yesterday"/>
+</m-screen>
+
+<h2 id="send">Sending</h2>
+<p>Type and send as usual. Beside the box: pictures (up to five in one message), stickers, GIFs and emoji, and the microphone for a voice message (press and hold where Send would be).</p>
+<m-screen title="Maya Chen" back actions="settings">
+  <m-bubble from="them" time="4:10">Dinner at Luca's?</m-bubble>
+  <m-bubble from="me" time="4:12">Yes! 7?</m-bubble>
+  <m-row-raw><span class="m-iconbtn"><svg class="i"><use href="/docs/icons.svg#plus"/></svg></span><m-field placeholder="Text message"/><span class="m-iconbtn"><svg class="i"><use href="/docs/icons.svg#mic"/></svg></span></m-row-raw>
+</m-screen>
+
+<h2 id="ticks">Ticks</h2>
+<table>
+  <tr><th>Mark</th><th>Means</th></tr>
+  <tr><td>A clock</td><td>Sending.</td></tr>
+  <tr><td>One tick</td><td>Sent.</td></tr>
+  <tr><td>Two ticks</td><td>Delivered to their phone. In colour: read (picture and group messages, from phones that say so).</td></tr>
+  <tr><td>A lock</td><td>Encrypted: see <a href="/docs/encryption/">Encrypted texts</a>.</td></tr>
+</table>
+<p>Delivery reports and read receipts are in <ui>Settings › Receipts</ui>.</p>
+
+<h2 id="hold">Press and hold a message</h2>
+<m-screen>
+  <m-row-raw><span style="font-size:1.5rem">❤️ 👍 👎 😂 ‼️ ❓</span></m-row-raw>
+  <m-menu><m-item icon="pencil">Edit</m-item><m-item icon="copy">Copy text</m-item><m-item icon="sparkles">Effects</m-item><m-item icon="trash-2" danger>Delete message</m-item></m-menu>
+</m-screen>
+<ul>
+  <li><b>React</b> with an emoji; it shows under the message.</li>
+  <li><b>Edit</b>: a text can't change once it's on their phone, so you choose <b>Change on this phone only</b> or <b>Send correction</b>.</li>
+  <li><b>Effects</b>: send it with a screen effect (confetti, hearts and 18 more), seen by anyone using Ghost.</li>
+</ul>
+
+<h2 id="settings">A conversation's settings</h2>
+<p>Tap the cog, or the conversation's name at the top:</p>
+<m-screen title="Maya Chen" back>
+  <m-section>
+    <m-row icon="pin" hue="amber" label="Pin to top" switch="off"/>
+    <m-row icon="volume-x" hue="slate" label="Mute notifications" switch="off"/>
+    <m-row icon="image" hue="purple" label="Chat background" chev/>
+    <m-row icon="palette" hue="rose" label="Your bubbles here" chev/>
+    <m-row icon="lock" hue="green" label="Encryption" chev/>
+  </m-section>
+</m-screen>
+<p>A group text also has <b>Group name</b>, <b>Add people</b> and <b>Leave group</b>. A chat background syncs to the others if they use Ghost too.</p>
+
+<h2 id="look">Looks, stickers and effects</h2>
+<p><ui>Settings › Appearance</ui> has the looks (Ghost, Mist, Lamplight, Sharp, Phosphor and Dial-Up), light and dark, your bubble colour and text size. <ui>Settings › Emoji</ui>, <ui>Settings › Effects</ui> and <ui>Settings › Sounds</ui> have the rest.</p>

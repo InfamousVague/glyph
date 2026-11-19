@@ -35,6 +35,8 @@ import 'dialup/dialup.dart';
 import 'contacts.dart';
 import 'conversations.dart';
 import 'nav_bar.dart';
+import 'nav_rail.dart';
+import 'nav_style.dart';
 import 'settings.dart';
 import 'settings_panes.dart' show settingsGroupLabel, settingsSections;
 import 'thread.dart';
@@ -590,14 +592,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
           // A circle: people and a sidebar of their own spaces (lib/ui/circles).
           Choice('New circle', Lucide.circle, () => show(const NewCircleScreen(key: ValueKey('new-circle')), showing: 'new')),
           // Its invite link pasted: in at once, its spaces in the list's place.
-          Choice('Join a circle by link', Lucide.link2, () => askCircleWords(context, title: 'Join a circle', hint: 'Paste the invite link someone sent you.', then: (link) {
-                final c = Circles.instance.joinLink(link);
-                if (c == null) {
-                  toast(context, 'That isn\'t a circle\'s invite link.', tone: GlacierToastTone.danger);
-                  return;
-                }
-                openCircle(c);
-              })),
+          Choice('Join a circle by link', Lucide.link2, _joinByLink),
           // A Discord server's voice channels as a group of spaces (lib/ui/space_groups_ui.dart).
           Choice('Add a Discord server', Lucide.link, () => show(const AddDiscordScreen(key: ValueKey('add-discord')), showing: 'new')),
         ]);
@@ -635,6 +630,72 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         });
     }
   }
+
+  /// Asks for a circle's invite link and joins it: in at once, its spaces in the list's place.
+  void _joinByLink() => askCircleWords(context, title: 'Join a circle', hint: 'Paste the invite link someone sent you.', then: (link) {
+        final c = Circles.instance.joinLink(link);
+        if (c == null) {
+          toast(context, 'That isn\'t a circle\'s invite link.', tone: GlacierToastTone.danger);
+          return;
+        }
+        openCircle(c);
+      });
+
+  /// The rail's plus under the circles: a new circle, or one joined by its link.
+  void _addCircle() => showChoices(context, title: 'Add a circle', choices: [
+        Choice('New circle', Lucide.circle, () {
+          if (circleOpen) leaveCircle();
+          show(const NewCircleScreen(key: ValueKey('new-circle')), showing: 'new');
+        }),
+        Choice('Join a circle by link', Lucide.link2, _joinByLink),
+      ]);
+
+  /// A circle pressed in the rail: opened in the list's place, or, already open, back to its spaces.
+  void _railCircle(Circle c) {
+    if (_circleSeed == c.seed && circleOpen) return _circleGo(CircleDock.spaces);
+    if (_loosePage) close();
+    openCircle(c);
+  }
+
+  /// How the app is got round, as chosen in Settings › Developer (lib/ui/nav_style.dart).
+  NavStyle get _style => NavStyle.of(AppState.of(context));
+
+  /// The rings the app's own navigation has, in the pill's order: New, Messages, Contacts, Archive and Settings.
+  List<NavItem> _appRings(int archivedCount) => [
+        // A plain plus that says New: it starts a chat, a group or a space (Matt, 2026-11-17: "change the new chat
+        // button to be a generic plus button and change the tooltip to simply say \"new\"").
+        const NavItem(id: 'new', icon: Lucide.plus, label: 'New'),
+        const NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
+        // Contacts with how many friend requests wait for an answer there (lib/ui/username_friends.dart).
+        NavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts', count: Sms.paired ? 0 : Buddies.instance.requests.length),
+        NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: archivedCount, menu: _archiveRows),
+        NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings', count: Me.instance.unseen, menu: _settingsRows),
+      ];
+
+  /// The ring that is the page shown: none while a circle is open, whose face the rail marks instead.
+  String get _activeRing => _showing ?? (settingsOpen ? 'settings' : (_archivedOpen ? 'archive' : (circleOpen ? 'circle' : 'messages')));
+
+  /// The rail (NavStyle.rail): Home, the circles, the app's places at its foot.
+  Widget _rail() => ValueListenableBuilder<int>(
+        valueListenable: archived,
+        builder: (context, count, _) => ListenableBuilder(
+          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance]),
+          builder: (context, _) {
+            final rings = _appRings(count);
+            return NavRail(
+              circles: Circles.instance.all,
+              openCircle: circleOpen ? _circleSeed : null,
+              home: const NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
+              items: [for (final r in rings) if (r.id != 'messages') r],
+              active: _activeRing,
+              onSelect: _dockGo,
+              onCircle: _railCircle,
+              onCircleMenu: (c) => showCircleMenu(context, c),
+              onAddCircle: _addCircle,
+            );
+          },
+        ),
+      );
 
   // The rings' own menus (Matt, 2026-11-14: "add a right click context menu to archive as well and settings to
   // quick jump to settings sections"): a press with the other button on a ring, or a long press where there is no
@@ -730,7 +791,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
           listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance]),
           builder: (context, _) {
             // A circle in the list's place: its own dock, Home first (lib/ui/circles/circle_dock.dart).
-            final circle = circleOpen && _circleSeed != null ? Circles.instance.bySeed(_circleSeed!) : null;
+            // Not where every page has the same navigation (NavStyle.unified): the app's own rings stay.
+            final circle = circleOpen && _circleSeed != null && !_style.unified ? Circles.instance.bySeed(_circleSeed!) : null;
             if (circle != null) {
               return NavPill(
                 key: const ValueKey('circle-dock'),
@@ -743,19 +805,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
             }
             return NavPill(
             upright: upright,
-            active: _showing ?? (settingsOpen ? 'settings' : (_archivedOpen ? 'archive' : 'messages')),
+            active: _activeRing,
             onSelect: _dockGo,
-            items: [
-              // A plain plus that says New: it starts a chat, a group or a space (Matt, 2026-11-17: "change the new chat
-              // button to be a generic plus button and change the tooltip to simply say \"new\"").
-              const NavItem(id: 'new', icon: Lucide.plus, label: 'New'),
-              const NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
-              // Contacts with how many friend requests wait for an answer there (lib/ui/username_friends.dart).
-              NavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts', count: Sms.paired ? 0 : Buddies.instance.requests.length),
-              // Voice channels, lit while you're in one (Matt, 2026-11-14: "always open voice channels").
-              NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: count, menu: _archiveRows),
-              NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings', count: Me.instance.unseen, menu: _settingsRows),
-            ],
+            items: _appRings(count),
           );
           },
         ),
@@ -767,7 +819,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
 
   /// The rings on the pill now: a circle's face and its rings while one is open, else the app's five.
   int get _dockRings {
-    final c = circleOpen && _circleSeed != null ? Circles.instance.bySeed(_circleSeed!) : null;
+    final c = circleOpen && _circleSeed != null && !_style.unified ? Circles.instance.bySeed(_circleSeed!) : null;
     return c == null ? 5 : CircleDock.items(c, canEdit: Circles.instance.can(c, CirclePerm.spaces)).length;
   }
 
@@ -785,19 +837,26 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
       final wide = box.maxWidth >= AppShell.wideAt;
       _wide = wide;
       _dragged ??= PaneWidth.of(AppState.of(context), 'list');
-      final side = wide ? AppShell.sideWidthAt(box.maxWidth, _dragged) : box.maxWidth;
+      // The navigation chosen (Settings › Developer): the rail is a column of its own at the window's left, the list
+      // and the pane to its right; on a phone a page opened over the list covers it too.
+      final style = _style;
+      final railed = style == NavStyle.rail;
+      final railW = railed ? NavRail.width(t) + MediaQuery.paddingOf(context).left : 0.0;
+      final room = box.maxWidth - railW;
+      final side = wide ? AppShell.sideWidthAt(room, _dragged) : room;
       // A wide phone has the pill stood up at its right, where the window is tall enough for it (not a small phone
       // on its side). The strip is as wide as the pill and its room, and clear of anything cut into the screen's edge.
       final edges = MediaQuery.paddingOf(context);
       // No longer: beside a pane the pill floats over the list's foot, as on the Mac (Matt, 2026-11-14: "there is a
       // reserved spot for the navbar instead of the nav floating over the left sidebar"). It had a strip of its own
       // at the window's right.
-      const rail = false;
+      // The rail chosen in Settings › Developer: the lists leave only a step at their end, there being no pill.
+      final rail = railed;
       // Folded, it stands up too (Matt, 2026-11-14: "Folded: make it vertical"), floating in the list's bottom right
       // corner, with no strip: on a narrow screen every bit of width is the list's.
       // Dial-Up's taskbar is always a strip along the foot (NavPill), never stood up in a corner.
       final dialup = isBevelChrome(t);
-      final docked = !dialup && !wide && !Sms.computer && box.maxHeight - edges.vertical >= NavPill.railHeight(t, _rings) + t.lenOf('8rem');
+      final docked = !railed && !dialup && !wide && !Sms.computer && box.maxHeight - edges.vertical >= NavPill.railHeight(t, _rings) + t.lenOf('8rem');
       // A page that has finished sliding over the list covers all of it.
       final covered = !wide && _open != null && _open!.animation?.status == AnimationStatus.completed;
       return _ShellScope(
@@ -820,12 +879,22 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
           child: ColoredBox(
             color: t.color('glacier-bg'),
             child: Stack(children: [
+              if (railed)
+                Positioned(
+                  key: const ValueKey('shell-rail'),
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: railW,
+                  child: Offstage(offstage: covered, child: TickerMode(enabled: !covered, child: _rail())),
+                ),
+              if (railed) Positioned(key: const ValueKey('shell-rail-rule'), left: railW, top: 0, bottom: 0, width: 1, child: Offstage(offstage: covered, child: ColoredBox(color: t.color('app-rule')))),
               Positioned(
                 key: const ValueKey('shell-side'),
-                left: 0,
+                left: railW + (railed ? 1 : 0),
                 top: 0,
                 bottom: 0,
-                width: side,
+                width: side - (railed ? 1 : 0),
                 child: Offstage(
                   offstage: covered,
                   child: TickerMode(
@@ -868,9 +937,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                             // Dial-Up's taskbar is silver down to the screen's edge, under the bar at its foot.
                             bottom: dialup ? 0 : edges.bottom,
                             child: IgnorePointer(
-                              ignoring: !wide && settingsOpen,
+                              ignoring: !wide && settingsOpen && !style.unified,
                               child: AnimatedOpacity(
-                                opacity: !wide && settingsOpen ? 0 : 1,
+                                opacity: !wide && settingsOpen && !style.unified ? 0 : 1,
                                 duration: const Duration(milliseconds: 160),
                                 // Held to its corner as it shrinks: the foot's middle, or the corner it stands in.
                                 // In a hangout's call beside the pane the call's buttons stand where the pill was
@@ -882,6 +951,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                                         padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), NavPill.inset(t)),
                                         child: Center(child: CallDock(session: Voice.instance.session!)),
                                       )
+                                    // The rail is the navigation: nothing at the list's foot.
+                                    : railed
+                                        ? const SizedBox.shrink()
                                     : dialup
                                         ? ColoredBox(
                                             key: const ValueKey('taskbar'),
@@ -933,7 +1005,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                           Positioned(
                             left: t.space(3),
                             right: docked ? edges.right + NavPill.railWidth(t) : t.space(3),
-                            bottom: edges.bottom + (dialup ? NavPill.taskbarHeight + t.space(2) : docked ? NavPill.inset(t) : (NavPill.clearance(t) - NavPill.inset(t)) * (Sms.computer ? pillScrolledScale : 1) + t.space(2)),
+                            bottom: edges.bottom + (railed ? t.space(3) : dialup ? NavPill.taskbarHeight + t.space(2) : docked ? NavPill.inset(t) : (NavPill.clearance(t) - NavPill.inset(t)) * (Sms.computer ? pillScrolledScale : 1) + t.space(2)),
                             child: CallBanner(onOpen: () {
                               // A developer design draws the call as a page of its own; else the Voice page.
                               if (!openSpaceCall(context)) go('voice');
@@ -949,10 +1021,10 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
               // divider line that we have on the dial up theme to the right of the sidebar, instead we should just use
               // the normal border here wrapping the whole sidebar in the standard border like we do for the rest of
               // elements").
-              if (wide && !dialup) Positioned(key: const ValueKey('shell-rule'), left: side, top: 0, bottom: 0, width: 1, child: ColoredBox(color: t.color('app-rule'))),
+              if (wide && !dialup) Positioned(key: const ValueKey('shell-rule'), left: railW + side, top: 0, bottom: 0, width: 1, child: ColoredBox(color: t.color('app-rule'))),
               Positioned(
                 key: const ValueKey('shell-pane'),
-                left: wide ? side + (dialup ? 0 : 1) : 0,
+                left: wide ? railW + side + (dialup ? 0 : 1) : 0,
                 top: 0,
                 bottom: 0,
                 right: 0,
@@ -978,13 +1050,13 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
               if (wide)
                 Positioned(
                   key: const ValueKey('shell-split'),
-                  left: side + (dialup ? 0 : 0.5) - SplitHandle.widthOf(context) / 2,
+                  left: railW + side + (dialup ? 0 : 0.5) - SplitHandle.widthOf(context) / 2,
                   top: 0,
                   bottom: 0,
                   width: SplitHandle.widthOf(context),
                   child: SplitHandle(
                     label: 'Resize the list',
-                    onDrag: (dx) => setState(() => _dragged = AppShell.sideWidthAt(box.maxWidth, AppShell.sideWidthAt(box.maxWidth, _dragged) + dx)),
+                    onDrag: (dx) => setState(() => _dragged = AppShell.sideWidthAt(room, AppShell.sideWidthAt(room, _dragged) + dx)),
                     onDone: () => PaneWidth.keep(AppState.of(context), 'list', _dragged),
                     onReset: () {
                       setState(() => _dragged = null);

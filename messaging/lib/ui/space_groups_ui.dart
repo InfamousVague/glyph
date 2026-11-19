@@ -305,10 +305,11 @@ class _AddDiscordScreenState extends State<AddDiscordScreen> {
     final gap = SizedBox(height: t.space(5));
     return GhostPage(
       title: 'Add a Discord server',
+      actions: [docsButton('discord')],
       body: ListView(
         padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: [
-          SettingsCallout(child: const Text('Your server\'s voice channels show up in Spaces as a group, with who is in each right now. Pressing one opens it in Discord.')),
+          SettingsCallout(child: const Text('Your server\'s voice channels show up in Messages as a group of spaces, with who is in each right now. Press one to join it from here: Ghost\'s bot carries the sound and the chat both ways.')),
           gap,
           PaneSection(
             title: '1. Add the bot',
