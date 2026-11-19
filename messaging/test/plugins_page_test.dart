@@ -6,6 +6,8 @@ import 'package:ghost_messaging/plugins/codes.dart';
 import 'package:ghost_messaging/plugins/embeds.dart';
 import 'package:ghost_messaging/plugins/plugin.dart';
 import 'package:ghost_messaging/plugins/quiet.dart';
+import 'package:ghost_messaging/plugins/record_call.dart';
+import 'package:ghost_messaging/plugins/scribe.dart';
 import 'package:ghost_messaging/plugins/registry.dart';
 import 'package:ghost_messaging/plugins/settings.dart';
 import 'package:ghost_messaging/plugins/spam.dart';
@@ -55,6 +57,21 @@ void main() {
     expect([for (final e in added.evaluate()) (e.widget as PluginCard).plugin.id], ['codes', 'spam']);
     final discover = find.descendant(of: _key('plugins-shelf-discover'), matching: find.byType(PluginCard));
     expect([for (final e in discover.evaluate()) (e.widget as PluginCard).plugin.id], ['embeds', 'quiet']);
+  });
+
+  testWidgets('plugins meant for circles are shown apart from those for this device alone, under their own chip', (tester) async {
+    // Matt, 2026-11-19: "Label plugins meant for circles in a separate section from the ones that are global".
+    registry = PluginRegistry([..._plugins, const RecordCallPlugin(), const ScribePlugin()]);
+    state.setFlag('plugin_recordcall', true);
+    await page(tester, size: const Size(412, 2400));
+    List<String> on(String shelf) => [for (final e in find.descendant(of: _key(shelf), matching: find.byType(PluginCard)).evaluate()) (e.widget as PluginCard).plugin.id];
+    expect(on('plugins-shelf-circles'), ['recordcall', 'scribe'], reason: 'added or not, a circle\'s plugin is in its own section');
+    expect(on('plugins-shelf-added'), ['codes', 'spam']);
+    expect(on('plugins-shelf-discover'), ['embeds', 'quiet']);
+    await tester.tap(_key('plugins-chip-circles'));
+    await settle(tester);
+    expect(on('plugins-shelf-circles'), ['recordcall', 'scribe']);
+    expect(_key('plugins-shelf-discover'), findsNothing);
   });
 
   testWidgets('Add on a card switches the plugin on, and its card moves to the added', (tester) async {
