@@ -30,6 +30,14 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Sign up with Discord, Telegram or Signal** (0.9.31, not released; Matt, 2026-11-19: "add a sign up with discord
+  sign up with telegram or signal option where it pre populates your connection, loads your picture and username and
+  status"). `lib/ui/sign_up_from.dart`, on the welcome and on Settings › Me › Profile until a username is claimed.
+  Discord: the relay's OAuth sign-in (relay/lib/handles.dart), which links it as Settings › Me does and hands the
+  install `about` (name, picture address) as it signs in, never kept. Telegram and Signal: connected as Settings ›
+  Networks connects them, then `InboxNetwork.ownProfile`. The form is filled; nothing is claimed or sent until
+  Continue. Signal's own profile is read with the sidecar's `who` for this account's ACI (not yet tried on a real
+  account). Tests: sign_up_from_test, relay handles_test.
 - **Joins told of; a circle's link that brings the app with it** (0.9.27, not released; Matt, 2026-11-19: "add join
   notifications for memebers in circles", and "make a route to allow people to click a link on their phone or desktop
   to join a circle, have it prompt them to download the app if it's not downloaded already and then have it redirect to
