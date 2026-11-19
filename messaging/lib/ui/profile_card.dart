@@ -320,6 +320,10 @@ class _ProfileCardState extends State<_ProfileCard> {
             builder: (context, _) => ComposerBox(
               key: const ValueKey('profile-dm'),
               typing: false,
+              // Its edges on the card's, lined up with the choices under it (Matt, 2026-11-19: "there is too much
+              // padding on the left and right of the send message bar in the profile popup it doesn't line up with the
+              // @mention open chat and copy options").
+              flush: true,
               // The card is the composer's grey already: the box in the page's own colour stands out on it.
               ground: t.color('app-paper'),
               ends: [

@@ -102,8 +102,8 @@ class CirclePage extends StatelessWidget {
   }
 }
 
-/// A circle's banner behind the top of its page (GhostPage.headerBackground): its picture, edge to edge from the top of
-/// the screen, shaded at the top and the foot so the header and the list read on it; or a wash of its colour. A press
+/// A circle's banner behind the top of its page (GhostPage.headerBackground), under the phone's status bar: its
+/// picture, a little in from the edges with rounded corners, shaded at the top and the foot so the header and the list read on it; or a wash of its colour. A press
 /// opens the circle's menu.
 class CircleBanner extends StatefulWidget {
   const CircleBanner({super.key, required this.circle, this.onPress});
@@ -167,45 +167,54 @@ class _CircleBannerState extends State<CircleBanner> {
         image = Image.memory(base64Decode(b), fit: BoxFit.cover, gaplessPlayback: true, filterQuality: FilterQuality.medium);
       } catch (_) {}
     }
-    return GestureDetector(
-      key: const ValueKey('circle-banner-strip'),
-      onTap: widget.onPress,
-      child: image == null
-          ? DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hue.withValues(alpha: 0.45), hue.withValues(alpha: 0.12)]),
-              ),
-            )
-          : Stack(fit: StackFit.expand, clipBehavior: Clip.hardEdge, children: [
-              image,
-              // Behind the header's words a blur that fades out downward (Matt, 2026-11-19: "add a blur gradient with a
-              // subtle black gradient behind the text on the banner header image on circles"): the picture again,
-              // blurred, shown fully at the top where the name is and not at all past the middle, so the rest stays
-              // sharp.
-              ShaderMask(
-                key: const ValueKey('circle-banner-blur'),
-                blendMode: BlendMode.dstIn,
-                shaderCallback: (r) => const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFF000000), Color(0xCC000000), Color(0x00000000)],
-                  stops: [0, 0.35, 0.65],
-                ).createShader(r),
-                // Clipped to the banner: a blur draws past its own edges, and spilled over the list's first row.
-                child: ClipRect(child: ImageFiltered(imageFilter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14, tileMode: TileMode.mirror), child: image)),
-              ),
-              // And a subtle black under the words, gone by the middle; a touch at the foot against the list.
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Color(0x73000000), Color(0x33000000), Color(0x00000000), Color(0x26000000)],
-                    stops: [0, 0.4, 0.68, 1],
+    // Set in from the edges with rounded corners, not edge to edge (Matt, 2026-11-19: "add just a bit of margin around
+    // the sidebar banner header and add some border radius to them so it's not edge to edge").
+    return Padding(
+      key: const ValueKey('circle-banner-inset'),
+      padding: EdgeInsets.all(t.space(2)),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(t.radius('lg')),
+        child: GestureDetector(
+          key: const ValueKey('circle-banner-strip'),
+          onTap: widget.onPress,
+          child: image == null
+              ? DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hue.withValues(alpha: 0.45), hue.withValues(alpha: 0.12)]),
                   ),
-                ),
-              ),
-            ]),
+                )
+              : Stack(fit: StackFit.expand, clipBehavior: Clip.hardEdge, children: [
+                  image,
+                  // Behind the header's words a blur that fades out downward (Matt, 2026-11-19: "add a blur gradient with a
+                  // subtle black gradient behind the text on the banner header image on circles"): the picture again,
+                  // blurred, shown fully at the top where the name is and not at all past the middle, so the rest stays
+                  // sharp.
+                  ShaderMask(
+                    key: const ValueKey('circle-banner-blur'),
+                    blendMode: BlendMode.dstIn,
+                    shaderCallback: (r) => const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0xFF000000), Color(0xCC000000), Color(0x00000000)],
+                      stops: [0, 0.35, 0.65],
+                    ).createShader(r),
+                    // Clipped to the banner: a blur draws past its own edges, and spilled over the list's first row.
+                    child: ClipRect(child: ImageFiltered(imageFilter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14, tileMode: TileMode.mirror), child: image)),
+                  ),
+                  // And a subtle black under the words, gone by the middle; a touch at the foot against the list.
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Color(0x73000000), Color(0x33000000), Color(0x00000000), Color(0x26000000)],
+                        stops: [0, 0.4, 0.68, 1],
+                      ),
+                    ),
+                  ),
+                ]),
+        ),
+      ),
     );
   }
 }

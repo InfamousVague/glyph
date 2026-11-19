@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:ghost_messaging/net/packet.dart' show Envelope;
 import 'package:ghost_messaging/friends/buddies.dart';
+import 'package:ghost_messaging/art/app_icon.dart' show AppIcon;
 import 'package:ghost_messaging/ui/composer_box.dart' show ComposerBox;
 
 import 'package:flutter/services.dart';
@@ -142,6 +143,11 @@ void main() {
     expect(send, findsOneWidget, reason: 'Send inside the box');
     final boxRect = tester.getRect(box), sendRect = tester.getRect(send);
     expect(boxRect.contains(sendRect.center), isTrue);
+    // Its edges in line with the choices under it (Matt, 2026-11-19: "there is too much padding on the left and right
+    // of the send message bar in the profile popup it doesn't line up with the @mention open chat and copy options").
+    final chatRow = find.ancestor(of: find.text('Open chat'), matching: find.byType(Row)).first;
+    final chatMark = tester.getRect(find.descendant(of: chatRow, matching: find.byType(AppIcon)).first);
+    expect(boxRect.left, moreOrLessEquals(chatMark.left, epsilon: 0.5), reason: 'the box starts where the choices\' marks do');
     expect(find.text('Out walking'), findsOneWidget, reason: 'her status on the card');
     await h.again(tester, 'profile-dm-card');
     await tester.pump(const Duration(seconds: 1));

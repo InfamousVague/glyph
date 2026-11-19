@@ -117,8 +117,15 @@ void main() {
       final banner = tester.getRect(find.byKey(const ValueKey('circle-banner-strip')));
       final back = tester.getRect(find.bySemanticsLabel('Back'));
       final name = tester.getRect(find.text('Night Owls').first);
-      expect(banner.top, 0, reason: 'from the top of the screen');
-      expect(banner.height, greaterThan(150), reason: 'taller');
+      // Set in a little from the screen's edges, rounded (Matt, 2026-11-19: "add just a bit of margin around the sidebar
+      // banner header and add some border radius to them so it's not edge to edge").
+      // Under the status bar (24 here), not behind its clock and battery (Matt, 2026-11-19: "add a safe area above in
+      // the app to give room for the top bar on the phone like the settings batteries and clock").
+      expect(banner.top, inInclusiveRange(24 + 4, 24 + 16), reason: 'a little below the status bar');
+      expect(banner.left, inInclusiveRange(4, 16), reason: 'in from the left');
+      expect(412 - banner.right, inInclusiveRange(4, 16), reason: 'in from the right');
+      expect(find.ancestor(of: find.byKey(const ValueKey('circle-banner-strip')), matching: find.byType(ClipRRect)), findsWidgets, reason: 'rounded');
+      expect(banner.height, greaterThan(110), reason: 'taller, less its margin and the status bar over it');
       expect(banner.contains(back.center) && banner.contains(name.center), isTrue, reason: 'the header is inside it');
       await keep(tester, 'banner-$theme');
     }

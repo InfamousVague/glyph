@@ -1,9 +1,10 @@
 import '../circles/circles.dart' show Circles, CirclePerm;
 import 'package:flutter/foundation.dart' show listEquals;
 import 'dart:async';
+import 'dart:convert' show base64Decode;
 import 'dart:math' as math;
 
-import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeedback, TextCapitalization;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeedback, HardwareKeyboard, KeyDownEvent, KeyEvent, LogicalKeyboardKey, TextCapitalization;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -29,7 +30,7 @@ import 'circles/members_drawer.dart' show showMembersDrawer;
 import 'drawer_head.dart';
 import 'composer_box.dart';
 import 'dialup/bevel.dart';
-import 'dialup/parts.dart' show DialupPanel;
+import 'dialup/parts.dart' show DialupFace, DialupPanel;
 import 'dialup/retro_button.dart';
 import 'message_line.dart';
 import 'translated_card.dart';
@@ -53,6 +54,8 @@ import '../files/file_platform.dart';
 import '../files/files_store.dart' show FilesStore;
 import '../stickers.dart' show stickerName;
 import '../mentions.dart';
+import '../me/me.dart' show Me;
+import '../me/pictures.dart';
 import 'mention_field.dart';
 import 'thread.dart' show LinkedText;
 
@@ -668,7 +671,7 @@ class _HangoutChatState extends State<HangoutChat> {
   }
 
   KeyEventResult _mentionKeys(FocusNode node, KeyEvent e) {
-    if (_query == null) return KeyEventResult.ignored;
+    if (_query == null) return _enterKey(e);
     return mentionKey(
           e,
           count: _found.length,
@@ -683,7 +686,18 @@ class _HangoutChatState extends State<HangoutChat> {
             });
           },
         ) ??
-        KeyEventResult.ignored;
+        _enterKey(e);
+  }
+
+  /// Enter sends on a keyboard where Settings › Messages › Enter sends is on, Shift+Enter starting a new line (Matt,
+  /// 2026-11-19: "Pressing enter isn't sending messages on desktop in circles"). Taken here rather than left to the
+  /// platform's text input, which turned Enter into a new line in a space's box on a computer. Not while a word is
+  /// still being composed (an input method's Enter chooses it).
+  KeyEventResult _enterKey(KeyEvent e) {
+    if (e is! KeyDownEvent || (e.logicalKey != LogicalKeyboardKey.enter && e.logicalKey != LogicalKeyboardKey.numpadEnter)) return KeyEventResult.ignored;
+    if (HardwareKeyboard.instance.isShiftPressed || !AppState.of(context).enterSends || _text.value.composing.isValid) return KeyEventResult.ignored;
+    _send();
+    return KeyEventResult.handled;
   }
 
   /// A mention pressed in a message: who it is, with a way to mention them back and the space's members.
@@ -1369,7 +1383,7 @@ class _Message extends StatelessWidget {
           Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
             // Their face by the run's last bubble, as in a group of texts.
             if (!mine) ...[
-              SizedBox(width: faceSize, child: last ? _toPerson(Avatar(people: [Person(address: 'space:${m.from}', name: name)], size: faceSize)) : null),
+              SizedBox(width: faceSize, child: last ? _toPerson(SpaceFace(room: room, id: m.from, name: name, size: faceSize)) : null),
               SizedBox(width: t.space(2)),
             ],
             // The words as they came, dimmed, in a card over a translated bubble.
@@ -1434,11 +1448,16 @@ extension on _Message {
       child: Container(
         // A message that mentions you on a wash of the accent with a bar of it at its edge, as Slack and Discord mark one.
         decoration: mentionsMe ? BoxDecoration(color: t.color('app-accent').withValues(alpha: 0.10), border: Border(left: BorderSide(color: t.color('app-accent'), width: 3))) : null,
-        padding: EdgeInsets.only(top: first ? t.space(3) : 2, left: t.space(1), right: t.space(1), bottom: mentionsMe ? 2 : 0),
+        // The gap above a run's first message is outside the wash, so a mention's is as tight above as below (Matt,
+        // 2026-11-19: "the mention highlight has too much padding on the top").
+        margin: EdgeInsets.only(top: first && mentionsMe ? t.space(2) : 0),
+        padding: mentionsMe
+            ? EdgeInsets.fromLTRB(t.space(1), first ? t.space(1) : 2, t.space(1), first ? t.space(1) : 2)
+            : EdgeInsets.only(top: first ? t.space(3) : 2, left: t.space(1), right: t.space(1)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           SizedBox(
             width: gutter,
-            child: first ? Align(alignment: Alignment.topLeft, child: _toPerson(Avatar(people: [Person(address: 'space:${m.from}', name: mine ? (room.name.isEmpty ? 'You' : room.name) : name)], size: faceSize))) : null,
+            child: first ? Align(alignment: Alignment.topLeft, child: _toPerson(SpaceFace(room: room, id: m.from, name: mine ? (room.name.isEmpty ? 'You' : room.name) : name, size: faceSize))) : null,
           ),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -1549,7 +1568,13 @@ class SpaceMembers extends StatelessWidget {
                   for (final id in ids)
                     SettingRow(
                       // Your face from your own name, as a circle's members list draws it.
-                      icon: Opacity(opacity: order(id) == 2 ? 0.5 : 1, child: RippleAvatar(name: id == room.me ? youFaceName() : _nameOf(room, id), level: 0, size: 30, ringed: inVoice.contains(id))),
+                      icon: Opacity(
+                        opacity: order(id) == 2 ? 0.5 : 1,
+                        // Their picture where they have one; in the call, the ring that says so round their initials.
+                        child: inVoice.contains(id)
+                            ? RippleAvatar(name: id == room.me ? youFaceName() : _nameOf(room, id), level: 0, size: 30, ringed: true)
+                            : SpaceFace(room: room, id: id, name: id == room.me ? youFaceName() : _nameOf(room, id), size: 30),
+                      ),
                       label: id == room.me ? 'You' : _nameOf(room, id),
                       hint: Text(inVoice.contains(id) ? 'In voice' : (room.present.containsKey(id) ? 'Here now' : 'Away')),
                       labelColor: roleInk(t, role),
@@ -2164,5 +2189,77 @@ class HangoutPeople extends StatelessWidget {
         children: [CallPanel(session: session, videos: false)],
       ),
     );
+  }
+}
+
+/// Someone's face in a space: their profile picture where they have one, else their initials on their colour as before
+/// (Matt, 2026-11-19: "Profile pictures are not loading in circles spaces"). Yours from your profile; anyone else's
+/// from the pictures kept here (lib/me/pictures.dart), asked of them once ([HangoutRoom.pictureOf]) where their
+/// greeting says they have one this device hasn't got. It was their initials always: the picture was only ever
+/// fetched for their profile card.
+class SpaceFace extends StatefulWidget {
+  const SpaceFace({super.key, required this.room, required this.id, required this.name, required this.size});
+  final HangoutRoom room;
+  final String id;
+  final String name;
+  final double size;
+
+  @override
+  State<SpaceFace> createState() => _SpaceFaceState();
+}
+
+class _SpaceFaceState extends State<SpaceFace> {
+  /// Who has been asked for their picture, by room, so a chat full of their messages asks once.
+  static final Map<String, Set<String>> _asked = {};
+
+  @override
+  void initState() {
+    super.initState();
+    ProfilePictures.instance.addListener(_changed);
+    Me.instance.addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    ProfilePictures.instance.removeListener(_changed);
+    Me.instance.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  String? _picture() {
+    final room = widget.room, id = widget.id;
+    if (id == room.me) return Me.instance.picture;
+    final hash = room.present[id]?.pictureHash ?? '';
+    // Here and saying they have none: none.
+    if (room.present.containsKey(id) && hash.isEmpty) return null;
+    final kept = ProfilePictures.instance.of(id, hash: hash.isEmpty ? null : hash);
+    if (kept == null && hash.isNotEmpty && (_asked[room.channel.room] ??= {}).add(id)) {
+      // The answer is kept (ProfilePictures), which redraws every face of theirs; no answer, and the next look asks again.
+      unawaited(room.pictureOf(id).then((p) {
+        if (p == null) _asked[room.channel.room]?.remove(id);
+      }));
+    }
+    return kept;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final size = widget.size;
+    final p = _picture();
+    Widget? image;
+    if (p != null && p.isNotEmpty) {
+      try {
+        image = Image.memory(base64Decode(p), width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true);
+      } catch (_) {}
+    }
+    if (image == null) return Avatar(people: [Person(address: 'space:${widget.id}', name: widget.name)], size: size);
+    // Dial-Up's faces are square in a sunken ring, as Avatar draws them there.
+    if (isBevelChrome(t)) return DialupFace(size: size, child: image);
+    return ClipOval(child: SizedBox(width: size, height: size, child: image));
   }
 }

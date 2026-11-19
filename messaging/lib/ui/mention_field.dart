@@ -14,7 +14,16 @@ import 'ripple_avatar.dart';
 /// A mention as it is drawn among words: in the accent, a little bolder, on a wash of it.
 TextStyle mentionStyle(Tokens t, {Color? on}) {
   final accent = t.color('app-accent');
-  return TextStyle(color: on ?? accent, fontWeight: FontWeight.w600, background: Paint()..color = accent.withValues(alpha: 0.16));
+  // Its wash as tall as its own letters, evenly above and below: at the words' own height (1.4) the line's extra room
+  // fell mostly above it (Matt, 2026-11-19: "the mention highlight has too much padding on the top"). The line keeps
+  // its height from the words around it.
+  return TextStyle(
+    color: on ?? accent,
+    fontWeight: FontWeight.w600,
+    height: 1.2,
+    leadingDistribution: TextLeadingDistribution.even,
+    background: Paint()..color = accent.withValues(alpha: 0.16),
+  );
 }
 
 /// The composer's words, and who the "@Name"s in them mean: kept where they are as the words around them are edited,

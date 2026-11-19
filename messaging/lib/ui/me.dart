@@ -167,9 +167,9 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
             label: 'Friends',
             hint: Text(Buddies.instance.requests.isNotEmpty
                 ? '${Buddies.instance.requests.length} asked you'
-                : Buddies.instance.friends.isEmpty
+                : Buddies.instance.shownFriends.isEmpty
                     ? 'Add friends by username'
-                    : '${Buddies.instance.friends.length} friend${Buddies.instance.friends.length == 1 ? '' : 's'}'),
+                    : '${Buddies.instance.shownFriends.length} friend${Buddies.instance.shownFriends.length == 1 ? '' : 's'}'),
             onPress: () => push(context, (_) => const BuddiesScreen()),
           ),
         ],
