@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../names.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -616,7 +617,7 @@ class HangoutRoom extends ChangeNotifier {
     if (roster.banned.contains(from)) return;
     switch (m['t']) {
       case 'hi':
-        present[from] = HangoutPerson(from, name: '${m['n'] ?? ''}', username: m['u'] is String ? m['u'] as String : null, inVoice: m['a'] == true, guest: m['g'] == true);
+        present[from] = HangoutPerson(from, name: bareName('${m['n'] ?? ''}'), username: m['u'] is String ? m['u'] as String : null, inVoice: m['a'] == true, guest: m['g'] == true);
         if (m['u'] is String && (m['u'] as String).isNotEmpty) usernames[from] = m['u'] as String;
         notifyListeners();
       case 'msg':
@@ -770,7 +771,7 @@ class HangoutMessage {
   static HangoutMessage? fromJson(Map<String, dynamic> j, String from) {
     if (j['id'] is! String || j['x'] is! String || j['at'] is! int) return null;
     final at = j['at'] as int;
-    final name = j['n'] is String ? j['n'] as String : '';
+    final name = j['n'] is String ? bareName(j['n'] as String) : '';
     final files = <SpaceFile>[
       if (j['a'] is List)
         for (final a in (j['a'] as List).take(mostFiles))

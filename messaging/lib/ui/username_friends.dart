@@ -64,7 +64,7 @@ class _UsernameFriendsState extends State<UsernameFriends> {
             for (final a in b.asked)
               _Row(
                 icon: Lucide.clock,
-                title: '@${a.username}',
+                title: a.shown,
                 sub: 'Friend request sent',
                 onPress: () => showChoices(context, title: 'Take back your request to @${a.username}?', choices: [
                   Choice('Take it back', Lucide.x, () => b.remove(a), danger: true),

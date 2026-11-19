@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../names.dart';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -416,7 +417,7 @@ class VoiceSession extends ChangeNotifier {
         notifyListeners();
       case 'me':
         final had = members[from] ?? VoiceMember(from);
-        members[from] = had.copyWith(name: '${m['n'] ?? ''}', muted: m['m'] == true, video: m['v'] == true, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null);
+        members[from] = had.copyWith(name: bareName('${m['n'] ?? ''}'), muted: m['m'] == true, video: m['v'] == true, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null);
         notifyListeners();
       case 'offer':
         members.putIfAbsent(from, () => VoiceMember(from));
