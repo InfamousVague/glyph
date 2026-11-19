@@ -28,6 +28,7 @@ import 'circle_face.dart';
 import 'circle_invite.dart';
 import 'circle_list.dart';
 import 'circle_view.dart';
+import 'members_drawer.dart' show showCircleMembers;
 import 'new_circle.dart';
 
 export 'circle_invite.dart' show showCircleInvite;
@@ -145,6 +146,8 @@ void showCircleMenu(BuildContext context, Circle c) {
   final circles = Circles.instance;
   final canEdit = circles.can(c, CirclePerm.spaces);
   showChoices(context, title: c.name, choices: [
+    // Its members here too, where the dock is the same on every page and has no Members of its own (NavStyle.unified).
+    Choice('Members', Lucide.users, () => showCircleMembers(context, c)),
     if (circles.can(c, CirclePerm.invite)) Choice('Invite people', Lucide.userPlus, () => showCircleInvite(context, c)),
     if (canEdit) Choice('New space', Lucide.plus, () => openCircleNewSpace(context, c)),
     if (canEdit) Choice('Arrange spaces', Lucide.listTree, () => push<void>(context, (_) => ArrangeCircleSpacesScreen(seed: c.seed)), hint: 'Move, rename or delete them'),

@@ -41,6 +41,7 @@ import 'encryption.dart';
 import 'me.dart';
 import 'network.dart';
 import 'settings.dart';
+import 'nav_style.dart';
 import 'space_designs/space_design.dart';
 import '../summaries.dart';
 
@@ -1135,6 +1136,24 @@ List<Widget> _developer(BuildContext context, SettingsModel m) {
           hint: const Text('Shows Settings › API: the app\'s API, its documentation and a place to try every method.'),
           control: GlacierSwitch(checked: app.flag('dev_mode', fallback: false), onCheckedChange: (on) => app.setFlag('dev_mode', on), ariaLabel: 'Developer mode'),
         ),
+      ],
+    ),
+    // How the app is got round (Matt, 2026-11-19: "work on a unified navigation across the whole app instead of it
+    // changing navigations on every page ... give me a setting in developer settings to switch between the different
+    // views"; lib/ui/nav_style.dart).
+    PaneSection(
+      title: 'Navigation',
+      description: const Text('How you get round the app. The two newer ways are the same on every page; the rail adds your circles down the left, as Discord and Slack have.'),
+      children: [
+        for (final n in NavStyle.values)
+          SettingRow(
+            key: ValueKey('nav-style-${n.name}'),
+            icon: _icon(n.icon),
+            label: '${n.label}${n == NavStyle.fallback ? ' (default)' : ''}',
+            hint: Text(n.description),
+            value: n == NavStyle.of(app) ? AppIcon(Lucide.check, size: 18, color: t.color('app-ink')) : null,
+            onPress: () => app.set(NavStyle.pref, n.name),
+          ),
       ],
     ),
     // Six other ways a space's call can look (Matt, 2026-11-16: "give me 6 alternate designs for the calling chat and
