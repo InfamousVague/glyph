@@ -40,6 +40,9 @@ import 'ripple_avatar.dart';
 import 'shell.dart';
 import 'space_designs/space_design.dart';
 import 'sms_space_ui.dart';
+import 'recording_ui.dart' show RecordingBanner;
+import 'space_designs/call_plugins.dart' show CallPlugins;
+import '../voice/recorder.dart' show CallRecorder;
 import 'space_invite.dart';
 import 'voice_screen.dart';
 import 'jump_to_latest.dart';
@@ -185,7 +188,8 @@ class _HangoutScreenState extends State<HangoutScreen> {
     final v = Voice.instance;
     final room = _room ?? v.hangoutFor(widget.channel);
     return ListenableBuilder(
-      listenable: Listenable.merge([v, ?room]),
+      // The recorder too: Record call's icon in the header goes to Stop as it starts.
+      listenable: Listenable.merge([v, ?room, CallRecorder.instance]),
       builder: (context, _) {
         final s = v.session?.channel.room == widget.channel.room ? v.session : null;
         // In the call on a narrow phone: the chosen design is the page (space_design.dart).
@@ -205,6 +209,9 @@ class _HangoutScreenState extends State<HangoutScreen> {
           if ((room == null || room.can(Perm.invite)) && _circleInvites(widget.channel) && !besideCircle) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
           // An SMS space: who is in it by text (lib/ui/sms_space_ui.dart).
           if (smsSpaceOf(widget.channel) != null) IconTap(icon: Lucide.smartphone, label: 'People by text', onPressed: () => push(context, (_) => TextedPeopleScreen(space: widget.channel))),
+          // The plugins' own (Slots.spaceHeader): Record call's record and stop while in its call, Live captions'.
+          for (final x in CallPlugins.header(widget.channel))
+            IconTap(icon: x.icon, label: x.label, color: x.danger ? RecordingBanner.red : null, onPressed: () => x.run(context)),
           if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
         ];
         if (room?.putOut != null) {

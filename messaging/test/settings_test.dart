@@ -86,7 +86,9 @@ void main() {
     test('every section has an id of its own, and the ones the handoff asked for are there', () {
       final ids = [for (final s in settingsSections) s.id];
       expect(ids.toSet().length, ids.length);
-      expect(ids, containsAll(['appearance', 'emoji', 'effects', 'messages', 'receipts', 'notifications', 'encryption', 'blocked', 'archived', 'number', 'android', 'keyboard', 'updates', 'about']));
+      expect(ids, containsAll(['appearance', 'emoji', 'effects', 'messages', 'receipts', 'notifications', 'encryption', 'blocked', 'archived', 'android', 'keyboard', 'updates', 'about']));
+      // No "Your number": the phone's number is Me › Number's (Matt, 2026-11-19: "remove the duplicate \"your number\" setting").
+      expect(ids, isNot(contains('number')));
     });
   });
 
@@ -129,7 +131,7 @@ void main() {
       SettingsSources.add(after);
       final ids = [for (final s in settingsSectionsOn(SettingsWhere.computer)) s.id];
       expect(ids, containsAll(['before', 'mac', 'after', 'me', 'appearance', 'background', 'emoji', 'effects', 'messages', 'plugins', 'encryption', 'blocked', 'archived']));
-      for (final id in ['handset', 'receipts', 'notifications', 'number', 'android', 'keyboard', 'computers', 'network', 'updates', 'developer', 'about']) {
+      for (final id in ['handset', 'receipts', 'notifications', 'android', 'keyboard', 'computers', 'network', 'updates', 'developer', 'about']) {
         expect(ids, isNot(contains(id)), reason: '$id is the phone\'s alone');
         if (id != 'handset') expect(phone, contains(id));
       }

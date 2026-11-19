@@ -1,6 +1,7 @@
 ; Ghost Messaging for Windows: the installer (Matt, 2026-11-14: "Add a mac and windows build to ghost-sms.com").
 ; Built by .github/workflows/messaging-windows.yml after `flutter build windows`, with the version passed in:
 ;   iscc /DAppVersion=0.7.21 /DSource=build\windows\x64\runner\Release windows\installer.iss
+; and, where it signs, /DSign "/Sghost=pwsh -NoProfile -File <messaging>\windows\sign.ps1 $f" as well.
 ; It installs for the person alone (no administrator), into their own Programs folder, with a Start menu entry and
 ; an uninstaller; running a newer one over it updates it in place, which the app does itself (silently, then
 ; reopened) when the person chooses Restart to update. The AppId stays the same for every version.
@@ -34,6 +35,12 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=yes
+; Signed where the build has the Azure signing account (/DSign, with /Sghost=… naming windows\sign.ps1): the installer
+; and the uninstaller it writes, so neither says "Unknown publisher".
+#ifdef Sign
+SignTool=ghost
+SignedUninstaller=yes
+#endif
 
 [Tasks]
 Name: "desktopicon"; Description: "Put Ghost Messaging on the desktop"; GroupDescription: "Shortcuts:"; Flags: unchecked
