@@ -852,7 +852,10 @@ class Sms {
 
   /// Starts the app again from nothing, with every choice written first; false where it cannot (an iPhone), and the
   /// person is asked to.
-  Future<bool> restartApp() async => (await _calls.invokeMethod<bool>('restartApp')) ?? false;
+  Future<bool> restartApp() async {
+    await prefsWritten();
+    return (await _calls.invokeMethod<bool>('restartApp')) ?? false;
+  }
 
   /// Lets go of this install's identity where it has one to go back to: a computer paired with a phone forgets the
   /// phone's identity it took on, and takes it on again from the phone as it starts (lib/desktop/own_calls.dart), so
@@ -1485,7 +1488,20 @@ class Sms {
   Future<bool> perfOn() async => await _calls.invokeMethod<bool>('perfOn') ?? false;
 
   Future<Map<String, String>> prefs() async => {for (final e in ((await _calls.invokeMethod<Map>('prefs')) ?? const {}).entries) e.key as String: e.value as String};
-  Future<void> setPref(String key, String value) => _calls.invokeMethod('setPref', {'key': key, 'value': value});
+  Future<void> setPref(String key, String value) {
+    final going = _calls.invokeMethod('setPref', {'key': key, 'value': value}).then<void>((_) {});
+    _prefsGoing.add(going);
+    unawaited(going.catchError((_) {}).whenComplete(() => _prefsGoing.remove(going)));
+    return going;
+  }
+
+  /// The choices on their way to being kept ([setPref]), each until it is written.
+  final Set<Future<void>> _prefsGoing = {};
+
+  /// Once every choice asked to be kept so far is written: before the app starts again ([restartApp]), so what was
+  /// changed just before is not lost with it (2026-11-19: a computer signing in to an account came back signed out, the
+  /// account's last choices still being written as the app closed).
+  Future<void> prefsWritten() => Future.wait([for (final f in [..._prefsGoing]) f.catchError((_) {})]);
 
   @visibleForTesting
   void dispose() => _sub?.cancel();

@@ -12,6 +12,7 @@ import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
 import '../net/net.dart';
 import '../sms.dart';
+import '../voice/channels.dart' show Voice;
 import 'account_crypto.dart';
 
 /// A Ghost account on this install (Matt, 2026-11-17: "We need to have a way to login to existing accounts. We might
@@ -42,11 +43,12 @@ class Account extends ChangeNotifier {
   MeStore store;
   final AccountProfiles profiles;
 
-  /// Puts the app's preferences in place (people.dart) and asks the relay whether this device is still signed in.
+  /// Puts the app's preferences in place (people.dart) and asks the relay whether this device is still signed in; or,
+  /// where a sign-in here was cut short, finishes it ([resume]).
   void start(MeStore store) {
     this.store = store;
     notifyListeners();
-    if (signedIn) unawaited(check());
+    unawaited(signedIn ? check() : resume());
   }
 
   // --- what this device keeps -----------------------------------------------------------------------------------------
@@ -231,6 +233,15 @@ class Account extends ChangeNotifier {
     await _addDevice(keys.key, keys.address);
     await port.secretKeep(_words, restore.backup.words.join(' '));
     if (pk != null) await port.secretKeep(_pwKey, pk.toJson());
+    // The identity this install had until now, where it is another and its own: kept beside the words, so what it was in
+    // circles becomes the account's (Voice.carryOver) rather than someone else beside it. Not a paired computer's: the
+    // identity it took on is its phone's, still the phone's after this, and never to be folded into another.
+    try {
+      final before = NetKeys.fromScalar(await port.identityExport());
+      // Only an identity with no friends of its own: one that has them is someone people know, perhaps another person
+      // who used this computer, and not to be made the account's in anyone's eyes.
+      if (!Sms.paired && Buddies.instance.all.isEmpty && before.id != identity.id) await port.secretKeep(Voice.wasKey, NetCrypto.hex(before.scalar));
+    } catch (_) {}
     // The new identity, then everything that hangs off it, then this device's account; the old identity is gone
     // from the moment the first is written, so nothing below may fail half way and leave this install between the two.
     await port.identityImport(identity.scalar, identity.public);
@@ -301,11 +312,37 @@ class Account extends ChangeNotifier {
     final keys = _keysOf(words);
     if (keys.address != address) return false;
     final identity = NetKeys.fromScalar(await port.identityExport());
-    final backup = profiles.fill(AccountBackup(words: words, identity: NetCrypto.hex(identity.scalar), mode: mode));
-    final sealed = await _put(keys, identity, backup, pk);
+    final mine = profiles.fill(AccountBackup(words: words, identity: NetCrypto.hex(identity.scalar), mode: mode));
+    var backup = mine;
+    // Put together with what is kept now: every device of the account seals it again in its turn, and the last used to
+    // decide alone, so one in fewer circles (or with fewer friends) took the others' out of what the next device signing
+    // in is given (2026-11-19, found as the check below began to reach the relay at all).
+    // Not read (the relay away, too many asks): nothing sealed now rather than this device's alone over the others'.
+    final got = await relay.ask(_signed('acct-seed', 'seed', keys, const {}));
+    final blob = got['blob'];
+    final kept = blob is String ? AccountCrypto.openWithSeed(blob, keys.seed, keys.address) : null;
+    if (blob is String && kept == null) return false;
+    // A circle left here stays left: not brought back from the copy kept before it was.
+    if (kept != null) {
+      backup = mine.copyWith(circles: _union(mine.circles, [for (final c in kept.circles) if (!(c is Map && c['s'] is String && Circles.instance.removed(c['s'] as String))) c], 's'), friends: _union(mine.friends, kept.friends, 'i'));
+    }
+    String sealed;
+    try {
+      sealed = await _put(keys, identity, backup, pk);
+    } on AccountError catch (e) {
+      // Too much put together to keep (a backup is at most so big on the relay): this device's own, as before.
+      if (identical(backup, mine) || !e.message.contains('too big')) rethrow;
+      sealed = await _put(keys, identity, mine, pk);
+    }
     store.set('acct_sealed', sealed);
     store.set('acct_refreshed', today);
     return true;
+  }
+
+  /// [mine], then each of [theirs] whose [key] none of [mine] has: this device's own copy of anything both have.
+  static List<Object?> _union(List<Object?> mine, List<Object?> theirs, String key) {
+    final have = {for (final x in mine) if (x is Map && x[key] is String) x[key]};
+    return [...mine, for (final x in theirs) if (x is Map && x[key] is String && !have.contains(x[key])) x];
   }
 
   Future<({Uint8List seed, Uint8List key, String address})> _keys() async {
@@ -325,10 +362,46 @@ class Account extends ChangeNotifier {
     return AccountDevice.list(m['list'], device);
   }
 
+  /// A sign-in cut short by the app starting again (2026-11-19: on a computer the account's own choices were still being
+  /// written as the app closed, so it came back signed out, with the account's words in its vault and the relay listing
+  /// it): finished now, where the relay still lists this device under the words' account and the identity here is that
+  /// account's. True where it was; anything else is left as it is, for the person to sign in again.
+  Future<bool> resume() async {
+    try {
+      final words = await _keptWords();
+      if (words == null || signedIn) return false;
+      // Tried once a day: where it cannot be taken up (another identity here), not asked of the relay at every start.
+      final today = DateTime.now().toUtc().toIso8601String().substring(0, 10);
+      if (store.choice('acct_resumed', '') == today) return false;
+      store.set('acct_resumed', today);
+      // Asked as the app starts: the hub it is asked through is made a moment after (Net.start reads the identity first).
+      final r = relay;
+      if (r is HubAccountRelay && !await r.hubMade()) return false;
+      final keys = _keysOf(words);
+      final hello = await relay.ask({'dir': 'acct-hello', 'a': keys.address, 'd': device});
+      if (hello['known'] != true || signedIn) return false;
+      final got = await relay.ask(_signed('acct-seed', 'seed', keys, const {}));
+      final blob = got['blob'];
+      if (got['none'] == true || blob is! String) return false;
+      final backup = AccountCrypto.openWithSeed(blob, keys.seed, keys.address);
+      if (backup == null) return false;
+      final here = NetKeys.fromScalar(await port.identityExport());
+      if (here.id != NetKeys.fromScalar(NetCrypto.unhex(backup.identity)).id || signedIn) return false;
+      _keepHere(address: keys.address, mode: backup.mode, sealed: (got['pw'] as String?) ?? '');
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Whether the relay still has this device under the account; where it does not, this device forgets the account.
   Future<void> check() async {
     final address = this.address;
     if (address == null) return;
+    // Asked as the app starts, before the hub it goes through is made (Net.start reads the identity first): it used to
+    // fail there every time, unsaid, so the backup was never sealed again and a device taken off was never told.
+    final r = relay;
+    if (r is HubAccountRelay && !await r.hubMade()) return;
     try {
       final m = await relay.ask({'dir': 'acct-hello', 'a': address, 'd': device});
       if (m['known'] == false) {
@@ -346,6 +419,8 @@ class Account extends ChangeNotifier {
     store.set('acct_mode', '');
     await port.secretKeep(_words, '');
     await port.secretKeep(_pwKey, '');
+    // Out of the account, this install is no longer whoever it was before signing in either (Voice.carryOver).
+    await port.secretKeep(Voice.wasKey, '');
     notifyListeners();
   }
 
@@ -434,6 +509,17 @@ class HubAccountRelay implements AccountRelay {
 
   @override
   String get hubId => _hub()?.signer.id ?? Net.instance.id ?? '';
+
+  /// Waits for the app's hub to be made (Net.start makes it once the identity is read, a moment after the app starts);
+  /// false where it is not within [within].
+  Future<bool> hubMade({Duration within = const Duration(seconds: 20)}) async {
+    const step = Duration(milliseconds: 250);
+    for (var waited = Duration.zero; _hub() == null; waited += step) {
+      if (waited >= within) return false;
+      await Future<void>.delayed(step);
+    }
+    return true;
+  }
 
   @override
   Future<Map<String, dynamic>> ask(Map<String, Object?> what, {Duration wait = const Duration(seconds: 25)}) async {

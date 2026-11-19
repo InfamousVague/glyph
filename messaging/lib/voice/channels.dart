@@ -367,12 +367,23 @@ class Voice extends ChangeNotifier {
   /// The id this device is in channels as.
   String? get me => _route?.me;
 
-  /// What this install signs with on the hub: its hangouts' rosters, and the key it owns hangouts by. On a computer
-  /// its own key (made on first need), on a phone the phone's.
+  /// Whether this device's spaces and circles stand on a key of its own rather than on the identity its friends and its
+  /// Ghost account know it by: only on a computer paired with a phone that has not yet taken on the phone's identity
+  /// (lib/desktop/own_calls.dart), which has no other to speak as until the handover. Everywhere else, a paired
+  /// computer that has taken it on or signed in to an account included, they are that identity's (Matt, 2026-11-19:
+  /// "when i join a server on my other logged in machines it's joining as a new matt every time instead of reusing my
+  /// existing keys and owner account, when I login on ghost i should have the same identity across all devices"):
+  /// every paired computer used to be in each circle and space as someone new, under a key made for it alone
+  /// (`voice_key`), and never their owner.
+  static bool get separateKey => Sms.followsPhone;
+
+  /// What this install signs with on the hub: its hangouts' rosters, and the key it owns hangouts by. The install's
+  /// identity (the phone's, a computer's that took it on, an account's); a paired computer's key of its own only while
+  /// it has none ([separateKey]).
   NetSigner? get signer {
     final r = _route;
     if (r is HubVoiceRoute) return r.hub.signer;
-    if (Sms.paired && _app != null) return (_ownHub ??= _macHub()).signer;
+    if (separateKey && _app != null) return (_ownHub ??= _macHub()).signer;
     return Net.instance.hub?.signer;
   }
 
@@ -398,7 +409,7 @@ class Voice extends ChangeNotifier {
 
   void _follow() {
     final HubCarrier? hub;
-    if (Sms.paired) {
+    if (separateKey) {
       // Dialled only once there is a channel to see.
       if (channels.isEmpty && _ownHub == null) return;
       hub = _ownHub ??= _macHub();
@@ -420,7 +431,8 @@ class Voice extends ChangeNotifier {
     _look();
   }
 
-  /// A computer's own key for the hub, kept with its choices.
+  /// A paired computer's key of its own for the hub while it has no identity to speak as ([separateKey]), kept with its
+  /// choices (and kept after, for [carryOver]).
   HubCarrier _macHub() {
     final app = _app!;
     var scalar = app.choice('voice_key', '');
@@ -434,12 +446,67 @@ class Voice extends ChangeNotifier {
     return HubCarrier(url: Net.defaultHub, signer: KeysSigner(keys));
   }
 
+  bool _carrying = false;
+
+  /// What this install was under another key is this identity's (Matt, 2026-11-19: "I should have the same identity
+  /// across all devices"). Two such keys: a paired computer's own (`voice_key`, from when it spoke under a key of its own:
+  /// [separateKey]), and the identity an install had before signing in to an account (`was_key`, kept beside the words by
+  /// Account.finish). A circle or space made under one is owned by it, and every circle it was in lists it as someone
+  /// else. So, once for each, that key makes this identity an admin of what it owns, signed as their owner, and says in
+  /// every circle's room that its id is this identity's. The keys are kept for nothing else. Asked each time the circles'
+  /// rooms are joined (Circles._follow).
+  Future<void> carryOver() async {
+    final app = _app;
+    final now = signer;
+    if (app == null || now == null || separateKey || _carrying) return;
+    _carrying = true;
+    try {
+      final olds = <String>[if (Sms.paired) app.choice('voice_key', ''), (await Sms.instance.secretRead(wasKey)) ?? ''];
+      // Each time the rooms are joined, not once: the hub keeps a room's notes a week at most, and someone coming in
+      // later learns the old id is this identity's only from a note said again. What was given already is not again.
+      for (final scalar in olds) {
+        if (scalar.length != 64) continue;
+        final old = KeysSigner(NetKeys.fromScalar(NetCrypto.unhex(scalar)));
+        if (old.id != now.id) await _carry(old, now.id);
+      }
+    } catch (_) {
+      // Asked again the next time the rooms are joined.
+    } finally {
+      _carrying = false;
+    }
+  }
+
+  /// Where Account.finish keeps the identity an install had before it signed in ([carryOver]).
+  static const wasKey = 'was_key';
+
+  /// [carryOver] for one old key; true once it is done everywhere.
+  Future<bool> _carry(NetSigner old, String now) async {
+    // Each circle, and its members told the old id is this identity's (lib/circles/circles.dart).
+    var done = await Circles.instance.carryOver(old, now);
+    // And each space of its own (not a circle's) made under it: its chat held while its roster is signed and said.
+    final oldKey = NetCrypto.hex(old.publicKey);
+    for (final c in [...own]) {
+      if (c.circle != null || c.owner != oldKey) continue;
+      final room = await hold(c);
+      if (room == null) {
+        done = false;
+        continue;
+      }
+      try {
+        if (!await room.grantAdminAs(old, now)) done = false;
+      } finally {
+        await release(c);
+      }
+    }
+    return done;
+  }
+
   void _look() {
-    if (Sms.paired && _ownHub == null && channels.isNotEmpty) return _follow();
+    if (separateKey && _ownHub == null && channels.isNotEmpty) return _follow();
     final route = _route;
     if (route == null) return;
-    // The hub dialled for the channels too, on a phone, while there are any.
-    if (!Sms.paired) unawaited(Net.instance.want('voice', channels.isNotEmpty));
+    // The install's own hub dialled for the channels too while there are any (a key of its own dials its own, above).
+    if (!separateKey) unawaited(Net.instance.want('voice', channels.isNotEmpty));
     // Only a space with a call is looked at: a texting or Files space has no call room to ask about.
     for (final c in channels) {
       if (c.hasVoice) route.look(c.room, c.token);
@@ -759,6 +826,11 @@ class Voice extends ChangeNotifier {
     }
     final name = _deskName ?? (Me.instance.displayName.isNotEmpty ? Me.instance.displayName : (Me.instance.username == null ? '' : '@${Me.instance.username}'));
     final s = session = VoiceSession(channel: c, route: route, media: m, name: name, username: _deskName == null ? Me.instance.username : _deskUsername, kbps: settings.sendKbps, stereo: settings.sendStereo);
+    // Taken over by another device of this identity coming into the call (VoiceSession.join): this one leaves it, as
+    // Leave does.
+    s.onMovedAway = () async {
+      if (identical(session, s)) await leave();
+    };
     // A hangout's chat and roles while in its call: whoever is banned is not answered, and the roster is done.
     final room = await hold(c);
     if (room != null) {

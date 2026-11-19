@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -12,6 +13,7 @@ import '../kit/settings_css.dart';
 import '../looks.dart';
 import '../main.dart' show InkOverrides, ghostTypography;
 import '../sounds.dart';
+import '../net/net.dart';
 import '../sms.dart';
 import '../ui/files_space/share_in.dart';
 import '../ui/window_chrome.dart';
@@ -180,11 +182,10 @@ void _handover(PhoneLink link, LinkCalls calls, DeskOwnCalls? own, Directory own
         }
         await DeskOwnCalls.adopt(ownDir, h, keychain: keychain);
         // Who this is goes with the identity: the same username, name and line as the phone.
-        final me = (h['me'] as Map?) ?? const {};
-        if ('${me['u'] ?? ''}'.isNotEmpty) state.set('me_username', '${me['u']}');
-        if ('${me['n'] ?? ''}'.isNotEmpty) state.set('me_display', '${me['n']}');
-        if ('${me['b'] ?? ''}'.isNotEmpty) state.set('me_bio', '${me['b']}');
+        _takeMe(state, h['me']);
         say('done');
+        // Written before the app closes: they were lost with it, and this computer came back with no username.
+        await Sms.instance.prefsWritten();
         await restartApp();
         return;
       }
@@ -196,6 +197,11 @@ void _handover(PhoneLink link, LinkCalls calls, DeskOwnCalls? own, Directory own
       }
       // The phone's account, as it is now (a phone from before says nothing, and what was known stays).
       if (r.containsKey('account')) own.takePhoneAccount(r['account']);
+      // And who this is, as the phone says it, where this computer has none: one lost here comes back, and a username
+      // taken on the phone after the handover is this computer's too. One changed here is left as it is.
+      // Only while this computer is still the phone's identity (not one signed in to another account here).
+      final me = r['me'];
+      if (me is Map && me['id'] != null && me['id'] == Net.instance.id) _takeMe(state, me, onlyMissing: true);
       synced = DateTime.now();
     } catch (e) {
       // Asked again as the link comes and goes, and every little while; why it failed is shown in Settings › Me
@@ -210,6 +216,32 @@ void _handover(PhoneLink link, LinkCalls calls, DeskOwnCalls? own, Directory own
   DeskHandover.retry = () => unawaited(go(asked: true));
   link.addListener(() => unawaited(go()));
   Timer.periodic(const Duration(minutes: 1), (_) => unawaited(go()));
+}
+
+/// The phone's username, name and line ([answerHandover]'s `me`) taken on here: each the phone has and this computer has
+/// not the same, or with [onlyMissing] each this computer has none of.
+///
+/// What was taken is kept (`me_from_phone`): a field emptied here on purpose (a username given up) is not filled again
+/// with the same the phone still says, only with something new from it.
+void _takeMe(AppState state, Object? me, {bool onlyMissing = false}) {
+  if (me is! Map) return;
+  Map<String, dynamic> taken;
+  try {
+    taken = (jsonDecode(state.choice('me_from_phone', '{}')) as Map).cast<String, dynamic>();
+  } catch (_) {
+    taken = {};
+  }
+  var changed = false;
+  for (final (key, said) in [('me_username', me['u']), ('me_display', me['n']), ('me_bio', me['b'])]) {
+    final value = '${said ?? ''}';
+    final have = state.choice(key, '');
+    if (value.isEmpty || have == value) continue;
+    if (onlyMissing && (have.isNotEmpty || taken[key] == value)) continue;
+    state.set(key, value);
+    taken[key] = value;
+    changed = true;
+  }
+  if (changed) state.set('me_from_phone', jsonEncode(taken));
 }
 
 class DesktopApp extends StatefulWidget {
@@ -339,7 +371,10 @@ class _DeskHomeState extends State<DeskHome> {
     if (_restarting) return;
     _restarting = true;
     final relaunch = DeskScope.of(context).relaunch;
-    Future.delayed(const Duration(milliseconds: 900), () => restartApp(relaunch: relaunch));
+    Future.delayed(const Duration(milliseconds: 900), () async {
+      await Sms.instance.prefsWritten();
+      await restartApp(relaunch: relaunch);
+    });
   }
 
   Widget _wizard({String? skipLabel, VoidCallback? onSkip}) => Stack(children: [

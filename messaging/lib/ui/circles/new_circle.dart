@@ -603,14 +603,24 @@ List<CirclePerson> circlePeople(Circle c) {
     }
   }
   ids.addAll(here);
-  // And everyone seen in it before, kept on this device: still members once they have gone.
+  // A device's id from before it spoke as its identity is that identity (Circles.sameAs; Matt, 2026-11-19: every
+  // computer had been "a new matt"): one person, not two.
   final circles = Circles.instance;
-  circles.noteSeen(c, {for (final id in ids) if (id != me) id: names[id] ?? ''});
-  for (final e in circles.seenIn(c).entries) {
-    ids.add(e.key);
-    if (e.value.isNotEmpty) names.putIfAbsent(e.key, () => e.value);
+  // The owner's own id stays its own: the row says Owner only where that one is, as the powers go by it.
+  String same(String id) => id == m.ownerId ? id : circles.sameAs(id);
+  for (final e in [...names.entries]) {
+    if (same(e.key) != e.key) names.putIfAbsent(same(e.key), () => e.value);
   }
-  if (me != null && me.isNotEmpty) ids.add(me);
+  final folded = {for (final id in ids) same(id)};
+  final hereNow = {for (final id in here) same(id)};
+  // And everyone seen in it before, kept on this device: still members once they have gone.
+  circles.noteSeen(c, {for (final id in folded) if (id != me) id: names[id] ?? ''});
+  for (final e in circles.seenIn(c).entries) {
+    folded.add(same(e.key));
+    if (e.value.isNotEmpty) names.putIfAbsent(same(e.key), () => e.value);
+  }
+  if (me != null && me.isNotEmpty) folded.add(me);
+  final ownerNow = m.ownerId;
   String nameOf(String id) {
     if (id == me) return 'You';
     final said = names[id];
@@ -620,8 +630,8 @@ List<CirclePerson> circlePeople(Circle c) {
   }
 
   final people = [
-    for (final id in ids)
-      if (id.isNotEmpty) CirclePerson(id: id, name: nameOf(id), owner: id == m.ownerId, admin: id != m.ownerId && m.granted(id), here: id == me || here.contains(id), me: id == me, hue: m.nameHueOf(id)),
+    for (final id in folded)
+      if (id.isNotEmpty) CirclePerson(id: id, name: nameOf(id), owner: id == ownerNow, admin: id != ownerNow && m.granted(id), here: id == me || hereNow.contains(id), me: id == me, hue: m.nameHueOf(id)),
   ];
   // As the roles stand (Matt, 2026-11-18: "permission hierarchy"): the owner, admins made by hand, then by each one's
   // highest role, then everyone else; by name within each.

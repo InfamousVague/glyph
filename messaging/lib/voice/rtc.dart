@@ -453,10 +453,11 @@ class _RtcPeer implements VoicePeer {
         await stream.addTrack(e.track);
       }
       _stream = stream;
-      media._heard(id, stream);
+      // Not for a connection made in this one's place since (the same person in from another device).
+      if (identical(media._peers[id], this)) media._heard(id, stream);
     };
     pc.onConnectionState = (s) {
-      if (s == RTCPeerConnectionState.RTCPeerConnectionStateFailed || s == RTCPeerConnectionState.RTCPeerConnectionStateClosed) media._gone(id);
+      if ((s == RTCPeerConnectionState.RTCPeerConnectionStateFailed || s == RTCPeerConnectionState.RTCPeerConnectionStateClosed) && identical(media._peers[id], this)) media._gone(id);
     };
     return pc;
   }
@@ -547,7 +548,10 @@ class _RtcPeer implements VoicePeer {
   Future<void> _settled(RTCPeerConnection c) async {
     _described = true;
     for (final cand in _early) {
-      await c.addCandidate(cand);
+      // One that was another connection's (sent before it was let go) is no reason to fail this one.
+      try {
+        await c.addCandidate(cand);
+      } catch (_) {}
     }
     _early.clear();
   }
@@ -566,8 +570,12 @@ class _RtcPeer implements VoicePeer {
   Future<void> close() async {
     final made = _pc;
     _pc = null;
+    final stream = _stream;
+    _stream = null;
+    // Let go of at once, before the closing is waited for: a connection to the same id made meanwhile (their offer from
+    // another device, right behind 'moved') is a new one, and this one's end must not take it away.
+    if (identical(media._peers[id], this)) media._gone(id);
     if (made != null) await (await made).close();
-    await _stream?.dispose();
-    media._gone(id);
+    await stream?.dispose();
   }
 }

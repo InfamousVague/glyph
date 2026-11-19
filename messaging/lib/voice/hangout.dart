@@ -85,7 +85,7 @@ class HangoutRoom extends ChangeNotifier {
     for (final id in there) {
       present[id] = present[id] ?? HangoutPerson(id);
     }
-    _hi();
+    _hi(ask: true);
     _say({'t': 'sync?', 'since': messages.isEmpty ? 0 : messages.last.at, 'v': roster.version, 'av': _about?.version ?? 0});
     notifyListeners();
   }
@@ -112,7 +112,20 @@ class HangoutRoom extends ChangeNotifier {
 
   bool _inVoice = false;
 
-  void _hi() => _say({'t': 'hi', 'n': name, if (username != null) 'u': username, 'a': _inVoice});
+  /// Says who this is. [ask]: on coming in, those here answer with theirs. The relay tells the room someone came only
+  /// with their first device, so a person's second device (one identity on a phone and its computer) was greeted by
+  /// nobody and saw those here without their names until they spoke.
+  void _hi({bool ask = false}) => _say({'t': 'hi', 'n': name, if (username != null) 'u': username, 'a': _inVoice, if (ask) 'q': true});
+
+  /// When each newcomer was last greeted ([_greet]): once, whether they came with their first device or said hi asking.
+  final Map<String, DateTime> _greeted = {};
+
+  void _greet(String id) {
+    final at = _greeted[id];
+    if (at != null && DateTime.now().difference(at) < const Duration(seconds: 10)) return;
+    _greeted[id] = DateTime.now();
+    _hi();
+  }
 
   // --- chat --------------------------------------------------------------------------------------------------------
 
@@ -310,6 +323,21 @@ class HangoutRoom extends ChangeNotifier {
     }
     final assigned = {...roster.assigned, id: roleId};
     return _publish(roster.next(assigned: assigned, adminGrants: grants));
+  }
+
+  /// Makes [id] an admin, signed by [owner] where that is this space's owner: a paired computer giving what it made
+  /// under a key of its own to the identity it speaks as now (Voice.carryOver). True where nothing is left to do.
+  Future<bool> grantAdminAs(NetSigner owner, String id) async {
+    if (!roster.isOwner(owner.id) || roster.canManage(id)) return true;
+    // Not in the room yet: said now it would go nowhere (the relay drops a room's packet from outside it), so not done.
+    if (!opened || _dropped) return false;
+    final grants = {...roster.adminGrants, id: NetCrypto.hex(await owner.sign(Roster.grantMessage(roster.owner, id)))};
+    final next = roster.next(assigned: {...roster.assigned, id: Role.admin}, adminGrants: grants);
+    final signed = await next.signedBy(owner.id, owner.publicKey, owner.sign);
+    if (!signed.trustedFor(channel.owner)) return false;
+    _take(signed);
+    _say({'t': 'roster', 'r': signed.toJson()}, keep: true);
+    return true;
   }
 
   /// Mutes [id] for everyone, or lets them speak again.
@@ -535,12 +563,12 @@ class HangoutRoom extends ChangeNotifier {
       for (final id in e.members!) {
         present[id] = HangoutPerson(id);
       }
-      _hi();
+      _hi(ask: true);
       _say({'t': 'sync?', 'since': messages.isEmpty ? 0 : messages.last.at, 'v': roster.version, 'av': _about?.version ?? 0});
     } else if (e.came != null) {
       present[e.came!] = HangoutPerson(e.came!);
       // Who is here and what they call themselves, for the newcomer.
-      _hi();
+      _greet(e.came!);
     } else if (e.went != null) {
       present.remove(e.went);
       heldMutes.remove(e.went);
@@ -592,8 +620,12 @@ class HangoutRoom extends ChangeNotifier {
     if (roster.banned.contains(from)) return;
     switch (m['t']) {
       case 'hi':
+        // Another device of this identity is this person, not someone else here (counted with "here" otherwise).
+        if (from == me) return;
         present[from] = HangoutPerson(from, name: '${m['n'] ?? ''}', username: m['u'] is String ? m['u'] as String : null, inVoice: m['a'] == true, guest: m['g'] == true);
         notifyListeners();
+        // Come in asking who is here (a person's second device, whom the relay announces to nobody): told, once.
+        if (m['q'] == true) _greet(from);
       case 'msg':
         final msg = HangoutMessage.fromJson(m, from);
         if (msg != null && roster.can(from, Perm.chat)) _add([msg]);
