@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/circles/circle.dart';
 import 'package:ghost_messaging/circles/sms_space.dart';
+import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/voice/hangout.dart';
 import 'package:ghost_messaging/voice/voice.dart';
 
@@ -45,5 +46,26 @@ void main() {
     expect(again.number, '+15551230001');
     expect(again.name, 'Dad');
     expect(again.seen, 20);
+    expect(again.member, isNull, reason: 'added by hand');
+    const member = TextedPerson(number: '+15551230002', name: 'Jamie', member: 'jamie-id');
+    expect(TextedPerson.fromJson(member.withSeen(5).toJson())!.member, 'jamie-id', reason: 'a member come in by their number stays one');
+  });
+
+  // Matt, 2026-11-19: "all users invited to a circle with phone numbers linked should get texts via the SMS channel in a
+  // circle and they should come back to that chat as well it shouldn't be a manual opt in".
+  test('a member\'s number goes to the texting phone sealed to its ask alone: no other key opens it', () {
+    final texter = NetKeys.generate();
+    final answer = numberAnswer(NetCrypto.hex(texter.public), '+15551230002', 'Jamie')!;
+    expect(answer['t'], 'sms#');
+    expect('$answer', isNot(contains('5551230002')), reason: 'the number is not in the clear');
+    final got = openNumberAnswer(texter, answer.cast<String, dynamic>())!;
+    expect(got.number, '+15551230002');
+    expect(got.name, 'Jamie');
+    // Another member, or the relay, holding a key of its own, reads nothing.
+    expect(openNumberAnswer(NetKeys.generate(), answer.cast<String, dynamic>()), isNull);
+    // Changed on the way, it is no answer.
+    final s = answer['s'] as String;
+    expect(openNumberAnswer(texter, {...answer, 's': '${s.substring(0, s.length - 4)}AAAA'}.cast<String, dynamic>()), isNull);
+    expect(numberAnswer('not a key', '+15551230002', 'Jamie'), isNull);
   });
 }
