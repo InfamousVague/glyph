@@ -31,6 +31,8 @@ import '../../art/lucide_more.dart';
 import '../../backgrounds.dart' show strongFill;
 import '../../files/file_platform.dart';
 import '../../files/files_store.dart';
+import '../../plugins/watch_together.dart';
+import '../../voice/watch_together.dart';
 import '../../kit/semantic_colors.dart';
 import '../../kit/settings_kit.dart';
 import '../../kit/settings_type.dart';
@@ -1185,6 +1187,12 @@ void showFileMenu(BuildContext context, VoiceChannel c, SpaceFile f, {required F
   final may = store.canChange(c, f);
   showChoices(context, title: '${f.name}\n${fileSize(f.size)} · ${fileWho(f)} · ${listWhen(f.when)}', choices: [
     if (onOpen != null) Choice('Open', Lucide.eye, onOpen),
+    // In a call with Watch together on: the file played on everyone's device, in step (lib/plugins/watch_together.dart).
+    if ((f.kind == FileKind.video || f.kind == FileKind.audio) && WatchTogetherPlugin.onInCall())
+      Choice('Watch together in the call', Lucide.film, () {
+        WatchTogether.instance.start(f, c);
+        watchNow(context);
+      }),
     if (FilePlatform.canSave) Choice(_saveWord, LucideMore.download, () => fileAction(context, c, f, store, (path) => FilePlatform.save(path, f.name, f.mime), doneWords: true)),
     if (FilePlatform.canShare) Choice('Share', Lucide.share2, () => fileAction(context, c, f, store, (path) => FilePlatform.share(path, f.name, f.mime))),
     if (may) Choice('Rename', Lucide.pencil, () => askFileWords(context, title: 'Rename', initial: f.name, then: (n) => store.rename(c, f, n))),

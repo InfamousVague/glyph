@@ -17,9 +17,11 @@ import '../sms.dart';
 import '../sounds.dart';
 import '../circles/circles.dart';
 import '../circles/sms_space.dart';
+import 'captions.dart';
 import 'hangout.dart';
 import 'mention_alerts.dart';
 import 'roles.dart';
+import 'watch_together.dart';
 import 'rtc.dart';
 import 'voice.dart';
 import 'voice_settings.dart';
@@ -804,6 +806,10 @@ class Voice extends ChangeNotifier {
       await Sms.instance.callStarted(c.name, video: withVideo);
       await s.join(withVideo: withVideo);
       _enforce();
+      // The call's captions follow it: this device writes out its own voice while anyone wants them (captions.dart).
+      CallCaptions.instance.follow();
+      // And what the call watches together (watch_together.dart).
+      WatchTogether.instance.follow();
     } catch (e) {
       await leave();
       rethrow;
@@ -834,6 +840,8 @@ class Voice extends ChangeNotifier {
   Future<void> leave() async {
     final s = session;
     session = null;
+    CallCaptions.instance.follow();
+    WatchTogether.instance.follow();
     Sounds.instance.stopLoop(UiSound.ringOut);
     media = null;
     if (s != null) unawaited(Sms.instance.callEnded());

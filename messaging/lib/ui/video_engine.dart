@@ -56,6 +56,17 @@ class VideoNow {
   int get hashCode => Object.hash(ready, playing, position, duration, aspect, error, buffered, buffering, tracks);
 }
 
+/// Keeps a player in step with others (lib/voice/watch_together.dart; Matt, 2026-11-19: "watch together"): handed the
+/// engine once it plays, told what the person does with it, and let go when the screen goes. What it does to the engine
+/// itself is never told back.
+abstract class VideoSync {
+  void attach(VideoEngine engine);
+
+  /// The person played, paused or moved it: [playing] and [position] as they left it.
+  void user({required bool playing, required Duration position});
+  void detach(VideoEngine engine);
+}
+
 /// What plays a video under the app's own controls (Matt, 2026-11-18: "add support for playing mkv video files and
 /// mp4's within the app in a player themed by glacier UI"). Two engines, because no one engine is right everywhere:
 ///
