@@ -232,7 +232,7 @@ class DiscordPerson {
 /// Someone in the call, as they said they are.
 @immutable
 class VoiceMember {
-  const VoiceMember(this.id, {this.name = '', this.muted = false, this.video = false, this.guest = false, this.username, this.notices = false, this.recording, this.agreed = const {}, this.declined = const {}});
+  const VoiceMember(this.id, {this.name = '', this.muted = false, this.video = false, this.guest = false, this.username, this.notices = false, this.recording, this.agreed = const {}, this.declined = const {}, this.captions = false});
   final String id;
   final String name;
 
@@ -246,6 +246,9 @@ class VoiceMember {
   /// The recordings of this call they said their voice may be in ('ry'), and those they said it may not ('rn').
   final Set<String> agreed, declined;
 
+  /// They want the call's words as captions ('cw'): each device that can then writes out its own voice.
+  final bool captions;
+
   /// Their username on Ghost Messaging, where they have one and said it: to add them as a friend.
   final String? username;
   final bool muted;
@@ -254,10 +257,10 @@ class VoiceMember {
   /// Joined from a browser by the link, with no username: a guest.
   final bool guest;
   VoiceMember copyWith({String? name, bool? muted, bool? video, bool? guest, String? username}) =>
-      VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video, guest: guest ?? this.guest, username: username ?? this.username, notices: notices, recording: recording, agreed: agreed, declined: declined);
+      VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video, guest: guest ?? this.guest, username: username ?? this.username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions);
 
-  VoiceMember withRecording({required bool notices, String? recording, Set<String> agreed = const {}, Set<String> declined = const {}}) =>
-      VoiceMember(id, name: name, muted: muted, video: video, guest: guest, username: username, notices: notices, recording: recording, agreed: agreed, declined: declined);
+  VoiceMember withRecording({required bool notices, String? recording, Set<String> agreed = const {}, Set<String> declined = const {}, bool captions = false}) =>
+      VoiceMember(id, name: name, muted: muted, video: video, guest: guest, username: username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions);
 }
 
 /// Being in one channel: joined on the hub, a connection to each member, and what each says of themselves.
@@ -340,6 +343,34 @@ class VoiceSession extends ChangeNotifier {
     _sayState();
     notifyListeners();
   }
+
+  // --- captions (Matt, 2026-11-19: "Live captions") ------------------------------------------------------------------
+  // Each device writes out its own voice, where anyone in the call wants captions ('cw' in their state), and says the
+  // words in the call's room ('cap': the words, and whether the line is done). An older build ignores both.
+
+  /// This device's person wants the call's words shown.
+  bool wantsCaptions = false;
+
+  /// Whether anyone in the call wants captions: then this device writes out its own voice.
+  bool get anyoneWantsCaptions => wantsCaptions || members.values.any((m) => m.captions);
+
+  /// Told each caption said in the call: who, the words, and whether the line is done.
+  void Function(String from, String words, bool done)? onCaption;
+
+  void setWantsCaptions(bool on) {
+    wantsCaptions = on;
+    _sayState();
+    notifyListeners();
+  }
+
+  /// Told what someone watching a file together with the call did ('wt', lib/voice/watch_together.dart).
+  void Function(String from, Map<String, dynamic> what)? onWatch;
+
+  /// Says [what] of watching together to the call.
+  void sayWatch(Map<String, Object?> what) => _say({'t': 'wt', ...what});
+
+  /// Says [words] of this device's voice to the call; [done]: the line is finished.
+  void sayCaption(String words, {required bool done}) => _say({'t': 'cap', 'x': words.length > 600 ? words.substring(words.length - 600) : words, 'f': done});
 
   /// Answers whether this device's voice may be in the recording [id].
   void answerRecording(String id, bool yes) {
@@ -459,6 +490,7 @@ class VoiceSession extends ChangeNotifier {
         if (recording != null) 'r': recording,
         if (agreed.isNotEmpty) 'ry': [...agreed],
         if (declined.isNotEmpty) 'rn': [...declined],
+        if (wantsCaptions) 'cw': 1,
       });
 
   void _say(Map<String, Object?> what) {
@@ -510,8 +542,12 @@ class VoiceSession extends ChangeNotifier {
         Set<String> ids(Object? l) => {for (final x in (l is List ? l : const [])) if (x is String) x};
         members[from] = had
             .copyWith(name: bareName('${m['n'] ?? ''}'), muted: m['m'] == true, video: m['v'] == true, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null)
-            .withRecording(notices: m['rs'] == 1, recording: m['r'] is String ? m['r'] as String : null, agreed: ids(m['ry']), declined: ids(m['rn']));
+            .withRecording(notices: m['rs'] == 1, recording: m['r'] is String ? m['r'] as String : null, agreed: ids(m['ry']), declined: ids(m['rn']), captions: m['cw'] == 1);
         notifyListeners();
+      case 'wt':
+        onWatch?.call(from, m);
+      case 'cap':
+        if (m['x'] is String) onCaption?.call(from, m['x'] as String, m['f'] == true);
       case 'offer':
         members.putIfAbsent(from, () => VoiceMember(from));
         // An offer from another join of theirs (another device, or the app opened again) is a new connection: the old

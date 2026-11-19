@@ -18,6 +18,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { requireNotes } from './lib/notes.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // The site's address since 2026-11-15 (tool/deploy-site.mjs); /opt/ghost-sms-* keep their names on the box.
@@ -49,6 +50,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const pubspec = readFileSync(join(ROOT, 'pubspec.yaml'), 'utf8');
 const [, versionName, versionCode] = pubspec.match(/^version:\s*([0-9.]+)\+(\d+)/m) ?? fail('No version in pubspec.yaml.');
+requireNotes(ROOT, versionName, args, fail);
 
 async function liveRelease() {
   try {

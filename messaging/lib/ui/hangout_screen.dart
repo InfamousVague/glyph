@@ -20,6 +20,7 @@ import '../voice/mention_alerts.dart';
 import '../voice/roles.dart';
 import '../voice/voice.dart';
 import 'common.dart';
+import 'profile_card.dart';
 import '../app_state.dart';
 import '../backgrounds.dart';
 import '../sms.dart' show Person;
@@ -679,17 +680,25 @@ class _HangoutChatState extends State<HangoutChat> {
   }
 
   /// A mention pressed in a message: who it is, with a way to mention them back and the space's members.
+  /// Their profile card (Matt, 2026-11-19: "when clicking on a @mention anywhere ... show this profile popup with actions
+  /// available for the user in context of where it's placed"): here, mention them back and the space's members too.
   void _mentionPressed(Mention m) {
     final room = widget.room;
-    final name = m.id == room.me ? 'You' : spaceNameOf(room, m.id);
-    showChoices(context, title: name, choices: [
-      if (m.id != room.me && widget.room.mayWrite)
-        Choice('Mention $name', Lucide.atSign, () {
-          _text.mention(MentionPerson(id: m.id, name: spaceNameOf(room, m.id)));
-          _focus.requestFocus();
-        }),
-      Choice('Members', Lucide.users, () => showSpaceMembers(context, room)),
-    ]);
+    showProfile(
+      context,
+      ProfileSubject.ghost(
+        id: m.id,
+        name: spaceNameOf(room, m.id),
+        room: room,
+        onMention: m.id == room.me || !room.mayWrite
+            ? null
+            : () {
+                _text.mention(MentionPerson(id: m.id, name: spaceNameOf(room, m.id)));
+                _focus.requestFocus();
+              },
+      ),
+      more: [Choice('Members', Lucide.users, () => showSpaceMembers(context, room))],
+    );
   }
 
   /// The + : any files, pictures, videos and GIFs among them, up to ten with one message, chosen with the device's own

@@ -32,6 +32,8 @@ import '../standalone/chats.dart' show UsernameChats;
 import '../stickers.dart';
 import 'chat_settings.dart';
 import 'common.dart';
+import 'mention_field.dart' show mentionStyle;
+import 'profile_card.dart';
 import 'composer_box.dart';
 import 'reaction_stickers.dart';
 import 'poof.dart';
@@ -1797,6 +1799,11 @@ class _Bubble extends StatelessWidget {
                   ink: ink,
                   // Settings › Appearance › Text size.
                   style: pageText(t, t.fontSize('md') * app.textScale * size, color: ink, height: 1.35),
+                  // An "@username" pressed opens who it is on Ghost (Matt, 2026-11-19: "when clicking on a @mention
+                  // anywhere ... show this profile popup").
+                  mentions: handleMentions(body),
+                  mentionStyle: mentionStyle(t, on: ink),
+                  onMention: (m) => showProfile(context, subjectOfMention(m.id)),
                 ),
         ),
     ];

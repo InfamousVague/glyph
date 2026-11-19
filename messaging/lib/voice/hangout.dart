@@ -14,6 +14,8 @@ import '../net/hub_carrier.dart';
 import 'channels.dart' show AppHangoutStore;
 import 'roles.dart';
 import 'voice.dart';
+import '../me/me.dart' show Me;
+import '../me/pictures.dart';
 
 /// A hangout's chat, and its roles kept and enforced (Matt, 2026-11-15: "Implement a permissions system similar to
 /// discord for hangouts and add a chat to hangouts so the whole group can send messages to the hangout as well as
@@ -136,7 +138,31 @@ class HangoutRoom extends ChangeNotifier {
   /// Says who this is. [ask]: on coming in, those here answer with theirs. The relay tells the room someone came only
   /// with their first device, so a person's second device (one identity on a phone and its computer) was greeted by
   /// nobody and saw those here without their names until they spoke.
-  void _hi({bool ask = false}) => _say({'t': 'hi', 'n': name, if (username != null) 'u': username, 'a': _inVoice, if (ask) 'q': true});
+  void _hi({bool ask = false}) {
+    final me = Me.instance;
+    _say({'t': 'hi', 'n': name, if (username != null) 'u': username, 'a': _inVoice, if (ask) 'q': true, if (me.status.isNotEmpty) 'st': me.status, if (me.picture.isNotEmpty) 'ph': ProfilePictures.hashOf(me.picture)});
+  }
+
+  final Map<String, Completer<String?>> _askedPictures = {};
+
+  /// [id]'s profile picture: the one kept here where it is theirs now, else asked of them (`pic?`, answered `pic` by
+  /// the person alone); null where they have none, or no answer comes within a few seconds.
+  Future<String?> pictureOf(String id) async {
+    final hash = present[id]?.pictureHash ?? '';
+    // Here and saying no picture: none, whatever was kept from before (they took theirs away).
+    if (present.containsKey(id) && hash.isEmpty) return null;
+    final kept = ProfilePictures.instance.of(id, hash: hash.isEmpty ? null : hash);
+    if (kept != null || hash.isEmpty) return kept;
+    final asked = _askedPictures[id] ??= Completer<String?>();
+    _say({'t': 'pic?', 'to': id});
+    try {
+      return await asked.future.timeout(const Duration(seconds: 6));
+    } on TimeoutException {
+      return null;
+    } finally {
+      _askedPictures.remove(id);
+    }
+  }
 
   /// When each newcomer was last greeted ([_greet]): once, whether they came with their first device or said hi asking.
   final Map<String, DateTime> _greeted = {};
@@ -647,11 +673,28 @@ class HangoutRoom extends ChangeNotifier {
       case 'hi':
         // Another device of this identity is this person, not someone else here (counted with "here" otherwise).
         if (from == me) return;
-        present[from] = HangoutPerson(from, name: bareName('${m['n'] ?? ''}'), username: m['u'] is String ? m['u'] as String : null, inVoice: m['a'] == true, guest: m['g'] == true);
+        present[from] = HangoutPerson(from,
+            name: bareName('${m['n'] ?? ''}'),
+            username: m['u'] is String ? m['u'] as String : null,
+            inVoice: m['a'] == true,
+            guest: m['g'] == true,
+            status: m['st'] is String ? String.fromCharCodes((m['st'] as String).runes.take(Me.statusMost)) : '',
+            pictureHash: m['ph'] is String ? m['ph'] as String : '');
         if (m['u'] is String && (m['u'] as String).isNotEmpty) usernames[from] = m['u'] as String;
         notifyListeners();
         // Come in asking who is here (a person's second device, whom the relay announces to nobody): told, once.
         if (m['q'] == true) _greet(from);
+      case 'pic?':
+        // Someone looking at this person's profile (it came to them alone: `to` above).
+        final mine = Me.instance.picture;
+        if (mine.isNotEmpty) _say({'t': 'pic', 'to': from, 'p': mine});
+      case 'pic':
+        final p = m['p'];
+        if (p is String) {
+          ProfilePictures.instance.keep(from, p);
+          final asked = _askedPictures[from];
+          if (asked != null && !asked.isCompleted) asked.complete(ProfilePictures.instance.of(from));
+        }
       case 'msg':
         final msg = HangoutMessage.fromJson(m, from);
         if (msg != null && roster.can(from, Perm.chat)) _add([msg]);
@@ -705,10 +748,15 @@ class HangoutRoom extends ChangeNotifier {
 /// Someone in a hangout's chat room, as they said they are.
 @immutable
 class HangoutPerson {
-  const HangoutPerson(this.id, {this.name = '', this.username, this.inVoice = false, this.guest = false});
+  const HangoutPerson(this.id, {this.name = '', this.username, this.inVoice = false, this.guest = false, this.status = '', this.pictureHash = ''});
   final String id;
   final String name;
   final String? username;
+
+  /// How they are now, and a mark of their picture (ProfilePictures.hashOf), as their greeting said; '' for none. The
+  /// picture itself is asked of them when someone looks at their profile ([HangoutRoom.pictureOf]).
+  final String status;
+  final String pictureHash;
   final bool inVoice;
   final bool guest;
 }

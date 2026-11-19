@@ -139,6 +139,8 @@ class MainActivity : FlutterActivity() {
         CallRecorder.register(messenger)
         // Words from a recorded call, by the phone's own speech recognition (Scribe.kt, lib/voice/scribe.dart).
         Scribe.register(applicationContext, messenger)
+        // A call's captions: this phone's own voice written out as it is said (LiveCaptions.kt, lib/voice/captions.dart).
+        LiveCaptions.register(applicationContext, messenger)
         // The interface sounds (Sounds.kt, lib/sounds.dart).
         Sounds.register(this, messenger)
         // The walkthrough's voice (GuideVoice.kt).

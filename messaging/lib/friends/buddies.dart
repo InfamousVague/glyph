@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../invites/pending_invites.dart';
 import '../me/me.dart';
+import '../me/pictures.dart';
 import '../net/carrier.dart';
 import '../net/crypto.dart';
 import '../net/net.dart';
@@ -17,7 +18,7 @@ import '../sounds.dart';
 /// "create a profile and username under "me" to register a username and add friends on the platform").
 @immutable
 class Buddy {
-  const Buddy({required this.username, required this.id, required this.key, this.name = '', this.bio = '', this.state = 'yes', this.at = 0});
+  const Buddy({required this.username, required this.id, required this.key, this.name = '', this.bio = '', this.state = 'yes', this.at = 0, this.picture = '', this.status = ''});
 
   /// Their username, as the relay server's directory has it.
   final String username;
@@ -31,6 +32,10 @@ class Buddy {
   final String name;
   final String bio;
 
+  /// Their picture (a square base64 PNG: lib/me/pictures.dart) and how they are now, as they last said; '' for none.
+  final String picture;
+  final String status;
+
   /// Where the two stand: `asked` (this phone asked them), `invited` (they asked this phone), `yes`.
   final String state;
   final int at;
@@ -38,15 +43,17 @@ class Buddy {
   /// Their name, else their username, with no "@" in front (bareName).
   String get shown => name.isEmpty ? bareName(username) : bareName(name);
 
-  Buddy copyWith({String? name, String? bio, String? state}) => Buddy(username: username, id: id, key: key, name: name ?? this.name, bio: bio ?? this.bio, state: state ?? this.state, at: at);
+  Buddy copyWith({String? name, String? bio, String? state, String? picture, String? status}) =>
+      Buddy(username: username, id: id, key: key, name: name ?? this.name, bio: bio ?? this.bio, state: state ?? this.state, at: at, picture: picture ?? this.picture, status: status ?? this.status);
 
-  Map<String, Object> toJson() => {'u': username, 'i': id, 'k': key, 'n': name, 'b': bio, 's': state, 'a': at};
+  Map<String, Object> toJson() => {'u': username, 'i': id, 'k': key, 'n': name, 'b': bio, 's': state, 'a': at, if (picture.isNotEmpty) 'p': picture, if (status.isNotEmpty) 'st': status};
 
   static Buddy? fromJson(Object? j) {
     if (j is! Map) return null;
     final u = j['u'], i = j['i'], k = j['k'];
     if (u is! String || i is! String || k is! String) return null;
-    return Buddy(username: u, id: i, key: k, name: '${j['n'] ?? ''}', bio: '${j['b'] ?? ''}', state: '${j['s'] ?? 'yes'}', at: (j['a'] as num?)?.toInt() ?? 0);
+    final p = j['p'] is String && (j['p'] as String).length <= ProfilePictures.most ? j['p'] as String : '';
+    return Buddy(username: u, id: i, key: k, name: '${j['n'] ?? ''}', bio: '${j['b'] ?? ''}', state: '${j['s'] ?? 'yes'}', at: (j['a'] as num?)?.toInt() ?? 0, picture: p, status: '${j['st'] ?? ''}');
   }
 }
 
@@ -209,9 +216,21 @@ class Buddies extends ChangeNotifier {
 
   void _put(Buddy b) {
     all = [for (final o in all) if (o.id != b.id) o, b];
+    ProfilePictures.instance.keep(b.id, b.picture);
   }
 
-  Map<String, Object> _profile() => {'u': _port.username ?? '', 'n': _port.displayName, 'b': _port.bio};
+  /// What friends are told of this person. The picture and status since 2026-11-19 (`p`, `st`); a build from before
+  /// passes over them.
+  Map<String, Object> _profile() {
+    final me = Me.instance;
+    return {'u': _port.username ?? '', 'n': _port.displayName, 'b': _port.bio, if (me.picture.isNotEmpty) 'p': me.picture, 'st': me.status};
+  }
+
+  /// A picture and status said in [body], where it says them: null for each it does not (a build from before).
+  static ({String? picture, String? status}) _said(Map body) {
+    final p = body['p'];
+    return (picture: p is String && p.length <= ProfilePictures.most ? p : (body.containsKey('st') ? '' : null), status: body['st'] is String ? body['st'] as String : null);
+  }
 
   /// Who [username] is, as the add-friend drawer shows it while it is typed: nobody, this install itself, or someone
   /// (lib/ui/add_friend_drawer.dart). Asks the same server [add] asks.
@@ -296,15 +315,16 @@ class Buddies extends ChangeNotifier {
     }
     final had = byId(from);
     final name = '${e.body['n'] ?? ''}', bio = '${e.body['b'] ?? ''}';
+    final said = _said(e.body);
     if (had?.state == 'yes') return;
     if (had?.state == 'asked') {
       // Both asked: friends.
-      unawaited(accept(had!.copyWith(name: name, bio: bio)));
+      unawaited(accept(had!.copyWith(name: name, bio: bio, picture: said.picture, status: said.status)));
       return;
     }
     // A request new to this phone: the friend request's sound (lib/sounds.dart), once.
     if (had?.state != 'invited') Sounds.instance.play(UiSound.friendRequest);
-    _put(Buddy(username: tidyHandle(username), id: from, key: key, name: name, bio: bio, state: 'invited', at: DateTime.now().millisecondsSinceEpoch));
+    _put(Buddy(username: tidyHandle(username), id: from, key: key, name: name, bio: bio, state: 'invited', at: DateTime.now().millisecondsSinceEpoch, picture: said.picture ?? '', status: said.status ?? ''));
     unawaited(_save());
   }
 
@@ -313,12 +333,13 @@ class Buddies extends ChangeNotifier {
     final had = byId(from);
     if (had == null) return;
     final name = e.body['n'] is String ? e.body['n'] as String : null, bio = e.body['b'] is String ? e.body['b'] as String : null;
+    final said = _said(e.body);
     switch (e.body['s']) {
       case 'yes':
         if (had.state == 'asked') Sounds.instance.play(UiSound.friendAccepted);
-        if (had.state == 'asked' || had.state == 'yes') _put(had.copyWith(state: 'yes', name: name, bio: bio));
+        if (had.state == 'asked' || had.state == 'yes') _put(had.copyWith(state: 'yes', name: name, bio: bio, picture: said.picture, status: said.status));
       case 'me':
-        if (had.state == 'yes') _put(had.copyWith(name: name, bio: bio));
+        if (had.state == 'yes') _put(had.copyWith(name: name, bio: bio, picture: said.picture, status: said.status));
       case 'no':
       case 'end':
         all = [for (final o in all) if (o.id != from) o];

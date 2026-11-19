@@ -25,7 +25,7 @@ Every request has `id` (a number the app picks) and `op`. Each is answered by on
 | `react` | `to`, `author`, `ts`, `emoji`, `remove` | `null` |
 | `delete` | `to`, `ts` | `null`: deleted for everyone (your own message) |
 | `download` | `pointer` (an attachment as an event gave it: the JSON object, or that object as a string), `path` | `null` once written to `path` |
-| `who` | `aci` | `{"aci", "name", "number", "avatar"}`: the person as the store has them, and from their Signal profile (fetched with the profile key a message carried) where nothing names them; `name` empty where Signal has none |
+| `who` | `aci`, optional `profile` (true: their Signal profile is fetched even where the store names them, for a profile card; signalmeow keeps it an hour) | `{"aci", "name", "number", "avatar", "about", "aboutEmoji"}`: the person as the store has them, and from their Signal profile (fetched with the profile key a message carried) where nothing names them; `name` empty where Signal has none; `about` and `aboutEmoji` their profile's "About" line and its emoji, empty where they wrote none or the profile was never fetched (`contacts`, `blocked` and the `name` event carry them too) |
 | `block` | `aci`, `on` (true blocks, false unblocks) | `null`: blocked on Signal itself. Kept in this device's store at once (what they send is dropped from then on) and told to the account's other devices as Signal Desktop tells them, a message-request answer for that person (BLOCK, or ACCEPT to unblock), which the phone applies to its own list |
 | `blocked` | | `[{"aci", "name", "number", "avatar"}]`: everyone blocked that this device knows of, here or on the phone (Signal's synced settings bring the phone's list) |
 | `group_info` | `to` (a group id) | the group in full: `groups`' fields and `description`, `timer` (seconds, 0 off), `people` and `pending` and `requesting` (`[{"aci", "name", "number", "admin", "me"}]`), `admin` (you are), `edit_info` and `add_members` (`"members"`, `"admins"` or `"anyone"`), `announcements_only`, `terminated`, `invite_link` (where there is one) |
@@ -40,13 +40,19 @@ Every request has `id` (a number the app picks) and `op`. Each is answered by on
 | `linked` | `aci`, `number` |
 | `link_failed` | `error` |
 | `connected` / `disconnected` | |
-| `message` | `chat` (the other person's ACI, or the group id), `group` (bool), `from` (sender ACI), `name` (sender's name where known), `mine` (bool: sent from another of the person's devices), `ts` (ms), `text`, `media` (list of `{"pointer": <opaque JSON>, "mime": "…", "name": "…", "size": n, "width": n, "height": n}`), `quote` (optional `{"ts", "author", "text"}`) |
+| `message` | `chat` (the other person's ACI, or the group id), `group` (bool), `from` (sender ACI), `name` (sender's name where known), `mine` (bool: sent from another of the person's devices), `ts` (ms), `text`, `media` (list of `{"pointer": <opaque JSON>, "mime": "…", "name": "…", "size": n, "width": n, "height": n}`), `quote` (optional `{"ts", "author", "text"}`), `mentions` (see below) |
 | `receipt` | `chat` (the ACI of the person whose device sent the receipt, in a group too), `ts` (list), `kind` (`delivered` or `read`) |
 | `reaction` | `chat`, `from`, `target_ts`, `target_author`, `emoji`, `remove` |
-| `edited` | `chat`, `from`, `target_ts` (the message's first time, as its `message` event gave it), `ts` (when it was edited), `text` (its words now) |
+| `edited` | `chat`, `from`, `target_ts` (the message's first time, as its `message` event gave it), `ts` (when it was edited), `text` (its words now), `mentions` (in the words now) |
 | `deleted` | `chat`, `target_ts` (deleted for everyone by its author) |
 | `contacts` | `list`: the same list as the `contacts` op (Signal's contact sync, as it arrives; avatars come with the op) |
 | `name` | `aci`, `name`, `number`, `avatar`: someone who wrote with nothing naming them, once their profile is fetched (once a run each) |
 | `unlinked` | Signal removed this device |
+
+`mentions` (Matt, 2026-11-19: "when clicking on a @mention anywhere including signal and telegram chats show this profile
+popup") is `[{"start": n, "length": n, "aci": "<uuid>"}]`, always a list (empty where there are none): Signal's text
+holds the character U+FFFC where each person is named, and `start` and `length` say where, in UTF-16 units of `text`
+as Signal counts them. The app puts "@Name" in place of each (lib/inbox/signal.dart signalMentions). Helpers before
+this sent no `mentions`; the app leaves such text as it is.
 
 Signal keeps no history for a new linked device: the app keeps what arrives from linking on.

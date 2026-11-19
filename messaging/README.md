@@ -30,6 +30,35 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Plugins for whole circles: Record call, Scribe, Live captions, Watch together, and SMS spaces** (0.9.21, not
+  released; Matt, 2026-11-19: "Start with the recording plugin, then scribe, then a special space in the circle called a
+  "SMS Space" to text members, Live captions, and watch together"; "Some plugins should be serverside / cirlce side as
+  well"). A plugin says where it may be on (`PluginScope`: this device, a whole circle, the server); a circle's owner or
+  an admin turns one on for everyone in Circle settings › Plugins, kept in the circle's signed manifest (`pl`). Calls
+  have places for plugins: the call's menu in every design (`Slots.callControls`) and lines over the call
+  (`Slots.callBanner`). Server plugins are a scope only so far: nothing runs on the relay yet.
+  - **Record call** (`lib/voice/recorder.dart`, android `CallRecorder.kt`, macos/ios `CallRecorder.swift`,
+    `lib/voice/mp4_names.dart`): one MP4, track 1 everyone mixed (the default), then one AAC track per voice, named
+    (`udta/name`, `udta/©nam`, the handler's name). Each other person's decoded sound is tapped natively
+    (`AudioTrack.addSink`, `RTCAudioTrack.addRenderer`), this device's own after VoiceFx, each to its own file held to
+    the clock, encoded and joined at the end. Everyone is told by a red line over the call whatever their plugins, and
+    asked; only voices whose own device said yes (`ry` in the call's `me`) are in it. Recordings stay on the device
+    (Recordings: play with a track per voice, share, save, send to the space). Not on Windows.
+  - **Scribe** (`lib/voice/scribe.dart`, android `Scribe.kt`, macos/ios `Scribe.swift`): a recording written out by
+    the device's own speech recognition, each voice's track on its own, cut at pauses, lines named and timed; a line
+    summing it up on a phone with its model; kept as `.txt` and as `.srt` subtitles the player shows. Android 13+.
+  - **Live captions** (`lib/voice/captions.dart`, android `LiveCaptions.kt`, macos/ios `LiveCaptions.swift`): each
+    device writes out its own voice while anyone in the call wants captions (`cw`), and says the words in the call's
+    room (`cap`); others' lines are translated where Translate is added.
+  - **Watch together** (`lib/voice/watch_together.dart`): a Files-space video or song played on everyone's device in a
+    call from its own sealed copy; play, pause and where it is said in the call (`wt`), a player more than 1.5 s out
+    moved.
+  - **SMS spaces** (`lib/circles/sms_space.dart`, `lib/ui/sms_space_ui.dart`): a circle's texting space whose people
+    without the app are in it by text from one member's phone (`CircleSpace.extra.sms.by`); their numbers kept on that
+    phone alone; messages out as "Name: words", replies in marked 📱, STOP takes someone out.
+  - Checked: two-member protocol tests for each; on an emulator, a four-track MP4 read by ffprobe and Scribe writing out a
+    two-voice recording; the Mac's encoder on its own. Not yet: a real call between two devices recording, captions or
+    watching; real texts through an SMS space.
 - **Signal: group names, and sends that say why they stall** (0.7.42, not released; `sidecar/signal/main.go`,
   `lib/inbox/signal.dart`; Matt, 2026-11-16: "Sending signal messages get stuck on sending... and the group titles
   are not coming through", then "It says bad state signal took too long to answer").
@@ -70,6 +99,24 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   from the password, 10 tries an hour per account, plus a texted code where the account has a verified number), or the
   recovery words alone. Every device signed in is the same identity at once (below). Tests: account_crypto_test
   (BIP-39/32, EIP-55, HKDF, Argon2id vectors), account_flow_test, relay accounts_test.
+- **Profiles: a picture, a status, and a card behind every "@"** (0.9.21, not released; Matt, 2026-11-19: "build a
+  profile section in the app that allows us to set profile pictures and status messages, when clicking on a @mention
+  anywhere including signal and telegram chats show this profile popup with actions available for the user in context
+  of where it's placed when using telegram and other outside apps we should proxy through any profile information their
+  APIs make available and in app it should have a small input to send a DM to a user").
+  - Settings › Me › Profile has a picture (square and small, made as a circle's is: `pickCirclePicture`) and a status
+    line (80 characters). Both go to friends with the name and line (`p`, `st` in the profile; a build from before
+    passes over them). In a space the greeting says the status and a mark of the picture (`ph`); the picture itself is
+    asked of its owner when someone opens their card (`pic?` / `pic`), so greetings stay small (lib/me/pictures.dart).
+  - Pressing an "@" opens the person's card (lib/ui/profile_card.dart, `showProfile`): picture, name, username, status
+    and line, then what can be done from there. In a space: mention them back and the members. On Ghost: open the chat,
+    add them as a friend or answer their request, copy the username, and for a friend a field to write to them without
+    leaving the page. In a text or a Ghost chat an "@username" written in the words is pressable too (`handleMentions`).
+  - Telegram and Signal: mentions come through (Telegram's text entities; Signal's mention ranges, whose placeholder
+    becomes "@Name"), and the card shows what their APIs give (`InboxNetwork.profileOf`): Telegram's name, username,
+    bio, photo, emoji status and last seen; Signal's name, number, avatar and about line. Message them there, copy the
+    username. The Signal helper (sidecar/signal) sends the mentions and the about line; the next release builds it.
+  - Tests: profile_card_test, inbox_mentions_telegram_test, inbox_mentions_signal_test, sidecar main_test.
 - **One identity on every device, in circles and spaces too** (0.9.20, not released; Matt, 2026-11-19: "when i join a
   server on my other logged in machines it's joining as a new matt every time instead of reusing my existing keys and
   owner account, when I login on ghost i should have the same identity across all devices"). Every computer paired with

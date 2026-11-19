@@ -1,4 +1,5 @@
 import '../circles/circles.dart';
+import 'whats_new.dart' show showWhatsNewIfUpdated;
 import 'circles/circle_invite_card.dart' show CircleInviteBanner;
 import 'circles/circle_dock.dart';
 import 'circles/circle_screen.dart';
@@ -258,6 +259,11 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     super.initState();
     live = this;
     Voice.instance.addListener(_voiceChanged);
+    // What's new, once after an update (Matt, 2026-11-19: "Implement a changelog that pops up ever time a new update is
+    // released with release notes"): a moment after the frame is up, over it.
+    Future<void>.delayed(const Duration(milliseconds: 600), () {
+      if (mounted) unawaited(showWhatsNewIfUpdated(context));
+    });
   }
 
   @override
