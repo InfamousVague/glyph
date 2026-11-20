@@ -329,7 +329,9 @@ class Me extends ChangeNotifier {
     changed();
   }
 
-  void _hello() => _hub?.sayHandles({'dir': 'hello'});
+  /// Says hello, with this install's own username, so the relay's admin page can name it (relay/lib/handles.dart
+  /// `_shown`: taken only where it is the one this install holds).
+  void _hello() => _hub?.sayHandles({'dir': 'hello', if (username != null) 'name': username});
 
   /// Speaks to the server for the first time, where nothing has been before (the Me page as it opens).
   void wake() {
@@ -348,6 +350,7 @@ class Me extends ChangeNotifier {
       case 'hello':
         ways = (m['ways'] as Map? ?? const {}).cast<String, String>();
         ready = true;
+        _takeSouls(m);
         // Ghost's own lists of what was deleted or archived where the network could not, kept on the account: read
         // back and joined with this device's (lib/kept_lists.dart).
         unawaited(KeptLists.instance.pull().catchError((_) => false));
@@ -365,6 +368,19 @@ class Me extends ChangeNotifier {
           _hub?.sayHandles({'dir': 'watch', 'add': keys.sublist(i, i + 400 > keys.length ? keys.length : i + 400)});
         }
         _write();
+      case 'souls':
+        _takeSouls(m);
+        final got = m['got'];
+        if (got is int && got != 0) gifts.value = SoulsGift(got, '${m['why'] ?? ''}'.trim());
+        final badge = m['badge'];
+        if (badge is String && badge.isNotEmpty) gifts.value = SoulsGift(0, '', badge: badge);
+        _waiting.remove('souls:')?.complete(m);
+      case 'admin':
+      case 'admin-users':
+      case 'admin-give':
+      case 'admin-badge':
+      case 'admin-log':
+        _waiting.remove('${m['dir']}:')?.complete(m);
       case 'link':
       case 'proof':
       case 'text':
@@ -614,6 +630,13 @@ class Me extends ChangeNotifier {
   /// people in spaces and circles (lib/me/verified_numbers.dart). Yes or no only, never the number.
   Future<({Set<String> ids, Set<String> names})> badges(List<String> ids, List<String> usernames) async {
     final got = await _ask({'dir': 'badges', 'ids': ids, 'names': usernames}, 'badges');
+    // The special badges come with it (lib/ui/special_badges.dart).
+    Map<String, List<String>> lists(Object? m) => {
+          if (m is Map)
+            for (final e in m.entries)
+              if (e.value is List) '${e.key}'.toLowerCase(): [for (final b in e.value as List) if (b is String) b],
+        };
+    onSpecial?.call(ids, usernames, lists(got['special']), lists(got['specialNames']));
     return (
       ids: {for (final x in (got['ids'] as List? ?? const [])) if (x is String) x},
       names: {for (final x in (got['names'] as List? ?? const [])) if (x is String) x.toLowerCase()},
@@ -767,6 +790,53 @@ class Me extends ChangeNotifier {
   }
 
   /// What the pages show, set by hand: a picture of them with no server (test/screens_test.dart).
+  // --- souls (Matt, 2026-11-19: "Build a new points system into the app called souls, right now they will not have
+  // any use but I want to be able to give them out as rewards to people who submit bugs") ---------------------------
+
+  /// This person's souls, and the special badges given them, as the relay last said (kept, so they show at once).
+  int get souls => _soulsHeard ?? int.tryParse(_app?.choice('me_souls', '0') ?? '0') ?? 0;
+  List<String> get special => _specialHeard ?? [for (final b in (_app?.choice('me_special', '') ?? '').split(',')) if (b.isNotEmpty) b];
+  int? _soulsHeard;
+  List<String>? _specialHeard;
+
+  /// Told the special badges that came with a verified-number answer: who was asked of, and who has which by id and by
+  /// username (set by lib/ui/special_badges.dart's store, which this file can't name).
+  static void Function(List<String> ids, List<String> names, Map<String, List<String>> byId, Map<String, List<String>> byName)? onSpecial;
+
+  /// Souls or a badge just given, for the app to say so (lib/ui/souls.dart).
+  final gifts = ValueNotifier<SoulsGift?>(null);
+
+  void _takeSouls(Map<String, dynamic> m) {
+    final n = m['n'] ?? m['souls'];
+    final list = m['special'];
+    var changed = false;
+    if (n is int && n != souls) {
+      _soulsHeard = n;
+      _app?.set('me_souls', '$n');
+      changed = true;
+    }
+    if (list is List) {
+      final now = [for (final b in list) if (b is String) b];
+      if (now.join(',') != special.join(',')) {
+        _specialHeard = now;
+        _app?.set('me_special', now.join(','));
+        changed = true;
+      }
+    }
+    if (changed) notifyListeners();
+  }
+
+  /// For a test: what the relay says of this person's souls.
+  @visibleForTesting
+  void seedSouls(int n, [List<String> special = const []]) => _takeSouls({'n': n, 'special': special});
+
+  /// The admin page (lib/ui/admin_page.dart): [what] said to the relay, its answer. Only Matt's account signed in with
+  /// the admin password is answered (relay/lib/handles.dart).
+  Future<Map<String, dynamic>> admin(Map<String, Object?> what) {
+    final dir = '${what['dir']}';
+    return _ask(what, dir == 'admin-login' ? 'admin' : dir, wait: const Duration(seconds: 20));
+  }
+
   /// For a test: [m] heard from the relay server.
   @visibleForTesting
   void hear(Map<String, dynamic> m) => _heard(m);
@@ -795,4 +865,13 @@ class Me extends ChangeNotifier {
       _write();
     }
   }
+}
+
+/// Souls given (or taken, below 0) with why, or a special badge given.
+@immutable
+class SoulsGift {
+  const SoulsGift(this.souls, this.why, {this.badge});
+  final int souls;
+  final String why;
+  final String? badge;
 }

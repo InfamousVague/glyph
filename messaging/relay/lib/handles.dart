@@ -86,7 +86,8 @@ class Handles {
 
   /// Usernames (Matt, 2026-11-14: "create a profile and username under "me" to register a username and add friends
   /// on the platform"): the SHA-256 of a username ([nameKey]) -> {id: the install, key: its public key in base64,
-  /// at: the day}. The username itself is never kept: looking one up hashes what was typed. An install has one.
+  /// at: the day}. Looking one up hashes what was typed. An install has one. The username itself is kept apart, in
+  /// [_shown], for the admin page alone (since 2026-11-19).
   final Map<String, Map<String, String>> _names = {};
   final Map<String, String> _nameOf = {};
 
@@ -110,6 +111,102 @@ class Handles {
 
   /// What a sign-in that finished while its install was away has to tell it: install -> [{p, handle, k}].
   final Map<String, List<Map<String, String>>> _done = {};
+
+  // --- souls, special badges and the admin page (Matt, 2026-11-19: "Build a new points system into the app called
+  // souls ... give them out as rewards to people who submit bugs ... a simple admin page for me to login to ... allow
+  // me to see all users who signed up on the relay and issue special badges and souls") ----------------------------
+
+  /// Each username as it was claimed, by its hash: the admin's list of who signed up names them. Before 2026-11-19
+  /// only the hash was kept; an install says its own username as it says hello, and it is taken where it hashes to the
+  /// one that install holds.
+  final Map<String, String> _shown = {};
+
+  /// Souls by install, and its special badges (ids from [specialBadges]).
+  final Map<String, int> _souls = {};
+  final Map<String, List<String>> _special = {};
+
+  /// What the admin gave, newest last, at most [grantsKept]: {at, to, souls or badge, why}.
+  final List<Map<String, Object?>> _grants = [];
+  static const grantsKept = 2000;
+
+  /// Installs signed in to the admin page, until they go; and when each tried to, so a password can't be guessed at.
+  final Set<String> _admins = {};
+  final Map<String, List<DateTime>> _adminTries = {};
+  static const adminTriesAnHour = 5;
+
+  /// The special badges the admin may give, by id (the app draws each: lib/ui/special_badges.dart).
+  static const specialBadges = {'bughunter', 'alpha', 'founder', 'team', 'supporter', 'helper'};
+
+  /// The most souls one grant gives or takes.
+  static const soulsAtOnce = 100000;
+
+  int soulsOf(String id) => _souls[id] ?? 0;
+  List<String> specialOf(String id) => List.unmodifiable(_special[id] ?? const <String>[]);
+
+  /// Whether [user] and [pass] are the admin's, as [HandlesConfig.adminHash] keeps the password: `salt$hash`, the
+  /// hash SHA-256 taken [adminRounds] times over the salt and the password.
+  bool adminPassword(String user, String pass) {
+    final want = config.adminHash;
+    final at = want.indexOf(r'$');
+    if (config.adminUser.isEmpty || at <= 0 || user != config.adminUser) return false;
+    return _same(adminHashOf(want.substring(0, at), pass), want.substring(at + 1));
+  }
+
+  static const adminRounds = 100000;
+
+  /// The hash kept for [pass] with [salt] (tool/admin-password.mjs makes one the same way).
+  static String adminHashOf(String salt, String pass) {
+    var h = sha256(utf8.encode('ghost-admin v1|$salt|$pass'));
+    for (var i = 1; i < adminRounds; i++) {
+      h = sha256(h);
+    }
+    return hexOf(h);
+  }
+
+  /// Whether [id] holds one of the admin's usernames ([HandlesConfig.adminNames]): only Matt's own account may sign in.
+  bool _isAdminAccount(String id) {
+    final k = _nameOf[id];
+    return k != null && config.adminNames.any((n) => nameKey(n) == k);
+  }
+
+  Map<String, Object?> _soulsMessage(String id, {int? got, String? why, String? badge}) => {
+        'dir': 'souls',
+        'n': soulsOf(id),
+        'special': specialOf(id),
+        'got': ?got,
+        'why': ?why,
+        'badge': ?badge,
+      };
+
+  void _grant(String id, Map<String, Object?> what) {
+    _grants.add({'at': _now().toUtc().toIso8601String(), 'to': id, ...what});
+    while (_grants.length > grantsKept) {
+      _grants.removeAt(0);
+    }
+  }
+
+  /// Everyone with a username or an install known here, for the admin page: id, username (where known), the day they
+  /// signed up, a verified number, the networks linked, souls, badges, and whether they are connected now.
+  List<Map<String, Object?>> _everyone() {
+    final ids = <String>{..._nameOf.keys, ..._souls.keys, ..._special.keys, ..._links.keys};
+    final out = <Map<String, Object?>>[];
+    for (final id in ids) {
+      final k = _nameOf[id];
+      out.add({
+        'id': id,
+        'name': ?(k == null ? null : _shown[k]),
+        'named': k != null,
+        'at': k == null ? null : _names[k]?['at'],
+        'verified': phoneKeyOf(id) != null,
+        'links': [for (final n in (_links[id] ?? const <String, Map<String, String>>{}).keys) if (n != 'phone') n],
+        'souls': soulsOf(id),
+        'special': specialOf(id),
+        'here': _here.containsKey(id),
+      });
+    }
+    out.sort((a, b) => '${b['at'] ?? ''}'.compareTo('${a['at'] ?? ''}'));
+    return out;
+  }
   String _secret = '';
 
   // Made from the above as it is read and changed.
@@ -243,6 +340,10 @@ class Handles {
         (all['pending'] as Map? ?? const {}).forEach((id, keys) => _pending[id as String] = (keys as List).cast<String>().toList());
         (all['names'] as Map? ?? const {}).forEach((k, v) => _names[k as String] = (v as Map).cast<String, String>());
         (all['kept'] as Map? ?? const {}).forEach((id, blob) => _kept[id as String] = blob as String);
+        (all['shown'] as Map? ?? const {}).forEach((k, name) => _shown[k as String] = name as String);
+        (all['souls'] as Map? ?? const {}).forEach((id, n) => _souls[id as String] = (n as num).toInt());
+        (all['special'] as Map? ?? const {}).forEach((id, list) => _special[id as String] = (list as List).cast<String>().toList());
+        _grants.addAll([for (final g in (all['grants'] as List? ?? const [])) (g as Map).cast<String, Object?>()]);
       }
     } catch (_) {
       // A file that cannot be read is started again from nothing rather than stopping the relay.
@@ -281,6 +382,10 @@ class Handles {
         'pending': _pending,
         'names': _names,
         'kept': _kept,
+        'shown': _shown,
+        'souls': _souls,
+        'special': _special,
+        'grants': _grants,
       }));
       tmp.renameSync(file.path);
     } catch (_) {}
@@ -310,7 +415,11 @@ class Handles {
   }
 
   void went(String id, void Function(Map<String, Object?>) tell) {
-    if (identical(_here[id], tell)) _here.remove(id);
+    if (identical(_here[id], tell)) {
+      _here.remove(id);
+      // Signed in to the admin page for as long as it is connected, no longer.
+      _admins.remove(id);
+    }
   }
 
   /// How each network is linked here: "signin" or "proof", "text" for a phone number, or "off" where what it
@@ -362,7 +471,16 @@ class Handles {
             'listed': _listed.contains(id),
             'links': [for (final e in (_links[id] ?? const {}).entries) {'p': e.key, 'k': e.value['k'], 'at': e.value['at']}],
             'watching': _watch[id]?.length ?? 0,
+            'souls': soulsOf(id),
+            'special': specialOf(id),
           });
+          // Its own username, said so the admin's list can name it: kept only where it hashes to the one it holds.
+          final mine = said['name'];
+          final held = _nameOf[id];
+          if (mine is String && goodName(mine) && held != null && nameKey(mine) == held && _shown[held] != tidyName(mine)) {
+            _shown[held] = tidyName(mine);
+            _changed();
+          }
           for (final done in _done.remove(id) ?? const <Map<String, String>>[]) {
             tell({'dir': 'linked', ...done});
           }
@@ -399,11 +517,16 @@ class Handles {
           if (before != null && before != k) _names.remove(before);
           _names[k] = {'id': id, 'key': key, 'at': _now().toUtc().toIso8601String().substring(0, 10)};
           _nameOf[id] = k;
+          if (before != null && before != k) _shown.remove(before);
+          _shown[k] = tidyName(name);
           _changed();
           tell({'dir': 'claim', 'name': tidyName(name), 'ok': true, 'k': k});
         case 'release':
           final k = _nameOf.remove(id);
-          if (k != null) _names.remove(k);
+          if (k != null) {
+            _names.remove(k);
+            _shown.remove(k);
+          }
           _changed();
           tell({'dir': 'released'});
         case 'whois':
@@ -432,7 +555,61 @@ class Handles {
             'dir': 'badges',
             'ids': [for (final x in ids) if (phoneKeyOf(x) != null) x],
             'names': [for (final n in names) if (_names[nameKey(n)] case final found? when found['id'] is String && phoneKeyOf(found['id'] as String) != null) n],
+            // The special badges the admin gave (souls are each person's own and not told to others).
+            // Each said only where someone asked of has one.
+            if (ids.any((x) => _special[x]?.isNotEmpty ?? false)) 'special': {for (final x in ids) if (_special[x]?.isNotEmpty ?? false) x: _special[x]},
+            if (names.any((n) => _special[_names[nameKey(n)]?['id']]?.isNotEmpty ?? false))
+              'specialNames': {
+                for (final n in names)
+                  if (_names[nameKey(n)]?['id'] case final String holder when _special[holder]?.isNotEmpty ?? false) n: _special[holder],
+              },
           });
+        case 'souls?':
+          tell(_soulsMessage(id));
+        case 'admin-login':
+          final now = _now();
+          final tries = _adminTries[id] ??= [];
+          tries.removeWhere((t) => now.difference(t) > const Duration(hours: 1));
+          if (tries.length >= adminTriesAnHour) return tell({'dir': 'admin', 'ok': false, 'err': 'Too many tries. Wait an hour.'});
+          tries.add(now);
+          final user = said['user'], pass = said['pass'];
+          if (!_isAdminAccount(id) || user is! String || pass is! String || !adminPassword(user, pass)) {
+            _say('${id.substring(0, 6)} admin sign-in refused');
+            return tell({'dir': 'admin', 'ok': false, 'err': 'That isn\'t right.'});
+          }
+          tries.clear();
+          _admins.add(id);
+          _say('${id.substring(0, 6)} signed in to the admin page');
+          tell({'dir': 'admin', 'ok': true});
+        case 'admin-users' || 'admin-give' || 'admin-badge' || 'admin-log':
+          if (!_admins.contains(id) || !_isAdminAccount(id)) return tell({'dir': said['dir'], 'ok': false, 'err': 'Sign in to the admin page first.'});
+          switch (said['dir']) {
+            case 'admin-users':
+              tell({'dir': 'admin-users', 'ok': true, 'users': _everyone()});
+            case 'admin-log':
+              tell({'dir': 'admin-log', 'ok': true, 'grants': _grants.reversed.take(200).toList()});
+            case 'admin-give':
+              final to = said['to'], n = said['souls'];
+              final why = said['why'] is String ? (said['why'] as String).trim() : '';
+              if (to is! String || to.isEmpty || n is! int || n == 0 || n.abs() > soulsAtOnce) return tell({'dir': 'admin-give', 'ok': false, 'err': 'Give between 1 and $soulsAtOnce souls, or take as many.'});
+              final now = soulsOf(to) + n;
+              _souls[to] = now < 0 ? 0 : now;
+              _grant(to, {'souls': n, 'why': why.length > 200 ? why.substring(0, 200) : why});
+              _changed();
+              _here[to]?.call(_soulsMessage(to, got: n, why: why));
+              tell({'dir': 'admin-give', 'ok': true, 'to': to, 'n': soulsOf(to)});
+            case 'admin-badge':
+              final to = said['to'], badge = said['badge'], on = said['on'] == true;
+              if (to is! String || to.isEmpty || badge is! String || !specialBadges.contains(badge)) return tell({'dir': 'admin-badge', 'ok': false, 'err': 'No such badge.'});
+              final list = _special[to] ??= [];
+              if (on && !list.contains(badge)) list.add(badge);
+              if (!on) list.remove(badge);
+              if (list.isEmpty) _special.remove(to);
+              _grant(to, {'badge': badge, 'on': on});
+              _changed();
+              _here[to]?.call(_soulsMessage(to, badge: on ? badge : null));
+              tell({'dir': 'admin-badge', 'ok': true, 'to': to, 'special': specialOf(to)});
+          }
         case 'link':
           if (!known || !_signIn.contains(network)) return err('That network is not linked by signing in.');
           if (ways[network] != 'signin') return err('Signing in with that network is not set up on this server yet.');
@@ -935,6 +1112,9 @@ class HandlesConfig {
     this.twilioVerify = '',
     this.textTo = const ['+1'],
     this.textsADay = 200,
+    this.adminUser = '',
+    this.adminHash = '',
+    this.adminNames = const ['matt'],
   });
 
   factory HandlesConfig.fromEnvironment(Map<String, String> env) => HandlesConfig(
@@ -956,7 +1136,17 @@ class HandlesConfig {
             if (RegExp(r'^\+[0-9]{1,6}$').hasMatch(p.trim())) p.trim(),
         ],
         textsADay: int.tryParse(env['GHOST_TEXTS_A_DAY'] ?? '') ?? 200,
+        adminUser: env['GHOST_ADMIN_USER'] ?? '',
+        adminHash: env['GHOST_ADMIN_HASH'] ?? '',
+        adminNames: [for (final n in (env['GHOST_ADMIN_NAMES'] ?? 'matt').split(',')) if (n.trim().isNotEmpty) n.trim()],
       );
+
+  /// The admin page's sign-in (Matt, 2026-11-19: "a simple admin page for me to login to ... with a pre generated
+  /// username and password"): the username, and the password as `salt$hash` (Handles.adminHashOf). Either empty and
+  /// nobody can sign in. Only an install holding one of [adminNames] may try ("only my matt account").
+  final String adminUser;
+  final String adminHash;
+  final List<String> adminNames;
 
   /// Where this server is reached from outside: what a sign-in comes back to.
   final String publicUrl;

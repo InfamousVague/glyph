@@ -24,6 +24,7 @@ import 'inbox_ui.dart' show openInboxChat, inboxMark;
 import 'profile.dart';
 import 'shell.dart';
 import 'thread.dart';
+import 'special_badges.dart';
 import 'verified_badge.dart';
 
 /// Who a profile card is about (Matt, 2026-11-19: "when clicking on a @mention anywhere including signal and telegram
@@ -297,6 +298,20 @@ class _ProfileCardState extends State<_ProfileCard> {
           ),
           if (_looking) const GhostSpinner(size: 16),
         ]),
+        // Their special badges by name (lib/ui/special_badges.dart), given from the admin page.
+        if (g != null && g.id.isNotEmpty)
+          ListenableBuilder(
+            listenable: Listenable.merge([SpecialBadges.instance, Me.instance]),
+            builder: (context, _) {
+              final badges = SpecialBadges.instance.of(g.id, username: g.username, me: g.me);
+              if (badges.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                key: const ValueKey('profile-special'),
+                padding: EdgeInsets.only(top: t.space(3)),
+                child: Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [for (final b in badges) SpecialBadgeChip(badge: b)]),
+              );
+            },
+          ),
         if (who.detail.isNotEmpty) ...[
           SizedBox(height: t.space(2)),
           Text(who.detail, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink-2'))),
