@@ -44,7 +44,6 @@ import 'conversations.dart';
 import 'nav_bar.dart';
 import 'nav_rail.dart';
 import 'nav_style.dart';
-import 'recording_float.dart';
 import 'settings.dart';
 import 'settings_shortcuts.dart' show KeyRecorder;
 import 'settings_panes.dart' show settingsGroupLabel, settingsSections;
@@ -1299,9 +1298,6 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
               // A friend's invite into a circle, or a circle's link opened from outside the app: said over everything
               // as it comes, with Join and Not now (lib/ui/circles/circle_invite_card.dart); it gives way to a call.
               const Positioned(left: 0, right: 0, top: 0, child: CircleInviteBanner()),
-              // A call being recorded: a pill that can be moved anywhere, opening into the tracks as an editor's
-              // timeline (lib/ui/recording_float.dart).
-              const Positioned.fill(child: RecordingFloat()),
             ]),
           ),
         ),

@@ -6,8 +6,11 @@ import 'dart:ui' as ui;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/looks.dart';
+import 'package:ghost_messaging/main.dart' show InkOverrides;
 import 'package:ghost_messaging/ui/recording_float.dart';
 import 'package:ghost_messaging/voice/recorder.dart';
+import 'package:glacier/glacier.dart';
 
 import 'support/list_harness.dart';
 
@@ -231,6 +234,43 @@ void main() {
       });
     }
   }
+
+  testWidgets('the pill is over a page pushed over the app, and opens there', (tester) async {
+    final rec = CallRecorder.standing(names: {'me': 'Matt'}, since: DateTime.now().subtract(const Duration(seconds: 5)));
+    final sheet = await loadSheet(tester);
+    final state = AppState();
+    final nav = GlobalKey<NavigatorState>();
+    tester.view.physicalSize = const Size(412, 892) * 2.0;
+    tester.view.devicePixelRatio = 2.0;
+    addTearDown(tester.view.reset);
+    // As the app is built (lib/main.dart): the pill beside the navigator, not inside a page of it.
+    await tester.pumpWidget(AppScope(
+      state: state,
+      child: WidgetsApp(
+        color: const Color(0xFF4F5BD5),
+        navigatorKey: nav,
+        pageRouteBuilder: <T>(RouteSettings s, WidgetBuilder b) => PageRouteBuilder<T>(settings: s, pageBuilder: (c, _, _) => b(c)),
+        builder: (context, child) => GlacierTheme(
+          sheet: sheet,
+          attrs: {'theme': 'light', ...ghostAttrs(state, 'mobile')},
+          child: InkOverrides(child: GlacierToastProvider(child: Stack(children: [child!, Positioned.fill(child: RecordingFloat(recorder: rec, navigator: nav))]))),
+        ),
+        home: const SizedBox.expand(),
+      ),
+    ));
+    await settle(tester);
+    // The call's own page, pushed over everything, as a space's design does.
+    nav.currentState!.push(PageRouteBuilder<void>(pageBuilder: (_, _, _) => const ColoredBox(key: ValueKey('call-page'), color: Color(0xFF000000), child: SizedBox.expand())));
+    await settle(tester);
+    expect(find.byKey(const ValueKey('call-page')), findsOneWidget);
+    final pill = find.byKey(const ValueKey('recording-float'));
+    expect(pill, findsOneWidget);
+    // It is what a press there reaches: the page under it does not take the press.
+    await tester.tap(pill);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byKey(const ValueKey('recording-timeline')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 /// Speech's loudness by step: phrases and pauses, made up but the same each run.

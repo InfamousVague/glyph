@@ -51,6 +51,7 @@ import '../friends/handover.dart' show DeskHandover;
 import '../standalone/welcome.dart';
 import '../ui/account_screens.dart' show SignInScreen;
 import '../ui/common.dart' show push;
+import '../ui/recording_float.dart';
 import 'ui/link_offer.dart';
 
 /// Ghost Messaging on a computer (Matt, 2026-11-13: "a companion desktop app that can proxy messages encrypted from
@@ -299,6 +300,10 @@ class _DesktopAppState extends State<DesktopApp> {
   /// every copy (a static one) carried one copy's pages, with the link they were made with, into the next mounted.
   final _navigator = GlobalKey<NavigatorState>(debugLabel: 'desk');
 
+  /// [pages] with a call being recorded over them: its pill and tracks, over every page, the call's own among them
+  /// (lib/ui/recording_float.dart).
+  Widget _recorded(Widget pages) => Stack(children: [pages, Positioned.fill(child: RecordingFloat(navigator: _navigator))]);
+
   @override
   void initState() {
     super.initState();
@@ -335,7 +340,7 @@ class _DesktopAppState extends State<DesktopApp> {
               // On the Mac, the window's own title strip over everything (lib/desktop/ui/desk_title_bar.dart).
               child: InkOverrides(
                 child: GlacierToastProvider(
-                  child: MacChrome.stripEnabled ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [DeskTitleBar(navigator: _navigator), Expanded(child: child!)]) : child!,
+                  child: MacChrome.stripEnabled ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [DeskTitleBar(navigator: _navigator), Expanded(child: _recorded(child!))]) : _recorded(child!),
                 ),
               ),
             ),
