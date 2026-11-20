@@ -29,6 +29,10 @@ abstract interface class PluginEffects {
   Future<void> markRead(int thread);
   Future<void> mute(int thread, bool muted);
   Future<void> deleteThread(int thread);
+
+  /// Takes away the notification Android has shown for [thread], and nothing else: a plugin from another developer's
+  /// mute, one text at a time, never the conversation's lasting one (lib/plugins/pack).
+  Future<void> cancelNotification(int thread);
 }
 
 class SmsEffects implements PluginEffects {
@@ -42,6 +46,9 @@ class SmsEffects implements PluginEffects {
 
   @override
   Future<void> deleteThread(int thread) => Sms.instance.deleteThreads([thread]);
+
+  @override
+  Future<void> cancelNotification(int thread) => Sms.instance.cancelNotification(thread);
 }
 
 /// The conversations that are not archived, by section: which section each one is in, the sections that have any

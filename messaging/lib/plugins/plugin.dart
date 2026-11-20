@@ -1,8 +1,8 @@
 /// Ghost Messaging's plugins: the contract (Matt, 2026-11-14: "prime the whole app to have plugin support for placing
 /// UI elements and doing things like filtering out spam messages separating OTPs into their own section and more").
 ///
-/// A plugin is a [GhostPlugin]: an id, a name, a line saying what it does and a switch (Settings › Plugins, kept
-/// with the person's other choices). Switched off it adds nothing. Switched on it adds through four kinds of
+/// A plugin is a [GhostPlugin]: an id, a name, a line saying what it does and a switch (the Marketplace, kept with
+/// the person's other choices). Switched off it adds nothing. Switched on it adds through four kinds of
 /// extension point, each a plain value the app asks for and draws or acts on itself:
 ///
 /// - [Classifier]: given a conversation or a message as [MessageFacts], the [Tag]s it deserves (`code`, `spam`).
@@ -19,6 +19,7 @@
 library;
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 
@@ -35,7 +36,7 @@ export '../voice/plugin_note.dart' show PluginChatNote;
 /// whether the phone's contacts know them.
 @immutable
 class MessageFacts {
-  const MessageFacts({required this.thread, required this.senders, required this.text, required this.contact, this.group = false, this.date, this.unread = false, this.muted = false, this.outgoing, this.id, this.network});
+  const MessageFacts({required this.thread, required this.senders, required this.text, required this.contact, this.group = false, this.date, this.unread = false, this.muted = false, this.outgoing, this.id, this.network, this.encrypted = false});
 
   /// The conversation it is, or is in.
   final int thread;
@@ -68,8 +69,12 @@ class MessageFacts {
   /// conversation of texts as the list holds it.
   final String? network;
 
+  /// It came sealed by Ghost Messaging's own encryption, or the conversation's encryption is on (Message.encrypted,
+  /// Conversation.encrypted): a plugin from another developer never sees it (lib/plugins/pack/format.dart packSees).
+  final bool encrypted;
+
   /// The same, with other words: a message's as a bubble shows them (without "(sent with Slam)").
-  MessageFacts withText(String text) => MessageFacts(thread: thread, senders: senders, text: text, contact: contact, group: group, date: date, unread: unread, muted: muted, outgoing: outgoing, id: id, network: network);
+  MessageFacts withText(String text) => MessageFacts(thread: thread, senders: senders, text: text, contact: contact, group: group, date: date, unread: unread, muted: muted, outgoing: outgoing, id: id, network: network, encrypted: encrypted);
 
   /// A conversation as the list holds it: its people and its last words.
   factory MessageFacts.conversation(Conversation c) => MessageFacts(
@@ -83,6 +88,7 @@ class MessageFacts {
         date: c.date,
         unread: c.unread,
         muted: c.muted,
+        encrypted: c.encrypted,
       );
 
   /// One message of the conversation [thread], whose other people are [people].
@@ -99,6 +105,7 @@ class MessageFacts {
       outgoing: m.outgoing,
       id: m.key,
       network: 'sms',
+      encrypted: m.encrypted,
     );
   }
 
@@ -117,6 +124,7 @@ class MessageFacts {
         'outgoing': outgoing,
         if (id != null) 'id': id,
         if (network != null) 'network': network,
+        'encrypted': encrypted,
       };
 }
 
@@ -901,6 +909,19 @@ class PluginChatCard {
   final bool alert;
 }
 
+/// Where a plugin comes from, for the Marketplace's source line and badge (Matt, 2026-11-20: "I would like users to be
+/// able to develop and submit their own plugins to our plugin marketplace").
+enum PluginSource {
+  /// Compiled into the app (shippedPlugins).
+  builtIn,
+
+  /// A pack from the Marketplace whose review signature this build checked (lib/plugins/pack/review.dart).
+  reviewed,
+
+  /// A pack loaded in Settings › Developer: not reviewed, and on only while developer mode is.
+  dev,
+}
+
 abstract class GhostPlugin {
   const GhostPlugin();
 
@@ -964,4 +985,22 @@ abstract class GhostPlugin {
   /// Where it may be on ([PluginScope]): this device alone unless it says more. One that names [PluginScope.circle] is
   /// listed in Circle settings › Plugins, and in a circle's spaces is on as the circle says, not as this device's switch.
   Set<PluginScope> get scopes => const {PluginScope.device};
+
+  // Where it comes from, and what the Marketplace shows of a plugin another developer made (lib/plugins/pack). The
+  // app's own say nothing of these but their labels.
+
+  /// Where it comes from.
+  PluginSource get source => PluginSource.builtIn;
+
+  /// The developer's username, without "@", for a pack; null for the app's own.
+  String? get developer => null;
+
+  /// Its version, for a pack ("1.2.0"); null for the app's own.
+  String? get version => null;
+
+  /// A square PNG to draw in place of [icon] on its tile, card and page; null draws [icon].
+  Uint8List? get iconPng => null;
+
+  /// Its store tags, from the label vocabulary (lib/plugins/pack/format.dart packLabels).
+  List<String> get labels => const [];
 }

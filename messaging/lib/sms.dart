@@ -1022,6 +1022,10 @@ class Sms {
 
   Future<void> markRead(int thread) => _calls.invokeMethod('markRead', {'thread': thread});
 
+  /// Takes away the notification shown for [thread] and leaves the conversation as it is: unread, and not muted, so
+  /// the next text notifies as ever (MainActivity's cancelChat, Notifier.cancel; a computer's own calls take it too).
+  Future<void> cancelNotification(int thread) => _calls.invokeMethod('cancelChat', {'thread': thread});
+
   /// Tries again to bring down a picture message that could not be ([Message.state] `pending_download`).
   Future<void> retryDownload(Message m) => _calls.invokeMethod('retryDownload', {'id': m.id});
   // Deleted beside Google Messages, a conversation or text may be one Ghost only leaves out: that list is kept on the
