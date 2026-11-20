@@ -1116,10 +1116,17 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   ? 'Conversations you archive wait here.'
                   : rcs
                       ? 'There are no texts in Android\'s store. Chats that were RCS in ${_arriving.app} stay in that app, where no other app can read them: they are not deleted.'
-                      : framed
+                      // Texts passed by in the walkthrough: the list is friends' chats alone until they are turned on.
+                      : Sms.textsOff && !Sms.remote && !Sms.standalone
+                          ? 'Your texts are off, so chats with friends on Ghost show here. Turn texts on to see your texts too.'
+                          : framed
                           ? 'Start one with New chat, the first button below.'
                           : 'Start one with the new message button at the top.'),
-          action: rcs ? SettingsEmptyAction('What to do', () => _settings('android')) : null,
+          action: rcs
+              ? SettingsEmptyAction('What to do', () => _settings('android'))
+              : _query.isEmpty && !widget.archived && Sms.textsOff && !Sms.remote && !Sms.standalone
+                  ? SettingsEmptyAction('Turn on texts', () => _settings('texts'))
+                  : null,
         ),
       ]);
     } else {
@@ -1777,12 +1784,17 @@ class QuickRow extends StatelessWidget {
               SizedBox(width: t.space(3)),
               Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color(state.hovered && on ? 'app-ink' : 'app-ink-2')))),
               if (count > 0)
+                // A small circle, a short pill for 10 and up (Matt, 2026-11-20: "make the mark all read pill a small circle
+                // it's tall and ugly right now"): its height is its own, where centring its number had stretched it to
+                // the row's.
                 Container(
-                  constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  key: const ValueKey('quick-row-count'),
+                  height: 20,
+                  constraints: const BoxConstraints(minWidth: 20),
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
                   alignment: Alignment.center,
-                  decoration: BoxDecoration(color: t.danger, borderRadius: BorderRadius.circular(11)),
-                  child: Text(count > 99 ? '99+' : '$count', style: t.textAt(12, weight: 'bold', height: 1.15, color: const Color(0xFFFFFFFF))),
+                  decoration: BoxDecoration(color: t.danger, borderRadius: BorderRadius.circular(10)),
+                  child: Text(count > 99 ? '99+' : '$count', style: t.textAt(11, weight: 'bold', height: 1.1, color: const Color(0xFFFFFFFF))),
                 ),
             ]),
           ),

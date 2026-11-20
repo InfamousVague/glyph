@@ -1,13 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../kit/settings_type.dart' show pageText;
 import '../../ui/common.dart' show GhostLogo;
 import '../updates.dart';
+import '../window_size.dart';
 
 /// What the launch splash says, and how far a download has got (0 to 1; null for no bar).
 typedef SplashStep = ({String words, double? progress});
@@ -111,12 +111,6 @@ Future<void> checkAtLaunch(MacUpdates updates, ValueNotifier<SplashStep> step, {
   }
 }
 
-/// Gives the window its own size back: the Mac's and Windows' halves made it the splash's.
-Future<void> leaveSplashWindow() async {
-  if (kIsWeb || const bool.fromEnvironment('FLUTTER_TEST')) return;
-  try {
-    await const MethodChannel('ghost_desktop/window').invokeMethod<void>('splash', false);
-  } catch (_) {
-    // A window with no splash (Linux, a test): nothing to give back.
-  }
-}
+/// Gives the window its own size back, or the small one for signing up ([compact]): the Mac's and Windows' halves made
+/// it the splash's.
+Future<void> leaveSplashWindow({bool compact = false}) => DeskWindow.leaveSplash(compact: compact);
