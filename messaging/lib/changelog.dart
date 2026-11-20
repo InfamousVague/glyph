@@ -23,6 +23,10 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.10.2', '2026-11-20', [
+    'Texts are optional on a phone: Skip this step in the walkthrough, and Ghost works with friends, circles, Telegram and Signal. Turn texts on any time in Settings › Texts.',
+    'Circles: a circle\'s picture fills its round in the rail, with only the halo round the open one.',
+  ]),
   ReleaseNotes('0.10.1', '2026-11-20', [
     'Circles: give a circle an invite word, so gogho.st/c/bookclub opens it in place of the long link. Set it in its Settings › Invites.',
     'Messages: edit your own messages in spaces and circles, from any of your devices. Edited ones say so.',
