@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/ui/nav_style.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/art/app_icon.dart';
 import 'package:ghost_messaging/art/lucide.g.dart';
@@ -206,7 +207,7 @@ void main() {
       Voice.instance.dismissRing();
     });
 
-    testWidgets('a new invite is a banner and a card at the top of the Circles tab; Not now leaves it under Invites; Join opens the circle', (tester) async {
+    testWidgets('a new invite is a banner and a card at the top of Messages under the rail; Not now leaves it under Invites; Join opens the circle', (tester) async {
       final c = (await tester.runAsync(_circle))!.circle;
       final sheet = await loadSheet(tester);
       await pumpScreen(tester, sheet, const AppShell(), AppState(), size: const Size(412, 892));
@@ -240,7 +241,8 @@ void main() {
       final a = (await tester.runAsync(() => _circle(name: 'Book Club')))!.circle;
       final b = (await tester.runAsync(() => _circle(name: 'Night Owls')))!.circle;
       final sheet = await loadSheet(tester);
-      await pumpScreen(tester, sheet, const AppShell(), AppState(), size: const Size(412, 892));
+      // The Circles tab is the dock's; under the rail, the default, invites are atop Messages (the test above).
+      await pumpScreen(tester, sheet, const AppShell(), AppState()..set(NavStyle.pref, NavStyle.dock.name), size: const Size(412, 892));
       await settle(tester);
       Circles.instance.offer(_asInvite(a), from: 'Theo');
       await settle(tester);

@@ -99,6 +99,12 @@ void main() {
             await tester.tap(_key('rail-circle-${_alpha.seed}'));
             await settle(tester);
             expect(AppShellState.live!.openCircleSeed, _alpha.seed);
+            // The open circle's mark is a halo in its own colour round its face, not a bar at the rail's edge (Matt,
+            // 2026-11-20: "the hover and click indicator on the rail is too similar to discords").
+            final halo = tester.widget<AnimatedContainer>(_key('rail-halo-${_alpha.seed}'));
+            expect(((halo.decoration as BoxDecoration).border as Border).top.color.a, 1, reason: 'whole round the open one');
+            final other = tester.widget<AnimatedContainer>(_key('rail-halo-${_owls.seed}'));
+            expect(((other.decoration as BoxDecoration).border as Border).top.color.a, 0, reason: 'none round the others');
             await tester.tap(_key('rail-home'));
             await settle(tester);
             expect(AppShellState.live!.circleOpen, isFalse);

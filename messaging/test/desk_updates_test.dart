@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/foundation.dart';
+import 'package:ghost_messaging/desktop/ui/launch_splash.dart';
 import 'package:ghost_messaging/desktop/updates.dart';
 
 /// The Mac app's own updates (lib/desktop/updates.dart), against a server standing in for gogho.st and a
@@ -275,6 +276,60 @@ void main() {
       expect(MacUpdates.fromEnvironment(const {})!.feed.toString(), macFeed);
       expect(MacUpdates.fromEnvironment(const {'GHOST_DESK_UPDATES': 'http://127.0.0.1:9/w.json'}, windows: true)!.feed.toString(), 'http://127.0.0.1:9/w.json');
       expect(MacUpdates.fromEnvironment(const {'GHOST_DESK_UPDATES': 'off'}, windows: true), isNull);
+    });
+  });
+
+  // The launch splash (lib/desktop/ui/launch_splash.dart; Matt, 2026-11-20: "a checking for updates splash window that
+  // shows before the app launches ... similar to how discord does on launch").
+  group('at launch', () {
+    test('a newer version is brought down and restarted into from the splash, which says so', () async {
+      description = says();
+      final mac = _FakeMac(here());
+      final updates = MacUpdates(feed: feed, host: mac, every: const Duration(days: 1));
+      addTearDown(updates.dispose);
+      final step = ValueNotifier<SplashStep>((words: '', progress: null));
+      final said = <String>{};
+      step.addListener(() => said.add(step.value.words));
+      await checkAtLaunch(updates, step, restartWait: Duration.zero);
+      expect(said, containsAll(['Checking for updates', 'Downloading 0.7.0', 'Restarting to update']));
+      expect(mac.handed, hasLength(1));
+      expect(mac.restarts, 1);
+    });
+
+    test('with nothing newer the app opens at once, nothing restarted', () async {
+      description = says(build: 400);
+      final mac = _FakeMac(here());
+      final updates = MacUpdates(feed: feed, host: mac, every: const Duration(days: 1));
+      addTearDown(updates.dispose);
+      final step = ValueNotifier<SplashStep>((words: '', progress: null));
+      final at = DateTime.now();
+      await checkAtLaunch(updates, step);
+      expect(DateTime.now().difference(at), lessThan(const Duration(seconds: 5)));
+      expect(updates.phase, MacUpdatePhase.idle);
+      expect(mac.restarts, 0);
+      expect(step.value.words, 'Checking for updates');
+    });
+
+    test('a site that does not answer in time is not waited on: the app opens, the look goes on behind it', () async {
+      // Accepts and says nothing.
+      final quiet = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final held = <Socket>[];
+      quiet.listen(held.add);
+      addTearDown(() async {
+        for (final s in held) {
+          s.destroy();
+        }
+        await quiet.close();
+      });
+      final mac = _FakeMac(here());
+      final updates = MacUpdates(feed: Uri.parse('http://127.0.0.1:${quiet.port}/mac.json'), host: mac, every: const Duration(days: 1));
+      addTearDown(updates.dispose);
+      final step = ValueNotifier<SplashStep>((words: '', progress: null));
+      final at = DateTime.now();
+      await checkAtLaunch(updates, step, lookFor: const Duration(milliseconds: 600));
+      expect(DateTime.now().difference(at), lessThan(const Duration(seconds: 3)));
+      expect(updates.phase, MacUpdatePhase.checking, reason: 'still looking, behind the app');
+      expect(mac.restarts, 0);
     });
   });
 }

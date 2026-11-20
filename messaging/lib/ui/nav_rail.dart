@@ -1,7 +1,7 @@
 /// The rail (NavStyle.rail; Matt, 2026-11-19: "a navigation rail version of the app. It should include the circles
 /// icons like discord and slack does for the different spaces"): a column down the window's left on every page.
 /// Home at its head (the conversations), then each circle as its face, as Discord's servers and Slack's workspaces
-/// are, with a bar at its edge for the one open and a dot for one with something unread, and a way to start or join
+/// are, ringed in their own colour for the one open and dotted for one with something unread, and a way to start or join
 /// one; the app's own places at its foot, the pill's rings with their counts and their menus. lib/ui/shell.dart puts
 /// it at the window's left and answers it.
 library;
@@ -12,6 +12,7 @@ import 'package:glacier/glacier.dart';
 import '../art/lucide_more.dart';
 import '../circles/circles.dart';
 import '../kit/semantic_colors.dart';
+import '../kit/settings_kit.dart' show settingsHue;
 import 'circles/circle_face.dart';
 import 'nav_bar.dart';
 
@@ -80,7 +81,8 @@ class NavRail extends StatelessWidget {
                 children: [
                   for (final c in circles)
                     Padding(
-                      padding: EdgeInsets.only(bottom: gap),
+                      // Each a little apart: the halo's room round each face is most of the gap already.
+                      padding: EdgeInsets.only(bottom: t.space(1)),
                       child: _CircleRing(key: ValueKey('rail-circle-${c.seed}'), circle: c, open: c.seed == openCircle, onPress: () => onCircle(c), onMenu: () => onCircleMenu(c)),
                     ),
                   Center(
@@ -114,14 +116,20 @@ class NavRail extends StatelessWidget {
   }
 }
 
-/// A circle in the rail: its face, a bar at the rail's edge (tall for the one open, a dot for one with something
-/// unread), and a red count where someone mentioned you, as Discord marks its servers.
+/// A circle in the rail: its face, ringed in its own colour (Matt, 2026-11-20: "the hover and click indicator on the
+/// rail is too similar to discords, tweak it a bit to make it our own"). Not Discord's bar at the rail's edge: a halo
+/// round the face itself, a little apart from it, in the circle's colour. Under the pointer the face lifts and a faint
+/// halo comes; the circle open has it whole, an orbit round its face; one with something unread wears a dot at its
+/// shoulder; and a red count where someone mentioned you.
 class _CircleRing extends StatelessWidget {
   const _CircleRing({super.key, required this.circle, required this.open, required this.onPress, required this.onMenu});
   final Circle circle;
   final bool open;
   final VoidCallback onPress;
   final VoidCallback onMenu;
+
+  /// The gap between the face and its halo, and the halo's width.
+  static const gap = 3.0, halo = 2.0;
 
   @override
   Widget build(BuildContext context) {
@@ -130,6 +138,8 @@ class _CircleRing extends StatelessWidget {
     final circles = Circles.instance;
     final unread = circles.unread(circle);
     final mentions = circles.mentions(circle);
+    final fast = t.duration('glacier-duration-fast');
+    final ease = t.curve('glacier-ease-out');
     return HoverTip(
       message: circle.name,
       beside: true,
@@ -139,48 +149,73 @@ class _CircleRing extends StatelessWidget {
         onLongPress: onMenu,
         child: GlacierPressable(
           onPressed: onPress,
-          semanticLabel: '${circle.name}${unread > 0 ? ', $unread unread' : ''}',
-          builder: (context, state) => SizedBox(
-            width: NavRail.width(t),
-            height: ring,
-            child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
-              // The bar at the rail's edge: tall for the circle open, short under the pointer, a dot for unread.
-              Positioned(
-                left: 0,
-                child: AnimatedContainer(
-                  duration: t.duration('glacier-duration-fast'),
-                  curve: t.curve('glacier-ease-out'),
-                  width: 4,
-                  height: open ? ring * 0.7 : (state.hovered ? ring * 0.4 : (unread > 0 ? 8 : 0)),
-                  decoration: BoxDecoration(color: t.color('app-ink'), borderRadius: const BorderRadius.horizontal(right: Radius.circular(4))),
+          semanticLabel: '${circle.name}${unread > 0 ? ', $unread unread' : ''}${open ? ', open' : ''}',
+          builder: (context, state) {
+            final lit = open || state.hovered;
+            return SizedBox(
+              width: NavRail.width(t),
+              height: ring + (gap + halo) * 2,
+              child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
+                // The halo, in the circle's own colour: whole round the one open, faint under the pointer.
+                GlacierScope(
+                  attrs: {'hue': circle.hue},
+                  child: Builder(builder: (context) {
+                    final hue = settingsHue(context.tokens);
+                    return AnimatedContainer(
+                      key: ValueKey('rail-halo-${circle.seed}'),
+                      duration: fast,
+                      curve: ease,
+                      width: ring + (gap + halo) * 2,
+                      height: ring + (gap + halo) * 2,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: hue.withValues(alpha: open ? 1 : (state.hovered ? 0.35 : 0)), width: halo),
+                      ),
+                    );
+                  }),
                 ),
-              ),
-              GlacierFocusRing(
-                visible: state.focused,
-                offset: 3,
-                color: t.color('app-ink'),
-                child: AnimatedScale(
-                  scale: state.pressed ? 0.95 : 1,
-                  duration: t.duration('glacier-duration-fast'),
-                  child: CircleFace.of(circle, size: ring, selected: open),
-                ),
-              ),
-              if (mentions > 0)
-                Positioned(
-                  right: t.space(3) - 6,
-                  bottom: -4,
-                  child: ExcludeSemantics(
-                    child: Container(
-                      constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(color: t.danger, borderRadius: BorderRadius.circular(11), border: Border.all(color: t.color('glacier-bg'), width: 2)),
-                      child: Text(mentions > 99 ? '99+' : '$mentions', style: t.textAt(12, weight: 'bold', height: 1.15, color: const Color(0xFFFFFFFF))),
-                    ),
+                GlacierFocusRing(
+                  visible: state.focused,
+                  offset: gap + halo + 2,
+                  color: t.color('app-ink'),
+                  child: AnimatedScale(
+                    scale: state.pressed ? 0.94 : (lit && !open ? 1.05 : 1),
+                    duration: fast,
+                    curve: ease,
+                    child: CircleFace.of(circle, size: ring, selected: open),
                   ),
                 ),
-            ]),
-          ),
+                // Something unread there: a dot at the face's shoulder, while no mention says more.
+                if (unread > 0 && mentions == 0 && !open)
+                  Positioned(
+                    top: gap,
+                    right: (NavRail.width(t) - ring) / 2 - 1,
+                    child: ExcludeSemantics(
+                      child: Container(
+                        key: ValueKey('rail-unread-${circle.seed}'),
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(color: t.color('app-ink'), shape: BoxShape.circle, border: Border.all(color: t.color('glacier-bg'), width: 2)),
+                      ),
+                    ),
+                  ),
+                if (mentions > 0)
+                  Positioned(
+                    right: t.space(3) - 6,
+                    bottom: 0,
+                    child: ExcludeSemantics(
+                      child: Container(
+                        constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(color: t.danger, borderRadius: BorderRadius.circular(11), border: Border.all(color: t.color('glacier-bg'), width: 2)),
+                        child: Text(mentions > 99 ? '99+' : '$mentions', style: t.textAt(12, weight: 'bold', height: 1.15, color: const Color(0xFFFFFFFF))),
+                      ),
+                    ),
+                  ),
+              ]),
+            );
+          },
         ),
       ),
     );

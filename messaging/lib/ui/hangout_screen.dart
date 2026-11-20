@@ -212,7 +212,9 @@ class _HangoutScreenState extends State<HangoutScreen> {
         // space's page leaves its own out rather than show two of the same button side by side.
         final besideCircle = wide && widget.channel.circle != null;
         final actions = [
-          // A circle's space leaves Members to the circle's dock (Matt, 2026-11-17: "remove the users icon from the header").
+          // Members: in a circle's space where the shield for its settings was (Matt, 2026-11-20: "remove the shield icon for
+          // the quick space settings, instead show a members icon there and list the memebers in a given space within the
+          // circle"), the circle's settings having the space's own; outside a circle beside the shield as before.
           if (room != null && widget.channel.circle == null) _membersButton(context, room),
           if ((room == null || room.can(Perm.invite)) && _circleInvites(widget.channel) && !besideCircle) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
           // An SMS space: who is in it by text (lib/ui/sms_space_ui.dart).
@@ -220,7 +222,8 @@ class _HangoutScreenState extends State<HangoutScreen> {
           // The plugins' own (Slots.spaceHeader): Record call's record and stop while in its call, Live captions'.
           for (final x in CallPlugins.header(widget.channel))
             IconTap(icon: x.icon, label: x.label, color: x.danger ? RecordingBanner.red : null, onPressed: () => x.run(context)),
-          if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
+          if (room != null && widget.channel.circle != null) _membersButton(context, room),
+          if (room != null && widget.channel.circle == null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
         ];
         if (room?.putOut != null) {
           return _page(
@@ -373,12 +376,15 @@ class _HangoutStageState extends State<HangoutStage> {
           title: 'Chat',
           back: false,
           actions: [
-            // A circle's space leaves Members to the circle's dock (Matt, 2026-11-17: "remove the users icon from the header").
+            // Members: in a circle's space where the shield for its settings was (Matt, 2026-11-20: "remove the shield icon for
+          // the quick space settings, instead show a members icon there and list the memebers in a given space within the
+          // circle"), the circle's settings having the space's own; outside a circle beside the shield as before.
           if (room != null && widget.channel.circle == null) _membersButton(context, room),
             if ((room == null || room.can(Perm.invite)) && _circleInvites(widget.channel)) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, widget.channel)),
             // An SMS space: who is in it by text (lib/ui/sms_space_ui.dart).
             if (smsSpaceOf(widget.channel) != null) IconTap(icon: Lucide.smartphone, label: 'People by text', onPressed: () => push(context, (_) => TextedPeopleScreen(space: widget.channel))),
-            if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
+            if (room != null && widget.channel.circle != null) _membersButton(context, room),
+            if (room != null && widget.channel.circle == null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
           ],
           body: videos
               ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1576,9 +1582,12 @@ bool _circleInvites(VoiceChannel channel) => Circles.instance.allows(channel, Ci
 
 /// Everyone a space knows, for its member list and its settings: the owner, whoever is here now, whoever has been given
 /// a role, and you; not the banned.
-Map<String, List<String>> spacePeopleByRole(HangoutRoom room) {
+///
+/// [withCircle]: in a circle's space, its circle's members too, whether or not they have been in the space yet (its
+/// members list; Matt, 2026-11-20: "list the memebers in a given space within the circle").
+Map<String, List<String>> spacePeopleByRole(HangoutRoom room, {bool withCircle = false}) {
   final r = room.roster;
-  final people = <String>{r.ownerId, ...room.present.keys, ...r.assigned.keys, room.me}..remove('');
+  final people = <String>{r.ownerId, ...room.present.keys, ...r.assigned.keys, room.me, if (withCircle) ...spaceCircleMembers(room)}..remove('');
   final byRole = <String, List<String>>{};
   for (final id in people) {
     if (r.banned.contains(id)) continue;
@@ -1607,7 +1616,7 @@ class SpaceMembers extends StatelessWidget {
       listenable: Listenable.merge([room, Voice.instance]),
       builder: (context, _) {
         final r = room.roster;
-        final byRole = spacePeopleByRole(room);
+        final byRole = spacePeopleByRole(room, withCircle: true);
         final inVoice = Voice.instance.inChannel(room.channel).toSet();
         int order(String id) => inVoice.contains(id) ? 0 : (room.present.containsKey(id) ? 1 : 2);
         final total = byRole.values.fold<int>(0, (n, l) => n + l.length);
