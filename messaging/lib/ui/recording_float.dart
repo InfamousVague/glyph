@@ -1,0 +1,677 @@
+/// The recording on top of the whole app while a call is being recorded (Matt, 2026-11-20: "expand on the recording
+/// plugin, I'd like to show the different audio tracks being recorded and the sound waves from each audio track,
+/// collapse it to a button that can be moved around the app when expanded the tracks and stuff should appear similar
+/// to adobe premiere or something like that").
+///
+/// Collapsed it is a small pill, a red dot, the time and a live level, that can be dragged anywhere and stays where it
+/// is put. Pressed, it opens into a panel shaped as a video editor's timeline: a ruler of time across the top, a
+/// header for each track at the left (its colour, A1, A2…, its name, live or left, and a level meter), and each track's
+/// clip growing to the right with its waveform in it, the playhead at the live end. Everyone's mix is the first track,
+/// as the file's first track is. The timeline follows the live end; dragged back, it stays where it is until Live.
+/// Stop and the way back to the pill are in the panel's header.
+library;
+
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/widgets.dart';
+import 'package:glacier/glacier.dart';
+
+import '../app_state.dart';
+import '../art/app_icon.dart';
+import '../art/lucide.g.dart';
+import '../kit/settings_type.dart';
+import '../voice/recorder.dart';
+import '../voice/channels.dart' show Voice;
+import 'common.dart';
+import 'plugins_page/plugin_art.dart' show PluginHues;
+import 'recording_ui.dart' show RecordingsScreen;
+
+/// The key 'Everyone' is drawn under: the mix of every track, as the file's first track is.
+const _mixKey = '*mix';
+
+class RecordingFloat extends StatefulWidget {
+  const RecordingFloat({super.key, this.recorder});
+
+  /// The recorder followed; the app's own where null (a test gives one standing as it wants).
+  final CallRecorder? recorder;
+
+  @override
+  State<RecordingFloat> createState() => _RecordingFloatState();
+}
+
+class _RecordingFloatState extends State<RecordingFloat> {
+  CallRecorder get _rec => widget.recorder ?? CallRecorder.instance;
+
+  bool _open = false;
+
+  /// Where the pill is, as a fraction of the room it can move in; kept between runs.
+  Offset? _at;
+  static const _pref = 'rec_float_at';
+
+  Timer? _clock;
+
+  @override
+  void initState() {
+    super.initState();
+    _rec.addListener(_changed);
+    _changed();
+  }
+
+  @override
+  void dispose() {
+    _rec.removeListener(_changed);
+    _clock?.cancel();
+    super.dispose();
+  }
+
+  void _changed() {
+    final on = _rec.recording != null;
+    // The time moves on even when nobody speaks.
+    if (on && _clock == null) _clock = Timer.periodic(const Duration(seconds: 1), (_) => mounted ? setState(() {}) : null);
+    if (!on) {
+      _clock?.cancel();
+      _clock = null;
+    }
+    if (mounted) setState(() {});
+  }
+
+  Offset _kept(AppState? app) {
+    final at = _at;
+    if (at != null) return at;
+    final said = app?.choice(_pref, '') ?? '';
+    final parts = said.split(',');
+    if (parts.length == 2) {
+      final x = double.tryParse(parts[0]), y = double.tryParse(parts[1]);
+      if (x != null && y != null) return _at = Offset(x.clamp(0, 1), y.clamp(0, 1));
+    }
+    // At the right, above where the navigation sits.
+    return _at = const Offset(1, 0.8);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rec = _rec;
+    if (rec.recording == null) {
+      _open = false;
+      return const SizedBox.shrink();
+    }
+    final t = context.tokens;
+    final app = AppState.maybeOf(context);
+    final pad = MediaQuery.paddingOf(context);
+    return LayoutBuilder(builder: (context, box) {
+      if (_open) {
+        final wide = box.maxWidth > t.lenOf('48rem');
+        // As tall as its tracks want (a header, the ruler, a lane each and the mix's), up to a share of the window.
+        final wants = t.lenOf('3.25rem') + t.lenOf('1.6rem') + (rec.tracks.length + 1) * t.lenOf('3.75rem') + 2;
+        final height = math.min(wants, math.min(box.maxHeight * (wide ? 0.5 : 0.62), t.lenOf('30rem')));
+        return Stack(children: [
+          Positioned(
+            left: t.space(3) + pad.left,
+            right: t.space(3) + pad.right,
+            bottom: t.space(3) + pad.bottom,
+            height: math.max(height, t.lenOf('14rem')),
+            child: RecordingTimeline(recorder: rec, onClose: () => setState(() => _open = false)),
+          ),
+        ]);
+      }
+      final pillW = t.lenOf('10.5rem'), pillH = t.lenOf('2.75rem');
+      final roomW = math.max(0.0, box.maxWidth - pillW - t.space(3) * 2 - pad.horizontal);
+      final roomH = math.max(0.0, box.maxHeight - pillH - t.space(3) * 2 - pad.vertical);
+      final at = _kept(app);
+      return Stack(children: [
+        Positioned(
+          left: pad.left + t.space(3) + at.dx * roomW,
+          top: pad.top + t.space(3) + at.dy * roomH,
+          width: pillW,
+          height: pillH,
+          child: GestureDetector(
+            key: const ValueKey('recording-float'),
+            onPanUpdate: (d) => setState(() {
+              final now = _kept(app);
+              _at = Offset(
+                roomW == 0 ? now.dx : (now.dx + d.delta.dx / roomW).clamp(0.0, 1.0),
+                roomH == 0 ? now.dy : (now.dy + d.delta.dy / roomH).clamp(0.0, 1.0),
+              );
+            }),
+            onPanEnd: (_) {
+              final now = _at;
+              if (now != null) app?.set(_pref, '${now.dx.toStringAsFixed(3)},${now.dy.toStringAsFixed(3)}');
+            },
+            onTap: () => setState(() => _open = true),
+            child: _Pill(recorder: rec),
+          ),
+        ),
+      ]);
+    });
+  }
+}
+
+/// The pill: a red dot, the time, and a level of everyone.
+class _Pill extends StatelessWidget {
+  const _Pill({required this.recorder});
+  final CallRecorder recorder;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final since = recorder.since;
+    final elapsed = since == null ? Duration.zero : DateTime.now().difference(since);
+    return Semantics(
+      button: true,
+      label: 'Recording, ${_spoken(elapsed)}. Open the recording',
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: t.space(3)),
+        decoration: BoxDecoration(
+          color: _Studio.panel,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: _Studio.edge),
+          boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 18, offset: Offset(0, 6))],
+        ),
+        child: Row(children: [
+          const _RecDot(),
+          SizedBox(width: t.space(2)),
+          Flexible(child: Text(_short(elapsed), maxLines: 1, overflow: TextOverflow.clip, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: _Studio.ink, mono: true))),
+          const Spacer(),
+          ListenableBuilder(listenable: recorder.meter, builder: (context, _) => _MiniBars(levels: _mixOf(recorder.meter.levels))),
+        ]),
+      ),
+    );
+  }
+}
+
+/// The red dot, breathing.
+class _RecDot extends StatefulWidget {
+  const _RecDot();
+  @override
+  State<_RecDot> createState() => _RecDotState();
+}
+
+class _RecDotState extends State<_RecDot> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+        opacity: Tween(begin: 0.45, end: 1.0).animate(_c),
+        child: Container(width: 10, height: 10, decoration: const BoxDecoration(color: _Studio.rec, shape: BoxShape.circle)),
+      );
+}
+
+/// The last few steps of everyone's level, as five bars.
+class _MiniBars extends StatelessWidget {
+  const _MiniBars({required this.levels});
+  final List<double> levels;
+
+  @override
+  Widget build(BuildContext context) {
+    final last = levels.length > 5 ? levels.sublist(levels.length - 5) : levels;
+    return SizedBox(
+      width: 26,
+      height: 18,
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, mainAxisAlignment: MainAxisAlignment.end, children: [
+        for (var i = 0; i < 5; i++)
+          Container(
+            margin: const EdgeInsets.only(left: 2),
+            width: 3,
+            height: 3 + 15 * _shape(i < 5 - last.length ? 0 : last[i - (5 - last.length)]),
+            decoration: BoxDecoration(color: _Studio.wave, borderRadius: BorderRadius.circular(2)),
+          ),
+      ]),
+    );
+  }
+}
+
+/// The open panel: a video editor's timeline of the recording.
+class RecordingTimeline extends StatefulWidget {
+  const RecordingTimeline({super.key, required this.recorder, required this.onClose});
+  final CallRecorder recorder;
+  final VoidCallback onClose;
+
+  @override
+  State<RecordingTimeline> createState() => _RecordingTimelineState();
+}
+
+class _RecordingTimelineState extends State<RecordingTimeline> {
+  /// How wide a second is, in points.
+  double _perSecond = 24;
+
+  /// How far back from the live end the view is, in seconds; zero follows the live end.
+  double _back = 0;
+  bool _stopping = false;
+
+  Future<void> _stop() async {
+    if (_stopping) return;
+    setState(() => _stopping = true);
+    final r = await widget.recorder.stop();
+    if (!mounted) return;
+    if (r == null) {
+      toast(context, 'The recording couldn\'t be saved');
+    } else {
+      toast(context, widget.recorder.savedTo ?? 'Recording saved', action: GlacierToastAction(label: 'Open', onPress: () => push(context, (_) => const RecordingsScreen())));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final rec = widget.recorder;
+    final small = pageText(t, t.fontSize('xs'), weight: 'semibold', color: _Studio.ink2);
+    return Container(
+      key: const ValueKey('recording-timeline'),
+      decoration: BoxDecoration(
+        color: _Studio.panel,
+        borderRadius: BorderRadius.circular(t.radius('xl')),
+        border: Border.all(color: _Studio.edge),
+        boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 28, offset: Offset(0, 10))],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ListenableBuilder(
+        listenable: Listenable.merge([rec, rec.meter]),
+        builder: (context, _) {
+          final since = rec.since;
+          final elapsed = since == null ? Duration.zero : DateTime.now().difference(since);
+          final tracks = [
+            (key: _mixKey, name: 'Everyone', live: true),
+            ...rec.tracks,
+          ];
+          final levels = {...rec.meter.levels, _mixKey: _mixOf(rec.meter.levels)};
+          final space = Voice.instance.session?.channel.name ?? '';
+          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            // The header: the time as a timecode, what is recorded, the zoom, Live, Stop and the way back to the pill.
+            Container(
+              padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(2), t.space(2)),
+              color: _Studio.bar,
+              child: LayoutBuilder(builder: (context, head) {
+                // On a phone the header keeps what it must: the time, the zoom, Stop and the way back.
+                final narrow = head.maxWidth < t.lenOf('34rem');
+                return Row(children: [
+                const _RecDot(),
+                SizedBox(width: t.space(2)),
+                if (!narrow) ...[
+                  Text('REC', style: pageText(t, t.fontSize('xs'), weight: 'bold', color: _Studio.rec, tracking: 1)),
+                  SizedBox(width: t.space(3)),
+                ],
+                Text(narrow ? _short(elapsed) : _timecode(elapsed), key: const ValueKey('recording-timecode'), style: pageText(t, narrow ? t.fontSize('sm') : t.fontSize('md'), weight: 'semibold', color: _Studio.ink, mono: true)),
+                SizedBox(width: t.space(narrow ? 2 : 3)),
+                Expanded(
+                  child: Text(
+                    [if (space.isNotEmpty) '# $space', '${tracks.length - 1} ${tracks.length == 2 ? 'track' : 'tracks'}'].join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: pageText(t, t.fontSize('sm'), color: _Studio.ink2),
+                  ),
+                ),
+                _ToolButton(icon: Lucide.zoomOut, label: 'Zoom out', onPressed: () => setState(() => _perSecond = math.max(4, _perSecond / 1.5))),
+                _ToolButton(icon: Lucide.zoomIn, label: 'Zoom in', onPressed: () => setState(() => _perSecond = math.min(160, _perSecond * 1.5))),
+                if (_back > 0) _ToolButton(icon: Lucide.chevronRight, label: 'Live', text: narrow ? null : 'Live', onPressed: () => setState(() => _back = 0)),
+                SizedBox(width: t.space(1)),
+                GlacierPressable(
+                  key: const ValueKey('recording-stop'),
+                  onPressed: _stopping ? null : () => unawaited(_stop()),
+                  semanticLabel: 'Stop recording',
+                  builder: (context, state) => Container(
+                    padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1) + 2),
+                    decoration: BoxDecoration(color: state.pressed ? const Color(0xFFB3261E) : _Studio.rec, borderRadius: BorderRadius.circular(999)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Container(width: 9, height: 9, decoration: BoxDecoration(color: const Color(0xFFFFFFFF), borderRadius: BorderRadius.circular(2))),
+                      SizedBox(width: t.space(2)),
+                      Text(_stopping ? 'Saving…' : 'Stop', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: const Color(0xFFFFFFFF))),
+                    ]),
+                  ),
+                ),
+                _ToolButton(key: const ValueKey('recording-collapse'), icon: Lucide.chevronDown, label: 'Make it small', onPressed: widget.onClose),
+              ]);
+              }),
+            ),
+            Container(height: 1, color: _Studio.edge),
+            Expanded(
+              child: LayoutBuilder(builder: (context, box) {
+                final headerW = math.min(t.lenOf('10rem'), box.maxWidth * 0.36);
+                final rulerH = t.lenOf('1.6rem');
+                final rows = tracks.length;
+                final laneH = math.max(t.lenOf('2.5rem'), math.min(t.lenOf('3.75rem'), (box.maxHeight - rulerH) / rows));
+                return SingleChildScrollView(
+                  child: SizedBox(
+                    height: rulerH + laneH * rows,
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      // The tracks' headers.
+                      SizedBox(
+                        width: headerW,
+                        child: Column(children: [
+                          Container(
+                            height: rulerH,
+                            alignment: Alignment.centerLeft,
+                            padding: EdgeInsets.symmetric(horizontal: t.space(3)),
+                            color: _Studio.bar,
+                            child: Text('TRACKS', style: small),
+                          ),
+                          for (var i = 0; i < rows; i++)
+                            _TrackHeader(
+                              key: ValueKey('recording-track-${tracks[i].key}'),
+                              label: i == 0 ? 'Mix' : 'A$i',
+                              name: tracks[i].name,
+                              live: tracks[i].live,
+                              colour: _colourOf(t, tracks[i].key),
+                              level: tracks[i].live ? _last(levels[tracks[i].key]) : 0,
+                              height: laneH,
+                            ),
+                        ]),
+                      ),
+                      Container(width: 1, color: _Studio.edge),
+                      // The timeline: dragged sideways to look back, Live to follow the end again.
+                      Expanded(
+                        child: LayoutBuilder(builder: (context, lanes) {
+                          final total = _stepsOf(levels) / RecordingMeter.perSecond;
+                          final shown = lanes.maxWidth / _perSecond;
+                          final maxBack = math.max(0.0, total - shown);
+                          final back = _back.clamp(0.0, maxBack);
+                          final start = math.max(0.0, total - shown - back);
+                          return GestureDetector(
+                            onHorizontalDragUpdate: (d) => setState(() => _back = (_back + d.delta.dx / _perSecond).clamp(0.0, maxBack)),
+                            child: CustomPaint(
+                              key: const ValueKey('recording-lanes'),
+                              size: Size(lanes.maxWidth, rulerH + laneH * rows),
+                              painter: _TimelinePainter(
+                                tracks: [for (final tr in tracks) (levels: levels[tr.key] ?? const <double>[], colour: _colourOf(t, tr.key), name: tr.name)],
+                                start: start,
+                                perSecond: _perSecond,
+                                total: total,
+                                rulerH: rulerH,
+                                laneH: laneH,
+                                label: pageText(t, 10, weight: 'semibold', color: _Studio.ink2, mono: true),
+                                clipLabel: pageText(t, 10, weight: 'semibold', color: _Studio.ink),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    ]),
+                  ),
+                );
+              }),
+            ),
+          ]);
+        },
+      ),
+    );
+  }
+}
+
+/// A track's header: its colour, A1…, its name, live or left, and its level now.
+class _TrackHeader extends StatelessWidget {
+  const _TrackHeader({super.key, required this.label, required this.name, required this.live, required this.colour, required this.level, required this.height});
+  final String label;
+  final String name;
+  final bool live;
+  final Color colour;
+  final double level;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Container(
+      height: height,
+      decoration: const BoxDecoration(color: _Studio.header, border: Border(bottom: BorderSide(color: _Studio.edge))),
+      child: Row(children: [
+        Container(width: 4, color: colour),
+        SizedBox(width: t.space(2)),
+        Container(
+          width: t.lenOf('1.9rem'),
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(color: _Studio.bar, borderRadius: BorderRadius.circular(4), border: Border.all(color: _Studio.edge)),
+          child: Text(label, style: pageText(t, 10, weight: 'bold', color: _Studio.ink2, mono: true)),
+        ),
+        SizedBox(width: t.space(2)),
+        Expanded(
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: live ? _Studio.ink : _Studio.ink3)),
+            if (!live) Text('Left', style: pageText(t, 10, color: _Studio.ink3)),
+          ]),
+        ),
+        // The level now, as a meter that climbs green to amber to red.
+        Container(
+          width: 5,
+          height: height - 14,
+          margin: EdgeInsets.symmetric(horizontal: t.space(2)),
+          decoration: BoxDecoration(color: _Studio.bar, borderRadius: BorderRadius.circular(3)),
+          alignment: Alignment.bottomCenter,
+          child: FractionallySizedBox(
+            heightFactor: _shape(level).clamp(0.0, 1.0),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(3),
+                gradient: const LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Color(0xFF34C759), Color(0xFFFFCC00), Color(0xFFFF3B30)], stops: [0.0, 0.7, 1.0]),
+              ),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class _ToolButton extends StatelessWidget {
+  const _ToolButton({super.key, required this.icon, required this.label, required this.onPressed, this.text});
+  final LucideIcon icon;
+  final String label;
+  final VoidCallback onPressed;
+  final String? text;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return GlacierPressable(
+      onPressed: onPressed,
+      semanticLabel: label,
+      builder: (context, state) => Container(
+        height: t.lenOf('2rem'),
+        constraints: BoxConstraints(minWidth: t.lenOf('2rem')),
+        padding: EdgeInsets.symmetric(horizontal: text == null ? 0 : t.space(2)),
+        decoration: BoxDecoration(color: state.hovered || state.pressed ? _Studio.header : null, borderRadius: BorderRadius.circular(999)),
+        alignment: Alignment.center,
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (text != null) Text(text!, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: _Studio.ink)),
+          AppIcon(icon, size: 16, color: _Studio.ink),
+        ]),
+      ),
+    );
+  }
+}
+
+/// The ruler, each track's clip with its waveform, and the playhead at the live end.
+class _TimelinePainter extends CustomPainter {
+  _TimelinePainter({required this.tracks, required this.start, required this.perSecond, required this.total, required this.rulerH, required this.laneH, required this.label, required this.clipLabel});
+
+  final List<({List<double> levels, Color colour, String name})> tracks;
+
+  /// The second at the left edge.
+  final double start;
+  final double perSecond;
+
+  /// How long it has been recording, in seconds (where the playhead is).
+  final double total;
+  final double rulerH;
+  final double laneH;
+  final TextStyle label;
+  final TextStyle clipLabel;
+
+  double _x(double second) => (second - start) * perSecond;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.clipRect(Offset.zero & size);
+    // The lanes' ground, a line under each.
+    canvas.drawRect(Rect.fromLTWH(0, rulerH, size.width, size.height - rulerH), Paint()..color = _Studio.lane);
+    final rule = Paint()..color = _Studio.edge;
+    for (var i = 0; i < tracks.length; i++) {
+      final bottom = rulerH + laneH * (i + 1);
+      canvas.drawRect(Rect.fromLTWH(0, bottom - 1, size.width, 1), rule);
+    }
+    // The ruler: a tick each second, longer ones with the time where they are far enough apart to be read.
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, rulerH), Paint()..color = _Studio.bar);
+    final every = _labelEvery(perSecond);
+    final tick = Paint()..color = _Studio.tick;
+    final small = perSecond >= 6 ? 1 : (perSecond >= 2 ? 5 : 10);
+    for (var s = (start ~/ small) * small; s <= start + size.width / perSecond + 1; s += small) {
+      final x = _x(s.toDouble());
+      if (x < -1 || x > size.width + 1) continue;
+      final big = s % every == 0;
+      canvas.drawRect(Rect.fromLTWH(x, rulerH - (big ? 9 : 4), 1, big ? 9 : 4), tick);
+      if (big) {
+        final tp = TextPainter(text: TextSpan(text: _rulerTime(s), style: label), textDirection: TextDirection.ltr)..layout();
+        tp.paint(canvas, Offset(x + 3, (rulerH - 9 - tp.height) / 2 + 1));
+      }
+    }
+    canvas.drawRect(Rect.fromLTWH(0, rulerH - 1, size.width, 1), rule);
+    // Each track's clip: from where its sound starts to the live end, its waveform inside.
+    for (var i = 0; i < tracks.length; i++) {
+      final tr = tracks[i];
+      if (tr.levels.isEmpty) continue;
+      final top = rulerH + laneH * i + 3;
+      final h = laneH - 7;
+      final left = math.max(_x(0), -4.0);
+      final right = math.min(_x(tr.levels.length / RecordingMeter.perSecond), size.width + 4);
+      if (right <= left) continue;
+      final clip = RRect.fromRectAndRadius(Rect.fromLTRB(left, top, right, top + h), const Radius.circular(4));
+      canvas.drawRRect(clip, Paint()..color = tr.colour.withValues(alpha: 0.22));
+      canvas.drawRRect(clip, Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = tr.colour.withValues(alpha: 0.6));
+      // The clip's name along its top, as an editor names a clip.
+      final nameH = 13.0;
+      canvas.save();
+      canvas.clipRRect(clip);
+      canvas.drawRect(Rect.fromLTWH(left, top, right - left, nameH), Paint()..color = tr.colour.withValues(alpha: 0.45));
+      final tp = TextPainter(text: TextSpan(text: tr.name, style: clipLabel), textDirection: TextDirection.ltr, maxLines: 1, ellipsis: '…')..layout(maxWidth: math.max(0, right - left - 8));
+      tp.paint(canvas, Offset(math.max(left, 0) + 4, top + (nameH - tp.height) / 2));
+      // The waveform: each point of width the loudest step in it, mirrored about the middle of the space under the
+      // name.
+      final mid = top + nameH + (h - nameH) / 2;
+      final half = (h - nameH) / 2 - 2;
+      final wave = Paint()..color = tr.colour;
+      final stepW = perSecond / RecordingMeter.perSecond;
+      final from = math.max(0, ((start) * RecordingMeter.perSecond).floor());
+      final to = math.min(tr.levels.length, ((start + size.width / perSecond) * RecordingMeter.perSecond).ceil() + 1);
+      if (stepW >= 2) {
+        for (var k = from; k < to; k++) {
+          final x = _x(k / RecordingMeter.perSecond);
+          final a = math.max(0.75, _shape(tr.levels[k]) * half);
+          canvas.drawRect(Rect.fromLTRB(x + 0.5, mid - a, x + stepW - 0.5, mid + a), wave);
+        }
+      } else {
+        // Zoomed out: a column a point wide, the loudest of the steps under it.
+        for (var px = math.max(0, left.floor()); px < math.min(size.width, right).ceil(); px++) {
+          final a0 = ((start + px / perSecond) * RecordingMeter.perSecond).floor();
+          final a1 = math.min(tr.levels.length, ((start + (px + 1) / perSecond) * RecordingMeter.perSecond).ceil());
+          var peak = 0.0;
+          for (var k = math.max(0, a0); k < a1; k++) {
+            if (tr.levels[k] > peak) peak = tr.levels[k];
+          }
+          final a = math.max(0.75, _shape(peak) * half);
+          canvas.drawRect(Rect.fromLTRB(px.toDouble(), mid - a, px + 1.0, mid + a), wave);
+        }
+      }
+      canvas.restore();
+    }
+    // The playhead at the live end, its head in the ruler.
+    final px = _x(total);
+    if (px >= -2 && px <= size.width + 2) {
+      final head = Paint()..color = _Studio.rec;
+      canvas.drawRect(Rect.fromLTWH(px - 0.75, 0, 1.5, size.height), head);
+      final path = Path()
+        ..moveTo(px - 6, 0)
+        ..lineTo(px + 6, 0)
+        ..lineTo(px + 6, rulerH - 10)
+        ..lineTo(px, rulerH - 4)
+        ..lineTo(px - 6, rulerH - 10)
+        ..close();
+      canvas.drawPath(path, head);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TimelinePainter old) => true;
+}
+
+/// The studio's colours: dark whatever the app's look, as an editor's timeline is.
+abstract final class _Studio {
+  static const panel = Color(0xFF17171A);
+  static const bar = Color(0xFF1F1F23);
+  static const header = Color(0xFF242428);
+  static const lane = Color(0xFF1B1B1E);
+  static const edge = Color(0xFF2E2E33);
+  static const tick = Color(0xFF6B6B73);
+  static const ink = Color(0xFFF2F2F5);
+  static const ink2 = Color(0xFFA9A9B2);
+  static const ink3 = Color(0xFF6E6E78);
+  static const rec = Color(0xFFFF3B30);
+  static const wave = Color(0xFF7EE0A1);
+}
+
+/// A track's colour: the mix in the app's accent green, each voice in the colour the app gives that person.
+Color _colourOf(Tokens t, String key) {
+  if (key == _mixKey) return _Studio.wave;
+  if (key == 'me') return const Color(0xFFB79CFF);
+  return PluginHues.of(t.child(attrs: {'theme': 'dark'}), hueFor(key)).accent;
+}
+
+/// Everyone's level at each step: the loudest track's.
+List<double> _mixOf(Map<String, List<double>> levels) {
+  final n = _stepsOf(levels);
+  final out = List<double>.filled(n, 0);
+  for (final l in levels.values) {
+    for (var i = 0; i < l.length; i++) {
+      if (l[i] > out[i]) out[i] = l[i];
+    }
+  }
+  return out;
+}
+
+int _stepsOf(Map<String, List<double>> levels) => levels.values.fold<int>(0, (n, l) => l.length > n ? l.length : n);
+
+double _last(List<double>? l) {
+  if (l == null || l.isEmpty) return 0;
+  // The loudest of the last three steps, so the meter doesn't flicker.
+  var peak = 0.0;
+  for (var i = math.max(0, l.length - 3); i < l.length; i++) {
+    peak = math.max(peak, l[i]);
+  }
+  return peak;
+}
+
+/// A level as it is drawn: speech sits low on a straight scale, so it is lifted (a square root) as editors draw it.
+double _shape(double level) => math.sqrt(level.clamp(0.0, 1.0));
+
+/// Seconds between the ruler's numbered ticks, so the numbers stand at least 56 points apart.
+int _labelEvery(double perSecond) {
+  for (final s in const [1, 2, 5, 10, 15, 30, 60, 120, 300, 600]) {
+    if (s * perSecond >= 56) return s;
+  }
+  return 1200;
+}
+
+String _rulerTime(int s) => '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+
+/// The time as an editor writes it: hours, minutes, seconds and tenths.
+String _timecode(Duration d, {bool tenths = true}) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  final base = '${two(d.inHours)}:${two(d.inMinutes % 60)}:${two(d.inSeconds % 60)}';
+  return tenths ? '$base.${(d.inMilliseconds % 1000) ~/ 100}' : base;
+}
+
+/// The time as the pill shows it: minutes and seconds, hours only once there are any.
+String _short(Duration d) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return d.inHours > 0 ? '${d.inHours}:${two(d.inMinutes % 60)}:${two(d.inSeconds % 60)}' : '${two(d.inMinutes)}:${two(d.inSeconds % 60)}';
+}
+
+String _spoken(Duration d) => d.inMinutes > 0 ? '${d.inMinutes} minutes ${d.inSeconds % 60} seconds' : '${d.inSeconds} seconds';

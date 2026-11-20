@@ -125,6 +125,19 @@ class Handles {
   final Map<String, int> _souls = {};
   final Map<String, List<String>> _special = {};
 
+  /// The one badge each person shows beside their name, of those they have (Matt, 2026-11-20: "allow the user to choose
+  /// one badge to showcase next to their names don't show them all"); their highest where they chose none.
+  final Map<String, String> _showcase = {};
+
+  /// The badge [id] shows beside their name: the one they chose while they have it, else their first; null for none.
+  String? showcaseOf(String id) {
+    final have = _special[id];
+    if (have == null || have.isEmpty) return null;
+    final chosen = _showcase[id];
+    if (chosen != null && have.contains(chosen)) return chosen;
+    return [for (final b in specialBadges) if (have.contains(b)) b].firstOrNull ?? have.first;
+  }
+
   /// What the admin gave, newest last, at most [grantsKept]: {at, to, souls or badge, why}.
   final List<Map<String, Object?>> _grants = [];
   static const grantsKept = 2000;
@@ -173,6 +186,7 @@ class Handles {
         'dir': 'souls',
         'n': soulsOf(id),
         'special': specialOf(id),
+        'show': ?showcaseOf(id),
         'got': ?got,
         'why': ?why,
         'badge': ?badge,
@@ -347,6 +361,7 @@ class Handles {
         (all['shown'] as Map? ?? const {}).forEach((k, name) => _shown[k as String] = name as String);
         (all['souls'] as Map? ?? const {}).forEach((id, n) => _souls[id as String] = (n as num).toInt());
         (all['special'] as Map? ?? const {}).forEach((id, list) => _special[id as String] = (list as List).cast<String>().toList());
+        (all['showcase'] as Map? ?? const {}).forEach((id, b) => _showcase[id as String] = b as String);
         _grants.addAll([for (final g in (all['grants'] as List? ?? const [])) (g as Map).cast<String, Object?>()]);
       }
     } catch (_) {
@@ -389,6 +404,7 @@ class Handles {
         'shown': _shown,
         'souls': _souls,
         'special': _special,
+        'showcase': _showcase,
         'grants': _grants,
       }));
       tmp.renameSync(file.path);
@@ -560,6 +576,14 @@ class Handles {
             'ids': [for (final x in ids) if (phoneKeyOf(x) != null) x],
             'names': [for (final n in names) if (_names[nameKey(n)] case final found? when found['id'] is String && phoneKeyOf(found['id'] as String) != null) n],
             // The special badges the admin gave (souls are each person's own and not told to others).
+            // The one each shows beside their name.
+            if (ids.any((x) => showcaseOf(x) != null)) 'show': {for (final x in ids) if (showcaseOf(x) case final String b) x: b},
+            if (names.any((n) => _names[nameKey(n)]?['id'] is String && showcaseOf(_names[nameKey(n)]!['id']!) != null))
+              'showNames': {
+                for (final n in names)
+                  if (_names[nameKey(n)]?['id'] case final String holder)
+                    if (showcaseOf(holder) case final String b) n: b,
+              },
             // Each said only where someone asked of has one.
             if (ids.any((x) => _special[x]?.isNotEmpty ?? false)) 'special': {for (final x in ids) if (_special[x]?.isNotEmpty ?? false) x: _special[x]},
             if (names.any((n) => _special[_names[nameKey(n)]?['id']]?.isNotEmpty ?? false))
@@ -569,6 +593,17 @@ class Handles {
               },
           });
         case 'souls?':
+          tell(_soulsMessage(id));
+        case 'showcase':
+          // The badge to show beside one's name: one of one's own, or '' for one's highest.
+          final b = said['badge'];
+          if (b is! String || (b.isNotEmpty && !(_special[id]?.contains(b) ?? false))) return err('That badge isn\'t yours.');
+          if (b.isEmpty) {
+            _showcase.remove(id);
+          } else {
+            _showcase[id] = b;
+          }
+          _changed();
           tell(_soulsMessage(id));
         case 'admin-login':
           final now = _now();

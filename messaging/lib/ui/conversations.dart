@@ -601,13 +601,32 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// The row under the search field: the tabs as a segmented toggle (Matt, 2026-11-14: "change the messages and
   /// codes to a segmented toggle") and, at its end, the filter. With neither there is no row. Mark all read is at the
   /// end of the title row.
+  /// The rows under the search: Mark all read for the tab shown (quiet with nothing unread), and Share feedback (on the
+  /// Mac it is in the window's title strip instead).
+  Widget _quickRows(Tokens t, int unread) => Padding(
+        padding: EdgeInsets.fromLTRB(t.space(2), 0, t.space(2), t.space(2)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          QuickRow(
+            key: const ValueKey('quick-mark-read'),
+            icon: Lucide.checkCheck,
+            label: 'Mark all read',
+            count: unread,
+            onPress: unread > 0 ? () => _markAllRead(_section) : null,
+          ),
+          if (!MacChrome.stripEnabled)
+            QuickRow(key: const ValueKey('share-feedback'), icon: LucideMore.messageSquareWarning, label: 'Share feedback', onPress: () => FeedbackButton.open(context)),
+        ]),
+      );
+
   Widget? _tabsRow(Tokens t) {
     // Messages, codes and voice channels as the toggle's three icons (Matt, 2026-11-15: "use the segmented toggle with
     // the three icons instead of intertwining them remove the other options for now"). Voice is there always: it is
     // where calls are.
     final tabs = _plugins.tabs(_section, (section) => setState(() => _section = section), onMenu: _tabMenu, extra: [
-      // Counted by how many circles have anyone in voice now, and the invites not yet answered or put off.
-      (id: circlesTab, icon: Lucide.circleDot, label: 'Circles', count: Circles.instance.all.where((c) => Circles.instance.liveSpaces(c).isNotEmpty).length + Circles.instance.invites.where((i) => !i.later).length),
+      // Counted by how many circles have anyone in voice now, and the invites not yet answered or put off. Not under
+      // the rail, which shows the circles itself (Matt, 2026-11-20: "remove the circles icon from the segmented toggle
+      // on the messages view since circles are now shown in the sidebar"); their invites are then atop Messages.
+      if (!AppShell.railOf(context)) (id: circlesTab, icon: Lucide.circleDot, label: 'Circles', count: Circles.instance.all.where((c) => Circles.instance.liveSpaces(c).isNotEmpty).length + Circles.instance.invites.where((i) => !i.later).length),
     ]);
     final kinds = _plugins.kinds;
     if (tabs == null && kinds.isEmpty) return null;
@@ -980,7 +999,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     }
     final sorted = _plugins.sort(widget.archived ? null : _all, chats: widget.archived ? const [] : _chatFacts());
     final inbox = widget.archived ? null : inboxOfTab(_section);
-    if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0) && !(_section == circlesTab && !widget.archived) && inbox?.state != InboxState.ready) _section = null;
+    // Under the rail there is no Circles tab: what was on it is the rail's, and its invites are atop Messages.
+    final railed = AppShell.railOf(context);
+    if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0) && !(_section == circlesTab && !widget.archived && !railed) && inbox?.state != InboxState.ready) _section = null;
     if (!widget.archived && ConversationsScreen.shownTab.value != _section) {
       final now = _section;
       WidgetsBinding.instance.addPostFrameCallback((_) => ConversationsScreen.shownTab.value = now);
@@ -1000,7 +1021,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         : _section == circlesTab
             // Circles offered and not yet joined at the top (lib/ui/circles/circle_invite_card.dart), then each circle.
             ? _circlesTabRows()
-            : _mixed(shown);
+            : [
+                // Circle invites waiting, at the top of Messages where the rail has taken the Circles tab's place.
+                if (railed && _section == null && _query.isEmpty && !widget.archived && !_selecting) ...circleInviteRows(context, Circles.instance.invites),
+                ..._mixed(shown),
+              ];
     // Android's own count, where it has answered: the ones held are not all of them until the read ends.
     final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length) + Inbox.instance.ready.fold<int>(0, (n, net) => n + net.archivedChats.length);
     // Older conversations still arriving: said at the foot of the list, and in place of "Nothing found".
@@ -1239,7 +1264,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final headerButtons = widget.archived || _selecting ? const <Widget>[] : _plugins.header(context, ListPlace(section: _section, shown: shown.length, groups: _plugins.groups(_all ?? const [])));
     final unreadHere = _unreadTexts(_section).length + _unreadChats(_section).length + _unreadSpaces(_section).length;
     final page = GhostPage(
-      noBar: !dialup && !widget.archived && !_selecting && framed && headerButtons.isEmpty && unreadHere == 0,
+      // Mark all read and Share feedback are rows under the search now (_quickRows): the bar holds a plugin's buttons alone.
+      noBar: !dialup && !widget.archived && !_selecting && framed && headerButtons.isEmpty,
       title: widget.archived ? 'Archived' : (dialup ? 'Chat List' : 'Messages'),
       back: widget.archived && !_selecting,
       // A newer version waiting: above the title and the search (Matt, 2026-11-14: "move the update banner on desktop
@@ -1267,20 +1293,6 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         ] else if (!widget.archived) ...[
           // Plugins: their buttons for the list's header, in the frame and out of it.
           ...headerButtons,
-          // Mark all read for the tab shown, at the title row's end (Matt, 2026-11-14: "make the mark all read aligned
-          // to the right of the messages title row instead of next to the filter").
-          // Dial-Up: the same, as one of the bar's tool buttons rather than a round one.
-          if (dialup)
-            Builder(builder: (context) {
-              final n = _unreadTexts(_section).length + _unreadChats(_section).length;
-              return IconTap(icon: Lucide.checkCheck, label: n > 0 ? 'Mark all read, $n unread' : 'Mark all read, nothing unread', onPressed: n > 0 ? () => _markAllRead(_section) : null);
-            })
-          // Only while there is something to mark (Matt, 2026-11-19): greyed out it held the bar open for nothing.
-          else if (unreadHere > 0)
-            Padding(
-              padding: EdgeInsets.only(left: t.space(1)),
-              child: MarkAllRead(unread: unreadHere, onPress: () => _markAllRead(_section)),
-            ),
           // Shown alone, with no frame and so no pill: the two it would hold.
           // The same plain plus as the pill's, that says New (Matt, 2026-11-17).
           if (!framed) IconTap(icon: Lucide.plus, label: 'New', onPressed: _compose),
@@ -1305,6 +1317,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   final search = dialup ? DialupWell(child: field) : field;
                   // On the Mac it is in the window's title strip instead (lib/desktop/ui/desk_title_bar.dart).
                   if (widget.archived || MacChrome.stripEnabled) return search;
+                  // Share feedback is a row under the search now (_quickRows).
                   // Share feedback beside the search, at the top of the list on a phone and beside a pane, there
                   // whether or not the page has a bar over it (Matt, 2026-11-19: "add a "share feedback" button
                   // hovering in the topbar of the app"; the bar goes when it has nothing in it: "remove the extra space
@@ -1314,12 +1327,13 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                     // Souls, with their flame, beside Share feedback (lib/ui/souls.dart; Matt, 2026-11-19: "display the
                     // points in the top bar next to the feedback button with a flame icon next to them").
                     Padding(padding: EdgeInsets.only(left: t.space(2)), child: const SoulsChip()),
-                    // Under the rail it is the rail's, just above Settings (Matt, 2026-11-20: "on mobile move the share
-                    // feedback button just above the settings cog in the navigation rail").
-                    if (!AppShell.railOf(context)) Padding(padding: EdgeInsets.only(left: t.space(2)), child: const FeedbackButton()),
                   ]);
                 }),
               ),
+              // Mark all read and Share feedback, as a list of rows with their marks under the search, as Discord lists
+              // its places (Matt, 2026-11-20: "layout the mark all read and the share feedback buttons to a icon list
+              // like shown in the screenshot under the searchbar").
+              if (!widget.archived && !_selecting) _quickRows(t, unreadHere),
               // What the frame keeps under the search: on a computer, how the phone is connected.
               if (status != null) Padding(padding: EdgeInsets.fromLTRB(gutter, 0, gutter, t.space(2)), child: status),
               // The tabs: "Messages" and each section that has conversations in it, as one toggle, and beside them
@@ -1699,6 +1713,57 @@ class ConversationRow extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// A row under the search (Matt, 2026-11-20, of Discord's list of places under its search: "layout the mark all read and
+/// the share feedback buttons to a icon list like shown in the screenshot under the searchbar"): its mark and its name
+/// in the page's quieter ink, a wash under the pointer, and a count at its end where it has one. Quiet where it has
+/// nothing to do.
+class QuickRow extends StatelessWidget {
+  const QuickRow({super.key, required this.icon, required this.label, this.onPress, this.count = 0});
+  final LucideIcon icon;
+  final String label;
+  final VoidCallback? onPress;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final on = onPress != null;
+    return GlacierPressable(
+      onPressed: onPress,
+      semanticLabel: count > 0 ? '$label, $count unread' : label,
+      builder: (context, state) => GlacierFocusRing(
+        visible: state.focused,
+        radius: t.radius('md'),
+        child: AnimatedContainer(
+          duration: t.duration('glacier-duration-fast'),
+          height: t.lenOf('2.75rem'),
+          padding: EdgeInsets.symmetric(horizontal: t.space(3)),
+          decoration: BoxDecoration(
+            color: on && (state.hovered || state.pressed) ? t.color('app-paper-2') : null,
+            borderRadius: BorderRadius.circular(t.radius('md')),
+          ),
+          child: Opacity(
+            opacity: on ? 1 : 0.5,
+            child: Row(children: [
+              AppIcon(icon, size: 20, color: t.color(state.hovered && on ? 'app-ink' : 'app-ink-2'), wash: false),
+              SizedBox(width: t.space(3)),
+              Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color(state.hovered && on ? 'app-ink' : 'app-ink-2')))),
+              if (count > 0)
+                Container(
+                  constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: t.danger, borderRadius: BorderRadius.circular(11)),
+                  child: Text(count > 99 ? '99+' : '$count', style: t.textAt(12, weight: 'bold', height: 1.15, color: const Color(0xFFFFFFFF))),
+                ),
+            ]),
+          ),
+        ),
       ),
     );
   }

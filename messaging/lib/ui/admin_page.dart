@@ -198,7 +198,7 @@ class _AdminPanelState extends State<AdminPanel> {
                   for (final b in specialBadgesOf(u.special)) b.name,
                 ].join(' · ').ifEmpty('${u.id.substring(0, u.id.length.clamp(0, 12))}…')),
                 value: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const AppIcon(Lucide.flame, size: 14, wash: false, color: soulsFlame),
+                  const SoulFlame(size: 14),
                   SizedBox(width: t.space(1)),
                   Text(soulsCount(u.souls)),
                 ]),
@@ -213,7 +213,7 @@ class _AdminPanelState extends State<AdminPanel> {
           children: [
             for (final g in _log!.take(20))
               SettingRow(
-                icon: AppIcon(g['badge'] != null ? Lucide.sparkles : Lucide.flame, size: 16, color: g['badge'] != null ? null : soulsFlame),
+                icon: AppIcon(g['badge'] != null ? Lucide.sparkles : Lucide.flame, size: 16, color: g['badge'] != null ? null : soulsFlame(t)),
                 label: _grantLine(g),
                 hint: Text('${'${g['at'] ?? ''}'.replaceFirst('T', ' ').split('.').first} UTC${'${g['why'] ?? ''}'.isEmpty ? '' : ' · ${g['why']}'}'),
               ),
@@ -300,7 +300,7 @@ class _AdminPersonScreenState extends State<AdminPersonScreen> {
           padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
           children: [
             Row(children: [
-              const AppIcon(Lucide.flame, size: 26, wash: false, color: soulsFlame),
+              const SoulFlame(size: 26),
               SizedBox(width: t.space(2)),
               Text(soulsCount(u.souls), key: const ValueKey('admin-person-souls'), style: pageText(t, t.fontSize('2xl'), weight: 'bold', color: t.color('app-ink'))),
               SizedBox(width: t.space(2)),
@@ -315,7 +315,7 @@ class _AdminPersonScreenState extends State<AdminPersonScreen> {
               children: [
                 SettingRowBox(child: GlacierInput(key: const ValueKey('admin-amount'), controller: _amount, placeholder: 'How many', ariaLabel: 'How many souls', autoCorrect: false, size: GlacierFieldSize.md)),
                 SettingRowBox(child: GlacierInput(key: const ValueKey('admin-why'), controller: _why, placeholder: 'Why (they see it): "Found the Windows crash"', ariaLabel: 'Why', size: GlacierFieldSize.md)),
-                SettingRow(key: const ValueKey('admin-give'), icon: const AppIcon(Lucide.flame, size: 18, wash: false, color: soulsFlame), label: 'Give souls', disabled: _busy, onPress: () => _give(1)),
+                SettingRow(key: const ValueKey('admin-give'), icon: const SoulFlame(size: 18), label: 'Give souls', disabled: _busy, onPress: () => _give(1)),
                 SettingRow(key: const ValueKey('admin-take'), icon: AppIcon(Lucide.minus, size: 18), label: 'Take souls back', disabled: _busy, onPress: () => _give(-1)),
               ],
             ),

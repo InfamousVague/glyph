@@ -44,6 +44,11 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
     }
     self.isMovableByWindowBackground = false
     self.backgroundColor = .black
+    // The launch splash first (lib/desktop/ui/launch_splash.dart; Matt, 2026-11-20: "add a checking for updates splash
+    // window that shows before the app launches and load the app on this screen too similar to how discord does on
+    // launch"): a small window of its own while it looks for an update and the app loads; "splash" false from the app
+    // gives the window its size back.
+    enterSplash()
     chrome = FlutterMethodChannel(name: "ghost_desktop/window", binaryMessenger: flutterViewController.engine.binaryMessenger)
     chrome?.setMethodCallHandler { [weak self] call, result in
       guard let self else { return result(nil) }
@@ -54,6 +59,9 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
         if let x = a["x"] as? Double { self.lightsX = CGFloat(x) }
         if MainFlutterWindow.ownTopBar, let dark = a["dark"] as? Bool { self.appearance = NSAppearance(named: dark ? .darkAqua : .aqua) }
         self.placeLights()
+        result(nil)
+      case "splash":
+        if (call.arguments as? Bool) == false { self.leaveSplash() }
         result(nil)
       case "drag":
         // The press that began on a top bar moves the window, as a title bar does.
@@ -142,6 +150,38 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
 
   /// The three buttons centred in the app's header: the strip that holds them made as tall as the header, and each
   /// placed in it. AppKit puts them back at its own height on some changes, so this runs again after each.
+  /// The window's own frame and least size, kept while the splash is shown.
+  private var fullFrame: NSRect?
+  private var fullMin = NSSize(width: 760, height: 520)
+
+  /// Small, centred, without the three buttons or a resize edge, and moved by any part of it, as Discord's splash is.
+  private func enterSplash() {
+    guard fullFrame == nil else { return }
+    fullFrame = frame
+    fullMin = minSize
+    let size = NSSize(width: 300, height: 340)
+    minSize = size
+    styleMask.remove(.resizable)
+    for b in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] { standardWindowButton(b)?.isHidden = true }
+    isMovableByWindowBackground = true
+    let screen = (self.screen ?? NSScreen.main)?.visibleFrame ?? frame
+    setFrame(NSRect(x: screen.midX - size.width / 2, y: screen.midY - size.height / 2, width: size.width, height: size.height), display: true)
+  }
+
+  /// The app is ready: the window as it was meant to be, centred where the splash was.
+  private func leaveSplash() {
+    guard let full = fullFrame else { return }
+    fullFrame = nil
+    styleMask.insert(.resizable)
+    minSize = fullMin
+    for b in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] { standardWindowButton(b)?.isHidden = false }
+    isMovableByWindowBackground = false
+    let screen = (self.screen ?? NSScreen.main)?.visibleFrame ?? full
+    let w = min(full.width, screen.width), h = min(full.height, screen.height)
+    setFrame(NSRect(x: screen.midX - w / 2, y: screen.midY - h / 2, width: w, height: h), display: true, animate: true)
+    placeLights()
+  }
+
   func placeLights() {
     guard MainFlutterWindow.ownTopBar, !styleMask.contains(.fullScreen),
           let close = standardWindowButton(.closeButton),

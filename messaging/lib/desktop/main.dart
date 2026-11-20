@@ -19,6 +19,7 @@ import '../sms.dart';
 import '../ui/files_space/share_in.dart';
 import '../ui/window_chrome.dart';
 import 'ui/desk_title_bar.dart';
+import 'ui/launch_splash.dart';
 import '../ui/settings_panes.dart' show appVersion;
 import 'desk.dart';
 import 'link/link.dart';
@@ -63,6 +64,23 @@ import 'ui/link_offer.dart';
 Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool updates = true}) async {
   WidgetsFlutterBinding.ensureInitialized();
   final env = Platform.environment;
+  // The look first, for the launch splash (lib/desktop/ui/launch_splash.dart; Matt, 2026-11-20: "add a checking for
+  // updates splash window that shows before the app launches and load the app on this screen too similar to how discord
+  // does on launch"): it shows while the app looks for an update and loads, in the window the Mac's and Windows' halves
+  // have made small for it.
+  final state = AppState();
+  final loaded = await Future.wait<Object?>([AccentSheets.load(), state.load()]);
+  final accents = loaded[0]! as AccentSheets;
+  final sheet = accents.base;
+  installSettingsStyles(sheet);
+  final step = ValueNotifier<SplashStep>((words: 'Starting Ghost Messaging', progress: null));
+  runApp(_SplashApp(sheet: accents.of(state), state: state, step: step));
+  // The app's own updates, looked for before anything else, as Discord does: a version found is brought down and
+  // restarted into from the splash. Offline, or with nothing new, the app opens as it is and goes on looking every few
+  // hours. A Mac swaps in the Mac's zip; Windows runs the new installer from gogho.st, silently.
+  final macUpdates = updates && (Platform.isMacOS || Platform.isWindows) ? MacUpdates.fromEnvironment(env, windows: Platform.isWindows) : null;
+  if (macUpdates != null) await checkAtLaunch(macUpdates, step);
+  step.value = (words: 'Starting Ghost Messaging', progress: null);
   final dir = folder ?? env['GHOST_DESK_DIR'];
   // The Keychain holds the key in a release build. A build signed to run on this Mac alone loses its Keychain
   // items' trust each time it is rebuilt, so those keep the key in the app's own folder.
@@ -107,11 +125,6 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // there told to the screens as the phone's changes are.
   GmWeb.instance.changed.stream.listen(Sms.instance.changes.add);
   unawaited(GmWeb.instance.start(store.dir));
-  final state = AppState();
-  final loaded = await Future.wait<Object?>([AccentSheets.load(), state.load()]);
-  final accents = loaded[0]! as AccentSheets;
-  final sheet = accents.base;
-  installSettingsStyles(sheet);
   await link.start();
   // Circles' invite links opened into the app (lib/desktop/links.dart).
   unawaited(DeskLinks.start());
@@ -144,15 +157,11 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // Telegram's and Bluesky's chats (lib/inbox): the computer signs in to them itself, as their own apps do.
   addInboxSettings();
   unawaited(Inbox.instance.start(state));
-  // The app's own updates: asked of the Mac's half, looked for now and every few hours. Never awaited: the app
-  // opens whether or not the site answers.
-  // A Mac swaps in the Mac's zip; Windows runs the new installer from gogho.st, silently, on Restart to update.
-  final macUpdates = updates && (Platform.isMacOS || Platform.isWindows) ? MacUpdates.fromEnvironment(env, windows: Platform.isWindows) : null;
-  if (macUpdates != null) {
-    // Told to the phone's screens too, so its banner and its words are the computer's (remote.dart).
-    calls.attachUpdates(macUpdates);
-    unawaited(macUpdates.start());
-  }
+  // The updates looked for at the splash, told to the phone's screens too, so its banner and its words are the
+  // computer's (remote.dart).
+  if (macUpdates != null) calls.attachUpdates(macUpdates);
+  // Loaded: the window its own size again, and the app in it.
+  await leaveSplashWindow();
   runApp(DesktopApp(sheet: sheet, state: state, link: link, calls: calls, store: store, envPeers: envPeers, updates: macUpdates, accents: accents));
 }
 
@@ -458,4 +467,26 @@ class _DeskHomeState extends State<DeskHome> {
       },
     );
   }
+}
+
+/// The launch splash in the app's look, before the app itself is there (lib/desktop/ui/launch_splash.dart).
+class _SplashApp extends StatelessWidget {
+  const _SplashApp({required this.sheet, required this.state, required this.step});
+
+  final TokenSheet sheet;
+  final AppState state;
+  final ValueListenable<SplashStep> step;
+
+  @override
+  Widget build(BuildContext context) => WidgetsApp(
+        title: 'Ghost Messaging',
+        color: const Color(0xFF4F5BD5),
+        debugShowCheckedModeBanner: false,
+        builder: (context, _) => GlacierTheme(
+          sheet: sheet,
+          attrs: ghostAttrs(state, 'desktop'),
+          typography: ghostTypography(state.emoji),
+          child: LaunchSplash(step: step),
+        ),
+      );
 }

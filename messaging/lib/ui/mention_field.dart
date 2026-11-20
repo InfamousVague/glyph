@@ -65,6 +65,13 @@ class MentionController extends TextEditingController {
     super.clear();
   }
 
+  /// [text] put in with its [mentions] (a message being edited), the cursor at its end.
+  void load(String text, List<Mention> mentions) {
+    _mentions = const [];
+    super.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
+    _mentions = mentions;
+  }
+
   /// The "@…" at the cursor, or null where none is being written.
   MentionQuery? get query {
     final s = selection;

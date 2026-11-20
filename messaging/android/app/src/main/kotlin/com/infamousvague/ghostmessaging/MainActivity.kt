@@ -684,6 +684,13 @@ class MainActivity : FlutterActivity() {
             }
         }
         intent.data?.let { link ->
+            // A circle's invite word (https://gogho.st/c/bookclub): the app asks the relay for the circle it is
+            // (lib/circles/invite_word.dart), as it does for one typed into Join a circle.
+            if (link.scheme == "https" && link.host == "gogho.st" && (link.path ?: "").startsWith("/c/")) {
+                setIntent(Intent(intent).setData(null))
+                if ((intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) return null
+                return mapOf("circle" to link.toString())
+            }
             if (link.scheme == "https" && link.host == "gogho.st" && (link.path ?: "").startsWith("/join")) {
                 // Handled once. The link is taken off the intent as it is read, since Android hands the same intent
                 // back when the screen is made again (after its process was stopped) and when the app is reopened

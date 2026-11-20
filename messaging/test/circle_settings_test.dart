@@ -5,6 +5,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/circles/circles.dart';
+import 'package:ghost_messaging/invites/invite_relay.dart' show InviteRelayError;
+import 'package:ghost_messaging/circles/invite_word.dart';
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/kit/settings_kit.dart';
 import 'package:ghost_messaging/looks.dart';
@@ -271,6 +273,56 @@ void main() {
     await _until(tester, () => Circles.instance.bySeed(c.seed)!.manifest.rolesOf(cast.sam).length == 2);
     expect(Circles.instance.bySeed(c.seed)!.manifest.rolesOf(cast.sam).map((r) => r.name), ['Moderators', 'Readers']);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('an invite word: chosen by whoever may change the circle, shown to everyone, refused where taken', (tester) async {
+    // Matt, 2026-11-19: "add the custom invite code word as a default feature".
+    final cast = _Cast();
+    final c = await join(tester, cast);
+    await pump(tester, CircleSettingsPage(seed: c.seed, section: CircleSettingsSection.invite), size: const Size(1180, 1000));
+    expect(find.byKey(const ValueKey('circle-word-choose')), findsOneWidget);
+    expect(find.text('Choose an invite word'), findsOneWidget);
+
+    final held = <String, String>{};
+    final words = InviteWords(ask: (what) async {
+      if (what['dir'] == 'word-set') {
+        if (held[what['h']] == 'someone else') throw const InviteRelayError('That word is taken. Try another.');
+        held[what['h'] as String] = 'me';
+      }
+      if (what['dir'] == 'word-drop') held.remove(what['h']);
+      return {'dir': what['dir'], 'ok': true};
+    });
+    await tester.runAsync(() => Circles.instance.setInviteWord(Circles.instance.bySeed(c.seed)!, 'bookclub', words: words));
+    await settle(tester);
+    expect(Circles.instance.bySeed(c.seed)!.inviteWord, 'bookclub');
+    expect(find.text('gogho.st/c/bookclub'), findsOneWidget);
+    expect(find.byKey(const ValueKey('circle-word-remove')), findsOneWidget);
+    expect(held.keys, [inviteWordHash('bookclub')]);
+
+    // Changed: the old word let go. A word someone else holds: refused, and the circle keeps its own.
+    await tester.runAsync(() => Circles.instance.setInviteWord(Circles.instance.bySeed(c.seed)!, 'book-club', words: words));
+    expect(held.keys, [inviteWordHash('book-club')]);
+    held[inviteWordHash('readers')] = 'someone else';
+    Object? refused;
+    await tester.runAsync(() async {
+      try {
+        await Circles.instance.setInviteWord(Circles.instance.bySeed(c.seed)!, 'readers', words: words);
+      } catch (e) {
+        refused = e;
+      }
+    });
+    expect(refused, isA<InviteRelayError>());
+    expect(Circles.instance.bySeed(c.seed)!.inviteWord, 'book-club');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a member who may not change the circle sees its word, and no way to change it', (tester) async {
+    final cast = _Cast();
+    final c = await join(tester, cast, as: cast.maya);
+    await pump(tester, CircleSettingsPage(seed: c.seed, section: CircleSettingsSection.invite), size: const Size(1180, 1000));
+    expect(find.byKey(const ValueKey('circle-word-choose')), findsNothing);
+    expect(find.text('No invite word yet'), findsOneWidget);
+    await expectLater(Circles.instance.setInviteWord(c, 'mine'), throwsStateError);
   });
 
   // The pictures: light and dark, a phone and a wide window.

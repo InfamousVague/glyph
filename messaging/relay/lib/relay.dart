@@ -97,6 +97,8 @@ class Relay {
     }
     // A Files space's files (files.dart): plain HTTP under /files/, never a WebSocket.
     if (!upgrade && segments.isNotEmpty && segments.first == 'files' && files != null) return files!.handle(request);
+    // A circle's invite word, for the site's /c/ page (invite_words.dart): GET /word/<hash>.
+    if (!upgrade && segments.length == 2 && segments.first == 'word' && hub?.words != null) return hub!.words!.handle(request, segments[1]);
     // The app's Share feedback (feedback.dart): one POST to /feedback.
     if (!upgrade && segments.length == 1 && segments.first == 'feedback' && feedback != null) return feedback!.handle(request);
     if (!upgrade || !_hex(name, 32)) {

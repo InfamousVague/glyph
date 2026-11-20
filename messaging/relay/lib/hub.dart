@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'accounts.dart';
 import 'handles.dart';
 import 'invites.dart';
+import 'invite_words.dart';
 import 'pushes.dart';
 import 'p256.dart';
 import 'sha256.dart';
@@ -42,7 +43,7 @@ import 'sha256.dart';
 /// - **What it does not carry:** a call's sound and picture. Those go between the phones directly (or through a
 ///   media relay); the hub carries only what sets a call up.
 class Hub {
-  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts})
+  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words})
       : _now = now ?? DateTime.now,
         _random = random ?? Random.secure();
 
@@ -61,6 +62,9 @@ class Hub {
   /// messages it names ([Invites.dirs]) are its to answer, not [handles]'s. None where null, and they are then
   /// answered that there are none.
   final Invites? invites;
+
+  /// Circles' invite words (invite_words.dart): the `{"dir": …}` messages it names ([InviteWords.dirs]).
+  final InviteWords? words;
 
   /// Ghost accounts (accounts.dart): the `{"dir": "acct-…"}` messages ([Accounts.dirs]) are its to answer. None where
   /// null, and they are then answered that there are none. An app from before accounts never says them.
@@ -184,12 +188,14 @@ class Hub {
   void start() {
     handles?.load();
     invites?.load();
+    words?.load();
     accounts?.load();
     _sweeper ??= Timer.periodic(const Duration(minutes: 10), (_) {
       sweep();
       handles?.sweep();
       accounts?.sweep();
       accounts?.save();
+      words?.sweep();
       final i = invites;
       if (i != null) unawaited(i.sweep());
     });
@@ -200,6 +206,7 @@ class Hub {
     _sweeper = null;
     handles?.save();
     invites?.save();
+    words?.save();
     accounts?.save();
     for (final end in _here.values.expand((l) => l).toList()) {
       end.ws.close(WebSocketStatus.goingAway);
@@ -384,6 +391,13 @@ class Hub {
           _tell(ws, {'dir': 'err', 'about': said['dir'], 'err': 'This server keeps no accounts.'});
         } else {
           a.said(e.id, said, (m) => _tell(ws, m));
+        }
+      } else if (said['dir'] is String && InviteWords.dirs.contains(said['dir'])) {
+        final w = words;
+        if (w == null) {
+          _tell(ws, {'dir': 'err', 'about': said['dir'], 'err': 'This server keeps no invite words.'});
+        } else {
+          w.said(e.id, said, (m) => _tell(ws, m));
         }
       } else if (said['dir'] is String && Invites.dirs.contains(said['dir'])) {
         final i = invites;

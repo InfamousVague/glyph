@@ -71,6 +71,12 @@ void main() {
         await pumpScreen(tester, sheet, const AppShell(), state, size: at);
         await settle(tester);
         await _keep(tester, '${style.name}-$size-home');
+        // Mark all read and Share feedback are rows under the search in every style, not a ring of the rail or a button
+        // beside the search (Matt, 2026-11-20: "layout the mark all read and the share feedback buttons to a icon list
+        // ... under the searchbar").
+        expect(_key('quick-mark-read'), findsOneWidget);
+        expect(_key('share-feedback'), findsOneWidget);
+        expect(tester.getTopLeft(_key('share-feedback')).dy, greaterThan(tester.getTopLeft(_key('quick-mark-read')).dy));
 
         AppShellState.live!.openCircle(_owls);
         await settle(tester);
@@ -90,15 +96,17 @@ void main() {
           case NavStyle.rail:
             // No pill: the rail, its circles by their faces, and Home taking the circle away.
             expect(_key('nav-messages'), findsNothing);
-            // Share feedback is the rail's, one ring above Settings, not beside the search (Matt, 2026-11-20).
-            expect(_key('share-feedback'), findsOneWidget);
-            expect(tester.getCenter(_key('share-feedback')).dy, lessThan(tester.getCenter(_key('rail-settings')).dy));
-            expect(tester.getCenter(_key('share-feedback')).dy, greaterThan(tester.getCenter(_key('rail-archive')).dy));
             expect(_key('rail-circle-${_owls.seed}'), findsOneWidget);
             expect(_key('rail-circle-${_alpha.seed}'), findsOneWidget);
             await tester.tap(_key('rail-circle-${_alpha.seed}'));
             await settle(tester);
             expect(AppShellState.live!.openCircleSeed, _alpha.seed);
+            // The open circle's mark is a halo in its own colour round its face, not a bar at the rail's edge (Matt,
+            // 2026-11-20: "the hover and click indicator on the rail is too similar to discords").
+            final halo = tester.widget<AnimatedContainer>(_key('rail-halo-${_alpha.seed}'));
+            expect(((halo.decoration as BoxDecoration).border as Border).top.color.a, 1, reason: 'whole round the open one');
+            final other = tester.widget<AnimatedContainer>(_key('rail-halo-${_owls.seed}'));
+            expect(((other.decoration as BoxDecoration).border as Border).top.color.a, 0, reason: 'none round the others');
             await tester.tap(_key('rail-home'));
             await settle(tester);
             expect(AppShellState.live!.circleOpen, isFalse);
@@ -112,4 +120,20 @@ void main() {
       });
     }
   }
+
+  // The rail's rings a little smaller on a computer, the pill's size on a phone (Matt, 2026-11-20: "make the navigtion
+  // rail icons just a bit smaller as well", then "leave them the same size on mobile, though").
+  testWidgets('the rail\'s rings are smaller on a computer than on a phone', (tester) async {
+    final sides = <String, double>{};
+    for (final platform in ['mobile', 'desktop']) {
+      final state = AppState()..set(NavStyle.pref, NavStyle.rail.name);
+      final sheet = await loadSheet(tester);
+      await pumpScreen(tester, sheet, const AppShell(), state, size: const Size(1000, 760), platform: platform);
+      await settle(tester);
+      await _keep(tester, 'rail-$platform-rings');
+      sides[platform] = tester.getSize(_key('rail-settings')).height;
+    }
+    expect(sides['desktop']!, lessThan(sides['mobile']! * 0.95));
+    expect(sides['desktop']!, greaterThan(sides['mobile']! * 0.75));
+  });
 }

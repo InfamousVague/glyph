@@ -1,5 +1,7 @@
 import '../circles/circles.dart';
 import '../circles/pending_link.dart';
+import '../circles/invite_word.dart';
+import '../invites/invite_relay.dart' show InviteRelayError;
 import 'whats_new.dart' show showWhatsNewIfUpdated;
 import 'circles/circle_invite_card.dart' show CircleInviteBanner;
 import 'circles/circle_dock.dart';
@@ -37,7 +39,7 @@ import 'conversations.dart';
 import 'nav_bar.dart';
 import 'nav_rail.dart';
 import 'nav_style.dart';
-import 'feedback_screen.dart' show FeedbackButton;
+import 'recording_float.dart';
 import 'settings.dart';
 import 'settings_panes.dart' show settingsGroupLabel, settingsSections;
 import 'thread.dart';
@@ -273,6 +275,11 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     Future<void>.delayed(const Duration(milliseconds: 600), () {
       if (mounted) unawaited(showWhatsNewIfUpdated(context));
     });
+    // The circles' invite words this device may change, claimed again so the relay keeps them (it lets one go a year
+    // after it was last set; lib/circles/invite_word.dart): once the hub is likely reached.
+    _renewWords = Timer(const Duration(seconds: 30), () {
+      if (mounted) unawaited(Circles.instance.renewInviteWords());
+    });
   }
 
   /// Put out of a circle by its owner or an admin (Circles.removeMember): said, since the circle just goes.
@@ -284,6 +291,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   }
 
   StreamSubscription<CircleJoin>? _joins;
+
+  /// The circles' invite words claimed again a little after starting (initState).
+  Timer? _renewWords;
 
   /// Someone new in one of this device's circles, while the app is in front: said, with the way to the circle (Matt,
   /// 2026-11-19: "add join notifications for memebers in circles"). A phone in the background notifies instead
@@ -316,6 +326,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     Voice.instance.removeListener(_voiceChanged);
     Circles.instance.removedFrom.removeListener(_removed);
     unawaited(_joins?.cancel());
+    _renewWords?.cancel();
     _small.dispose();
     closed.dispose();
     archived.dispose();
@@ -633,7 +644,22 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   }
 
   /// Asks for a circle's invite link and joins it: in at once, its spaces in the list's place.
-  void _joinByLink() => askCircleWords(context, title: 'Join a circle', hint: 'Paste the invite link someone sent you.', then: (link) {
+  void _joinByLink() => askCircleWords(context, title: 'Join a circle', hint: 'Paste the invite link someone sent you, or its invite word.', then: (text) async {
+        var link = Circles.linkIn(text) ?? text;
+        // An invite word, as gogho.st/c/bookclub or the word alone (lib/circles/invite_word.dart): the relay is asked
+        // for the circle's link it is.
+        final word = Circles.linkIn(text) == null ? (inviteWordIn(text) ?? (text.contains('/') ? null : tidyInviteWord(text))) : null;
+        if (word != null) {
+          try {
+            final got = await InviteWords().resolve(word);
+            if (!mounted) return;
+            if (got == null) return toast(context, 'No circle has the invite word "$word".', tone: GlacierToastTone.danger);
+            link = got;
+          } catch (e) {
+            if (mounted) toast(context, 'Couldn\'t look up "$word": ${e is InviteRelayError ? e.message : e}', tone: GlacierToastTone.danger);
+            return;
+          }
+        }
         final c = Circles.instance.joinLink(link);
         if (c == null) {
           toast(context, 'That isn\'t a circle\'s invite link.', tone: GlacierToastTone.danger);
@@ -694,7 +720,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
               onCircleMenu: (c) => showCircleMenu(context, c),
               onAddCircle: _addCircle,
               // Share feedback above Settings: on a phone, where it was beside the search (lib/ui/conversations.dart).
-              onFeedback: MacChrome.stripEnabled ? null : () => FeedbackButton.open(context),
+              // Share feedback is a row under the search now (lib/ui/conversations.dart, QuickRow; Matt, 2026-11-20).
+              onFeedback: null,
             );
           },
         ),
@@ -1072,6 +1099,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
               // A friend's invite into a circle, or a circle's link opened from outside the app: said over everything
               // as it comes, with Join and Not now (lib/ui/circles/circle_invite_card.dart); it gives way to a call.
               const Positioned(left: 0, right: 0, top: 0, child: CircleInviteBanner()),
+              // A call being recorded: a pill that can be moved anywhere, opening into the tracks as an editor's
+              // timeline (lib/ui/recording_float.dart).
+              const Positioned.fill(child: RecordingFloat()),
             ]),
           ),
         ),

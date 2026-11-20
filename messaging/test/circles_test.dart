@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart' show ValueKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/art/app_icon.dart';
@@ -645,17 +646,17 @@ void main() {
       return Circle(seed: NetCrypto.hex(NetCrypto.randomBytes(32)), owner: NetCrypto.hex(keys.public), manifest: m);
     }
 
-    testWidgets('the Circles tab lists a circle, which takes the list\'s place with its spaces; back is the conversations', (tester) async {
+    // Under the rail the Messages toggle has no Circles tab: the rail lists the circles (Matt, 2026-11-20: "remove the
+    // circles icon from the segmented toggle on the messages view since circles are now shown in the sidebar").
+    testWidgets('the rail lists a circle, which takes the list\'s place with its spaces; back is the conversations', (tester) async {
       final c = (await tester.runAsync(aCircle))!;
       Circles.instance.join(c);
       addTearDown(Circles.instance.clear);
       final sheet = await loadSheet(tester);
       await pumpScreen(tester, sheet, const AppShell(), AppState(), size: const Size(412, 892));
       await settle(tester);
-      await tester.tap(find.byWidgetPredicate((w) => w is AppIcon && w.icon == Lucide.circleDot).first);
-      await settle(tester);
-      expect(find.byType(CircleRow), findsOneWidget);
-      await tester.tap(find.text('Night Owls'));
+      expect(find.byWidgetPredicate((w) => w is AppIcon && w.icon == Lucide.circleDot), findsNothing, reason: 'no Circles tab under the rail');
+      await tester.tap(find.byKey(ValueKey('rail-circle-${c.seed}')));
       await settle(tester);
       expect(find.byType(CircleScreen), findsOneWidget);
       expect(find.byType(CircleSpaceTile), findsNWidgets(3));

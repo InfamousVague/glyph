@@ -446,6 +446,50 @@ class HangoutRoom extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Who [id] is now, where one person had more than one id (a paired computer's key of its own before it took on the
+  /// phone's identity: Circles.sameAs). Set by lib/circles/circles.dart; itself otherwise.
+  static String Function(String id) sameAs = (id) => id;
+
+  /// Whether [a] and [b] are one person's: the same id, or ids carried over to the same identity.
+  static bool samePerson(String a, String b) => a == b || sameAs(a) == sameAs(b);
+
+  /// Whether this device may edit [m]: its writer's, on any of their devices (one identity on every device), and only
+  /// words, never a poll, a sticker or a plugin's note. Nobody else, whatever their role.
+  bool canEdit(HangoutMessage m) => m.editable && samePerson(m.from, me) && mayWrite;
+
+  /// [m]'s words made [text] (with who its "@Name"s in it mean), on every device in the room and kept for whoever is
+  /// away; false where this device may not, or nothing changed.
+  bool edit(HangoutMessage m, String text, {List<Mention> mentions = const []}) {
+    if (!canEdit(m)) return false;
+    var words = text.trim();
+    if (words.isEmpty && m.files.isEmpty) return false;
+    final most = m.files.isNotEmpty ? HangoutMessage.mostWordsWith : 4000;
+    if (words.length > most) words = words.substring(0, most);
+    if (words == m.text) return false;
+    final at = math.max(DateTime.now().millisecondsSinceEpoch, (m.edited ?? m.at) + 1);
+    final checked = Mention.checked(Mention.trimmed(mentions, text), words);
+    _applyEdit(m.id, words, checked, at);
+    _say({'t': 'edit', 'id': m.id, 'x': words, if (checked.isNotEmpty) 'mn': [for (final x in checked) x.toJson()], 'ed': at}, keep: true);
+    return true;
+  }
+
+  /// Edits heard before the message they change, by its id, at most [_pendingEditsKept]: applied as it comes.
+  final Map<String, ({String from, String text, List<Mention> mentions, int at})> _pendingEdits = {};
+  static const _pendingEditsKept = 200;
+
+  /// [id]'s words made [text] at [at], where that is newer than what it has.
+  void _applyEdit(String id, String text, List<Mention> mentions, int at) {
+    var changed = false;
+    messages = [
+      for (final x in messages)
+        if (x.id == id && at > (x.edited ?? 0)) ...[x.copyWith(text: text, mentions: mentions, edited: at)] else x,
+    ];
+    changed = messages.any((x) => x.id == id && x.edited == at);
+    if (!changed) return;
+    store.keepMessages(channel.chatRoom, messages);
+    notifyListeners();
+  }
+
   /// Whether this device may delete [m]: its own, or anyone's with Manage messages.
   bool canDelete(HangoutMessage m) => m.from == me || (can(Perm.manageMessages) && roster.outranks(me, m.from)) || roster.isOwner(me);
 
@@ -456,9 +500,25 @@ class HangoutRoom extends ChangeNotifier {
   }
 
   void _add(Iterable<HangoutMessage> fresh) {
+    // A message held already that comes again edited later than this device has it (a device's history): its words
+    // taken. Its writer's own edit, as the history has it from them.
+    for (final m in fresh) {
+      final held = messages.where((x) => x.id == m.id).firstOrNull;
+      if (held != null && (m.edited ?? 0) > (held.edited ?? 0) && held.editable && samePerson(held.from, m.from)) _applyEdit(m.id, m.text, m.mentions, m.edited!);
+    }
     final have = {for (final m in messages) m.id};
-    final more = [for (final m in fresh) if (have.add(m.id)) m];
+    var more = [for (final m in fresh) if (have.add(m.id)) m];
     if (more.isEmpty) return;
+    // An edit that came before the message it changes (the hub hands over what it kept in its own order).
+    if (_pendingEdits.isNotEmpty) {
+      more = [
+        for (final m in more)
+          if (_pendingEdits.remove(m.id) case final e? when m.editable && samePerson(m.from, e.from) && e.at > (m.edited ?? 0))
+            m.copyWith(text: e.text, mentions: e.mentions, edited: e.at)
+          else
+            m,
+      ];
+    }
     // By when they were written, and two written in the same millisecond by id: each device kept those in the order it
     // happened to hear them, so the writer saw its own first and everyone else the other's (hangout_test's chat case
     // caught the two devices disagreeing).
@@ -827,6 +887,18 @@ class HangoutRoom extends ChangeNotifier {
         _heardVote(from, m);
       case 'votes':
         _heardVotes(m['v']);
+      case 'edit':
+        // Only its writer's own word, from any of their devices: an edit from anyone else is no edit.
+        final id = '${m['id']}', text = m['x'], at = m['ed'];
+        if (text is! String || at is! int) return;
+        final words = text.trim();
+        final mentions = Mention.checked(Mention.listFromJson(m['mn'], text), words);
+        final msg = messages.where((x) => x.id == id).firstOrNull;
+        if (msg == null) {
+          if (_pendingEdits.length < _pendingEditsKept) _pendingEdits[id] = (from: from, text: words, mentions: mentions, at: at);
+        } else if (msg.editable && samePerson(msg.from, from)) {
+          _applyEdit(id, words, mentions, at);
+        }
       case 'del':
         final id = '${m['id']}';
         final msg = messages.where((x) => x.id == id).firstOrNull;
@@ -908,7 +980,7 @@ class HangoutPerson {
 /// (lib/files/files_store.dart, [ChatUploads]), but never written in its list: only the message knows of them.
 @immutable
 class HangoutMessage {
-  const HangoutMessage({required this.id, required this.from, required this.name, required this.text, required this.at, this.files = const [], this.sticker, this.voice = false, this.mentions = const [], this.poll, this.note});
+  const HangoutMessage({required this.id, required this.from, required this.name, required this.text, required this.at, this.files = const [], this.sticker, this.voice = false, this.mentions = const [], this.poll, this.note, this.edited});
   final String id;
 
   /// Who wrote it (their id on the hub, as the hub said), and the name they wrote it under.
@@ -939,6 +1011,13 @@ class HangoutMessage {
   /// What a plugin is saying, for it to draw as a card (lib/voice/plugin_note.dart); [text] is the same in words, which
   /// is what a build without the plugin shows. Since 2026-11-19 (`pn`).
   final PluginChatNote? note;
+
+  /// When its writer last changed its words (ms), or null where never (`ed`; Matt, 2026-11-20: "I'd like to be able to
+  /// edit messages sent in circles from any computer or phone connected to the account that sent it").
+  final int? edited;
+
+  /// Whether it may be edited at all: words, or files with words; not a poll, a sticker or a plugin's note.
+  bool get editable => poll == null && sticker == null && note == null && !voice;
 
   /// Whether it mentions [id].
   bool mentionsOf(String id) => Mention.names(mentions, id);
@@ -971,7 +1050,20 @@ class HangoutMessage {
   /// The message in a line, for a list's preview: its words, or what came.
   String get summary => !extras ? text : (text.isEmpty ? what : '$what · $text');
 
-  HangoutMessage copyWith({List<SpaceFile>? files}) => HangoutMessage(id: id, from: from, name: name, text: text, at: at, files: files ?? this.files, sticker: sticker, voice: voice, mentions: mentions, poll: poll, note: note);
+  HangoutMessage copyWith({List<SpaceFile>? files, String? text, List<Mention>? mentions, int? edited}) => HangoutMessage(
+        id: id,
+        from: from,
+        name: name,
+        text: text ?? this.text,
+        at: at,
+        files: files ?? this.files,
+        sticker: sticker,
+        voice: voice,
+        mentions: mentions ?? this.mentions,
+        poll: poll,
+        note: note,
+        edited: edited ?? this.edited,
+      );
 
   Map<String, Object> toJson() => {
         'id': id,
@@ -986,6 +1078,7 @@ class HangoutMessage {
         if (mentions.isNotEmpty) 'mn': [for (final m in mentions) m.toJson()],
         if (poll != null) 'pl': poll!.toJson(),
         if (note != null) 'pn': note!.toJson(),
+        'ed': ?edited,
       };
 
   /// From what [from] said: its id, words and time; null where it is not a message. A message whose files and sticker
@@ -1025,6 +1118,7 @@ class HangoutMessage {
       poll: poll,
       // A plugin's note is words with a card over them: never with files, a sticker or a poll.
       note: extras ? null : PluginChatNote.fromJson(j['pn']),
+      edited: j['ed'] is int ? j['ed'] as int : null,
     );
   }
 

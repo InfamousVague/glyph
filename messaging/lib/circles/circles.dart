@@ -29,8 +29,10 @@ import '../net/packet.dart';
 import '../net/switchboard.dart';
 import '../sms.dart';
 import '../voice/channels.dart';
+import '../voice/hangout.dart' show HangoutRoom;
 import '../voice/voice.dart';
 import 'circle.dart';
+import 'invite_word.dart';
 import 'slow_mode.dart';
 
 export 'slow_mode.dart';
@@ -152,6 +154,8 @@ class Circles extends ChangeNotifier {
     if (_app != null) return;
     _app = app;
     _load(app);
+    // Who a message's writer is now, for an edit to be theirs from any of their devices (lib/voice/hangout.dart).
+    HangoutRoom.sameAs = sameAs;
     Net.instance.listen(_received);
     Voice.instance.addListener(_follow);
     _changed(keep: false);
@@ -330,6 +334,39 @@ class Circles extends ChangeNotifier {
       final extra = banner != null || clearBanner ? ({...m.extra}..remove('bn')..remove('bf')..addAll({if (banner != null) 'bn': banner, if (banner != null && bannerFile != null) 'bf': bannerFile})) : null;
       return m.next(name: n == null || n.isEmpty ? null : n, hue: hue, icon: icon, picture: picture, clearPicture: clearPicture, extra: extra);
     });
+  }
+
+  /// Gives [c] the invite word [word] (lib/circles/invite_word.dart), or takes its word away where null: claimed on the
+  /// relay for the circle's link first, then said in its manifest so every member's app shows it. The old word is let
+  /// go. Throws an [InviteRelayError] where the relay refuses (the word is taken), and a [StateError] where this device
+  /// may not change the circle.
+  Future<void> setInviteWord(Circle c, String? word, {InviteWords? words}) async {
+    if (!can(c, CirclePerm.circle)) throw StateError('Your role in ${c.name} can\'t change it.');
+    final w = words ?? InviteWords();
+    final had = c.inviteWord;
+    if (word != null) await w.claim(word, c.link);
+    if (had != null && had != word) {
+      try {
+        await w.drop(had);
+      } catch (_) {
+        // Someone else's claim (another admin set it), or the relay away: it is let go a year after it was last set.
+      }
+    }
+    final ok = await _publish(c, (m) => m.next(extra: {...m.extra}..remove('iw')..addAll({if (word != null) 'iw': word})));
+    if (!ok) throw StateError('The circle couldn\'t be changed.');
+  }
+
+  /// Each word of a circle this device may change claimed again for its link, so the relay keeps it (it lets a word go
+  /// a year after it was last set). A word another install holds is left as it is.
+  Future<void> renewInviteWords({InviteWords? words}) async {
+    final w = words ?? InviteWords();
+    for (final c in all) {
+      final word = c.inviteWord;
+      if (word == null || !can(c, CirclePerm.circle)) continue;
+      try {
+        await w.claim(word, c.link);
+      } catch (_) {}
+    }
   }
 
   /// Adds a space named [name] of [kind] to [c], at the end of [section] (or of the list); gives it back.

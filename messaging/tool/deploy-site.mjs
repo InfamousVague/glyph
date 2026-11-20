@@ -78,9 +78,18 @@ ${DOMAIN} {
 	# The port is tool/deploy-relay.mjs's PORT: the two must agree. /link/* is the same service's pages for signing
 	# in with a network to link an account (relay/lib/handles.dart, docs/me.md): what Discord, X and Telegram send
 	# a person back to.
-	@relay path /hub /relay/* /link/*
+	@relay path /hub /relay/* /link/* /word/*
 	handle @relay {
 		reverse_proxy 127.0.0.1:18787
+	}
+	# A circle's invite word (gogho.st/c/bookclub; relay/lib/invite_words.dart, site/c/index.html): one page for every
+	# word, which asks the relay's /word/<hash> above for the circle's sealed link and opens it.
+	@word path_regexp word ^/c/[A-Za-z0-9-]+/?$
+	handle @word {
+		root * ${SITE}
+		header Cache-Control "no-cache"
+		rewrite * /c/index.html
+		file_server
 	}
 	# Files spaces' sealed files (relay/lib/files.dart): plain HTTP to the same service. A file goes up in pieces of at
 	# most 8 MB (the relay's maxBody), so no request needs more than this; a download streams back with Range. Not

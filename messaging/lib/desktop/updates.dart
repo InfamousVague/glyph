@@ -240,6 +240,16 @@ class MacUpdates extends ChangeNotifier {
     _timer = Timer.periodic(every, (_) => check());
   }
 
+  /// As [start], with the first look waited for: the launch splash waits on it (lib/desktop/ui/launch_splash.dart),
+  /// and on the download where it finds one.
+  Future<void> startChecking() async {
+    _installed = await _host.installed();
+    if (_installed == null) return;
+    notifyListeners();
+    _timer = Timer.periodic(every, (_) => check());
+    await check();
+  }
+
   @override
   void dispose() {
     _timer?.cancel();

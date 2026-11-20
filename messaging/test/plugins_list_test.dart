@@ -36,6 +36,9 @@ Finder _chip(String label) => find.descendant(
     );
 Finder _icon(String label) => find.byWidgetPredicate((w) => w is IconTap && w.label == label);
 
+final _markReadRow = find.byKey(const ValueKey('quick-mark-read'));
+QuickRow _markRead(WidgetTester tester) => tester.widget<QuickRow>(_markReadRow);
+
 void main() {
   late PluginRegistry shipped;
   setUp(() => shipped = PluginRegistry.instance);
@@ -154,29 +157,25 @@ void main() {
     // One segmented toggle holds the tabs, and Mark all read is at the title row's end with the main list's two
     // unread (Matt, 2026-11-14: "make the mark all read aligned to the right of the messages title row").
     expect(find.descendant(of: find.byType(SectionTabs), matching: find.byType(GlacierSegmentedControl)), findsOneWidget);
-    expect(tester.widget<MarkAllRead>(find.byType(MarkAllRead)).unread, 2);
-    // The button is its picture alone, in a circle as tall as the toggle beside it (Matt, 2026-11-14: "change mark
-    // all as read to just be the icon in a circle button"), and the toggle is the kit's middle size ("the
-    // segmented toggle for messages vs codes can be a size larger").
-    expect(find.text('Mark all read'), findsNothing);
-    final button = tester.getSize(find.byType(MarkAllRead)), toggle = tester.getRect(find.byType(GlacierSegmentedControl));
-    expect(button.width, button.height);
-    expect(button.height, closeTo(toggle.height, 0.5));
-    // The title row holds the button, with no "Messages" over the list (Matt, 2026-11-17: "Remove the word messages from
-    // the top of the page its redundant").
+    expect(_markRead(tester).count, 2);
+    // A row with its mark and its name under the search, above the toggle (Matt, 2026-11-20: "layout the mark all read
+    // and the share feedback buttons to a icon list like shown in the screenshot under the searchbar"); the toggle is the
+    // kit's middle size ("the segmented toggle for messages vs codes can be a size larger").
+    expect(find.text('Mark all read'), findsOneWidget);
+    final toggle = tester.getRect(find.byType(GlacierSegmentedControl));
+    // No "Messages" over the list (Matt, 2026-11-17: "Remove the word messages from the top of the page its redundant").
     expect(find.descendant(of: find.byType(ConversationsScreen), matching: find.text('Messages')), findsNothing);
-    expect(tester.getRect(find.byType(MarkAllRead)).bottom, lessThan(toggle.top));
+    expect(tester.getRect(_markReadRow).bottom, lessThan(toggle.top));
     expect(tester.widget<GlacierSegmentedControl>(find.byType(GlacierSegmentedControl)).size, GlacierSegmentedSize.md);
 
     // The button marks the tab shown: Maya's and Dad's, and not the ticket, which is in its own tab.
     phone.asked.clear();
-    await tester.tap(find.byType(MarkAllRead));
+    await tester.tap(_markReadRow);
     await settle(tester);
     expect(phone.asked.toSet(), {'markRead 1', 'markRead 3'});
     expect(find.text('2 conversations marked as read'), findsOneWidget);
-    // Nothing left unread there: the button goes (Matt, 2026-11-19: "if there is no mark as read or cleaner icons
-    // rendered at the top remove the extra space above the searchbar too").
-    expect(find.byType(MarkAllRead), findsNothing);
+    // Nothing left unread there: the row is quiet, and does nothing.
+    expect(_markRead(tester).onPress, isNull);
     await tester.pump(const Duration(seconds: 6));
     await settle(tester);
 
@@ -217,15 +216,15 @@ void main() {
     // No section of a plugin's: the toggle has Messages and Voice alone (Voice is always a tab since 2026-11-15).
       expect(tester.widget<SectionTabs>(find.byType(SectionTabs)).sections, isEmpty);
     // Conversation 2 is unread in the phone's list too: two in all.
-    expect(tester.widget<MarkAllRead>(find.byType(MarkAllRead)).unread, 2);
+    expect(_markRead(tester).count, 2);
     phone.asked.clear();
-    await tester.tap(find.byType(MarkAllRead));
+    await tester.tap(_markReadRow);
     await settle(tester);
     expect(phone.asked.toSet(), {'markRead 1', 'markRead 2'});
     // Nothing unread: the button goes, and with no other button the bar over the search goes too.
     await tester.pump(const Duration(seconds: 6));
     await settle(tester);
-    expect(find.byType(MarkAllRead), findsNothing);
+    expect(_markRead(tester).count, 0);
   });
 
   testWidgets('several can be chosen in a section, where a tap then chooses', (tester) async {

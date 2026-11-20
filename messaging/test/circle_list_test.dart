@@ -186,9 +186,12 @@ void main() {
       // The arrow's whole round mark, which shows on hover and press, inside the banner (Matt, 2026-11-19: "when hovering
       // the back arrow the hover state goes over the left edge of the banner"), and almost flush with its top-left corner
       // ("remove the extra padding on the left of the back arrow and some from the top as well so it sits almost flush
-      // when hovered with the border of the background image").
+      // when hovered with the border of the background image"); on the left only since 2026-11-20.
       expect(back.left - banner.left, inInclusiveRange(1, 4), reason: 'the back arrow\'s hover mark just inside the banner\'s left');
-      expect(back.top - banner.top, inInclusiveRange(1, 4), reason: 'and just inside its top');
+      // Level with the circle's face and name, not at the top corner (Matt, 2026-11-20: "the back arrow should be
+      // horizontally centered with the header text on the sidebar").
+      expect((back.center.dy - face.center.dy).abs(), lessThanOrEqualTo(1), reason: 'centred on the face beside it');
+      expect(back.top - banner.top, greaterThan(4), reason: 'no longer pinned to the top');
       expect(back.bottom, lessThanOrEqualTo(banner.bottom), reason: 'and inside its foot');
       // The picture drawn, for the eye.
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));

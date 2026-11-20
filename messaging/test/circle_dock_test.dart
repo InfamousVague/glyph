@@ -186,6 +186,26 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('a circle\'s space has Members where the shield was, listing the circle\'s people in it (Matt, 2026-11-20: "remove the shield icon for the quick space settings, instead show a members icon there")', (tester) async {
+    final mine = NetKeys.generate();
+    Circles.instance.join(_circle);
+    Circles.instance.noteSeen(_circle, {'cccccccccccccccccccccccccccccccc': 'Cara Diaz'});
+    final c = _circle.channelOf(_circle.manifest.spaces.first);
+    final store = MemoryHangoutStore()..keepRoster(c.chatRoom, Roster.first(c.owner, kind: SpaceKind.text));
+    final room = HangoutRoom(channel: c, route: _NoRoute(mine.id), name: 'Me', signer: KeysSigner(mine), store: store);
+    Voice.instance.putHangout(room);
+    addTearDown(Voice.instance.clearHangouts);
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, HangoutScreen(channel: c), AppState());
+    expect(find.bySemanticsLabel('Space settings'), findsNothing, reason: 'no shield in a circle\'s space');
+    expect(find.byKey(const ValueKey('space-members')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('space-members')));
+    await settle(tester);
+    expect(find.byType(SpaceMembers), findsOneWidget);
+    expect(find.textContaining('Cara Diaz', findRichText: true), findsWidgets, reason: 'a member of the circle, though not yet in the space');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a space\'s Members opens the drawer, and Add people switches it to the space\'s invite drawer', (tester) async {
     final mine = NetKeys.generate();
     final c = VoiceChannel.make('Book club', owner: NetCrypto.hex(mine.public), kind: SpaceKind.text);
