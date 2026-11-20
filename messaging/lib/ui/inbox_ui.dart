@@ -48,6 +48,8 @@ import 'conversations.dart' show ConversationRow;
 import 'group_drawer.dart' show showGroupDrawer;
 import 'thread.dart' show LinkedText;
 import 'me.dart' show NetworkMark;
+import '../inbox/account_helper.dart';
+import 'inbox_signin_helper.dart';
 import 'settings.dart';
 import 'shell.dart';
 import '../kit/semantic_colors.dart';
@@ -62,6 +64,7 @@ import 'inbox_signin_matrix.dart';
 import 'paste_images.dart';
 import 'schedule_ui.dart';
 import '../scheduled.dart' show ScheduleTarget;
+import '../kit/picture_decode.dart';
 
 /// The screens of the inbox of other networks (lib/inbox): a chat's row in the list, the chat itself, signing in, and
 /// the sections of Settings for each network.
@@ -240,7 +243,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
       final dir = await Directory.systemTemp.createTemp('ghost-sticker');
       final file = File('${dir.path}/${asset.split('/').last}');
       await file.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
-      await _n.sendFiles(widget.chatId, [file.path]);
+      await _n.sendFiles(widget.chatId, [file.path], sticker: true);
     } catch (e) {
       if (mounted) toast(context, 'Couldn\'t send the sticker: $e', tone: GlacierToastTone.danger);
     }
@@ -364,7 +367,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
   void _nearTop() {
     if (_loadingOlder || !_scroll.hasClients) return;
     if (_scroll.position.pixels < _scroll.position.maxScrollExtent - 400) return;
-    final more = switch (_n) { Bluesky b => b.hasOlder(widget.chatId), Telegram t => t.hasOlder(widget.chatId), _ => false };
+    final more = switch (_n) { Bluesky b => b.hasOlder(widget.chatId), Telegram t => t.hasOlder(widget.chatId), AccountHelper h => h.hasOlder(widget.chatId), _ => false };
     if (!more) return;
     _loadingOlder = true;
     _n.load(widget.chatId, older: true).whenComplete(() => _loadingOlder = false);
@@ -680,7 +683,7 @@ extension on _InboxChatScreenState {
   Widget _transcript(InboxChat? chat, List<InboxMessage> list) {
     final c = DialupColors.of(context.tokens);
     final group = chat?.group ?? false;
-    final more = switch (_n) { Bluesky b => b.hasOlder(widget.chatId), Telegram t => t.hasOlder(widget.chatId), _ => false };
+    final more = switch (_n) { Bluesky b => b.hasOlder(widget.chatId), Telegram t => t.hasOlder(widget.chatId), AccountHelper h => h.hasOlder(widget.chatId), _ => false };
     return Transcript(
       child: ListView.builder(
         controller: _scroll,
@@ -794,6 +797,8 @@ class _InboxBubble extends StatelessWidget {
         if (shown != null) OriginalCard(view: shown, maxWidth: maxWidth, mine: m.mine),
         // Its reactions over the bubble's lower edge, as under a text (lib/ui/thread.dart).
         _withReactions(context, m, onReactionsTap,
+        // A sticker alone, no words and nothing quoted, is drawn on its own: no bubble behind its see-through parts.
+        isStickerAlone(m) ? Opacity(opacity: m.state == 'sending' ? 0.6 : 1, child: InboxMediaView(network: network, media: m.media.single, ink: m.mine ? mineInk : t.color('app-ink'))) :
         ConstrainedBox(
           constraints: BoxConstraints(maxWidth: maxWidth),
           child: Opacity(
@@ -1324,7 +1329,7 @@ List<SettingsSection> inboxSettingsSections() => [
           id: 'inbox-${n.id}',
           label: n.name,
           icon: inboxMark(n),
-          hue: switch (n.id) { 'telegram' => 'cyan', 'mastodon' => 'purple', 'signal' => 'indigo', 'teams' => 'magenta', 'whatsapp' => 'green', 'matrix' => 'graphite', 'googlechat' => 'mint', _ => 'blue' },
+          hue: switch (n.id) { 'telegram' => 'cyan', 'mastodon' => 'purple', 'signal' => 'indigo', 'teams' => 'magenta', 'whatsapp' => 'green', 'matrix' => 'graphite', 'googlechat' => 'mint', 'instagram' => 'rose', 'messenger' => 'blue', 'linkedin' => 'indigo', _ => 'blue' },
           group: 'me',
           listed: false,
           summary: (_) => _summary(n),
@@ -1332,23 +1337,38 @@ List<SettingsSection> inboxSettingsSections() => [
         ),
     ];
 
-/// The Connections page: every network as a row, its mark, its name and where it stands, opening its own page.
-List<Widget> _connections(BuildContext context) {
-  final all = Inbox.instance.networks;
-  final on = [for (final n in all) if (!n.soon && (n.state == InboxState.ready || n.state == InboxState.signingIn)) n];
-  final off = [for (final n in all) if (!n.soon && !on.contains(n)) n];
-  final soon = [for (final n in all) if (n.soon) n];
-  Widget row(InboxNetwork n) => SettingRow(
+/// The Connections page: Telegram and Signal (the official networks) first, then plugins — the other networks, off
+/// until switched on (Matt, 2026-11-20: "only keep telegram and signal as the official services ... Setup all these
+/// other services as plugins"). Each row shows where it stands and opens its own page.
+List<Widget> _connections(BuildContext context) => [
+      ListenableBuilder(
+        listenable: Listenable.merge([Inbox.instance.switches, ...Inbox.instance.networks]),
+        builder: (context, _) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _connectionsBody(context)),
+      ),
+    ];
+
+List<Widget> _connectionsBody(BuildContext context) {
+  final officials = Inbox.instance.official;
+  final plugins = Inbox.instance.plugins;
+  final on = [for (final n in officials) if (n.state == InboxState.ready || n.state == InboxState.signingIn) n];
+  final off = [for (final n in officials) if (!on.contains(n)) n];
+  final pluginRows = [for (final n in plugins) if (!n.soon) n];
+  final soon = [for (final n in plugins) if (n.soon) n];
+  Widget row(InboxNetwork n, {String? hint}) => SettingRow(
         key: ValueKey('connection-${n.id}'),
         icon: inboxMark(n),
         label: n.name,
-        hint: Text(_summary(n)),
+        hint: Text(hint ?? _summary(n)),
         onPress: () => push<void>(context, (_) => SettingsSectionScreen('inbox-${n.id}')),
       );
-  const intro = Text('Your chats on other networks among your texts in Messages, each marked with its logo. Ghost signs in to each as an app of its own, on this device; its own server never sees your chats. Choose one to connect it or change it.');
-  final groups = [('Connected', on), ('Add a connection', off), ('Coming soon', soon)].where((g) => g.$2.isNotEmpty).toList();
+  const intro = Text('Your chats on other networks among your texts in Messages, each marked with its logo. Ghost signs in to each as an app of its own, on this device; its own server never sees your chats.');
+  const pluginIntro = Text('Beyond Telegram and Signal, Ghost can bring in other networks as plugins. These aren\'t official Ghost connections — each signs in the way that network\'s own website or app does, and some don\'t allow other apps at all. Switch one on to connect it.');
   return [
-    for (final (i, g) in groups.indexed) PaneSection(title: g.$1, description: i == 0 ? intro : null, children: [for (final n in g.$2) row(n)]),
+    if (on.isNotEmpty) PaneSection(title: 'Connected', description: intro, children: [for (final n in on) row(n)]),
+    if (off.isNotEmpty) PaneSection(title: on.isEmpty ? 'Official networks' : 'Add a connection', description: on.isEmpty ? intro : null, children: [for (final n in off) row(n)]),
+    if (pluginRows.isNotEmpty)
+      PaneSection(title: 'Plugins', description: pluginIntro, children: [for (final n in pluginRows) row(n, hint: n.enabled ? _summary(n) : 'Off')]),
+    if (soon.isNotEmpty) PaneSection(title: 'Coming soon', children: [for (final n in soon) row(n)]),
   ];
 }
 
@@ -1359,13 +1379,53 @@ String _summary(InboxNetwork n) => n.soon ? 'Coming soon' : switch (n.state) {
       InboxState.unavailable => 'Not in this build',
     };
 
-List<Widget> _pane(BuildContext context, InboxNetwork n) {
+List<Widget> _pane(BuildContext context, InboxNetwork n) => [
+      ListenableBuilder(
+        listenable: Listenable.merge([Inbox.instance.switches, n]),
+        builder: (context, _) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _paneBody(context, n)),
+      ),
+    ];
+
+/// Switches a plugin network off: signs out first where it is signed in, asked for.
+Future<void> _turnOff(BuildContext context, InboxNetwork n) async {
+  if (n.state != InboxState.ready && n.state != InboxState.signingIn) {
+    await Inbox.instance.disable(n);
+    return;
+  }
+  await showChoices(context, title: 'Turn off ${n.name}?', choices: [
+    Choice('Turn off and sign out', Lucide.logOut, () {
+      ScrollMemory.forgetAll('inbox:${n.id}:');
+      Inbox.instance.disable(n);
+    }, danger: true, hint: 'You can switch it on and sign in again any time.'),
+  ]);
+}
+
+List<Widget> _paneBody(BuildContext context, InboxNetwork n) {
   void signIn() {
-    final page = switch (n) { Telegram tg => TelegramSignInScreen(network: tg), Bluesky b => BlueskySignInScreen(network: b), Mastodon m => MastodonSignInScreen(network: m), Signal sg => SignalLinkScreen(network: sg), Teams tm => TeamsSignInScreen(network: tm), GoogleChat gc => GoogleChatSignInScreen(network: gc), WhatsApp wa => WhatsAppLinkScreen(network: wa), Matrix mx => MatrixSignInScreen(network: mx), _ => null };
+    final page = switch (n) { Telegram tg => TelegramSignInScreen(network: tg), Bluesky b => BlueskySignInScreen(network: b), Mastodon m => MastodonSignInScreen(network: m), Signal sg => SignalLinkScreen(network: sg), Teams tm => TeamsSignInScreen(network: tm), GoogleChat gc => GoogleChatSignInScreen(network: gc), WhatsApp wa => WhatsAppLinkScreen(network: wa), Matrix mx => MatrixSignInScreen(network: mx), AccountHelper h => HelperSignInScreen(network: h), _ => null };
     if (page != null) push<void>(context, (_) => page);
   }
 
+  // A plugin (every network but Telegram and Signal) is off until switched on here, and not signed in to until it is.
+  // One not in this build shows why instead of a switch it can't honour.
+  final plugin = !n.official && !n.soon;
+  final showToggle = plugin && n.state != InboxState.unavailable;
+  final showMain = !plugin || n.enabled || n.state == InboxState.unavailable;
   return [
+    if (showToggle)
+      PaneSection(
+        title: 'Plugin',
+        description: Text('${n.name} is a plugin, not an official Ghost connection. Switch it on to connect it; switch it off and it is signed out and left alone.'),
+        children: [
+          SettingRow(
+            key: const ValueKey('plugin-switch'),
+            icon: _icon(Lucide.puzzle),
+            label: 'Use ${n.name}',
+            control: GlacierSwitch(checked: n.enabled, ariaLabel: 'Use ${n.name}', onCheckedChange: (want) => want ? Inbox.instance.enable(n) : _turnOff(context, n)),
+          ),
+        ],
+      ),
+    if (showMain)
     PaneSection(
       title: n.name,
       description: Text('Your ${n.name} chats among your texts in Messages, marked with its logo, read and answered here. They go between this device and ${n.name} only.'),
@@ -1373,6 +1433,8 @@ List<Widget> _pane(BuildContext context, InboxNetwork n) {
       children: [
         // WhatsApp allows no other apps (Matt, 2026-11-17: "warn the user that it's unsupported by whatsapp").
         if (n is WhatsApp) SettingsCallout(child: Text(whatsAppWarning)),
+        // Nor do Messenger, Instagram or LinkedIn (lib/inbox/account_helper.dart): the same is said of each.
+        if (n is AccountHelper) SettingsCallout(child: Text(n.service.warning)),
         if (n.soon)
           SettingRow(icon: _icon(Lucide.info), label: 'Coming soon', hint: Text('${n.name} chats aren\'t offered yet.'), disabled: true)
         else if (n.state == InboxState.ready) ...[
@@ -1398,7 +1460,7 @@ List<Widget> _pane(BuildContext context, InboxNetwork n) {
 }
 
 /// Puts the networks' sections into Settings, and redraws it as they change.
-void addInboxSettings() => SettingsSources.add(inboxSettingsSections, watch: Inbox.instance.networks);
+void addInboxSettings() => SettingsSources.add(inboxSettingsSections, watch: [Inbox.instance.switches, ...Inbox.instance.networks]);
 
 
 
@@ -1422,7 +1484,7 @@ class _FilesStrip extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(t.radius('md')),
                 child: Telegram.kindOf(f) == 'photo'
-                    ? Image.file(File(f), width: side, height: side, fit: BoxFit.cover)
+                    ? Image.file(File(f), width: side, height: side, fit: BoxFit.cover, cacheWidth: faceDecodeWidth(context, side))
                     : Container(
                         width: side,
                         height: side,
@@ -1463,7 +1525,7 @@ class InboxMediaView extends StatelessWidget {
     final path = media.path ?? await network.fileOf(media.fileId);
     if (path == null || !context.mounted) return;
     switch (media.kind) {
-      case 'photo':
+      case 'photo' || 'sticker':
         // The same full-screen overlay as a picture in a space's chat (lib/ui/picture_overlay.dart).
         await showPictureOverlay(context, path: path, title: media.name);
       default:
@@ -1481,12 +1543,14 @@ class InboxMediaView extends StatelessWidget {
       return SizedBox(
         width: width,
         height: width / ratio,
-        child: path == null ? ColoredBox(color: t.color('app-paper-3'), child: const Center(child: GhostSpinner(size: 20))) : Image.file(File(path), fit: BoxFit.cover, gaplessPlayback: true),
+        child: path == null ? ColoredBox(color: t.color('app-paper-3'), child: const Center(child: GhostSpinner(size: 20))) : Image.file(File(path), fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: fillDecodeWidth(context, width * 2)),
       );
     }
 
     final Widget body = switch (media.kind) {
       'photo' => ClipRRect(borderRadius: BorderRadius.circular(t.radius('md')), child: picture(media.path, media.fileId)),
+      // A sticker as it is: its own size, its see-through parts showing the chat behind it, nothing round it.
+      'sticker' => InboxSticker(network: network, media: media),
       'video' => ClipRRect(
           borderRadius: BorderRadius.circular(t.radius('md')),
           child: Stack(alignment: Alignment.center, children: [
@@ -1516,6 +1580,38 @@ class InboxMediaView extends StatelessWidget {
 
   static String _clock(int s) => '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
   static String _bytes(int b) => b >= 1 << 20 ? '${(b / (1 << 20)).toStringAsFixed(1)} MB' : '${(b / 1024).ceil()} KB';
+}
+
+/// [m] is a sticker and nothing else: drawn with no bubble round it.
+bool isStickerAlone(InboxMessage m) => m.media.length == 1 && m.media.single.kind == 'sticker' && m.text.trim().isEmpty && m.replyTo == null;
+
+/// A sticker in a chat (Matt, 2026-11-20: "stickers in telegram chat and others render inside chat bubbles instead of
+/// transparent backgrounds when sent and when recieved"): at most 9rem a side in its own shape, contained, nothing
+/// behind it; a soft square while it comes down.
+class InboxSticker extends StatelessWidget {
+  const InboxSticker({super.key, required this.network, required this.media});
+  final InboxNetwork network;
+  final InboxMedia media;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final most = t.lenOf('9rem');
+    final ratio = media.width > 0 && media.height > 0 ? (media.width / media.height).clamp(0.5, 2.0) : 1.0;
+    final w = ratio >= 1 ? most : most * ratio, h = ratio >= 1 ? most / ratio : most;
+    final path = media.path;
+    if (path == null) network.wantFile(media.fileId);
+    return SizedBox(
+      width: w,
+      height: h,
+      child: path == null
+          ? DecoratedBox(
+              decoration: BoxDecoration(color: t.color('app-paper-3').withValues(alpha: 0.5), borderRadius: BorderRadius.circular(t.radius('lg'))),
+              child: const Center(child: GhostSpinner(size: 20)),
+            )
+          : Image.file(File(path), fit: BoxFit.contain, gaplessPlayback: true, cacheWidth: fillDecodeWidth(context, w * 2)),
+    );
+  }
 }
 
 /// [bubble] with [m]'s reactions stuck on it, as a text's are (lib/ui/reaction_stickers.dart).

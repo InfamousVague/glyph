@@ -103,7 +103,19 @@ String? _nameSign(String title) {
 }
 
 /// Why [chat] looks like spam or a scam, in words for its row; null where it does not.
+///
+/// Remembered for a chat as it stands (its name, its newest words, who it is from): the list asks for every chat at
+/// every build, and the signs are a dozen patterns run over the words (docs/performance-audit.md, finding 2).
 String? scamOf(InboxChat chat) {
+  final key = '${chat.network}\u001f${chat.id}\u001f${chat.title}\u001f${chat.snippet}\u001f${chat.flag}\u001f${chat.group}${chat.lastFromMe}${chat.service}${chat.stranger}${chat.cold}';
+  if (_scams.containsKey(key)) return _scams[key];
+  if (_scams.length >= 4000) _scams.clear();
+  return _scams[key] = _scamOf(chat);
+}
+
+final Map<String, String?> _scams = {};
+
+String? _scamOf(InboxChat chat) {
   if (chat.group || chat.lastFromMe && chat.flag == null) return null;
   final flag = chat.flag;
   if (flag != null) return flag;

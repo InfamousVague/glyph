@@ -30,6 +30,14 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Stickers in Telegram, Signal, WhatsApp and Matrix chats stand on their own** (0.10.7, not released; Matt,
+  2026-11-20: "stickers in telegram chat and others render inside chat bubbles instead of transparent backgrounds when
+  sent and when recieved"). A sticker is its own kind of picture (`InboxMedia` kind `sticker`), drawn at most 9rem a
+  side with nothing behind its see-through parts and no bubble round it (`InboxSticker`, `isStickerAlone`); a sticker
+  with words or a quote keeps its bubble. Each network says which are stickers: Telegram's `messageSticker`,
+  WhatsApp's pointer kind, Matrix's `m.sticker`, and Signal's helper marks its sticker attachment (`"sticker": true`,
+  sidecar/signal). One of Ghost's own stickers goes to Telegram as a Telegram sticker where it is WEBP (a PNG one goes
+  as a picture), and to the others as a picture shown here as a sticker.
 - **Reactions in spaces and circles** (0.10.6, not released; Matt, 2026-11-20: "add reactions after done to spaces and
   circles"). Press and hold (or right-click) a message in a space's or a circle's chat: the reaction row from texts
   (`reactionChoices`, `ReactionPickRow`) sits over its menu. A space's bubbles wear them as stickers, as texts do

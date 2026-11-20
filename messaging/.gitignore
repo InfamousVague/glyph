@@ -56,5 +56,13 @@ app.*.map.json
 # The WhatsApp helper (tool/build-whatsappsidecar.sh android --ship), built for each release; and one built in its own folder.
 /android/app/src/main/jniLibs/*/libwhatsappsidecar.so
 /sidecar/whatsapp/whatsapp-sidecar
+# The account helpers (tool/build-accountsidecar.sh <name> android --ship), built for each release; and ones built in
+# their own folders by a plain `go build`.
+/android/app/src/main/jniLibs/*/libmessengersidecar.so
+/android/app/src/main/jniLibs/*/libinstagramsidecar.so
+/android/app/src/main/jniLibs/*/liblinkedinsidecar.so
+/sidecar/messenger/messengersidecar
+/sidecar/instagram/instagramsidecar
+/sidecar/linkedin/linkedinsidecar
 # The Matrix helper (tool/build-matrixsidecar.sh android --ship), built for each release; its other builds are in build/.
 /android/app/src/main/jniLibs/*/libmatrixsidecar.so

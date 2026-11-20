@@ -116,8 +116,27 @@ class NetCrypto {
     return Uint8List.fromList([..._fixed(sig.r), ..._fixed(sig.s)]);
   }
 
+  /// [verify], with the answer remembered for the same key, message and signature (it can be no other): for what is
+  /// asked again and again of the same grant while a screen is drawn, a role's or an admin's. A check is several
+  /// milliseconds of arithmetic in Dart, and was made anew for every message row at every build
+  /// (docs/performance-audit.md, finding 7). The newest [_mostChecks] answers are kept.
+  static bool verifyOnce(List<int> publicKey, List<int> message, List<int> signature) {
+    final key = '${String.fromCharCodes(publicKey)}\u0000${String.fromCharCodes(signature)}\u0000${String.fromCharCodes(message)}';
+    final had = _checks[key];
+    if (had != null) return had;
+    if (_checks.length >= _mostChecks) _checks.remove(_checks.keys.first);
+    return _checks[key] = verify(publicKey, message, signature);
+  }
+
+  static const _mostChecks = 2048;
+  static final Map<String, bool> _checks = {};
+
+  /// How many signatures have been checked in full, for a test that counts them.
+  static int verifications = 0;
+
   /// Whether [signature] is the holder of [publicKey]'s over [message].
   static bool verify(List<int> publicKey, List<int> message, List<int> signature) {
+    verifications++;
     if (signature.length != 64 || publicKey.length != 33) return false;
     try {
       final point = curve.curve.decodePoint(publicKey);

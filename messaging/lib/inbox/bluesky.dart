@@ -237,9 +237,11 @@ class Bluesky extends InboxNetwork {
         if (chat != null) next.add(chat);
       }
       next.sort((a, b) => b.date.compareTo(a.date));
+      // Asked every so often: the listeners are told only when something is different (InboxNetwork.sameChats).
+      final same = _error == null && InboxNetwork.sameChats(_chats, next);
       _chats = next;
       _error = null;
-      notifyListeners();
+      if (!same) notifyListeners();
     } catch (e) {
       _error = _plain(e);
       notifyListeners();

@@ -40,6 +40,52 @@ Not yet: pictures and other media (shown as "Photo", "Voice message"…), avatar
 Telegram (TDLib is built for Android arm64 and Apple silicon), notifications when the app is closed, the computer
 using the phone's sign-in.
 
+## Built: Messenger, Instagram and LinkedIn (2026-11-20)
+
+Matt, asked which other popular platforms could be added and told these three were feasible "the same way as
+WhatsApp (unofficial, needs a warning)": "Let's do the feasible ones but skip X and google voice".
+
+None of the three has an API a personal account's own app may use. Each is reached as its website is: a helper
+process signs in **with the cookies of a browser signed in to the account** and speaks the service's own web
+protocol, through the open-source bridges' client libraries (AGPL-3.0, as this app is):
+
+| Service | Helper | Library | Cookies needed |
+| --- | --- | --- | --- |
+| Messenger | `sidecar/messenger` | mautrix-meta `pkg/messagix` | `xs`, `c_user`, `datr` (messenger.com or facebook.com) |
+| Instagram | `sidecar/instagram` | mautrix-meta `pkg/instameow` (that project moved Instagram off messagix in 2026) | `sessionid`, `csrftoken`, `ds_user_id` |
+| LinkedIn | `sidecar/linkedin` | mautrix-linkedin `pkg/linkedingo` | `li_at`, `JSESSIONID` |
+
+| Part | Where |
+| --- | --- |
+| The protocol the three helpers share (JSON lines, as WhatsApp's) | `sidecar/ACCOUNT_HELPERS.md`; each helper's own `PROTOCOL.md` and `README.md` say what is particular to it and what it does not do yet |
+| One class in the app for all three: the helper run as a child process, sign-in, chats, messages, history asked for as a chat is scrolled, sending, reactions, read, files | `lib/inbox/account_helper.dart` (`test/inbox_account_helper_test.dart`, against a stand-in helper) |
+| What is pasted read as cookies (a copied request, a header, pairs, JSON) | `lib/inbox/cookie_paste.dart` |
+| Signing in: the warning, agreed to first; then a private window, Copy as cURL, paste | `lib/ui/inbox_signin_helper.dart` (`test/inbox_helper_screens_test.dart`, `test/shots/helper-*`) |
+| Their marks, Settings › Connections rows and pages | `lib/ui/me.dart` (`NetworkMark`), `lib/ui/inbox_ui.dart` |
+| Building a helper for a Mac, Linux, Windows or the phone | `tool/build-accountsidecar.sh <name> <mac\|linux\|windows\|android>`; the Mac's and the phone's releases carry them (`tool/release-mac.mjs`, `tool/release.mjs`) |
+
+**The warning.** Before anything is asked of the service the person is told, and must agree, that it does not
+support or allow other apps, that Ghost signs in as them with a browser's session, and that the service may ask them
+to confirm it is them, sign that session out, or restrict the account. The same stands on each one's page of
+Settings. This is the same footing as WhatsApp.
+
+**Messenger's encrypted chats.** Most one-to-one Messenger chats are end-to-end encrypted. The helper reads and
+writes them as mautrix-meta does: it registers as another device of the account (kept in `e2ee.db`), which
+Messenger lists among the person's devices, and the warning says so. Encrypted messages from before signing in are
+not fetched, and encrypted files cannot be sent yet.
+
+**What is kept where.** The cookies are given to the helper on the device and kept by it alone (`session.json` in
+the app's own folder, readable by the person only); the app keeps the chats and the newest 400 messages of each
+(`chats.json`). Nothing goes through Ghost's servers.
+
+**Not tried against real accounts.** Everything here was built and tested against stand-ins and the libraries' own
+types: no sign-in was made to any of the three. The first real sign-in on each is the test of it, as it was for
+every network before. Known limits are each helper's README "Not yet" list.
+
+**Where it runs.** A Mac and the phone carry the helpers from the next release. Windows and Linux builds do not
+carry them yet (they say "Not in this build" there): the helpers cross-build for both
+(`tool/build-accountsidecar.sh <name> windows|linux`), and their workflows are to be taught to.
+
 ## The short answer
 
 There are two ways in, and they cover different apps:

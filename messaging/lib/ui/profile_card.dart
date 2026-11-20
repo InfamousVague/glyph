@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'composer_box.dart' show ComposerBox, ComposerField;
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -31,6 +30,7 @@ import 'verified_badge.dart';
 import 'nav_bar.dart' show HoverTip;
 import 'plugins_page/plugin_art.dart' show PluginHues;
 import '../me/verified_numbers.dart';
+import '../kit/picture_decode.dart';
 
 /// Who a profile card is about (Matt, 2026-11-19: "when clicking on a @mention anywhere including signal and telegram
 /// chats show this profile popup with actions available for the user in context of where it's placed"): someone on
@@ -510,12 +510,11 @@ class ProfileFace extends StatelessWidget {
     Widget? image;
     final p = picture;
     if (p != null && p.isNotEmpty) {
-      try {
-        image = Image.memory(base64Decode(p), width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true);
-      } catch (_) {}
+      final bytes = pictureBytes(p);
+      if (bytes != null) image = Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: faceDecodeWidth(context, size));
     }
     final f = file;
-    if (image == null && f != null && f.isNotEmpty && File(f).existsSync()) image = Image.file(File(f), width: size, height: size, fit: BoxFit.cover);
+    if (image == null && f != null && f.isNotEmpty && File(f).existsSync()) image = Image.file(File(f), width: size, height: size, fit: BoxFit.cover, cacheWidth: faceDecodeWidth(context, size));
     if (image != null) return ClipOval(child: SizedBox(width: size, height: size, child: image));
     final letter = name.trim().isEmpty ? '?' : String.fromCharCodes(name.trim().runes.take(1)).toUpperCase();
     return Container(

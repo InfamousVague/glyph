@@ -82,6 +82,66 @@ void main() {
     });
   });
 
+  // docs/performance-audit.md, finding 8: a window dragged larger or smaller made new tokens at every frame.
+  group('a window being resized', () {
+    Future<Tokens> at(WidgetTester tester, TokenSheet sheet, Size size, {Duration? settle}) async {
+      late Tokens seen;
+      await tester.pumpWidget(Directionality(
+        textDirection: TextDirection.ltr,
+        child: MediaQuery(
+          data: MediaQueryData(size: size),
+          child: GlacierTheme(
+            sheet: sheet,
+            attrs: const {'platform': 'desktop', 'theme': 'dark'},
+            resizeSettle: settle,
+            child: Builder(builder: (context) {
+              seen = context.tokens;
+              return const SizedBox();
+            }),
+          ),
+        ),
+      ));
+      return seen;
+    }
+
+    testWidgets('keeps its theme while the size moves, and takes the new size once it has stood still', (tester) async {
+      final sheet = await loadSheet(tester);
+      const settle = Duration(milliseconds: 120);
+      final first = await at(tester, sheet, const Size(1000, 700), settle: settle);
+      expect(first.css.vw, 1000);
+      // Dragged: several sizes, a few frames apart.
+      for (final w in [1010.0, 1040.0, 1100.0]) {
+        expect(identical(await at(tester, sheet, Size(w, 700), settle: settle), first), isTrue, reason: 'still the tokens it had');
+        await tester.pump(const Duration(milliseconds: 40));
+      }
+      await tester.pump(const Duration(milliseconds: 130));
+      final after = await at(tester, sheet, const Size(1100, 700), settle: settle);
+      expect(identical(after, first), isFalse);
+      expect(after.css.vw, 1100, reason: 'the size it came to rest at');
+      // Anything else that changes is taken at once.
+      late Tokens dark;
+      await tester.pumpWidget(Directionality(
+        textDirection: TextDirection.ltr,
+        child: MediaQuery(
+          data: const MediaQueryData(size: Size(1100, 700)),
+          child: GlacierTheme(sheet: sheet, attrs: const {'platform': 'desktop', 'theme': 'light'}, resizeSettle: settle, child: Builder(builder: (context) {
+            dark = context.tokens;
+            return const SizedBox();
+          })),
+        ),
+      ));
+      expect(dark.attrs['theme'], 'light');
+    });
+
+    testWidgets('with no wait asked for, every size is taken at once, as the kit does by itself', (tester) async {
+      final sheet = await loadSheet(tester);
+      final first = await at(tester, sheet, const Size(1000, 700));
+      final next = await at(tester, sheet, const Size(1010, 700));
+      expect(identical(first, next), isFalse);
+      expect(next.css.vw, 1010);
+    });
+  });
+
   group('the computer\'s choices file', () {
     late Directory dir;
     setUp(() => dir = Directory.systemTemp.createTempSync('ghost-prefs'));

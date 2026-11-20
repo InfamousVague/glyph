@@ -977,12 +977,64 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final msgs = _folded.messages;
     final busy = background.busy;
     // Newest first, drawn bottom up.
-    final items = <Widget>[];
     String? lastOutgoingKey;
     for (final m in msgs) {
       if (m.outgoing && !_isLine(m)) { lastOutgoingKey = m.key; break; }
     }
-    for (var i = 0; i < msgs.length; i++) {
+    // What stands over the oldest message: "Say hello." in an empty conversation, the wait for earlier ones.
+    final tail = <Widget>[
+      if (msgs.isEmpty)
+        Padding(
+          padding: EdgeInsets.all(t.space(8)),
+          child: Center(child: OnBackground(busy: busy, child: Text('Say hello.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))),
+        ),
+      // Older ones are read as the reader nears the oldest held: said at the top while they come.
+      if (_older)
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: t.space(4)),
+          child: const Center(child: GhostSpinner(size: 18, label: 'Loading earlier messages…')),
+        ),
+    ];
+    // Each message's place by its key, so a row keeps what it holds (a bubble leaving, words shown) when a newer
+    // message moves it down the list.
+    final places = <String, int>{for (var i = 0; i < msgs.length; i++) msgs[i].key: i};
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        // Drawn bottom up, so what lies after is the older end.
+        if (_older && !_readingOlder && n.metrics.axis == Axis.vertical && n.metrics.extentAfter < 900) _readOlder();
+        return false;
+      },
+      child: JumpToLatest(
+        controller: _scroll,
+        chat: _spot,
+        incoming: _incoming,
+        inset: EdgeInsets.only(right: t.space(3), bottom: t.space(3)),
+        // Built a row at a time, as each comes near the screen: every message held was made a widget at every build
+        // (120 at first, 300 more a page), with what the plugins find in each one's words
+        // (docs/performance-audit.md, finding 3).
+        child: ListView.builder(
+          controller: _scroll,
+          reverse: true,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
+          itemCount: msgs.length + tail.length,
+          findChildIndexCallback: (key) => key is ValueKey<String> && key.value.startsWith('row-') ? places[key.value.substring(4)] : null,
+          itemBuilder: (context, i) {
+            if (i >= msgs.length) return tail[i - msgs.length];
+            final parts = _row(t, background, msgs, i, lastOutgoingKey);
+            // Bottom up in the list, so the first part made is the lowest on the page.
+            return Column(key: ValueKey('row-${msgs[i].key}'), mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: parts.reversed.toList());
+          },
+        ),
+      ),
+    );
+  }
+
+  /// The message at [i] of [msgs] (newest first) as its row's parts, the lowest first: what the plugins put under it,
+  /// its bubble, the line over the first new one, the day over the day's first.
+  List<Widget> _row(Tokens t, ChatBackground background, List<Message> msgs, int i, String? lastOutgoingKey) {
+    final busy = background.busy;
+    final items = <Widget>[];
       final m = msgs[i];
       final newer = i > 0 ? msgs[i - 1] : null;
       final older = i < msgs.length - 1 ? msgs[i + 1] : null;
@@ -999,7 +1051,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           onLongPress: () => _messageMenu(m),
         ));
         if (older == null || !_sameDay(older.date, m.date)) items.add(_DayHeading(date: m.date, busy: busy));
-        continue;
+        return items;
       }
       final firstOfRun = !joins(older, m) || !_sameDay(older!.date, m.date);
       final lastOfRun = !joins(newer, m) || !_sameDay(newer!.date, m.date);
@@ -1063,40 +1115,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       ))));
       if (_group && m.key == _firstNewKey) items.add(Padding(key: const ValueKey('new-messages'), padding: EdgeInsets.symmetric(horizontal: t.space(3)), child: const NewMessagesDivider()));
       if (older == null || !_sameDay(older.date, m.date)) items.add(_DayHeading(date: m.date, busy: busy));
-    }
-    if (msgs.isEmpty) {
-      items.add(Padding(
-        padding: EdgeInsets.all(t.space(8)),
-        child: Center(child: OnBackground(busy: busy, child: Text('Say hello.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))),
-      ));
-    }
-    // Older ones are read as the reader nears the oldest held: said at the top while they come.
-    if (_older) {
-      items.add(Padding(
-        padding: EdgeInsets.symmetric(vertical: t.space(4)),
-        child: const Center(child: GhostSpinner(size: 18, label: 'Loading earlier messages…')),
-      ));
-    }
-    return NotificationListener<ScrollNotification>(
-      onNotification: (n) {
-        // Drawn bottom up, so what lies after is the older end.
-        if (_older && !_readingOlder && n.metrics.axis == Axis.vertical && n.metrics.extentAfter < 900) _readOlder();
-        return false;
-      },
-      child: JumpToLatest(
-        controller: _scroll,
-        chat: _spot,
-        incoming: _incoming,
-        inset: EdgeInsets.only(right: t.space(3), bottom: t.space(3)),
-        child: ListView(
-          controller: _scroll,
-          reverse: true,
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
-          children: items,
-        ),
-      ),
-    );
+    return items;
   }
 
   /// [_list] as Dial-Up writes it: one transcript in a white well, each message a line, "Name: words", no faces and no

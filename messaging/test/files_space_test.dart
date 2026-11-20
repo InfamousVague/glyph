@@ -315,6 +315,8 @@ void main() {
       expect(path, endsWith('/report.pdf'));
       expect(b.transfers, isEmpty);
       // Kept: the list and the file are there for a store made again (the app opened again) before the relay answers.
+      // The list is written a moment after it changes, by another isolate (lib/inbox/kept_writer.dart): here, now.
+      b.of(space).flushKept();
       final again = FilesStore.forTest(base: Uri.parse('http://127.0.0.1:1/files'), signer: sam, data: Directory('${dir.path}/Sam'));
       stores.add(again);
       expect(again.of(space).files.values.single.name, 'report.pdf');
