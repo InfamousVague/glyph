@@ -58,7 +58,7 @@ enum PackKind {
 /// What a pack's page has beyond a built-in's: where it comes from, what can be done with it here, and what its
 /// package says of it. Everything shown of the pack is from [pack], never from what a listing said.
 class PackPage {
-  const PackPage({required this.kind, this.pack, this.onAdd, this.whyNot, this.adding = false, this.updateTo, this.onUpdate, this.onReload, this.problems = 0, this.onProblems, this.onReport, this.stuck, this.paused = false, this.onUnpause, this.nohere = false, this.takenFrom, this.shotOf, this.onLabel, this.onSupport});
+  const PackPage({required this.kind, this.pack, this.onAdd, this.whyNot, this.adding = false, this.updateTo, this.onUpdate, this.onReload, this.problems = 0, this.warnings = 0, this.onProblems, this.onReport, this.stuck, this.paused = false, this.onUnpause, this.nohere = false, this.takenFrom, this.shotOf, this.onLabel, this.onSupport});
 
   final PackKind kind;
 
@@ -79,8 +79,10 @@ class PackPage {
   /// A dev pack's Reload, where its source can be read again.
   final VoidCallback? onReload;
 
-  /// How many problems a dev pack has, and the way to them (its own screen, beside or over this page).
+  /// How many problems a dev pack has, and warnings apart (a warning doesn't stop it loading), and the way to them (its
+  /// own screen, beside or over this page).
   final int problems;
+  final int warnings;
   final VoidCallback? onProblems;
 
   final VoidCallback? onReport;
@@ -95,7 +97,8 @@ class PackPage {
   /// This computer has no texts for it to sort (a computer on its own).
   final bool nohere;
 
-  /// A listing now by another developer than the copy on this device: that copy's developer.
+  /// A listing now by another developer than the copy on this device: that copy's developer, or '' where nothing here
+  /// can tell who made that copy (one that no longer parses, installed before its developer was kept).
   final String? takenFrom;
 
   /// A screenshot's checked bytes by its SHA-256 (route 6), or null where it can't be had or isn't the one named.
@@ -254,7 +257,7 @@ class PluginDetail extends StatelessWidget {
         ),
       if (p?.onUpdate != null && p?.updateTo != null) MarketButton(key: ValueKey('plugins-update-${plugin.id}'), label: 'Update to ${p!.updateTo}', icon: Lucide.download, look: MarketButtonLook.ring, large: true, onPress: p.onUpdate),
       if (p?.onReload != null) MarketButton(key: ValueKey('plugins-reload-${plugin.id}'), label: 'Reload', icon: Lucide.refreshCw, look: MarketButtonLook.ring, large: true, onPress: p!.onReload),
-      if (p != null && p.problems > 0) MarketButton(key: ValueKey('plugins-problems-${plugin.id}'), label: '${p.problems} ${p.problems == 1 ? 'problem' : 'problems'}', icon: Lucide.triangleAlert, look: MarketButtonLook.ring, large: true, onPress: p.onProblems),
+      if (p != null && (p.problems > 0 || p.warnings > 0)) MarketButton(key: ValueKey('plugins-problems-${plugin.id}'), label: [if (p.problems > 0) '${p.problems} ${p.problems == 1 ? 'problem' : 'problems'}', if (p.warnings > 0) '${p.warnings} ${p.warnings == 1 ? 'warning' : 'warnings'}'].join(', '), icon: p.problems > 0 ? Lucide.triangleAlert : Lucide.info, look: MarketButtonLook.ring, large: true, onPress: p.onProblems),
     ];
     final hint = switch (p?.kind) {
       null => added ? 'Added. Removed, it does nothing until it is added again, and keeps your choices for it.' : 'Built in: adding it is a switch, and removing it keeps your choices for it.',
@@ -275,7 +278,7 @@ class PluginDetail extends StatelessWidget {
         if (p != null && p.paused)
           notice('Paused: it was slowing the app down.', key: const ValueKey('plugins-detail-paused'), icon: Lucide.pause, then: MarketButton(key: ValueKey('market-unpause-${plugin.id}'), label: 'Turn it back on', look: MarketButtonLook.ring, onPress: p.onUnpause)),
         if (p != null && p.nohere) notice('This plugin sorts texts, which this computer doesn\'t have.', key: const ValueKey('plugins-detail-nohere'), icon: Lucide.info),
-        if (p?.takenFrom != null) notice('This is now by @${plugin.developer}. Adding it removes your copy by @${p!.takenFrom}, and your choices for it.', key: const ValueKey('market-developer-changed'), icon: Lucide.info),
+        if (p?.takenFrom != null) notice(p!.takenFrom!.isEmpty ? 'This is now by @${plugin.developer}. Adding it removes your copy of it here, and your choices for it.' : 'This is now by @${plugin.developer}. Adding it removes your copy by @${p.takenFrom}, and your choices for it.', key: const ValueKey('market-developer-changed'), icon: Lucide.info),
         SizedBox(height: gap),
         Wrap(spacing: t.space(2), runSpacing: t.space(2), crossAxisAlignment: WrapCrossAlignment.center, children: buttons),
         if (p?.whyNot != null) Padding(padding: EdgeInsets.only(top: t.space(2)), child: Text(p!.whyNot!, key: const ValueKey('plugins-detail-whynot'), style: quiet)),

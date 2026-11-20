@@ -69,7 +69,7 @@ class DevError {
 
 /// A pack installed from the Marketplace, as it stands on this device: running, or why not.
 class InstalledPack {
-  const InstalledPack({required this.id, required this.version, required this.sha256, required this.installedAt, this.approval, this.pack, this.plugin, this.running = false, this.revoked, this.problem, this.listing = const {}});
+  const InstalledPack({required this.id, required this.version, required this.sha256, required this.installedAt, this.approval, this.pack, this.plugin, this.running = false, this.revoked, this.problem, this.listing = const {}, String? developer}) : _developer = developer;
   final String id, version, sha256;
   final DateTime installedAt;
   final PackApproval? approval;
@@ -79,6 +79,12 @@ class InstalledPack {
   final PackRevocation? revoked;
   final String? problem;            // null, or: bad_approval, untrusted_key, invalid, needs_newer_app, revoked, io, id_taken, too_many_packs, paused
   final Map<String, Object?> listing;   // listing.json
+
+  /// Who made it: its pack's developer, else as listing.json kept it at install or its file says where it no longer
+  /// parses here; null where nothing here says. An update by anyone else, or by someone unknown, is refused
+  /// (developer_changed) and offered as a new plugin instead (review, 2026-11-20).
+  String? get developer => pack?.developer ?? _developer ?? (listing['developer'] is String ? listing['developer'] as String : null);
+  final String? _developer;
 }
 
 /// A pack loaded in Settings › Developer, as it stands on this device.
@@ -565,6 +571,7 @@ class InstalledPlugins extends ChangeNotifier {
         revoked: c.sha256 == null ? null : _revocationOf(id, c.sha256!),
         problem: c.problem,
         listing: c.listing,
+        developer: pack?.developer ?? _developerIn(c),
       ));
     }
     found.sort((a, b) => a.installedAt.compareTo(b.installedAt));
@@ -608,6 +615,24 @@ class InstalledPlugins extends ChangeNotifier {
     if (errors.isNotEmpty) return c..problem = errors.every((e) => e.code == 'needs_newer_app') ? 'needs_newer_app' : 'invalid';
     if (parse.pack!.icon == null || !_sameBytes(parse.canonical!, bytes)) return c..problem = 'invalid';
     return c;
+  }
+
+  /// Who made the copy [c] where it doesn't parse here: as its listing.json kept it at install, else as its file says,
+  /// read as plain JSON, since a copy a later app's rules refuse, or one that needs a newer app, still names its
+  /// developer. Null where neither says (a copy that can't be read at all, installed before listing.json kept it).
+  String? _developerIn(_Copy c) {
+    final kept = c.listing['developer'];
+    if (kept is String) return kept;
+    try {
+      final bytes = File('${_storeDir(c.id, c.version)}/package.ghostplugin').readAsBytesSync();
+      final body = bytes.length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF ? bytes.sublist(3) : bytes;
+      if (bytes.length > PackLimits.packageBytes || !jsonDepthOk(body)) return null;
+      final json = jsonDecode(utf8.decode(body));
+      final named = json is Map ? json['developer'] : null;
+      return named is String ? named : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   static DateTime _modified(String path) {
@@ -797,8 +822,11 @@ class InstalledPlugins extends ChangeNotifier {
       if (c < 0 || (c == 0 && floor.sha256 != sha256)) return PackOutcome.failed('not_newer', 'A newer version of ${pack.name} was on this $here already.');
     }
     final had = _store[pack.id];
-    final hadPack = had?.pack;
-    if (hadPack != null && hadPack.developer != pack.developer) return PackOutcome.failed('developer_changed', '${pack.name} is now by someone else. Remove it first, then add theirs.');
+    // Who made the copy here, as its pack, its listing.json or its file says. One nothing here can tell is taken as
+    // someone else's: a stuck copy that no longer parsed skipped this check, so a relay could hand its id to another
+    // developer and the newcomer's version came in as an "Update", the old switch on (review, 2026-11-20). That goes
+    // through Remove and Add instead, its choices forgotten.
+    if (had != null && (had.developer == null || had.developer != pack.developer)) return PackOutcome.failed('developer_changed', '${pack.name} is now by someone else. Remove it first, then add theirs.');
     final (packs, phrases) = _running(besides: pack.id);
     if (packs + 1 > PackLimits.packs) return PackOutcome.failed('too_many_packs', 'This $here has ${PackLimits.packs} plugins from other developers already: remove one first.');
     if (phrases + _phrasesOf(pack) > PackLimits.phrasesInAll) return const PackOutcome.failed('too_many_phrases', 'The plugins from other developers here look for as many words as they may already: remove one first.');
@@ -806,7 +834,9 @@ class InstalledPlugins extends ChangeNotifier {
     final dir = _storeDir(pack.id, pack.version);
     final installedAt = had?.installedAt ?? _now();
     final listed = listing['listedAt'];
-    final kept = <String, Object?>{'v': 1, 'installedAt': installedAt.millisecondsSinceEpoch, 'listedAt': listed is int ? listed : null, 'name': pack.name, 'tagline': pack.tagline, 'hue': pack.hue, 'symbol': pack.symbol};
+    // The developer too, so a copy that stops parsing here (a later app's stricter rules, a downgrade below its minApp)
+    // still says whose it is.
+    final kept = <String, Object?>{'v': 1, 'installedAt': installedAt.millisecondsSinceEpoch, 'listedAt': listed is int ? listed : null, 'name': pack.name, 'tagline': pack.tagline, 'hue': pack.hue, 'symbol': pack.symbol, 'developer': pack.developer};
     try {
       _write('$dir/package.ghostplugin', bytes);
       _write('$dir/approval.json', canonicalBytes(approval.toJson()));
@@ -830,7 +860,7 @@ class InstalledPlugins extends ChangeNotifier {
     _raiseFloor(pack.id, pack.version, sha256);
     if (!keepPause) _setPaused(pack.registryId, null);
     // An update keeps its place in install order (a map keeps a key's place when its value changes), as in the registry.
-    _store[pack.id] = _Store(id: pack.id, version: pack.version, sha256: sha256, installedAt: installedAt, approval: approval, pack: pack, plugin: plugin, running: true, listing: Map.unmodifiable(kept));
+    _store[pack.id] = _Store(id: pack.id, version: pack.version, sha256: sha256, installedAt: installedAt, approval: approval, pack: pack, plugin: plugin, running: true, listing: Map.unmodifiable(kept), developer: pack.developer);
     _writeIndexes();
     _later();
     return PackOutcome.ok(plugin);
@@ -1191,12 +1221,18 @@ class InstalledPlugins extends ChangeNotifier {
 
   // --- withdrawals ------------------------------------------------------------------------------------------------
 
+  /// The most of the withdrawals list taken, its withdrawals and its retirements: the Marketplace reads no more
+  /// (lib/market/market_api.dart MarketReads), and the relay never keeps more (relay/lib/market.dart revocationsMost
+  /// and retirementsMost, which a relay test holds to these). 5,000 was fewer than a list of 1 MiB held, so a longer
+  /// list was refused whole on every device and no withdrawal reached one (review, 2026-11-20).
+  static const int revocationsTaken = 25000, retirementsTaken = 100;
+
   /// GET /market/revoked's body: how many installed packs it newly withdrew. Its entries are checked before the queue,
   /// so a long list of them never holds up an install or a removal (review, 2026-11-20).
   Future<int> takeRevocations(Object? json) async {
     if (json is! Map) return 0;
-    final revs = json['revoked'] is List ? (json['revoked'] as List).take(5000).toList() : const <Object?>[];
-    final rets = json['retired'] is List ? (json['retired'] as List).take(100).toList() : const <Object?>[];
+    final revs = json['revoked'] is List ? (json['revoked'] as List).take(revocationsTaken).toList() : const <Object?>[];
+    final rets = json['retired'] is List ? (json['retired'] as List).take(retirementsTaken).toList() : const <Object?>[];
     final held = await _check(revs, rets);
     return _serial(() async {
       _merge(held);
@@ -1233,7 +1269,7 @@ class InstalledPlugins extends ChangeNotifier {
 
 /// One store pack as it stands here: what [InstalledPack] shows of it.
 class _Store {
-  _Store({required this.id, required this.version, required this.sha256, required this.installedAt, this.approval, this.pack, this.plugin, this.running = false, this.revoked, this.problem, this.listing = const {}});
+  _Store({required this.id, required this.version, required this.sha256, required this.installedAt, this.approval, this.pack, this.plugin, this.running = false, this.revoked, this.problem, this.listing = const {}, this.developer});
   final String id, version, sha256;
   final DateTime installedAt;
   final PackApproval? approval;
@@ -1243,8 +1279,9 @@ class _Store {
   PackRevocation? revoked;
   String? problem;
   final Map<String, Object?> listing;
+  final String? developer;
 
-  InstalledPack get view => InstalledPack(id: id, version: version, sha256: sha256, installedAt: installedAt, approval: approval, pack: pack, plugin: plugin, running: running, revoked: revoked, problem: problem ?? (running && (plugin?.paused ?? false) ? 'paused' : null), listing: listing);
+  InstalledPack get view => InstalledPack(id: id, version: version, sha256: sha256, installedAt: installedAt, approval: approval, pack: pack, plugin: plugin, running: running, revoked: revoked, problem: problem ?? (running && (plugin?.paused ?? false) ? 'paused' : null), listing: listing, developer: developer);
 }
 
 /// One version of a store pack read from disk, and the first of its checks it fails, if any.

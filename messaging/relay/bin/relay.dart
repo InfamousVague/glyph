@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:ghost_relay/accounts.dart';
@@ -14,8 +15,21 @@ import 'package:ghost_relay/relay.dart';
 /// `dart run bin/relay.dart [--host 127.0.0.1] [--port 8787] [--data relay-data] [--verbose]`
 ///
 /// Listens on this machine alone unless told otherwise: on a server it sits behind the web server that holds the
-/// certificate (README.md).
-Future<void> main(List<String> args) async {
+/// certificate (README.md). An error nothing else caught is a line on stderr, never the end of the relay: one request's
+/// mistake once ended it, and every hub connection with it (review, 2026-11-20). Each module still guards its own.
+void main(List<String> args) {
+  var started = false;
+  runZonedGuarded(() async {
+    await _main(args);
+    started = true;
+  }, (e, stack) {
+    stderr.writeln('relay: unhandled ${'$e'.split('\n').first} at ${'$stack'.split('\n').first}');
+    // Before it listens, a mistake in how it was started (a port in use, a bad --port) still ends it, as ever.
+    if (!started) exit(1);
+  });
+}
+
+Future<void> _main(List<String> args) async {
   String option(String name, String fallback) {
     final at = args.indexOf('--$name');
     return at >= 0 && at + 1 < args.length ? args[at + 1] : fallback;

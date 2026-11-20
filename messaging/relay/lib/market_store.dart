@@ -165,9 +165,17 @@ class MarketStore {
   bool _closed = false;
   Future<void> _auditing = Future.value();
 
-  /// Something changed: saved within a second, with whatever else changes meanwhile.
+  /// close() has made its last write ([_lastWritten]) and written every audit line asked for before it
+  /// ([_auditNow]): a change or a line after that, from a request that finished as the relay stopped, is written at
+  /// once, since nothing would write it after. It was answered and lost (review, 2026-11-20).
+  bool _lastWritten = false, _auditNow = false;
+
+  /// Something changed: saved within a second, with whatever else changes meanwhile; once closed, at once.
   void changed() {
-    if (_closed) return;
+    if (_closed) {
+      if (_lastWritten) _writeNow();
+      return;
+    }
     _soon ??= Timer(const Duration(seconds: 1), () {
       _soon = null;
       _queue();
@@ -213,12 +221,24 @@ class MarketStore {
   /// [state] in words, made on another isolate. Static, so all the isolate is sent is the copy, never the store.
   static Future<String> _wordsOf(Map<String, Object?> state) => Isolate.run(() => jsonEncode(state));
 
-  /// Saves synchronously, after any save under way, so this one is the last; and the audit's lines with it.
+  /// Saves synchronously, after any save under way, so this one is the last; and the audit's lines with it. Anything
+  /// changed after is written as it is changed ([changed], [audit]).
   Future<void> close() async {
     _closed = true;
     _soon?.cancel();
     _soon = null;
     await _saving;
+    _writeNow();
+    _lastWritten = true;
+    while (true) {
+      final a = _auditing;
+      await a;
+      if (identical(a, _auditing)) break;
+    }
+    _auditNow = true;
+  }
+
+  void _writeNow() {
     try {
       dir.createSync(recursive: true);
       _tmp.writeAsStringSync(jsonEncode(toJson()), flush: true);
@@ -227,7 +247,6 @@ class MarketStore {
     } catch (e) {
       stderr.writeln('market: state.json could not be written: $e');
     }
-    await _auditing;
   }
 
   Map<String, Object?> toJson() => {
@@ -244,6 +263,15 @@ class MarketStore {
   /// A line in audit.jsonl, appended with flush, in the order they are made: `{at, by, what, plugin?, sid?, note?}`.
   void audit(String by, String what, {String? plugin, String? sid, String? note}) {
     final line = '${jsonEncode({'at': _now().millisecondsSinceEpoch, 'by': by, 'what': what, 'plugin': ?plugin, 'sid': ?sid, 'note': ?note})}\n';
+    if (_auditNow) {
+      try {
+        dir.createSync(recursive: true);
+        _audit.writeAsStringSync(line, mode: FileMode.append, flush: true);
+      } catch (e) {
+        stderr.writeln('market: audit.jsonl could not be written: $e');
+      }
+      return;
+    }
     _auditing = _auditing.then((_) async {
       try {
         await dir.create(recursive: true);
@@ -299,7 +327,7 @@ class MarketStore {
   /// ago, where no approved version and no other kept submission (a screenshot kept from it) uses them, and marks it
   /// swept, keeping its record and notes; then lets go of every plugin id with no approved version whose 30 days since
   /// its last open submission have passed. What it swept and released, for the audit.
-  Future<({List<MarketSubmission> swept, List<String> released})> sweep(DateTime now) async {
+  Future<({List<MarketSubmission> swept, List<String> released, int orphaned})> sweep(DateTime now) async {
     final at = now.millisecondsSinceEpoch;
     final old = at - const Duration(days: 30).inMilliseconds;
     final going = [
@@ -324,6 +352,13 @@ class MarketStore {
       }
       s.swept = true;
     }
+    // And what nothing names at all: a submission's files written as the relay stopped or crashed, before its record
+    // was, counted against the room for good (review, 2026-11-20). In route 8's chain, so no submission is between its
+    // writes and its record now.
+    final orphans = [for (final name in blobs.keys) if (!used.contains(name)) name];
+    for (final name in orphans) {
+      await _deleteBlob(name);
+    }
     final released = [
       for (final p in plugins.values)
         if (p.versions.isEmpty && p.openUntil != null && p.openUntil! <= at && !submissions.values.any((s) => s.plugin == p.id && openStates.contains(s.status))) p.id,
@@ -332,7 +367,7 @@ class MarketStore {
       plugins.remove(id);
       auditOwners.remove(id);
     }
-    return (swept: going, released: released);
+    return (swept: going, released: released, orphaned: orphans.length);
   }
 }
 
@@ -573,13 +608,11 @@ class MarketDeveloper {
   factory MarketDeveloper.fromJson(Map j) => MarketDeveloper(id: _s(j, 'id'), username: _sn(j, 'username'), blocked: _b(j, 'blocked'), blockedNote: _sn(j, 'blockedNote'), firstAt: _i(j, 'firstAt'), submissions: _i(j, 'submissions'), bytes: _i(j, 'bytes'));
 }
 
-/// A report of a plugin, from someone who has it.
+/// A report of a plugin, from someone who has it. Who sent it isn't kept: the username they chose to send, and nothing
+/// else of theirs (review, 2026-11-20).
 class MarketReport {
-  MarketReport({required this.rid, required this.plugin, required this.version, required this.reason, required this.text, required this.by, this.username, this.verified = false, required this.at, this.done = false, this.doneAt});
+  MarketReport({required this.rid, required this.plugin, required this.version, required this.reason, required this.text, this.username, this.verified = false, required this.at, this.done = false, this.doneAt});
   final String rid, plugin, version, reason, text;
-
-  /// The hub id of whoever sent it.
-  final String by;
 
   /// The username they chose to send with it, and whether their key holds it.
   final String? username;
@@ -588,7 +621,7 @@ class MarketReport {
   bool done;
   int? doneAt;
 
-  Map<String, Object?> toJson() => {'rid': rid, 'plugin': plugin, 'version': version, 'reason': reason, 'text': text, 'by': by, 'username': username, 'verified': verified, 'at': at, 'done': done, 'doneAt': doneAt};
+  Map<String, Object?> toJson() => {'rid': rid, 'plugin': plugin, 'version': version, 'reason': reason, 'text': text, 'username': username, 'verified': verified, 'at': at, 'done': done, 'doneAt': doneAt};
 
   factory MarketReport.fromJson(Map j) => MarketReport(
         rid: _s(j, 'rid'),
@@ -596,7 +629,6 @@ class MarketReport {
         version: _s(j, 'version'),
         reason: _s(j, 'reason'),
         text: _s(j, 'text'),
-        by: _s(j, 'by'),
         username: _sn(j, 'username'),
         verified: _b(j, 'verified'),
         at: _i(j, 'at'),

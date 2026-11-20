@@ -195,6 +195,17 @@ void main() {
     expect(find.text('1 problem: see its row'), findsNothing);
     await tester.pump(const Duration(seconds: 6));
     await settle(tester);
+    // Agreed to, then pasted again: a sentence each, and its row counts a warning, not a problem ("Parcels loaded One
+    // warning: see its row." over "1 problem" for a file that loads cleanly, review, 2026-11-20).
+    await installed.agreeDev('parcels');
+    await settle(tester);
+    await tester.tap(_key('dev-plugin-paste'));
+    await settle(tester);
+    expect(find.text('Parcels loaded. One warning: see its row.'), findsOneWidget);
+    expect(find.descendant(of: _key('dev-plugin-parcels'), matching: find.text('1.0.0 · pasted · running · 1 warning')), findsOneWidget);
+    expect(devPackState(installed.devOf('parcels')!, PluginRegistry.instance, AppStore(state)), 'running · 1 warning');
+    await tester.pump(const Duration(seconds: 6));
+    await settle(tester);
     // A copy that doesn't load, kept with its row, is still its problems.
     clipboard = utf8.decode(packFile(billsJson(id: 'mybills'), (j) => j['hue'] = 'chartreuse'));
     await tester.tap(_key('dev-plugin-paste'));

@@ -16,6 +16,7 @@ import '../sms.dart';
 import '../ui/common.dart';
 import '../ui/dialup/bevel.dart' show isBevelChrome;
 import 'codes.dart' show signInCode;
+import 'pack/format.dart' show packMayHoldCode;
 import 'plugin.dart';
 import 'registry.dart';
 import 'tag_store.dart';
@@ -38,6 +39,12 @@ abstract interface class PluginEffects {
   /// Whether a text that came into [thread] and is still unread has a sign-in code in it: one under newer words, which
   /// the list's row doesn't show, is still in Android's one notification for the conversation.
   Future<bool> codeWaiting(int thread);
+
+  /// The words of every text that came into [thread] and is still unread, newest first; null where there may be more
+  /// than were read. Marking a conversation read marks all of them read, and its one notification lists them all, so a
+  /// plugin from another developer marks read or silences only where each is one it would itself (review, 2026-11-20:
+  /// a receipt marked a bank's fraud alert under it read).
+  Future<List<String>?> unreadIncoming(int thread);
 }
 
 class SmsEffects implements PluginEffects {
@@ -50,7 +57,16 @@ class SmsEffects implements PluginEffects {
   @override
   Future<bool> codeWaiting(int thread) async {
     final newest = await Sms.instance.messages(thread, limit: _looked);
-    return newest.any((m) => !m.outgoing && !m.read && signInCode(m.body) != null);
+    // The wider rule a pack is held to as well as Notifier's: "G-482913 is your Google verification code." waits too.
+    return newest.any((m) => !m.outgoing && !m.read && (signInCode(m.body) != null || packMayHoldCode(m.body)));
+  }
+
+  @override
+  Future<List<String>?> unreadIncoming(int thread) async {
+    final newest = await Sms.instance.messages(thread, limit: _looked);
+    // As many as were asked for, the oldest of them unread too: there may be more under them.
+    if (newest.length >= _looked && !newest.last.outgoing && !newest.last.read) return null;
+    return [for (final m in newest) if (!m.outgoing && !m.read) m.body];
   }
 
   @override
@@ -491,9 +507,28 @@ class ListPlugins {
   Future<void> _apply(MessageFacts facts, TagSet tags, List<BoundIncoming> asked, PluginStore store) async {
     if (_gone) return;
     var reread = false;
+    // The conversation's unread texts, asked of the phone once, and only for a plugin from another developer's mark
+    // read or silence; null where they couldn't be read, or there may be more.
+    List<String>? unread;
+    var unreadAsked = false;
     for (final b in asked) {
-      // A plugin from another developer never marks read, nor silences, a conversation with a code waiting unread in it.
-      if (b.plugin.source != PluginSource.builtIn && _codeWaiting.contains(facts.thread) && (b.action is MarkRead || b.action is MuteNotification)) continue;
+      if (b.plugin.source != PluginSource.builtIn && (b.action is MarkRead || b.action is MuteNotification)) {
+        // A plugin from another developer never marks read, nor silences, a conversation with a code waiting unread in it.
+        if (_codeWaiting.contains(facts.thread)) continue;
+        // Nor one with any other text unread in it that isn't one it would mark read or silence itself: Android marks
+        // the whole conversation read and takes away its one notification, which lists them all, so a receipt it
+        // was agreed to mark read took a bank's fraud alert under it with it (review, 2026-11-20).
+        if (!unreadAsked) {
+          unreadAsked = true;
+          try {
+            unread = await effects.unreadIncoming(facts.thread);
+          } catch (_) {
+            unread = null;
+          }
+          if (_gone) return;
+        }
+        if (unread == null || !_allItsOwn(facts, unread, b, store)) continue;
+      }
       switch (b.action) {
         case MarkRead():
           await effects.markRead(facts.thread);
@@ -516,6 +551,18 @@ class ListPlugins {
       }
     }
     if (reread && !_gone) await refresh();
+  }
+
+  /// Whether [b]'s plugin would ask [b]'s action for each of [unread] as it came, each judged as [facts]' newest words
+  /// were: then marking the conversation read, or taking its notification away, does to each text what it was agreed
+  /// to do as that text came ("Can mark Receipts texts as read as they come"), and to nothing else.
+  bool _allItsOwn(MessageFacts facts, List<String> unread, BoundIncoming b, PluginStore store) {
+    for (final words in unread) {
+      final each = facts.withText(words);
+      final asked = registry.incoming(each, registry.classify(each, store), store);
+      if (!asked.any((x) => identical(x.plugin, b.plugin) && (b.action is MarkRead ? x.action is MarkRead : x.action is MuteNotification))) return false;
+    }
+    return true;
   }
 
   List<(int, String, String)> _muted(PluginStore store) {

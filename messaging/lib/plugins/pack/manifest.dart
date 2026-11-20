@@ -675,7 +675,21 @@ class _Checker {
       error('bad_icon', 'icon', 'isn\'t base64 (A to Z, a to z, 0 to 9, + and /, with = at the end to fill it out, and no spaces).');
       return null;
     }
-    final bytes = base64Decode(v);
+    // The shape above lets through a last group whose unused bits aren't zero ("AB=="), which Dart's decoder refuses
+    // with a FormatException: that is the icon's problem, at `icon`, not the whole file's bad_json, which would drop
+    // every other issue and the hash with it. Read back as the relay's strictBase64 reads it, so the app and the relay
+    // refuse the same strings with the same code.
+    Uint8List? read;
+    try {
+      read = base64Decode(v);
+    } on FormatException {
+      read = null;
+    }
+    if (read == null || base64Encode(read) != v) {
+      error('bad_icon', 'icon', 'isn\'t base64 as it is written: the bits before the = at its end must be zero. Encode the picture again.');
+      return null;
+    }
+    final bytes = read;
     if (bytes.length > PackLimits.iconBytes) {
       error('bad_icon', 'icon', 'is ${bytes.length} bytes: a plugin\'s icon is at most ${PackLimits.iconBytes}.');
       return null;

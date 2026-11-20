@@ -542,6 +542,27 @@ void main() {
     expect(find.text('A screenshot can\'t be shown on this device, so it can\'t be checked: ask for changes.'), findsOneWidget);
   });
 
+  testWidgets('a screenshot that only failed to come is no sign the listing is wrong: Approve waits, and Refresh fetches it', (tester) async {
+    // Any failure to fetch route 12 was counted with the mismatches, so a dropped connection or a busy relay put "Don't
+    // approve it" at the top of an honest submission's page (review, 2026-11-20).
+    final shot = billsIcon;
+    final honest = relay.store.put(bills(change: (j) => j['shots'] = [sha256Hex(shot)]), status: 'submitted', shots: [shot]);
+    for (final (status, error) in [(503, 'busy'), (429, 'rate_limited')]) {
+      relay.answers['GET /market/submissions/$honest/shots/0'] = (status: status, body: {'ok': false, 'error': error, 'message': 'Too much at once. Try again in a minute.'});
+      await show(tester, ReviewItemScreen(honest, api: api, ask: ask));
+      await until(tester, () => find.descendant(of: _key('market-review-shot-0'), matching: find.text('Couldn\'t load this picture. Refresh to try again.')).evaluate().isNotEmpty);
+      expect(_key('market-review-listing-mismatch'), findsNothing, reason: error);
+      expect(find.text('The store\'s listing isn\'t the one this package names. Don\'t approve it.'), findsNothing, reason: error);
+      expect(pressable(tester, 'market-review-approve'), isFalse, reason: '$error: not before its screenshots are seen');
+      expect(find.text('A screenshot couldn\'t be loaded. Refresh to try again.'), findsOneWidget, reason: error);
+      // Route 12 answers again: Refresh fetches it, and it can be approved.
+      relay.answers.remove('GET /market/submissions/$honest/shots/0');
+      await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Refresh'));
+      await until(tester, () => find.descendant(of: _key('market-review-shot-0'), matching: find.byType(RawImage)).evaluate().isNotEmpty);
+      expect(pressable(tester, 'market-review-approve'), isTrue, reason: error);
+    }
+  });
+
   testWidgets('reviewed on a computer, what it can do and what is new are as on a phone, where it does the most', (tester) async {
     // A computer's words leave out silencing and marking read as texts come, which every phone runs: an update that
     // added silencing showed nothing new there (review, 2026-11-20).

@@ -105,19 +105,21 @@ class MarketState extends ChangeNotifier {
     for (final p in installed.store) {
       final l = _listings.where((l) => l.pack.id == p.id).firstOrNull;
       if (l == null || l.needsNewerApp || !_newer(l.pack.version, p.version)) continue;
-      final had = p.pack?.developer;
-      if (had != null && had != l.pack.developer) continue;
+      // By the same developer as the copy here, as its pack, listing.json or file says: one nothing here can tell
+      // isn't the same (review, 2026-11-20: a stuck copy that no longer parsed was offered another developer's
+      // version as its update).
+      if (p.developer == null || p.developer != l.pack.developer) continue;
       out.add((installed: p, listing: l));
     }
     return out;
   }
 
-  /// The listing [packId] has, where it is by another developer than the store pack of that id on this device: offered
-  /// as a new plugin, never as an update (D.5).
+  /// The listing [packId] has, where it is by another developer than the store pack of that id on this device, or
+  /// nothing here can tell who made that copy: offered as a new plugin, never as an update (D.5).
   ListingPlugin? developerChanged(String packId) {
-    final had = installed.storeOf(packId)?.pack?.developer;
+    final p = installed.storeOf(packId);
     final l = _listings.where((l) => l.pack.id == packId).firstOrNull;
-    return had != null && l != null && l.pack.developer != had ? l : null;
+    return p != null && l != null && (p.developer == null || l.pack.developer != p.developer) ? l : null;
   }
 
   static bool _newer(String a, String b) {
@@ -610,6 +612,10 @@ class MarketState extends ChangeNotifier {
 
   /// The writes of each pack's draft, one after another, so two saves never write the same files at once.
   final Map<String, Future<void>> _draftWrites = {};
+
+  /// Every draft write asked for so far, done: what a test reads the disk after.
+  @visibleForTesting
+  Future<void> get draftsWritten => Future.wait([..._draftWrites.values]);
 
   /// Keeps [d] in memory at once (the form comes back to it however soon it is opened again), and, with [toDisk], on
   /// disk after any earlier save of the same draft, its new screenshots written beside it (`shot-<n>.png`). The form

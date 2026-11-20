@@ -75,7 +75,9 @@ the relay worked out itself; and `audit.jsonl`, a line for each thing done (when
 submission). Where neither state file can be read, both are put aside as `*.broken-<ms>` and it starts empty, still
 knowing from the audit which developer sent which plugin id. Nothing it holds is secret beyond what the admin session
 already guards: a package and its screenshots are public once listed, and until then only their developer and review
-are shown them. Nothing records which address read what.
+are shown them. Nothing records which address read what, nor who sent a report (only the username they chose to send
+with it; the audit's line for it says `reporter`). Stopping lets route 8's queue finish first (10 seconds at most), and
+answers anything new busy; whatever still finishes after the last save is written as it finishes.
 
 **Who may do what.** Anyone reads what is listed. Everything else is signed with the asker's hub key: `x-ghost-key`
 (base64 of the 33-byte key), `x-ghost-time` (ms) and `x-ghost-sig` (base64 of the 64-byte signature, r then s) over
@@ -123,14 +125,20 @@ closes it), `MAX_PACKAGE`, `MAX_SHOT`, `MAX_SHOTS`, `MAX_BODY` (held to Caddy's 
 `SIGNED_PER_ADDRESS`, `VERIFY_A_SECOND`, `BODIES_IN_FLIGHT`, `READS_PER_MINUTE`, `REPORTS_A_DAY`, `NEED_VERIFIED` (1
 takes plugins only from developers with a verified number, as it should be once it opens) and `REVIEW_KEYS` (the keys
 whose approvals and withdrawals it takes; empty, the signed-in admin's own). Its rate counters are in memory and go
-with a restart. A body over 64 KiB holds one of `BODIES_IN_FLIGHT` slots while it is read: one at a time from one
-address and from one key, and it must bring 64 KiB (or the rest of it) every 10 seconds, so a body trickled a byte at a
-time can't keep a slot. A package's check keeps its first hundred problems and says how many more, so a stranger's
-package of thousands costs an answer of a few KB.
+with a restart. A body over 64 KiB holds one of `BODIES_IN_FLIGHT` slots while it is read and until its route is done
+with it (a submission waits its turn at route 8 with its body in memory): one at a time from one address and from one
+key, and it must bring 64 KiB (or the rest of it) every 10 seconds, so a body trickled a byte at a time can't keep a
+slot. A signing header sent twice is a 400. A package's check keeps its first hundred problems and says how many more,
+so a stranger's package of thousands costs an answer of a few KB. The withdrawals list is never longer than an app
+reads (8 MiB as served, 25,000 withdrawals, 100 retired keys, the app's `MarketReads`): one more is refused,
+`withdrawals_full`, where review sees it. A path whose escapes aren't UTF-8 is a 400 before anything is routed, and
+an error no module caught is a line on stderr, never the end of the relay.
 
 **The sweep**, daily, the first an hour after a start: a rejected, withdrawn or replaced submission closed over 30 days
 ago loses its package and screenshots, unless an approved version or another kept submission uses them (its record and
-notes stay); and a plugin id with nothing approved is let go 30 days after its last submission closed.
+notes stay); a plugin id with nothing approved is let go 30 days after its last submission closed, or after it was
+made where it never got one (the relay stopped between a submission's writes and its record); and any package or
+screenshot nothing names is deleted.
 
     flutter test tool/net/live_market_test.dart --dart-define=MARKET=https://gogho.st/market   # after a deploy, by hand
 

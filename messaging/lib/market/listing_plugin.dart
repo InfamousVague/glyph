@@ -90,7 +90,7 @@ class StuckPackPlugin extends GhostPlugin {
   @override
   List<String> get labels => _pack?.labels ?? const [];
   @override
-  String? get developer => _pack?.developer;
+  String? get developer => installed.developer;
   @override
   String? get version => installed.version;
   @override

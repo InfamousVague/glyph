@@ -14,6 +14,7 @@ import 'package:ghost_relay/files.dart';
 import 'package:ghost_relay/files_roster.dart';
 import 'package:ghost_relay/market.dart';
 import 'package:ghost_relay/market_pack.dart';
+import 'package:ghost_relay/market_store.dart';
 import 'package:ghost_relay/p256.dart';
 import 'package:ghost_relay/relay.dart';
 import 'package:ghost_relay/sha256.dart';
@@ -327,6 +328,61 @@ void main() {
       }
     });
 
+    test('a signing header sent twice is a bad request, before anything is counted', () async {
+      // dart:io's value() throws for a header that comes twice, which reached the catch-all as a 500 broken and a line on
+      // stderr for each, a stranger's at no cost (review, 2026-11-20).
+      final once = maya.headers('GET', '/market/mine', const [], time: now.millisecondsSinceEpoch);
+      String lines(Map<String, String> h) => h.entries.map((e) => '${e.key}: ${e.value}\r\n').join();
+      for (final twice in ['x-ghost-key', 'x-ghost-time', 'x-ghost-sig']) {
+        for (var i = 0; i < 25; i++) {
+          final answer = await raw('GET /market/mine HTTP/1.1\r\nHost: relay.test\r\nx-forwarded-for: 203.0.113.7\r\n${lines(once)}$twice: ${once[twice]}\r\n\r\n');
+          expect(statusOf(answer), 400, reason: twice);
+          expect(answer, contains('"error":"bad_request"'), reason: twice);
+        }
+      }
+      final body = utf8.encode(jsonEncode({'plugin': 'mybills', 'version': '1.0.0', 'reason': 'spam', 'text': ''}));
+      final signed = maya.headers('POST', '/market/report', body, time: now.millisecondsSinceEpoch + 1);
+      for (final twice in [Files.bodyShaHeader, Files.bodyLengthHeader]) {
+        final answer = await raw('${headOf('POST', '/market/report', {...signed, 'x-forwarded-for': '203.0.113.7'}, body.length).replaceFirst('\r\n\r\n', '\r\n$twice: ${signed[twice]}\r\n\r\n')}', body: body);
+        expect(statusOf(answer), 400, reason: twice);
+      }
+      expect(verifies, 0, reason: 'no signature was checked');
+      expect((await call('GET', '/market/mine', as: maya, address: '203.0.113.7')).status, 200, reason: 'nor the address\'s sixty a minute spent');
+    });
+
+    test('bodies read and waiting their turn at route 8 keep their slots: a fourth large one is busy until route 8 is done with them', () async {
+      // A slot was given back as soon as the body was read, so any number of read bodies waited in memory for route 8
+      // behind a submission's writes, past the bound of 3 × maxBody (review, 2026-11-20).
+      fake = (key, message, sig) => true;
+      final entered = Completer<void>(), gate = Completer<void>();
+      market.debugAfterWrites = () async {
+        if (!entered.isCompleted) entered.complete();
+        await gate.future;
+      };
+      final honest = submit(maya, packOf());
+      await entered.future;
+      var read = 0;
+      final allRead = Completer<void>();
+      market.debugAfterRead = () {
+        if (++read == 3) allRead.complete();
+      };
+      const length = 100000;
+      final body = List.filled(length, 0x20);
+      Future<Answer> large(int i) => call('POST', '/market/submissions', body: body, address: '198.51.100.${60 + i}', headers: {...fakeSigned(fakeKey('held $i'), now.millisecondsSinceEpoch), Files.bodyShaHeader: shaOf(body), Files.bodyLengthHeader: '$length'});
+      final waiting = [for (var i = 0; i < 3; i++) large(i)];
+      await allRead.future;
+      final fourth = await large(3);
+      expect((fourth.status, fourth.error), (503, 'busy'), reason: 'three read and waiting hold every slot');
+      gate.complete();
+      expect((await honest).status, 201);
+      for (final w in waiting) {
+        expect((await w).error, 'bad_json', reason: 'read whole, then judged by route 8 in its turn');
+      }
+      market.debugAfterWrites = null;
+      market.debugAfterRead = null;
+      expect((await large(4)).error, 'bad_json', reason: 'their slots given back once route 8 was done with them');
+    });
+
     test('one address and one key hold one large body at a time; another\'s is read meanwhile', () async {
       // One key at one address held all three slots by trickling three bodies, a byte every 20 s, and opening three more
       // each minute, within every budget: nobody could send a screenshot (review, 2026-11-20).
@@ -445,6 +501,17 @@ void main() {
       expect(await code(submit(theo, packOf(developer: 'theo'))), (500, 'broken'));
       expect((await call('GET', '/market')).status, 200);
       expect((await submit(maya, packOf())).status, 201, reason: 'the chain route 8 runs through wasn\'t broken by it');
+    });
+
+    test('a path whose escapes aren\'t UTF-8 is a 400, and the relay and the market go on', () async {
+      // The relay decoded the path before routing anything, outside the market's guard: GET /market/%FF ended it, and
+      // every hub connection with it, and one every two seconds kept it down (review, 2026-11-20).
+      for (final path in ['/market/%FF', '/market/%C3%28', '/market/%E0%A4', '/files/%FF', '/%FF', '/relay/%ff', '/link/%C3%28', '/word/%FF']) {
+        final answer = await raw('GET $path HTTP/1.1\r\nHost: relay.test\r\n\r\n');
+        expect(statusOf(answer), 400, reason: path);
+      }
+      expect((await call('GET', '/market')).status, 200, reason: 'still listening');
+      expect((await submit(maya, packOf())).status, 201);
     });
 
     test('GET /market says what the store takes', () async {
@@ -664,6 +731,37 @@ void main() {
       expect((got.status, got.error), (400, 'invalid_package'));
       expect([for (final i in got.json['issues'] as List) i['code']], ['too_many', ...List.filled(packPermissions.length, 'bad_permission')]);
       expect(got.bytes.length, lessThan(8 * 1024));
+    });
+
+    test('name_used holds every name another developer\'s plugins were sent under, not only the first', () async {
+      // Only the name a plugin was first sent under was held: renamed, its update approved under the new name and
+      // listed "By @" it, then renamed again, the developer left that name to whoever claimed it next, and two keys'
+      // plugins were listed under one name (review, 2026-11-20).
+      await approved(maya, packOf());
+      names[maya.id] = 'mia';
+      await approved(maya, packOf(version: '1.0.1', developer: 'mia'));
+      expect([for (final e in (await call('GET', '/market/catalog')).json['plugins'] as List) e['version']], ['1.0.1']);
+      names[maya.id] = 'mora';
+      names[sam.id] = 'mia';
+      expect(await code(submit(sam, packOf(id: 'evilbills', developer: 'mia'), address: '10.0.0.5')), (409, 'name_used'));
+      names[sam.id] = 'maya';
+      expect(await code(submit(sam, packOf(id: 'evilbills', developer: 'maya'), address: '10.0.0.6')), (409, 'name_used'), reason: 'the first name, as ever');
+      expect((await submit(maya, packOf(version: '1.0.2', developer: 'mora'), address: '10.0.0.7')).status, 201, reason: 'her own names stay hers to use');
+    });
+
+    test('a first submission of a released id that fails as its files are written leaves the id free', () async {
+      // Its record was taken back only where no submission named the id at all, and a released id keeps its earlier
+      // developer's closed submissions: the record stayed, with no submission and no openUntil, and held the id for
+      // good, against no limit of its holder's (review, 2026-11-20).
+      final first = ((await submit(maya, packOf(id: 'coolbills'))).json['submission'] as Map)['sid'] as String;
+      expect((await call('DELETE', '/market/submissions/$first', as: maya)).status, 200);
+      now = now.add(const Duration(days: 31));
+      await market.sweep();
+      market.debugAfterWrites = () async => throw const FileSystemException('No space left on device');
+      expect(await code(submit(sam, packOf(id: 'coolbills', developer: 'sam'), address: '10.0.0.2')), (500, 'broken'));
+      market.debugAfterWrites = null;
+      expect((await call('GET', '/market/mine', as: sam)).json['plugins'], isEmpty, reason: 'no record of an id it never sent');
+      expect((await submit(ada, packOf(id: 'coolbills', developer: 'ada'), address: '10.0.0.3')).status, 201, reason: 'free for anyone');
     });
 
     test('a check stores nothing and counts nothing, and asks for no icon or help link yet', () async {
@@ -980,6 +1078,70 @@ void main() {
       expect((await call('POST', '/market/retire', json: r, address: '10.0.0.9')).status, 200);
     });
 
+    test('the withdrawals list is never longer than an app reads: past its bytes or its count, one more is refused', () async {
+      // An app reads 1 MiB and refused a longer list all at once, taking nothing from it, while the relay kept adding
+      // to it: past some 3,200 withdrawals none reached a device but by a release (review, 2026-11-20). The app's
+      // limits now, and the relay's, are the same numbers.
+      final api = File('../lib/market/market_api.dart'), installer = File('../lib/plugins/pack/installed.dart');
+      if (api.existsSync() && installer.existsSync()) {
+        expect(api.readAsStringSync(), contains('static const int revoked = ${Market.withdrawalsMost ~/ (1024 * 1024)} * 1024 * 1024, revocations = InstalledPlugins.revocationsTaken, retirements = InstalledPlugins.retirementsTaken;'));
+        expect(installer.readAsStringSync(), contains('static const int revocationsTaken = ${Market.revocationsMost}, retirementsTaken = ${Market.retirementsMost};'));
+      }
+      await approved(maya, packOf());
+      final sha = shaOf(packOf());
+      await relay.stop();
+      // Kept from before: as many old withdrawals as leave less room than one more.
+      final state = jsonDecode(File('${dir.path}/market/state.json').readAsStringSync()) as Map<String, dynamic>;
+      Map<String, Object?> old(int i) => {'v': 1, 'plugin': 'old${i.toString().padLeft(6, '0')}', 'sha256': shaOf(utf8.encode('$i')), 'at': 1763000000000 + i, 'why': 'Withdrawn long ago, for a reason that took most of the words a withdrawal may have to say: $i.'.padRight(190, '.'), 'key': matt.keyB64, 'sig': base64Encode(List.filled(64, 1))};
+      final one = utf8.encode(jsonEncode(old(0))).length + 1;
+      final fill = <Map<String, Object?>>[];
+      var size = utf8.encode(jsonEncode({'ok': true, 'v': 1, 'at': 1763000000000, 'revoked': [], 'retired': []})).length;
+      while (size + one <= Market.withdrawalsMost - 150) {
+        fill.add(old(fill.length));
+        size += one;
+      }
+      state['revoked'] = fill;
+      File('${dir.path}/market/state.json').writeAsStringSync(jsonEncode(state));
+      await boot();
+      final served = (await call('GET', '/market/revoked', address: '10.8.0.2')).bytes.length;
+      expect(served, lessThanOrEqualTo(Market.withdrawalsMost));
+      adminAt[matt.id] = now;
+      final rv = revocation(matt, 'mybills', sha, 'It marked bank texts read, and a fraud alert with them, for weeks before anyone said.'.padRight(190, '.'));
+      final refused = await call('POST', '/market/plugins/mybills/revoke', as: matt, json: rv);
+      expect((refused.status, refused.error), (507, 'withdrawals_full'));
+      expect(refused.json['message'], 'The list of withdrawals is as long as the app reads: no more can be added until it is made shorter.');
+      expect((await call('GET', '/market/revoked', address: '10.8.0.3')).bytes.length, served, reason: 'nothing was added');
+      expect((await call('GET', '/market/catalog', address: '10.8.0.3')).json['plugins'], hasLength(1), reason: 'and nothing was withdrawn');
+      // A hundred retirements are as many as an app reads.
+      await relay.stop();
+      state['revoked'] = [];
+      state['retired'] = [for (var i = 0; i < Market.retirementsMost; i++) {'v': 1, 'key': base64Encode(fakeKey('retired $i')), 'at': 1763000000000, 'sig': base64Encode(List.filled(64, 1))}];
+      File('${dir.path}/market/state.json').writeAsStringSync(jsonEncode(state));
+      await boot();
+      expect(await code(call('POST', '/market/retire', json: retirement(matt))), (507, 'withdrawals_full'));
+    });
+
+    test('a report keeps nothing of who sent it but the username they chose to send', () async {
+      // The report kept the hub id of whoever sent it, in state.json and for good in audit.jsonl, which the relay maps to
+      // their username and number: Send my username with it off, it was theirs all the same (review, 2026-11-20).
+      await approved(maya, packOf());
+      expect((await call('POST', '/market/report', as: theo, json: {'plugin': 'mybills', 'version': '1.0.0', 'reason': 'harmful', 'text': 'It took my bank\'s texts.'})).status, 201);
+      expect((await call('POST', '/market/report', as: ada, address: '10.0.0.9', json: {'plugin': 'mybills', 'version': '1.0.0', 'reason': 'spam', 'text': '', 'username': 'ada'})).status, 201);
+      await market.flush();
+      final state = File('${dir.path}/market/state.json').readAsStringSync();
+      final audit = File('${dir.path}/market/audit.jsonl').readAsStringSync();
+      for (final who in [theo, ada]) {
+        expect(state, isNot(contains(who.id)));
+        expect(audit, isNot(contains(who.id)));
+      }
+      final reports = ((jsonDecode(state) as Map)['reports'] as Map).values.cast<Map>().toList();
+      expect([for (final r in reports) r['username']], [null, 'ada']);
+      expect(reports.any((r) => r.containsKey('by')), isFalse);
+      expect([for (final l in const LineSplitter().convert(audit)) if ((jsonDecode(l) as Map)['what'] == 'report') (jsonDecode(l) as Map)['by']], ['reporter', 'reporter']);
+      adminAt[matt.id] = now;
+      expect([for (final r in (await call('GET', '/market/reports', as: matt)).json['reports'] as List) r['username']], ['ada', null], reason: 'what the reviewer reads is as it was');
+    });
+
     test('reports: made, so many from one address and one someone, the newest 200 of a plugin kept, listed newest first, and marked done', () async {
       await approved(maya, packOf());
       Future<Answer> report(Sender by, {String plugin = 'mybills', String address = '10.1.0.1', String? username}) => call('POST', '/market/report', as: by, address: address, json: {'plugin': plugin, 'version': '1.0.0', 'reason': 'harmful', 'text': 'It took my bank\'s texts.', 'username': ?username});
@@ -1146,6 +1308,69 @@ void main() {
       expect({for (final l in audit) if (l['what'] == 'sweep') l['sid']}, {second, withdrawn});
       expect([for (final l in audit) if (l['what'] == 'release') l['plugin']], ['parcelsplus']);
       expect(audit.first.keys.toSet(), containsAll(['at', 'by', 'what']));
+    });
+
+    test('stopped during a submission\'s writes: it is in the last save, never answered 201 and lost', () async {
+      // stop() closed the store without waiting for route 8, and what finished after was answered and never saved; a new
+      // id's record held it for good (review, 2026-11-20).
+      Future<void>? stopped;
+      market.debugAfterWrites = () async {
+        stopped = market.stop();
+      };
+      final sent = await submit(maya, packOf());
+      expect(sent.status, 201);
+      await stopped;
+      market.debugAfterWrites = null;
+      expect(await code(call('GET', '/market')), (503, 'busy'), reason: 'nothing more is taken once it is stopping');
+      final sid = (sent.json['submission'] as Map)['sid'];
+      final kept = jsonDecode(File('${dir.path}/market/state.json').readAsStringSync()) as Map;
+      expect((kept['submissions'] as Map).keys, [sid]);
+      expect((kept['plugins'] as Map)['mybills']['openUntil'], isNull, reason: 'held while its submission is open');
+      await relay.stop();
+      await boot();
+      expect([for (final s in (await call('GET', '/market/mine', as: maya)).json['submissions'] as List) s['sid']], [sid]);
+    });
+
+    test('a change or an audit line after the store\'s last save is written at once', () async {
+      // A decision or a submission that finished while stop() waited for the audit's lines was answered and never saved
+      // (review, 2026-11-20).
+      final store = MarketStore(Directory('${dir.path}/alone'), now: () => now);
+      await store.load();
+      await store.close();
+      store.plugins['latebills'] = MarketPlugin(id: 'latebills', owner: maya.id, developer: 'maya', createdAt: 1, updatedAt: 1);
+      store.changed();
+      store.audit(maya.id, 'submit', plugin: 'latebills');
+      expect(((jsonDecode(File('${dir.path}/alone/state.json').readAsStringSync()) as Map)['plugins'] as Map).keys, ['latebills']);
+      expect(File('${dir.path}/alone/audit.jsonl').readAsStringSync(), contains('"plugin":"latebills"'));
+    });
+
+    test('a new id\'s record left with no submission, as a crash between its writes and its record leaves it, is let go after 30 days, its files with it', () async {
+      // Made with no openUntil and given one only by a submission it never got, it was held for good, its files named by
+      // nothing and counted against the room for good (review, 2026-11-20).
+      String? stateAtCrash, auditAtCrash;
+      market.debugAfterWrites = () async {
+        await market.flush();
+        stateAtCrash = File('${dir.path}/market/state.json').readAsStringSync();
+        final audit = File('${dir.path}/market/audit.jsonl');
+        auditAtCrash = audit.existsSync() ? audit.readAsStringSync() : '';
+      };
+      final picture = shotPng(7);
+      final package = packOf(id: 'coolbills', shots: [shaOf(picture)]);
+      expect((await submit(maya, package, shots: [shotOf(picture)])).status, 201);
+      market.debugAfterWrites = null;
+      await relay.stop();
+      // As the relay finds it after the crash: the record and the files, nothing of the submission.
+      File('${dir.path}/market/state.json').writeAsStringSync(stateAtCrash!);
+      File('${dir.path}/market/audit.jsonl').writeAsStringSync(auditAtCrash!);
+      await boot();
+      expect(((jsonDecode(stateAtCrash!) as Map)['plugins'] as Map)['coolbills']['openUntil'], now.millisecondsSinceEpoch + Market.idHeld.inMilliseconds);
+      expect(await code(submit(sam, packOf(id: 'coolbills', developer: 'sam'), address: '10.0.0.2')), (409, 'id_taken'), reason: 'held while it may still come');
+      bool there(String kind, List<int> bytes) => File('${dir.path}/market/$kind/${shaOf(bytes)}').existsSync();
+      expect([there('packages', package), there('shots', picture)], [true, true]);
+      now = now.add(const Duration(days: 31));
+      await market.sweep();
+      expect([there('packages', package), there('shots', picture)], [false, false], reason: 'named by nothing');
+      expect((await submit(sam, packOf(id: 'coolbills', developer: 'sam'), address: '10.0.0.3')).status, 201, reason: 'the id let go');
     });
 
     test('saves that overlap are each written whole, in turn, and the one at stop() is last', () async {

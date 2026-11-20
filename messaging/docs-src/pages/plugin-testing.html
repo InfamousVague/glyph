@@ -63,7 +63,7 @@ adb reverse tcp:8080 tcp:8080    # then load http://127.0.0.1:8080/yours.ghostpl
 
 <h2 id="problems">Problems and errors</h2>
 <p>A plugin's page lists <b>Problems</b>, its newest copy's, each with its code, where it is in the file (<code>rules.tags[0].any[2]</code>, or nothing for the whole file) and what's wrong in words, and <b>Lately</b>: what it ran into while running, newest first, such as a button the app refused. A load that isn't JSON, or has no id the app can use, adds no row at all: a sheet lists its problems, with <b>Copy the problems</b>.</p>
-<p>Errors stop a plugin loading and being submitted. Warnings don't, but a reviewer sees them too:</p>
+<p>Errors stop a plugin loading and being submitted, and its row counts them as problems. Warnings don't, and its row counts them apart (<b>1 warning</b>), but a reviewer sees them too:</p>
 <table>
   <tr><th>Warning</th><th>What it means</th></tr>
   <tr><td><code>broad_phrase</code></td><td>A phrase with no token that's one short word (four letters or fewer), or one like "your", "the" or "thanks": it matches far more texts than you mean.</td></tr>

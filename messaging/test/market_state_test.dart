@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/market/listing_plugin.dart';
 import 'package:ghost_messaging/market/market_api.dart';
 import 'package:ghost_messaging/market/market_models.dart';
 import 'package:ghost_messaging/market/market_state.dart';
@@ -97,6 +98,23 @@ void main() {
     expect([for (final r in installed.revocations) r.why], ['It copied texts it shouldn\'t have'], reason: 'only what a pinned key signed is kept');
     expect(installed.storeOf('bills')!.problem, 'revoked');
     expect(PluginRegistry.instance.plugins.any((p) => p.id == 'xbills'), isFalse, reason: 'withdrawn, it is off');
+  });
+
+  test('a withdrawals list longer than 1 MiB and 5,000 is read whole, and its newest withdrawal is taken', () async {
+    // The app read 1 MiB and 5,000 at most and refused a longer list whole, taking nothing, while the relay kept adding to
+    // it: past some 3,200 withdrawals none reached a device but by a release (review, 2026-11-20).
+    final bills = billsPack();
+    await addStore(installed, bills);
+    final junkKey = base64Encode(KeysSigner(NetKeys.generate()).publicKey);
+    Map<String, Object?> old(int i) => {'v': 1, 'plugin': 'old$i', 'sha256': sha256Hex(utf8.encode('$i')), 'at': i, 'why': 'Withdrawn long ago, for reasons of its own: $i.', 'key': junkKey, 'sig': base64Encode(List.filled(64, 1))};
+    final newest = await signRevocation(reviewer, plugin: 'bills', sha256: sha256Hex(packBytes(bills)), why: 'It marked bank texts read');
+    final list = {'ok': true, 'v': 1, 'at': 0, 'revoked': [for (var i = 0; i < 6000; i++) old(i), newest.toJson()], 'retired': const []};
+    expect(utf8.encode(jsonEncode(list)).length, greaterThan(1024 * 1024));
+    relay.revoked = list;
+    final m = market();
+    await m.refresh(force: true);
+    expect(logged.where((l) => l.contains('revoked')), isNot(contains(contains('too_large'))));
+    expect(installed.storeOf('bills')!.problem, 'revoked', reason: 'the newest withdrawal, at the end of a list of 6,001');
   });
 
   test('a listing is only what checked out: its package\'s hash, its id and version, its approval, not withdrawn', () async {
@@ -236,6 +254,37 @@ void main() {
     await m.refresh(force: true);
     expect(m.updates, isEmpty, reason: 'never an update by another developer');
     expect(m.developerChanged('bills')?.developer, 'someoneelse');
+  });
+
+  test('a copy here that no longer parses: an update only where it can be told whose it is, else a new plugin', () async {
+    // Its developer was read from its pack alone, so a stuck copy counted as anyone's and another developer's version
+    // was offered as its Update (review, 2026-11-20).
+    await addStore(installed, billsPack());
+    final file = File('${dir.path}/plugins/store/bills/1.0.0/package.ghostplugin');
+    file.writeAsBytesSync([...file.readAsBytesSync(), 0x20]);
+    var here = await installedFor(app, Directory('${dir.path}/plugins'));
+    expect([here.storeOf('bills')!.problem, here.storeOf('bills')!.pack, here.storeOf('bills')!.developer], ['bad_approval', null, 'maya'], reason: 'from listing.json');
+    await relay.list(billsPack(version: '1.1.0'));
+    var m = market(on: here);
+    await m.refresh(force: true);
+    expect([for (final u in m.updates) '${u.installed.version} → ${u.listing.version}'], ['1.0.0 → 1.1.0']);
+    expect(m.developerChanged('bills'), isNull);
+    await relay.list(billsPack(version: '1.2.0', developer: 'mallory'));
+    await m.refresh(force: true);
+    expect(m.updates, isEmpty);
+    expect(m.developerChanged('bills')?.developer, 'mallory');
+    // Nothing here says whose it is: never an update, even one that says it is hers.
+    final listing = File('${dir.path}/plugins/store/bills/1.0.0/listing.json');
+    listing.writeAsBytesSync(canonicalBytes((jsonDecode(listing.readAsStringSync()) as Map).cast<String, Object?>()..remove('developer')));
+    file.writeAsStringSync('{"rules": ');
+    here = await installedFor(app, Directory('${dir.path}/plugins'));
+    expect(here.storeOf('bills')!.developer, isNull);
+    await relay.list(billsPack(version: '1.3.0'));
+    m = market(on: here);
+    await m.refresh(force: true);
+    expect(m.updates, isEmpty);
+    expect(m.developerChanged('bills')?.version, '1.3.0', reason: 'offered as a new plugin, Add removing the copy here first');
+    expect(StuckPackPlugin(here.storeOf('bills')!).developer, isNull);
   });
 
   test('install hands the checked bytes to the installer with the approval, switched on; update leaves the switch', () async {

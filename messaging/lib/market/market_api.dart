@@ -15,7 +15,7 @@ import 'dart:typed_data';
 
 import '../net/hub_carrier.dart' show NetSigner;
 import '../net/net.dart';
-import '../plugins/pack/pack.dart' show PackIssue, PackLimits, PackRevocation, packHere, packIdPattern, sha256Hex;
+import '../plugins/pack/pack.dart' show InstalledPlugins, PackIssue, PackLimits, PackRevocation, packHere, packIdPattern, sha256Hex;
 import 'market_models.dart';
 
 /// Whether [hubUrl] is Ghost Messaging's own relay: its host is gogho.st or ghost-sms.com.
@@ -58,11 +58,13 @@ typedef MarketTransport = Future<({int status, Map<String, String> headers, Uint
 
 const String _unreachable = 'Couldn\'t reach the Marketplace. Try again in a moment.';
 
-/// The most of each answer that is read: a catalog of 8 MiB, a revoked list of 1 MiB, a package, a screenshot, and
-/// 2 MiB of anything else.
+/// The most of each answer that is read: a catalog of 8 MiB, a revoked list of 8 MiB, a package, a screenshot, and
+/// 2 MiB of anything else. The revoked list's limits are the relay's own (relay/lib/market.dart withdrawalsMost), so it
+/// never serves a list every app refuses whole: at 1 MiB, some 3,200 withdrawals in, it did, and none reached a device
+/// after (review, 2026-11-20).
 abstract final class MarketReads {
   static const int catalog = 8 * 1024 * 1024, catalogEntries = 2000;
-  static const int revoked = 1024 * 1024, revocations = 5000, retirements = 100;
+  static const int revoked = 8 * 1024 * 1024, revocations = InstalledPlugins.revocationsTaken, retirements = InstalledPlugins.retirementsTaken;
   static const int package = PackLimits.packageBytes, shot = PackLimits.shotBytes, other = 2 * 1024 * 1024;
 }
 

@@ -60,7 +60,9 @@ class Relay {
     _load();
     final server = await HttpServer.bind(host, port);
     _server = server;
-    server.listen(_handle, onError: (_) {});
+    // Nothing waits on what a listener returns: a request's own error, unhandled, would end the relay and every hub
+    // connection with it, so each one's is its alone (review, 2026-11-20).
+    server.listen((request) => unawaited(_handle(request).catchError((Object _) {})), onError: (_) {});
     hub?.start();
     await files?.start();
     await market?.start();
@@ -92,8 +94,40 @@ class Relay {
     if (verbose) stdout.writeln('${_now().toIso8601String()} $what');
   }
 
+  /// One request, whatever it asks, never ending the relay: a path whose escapes aren't UTF-8 (`GET /market/%FF`, which
+  /// Caddy passes on as it came) made the path's decoding throw before anything was routed, outside the market's own
+  /// guard, and the error went unhandled, ending the relay and every hub connection with it, the market's day counts
+  /// too; a request every two seconds kept it down (review, 2026-11-20). Such a request is a 400 and nothing more; any
+  /// other error is a line on stderr and a 500, where nothing has been answered yet.
   Future<void> _handle(HttpRequest request) async {
-    final segments = request.uri.pathSegments.where((s) => s.isNotEmpty).toList();
+    final List<String> segments;
+    try {
+      segments = request.uri.pathSegments.where((s) => s.isNotEmpty).toList();
+    } on FormatException {
+      return _answerOnly(request, HttpStatus.badRequest);
+    }
+    try {
+      await _route(request, segments);
+    } on FormatException {
+      // A query's escapes, read further in: the asker's mistake, not the relay's, and nothing to log.
+      await _answerOnly(request, HttpStatus.badRequest);
+    } catch (e) {
+      stderr.writeln('relay: ${request.method} ${'$e'.split('\n').first}');
+      await _answerOnly(request, HttpStatus.internalServerError);
+    }
+  }
+
+  /// [status] and nothing else, where the answer hasn't begun: its headers sent already (or a WebSocket's), nothing.
+  static Future<void> _answerOnly(HttpRequest request, int status) async {
+    try {
+      request.response
+        ..statusCode = status
+        ..headers.set(HttpHeaders.connectionHeader, 'close');
+      await request.response.close();
+    } catch (_) {}
+  }
+
+  Future<void> _route(HttpRequest request, List<String> segments) async {
     final name = segments.isEmpty ? '' : segments.last;
     final upgrade = WebSocketTransformer.isUpgradeRequest(request);
     // The hub is its own thing with its own way in (hub.dart): `/hub`, behind whatever the web server puts before it.

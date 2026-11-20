@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/plugins/codes.dart' show signInCode;
 import 'package:ghost_messaging/plugins/pack/pack.dart';
 import 'package:ghost_messaging/plugins/plugin.dart';
 import 'package:ghost_messaging/plugins/registry.dart';
@@ -261,6 +262,31 @@ void main() {
       expect(withIcon(png(64, 64, idat: 36000 - png(64, 64, idat: 0).length)).ok, isTrue, reason: '36,000 bytes is the most');
       for (final bad in ['not base64!', '${base64Encode(png(64, 64))}\n', base64Encode(png(64, 64)).replaceAll('=', ''), '${base64Url.encode(png(64, 64))}-']) {
         expectError(check(bills()..['icon'] = bad), 'bad_icon', 'icon');
+      }
+    });
+
+    test('base64 whose last bits aren\'t zero is bad_icon at icon beside every other problem, not the whole file\'s bad_json', () {
+      // "AB==" and "AAB=" have the right shape, but Dart's decoder refuses them ("Invalid encoding before padding"):
+      // that once ended the check, so the developer heard the file couldn't be read and nothing else.
+      final real = bills()['icon'] as String;
+      expect(real, endsWith('=='), reason: 'the fixture\'s icon ends in a group with unused bits to set');
+      // "…Jggg==" made "…Jggh==": h is 33, so the four bits after its first two aren't zero.
+      final stray = '${real.substring(0, real.length - 3)}h==';
+      for (final icon in ['AB==', 'AAB=', stray]) {
+        for (final submission in [false, true]) {
+          final json = bills()
+            ..['icon'] = icon
+            ..['hue'] = 'nope';
+          if (submission) json['id'] = 'mybills';
+          final p = check(json, submission: submission);
+          expect(p.errors.map((e) => '${e.code} ${e.path}').toSet(), {'bad_icon icon', 'bad_hue hue'}, reason: '$icon: ${p.issues.join('; ')}');
+          expect(p.canonical, isNotNull, reason: 'the file is JSON without fractions');
+          expect(p.sha256, hasLength(64));
+        }
+        final bytes = utf8.encode(jsonEncode(bills()
+          ..['icon'] = icon
+          ..['hue'] = 'nope'));
+        expect(parsePack(bytes, appVersion: '0.10.1').errors.map((e) => '${e.code} ${e.path}').toSet(), {'bad_icon icon', 'bad_hue hue'}, reason: 'developer loading, from the bytes');
       }
     });
   });
@@ -608,6 +634,60 @@ void main() {
       expect(p.warnings.map((w) => '${w.code} ${w.path}'), ['unused_tag rules.tags[2].tag']);
       expect(p.issues.every((i) => !i.isError), isTrue);
       expect(lintPack(p.pack!), hasLength(1));
+    });
+  });
+
+  group('sign-in codes a pack never acts on', () {
+    // Codes' finder (signInCode, Notifier.otp's rule to the letter) misses these, so a pack took them out of Messages,
+    // marked them read and silenced them under words that said it never would (review, 2026-11-20).
+    const missed = [
+      'G-482913 is your Google verification code.',
+      'FB-48291 is your Facebook confirmation code',
+      'Your Steam Guard code: 4F8KQ',
+      'Ваш код подтверждения: 482913',
+      '【腾讯】验证码 482913，请勿泄露',
+      'Dein Bestätigungscode lautet 482913',
+    ];
+    MessageFacts stranger(String text) => MessageFacts(thread: 1, senders: const ['22000'], text: text, contact: false, outgoing: false, unread: true);
+
+    test('the texts Codes misses still keep a pack\'s hands off, as do 123-456, a code in words of no spaces and one past 400 characters', () {
+      for (final text in [
+        ...missed,
+        'Your WhatsApp code: 482-913',
+        '您的验证码是482913请勿泄露',
+        'Hello from your bank. ${'We will never ask you for it. ' * 14}Your one-time passcode is 482913.',
+      ]) {
+        expect(packSees(stranger(text)), isTrue, reason: 'a pack may still tag it: $text');
+        expect(packMayHoldCode(text), isTrue, reason: text);
+        expect(packMayAct(stranger(text)), isFalse, reason: text);
+      }
+      expect(missed.every((t) => signInCode(t) == null), isTrue, reason: 'Codes\' own rule stays Notifier\'s');
+    });
+
+    test('the samples\' bills, receipts and parcels are still a pack\'s to act on', () {
+      for (final s in packSamples.where((s) => s.id.compareTo('s12') < 0)) {
+        expect(packMayHoldCode(s.text), isFalse, reason: s.text);
+        expect(packMayAct(stranger(s.text)), isTrue, reason: s.text);
+      }
+      for (final text in ['Your code is 482913.', 'Use code SAVE20 at checkout']) {
+        expect(packMayAct(stranger(text)), isFalse, reason: 'wider than it need be, which only leaves a text alone: $text');
+      }
+      expect(packMayHoldCode('Your PIN has been changed. If this wasn\'t you, call us.'), isFalse, reason: 'no code in it');
+      expect(packMayHoldCode('Free shopping delivery on orders over 5000'), isFalse, reason: '"pin" in "shopping" isn\'t a word');
+    });
+
+    test('Try it: a pack that takes Google\'s texts and marks them read leaves "G-482913" alone', () {
+      final google = bills();
+      (google['rules']['tags'][1]['any'] as List).add('your google verification code');
+      final pack = parsePackJson(google, appVersion: '0.10.1').pack!;
+      final g = tryPack(pack, text: missed.first, from: '22000', switchesOn: true, store: MemoryStore({}));
+      expect(g.seen, isTrue);
+      expect(g.tags.keys, contains('paid'), reason: 'tagged, as a pack may tag a code');
+      expect(g.section, isNull);
+      expect(g.incoming, isEmpty);
+      final control = tryPack(pack, text: 'Your google verification code was used. Thank you for your payment.', from: '22000', switchesOn: true, store: MemoryStore({}));
+      expect(control.section, 'receipts');
+      expect(control.incoming, ['markread']);
     });
   });
 }

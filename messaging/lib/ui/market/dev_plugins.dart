@@ -48,9 +48,11 @@ String _fromWords(DevSource s) => switch (s.kind) {
 /// The running copy of [packId] in [registry], where there is one.
 GhostPlugin? _plugin(String packId, PluginRegistry registry) => registry.plugins.where((p) => p.id == registryIdOf(packId) && p.source == PluginSource.dev).firstOrNull;
 
-/// How a dev pack stands, in a word or two, with how many problems it has.
+/// How a dev pack stands, in a word or two, with how many problems it has and how many warnings apart: a warning
+/// doesn't stop it loading, and the docs' own Parcels, whose link button always has one, read "1 problem" for a file
+/// that loads cleanly (review, 2026-11-20).
 String devPackState(DevPack d, PluginRegistry registry, PluginStore store) {
-  final problems = d.issues.length + d.errors.length;
+  final (problems, warnings) = devPackCounts(d);
   final plugin = _plugin(d.id, registry);
   final state = switch (d) {
     _ when d.pack == null && d.plugin == null && plugin == null => null,
@@ -59,8 +61,11 @@ String devPackState(DevPack d, PluginRegistry registry, PluginStore store) {
     _ when plugin != null && registry.isOn(plugin, store) => 'running',
     _ => 'off',
   };
-  return [?state, if (problems > 0) '$problems ${problems == 1 ? 'problem' : 'problems'}'].join(' · ');
+  return [?state, if (problems > 0) '$problems ${problems == 1 ? 'problem' : 'problems'}', if (warnings > 0) '$warnings ${warnings == 1 ? 'warning' : 'warnings'}'].join(' · ');
 }
+
+/// A dev pack's problems (its newest copy's errors, and what it threw or was refused while running) and its warnings.
+(int, int) devPackCounts(DevPack d) => (d.issues.where((i) => i.isError).length + d.errors.length, d.issues.where((i) => !i.isError).length);
 
 /// Settings › Developer's Plugins in development, from the app's choices and the packs on this device alone (a search
 /// builds the page with no app round it), of plain rows so Settings' search finds each. Nothing at all in an App Store
@@ -192,7 +197,9 @@ Future<void> loadDevPlugin(BuildContext context, Future<PackOutcome> Function() 
     final name = out.plugin?.name ?? 'The plugin';
     final warnings = out.issues.where((i) => !i.isError).length;
     final loaded = out.needsConsent ? '$name loaded. Switch it on to agree to what it can do now.' : '$name loaded';
-    toast(context, warnings == 0 ? loaded : '$loaded ${warnings == 1 ? 'One warning' : '$warnings warnings'}: see its row.', tone: GlacierToastTone.success);
+    // A sentence of its own after "Bills loaded", which has no full stop where no consent is asked ("Parcels loaded One
+    // warning", review, 2026-11-20).
+    toast(context, warnings == 0 ? loaded : '${out.needsConsent ? loaded : '$loaded.'} ${warnings == 1 ? 'One warning' : '$warnings warnings'}: see its row.', tone: GlacierToastTone.success);
     return;
   }
   final kept = here.dev.any((d) => before[d.id] == null || before[d.id] != d.loadedAt);

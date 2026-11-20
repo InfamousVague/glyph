@@ -247,6 +247,9 @@ class Market {
   /// route (a decision) can come between the checks and the record. Null in the relay.
   Future<void> Function()? debugAfterWrites;
 
+  /// A test's: run once a signed request's body is read, before its route has it. Null in the relay.
+  void Function()? debugAfterRead;
+
   /// What a signed request signs: these words, its method, its path as asked (`/market/mine`), its time and the
   /// SHA-256 of its body (said up front in `x-ghost-body-sha256`; the empty body's for a GET or a DELETE).
   static String signedWords(String method, String path, int time, String bodySha) => 'ghost-market v1\n$method\n$path\n$time\n$bodySha';
@@ -284,6 +287,13 @@ class Market {
   /// Route 22's body: a retirement and nothing more.
   static const retireMost = 4096;
 
+  /// The most of route 3's list every app reads whole (lib/market/market_api.dart MarketReads, and the installer's
+  /// takeRevocations): its bytes as served, its withdrawals and its retirements. An app refuses a list past any of them
+  /// all at once and takes nothing from it, so from then on no withdrawal would reach a device but by a release
+  /// (review, 2026-11-20): a withdrawal or a retirement that would take it past them is refused instead
+  /// (withdrawals_full), where the reviewer sees it.
+  static const withdrawalsMost = 8 * 1024 * 1024, revocationsMost = 25000, retirementsMost = 100;
+
   /// The answers and their words (the app checks `ok`, never the status alone: anything that isn't the market answers
   /// 200 "Ghost Messaging relay" as text).
   static const Map<String, (int, String)> errors = {
@@ -317,12 +327,13 @@ class Market {
     'too_many_plugins': (429, 'That\'s as many plugins as one developer can have.'),
     'developer_full': (507, 'That\'s as much as one developer can keep in the Marketplace. Withdraw something first.'),
     'full': (507, 'The Marketplace is full just now.'),
+    'withdrawals_full': (507, 'The list of withdrawals is as long as the app reads: no more can be added until it is made shorter.'),
     'bad_approval': (400, 'The approval\'s signature or its words don\'t match this plugin.'),
     'revoked': (410, 'This plugin was withdrawn.'),
   };
 
   final Completer<void> _ready = Completer();
-  bool _started = false;
+  bool _started = false, _stopping = false;
   Timer? _pruner, _firstSweep, _sweeper;
 
   // In memory, and gone with a restart, as the relay's other counters are.
@@ -394,11 +405,20 @@ class Market {
     });
   }
 
-  /// Saves, synchronously, and stops the sweep.
+  /// Saves, synchronously, and stops the sweep. New requests are answered busy from now, and route 8's queue is let
+  /// finish first (10 s at most): stopped in the middle of a submission's writes, the relay answered it 201 and its
+  /// record was never saved, the id it had made held for good (review, 2026-11-20). Whatever still finishes after the
+  /// last save is written as it does (market_store.dart).
   Future<void> stop() async {
+    _stopping = true;
     _pruner?.cancel();
     _firstSweep?.cancel();
     _sweeper?.cancel();
+    try {
+      await _submitting.timeout(const Duration(seconds: 10));
+    } on TimeoutException {
+      // Saved as it stands; what finishes later is written as it does.
+    }
     await _store.close();
   }
 
@@ -430,6 +450,7 @@ class Market {
     final (route, args) = _routeOf(r.method, parts);
     _publicAsk[r] = const {1, 2, 3, 4, 6}.contains(route);
     try {
+      if (_stopping) throw const _Refused('busy');
       if (route == null) throw const _Refused('not_found');
       if (route == 0) throw const _Refused('method');
       if (route != 1 && !config.on) throw const _Refused('off');
@@ -448,37 +469,44 @@ class Market {
           return await _retire(r);
       }
       final a = await _signed(r);
-      switch (route) {
-        case 7:
-          return await _report(r, a);
-        case 8:
-          return await _oneAtATime(() => _submit(r, a));
-        case 9:
-          return await _mine(r, a);
-        case 10:
-          return await _answer(r, 200, {'ok': true, 'submission': _view(_submissionFor(a, args!))});
-        case 11:
-          return await _submissionPackage(r, a, args!);
-        case 12:
-          return await _submissionShot(r, a, args!);
-        case 13:
-          return await _withdraw(r, a, args!);
-        case 14:
-          return await _queue(r, a);
-        case 15:
-          return await _item(r, a, args!);
-        case 16:
-          return await _decide(r, a, args!);
-        case 17:
-          return await _listing(r, a, args!);
-        case 18:
-          return await _revoke(r, a, args!);
-        case 19:
-          return await _reports(r, a);
-        case 20:
-          return await _resolve(r, a, args!);
-        case 21:
-          return await _block(r, a, args!);
+      try {
+        switch (route) {
+          case 7:
+            return await _report(r, a);
+          case 8:
+            return await _oneAtATime(() => _submit(r, a));
+          case 9:
+            return await _mine(r, a);
+          case 10:
+            return await _answer(r, 200, {'ok': true, 'submission': _view(_submissionFor(a, args!))});
+          case 11:
+            return await _submissionPackage(r, a, args!);
+          case 12:
+            return await _submissionShot(r, a, args!);
+          case 13:
+            return await _withdraw(r, a, args!);
+          case 14:
+            return await _queue(r, a);
+          case 15:
+            return await _item(r, a, args!);
+          case 16:
+            return await _decide(r, a, args!);
+          case 17:
+            return await _listing(r, a, args!);
+          case 18:
+            return await _revoke(r, a, args!);
+          case 19:
+            return await _reports(r, a);
+          case 20:
+            return await _resolve(r, a, args!);
+          case 21:
+            return await _block(r, a, args!);
+        }
+      } finally {
+        // A large body's slot is the route's until it is done with the body: route 8 waits its turn with the body read,
+        // and given back as the read ended, any number of read bodies waited there past the bound of 3 × maxBody
+        // (review, 2026-11-20).
+        a.release();
       }
     } on _Refused catch (e) {
       return _refuse(r, e.code, issues: e.issues);
@@ -597,10 +625,19 @@ class Market {
   /// a large body's slot, the signature, then the key's own budget. Only then is the body read, held to its hash.
   Future<_Asker> _signed(HttpRequest r) async {
     final h = r.headers;
-    final keyText = h.value('x-ghost-key'), timeText = h.value('x-ghost-time'), sigText = h.value('x-ghost-sig');
+    // Each at most once: dart:io's value() throws where a header comes twice, which reached handle()'s catch-all as a
+    // 500 broken and a line on stderr for each such request, a stranger's at no cost (review, 2026-11-20).
+    String? one(String name) {
+      final v = h[name];
+      if (v == null || v.isEmpty) return null;
+      if (v.length > 1) throw const _Refused('bad_request');
+      return v.single;
+    }
+
+    final keyText = one('x-ghost-key'), timeText = one('x-ghost-time'), sigText = one('x-ghost-sig');
     if (keyText == null || timeText == null || sigText == null) throw const _Refused('unsigned');
     if (r.uri.hasQuery) throw const _Refused('bad_request');
-    final said = h.value(Files.bodyShaHeader)?.trim(), saidLength = h.value(Files.bodyLengthHeader)?.trim();
+    final said = one(Files.bodyShaHeader)?.trim(), saidLength = one(Files.bodyLengthHeader)?.trim();
     final String bodySha;
     final int length;
     if (r.method == 'GET' || r.method == 'DELETE') {
@@ -642,6 +679,19 @@ class Market {
       _largeFrom.add(address);
       _largeBy.add(keyB64);
     }
+    // The slot, given back once: here where the request goes no further, else by its route once it is done with the
+    // body (handle).
+    var holding = large;
+    void release() {
+      if (!holding) return;
+      holding = false;
+      _inFlight--;
+      _inFlightBytes -= length;
+      _largeFrom.remove(address);
+      _largeBy.remove(keyB64);
+    }
+
+    var handed = false;
     try {
       _verifications++;
       if (!_verify(key, words, sig)) throw const _Refused('bad_signature');
@@ -652,14 +702,11 @@ class Market {
       }
       if (!_signedByKey.take(id, config.signedAnHour, now)) throw const _Refused('rate_limited');
       final body = await _readBody(r, length, sha: bodySha, steady: large);
-      return _Asker(id: id, key: keyB64, body: body, address: address);
+      debugAfterRead?.call();
+      handed = true;
+      return _Asker(id: id, key: keyB64, body: body, address: address, release: release);
     } finally {
-      if (large) {
-        _inFlight--;
-        _inFlightBytes -= length;
-        _largeFrom.remove(address);
-        _largeBy.remove(keyB64);
-      }
+      if (!handed) release();
     }
   }
 
@@ -861,14 +908,17 @@ class Market {
     if (!known) _reportsUnknown.add('', now);
     final rid = _newId(8, _store.reports.containsKey);
     final name = username as String?;
-    _store.reports[rid] = MarketReport(rid: rid, plugin: plugin, version: version, reason: reason, text: text, by: a.id, username: name, verified: name != null && ownsName(a.id, name), at: now);
+    // Who sent it is counted above, in memory for the day, and never kept: the app and the privacy page say the
+    // username goes with a report only if they choose, and its key's id kept with it said whose it was all the same
+    // (review, 2026-11-20).
+    _store.reports[rid] = MarketReport(rid: rid, plugin: plugin, version: version, reason: reason, text: text, username: name, verified: name != null && ownsName(a.id, name), at: now);
     // The newest of each plugin's kept: the map is in the order they came.
     final its = [for (final x in _store.reports.values) if (x.plugin == plugin) x.rid];
     for (var i = 0; i < its.length - reportsKept; i++) {
       _store.reports.remove(its[i]);
     }
     _changed();
-    _store.audit(a.id, 'report', plugin: plugin, note: reason);
+    _store.audit('reporter', 'report', plugin: plugin, note: reason);
     return _answer(r, 201, {'ok': true, 'id': rid});
   }
 
@@ -963,7 +1013,13 @@ class Market {
     final sha = hexOf(sha256(package));
 
     if (!ownsName(a.id, top.developer)) throw const _Refused('not_owner');
-    if (_store.plugins.values.any((p) => p.owner != a.id && p.developer == top.developer)) throw const _Refused('name_used');
+    // Every name another developer's plugins were sent under, not only the first: one who renamed and sent an update
+    // under the new name, approved and listed "By @" it, left that name free for whoever claimed it after them, and
+    // two keys' plugins were listed under one name (review, 2026-11-20). An id let go frees the names it was sent under.
+    if (_store.plugins.values.any((p) => p.owner != a.id && p.developer == top.developer) ||
+        _store.submissions.values.any((s) => s.owner != a.id && s.manifest['developer'] == top.developer && _store.plugins[s.plugin]?.owner == s.owner)) {
+      throw const _Refused('name_used');
+    }
 
     final plugin = _store.plugins[top.id];
     if (plugin != null && plugin.owner != a.id) throw const _Refused('id_taken');
@@ -1033,7 +1089,9 @@ class Market {
     // The plugin's record and the day's counts are made before the first wait, so nothing that runs meanwhile finds
     // the id free or the room still there.
     final made = plugin == null;
-    final p = plugin ?? (_store.plugins[top.id] = MarketPlugin(id: top.id, owner: a.id, developer: top.developer, createdAt: at, updatedAt: at));
+    // Held for [idHeld] from now until its submission is recorded below: a record left with none (the relay stopped or
+    // crashed between its writes and its record) is let go by the sweep, never held for good (review, 2026-11-20).
+    final p = plugin ?? (_store.plugins[top.id] = MarketPlugin(id: top.id, owner: a.id, developer: top.developer, createdAt: at, updatedAt: at, openUntil: at + idHeld.inMilliseconds));
     _subsBySomeone.add(someone, at);
     _subsByAddress.add(a.address, at);
     // What this request writes that wasn't on disk before, deleted again with the day's counts given back where it is
@@ -1051,7 +1109,10 @@ class Market {
       for (final (kind, name) in created) {
         await _store.deleteBlob(kind, name);
       }
-      if (made && !_store.submissions.values.any((s) => s.plugin == top.id)) _store.plugins.remove(top.id);
+      // The record this call made goes with it: route 8 is one at a time, so nothing else has recorded a submission
+      // for it meanwhile. Kept where an earlier developer's closed submissions of a released id were still there, it
+      // had no submission and no openUntil, and held the id for good (review, 2026-11-20).
+      if (made) _store.plugins.remove(top.id);
     }
 
     try {
@@ -1334,6 +1395,18 @@ class Market {
     return null;
   }
 
+  /// Whether route 3's list with [revocations] and [retirements] added (those it doesn't keep already) is still one every
+  /// app reads whole: within [withdrawalsMost] bytes as served, [revocationsMost] withdrawals and [retirementsMost]
+  /// retirements. An app refused a longer one all at once and took nothing from it, so withdrawals silently stopped
+  /// reaching devices (review, 2026-11-20).
+  bool _withdrawalsFit({List<Map<String, Object?>> revocations = const [], List<Map<String, Object?>> retirements = const []}) {
+    final revoked = [..._store.revoked, for (final x in revocations) if (!_store.revoked.any((e) => e['sha256'] == x['sha256'] && e['key'] == x['key'])) x];
+    final retired = [..._store.retired, for (final x in retirements) if (!_store.retired.any((e) => e['key'] == x['key'])) x];
+    if (revoked.length > revocationsMost || retired.length > retirementsMost) return false;
+    final at = [for (final x in [...revoked, ...retired]) x['at'] as int].fold(0, max);
+    return utf8.encode(jsonEncode({'ok': true, 'v': 1, 'at': at, 'revoked': revoked, 'retired': retired})).length <= withdrawalsMost;
+  }
+
   /// Withdraws one approved package of [p], kept once by its SHA-256 and the key that signed it: its submission says so,
   /// the catalog drops it where it was the current version (unlisted, by review), and its package answers 410 from now
   /// on. Kept once a key, not once a package: a withdrawal by a key some build doesn't pin, kept first, left the pinned
@@ -1400,6 +1473,7 @@ class Market {
           final why = _revocationProblem(w, p, a.key);
           if (why != null) throw _Refused(why);
         }
+        if (!_withdrawalsFit(revocations: [for (final w in withdrawals) w!])) throw const _Refused('withdrawals_full');
         _approve(s, p, x!, words);
         for (final w in withdrawals) {
           _withdrawVersion(p, w!, a.id);
@@ -1483,7 +1557,8 @@ class Market {
     if (p == null) throw const _Refused('not_found');
     final problem = _revocationProblem(x, p, a.key);
     if (problem != null) throw _Refused(problem);
-    final kept = _withdrawVersion(p, x!, a.id);
+    if (!_withdrawalsFit(revocations: [x!])) throw const _Refused('withdrawals_full');
+    final kept = _withdrawVersion(p, x, a.id);
     _changed();
     return _answer(r, 200, {'ok': true, 'revoked': kept, 'plugin': _pluginState(p)});
   }
@@ -1533,6 +1608,7 @@ class Market {
     if (had != null) return _answer(r, 200, {'ok': true, 'retired': had});
     if (!_mayVerify(now)) throw const _Refused('busy');
     if (!_signedBy(key, retirementWords(key), x['sig'] as String)) throw const _Refused('bad_signature');
+    if (!_withdrawalsFit(retirements: [x])) throw const _Refused('withdrawals_full');
     _store.retired.add(x);
     _changed();
     _store.audit(FilesRoster.idOf(base64Decode(key)), 'retire', note: key);
@@ -1613,14 +1689,14 @@ class Market {
   /// approved 30 days after their last submission closed (market_store.dart). In route 8's chain, so it never deletes a
   /// screenshot a submission is keeping.
   Future<void> sweep() => _oneAtATime(() async {
-        final (:swept, :released) = await _store.sweep(_now());
+        final (:swept, :released, :orphaned) = await _store.sweep(_now());
         for (final s in swept) {
           _store.audit('relay', 'sweep', plugin: s.plugin, sid: s.sid);
         }
         for (final id in released) {
           _store.audit('relay', 'release', plugin: id);
         }
-        if (swept.isEmpty && released.isEmpty) return;
+        if (swept.isEmpty && released.isEmpty && orphaned == 0) return;
         for (final d in _store.developers.values) {
           d.bytes = _bytesOf(d.id);
         }
@@ -1639,12 +1715,15 @@ class Market {
 
 /// A signed request that checked out, with its body read and held to its hash.
 class _Asker {
-  _Asker({required this.id, required this.key, required this.body, required this.address});
+  _Asker({required this.id, required this.key, required this.body, required this.address, required this.release});
 
   /// The hub id of its key (FilesRoster.idOf), and the key as an approval names it (base64 of its 33 bytes).
   final String id, key;
   final Uint8List body;
   final String address;
+
+  /// Gives back the slot its body holds, where it is a large one: called once its route is done with the body.
+  final void Function() release;
 }
 
 /// A request refused with one of [Market.errors].

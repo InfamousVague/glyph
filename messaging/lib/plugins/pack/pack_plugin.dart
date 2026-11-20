@@ -104,7 +104,10 @@ class PackPlugin extends GhostPlugin {
   // conversation it holds at once whenever a switch, a setting or the plugins themselves change (TagStore.bind), so a
   // pack that takes some 40 µs a text was charged 120 ms for 3,000 conversations in one second, a strike at each change
   // and a pause after five; its pause and its Turn it back on were changes too, a strike to every other heavy pack
-  // (review, 2026-11-20). A pack that is slow on each text is caught as before.
+  // (review, 2026-11-20). A pack that is slow on each text is caught as before. And a second it spent more than half
+  // of classifying ([PackLimits.slowInASecondAlways]) is a strike whatever the average, so a pack just under a
+  // millisecond a text can't hold the app for seconds at every change and never be paused (review, 2026-11-20: 0.9 ms
+  // a text over 3,000 conversations was 2.7 s at each, and no strike ever).
   void _count(DateTime start, Duration took) {
     final second = _second;
     if (second == null || start.difference(second) >= const Duration(seconds: 1)) {
@@ -115,7 +118,7 @@ class PackPlugin extends GhostPlugin {
     }
     _inSecond += took;
     _runsInSecond++;
-    if (_inSecond > PackLimits.slowInASecond && _inSecond >= PackLimits.slowOnAverage * _runsInSecond && !_secondStruck) {
+    if (!_secondStruck && _inSecond > PackLimits.slowInASecond && (_inSecond >= PackLimits.slowOnAverage * _runsInSecond || _inSecond > PackLimits.slowInASecondAlways)) {
       _secondStruck = true;
       _strike(start);
     }

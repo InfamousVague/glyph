@@ -272,12 +272,14 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
   bool _diffTooBig = false, _diffAskedTooBig = false, _diffing = false;
 
   /// The screenshots the package names, by their place in its `shots`, decoded in Dart: an image, or null where it
-  /// can't be shown here; and why one isn't the picture the package names (it couldn't be fetched, or its bytes are
-  /// another picture's). An approval covers the package's own list, which every user's page draws, so these are its
-  /// pictures, never the ones the relay's row names (review, 2026-11-20).
+  /// can't be shown here; why one isn't the picture the package names (its bytes are another picture's); and those
+  /// that couldn't be fetched at all (a dropped connection, a timeout, a busy relay), which Refresh asks for again. An
+  /// approval covers the package's own list, which every user's page draws, so these are its pictures, never the ones
+  /// the relay's row names (review, 2026-11-20).
   final Map<int, ui.Image?> _shots = {};
   final Set<int> _shotsAsked = {};
   final Map<int, String> _shotsWrong = {};
+  final Set<int> _shotsFailed = {};
 
   /// Its icon, decoded in Dart as its screenshots are, and the bytes it was decoded from: its head draws its symbol
   /// until then, or where it can't be decoded here.
@@ -443,6 +445,7 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
       if (!_shotsAsked.add(n)) continue;
       ui.Image? image;
       String? wrong;
+      var failed = false;
       try {
         final bytes = await _api.submissionShot(item.submission.sid, n);
         if (sha256Hex(bytes) == sha) {
@@ -451,7 +454,9 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
           wrong = 'Not the picture its file names';
         }
       } catch (_) {
-        wrong = 'Couldn\'t load this picture';
+        // Not fetched: nothing says the listing is wrong, only that this picture isn't seen yet. It was counted with
+        // the mismatches, so a dropped connection read as a tampered listing, "Don't approve it" (review, 2026-11-20).
+        failed = true;
       }
       if (!mounted) {
         image?.dispose();
@@ -463,14 +468,20 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
           _shotsWrong.remove(n);
         } else {
           _shotsWrong[n] = wrong;
-          _shotsAsked.remove(n);
         }
+        if (failed) {
+          _shotsFailed.add(n);
+        } else {
+          _shotsFailed.remove(n);
+        }
+        if (wrong != null || failed) _shotsAsked.remove(n);
       });
     }
   }
 
   /// Why the store's listing of it isn't the one its package names, or null: the relay's list of screenshots or its
-  /// developer isn't the package's, or a screenshot the package names couldn't be fetched as it names it. Users' pages
+  /// developer isn't the package's, or a screenshot the package names came as another picture's bytes. One that
+  /// couldn't be fetched at all is no sign of that, and holds Approve back on its own ([_approveWhy]). Users' pages
   /// draw the package's own (D.4), under "Reviewed by Ghost Messaging"; a relay that is wrong or broken into could show
   /// the reviewer other pictures and another "By @" (review, 2026-11-20).
   String? get _listingWrong {
@@ -495,6 +506,7 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
     final listing = _listingWrong;
     if (listing != null) return listing;
     // Every picture its page will show is seen here first.
+    if (_shotsFailed.isNotEmpty) return 'A screenshot couldn\'t be loaded. Refresh to try again.';
     if (pack.shots.indexed.any((e) => !_shots.containsKey(e.$1))) return 'Its screenshots are still loading.';
     if (pack.shots.indexed.any((e) => _shots[e.$1] == null)) return 'A screenshot can\'t be shown on this device, so it can\'t be checked: ask for changes.';
     return null;
@@ -874,7 +886,7 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
                       final image = _shots[n];
                       if (!_shots.containsKey(n)) return SizedBox(width: height * 0.5, height: height, child: Center(child: Text('…', style: quiet)));
                       if (image == null) {
-                        return Container(key: ValueKey('market-review-shot-$n'), width: height * 0.6, height: height, alignment: Alignment.center, color: t.color('app-paper-3'), padding: EdgeInsets.all(t.space(2)), child: Text(_shotsWrong[n] ?? 'Can\'t show this picture here', textAlign: TextAlign.center, style: quiet));
+                        return Container(key: ValueKey('market-review-shot-$n'), width: height * 0.6, height: height, alignment: Alignment.center, color: t.color('app-paper-3'), padding: EdgeInsets.all(t.space(2)), child: Text(_shotsFailed.contains(n) ? 'Couldn\'t load this picture. Refresh to try again.' : _shotsWrong[n] ?? 'Can\'t show this picture here', textAlign: TextAlign.center, style: quiet));
                       }
                       final width = height * image.width / math.max(1, image.height);
                       return SizedBox(key: ValueKey('market-review-shot-$n'), width: width, height: height, child: RawImage(image: image, fit: BoxFit.contain, filterQuality: FilterQuality.medium));

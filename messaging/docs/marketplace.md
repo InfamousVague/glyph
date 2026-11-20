@@ -72,7 +72,7 @@ bool packSees(MessageFacts f) =>
     !f.contact && (!f.contactByName || MessageFacts.contactsReadable) && f.outgoing == false && !f.group &&
     !f.encrypted && f.thread >= 0 && (f.network == null || f.network == 'sms') && f.senders.length == 1 &&
     !f.senders.single.startsWith('@');
-bool packMayAct(MessageFacts f) => packSees(f) && !f.codeWaiting && signInCode(f.text) == null;
+bool packMayAct(MessageFacts f) => packSees(f) && !f.codeWaiting && signInCode(f.text) == null && !packMayHoldCode(f.text);
 ```
 
 Never a contact's texts; never words that may be the person's own (`outgoing` is `false` only where `heard`, the newest
@@ -80,7 +80,13 @@ words that came in, is set, so a conversation the person started with nothing ba
 last words may be anyone's and whose unknown sender reads as not a contact; never a text sealed with the app's own
 encryption; never another network's chat, a space or a friend by username. Where `packSees` fails a pack gives no tags
 and offers no buttons. **`packMayAct` adds the sign-in code rule**: whatever Codes' own switch says, a pack can tag a
-bank's code but never take it into a section, draw its row, keep a filing of it or act on it as it comes. A
+bank's code but never take it into a section, draw its row, keep a filing of it or act on it as it comes. Codes'
+`signInCode` is `Notifier.otp`'s rule to the letter (it decides the Copy button) and misses "G-482913 is your Google
+verification code.", Facebook's "FB-48291", Steam's letters and digits, codes in other languages and any text past
+400 characters, so packs are held to `packMayHoldCode` as well: a word that speaks of a code anywhere in the text,
+inside a longer word too ("Bestätigungscode", "验证码"), and a run of 4 to 10 ASCII letters and digits with a digit in
+it (or 123-456) standing on its own. It is wider than it need be on purpose ("Use code SAVE20" counts): a false
+positive only leaves a text alone, and `SmsEffects.codeWaiting` uses it too. A
 conversation filed by hand into a pack's section stays there only while `packMayAct` holds. **Without Android's
 Contacts permission** (`MessageFacts.contactsReadable`, from `heardStatus`; on a computer, from a name on any
 conversation) every number reads as a stranger's, so where the facts' "not a contact" comes from a name
@@ -88,7 +94,12 @@ conversation) every number reads as a stranger's, so where the facts' "not a con
 (`codeWaiting`): `lib/plugins/list.dart` asks the phone (`PluginEffects.codeWaiting`, on a computer across the link)
 whether an unread text with a sign-in code sits under the newest words of a conversation a pack would sort or act on;
 until it answers, and while one does, a pack neither sorts it, draws its row, marks it read nor takes its notification
-away. A failed ask counts as waiting, and is asked again with the next classification. `filters.classify` (thread 0)
+away. A failed ask counts as waiting, and is asked again with the next classification. **Other unread texts under
+the newest**: Android's `markRead` marks the whole conversation read (`Store.markRead`, `read = 0` in the thread) and
+`cancelChat` takes away its one notification, which lists every unread text, so before a pack's `markread` or `mute`
+the list reads the conversation's unread texts (`PluginEffects.unreadIncoming`, the newest 20) and acts only where
+the same pack would ask the same of each of them as it came; a bank's fraud alert under a receipt Bills marks read
+holds it back, two receipts don't. Twenty unread, or an ask that failed, holds it back too. `filters.classify` (thread 0)
 and Try it (thread 1) are seen, which makes them test harnesses; `filters.classify` asks only the plugins that are on.
 On an iPhone or a computer on its own there are no texts, so a pack does nothing there; a computer paired with a phone
 runs it on the phone's texts, but never its incoming rules.
@@ -129,7 +140,9 @@ slowest search took 0.6 ms. What packs cost together is bounded too:
   once on the same text and is a strike only if that is as slow; over 100 ms of classifying in one second is a strike
   where that second's runs took 1 ms or more each on average (`PackLimits.slowOnAverage`), since `TagStore.bind` asks
   every pack about every conversation at once whenever `switches` changes (a switch, a tuned setting, an install, a
-  pause, Turn it back on), and a pack at 40 µs a text over 3,000 conversations was otherwise a strike at each; the
+  pause, Turn it back on), and a pack at 40 µs a text over 3,000 conversations was otherwise a strike at each. Over
+  500 ms in one second (`PackLimits.slowInASecondAlways`) is a strike whatever the average, so a pack just under 1 ms a
+  text can't spend 2.7 s on those 3,000 at every change and never be paused. The
   first classification after construction never is (it compiles the expressions). Five strikes in ten minutes pause
   the pack: it gives nothing until "Turn it back on" or a new version, and the pause is kept in `plugins_paused`.
 
@@ -139,7 +152,7 @@ slowest search took 0.6 ms. What packs cost together is bounded too:
 <root>/                                    Android: <the app's files>/plugins; a computer or an iPhone: <DeskStore's folder>/plugins
   store/<packId>/<version>/package.ghostplugin   the canonical bytes, as downloaded
   store/<packId>/<version>/approval.json         the approval, canonical
-  store/<packId>/<version>/listing.json          name, tagline, hue, symbol and dates, for its row where it no longer parses
+  store/<packId>/<version>/listing.json          name, tagline, hue, symbol, developer and dates, for its row where it no longer parses
   dev/<packId>/package.ghostplugin               the bytes as loaded
   dev/<packId>/source.json                       where it came from, when, and the lines agreed to
   revoked.json                                   verified withdrawals and retirements only
@@ -164,7 +177,10 @@ The disk is what is installed; prefs hold small indexes, each starting `plugins_
   the bytes' SHA-256 is the approval's; not revoked; it parses with an icon and is canonical; its id and version are the
   approval's and the approval verifies with a pinned key that isn't retired; no dev pack of that id; not lower than the
   floor, nor the floor's version with another hash (`not_newer`; the same copy is a reinstall); an update by the same
-  developer (`developer_changed` otherwise); within 16 packs and 1,600 phrases. An update replaces the old version in
+  developer (`developer_changed` otherwise: the copy here's developer is its pack's, else listing.json's, else its file's
+  read as plain JSON, and one nothing says is taken as someone else's, so a stuck copy can't be "updated" to another
+  developer's plugin with its switch on; `MarketState.updates` and `developerChanged` count it the same way); within 16
+  packs and 1,600 phrases. An update replaces the old version in
   place and keeps its switch. **A switch an incoming rule waits for starts off wherever its job is new**: each switch's
   jobs are its incoming rules' sections and verbs, and one whose jobs aren't all among the copy before's (every one, for
   a pack new here or one whose copy couldn't be read) is written `''` as it is installed, updated or loaded in
@@ -184,19 +200,24 @@ The disk is what is installed; prefs hold small indexes, each starting `plugins_
 
 `Market.handle` takes every request whose first segment is `market`, and never throws: its body catches `Object`, so a
 stack overflow is caught too, and answers 500 `broken`; `relay.dart` adds a `catchError` besides, since an error
-escaping a module would end the relay and every hub connection with it.
+escaping a module would end the relay and every hub connection with it. `Relay._handle` itself decodes the path in a
+`try` (a path whose escapes aren't UTF-8, `GET /market/%FF`, threw before anything was routed and ended the relay; it
+is a 400 now), catches whatever its routes throw, and the listener drops nothing unhandled; `bin/relay.dart` runs in
+`runZonedGuarded`, so an error nothing caught after the start is a line on stderr.
 
 **Signed requests.** `x-ghost-key`, `x-ghost-time` and `x-ghost-sig`, and with a body `x-ghost-body-sha256` and
 `x-ghost-body-length`; the signature is over `ghost-market v1\n<METHOD>\n<path>\n<time>\n<body sha256>`, and a signed
 request has no query string. Everything is checked before a byte of the body is read, cheapest first: the route; the
-headers; the key, signature and time shapes, the time within 5 minutes; `Content-Length` against the body limit; the
+headers, each at most once (one sent twice is a 400, not dart:io's throw); the key, signature and time shapes, the time within 5 minutes; `Content-Length` against the body limit; the
 replay cache (10 minutes, 20,000 entries, the oldest dropped when full); the address's signed budget (60 a minute,
 counted before any verification); the relay's signature budget (20 checks a second); bodies over 64 KiB in flight (3,
 and 3 × the body limit in bytes, and one at a time from one address and from one key, `rate_limited` otherwise); then
 the P-256 verification; then the key's own budget (300 an hour). A refused request is answered with `Connection: close`
 and its body is never read. Only then is the body read, into a `BytesBuilder`, whole within 60 s with no gap over 30 s,
-its length and hash checked as it comes; a body over 64 KiB, which holds one of the few slots while it is read, must
-bring 64 KiB (or the rest of it) every 10 s, so a trickle can't keep a slot for its minute.
+its length and hash checked as it comes; a body over 64 KiB, which holds one of the few slots while it is read and
+until its route is done with it (a submission waits its turn at route 8 with its body in memory, and given back at the
+read's end, any number of read bodies waited there), must bring 64 KiB (or the rest of it) every 10 s, so a trickle
+can't keep a slot for its minute.
 
 | # | Route | Who |
 | --- | --- | --- |
@@ -218,20 +239,30 @@ A submission is checked in order (C.7 of the spec): open; signed; one route-8 re
 first submissions of one id from two keys give one `201` and one `409 id_taken`; not blocked, verified where
 `GHOST_MARKET_NEED_VERIFIED` is 1, a username at least a week old; a well-formed body that agrees to the guidelines; the
 package canonical, not too deep, and its top level checked (the reviewer's app runs the whole of the format on it); the
-developer is the key's own username and no one else's; the id new or the key's; the version newer than the one listed;
+developer is the key's own username and no one else's, that is no name another live developer's plugins were sent
+under, first or later (`name_used`); the id new or the key's; the version newer than the one listed;
 the screenshots PNG only, 64 to 2,400 px, at most 1 MB, and hashing to exactly the package's `shots`; then the quotas.
 The top level's check keeps its first hundred issues (`too_many_issues` says how many more) and reads a list only as far
 as its cap, as the app's does, so a stranger's package of thousands of problems costs an answer of a few KB. A
-submission refused after its files are written (a version approved meanwhile) deletes what it wrote and gives back the
-day's counts it took.
+submission refused after its files are written (a version approved meanwhile, or a write that failed) deletes what it
+wrote, gives back the day's counts it took, and takes back the plugin record it made. A record is made held for 30
+days (`openUntil`) until its submission is recorded, so one left by a crash between the two is let go by the sweep.
 
 **Storage** is `<data>/market/` (`/var/lib/ghost-relay/market` on the box): `state.json` (and `state.json.bak`),
 `packages/<sha256>`, `shots/<sha256>` and `audit.jsonl`, a line per change. Saves are made in `Isolate.run`, changes
-within a second written as one, each through one chained future; `stop()` saves synchronously. A `state.json` that
+within a second written as one, each through one chained future; `stop()` answers anything new busy, lets route 8's
+queue finish (10 s at most), saves synchronously, and writes any change or audit line that comes after its last save
+as it comes. A `state.json` that
 doesn't parse falls back to the `.bak`; if neither does, both are moved aside, the market starts empty, and each plugin's
 owner is rebuilt from `audit.jsonl` before any submission is taken, so an empty start can't hand an id to whoever asks
-first. **The daily sweep** deletes the files of closed submissions over 30 days old that nothing uses, and releases an
-id with no approved version 30 days after its last open submission. Nothing records which address read what.
+first. **The daily sweep** deletes the files of closed submissions over 30 days old that nothing uses, and any file
+nothing names at all, and releases an id with no approved version 30 days after its last open submission. Nothing
+records which address read what. **The withdrawals list** (route 3) is never longer than every app reads whole: 8 MiB
+as served, 25,000 withdrawals and 100 retired keys (`Market.withdrawalsMost`, `revocationsMost`, `retirementsMost`;
+the app's `MarketReads` and `InstalledPlugins.revocationsTaken`, which a relay test reads to hold them the same). One
+more is refused, 507 `withdrawals_full`, where review sees it: an app refused a longer list whole and took nothing, so
+withdrawals had silently stopped reaching devices. Making room means shipping the old ones in a release
+(`shippedRevocations`) and taking them out of `state.json` by hand.
 
 **Limits**, each with its environment name (`relay/lib/market.dart`'s `MarketConfig.names`, and `KNOWN` in
 `tool/deploy-relay.mjs`): `GHOST_MARKET_ON` (1), `GHOST_MARKET_MAX_PACKAGE` (262144), `GHOST_MARKET_MAX_SHOT` (1048576),
@@ -299,8 +330,9 @@ uploaded is ever served as HTML or SVG.
   `lib/plugins/pack/review.dart` and `relay/lib/market*.dart`, holds the approve, revoke or retire words, so no later
   feature can become a way to have the review key sign them.
 - **Reports** come from a plugin's page (route 7): a reason, words, and the username only where the person chose. Each
-  address and each someone may send five a day; the newest 200 per plugin are kept; Settings › Admin's reports page
-  marks them done. **Blocking** a developer (route 21) stops their submissions and may unlist their plugins.
+  address and each someone may send five a day, counted in memory; who sent one is never kept (no hub id in
+  `state.json`, and `reporter` as the audit line's `by`), so with the username off the relay's files can't say whose it
+  was; the newest 200 per plugin are kept; Settings › Admin's reports page marks them done. **Blocking** a developer (route 21) stops their submissions and may unlist their plugins.
 
 ## The app
 

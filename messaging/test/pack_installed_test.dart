@@ -78,7 +78,7 @@ void main() {
       expect(File('$dir/package.ghostplugin').readAsBytesSync(), bytes);
       expect(PackApproval.fromJson(jsonDecode(File('$dir/approval.json').readAsStringSync()) as Map).toJson(), approval.toJson());
       final listing = jsonDecode(File('$dir/listing.json').readAsStringSync()) as Map;
-      expect(listing, {'v': 1, 'installedAt': at.millisecondsSinceEpoch, 'listedAt': 1763000000000, 'name': 'Bills', 'tagline': 'Bills and payment reminders in a tab of their own', 'hue': 'amber', 'symbol': 'calculator'});
+      expect(listing, {'v': 1, 'installedAt': at.millisecondsSinceEpoch, 'listedAt': 1763000000000, 'name': 'Bills', 'tagline': 'Bills and payment reminders in a tab of their own', 'hue': 'amber', 'symbol': 'calculator', 'developer': 'yourname'});
       expect(Directory(dir).listSync().where((f) => f.path.endsWith('.tmp')), isEmpty, reason: 'written whole, then renamed');
       expect(pref('plugins_store'), '{"bills":"1.0.0"}');
       expect(jsonDecode(pref('plugins_floor')), {'bills': {'version': '1.0.0', 'sha256': approval.sha256}});
@@ -158,6 +158,46 @@ void main() {
       expect(outcome.message, 'Bills is now by someone else. Remove it first, then add theirs.');
       await installed.removeStore('bills', forget: true);
       expect((await installed.installReviewed(v2, a2)).ok, isTrue, reason: 'once removed, theirs is a plugin like any other');
+    });
+
+    test('developer_changed for a copy here that no longer parses: whose it is from listing.json or its file, unknown refused', () async {
+      // A stuck copy has no pack to read its developer from: the check was skipped, and another developer's version
+      // came in as an "Update", the old switch on and running at once (review, 2026-11-20).
+      for (final how in ['listing.json', 'its file', 'unknown']) {
+        final json = billsAt(developer: 'maya')..['minApp'] = '0.10.1';
+        final (v1, a1) = await reviewed(json);
+        expect((await installed.installReviewed(v1, a1)).ok, isTrue, reason: how);
+        final dir = '${root.path}/store/bills/1.0.0';
+        expect(jsonDecode(File('$dir/listing.json').readAsStringSync())['developer'], 'maya', reason: 'kept at install');
+        if (how != 'listing.json') {
+          // As a copy installed before listing.json kept its developer.
+          final listing = (jsonDecode(File('$dir/listing.json').readAsStringSync()) as Map).cast<String, Object?>()..remove('developer');
+          File('$dir/listing.json').writeAsBytesSync(canonicalBytes(listing));
+        }
+        if (how == 'unknown') File('$dir/package.ghostplugin').writeAsStringSync('{"rules": ');
+        app.set('plugin_xbills', 'on');
+        // A downgrade below its minApp: it no longer parses here. A registry of its own, as after a restart.
+        registry = PluginRegistry([TicketsPlugin()]);
+        final later = make();
+        await later.load(app, appVersion: '0.10.0');
+        final stuck = later.storeOf('bills')!;
+        expect([stuck.pack, stuck.running], [null, false], reason: how);
+        expect(stuck.developer, how == 'unknown' ? isNull : 'maya', reason: how);
+        final (theirs, theirApproval) = await reviewed(billsAt(version: '2.0.0', developer: 'mallory'));
+        final out = await later.installReviewed(theirs, theirApproval, on: false);
+        expect(out.code, 'developer_changed', reason: how);
+        expect(later.storeOf('bills')!.version, '1.0.0', reason: '$how: nothing of theirs is in');
+        final (hers, herApproval) = await reviewed(billsAt(version: '2.0.0', developer: 'maya'));
+        final update = await later.installReviewed(hers, herApproval, on: false);
+        expect(update.code, how == 'unknown' ? 'developer_changed' : isNull, reason: '$how: her own update, where it can be told hers');
+        await later.removeStore('bills', forget: true);
+        later.dispose();
+        installed.dispose();
+        registry = PluginRegistry([TicketsPlugin()]);
+        installed = InstalledPlugins.instance = make();
+        await installed.load(app, appVersion: '0.10.1');
+        app.set('plugins_floor', '');
+      }
     });
 
     test('too_many_packs at 17', () async {

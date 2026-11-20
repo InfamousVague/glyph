@@ -112,6 +112,8 @@ void main() {
     await settle(tester);
   }
 
+  bool agreed(WidgetTester tester) => tester.widget<GlacierSwitch>(find.descendant(of: _key('market-submit-agree'), matching: find.byType(GlacierSwitch))).checked ?? false;
+
   bool sendable(WidgetTester tester) {
     final row = tester.widget<SettingRow>(_key('market-submit-send'));
     return row.onPress != null && !row.disabled;
@@ -261,6 +263,73 @@ void main() {
     expect(sendable(tester), isTrue);
   });
 
+  testWidgets('a Marketplace too busy or broken to check holds nothing back; whatever it said, it can be asked again', (tester) async {
+    // "Too much at once. Try again in a minute." was kept as the Marketplace's refusal: Send stayed off, and nothing on
+    // the form asked again (review, 2026-11-20).
+    await named(tester, 'maya');
+    for (final (status, error, words) in [(503, 'busy', 'Too much at once. Try again in a minute.'), (500, 'broken', 'Something went wrong here. Try again later.'), (502, 'bad_gateway', 'Bad gateway')]) {
+      market.submitting = null;
+      relay.store.checkRefusal = (status: status, body: {'ok': false, 'error': error, 'message': words});
+      await form(tester);
+      await paste(tester, packFile(billsJson()));
+      if (!agreed(tester)) await agree(tester);
+      expect(find.text(words), findsNothing, reason: '$error: not the plugin\'s problem');
+      expect(find.text('Couldn\'t ask the Marketplace whether it can take it just now. It\'s asked again when you send it.'), findsOneWidget, reason: error);
+      expect(sendable(tester), isTrue, reason: '$error: Send is checked in full anyway');
+      relay.store.checkRefusal = null;
+      final asked = relay.store.checks;
+      await tester.tap(_key('market-submit-check-again'));
+      await settle(tester);
+      expect(relay.store.checks, asked + 1);
+      expect(find.text('The Marketplace can take it.'), findsOneWidget, reason: error);
+      expect(_key('market-submit-check-again'), findsNothing);
+    }
+    // rate_limited may be the day's submissions, which the check says: it holds Send back, and can be asked again.
+    market.submitting = null;
+    relay.store.checkRefusal = (status: 429, body: {'ok': false, 'error': 'rate_limited', 'message': 'That\'s a lot at once. Try again later.'});
+    await form(tester);
+    await paste(tester, packFile(billsJson()));
+    if (!agreed(tester)) await agree(tester);
+    expect(find.descendant(of: _key('market-submit-loaded'), matching: find.text('That\'s a lot at once. Try again later.')), findsOneWidget);
+    expect(sendable(tester), isFalse);
+    relay.store.checkRefusal = null;
+    await tester.tap(_key('market-submit-check-again'));
+    await settle(tester);
+    expect(find.text('The Marketplace can take it.'), findsOneWidget);
+    expect(sendable(tester), isTrue);
+  });
+
+  testWidgets('checks are asked one at a time, the newest only: two at once, the Marketplace refused the second for the first', (tester) async {
+    // "1.0.1" then "1.0.10" in Version sent two checks at once; for a large plugin the relay answers the second
+    // rate_limited (one large body at a time from one key), and that was the answer kept (review, 2026-11-20).
+    await named(tester, 'maya');
+    var inFlight = 0, mostAtOnce = 0;
+    Completer<void>? gate = Completer<void>();
+    Future<({int status, Map<String, String> headers, Uint8List body})> transport(String method, Uri url, Map<String, String> headers, List<int> body, {required int most}) async {
+      final check = method == 'POST' && url.path.endsWith('/market/submissions') && (jsonDecode(utf8.decode(body)) as Map)['check'] == true;
+      if (check) {
+        inFlight++;
+        if (inFlight > mostAtOnce) mostAtOnce = inFlight;
+        final held = gate;
+        if (held != null) await held.future;
+        inFlight--;
+      }
+      return relay.call(method, url, headers, body, most: most);
+    }
+
+    await form(tester, with_: MarketApi(hubUrl: 'https://relay.test', signer: devSigner, transport: transport));
+    await paste(tester, packFile(billsJson()));
+    await type(tester, 'market-submit-version', '1.0.1');
+    await type(tester, 'market-submit-version', '1.0.10');
+    expect(mostAtOnce, 1);
+    gate.complete();
+    gate = null;
+    await settle(tester);
+    expect(mostAtOnce, 1, reason: 'never two at once');
+    expect(relay.store.checks, 2, reason: 'the first, which was under way, then the newest; the one between them was never sent');
+    expect(find.text('The Marketplace can take it.'), findsOneWidget);
+  });
+
   testWidgets('"sent already" is asked again once the plugin changes, so the change asked for can be sent', (tester) async {
     // Where changes were asked for the form starts as the copy sent, which the Marketplace calls sent already; the
     // check was asked again only for a new version, so Send stayed off however the plugin was changed (review,
@@ -395,6 +464,50 @@ void main() {
     expect(text('market-submit-name'), 'Bills');
     // And mybills' draft is still there for it.
     expect(market.draftOf('mybills')?.name, 'Bills, mine');
+  });
+
+  testWidgets('the draft on disk: the plugin switched away from, and the form as the app goes to the background', (tester) async {
+    // The sheet says what was filled in for the first plugin is kept, and it was, in memory alone: the disk had it as
+    // it was loaded, so after a restart what was typed for it was gone (review, 2026-11-20).
+    await named(tester, 'maya');
+    await form(tester);
+    await paste(tester, packFile(billsJson()));
+    await type(tester, 'market-submit-description', 'Bills in a tab, typed for mybills.');
+    await type(tester, 'market-submit-notes', 'Notes for mybills.');
+    await paste(tester, packFile(billsJson(id: 'otherbills')));
+    await tester.tap(find.text('Start again with otherbills'));
+    await settle(tester);
+    // The writes asked for so far, waited for as they go on (each a real file's, so the real event loop and the test's
+    // own microtasks are let run in turn, however busy the machine), never for a fixed time; then a Marketplace of a
+    // new start reads the drafts the disk has.
+    Future<MarketState> restarted() async {
+      var written = false;
+      unawaited(market.draftsWritten.then((_) => written = true));
+      final watch = Stopwatch()..start();
+      while (!written && watch.elapsed < const Duration(seconds: 60)) {
+        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+        await tester.pump();
+      }
+      expect(written, isTrue);
+      final again = MarketState(api: () => api, cache: Directory('${dir.path}/market'), appVersion: '0.10.1');
+      await tester.runAsync(again.loadDrafts);
+      return again;
+    }
+
+    var again = await restarted();
+    expect([again.draftOf('mybills')?.description, again.draftOf('mybills')?.notes], ['Bills in a tab, typed for mybills.', 'Notes for mybills.']);
+    // Typed for otherbills, then the app goes to the background (Choose a picture's picker, a call): written then.
+    await type(tester, 'market-submit-description', 'Typed for otherbills.');
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    addTearDown(() {
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    });
+    again = await restarted();
+    expect(again.draftOf('otherbills')?.description, 'Typed for otherbills.');
   });
 
   testWidgets('pictures: a computer pastes them, Windows has no picture panel, a phone chooses', (tester) async {

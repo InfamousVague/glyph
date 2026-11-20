@@ -155,7 +155,7 @@ class SubmitPluginScreen extends StatefulWidget {
   State<SubmitPluginScreen> createState() => _SubmitPluginScreenState();
 }
 
-class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
+class _SubmitPluginScreenState extends State<SubmitPluginScreen> with WidgetsBindingObserver {
   // The Marketplace's own api where none is given: in the app MarketApi.live(), Ghost Messaging's own relay signed
   // with this install's hub key; a test's Marketplace in a test.
   MarketState get _market => widget.market ?? MarketState.instance;
@@ -209,6 +209,7 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // What route 9 says of this developer (blocked, their plugins' versions, earlier screenshots), read again now.
     if (_api.signer != null) unawaited(_market.readMine().then((_) => _changedLater()));
     final asked = widget.startFor == null ? null : InstalledPlugins.instance.devOf(widget.startFor!);
@@ -221,8 +222,16 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
     if (start != null) _apply(start, startVersion: widget.start != null ? widget.startVersion : null);
   }
 
+  /// Written to disk as the app goes to the background: Android may end it there, Choose a picture's picker among the
+  /// ways, and what was typed since the last write was in memory alone (review, 2026-11-20).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden || state == AppLifecycleState.detached) _keep(toDisk: true);
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     // Kept as it stands, with its screenshots, for whenever the form is opened again.
     _keep(toDisk: true);
     for (final c in [_name, _tagline, _description, _version, _whatsNew, _support, _notes]) {
@@ -372,8 +381,10 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
       ]);
       if (!again || !mounted) return;
     }
-    // What the form holds now is kept first: a corrected copy of the same plugin takes it back.
-    _keep();
+    // What the form holds now is kept first: a corrected copy of the same plugin takes it back. Another plugin's is
+    // written to disk too, as the sheet promised: the form writes only the plugin it holds when it goes, so what was
+    // typed for this one was in memory alone, and gone with the app (review, 2026-11-20).
+    _keep(toDisk: had != null && had.id != pack.id);
     if (!mounted) return;
     setState(() {
       _refused = null;
@@ -496,8 +507,8 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
   /// form the check couldn't judge yet (the Marketplace said it has problems) has none, and once more when the bytes it
   /// refused as sent already have changed. A version where changes were asked for starts as the copy sent, which is
   /// "sent already" until the change asked for is made; that refusal held Send back for good, whatever was changed
-  /// after it (review, 2026-11-20).
-  Future<void> _maybeCheck() async {
+  /// after it (review, 2026-11-20). [force]: asked again whatever it said before ("Ask the Marketplace again").
+  Future<void> _maybeCheck({bool force = false}) async {
     final parse = _parse;
     final bytes = parse?.canonical;
     if (_pack == null || bytes == null || _api.signer == null || _serverOther) return;
@@ -505,7 +516,7 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
     if (!packVersionPattern.hasMatch(version)) return;
     final sha = sha256Hex(bytes);
     final sentAlready = _check?.code == 'duplicate' && sha != _checkedSha;
-    final again = (_checkWasIncomplete && parse!.errors.isEmpty) || sentAlready;
+    final again = (_checkWasIncomplete && parse!.errors.isEmpty) || sentAlready || force;
     if (_checkedVersion == version && !again) return;
     _checkedVersion = version;
     _checkedSha = sha;
@@ -514,15 +525,28 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
     setState(() {
       _checking = true;
       // Not these bytes' refusal any more: Send is the Marketplace's to judge again.
-      if (sentAlready) _check = null;
+      if (sentAlready || force) _check = null;
+      if (force) _unreachable = false;
     });
+    // One at a time, the newest only: two at once ("1.0.1", then "1.0.10"), the Marketplace answers the second
+    // rate_limited where the plugin is large (one large body at a time from one key), and that one is the answer kept
+    // (review, 2026-11-20). One that is no longer the newest by its turn isn't sent at all.
+    final before = _asking;
+    final turn = Completer<void>();
+    _asking = turn.future;
     MarketError? refused;
     try {
-      await _api.check(base64Encode(bytes));
-    } on MarketError catch (e) {
-      refused = e;
-    } catch (_) {
-      refused = const MarketError('unreachable', marketUnreachableWords);
+      await before;
+      if (!mounted || mine != _checks) return;
+      try {
+        await _api.check(base64Encode(bytes));
+      } on MarketError catch (e) {
+        refused = e;
+      } catch (_) {
+        refused = const MarketError('unreachable', marketUnreachableWords);
+      }
+    } finally {
+      turn.complete();
     }
     if (!mounted || mine != _checks) return;
     setState(() {
@@ -530,14 +554,23 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
       // What the form says itself (its problems) isn't the check's to repeat: the check is for what only the
       // Marketplace knows. Unreachable says so, and holds nothing back.
       final incomplete = refused != null && (refused.code == 'invalid_package' || refused.code == 'not_canonical' || refused.code == 'bad_shot');
+      // A Marketplace too busy to ask, or broken (503, 500, a proxy's 502), didn't judge the plugin at all: it is as if
+      // it couldn't be reached, which holds nothing back, since Send is checked in full anyway. Its "Too much at once.
+      // Try again in a minute." held Send back for good over a form with nothing to try again with (review,
+      // 2026-11-20). rate_limited stays a refusal: the day's submissions answer the check with it as well.
+      final transient = refused != null && (refused.code == 'unreachable' || refused.code == 'busy' || refused.code == 'broken' || refused.status >= 500);
       _checkWasIncomplete = incomplete;
-      _check = refused == null || incomplete || refused.code == 'unreachable' || refused.code == 'no_identity' ? null : refused;
-      _checked = refused == null || !incomplete;
-      _unreachable = refused?.code == 'unreachable';
+      _check = refused == null || incomplete || transient || refused.code == 'no_identity' ? null : refused;
+      _checked = refused == null || !(incomplete || transient);
+      _unreachable = transient;
     });
   }
 
+  /// The check couldn't be asked: the Marketplace was out of reach, too busy or broken.
   bool _unreachable = false;
+
+  /// The check being asked now, which the next waits for.
+  Future<void> _asking = Future.value();
 
   // --- pictures ---------------------------------------------------------------------------------------------------
 
@@ -769,7 +802,7 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
         : _check != null
             ? _check!.message
             : _unreachable
-                ? 'Couldn\'t reach the Marketplace to ask whether it can take it. It\'s asked again when you send it.'
+                ? 'Couldn\'t ask the Marketplace whether it can take it just now. It\'s asked again when you send it.'
                 : _checked
                     ? 'The Marketplace can take it.'
                     : null;
@@ -806,8 +839,13 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
               icon: face == null ? null : PluginTile(plugin: face, size: t.lenOf('1.85rem')),
               label: packSummary(pack),
               hint: checkLine == null ? null : Text(checkLine, key: const ValueKey('market-submit-check'), style: _check != null ? TextStyle(color: t.danger) : null),
-            )
-          else if (_fileIssues.isNotEmpty)
+            ),
+          // Whatever the check last said but "it can take it", it can be asked again: a busy Marketplace, a day's
+          // submissions or a username's week pass with time, and nothing in the form changes for them (review,
+          // 2026-11-20).
+          if (pack != null && !_checking && (_check != null || _unreachable))
+            SettingRow(key: const ValueKey('market-submit-check-again'), icon: const AppIcon(Lucide.refreshCw, size: 18), label: 'Ask the Marketplace again', disabled: _sending, onPress: () => unawaited(_maybeCheck(force: true)))
+          else if (pack == null && _fileIssues.isNotEmpty)
             SettingRowBox(
               key: const ValueKey('market-submit-loaded'),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

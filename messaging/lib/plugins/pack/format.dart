@@ -40,7 +40,8 @@ abstract final class PackLimits {
   static const int packs = 16, phrasesInAll = 1600;                     // on one device, store and dev packs together
   static const Duration slow = Duration(milliseconds: 20);              // a classification this long, twice running, is a strike
   static const Duration slowInASecond = Duration(milliseconds: 100);    // this much classifying within one second is a strike,
-  static const Duration slowOnAverage = Duration(milliseconds: 1);      // where its runs took this long each on average
+  static const Duration slowOnAverage = Duration(milliseconds: 1);      // where its runs took this long each on average,
+  static const Duration slowInASecondAlways = Duration(milliseconds: 500); // or this much, whatever the average
   static const int strikes = 5;                                         // this many within [strikeWindow] pause the pack
   static const Duration strikeWindow = Duration(minutes: 10);
 }
@@ -144,10 +145,25 @@ bool packSees(MessageFacts f) =>
 
 /// What a pack may do to a conversation it sees: sort it, keep it filed, draw its row, mark it read or take its
 /// notification away. Never for a text with a sign-in code in it (lib/plugins/codes.dart signInCode, Notifier.otp's
-/// rules), whatever Codes' own switch says: a pack can tag a bank's code, never hide it. Nor while such a text waits
-/// unread under newer words ([MessageFacts.codeWaiting]): marking the conversation read or taking its one notification
-/// away would hide that code just the same (review, 2026-11-20).
-bool packMayAct(MessageFacts f) => packSees(f) && !f.codeWaiting && signInCode(f.text) == null;
+/// rules, and the wider [packMayHoldCode]), whatever Codes' own switch says: a pack can tag a bank's code, never hide
+/// it. Nor while such a text waits unread under newer words ([MessageFacts.codeWaiting]): marking the conversation read
+/// or taking its one notification away would hide that code just the same (review, 2026-11-20).
+bool packMayAct(MessageFacts f) => packSees(f) && !f.codeWaiting && signInCode(f.text) == null && !packMayHoldCode(f.text);
+
+/// Whether [text] may hold a sign-in code, more widely than [signInCode] finds one: that is Notifier.otp's rule to the
+/// letter, which decides the Copy button, and it misses Google's "G-482913 is your Google verification code.",
+/// Facebook's "FB-48291", a Steam Guard code of letters and digits, a code in Russian, Chinese or a German compound
+/// word, and any code in a text past 400 characters (review, 2026-11-20). Here a false positive only leaves a text
+/// alone, which a pack may still tag but never sorts, marks read or silences, so it holds wherever a word that speaks
+/// of a code is anywhere in the text, inside a longer word too ("Bestätigungscode", "验证码"), and a run of 4 to 10
+/// letters and digits with a digit in it (or 123-456) stands on its own, after "G-" too. No length cap.
+bool packMayHoldCode(String text) => _mayCodeWord.hasMatch(text) && _mayCodeRun.hasMatch(text);
+
+// The short words alone stand as words ("pin" is in "shopping", "otp" in "hotpot"); the rest are found anywhere.
+final RegExp _mayCodeWord = RegExp(r'code|c[oó]digo|codice|(?<!\p{L})k[oó]d|код|пароль|passwor|kennwort|wachtwoord|senha|contrase[nñ]a|clave|mot de passe|(?<!\p{L})pin(?!\p{L})|(?<!\p{L})otp(?!\p{L})|(?<![\p{L}\p{N}])2fa(?!\p{L})|one[- ]?time|v[eé]rif|log[- ]?in|sign[- ]?in|security|confirm|authent|authori[sz]|验证|驗證|认证|認證|認証|码|碼|コード|パスワード|暗証|인증|비밀번호|κωδικ|رمز|كود|קוד|कोड|รหัส|(?<!\p{L})mã(?!\p{L})', caseSensitive: false, unicode: true);
+
+// ASCII letters and digits only, so a code is found inside words of a script with no spaces ("验证码是482913请勿泄露").
+final RegExp _mayCodeRun = RegExp(r'(?<![A-Za-z0-9])(?=[A-Za-z]*[0-9])[A-Za-z0-9]{4,10}(?![A-Za-z0-9])|(?<![0-9])[0-9]{3}[- ][0-9]{3}(?![0-9])');
 
 // --- text a pack may hold ------------------------------------------------------------------------------------------------
 

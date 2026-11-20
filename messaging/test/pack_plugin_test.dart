@@ -74,6 +74,16 @@ class FakeEffects implements PluginEffects {
     asked.add(thread);
     return codes.contains(thread);
   }
+
+  /// The words still unread in each conversation, newest first, as the phone would say them; a conversation not in it
+  /// has nothing unread but the text the rule was asked about. Null: the phone couldn't say.
+  final unread = <int, List<String>?>{};
+  final askedUnread = <int>[];
+  @override
+  Future<List<String>?> unreadIncoming(int thread) async {
+    askedUnread.add(thread);
+    return unread.containsKey(thread) ? unread[thread] : const [];
+  }
 }
 
 /// The calls of a computer: no phone's channel, so Sms.remote.
@@ -579,6 +589,89 @@ void main() {
       }
     });
 
+    test('a pack marks read or silences a conversation only where every text unread in it is one it would itself', () async {
+      // A bank's fraud alert, then a receipt from the same number before the person looks: Android marks the whole
+      // conversation read and its one notification lists both, so Bills' "Mark receipts as read" took the alert with it
+      // (review, 2026-11-20).
+      const alert = 'FRAUD ALERT: did you send \$950 to J SMITH? Reply YES or NO.';
+      for (final (unread, expected) in [
+        (<String>[sample('s03'), alert], <String>[]),
+        (<String>[sample('s03'), sample('s04')], ['read 7']),
+        (<String>[sample('s03')], ['read 7']),
+        (null, <String>[]),
+      ]) {
+        final effects = FakeEffects()..unread[7] = unread;
+        final list = ListPlugins(changed: () {}, open: (_) {}, refresh: () async {}, registry: PluginRegistry([PackPlugin(bills, source: PluginSource.reviewed, now: _still)]), effects: effects);
+        addTearDown(list.dispose);
+        final app = AppState()
+          ..set('plugin_xbills', 'on')
+          ..set('plugin_xbills_autoread', 'on');
+        list.bind(app);
+        list.take([Conversation.from({'id': 7, 'date': 1000, 'people': [{'address': '73981'}], 'snippet': sample('s03'), 'heard': sample('s03'), 'unread': true})]);
+        for (var i = 0; i < 20 && effects.askedUnread.isEmpty; i++) {
+          await pumpEventQueue();
+        }
+        await pumpEventQueue();
+        expect(effects.askedUnread, [7], reason: '$unread');
+        expect(effects.did, expected, reason: '$unread');
+      }
+      // Silencing as well: Parcels' quiet takes the conversation's one notification, the alert's line in it too.
+      for (final (unread, expected) in [
+        (<String>[sample('s08'), alert], <String>[]),
+        (<String>[sample('s08'), sample('s10')], ['cancel 7']),
+      ]) {
+        final effects = FakeEffects()..unread[7] = unread;
+        final list = ListPlugins(changed: () {}, open: (_) {}, refresh: () async {}, registry: PluginRegistry([PackPlugin(parcels, source: PluginSource.reviewed, now: _still)]), effects: effects);
+        addTearDown(list.dispose);
+        final app = AppState()
+          ..set('plugin_xparcels', 'on')
+          ..set('plugin_xparcels_quiet', 'on')
+          ..set('plugin_xparcels_level', 'loose');
+        list.bind(app);
+        list.take([Conversation.from({'id': 7, 'date': 1000, 'people': [{'address': '73981'}], 'snippet': sample('s08'), 'heard': sample('s08'), 'unread': true})]);
+        for (var i = 0; i < 20 && effects.askedUnread.isEmpty; i++) {
+          await pumpEventQueue();
+        }
+        await pumpEventQueue();
+        expect(effects.did, expected, reason: '$unread');
+      }
+    });
+
+    test('the phone\'s own answer: an unread fraud alert under a receipt is never marked read', () async {
+      // The real SmsEffects, Android's side answered here: the newest twenty, newest first.
+      final calls = <String>[];
+      var messages = <Map<String, Object?>>[];
+      final channel = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      channel.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async {
+        calls.add('${call.method} ${call.arguments}');
+        return call.method == 'messages' ? messages : null;
+      });
+      addTearDown(() => channel.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (_) async => null));
+      Map<String, Object?> text(int id, String body, {bool read = false}) => {'id': id, 'kind': 'sms', 'address': '73981', 'body': body, 'date': 1000 + id, 'read': read};
+      for (final (given, marked) in [
+        ([text(2, 'Thank you for your payment of \$5.00.'), text(1, 'FRAUD ALERT: did you send \$950 to J SMITH? Reply YES or NO.')], false),
+        ([text(2, 'Thank you for your payment of \$5.00.'), text(1, 'FRAUD ALERT: did you send \$950 to J SMITH? Reply YES or NO.', read: true)], true),
+        ([for (var i = 20; i > 0; i--) text(i, 'Thank you for your payment of \$5.00.')], false),
+      ]) {
+        calls.clear();
+        messages = given;
+        final list = ListPlugins(changed: () {}, open: (_) {}, refresh: () async {}, registry: PluginRegistry([PackPlugin(bills, source: PluginSource.reviewed, now: _still)]));
+        addTearDown(list.dispose);
+        final app = AppState()
+          ..set('plugin_xbills', 'on')
+          ..set('plugin_xbills_autoread', 'on');
+        list.bind(app);
+        list.take([Conversation.from({'id': 7, 'date': 1002, 'people': [{'address': '73981'}], 'snippet': 'Thank you for your payment of \$5.00.', 'heard': 'Thank you for your payment of \$5.00.', 'unread': true})]);
+        for (var i = 0; i < 40 && calls.where((c) => c.startsWith('messages')).length < 2; i++) {
+          await pumpEventQueue();
+        }
+        await pumpEventQueue();
+        expect(calls.where((c) => c.startsWith('messages')), hasLength(2), reason: 'a code looked for, then the unread texts read');
+        expect(calls.any((c) => c.startsWith('markRead')), marked, reason: '${given.length} given: $calls');
+        expect(calls.any((c) => c.startsWith('cancelChat')), isFalse);
+      }
+    });
+
     test('a built-in is never held back by a waiting code, and nobody asks for one where no pack acts', () async {
       final effects = FakeEffects()..codes.add(7);
       final list = ListPlugins(changed: () {}, open: (_) {}, refresh: () async {}, registry: PluginRegistry([const _Hush()]), effects: effects);
@@ -818,6 +911,26 @@ void main() {
       expect(trouble, isEmpty);
     });
 
+    test('a pack just under a millisecond a text, asked about thousands at once, is paused all the same', () {
+      // The average above let a pack of 0.9 ms a text hold the app for 2.7 s at every change and never earn a strike
+      // (review, 2026-11-20): a second it spends more than half of classifying is one whatever the average. Runs back to
+      // back, 3,000 conversations at each change, ninety seconds apart: three strikes a change, paused in the second.
+      final clock = _BackToBack(const Duration(microseconds: 900));
+      final (registry, plugin, store, trouble) = timed(clock);
+      final t = textOf(sample('s01'));
+      clock.jump(const Duration(seconds: 90));
+      for (var i = 0; i < 3000; i++) {
+        registry.classify(t, store);
+      }
+      expect(plugin.paused, isFalse, reason: 'three strikes');
+      clock.jump(const Duration(seconds: 90));
+      for (var i = 0; i < 3000; i++) {
+        registry.classify(t, store);
+      }
+      expect(plugin.paused, isTrue);
+      expect(trouble, ['paused']);
+    });
+
     test('unpause clears it, and a pack made paused starts paused', () {
       final clock = Clock(const Duration(milliseconds: 25));
       final (registry, plugin, store, _) = timed(clock);
@@ -848,6 +961,15 @@ class Clock {
   List<Duration> next = [];
   DateTime read() => at = at.add(next.isEmpty ? step : next.removeAt(0));
   void jump([Duration by = const Duration(seconds: 2)]) => at = at.add(by);
+}
+
+/// A clock for runs back to back: a run's start is read as the last one ended, and its end [took] later.
+class _BackToBack extends Clock {
+  _BackToBack(this.took) : super(Duration.zero);
+  final Duration took;
+  var _ending = false;
+  @override
+  DateTime read() => at = at.add((_ending = !_ending) ? Duration.zero : took);
 }
 
 /// A host whose every call throws: a button's failure must not reach the screen.

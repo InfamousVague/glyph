@@ -29,13 +29,13 @@ import '../../kit/settings_kit.dart';
 import '../../kit/settings_type.dart';
 import '../../market/listing_plugin.dart';
 import '../../market/market_state.dart';
-import '../../plugins/pack/pack.dart' show DevPack, InstalledPlugins, packAddressIssue, packIdOf, packLabels;
+import '../../plugins/pack/pack.dart' show DevPack, InstalledPack, InstalledPlugins, packAddressIssue, packIdOf, packLabels;
 import '../../plugins/plugin.dart';
 import '../../plugins/registry.dart';
 import '../../sms.dart';
 import '../common.dart';
 import '../dialup/bevel.dart';
-import '../market/dev_plugins.dart' show DevPluginScreen;
+import '../market/dev_plugins.dart' show DevPluginScreen, devPackCounts;
 import '../market/market_flows.dart';
 import '../settings.dart' show SettingsSeek, settingsMatch;
 import '../shell.dart' show AppShell;
@@ -736,7 +736,7 @@ PackPage _packPage(BuildContext context, PluginRegistry registry, GhostPlugin pl
   final dev = id == null ? null : here.devOf(id);
   final update = kind == PackKind.store || kind == PackKind.stuck ? m.updates.where((u) => u.installed.id == id).firstOrNull : null;
   final support = pack?.support;
-  final problems = dev == null ? 0 : dev.issues.length + dev.errors.length;
+  final (problems, warnings) = dev == null ? (0, 0) : devPackCounts(dev);
   return PackPage(
     kind: kind,
     pack: pack,
@@ -748,6 +748,7 @@ PackPage _packPage(BuildContext context, PluginRegistry registry, GhostPlugin pl
     onUpdate: update == null ? null : () => unawaited(updateStorePack(context, update.listing, market: m)),
     onReload: dev != null && dev.source.reloadable ? () => unawaited(_reload(context, dev.id)) : null,
     problems: problems,
+    warnings: warnings,
     onProblems: dev == null ? null : () => unawaited(push<void>(context, (_) => DevPluginScreen(packId: dev.id))),
     onReport: kind == PackKind.listing || kind == PackKind.store ? () => unawaited(reportPlugin(context, plugin, market: m)) : null,
     stuck: plugin is StuckPackPlugin ? stuckWords(plugin.problem, why: installed?.revoked?.why, here: pluginsHere()) : null,
@@ -755,12 +756,17 @@ PackPage _packPage(BuildContext context, PluginRegistry registry, GhostPlugin pl
     paused: (kind == PackKind.store && installed?.problem == 'paused') || (kind == PackKind.dev && dev?.problem == 'paused'),
     onUnpause: id == null ? null : () => here.unpause(id),
     nohere: marketNoTexts,
-    takenFrom: plugin is ListingPlugin ? here.storeOf(plugin.pack.id)?.pack?.developer : null,
+    takenFrom: plugin is ListingPlugin ? _takenFrom(here.storeOf(plugin.pack.id), plugin) : null,
     shotOf: kind == PackKind.listing || kind == PackKind.store ? m.shotOf : null,
     onLabel: onLabel,
     onSupport: support == null ? null : () => unawaited(_help(context, support)),
   );
 }
+
+/// Whose copy adding the listing [l] would take away: [had]'s developer where it is someone else's, '' where nothing
+/// here can tell who made it (MarketState.developerChanged counts that as someone else's), null where [l] is that
+/// copy's developer's own or there is no copy.
+String? _takenFrom(InstalledPack? had, ListingPlugin l) => had == null || (had.developer != null && had.developer == l.pack.developer) ? null : had.developer ?? '';
 
 Future<void> _reload(BuildContext context, String packId) async {
   final out = await InstalledPlugins.instance.reloadDev(packId);
