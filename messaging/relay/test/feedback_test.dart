@@ -1,0 +1,151 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:ghost_relay/feedback.dart';
+import 'package:ghost_relay/p256.dart';
+import 'package:ghost_relay/relay.dart';
+import 'package:ghost_relay/sha256.dart';
+import 'package:test/test.dart';
+
+/// Feedback from the app filed in Notion (feedback.dart; Matt, 2026-11-19: "wire up notion to create user feedback
+/// tickets ... upload screenshots ... optionally provide their username automatically so we can give out bug
+/// bounties"). Notion is stood in for: each call it was made is kept, and it answers as Notion does.
+class _Sender {
+  _Sender(int n) : scalar = List.generate(32, (i) => (n * 37 + i * 5 + 3) & 0xff) {
+    key = P256.publicOf(scalar);
+  }
+  final List<int> scalar;
+  late final List<int> key;
+  int _nonce = 1;
+  String get id => hexOf(sha256(key).sublist(0, 16));
+
+  Map<String, String> signed(List<int> body, {int? at, String path = '/feedback'}) {
+    final time = at ?? DateTime.now().millisecondsSinceEpoch;
+    final words = Feedback.signedWords(path, time, hexOf(sha256(body)));
+    final nonce = sha256([...scalar, for (var i = 0; i < 8; i++) (_nonce >> (8 * i)) & 0xff, ...utf8.encode(words)]);
+    _nonce++;
+    return {'x-ghost-key': base64Encode(key), 'x-ghost-time': '$time', 'x-ghost-sig': base64Encode(P256.sign(scalar, utf8.encode(words), nonce))};
+  }
+}
+
+void main() {
+  late Relay relay;
+  late List<(String, Uri, Map<String, String>, List<int>)> calls;
+  late int pageStatus;
+  late Uri base;
+  final maya = _Sender(1), sam = _Sender(2);
+
+  Future<(int, Map<String, dynamic>)> send(Map<String, Object?> body, {_Sender? by, Map<String, String>? headers}) async {
+    final bytes = utf8.encode(jsonEncode(body));
+    final client = HttpClient();
+    try {
+      final req = await client.postUrl(base.replace(path: '/feedback'));
+      (headers ?? (by ?? maya).signed(bytes)).forEach(req.headers.set);
+      req.add(bytes);
+      final res = await req.close();
+      final words = await res.transform(utf8.decoder).join();
+      return (res.statusCode, (jsonDecode(words) as Map).cast<String, dynamic>());
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  Future<void> start({bool on = true}) async {
+    calls = [];
+    pageStatus = 200;
+    final feedback = Feedback(
+      config: on ? const FeedbackConfig(notionToken: 'ntn_test', dataSource: '41e2ecf7-f3ac-81dd-9d59-000b22859842') : const FeedbackConfig(),
+      ownsName: (id, name) => id == maya.id && name == 'maya',
+      notion: (method, url, headers, body) async {
+        calls.add((method, url, headers, body));
+        if (url.path == '/v1/file_uploads') return (200, jsonEncode({'id': 'up${calls.length}', 'status': 'pending'}));
+        if (url.path.endsWith('/send')) return (200, jsonEncode({'status': 'uploaded'}));
+        if (url.path == '/v1/pages') {
+          return (pageStatus, pageStatus == 200 ? jsonEncode({'id': 'page1', 'properties': {'ID': {'type': 'unique_id', 'unique_id': {'prefix': 'GMFB', 'number': 12}}}}) : '{"message":"nope"}');
+        }
+        return (404, '{}');
+      },
+    );
+    relay = Relay(feedback: feedback);
+    final port = await relay.start(host: '127.0.0.1', port: 0);
+    base = Uri.parse('http://127.0.0.1:$port');
+  }
+
+  tearDown(() => relay.stop());
+
+  test('a signed report is filed: its kind, words, name checked as the sender\'s, platform, version and screenshots, uploaded first', () async {
+    await start();
+    final shot = base64Encode(List.filled(300, 7));
+    final (status, answer) = await send({
+      'type': 'bug',
+      'title': '',
+      'text': 'The call drops when I lock my phone.\n\nIt happens every time.',
+      'username': 'Maya',
+      'platform': 'android',
+      'version': '0.9.34',
+      'shots': [
+        {'name': 'call.png', 'mime': 'image/png', 'data': shot},
+        {'name': 'not a picture', 'mime': 'text/html', 'data': shot},
+      ],
+    });
+    expect(status, 200);
+    expect(answer, {'ok': true, 'id': 'GMFB-12'});
+    expect(calls.map((c) => c.$2.path), ['/v1/file_uploads', '/v1/file_uploads/up1/send', '/v1/pages'], reason: 'only the picture goes up, before the page');
+    expect(calls.first.$3['Authorization'], 'Bearer ntn_test');
+    expect(calls.first.$3['Notion-Version'], Feedback.notionVersion);
+    expect(calls[1].$3['Content-Type'], startsWith('multipart/form-data; boundary='));
+    expect(utf8.decode(calls[1].$4, allowMalformed: true), contains('name="file"; filename="call.png"'));
+    final page = jsonDecode(utf8.decode(calls.last.$4)) as Map;
+    expect(page['parent'], {'data_source_id': '41e2ecf7-f3ac-81dd-9d59-000b22859842'});
+    final p = page['properties'] as Map;
+    expect(p['Title']['title'][0]['text']['content'], 'The call drops when I lock my phone.', reason: 'no title: the first line');
+    expect(p['Type'], {'select': {'name': 'Bug'}});
+    expect(p['Username']['rich_text'][0]['text']['content'], '@maya', reason: 'her key holds the name');
+    expect(p['Platform'], {'select': {'name': 'Android'}});
+    expect(p['Version']['rich_text'][0]['text']['content'], '0.9.34');
+    expect(p['Screenshots']['files'], [{'type': 'file_upload', 'file_upload': {'id': 'up1'}, 'name': 'call.png'}]);
+    final blocks = page['children'] as List;
+    expect(blocks.where((b) => b['type'] == 'paragraph'), hasLength(2));
+    expect(blocks.last, {'object': 'block', 'type': 'image', 'image': {'type': 'file_upload', 'file_upload': {'id': 'up1'}}});
+  });
+
+  test('someone else\'s username is filed as unverified; no username, none', () async {
+    await start();
+    expect((await send({'type': 'feature', 'text': 'Dark mode please', 'username': 'maya'}, by: sam)).$1, 200);
+    final p = (jsonDecode(utf8.decode(calls.last.$4)) as Map)['properties'] as Map;
+    expect(p['Username']['rich_text'][0]['text']['content'], '@maya (not verified)');
+    expect(p['Type'], {'select': {'name': 'Feature idea'}});
+    expect((await send({'type': 'praise', 'text': 'Love it'}, by: sam)).$1, 200);
+    expect(((jsonDecode(utf8.decode(calls.last.$4)) as Map)['properties'] as Map).containsKey('Username'), isFalse);
+  });
+
+  test('unsigned, stale, replayed or empty reports are refused; so many an hour; off until it is set up; Notion\'s refusal said plainly', () async {
+    await start();
+    final body = {'type': 'bug', 'text': 'Crash'};
+    final bytes = utf8.encode(jsonEncode(body));
+    expect((await send(body, headers: const {})).$1, 401);
+    expect((await send(body, headers: maya.signed(bytes, at: DateTime.now().millisecondsSinceEpoch - 600000))).$1, 401, reason: 'ten minutes old');
+    final once = maya.signed(bytes);
+    expect((await send(body, headers: once)).$1, 200);
+    expect((await send(body, headers: once)).$1, 401, reason: 'the same request again');
+    expect((await send({'type': 'bug', 'text': '   '})).$1, 400);
+    expect((await send({'type': 'rant', 'text': 'Words'})).$1, 400);
+    for (var i = 0; i < Feedback.perIdAnHour - 1; i++) {
+      expect((await send(body)).$1, 200);
+    }
+    final (status, answer) = await send(body);
+    expect(status, 429);
+    expect(answer['error'], contains('a lot of feedback'));
+    expect((await send(body, by: sam)).$1, 200, reason: 'another sender is not held');
+
+    pageStatus = 400;
+    final (bad, said) = await send(body, by: sam);
+    expect(bad, 502);
+    expect(said['error'], contains('didn\'t take it'));
+    await relay.stop();
+
+    await start(on: false);
+    expect((await send(body)).$1, 503);
+    expect(calls, isEmpty);
+  });
+}

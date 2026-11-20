@@ -25,6 +25,28 @@ class MacChrome {
   /// Only in the Mac app with its own top bar, and not under `flutter test` (which runs on a Mac but draws no window).
   static bool enabled = own && Platform.isMacOS && !Platform.environment.containsKey('FLUTTER_TEST');
 
+  /// The window's own title strip instead (Matt, 2026-11-19: "I want the top bar where we drag like the window titlebar
+  /// to house these buttons we can roll a custom titlebar if we need to that's a bit thicker to fit the content"): one
+  /// strip across the top of the whole window, above every page, the three buttons centred at its left, the app's
+  /// buttons at its right (lib/desktop/ui/desk_title_bar.dart), the window dragged by it. Pages under it keep their own
+  /// headers as they are. Not with [own], which folds the buttons into each page's header instead.
+  static const bool strip = true;
+
+  /// Only in the Mac app, and not under `flutter test`.
+  static bool stripEnabled = strip && !own && Platform.isMacOS && !Platform.environment.containsKey('FLUTTER_TEST');
+
+  /// Whether a top bar drags the window: with either kind of the app's own top bar.
+  static bool get draggable => enabled || stripEnabled;
+
+  /// Tells the window the title strip's height (the three buttons are centred in it) and whether the look is dark.
+  static void sayStrip({required double height, required bool dark}) {
+    if (!stripEnabled) return;
+    final now = (height: height, dark: dark);
+    if (_said == now) return;
+    _said = now;
+    _channel.invokeMethod('chrome', {'height': height, 'x': lightsX, 'dark': dark}).catchError((_) => null);
+  }
+
   /// Where the first of the three buttons is, from the window's left.
   static const double lightsX = 20;
 
@@ -65,7 +87,7 @@ class _WindowDragAreaState extends State<WindowDragArea> {
 
   @override
   Widget build(BuildContext context) {
-    if (!MacChrome.enabled) return widget.child;
+    if (!MacChrome.draggable) return widget.child;
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (e) {
