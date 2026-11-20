@@ -46,6 +46,7 @@ import 'sha256.dart';
 ///   over by any member and kept at its highest generation. Anyone else's packet the hub would keep is refused, and
 ///   anything else they send goes to the writers alone, so a changed app can't put words in front of the other
 ///   members. Such rooms are apart from ordinary ones of the same name, so joining without `ro` never reaches one.
+///   Reactions ([toRoomReaction]) are the exception: anyone in the room may react, as a packet too small to be a post.
 /// - **What it can see:** which names talk to which, when, and how much. Never what: packets are sealed by the apps
 ///   with keys the hub never has. It logs no addresses.
 /// - **What it does not carry:** a call's sound and picture. Those go between the phones directly (or through a
@@ -109,6 +110,13 @@ class Hub {
   /// roster and description so ([toRoomKept]); each joining device is handed what is kept, sealed as it came, which
   /// the hub cannot read. Handed on as [toRoom], so nothing on the app's side reads another kind.
   static const toRoomKept = 3;
+
+  /// A reaction to a message in a room (Matt, 2026-11-20: "add reactions after done to spaces and circles"): kept as
+  /// [toRoomKept] is, handed to everyone in the room, and passed on with this first byte so the apps take nothing but a
+  /// reaction from it. At most [maxReaction] bytes. The one thing someone who may not post in a read-only room may send
+  /// to everyone there: a reaction is no post, and a packet that small carries no message the apps would show.
+  static const toRoomReaction = 4;
+  static const maxReaction = 512;
 
   /// What a room keeps: its newest [roomKeepFrames], none older than [roomKeepFor], [roomKeepBytes] in all at most.
   static const roomKeepFrames = 300;
@@ -323,7 +331,8 @@ class Hub {
     });
     // `peek`: this hub knows a look (below), so a closed app's check can sign in without being handed anything; a
     // hub from before would hand it all over, and the check does not sign in to one that does not say so.
-    _tell(ws, {'hello': hexOf(nonce), 'peek': true});
+    // `react`: this hub takes reactions ([toRoomReaction]); an app sends them as kept packets to one that doesn't say so.
+    _tell(ws, {'hello': hexOf(nonce), 'peek': true, 'react': true});
 
     void leave() {
       waiting.cancel();
@@ -561,6 +570,18 @@ class Hub {
       _tell(from.ws, {'ack': seq, 'here': false});
       // Their app is closed: woken where it can be (an iPhone's push; an Android phone looks for itself).
       pushes?.held(to);
+    } else if (data[0] == toRoomReaction && data.length > 17) {
+      // [4][the room, 16 bytes][a sealed reaction]: kept, and to everyone else in it, whoever may post there.
+      if (data.length - 17 > maxReaction) return;
+      final name = hexOf(data.sublist(1, 17));
+      final key = _keyIn(from, name);
+      final room = _rooms[key];
+      if (room == null || !(room.members[from.id]?.contains(from) ?? false)) return;
+      final frame = Uint8List.fromList([toRoomReaction, ...data.sublist(1, 17), ..._unhex(from.id), ...data.sublist(17)]);
+      _keep(key, room.hash, frame);
+      for (final m in room.members.values.expand((d) => d)) {
+        if (!identical(m, from) && m.ws.readyState == WebSocket.open) m.ws.add(frame);
+      }
     } else if ((data[0] == toRoom || data[0] == toRoomKept) && data.length > 17) {
       // [2][the room, 16 bytes][the packet]: to everyone else in it.
       final name = hexOf(data.sublist(1, 17));
