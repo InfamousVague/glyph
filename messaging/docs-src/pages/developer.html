@@ -3,7 +3,7 @@
 <h2 id="on">Turn it on</h2>
 <steps>
 <step title="Developer mode">
-<p>On your phone: <ui>Settings › Developer</ui>, switch on <b>Developer mode</b>. A new section appears: <ui>Settings › API</ui>.</p>
+<p>On your phone, tap <ui>Settings › About › Version</ui> twelve times. Taps more than two seconds apart start the count again, and from the eighth tap a note counts down. Then <ui>Settings › Developer</ui> and <ui>Settings › API</ui> appear.</p>
 </step>
 <step title="Choose how to reach it">
 <m-screen title="API" back>
@@ -42,7 +42,7 @@ node tool/ghost-api.mjs --remote ghostapi1:&lt;secret&gt; networks.chats '{"netw
   <tr><td>conversations</td><td><code>list</code>, <code>get</code>, <code>messages</code>, <code>threadFor</code>, <code>markRead</code>, <code>archive</code>, <code>rename</code>, <code>draft</code>, <code>delete</code></td></tr>
   <tr><td>messages</td><td><code>send</code>, <code>delete</code></td></tr>
   <tr><td>contacts, presence</td><td><code>contacts.get</code>, <code>presence.get</code></td></tr>
-  <tr><td>plugins, filters</td><td><code>plugins.list</code>, <code>plugins.set</code>, <code>plugins.pref</code>, <code>filters.classify</code></td></tr>
+  <tr><td>plugins, filters</td><td><code>plugins.list</code>, <code>plugins.set</code>, <code>plugins.pref</code>, <code>plugins.devInstall</code>, <code>plugins.devRemove</code>, <code>filters.classify</code> (<a href="/docs/plugin-testing/#api">plugins in development</a>)</td></tr>
   <tr><td>networks</td><td><code>list</code>, <code>chats</code>, <code>messages</code>, <code>send</code>, <code>reply</code>, <code>react</code>, <code>markRead</code>, <code>group</code>, <code>changeGroup</code></td></tr>
   <tr><td>friends, net</td><td><code>friends.list</code>, <code>net.status</code></td></tr>
   <tr><td>ui</td><td><code>openConversation</code>, <code>openChat</code>, <code>openSettings</code>, <code>compose</code>, <code>home</code>, <code>toast</code></td></tr>

@@ -133,6 +133,9 @@ h1 { font-size: clamp(1.8rem, 1.5rem + 1.2vw, 2.4rem); line-height: 1.15; letter
 .page ul, .page ol:not(.steps):not(.m-words) { padding-left: 1.3rem; }
 .page li { margin: .25rem 0; }
 .page code, .page kbd { font: .88em/1.4 var(--mono); background: var(--mist); padding: .1rem .35rem; border-radius: .35rem; }
+/* A long address or name in code in a line of words breaks where it must, rather than push a phone's page sideways
+   (the Build a plugin pages are full of them). Tables keep theirs whole, and scroll. */
+.page p code, .page li code { overflow-wrap: anywhere; }
 .page pre { background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r-lg); padding: 1rem 1.1rem; overflow: auto; font: .85rem/1.55 var(--mono); }
 .page pre code { background: none; padding: 0; }
 .page table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.4rem; font-size: .93rem; display: block; overflow-x: auto; }
@@ -238,8 +241,11 @@ h1 { font-size: clamp(1.8rem, 1.5rem + 1.2vw, 2.4rem); line-height: 1.15; letter
 .m-rail-gap { flex: 1; min-height: .6rem; }
 .m-rail-circle { position: relative; display: grid; place-items: center; width: 100%; flex: none; }
 .m-rail-circle .m-avatar { width: 2.4rem; height: 2.4rem; font-size: .8rem; }
-.m-rail-circle.open::before { content: ''; position: absolute; left: 0; top: 50%; width: 4px; height: 1.7rem; margin-top: -.85rem; border-radius: 0 4px 4px 0; background: var(--app-ink); }
+/* The circle open: a halo in its own colour round its face, a little apart from it (lib/ui/nav_rail.dart), not a bar at
+   the rail's edge. */
+.m-rail-circle.open .m-avatar { box-shadow: 0 0 0 3px var(--app-bg), 0 0 0 5px var(--hue); }
 .m-rail-circle .m-avatar.tap { outline-offset: 3px; }
+.m-rail-circle.open .m-avatar.tap { outline-offset: 7px; }
 .m-tabs { display: flex; background: var(--app-line); border-radius: 999px; padding: .2rem; gap: .2rem; }
 .m-tabs span { flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.2; padding: .4rem .5rem; border-radius: 999px; font-weight: 600; font-size: .85rem; color: var(--app-ink-2); position: relative; }
 .m-tabs span.on { background: var(--app-card); color: var(--app-ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
@@ -305,10 +311,15 @@ h1 { font-size: clamp(1.8rem, 1.5rem + 1.2vw, 2.4rem); line-height: 1.15; letter
 [data-hue="amber"] { --hue: #d18a12; } [data-hue="orange"] { --hue: #e2702a; } [data-hue="coral"] { --hue: #e5574c; }
 [data-hue="rose"] { --hue: #e0457b; } [data-hue="purple"] { --hue: #8b5cf6; } [data-hue="indigo"] { --hue: #5b6ee8; }
 [data-hue="slate"] { --hue: #64748b; } [data-hue="cyan"] { --hue: #0ea5c6; } [data-hue="mint"] { --hue: #10b39b; }
+/* The rest of a plugin's sixteen hues (docs-src/pages/plugin-format.html), each a middle tone that reads in both themes. */
+[data-hue="lime"] { --hue: #65a30d; } [data-hue="magenta"] { --hue: #c026d3; } [data-hue="red"] { --hue: #e5484d; }
+[data-hue="yellow"] { --hue: #ca8a04; } [data-hue="graphite"] { --hue: #6b7280; }
 
 /* Two mocks side by side where there is room. */
 .pair { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
-.pair .mock { flex: 1 1 18rem; }
+/* min-width 0: a row's hint is one line cut short with "…", and without it that line's whole length would be the mock's
+   narrowest, pushing a phone's page sideways. */
+.pair .mock { flex: 1 1 18rem; min-width: 0; }
 
 /* --- narrow --------------------------------------------------------------------------------------------------------- */
 @media (max-width: 72rem) { .frame { grid-template-columns: 15rem minmax(0, 1fr); } .toc { display: none; } }
@@ -359,3 +370,50 @@ h1 { font-size: clamp(1.8rem, 1.5rem + 1.2vw, 2.4rem); line-height: 1.15; letter
 /* A freeform row of a mock (avatars, buttons side by side) wraps on a narrow screen. */
 .m-raw { flex-wrap: wrap; gap: .5rem; }
 .m-raw .m-btn { align-self: center; }
+
+/* --- the Marketplace's pieces (docs-src/pages/plugins.html and the Build a plugin pages) --------------------------- */
+/* A plugin's card on a shelf: its tile, its name and line, who made it, and Add or Added at its end. */
+.m-plugin { display: flex; align-items: center; gap: .75rem; padding: .75rem .85rem; background: var(--app-card); border: 1px solid var(--app-line); border-radius: 1.1rem; position: relative; }
+.m-plugin.tap { outline-offset: -2px; }
+.m-plugin.tap::before { right: .4rem; top: .4rem; }
+.m-tile {
+  width: 2.9rem; height: 2.9rem; border-radius: .85rem; display: grid; place-items: center; flex: none; color: #fff;
+  background: linear-gradient(150deg, color-mix(in srgb, var(--hue) 70%, #fff), var(--hue) 70%);
+}
+.m-tile .i { width: 1.5rem; height: 1.5rem; }
+.m-source { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; color: var(--app-ink-2); font-size: .76rem; margin-top: .1rem; }
+.m-reviewed { display: inline-flex; align-items: center; gap: .2rem; font-weight: 650; color: var(--teal-ink); }
+.m-reviewed .i { width: .95rem; height: .95rem; color: var(--teal); }
+.m-devtag { font-size: .68rem; font-weight: 700; padding: .05rem .45rem; border-radius: 999px; background: color-mix(in srgb, var(--amber) 16%, transparent); color: var(--amber); }
+.m-add { display: inline-flex; align-items: center; gap: .3rem; flex: none; min-height: 2.1rem; padding: 0 .95rem; border-radius: 999px; font-weight: 650; font-size: .85rem; background: var(--teal); color: var(--on-teal); position: relative; }
+.m-add.on { background: transparent; color: var(--app-ink-2); border: 1px solid var(--app-line); }
+.m-add .i { width: 1rem; height: 1rem; }
+.m-add.tap { outline-offset: 3px; }
+/* Chips: a shelf's, or the submission form's tags; the chosen ones filled. */
+.m-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+.m-chip { display: inline-flex; align-items: center; gap: .3rem; padding: .35rem .75rem; border-radius: 999px; font-weight: 600; font-size: .82rem; color: var(--app-ink-2); background: var(--app-card); border: 1px solid var(--app-line); position: relative; }
+.m-chip.on { background: color-mix(in srgb, var(--teal) 14%, var(--app-card)); border-color: color-mix(in srgb, var(--teal) 45%, var(--app-line)); color: var(--app-ink); }
+.m-chip .i { width: .95rem; height: .95rem; color: var(--teal); }
+.m-chip.tap { outline-offset: 3px; }
+/* A submission's status, as My submissions shows it: a capsule in its state's colour. */
+.m-status { display: inline-flex; align-items: center; padding: .12rem .6rem; border-radius: 999px; font-size: .78rem; font-weight: 700; white-space: nowrap; --st: var(--app-ink-3); background: color-mix(in srgb, var(--st) 15%, transparent); color: var(--st); }
+.m-status[data-kind="submitted"] { --st: var(--blue); }
+.m-status[data-kind="in_review"] { --st: var(--teal-ink); }
+.m-status[data-kind="changes_requested"] { --st: var(--amber); }
+.m-status[data-kind="approved"] { --st: #22a35a; }
+.m-status[data-kind="rejected"] { --st: var(--danger); }
+.m-status[data-kind="withdrawn"], .m-status[data-kind="superseded"] { --st: var(--app-ink-3); }
+.page td .m-status { vertical-align: .05em; }
+/* A field of several lines. */
+.m-area { min-height: 5.6rem; white-space: pre-wrap; }
+/* A picture to choose: a dashed well with its mark, and what it takes beside it. */
+.m-upload { display: flex; align-items: center; gap: .75rem; }
+.m-upload small { color: var(--app-ink-3); font-size: .8rem; }
+.m-well { width: 4rem; height: 4rem; flex: none; border-radius: 1rem; display: grid; place-items: center; border: 2px dashed var(--app-line); color: var(--app-ink-3); background: var(--app-card); position: relative; }
+.m-well .i { width: 1.4rem; height: 1.4rem; }
+.m-well.tap { outline-offset: 3px; }
+/* A row a plugin draws: its value large where the last words would be (an amount, a tracking number). */
+.m-txt b.m-big { font-size: 1.25rem; font-weight: 750; letter-spacing: -.01em; }
+/* Every icon name a plugin may use (docs-src/pages/plugin-format.html), wrapping as words do. */
+.icon-names { line-height: 2.1; }
+.icon-names code { white-space: nowrap; }
