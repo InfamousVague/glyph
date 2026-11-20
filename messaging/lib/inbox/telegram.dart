@@ -22,6 +22,9 @@ import 'td_json.dart';
 /// `TELEGRAM_API_HASH`, which tool/release.mjs and tool/release-mac.mjs read from ~/.config/ghostmessaging/telegram.env)
 /// and are never in the repository. Without them, or without the library in the app, Telegram is [InboxState.unavailable].
 class Telegram extends InboxNetwork {
+  @override
+  bool get official => true;
+
   Telegram({this.transport, this.apiId = const int.fromEnvironment('TELEGRAM_API_ID'), this.apiHash = const String.fromEnvironment('TELEGRAM_API_HASH'), this.folder});
 
   /// A stand-in for TDLib, in tests. Null: TDLib itself, once [start] finds it.

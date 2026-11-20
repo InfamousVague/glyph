@@ -28,6 +28,9 @@ abstract class SignalLink {
 /// is the way Signal Desktop and mautrix-signal go, and may need mending when Signal changes. Offered as Coming soon
 /// until it has been proven.
 class Signal extends InboxNetwork {
+  @override
+  bool get official => true;
+
   Signal({this.soon = false, this.link, this.folder});
 
   @override
