@@ -1,0 +1,174 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/plugins/pack/pack.dart';
+
+/// The phrase language plugins from other developers match texts with (lib/plugins/pack/phrases.dart; Matt,
+/// 2026-11-20: "I would like users to be able to develop and submit their own plugins to our plugin marketplace"):
+/// every vector of the format's A.10.11, the two patterns the format pins, the person's own words, the text as it is
+/// prepared, and what a phrase may not hold. Its speed, with every token in a full pack, is test/pack_speed_test.dart's.
+void main() {
+  PhraseHit? hit(String phrase, String text) => Phrase.compile(phrase).find(PreparedText(text));
+
+  group('A.10.11 matches', () {
+    // Phrase, text, and the token's capture where the phrase has a token, else the whole match; null for none.
+    const vectors = <(String, String, String?)>[
+      ('your code is {digits:4-8}', 'Your code is 123456.', '123456'),
+      ('your code is {digits:4-8}', 'Your code is 1234567890', null),
+      ('code {code:4-8}', 'Use code AB12CD to sign in', 'AB12CD'),
+      ('code {code:4-8}', 'Use code ABCDEF to sign in', null),
+      ('amount due {amount}', 'Amount due \$1,234.56 by Friday', '\$1,234.56'),
+      ('amount due {amount}', 'Amount due 45 by Friday', null),
+      ('amount due {amount}', 'Amount due: 45,00 EUR', null),
+      ('amount due: {amount}', 'Amount due: 45,00 EUR.', '45,00 EUR'),
+      ('your {words:0-3} has shipped', 'Your parcel has shipped', 'parcel'),
+      ('your {words:0-3} has shipped', 'Your new blue parcel has shipped!', 'new blue parcel'),
+      ('your {words:0-3} has shipped', 'Your very big new blue parcel has shipped', null),
+      ('bill', 'Your billing statement', null),
+      ('bill', 'Your bill is ready', 'bill'),
+      ('track {url}', 'Track it: https://example.com/t/123', null),
+      ('track {url}', 'track https://example.com/t/123 now', 'https://example.com/t/123'),
+      ('{phone}', 'Call +1 (555) 010-0100 today', '+1 (555) 010-0100'),
+      ('on {date}', 'Your appointment on March 5th at 3pm', 'March 5th'),
+      ('on {date}', 'Booked on 12/03/2026.', '12/03/2026'),
+      ('on {date}', 'See you on 5 jan', '5 jan'),
+      ('at {time}', 'See you at 3pm', '3pm'),
+      ('at {time}', 'See you at 10:30 a.m. sharp', '10:30 a.m.'),
+      ('don\'t forget', 'Don’t forget your parcel', 'Don\'t forget'),
+      ('your appt', 'YOUR APPT is at 9', 'YOUR APPT'),
+      ('café', 'Le CAFÉ est ouvert', 'CAFÉ'),
+      ('from {email}', 'Reply from bob.smith+x@mail.example.co.uk.', 'bob.smith+x@mail.example.co.uk'),
+      ('ref #{digits:4-10}', 'Booking ref #88213 confirmed', '88213'),
+      ('{word} delivery', 'Your Acme delivery is near', 'Acme'),
+      ('order {number}', 'Order 1,234 shipped', '1,234'),
+      ('order {number}', 'Order 98765 shipped', '98765'),
+      ('tracking no. {code:8-24}', 'Tracking no. JD014600006295117', 'JD014600006295117'),
+      ('ticket {{ref}} {digits:3}', 'Ticket {ref} 123', '123'),
+      ('50% off', 'Get 50% off today', '50% off'),
+      ('a.b.c', 'see aXbXc here', null),
+    ];
+    for (final (phrase, text, want) in vectors) {
+      test('"$phrase" in "$text"', () {
+        final found = hit(phrase, text);
+        if (want == null) {
+          expect(found, isNull);
+          return;
+        }
+        expect(found, isNotNull);
+        expect(Phrase.compile(phrase).hasToken ? found!.token : found!.match, want);
+      });
+    }
+
+    test('{words:0-3} with no words between matches, its capture empty, which a detail reads as none', () {
+      final found = hit('your {words:0-3} has shipped', 'Your has shipped');
+      expect(found, isNotNull);
+      expect(found!.token, '');
+      expect(found.match, 'Your has shipped');
+    });
+
+    test('a phrase without a token gives no capture, only the whole match', () {
+      expect(hit('bill', 'Your bill is ready')!.token, isNull);
+      expect(hit('order {number}', 'Order 98765 shipped')!.match, 'Order 98765');
+    });
+  });
+
+  test('A.10.11 anchors', () {
+    expect(Phrase.compile('your code is {digits:4-8}').anchor, 'your', reason: 'the first of the two longest');
+    expect(Phrase.compile('{phone}').anchor, isNull);
+    expect(Phrase.compile('{phone}').anchorless, isTrue);
+    expect(Phrase.compile('café au lait').anchor, 'lait', reason: 'café is not ASCII');
+    expect(Phrase.compile('at {time}').anchor, isNull, reason: 'at is too short');
+    expect(Phrase.compile('tracking no. {code:8-24}').anchor, 'tracking');
+    expect(Phrase.compile('YOUR Bill').anchor, 'your', reason: 'lower-cased');
+  });
+
+  test('a text without its anchor is not matched, whatever the pattern would say', () {
+    final p = Phrase.compile('your statement is ready');
+    expect(p.find(PreparedText('Your statement is ready')), isNotNull);
+    // ſ folds to s in the pattern, but the text's lower-case form has no "statement" in it.
+    expect(p.find(PreparedText('Your ſtatement is ready')), isNull);
+  });
+
+  group('A.10.11 errors', () {
+    const vectors = <(String, String)>[
+      ('bill{digits:4}', 'phrase_token_touches_word'),
+      ('{digits:4}{digits:4}', 'phrase_tokens_touch'),
+      ('{words:1-2} bill', 'phrase_words_edge'),
+      ('{digits:0}', 'phrase_bad_token'),
+      ('{digits:9-4}', 'phrase_bad_token'),
+      ('{foo}', 'phrase_bad_token'),
+      ('code {code:3}', 'phrase_bad_token'),
+      ('go {words:5}', 'phrase_bad_token'),
+      ('x {word:2} y', 'phrase_bad_token'),
+      ('bill }', 'phrase_bad_token'),
+      ('a', 'phrase_too_short'),
+      ('', 'phrase_bad_text'),
+      (' bill', 'phrase_bad_text'),
+      ('{url}.', 'phrase_url_followed'),
+      ('a {digits} b {digits} c {digits} d {digits} e {digits}', 'phrase_too_many_tokens'),
+      // and the rest of each rule
+      ('bill {', 'phrase_bad_token'),
+      ('{digits:25}', 'phrase_bad_token'),
+      ('your {words} has {words} been', 'phrase_too_many_tokens'),
+      ('go {url} and {url}', 'phrase_too_many_tokens'),
+      ('bill {words:1-2}', 'phrase_words_edge'),
+      ('{{', 'phrase_too_short'),
+    ];
+    for (final (phrase, code) in vectors) {
+      test('"$phrase" is $code', () {
+        expect(() => Phrase.compile(phrase), throwsA(isA<PhraseError>().having((e) => e.code, 'code', code)));
+      });
+    }
+
+    test('a phrase of 121 characters is phrase_bad_text, of 120 it is fine', () {
+      expect(() => Phrase.compile('a' * 121), throwsA(isA<PhraseError>().having((e) => e.code, 'code', 'phrase_bad_text')));
+      expect(Phrase.compile('a' * 120).source, hasLength(120));
+    });
+
+    test('a phrase holding U+202E, U+200B or a newline is phrase_bad_text', () {
+      for (final bad in ['your‮bill', 'your​bill', 'your\nbill', 'your\tbill', 'bill due']) {
+        expect(() => Phrase.compile(bad), throwsA(isA<PhraseError>().having((e) => e.code, 'code', 'phrase_bad_text')), reason: bad.runes.map((r) => r.toRadixString(16)).join(' '));
+      }
+    });
+  });
+
+  test('B.4 pins two patterns exactly', () {
+    expect(Phrase.compile('your code is {digits:4-8}').pattern, r'(?<![\p{L}\p{N}])your\s+code\s+is\s+((?<![0-9])[0-9]{4,8}(?![0-9]))');
+    expect(Phrase.compile('your {words:0-3} has shipped').pattern, r'(?<![\p{L}\p{N}])your\s+((?:\S{1,32}\s+){0,3})has\s+shipped(?![\p{L}\p{N}])');
+  });
+
+  test('the person\'s own words are literal: braces doubled, and one letter refused', () {
+    final p = Phrase.literal('{council} tax');
+    expect(p.source, '{{council}} tax');
+    expect(p.hasToken, isFalse);
+    expect(p.find(PreparedText('Your {council} tax is due'))!.match, '{council} tax');
+    expect(p.find(PreparedText('Your council tax is due')), isNull);
+    expect(Phrase.literal('{digits}').find(PreparedText('pay {digits} now'))!.match, '{digits}');
+    expect(() => Phrase.literal('a'), throwsA(isA<PhraseError>().having((e) => e.code, 'code', 'phrase_too_short')));
+  });
+
+  test('a run of spaces is one separator, and any run of whitespace matches it', () {
+    expect(Phrase.compile('your  bill').pattern, r'(?<![\p{L}\p{N}])your\s+bill(?![\p{L}\p{N}])');
+    expect(hit('your bill', 'your    bill'), isNotNull);
+  });
+
+  test('literal characters a pattern would read are escaped, and match only themselves', () {
+    final p = Phrase.compile(r'a+b (c) [d] $5 ^x | y?');
+    expect(p.find(PreparedText(r'see a+b (c) [d] $5 ^x | y? now')), isNotNull);
+    expect(p.find(PreparedText('see aab c d 5 x y now')), isNull);
+  });
+
+  group('PreparedText', () {
+    test('the look-alikes are made plain, one for one', () {
+      final t = PreparedText('a b c d ‘e’ ‛fʼ “g”‟ h‐i‑j‒k–l—m');
+      expect(t.text, 'a b c d \'e\' \'f\' "g"" h-i-j-k-l-m');
+      expect(normalizeForPhrases('plain'), 'plain');
+    });
+
+    test('a text is cut to its first 2,000 code units, never ending on half a character', () {
+      expect(PreparedText('a' * 2500).text, hasLength(2000));
+      final split = '${'a' * 1999}👻 and more';
+      expect(PreparedText(split).text, 'a' * 1999, reason: 'the ghost\'s high half was cut from its low half');
+      expect(PreparedText('${'a' * 1998}👻').text, hasLength(2000));
+      expect(PreparedText('ABC').lower, 'abc');
+    });
+  });
+}
