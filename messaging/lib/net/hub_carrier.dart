@@ -89,6 +89,20 @@ class HubCarrier implements Carrier {
   /// What the others in a room sent to it.
   Stream<({String room, String from, Uint8List bytes})> get roomPackets => _roomPackets.stream;
 
+  /// Reactions in rooms (relay/lib/hub.dart toRoomReaction), apart from other room packets.
+  final _roomReactions = StreamController<({String room, String from, Uint8List bytes})>.broadcast();
+  Stream<({String room, String from, Uint8List bytes})> get roomReactions => _roomReactions.stream;
+
+  /// Whether the relay server connected to takes reactions as a packet of their own ([sendReaction]); a server from
+  /// before keeps them as an ordinary kept packet instead.
+  bool takesReactions = false;
+
+  /// Sends a reaction to a room this install is in, kept for whoever comes later (relay/lib/hub.dart toRoomReaction).
+  void sendReaction(String room, Uint8List packet) {
+    if (!_ready || !_joined.containsKey(room)) throw CarrierError('not in that room');
+    _ws?.add([4, ...NetCrypto.unhex(room), ...packet]);
+  }
+
   /// What the server's keeper of handles says to this install (relay/lib/handles.dart): every message that starts
   /// `{"dir": …}`. lib/me/me.dart listens.
   Stream<Map<String, dynamic>> get handles => _handles.stream;
@@ -249,6 +263,9 @@ class HubCarrier implements Carrier {
         _arrived.add(Arrived(id, Uint8List.fromList(data.sublist(17))));
       } else if (data.length > 33 && data[0] == 2) {
         _roomPackets.add((room: NetCrypto.hex(data.sublist(1, 17)), from: NetCrypto.hex(data.sublist(17, 33)), bytes: Uint8List.fromList(data.sublist(33))));
+      } else if (data.length > 33 && data[0] == 4) {
+        // A reaction in a room (relay/lib/hub.dart toRoomReaction): nothing but a reaction is taken from one.
+        _roomReactions.add((room: NetCrypto.hex(data.sublist(1, 17)), from: NetCrypto.hex(data.sublist(17, 33)), bytes: Uint8List.fromList(data.sublist(33))));
       }
       return;
     }
@@ -259,6 +276,7 @@ class HubCarrier implements Carrier {
       return;
     }
     if (m['hello'] is String && !_ready) {
+      takesReactions = m['react'] == true;
       // The hub's number, signed: only the holder of this install's key connects under its name.
       final sig = await signer.sign([...utf8.encode(greeting), ...NetCrypto.unhex(m['hello'] as String)]);
       if (!identical(_ws, ws)) return;
@@ -277,7 +295,7 @@ class HubCarrier implements Carrier {
       if (_awayNow) ws.add(jsonEncode({'away': true}));
       if (_push != null) ws.add(jsonEncode({'push': _push}));
       for (final e in _joined.entries) {
-        ws.add(jsonEncode({'join': e.key, 'token': e.value}));
+        ws.add(jsonEncode({'join': e.key, 'token': e.value, 'ro': ?_readOnly[e.key]}));
       }
       for (final e in _looked.entries) {
         ws.add(jsonEncode({'look': e.key, 'token': e.value}));
@@ -391,12 +409,20 @@ class HubCarrier implements Carrier {
   /// circle's members' messages seen on no device: each room asked for too early was never joined, so nothing came
   /// from it and what was written in it went nowhere). Unanswered once connected, it stays asked for, and is asked again
   /// on the next connection.
-  Future<List<String>> join(String room, String token) {
+  ///
+  /// [ro]: a circle's read-only space's room, bound to its owner's key (relay/lib/hub.dart; lib/circles/welcome.dart),
+  /// said with each join.
+  Future<List<String>> join(String room, String token, {Map<String, Object?>? ro}) {
     _joined[room] = token;
+    if (ro != null) {
+      _readOnly[room] = ro;
+    } else {
+      _readOnly.remove(room);
+    }
     final done = _joining[room] ??= Completer<List<String>>();
     final ws = _ws;
     if (ws == null || !_ready) return done.future;
-    ws.add(jsonEncode({'join': room, 'token': token}));
+    ws.add(jsonEncode({'join': room, 'token': token, 'ro': ?ro}));
     return done.future.timeout(const Duration(seconds: 8), onTimeout: () {
       if (identical(_joining[room], done)) _joining.remove(room);
       throw CarrierError('the relay server did not answer');
@@ -404,7 +430,19 @@ class HubCarrier implements Carrier {
   }
 
   void leave(String room) {
+    _readOnly.remove(room);
     if (_joined.remove(room) != null && _ready) _ws?.add(jsonEncode({'leave': room}));
+  }
+
+  /// What each read-only room this install is in was joined with ([join]'s `ro`), to join it so again on reconnecting.
+  final Map<String, Map<String, Object?>> _readOnly = {};
+
+  /// Tells the relay a read-only room's newer admin list ([grants]: `gv`, `g`, `gs`), kept for the next join too.
+  void anchorRoom(String room, Map<String, Object?> grants) {
+    final ro = _readOnly[room];
+    if (ro == null) return;
+    _readOnly[room] = {...ro, ...grants};
+    if (_ready) _ws?.add(jsonEncode({'anchor': room, ...grants}));
   }
 
   /// Sends a packet to everyone else in a room this install is in.

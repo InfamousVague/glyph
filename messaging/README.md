@@ -30,6 +30,54 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Reactions in spaces and circles** (0.10.6, not released; Matt, 2026-11-20: "add reactions after done to spaces and
+  circles"). Press and hold (or right-click) a message in a space's or a circle's chat: the reaction row from texts
+  (`reactionChoices`, `ReactionPickRow`) sits over its menu. A space's bubbles wear them as stickers, as texts do
+  (`ReactionStickers`); a circle channel's lines have pills under them, each emoji with how many gave it, yours ringed,
+  pressed to put yours on or take it off, and a + for another (`ReactionChips`). Each person's each emoji on a message
+  is on or off with when it was said, the newest word winning (`lib/voice/space_reactions.dart`), so it ends the same
+  on every device whatever order the words come in; one person's phone and computer count once. Said in the room as
+  `react`, kept by the hub for devices that were away, and handed over with the history (`reacts`); kept on the device
+  beside the polls' votes.
+  - **In read-only spaces everyone may react**: only posting is the admins'. The relay takes reactions as a packet
+    kind of their own (`toRoomReaction`, 4: kept, to everyone, at most 512 bytes), which a reader in a read-only room
+    may send, and passes them on with that first byte, so the apps take nothing but a reaction from one: the hub still
+    refuses a reader's words and an app still drops them. A relay from before (until this one is deployed) doesn't say
+    `react` in its hello; the apps then send reactions as ordinary kept packets, which work everywhere but a read-only
+    space, where that relay refuses a reader's.
+  - Tests: space_reactions_test (pictures `test/shots/space-reactions-*`), relay read_only_rooms_test.
+- **Welcome messages, a welcome space and read-only spaces** (0.10.6, not released; Matt, 2026-11-20: "add - Welcome
+  messages for new members and allow setting a "welcome" channel as well as read only channels for system messages
+  and admin / moderation announcements"). Circle settings › Welcome, for whoever may change the circle
+  (`lib/ui/circles/circle_welcome.dart`, `lib/circles/welcome.dart`):
+  - **Welcome message and welcome space**, kept in the circle's signed manifest (`wl`: the words, and the space's seed).
+    A newcomer's app opens the circle on the welcome space (on a phone too, as soon as a link's circle has its
+    manifest: `AppShell.openCircle(land: true)`), and that space's chat starts with the welcome as a card, "{name}"
+    in it being whoever reads it. Nothing is sent: every app draws it from the manifest, so it is there for someone
+    who joined while the admins were away. A wide window opens a circle on its welcome space too.
+  - **Read-only spaces**: Space settings › Read-only (`rdo` in the space's entry). Only the owner and the admins (whom
+    the owner granted, as every role that can change the circle, its spaces or its roles makes its holder) post
+    there; everyone else sees "Only admins can post in # …" in the box's place, and an admin sees a line saying
+    everyone else reads. Held three ways: the box isn't offered; every member's app drops anyone else's words, edits,
+    votes and passed-on history there (`HangoutRoom.mayPost`); and the relay itself holds them to it. A read-only
+    space's chat is a room of its own on the relay whose name is made from 16 bytes of the space's seed and the
+    circle owner's public key (`readOnlyRoomOf`, relay `Hub.anchoredName`), joined with what makes the name and the
+    circle's owner-signed admin list (`ro` in the join, `anchor` when the list changes), so the hub can check whose
+    room it is: it refuses to keep anything from anyone else (`{"ro": "refused"}`) and passes what else they say
+    (who they are, asking for history) to the owner and admins alone, so a changed app can't put words in front of
+    the other members. Read-only rooms are apart from ordinary rooms of the same name, and messages stay on the device
+    under the space's own room, so a space made read-only (or opened again) keeps what was said in it; what the hub
+    kept for the old room for others' closed phones is not carried over. An older app sees the space as an ordinary
+    one in the old room, which current apps have left.
+  - **System space**: a read-only space where each member's app writes, for that member, the circle's comings and
+    goings as they are heard: who joined (from the joins the circle's room carries), who was kicked or banned, who became or
+    stopped being an admin (from the manifest's changes), as small lines among the admins' announcements
+    (`CircleSystemNote`, kept on the device as `circles_system`, 200 to a circle). Chosen in Circle settings ›
+    Welcome; it becomes read-only as it is chosen, and stops being the system space if opened again.
+  - Not drawn in the Dial-Up look's transcript, whose chat is its own. Needs the relay deployed for the hub's half; a
+    relay from before takes `ro` as an ordinary join (everything still works, held by the apps alone).
+  - Tests: circle_welcome_test, circle_welcome_screens_test (pictures `test/shots/circle-welcome-*`), relay
+    read_only_rooms_test.
 - **The Marketplace, and plugins from other developers** (not released; `lib/plugins/pack/`, `lib/market/`,
   `lib/ui/market/`, `relay/lib/market.dart`; Matt, 2026-11-20: "This is a lengthly feature request, I would like users
   to be able to develop and submit their own plugins to our plugin marketplace and I'd like to be able to verify them for
