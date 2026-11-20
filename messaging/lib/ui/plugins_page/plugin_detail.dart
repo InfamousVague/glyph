@@ -22,7 +22,7 @@ import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
 import '../../kit/settings_kit.dart';
 import '../../kit/settings_type.dart';
-import '../../plugins/pack/pack.dart' show PluginPack, packLabels, sha256Hex;
+import '../../plugins/pack/pack.dart' show PluginPack, packLabels, pngInfo, sha256Hex;
 import '../../plugins/plugin.dart';
 import '../common.dart';
 import '../dialup/bevel.dart';
@@ -566,11 +566,16 @@ class _ShotsState extends State<_Shots> {
         scrollDirection: Axis.horizontal,
         itemCount: shown.length,
         separatorBuilder: (context, _) => SizedBox(width: t.space(2)),
-        itemBuilder: (context, i) => ClipRRect(
-          key: ValueKey('plugins-detail-shot-${shown[i].$1}'),
-          borderRadius: BorderRadius.circular(pluginCorner(t, t.radius('md'))),
-          child: Image.memory(shown[i].$2, height: height, fit: BoxFit.contain, filterQuality: FilterQuality.medium, gaplessPlayback: true, cacheHeight: (height * MediaQuery.devicePixelRatioOf(context)).round(), errorBuilder: (context, _, _) => const SizedBox.shrink()),
-        ),
+        itemBuilder: (context, i) {
+          // As wide as its own proportions say, read from its header: the strip doesn't jump as each one decodes.
+          final info = pngInfo(shown[i].$2);
+          final width = info == null || info.height == 0 ? height * 0.5 : height * info.width / info.height;
+          return ClipRRect(
+            key: ValueKey('plugins-detail-shot-${shown[i].$1}'),
+            borderRadius: BorderRadius.circular(pluginCorner(t, t.radius('md'))),
+            child: Image.memory(shown[i].$2, width: width, height: height, fit: BoxFit.contain, filterQuality: FilterQuality.medium, gaplessPlayback: true, cacheHeight: (height * MediaQuery.devicePixelRatioOf(context)).round(), errorBuilder: (context, _, _) => SizedBox(width: width, height: height)),
+          );
+        },
       ),
     );
   }

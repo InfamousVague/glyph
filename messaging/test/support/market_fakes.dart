@@ -255,7 +255,7 @@ class FakeInstalled extends InstalledPlugins {
   void tell() => notifyListeners();
 
   /// A store pack on this device, running in the registry (switched [on]) or stuck with [problem].
-  void putStore(PluginPack pack, {bool on = true, String? problem, bool running = true}) {
+  void putStore(PluginPack pack, {bool on = true, String? problem, bool running = true, PackRevocation? revoked}) {
     final plugin = FakePackPlugin(pack);
     stores.removeWhere((p) => p.id == pack.id);
     if (running) {
@@ -263,7 +263,7 @@ class FakeInstalled extends InstalledPlugins {
       registry.install(plugin);
       switches?.write(PluginRegistry.switchKey(plugin), on ? 'on' : 'off');
     }
-    stores.add(InstalledPack(id: pack.id, version: pack.version, sha256: sha256Hex(packBytes(pack)), installedAt: DateTime(2026, 11, 20), pack: pack, running: running, problem: problem, listing: {'name': pack.name, 'tagline': pack.tagline, 'hue': pack.hue, 'symbol': pack.symbol}));
+    stores.add(InstalledPack(id: pack.id, version: pack.version, sha256: sha256Hex(packBytes(pack)), installedAt: DateTime(2026, 11, 20), pack: pack, running: running, problem: problem, revoked: revoked, listing: {'name': pack.name, 'tagline': pack.tagline, 'hue': pack.hue, 'symbol': pack.symbol}));
     tell();
   }
 

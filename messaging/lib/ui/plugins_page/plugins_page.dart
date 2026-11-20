@@ -126,6 +126,17 @@ class _PluginsPageState extends State<PluginsPage> {
     _shelf = widget.shelf;
   }
 
+  /// Asked for another shelf or another plugin's page in its place: as if made afresh with them.
+  @override
+  void didUpdateWidget(PluginsPage old) {
+    super.didUpdateWidget(old);
+    if (widget.shelf != old.shelf || widget.head != old.head) _shelf = widget.shelf;
+    if (widget.open != old.open) {
+      _open = widget.open;
+      _placed = false;
+    }
+  }
+
   /// Every plugin the shelves have: the registry's (built-ins, the store packs that run, the dev packs while developer
   /// mode is on), then each store pack that doesn't run, then the checked listings for plugins not on this device (or
   /// a copy on it by another developer, which is offered as a new plugin).
