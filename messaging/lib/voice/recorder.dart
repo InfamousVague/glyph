@@ -93,9 +93,83 @@ class _Taking {
   final Set<String> tapped = {};
 }
 
+/// How loud each voice is as it is recorded, a tenth of a second at a time: read from the files the native half
+/// writes (48 kHz mono 16-bit, kept in step by the clock), so the recording's panel can draw each track's waveform as
+/// it grows (lib/ui/recording_float.dart; Matt, 2026-11-20: "show the different audio tracks being recorded and the
+/// sound waves from each audio track").
+class RecordingMeter extends ChangeNotifier {
+  /// Samples in one step of the waveform: a tenth of a second.
+  static const step = 4800;
+
+  /// Steps a second.
+  static const perSecond = 10;
+
+  /// Each voice's loudness by step, 0 to 1 (the loudest sample in it), from the recording's start.
+  final Map<String, List<double>> levels = {};
+  final Map<String, int> _read = {};
+
+  void clear() {
+    levels.clear();
+    _read.clear();
+    notifyListeners();
+  }
+
+  /// Reads what has been written to each of [files] (a voice's key and its file) since the last look.
+  void read(Map<String, String> files) {
+    var any = false;
+    for (final e in files.entries) {
+      final f = File(e.value);
+      if (!f.existsSync()) continue;
+      final length = f.lengthSync();
+      final from = _read[e.key] ?? 0;
+      // Whole steps only: what is past the last whole one is read next time.
+      final whole = ((length - from) ~/ (step * 2)) * step * 2;
+      if (whole <= 0) continue;
+      final raf = f.openSync();
+      try {
+        raf.setPositionSync(from);
+        final bytes = raf.readSync(whole);
+        final d = ByteData.sublistView(bytes);
+        final out = levels.putIfAbsent(e.key, () => <double>[]);
+        for (var at = 0; at + step * 2 <= bytes.length; at += step * 2) {
+          var peak = 0;
+          for (var i = at; i < at + step * 2; i += 2) {
+            final v = d.getInt16(i, Endian.little).abs();
+            if (v > peak) peak = v;
+          }
+          out.add(peak / 32768);
+        }
+        _read[e.key] = from + bytes.length;
+        any = true;
+      } finally {
+        raf.closeSync();
+      }
+    }
+    if (any) notifyListeners();
+  }
+
+  /// [levels] as given, for a picture or a test.
+  @visibleForTesting
+  void seed(Map<String, List<double>> given) {
+    levels
+      ..clear()
+      ..addAll(given);
+    notifyListeners();
+  }
+}
+
 class CallRecorder extends ChangeNotifier {
   CallRecorder._();
   static final CallRecorder instance = CallRecorder._();
+
+  /// Recording as given, for a picture of the recording's panel: [names] by key ('me' first), those in [left] no
+  /// longer taken. It takes nothing and writes nothing.
+  @visibleForTesting
+  CallRecorder.standing({required Map<String, String> names, required DateTime since, Set<String> left = const {}}) {
+    final t = _now = _Taking('rec-standing', Directory.systemTemp.path, 'general', 'standing', since);
+    t.names.addAll(names);
+    t.tapped.addAll(names.keys.where((k) => k != 'me' && !left.contains(k)));
+  }
 
   static const _channel = MethodChannel('ghost/recorder');
 
@@ -104,6 +178,23 @@ class CallRecorder extends ChangeNotifier {
   static bool get supported => !kIsWeb && (Platform.isAndroid || Platform.isMacOS || Platform.isIOS);
 
   _Taking? _now;
+
+  /// Each voice's loudness as it is recorded (RecordingMeter), read every tenth of a second while recording.
+  final RecordingMeter meter = RecordingMeter();
+  Timer? _metering;
+
+  /// The tracks being recorded, 'me' first: each voice's key, its name, and whether it is being taken now (false for
+  /// someone who left or took back their yes; their track keeps what it has).
+  List<({String key, String name, bool live})> get tracks {
+    final t = _now;
+    if (t == null) return const [];
+    return [
+      for (final k in t.names.keys)
+        if (k == 'me' || t.tapped.contains(k) || meter.levels.containsKey(k)) (key: k, name: t.names[k]!, live: k == 'me' || t.tapped.contains(k)),
+    ];
+  }
+
+  Map<String, String> _files(_Taking t) => {for (final k in t.names.keys) k: '${t.dir}/${_safe(k)}.pcm'};
 
   /// Being made into a file after stopping.
   bool finishing = false;
@@ -196,6 +287,11 @@ class CallRecorder extends ChangeNotifier {
     );
     _watch = _changes(s).listen((_) => _follow(s));
     _follow(s);
+    meter.clear();
+    _metering = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      final now = _now;
+      if (now != null) meter.read(_files(now));
+    });
     notifyListeners();
     return null;
   }
@@ -253,6 +349,9 @@ class CallRecorder extends ChangeNotifier {
     if (t == null) return null;
     _now = null;
     savedTo = null;
+    _metering?.cancel();
+    _metering = null;
+    meter.clear();
     await _watch?.cancel();
     _watch = null;
     final s = Voice.instance.session;
