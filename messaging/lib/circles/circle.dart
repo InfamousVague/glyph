@@ -477,6 +477,20 @@ class CircleManifest {
     return by == ownerId || !granted(id);
   }
 
+  /// Who was kicked, and when (ms since the epoch, on the kicker's clock): their app leaves the circle if it joined before
+  /// then, and may come back by an invite or the link, unlike someone [removed] (banned), who is kept out (Matt,
+  /// 2026-11-20: "I can't seem to kick users or ban them from circles"). Kept in the manifest's own field 'kk'.
+  Map<String, int> get kicked {
+    final k = extra['kk'] is Map ? extra['kk'] as Map : const {};
+    return {for (final e in k.entries) if (e.value is int && '${e.key}' != ownerId) '${e.key}': e.value as int};
+  }
+
+  /// The next version's fields with [id] kicked at [at].
+  Map<String, Object?> withKicked(String id, int at) {
+    final now = {...kicked, id: at};
+    return {...extra, 'kk': Map.fromEntries(now.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))};
+  }
+
   /// The next version's fields with [id] put out ([removed]), or let back ([back]).
   Map<String, Object?> withRemoved(String id, {bool back = false}) {
     final now = {...removed};
