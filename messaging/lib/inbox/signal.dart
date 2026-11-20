@@ -9,6 +9,7 @@ import '../app_state.dart';
 import '../desktop/store.dart';
 import '../sms.dart';
 import 'inbox.dart';
+import 'kept_writer.dart';
 
 /// What the Signal helper is to the app: lines out, lines in. A process in the app; a stand-in in a test.
 abstract class SignalLink {
@@ -407,7 +408,12 @@ class Signal extends InboxNetwork {
     if (group && name != null && name.isNotEmpty) _names[from] = name;
     final list = _messages.putIfAbsent(chat, () => []);
     final ts = (m['ts'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch;
-    if (list.any((x) => x['ts'] == ts && x['from'] == from)) return;
+    // Here already? The list is in order of time, so one of the same time is at its end: looked for from there back,
+    // not through the whole chat (docs/performance-audit.md, finding 4).
+    for (var i = list.length - 1; i >= 0 && (list[i]['ts'] as int) >= ts; i--) {
+      if (list[i]['ts'] == ts && list[i]['from'] == from) return;
+    }
+    final inOrder = list.isEmpty || ts >= (list.last['ts'] as int);
     list.add({
       'ts': ts,
       'from': from,
@@ -419,7 +425,7 @@ class Signal extends InboxNetwork {
       if (m['mentions'] is List && (m['mentions'] as List).isNotEmpty) 'mentions': m['mentions'],
     });
     _nameMentioned(m['mentions'] as List?);
-    list.sort((a, b) => (a['ts'] as int).compareTo(b['ts'] as int));
+    if (!inOrder) list.sort((a, b) => (a['ts'] as int).compareTo(b['ts'] as int));
     final fresh = !_chats.containsKey(chat);
     final c = _chats.putIfAbsent(chat, () => {'unread': 0});
     if (fresh && !group && (_names[chat]?.isEmpty ?? true)) unawaited(_nameChats());
@@ -876,31 +882,15 @@ class Signal extends InboxNetwork {
     } catch (_) {}
   }
 
-  Timer? _saving;
-  void _save() {
-    _saving?.cancel();
-    _saving = Timer(const Duration(milliseconds: 400), () {
-      try {
-        _file.parent.createSync(recursive: true);
-        final tmp = File('${_file.path}.tmp');
-        tmp.writeAsStringSync(jsonEncode({'chats': _chats, 'messages': _messages, 'names': _names, 'numbers': _numbers, 'groups': _groups.toList()}));
-        tmp.renameSync(_file.path);
-      } catch (_) {}
-    });
-  }
+  /// What is kept, as it stands: handed to [_writer], which makes the file elsewhere (lib/inbox/kept_writer.dart).
+  Map<String, Object?> _keptNow() => {'chats': _chats, 'messages': _messages, 'names': _names, 'numbers': _numbers, 'groups': _groups.toList()};
+
+  late final KeptWriter _writer = KeptWriter(file: () => _file, snapshot: _keptNow);
+  void _save() => _writer.save();
 
   /// Writes what is kept now (a test's end, the app going).
   @visibleForTesting
-  void flush() {
-    if (_saving?.isActive ?? false) {
-      _saving!.cancel();
-      _saving = Timer(Duration.zero, () {});
-      try {
-        _file.parent.createSync(recursive: true);
-        _file.writeAsStringSync(jsonEncode({'chats': _chats, 'messages': _messages, 'names': _names, 'numbers': _numbers, 'groups': _groups.toList()}));
-      } catch (_) {}
-    }
-  }
+  void flush() => _writer.flush();
 
   Future<Object?> _ask(String op, [Map<String, Object?> args = const {}]) {
     final link = _link;

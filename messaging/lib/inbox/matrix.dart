@@ -9,6 +9,7 @@ import '../app_state.dart';
 import '../desktop/store.dart';
 import '../sms.dart';
 import 'inbox.dart';
+import 'kept_writer.dart';
 
 /// What the Matrix helper is to the app: lines out, lines in. A process in the app; a stand-in in a test.
 abstract class MatrixLink {
@@ -772,29 +773,12 @@ class Matrix extends InboxNetwork {
     } catch (_) {}
   }
 
-  Timer? _saving;
-  void _save() {
-    _saving?.cancel();
-    _saving = Timer(const Duration(milliseconds: 400), _write);
-  }
-
-  void _write() {
-    try {
-      _file.parent.createSync(recursive: true);
-      final tmp = File('${_file.path}.tmp');
-      tmp.writeAsStringSync(jsonEncode(_keptNow()));
-      tmp.renameSync(_file.path);
-    } catch (_) {}
-  }
+  late final KeptWriter _writer = KeptWriter(file: () => _file, snapshot: _keptNow);
+  void _save() => _writer.save();
 
   /// Writes what is kept now (a test's end, the app going).
   @visibleForTesting
-  void flush() {
-    if (_saving?.isActive ?? false) {
-      _saving!.cancel();
-      _write();
-    }
-  }
+  void flush() => _writer.flush();
 
   Future<Object?> _ask(String op, [Map<String, Object?> args = const {}]) {
     final link = _link;

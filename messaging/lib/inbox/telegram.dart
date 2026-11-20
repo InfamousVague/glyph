@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import '../app_state.dart';
 import '../desktop/store.dart';
 import 'inbox.dart';
+import 'kept_writer.dart';
 import 'td_json.dart';
 
 /// Telegram, as a Telegram app: TDLib (Telegram's own client library, lib/inbox/td_json.dart) signed in to the
@@ -830,9 +831,13 @@ class Telegram extends InboxNetwork {
       // The newest thousand edited messages: enough to see what was said, never a file that only grows.
       final all = _versions;
       if (all.length > 1000) all.remove(all.keys.first);
-      f.writeAsStringSync(jsonEncode(all));
+      // Written elsewhere, a run of edits as one write (lib/inbox/kept_writer.dart): up to a thousand edits were
+      // written whole, here, for each message edited.
+      (_versionsWriter ??= KeptWriter(file: () => _versionsFile!, snapshot: () => _versions)).save();
     } catch (_) {}
   }
+
+  KeptWriter? _versionsWriter;
 
   /// A message edited: its words before kept, and it drawn again as it now is (its reactions as they stand here).
   void _edited(String chat, String id, Map<String, Object?> Function(Map<String, Object?> raw) change) {
@@ -1504,6 +1509,7 @@ class Telegram extends InboxNetwork {
   @override
   void dispose() {
     _disposed = true;
+    _versionsWriter?.flush();
     _sub?.cancel();
     _td?.close();
     super.dispose();

@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:pointycastle/export.dart' show SHA256Digest;
 
 import '../desktop/store.dart' show DeskStore;
+import '../inbox/kept_writer.dart';
 import '../me/me.dart';
 import '../net/crypto.dart';
 import '../net/file_seal.dart';
@@ -1433,14 +1434,21 @@ class FilesSpace {
     } catch (_) {}
   }
 
-  void _save() {
-    try {
-      final f = _file;
-      f.parent.createSync(recursive: true);
-      final tmp = File('${f.path}.tmp')..writeAsStringSync(jsonEncode({'seq': seq, 'log': [for (final e in _log) e.toJson()], 'sa': ?_strictAfter, if (info != null) 'info': info!.toJson()}));
-      tmp.renameSync(f.path);
-    } catch (_) {}
-  }
+  /// The log is kept by another isolate, soon after it changes (lib/inbox/kept_writer.dart): the whole of it, which
+  /// only grows, was made JSON and written on the thread that draws at each refresh and each packet
+  /// (docs/performance-audit.md, finding 4).
+  late final KeptWriter _writer = KeptWriter(
+    file: () => _file,
+    snapshot: () => {'seq': seq, 'log': [for (final e in _log) e.toJson()], 'sa': ?_strictAfter, if (info != null) 'info': info!.toJson()},
+    wait: const Duration(milliseconds: 300),
+    most: const Duration(seconds: 2),
+  );
+
+  void _save() => _writer.save();
+
+  /// Writes the log now (a test that reads the file after).
+  @visibleForTesting
+  void flushKept() => _writer.flush();
 
   /// Reads the list again from the log: each signed entry under the roster it was written under where that is known
   /// (the log's own rosters, or this device's), the rest under the roster as it is now (FilesList.read).
