@@ -1,7 +1,7 @@
 # Performance audit (2026-11-20)
 
 Matt, 2026-11-20: "Please audit the whole app and search for ways we can improve performance it's quite laggy on
-linux". Findings 1 and 5 are fixed (said under each); the rest are not. Read at 0.10.4 (`49d0e0a21`).
+linux". Every finding is fixed or answered, said under each. None of it has been measured on Linux yet. Read at 0.10.4 (`49d0e0a21`).
 
 **How it was done, and what it is not.** The code was read for what makes frames slow or keeps them coming (three
 sweeps: idle animations and timers; rebuild scope and lists; blocking work on the UI thread), and the top findings
@@ -49,6 +49,14 @@ mode once instead of spawning `chmod`.
 
 ### 2. The conversation list rebuilds whole on any network, voice or summary change, with O(N) work each time
 
+**Fixed 2026-11-20** (Matt: "fix all the performance issues found above"; `test/perf_lists_test.dart`): a network's
+shown and archived chats are made once for each change and each state of Ghost's own lists (`InboxNetwork.stamp`,
+`shownChats`), and one of those lists is read from its kept form once (`localList`); Telegram marks its lists stale on
+an update and makes them when next read, once, and TDLib's JSON is read in its own isolate; a chat's scam signs are
+remembered; a tab's conversations are worked out once a build. Still as it was: the list is one `State` that builds
+whole on any of its notifiers (a build is now cheap, but it is still a build), and Voice tells it of every change in
+a call.
+
 - `ConversationsScreen` calls `setState` on `Summaries`, `Voice`, `Circles` and every network
   (`lib/ui/conversations.dart:170-188`); the build then filters, sorts and re-parses pref strings per chat
   (`_shown`, `_of` twice, `_mixed`, `shownChats`/`localList` in `lib/inbox/inbox.dart:482,598`), runs scam regexes
@@ -62,6 +70,11 @@ the per-chat facts; decode TDLib's JSON in its own isolate.
 
 ### 3. A conversation builds every message it holds, with regexes made per message
 
+**Fixed 2026-11-20** (`test/jump_to_latest_test.dart`): the list is a builder, a message one keyed row made as it
+nears the screen, so what the plugins find in a message's words is found for the rows on screen alone. The patterns
+were left where they are: Dart keeps the patterns it has compiled, so making one again by its source is a lookup.
+The Dial-Up look's transcript (`_lines`) is still built whole.
+
 - `lib/ui/thread.dart:1091`: `ListView(reverse: true, children: items)`, not a builder: 120 messages at first, 300
   more a page, all built on every rebuild.
 - Per message per rebuild: plugin fills construct ~14 `RegExp`s (`lib/plugins/actions.dart:48-130`), find links
@@ -71,6 +84,13 @@ the per-chat facts; decode TDLib's JSON in its own isolate.
 Fixes: `ListView.builder` over prepared rows; cache a message's fills by its key; make the regexes top-level finals.
 
 ### 4. Signal, WhatsApp and Matrix write their whole store on the UI thread after every event
+
+**Fixed 2026-11-20** (`test/kept_writer_test.dart`): `lib/inbox/kept_writer.dart` hands what is kept to another
+isolate, which makes the JSON and writes the file, a run of changes as one write (two seconds after the last, ten at
+most after the first); the three stores, Telegram's kept edits and a files space's log go through it. WhatsApp knows
+a message it has by an index of ids and sorts a chat only when a message comes out of order; Signal looks from the
+end back. Still as it was: history is never trimmed (Signal's exists nowhere else), each store is read whole on the
+main thread as the app starts, and a helper's lines are read (JSON) on the main thread one at a time.
 
 - `lib/inbox/signal.dart:880`, `whatsapp.dart:760`, `matrix.dart:776`: `writeAsStringSync(jsonEncode(everything))`
   400 ms after each message, receipt, reaction or name; history is never trimmed, so it grows without end.
@@ -92,6 +112,11 @@ frame. Fix: run it only while there is a call; a `RepaintBoundary` round it.
 
 ### 6. Pictures decoded at full size, and some decoded again on every rebuild
 
+**Fixed 2026-11-20** (`test/picture_decode_test.dart`): `lib/kit/picture_decode.dart` gives the width to unpack a
+face or a filling picture at, keeps a base64 picture's bytes so each build hands the image cache the same ones, and
+reads a previewed file once. Faces, space and profile faces, circle banners, a network's message photographs, the
+chat background and the files preview use it. The full-screen viewer still unpacks the whole picture (it zooms).
+
 - Avatars and message pictures have no `cacheWidth` (`lib/ui/common.dart:764,774`, `lib/ui/inbox_ui.dart:1425`,
   `thread.dart:2113`): a 40 px face decodes the whole photo.
 - Space faces `base64Decode` and decode anew each build, one a message row (`lib/ui/hangout_screen.dart:2461`,
@@ -99,11 +124,22 @@ frame. Fix: run it only while there is a call; a `RepaintBoundary` round it.
 
 ### 7. Signature checks inside builds (spaces and circles)
 
+**Fixed 2026-11-20** (`test/perf_verify_test.dart`): `NetCrypto.verifyOnce` remembers the answer for the same key,
+message and signature; a roster's and a circle's grants ask it.
+
 `lib/voice/roles.dart:235` and `lib/circles/circle.dart:362-403` verify P-256 signatures in pure Dart from getters
 that rows call while building (`hangout_screen.dart:1815`): several ms each, per message row, per rebuild. Fix:
 remember the answer per grant.
 
 ### 8. Smaller, real
+
+**Fixed 2026-11-20**: the search (each conversation's words folded once, `conversations.dart`); the resize
+(`GlacierTheme.resizeSettle`, 120 ms on a computer; `test/perf_rebuilds_test.dart`); the polls (Bluesky, Mastodon,
+Google Chat, Teams and the phone's friends tell their listeners only when the answer differs); the spinner paints by
+itself. **Left, on purpose:** every face listening to presence (looked at again: the face itself is not built again,
+only a dot, so there is little to win); hover building a row again (inside the kit, and it stays in the row); and
+pausing when the window is hidden (Flutter stops drawing a hidden window by itself; what goes on is the networks'
+asking, which notifications need).
 
 - Every avatar listens to all presence changes (`common.dart:665`): one status change rebuilds every face.
 - Search scans everything on each keystroke (`conversations.dart:530`): debounce, pre-fold once.
@@ -121,10 +157,11 @@ lazy and keyed; contact-photo futures are cached; effects, ripple avatars and sp
 is in menus, popovers and call screens, not the everyday screen (and `--dart-define=GHOST_PLAIN=true` turns the kit's
 blur off: an option for the Linux build); game sensing does not run on Linux.
 
-## Suggested order
+## What is left
 
-1. Finding 1 and finding 5: a few lines each, and they remove most whole-app rebuilds and the endless redraw.
-2. Measure on Linux (`integration_test/desk_frames_test.dart` is the frame counter the Mac used; `flutter run
-   --profile` with the performance overlay) before the larger ones, so the order below is from numbers.
-3. Findings 2, 3 and 4.
-4. Findings 6 and 7, then 8.
+1. **Measure on Linux.** Everything above was reasoned and tested on a Mac. `glxinfo | grep "OpenGL renderer"`
+   first; then `flutter run --profile` with the performance overlay, or `integration_test/desk_frames_test.dart`.
+2. The list of conversations as one `State` (finding 2's remainder): split what Voice, Summaries and the networks
+   each change into their own listeners, if a profile still shows its builds.
+3. The stores read whole at start, and a store a chat rather than one file (finding 4's remainder), if start-up or
+   memory shows it.
