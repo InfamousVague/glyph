@@ -7,6 +7,8 @@
 /// flame in the list's top bar, and a sheet about them under it.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -206,8 +208,26 @@ class SoulsSheet extends StatelessWidget {
                   if (badges.isNotEmpty) ...[
                     SizedBox(height: t.space(4)),
                     Text('YOUR BADGES', style: pageText(t, t.fontSize('xs'), weight: 'bold', color: t.color('app-ink-3'))),
+                    SizedBox(height: t.space(1)),
+                    // One shows beside your name, everywhere: the one pressed (Matt, 2026-11-20: "allow the user to
+                    // choose one badge to showcase next to their names don't show them all").
+                    Text(badges.length > 1 ? 'Tap one to show it beside your name.' : 'Shown beside your name.', style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
                     SizedBox(height: t.space(2)),
-                    Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [for (final b in badges) SpecialBadgeChip(badge: b)]),
+                    Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [
+                      for (final b in badges)
+                        Builder(builder: (context) {
+                          final shown = SpecialBadges.instance.shownOf('', me: true)?.id == b.id;
+                          return GlacierPressable(
+                            key: ValueKey('showcase-${b.id}'),
+                            onPressed: badges.length > 1 && !shown ? () => unawaited(Me.instance.setShowcase(b.id).catchError((_) {})) : null,
+                            semanticLabel: shown ? '${b.name}, shown beside your name' : 'Show ${b.name} beside your name',
+                            builder: (context, state) => Row(mainAxisSize: MainAxisSize.min, children: [
+                              SpecialBadgeChip(badge: b, on: shown || badges.length == 1),
+                              if (shown && badges.length > 1) ...[SizedBox(width: t.space(1)), AppIcon(Lucide.check, size: 14, color: t.color('app-ink-2'))],
+                            ]),
+                          );
+                        }),
+                    ]),
                   ],
                 ]);
               },

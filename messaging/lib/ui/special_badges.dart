@@ -4,7 +4,6 @@
 /// Who has which comes with the verified-number answer (Me.badges), so drawing them asks the relay nothing more.
 library;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -47,7 +46,8 @@ List<SpecialBadge> specialBadgesOf(Iterable<String> ids) => [for (final b in spe
 /// Who has which badge, as the relay last said with its verified-number answer: by `i:<id>` and `u:<username>`.
 class SpecialBadges extends ChangeNotifier {
   SpecialBadges() {
-    Me.onSpecial ??= (ids, names, byId, byName) => instance.heard(ids: ids, names: names, byId: byId, byName: byName);
+    Me.onSpecial ??= (ids, names, byId, byName, showById, showByName) =>
+        instance.heard(ids: ids, names: names, byId: byId, byName: byName, showById: showById, showByName: showByName);
   }
 
   static SpecialBadges instance = SpecialBadges();
@@ -55,8 +55,30 @@ class SpecialBadges extends ChangeNotifier {
   final Map<String, List<String>> _known = {};
 
   /// What the relay said of [ids] and [names] it was asked of: those with badges, and none for the rest.
-  void heard({required List<String> ids, required List<String> names, Map<String, List<String>> byId = const {}, Map<String, List<String>> byName = const {}}) {
+  void heard({
+    required List<String> ids,
+    required List<String> names,
+    Map<String, List<String>> byId = const {},
+    Map<String, List<String>> byName = const {},
+    Map<String, String> showById = const {},
+    Map<String, String> showByName = const {},
+  }) {
     var changed = false;
+    void show(String key, String? now) {
+      if (_shown[key] != now) changed = true;
+      if (now == null) {
+        _shown.remove(key);
+      } else {
+        _shown[key] = now;
+      }
+    }
+
+    for (final i in ids) {
+      show('i:$i', showById[i]);
+    }
+    for (final n in names) {
+      show('u:${n.toLowerCase()}', showByName[n.toLowerCase()]);
+    }
     void put(String key, List<String> now) {
       final had = _known[key];
       if (had == null || had.join(',') != now.join(',')) changed = true;
@@ -72,6 +94,19 @@ class SpecialBadges extends ChangeNotifier {
     if (changed) notifyListeners();
   }
 
+  /// The one badge each shows beside their name, as the relay said: by `i:<id>` and `u:<username>`.
+  final Map<String, String> _shown = {};
+
+  /// The badge [id] (or the person with [username]) shows beside their name: the one they chose, else their highest;
+  /// this person's own for [me]. Null for none.
+  SpecialBadge? shownOf(String id, {String? username, bool me = false}) {
+    final all = of(id, username: username, me: me);
+    if (all.isEmpty) return null;
+    final u = username == null || username.isEmpty ? null : 'u:${username.toLowerCase()}';
+    final chosen = me ? Me.instance.showcase : (_shown['i:$id'] ?? (u == null ? null : _shown[u]));
+    return all.where((b) => b.id == chosen).firstOrNull ?? all.first;
+  }
+
   /// The badges [id] (or the person with [username]) has, as far as is known; this person's own for [me].
   List<SpecialBadge> of(String id, {String? username, bool me = false}) {
     if (me) return specialBadgesOf(Me.instance.special);
@@ -80,10 +115,14 @@ class SpecialBadges extends ChangeNotifier {
   }
 
   @visibleForTesting
-  void reset() => _known.clear();
+  void reset() {
+    _known.clear();
+    _shown.clear();
+  }
 }
 
-/// The badges' icons in a row, beside a name; nothing where there are none.
+/// The one badge a person shows beside their name (their choice, else their highest), its icon; nothing where they have
+/// none (Matt, 2026-11-20: "allow the user to choose one badge to showcase next to their names don't show them all").
 class SpecialBadgeMarks extends StatelessWidget {
   const SpecialBadgeMarks({super.key, required this.id, this.username, this.me = false, this.size = 14});
   final String id;
@@ -96,17 +135,14 @@ class SpecialBadgeMarks extends StatelessWidget {
     return ListenableBuilder(
       listenable: Listenable.merge([SpecialBadges.instance, if (me) Me.instance]),
       builder: (context, _) {
-        final badges = SpecialBadges.instance.of(id, username: username, me: me);
-        if (badges.isEmpty) return const SizedBox.shrink();
+        final b = SpecialBadges.instance.shownOf(id, username: username, me: me);
+        if (b == null) return const SizedBox.shrink();
         final t = context.tokens;
-        return Row(mainAxisSize: MainAxisSize.min, children: [
-          for (final b in badges)
-            Padding(
-              key: ValueKey('special-${b.id}-$id'),
-              padding: EdgeInsets.only(left: t.space(1)),
-              child: Semantics(label: b.name, child: AppIcon(b.icon, size: size, color: PluginHues.of(t, b.hue).accent)),
-            ),
-        ]);
+        return Padding(
+          key: ValueKey('special-${b.id}-$id'),
+          padding: EdgeInsets.only(left: t.space(1)),
+          child: Semantics(label: b.name, child: AppIcon(b.icon, size: size, color: PluginHues.of(t, b.hue).accent)),
+        );
       },
     );
   }
