@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/ui/composer_box.dart';
 import 'package:ghost_messaging/accent.dart';
 import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/ui/nav_style.dart';
 import 'package:ghost_messaging/art/app_icon.dart';
 import 'package:ghost_messaging/art/lucide.g.dart';
 import 'package:ghost_messaging/backgrounds.dart';
@@ -790,7 +791,8 @@ Future<void> shootLook(WidgetTester tester, TokenSheet sheet, Look look, String 
   PaintingBinding.instance.imageCache.clear();
   final state = AppState()
     ..setTheme(brightness)
-    ..setLook(look);
+    ..setLook(look)
+    ..set(NavStyle.pref, NavStyle.classic.name);
   screen.choices?.call(state);
   if (screen.after != null) addTearDown(screen.after!);
   final name = '${look.name}-$brightness-${screen.name}';

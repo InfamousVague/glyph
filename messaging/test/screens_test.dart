@@ -16,6 +16,7 @@ import 'package:ghost_messaging/me/me.dart';
 import 'package:ghost_messaging/ui/me.dart';
 import 'package:ghost_messaging/accent.dart';
 import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/ui/nav_style.dart';
 import 'package:ghost_messaging/art/app_icon.dart';
 import 'package:ghost_messaging/art/lucide_more.dart';
 import 'package:ghost_messaging/art/lucide.g.dart';
@@ -454,7 +455,9 @@ void _answerChannel() {
 }
 
 Future<void> _shoot(WidgetTester tester, TokenSheet sheet, Widget screen, String name, {required bool dark, Map<String, String> prefs = const {}}) async {
-  final state = AppState()..setTheme(dark ? 'dark' : 'light');
+  final state = AppState()
+    ..setTheme(dark ? 'dark' : 'light')
+    ..set(NavStyle.pref, NavStyle.classic.name);
   for (final e in prefs.entries) {
     state.set(e.key, e.value);
   }

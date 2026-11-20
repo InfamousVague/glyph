@@ -17,7 +17,7 @@ import 'window_chrome.dart';
 
 /// The page under every screen: the ground, a bar with the way back (or a big title), its actions, and the body.
 class GhostPage extends StatelessWidget {
-  const GhostPage({super.key, required this.title, required this.body, this.back = true, this.actions = const [], this.titleWidget, this.footer, this.top, this.subtitle, this.onTitle, this.titleLeading, this.onBack, this.bigTitle, this.headerBackground, this.headerExtra = 0, this.headerInk});
+  const GhostPage({super.key, required this.title, required this.body, this.back = true, this.actions = const [], this.titleWidget, this.footer, this.top, this.subtitle, this.onTitle, this.titleLeading, this.onBack, this.bigTitle, this.headerBackground, this.headerExtra = 0, this.headerInk, this.noBar = false});
 
   final String title;
   final Widget? titleWidget;
@@ -55,6 +55,11 @@ class GhostPage extends StatelessWidget {
 
   /// The back arrow's colour over [headerBackground]; the page's ink where null.
   final Color? headerInk;
+
+  /// No top bar at all, only a step under the status bar: for a page whose bar would be empty (the conversations with
+  /// nothing to mark read and no plugin's button; Matt, 2026-11-19: "if there is no mark as read or cleaner icons
+  /// rendered at the top remove the extra space above the searchbar too").
+  final bool noBar;
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +104,7 @@ class GhostPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (headerBackground == null) ...[SizedBox(height: pad.top), ?top, row] else ...[
+          if (headerBackground == null) ...[SizedBox(height: pad.top), ?top, if (noBar) SizedBox(height: t.space(3)) else row] else ...[
             // The header inside its background, the background under the phone's status bar (its clock and battery)
             // rather than behind it (Matt, 2026-11-19: "add a safe area above in the app to give room for the top bar
             // on the phone like the settings batteries and clock"); the row where it always is.
