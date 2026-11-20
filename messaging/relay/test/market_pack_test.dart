@@ -135,7 +135,7 @@ void main() {
 
   group('addresses', () {
     test('an https address of a public site: not an IP, not punycode, not a local name, not ours', () {
-      for (final bad in ['https://192.168.1.1/x', 'https://xn--pple-43d.com', 'https://printer.local/', 'https://gogho.st/join/x', 'https://a.ghost-sms.com/', 'http://example.com/', 'https://user@example.com/', 'https://example.com:8443/', 'https://example.com/#top', 'https://example.com/{tag:x}', 'https://example.com/a b', 'https://localhost/', 'https://router.lan/', 'https://box.home/', 'https://x.internal/', 'https://1.0.0.127.in-addr.arpa/', 'https://[::1]/', 'https://-bad.com/', 'https://example.com./', 'https://${'a' * 64}.com/', 'https://example.com/${'a' * 200}', 'example.com', 'https:example.com']) {
+      for (final bad in ['https://192.168.1.1/x', 'https://xn--pple-43d.com', 'https://printer.local/', 'https://gogho.st/join/x', 'https://a.ghost-sms.com/', 'http://example.com/', 'https://user@example.com/', 'https://example.com:8443/', 'https://example.com/#top', 'https://example.com/{tag:x}', 'https://example.com/a b', 'https://Example.com/', 'https://example.com:443/', 'https://example.com/#', 'https://192.168.257/', 'https://0x7f.1/', 'https://example.123/', 'https://localhost/', 'https://router.lan/', 'https://box.home/', 'https://x.internal/', 'https://1.0.0.127.in-addr.arpa/', 'https://[::1]/', 'https://-bad.com/', 'https://example.com./', 'https://${'a' * 64}.com/', 'https://example.com/${'a' * 200}', 'example.com', 'https:example.com']) {
         expect(packAddressIssue(bad), 'bad_url', reason: bad);
       }
       for (final good in ['https://example.com/plugins/bills', 'https://example.com/plugins/parcels/help', 'https://help.example.co.uk/a?b=c', 'https://ghost-sms.example.com/']) {
@@ -146,7 +146,7 @@ void main() {
     test('an email address for a help link, its domain held to the same rules', () {
       expect(packAddressIssue('help@example.com', email: true), isNull);
       expect(packAddressIssue('Maya.B+plugins@Example.COM', email: true), isNull);
-      for (final bad in ['help@printer.local', 'help@xn--pple-43d.com', 'help@gogho.st', 'help@192.168.1.1', 'help@example', 'he lp@example.com', '${'a' * 65}@example.com']) {
+      for (final bad in ['help@printer.local', 'help@xn--pple-43d.com', 'help@gogho.st', 'help@192.168.1.1', 'help@example', 'help@example.c0m', 'he lp@example.com', '${'a' * 65}@example.com']) {
         expect(packAddressIssue(bad, email: true), 'bad_email', reason: bad);
       }
       expect(packAddressIssue('help@example.com'), 'bad_url', reason: 'a link is never an email');

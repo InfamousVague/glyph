@@ -161,6 +161,7 @@ bool _hasLoneSurrogate(String s) {
 // --- addresses --------------------------------------------------------------------------------------------------------
 
 final RegExp _hostLabel = RegExp(r'^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$');
+final RegExp _lastLabel = RegExp(r'^[a-z]{2,63}$');
 final RegExp _emailShape = RegExp(r'^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(\.[A-Za-z0-9-]{1,63}){1,4}$');
 final RegExp _space = RegExp(r'\s');
 
@@ -171,14 +172,16 @@ const List<String> _localSuffixes = ['.local', '.lan', '.home', '.internal', '.l
 const List<String> _ownHosts = ['gogho.st', 'ghost-sms.com'];
 
 /// Two or more labels of lower-case ASCII letters, digits and inner hyphens, no punycode (a look-alike's disguise), not
-/// an IP address (a home router's page), not a local name, not ours.
+/// an IP address (a home router's page), not a local name, not ours. Its last label is letters alone, as every real one
+/// is: a browser opens a host that ends in a number as an IP address (192.168.257 is 192.168.1.1), which
+/// InternetAddress doesn't read as one. The app's rule (lib/plugins/pack/format.dart) is the same.
 bool _hostOk(String host) {
   final labels = host.split('.');
   if (labels.length < 2) return false;
   for (final l in labels) {
     if (!_hostLabel.hasMatch(l) || l.startsWith('xn--')) return false;
   }
-  if (InternetAddress.tryParse(host) != null) return false;
+  if (!_lastLabel.hasMatch(labels.last) || InternetAddress.tryParse(host) != null) return false;
   for (final s in _localSuffixes) {
     if (host.endsWith(s)) return false;
   }
@@ -197,10 +200,15 @@ String? packAddressIssue(String address, {bool email = false}) {
     if (address.length > PackLimits.address || !_emailShape.hasMatch(address)) return 'bad_email';
     return _hostOk(address.substring(address.indexOf('@') + 1).toLowerCase()) ? null : 'bad_email';
   }
-  if (address.length > PackLimits.address || _space.hasMatch(address) || address.contains('{') || address.contains('}')) return 'bad_url';
+  if (address.length > PackLimits.address || !address.startsWith('https://') || _space.hasMatch(address) || address.contains('{') || address.contains('}') || address.contains('#')) return 'bad_url';
   final uri = Uri.tryParse(address);
   if (uri == null || uri.scheme != 'https' || !uri.hasAuthority || uri.userInfo.isNotEmpty || uri.hasPort || uri.hasFragment) return 'bad_url';
-  return _hostOk(uri.host) ? null : 'bad_url';
+  // The host as written, up to its path or query: Uri drops https' own port (443) and lower-cases a host, so it is the
+  // words themselves that are held to the rules.
+  final rest = address.substring('https://'.length);
+  final end = rest.indexOf(RegExp(r'[/?]'));
+  final host = end < 0 ? rest : rest.substring(0, end);
+  return host == uri.host && _hostOk(host) ? null : 'bad_url';
 }
 
 // --- pictures ---------------------------------------------------------------------------------------------------------
