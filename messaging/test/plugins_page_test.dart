@@ -1,9 +1,13 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:glacier/glacier.dart' show GlacierSwitch;
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/plugins/codes.dart';
 import 'package:ghost_messaging/plugins/embeds.dart';
+import 'package:ghost_messaging/plugins/networks.dart';
 import 'package:ghost_messaging/plugins/plugin.dart';
 import 'package:ghost_messaging/plugins/quiet.dart';
 import 'package:ghost_messaging/plugins/record_call.dart';
@@ -12,6 +16,7 @@ import 'package:ghost_messaging/plugins/registry.dart';
 import 'package:ghost_messaging/plugins/settings.dart';
 import 'package:ghost_messaging/plugins/spam.dart';
 import 'package:ghost_messaging/plugins/translate.dart';
+import 'package:ghost_messaging/ui/me.dart' show NetworkMark;
 import 'package:ghost_messaging/ui/plugins_page/plugin_cards.dart';
 import 'package:ghost_messaging/ui/plugins_page/plugin_detail.dart';
 import 'package:ghost_messaging/ui/plugins_page/plugins_page.dart';
@@ -57,6 +62,32 @@ void main() {
     expect([for (final e in added.evaluate()) (e.widget as PluginCard).plugin.id], ['codes', 'spam']);
     final discover = find.descendant(of: _key('plugins-shelf-discover'), matching: find.byType(PluginCard));
     expect([for (final e in discover.evaluate()) (e.widget as PluginCard).plugin.id], ['embeds', 'quiet']);
+  });
+
+  testWidgets('the networks are plugins on a Networks shelf, each with its mark and its connection once added', (tester) async {
+    // Matt, 2026-11-20: "i want all of them to be in the marketplace".
+    registry = PluginRegistry([..._plugins, ...networkPlugins]);
+    await page(tester, size: const Size(412, 3200));
+    final cards = [for (final e in find.byType(PluginCard).evaluate()) (e.widget as PluginCard).plugin.id];
+    for (final p in networkPlugins) {
+      expect(cards, contains(p.id), reason: p.name);
+    }
+    expect(find.byType(NetworkMark), findsWidgets, reason: 'a network\'s own mark on its tile');
+    await tester.runAsync(() async {
+      final image = await captureImage(find.byType(WidgetsApp).evaluate().single);
+      final png = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      File('build/themes/networks/shelf.png')
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync(png!.buffer.asUint8List());
+    });
+    await tester.ensureVisible(_key('plugins-chip-networks'));
+    await settle(tester);
+    await tester.tap(_key('plugins-chip-networks'));
+    await settle(tester);
+    final shown = [for (final e in find.byType(PluginCard).evaluate()) (e.widget as PluginCard).plugin.id];
+    expect(shown, [for (final p in networkPlugins) p.id]);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('plugins meant for circles are shown apart from those for this device alone, under their own chip', (tester) async {
