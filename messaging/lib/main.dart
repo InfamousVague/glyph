@@ -171,7 +171,13 @@ Future<void> _watchFrames() async {
 
 /// The page's faces, with the emoji set chosen first among their fallbacks: Inter draws no emoji, so every one is
 /// the set's. The phone's own set adds no fallback, and Android's emoji font is what is left.
-GlacierTypography ghostTypography(String emoji) {
+/// The same object for the same emoji set: the theme is keyed on it (GlacierTheme), and a new one each build made new
+/// tokens, and so the whole app rebuilt, on every change of any choice (docs/performance-audit.md).
+final Map<String, GlacierTypography> _typographies = {};
+
+GlacierTypography ghostTypography(String emoji) => _typographies[emoji] ??= _typography(emoji);
+
+GlacierTypography _typography(String emoji) {
   final family = emojiSet(emoji).family;
   return GlacierTypography(
     features: const [FontFeature('cv11'), FontFeature('ss01')],

@@ -1,7 +1,7 @@
 # Performance audit (2026-11-20)
 
 Matt, 2026-11-20: "Please audit the whole app and search for ways we can improve performance it's quite laggy on
-linux". An audit only: nothing here is fixed yet. Read at 0.10.4 (`49d0e0a21`).
+linux". Findings 1 and 5 are fixed (said under each); the rest are not. Read at 0.10.4 (`49d0e0a21`).
 
 **How it was done, and what it is not.** The code was read for what makes frames slow or keeps them coming (three
 sweeps: idle animations and timers; rebuild scope and lists; blocking work on the UI thread), and the top findings
@@ -16,6 +16,14 @@ stock one (`linux/runner/my_application.cc`); the build is `flutter build linux 
 ## Ranked findings
 
 ### 1. Every settings write rebuilds and re-themes the whole app (proven)
+
+**Fixed 2026-11-20** (Matt: "Yes, fix both"; `test/perf_rebuilds_test.dart`, which fails without the fixes): the
+typography object is the same for the same emoji set (`ghostTypography`, `lib/main.dart`), so a choice written no
+longer makes new tokens; `AppState.set` to the same value does nothing; `AppState.keep` keeps a store's bookkeeping
+without telling the screens (`voice_seen`, `voice_read`, `hangout_*_m`, `circles_seen`); the computer's choices file
+is written at most once in 200 ms, the newest of a burst, and the folder is closed (`chmod 700`) once a run in place
+of a `chmod` started for every write (`lib/desktop/store.dart`). Still as it was: `AppScope` tells every
+`AppState.of` dependent on each real change, and the other stores' keys still go through `set`.
 
 - `AppState.set` (`lib/app_state.dart:38`) always notifies, also when the value did not change.
 - The app's root listens (`lib/desktop/main.dart:320`, `lib/main.dart:195`) and rebuilds `WidgetsApp`, passing
@@ -73,6 +81,9 @@ Fixes: write asynchronously (encode in an isolate), a longer debounce, a file a 
 a batch.
 
 ### 5. After the first call, the window is redrawn every frame for ever
+
+**Fixed 2026-11-20** (`test/perf_rebuilds_test.dart`): the beat and the call's clock run only while there is a call
+(`_CallBannerState._sync`), and the dot is painted by itself (`RepaintBoundary`).
 
 `lib/ui/voice_screen.dart:677`: the call banner's pulse (`..repeat(reverse: true)`) starts with the first call shown
 and is never stopped; the banner stays mounted in the sidebar with no `RepaintBoundary`. From then on the app

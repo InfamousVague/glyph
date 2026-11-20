@@ -674,20 +674,37 @@ class CallBanner extends StatefulWidget {
 }
 
 class _CallBannerState extends State<CallBanner> with SingleTickerProviderStateMixin {
-  late final AnimationController _beat = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat(reverse: true);
+  late final AnimationController _beat = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
   Timer? _tick;
+
+  /// The dot's beat and the call's clock run only while there is a call. The banner stays in the sidebar for the
+  /// app's whole life, and a beat started at the first call and never stopped had the window drawn again at every
+  /// refresh from then on, call or none (docs/performance-audit.md).
+  void _sync() {
+    final calling = Voice.instance.session != null;
+    if (calling && !_beat.isAnimating) {
+      _beat.repeat(reverse: true);
+      // The time in the call, a second at a time.
+      _tick ??= Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted && Voice.instance.session != null) setState(() {});
+      });
+    } else if (!calling && (_beat.isAnimating || _tick != null)) {
+      _beat.stop();
+      _tick?.cancel();
+      _tick = null;
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    // The time in the call, a second at a time.
-    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted && Voice.instance.session != null) setState(() {});
-    });
+    Voice.instance.addListener(_sync);
+    _sync();
   }
 
   @override
   void dispose() {
+    Voice.instance.removeListener(_sync);
     _beat.dispose();
     _tick?.cancel();
     super.dispose();
@@ -736,9 +753,12 @@ class _CallBannerState extends State<CallBanner> with SingleTickerProviderStateM
                       border: Border.all(color: green.withValues(alpha: 0.5), width: 1.5),
                     ),
                     child: Row(children: [
-                      FadeTransition(
-                        opacity: Tween(begin: 0.35, end: 1.0).animate(_beat),
-                        child: Container(width: 9, height: 9, decoration: BoxDecoration(shape: BoxShape.circle, color: green)),
+                      // Painted by itself: the beat does not have the banner, and the blur behind it, painted again.
+                      RepaintBoundary(
+                        child: FadeTransition(
+                          opacity: Tween(begin: 0.35, end: 1.0).animate(_beat),
+                          child: Container(width: 9, height: 9, decoration: BoxDecoration(shape: BoxShape.circle, color: green)),
+                        ),
                       ),
                       SizedBox(width: t.space(2)),
                       Expanded(

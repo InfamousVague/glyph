@@ -227,7 +227,7 @@ class Voice extends ChangeNotifier {
 
   void _saw(String room) {
     _seen[room] = DateTime.now().millisecondsSinceEpoch;
-    _app?.set('voice_seen', jsonEncode(_seen));
+    _app?.keep('voice_seen', jsonEncode(_seen));
   }
 
   Future<void> start(AppState app) async {
@@ -550,7 +550,7 @@ class Voice extends ChangeNotifier {
       // A space first listened to starts read: what was said in it before is not news.
       if (!_readAt.containsKey(c.seed)) {
         _readAt[c.seed] = lastMessage(c)?.at ?? DateTime.now().millisecondsSinceEpoch;
-        _app?.set('voice_read', jsonEncode(_readAt));
+        _app?.keep('voice_read', jsonEncode(_readAt));
       }
       unawaited(hold(c).catchError((_) => null));
     }
@@ -587,7 +587,7 @@ class Voice extends ChangeNotifier {
     final at = lastMessage(c)?.at ?? DateTime.now().millisecondsSinceEpoch;
     if ((_readAt[c.seed] ?? 0) >= at) return;
     _readAt[c.seed] = at;
-    _app?.set('voice_read', jsonEncode(_readAt));
+    _app?.keep('voice_read', jsonEncode(_readAt));
     MentionAlerts.instance?.read(c);
     notifyListeners();
   }
@@ -971,7 +971,7 @@ class AppHangoutStore implements HangoutStore, HangoutVotesStore {
   }
 
   @override
-  void keepMessages(String room, List<HangoutMessage> messages) => app.set('hangout_${room}_m', jsonEncode([for (final m in messages) m.toStored()]));
+  void keepMessages(String room, List<HangoutMessage> messages) => app.keep('hangout_${room}_m', jsonEncode([for (final m in messages) m.toStored()]));
 
   @override
   Roster? roster(String room) {

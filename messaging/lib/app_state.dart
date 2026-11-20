@@ -35,11 +35,23 @@ class AppState extends ChangeNotifier {
   /// A switch: on unless it was switched off ([fallback] false: off unless switched on).
   bool flag(String key, {bool fallback = true}) => _prefs[key] == null ? fallback : _prefs[key] == 'on';
 
+  /// A choice changed: kept, and everything drawn from the choices drawn again. One set to what it already is changes
+  /// nothing and draws nothing (docs/performance-audit.md: every write used to rebuild the whole app).
   void set(String key, String value) {
+    if (_prefs[key] == value) return;
     _prefs[key] = value;
     if (key.startsWith('plugin')) pluginsStamp++;
     Sms.instance.setPref(key, value);
     notifyListeners();
+  }
+
+  /// Something kept here that no screen draws from these choices: a store's own bookkeeping (when a space was last
+  /// seen, a space's messages), whose owner tells its own listeners. Kept as [set] keeps, and nothing is drawn again
+  /// for it: a write a second while the app is open must not rebuild the app.
+  void keep(String key, String value) {
+    if (_prefs[key] == value) return;
+    _prefs[key] = value;
+    Sms.instance.setPref(key, value);
   }
 
   void setFlag(String key, bool on) => set(key, on ? 'on' : 'off');
