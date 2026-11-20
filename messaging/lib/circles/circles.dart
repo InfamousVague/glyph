@@ -786,6 +786,10 @@ class Circles extends ChangeNotifier {
     }
   }
 
+  /// For a test: [c] in place of the one held, as a newer manifest heard in its room puts it.
+  @visibleForTesting
+  void putForTest(Circle c) => _put(c);
+
   /// The name of the circle this device was last put out of, for the screens to say so; null after.
   final ValueNotifier<String?> removedFrom = ValueNotifier(null);
 

@@ -28,6 +28,7 @@ import '../app_state.dart';
 import '../backgrounds.dart';
 import '../sms.dart' show Person;
 import 'circles/circle_face.dart' show SpaceKindBadge, TitleBarMark, spaceKindIcon;
+import 'circles/new_circle.dart' show circleHueInk;
 import 'circles/members_drawer.dart' show showMembersDrawer;
 import 'drawer_head.dart';
 import 'composer_box.dart';
@@ -1017,7 +1018,8 @@ class _HangoutChatState extends State<HangoutChat> {
     final t = context.tokens;
     final room = widget.room;
     return ListenableBuilder(
-      listenable: room,
+      // And the circle's, whose roles colour the names.
+      listenable: Listenable.merge([room, Circles.instance]),
       builder: (context, _) {
         final list = room.messages.reversed.toList();
         // Messages with files on their way, newest at the foot, under everything sent.
@@ -1126,7 +1128,7 @@ class _HangoutChatState extends State<HangoutChat> {
                         // Who an "@…" being written finds, over the box (Matt, 2026-11-19: "Add mentions support to spaces
                         // and circles with the @user prefix").
                         if (_query != null && _found.isNotEmpty)
-                          MentionSuggestions(people: _found, chosen: _chosen, onPick: _pickMention, inkOf: (p) => p.role is Role ? roleInk(t, p.role as Role) : null),
+                          MentionSuggestions(people: _found, chosen: _chosen, onPick: _pickMention, inkOf: (p) => spaceNameInk(t, widget.room, p.id)),
                         if (slow > 0) _SlowModeLine(seconds: slow, left: left),
                         if (_picked.isNotEmpty) SpacePickedStrip(files: _picked, onRemove: (p) => setState(() => _picked.remove(p))),
                         ComposerBox(
@@ -1365,8 +1367,6 @@ class _Message extends StatelessWidget {
     final t = context.tokens;
     final m = message;
     final mine = m.from == room.me;
-    final role = room.roster.roleOf(m.from);
-    final owner = room.roster.isOwner(m.from);
     final name = m.name.isEmpty ? Voice.instance.nameOf(m.from) : m.name;
     final round = Radius.circular(lookCorner(t, '1.125rem', most: 1));
     final tight = Radius.circular(lookCorner(t, '0.375rem', most: 1));
@@ -1444,7 +1444,7 @@ class _Message extends StatelessWidget {
             Padding(
               padding: EdgeInsets.only(left: faceGap + t.space(3), bottom: 2),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Flexible(child: _toPerson(Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: roleInk(t, role) ?? t.color('app-accent'))))),
+                Flexible(child: _toPerson(Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: spaceNameInk(t, room, m.from) ?? t.color('app-accent'))))),
                 VerifiedBadge(id: m.from, username: room.usernames[m.from], me: m.from == room.me, size: 12),
               ]),
             ),
@@ -1486,8 +1486,6 @@ extension on _Message {
     final t = context.tokens;
     final m = message;
     final mine = m.from == room.me;
-    final role = room.roster.roleOf(m.from);
-    final owner = room.roster.isOwner(m.from);
     final name = mine ? 'You' : (m.name.isEmpty ? Voice.instance.nameOf(m.from) : m.name);
     final faceSize = t.lenOf('2.25rem');
     final gutter = faceSize + t.space(3);
@@ -1538,7 +1536,7 @@ extension on _Message {
                 Padding(
                   padding: EdgeInsets.only(bottom: 2),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                    Flexible(child: _toPerson(Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: roleInk(t, role) ?? ink)))),
+                    Flexible(child: _toPerson(Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: spaceNameInk(t, room, m.from) ?? ink)))),
                     Baseline(baseline: 13, baselineType: TextBaseline.alphabetic, child: VerifiedBadge(id: m.from, username: room.usernames[m.from], me: m.from == room.me, size: 15)),
                     SizedBox(width: t.space(2)),
                     Text(clock(at), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
@@ -1692,6 +1690,21 @@ class RoleTag extends StatelessWidget {
 }
 
 /// The colour a role's people's names are drawn in; null where it is the text's own ([Role.shownColor]).
+/// The colour [id]'s name is drawn in, in [room]'s chat (Matt, 2026-11-19: "users names are not updating in chat to
+/// reflect their role status"): in a circle's space, their highest coloured role in the circle (CircleManifest.nameHueOf,
+/// as the members list and Discord colour a name), the owner and admins in the admins' colour where no role colours
+/// them; elsewhere, the space's own roles. The circle's roles had been ignored here: names kept the space's.
+Color? spaceNameInk(Tokens t, HangoutRoom room, String id) {
+  final c = Circles.instance.circleOf(room.channel);
+  if (c == null) return roleInk(t, room.roster.roleOf(id));
+  final m = c.manifest;
+  final who = Circles.instance.sameAs(id);
+  final hue = m.nameHueOf(who) ?? m.nameHueOf(id);
+  if (hue != null) return circleHueInk(t, hue);
+  if (m.ownerId == who || m.ownerId == id || m.granted(who) || m.granted(id)) return t.colorOf(Role.defaultColor(Role.admin)!);
+  return null;
+}
+
 Color? roleInk(Tokens t, Role role) {
   final c = role.shownColor;
   return c == null ? null : t.colorOf(c);
