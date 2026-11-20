@@ -190,6 +190,13 @@ if (existsSync(join(ROOT, 'sidecar/whatsapp/SOURCE_URL'))) {
   say('> Building the WhatsApp helper for the phone');
   run('sh', [join(ROOT, 'tool/build-whatsappsidecar.sh'), 'android', '--ship'], { cwd: ROOT });
 }
+// The account helpers for the phone (sidecar/messenger, sidecar/instagram, sidecar/linkedin;
+// lib/inbox/account_helper.dart), into jniLibs.
+for (const name of ['messenger', 'instagram', 'linkedin']) {
+  if (!existsSync(join(ROOT, `sidecar/${name}/SOURCE_URL`))) continue;
+  say(`> Building the ${name} helper for the phone`);
+  run('sh', [join(ROOT, 'tool/build-accountsidecar.sh'), name, 'android', '--ship'], { cwd: ROOT });
+}
 // The Matrix helper for the phone (sidecar/matrix; lib/inbox/matrix.dart), into jniLibs.
 if (existsSync(join(ROOT, 'sidecar/matrix/SOURCE_URL'))) {
   say('> Building the Matrix helper for the phone');

@@ -195,6 +195,23 @@ if (existsSync(waSource)) {
   run('ditto', [waSource, join(app, 'Contents/Resources/whatsapp-sidecar-SOURCE.txt')]);
 }
 
+// The account helpers (sidecar/messenger, sidecar/instagram, sidecar/linkedin; sidecar/ACCOUNT_HELPERS.md;
+// lib/inbox/account_helper.dart; Matt, 2026-11-20: "Let's do the feasible ones but skip X and google voice"), each
+// carried where it is in the checkout with its source's address, beside the others and signed with the rest below.
+const accountHelpers = [];
+for (const name of ['messenger', 'instagram', 'linkedin']) {
+  const source = join(ROOT, `sidecar/${name}/SOURCE_URL`);
+  if (!existsSync(source)) continue;
+  say(`> Building the ${name} helper`);
+  run('sh', [join(ROOT, 'tool/build-accountsidecar.sh'), name, 'mac'], { cwd: ROOT });
+  mkdirSync(join(app, 'Contents/Helpers'), { recursive: true });
+  const helper = join(app, `Contents/Helpers/${name}-sidecar`);
+  run('ditto', [join(ROOT, `build/${name}-sidecar/mac/${name}-sidecar`), helper]);
+  run('ditto', [join(ROOT, `sidecar/${name}/LICENSE`), join(app, `Contents/Resources/${name}-sidecar-LICENSE.txt`)]);
+  run('ditto', [source, join(app, `Contents/Resources/${name}-sidecar-SOURCE.txt`)]);
+  accountHelpers.push(helper);
+}
+
 // The Matrix helper (sidecar/matrix, on mautrix-go with goolm's encryption; lib/inbox/matrix.dart; Matt, 2026-11-17:
 // "Let's add support for matrix"), beside Signal's, signed with the rest below.
 const matrixSource = join(ROOT, 'sidecar/matrix/SOURCE_URL');
@@ -251,6 +268,7 @@ if (existsSync(helper)) sign(helper);
 if (existsSync(signalHelper)) sign(signalHelper);
 if (existsSync(waHelper)) sign(waHelper);
 if (existsSync(matrixHelper)) sign(matrixHelper);
+for (const helper of accountHelpers) sign(helper);
 sign(app, ['--entitlements', entitlements]);
 
 const verified = spawnSync('codesign', ['--verify', '--deep', '--strict', app], { encoding: 'utf8' });

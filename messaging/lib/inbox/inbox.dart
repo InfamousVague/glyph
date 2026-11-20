@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../app_state.dart';
 import '../kept_lists.dart';
+import 'account_helper.dart';
 import 'bluesky.dart';
 import 'google_chat.dart';
 import 'mastodon.dart';
@@ -676,7 +677,22 @@ class Inbox {
   // Microsoft Teams over Microsoft Graph (Matt, 2026-11-17: "Let's add support for matrix, microsoft teams and google
   // chat"): "Not in this build" until it is built with a Microsoft app id (GHOST_TEAMS_CLIENT_ID). Google Chat the same, until
   // built with a Google app id (GHOST_GCHAT_CLIENT_ID and _SECRET).
-  static Inbox get instance => _instance ??= Inbox._([Telegram(), Bluesky(soon: true), Mastodon(soon: true), Signal(), WhatsApp(), Matrix(), Teams(), GoogleChat()]);
+  // Messenger, Instagram and LinkedIn through account helpers (Matt, 2026-11-20: "Let's do the feasible ones but skip
+  // X and google voice"; lib/inbox/account_helper.dart, sidecar/ACCOUNT_HELPERS.md): each signed in with a browser's
+  // session after a warning, "Not in this build" where its helper is not carried.
+  static Inbox get instance => _instance ??= Inbox._([
+        Telegram(),
+        Bluesky(soon: true),
+        Mastodon(soon: true),
+        Signal(),
+        WhatsApp(),
+        Matrix(),
+        Teams(),
+        GoogleChat(),
+        AccountHelper(messengerService),
+        AccountHelper(instagramService),
+        AccountHelper(linkedInService),
+      ]);
 
   /// Stand-ins for a test of a screen; null puts the app's own back.
   @visibleForTesting
