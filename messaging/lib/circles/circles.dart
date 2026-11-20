@@ -248,7 +248,7 @@ class Circles extends ChangeNotifier {
       if (people.remove(old) != null) seen = true;
     }
     _app?.set('circles_was', jsonEncode(_was));
-    if (seen) _app?.set('circles_seen', jsonEncode(_seen));
+    if (seen) _app?.keep('circles_seen', jsonEncode(_seen));
     notifyListeners();
   }
 
@@ -274,7 +274,7 @@ class Circles extends ChangeNotifier {
         changed = true;
       }
     }
-    if (changed) _app?.set('circles_seen', jsonEncode(_seen));
+    if (changed) _app?.keep('circles_seen', jsonEncode(_seen));
   }
 
   /// How many are in [c]'s room now, this device among them; 0 before it is joined.

@@ -36,19 +36,40 @@ class DeskStore implements LinkStore {
 
   /// Written whole to a file beside it and moved into place, one write after another: two choices changed at once
   /// are two writes, and the later is what is kept.
-  Future<void> _write(File file, Object value) {
+  Future<void> _write(File file, Object value, {bool private = false}) {
     final text = jsonEncode(value);
     return _last = _last.catchError((_) {}).then((_) async {
       await dir.create(recursive: true);
       final tmp = File('${file.path}.${_writes++}.tmp');
       await tmp.writeAsString(text, flush: true);
-      // The person's account alone: the pairing's key may be in it.
-      try {
-        await Process.run('/bin/chmod', ['600', tmp.path]);
-      } catch (_) {}
+      // The person's account alone: the pairing's key may be in it. The folder is closed to everyone else once
+      // ([_private]); the pairing's own file is closed too. The choices' file, written often, starts no program.
+      await _private();
+      if (private) {
+        try {
+          await Process.run('/bin/chmod', ['600', tmp.path]);
+        } catch (_) {}
+      }
       await tmp.rename(file.path);
     });
   }
+
+  /// The app's folder is the person's alone (`chmod 700`), asked once a run: nothing in it can be read by another
+  /// account whatever each file's own mode. Windows has no chmod; its AppData is the person's already.
+  Future<void>? _closed;
+  Future<void> _private() => _closed ??= () async {
+        if (Platform.isWindows) return;
+        try {
+          await Process.run('/bin/chmod', ['700', dir.path]);
+        } catch (_) {}
+      }();
+
+  /// The choices are written at most once in [_prefsEvery]: several changed together (a screen's worth, a store's
+  /// bookkeeping) are one write of the newest, where each was the whole file written and a program started
+  /// (docs/performance-audit.md). Every caller's future ends when a write holding its choices has.
+  static const _prefsEvery = Duration(milliseconds: 200);
+  Map<String, String>? _prefsNext;
+  Future<void>? _prefsGoing;
 
   @override
   Future<PairedPhone?> load() async {
@@ -80,7 +101,7 @@ class DeskStore implements LinkStore {
       'id': p.id, 'name': p.name, 'mode': p.mode, 'relay': p.relay, 'since': p.since.millisecondsSinceEpoch, 'host': p.host, 'port': p.port,
       // In the file only where the Keychain did not take it.
       if (!kept) 'key': key,
-    });
+    }, private: true);
   }
 
   @override
@@ -93,6 +114,9 @@ class DeskStore implements LinkStore {
 
   /// The person's choices on this Mac, by name.
   Future<Map<String, String>> prefs() async {
+    // The choices waiting to be written are the choices: read before their write, they are not the file's older ones.
+    final waiting = _prefsNext;
+    if (waiting != null) return Map.of(waiting);
     try {
       if (!await _prefs.exists()) return {};
       return {for (final e in (jsonDecode(await _prefs.readAsString()) as Map).entries) '${e.key}': '${e.value}'};
@@ -101,5 +125,13 @@ class DeskStore implements LinkStore {
     }
   }
 
-  Future<void> savePrefs(Map<String, String> prefs) => _write(_prefs, prefs);
+  Future<void> savePrefs(Map<String, String> prefs) {
+    _prefsNext = Map.of(prefs);
+    return _prefsGoing ??= Future<void>.delayed(_prefsEvery).then((_) {
+      final next = _prefsNext!;
+      _prefsNext = null;
+      _prefsGoing = null;
+      return _write(_prefs, next);
+    });
+  }
 }
