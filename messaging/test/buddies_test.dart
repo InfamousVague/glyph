@@ -57,8 +57,15 @@ class _Port implements BuddiesPort {
   @override
   Future<String> kept() async => list;
 
+  /// Lost on the way, as the hub loses what it was holding when the relay restarts: the next ones sent go nowhere.
+  int drop = 0;
+
   @override
   Future<bool> send(String id, Envelope envelope, {bool sealed = true}) async {
+    if (drop > 0) {
+      drop--;
+      return true;
+    }
     final to = world.byId[id];
     if (to == null) return false;
     // Sealed needs a key on both sides: each must have the other in its list.
@@ -111,6 +118,40 @@ void main() {
     await _settle();
     expect(a.all, isEmpty);
     expect(b.all, isEmpty);
+  });
+
+  test('a request lost on its way, and then the yes, are asked again until both are friends', () async {
+    // Matt, 2026-11-19: "my friend request to morgan never went through i also sent one from her phone and it didn't go
+    // out". The hub drops what it holds when the relay restarts; nothing asked again.
+    final world = _World();
+    final maya = _Port(world, 'maya'), sam = _Port(world, 'sam');
+    final a = Buddies(maya), b = Buddies(sam);
+    await a.start();
+    await b.start();
+    maya.drop = 1;
+    await a.add('sam');
+    await _settle();
+    expect(b.requests, isEmpty);
+    // Asked again: Sam has it now, once.
+    expect(await a.askAgain(), 1);
+    await _settle();
+    expect(b.requests.single.username, 'maya');
+    await a.askAgain();
+    await _settle();
+    expect(b.requests, hasLength(1));
+    // Sam's yes is lost too: Maya is still waiting, and asks again; Sam, a friend already, says yes again.
+    sam.drop = 1;
+    await b.accept(b.requests.single);
+    await _settle();
+    expect(a.friends, isEmpty);
+    await a.askAgain();
+    await _settle();
+    expect(a.friends.single.username, 'sam');
+    expect(b.friends.single.username, 'maya');
+    // Answered: nothing left to ask.
+    expect(await a.askAgain(), 0);
+    a.dispose();
+    b.dispose();
   });
 
   test('two who ask each other are friends at once; nobody, yourself, or no username of your own is refused', () async {
