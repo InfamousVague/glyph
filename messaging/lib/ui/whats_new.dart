@@ -66,6 +66,7 @@ LucideIcon noteIcon(String note) {
 }
 
 final List<(List<String>, LucideIcon)> _noteIcons = [
+  (['splash'], LucideMore.rocket),
   (['developer mode'], Lucide.braces),
   (['icons', 'phosphor'], Lucide.shapes),
   (['souls', 'flame'], Lucide.flame),

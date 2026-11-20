@@ -23,7 +23,8 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
-  ReleaseNotes('0.9.38', '2026-11-20', [
+  ReleaseNotes('0.10.0', '2026-11-20', [
+    'On a Mac or Windows the app opens on a small splash that checks for updates first, brings one down and restarts into it, then loads the app.',
     'Developer mode: tap Version in Settings › About twelve times to turn it on, on the phone or a computer. Settings › Developer stays hidden until then.',
     'Icons: every icon is Phosphor\'s now, in duotone, in the app and the docs.',
     'Share feedback is in the rail now, just above Settings, on a phone.',
