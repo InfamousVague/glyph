@@ -101,6 +101,36 @@ const KNOWN = {
   // The app's Share feedback, filed in Notion (relay/lib/feedback.dart): the integration's secret and the board's data source.
   GHOST_NOTION_TOKEN: /^(ntn_|secret_)[A-Za-z0-9]{20,80}$/,
   GHOST_NOTION_FEEDBACK: /^[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}$/,
+  // The Marketplace's limits (relay/lib/market.dart `MarketConfig.fromEnvironment`, which lists the same names in
+  // MarketConfig.names; Matt, 2026-11-20: "I'd like to be able to verify them for the store through a review process"):
+  // bytes for the sizes, counts and days for the rest, 0 or 1 for the two switches, each with a default where it is not
+  // set. GHOST_MARKET_ON=0 closes it; GHOST_MARKET_NEED_VERIFIED=1 takes plugins only from developers with a verified
+  // number; GHOST_MARKET_REVIEW_KEYS empty takes the signed-in admin's own key alone. What it keeps is under
+  // ${DATA}/market, which ReadWritePaths below already covers; GHOST_MARKET_MAX_BODY is held to Caddy's 10 MB.
+  GHOST_MARKET_ON: /^[01]$/,
+  GHOST_MARKET_MAX_PACKAGE: /^[0-9]{1,8}$/,
+  GHOST_MARKET_MAX_SHOT: /^[0-9]{1,8}$/,
+  GHOST_MARKET_MAX_SHOTS: /^[0-9]{1,2}$/,
+  GHOST_MARKET_MAX_BODY: /^[0-9]{1,9}$/,
+  GHOST_MARKET_TOTAL: /^[0-9]{1,13}$/,
+  GHOST_MARKET_SUBMISSIONS_A_DAY: /^[0-9]{1,4}$/,
+  GHOST_MARKET_SUBMISSIONS_PER_ADDRESS: /^[0-9]{1,4}$/,
+  GHOST_MARKET_OPEN_PER_DEVELOPER: /^[0-9]{1,4}$/,
+  GHOST_MARKET_OPEN_PER_ADDRESS: /^[0-9]{1,4}$/,
+  GHOST_MARKET_OPEN_TOTAL: /^[0-9]{1,6}$/,
+  GHOST_MARKET_OPEN_UNVERIFIED: /^[0-9]{1,6}$/,
+  GHOST_MARKET_NAME_AGE_DAYS: /^[0-9]{1,3}$/,
+  GHOST_MARKET_PLUGINS_PER_DEVELOPER: /^[0-9]{1,4}$/,
+  GHOST_MARKET_MAX_PLUGINS: /^[0-9]{1,6}$/,
+  GHOST_MARKET_BYTES_PER_DEVELOPER: /^[0-9]{1,10}$/,
+  GHOST_MARKET_SIGNED_AN_HOUR: /^[0-9]{1,6}$/,
+  GHOST_MARKET_SIGNED_PER_ADDRESS: /^[0-9]{1,6}$/,
+  GHOST_MARKET_VERIFY_A_SECOND: /^[0-9]{1,4}$/,
+  GHOST_MARKET_BODIES_IN_FLIGHT: /^[0-9]{1,2}$/,
+  GHOST_MARKET_READS_PER_MINUTE: /^[0-9]{1,6}$/,
+  GHOST_MARKET_REPORTS_A_DAY: /^[0-9]{1,6}$/,
+  GHOST_MARKET_NEED_VERIFIED: /^[01]$/,
+  GHOST_MARKET_REVIEW_KEYS: /^[A-Za-z0-9+\/]{44}(,[A-Za-z0-9+\/]{44})*$/,
 };
 const SHAPES = {
   GHOST_TWILIO_SID: 'AC or SK and 32 more characters',
@@ -108,6 +138,7 @@ const SHAPES = {
   GHOST_TWILIO_VERIFY: 'VA and 32 more characters',
   GHOST_NOTION_TOKEN: 'ntn_ and the rest, from the integration\'s page',
   GHOST_NOTION_FEEDBACK: 'the board\'s data source id, a UUID',
+  GHOST_MARKET_REVIEW_KEYS: 'base64 public keys of 44 characters, commas between',
 };
 // Kept together or not at all: with one of them missing the relay has that way of linking off, and says nothing.
 const TOGETHER = [['GHOST_TWILIO_SID', 'GHOST_TWILIO_TOKEN', 'GHOST_TWILIO_VERIFY'], ['GHOST_DISCORD_ID', 'GHOST_DISCORD_SECRET'], ['GHOST_TELEGRAM_BOT', 'GHOST_TELEGRAM_TOKEN'], ['GHOST_NOTION_TOKEN', 'GHOST_NOTION_FEEDBACK']];
