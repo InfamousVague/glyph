@@ -6,8 +6,8 @@ export const sections = [
     pages: [
       { slug: 'index', icon: 'ghost', title: 'Welcome', summary: 'What Ghost Messaging is, and where to start.' },
       { slug: 'alpha', icon: 'flask-conical', title: 'Join the alpha', summary: 'Try Ghost Messaging before it launches: what to install, and how to join the testers\' circle.' },
-      { slug: 'install', icon: 'download', title: 'Install the app', summary: 'Get Ghost Messaging on an Android phone, a Mac or a Windows PC.' },
-      { slug: 'first-run', icon: 'rocket', title: 'The first time you open it', summary: 'The welcome, texting with Ghost or beside Google Messages, and picking a look.' },
+      { slug: 'install', icon: 'download', title: 'Install the app', summary: 'Get Ghost Messaging on an Android phone, a Mac, a Windows PC or a Linux computer.' },
+      { slug: 'first-run', icon: 'rocket', title: 'The first time you open it', summary: 'A username and a password, your recovery words, and on Android your texts.' },
       { slug: 'account', icon: 'key-round', title: 'Your account', summary: 'Create an account, keep your recovery words safe, and sign in on another device.' },
       { slug: 'how-accounts-work', icon: 'badge-check', title: 'How your account works', summary: 'Recovery words, your password, the account address, and being the same you on every device.' },
       { slug: 'profile', icon: 'circle-user', title: 'Your profile and number', summary: 'Your name, picture, status and username, and verifying your phone number.' },
@@ -27,7 +27,8 @@ export const sections = [
   {
     title: 'Plugins',
     pages: [
-      { slug: 'plugins', icon: 'puzzle', title: 'About plugins', summary: 'Add features you want, for yourself or for a whole circle.' },
+      // The slug stays `plugins`: the app's docsButton('plugins') and other pages link it.
+      { slug: 'plugins', icon: 'store', title: 'The Marketplace', summary: 'Add plugins for yourself, built in or from other developers, and built-in ones for a whole circle.' },
       { slug: 'record-call', icon: 'circle-dot', title: 'Record call', summary: 'Record a call to one file with a named track for each voice.' },
       { slug: 'scribe', icon: 'file-text', title: 'Scribe', summary: 'Turn a recorded call into words, on your device.' },
       { slug: 'live-captions', icon: 'type', title: 'Live captions', summary: 'See what everyone in a call says, as they say it.' },
@@ -45,6 +46,24 @@ export const sections = [
       { slug: 'discord', icon: 'bot', title: 'Discord servers', summary: 'Link a Discord server, see who is in its voice channels, and talk in them from Ghost.' },
     ],
   },
+  // Plugins from other developers (Matt, 2026-11-20: "Please include documents on how users can develop plugins"). The
+  // app links build-a-plugin (Marketplace › How to build a plugin), plugin-testing (Settings › Developer),
+  // plugin-guidelines (the submission form) and plugins: those slugs are part of its contract. Each page is Coming soon
+  // until the release that carries the Marketplace, which takes `soon` away.
+  {
+    title: 'Build a plugin',
+    pages: [
+      { slug: 'build-a-plugin', icon: 'code', title: 'Build a plugin', summary: 'What a plugin of your own can do, what it is made of, and how it reaches the Marketplace.' },
+      { slug: 'plugin-quick-start', icon: 'rocket', title: 'Your first plugin', summary: 'Load the Bills plugin in Developer mode, try it on a text, then change it.' },
+      { slug: 'plugin-format', icon: 'file-code', title: 'The plugin file', summary: 'Every field of a ghost-plugin/1 file, with its limits.' },
+      { slug: 'plugin-rules', icon: 'list-filter', title: 'Tags, tabs and buttons', summary: 'Tags, tabs and kinds with their rows, buttons and menu lines, and what happens as texts arrive.' },
+      { slug: 'plugin-phrases', icon: 'text-search', title: 'Phrases and tokens', summary: 'How a plugin finds words in a text: phrases, tokens like {digits:6}, and what a match gives it.' },
+      { slug: 'plugin-permissions', icon: 'shield-check', title: 'What a plugin may do', summary: 'Permissions, what each one lets a plugin do, and what people are told before they add it.' },
+      { slug: 'plugin-testing', icon: 'flask-conical', title: 'Try it in Developer mode', summary: 'Load your plugin from a file, a link or the clipboard, try it on a text, reload it, and read what went wrong.' },
+      { slug: 'plugin-submit', icon: 'send', title: 'Submit it to the Marketplace', summary: 'The submission form, what review looks at, listing it, and sending a new version.' },
+      { slug: 'plugin-guidelines', icon: 'list-checks', title: 'Marketplace guidelines', summary: 'What gets a plugin listed, what keeps one out, and how reports and withdrawals work.' },
+    ],
+  },
   {
     title: 'Messaging',
     pages: [
@@ -58,7 +77,7 @@ export const sections = [
   {
     title: 'Computers',
     pages: [
-      { slug: 'computers', icon: 'laptop', title: 'Mac and Windows apps', summary: 'Ghost Messaging on a computer, with or without your phone.' },
+      { slug: 'computers', icon: 'laptop', title: 'Mac, Windows and Linux apps', summary: 'Ghost Messaging on a computer, with or without your phone.' },
       { slug: 'pairing', icon: 'qr-code', title: 'Pair a computer with your phone', summary: 'Your texts on your computer: scan, match the six digits, and keep it connected.' },
     ],
   },

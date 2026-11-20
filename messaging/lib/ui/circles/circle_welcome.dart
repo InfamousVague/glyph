@@ -73,7 +73,7 @@ List<Widget> circleWelcomeSection(BuildContext context, Circle c, {required Valu
     gap,
     PaneSection(
       title: 'System messages',
-      description: const Text('A read-only space where each member\'s app writes who joined, who was removed and who became or stopped being an admin. Only the owner and admins post there, so it suits announcements too.'),
+      description: const Text('A read-only space where each member\'s app writes who joined, who was kicked or banned and who became or stopped being an admin. Only the owner and admins post there, so it suits announcements too.'),
       children: [
         SettingRow(
           key: const ValueKey('circle-system-space'),
@@ -234,7 +234,7 @@ class CircleSystemLine extends StatelessWidget {
     final t = context.tokens;
     final icon = switch (note.kind) {
       SystemNoteKind.joined => Lucide.userPlus,
-      SystemNoteKind.removed => Lucide.userMinus,
+      SystemNoteKind.removed || SystemNoteKind.kicked => Lucide.userMinus,
       SystemNoteKind.admin => Lucide.shieldCheck,
       SystemNoteKind.unadmin => Lucide.shieldCheck,
     };

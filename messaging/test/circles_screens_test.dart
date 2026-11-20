@@ -108,6 +108,32 @@ void main() {
     return c;
   }
 
+  // Matt, 2026-11-20: "I can't seem to kick users or ban them from circles, please add that functionality".
+  testWidgets('Members: a person\'s page has Kick and Ban; whoever is banned is listed, with Unban', (tester) async {
+    final c = await joinOwn(tester);
+    final sam = NetKeys.generate();
+    // Sam listed among the circle's people: made an admin, so the list knows him.
+    await tester.runAsync(() => Circles.instance.grantAdmin(Circles.instance.bySeed(c.seed)!, sam.id));
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, CircleSettingsPage(seed: c.seed, section: CircleSettingsSection.members), AppState(), size: const Size(1100, 1200));
+    await tester.tap(find.byKey(ValueKey('circle-person-${sam.id}')));
+    await settle(tester);
+    expect(find.byKey(const ValueKey('person-kick')), findsOneWidget);
+    expect(find.byKey(const ValueKey('person-ban')), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const ValueKey('person-ban')));
+    await tester.tap(find.byKey(const ValueKey('person-ban')));
+    await settle(tester);
+    await tester.tap(find.text('Ban ${circlePeople(Circles.instance.bySeed(c.seed)!).firstWhere((p) => p.id == sam.id).name}').last);
+    await _until(tester, () => Circles.instance.bySeed(c.seed)!.manifest.removed.contains(sam.id));
+    expect(Circles.instance.bySeed(c.seed)!.manifest.granted(sam.id), isFalse, reason: 'banned, no longer an admin');
+    await pumpScreen(tester, sheet, CircleSettingsPage(key: const ValueKey('again'), seed: c.seed, section: CircleSettingsSection.members), AppState(), size: const Size(1100, 1200));
+    expect(find.byKey(const ValueKey('circle-banned')), findsOneWidget);
+    await tester.tap(find.byKey(ValueKey('circle-banned-${sam.id}')));
+    await _until(tester, () => Circles.instance.bySeed(c.seed)!.manifest.removed.isEmpty);
+    expect(Circles.instance.bySeed(c.seed)!.manifest.removed, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a new circle: its name, colour and icon previewed, a texting and a voice space to start, a space retyped, a friend brought', (tester) async {
     final sheet = await loadSheet(tester);
     ({String name, String? hue, String icon, List<CircleSpace>? spaces})? made;

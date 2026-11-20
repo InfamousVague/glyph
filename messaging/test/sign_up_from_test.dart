@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/inbox/inbox.dart';
 import 'package:ghost_messaging/kit/settings_kit.dart';
 import 'package:ghost_messaging/me/me.dart';
+import 'package:ghost_messaging/me/pictures.dart';
 import 'package:ghost_messaging/ui/sign_up_from.dart';
 
 import 'support/space_call_harness.dart';
@@ -45,8 +46,9 @@ void main() {
     final got = await signUpFromDiscord('Maya', {'name': 'Maya Chen', 'picture': 'https://cdn.discordapp.com/avatars/1/a.png?size=256'});
     expect((got.from, got.username, got.name, got.status), ('Discord', 'maya', 'Maya Chen', ''));
     expect(asked, ['https://cdn.discordapp.com/avatars/1/a.png?size=256']);
-    expect(got.picture, isNotNull, reason: 'made square and small, as a profile keeps it');
-    expect(got.picture!.length, lessThanOrEqualTo(24000));
+    expect(got.picture, isNotNull, reason: 'made square, as a profile keeps it');
+    expect(got.picture!.sharp.length, lessThanOrEqualTo(ProfilePictures.sharpMost));
+    expect(got.picture!.small.length, lessThanOrEqualTo(ProfilePictures.oldMost), reason: 'what builds from before take');
   });
 
   test('Telegram: the bio is the status (and the bio); Signal: its About line and emoji', () async {

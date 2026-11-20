@@ -20,9 +20,13 @@ class FakeHelper implements SignalLink {
   @override
   Stream<Map<String, Object?>> get heard => _out.stream;
 
+  /// What a download writes, as the helper writes the file it is asked for.
+  List<int> downloaded = const [7, 7, 7];
+
   @override
   void say(Map<String, Object?> line) {
     asked.add(line);
+    if (line['op'] == 'download' && line['path'] is String) File(line['path'] as String).writeAsBytesSync(downloaded);
     final r = line['op'] == 'status' ? {'linked': linked, 'number': linked ? '+15550100199' : null} : answer(line);
     scheduleMicrotask(() => _out.add({'id': line['id'], 'ok': true, 'result': r}));
   }
@@ -95,6 +99,42 @@ void main() {
     expect(s3helper.asked.where((r) => r['op'] == 'download'), hasLength(1));
     expect(s3.error, isNull);
     s3.dispose();
+  });
+
+  // Matt, 2026-11-20: "some photos and videos are not coming through". A picture asked for its file each time it was
+  // drawn, and the downloads ran at once into one path.
+  test('a picture asked for again and again while it comes is downloaded once; one left half done is fetched again', () async {
+    final dir = Directory.systemTemp.createTempSync('signal');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final helper = FakeHelper()..linked = true;
+    helper.downloaded = List.filled(2048, 1);
+    final s = Signal(link: () async => helper, folder: dir.path);
+    await s.start(AppState());
+    await settle();
+    helper.event({
+      'ev': 'message', 'chat': 'aci-jo', 'group': false, 'from': 'aci-jo', 'mine': false, 'ts': 1763200100000, 'text': '',
+      'media': [{'pointer': {'cdnKey': 'k1', 'key': 'a2V5'}, 'mime': 'image/jpeg', 'name': 'beach.jpg', 'size': 2048}],
+    });
+    await settle();
+    final id = s.messagesOf('aci-jo').single.media.single.fileId;
+    final paths = await Future.wait([s.fileOf(id), s.fileOf(id), s.fileOf(id)]);
+    expect(paths.toSet(), hasLength(1));
+    expect(helper.asked.where((r) => r['op'] == 'download'), hasLength(1));
+    expect(File(paths.first!).lengthSync(), 2048);
+    s.dispose();
+
+    // As an older build could leave it: the file at its place, cut short. Fetched again, not shown broken.
+    File(paths.first!).writeAsBytesSync([1, 2, 3]);
+    final again = FakeHelper()..linked = true;
+    again.downloaded = List.filled(2048, 1);
+    final s2 = Signal(link: () async => again, folder: dir.path);
+    await s2.start(AppState());
+    await settle();
+    final id2 = s2.messagesOf('aci-jo').single.media.single.fileId;
+    final path2 = await s2.fileOf(id2);
+    expect(File(path2!).lengthSync(), 2048);
+    expect(again.asked.where((r) => r['op'] == 'download'), hasLength(1));
+    s2.dispose();
   });
 
   test('linked by the QR code; a message comes, is kept, answered, read and deleted; kept across a restart', () async {

@@ -255,7 +255,7 @@ class Circles extends ChangeNotifier {
       if (people.remove(old) != null) seen = true;
     }
     _app?.set('circles_was', jsonEncode(_was));
-    if (seen) _app?.set('circles_seen', jsonEncode(_seen));
+    if (seen) _app?.keep('circles_seen', jsonEncode(_seen));
     notifyListeners();
   }
 
@@ -281,7 +281,7 @@ class Circles extends ChangeNotifier {
         changed = true;
       }
     }
-    if (changed) _app?.set('circles_seen', jsonEncode(_seen));
+    if (changed) _app?.keep('circles_seen', jsonEncode(_seen));
   }
 
   /// How many are in [c]'s room now, this device among them; 0 before it is joined.
@@ -765,6 +765,7 @@ class Circles extends ChangeNotifier {
       return bySeed(c.seed)!;
     }
     all = [...all, c];
+    _setJoined(c.seed);
     _cameInto(c.seed);
     _changed();
     // A join is said as one (circle-join), so a phone that had it as left takes it back rather than leaving it again
@@ -911,9 +912,10 @@ class Circles extends ChangeNotifier {
     all = [for (final x in all) x.seed == c.seed ? c : x];
     _rooms[c.seed]?.circle = c;
     _changed();
-    // Put out of it by its owner or an admin: this device leaves, and says so once.
+    // Put out of it by its owner or an admin (banned), or kicked since this device came in: it leaves, and says so once.
     final me = signer?.id;
-    if (me != null && c.manifest.isSigned && c.manifest.removed.contains(me)) {
+    final kickedAt = me == null ? null : c.manifest.kicked[me];
+    if (me != null && c.manifest.isSigned && (c.manifest.removed.contains(me) || (kickedAt != null && kickedAt > joinedAt(c.seed)))) {
       removedFrom.value = c.manifest.name;
       unawaited(leave(c));
     }
@@ -934,6 +936,44 @@ class Circles extends ChangeNotifier {
     if (s == null || (!back && !have.manifest.mayRemove(s.id, id)) || (back && !have.manifest.canSign(s.id))) return false;
     if (!back && have.manifest.granted(id) && !await grantAdmin(have, id, on: false)) return false;
     return _publish(bySeed(c.seed) ?? have, (m) => m.next(extra: m.withRemoved(id, back: back)));
+  }
+
+  /// Kicks [id] out of [c] now: their app leaves it, and they may come back by an invite or the link. Who may kick is
+  /// who may remove ([CircleManifest.mayRemove]); an admin kicked stops being one.
+  Future<bool> kickMember(Circle c, String id) async {
+    final s = signer;
+    final have = bySeed(c.seed) ?? c;
+    if (s == null || !have.manifest.mayRemove(s.id, id)) return false;
+    if (have.manifest.granted(id) && !await grantAdmin(have, id, on: false)) return false;
+    return _publish(bySeed(c.seed) ?? have, (m) => m.next(extra: m.withKicked(id, DateTime.now().millisecondsSinceEpoch)));
+  }
+
+  /// When this device came into the circle with [seed] (ms since the epoch); 0 where it was before this was kept.
+  int joinedAt(String seed) {
+    if (_joinTimes.containsKey(seed)) return _joinTimes[seed]!;
+    try {
+      final j = jsonDecode(_app?.choice('circles_joined', '{}') ?? '{}') as Map;
+      return j[seed] is int ? j[seed] as int : 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Join times this run, before or without the device's choices to keep them in.
+  final Map<String, int> _joinTimes = {};
+
+  void _setJoined(String seed) {
+    _joinTimes[seed] = DateTime.now().millisecondsSinceEpoch;
+    final app = _app;
+    if (app == null) return;
+    Map<String, Object?> j;
+    try {
+      j = (jsonDecode(app.choice('circles_joined', '{}')) as Map).cast<String, Object?>();
+    } catch (_) {
+      j = {};
+    }
+    j[seed] = _joinTimes[seed];
+    app.set('circles_joined', jsonEncode(j));
   }
 
   /// Whether [id] was put out of the circle [space] is in: not heard there (lib/voice/channels.dart).

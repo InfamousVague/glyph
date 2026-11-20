@@ -179,8 +179,17 @@ class Handles {
   final List<Map<String, Object?>> _grants = [];
   static const grantsKept = 2000;
 
-  /// Installs signed in to the admin page, until they go; and when each tried to, so a password can't be guessed at.
-  final Set<String> _admins = {};
+  /// Signed in to the admin page, per connection: each connection's own tell (the `e.tell` hub.dart has for it) and when
+  /// it signed in. A good admin-login adds the asking tell; went(id, tell) removes that tell whether or not it is
+  /// _here[id]; a restart forgets them all. Before 2026-11-20 a sign-in was the identity's, answered on whichever of its
+  /// connections came last and kept while any stayed: the Marketplace's review rides on it (market.dart), so it is now
+  /// the connection's that signed in, and it ages ([adminSignedIn]).
+  final Map<String, Map<void Function(Map<String, Object?>), DateTime>> _adminConns = {};
+
+  /// How long a sign-in to the admin page lasts on its connection.
+  static const adminLife = Duration(hours: 8);
+
+  /// When each install tried to sign in to the admin page, so a password can't be guessed at.
   final Map<String, List<DateTime>> _adminTries = {};
   static const adminTriesAnHour = 5;
 
@@ -217,6 +226,38 @@ class Handles {
   bool _isAdminAccount(String id) {
     final k = _nameOf[id];
     return k != null && config.adminNames.any((n) => nameKey(n) == k);
+  }
+
+  /// Whether some connection of [id] signed in to the admin page less than [within] ago, and [id] still holds one of
+  /// GHOST_ADMIN_NAMES' usernames: for the market's admin calls over HTTP (market.dart), which ask within 30 minutes for
+  /// approving, listing, withdrawing and blocking.
+  bool adminSignedIn(String id, {Duration within = adminLife}) {
+    final conns = _adminConns[id];
+    if (conns == null || !_isAdminAccount(id)) return false;
+    final now = _now();
+    return conns.values.any((at) => now.difference(at) < within);
+  }
+
+  /// Whether the connection [tell] of [id] signed in to the admin page less than [adminLife] ago.
+  bool _adminHere(String id, void Function(Map<String, Object?>) tell) {
+    final at = _adminConns[id]?[tell];
+    return at != null && _now().difference(at) < adminLife && _isAdminAccount(id);
+  }
+
+  /// When [id]'s username was claimed: the day `claim` kept in `_names[k]['at']`, as UTC midnight; null without one.
+  /// The Marketplace takes plugins from a username a week after this (market.dart).
+  DateTime? claimedOn(String id) {
+    final k = _nameOf[id];
+    final at = k == null ? null : _names[k]?['at'];
+    if (at == null) return null;
+    final day = DateTime.tryParse('${at}T00:00:00Z');
+    return day?.toUtc();
+  }
+
+  /// The username [id] holds as it was typed, where the relay has been told it (since 2026-11-19); null otherwise.
+  String? usernameOf(String id) {
+    final k = _nameOf[id];
+    return k == null ? null : _shown[k];
   }
 
   Map<String, Object?> _soulsMessage(String id, {int? got, String? why, String? badge}) => {
@@ -476,11 +517,14 @@ class Handles {
   }
 
   void went(String id, void Function(Map<String, Object?>) tell) {
-    if (identical(_here[id], tell)) {
-      _here.remove(id);
-      // Signed in to the admin page for as long as it is connected, no longer.
-      _admins.remove(id);
+    // Signed in to the admin page for as long as that connection is here, no longer, whichever of the identity's
+    // connections _here holds.
+    final conns = _adminConns[id];
+    if (conns != null) {
+      conns.remove(tell);
+      if (conns.isEmpty) _adminConns.remove(id);
     }
+    if (identical(_here[id], tell)) _here.remove(id);
   }
 
   /// How each network is linked here: "signin" or "proof", "text" for a phone number, or "off" where what it
@@ -516,9 +560,12 @@ class Handles {
     return true;
   }
 
-  /// Something an install said that starts `{"dir": …}`. [id] is who the hub knows it to be.
-  Future<void> said(String id, Map said) async {
-    final tell = _here[id];
+  /// Something an install said that starts `{"dir": …}`. [id] is who the hub knows it to be; the answer goes to [tell],
+  /// the connection that said it (hub.dart passes each its own), else to the one _here holds for [id]. So the answer to a
+  /// sign-in reaches the device that asked, and two devices on one identity (a computer that became the same you as its
+  /// phone) each have their own.
+  Future<void> said(String id, Map said, [void Function(Map<String, Object?>)? asking]) async {
+    final tell = asking ?? _here[id];
     if (tell == null) return;
     final network = said['p'];
     void err(String why) => tell({'dir': 'err', 'about': said['dir'], 'p': network, 'err': why});
@@ -576,7 +623,10 @@ class Handles {
           if (held != null && held['id'] != id) return tell({'dir': 'claim', 'name': tidyName(name), 'ok': false, 'err': 'taken'});
           final before = _nameOf[id];
           if (before != null && before != k) _names.remove(before);
-          _names[k] = {'id': id, 'key': key, 'at': _now().toUtc().toIso8601String().substring(0, 10)};
+          // Claiming the name it holds again (a profile saved again) keeps the day it was first claimed: the
+          // Marketplace's week from it can't be started over by accident (market.dart, claimedOn).
+          final day = held != null && held['id'] == id && held['at'] != null ? held['at']! : _now().toUtc().toIso8601String().substring(0, 10);
+          _names[k] = {'id': id, 'key': key, 'at': day};
           _nameOf[id] = k;
           if (before != null && before != k) {
             _remember(id, before);
@@ -665,11 +715,11 @@ class Handles {
             return tell({'dir': 'admin', 'ok': false, 'err': 'That isn\'t right.'});
           }
           tries.clear();
-          _admins.add(id);
+          (_adminConns[id] ??= {})[tell] = now;
           _say('${id.substring(0, 6)} signed in to the admin page');
           tell({'dir': 'admin', 'ok': true});
         case 'admin-users' || 'admin-give' || 'admin-badge' || 'admin-log':
-          if (!_admins.contains(id) || !_isAdminAccount(id)) return tell({'dir': said['dir'], 'ok': false, 'err': 'Sign in to the admin page first.'});
+          if (!_adminHere(id, tell)) return tell({'dir': said['dir'], 'ok': false, 'err': 'Sign in to the admin page first.'});
           switch (said['dir']) {
             case 'admin-users':
               tell({'dir': 'admin-users', 'ok': true, 'users': _everyone()});

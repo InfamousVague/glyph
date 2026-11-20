@@ -5,6 +5,7 @@ import 'dart:io';
 import 'feedback.dart';
 import 'files.dart';
 import 'hub.dart';
+import 'market.dart';
 import 'sha256.dart';
 
 /// Ghost Messaging's relay (docs/desktop.md): a WebSocket server a phone and the computer it is paired with both dial
@@ -21,7 +22,7 @@ import 'sha256.dart';
 /// - A channel is removed when either end says so (unpairing), or after ninety days unused. One made for pairing
 ///   (`temp`) lives ten minutes at most, goes as soon as both ends have left it, and is never written to disk.
 class Relay {
-  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub, this.files, this.feedback}) : _now = now ?? DateTime.now;
+  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub, this.files, this.feedback, this.market}) : _now = now ?? DateTime.now;
 
   /// Where people's apps find each other (hub.dart), served at any address ending in `/hub`; none where null.
   final Hub? hub;
@@ -31,6 +32,10 @@ class Relay {
 
   /// Feedback from the app, filed in a Notion board (feedback.dart), served under `/feedback`; none where null.
   final Feedback? feedback;
+
+  /// The Marketplace, plugins from other developers and their review (market.dart), served under `/market`; none where
+  /// null.
+  final Market? market;
 
   /// Where `channels.json` is kept; null keeps nothing across restarts.
   final Directory? dataDir;
@@ -55,9 +60,12 @@ class Relay {
     _load();
     final server = await HttpServer.bind(host, port);
     _server = server;
-    server.listen(_handle, onError: (_) {});
+    // Nothing waits on what a listener returns: a request's own error, unhandled, would end the relay and every hub
+    // connection with it, so each one's is its alone (review, 2026-11-20).
+    server.listen((request) => unawaited(_handle(request).catchError((Object _) {})), onError: (_) {});
     hub?.start();
     await files?.start();
+    await market?.start();
     _sweeper = Timer.periodic(const Duration(minutes: 1), (_) => sweep());
     return server.port;
   }
@@ -67,6 +75,7 @@ class Relay {
     _saver?.cancel();
     hub?.stop();
     files?.stop();
+    await market?.stop();
     _save();
     for (final c in _channels.values) {
       c.phone?.close(WebSocketStatus.goingAway);
@@ -85,8 +94,40 @@ class Relay {
     if (verbose) stdout.writeln('${_now().toIso8601String()} $what');
   }
 
+  /// One request, whatever it asks, never ending the relay: a path whose escapes aren't UTF-8 (`GET /market/%FF`, which
+  /// Caddy passes on as it came) made the path's decoding throw before anything was routed, outside the market's own
+  /// guard, and the error went unhandled, ending the relay and every hub connection with it, the market's day counts
+  /// too; a request every two seconds kept it down (review, 2026-11-20). Such a request is a 400 and nothing more; any
+  /// other error is a line on stderr and a 500, where nothing has been answered yet.
   Future<void> _handle(HttpRequest request) async {
-    final segments = request.uri.pathSegments.where((s) => s.isNotEmpty).toList();
+    final List<String> segments;
+    try {
+      segments = request.uri.pathSegments.where((s) => s.isNotEmpty).toList();
+    } on FormatException {
+      return _answerOnly(request, HttpStatus.badRequest);
+    }
+    try {
+      await _route(request, segments);
+    } on FormatException {
+      // A query's escapes, read further in: the asker's mistake, not the relay's, and nothing to log.
+      await _answerOnly(request, HttpStatus.badRequest);
+    } catch (e) {
+      stderr.writeln('relay: ${request.method} ${'$e'.split('\n').first}');
+      await _answerOnly(request, HttpStatus.internalServerError);
+    }
+  }
+
+  /// [status] and nothing else, where the answer hasn't begun: its headers sent already (or a WebSocket's), nothing.
+  static Future<void> _answerOnly(HttpRequest request, int status) async {
+    try {
+      request.response
+        ..statusCode = status
+        ..headers.set(HttpHeaders.connectionHeader, 'close');
+      await request.response.close();
+    } catch (_) {}
+  }
+
+  Future<void> _route(HttpRequest request, List<String> segments) async {
     final name = segments.isEmpty ? '' : segments.last;
     final upgrade = WebSocketTransformer.isUpgradeRequest(request);
     // The hub is its own thing with its own way in (hub.dart): `/hub`, behind whatever the web server puts before it.
@@ -99,6 +140,10 @@ class Relay {
     if (!upgrade && segments.isNotEmpty && segments.first == 'files' && files != null) return files!.handle(request);
     // A circle's invite word, for the site's /c/ page (invite_words.dart): GET /word/<hash>.
     if (!upgrade && segments.length == 2 && segments.first == 'word' && hub?.words != null) return hub!.words!.handle(request, segments[1]);
+    // The Marketplace (market.dart): plain HTTP under /market. Nothing waits on what _handle returns (server.listen drops
+    // it), so an error escaping the market would be unhandled in the root zone and end the relay, and every hub
+    // connection with it: the market never throws, and this makes sure.
+    if (!upgrade && segments.isNotEmpty && segments.first == 'market' && market != null) return market!.handle(request).catchError((Object _) {});
     // The app's Share feedback (feedback.dart): one POST to /feedback.
     if (!upgrade && segments.length == 1 && segments.first == 'feedback' && feedback != null) return feedback!.handle(request);
     if (!upgrade || !_hex(name, 32)) {

@@ -34,11 +34,14 @@ import 'emoji_sets.dart';
 import 'kit/settings_css.dart';
 import 'net/net.dart';
 import 'people.dart';
+import 'plugins/pack/pack.dart' show InstalledPlugins;
+import 'plugins/plugin.dart' show MessageFacts;
 import 'voice/channels.dart';
 import 'voice/mention_alerts.dart';
 import 'voice/discord.dart';
 import 'voice/space_groups.dart';
 import 'sounds.dart';
+import 'keys.dart';
 import 'sms.dart';
 import 'ui/circles/circle_invite_card.dart' show openCircleLink;
 import 'ui/common.dart' show toast;
@@ -51,6 +54,7 @@ import 'files/files_store.dart';
 import 'inbox/inbox.dart';
 import 'inbox/telegram.dart';
 import 'ui/inbox_ui.dart';
+import 'ui/settings_panes.dart' show appVersion;
 import 'ui/shell.dart';
 import 'ui/update_banner.dart';
 
@@ -121,6 +125,10 @@ Future<void> main() async {
   _logErrors();
   _watchFrames();
   Sms.instance.prefsChanged.stream.listen((_) => state.reload());
+  // Plugins from the Marketplace and in development (lib/plugins/pack; Matt, 2026-11-20: "I would like users to be able
+  // to develop and submit their own plugins to our plugin marketplace"): read from this phone's folder and each checked
+  // again before any screen or the API asks the registry. At most three seconds; a slower disk finishes after.
+  await InstalledPlugins.instance.load(state, appVersion: appVersion);
   // The app's API (lib/api), each way in started where Settings › API has it on (Matt, 2026-11-17: "build an entire API
   // that we can use to interact with every aspect of the app").
   Api.instance.registerAll(appMethods(state));
@@ -163,7 +171,13 @@ Future<void> _watchFrames() async {
 
 /// The page's faces, with the emoji set chosen first among their fallbacks: Inter draws no emoji, so every one is
 /// the set's. The phone's own set adds no fallback, and Android's emoji font is what is left.
-GlacierTypography ghostTypography(String emoji) {
+/// The same object for the same emoji set: the theme is keyed on it (GlacierTheme), and a new one each build made new
+/// tokens, and so the whole app rebuilt, on every change of any choice (docs/performance-audit.md).
+final Map<String, GlacierTypography> _typographies = {};
+
+GlacierTypography ghostTypography(String emoji) => _typographies[emoji] ??= _typography(emoji);
+
+GlacierTypography _typography(String emoji) {
   final family = emojiSet(emoji).family;
   return GlacierTypography(
     features: const [FontFeature('cv11'), FontFeature('ss01')],
@@ -271,6 +285,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
 
   Future<void> _check({bool first = false}) async {
     final s = await Sms.instance.status();
+    // Whether the phone's contacts can be read, before the list is drawn: without them plugins from other developers
+    // see nothing, since a contact can't be told from a stranger (lib/plugins/pack/format.dart packSees).
+    MessageFacts.heardStatus(s);
     if (!mounted) return;
     // Texts may be passed by in the walkthrough (Matt, 2026-11-20: "rework the onboarding on mobile so that SMS is not
     // required and you can 'skip this step'"): the app opens without them, and asks Android for none (Sms.textsOff).
@@ -286,6 +303,8 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       final app = AppState.of(context);
       // The interface sounds (lib/sounds.dart) read the person's choices from here.
       Sounds.instance.start(app);
+      // The keyboard's commands and push to talk (lib/keys.dart).
+      Keys.instance.start(app);
       // The app's own network, friends, groups, voice and circles, and friends by username (lib/people.dart).
       startPeople(app);
       // Files spaces' files (lib/files/files_store.dart): what was going up when the app closed goes on, and files
@@ -415,13 +434,28 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     if (!_isDefault! || _walking) {
       _walking = true;
       return Onboarding(onDone: () {
-        setState(() => _walking = false);
+        // Texts skipped a moment ago: the app opens now, not after _check has looked again (until then _isDefault is
+        // still false, and the walkthrough would be drawn again over the account's first page).
+        final skipped = AppState.of(context).flag(textsSkippedKey, fallback: false);
+        setState(() {
+          _walking = false;
+          if (skipped) _isDefault = true;
+        });
         _check(first: true);
       });
     }
     // An iPhone of its own starts with a username (lib/standalone/welcome.dart); it is never asked to be the
     // default for texts, so the walkthrough above is not shown on one.
     if (Sms.standalone && Me.instance.username == null) return StandaloneWelcome(onDone: () => setState(() {}));
+    // A new Android install, past the texts step: the username and password next (Matt, 2026-11-20: "Yes, replace
+    // it"). After the texts step, since the relay server is dialled only once the app has started (_check).
+    final app = AppState.of(context);
+    if (app.flag(accountDueKey, fallback: false) && Me.instance.username == null) {
+      return StandaloneWelcome(onDone: () {
+        app.setFlag(accountDueKey, false);
+        setState(() {});
+      });
+    }
     // Past the welcome: an iPhone may be woken while closed (lib/standalone/wake.dart).
     if (Sms.standalone) IosWake.start();
     // The list, and what is opened from it beside it where the screen is wide enough (a folding phone opened out).

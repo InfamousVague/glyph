@@ -44,6 +44,9 @@ const DOMAIN = 'gogho.st';
 // the relay's sign-in pages (/link/*, whose addresses Discord, X and Telegram were given); anything else there goes
 // to the same address on gogho.st. /discord/* answers on both names (the Discord presence bot, tool/deploy-discord.mjs).
 const OLD = 'ghost-sms.com';
+// Another name for the site, sent on to gogho.st (Matt, 2026-11-20: "link satellite.im to the list of domains and point it
+// to the gogho.st page"). Its DNS has to point at the box (as gogho.st's does) before Caddy can get it a certificate.
+const ALSO = 'satellite.im';
 const args = process.argv.slice(2);
 const withCaddy = args.includes('--caddy');
 const printOnly = args.includes('--print');
@@ -67,7 +70,7 @@ ${DOMAIN} {
 	# The release's own files (tool/release.mjs, tool/release-mac.mjs), so a release updates this site's download
 	# and version. Installed copies update from these addresses (the phone's Updater.BASE, the Mac's macFeed): they
 	# must never stop answering.
-	@release path /${APK} /apk.json /${MAC_ZIP} /${MAC_DMG} /mac.json /ghost-messaging-setup.exe /windows.json
+	@release path /${APK} /apk.json /${MAC_ZIP} /${MAC_DMG} /mac.json /ghost-messaging-setup.exe /windows.json /ghost-messaging-linux.deb /ghost-messaging-linux-x64.tar.gz /linux.json
 	handle @release {
 		root * ${RELEASE}
 		header Cache-Control "no-cache"
@@ -99,10 +102,14 @@ ${DOMAIN} {
 	# page or a delete at once). Neither runs while a body is still coming, so a slow phone's 8 MB piece is not cut
 	# off. A body that stops coming is the relay's to end (files.dart's bodyPause, 30 s without a byte): Caddy's own
 	# read_body timeout is for every site on this box, not one route, so it is not set here.
-	@files path /files /files/* /feedback
+	# The Marketplace (relay/lib/market.dart) is the same service's too: a body that stops coming is the market's to end
+	# (60 s for the whole of one, 30 s without a byte), for the same reason. 10MiB, not 10MB: Caddy reads MB as 1,000,000 bytes, and
+	# the relay holds Files' pieces and the market's bodies to 10 << 20 = 10,485,760 bytes, which a body between the two
+	# passed there and was cut here (review, 2026-11-20).
+	@files path /files /files/* /feedback /market /market/*
 	handle @files {
 		request_body {
-			max_size 10MB
+			max_size 10MiB
 		}
 		reverse_proxy 127.0.0.1:18787 {
 			flush_interval -1
@@ -128,6 +135,17 @@ ${DOMAIN} {
 		header Cache-Control "no-cache"
 		file_server
 	}
+	# The example plugins the docs link (docs-src/examples/*.ghostplugin): a ghost-plugin/1 file is JSON, which Caddy
+	# can't tell from the extension, so without this a download, or a fetch that doesn't take gzip, came with no type.
+	@plugins path *.ghostplugin
+	handle @plugins {
+		root * ${SITE}
+		header Content-Type "application/json"
+		header Cache-Control "no-cache"
+		header X-Content-Type-Options "nosniff"
+		header Referrer-Policy "strict-origin-when-cross-origin"
+		file_server
+	}
 	handle {
 		root * ${SITE}
 		header Cache-Control "no-cache"
@@ -141,7 +159,7 @@ www.${DOMAIN} {
 }
 ${OLD} {
 	encode zstd gzip
-	@release path /${APK} /apk.json /${MAC_ZIP} /${MAC_DMG} /mac.json /ghost-messaging-setup.exe /windows.json
+	@release path /${APK} /apk.json /${MAC_ZIP} /${MAC_DMG} /mac.json /ghost-messaging-setup.exe /windows.json /ghost-messaging-linux.deb /ghost-messaging-linux-x64.tar.gz /linux.json
 	handle @release {
 		root * ${RELEASE}
 		header Cache-Control "no-cache"
@@ -151,10 +169,11 @@ ${OLD} {
 	handle @relay {
 		reverse_proxy 127.0.0.1:18787
 	}
-	@files path /files /files/* /feedback
+	# Files, feedback and the Marketplace (relay/lib/market.dart), as above; a body that stops coming is the market's to end.
+	@files path /files /files/* /feedback /market /market/*
 	handle @files {
 		request_body {
-			max_size 10MB
+			max_size 10MiB
 		}
 		reverse_proxy 127.0.0.1:18787 {
 			flush_interval -1
@@ -175,10 +194,16 @@ ${OLD} {
 www.${OLD} {
 	redir https://${DOMAIN}{uri} permanent
 }
+${ALSO} {
+	redir https://${DOMAIN}{uri} permanent
+}
+www.${ALSO} {
+	redir https://${DOMAIN}{uri} permanent
+}
 `;
 
 // Both names' blocks are this site's: each is taken out and written again.
-const dom = `(${DOMAIN.replace('.', '[.]')}|${OLD.replace('.', '[.]')})`;
+const dom = `(${DOMAIN.replace('.', '[.]')}|${OLD.replace('.', '[.]')}|${ALSO.replace('.', '[.]')})`;
 // Run on the box. Reads the site as a tarball on stdin.
 const REMOTE = `set -e
 SUDO=; [ "$(id -u)" -eq 0 ] || SUDO=sudo
@@ -260,5 +285,7 @@ const info = curl(['-o', '/dev/null', '-w', '%{http_code}', `https://${DOMAIN}/a
 const apk = curl(['-o', '/dev/null', '-w', '%{http_code}', '-r', '0-0', `https://${DOMAIN}/${APK}`]).stdout;
 const links = curl(['-o', '/dev/null', '-w', '%{http_code} %{content_type}', `https://${DOMAIN}/.well-known/assetlinks.json`]).stdout;
 console.log(`  https://${DOMAIN}/.well-known/assetlinks.json answers ${links || 'nothing yet'} (200 application/json once the block from --caddy is live)`);
+const example = curl(['-o', '/dev/null', '-w', '%{http_code} %{content_type}', `https://${DOMAIN}/docs/examples/bills.ghostplugin`]).stdout;
+console.log(`  https://${DOMAIN}/docs/examples/bills.ghostplugin answers ${example || 'nothing yet'} (200 application/json once the block from --caddy is live)`);
 console.log(`  https://${DOMAIN}/ answers ${page || 'nothing yet'}; /apk.json ${info || 'nothing yet'}; /${APK} ${apk || 'nothing yet'} (404 for those two until the first tool/release.mjs)`);
 if (page !== '200') console.log('  (a certificate can take a minute, or longer while the domain\'s DNS settles: Caddy keeps trying.)');

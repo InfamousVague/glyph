@@ -1284,6 +1284,30 @@ class _MembersState extends State<_Members> {
           if (people.isEmpty) SettingRow(label: 'No one matches "$_find"', disabled: true),
         ],
       ),
+      // Banned (CircleManifest.removed), each let back with Unban by whoever may change the circle.
+      if (m.removed.isNotEmpty && q.isEmpty) ...[
+        SizedBox(height: t.space(6)),
+        PaneSection(
+          key: const ValueKey('circle-banned'),
+          title: 'Banned',
+          description: const Text('Kept out of the circle, and not heard in it. Unbanned, they can come back if invited again.'),
+          children: [
+            for (final id in m.removed)
+              SettingRow(
+                key: ValueKey('circle-banned-$id'),
+                icon: AppIcon(Lucide.ban, size: 18),
+                label: Voice.instance.nameOf(id).isEmpty ? 'Someone (${id.substring(0, id.length < 8 ? id.length : 8)})' : Voice.instance.nameOf(id),
+                value: circles.canEdit(c) ? const Text('Unban') : null,
+                onPress: circles.canEdit(c)
+                    ? () async {
+                        final ok = await circles.removeMember(circles.bySeed(c.seed) ?? c, id, back: true);
+                        if (context.mounted) toast(context, ok ? 'Unbanned' : 'Couldn\'t unban them', tone: ok ? GlacierToastTone.neutral : GlacierToastTone.danger);
+                      }
+                    : null,
+              ),
+          ],
+        ),
+      ],
     ]);
   }
 }
@@ -1353,6 +1377,20 @@ class _PersonRoles extends StatelessWidget {
                 },
               ),
             ),
+          ],
+        ),
+      ],
+      // Kick or ban (Matt, 2026-11-20: "I can't seem to kick users or ban them from circles").
+      if (c.manifest.mayRemove(circles.signer?.id ?? '', person.id)) ...[
+        SizedBox(height: t.space(6)),
+        PaneSection(
+          title: 'Kick or ban',
+          description: Text('A kick puts ${person.name} out now; they can come back if invited again. A ban keeps them out, and nobody here hears them.'),
+          children: [
+            for (final ch in circleKickBanChoices(context, c, person, (ok, done) {
+              if (context.mounted) toast(context, ok ? done : 'Couldn\'t change that for ${person.name}', tone: ok ? GlacierToastTone.neutral : GlacierToastTone.danger);
+            }))
+              SettingRow(key: ValueKey('person-${ch.label.startsWith('Kick') ? 'kick' : 'ban'}'), icon: AppIcon(ch.icon, size: 18, color: context.tokens.danger), label: ch.label, labelColor: context.tokens.danger, hint: ch.hint == null ? null : Text(ch.hint!), onPress: ch.onPress),
           ],
         ),
       ],

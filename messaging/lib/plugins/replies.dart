@@ -102,6 +102,11 @@ class RepliesPlugin extends GhostPlugin {
   @override
   PluginShelf get shelf => PluginShelf.messages;
 
+  // Its tags in the Marketplace, so a search by tag finds it beside the plugins from other developers (Matt, 2026-11-20:
+  // "plugin tags").
+  @override
+  List<String> get labels => const ['replies'];
+
   @override
   String get tagline => 'Replies to choose from, and reminders to follow up.';
 

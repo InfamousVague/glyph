@@ -59,6 +59,9 @@ import 'inbox_signin_teams.dart';
 import 'inbox_signin_google_chat.dart';
 import 'inbox_signin_whatsapp.dart' show WhatsAppLinkScreen;
 import 'inbox_signin_matrix.dart';
+import 'paste_images.dart';
+import 'schedule_ui.dart';
+import '../scheduled.dart' show ScheduleTarget;
 
 /// The screens of the inbox of other networks (lib/inbox): a chat's row in the list, the chat itself, signing in, and
 /// the sections of Settings for each network.
@@ -240,6 +243,16 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
       await _n.sendFiles(widget.chatId, [file.path]);
     } catch (e) {
       if (mounted) toast(context, 'Couldn\'t send the sticker: $e', tone: GlacierToastTone.danger);
+    }
+  }
+
+  /// A picture pasted into the field (PasteImages), kept as one added with + is.
+  Future<void> _pasted(String path) async {
+    try {
+      final kept = await Sms.instance.cacheCopy(path);
+      if (mounted && _files.length < 10) setState(() => _files.add(kept));
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t add that picture: $e', tone: GlacierToastTone.danger);
     }
   }
 
@@ -508,6 +521,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                 }
                 // The same buttons in the same places as every other conversation (lib/ui/composer_box.dart), each
                 // greyed out where this network can't do it.
+                final ScheduleTarget schedule = (kind: 'inbox', target: '${_n.id}:${widget.chatId}', who: chat?.title ?? _n.name);
                 final buttons = composerButtons(
                   t,
                   hasSomething: _text.text.isNotEmpty || _files.isNotEmpty,
@@ -521,6 +535,17 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                     await showEmojiPicker(context, onPick: (e) => insertEmoji(_text, e));
                     if (mounted) _focus.requestFocus();
                   },
+                  // Send later (lib/ui/schedule_ui.dart): words alone, as a new message in this chat.
+                  onSendMenu: () {
+                    if (_files.isNotEmpty) {
+                      toast(context, 'Files can\'t be scheduled yet. Send them now, or schedule the words alone.');
+                      return;
+                    }
+                    openSendMenu(context, to: schedule, text: _text.text, onScheduled: () {
+                      _text.clear();
+                      setState(() => _replying = null);
+                    });
+                  },
                 );
                 return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   if (_replying != null)
@@ -530,6 +555,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                       onClose: () => setState(() => _replying = null),
                     ),
                   if (_files.isNotEmpty) _FilesStrip(files: _files, onRemove: (f) => setState(() => _files.remove(f))),
+                  ScheduledStrip(to: schedule),
                   ComposerBox(
                   typing: _text.text.isNotEmpty,
                   plus: buttons.plus,
@@ -554,7 +580,14 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                           child: Stack(children: [
                             if (_text.text.isEmpty)
                               IgnorePointer(child: Text('Message on ${_n.name}', style: style.copyWith(color: t.color('app-ink-3')), strutStyle: strut, textHeightBehavior: composerLeading)),
-                            EditableText(
+                            // A picture pasted on a computer goes with the message, as one added with + does
+                            // (lib/ui/paste_images.dart; Matt, 2026-11-20: "pasting a screenshot into the compose bar
+                            // isn't adding attachements").
+                            PasteImages(
+                              focusNode: _focus,
+                              enabled: files && _files.length < 10,
+                              onImage: _pasted,
+                              child: EditableText(
                               key: _field,
                               controller: _text,
                               focusNode: _focus,
@@ -570,7 +603,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                               onSubmitted: (_) => _send(),
                               onEditingComplete: enterSends ? () {} : null,
                               textCapitalization: TextCapitalization.sentences,
-                            ),
+                            )),
                           ]),
                         ),
                       ),

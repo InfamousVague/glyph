@@ -943,7 +943,7 @@ class FilesConfig {
       spacesPerId: read('GHOST_FILES_SPACES_PER_ID', d.spacesPerId),
       idleDays: read('GHOST_FILES_IDLE_DAYS', d.idleDays),
       writesPerMinute: read('GHOST_FILES_WRITES_PER_MINUTE', d.writesPerMinute),
-      // A piece may not be bigger than Caddy lets through (tool/deploy-site.mjs's request_body, 10 MB).
+      // A piece may not be bigger than Caddy lets through (tool/deploy-site.mjs's request_body, 10 MiB).
       maxBody: min(read('GHOST_FILES_MAX_BODY', d.maxBody), 10 << 20),
       maxOp: read('GHOST_FILES_MAX_OP', d.maxOp),
       maxOps: read('GHOST_FILES_MAX_OPS', d.maxOps),

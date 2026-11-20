@@ -479,7 +479,8 @@ class Hub {
         if (h == null) {
           _tell(ws, {'dir': 'err', 'about': said['dir'], 'err': 'This server keeps no handles.'});
         } else {
-          h.said(e.id, said);
+          // The asking connection's own tell, as came and went are given: the answer goes to the device that asked.
+          h.said(e.id, said, e.tell);
         }
       } else if (said['watch'] is List) {
         final ids = (said['watch'] as List).where((i) => _hex(i, 32)).cast<String>().take(maxWatched).toList();

@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../games/game_activity.dart';
 import '../names.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -193,7 +194,7 @@ class HangoutRoom extends ChangeNotifier {
   /// nobody and saw those here without their names until they spoke.
   void _hi({bool ask = false}) {
     final me = Me.instance;
-    _say({'t': 'hi', 'n': name, if (username != null) 'u': username, 'a': _inVoice, if (ask) 'q': true, if (me.status.isNotEmpty) 'st': me.status, if (me.picture.isNotEmpty) 'ph': ProfilePictures.hashOf(me.picture)});
+    _say({'t': 'hi', 'n': name, if (username != null) 'u': username, 'a': _inVoice, if (ask) 'q': true, if (me.status.isNotEmpty) 'st': me.status, if (me.picture.isNotEmpty) 'ph': ProfilePictures.hashOf(me.picture), if (GamePresence.instance.forSpaces != null) 'ga': GamePresence.instance.forSpaces!.toJson()});
   }
 
   final Map<String, Completer<String?>> _askedPictures = {};
@@ -903,19 +904,22 @@ class HangoutRoom extends ChangeNotifier {
             inVoice: m['a'] == true,
             guest: m['g'] == true,
             status: m['st'] is String ? String.fromCharCodes((m['st'] as String).runes.take(Me.statusMost)) : '',
-            pictureHash: m['ph'] is String ? m['ph'] as String : '');
+            pictureHash: m['ph'] is String ? m['ph'] as String : '',
+            // What they are playing, as their greeting says now (lib/games/game_activity.dart): none said, none.
+            game: GameActivity.fromJson(m['ga']));
         if (m['u'] is String && (m['u'] as String).isNotEmpty) usernames[from] = m['u'] as String;
         notifyListeners();
         // Come in asking who is here (a person's second device, whom the relay announces to nobody): told, once.
         if (m['q'] == true) _greet(from);
       case 'pic?':
         // Someone looking at this person's profile (it came to them alone: `to` above).
-        final mine = Me.instance.picture;
-        if (mine.isNotEmpty) _say({'t': 'pic', 'to': from, 'p': mine});
+        // `p` the small one, for builds from before 0.10.4; `pp` the sharp one shown, for the rest.
+        final mine = Me.instance.picture, sharp = Me.instance.pictureSharp;
+        if (mine.isNotEmpty) _say({'t': 'pic', 'to': from, 'p': mine, if (sharp != mine) 'pp': sharp});
       case 'pic':
-        final p = m['p'];
+        final p = m['p'], pp = m['pp'];
         if (p is String) {
-          ProfilePictures.instance.keep(from, p);
+          ProfilePictures.instance.keep(from, pp is String && pp.isNotEmpty ? pp : p, markOf: p);
           final asked = _askedPictures[from];
           if (asked != null && !asked.isCompleted) asked.complete(ProfilePictures.instance.of(from));
         }
@@ -994,7 +998,7 @@ class HangoutRoom extends ChangeNotifier {
 /// Someone in a hangout's chat room, as they said they are.
 @immutable
 class HangoutPerson {
-  const HangoutPerson(this.id, {this.name = '', this.username, this.inVoice = false, this.guest = false, this.status = '', this.pictureHash = ''});
+  const HangoutPerson(this.id, {this.name = '', this.username, this.inVoice = false, this.guest = false, this.status = '', this.pictureHash = '', this.game});
   final String id;
   final String name;
   final String? username;
@@ -1003,6 +1007,9 @@ class HangoutPerson {
   /// picture itself is asked of them when someone looks at their profile ([HangoutRoom.pictureOf]).
   final String status;
   final String pictureHash;
+
+  /// What they said they are playing, when they last greeted the room; null for nothing.
+  final GameActivity? game;
   final bool inVoice;
   final bool guest;
 }

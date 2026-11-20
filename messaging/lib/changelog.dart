@@ -23,6 +23,28 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.10.5', '2026-11-20', [
+    'Game activity: a new plugin that shows friends and the spaces you\'re in which game you\'re playing on your Mac or Windows computer, and for how long. Add it from the Marketplace; it\'s off until you do, and you choose who is told.',
+    'Recording a call: every track has a real meter now, with its peaks, its average and a lamp that lights if a voice clips.',
+    'Recording a call: a mixer. Press Mixer in the recording to set how loud each voice is in the mix, or mute or solo one, while it records. Each person\'s own track stays as it was recorded.',
+    'Recording a call: mark a moment with the flag, and find it again in Recordings.',
+    'Signing up is a username and a password. The recovery words\' check can be skipped and done later.',
+    'On an Android phone the walkthrough is the texts step, then your username and password.',
+    'Circles: owners and admins can kick someone, or ban them so an invite won\'t let them back.',
+    'Schedule a message: press and hold Send, or right-click it, to choose when it goes.',
+    'Calls: push to talk, and keyboard commands you can set in Settings › Keyboard shortcuts.',
+    'On a computer, photos and videos that weren\'t coming through now do, and you can paste a picture into any message field on a Mac.',
+  ]),
+  ReleaseNotes('0.10.4', '2026-11-20', [
+    'Marketplace: plugins have a place of their own now, a storefront on the rail and the dock between Archive and Settings. Settings no longer lists them, and searching Settings for a plugin opens it there.',
+    'Plugins from other developers: browse, add and remove reviewed plugins in the Marketplace. Each one says what it can do before you add it, and it only ever sees texts from numbers not in your contacts, on this device.',
+    'Make your own: Marketplace › Submit a plugin sends a plugin you\'ve made for review, with its icon, description and tags, and My submissions shows where each one stands.',
+    'Developer mode: Settings › Developer › Plugins in development loads a plugin you\'re making from a file, a link or the clipboard, to try it before you submit it.',
+    'Report a plugin from its page if something\'s wrong with it.',
+    'Profile pictures are sharp: a picture you choose is kept 256 pixels across, not 72. Choose yours again to send friends the sharp one.',
+    'Messages: the filter\'s menu stays on the screen on a small phone or in a short window, opening where there\'s room and scrolling its list.',
+    'Circles: a welcome message for new members and a welcome space they land in, read-only spaces where only the owner and admins post, and a system space that shows who joined, was kicked or banned, or became an admin. Set them in a circle\'s Settings › Welcome.',
+  ]),
   ReleaseNotes('0.10.3', '2026-11-20', [
     'Messages: Mark all read, Share feedback and the Messages and Codes toggle scroll away with your conversations, so the search stays at the top and the list has more room.',
     'Messages: Clean up is one of those rows now, not a button over the search, so the bar above the search is gone.',

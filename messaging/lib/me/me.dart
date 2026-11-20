@@ -6,6 +6,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import 'picture_make.dart';
 import 'pictures.dart';
 
 import '../app_state.dart';
@@ -300,7 +301,8 @@ class Me extends ChangeNotifier {
     _hubNow = hub;
     _needHub = needHub;
     _read();
-    if (_inUse) _needHub?.call(true);
+    // Woken before it started (the first page, lib/standalone/welcome.dart, drawn the moment the walkthrough ends).
+    if (_inUse || _woken) _needHub?.call(true);
     routes.addListener(_attach);
     _attach();
     notifyListeners();
@@ -580,7 +582,25 @@ class Me extends ChangeNotifier {
   /// This person's picture: a square base64 PNG (lib/me/pictures.dart), sent to friends with the name and line, and
   /// to those in a space who look at their profile; '' for none (Matt, 2026-11-19: "build a profile section in the app
   /// that allows us to set profile pictures and status messages").
+  ///
+  /// This is the small one (at most [ProfilePictures.oldMost]), which builds from before 0.10.4 are sent and a space's
+  /// greeting names; [pictureSharp] is the one shown.
   String get picture => _app?.choice('me_picture', '') ?? '';
+
+  /// The picture as it is shown, here and to those on 0.10.4 or later: [picture] where there is no sharper one.
+  String get pictureSharp {
+    final sharp = _app?.choice('me_picture_sharp', '') ?? '';
+    return sharp.isNotEmpty && picture.isNotEmpty ? sharp : picture;
+  }
+
+  /// Sets this person's picture (lib/me/picture_make.dart), or takes it away (null).
+  void setPicture(ProfilePicture? p) {
+    final sharp = p == null || p.sharp.length > ProfilePictures.most ? '' : p.sharp;
+    final small = p == null ? '' : (p.small.isNotEmpty && p.small.length <= ProfilePictures.oldMost ? p.small : (sharp.length <= ProfilePictures.oldMost ? sharp : ''));
+    _app?.set('me_picture', sharp.isEmpty ? '' : small);
+    _app?.set('me_picture_sharp', small.isEmpty ? '' : sharp);
+    notifyListeners();
+  }
 
   /// A short line saying how they are now ("Out walking", "🎧 heads down"), shown under their name everywhere they are
   /// seen: to friends, in spaces and circles. At most [statusMost] characters; '' for none.
@@ -598,7 +618,10 @@ class Me extends ChangeNotifier {
   void setProfile({String? displayName, String? bio, String? picture, String? status}) {
     if (displayName != null) _app?.set('me_display', displayName.trim());
     if (bio != null) _app?.set('me_bio', bio.trim());
-    if (picture != null) _app?.set('me_picture', picture.length <= ProfilePictures.most ? picture : '');
+    if (picture != null) {
+      _app?.set('me_picture', picture.length <= ProfilePictures.oldMost ? picture : '');
+      _app?.set('me_picture_sharp', '');
+    }
     if (status != null) {
       final s = status.trim().replaceAll(RegExp(r'\s+'), ' ');
       _app?.set('me_status', String.fromCharCodes(s.runes.take(statusMost)));

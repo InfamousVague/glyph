@@ -171,7 +171,7 @@ void main() {
     }
     expect(find.text('Sam Rivera joined the circle'), findsOneWidget);
     expect(find.text('Maya Chen is now an admin'), findsOneWidget);
-    expect(find.text('Riley was removed from the circle'), findsOneWidget);
+    expect(find.text('Riley was banned from the circle'), findsOneWidget);
     expect(find.text('System messages. Only admins can post in # system.'), findsOneWidget);
     await tester.runAsync(room.close);
   });

@@ -6,6 +6,7 @@ import 'friends/friends.dart';
 import 'friends/groups.dart';
 import 'me/me.dart';
 import 'net/net.dart';
+import 'scheduled.dart';
 import 'voice/channels.dart';
 
 /// The app's own network, started where it runs here rather than on a paired phone: on the Android phone, on an
@@ -25,6 +26,8 @@ void startOwnFriends(AppState app) {
   // A Ghost account of this computer's own, under the identity it took on (Matt, 2026-11-18: "there doesn't seem to be
   // a way to login on desktop just to claim a username, i would like to be able to link a session to a new account").
   Account.instance.start(AppMeStore(app));
+  // Messages scheduled from Send (lib/scheduled.dart): sent as their times come, and any that came while closed.
+  Scheduled.instance.start(app);
   _hearBuddies();
 }
 
@@ -49,6 +52,8 @@ void startPeople(AppState app) {
   // A Ghost account (lib/account; Matt, 2026-11-17: "We need to have a way to login to existing accounts"): where this
   // device is signed in to one, the relay is asked whether it still is.
   Account.instance.start(AppMeStore(app));
+  // Messages scheduled from Send (lib/scheduled.dart): sent as their times come, and any that came while closed.
+  Scheduled.instance.start(app);
   // Friends by username (lib/friends/buddies.dart): heard over the hub, so it is dialled while any are kept, and from
   // the moment there is a username of your own, so a first friend request reaches you (Matt, 2026-11-16: "We need a
   // way to add friends on the network by username on the contacts page and see friend requests").

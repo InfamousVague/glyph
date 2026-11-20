@@ -693,14 +693,29 @@ List<Choice> circlePersonChoices(BuildContext context, Circle c, CirclePerson p)
       p.admin
           ? Choice('Remove as admin', Lucide.userMinus, () async => said(await circles.grantAdmin(c, p.id, on: false), '${p.name} is no longer an admin'))
           : Choice('Make admin', Lucide.shieldCheck, () async => said(await circles.grantAdmin(c, p.id), '${p.name} is an admin'), hint: 'Can change the circle and its spaces'),
-    if (m.mayRemove(me, p.id))
-      Choice('Remove from ${m.name}', Lucide.userMinus, danger: true, hint: 'Their app leaves the circle, and nobody here hears them again', () {
-        showChoices(context, title: 'Remove ${p.name} from ${m.name}?', choices: [
-          Choice('Remove ${p.name}', Lucide.userMinus, danger: true, () async => said(await circles.removeMember(c, p.id), '${p.name} was removed')),
-        ]);
-      }),
+    // Kick or ban (Matt, 2026-11-20: "I can't seem to kick users or ban them from circles"): a kick puts them out now
+    // and they may come back by an invite; a ban keeps them out and nobody here hears them.
+    if (m.mayRemove(me, p.id)) ...circleKickBanChoices(context, c, p, said),
   ];
   return more;
+}
+
+/// Kick and Ban for [p] in [c], each asked first; [said] tells how it went.
+List<Choice> circleKickBanChoices(BuildContext context, Circle c, CirclePerson p, void Function(bool ok, String done) said) {
+  final circles = Circles.instance;
+  final name = (circles.bySeed(c.seed) ?? c).manifest.name;
+  return [
+    Choice('Kick from $name', Lucide.logOut, danger: true, hint: 'They leave now, and can come back if invited again', () {
+      showChoices(context, title: 'Kick ${p.name} from $name? They leave now, and can come back if someone invites them again.', choices: [
+        Choice('Kick ${p.name}', Lucide.logOut, danger: true, () async => said(await circles.kickMember(c, p.id), '${p.name} was kicked')),
+      ]);
+    }),
+    Choice('Ban from $name', Lucide.ban, danger: true, hint: 'They leave and can\'t come back; nobody here hears them', () {
+      showChoices(context, title: 'Ban ${p.name} from $name? They leave and can\'t come back, and nobody here hears them, until they\'re unbanned in Circle settings › Members.', choices: [
+        Choice('Ban ${p.name}', Lucide.ban, danger: true, () async => said(await circles.removeMember(c, p.id), '${p.name} was banned')),
+      ]);
+    }),
+  ];
 }
 
 /// [p]'s profile card from a circle's members, with what this device may change about them there ([circlePersonChoices]).

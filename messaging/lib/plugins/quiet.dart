@@ -37,6 +37,11 @@ class QuietPlugin extends GhostPlugin {
   @override
   PluginShelf get shelf => PluginShelf.safety;
 
+  // Its tags in the Marketplace, so a search by tag finds it beside the plugins from other developers (Matt, 2026-11-20:
+  // "plugin tags").
+  @override
+  List<String> get labels => const ['quiet'];
+
   @override
   String get tagline => 'Strangers silent at night; spam and sales never make a sound.';
 

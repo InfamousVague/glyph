@@ -20,7 +20,7 @@ import 'circle.dart';
 ///   and its room on the relay is bound to the owner's key ([readOnlyRoomOf]), where the hub itself refuses to keep
 ///   anyone else's words or pass them to other members (relay/lib/hub.dart), so a changed app can't post either.
 /// - **The system space** (`sy`, a space's seed) is a read-only space where each member's app writes, for that member
-///   alone, the circle's comings and goings: who joined, who was removed, who was made or stopped being an admin, as
+///   alone, the circle's comings and goings: who joined, who was kicked or banned, who was made or stopped being an admin, as
 ///   they are heard ([CircleSystemNote]). Admins' announcements are written there, or in any read-only space, as
 ///   ordinary messages.
 
@@ -119,6 +119,7 @@ ReadOnlyRoom? readOnlyRoomOf(CircleManifest m, CircleSpace space) {
 enum SystemNoteKind {
   joined('j'),
   removed('r'),
+  kicked('k'),
   admin('a'),
   unadmin('u');
 
@@ -144,7 +145,8 @@ class CircleSystemNote {
     final who = name.isEmpty ? 'Someone' : name;
     return switch (kind) {
       SystemNoteKind.joined => '$who joined the circle',
-      SystemNoteKind.removed => '$who was removed from the circle',
+      SystemNoteKind.removed => '$who was banned from the circle',
+      SystemNoteKind.kicked => '$who was kicked from the circle',
       SystemNoteKind.admin => '$who is now an admin',
       SystemNoteKind.unadmin => '$who is no longer an admin',
     };
@@ -166,12 +168,17 @@ class CircleSystemNote {
   int get hashCode => Object.hash(kind, id, at);
 }
 
-/// What changed between [was] and [now] of one circle that its system space tells of: who was removed, who was made an
-/// admin, who stopped being one. [nameOf] gives a name for an id.
+/// What changed between [was] and [now] of one circle that its system space tells of: who was banned (removed), who was
+/// kicked, who was made an admin, who stopped being one. [nameOf] gives a name for an id.
 List<CircleSystemNote> systemNotesBetween(CircleManifest was, CircleManifest now, {required String Function(String id) nameOf, required int at}) {
   final out = <CircleSystemNote>[];
   for (final id in now.removed.difference(was.removed)) {
     out.add(CircleSystemNote(kind: SystemNoteKind.removed, id: id, name: nameOf(id), at: at));
+  }
+  final kickedBefore = was.kicked;
+  for (final e in now.kicked.entries) {
+    if ((kickedBefore[e.key] ?? -1) >= e.value || now.removed.contains(e.key)) continue;
+    out.add(CircleSystemNote(kind: SystemNoteKind.kicked, id: e.key, name: nameOf(e.key), at: at));
   }
   final before = {for (final id in was.adminGrants.keys) if (was.granted(id)) id};
   final after = {for (final id in now.adminGrants.keys) if (now.granted(id)) id};

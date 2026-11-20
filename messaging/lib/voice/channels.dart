@@ -14,6 +14,7 @@ import '../net/net.dart';
 import '../net/packet.dart';
 import '../net/switchboard.dart';
 import '../sms.dart';
+import '../keys.dart';
 import '../sounds.dart';
 import '../circles/circles.dart';
 import '../circles/sms_space.dart';
@@ -232,7 +233,7 @@ class Voice extends ChangeNotifier {
 
   void _saw(String room) {
     _seen[room] = DateTime.now().millisecondsSinceEpoch;
-    _app?.set('voice_seen', jsonEncode(_seen));
+    _app?.keep('voice_seen', jsonEncode(_seen));
   }
 
   Future<void> start(AppState app) async {
@@ -555,7 +556,7 @@ class Voice extends ChangeNotifier {
       // A space first listened to starts read: what was said in it before is not news.
       if (!_readAt.containsKey(c.seed)) {
         _readAt[c.seed] = lastMessage(c)?.at ?? DateTime.now().millisecondsSinceEpoch;
-        _app?.set('voice_read', jsonEncode(_readAt));
+        _app?.keep('voice_read', jsonEncode(_readAt));
       }
       unawaited(hold(c).catchError((_) => null));
     }
@@ -592,7 +593,7 @@ class Voice extends ChangeNotifier {
     final at = lastMessage(c)?.at ?? DateTime.now().millisecondsSinceEpoch;
     if ((_readAt[c.seed] ?? 0) >= at) return;
     _readAt[c.seed] = at;
-    _app?.set('voice_read', jsonEncode(_readAt));
+    _app?.keep('voice_read', jsonEncode(_readAt));
     MentionAlerts.instance?.read(c);
     notifyListeners();
   }
@@ -730,6 +731,13 @@ class Voice extends ChangeNotifier {
 
   final Map<String, HangoutRoom> _hangouts = {};
   final Map<String, int> _holds = {};
+
+  /// Says who this device is again in every space's chat it holds: its game began or ended (lib/games/game_activity.dart).
+  void sayMeEverywhere() {
+    for (final room in _hangouts.values) {
+      room.sayMe();
+    }
+  }
 
   /// [c]'s chat and roles where they are made already; null where not (nothing is made).
   HangoutRoom? heldHangout(VoiceChannel c) => _hangouts[c.seed];
@@ -895,6 +903,8 @@ class Voice extends ChangeNotifier {
       // is locked").
       await Sms.instance.callStarted(c.name, video: withVideo);
       await s.join(withVideo: withVideo);
+      // Push to talk (lib/keys.dart): in with the microphone off, on only while its key is held.
+      if (Keys.instance.pushToTalk) s.setMuted(true, quiet: true);
       _enforce();
       // The call's captions follow it: this device writes out its own voice while anyone wants them (captions.dart).
       CallCaptions.instance.follow();
@@ -971,7 +981,7 @@ class AppHangoutStore implements HangoutStore, HangoutVotesStore {
   }
 
   @override
-  void keepMessages(String room, List<HangoutMessage> messages) => app.set('hangout_${room}_m', jsonEncode([for (final m in messages) m.toStored()]));
+  void keepMessages(String room, List<HangoutMessage> messages) => app.keep('hangout_${room}_m', jsonEncode([for (final m in messages) m.toStored()]));
 
   @override
   Roster? roster(String room) {

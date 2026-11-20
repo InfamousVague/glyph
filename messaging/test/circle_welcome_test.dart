@@ -218,14 +218,16 @@ void main() {
     expect(circles.systemNotesIn(held()).map((n) => n.line), ['Sam Rivera joined the circle'], reason: 'each join once');
     await circles.grantAdmin(held(), member.id);
     await circles.grantAdmin(held(), admin.id, on: false);
+    await circles.kickMember(held(), admin.id);
     await circles.removeMember(held(), member.id);
     expect(circles.systemNotesIn(held()).map((n) => n.line), [
       'Sam Rivera joined the circle',
       'Sam Rivera is now an admin',
       'Maya Chen is no longer an admin',
+      'Maya Chen was kicked from the circle',
       // An admin put out stops being one first (Circles.removeMember: two signed changes), and both are told.
       'Sam Rivera is no longer an admin',
-      'Sam Rivera was removed from the circle',
+      'Sam Rivera was banned from the circle',
     ]);
     final round = CircleSystemNote.fromJson(jsonDecode(jsonEncode(circles.systemNotesIn(held()).last.toJson())));
     expect(round, circles.systemNotesIn(held()).last);

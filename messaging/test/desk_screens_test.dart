@@ -17,6 +17,7 @@ import 'package:ghost_messaging/ui/nav_bar.dart';
 import 'package:ghost_messaging/desktop/gm_web.dart';
 import 'package:ghost_messaging/desktop/updates.dart';
 import 'package:ghost_messaging/kit/settings_css.dart';
+import 'package:ghost_messaging/ui/plugins_page/plugins_page.dart' show PluginsPage;
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/ui/common.dart';
@@ -239,8 +240,9 @@ void main() {
       }
       expect(_button('Back'), findsNothing);
       // The navigation pill at the sidebar's foot (Ghost.md's dock, laid along): a new chat, the messages, the
-      // archive with how many are in it, Settings. Messages is the one shown; a ring has no words but its tip.
-      for (final label in ['New', 'Messages', 'Contacts', 'Archive', 'Settings']) {
+      // archive with how many are in it, the Marketplace (Matt, 2026-11-20: "Move plugins out of settings into a
+      // marketplace button on the navigation rail"), Settings. Messages is the one shown; a ring has no words but its tip.
+      for (final label in ['New', 'Messages', 'Contacts', 'Archive', 'Marketplace', 'Settings']) {
         expect(_nav(label), findsOneWidget, reason: label);
       }
       expect(tester.widget<NavPill>(find.byType(NavPill)).active, 'messages');
@@ -272,10 +274,10 @@ void main() {
       expect(find.text('Mom'), findsOneWidget);
       if (autoUpdateGoldenFiles) await expectLater(find.byType(DesktopApp), matchesGoldenFile('shots/mac-10-contacts-${dark ? 'dark' : 'light'}.png'));
       // The rings stand evenly along the sidebar's foot: the first by its start, the last by its end.
-      // Five rings: calls are the list's Voice tab, not a ring (Matt, 2026-11-15: "lets remove the calls icon in the
-      // dock").
+      // Six rings: calls are the list's Voice tab, not a ring (Matt, 2026-11-15: "lets remove the calls icon in the
+      // dock"); the Marketplace's is one (2026-11-20). The middle of the six is halfway between the third and fourth.
       final first = tester.getCenter(_nav('New')).dx, last = tester.getCenter(_nav('Settings')).dx;
-      final middle = tester.getCenter(_nav('Contacts')).dx;
+      final middle = (tester.getCenter(_nav('Contacts')).dx + tester.getCenter(_nav('Archive')).dx) / 2;
       // On a computer the pill rests at the smaller size, as Ghost.md's desktop dock does (Matt, 2026-11-15: "just like
       // ghost markdown does match the sizes"), held to the foot's middle.
       expect(tester.widget<Transform>(find.descendant(of: find.byKey(const ValueKey('pill-scale')), matching: find.byType(Transform)).first).transform.storage[0], closeTo(pillScrolledScale, 0.001));
@@ -323,17 +325,20 @@ void main() {
       // share the same settings pages"): its sections where the conversations were and the one chosen beside them
       // ("when the settings is open on desktop replace the normal sidebar so it's only a two pane layout not a
       // three pane"), the Mac's own among them, and what is the phone's alone left to the phone.
-      // Plugins heads the list now (Matt, 2026-11-17: "move plugins to the very top of settings list"), so it is what
-      // opens first; the phone's own section is pressed to see it.
+      // Me heads the list since plugins left Settings for the Marketplace (Matt, 2026-11-20: "Move plugins out of settings
+      // into a marketplace button on the navigation rail"), so it is what opens first; the phone's own section is pressed
+      // to see it.
       await shoot('5-settings', paired('relay'), dark: dark, then: () async {
         await tester.tap(_nav('Settings'));
         await tester.pump(const Duration(milliseconds: 120));
         await tester.tap(find.descendant(of: find.byType(SettingsList), matching: find.text('Your phone')).first);
       });
-      // Codes is no longer a row of its own: a plugin's settings are on its page in Plugins since 2026-11-17.
-      for (final label in ['Your phone', 'Me', 'Appearance', 'Chat background', 'Emoji', 'Effects', 'Messages', 'Plugins', 'Encryption', 'Blocked', 'Archived', 'Kept on this Mac', 'About']) {
+      // Codes is no longer a row of its own: a plugin's settings are on its page in Plugins since 2026-11-17, and Plugins
+      // are the Marketplace's since 2026-11-20.
+      for (final label in ['Your phone', 'Me', 'Appearance', 'Chat background', 'Emoji', 'Effects', 'Messages', 'Encryption', 'Blocked', 'Archived', 'Kept on this Mac', 'About']) {
         expect(find.text(label), findsWidgets, reason: '$label is a section of a computer\'s Settings');
       }
+      expect(find.text('Plugins'), findsNothing, reason: 'the Marketplace has them');
       for (final label in ['Your number', 'Android', 'Notifications', 'Receipts', 'Computers', 'Ghost Keyboard', 'Routes', 'Developer']) {
         expect(find.text(label), findsNothing, reason: '$label is the phone\'s alone');
       }
@@ -366,13 +371,13 @@ void main() {
       expect(find.text('Text size'), findsOneWidget);
       expect(find.text('Unpair this phone'), findsNothing);
       // A plugin's own settings (Matt: "the plugins and all being able to make their own setting sections"), on its
-      // page in Plugins since 2026-11-17: Plugins, then Codes' card.
+      // page in Plugins since 2026-11-17, and in the Marketplace since 2026-11-20: its ring, Discover beside its list,
+      // then Codes' card.
       await shoot('5-settings-plugin', paired('local'), dark: dark, then: () async {
-        await tester.tap(_nav('Settings'));
+        await tester.tap(_nav('Marketplace'));
         await tester.pump(const Duration(milliseconds: 120));
-        await section('Plugins');
         await tester.pump(const Duration(milliseconds: 400));
-        final codes = find.text('Codes').last;
+        final codes = find.descendant(of: find.byType(PluginsPage), matching: find.text('Codes')).last;
         await tester.ensureVisible(codes);
         await tester.pump(const Duration(milliseconds: 60));
         await tester.tap(codes);
@@ -419,7 +424,7 @@ void main() {
       await shoot('5-settings-small', paired('local'), dark: dark, then: () async {
         await tester.tap(_nav('Settings'));
         await tester.pump(const Duration(milliseconds: 120));
-        await section('Your phone'); // Plugins opens first now
+        await section('Your phone'); // Me opens first now
       });
       expect(find.text('Unpair this phone'), findsOneWidget);
       // Messages, at the list's foot, puts Settings away: the conversations are back, with nothing open.

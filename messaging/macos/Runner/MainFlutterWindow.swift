@@ -11,6 +11,15 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
   /// says so with "target"; then "over" as files are dragged over the window and "dropped" with their paths.
   private var drops: FlutterMethodChannel?
   private var dropTarget = false
+
+  /// Pasting a picture into a message field (Matt, 2026-11-20: "pasting a screenshot into the compose bar isn't adding
+  /// attachements"): the Edit menu's Paste holds ⌘V, and macOS gives a menu's key to the menu before the app sees it, so
+  /// the field's own picture paste (lib/ui/paste_images.dart) never ran and only words came in. This looks at ⌘V first:
+  /// while a message field says it has the cursor ([pasteTarget]) and the clipboard holds a picture, the picture goes to
+  /// that field and the key goes no further; otherwise the key goes on to the menu as ever.
+  private var paste: FlutterMethodChannel?
+  private var pasteTarget = false
+  private var pasteMonitor: Any?
   private var updates: UpdatesChannel?
   private var chrome: FlutterMethodChannel?
   /// The app's header, which the three buttons sit centred in, and how far in from the left the first one is.
@@ -100,6 +109,20 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
       result(nil)
     }
     registerForDraggedTypes([.fileURL])
+
+    paste = FlutterMethodChannel(name: "ghost_desktop/paste", binaryMessenger: flutterViewController.engine.binaryMessenger)
+    paste?.setMethodCallHandler { [weak self] call, result in
+      if call.method == "target" { self?.pasteTarget = (call.arguments as? [String: Any])?["on"] as? Bool ?? false }
+      result(nil)
+    }
+    pasteMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+      guard let self, self.pasteTarget, event.window === self,
+            event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+            event.charactersIgnoringModifiers?.lowercased() == "v",
+            let path = DeskChannels.pasteImage() else { return event }
+      self.paste?.invokeMethod("image", arguments: ["path": path])
+      return nil
+    }
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     desk = DeskChannels(messenger: flutterViewController.engine.binaryMessenger)
