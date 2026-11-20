@@ -70,7 +70,7 @@ ${DOMAIN} {
 	# The release's own files (tool/release.mjs, tool/release-mac.mjs), so a release updates this site's download
 	# and version. Installed copies update from these addresses (the phone's Updater.BASE, the Mac's macFeed): they
 	# must never stop answering.
-	@release path /${APK} /apk.json /${MAC_ZIP} /${MAC_DMG} /mac.json /ghost-messaging-setup.exe /windows.json
+	@release path /${APK} /apk.json /${MAC_ZIP} /${MAC_DMG} /mac.json /ghost-messaging-setup.exe /windows.json /ghost-messaging-linux.deb /ghost-messaging-linux-x64.tar.gz /linux.json
 	handle @release {
 		root * ${RELEASE}
 		header Cache-Control "no-cache"
@@ -159,7 +159,7 @@ www.${DOMAIN} {
 }
 ${OLD} {
 	encode zstd gzip
-	@release path /${APK} /apk.json /${MAC_ZIP} /${MAC_DMG} /mac.json /ghost-messaging-setup.exe /windows.json
+	@release path /${APK} /apk.json /${MAC_ZIP} /${MAC_DMG} /mac.json /ghost-messaging-setup.exe /windows.json /ghost-messaging-linux.deb /ghost-messaging-linux-x64.tar.gz /linux.json
 	handle @release {
 		root * ${RELEASE}
 		header Cache-Control "no-cache"
