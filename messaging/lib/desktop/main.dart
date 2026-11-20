@@ -51,7 +51,6 @@ import '../friends/handover.dart' show DeskHandover;
 import '../standalone/welcome.dart';
 import '../ui/account_screens.dart' show SignInScreen;
 import '../ui/common.dart' show push;
-import '../ui/recording_float.dart';
 import 'ui/link_offer.dart';
 
 /// How long a window's size stands still before the theme is worked out for it. Null in a test that sizes a window
@@ -304,9 +303,9 @@ class _DesktopAppState extends State<DesktopApp> {
   /// every copy (a static one) carried one copy's pages, with the link they were made with, into the next mounted.
   final _navigator = GlobalKey<NavigatorState>(debugLabel: 'desk');
 
-  /// [pages] with a call being recorded over them: its pill and tracks, over every page, the call's own among them
-  /// (lib/ui/recording_float.dart).
-  Widget _recorded(Widget pages) => Stack(children: [pages, Positioned.fill(child: RecordingFloat(navigator: _navigator))]);
+  /// [pages] as they are: a call being recorded shows in its banner over the call, whose Mixer opens the tracks full
+  /// screen (lib/ui/recording_float.dart); nothing floats over the pages.
+  Widget _recorded(Widget pages) => pages;
 
   @override
   void initState() {

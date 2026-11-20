@@ -332,6 +332,13 @@ class CallRecorder extends ChangeNotifier {
     t.markers.addAll(markers);
   }
 
+  /// For a test: the standing recording over, as a Stop or the call's end leaves it.
+  @visibleForTesting
+  void endForTest() {
+    _now = null;
+    notifyListeners();
+  }
+
   static const _channel = MethodChannel('ghost/recorder');
 
   /// Whether this platform records calls: a phone and a Mac or iPhone; not Windows yet (its WebRTC library's sink for

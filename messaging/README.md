@@ -30,6 +30,13 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **The recording's mixer is a full-screen drawer from the banner, not a floating pill** (0.10.8, not released;
+  Matt, 2026-11-20: "make the recording plugin banner have a button for "mixer" and have it open a drawer full screen
+  with the audio tracks and whatnot instead of the floating pill"). The recording line over the call
+  (`RecordingBanner`) has Mixer beside Stop; `showRecordingMixer` opens `RecordingMixerDrawer`, the same timeline and
+  mixer (`RecordingTimeline`, `fullScreen`) filling the window, sliding up. Its arrow closes it, and it closes itself a
+  moment after the recording ends, so the saved toast shows over the app. `RecordingFloat` and its pill are gone from
+  both apps' frames. Tests: recording_float_test.
 - **Auto leveler, a plugin that brings everyone in a call to the same loudness** (0.10.8, not released; Matt,
   2026-11-20: "build the auto leveler plugin that levels everyone's voice levels"). `lib/voice/leveler.dart`
   (`LevelerCore`, `AutoLeveler`) and `lib/plugins/auto_leveler.dart` (id `autoleveler`, device or circle). It reads

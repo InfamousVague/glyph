@@ -6,11 +6,13 @@ import 'dart:ui' as ui;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
-import 'package:ghost_messaging/looks.dart';
-import 'package:ghost_messaging/main.dart' show InkOverrides;
+import 'package:flutter/foundation.dart' show ValueNotifier;
+import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent;
 import 'package:ghost_messaging/ui/recording_float.dart';
+import 'package:ghost_messaging/ui/recording_ui.dart' show RecordingBanner;
+import 'package:ghost_messaging/voice/channels.dart';
+import 'package:ghost_messaging/voice/voice.dart';
 import 'package:ghost_messaging/voice/recorder.dart';
-import 'package:glacier/glacier.dart';
 
 import 'support/list_harness.dart';
 
@@ -136,7 +138,7 @@ void main() {
 
   for (final (size, at) in [('phone', const Size(412, 892)), ('wide', const Size(1100, 760))]) {
     for (final dark in [false, true]) {
-      testWidgets('a pill that moves, opening into the tracks as a timeline ($size, ${dark ? 'dark' : 'light'})', (tester) async {
+      testWidgets('Mixer opens the tracks as a timeline in a drawer filling the window ($size, ${dark ? 'dark' : 'light'})', (tester) async {
         final rec = CallRecorder.standing(
           names: {'me': 'Matt', 'a1b2c3d4': 'Maya Chen', 'e5f6a7b8': 'Theo', 'c9d0e1f2': 'Sam Ortiz'},
           since: DateTime.now().subtract(const Duration(seconds: 47)),
@@ -155,21 +157,22 @@ void main() {
           'c9d0e1f2': (peak: 0, rms: 0),
         }, clipping: {'e5f6a7b8'});
         final sheet = await loadSheet(tester);
-        await pumpScreen(tester, sheet, Stack(children: [const SizedBox.expand(), Positioned.fill(child: RecordingFloat(recorder: rec))]), AppState()..set('theme', dark ? 'dark' : 'light'), size: at);
-        await tester.pump(const Duration(milliseconds: 200));
-        final pill = find.byKey(const ValueKey('recording-float'));
-        expect(pill, findsOneWidget);
-        await _keep(tester, '$size-pill-${dark ? 'dark' : 'light'}');
-        // Dragged, it stays where it is put.
-        final before = tester.getTopLeft(pill);
-        await tester.drag(pill, const Offset(-120, -200));
+        await pumpScreen(
+          tester,
+          sheet,
+          Builder(builder: (context) => GestureDetector(key: const ValueKey('open-mixer'), behavior: HitTestBehavior.opaque, onTap: () => showRecordingMixer(context, recorder: rec), child: const SizedBox.expand())),
+          AppState()..set('theme', dark ? 'dark' : 'light'),
+          size: at,
+        );
+        // Nothing floats over the app while recording: the banner's Mixer opens the drawer (recording_ui.dart).
+        expect(find.byKey(const ValueKey('recording-float')), findsNothing);
+        await tester.tap(find.byKey(const ValueKey('open-mixer')));
         await tester.pump();
-        final after = tester.getTopLeft(pill);
-        expect(after.dx, lessThan(before.dx));
-        expect(after.dy, lessThan(before.dy));
-        // Pressed, the timeline: a header per track (the mix first) and the lanes.
-        await tester.tap(pill);
-        await tester.pump(const Duration(milliseconds: 200));
+        await tester.pump(const Duration(milliseconds: 400));
+        final drawer = find.byKey(const ValueKey('recording-drawer'));
+        expect(drawer, findsOneWidget);
+        expect(tester.getSize(drawer), at, reason: 'the whole window');
+        // The timeline: a header per track (the mix first) and the lanes.
         expect(find.byKey(const ValueKey('recording-timeline')), findsOneWidget);
         for (final k in ['*mix', 'me', 'a1b2c3d4', 'e5f6a7b8', 'c9d0e1f2']) {
           expect(find.byKey(ValueKey('recording-track-$k')), findsOneWidget, reason: k);
@@ -209,10 +212,14 @@ void main() {
         expect(rec.mix.fader('me'), lessThan(1));
         expect(rec.mix.points('me'), isNotEmpty);
         final quiet = rec.mix.fader('me');
-        await tester.drag(fader, const Offset(0, -200));
+        // Far enough to reach the head of a fader of any height (the drawer fills the window).
+        await tester.drag(fader, const Offset(0, -1200));
         await tester.pump(const Duration(milliseconds: 100));
         expect(rec.mix.fader('me'), greaterThan(quiet));
         expect(tester.widget<Text>(find.byKey(const ValueKey('recording-gain-me'))).data, '+6.0', reason: 'the strip says what the fader is at');
+        // The "Marked" toast gone first: in the drawer the strips reach the window's foot, where it shows.
+        await tester.pump(const Duration(seconds: 8));
+        await tester.pump(const Duration(milliseconds: 600));
         await tester.tap(find.byKey(const ValueKey('recording-solo-e5f6a7b8')));
         await tester.pump(const Duration(milliseconds: 100));
         expect(rec.mix.gain('me'), 0, reason: 'Theo soloed: the others are out of the mix');
@@ -225,52 +232,103 @@ void main() {
         await tester.tap(find.byKey(const ValueKey('recording-view')));
         await tester.pump(const Duration(milliseconds: 200));
         expect(find.byKey(const ValueKey('recording-lanes')), findsOneWidget);
+        // Closed, the app as it was.
         await tester.tap(find.byKey(const ValueKey('recording-collapse')));
-        await tester.pump(const Duration(milliseconds: 200));
-        expect(find.byKey(const ValueKey('recording-timeline')), findsNothing);
-        expect(find.byKey(const ValueKey('recording-float')), findsOneWidget);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.byKey(const ValueKey('recording-drawer')), findsNothing);
+        expect(find.byKey(const ValueKey('open-mixer')), findsOneWidget);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());
       });
     }
   }
 
-  testWidgets('the pill is over a page pushed over the app, and opens there', (tester) async {
+  testWidgets('the drawer closes by itself a moment after the recording ends', (tester) async {
     final rec = CallRecorder.standing(names: {'me': 'Matt'}, since: DateTime.now().subtract(const Duration(seconds: 5)));
     final sheet = await loadSheet(tester);
-    final state = AppState();
-    final nav = GlobalKey<NavigatorState>();
-    tester.view.physicalSize = const Size(412, 892) * 2.0;
-    tester.view.devicePixelRatio = 2.0;
-    addTearDown(tester.view.reset);
-    // As the app is built (lib/main.dart): the pill beside the navigator, not inside a page of it.
-    await tester.pumpWidget(AppScope(
-      state: state,
-      child: WidgetsApp(
-        color: const Color(0xFF4F5BD5),
-        navigatorKey: nav,
-        pageRouteBuilder: <T>(RouteSettings s, WidgetBuilder b) => PageRouteBuilder<T>(settings: s, pageBuilder: (c, _, _) => b(c)),
-        builder: (context, child) => GlacierTheme(
-          sheet: sheet,
-          attrs: {'theme': 'light', ...ghostAttrs(state, 'mobile')},
-          child: InkOverrides(child: GlacierToastProvider(child: Stack(children: [child!, Positioned.fill(child: RecordingFloat(recorder: rec, navigator: nav))]))),
-        ),
-        home: const SizedBox.expand(),
-      ),
-    ));
-    await settle(tester);
-    // The call's own page, pushed over everything, as a space's design does.
-    nav.currentState!.push(PageRouteBuilder<void>(pageBuilder: (_, _, _) => const ColoredBox(key: ValueKey('call-page'), color: Color(0xFF000000), child: SizedBox.expand())));
-    await settle(tester);
-    expect(find.byKey(const ValueKey('call-page')), findsOneWidget);
-    final pill = find.byKey(const ValueKey('recording-float'));
-    expect(pill, findsOneWidget);
-    // It is what a press there reaches: the page under it does not take the press.
-    await tester.tap(pill);
-    await tester.pump(const Duration(milliseconds: 200));
-    expect(find.byKey(const ValueKey('recording-timeline')), findsOneWidget);
+    await pumpScreen(
+      tester,
+      sheet,
+      Builder(builder: (context) => GestureDetector(key: const ValueKey('open-mixer'), behavior: HitTestBehavior.opaque, onTap: () => showRecordingMixer(context, recorder: rec), child: const SizedBox.expand())),
+      AppState(),
+    );
+    await tester.tap(find.byKey(const ValueKey('open-mixer')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byKey(const ValueKey('recording-drawer')), findsOneWidget);
+    rec.endForTest();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byKey(const ValueKey('recording-drawer')), findsOneWidget, reason: 'still there while the saved toast shows');
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byKey(const ValueKey('recording-drawer')), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('the recording banner over the call has Mixer beside Stop, and Mixer opens the drawer', (tester) async {
+    final v = Voice.instance;
+    v.session = VoiceSession(channel: VoiceChannel.make('Lounge'), route: _NoRoute(), media: _NoMedia(), name: 'Matt')..recording = 'rec-1';
+    addTearDown(() => v.session = null);
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, const Align(alignment: Alignment.topCenter, child: RecordingBanner()), AppState());
+    expect(find.byKey(const ValueKey('recording-mine')), findsOneWidget);
+    expect(find.text('Mixer'), findsOneWidget);
+    expect(find.text('Stop'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('Mixer')).dx, lessThan(tester.getTopLeft(find.text('Stop')).dx), reason: 'Mixer first, Stop at the end');
+    await tester.tap(find.text('Mixer'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byKey(const ValueKey('recording-drawer')), findsOneWidget);
+    // Nothing is recorded on this device here, so it closes again by itself.
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byKey(const ValueKey('recording-drawer')), findsNothing);
+  });
+}
+
+class _NoRoute implements VoiceRoute {
+  @override
+  String get me => 'me-id';
+  @override
+  Future<List<String>> join(String room, String token) async => const [];
+  @override
+  void leave(String room) {}
+  @override
+  void send(String room, Uint8List bytes) {}
+  @override
+  void look(String room, String token) {}
+  @override
+  void unlook(String room) {}
+  @override
+  Stream<RoomEvent> get events => const Stream.empty();
+  @override
+  Stream<({String room, String from, Uint8List bytes})> get packets => const Stream.empty();
+  @override
+  Stream<({String room, List<String> members})> get looks => const Stream.empty();
+}
+
+class _NoMedia implements VoiceMedia {
+  @override
+  final ValueNotifier<Map<String, double>> levels = ValueNotifier(const {});
+  @override
+  Future<void> start() async {}
+  @override
+  Future<void> stop() async {}
+  @override
+  set muted(bool on) {}
+  @override
+  set deafened(bool on) {}
+  @override
+  Future<void> setVideo(bool on) async {}
+  @override
+  VoicePeer peer(String id, {required void Function(Map<String, dynamic> candidate) onCandidate}) => throw UnimplementedError();
+  @override
+  void setPeerVolume(String id, double volume) {}
+  @override
+  void setPeerMuted(String id, bool muted) {}
 }
 
 /// Speech's loudness by step: phrases and pauses, made up but the same each run.
