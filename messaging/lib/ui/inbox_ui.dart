@@ -7,6 +7,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeed
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../voice/voice_changer.dart';
 import '../app_state.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
@@ -289,7 +290,10 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
   Future<void> _sendVoice() async {
     setState(() => _recording = null);
     try {
-      final path = await Sms.instance.finishVoice();
+      // In another voice, where Voice changer is on (lib/voice/voice_changer.dart): never as it was, should that fail.
+      final changing = VoiceChanger.instance.active;
+      if (changing && mounted) toast(context, 'Changing your voice…');
+      final path = await VoiceChanger.instance.forSending(await Sms.instance.finishVoice());
       await _n.sendFiles(widget.chatId, [path], voice: true);
     } catch (e) {
       if (mounted) toast(context, 'Couldn\'t send the voice message: ${voiceProblem(e)}', tone: GlacierToastTone.danger);
@@ -520,7 +524,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                 final canSend = (_text.text.trim().isNotEmpty || _files.isNotEmpty) && !_sendingFiles;
                 final voice = files && !Sms.remote;
                 if (_recording != null) {
-                  return VoiceRecorder(limit: _recording!, onDiscard: _discardVoice, onSend: _sendVoice);
+                  return VoiceRecorder(limit: _recording!, onDiscard: _discardVoice, onSend: _sendVoice, note: VoiceChanger.instance.note);
                 }
                 // The same buttons in the same places as every other conversation (lib/ui/composer_box.dart), each
                 // greyed out where this network can't do it.

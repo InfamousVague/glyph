@@ -174,6 +174,20 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     copy hands the link to the running one by WM_COPYDATA) take, on "ghost_desktop/links" (`lib/desktop/links.dart`).
     A link opened while the app is still being set up is held and opened once it is.
   - Tests: circle_joins_test.
+- **Voice changer, a plugin: voice messages in another voice, by ElevenLabs** (0.10.8, not released; Matt, 2026-11-20:
+  "I want it to have the same vocal queues as the speaker not just transcribe and re speak what they say"; "build it as
+  a plugin"). `lib/voice/voice_changer.dart` sends a finished recording to ElevenLabs' Voice Changer
+  (`POST /v1/voice-changer/{voice}`, `eleven_multilingual_sts_v2`, back as `mp3_44100_64`), which is speech to speech:
+  the delivery is kept, the voice swapped. The person's own key and a voice from their own account's list
+  (`GET /v2/voices`), kept in one 0600 file (`voicechanger/elevenlabs.json`), never among the app's choices and never
+  shown again. Hooked where a space's chat and a network's chat finish a voice message (`VoiceChanger.forSending`); a
+  recording that could not be changed is never sent as it was. Signal, WhatsApp, Matrix and the account helpers say an
+  MP3 is one. Pages: `lib/ui/voice_changer_ui.dart`; plugin `voicechanger` (`lib/plugins/voice_changer.dart`), device
+  only, with a section of its own in Settings.
+  - Tests: voice_changer_test, against a server standing in for ElevenLabs (pictures voice-changer-*).
+  - Not yet: tried with a real ElevenLabs key (the paths and fields are from their reference, read 2026-11-20). Not
+    in ordinary texts (the phone sends those itself, `voiceSend`), not in calls (ElevenLabs wants the whole recording),
+    and only where voice messages are recorded: an Android phone.
 - **Soundboard, a plugin for calls and whole circles** (0.10.8, not released; Matt, 2026-11-20: "build a soundboards
   plugin for circles"). Pads in a call (`lib/ui/soundboard_screen.dart`, from the call's menu and the space's header)
   that play a short sound on every device in it (`lib/voice/soundboard.dart`, `lib/plugins/soundboard.dart`). No sound
