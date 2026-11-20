@@ -101,6 +101,11 @@ void main() {
             await tester.tap(_key('rail-circle-${_alpha.seed}'));
             await settle(tester);
             expect(AppShellState.live!.openCircleSeed, _alpha.seed);
+            // Its picture fills its face, one ring round it, the rail's halo (Matt, 2026-11-20: "make sure the circle
+            // icons take up the full width there are double borders right now").
+            await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+            await settle(tester);
+            await _keep(tester, '${style.name}-$size-picture-open');
             // The open circle's mark is a halo in its own colour round its face, not a bar at the rail's edge (Matt,
             // 2026-11-20: "the hover and click indicator on the rail is too similar to discords").
             final halo = tester.widget<AnimatedContainer>(_key('rail-halo-${_alpha.seed}'));

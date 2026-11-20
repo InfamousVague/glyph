@@ -82,11 +82,11 @@ LucideIcon spaceKindIcon(SpaceKind kind) => switch (kind) {
 /// A circle's face: its picture, or its icon on a wash of its colour; filled with the colour when [selected]. Round,
 /// as its name says, and drawn in [hue] through the app's hue tokens, so each look settles it into its own page.
 class CircleFace extends StatelessWidget {
-  const CircleFace({super.key, required this.hue, required this.icon, this.picture, this.size = 44, this.selected = false, this.semanticLabel});
+  const CircleFace({super.key, required this.hue, required this.icon, this.picture, this.size = 44, this.selected = false, this.semanticLabel, this.ringed = true});
 
   /// Drawn for [circle].
-  factory CircleFace.of(Circle circle, {Key? key, double size = 44, bool selected = false}) =>
-      CircleFace(key: key, hue: circle.hue, icon: circle.icon, picture: circle.picture, size: size, selected: selected, semanticLabel: circle.name);
+  factory CircleFace.of(Circle circle, {Key? key, double size = 44, bool selected = false, bool ringed = true}) =>
+      CircleFace(key: key, hue: circle.hue, icon: circle.icon, picture: circle.picture, size: size, selected: selected, semanticLabel: circle.name, ringed: ringed);
 
   final String hue;
   final String icon;
@@ -94,6 +94,10 @@ class CircleFace extends StatelessWidget {
   final double size;
   final bool selected;
   final String? semanticLabel;
+
+  /// Chosen, it wears a ring of its colour at its edge. Not in the rail, which draws its own halo round it a little apart
+  /// (Matt, 2026-11-20: "make sure the circle icons take up the full width there are double borders right now").
+  final bool ringed;
 
   static final Map<String, Uint8List?> _pictures = {};
 
@@ -132,7 +136,7 @@ class CircleFace extends StatelessWidget {
                 dimension: size,
                 child: DecoratedBox(
                   position: DecorationPosition.foreground,
-                  decoration: BoxDecoration(shape: BoxShape.circle, border: selected ? Border.all(color: colour, width: 2) : null),
+                  decoration: BoxDecoration(shape: BoxShape.circle, border: selected && ringed ? Border.all(color: colour, width: 2) : null),
                   child: ClipOval(
                     child: Transform.scale(
                       scale: 1.08,
@@ -151,7 +155,7 @@ class CircleFace extends StatelessWidget {
                 shape: BoxShape.circle,
                 // Dial-Up's faces are plain: ink on the well, a ring round them.
                 color: bevel ? null : (selected ? colour : settingsHueWash(t)),
-                border: bevel || selected ? Border.all(color: bevel ? DialupColors.of(t).dark : colour, width: bevel ? 1 : 2) : null,
+                border: bevel || (selected && ringed) ? Border.all(color: bevel ? DialupColors.of(t).dark : colour, width: bevel ? 1 : 2) : null,
               ),
               child: bytes != null
                   ? Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, errorBuilder: (_, _, _) => _icon(t, colour, bevel))

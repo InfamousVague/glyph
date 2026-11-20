@@ -182,7 +182,7 @@ class _CircleRing extends StatelessWidget {
                     scale: state.pressed ? 0.94 : (lit && !open ? 1.05 : 1),
                     duration: fast,
                     curve: ease,
-                    child: CircleFace.of(circle, size: ring, selected: open),
+                    child: CircleFace.of(circle, size: ring, selected: open, ringed: false),
                   ),
                 ),
                 // Something unread there: a dot at the face's shoulder, while no mention says more.
