@@ -92,7 +92,9 @@ class PluginsBand extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: compact ? MainAxisAlignment.center : MainAxisAlignment.end,
                         children: [
-                          Text('Plugins', style: pageText(t, t.fontSize(compact ? 'xl' : (wide ? '3xl' : '2xl')), weight: 'bold', color: on)),
+                          // The Marketplace's own band since plugins left Settings for it (Matt, 2026-11-20: "Move plugins out of
+                          // settings into a marketplace button on the navigation rail with a marketplace icon").
+                          Text('Marketplace', style: pageText(t, t.fontSize(compact ? 'xl' : (wide ? '3xl' : '2xl')), weight: 'bold', color: on)),
                           if (!compact) ...[
                             SizedBox(height: t.space(1)),
                             Text(line, maxLines: 4, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize(wide ? 'md' : 'sm'), height: 1.35, color: on.withValues(alpha: 0.92))),
@@ -126,8 +128,9 @@ class PluginsBand extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // The page's own bar already says "Plugins" over the full band: its window is titled for what it holds.
-          TitleBar(title: compact ? 'Plugins' : 'Built-in extras', subtitle: compact ? count : null, leading: AppIcon(Lucide.puzzle, size: 16, strokeWidth: 2.2, color: c.titlebarInk, wash: false)),
+          // The Marketplace's window, its ring's own mark on its title bar (it was "Built-in extras" while every plugin
+          // was the app's own).
+          TitleBar(title: 'Marketplace', subtitle: compact ? count : null, leading: AppIcon(Lucide.store, size: 16, strokeWidth: 2.2, color: c.titlebarInk, wash: false)),
           Padding(
             padding: const EdgeInsets.all(10),
             child: Column(

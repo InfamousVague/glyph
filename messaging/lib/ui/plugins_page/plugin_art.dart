@@ -112,8 +112,29 @@ Widget hueGlow(PluginHues c, {required double radius}) => IgnorePointer(
       ),
     );
 
-/// A plugin's tile: its colour with its icon in the middle, [size] square. Under Dial-Up's bevelled chrome it is a
-/// raised silver square with the icon in ink, a toolbar button of the era.
+/// A plugin's own picture where it has one (a pack's icon, Matt, 2026-11-20: "a submission area with a form to accept
+/// an icon"), [size] across and filling it, decoded at the size it is drawn; else, and wherever it doesn't decode,
+/// [symbol]. A pack keeps one copy of its bytes, so the image cache finds it again on every build.
+Widget pluginPicture(GhostPlugin plugin, double size, {required Widget symbol}) {
+  final png = plugin.iconPng;
+  if (png == null) return symbol;
+  return Builder(
+    builder: (context) => Image.memory(
+      png,
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
+      filterQuality: FilterQuality.medium,
+      gaplessPlayback: true,
+      cacheWidth: math.max(1, (size * MediaQuery.devicePixelRatioOf(context)).round()),
+      errorBuilder: (context, _, _) => symbol,
+    ),
+  );
+}
+
+/// A plugin's tile: its colour with its icon in the middle, [size] square, or its own picture over the colour (whose
+/// clear parts show it). Under Dial-Up's bevelled chrome it is a raised silver square with the icon in ink, a toolbar
+/// button of the era, its picture at seven tenths inside the bevel.
 class PluginTile extends StatelessWidget {
   const PluginTile({super.key, required this.plugin, required this.size, this.shadow = false});
 
@@ -128,13 +149,15 @@ class PluginTile extends StatelessWidget {
     final t = context.tokens;
     if (isBevelChrome(t)) {
       final c = DialupColors.of(t);
+      final symbol = AppIcon(plugin.icon, size: size * 0.5, strokeWidth: 2, color: c.onChrome, wash: false);
       return SizedBox.square(
         dimension: size,
-        child: Bevel(child: Center(child: AppIcon(plugin.icon, size: size * 0.5, strokeWidth: 2, color: c.onChrome, wash: false))),
+        child: Bevel(child: Center(child: plugin.iconPng == null ? symbol : SizedBox.square(dimension: size * 0.7, child: pluginPicture(plugin, size * 0.7, symbol: symbol)))),
       );
     }
     final c = PluginHues.of(t, plugin.hue);
     final radius = pluginCorner(t, size * 0.28);
+    final symbol = Center(child: AppIcon(plugin.icon, size: size * 0.5, strokeWidth: 2, color: c.on, wash: false));
     return SizedBox.square(
       dimension: size,
       child: DecoratedBox(
@@ -147,7 +170,7 @@ class PluginTile extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             hueGlow(c, radius: radius),
-            Center(child: AppIcon(plugin.icon, size: size * 0.5, strokeWidth: 2, color: c.on, wash: false)),
+            if (plugin.iconPng == null) symbol else ClipRRect(borderRadius: BorderRadius.circular(radius), child: pluginPicture(plugin, size, symbol: symbol)),
           ],
         ),
       ),
@@ -155,7 +178,8 @@ class PluginTile extends StatelessWidget {
   }
 }
 
-/// A plugin's icon on a chip of glass, on its colour: the featured card's and the page's hero.
+/// A plugin's icon on a chip of glass, on its colour, or its own picture filling the chip: the featured card's and the
+/// page's hero.
 class GlassChip extends StatelessWidget {
   const GlassChip({super.key, required this.plugin, required this.size});
 
@@ -171,7 +195,9 @@ class GlassChip extends StatelessWidget {
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(color: c.glass, borderRadius: BorderRadius.circular(pluginCorner(t, size * 0.3)), border: Border.all(color: c.glassRing)),
-      child: AppIcon(plugin.icon, size: size * 0.54, strokeWidth: 2, color: c.on, wash: false),
+      clipBehavior: plugin.iconPng == null ? Clip.none : Clip.antiAlias,
+      // Its own picture, where it has one, fills the chip.
+      child: plugin.iconPng == null ? AppIcon(plugin.icon, size: size * 0.54, strokeWidth: 2, color: c.on, wash: false) : pluginPicture(plugin, size, symbol: AppIcon(plugin.icon, size: size * 0.54, strokeWidth: 2, color: c.on, wash: false)),
     );
   }
 }

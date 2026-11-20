@@ -34,6 +34,8 @@ import 'emoji_sets.dart';
 import 'kit/settings_css.dart';
 import 'net/net.dart';
 import 'people.dart';
+import 'plugins/pack/pack.dart' show InstalledPlugins;
+import 'plugins/plugin.dart' show MessageFacts;
 import 'voice/channels.dart';
 import 'voice/mention_alerts.dart';
 import 'voice/discord.dart';
@@ -51,6 +53,7 @@ import 'files/files_store.dart';
 import 'inbox/inbox.dart';
 import 'inbox/telegram.dart';
 import 'ui/inbox_ui.dart';
+import 'ui/settings_panes.dart' show appVersion;
 import 'ui/shell.dart';
 import 'ui/update_banner.dart';
 
@@ -121,6 +124,10 @@ Future<void> main() async {
   _logErrors();
   _watchFrames();
   Sms.instance.prefsChanged.stream.listen((_) => state.reload());
+  // Plugins from the Marketplace and in development (lib/plugins/pack; Matt, 2026-11-20: "I would like users to be able
+  // to develop and submit their own plugins to our plugin marketplace"): read from this phone's folder and each checked
+  // again before any screen or the API asks the registry. At most three seconds; a slower disk finishes after.
+  await InstalledPlugins.instance.load(state, appVersion: appVersion);
   // The app's API (lib/api), each way in started where Settings › API has it on (Matt, 2026-11-17: "build an entire API
   // that we can use to interact with every aspect of the app").
   Api.instance.registerAll(appMethods(state));
@@ -271,6 +278,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
 
   Future<void> _check({bool first = false}) async {
     final s = await Sms.instance.status();
+    // Whether the phone's contacts can be read, before the list is drawn: without them plugins from other developers
+    // see nothing, since a contact can't be told from a stranger (lib/plugins/pack/format.dart packSees).
+    MessageFacts.heardStatus(s);
     if (!mounted) return;
     // Texts may be passed by in the walkthrough (Matt, 2026-11-20: "rework the onboarding on mobile so that SMS is not
     // required and you can 'skip this step'"): the app opens without them, and asks Android for none (Sms.textsOff).

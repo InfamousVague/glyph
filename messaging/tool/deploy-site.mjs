@@ -99,10 +99,14 @@ ${DOMAIN} {
 	# page or a delete at once). Neither runs while a body is still coming, so a slow phone's 8 MB piece is not cut
 	# off. A body that stops coming is the relay's to end (files.dart's bodyPause, 30 s without a byte): Caddy's own
 	# read_body timeout is for every site on this box, not one route, so it is not set here.
-	@files path /files /files/* /feedback
+	# The Marketplace (relay/lib/market.dart) is the same service's too: a body that stops coming is the market's to end
+	# (60 s for the whole of one, 30 s without a byte), for the same reason. 10MiB, not 10MB: Caddy reads MB as 1,000,000 bytes, and
+	# the relay holds Files' pieces and the market's bodies to 10 << 20 = 10,485,760 bytes, which a body between the two
+	# passed there and was cut here (review, 2026-11-20).
+	@files path /files /files/* /feedback /market /market/*
 	handle @files {
 		request_body {
-			max_size 10MB
+			max_size 10MiB
 		}
 		reverse_proxy 127.0.0.1:18787 {
 			flush_interval -1
@@ -151,10 +155,11 @@ ${OLD} {
 	handle @relay {
 		reverse_proxy 127.0.0.1:18787
 	}
-	@files path /files /files/* /feedback
+	# Files, feedback and the Marketplace (relay/lib/market.dart), as above; a body that stops coming is the market's to end.
+	@files path /files /files/* /feedback /market /market/*
 	handle @files {
 		request_body {
-			max_size 10MB
+			max_size 10MiB
 		}
 		reverse_proxy 127.0.0.1:18787 {
 			flush_interval -1

@@ -3,7 +3,10 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/kit/settings_kit.dart';
+import 'package:ghost_messaging/market/market_api.dart';
 import 'package:ghost_messaging/me/me.dart';
+import 'package:ghost_messaging/net/crypto.dart';
+import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/ui/admin_page.dart';
 import 'package:ghost_messaging/ui/common.dart' show GhostPage;
 import 'package:ghost_messaging/ui/settings.dart';
@@ -11,6 +14,7 @@ import 'package:ghost_messaging/ui/souls.dart';
 import 'package:ghost_messaging/ui/special_badges.dart';
 import 'package:glacier/glacier.dart';
 
+import 'support/market_fakes.dart';
 import 'support/space_call_harness.dart';
 
 /// Souls and the admin page (Matt, 2026-11-19: "Build a new points system into the app called souls ... display the
@@ -115,7 +119,10 @@ void main() {
       };
     }
 
-    await h.shoot(tester, GhostPage(title: 'Admin', body: SettingsPaneScope(finder: SettingsFinder(), child: ListView(padding: const EdgeInsets.all(16), children: [AdminPanel(ask: ask)]))), 'admin-sign-in');
+    // The Marketplace's review rows read a Marketplace of the test's own (Matt, 2026-11-20: "I'd like to be able to verify
+    // them for the store through a review process").
+    final market = MarketApi(hubUrl: 'https://relay.test', signer: KeysSigner(NetKeys.generate()), transport: FakeRelay().call);
+    await h.shoot(tester, GhostPage(title: 'Admin', body: SettingsPaneScope(finder: SettingsFinder(), child: ListView(padding: const EdgeInsets.all(16), children: [AdminPanel(ask: ask, market: market)]))), 'admin-sign-in');
     await tester.enterText(find.descendant(of: find.byKey(const ValueKey('admin-user')), matching: find.byType(EditableText)), 'wisp-keeper-1a2b');
     await tester.enterText(find.descendant(of: find.byKey(const ValueKey('admin-pass')), matching: find.byType(EditableText)), 'wrong');
     await tester.tap(find.byKey(const ValueKey('admin-sign-in')));
@@ -129,6 +136,10 @@ void main() {
     expect(find.text('@maya'), findsOneWidget);
     expect(find.text('@kevin'), findsOneWidget);
     expect(find.textContaining('3 people · 1 connected now'), findsOneWidget);
+    // Plugin review, before Everyone, once signed in.
+    expect(find.byKey(const ValueKey('admin-plugin-review')), findsOneWidget);
+    expect(find.text('0 waiting · 0 reports'), findsOneWidget);
+    expect(tester.getTopLeft(find.byKey(const ValueKey('admin-plugin-review'))).dy, lessThan(tester.getTopLeft(find.text('@maya')).dy));
     await h.again(tester, 'admin-list');
 
     // Found by a name given up, by the start of the id, and by the account (Matt, 2026-11-20: "tie users names to their

@@ -48,9 +48,32 @@ class ConversationPlugins {
     if (newest != null) {
       final facts = MessageFacts.message(newest, thread: thread, people: all);
       // The conversation's facts, with its newest message's words: everyone in it, not that message's sender alone.
-      return MessageFacts(thread: thread, senders: [for (final p in all) p.address], text: facts.text, contact: all.any((p) => p.name != null && p.name!.isNotEmpty), group: all.length > 1, date: facts.date, outgoing: facts.outgoing);
+      return MessageFacts(thread: thread, senders: [for (final p in all) p.address], text: facts.text, contact: all.any((p) => p.name != null && p.name!.isNotEmpty), group: all.length > 1, date: facts.date, outgoing: facts.outgoing, encrypted: newest.encrypted, contactByName: true);
     }
-    return MessageFacts(thread: thread, senders: [for (final p in all) p.address], text: '', contact: all.any((p) => p.name != null && p.name!.isNotEmpty), group: all.length > 1);
+    // With no newest message whose words they are is not known (outgoing stays null), so no plugin from another
+    // developer sees an empty conversation.
+    return MessageFacts(thread: thread, senders: [for (final p in all) p.address], text: '', contact: all.any((p) => p.name != null && p.name!.isNotEmpty), group: all.length > 1, contactByName: true);
+  }
+
+  /// What the classifiers said of each message, by its key ('header:' and the newest's key for the header's facts),
+  /// with the switches and the words they said it of: a build asks each bubble's menu and what goes under it, and
+  /// without this every bubble was classified again on every build, sixteen packs' phrases each (A.10.9).
+  final _tagged = <String, (String, TagSet)>{};
+  static const _kept = 500;
+
+  TagSet _tagsOf(String key, MessageFacts facts, PluginStore store) {
+    final mark = '${registry.switches(store)}\u0000${facts.text}';
+    final had = _tagged[key];
+    if (had != null && had.$1 == mark) return had.$2;
+    final tags = registry.classify(facts, store);
+    _tagged
+      ..remove(key)
+      ..[key] = (mark, tags);
+    // The oldest go first.
+    while (_tagged.length > _kept) {
+      _tagged.remove(_tagged.keys.first);
+    }
+    return tags;
   }
 
   /// The plugins' buttons for the header, to go before Call. [newest] is the conversation's newest message, where
@@ -58,11 +81,11 @@ class ConversationPlugins {
   List<Widget> header(BuildContext context, {Message? newest}) {
     final store = AppStore(AppState.of(context));
     final facts = _conversation(newest);
-    final tags = registry.classify(facts, store);
+    final tags = _tagsOf('header:${newest?.key ?? ''}', facts, store);
     final place = ConversationPlace(facts, tags, section: registry.sectionOf(facts, tags, store)?.id);
     return [
       for (final b in registry.actions(Slots.conversationHeader, place, store))
-        IconTap(icon: b.action.icon, label: b.action.label, onPressed: () => b.action.run(_Host(this, b.plugin, context, facts, tags))),
+        IconTap(icon: b.action.icon, label: b.action.label, onPressed: () => runPluginAction(registry, b.plugin, b.action, _Host(this, b.plugin, context, facts, tags))),
     ];
   }
 
@@ -74,7 +97,7 @@ class ConversationPlugins {
     final facts = _conversation(null);
     return [
       for (final b in registry.actions(Slots.composer, ComposerPlace(thread: thread, senders: facts.senders, text: text), store))
-        IconTap(icon: b.action.icon, label: b.action.label, size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: () => b.action.run(_Host(this, b.plugin, context, facts, TagSet.none))),
+        IconTap(icon: b.action.icon, label: b.action.label, size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: () => runPluginAction(registry, b.plugin, b.action, _Host(this, b.plugin, context, facts, TagSet.none))),
     ];
   }
 
@@ -82,7 +105,7 @@ class ConversationPlugins {
   List<Widget> under(BuildContext context, Message m) {
     final store = AppStore(AppState.of(context));
     final facts = MessageFacts.message(m, thread: thread, people: people());
-    final tags = registry.classify(facts, store);
+    final tags = _tagsOf(m.key, facts, store);
     return registry.widgets(Slots.underMessage, context, MessagePlace(facts, tags), store);
   }
 
@@ -117,10 +140,10 @@ class ConversationPlugins {
   List<Choice> message(BuildContext context, Message m) {
     final store = AppStore(AppState.of(context));
     final facts = MessageFacts.message(m, thread: thread, people: people());
-    final tags = registry.classify(facts, store);
+    final tags = _tagsOf(m.key, facts, store);
     return [
       for (final b in registry.actions(Slots.messageMenu, MessagePlace(facts, tags), store))
-        Choice(b.action.label, b.action.icon, () => b.action.run(_Host(this, b.plugin, context, facts, tags)), danger: b.action.danger),
+        Choice(b.action.label, b.action.icon, () => runPluginAction(registry, b.plugin, b.action, _Host(this, b.plugin, context, facts, tags)), danger: b.action.danger),
     ];
   }
 }

@@ -17,9 +17,9 @@ import '../inbox/scams.dart';
 import '../plugins/codes.dart' show CodesPlugin;
 import '../plugins/spam.dart' show SpamPlugin;
 import '../plugins/list.dart';
-import '../plugins/plugin.dart' show MessageFacts, PluginAction, PluginHost, RowLook;
+import '../plugins/plugin.dart' show MessageFacts, PluginAction, PluginHost, PluginSource, RowLook;
 import '../art/lucide_more.dart';
-import '../plugins/registry.dart' show PluginSection;
+import '../plugins/registry.dart' show AppStore, PluginSection;
 import '../plugins/ui.dart' show FilterButton, MarkAllRead, PluginRow;
 import '../reactions.dart';
 import '../sms.dart';
@@ -626,8 +626,18 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           ),
           if (!MacChrome.stripEnabled)
             QuickRow(key: const ValueKey('share-feedback'), icon: LucideMore.messageSquareWarning, label: 'Share feedback', onPress: () => FeedbackButton.open(context)),
+          // An unreviewed pack's rows look like any other's, so the list says while one runs (Matt, 2026-11-20: "a
+          // developer setting for users to be able to manually upload plugins for development testing").
+          if (_devPluginOn())
+            QuickRow(key: const ValueKey('dev-plugins-on'), icon: Lucide.flaskConical, label: 'A plugin in development is on · Settings › Developer', onPress: () => _shell?.settings('developer', 'Plugins in development')),
         ]),
       );
+
+  /// Whether a plugin in development (lib/plugins/pack) is switched on in the list's registry.
+  bool _devPluginOn() {
+    final store = AppStore(AppState.of(context));
+    return _plugins.registry.plugins.any((p) => p.source == PluginSource.dev && _plugins.registry.isOn(p, store));
+  }
 
   Widget? _tabsRow(Tokens t) {
     // Messages, codes and voice channels as the toggle's three icons (Matt, 2026-11-15: "use the segmented toggle with
@@ -820,6 +830,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final all = _of(section);
     final unread = all.where((c) => c.unread).length + _unreadChats(section).length + _unreadSpaces(section).length;
     final name = _plugins.tabName(section);
+    // The plugin a tab is from, so a puzzling new tab leads back to it: its page, settings, Report and Remove (Matt,
+    // 2026-11-20: "Move plugins out of settings into a marketplace button on the navigation rail").
+    final from = section == null ? null : _plugins.registry.sections(AppStore(AppState.of(context))).where((s) => s.id == section).firstOrNull?.plugin;
     showChoices(context, title: '$name · ${unread == 0 ? 'nothing unread' : '$unread unread'}', choices: [
       Choice('Mark all as read', Lucide.checkCheck, () => _markAllRead(section)),
       // Every conversation of the tab chosen at once, for the bar at the top to archive or delete.
@@ -832,6 +845,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               ..addAll(all.map((c) => c.id));
           });
         }),
+      if (from != null && _shell != null) Choice('About ${from.name}', Lucide.store, () => _shell?.marketplace(plugin: from.id)),
     ]);
   }
 

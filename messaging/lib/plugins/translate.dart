@@ -155,6 +155,11 @@ class TranslatePlugin extends GhostPlugin {
   @override
   PluginShelf get shelf => PluginShelf.messages;
 
+  // Its tags in the Marketplace, so a search by tag finds it beside the plugins from other developers (Matt, 2026-11-20:
+  // "plugin tags").
+  @override
+  List<String> get labels => const ['language'];
+
   @override
   String get tagline => 'Texts in another language translated on this phone, the words as sent shown over them.';
 

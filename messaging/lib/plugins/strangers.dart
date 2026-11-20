@@ -50,6 +50,11 @@ class StrangersPlugin extends GhostPlugin {
   @override
   PluginShelf get shelf => PluginShelf.safety;
 
+  // Its tags in the Marketplace, so a search by tag finds it beside the plugins from other developers (Matt, 2026-11-20:
+  // "plugin tags").
+  @override
+  List<String> get labels => const ['safety'];
+
   @override
   String get tagline => 'Someone not in your contacts, at a glance, with Save and Block.';
 

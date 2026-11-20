@@ -35,6 +35,7 @@ import 'common.dart';
 import 'gm_guide_screen.dart';
 import 'gm_web_screen.dart';
 import 'look_picker.dart';
+import 'market/dev_plugins.dart' show devPluginsPane;
 import 'rcs_setup.dart';
 import 'voice_pane.dart';
 import 'voice_screen.dart' show VolumeSlider;
@@ -1037,7 +1038,9 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.users),
           label: 'Contacts',
-          hint: const Text('Names and photos in place of numbers.'),
+          // Plugins from other developers see only strangers, which can't be told from contacts without it (lib/plugins/
+          // pack/format.dart packSees).
+          hint: const Text('Names and photos in place of numbers. Plugins from other developers see nothing without it, as they can\'t tell your contacts from strangers.'),
           value: Text(s == null ? '' : (s.contacts ? 'Allowed' : 'Off')),
           onPress: s == null || s.contacts
               ? null
@@ -1189,11 +1192,15 @@ List<Widget> _developer(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.braces),
           label: 'Developer mode',
-          hint: const Text('Shows Settings › API: the app\'s API, its documentation and a place to try every method.'),
+          hint: const Text('Shows Settings › API, Plugins in development below, and the Marketplace\'s In development.'),
           control: GlacierSwitch(checked: app.flag('dev_mode', fallback: false), onCheckedChange: (on) => app.setFlag('dev_mode', on), ariaLabel: 'Developer mode'),
         ),
       ],
     ),
+    // Plugins you're making, loaded to try them here (lib/ui/market/dev_plugins.dart; Matt, 2026-11-20: "please add a
+    // developer setting for users to be able to manually upload plugins for development testing"). None in an App
+    // Store build.
+    ...devPluginsPane(context, app),
     // How the app is got round (Matt, 2026-11-19: "work on a unified navigation across the whole app instead of it
     // changing navigations on every page ... give me a setting in developer settings to switch between the different
     // views"; lib/ui/nav_style.dart).

@@ -60,7 +60,10 @@ class FeedbackButton extends StatelessWidget {
   /// from; a computer keeps the page beside the list (Matt, 2026-11-20: "make share feedback open in a drawer on
   /// mobile"). Tests say which with [drawerOverride].
   static bool? drawerOverride;
-  static bool get inDrawer => drawerOverride ?? (Platform.isAndroid || Platform.isIOS);
+  /// Everywhere since 2026-11-20 (Matt: "the share feedback drawer should open over the whole app not just in the
+  /// sidebar"): the drawer is on the app's own navigator, over the whole window with it dimmed behind, where the page was
+  /// pushed in the sidebar's.
+  static bool get inDrawer => drawerOverride ?? true;
 
   static void open(BuildContext context) => inDrawer ? unawaited(showFeedbackDrawer(context)) : push<void>(context, (_) => const FeedbackScreen());
 

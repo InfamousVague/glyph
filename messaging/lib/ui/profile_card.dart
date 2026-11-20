@@ -237,7 +237,7 @@ class _ProfileCardState extends State<_ProfileCard> {
         _network = await who.network!.profileOf(user: who.id, username: who.username).timeout(const Duration(seconds: 10));
       } else if (g != null) {
         if (g.me) {
-          _picture = Me.instance.picture;
+          _picture = Me.instance.pictureSharp;
         } else if (g.buddy != null && g.buddy!.picture.isNotEmpty) {
           _picture = g.buddy!.picture;
         } else if (g.id.isNotEmpty) {
