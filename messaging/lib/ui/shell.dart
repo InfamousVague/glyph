@@ -277,7 +277,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     });
     // The circles' invite words this device may change, claimed again so the relay keeps them (it lets one go a year
     // after it was last set; lib/circles/invite_word.dart): once the hub is likely reached.
-    Future<void>.delayed(const Duration(seconds: 30), () {
+    _renewWords = Timer(const Duration(seconds: 30), () {
       if (mounted) unawaited(Circles.instance.renewInviteWords());
     });
   }
@@ -291,6 +291,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   }
 
   StreamSubscription<CircleJoin>? _joins;
+
+  /// The circles' invite words claimed again a little after starting (initState).
+  Timer? _renewWords;
 
   /// Someone new in one of this device's circles, while the app is in front: said, with the way to the circle (Matt,
   /// 2026-11-19: "add join notifications for memebers in circles"). A phone in the background notifies instead
@@ -323,6 +326,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     Voice.instance.removeListener(_voiceChanged);
     Circles.instance.removedFrom.removeListener(_removed);
     unawaited(_joins?.cancel());
+    _renewWords?.cancel();
     _small.dispose();
     closed.dispose();
     archived.dispose();
