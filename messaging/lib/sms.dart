@@ -688,6 +688,11 @@ class Sms {
   /// on the phone. Set before anything is drawn.
   static bool standalone = false;
 
+  /// An Android phone that passed texts by in the walkthrough and is not (yet) the texting app (Matt, 2026-11-20:
+  /// "rework the onboarding on mobile so that SMS is not required"): Android is asked for no conversations, which it
+  /// would refuse without the texting app's permissions; friends' chats, circles and the networks go on as ever.
+  static bool textsOff = false;
+
   /// What these screens ask of is a paired Android phone (a computer, or an iPhone paired with one): the routes,
   /// the directory and calls are the phone's, asked across the link.
   static bool get paired => remote && !standalone;

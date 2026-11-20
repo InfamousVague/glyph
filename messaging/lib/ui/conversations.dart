@@ -1095,10 +1095,17 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   ? 'Conversations you archive wait here.'
                   : rcs
                       ? 'There are no texts in Android\'s store. Chats that were RCS in ${_arriving.app} stay in that app, where no other app can read them: they are not deleted.'
-                      : framed
+                      // Texts passed by in the walkthrough: the list is friends' chats alone until they are turned on.
+                      : Sms.textsOff && !Sms.remote && !Sms.standalone
+                          ? 'Your texts are off, so chats with friends on Ghost show here. Turn texts on to see your texts too.'
+                          : framed
                           ? 'Start one with New chat, the first button below.'
                           : 'Start one with the new message button at the top.'),
-          action: rcs ? SettingsEmptyAction('What to do', () => _settings('android')) : null,
+          action: rcs
+              ? SettingsEmptyAction('What to do', () => _settings('android'))
+              : _query.isEmpty && !widget.archived && Sms.textsOff && !Sms.remote && !Sms.standalone
+                  ? SettingsEmptyAction('Turn on texts', () => _settings('texts'))
+                  : null,
         ),
       ]);
     } else {

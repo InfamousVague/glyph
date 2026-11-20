@@ -48,6 +48,9 @@ const List<(String, String, GuideLook)> guidePages = [
   ('start', 'You\'re in', GuideLook(['magenta', 'rose', 'orange'], LucideMore.rocket, [Lucide.palette, Lucide.sunMoon, Lucide.sparkles, Lucide.messageSquare])),
 ];
 
+/// The choice that texts were passed by in the walkthrough (lib/main.dart opens the app without them).
+const textsSkippedKey = 'texts_skipped';
+
 /// Plays a page's voice, and stops it (android MainActivity's "ghost/guide" channel). Where nothing answers (a
 /// computer, a test) the page's words are there all the same.
 class GuideVoice {
@@ -163,8 +166,19 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
     _pager.animateToPage(page, duration: const Duration(milliseconds: 380), curve: Curves.easeOutCubic);
   }
 
-  /// Next waits on the texts page until Ghost can send texts.
-  bool get _canGoOn => guidePages[_page].$1 != 'texts' || _usable;
+  /// Texts passed by (Matt, 2026-11-20: "rework the onboarding on mobile so that SMS is not required and you can 'skip
+  /// this step'"): Ghost opens without them, friends, circles and the networks all there, texts off until they are
+  /// turned on in Settings › Texts.
+  bool get _textsSkipped => AppState.of(context).flag(textsSkippedKey, fallback: false);
+
+  void _skipTexts() {
+    AppState.of(context).setFlag(textsSkippedKey, true);
+    setState(() {});
+    _go(_page + 1);
+  }
+
+  /// Next waits on the texts page until Ghost can send texts, or they are skipped.
+  bool get _canGoOn => guidePages[_page].$1 != 'texts' || _usable || _textsSkipped;
 
   void _next() {
     if (!_canGoOn) return;
@@ -213,7 +227,7 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
                 ),
                 const Spacer(),
                 // Once Ghost can send texts there is nothing left that must be done.
-                if (_usable) GuideButton(key: const ValueKey('guide-skip'), label: widget.replay ? 'Close' : 'Skip', look: GuideButtonLook.word, onPress: _finish),
+                if (_usable || _textsSkipped) GuideButton(key: const ValueKey('guide-skip'), label: widget.replay ? 'Close' : 'Skip', look: GuideButtonLook.word, onPress: _finish),
               ]),
             ),
             Expanded(
@@ -298,7 +312,15 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
       case 'texts':
         if (widget.replay) return [done('Ghost can send and receive your texts.')];
         if (widget.initialStatus != null && _usable) return [done(_status!.isDefault ? 'Ghost is your texting app.' : 'Ghost is working beside Google Messages.')];
-        return [TextsStep(hue: look.hue, onDone: _look)];
+        return [
+          TextsStep(hue: look.hue, onDone: _look),
+          if (!_usable) ...[
+            SizedBox(height: t.space(4)),
+            Center(child: GuideButton(key: const ValueKey('guide-skip-texts'), label: 'Skip this step', look: GuideButtonLook.word, onPress: _skipTexts)),
+            SizedBox(height: t.space(1)),
+            Center(child: hint('Ghost works without your texts: friends, circles, Telegram and Signal. Turn texts on any time in Settings › Texts.')),
+          ],
+        ];
       case 'everywhere':
         return [hint('Get it at gogho.st, then pair it in Settings › Computers. You can do this any time.')];
       case 'start':
