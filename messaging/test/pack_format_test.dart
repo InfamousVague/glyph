@@ -153,7 +153,7 @@ void main() {
     });
 
     test('bad_text: a name holding U+2028, U+F8FF, U+3164 or U+E0041, and more', () {
-      for (final bad in ['Bi lls', 'Bills ', 'ㅤBills', 'Bills\u{E0041}', 'Bi​lls', 'Bills ', 'Bi\nlls', 'Bi‮lls', 'Bi\u0085lls', '\uD800Bills']) {
+      for (final bad in ['Bi\u2028lls', 'Bills \uF8FF', '\u3164Bills', 'Bills\u{E0041}', 'Bi\u200Blls', 'Bills ', 'Bi\nlls', 'Bi\u202Ells', 'Bi\u0085lls', '\uD800Bills']) {
         expectError(check(bills()..['name'] = bad), 'bad_text', 'name');
       }
       expect(check(bills()..['description'] = 'Two\nlines.').ok, isTrue, reason: 'a description may have lines');
@@ -257,15 +257,15 @@ void main() {
       }
       expect(png(64, 64, idat: 36001 - png(64, 64, idat: 0).length), hasLength(36001));
       expect(withIcon(png(64, 64, idat: 36000 - png(64, 64, idat: 0).length)).ok, isTrue, reason: '36,000 bytes is the most');
-      for (final bad in ['not base64!', '${base64Encode(png(64, 64))}\n', base64Encode(png(64, 64)).replaceAll('=', ''), base64Url.encode(png(64, 64)).replaceAll('+', '-').replaceAll('/', '_') + '-']) {
+      for (final bad in ['not base64!', '${base64Encode(png(64, 64))}\n', base64Encode(png(64, 64)).replaceAll('=', ''), '${base64Url.encode(png(64, 64))}-']) {
         expectError(check(bills()..['icon'] = bad), 'bad_icon', 'icon');
       }
     });
   });
 
   group('names like the app\'s own', () {
-    test('name_reserved for Codes, a Cyrillic Сodes, fullwidth Ｃｏｄｅｓ, Kinds of text, Ghost Helper and a section called Spam', () {
-      for (final name in ['Codes', 'Сodes', 'Ｃｏｄｅｓ', 'Kinds of text', 'Ghost Helper', 'Códes', 'C o d e s', 'Gh0st Helper', 'Spam filter', 'GOGHO']) {
+    test('name_reserved for Codes, a Cyrillic \u0421odes, fullwidth Ｃｏｄｅｓ, Kinds of text, Ghost Helper and a section called Spam', () {
+      for (final name in ['Codes', '\u0421odes', 'Ｃｏｄｅｓ', 'Kinds of text', 'Ghost Helper', 'Códes', 'C o d e s', 'Gh0st Helper', 'Spam filter', 'GOGHO']) {
         expectError(check(bills()..['name'] = name), 'name_reserved', 'name');
       }
       expectError(check(bills()..['rules']['sections'][0]['label'] = 'Spam'), 'name_reserved', 'rules.sections[0].label');
@@ -273,13 +273,13 @@ void main() {
     });
 
     test('packFold folds the look-alikes the format pins', () {
-      expect(packFold('Сodes'), 'codes');
+      expect(packFold('\u0421odes'), 'codes');
       expect(packFold('Ｃｏｄｅｓ'), 'codes');
       expect(packFold('Códes'), 'codes');
       expect(packFold('C o d e s'), 'codes');
       expect(packFold('Gh0st Helper'), 'ghosthelper');
       expect(packFold('Straße'), 'strasse');
-      expect(packFold('Νotes'), 'notes', reason: 'a capital Greek Ν is an N');
+      expect(packFold('\u039Dotes'), 'notes', reason: 'a capital Greek \u039D is an N');
       expect(reservedPluginNames, containsAll(['codes', 'kindsoftext', 'spam', 'spamfilter', 'paymentreminders', 'deliveriestracking']));
     });
   });
@@ -476,7 +476,7 @@ void main() {
         '{foo}': 'phrase_bad_token',
         'a': 'phrase_too_short',
         ' bill': 'phrase_bad_text',
-        'your‮bill': 'phrase_bad_text',
+        'your\u202Ebill': 'phrase_bad_text',
         '{url}.': 'phrase_url_followed',
         'a {digits} b {digits} c {digits} d {digits} e {digits}': 'phrase_too_many_tokens',
       };

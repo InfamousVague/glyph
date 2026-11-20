@@ -151,7 +151,7 @@ bool packMayAct(MessageFacts f) => packSees(f) && signInCode(f.text) == null;
 // zero-width ones, the tag characters' assigned half), private use (U+F8FF draws Apple's logo on Apple systems), the
 // line and paragraph separators, and the blank-looking letters that make a name look empty or padded. The tag block is
 // a range of its own, since its unassigned code points are Cn, not Cf.
-final RegExp _packBadChar = RegExp(r'[\p{Cf}\p{Co}\p{Zl}\p{Zp}\x00-\x09\x0B-\x1F\x7F-\x9F͏ᅟᅠ឴឵᠋-᠏⠀ㅤﾠ\u{E0000}-\u{E007F}]', unicode: true);
+final RegExp _packBadChar = RegExp(r'[\p{Cf}\p{Co}\p{Zl}\p{Zp}\x00-\x09\x0B-\x1F\x7F-\x9F\u034F\u115F\u1160\u17B4\u17B5\u180B-\u180F\u2800\u3164\uFFA0\u{E0000}-\u{E007F}]', unicode: true);
 
 /// Whether [s] may be in a pack: no character of [_packBadChar], no unpaired surrogate, no whitespace at either end,
 /// and a newline only where [newlines] (a description, what's new, a setting's hint).

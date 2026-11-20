@@ -96,7 +96,7 @@ void main() {
       expect(verifyRevocation(edited(plugin: 'parcels'), keys: keys), isFalse);
       expect(verifyRevocation(r, keys: [base64Encode(NetKeys.generate().public)]), isFalse);
       expect(verifyRevocation(r), isFalse, reason: 'this build pins no key yet');
-      for (final why in ['', 'a' * 201, 'two\nlines', 'hidden​words']) {
+      for (final why in ['', 'a' * 201, 'two\nlines', 'hidden\u200Bwords']) {
         final bad = await signRevocation(reviewer, plugin: 'bills', sha256: sha, why: why);
         expect(verifyRevocation(bad, keys: keys), isFalse, reason: why);
       }
