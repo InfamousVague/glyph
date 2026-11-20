@@ -156,19 +156,22 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
                 onPressed: busy != null || !me.ready ? null : _go,
               ),
               // Someone with an account becomes it instead (Matt, 2026-11-17: "We need to have a way to login to
-              // existing accounts").
+              // existing accounts"), from a section of its own on this same page (Matt, 2026-11-20: "it should have an
+              // 'already have an account' section on the first page").
               if (!Account.instance.signedIn) ...[
+                SizedBox(height: t.space(8)),
+                Container(height: 1, color: t.color('app-rule')),
+                SizedBox(height: t.space(6)),
+                Text('Already have an account?', style: pageText(t, t.fontSize('lg'), weight: 'semibold', color: t.color('app-ink'), height: 1.3)),
+                SizedBox(height: t.space(1)),
+                Text('Sign in with your username and password, or your recovery words.', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.45)),
                 SizedBox(height: t.space(4)),
-                Center(
-                  child: GlacierPressable(
-                    key: const ValueKey('welcome-sign-in'),
-                    onPressed: () => push(context, (_) => const SignInScreen()),
-                    semanticLabel: 'I already have an account',
-                    builder: (context, state) => Padding(
-                      padding: EdgeInsets.all(t.space(2)),
-                      child: Text('I already have an account', style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color(state.hovered || state.pressed ? 'app-ink' : 'app-ink-2'))),
-                    ),
-                  ),
+                PairButton(
+                  key: const ValueKey('welcome-sign-in'),
+                  label: 'Sign in',
+                  icon: Lucide.keyRound,
+                  quiet: true,
+                  onPressed: busy != null ? null : () => push(context, (_) => const SignInScreen()),
                 ),
               ],
             ],
