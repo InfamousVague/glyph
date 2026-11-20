@@ -23,6 +23,9 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.10.6', '2026-11-20', [
+    'Circles: a welcome message for new members and a welcome space they land in, read-only spaces where only the owner and admins post, and a system space that shows who joined, was kicked or banned, or became an admin. Set them in a circle\'s Settings › Welcome.',
+  ]),
   ReleaseNotes('0.10.5', '2026-11-20', [
     'Game activity: a new plugin that shows friends and the spaces you\'re in which game you\'re playing on your Mac or Windows computer, and for how long. Add it from the Marketplace; it\'s off until you do, and you choose who is told.',
     'Recording a call: every track has a real meter now, with its peaks, its average and a lamp that lights if a voice clips.',
@@ -43,7 +46,6 @@ const List<ReleaseNotes> changelog = [
     'Report a plugin from its page if something\'s wrong with it.',
     'Profile pictures are sharp: a picture you choose is kept 256 pixels across, not 72. Choose yours again to send friends the sharp one.',
     'Messages: the filter\'s menu stays on the screen on a small phone or in a short window, opening where there\'s room and scrolling its list.',
-    'Circles: a welcome message for new members and a welcome space they land in, read-only spaces where only the owner and admins post, and a system space that shows who joined, was kicked or banned, or became an admin. Set them in a circle\'s Settings › Welcome.',
   ]),
   ReleaseNotes('0.10.3', '2026-11-20', [
     'Messages: Mark all read, Share feedback and the Messages and Codes toggle scroll away with your conversations, so the search stays at the top and the list has more room.',

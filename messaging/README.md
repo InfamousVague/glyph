@@ -30,7 +30,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
-- **Welcome messages, a welcome space and read-only spaces** (0.10.4, not released; Matt, 2026-11-20: "add - Welcome
+- **Welcome messages, a welcome space and read-only spaces** (0.10.6, not released; Matt, 2026-11-20: "add - Welcome
   messages for new members and allow setting a "welcome" channel as well as read only channels for system messages
   and admin / moderation announcements"). Circle settings › Welcome, for whoever may change the circle
   (`lib/ui/circles/circle_welcome.dart`, `lib/circles/welcome.dart`):
