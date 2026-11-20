@@ -26,6 +26,9 @@ import 'shell.dart';
 import 'thread.dart';
 import 'special_badges.dart';
 import 'verified_badge.dart';
+import 'nav_bar.dart' show HoverTip;
+import 'plugins_page/plugin_art.dart' show PluginHues;
+import '../me/verified_numbers.dart';
 
 /// Who a profile card is about (Matt, 2026-11-19: "when clicking on a @mention anywhere including signal and telegram
 /// chats show this profile popup with actions available for the user in context of where it's placed"): someone on
@@ -276,92 +279,197 @@ class _ProfileCardState extends State<_ProfileCard> {
       for (final e in (g?.buddy?.links ?? const <String, String>{}).entries) (e.key == 'phone' ? 'Phone' : (Inbox.instance.named(e.key)?.name ?? _titled(e.key)), e.value),
       if (n != null && n.number.isNotEmpty) ('Phone', n.number),
     ];
-    return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), t.space(2)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-          ProfileFace(name: name, picture: _picture, file: n?.avatar, size: t.lenOf('4rem')),
-          SizedBox(width: t.space(3)),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Row(children: [
-                Flexible(child: Text(name.isEmpty ? 'Someone' : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink')))),
-                // On Ghost: the verified-number badge, where they verified a number (Matt, 2026-11-19).
-                if (g != null && g.id.isNotEmpty) VerifiedBadge(id: g.id, username: g.username, me: g.me, size: 18),
-              ]),
-              Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
-              if (status.isNotEmpty) ...[
-                SizedBox(height: t.space(1)),
-                Text(status, maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink-2'))),
-              ],
-            ]),
-          ),
-          if (_looking) const GhostSpinner(size: 16),
-        ]),
-        // Their special badges by name (lib/ui/special_badges.dart), given from the admin page.
-        if (g != null && g.id.isNotEmpty)
-          ListenableBuilder(
+    // On Ghost, by their id or, for an "@name" written in a message, their username: the verified mark and the badges
+    // are asked of the relay either way (lib/me/verified_numbers.dart), so a mention by name shows them too.
+    final known = g != null && (g.id.isNotEmpty || g.username.isNotEmpty);
+    // Shaped as Discord's profile (Matt, 2026-11-20: "display badges on the users profile popup and redesign the
+    // profile popup to be more like discords"): a banner in their colour, the face over its lower edge in a ring of the
+    // card's own colour, their badges' marks in a small tray to its right, the name large, then a panel of what is
+    // known of them, About me, Badges by name, Where (this circle) and their links, and the field to write to them.
+    final face = t.lenOf('5rem');
+    final ringW = t.lenOf('0.375rem');
+    final bannerH = t.lenOf('5.5rem');
+    final hues = PluginHues.of(t, hueFor(username.isNotEmpty ? username : (g?.id.isNotEmpty == true ? g!.id : name)));
+    final card = t.color('app-paper-2');
+    final heading = pageText(t, t.fontSize('xs'), weight: 'bold', color: t.color('app-ink-2'), tracking: 0.4);
+    Widget section(String title, Widget child, {Key? key}) => Padding(
+          key: key,
+          padding: EdgeInsets.only(top: t.space(3)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text(title.toUpperCase(), style: heading),
+            SizedBox(height: t.space(1)),
+            child,
+          ]),
+        );
+    final badgeList = known
+        ? ListenableBuilder(
             listenable: Listenable.merge([SpecialBadges.instance, Me.instance]),
-            builder: (context, _) {
-              final badges = SpecialBadges.instance.of(g.id, username: g.username, me: g.me);
-              if (badges.isEmpty) return const SizedBox.shrink();
-              return Padding(
-                key: const ValueKey('profile-special'),
-                padding: EdgeInsets.only(top: t.space(3)),
-                child: Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [for (final b in badges) SpecialBadgeChip(badge: b)]),
-              );
-            },
+            builder: (context, _) => _BadgeSection(badges: SpecialBadges.instance.of(g.id, username: g.username, me: g.me), section: section),
+          )
+        : const SizedBox.shrink();
+    final panel = <Widget>[
+      if (bio.isNotEmpty) section('About me', Text(bio, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink'), height: 1.4))),
+      badgeList,
+      if (who.detail.isNotEmpty) section(who.room != null ? 'In this space' : 'Here', Text(who.detail, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink')))),
+      if (links.isNotEmpty)
+        section(
+          'Elsewhere',
+          Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+            for (final (label, value) in links)
+              Padding(
+                padding: EdgeInsets.only(top: t.space(1) / 2),
+                child: Row(children: [
+                  SizedBox(width: t.lenOf('5.5rem'), child: Text(label, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
+                  Expanded(child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink')))),
+                ]),
+              ),
+          ]),
+        ),
+    ];
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      // The banner, with the face over its lower edge and the badges' tray under it at the right.
+      SizedBox(
+        height: bannerH + face / 2 + ringW,
+        child: Stack(clipBehavior: Clip.none, children: [
+          Positioned(
+            key: const ValueKey('profile-banner'),
+            left: 0,
+            right: 0,
+            top: 0,
+            height: bannerH,
+            child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hues.start, hues.end]))),
           ),
-        if (who.detail.isNotEmpty) ...[
-          SizedBox(height: t.space(2)),
-          Text(who.detail, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink-2'))),
-        ],
-        if (links.isNotEmpty) ...[
-          SizedBox(height: t.space(2)),
-          for (final (label, value) in links)
-            Padding(
-              padding: EdgeInsets.only(top: t.space(1)),
-              child: Row(children: [
-                SizedBox(width: t.lenOf('5.5rem'), child: Text(label, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
-                Expanded(child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink')))),
-              ]),
-            ),
-        ],
-        if (bio.isNotEmpty) ...[
-          SizedBox(height: t.space(3)),
-          Text(bio, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.4)),
-        ],
-        if (g != null && g.friend && !g.me) ...[
-          SizedBox(height: t.space(3)),
-          // The box every conversation writes in, Send inside it at its end (Matt, 2026-11-19: "move the send message
-          // button inside the input like we have on the rest of the app as well within that drawer").
-          ListenableBuilder(
-            listenable: _dm,
-            builder: (context, _) => ComposerBox(
-              key: const ValueKey('profile-dm'),
-              typing: false,
-              // Its edges on the card's, lined up with the choices under it (Matt, 2026-11-19: "there is too much
-              // padding on the left and right of the send message bar in the profile popup it doesn't line up with the
-              // @mention open chat and copy options").
-              flush: true,
-              // The card is the composer's grey already: the box in the page's own colour stands out on it.
-              ground: t.color('app-paper'),
-              ends: [
-                IconTap(
-                  key: const ValueKey('profile-dm-send'),
-                  icon: Lucide.arrowUp,
-                  label: 'Send',
-                  filled: true,
-                  size: 19,
-                  box: t.lenOf('2.25rem'),
-                  onPressed: _sending || _dm.text.trim().isEmpty ? null : () => unawaited(_send()),
-                ),
-              ],
-              field: ComposerField(controller: _dm, focusNode: _dmFocus, hint: 'Message ${g.name.isNotEmpty ? g.name : g.username}', onSubmitted: () => unawaited(_send()), enterSends: true),
+          Positioned(
+            left: t.space(4) - ringW,
+            top: bannerH - face / 2 - ringW,
+            child: Container(
+              key: const ValueKey('profile-face'),
+              padding: EdgeInsets.all(ringW),
+              decoration: BoxDecoration(color: card, shape: BoxShape.circle),
+              child: ProfileFace(name: name, picture: _picture, file: n?.avatar, size: face),
             ),
           ),
-        ],
-      ]),
+          if (known)
+            Positioned(
+              right: t.space(4),
+              top: bannerH + t.space(2),
+              child: _BadgeTray(id: g.id, username: g.username, me: g.me),
+            ),
+          if (_looking) Positioned(right: t.space(3), top: t.space(3), child: const GhostSpinner(size: 16)),
+        ]),
+      ),
+      Padding(
+        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(2)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            Flexible(
+              child: Text(name.isEmpty ? 'Someone' : name, key: const ValueKey('profile-name'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xl'), weight: 'bold', color: t.color('app-ink'))),
+            ),
+            // The verified-number mark beside the name, as Discord's verified badge is (Matt, 2026-11-19); the special
+            // badges are in the tray and the panel, not here twice.
+            if (known) VerifiedBadge(id: g.id, username: g.username, me: g.me, size: 20, special: false),
+          ]),
+          Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+          if (status.isNotEmpty) ...[
+            SizedBox(height: t.space(2)),
+            // Their status as Discord's custom status: a bubble under the name.
+            Container(
+              key: const ValueKey('profile-status'),
+              padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+              decoration: BoxDecoration(color: t.color('app-paper'), borderRadius: BorderRadius.circular(t.radius('lg'))),
+              child: Text(status, maxLines: 3, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink'))),
+            ),
+          ],
+          if (panel.isNotEmpty || known)
+            Container(
+              key: const ValueKey('profile-panel'),
+              margin: EdgeInsets.only(top: t.space(3)),
+              padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), t.space(3)),
+              decoration: BoxDecoration(color: t.color('app-paper'), borderRadius: BorderRadius.circular(t.radius('lg'))),
+              // Empty where nothing is known beyond the name: the panel's own padding then is all there is, which
+              // reads as a thin rule; so it is left out unless it has something.
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: panel),
+            ),
+          if (g != null && g.friend && !g.me) ...[
+            SizedBox(height: t.space(3)),
+            // The box every conversation writes in, Send inside it at its end (Matt, 2026-11-19: "move the send message
+            // button inside the input like we have on the rest of the app as well within that drawer").
+            ListenableBuilder(
+              listenable: _dm,
+              builder: (context, _) => ComposerBox(
+                key: const ValueKey('profile-dm'),
+                typing: false,
+                // Its edges on the card's, lined up with the choices under it (Matt, 2026-11-19).
+                flush: true,
+                ground: t.color('app-paper'),
+                ends: [
+                  IconTap(
+                    key: const ValueKey('profile-dm-send'),
+                    icon: Lucide.arrowUp,
+                    label: 'Send',
+                    filled: true,
+                    size: 19,
+                    box: t.lenOf('2.25rem'),
+                    onPressed: _sending || _dm.text.trim().isEmpty ? null : () => unawaited(_send()),
+                  ),
+                ],
+                field: ComposerField(controller: _dm, focusNode: _dmFocus, hint: 'Message ${g.name.isNotEmpty ? g.name : '@${g.username}'}', onSubmitted: () => unawaited(_send()), enterSends: true),
+              ),
+            ),
+          ],
+        ]),
+      ),
+    ]);
+  }
+}
+
+/// The badges' marks in a small rounded tray beside the face, each named in a tip, as Discord's profile has them.
+class _BadgeTray extends StatelessWidget {
+  const _BadgeTray({required this.id, required this.username, required this.me});
+  final String id;
+  final String username;
+  final bool me;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: Listenable.merge([SpecialBadges.instance, VerifiedNumbers.instance, Me.instance]),
+      builder: (context, _) {
+        final t = context.tokens;
+        final badges = SpecialBadges.instance.of(id, username: username, me: me);
+        if (badges.isEmpty) return const SizedBox.shrink();
+        return Container(
+          key: const ValueKey('profile-badge-tray'),
+          padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.space(1) + 2),
+          decoration: BoxDecoration(color: t.color('app-paper'), borderRadius: BorderRadius.circular(t.radius('md'))),
+          child: Row(mainAxisSize: MainAxisSize.min, spacing: t.space(2), children: [
+            for (final b in badges)
+              HoverTip(
+                key: ValueKey('profile-badge-${b.id}'),
+                message: b.name,
+                child: Semantics(label: b.name, child: AppIcon(b.icon, size: 18, color: PluginHues.of(t, b.hue).accent)),
+              ),
+          ]),
+        );
+      },
+    );
+  }
+}
+
+/// The panel's Badges: each by name, with what it is for, where the tray has only their marks.
+class _BadgeSection extends StatelessWidget {
+  const _BadgeSection({required this.badges, required this.section});
+  final List<SpecialBadge> badges;
+  final Widget Function(String title, Widget child, {Key? key}) section;
+
+  @override
+  Widget build(BuildContext context) {
+    if (badges.isEmpty) return const SizedBox.shrink();
+    final t = context.tokens;
+    return section(
+      badges.length == 1 ? 'Badge' : 'Badges',
+      key: const ValueKey('profile-special'),
+      Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [for (final b in badges) SpecialBadgeChip(badge: b)]),
     );
   }
 }
