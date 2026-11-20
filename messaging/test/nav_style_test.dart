@@ -90,6 +90,10 @@ void main() {
           case NavStyle.rail:
             // No pill: the rail, its circles by their faces, and Home taking the circle away.
             expect(_key('nav-messages'), findsNothing);
+            // Share feedback is the rail's, one ring above Settings, not beside the search (Matt, 2026-11-20).
+            expect(_key('share-feedback'), findsOneWidget);
+            expect(tester.getCenter(_key('share-feedback')).dy, lessThan(tester.getCenter(_key('rail-settings')).dy));
+            expect(tester.getCenter(_key('share-feedback')).dy, greaterThan(tester.getCenter(_key('rail-archive')).dy));
             expect(_key('rail-circle-${_owls.seed}'), findsOneWidget);
             expect(_key('rail-circle-${_alpha.seed}'), findsOneWidget);
             await tester.tap(_key('rail-circle-${_alpha.seed}'));

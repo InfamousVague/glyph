@@ -27,6 +27,7 @@ class NavRail extends StatelessWidget {
     required this.onCircle,
     required this.onCircleMenu,
     required this.onAddCircle,
+    this.onFeedback,
   });
 
   /// The circles, in the order the list has them.
@@ -47,6 +48,10 @@ class NavRail extends StatelessWidget {
   final ValueChanged<Circle> onCircle;
   final ValueChanged<Circle> onCircleMenu;
   final VoidCallback onAddCircle;
+
+  /// Share feedback, as a ring just above Settings (Matt, 2026-11-20: "on mobile move the share feedback button just
+  /// above the settings cog in the navigation rail"); none where it is somewhere else (the Mac's title strip).
+  final VoidCallback? onFeedback;
 
   /// How wide it is: a ring and room round it.
   static double width(Tokens t) => t.len('app-ring') + t.space(3) * 2;
@@ -91,7 +96,16 @@ class NavRail extends StatelessWidget {
             ),
             rule,
             Column(mainAxisSize: MainAxisSize.min, spacing: gap, children: [
-              for (final item in items) NavRing(key: ValueKey('rail-${item.id}'), item: item, shown: item.id == active, onPressed: () => onSelect(item.id)),
+              for (final item in items) ...[
+                if (item.id == 'settings' && onFeedback != null)
+                  NavRing(
+                    key: const ValueKey('share-feedback'),
+                    item: const NavItem(id: 'feedback', icon: LucideMore.messageSquareWarning, label: 'Share feedback'),
+                    shown: false,
+                    onPressed: onFeedback!,
+                  ),
+                NavRing(key: ValueKey('rail-${item.id}'), item: item, shown: item.id == active, onPressed: () => onSelect(item.id)),
+              ],
             ]),
           ]),
         ),

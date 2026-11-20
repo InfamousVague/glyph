@@ -1314,7 +1314,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                     // Souls, with their flame, beside Share feedback (lib/ui/souls.dart; Matt, 2026-11-19: "display the
                     // points in the top bar next to the feedback button with a flame icon next to them").
                     Padding(padding: EdgeInsets.only(left: t.space(2)), child: const SoulsChip()),
-                    Padding(padding: EdgeInsets.only(left: t.space(2)), child: const FeedbackButton()),
+                    // Under the rail it is the rail's, just above Settings (Matt, 2026-11-20: "on mobile move the share
+                    // feedback button just above the settings cog in the navigation rail").
+                    if (!AppShell.railOf(context)) Padding(padding: EdgeInsets.only(left: t.space(2)), child: const FeedbackButton()),
                   ]);
                 }),
               ),
