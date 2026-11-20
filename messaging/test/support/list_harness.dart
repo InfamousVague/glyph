@@ -96,7 +96,7 @@ Future<TokenSheet> loadSheet(WidgetTester tester) async {
 }
 
 /// Draws [screen] as the app would, on a phone's screen, with [state] for the person's choices.
-Future<void> pumpScreen(WidgetTester tester, TokenSheet sheet, Widget screen, AppState state, {Size size = const Size(412, 892)}) async {
+Future<void> pumpScreen(WidgetTester tester, TokenSheet sheet, Widget screen, AppState state, {Size size = const Size(412, 892), String platform = 'mobile'}) async {
   tester.view.physicalSize = size * 2.0;
   tester.view.devicePixelRatio = 2.0;
   addTearDown(tester.view.reset);
@@ -108,7 +108,7 @@ Future<void> pumpScreen(WidgetTester tester, TokenSheet sheet, Widget screen, Ap
       pageRouteBuilder: <T>(RouteSettings s, WidgetBuilder b) => PageRouteBuilder<T>(settings: s, pageBuilder: (c, _, _) => b(c)),
       builder: (context, child) => GlacierTheme(
         sheet: sheet,
-        attrs: {'theme': 'light', ...ghostAttrs(state, 'mobile')},
+        attrs: {'theme': 'light', ...ghostAttrs(state, platform)},
         child: InkOverrides(child: GlacierToastProvider(child: child!)),
       ),
       home: screen,

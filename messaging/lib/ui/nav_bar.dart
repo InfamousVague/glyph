@@ -188,15 +188,19 @@ class NavRing extends StatelessWidget {
   final bool shown;
   final VoidCallback onPressed;
 
+  /// The rail's rings are a little smaller than the pill's (`--app-rail-ring`), their marks with them.
   @override
-  Widget build(BuildContext context) => _Ring(item: item, shown: shown, onPressed: onPressed, beside: true);
+  Widget build(BuildContext context) => _Ring(item: item, shown: shown, onPressed: onPressed, beside: true, ringToken: 'app-rail-ring');
 }
 
 /// One ring of the pill (the dock's `DockRing`): quiet, or filled with ink when it is the one shown. One with a
 /// menu of its own ([NavItem.menu]) hangs it over itself.
 class _Ring extends StatefulWidget {
-  const _Ring({super.key, required this.item, required this.shown, required this.onPressed, this.upright = false, this.tinted = false, this.beside = false});
+  const _Ring({super.key, required this.item, required this.shown, required this.onPressed, this.upright = false, this.tinted = false, this.beside = false, this.ringToken = 'app-ring'});
   final NavItem item;
+
+  /// The token its side is read from: the rail's own, smaller, for [NavRing].
+  final String ringToken;
   final bool shown;
 
   /// Shown, it is filled with the hue round it ([NavPill.hue]) rather than the accent.
@@ -268,8 +272,10 @@ class _RingState extends State<_Ring> {
     final shown = widget.shown;
     final onPressed = widget.onPressed;
     final onMenu = item.menu == null ? null : _showMenu;
-    final ring = t.len('app-ring');
-    final size = shown ? 18.0 : t.lenOf('1.15rem');
+    final ring = t.len(widget.ringToken);
+    // The mark shrinks with its ring where the ring is the rail's.
+    final scale = ring / t.len('app-ring');
+    final size = (shown ? 18.0 : t.lenOf('1.15rem')) * scale;
     final stroke = shown ? 2.2 : 2.0;
     // The page shown wears the app's accent (lib/accent.dart); on a circle's dock, the circle's hue, its mark in the
     // page's ground as a circle's face filled with its hue has it.
