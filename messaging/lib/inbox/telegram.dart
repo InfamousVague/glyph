@@ -66,7 +66,10 @@ class Telegram extends InboxNetwork {
   @override
   String? get account => _account;
   @override
-  List<InboxChat> get chats => _chats;
+  List<InboxChat> get chats {
+    _settle();
+    return _chats;
+  }
   @override
   List<InboxMessage> messagesOf(String chatId) => _messages[chatId] ?? const [];
 
@@ -593,7 +596,10 @@ class Telegram extends InboxNetwork {
   List<InboxChat> _archived = const [];
 
   @override
-  List<InboxChat> get archivedChats => _archived;
+  List<InboxChat> get archivedChats {
+    _settle();
+    return _archived;
+  }
 
   bool _writable(int id) {
     final type = (_chatsById[id]?['type'] as Map?);
@@ -685,11 +691,22 @@ class Telegram extends InboxNetwork {
 
   /// The chats the list shows: those in the main list that can be written in (private chats and groups, not
   /// channels), the newest first, as they stand among the texts.
+  /// The lists are stale: made again when next asked for ([_settle]), and the listeners told. TDLib says thousands of
+  /// things as it starts and signs in, each of which used to make and sort every chat here; now each only says so,
+  /// and the lists are made once for whoever next reads them (docs/performance-audit.md, finding 2).
   void _rebuild() {
+    _stale = true;
+    notifyListeners();
+  }
+
+  bool _stale = false;
+
+  void _settle() {
+    if (!_stale) return;
+    _stale = false;
     final ids = _order.keys.where(_writable).toList();
     _chats = [for (final id in ids) _chat(_chatsById[id]!)]..sort((a, b) => b.date.compareTo(a.date));
     _archived = [for (final id in _archOrder.keys.where((id) => _writable(id) && !_order.containsKey(id))) _chat(_chatsById[id]!)]..sort((a, b) => b.date.compareTo(a.date));
-    notifyListeners();
   }
 
   InboxChat _chat(Map<String, Object?> c) {

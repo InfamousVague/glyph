@@ -98,12 +98,10 @@ class _Receiver {
         malloc.free(quiet);
         final port = ReceivePort();
         final out = StreamController<Map<String, Object?>>.broadcast();
+        // What TDLib says is read (JSON) in the receiving isolate, not here: thousands of updates as it starts were
+        // each parsed on the thread that draws (docs/performance-audit.md, finding 2). A map comes across as it is.
         port.listen((m) {
-          if (m is! String) return;
-          try {
-            final j = jsonDecode(m);
-            if (j is Map<String, Object?>) out.add(j);
-          } catch (_) {}
+          if (m is Map<String, Object?>) out.add(m);
         });
         await Isolate.spawn(_loop, (port.sendPort, path), debugName: 'tdlib');
         return out.stream;
@@ -115,7 +113,11 @@ class _Receiver {
     final receive = lib.lookupFunction<Pointer<Utf8> Function(Double), Pointer<Utf8> Function(double)>('td_receive');
     while (true) {
       final r = receive(1.0);
-      if (r != nullptr) out.send(r.toDartString());
+      if (r == nullptr) continue;
+      try {
+        final j = jsonDecode(r.toDartString());
+        if (j is Map<String, Object?>) out.send(j);
+      } catch (_) {}
     }
   }
 }
