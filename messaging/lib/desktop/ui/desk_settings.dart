@@ -15,7 +15,7 @@ import '../../ui/computers.dart';
 import '../../ui/gm_guide_screen.dart';
 import '../../ui/jump_to_latest.dart' show ScrollMemory;
 import '../../ui/settings.dart';
-import '../../ui/settings_panes.dart' show aboutLicences;
+import '../../ui/settings_panes.dart' show aboutLicences, versionTapped;
 import '../../gm/google_signin.dart';
 import '../../gm/google_signin_flow.dart';
 import '../gm_web.dart';
@@ -128,7 +128,7 @@ class DeskSettings extends ChangeNotifier {
           hue: 'graphite',
           group: 'app',
           summary: (m) => 'Ghost Messaging for $desktopName ${link.app}',
-          page: (context, m) => _aboutPage(context, this),
+          page: (context, m) => _aboutPage(context, this, m.app),
         ),
       ];
 
@@ -444,10 +444,10 @@ List<Widget> _updatesPage(BuildContext context, DeskSettings d) {
 
 // --- About ------------------------------------------------------------------------------------------------------------
 
-List<Widget> _aboutPage(BuildContext context, DeskSettings d) {
+List<Widget> _aboutPage(BuildContext context, DeskSettings d, AppState app) {
   return [
     PaneSection(title: 'Ghost Messaging for $desktopName', children: [
-      SettingRow(icon: _icon(Lucide.ghost), label: 'Version', value: Text(d.link.app)),
+      SettingRow(icon: _icon(Lucide.ghost), label: 'Version', value: Text(d.link.app), onPress: () => versionTapped(context, app)),
       // The release notes again (lib/ui/whats_new.dart).
       SettingRow(icon: _icon(Lucide.sparkles), label: 'What\'s new', hint: const Text('What the last update brought.'), onPress: () => showWhatsNew(context)),
       SettingRow(icon: _icon(Lucide.bookOpen), label: 'Help and docs', hint: const Text('How everything works, step by step, at gogho.st/docs.'), onPress: openDocs),

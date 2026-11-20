@@ -82,8 +82,21 @@ class GhostPage extends StatelessWidget {
             // Over a background (a circle's banner) the back arrow's round hover and press mark stays inside the picture's
             // rounded edge, as far in as the rest of the header (Matt, 2026-11-19: "when hovering the back arrow the
             // hover state goes over the left edge of the banner").
-            SizedBox(width: lights + t.space(back ? (headerBackground == null ? 1 : 2) : 4)),
-            if (back) IconTap(icon: Lucide.arrowLeft, label: 'Back', size: 22, color: headerBackground == null ? null : headerInk, onPressed: onBack ?? () => Navigator.of(context).maybePop()),
+            // Over a background, almost flush with its edge, at its top-left corner: two points in from the picture's
+            // left and top when hovered (Matt, 2026-11-19: "remove the extra padding on the left of the back arrow and
+            // some from the top as well so it sits almost flush when hovered with the border of the background image").
+            SizedBox(width: lights + (back ? (headerBackground == null ? t.space(1) : 2) : t.space(4))),
+            if (back && headerBackground != null)
+              Align(
+                alignment: Alignment.topCenter,
+                child: Transform.translate(
+                  // The row stands [t.space(2)] inside the background's top; the arrow two points inside it.
+                  offset: Offset(0, 2 - t.space(2)),
+                  child: IconTap(key: const ValueKey('page-back'), icon: Lucide.arrowLeft, label: 'Back', size: 22, color: headerInk, onPressed: onBack ?? () => Navigator.of(context).maybePop()),
+                ),
+              )
+            else if (back)
+              IconTap(icon: Lucide.arrowLeft, label: 'Back', size: 22, onPressed: onBack ?? () => Navigator.of(context).maybePop()),
             Expanded(
               child: titleWidget ??
                   Text(

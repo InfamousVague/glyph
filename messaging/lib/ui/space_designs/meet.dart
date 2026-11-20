@@ -437,7 +437,7 @@ class _MeetColors {
 // ---- Icons ----------------------------------------------------------------------------------------------------
 
 /// Lucide's minimize-2 (ISC licence), not in the app's set.
-const _minimise = LucideIcon('minimize-2', ['m14 10 7-7', 'M20 10h-6V4', 'm3 21 7-7', 'M4 14h6v6'], []);
+const _minimise = LucideIcon.phosphor('minimize-2', 'M224,48V208a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V48A16,16,0,0,1,48,32H208A16,16,0,0,1,224,48Z', 'M213.66,53.66,163.31,104H192a8,8,0,0,1,0,16H144a8,8,0,0,1-8-8V64a8,8,0,0,1,16,0V92.69l50.34-50.35a8,8,0,0,1,11.32,11.32ZM112,136H64a8,8,0,0,0,0,16H92.69L42.34,202.34a8,8,0,0,0,11.32,11.32L104,163.31V192a8,8,0,0,0,16,0V144A8,8,0,0,0,112,136Z');
 
 /// Leaving: the phone put down.
 const _hangUp = LucideMore.phoneOff;

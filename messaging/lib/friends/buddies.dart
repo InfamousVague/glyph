@@ -158,6 +158,15 @@ class Buddies extends ChangeNotifier {
   bool get _remote => !Sms.ownNetwork && _port is _AppBuddiesPort;
   Timer? _poll;
 
+  /// Asks again, now and then, for a friend request not yet answered ([askAgain]).
+  Timer? _again;
+
+  /// How long an unanswered request is asked again for.
+  static const askFor = Duration(days: 14);
+
+  /// How often.
+  static const askEvery = Duration(minutes: 5);
+
   Future<Map<String, Object?>> _ask(Map<String, Object?> what) async {
     final Map<String, dynamic> r;
     try {
@@ -237,6 +246,35 @@ class Buddies extends ChangeNotifier {
     _subs.add(_port.greetings.listen((g) => _greeting(g.from, g.envelope)));
     _subs.add(_port.received.listen((r) => _sealed(r.from, r.envelope)));
     notifyListeners();
+    // A request the hub was holding for someone away is lost when the relay restarts, and so is an answer, and nothing
+    // asked again (Matt, 2026-11-19: "my friend request to morgan never went through i also sent one from her phone and
+    // it didn't go out"; the relay restarted five times that evening, one deploy each). Each unanswered request is
+    // asked again: a little after starting, once the hub is reached, and every few minutes, for two weeks. The other
+    // side takes a request it holds already as the same one, and answers one it has said yes to again.
+    Timer(const Duration(seconds: 15), () => unawaited(askAgain()));
+    _again = Timer.periodic(askEvery, (_) => unawaited(askAgain()));
+  }
+
+  /// Sends each request still unanswered, newer than [askFor], again.
+  @visibleForTesting
+  Future<int> askAgain() async {
+    if (_remote) return 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final waiting = [for (final b in all) if (b.state == 'asked' && now - b.at < askFor.inMilliseconds) b];
+    if (waiting.isEmpty) return 0;
+    final ({String id, String key}) me;
+    try {
+      me = await _port.me();
+    } catch (_) {
+      return 0;
+    }
+    var sent = 0;
+    for (final b in waiting) {
+      try {
+        if (await _port.send(b.id, Envelope(kind: 'hello', body: {'buddy': 'ask', 'k': me.key, ..._profile()}), sealed: false)) sent++;
+      } catch (_) {}
+    }
+    return sent;
   }
 
   Future<void> _save() async {
@@ -346,7 +384,11 @@ class Buddies extends ChangeNotifier {
     final had = byId(from);
     final name = '${e.body['n'] ?? ''}', bio = '${e.body['b'] ?? ''}';
     final said = _said(e.body);
-    if (had?.state == 'yes') return;
+    if (had?.state == 'yes') {
+      // Asked again by a friend already: our yes was lost on its way (askAgain). Said again.
+      unawaited(_port.send(from, Envelope(kind: 'buddy', body: {'s': 'yes', ..._profile()})));
+      return;
+    }
     if (had?.state == 'asked') {
       // Both asked: friends.
       unawaited(accept(had!.copyWith(name: name, bio: bio, picture: said.picture, status: said.status, links: said.links)));
@@ -382,6 +424,7 @@ class Buddies extends ChangeNotifier {
   @override
   void dispose() {
     _poll?.cancel();
+    _again?.cancel();
     for (final s in _subs) {
       s.cancel();
     }

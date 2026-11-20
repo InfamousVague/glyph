@@ -23,6 +23,19 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.9.38', '2026-11-20', [
+    'Developer mode: tap Version in Settings › About twelve times to turn it on, on the phone or a computer. Settings › Developer stays hidden until then.',
+    'Icons: every icon is Phosphor\'s now, in duotone, in the app and the docs.',
+    'Share feedback is in the rail now, just above Settings, on a phone.',
+    'Friends: a friend request that didn\'t arrive is sent again until it\'s answered.',
+  ]),
+  ReleaseNotes('0.9.37', '2026-11-20', [
+    'Souls: points with a flame beside Share feedback, a thank-you for reporting bugs. They can\'t be spent yet. Tap them to see yours and your badges.',
+    'Badges: some people have a badge or two beside their name, like Bug hunter or Alpha tester.',
+    'Circles: a circle\'s picture fills its round in the rail, with no edge of colour round it.',
+    'Circles: names in a circle\'s chat take the colour of their highest role, and change as roles are given.',
+    'Circles: the back arrow sits in the banner\'s corner, and there\'s a little room before the name\'s arrow.',
+  ]),
   ReleaseNotes('0.9.36', '2026-11-20', [
     'Share feedback: report a bug, suggest a feature or tell us anything, with up to three screenshots. Include your username to be in line for bug bounties. On a Mac it\'s in the window\'s top bar, elsewhere beside the search in Messages.',
     'On a Mac the window has its own top bar in the app\'s colours, a little taller, that you drag the window by.',

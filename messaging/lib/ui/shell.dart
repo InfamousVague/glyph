@@ -37,6 +37,7 @@ import 'conversations.dart';
 import 'nav_bar.dart';
 import 'nav_rail.dart';
 import 'nav_style.dart';
+import 'feedback_screen.dart' show FeedbackButton;
 import 'settings.dart';
 import 'settings_panes.dart' show settingsGroupLabel, settingsSections;
 import 'thread.dart';
@@ -692,6 +693,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
               onCircle: _railCircle,
               onCircleMenu: (c) => showCircleMenu(context, c),
               onAddCircle: _addCircle,
+              // Share feedback above Settings: on a phone, where it was beside the search (lib/ui/conversations.dart).
+              onFeedback: MacChrome.stripEnabled ? null : () => FeedbackButton.open(context),
             );
           },
         ),

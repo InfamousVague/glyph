@@ -119,6 +119,9 @@ class _CirclePageState extends State<CirclePage> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
               Row(children: [
                 Flexible(child: Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: ink).copyWith(shadows: pictured ? shade : null))),
+                // A little room between the name and its chevron (Matt, 2026-11-19: "add a bit of gap between the title
+                // and the down chevron").
+                SizedBox(width: t.space(1) + 2),
                 AppIcon(Lucide.chevronDown, size: 16, color: pictured ? ink : t.color('app-ink-2')),
               ]),
               Text(line, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: ink2).copyWith(shadows: pictured ? shade : null)),

@@ -12,11 +12,13 @@
  *   docs-src/pages/<slug>.html each page's body: plain HTML with the mock tags below, `<h2 id>` for its outline
  *   docs-src/docs.css, docs.js the frame's style and behaviour (theme, sidebar, search, outline)
  *   packages/glacier/assets/css/tokens.css  Glacier's own tokens, copied so the mocks are drawn with the app's sizes
- *   lib/art/lucide.g.dart, lib/art/lucide_more.dart  the app's icons: only those a page uses go in the sprite
+ *   lib/art/lucide.g.dart, lib/art/lucide_more.dart  the app's icons (Phosphor duotone): only those a page uses go in the sprite
  *
  * THE MOCK TAGS are the app's own pieces drawn in HTML, never pictures of it (so they read in both themes, at any
  * width, and stay true when a label changes in one place). Each expands to plain HTML here; nothing runs in the page.
  *   <m-screen title back caption wide actions="icon,icon">…</m-screen>   a phone's (or, wide, a computer's) screen
+ *     rail="messages|circle|new|contacts|archive|settings" circles="Name:hue|…" open="Name" railtap="id or Name"
+ *                                                                        the rail down its left: Home, the circles, the rest
  *   <m-section title foot>…</m-section>                                  a settings group: a card of rows
  *   <m-row icon hue label hint value chev switch=on|off tap danger/>      a settings row
  *   <m-btn kind=primary|secondary|ghost|danger icon tap>Label</m-btn>     a button
@@ -44,31 +46,28 @@ const check = process.argv.includes('--check');
 const { sections } = await import(pathToFileURL(join(SRC, 'pages.mjs')).href);
 const pages = sections.flatMap((s) => s.pages.map((p) => ({ ...p, section: s.title })));
 
-// --- icons: the app's own lucide data ---------------------------------------------------------------------------------
+// --- icons: the app's own, Phosphor's duotone under their Lucide names (tool/phosphor.mjs) ----------------------------
 
 const icons = new Map();
 for (const f of ['lib/art/lucide.g.dart', 'lib/art/lucide_more.dart']) {
   const p = join(ROOT, f);
   if (!existsSync(p)) continue;
-  for (const m of readFileSync(p, 'utf8').matchAll(/LucideIcon\('([a-z0-9-]+)',\s*\[([\s\S]*?)\],\s*\[([0-9,\s]*)\]\)/g)) {
-    const shapes = [...m[2].matchAll(/'([^']*)'/g)].map((x) => x[1]);
-    const wash = m[3].split(',').map((x) => x.trim()).filter(Boolean).map(Number);
-    if (!icons.has(m[1])) icons.set(m[1], { shapes, wash });
+  for (const m of readFileSync(p, 'utf8').matchAll(/LucideIcon\.phosphor\('([a-z0-9-]+)',\s*'([^']*)',\s*'([^']*)'\)/g)) {
+    if (!icons.has(m[1])) icons.set(m[1], { body: m[2], outline: m[3] });
   }
 }
 const used = new Set();
 function icon(name, cls = 'i') {
   if (!name) return '';
-  if (!icons.has(name)) throw new Error(`No icon "${name}" in the app's lucide set`);
+  if (!icons.has(name)) throw new Error(`No icon "${name}" in the app's icon set`);
   used.add(name);
   return `<svg class="${cls}" aria-hidden="true"><use href="/docs/icons.svg#${name}"/></svg>`;
 }
 function sprite() {
   const out = [...used].sort().map((n) => {
-    const { shapes, wash } = icons.get(n);
-    // Each shape's look on the shape itself: a symbol used from another file inherits nothing from this one's root.
-    const paths = shapes.map((d, i) => (wash.includes(i) ? `<path d="${d}" fill="currentColor" fill-opacity=".18" stroke="none"/>` : '') + `<path d="${d}"/>`).join('');
-    return `<symbol id="${n}" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</g></symbol>`;
+    const { body, outline } = icons.get(n);
+    // The body at a fifth of the ink, as Phosphor's duotone draws it, and the outline in the whole ink.
+    return `<symbol id="${n}" viewBox="0 0 256 256"><g fill="currentColor">${body ? `<path d="${body}" opacity=".2"/>` : ''}<path d="${outline}"/></g></symbol>`;
   });
   return `<svg xmlns="http://www.w3.org/2000/svg">${out.join('')}</svg>\n`;
 }
@@ -85,11 +84,25 @@ const tap = (a) => (a.tap ? ' tap' : '');
 const HUES = ['blue', 'teal', 'green', 'amber', 'orange', 'coral', 'rose', 'purple', 'indigo', 'slate', 'cyan', 'mint'];
 const hueOf = (s) => HUES[[...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % HUES.length];
 
+// The rail (lib/ui/nav_rail.dart): Home at its head, each circle as its face (a bar at its edge for the one open), a
+// circled plus to start or join one, and New, Contacts, Archive and Settings at its foot.
+function rail(a) {
+  const ring = (id, ic, label) => `<span class="m-ring${a.rail === id ? ' on' : ''}${a.railtap === id ? ' tap' : ''}" title="${label}">${icon(ic)}</span>`;
+  const circles = String(a.circles ?? '').split('|').filter(Boolean).map((c) => {
+    const [name, hue] = c.split(':');
+    const initials = name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+    return `<span class="m-rail-circle${a.open === name ? ' open' : ''}" title="${esc(name)}"><span class="m-avatar${a.railtap === name ? ' tap' : ''}" data-hue="${hue ?? hueOf(name)}">${esc(initials)}</span></span>`;
+  }).join('');
+  return `<div class="m-rail" role="img" aria-label="The rail: Messages, your circles, New, Contacts, Archive, Settings">${ring('messages', 'message-square', 'Messages')}<span class="m-rail-rule"></span>${circles}${ring('add-circle', 'circle-plus', 'New or join a circle')}<span class="m-rail-gap"></span><span class="m-rail-rule"></span>${ring('new', 'plus', 'New')}${ring('contacts', 'contact-round', 'Contacts')}${ring('archive', 'archive', 'Archive')}${ring('settings', 'settings', 'Settings')}</div>`;
+}
+
 const render = {
   'm-screen': (a, inner) => {
     const actions = String(a.actions ?? '').split(',').filter(Boolean).map((n) => `<span class="m-iconbtn">${icon(n.trim())}</span>`).join('');
     const head = a.title === undefined && !a.back ? '' : `<div class="m-head">${a.back ? `<span class="m-iconbtn">${icon('arrow-left')}</span>` : ''}<span class="m-title">${esc(a.title ?? '')}</span>${actions}</div>`;
-    return `<figure class="mock${a.wide ? ' wide' : ''}"><div class="m-screen">${head}<div class="m-body">${inner}</div></div>${a.caption ? `<figcaption>${esc(a.caption)}</figcaption>` : ''}</figure>`;
+    const main = `${head}<div class="m-body">${inner}</div>`;
+    const screen = a.rail === undefined ? `<div class="m-screen">${main}</div>` : `<div class="m-screen has-rail">${rail(a)}<div class="m-main">${main}</div></div>`;
+    return `<figure class="mock${a.wide ? ' wide' : ''}">${screen}${a.caption ? `<figcaption>${esc(a.caption)}</figcaption>` : ''}</figure>`;
   },
   'm-section': (a, inner) => `<div class="m-section">${a.title ? `<div class="m-section-title">${esc(a.title)}</div>` : ''}<div class="m-card">${inner}</div>${a.foot ? `<p class="m-foot">${esc(a.foot)}</p>` : ''}</div>`,
   'm-row': (a) => {

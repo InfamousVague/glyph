@@ -30,6 +30,18 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Souls, special badges and the admin page** (0.9.36, not released; Matt, 2026-11-19: "Build a new points system into
+  the app called souls ... display the points in the top bar next to the feedback button with a flame icon ... a simple
+  admin page for me to login to ... only my matt account ... see all users who signed up on the relay and issue special
+  badges and souls"). The relay keeps each install's souls, its special badges and a log of what was given
+  (relay/lib/handles.dart: `souls?`, `admin-*`, `specialBadges`), and now the usernames themselves for the admin list
+  (`_shown`, from each claim and each hello; before, only their hashes). The count with its flame is beside Share
+  feedback (`lib/ui/souls.dart`, `SoulsChip`; on the Mac in the title strip), told as souls are given. Badges show
+  beside names where the verified badge does and by name on profile cards (`lib/ui/special_badges.dart`), told with the
+  verified answer. Settings › Admin (`lib/ui/admin_page.dart`), in developer mode for @matt only: signed in with a
+  username and password made by `tool/admin-password.mjs` (the relay keeps the password's salted, 100 000-times SHA-256
+  hash: GHOST_ADMIN_USER, GHOST_ADMIN_HASH; GHOST_ADMIN_NAMES says which accounts may try, `matt`), five tries an
+  hour, signed in only while connected. Tests: souls_test, relay handles_test.
 - **An emoji picker of the app's own; Blocked beside Add** (not released; Matt, 2026-11-19: "roll an in house emoji
   picker we should be able to pull the code out from other apps we've built", "move blocked to the right of the add
   friend button"). Ghost Keyboard's emoji data and search ported (`lib/emoji_data.dart`, `assets/emoji/emoji.tsv`,

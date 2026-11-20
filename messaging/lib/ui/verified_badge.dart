@@ -4,6 +4,7 @@ import 'package:glacier/glacier.dart';
 import '../art/app_icon.dart';
 import '../art/lucide_more.dart';
 import '../me/verified_numbers.dart';
+import 'special_badges.dart';
 
 /// The verified-number badge beside someone's name in a space, a circle's members or their profile card (Matt,
 /// 2026-11-19: "add the verfied by number badge as a default feature"; lib/me/verified_numbers.dart): drawn where the
@@ -24,13 +25,18 @@ class VerifiedBadge extends StatelessWidget {
       listenable: n,
       builder: (context, _) {
         final yes = me ? n.mine : n.of(id, username: username) == true;
-        if (!yes) return const SizedBox.shrink();
+        // The special badges given from the admin page beside it (lib/ui/special_badges.dart), told with the same answer.
+        final special = SpecialBadgeMarks(id: id, username: username, me: me, size: size);
+        if (!yes) return special;
         final t = context.tokens;
-        return Padding(
-          key: ValueKey('verified-$id'),
-          padding: EdgeInsets.only(left: t.space(1)),
-          child: Semantics(label: 'Verified phone number', child: AppIcon(LucideMore.badgeCheck, size: size, color: t.color('app-accent'))),
-        );
+        return Row(mainAxisSize: MainAxisSize.min, children: [
+          Padding(
+            key: ValueKey('verified-$id'),
+            padding: EdgeInsets.only(left: t.space(1)),
+            child: Semantics(label: 'Verified phone number', child: AppIcon(LucideMore.badgeCheck, size: size, color: t.color('app-accent'))),
+          ),
+          special,
+        ]);
       },
     );
   }

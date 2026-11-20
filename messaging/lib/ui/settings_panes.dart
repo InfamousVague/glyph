@@ -5,12 +5,14 @@ library;
 import 'whats_new.dart' show showWhatsNew;
 import '../api/remote.dart';
 import '../api/server.dart';
+import 'admin_page.dart' show adminOffered, adminPane;
 import 'api_pane.dart';
 import '../inbox/inbox.dart';
 import 'blocking.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
+import '../app_state.dart';
 
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
@@ -298,8 +300,10 @@ List<SettingsSection> _ownSections() => [
   ),
   SettingsSection(
     id: 'developer',
-    // The phone's log.
-    where: SettingsWhere.phone,
+    // Hidden until developer mode is on, on the phone and the computer alike: twelve taps on Settings › About ›
+    // Version turn it on (Matt, 2026-11-20: "make it enabled by tapping the version number 12 times"), and its own
+    // switch turns it off again.
+    when: (m) => m.app.flag('dev_mode', fallback: false),
     label: 'Developer',
     icon: _icon(Lucide.terminal),
     hue: 'graphite',
@@ -320,6 +324,19 @@ List<SettingsSection> _ownSections() => [
     summary: (m) => [if (ApiServer.on(m.app)) 'On this phone', if (ApiRemote.on(m.app)) 'Through the relay'].join(' · ').ifEmptyThen('Off'),
     page: apiPane,
   ),
+  // Settings › Admin: souls and special badges given out, for @matt alone in developer mode (lib/ui/admin_page.dart;
+  // Matt, 2026-11-19: "a simple admin page for me to login to ... hidden behind developer mode").
+  SettingsSection(
+    id: 'admin',
+    where: SettingsWhere.everywhere,
+    label: 'Admin',
+    icon: _icon(Lucide.shieldCheck),
+    hue: 'coral',
+    group: 'app',
+    when: adminOffered,
+    summary: (m) => 'Souls and badges',
+    page: adminPane,
+  ),
   SettingsSection(
     id: 'about',
     // The phone app's; a computer's is under "This Mac".
@@ -334,7 +351,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.9.36';
+const appVersion = '0.9.38';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -1227,13 +1244,40 @@ List<Widget> _developer(BuildContext context, SettingsModel m) {
   ];
 }
 
+/// How many taps on Version turn developer mode on, as Android's own build number does (Matt, 2026-11-20).
+const devModeTaps = 12;
+int _versionTaps = 0;
+DateTime _lastVersionTap = DateTime.fromMillisecondsSinceEpoch(0);
+
+/// A tap on Settings › About › Version. Taps more than two seconds apart start the count again; from the eighth on
+/// a toast says how many are left, and the twelfth turns developer mode on, which shows Settings › Developer.
+void versionTapped(BuildContext context, AppState app, {DateTime? now}) {
+  final at = now ?? DateTime.now();
+  if (at.difference(_lastVersionTap) > const Duration(seconds: 2)) _versionTaps = 0;
+  _lastVersionTap = at;
+  if (app.flag('dev_mode', fallback: false)) {
+    _versionTaps = 0;
+    toast(context, 'Developer mode is already on: Settings › Developer.');
+    return;
+  }
+  _versionTaps++;
+  final left = devModeTaps - _versionTaps;
+  if (left <= 0) {
+    _versionTaps = 0;
+    app.setFlag('dev_mode', true);
+    toast(context, 'Developer mode is on: Settings › Developer.', tone: GlacierToastTone.success);
+  } else if (left <= 4) {
+    toast(context, left == 1 ? 'One more tap to turn on developer mode.' : '$left more taps to turn on developer mode.');
+  }
+}
+
 List<Widget> _about(BuildContext context, SettingsModel m) {
   return [
     PaneSection(
       title: 'Ghost Messaging',
       footer: const Text('Your messages stay in Android\'s own message store, so they\'re all still there if you switch back to another app.'),
       children: [
-        SettingRow(icon: _icon(Lucide.ghost), label: 'Version', value: Text(m.update.current.isEmpty ? appVersion : m.update.current)),
+        SettingRow(icon: _icon(Lucide.ghost), label: 'Version', value: Text(m.update.current.isEmpty ? appVersion : m.update.current), onPress: () => versionTapped(context, m.app)),
         // The release notes again (lib/ui/whats_new.dart).
         SettingRow(icon: _icon(Lucide.sparkles), label: 'What\'s new', hint: const Text('What the last update brought.'), onPress: () => showWhatsNew(context)),
         // The first-run walkthrough again (lib/onboarding), on the phone, whose setup it is.

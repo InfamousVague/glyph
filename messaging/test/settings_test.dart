@@ -131,7 +131,9 @@ void main() {
       SettingsSources.add(after);
       final ids = [for (final s in settingsSectionsOn(SettingsWhere.computer)) s.id];
       expect(ids, containsAll(['before', 'mac', 'after', 'me', 'appearance', 'background', 'emoji', 'effects', 'messages', 'plugins', 'encryption', 'blocked', 'archived']));
-      for (final id in ['handset', 'receipts', 'notifications', 'android', 'keyboard', 'computers', 'network', 'updates', 'developer', 'about']) {
+      // Developer is on both, shown once developer mode is on (twelve taps on Version; Matt, 2026-11-20).
+      expect(ids, contains('developer'));
+      for (final id in ['handset', 'receipts', 'notifications', 'android', 'keyboard', 'computers', 'network', 'updates', 'about']) {
         expect(ids, isNot(contains(id)), reason: '$id is the phone\'s alone');
         if (id != 'handset') expect(phone, contains(id));
       }

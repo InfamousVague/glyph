@@ -159,10 +159,11 @@ void main() {
     expect(last(bob, 'whois'), containsPair('none', true));
     await h.said(bob, {'dir': 'claim', 'name': 'maya'});
     expect(last(bob, 'claim'), containsPair('ok', true));
-    // Kept across a restart, as hashes: the file has no usernames in it.
+    // Kept across a restart. Since 2026-11-19 the usernames themselves are kept too, for the admin page's list of who
+    // signed up (Matt: "allow me to see all users who signed up on the relay"); a name given up goes with it.
     h.save();
     final file = File('${dir.path}/handles.json').readAsStringSync();
-    expect(file, isNot(contains('maya')));
+    expect(file, contains('maya.chen'));
     final again = Handles(dataDir: dir, config: config, fetch: net.fetch)..load();
     come(again, carol);
     await again.said(carol, {'dir': 'whois', 'name': 'maya.chen'});
@@ -178,6 +179,96 @@ void main() {
     }
     await again.said(carol, {'dir': 'whois', 'name': 'maya'});
     expect(last(carol, 'err'), containsPair('about', 'whois'));
+  });
+
+  // Matt, 2026-11-19: "Build a new points system into the app called souls ... a simple admin page for me to login to
+  // ... make sure only my matt account can access it and allow me to see all users who signed up on the relay and issue
+  // special badges and souls".
+  test('souls and special badges: only @matt with the admin password gives them; each person is told', () async {
+    const salt = '0123456789abcdef0123456789abcdef';
+    final adminConfig = HandlesConfig(adminUser: 'wisp-keeper-1a2b', adminHash: '$salt:${Handles.adminHashOf(salt, 'open sesame')}');
+    final a = Handles(dataDir: dir, config: adminConfig, fetch: net.fetch)..load();
+    for (final id in [alice, bob, carol]) {
+      come(a, id);
+    }
+    await a.said(alice, {'dir': 'claim', 'name': 'matt'});
+    await a.said(bob, {'dir': 'claim', 'name': 'bob_builder'});
+    await a.said(bob, {'dir': 'souls?'});
+    expect(last(bob, 'souls'), {'dir': 'souls', 'n': 0, 'special': <String>[]});
+
+    // Someone else with the right password, or @matt with the wrong one: refused, and nothing admin is answered.
+    await a.said(bob, {'dir': 'admin-login', 'user': 'wisp-keeper-1a2b', 'pass': 'open sesame'});
+    expect(last(bob, 'admin'), containsPair('ok', false));
+    await a.said(alice, {'dir': 'admin-login', 'user': 'wisp-keeper-1a2b', 'pass': 'wrong'});
+    expect(last(alice, 'admin'), containsPair('ok', false));
+    await a.said(alice, {'dir': 'admin-users'});
+    expect(last(alice, 'admin-users'), containsPair('ok', false));
+
+    await a.said(alice, {'dir': 'admin-login', 'user': 'wisp-keeper-1a2b', 'pass': 'open sesame'});
+    expect(last(alice, 'admin'), containsPair('ok', true));
+    await a.said(alice, {'dir': 'admin-users'});
+    final users = (last(alice, 'admin-users')!['users'] as List).cast<Map>();
+    expect({for (final u in users) u['name']}, containsAll(['matt', 'bob_builder']));
+
+    // Souls to Bob, told to him there and then; a badge too, which others see beside him.
+    await a.said(alice, {'dir': 'admin-give', 'to': bob, 'souls': 25, 'why': 'Found the crash on Windows'});
+    expect(last(bob, 'souls'), containsPair('n', 25));
+    expect(last(bob, 'souls'), containsPair('why', 'Found the crash on Windows'));
+    await a.said(alice, {'dir': 'admin-badge', 'to': bob, 'badge': 'bughunter', 'on': true});
+    expect(last(bob, 'souls')!['special'], ['bughunter']);
+    await a.said(alice, {'dir': 'admin-badge', 'to': bob, 'badge': 'made-up', 'on': true});
+    expect(last(alice, 'admin-badge'), containsPair('ok', false));
+    await a.said(carol, {'dir': 'badges', 'ids': [bob], 'names': ['bob_builder']});
+    expect(last(carol, 'badges')!['special'], {bob: ['bughunter']});
+    expect(last(carol, 'badges')!['specialNames'], {'bob_builder': ['bughunter']});
+    // Taking more than there are leaves none, not fewer than none.
+    await a.said(alice, {'dir': 'admin-give', 'to': bob, 'souls': -100});
+    expect(last(bob, 'souls'), containsPair('n', 0));
+    await a.said(alice, {'dir': 'admin-log'});
+    expect((last(alice, 'admin-log')!['grants'] as List).length, 3);
+
+    // Kept across a restart; signed in only while connected.
+    a.save();
+    final again = Handles(dataDir: dir, config: adminConfig, fetch: net.fetch)..load();
+    come(again, bob);
+    await again.said(bob, {'dir': 'hello'});
+    expect(last(bob, 'hello'), containsPair('special', ['bughunter']));
+    come(again, alice);
+    await again.said(alice, {'dir': 'admin-users'});
+    expect(last(alice, 'admin-users'), containsPair('ok', false), reason: 'a new connection signs in again');
+    // Guessing is limited.
+    for (var i = 0; i < Handles.adminTriesAnHour; i++) {
+      await again.said(alice, {'dir': 'admin-login', 'user': 'wisp-keeper-1a2b', 'pass': 'guess $i'});
+    }
+    await again.said(alice, {'dir': 'admin-login', 'user': 'wisp-keeper-1a2b', 'pass': 'open sesame'});
+    expect(last(alice, 'admin'), containsPair('ok', false));
+  });
+
+  test('an install says its own username as it says hello, and the admin list names it', () async {
+    const salt = '0123456789abcdef0123456789abcdef';
+    final adminConfig = HandlesConfig(adminUser: 'u-keeper', adminHash: '$salt:${Handles.adminHashOf(salt, 'pw')}');
+    final a = Handles(dataDir: dir, config: adminConfig, fetch: net.fetch)..load();
+    come(a, alice);
+    come(a, bob);
+    await a.said(alice, {'dir': 'claim', 'name': 'matt'});
+    await a.said(bob, {'dir': 'claim', 'name': 'early_bird'});
+    a.save();
+    // As a relay from before kept it: the hashes alone.
+    final raw = (jsonDecode(File('${dir.path}/handles.json').readAsStringSync()) as Map)..['shown'] = <String, String>{};
+    File('${dir.path}/handles.json').writeAsStringSync(jsonEncode(raw));
+    final b = Handles(dataDir: dir, config: adminConfig, fetch: net.fetch)..load();
+    come(b, alice);
+    come(b, bob);
+    await b.said(bob, {'dir': 'hello', 'name': 'someone_else'});
+    await b.said(alice, {'dir': 'hello', 'name': 'matt'});
+    await b.said(alice, {'dir': 'admin-login', 'user': 'u-keeper', 'pass': 'pw'});
+    await b.said(alice, {'dir': 'admin-users'});
+    final names = {for (final u in (last(alice, 'admin-users')!['users'] as List).cast<Map>()) u['id']: u['name']};
+    expect(names[bob], isNull, reason: 'a name that is not the one it holds is not taken');
+    await b.said(bob, {'dir': 'hello', 'name': 'early_bird'});
+    await b.said(alice, {'dir': 'admin-users'});
+    final again = {for (final u in (last(alice, 'admin-users')!['users'] as List).cast<Map>()) u['id']: u['name']};
+    expect(again[bob], 'early_bird');
   });
 
   // Matt, 2026-11-15: "add them to a ignore or archive list on my ghost account specifically".
