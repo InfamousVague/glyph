@@ -104,6 +104,8 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="gogho.st" android:pathPrefix="/join" />
+                <!-- A circle's invite word (https://gogho.st/c/bookclub; lib/circles/invite_word.dart). -->
+                <data android:scheme="https" android:host="gogho.st" android:pathPrefix="/c/" />
             </intent-filter>
             <!-- Shared text from other apps. -->
             <intent-filter>

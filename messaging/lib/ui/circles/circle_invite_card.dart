@@ -7,11 +7,15 @@
 /// It draws in every look (lib/looks.dart) through the app's tokens, Dial-Up's bevels among them.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/lucide.g.dart';
 import '../../circles/circles.dart';
+import '../../circles/invite_word.dart';
+import '../../invites/invite_relay.dart' show InviteRelayError;
 import '../../kit/settings_kit.dart' show settingsHue;
 import '../../kit/settings_type.dart';
 import '../../voice/channels.dart';
@@ -49,7 +53,13 @@ void joinCircleInvite(BuildContext context, CircleInvite i) {
 /// Circles tab shown where its card is. False where [text] holds no circle's link.
 bool openCircleLink(AppShellState shell, String text) {
   final link = Circles.linkIn(text);
-  if (link == null) return false;
+  if (link == null) {
+    // A circle's invite word (gogho.st/c/bookclub; lib/circles/invite_word.dart): the relay is asked for the link it is.
+    final word = inviteWordIn(text);
+    if (word == null) return false;
+    unawaited(_openWord(shell, word));
+    return true;
+  }
   final got = Circles.instance.offerLink(link);
   if (got == null) return false;
   if (got.held != null) {
@@ -58,6 +68,19 @@ bool openCircleLink(AppShellState shell, String text) {
     showCirclesTab(shell);
   }
   return true;
+}
+
+Future<void> _openWord(AppShellState shell, String word) async {
+  String? link;
+  try {
+    link = await InviteWords().resolve(word);
+  } catch (e) {
+    if (shell.mounted) toast(shell.context, 'Couldn\'t look up gogho.st/c/$word: ${e is InviteRelayError ? e.message : e}', tone: GlacierToastTone.danger);
+    return;
+  }
+  if (!shell.mounted) return;
+  if (link == null) return toast(shell.context, 'No circle has the invite word "$word".', tone: GlacierToastTone.danger);
+  openCircleLink(shell, link);
 }
 
 /// The conversations list on its Circles tab, where waiting invites are at the top.

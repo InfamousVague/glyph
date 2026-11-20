@@ -13,6 +13,7 @@ import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
 import '../../circles/circles.dart';
+import '../../circles/invite_word.dart';
 import '../../desktop/ui/qr.dart';
 import '../../friends/buddies.dart';
 import '../../kit/settings_type.dart';
@@ -26,7 +27,10 @@ import '../ripple_avatar.dart';
 import 'circle_face.dart';
 
 /// The words an invite to [c] goes with, by a text or the share sheet.
-String circleInviteWords(Circle c) => 'Join my circle ${c.name} on Ghost Messaging: ${c.link}';
+String circleInviteWords(Circle c) => 'Join my circle ${c.name} on Ghost Messaging: ${circleInviteLink(c)}';
+
+/// The link to share for [c]: its invite word's (gogho.st/c/…) where it has one, else its own long link.
+String circleInviteLink(Circle c) => c.inviteWord == null ? c.link : inviteWordLink(c.inviteWord!);
 
 /// Raises the invite drawer for [c] over everything: the one a space has (lib/ui/invite_people.dart), friends sent the
 /// circle in the app, contacts texted its link with a copy waiting on the relay, the link and its QR code. Circles
@@ -188,7 +192,7 @@ class _CircleInviteSheetState extends State<CircleInviteSheet> {
                           onPress: () {
                             final root = Navigator.of(context, rootNavigator: true).context;
                             Navigator.of(context).pop();
-                            Clipboard.setData(ClipboardData(text: c.link));
+                            Clipboard.setData(ClipboardData(text: circleInviteLink(c)));
                             toast(root, 'Invite link copied. Anyone with it can join ${c.name}.');
                           },
                         ),

@@ -1,5 +1,7 @@
 import '../circles/circles.dart';
 import '../circles/pending_link.dart';
+import '../circles/invite_word.dart';
+import '../invites/invite_relay.dart' show InviteRelayError;
 import 'whats_new.dart' show showWhatsNewIfUpdated;
 import 'circles/circle_invite_card.dart' show CircleInviteBanner;
 import 'circles/circle_dock.dart';
@@ -272,6 +274,11 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     // released with release notes"): a moment after the frame is up, over it.
     Future<void>.delayed(const Duration(milliseconds: 600), () {
       if (mounted) unawaited(showWhatsNewIfUpdated(context));
+    });
+    // The circles' invite words this device may change, claimed again so the relay keeps them (it lets one go a year
+    // after it was last set; lib/circles/invite_word.dart): once the hub is likely reached.
+    Future<void>.delayed(const Duration(seconds: 30), () {
+      if (mounted) unawaited(Circles.instance.renewInviteWords());
     });
   }
 
@@ -633,7 +640,22 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   }
 
   /// Asks for a circle's invite link and joins it: in at once, its spaces in the list's place.
-  void _joinByLink() => askCircleWords(context, title: 'Join a circle', hint: 'Paste the invite link someone sent you.', then: (link) {
+  void _joinByLink() => askCircleWords(context, title: 'Join a circle', hint: 'Paste the invite link someone sent you, or its invite word.', then: (text) async {
+        var link = Circles.linkIn(text) ?? text;
+        // An invite word, as gogho.st/c/bookclub or the word alone (lib/circles/invite_word.dart): the relay is asked
+        // for the circle's link it is.
+        final word = Circles.linkIn(text) == null ? (inviteWordIn(text) ?? (text.contains('/') ? null : tidyInviteWord(text))) : null;
+        if (word != null) {
+          try {
+            final got = await InviteWords().resolve(word);
+            if (!mounted) return;
+            if (got == null) return toast(context, 'No circle has the invite word "$word".', tone: GlacierToastTone.danger);
+            link = got;
+          } catch (e) {
+            if (mounted) toast(context, 'Couldn\'t look up "$word": ${e is InviteRelayError ? e.message : e}', tone: GlacierToastTone.danger);
+            return;
+          }
+        }
         final c = Circles.instance.joinLink(link);
         if (c == null) {
           toast(context, 'That isn\'t a circle\'s invite link.', tone: GlacierToastTone.danger);

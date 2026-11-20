@@ -458,6 +458,11 @@ class CircleManifest {
   /// full resolution image"): the picture as it was chosen, sealed on the relay under the circle's own seed as a chat's
   /// file is (Circle.bannerChannel), named here with its key; [banner] is its small stand-in, shown until it is here.
   /// The entry as a Files space's carries it (SpaceFile.toJson), so it is read by lib/files.
+  /// Its invite word (`iw`, Matt, 2026-11-19: "add the custom invite code word as a default feature"): gogho.st/c/<word>,
+  /// held on the relay for the circle's link (lib/circles/invite_word.dart). Null where it has none; a build from before
+  /// reads none.
+  String? get inviteWord => extra['iw'] is String && (extra['iw'] as String).length <= 32 ? extra['iw'] as String : null;
+
   Map<String, Object?>? get bannerFile => extra['bf'] is Map ? (extra['bf'] as Map).cast<String, Object?>() : null;
 
   /// Who was put out of the circle by its owner or an admin (`rm`, ids; Matt, 2026-11-19: "add the ability to remove
@@ -762,6 +767,7 @@ class Circle {
   String get icon => manifest.icon;
   String? get picture => manifest.picture;
   String? get banner => manifest.banner;
+  String? get inviteWord => manifest.inviteWord;
 
   /// Its spaces, in their order.
   List<CircleSpace> get spaces => manifest.ordered;

@@ -26,6 +26,8 @@ import 'package:glacier/glacier.dart';
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../circles/circles.dart';
+import '../../circles/invite_word.dart';
+import '../../invites/invite_relay.dart' show InviteRelayError;
 import '../../desktop/ui/qr.dart';
 import '../../kit/semantic_colors.dart';
 import '../../kit/settings_kit.dart';
@@ -504,7 +506,48 @@ class _SectionBody extends StatelessWidget {
   List<Widget> _invites(BuildContext context, Circle c) {
     final t = context.tokens;
     final circles = Circles.instance;
+    final word = c.inviteWord;
+    final mayChange = circles.can(c, CirclePerm.circle);
     return [
+      // An invite word, as a Discord server's vanity invite, for every circle (Matt, 2026-11-19: "add the custom invite
+      // code word as a default feature"; lib/circles/invite_word.dart).
+      PaneSection(
+        title: 'Invite word',
+        description: Text(word == null
+            ? 'A short link to the circle, like gogho.st/c/bookclub, in place of the long one. Anyone who knows the word can join.'
+            : 'Anyone who opens gogho.st/c/$word, or types $word into Join a circle, can join.'),
+        children: [
+          if (word != null)
+            SettingRow(
+              key: const ValueKey('circle-word-copy'),
+              icon: AppIcon(Lucide.link, size: 18),
+              label: 'gogho.st/c/$word',
+              value: const Text('Copy'),
+              onPress: () {
+                Clipboard.setData(ClipboardData(text: inviteWordLink(word)));
+                toast(context, 'Invite link copied');
+              },
+            ),
+          if (mayChange) ...[
+            SettingRow(
+              key: const ValueKey('circle-word-choose'),
+              icon: AppIcon(Lucide.pencil, size: 18),
+              label: word == null ? 'Choose an invite word' : 'Change the word',
+              hint: const Text('3 to 32 letters, numbers or hyphens.'),
+              onPress: () => askCircleWords(context, title: 'Invite word', initial: word ?? tidyInviteWord(c.name) ?? '', hint: 'gogho.st/c/…', then: (raw) => chooseCircleInviteWord(context, c, raw)),
+            ),
+            if (word != null)
+              SettingRow(
+                key: const ValueKey('circle-word-remove'),
+                icon: AppIcon(Lucide.trash2, size: 18),
+                label: 'Remove the word',
+                hint: const Text('The long link goes on working.'),
+                onPress: () => chooseCircleInviteWord(context, c, null),
+              ),
+          ] else if (word == null)
+            const SettingRow(label: 'No invite word yet', hint: Text('Whoever may change the circle can choose one.')),
+        ],
+      ),
       PaneSection(
         title: 'Invite link',
         description: const Text('Whoever has the link is in the circle, so share it with people you know.'),
@@ -1327,4 +1370,21 @@ Future<void> _gone(BuildContext context, Circle c, Future<void> Function() away,
   if (context.mounted) toast(context, words);
   nav.popUntil((r) => r.settings.name != 'circle-settings' || r.isFirst);
   if (open) shell?.go('messages');
+}
+
+/// Sets [c]'s invite word to [raw] (tidied), or removes it where null, saying how it went.
+Future<void> chooseCircleInviteWord(BuildContext context, Circle c, String? raw) async {
+  String? word;
+  if (raw != null) {
+    final problem = inviteWordProblem(raw);
+    if (problem != null) return toast(context, problem, tone: GlacierToastTone.danger);
+    word = tidyInviteWord(raw)!;
+    if (word == c.inviteWord) return;
+  }
+  try {
+    await Circles.instance.setInviteWord(c, word);
+    if (context.mounted) toast(context, word == null ? 'Invite word removed' : 'gogho.st/c/$word is ${c.name}\'s now');
+  } catch (e) {
+    if (context.mounted) toast(context, e is InviteRelayError ? e.message : (e is StateError ? e.message : 'Couldn\'t set the word: $e'), tone: GlacierToastTone.danger);
+  }
 }

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Join a circle · Ghost Messaging</title>
+<meta name="description" content="A Ghost Messaging circle's invite.">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="/icon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<!--
+  A circle's invite word (Matt, 2026-11-19: "add the custom invite code word as a default feature"): gogho.st/c/<word>,
+  one page for every word (the site's web server sends each /c/<word> here; tool/deploy-site.mjs).
+
+  It asks the relay for the circle's link the word holds, by a hash of the word, never the word (relay/lib/invite_words.dart),
+  opens it with a key made from the word, and goes on to the circle's own link (/join/#c.…), whose page says what the
+  circle is and leads to the app. The derivation and the sealing are the app's (lib/circles/invite_word.dart): the two
+  must stay the same.
+-->
+<style>
+  :root { color-scheme: light dark; --bg: #fdfdfd; --card: #f1f1f1; --ink: #0e0e10; --ink2: #55565c; --red: #dd3a30; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #000; --card: #111113; --ink: #f2f2f3; --ink2: #a3a4ab; } }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; font: 17px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+  main { max-width: 30rem; margin: 0 auto; min-height: 100%; padding: 1.5rem 1rem; display: flex; flex-direction: column; justify-content: center; text-align: center; }
+  img { width: 3.5rem; height: 3.5rem; border-radius: 1rem; margin: 0 auto 1.25rem; }
+  h1 { font-size: 1.6rem; letter-spacing: -0.02em; margin: 0 0 0.4rem; overflow-wrap: anywhere; }
+  p { color: var(--ink2); margin: 0 0 1.25rem; }
+  .err { color: var(--red); }
+  a.btn { display: inline-block; background: var(--ink); color: var(--bg); font-weight: 650; padding: 0.8rem 1.5rem; border-radius: 999px; text-decoration: none; }
+</style>
+</head>
+<body>
+<main>
+  <img src="/icon.png" alt="">
+  <h1 id="title">Opening the invite…</h1>
+  <p id="line">Looking up this circle.</p>
+  <div><a class="btn" href="/">Get Ghost Messaging</a></div>
+</main>
+<script>
+(async () => {
+  const LABEL = 'ghost-invite-word/v1';
+  const ROUNDS = 60000;
+  const $ = (id) => document.getElementById(id);
+  const fail = (title, line) => { $('title').textContent = title; $('line').textContent = line; $('line').className = 'err'; };
+
+  // The word as the app tidies it (lib/circles/invite_word.dart, tidyInviteWord).
+  let w = decodeURIComponent(location.pathname.replace(/^\/c\//, '').replace(/\/$/, '')).trim().toLowerCase();
+  w = w.replace(/[\s_]+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-{2,}/g, '-').replace(/^-+|-+$/g, '');
+  if (w.length < 3 || w.length > 32) return fail('That isn’t an invite', 'An invite word is 3 to 32 letters, numbers or hyphens.');
+  document.title = `${w} · Ghost Messaging`;
+
+  const enc = new TextEncoder();
+  const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  try {
+    const hash = hex(await crypto.subtle.digest('SHA-256', enc.encode(`${LABEL}:${w}`)));
+    const res = await fetch(`/word/${hash}`, { cache: 'no-store' });
+    if (res.status === 404) return fail('No such circle', `No circle has the invite word “${w}”. Check it with whoever sent it.`);
+    if (!res.ok) throw new Error(`the relay answered ${res.status}`);
+    const { b } = await res.json();
+    const bytes = Uint8Array.from(atob(b), (c) => c.charCodeAt(0));
+    const base = await crypto.subtle.importKey('raw', enc.encode(w), 'PBKDF2', false, ['deriveKey']);
+    const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode(LABEL), iterations: ROUNDS }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+    const clear = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.slice(0, 12), additionalData: enc.encode(LABEL) }, key, bytes.slice(12));
+    const link = new TextDecoder().decode(clear);
+    // Only a circle's own link (lib/circles/circles.dart, linkIn): nowhere else.
+    const m = /^https:\/\/gogho\.st\/join\/(#c\.[0-9a-f]{64}(?:\.[A-Za-z0-9_-]*)?(?:\.0[23][0-9a-f]{64})?)$/.exec(link);
+    if (!m) throw new Error('it isn’t a circle’s link');
+    location.replace(`/join/${m[1]}`);
+  } catch (e) {
+    fail('Couldn’t open the invite', `Try again in a moment (${e.message || e}).`);
+  }
+})();
+</script>
+</body>
+</html>
