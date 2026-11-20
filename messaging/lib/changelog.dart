@@ -24,6 +24,11 @@ class ReleaseNotes {
 
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.10.4', '2026-11-20', [
+    'Marketplace: plugins have a place of their own now, a storefront on the rail and the dock between Archive and Settings. Settings no longer lists them, and searching Settings for a plugin opens it there.',
+    'Plugins from other developers: browse, add and remove reviewed plugins in the Marketplace. Each one says what it can do before you add it, and it only ever sees texts from numbers not in your contacts, on this device.',
+    'Make your own: Marketplace › Submit a plugin sends a plugin you\'ve made for review, with its icon, description and tags, and My submissions shows where each one stands.',
+    'Developer mode: Settings › Developer › Plugins in development loads a plugin you\'re making from a file, a link or the clipboard, to try it before you submit it.',
+    'Report a plugin from its page if something\'s wrong with it.',
     'Profile pictures are sharp: a picture you choose is kept 256 pixels across, not 72. Choose yours again to send friends the sharp one.',
   ]),
   ReleaseNotes('0.10.3', '2026-11-20', [
@@ -45,11 +50,6 @@ const List<ReleaseNotes> changelog = [
     'Badges: choose the one shown beside your name, in your souls. It sits level with the name now.',
     'Messages: Mark all read and Share feedback are a list of rows under the search.',
     'Recording a call: a pill you can move anywhere, opening into each voice\'s track and waveform as it records, like a video editor\'s timeline.',
-    'Marketplace: plugins have a place of their own now, a storefront on the rail and the dock between Archive and Settings. Settings no longer lists them, and searching Settings for a plugin opens it there.',
-    'Plugins from other developers: browse, add and remove reviewed plugins in the Marketplace. Each one says what it can do before you add it, and it only ever sees texts from numbers not in your contacts, on this device.',
-    'Make your own: Marketplace › Submit a plugin sends a plugin you\'ve made for review, with its icon, description and tags, and My submissions shows where each one stands.',
-    'Developer mode: Settings › Developer › Plugins in development loads a plugin you\'re making from a file, a link or the clipboard, to try it before you submit it.',
-    'Report a plugin from its page if something\'s wrong with it.',
   ]),
   ReleaseNotes('0.10.0', '2026-11-20', [
     'On a Mac or Windows the app opens on a small splash that checks for updates first, brings one down and restarts into it, then loads the app.',
