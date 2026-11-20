@@ -27,6 +27,8 @@ const List<ReleaseNotes> changelog = [
     'Souls: points with a flame beside Share feedback, a thank-you for reporting bugs. They can\'t be spent yet. Tap them to see yours and your badges.',
     'Badges: some people have a badge or two beside their name, like Bug hunter or Alpha tester.',
     'Circles: a circle\'s picture fills its round in the rail, with no edge of colour round it.',
+    'Circles: names in a circle\'s chat take the colour of their highest role, and change as roles are given.',
+    'Circles: the back arrow sits in the banner\'s corner, and there\'s a little room before the name\'s arrow.',
   ]),
   ReleaseNotes('0.9.36', '2026-11-20', [
     'Share feedback: report a bug, suggest a feature or tell us anything, with up to three screenshots. Include your username to be in line for bug bounties. On a Mac it\'s in the window\'s top bar, elsewhere beside the search in Messages.',
