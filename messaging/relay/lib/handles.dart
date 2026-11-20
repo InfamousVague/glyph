@@ -227,6 +227,10 @@ class Handles {
 
   int get linked => _links.values.fold(0, (n, m) => n + m.length);
 
+  /// Whether the install [id] holds the username [name]: a feedback report's name is filed as its sender's only then
+  /// (feedback.dart).
+  bool ownsName(String id, String name) => goodName(name) && _names[nameKey(name)]?['id'] == id;
+
   /// The hash of the phone number [id] verified by a texted code, or null: who may take the invites waiting for that
   /// number (invites.dart).
   String? phoneKeyOf(String id) => _links[id]?['phone']?['k'];

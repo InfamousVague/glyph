@@ -74,4 +74,7 @@ abstract final class LucideMore {
   // The Cleaner plugin (lib/plugins/cleaner.dart).
   static const brushCleaning = LucideIcon('brush-cleaning', ['m16 22-1-4', 'M19 14a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2h-3a1 1 0 0 1-1-1V4a2 2 0 0 0-4 0v5a1 1 0 0 1-1 1H6a2 2 0 0 0-2 2v1a1 1 0 0 0 1 1', 'M19 14H5l-1.973 6.767A1 1 0 0 0 4 22h16a1 1 0 0 0 .973-1.233z', 'm8 22 1-4'], []);
   static const userRoundSearch = LucideIcon('user-round-search', ['M5 8A5 5 0 1 0 15 8A5 5 0 1 0 5 8Z', 'M2 21a8 8 0 0 1 10.434-7.62', 'M15 18A3 3 0 1 0 21 18A3 3 0 1 0 15 18Z', 'm22 22-1.9-1.9'], [0, 2]);
+  // Share feedback (lib/ui/feedback_screen.dart): its button, and a bug.
+  static const messageSquareWarning = LucideIcon('message-square-warning', ['M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z', 'M12 7v2', 'M12 13h.01'], [0]);
+  static const bug = LucideIcon('bug', ['m8 2 1.88 1.88', 'M14.12 3.88 16 2', 'M9 7.13v-1a3.003 3.003 0 1 1 6 0v1', 'M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6', 'M12 20v-9', 'M6.53 9C4.6 8.8 3 7.1 3 5', 'M6 13H2', 'M3 21c0-2.1 1.7-3.9 3.8-4', 'M20.97 5c0 2.1-1.6 3.8-3.5 4', 'M22 13h-4', 'M17.2 17c2.1.1 3.8 1.9 3.8 4'], []);
 }

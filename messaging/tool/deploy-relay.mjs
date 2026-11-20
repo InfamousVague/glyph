@@ -98,14 +98,19 @@ const KNOWN = {
   GHOST_FILES_PART_HOURS: /^[0-9]{1,4}$/,
   GHOST_FILES_SPACES_PER_ADDRESS: /^[0-9]{1,5}$/,
   GHOST_FILES_PROMISED_PER_ADDRESS: /^[0-9]{1,13}$/,
+  // The app's Share feedback, filed in Notion (relay/lib/feedback.dart): the integration's secret and the board's data source.
+  GHOST_NOTION_TOKEN: /^(ntn_|secret_)[A-Za-z0-9]{20,80}$/,
+  GHOST_NOTION_FEEDBACK: /^[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}$/,
 };
 const SHAPES = {
   GHOST_TWILIO_SID: 'AC or SK and 32 more characters',
   GHOST_TWILIO_TOKEN: '32 letters and digits',
   GHOST_TWILIO_VERIFY: 'VA and 32 more characters',
+  GHOST_NOTION_TOKEN: 'ntn_ and the rest, from the integration\'s page',
+  GHOST_NOTION_FEEDBACK: 'the board\'s data source id, a UUID',
 };
 // Kept together or not at all: with one of them missing the relay has that way of linking off, and says nothing.
-const TOGETHER = [['GHOST_TWILIO_SID', 'GHOST_TWILIO_TOKEN', 'GHOST_TWILIO_VERIFY'], ['GHOST_DISCORD_ID', 'GHOST_DISCORD_SECRET'], ['GHOST_TELEGRAM_BOT', 'GHOST_TELEGRAM_TOKEN']];
+const TOGETHER = [['GHOST_TWILIO_SID', 'GHOST_TWILIO_TOKEN', 'GHOST_TWILIO_VERIFY'], ['GHOST_DISCORD_ID', 'GHOST_DISCORD_SECRET'], ['GHOST_TELEGRAM_BOT', 'GHOST_TELEGRAM_TOKEN'], ['GHOST_NOTION_TOKEN', 'GHOST_NOTION_FEEDBACK']];
 
 /** The file's values as the box's file will hold them, and their names. No value is ever part of a message. */
 function readEnvFile(file) {

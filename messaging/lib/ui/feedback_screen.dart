@@ -1,0 +1,428 @@
+import 'dart:io';
+import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:flutter/services.dart' show LengthLimitingTextInputFormatter, TextCapitalization, TextInputType;
+import 'package:flutter/widgets.dart';
+import 'package:glacier/glacier.dart';
+
+import '../art/app_icon.dart';
+import '../art/lucide.g.dart';
+import '../art/lucide_more.dart';
+import '../feedback/feedback_api.dart';
+import '../files/file_kinds.dart';
+import '../kit/semantic_colors.dart';
+import '../kit/settings_kit.dart';
+import '../kit/settings_type.dart';
+import '../me/me.dart';
+import '../net/net.dart';
+import '../sms.dart';
+import '../voice/channels.dart';
+import 'common.dart';
+import 'dialup/bevel.dart' show isBevelChrome;
+import 'nav_bar.dart' show HoverTip;
+import 'settings_panes.dart' show appVersion;
+
+/// Share feedback (Matt, 2026-11-19: "add a "share feedback" button hovering in the topbar of the app it should be a
+/// simple form which allows the user to upload screenshots and explain a bug, suggest a feature or a few other options
+/// from a select dropdown and optionally provide their username automatically so we can give out bug bounties"): the
+/// button in the list's top bar, and the page it opens. What is sent goes to the relay (lib/feedback/feedback_api.dart),
+/// which files it as a ticket.
+
+/// Sends a report and gives back the ticket's id; the app's own unless a test gives another.
+typedef FeedbackSend = Future<String> Function(FeedbackReport report);
+
+/// The app's: signed with the hub key the username is claimed by (Me's hub, Net.instance.hub), else the key spaces
+/// are signed with, to the relay the app is on.
+Future<String> sendFeedbackLive(FeedbackReport report) {
+  final hub = Net.instance.hub;
+  final signer = hub?.signer ?? Voice.instance.signer;
+  if (signer == null) return Future.error(FeedbackError('Couldn\'t reach the server. Try again in a moment.'));
+  return sendFeedback(report, signer: signer, hubUrl: hub?.url ?? Net.instance.hubUrl);
+}
+
+/// The Share feedback button: a small round button like Mark all read beside it, its words in a tip while a pointer
+/// rests on it; under Dial-Up one of the bar's tool buttons.
+class FeedbackButton extends StatelessWidget {
+  const FeedbackButton({super.key, this.onOpen, this.side});
+
+  /// What a press does where the button stands outside the app's pages (the Mac window's title strip, above the
+  /// navigator): opens the form on the given navigator. Where null, [open] from the button's own place.
+  final VoidCallback? onOpen;
+
+  /// Its side; the look's control height where not said.
+  final double? side;
+
+  static void open(BuildContext context) => push<void>(context, (_) => const FeedbackScreen());
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    void press() => onOpen != null ? onOpen!() : open(context);
+    if (isBevelChrome(t)) return IconTap(key: const ValueKey('share-feedback'), icon: LucideMore.messageSquareWarning, label: 'Share feedback', onPressed: press);
+    final side = this.side ?? t.len('glacier-control-height-md');
+    return HoverTip(
+      message: 'Share feedback',
+      below: true,
+      end: true,
+      child: GlacierPressable(
+        key: const ValueKey('share-feedback'),
+        onPressed: press,
+        semanticLabel: 'Share feedback',
+        builder: (context, state) => GlacierFocusRing(
+          visible: state.focused,
+          radius: t.radius('full'),
+          child: Container(
+            width: side,
+            height: side,
+            decoration: BoxDecoration(
+              color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'),
+              shape: BoxShape.circle,
+              border: Border.all(color: t.color('app-rule')),
+            ),
+            alignment: Alignment.center,
+            child: ExcludeSemantics(child: AppIcon(LucideMore.messageSquareWarning, size: 17, strokeWidth: 2.2, wash: false, color: t.color('app-ink'))),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The feedback page: what it is (a select of [FeedbackType]), a short title, what happened, up to three
+/// screenshots, and whether to say the username, for a bug bounty.
+class FeedbackScreen extends StatefulWidget {
+  const FeedbackScreen({super.key, this.send, this.username, this.pickPictures});
+
+  /// How it is sent; the app's own ([sendFeedbackLive]) where null.
+  final FeedbackSend? send;
+
+  /// The username to offer; this install's ([Me.username]) where null.
+  final String? username;
+
+  /// Chooses pictures: their bytes and names. The device's own picker where null.
+  final Future<List<({String name, Uint8List bytes})>> Function()? pickPictures;
+
+  @override
+  State<FeedbackScreen> createState() => _FeedbackScreenState();
+}
+
+class _FeedbackScreenState extends State<FeedbackScreen> {
+  final _title = TextEditingController();
+  final _text = TextEditingController();
+  final _focus = FocusNode();
+  var _type = FeedbackType.bug;
+  final _shots = <FeedbackShot>[];
+  late bool _withName = (_username ?? '').isNotEmpty;
+  bool _sending = false;
+  bool _picking = false;
+
+  /// Each screenshot at most this large, so three of them in base64 stay under the relay's 10 MB.
+  static const _shotTarget = 2400 * 1024;
+
+  String? get _username {
+    final u = (widget.username ?? Me.instance.username)?.trim().replaceFirst(RegExp(r'^@'), '');
+    return u == null || u.isEmpty ? null : u;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _text.addListener(_changed);
+  }
+
+  void _changed() => setState(() {});
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _text.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  bool get _ready => !_sending && _text.text.trim().isNotEmpty;
+
+  static LucideIcon _iconOf(FeedbackType type) => switch (type) {
+        FeedbackType.bug => LucideMore.bug,
+        FeedbackType.feature => Lucide.lightbulb,
+        FeedbackType.confusing => Lucide.circleQuestionMark,
+        FeedbackType.praise => LucideMore.smile,
+        FeedbackType.other => Lucide.ellipsis,
+      };
+
+  void _chooseType() => showChoices(context, title: 'What is it?', choices: [
+        for (final type in FeedbackType.values) Choice(type.label, _iconOf(type), () => setState(() => _type = type)),
+      ]);
+
+  Future<List<({String name, Uint8List bytes})>> _pickFromDevice() async {
+    final out = <({String name, Uint8List bytes})>[];
+    for (final picked in await Sms.instance.pickImages()) {
+      final path = await Sms.instance.cacheCopy(picked);
+      out.add((name: path.split(RegExp(r'[/\\]')).last, bytes: await File(path).readAsBytes()));
+    }
+    return out;
+  }
+
+  Future<void> _addShot() async {
+    if (_picking || _shots.length >= FeedbackReport.mostShots) return;
+    setState(() => _picking = true);
+    try {
+      final picked = await (widget.pickPictures ?? _pickFromDevice)();
+      var refused = false, left = false;
+      for (final p in picked) {
+        if (_shots.length >= FeedbackReport.mostShots) {
+          left = true;
+          break;
+        }
+        final shot = await _shotOf(p.name, p.bytes);
+        if (shot == null) {
+          refused = true;
+        } else {
+          _shots.add(shot);
+        }
+      }
+      if (!mounted) return;
+      if (refused) {
+        toast(context, 'Couldn\'t use that picture.', tone: GlacierToastTone.danger);
+      } else if (left) {
+        toast(context, 'Up to ${FeedbackReport.mostShots} screenshots go with feedback.');
+      }
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t add the screenshot: $e', tone: GlacierToastTone.danger);
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
+  }
+
+  /// [bytes] as a screenshot the relay takes: as it is where it is a kind it takes and small enough, else drawn
+  /// smaller as a PNG until it fits. Null where it isn't a picture.
+  static Future<FeedbackShot?> _shotOf(String name, Uint8List bytes) async {
+    final mime = FileKind.mimeOf(name.toLowerCase());
+    if (FeedbackShot.mimes.contains(mime) && bytes.length <= _shotTarget) return FeedbackShot(name: name, mime: mime, bytes: bytes);
+    ui.Image? image;
+    try {
+      final codec = await ui.instantiateImageCodec(bytes);
+      image = (await codec.getNextFrame()).image;
+      final long = math.max(image.width, image.height);
+      final base = name.contains('.') ? name.substring(0, name.lastIndexOf('.')) : name;
+      for (final most in const [2400, 1800, 1400, 1080, 800]) {
+        final k = math.min(1.0, most / long);
+        final w = math.max(1, (image.width * k).round()), h = math.max(1, (image.height * k).round());
+        final recorder = ui.PictureRecorder();
+        ui.Canvas(recorder).drawImageRect(image, Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()), Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()), Paint()..filterQuality = FilterQuality.medium);
+        final small = await recorder.endRecording().toImage(w, h);
+        final png = await small.toByteData(format: ui.ImageByteFormat.png);
+        small.dispose();
+        if (png == null) continue;
+        final out = png.buffer.asUint8List(png.offsetInBytes, png.lengthInBytes);
+        if (out.length <= _shotTarget) return FeedbackShot(name: '$base.png', mime: 'image/png', bytes: out);
+      }
+      return null;
+    } catch (_) {
+      return null;
+    } finally {
+      image?.dispose();
+    }
+  }
+
+  Future<void> _send() async {
+    if (!_ready) return;
+    final report = FeedbackReport(
+      type: _type,
+      title: _title.text.trim(),
+      text: _text.text.trim(),
+      username: _withName ? _username : null,
+      platform: FeedbackReport.thisPlatform,
+      version: appVersion,
+      shots: List.of(_shots),
+    );
+    setState(() => _sending = true);
+    try {
+      final id = await (widget.send ?? sendFeedbackLive)(report);
+      if (!mounted) return;
+      // Said before the page goes: the toast is the app's, over every page, so it stays.
+      toast(context, id.isEmpty ? 'Thanks! Your feedback was sent.' : 'Thanks! Sent as $id');
+      Navigator.of(context).maybePop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      toast(context, e is FeedbackError ? e.message : 'Couldn\'t send your feedback: $e', tone: GlacierToastTone.danger);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final gap = SizedBox(height: t.space(5));
+    final ink = pageText(t, t.fontSize('md'), color: t.color('app-ink'), height: 1.4);
+    final name = _username;
+    return GhostPage(
+      title: 'Share feedback',
+      body: SettingsPaneScope(
+        finder: SettingsFinder(),
+        child: LayoutBuilder(builder: (context, box) {
+          final side = math.max(t.space(4), (box.maxWidth - 640) / 2);
+          return ListView(
+            padding: EdgeInsets.fromLTRB(side, t.space(2), side, t.space(8) + MediaQuery.paddingOf(context).bottom),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            children: [
+              PaneSection(children: [
+                SettingRow(
+                  key: const ValueKey('feedback-type'),
+                  icon: AppIcon(_iconOf(_type), size: 18),
+                  label: 'What is it?',
+                  value: Text(_type.label),
+                  onPress: _sending ? null : _chooseType,
+                ),
+              ]),
+              gap,
+              PaneSection(title: 'Title', children: [
+                SettingRowBox(
+                  child: GlacierInput(
+                    key: const ValueKey('feedback-title'),
+                    controller: _title,
+                    placeholder: 'A few words (optional)',
+                    ariaLabel: 'Title',
+                    autoCapitalize: TextCapitalization.sentences,
+                    maxLength: FeedbackReport.titleMost,
+                  ),
+                ),
+              ]),
+              gap,
+              PaneSection(
+                title: 'What happened?',
+                description: Text(switch (_type) {
+                  FeedbackType.bug => 'What you did, what you expected, and what happened instead.',
+                  FeedbackType.feature => 'What you\'d like Ghost Messaging to do, and what it would help with.',
+                  FeedbackType.confusing => 'Where you were, and what wasn\'t clear.',
+                  FeedbackType.praise => 'What you like.',
+                  FeedbackType.other => 'Tell us anything.',
+                }),
+                children: [
+                  SettingRowBox(
+                    child: GestureDetector(
+                      key: const ValueKey('feedback-text'),
+                      onTap: _focus.requestFocus,
+                      child: Container(
+                        constraints: BoxConstraints(minHeight: t.lenOf('8rem')),
+                        padding: EdgeInsets.all(t.space(3)),
+                        decoration: BoxDecoration(color: t.color('app-paper-3'), borderRadius: BorderRadius.circular(t.radius('md'))),
+                        child: Stack(children: [
+                          if (_text.text.isEmpty) IgnorePointer(child: Text('Describe it here', style: ink.copyWith(color: t.color('app-ink-3')))),
+                          Semantics(
+                            label: 'What happened',
+                            textField: true,
+                            child: EditableText(
+                              controller: _text,
+                              focusNode: _focus,
+                              style: ink,
+                              cursorColor: t.color('app-ink'),
+                              backgroundCursorColor: t.color('app-ink-3'),
+                              selectionColor: t.textSelection,
+                              minLines: 5,
+                              maxLines: 14,
+                              keyboardType: TextInputType.multiline,
+                              textCapitalization: TextCapitalization.sentences,
+                              inputFormatters: [LengthLimitingTextInputFormatter(FeedbackReport.textMost)],
+                              readOnly: _sending,
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              gap,
+              PaneSection(
+                title: 'Screenshots',
+                footer: Text('Up to ${FeedbackReport.mostShots}.'),
+                children: [
+                  if (_shots.isNotEmpty)
+                    SettingRowBox(
+                      child: Wrap(spacing: t.space(3), runSpacing: t.space(3), children: [
+                        for (final (i, s) in _shots.indexed) _thumb(t, i, s),
+                      ]),
+                    ),
+                  if (_shots.length < FeedbackReport.mostShots)
+                    SettingRow(
+                      key: const ValueKey('feedback-add-shot'),
+                      icon: AppIcon(Lucide.imagePlus, size: 18),
+                      label: _picking ? 'Adding…' : 'Add a screenshot',
+                      disabled: _sending || _picking,
+                      onPress: _sending || _picking ? null : _addShot,
+                    ),
+                ],
+              ),
+              // Only where there is a username to say: on by default, so a bug's finder can be thanked.
+              if (name != null) ...[
+                gap,
+                PaneSection(children: [
+                  SettingRow(
+                    label: 'Include my username (@$name)',
+                    hint: const Text('For bug bounties'),
+                    control: GlacierSwitch(
+                      key: const ValueKey('feedback-username'),
+                      checked: _withName,
+                      disabled: _sending,
+                      onCheckedChange: (v) => setState(() => _withName = v),
+                      ariaLabel: 'Include my username',
+                    ),
+                  ),
+                ]),
+              ],
+              gap,
+              PaneSection(children: [
+                SettingRow(
+                  key: const ValueKey('feedback-send'),
+                  icon: AppIcon(Lucide.send, size: 18),
+                  label: _sending ? 'Sending…' : 'Send',
+                  hint: Text(_sending ? 'One moment.' : (_text.text.trim().isEmpty ? 'Say what happened first.' : 'It goes to the Ghost Messaging team.')),
+                  disabled: !_ready,
+                  onPress: _ready ? _send : null,
+                ),
+              ]),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _thumb(Tokens t, int i, FeedbackShot s) {
+    final side = t.lenOf('6rem');
+    return SizedBox(
+      key: ValueKey('feedback-shot-$i'),
+      width: side,
+      height: side,
+      child: Stack(children: [
+        Positioned.fill(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(t.radius('md')),
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: t.color('app-paper-3')),
+              child: Image.memory(s.bytes, fit: BoxFit.cover, cacheWidth: 240, gaplessPlayback: true, semanticLabel: 'Screenshot ${i + 1}'),
+            ),
+          ),
+        ),
+        Positioned(
+          top: t.space(1),
+          right: t.space(1),
+          child: Container(
+            decoration: BoxDecoration(color: t.color('app-paper'), shape: BoxShape.circle),
+            child: IconTap(
+              key: ValueKey('feedback-remove-shot-$i'),
+              icon: Lucide.x,
+              label: 'Remove screenshot ${i + 1}',
+              size: 14,
+              box: t.lenOf('1.75rem'),
+              onPressed: _sending ? null : () => setState(() => _shots.removeAt(i)),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}

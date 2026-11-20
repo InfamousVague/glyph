@@ -18,6 +18,7 @@ import '../net/net.dart';
 import '../sms.dart';
 import '../ui/files_space/share_in.dart';
 import '../ui/window_chrome.dart';
+import 'ui/desk_title_bar.dart';
 import '../ui/settings_panes.dart' show appVersion;
 import 'desk.dart';
 import 'link/link.dart';
@@ -306,7 +307,12 @@ class _DesktopAppState extends State<DesktopApp> {
               attrs: ghostAttrs(state, 'desktop'),
               typography: ghostTypography(state.emoji),
               // A newer version says so with the card the phone has, at the top of the list (lib/ui/update_banner.dart).
-              child: InkOverrides(child: GlacierToastProvider(child: child!)),
+              // On the Mac, the window's own title strip over everything (lib/desktop/ui/desk_title_bar.dart).
+              child: InkOverrides(
+                child: GlacierToastProvider(
+                  child: MacChrome.stripEnabled ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [DeskTitleBar(navigator: _navigator), Expanded(child: child!)]) : child!,
+                ),
+              ),
             ),
             home: const DeskHome(),
           ),

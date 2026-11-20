@@ -55,7 +55,9 @@ class CleanerPlugin extends GhostPlugin {
   @override
   List<SlotFill> get slots => [
         Slots.listHeader.fill((place, prefs) {
-          if (place.section != null || place.groups.isEmpty || !Sms.can('deleteThreads')) return const [];
+          // Only while there is something to clean: a kind besides personal texts (Matt, 2026-11-19, of hiding the brush
+          // when there's nothing to clean: "Yes, hide it"). Personal conversations alone are not cleaned in bulk.
+          if (place.section != null || !place.groups.any((g) => g.id != ListGroup.othersId) || !Sms.can('deleteThreads')) return const [];
           return [
             PluginAction(
               label: 'Clean up',

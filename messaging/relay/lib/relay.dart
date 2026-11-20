@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'feedback.dart';
 import 'files.dart';
 import 'hub.dart';
 import 'sha256.dart';
@@ -20,13 +21,16 @@ import 'sha256.dart';
 /// - A channel is removed when either end says so (unpairing), or after ninety days unused. One made for pairing
 ///   (`temp`) lives ten minutes at most, goes as soon as both ends have left it, and is never written to disk.
 class Relay {
-  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub, this.files}) : _now = now ?? DateTime.now;
+  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub, this.files, this.feedback}) : _now = now ?? DateTime.now;
 
   /// Where people's apps find each other (hub.dart), served at any address ending in `/hub`; none where null.
   final Hub? hub;
 
   /// Files spaces' sealed files (files.dart), served under `/files/`; none where null.
   final Files? files;
+
+  /// Feedback from the app, filed in a Notion board (feedback.dart), served under `/feedback`; none where null.
+  final Feedback? feedback;
 
   /// Where `channels.json` is kept; null keeps nothing across restarts.
   final Directory? dataDir;
@@ -93,6 +97,8 @@ class Relay {
     }
     // A Files space's files (files.dart): plain HTTP under /files/, never a WebSocket.
     if (!upgrade && segments.isNotEmpty && segments.first == 'files' && files != null) return files!.handle(request);
+    // The app's Share feedback (feedback.dart): one POST to /feedback.
+    if (!upgrade && segments.length == 1 && segments.first == 'feedback' && feedback != null) return feedback!.handle(request);
     if (!upgrade || !_hex(name, 32)) {
       request.response
         ..statusCode = upgrade ? HttpStatus.notFound : HttpStatus.ok
