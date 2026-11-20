@@ -224,11 +224,14 @@ class InstalledPlugins extends ChangeNotifier {
   bool isRevoked(String sha256) => _revocations.values.any((r) => r.sha256 == sha256);
   PackRevocation? _revocationOf(String sha256) => _revocations.values.where((r) => r.sha256 == sha256).firstOrNull;
 
+  // The registry load listens to: the app's own may be another by the time this goes (a test puts its own in place).
+  PluginRegistry? _listened;
+
   @override
   void dispose() {
     _gone = true;
     _app?.removeListener(_onApp);
-    _registry?.removeErrorListener(_heard);
+    _listened?.removeErrorListener(_heard);
     super.dispose();
   }
 
@@ -388,7 +391,7 @@ class InstalledPlugins extends ChangeNotifier {
     } catch (e) {
       Sms.instance.devLog('plugin', 'plugins: ${'$e'.split('\n').first}');
     }
-    _reg.addErrorListener(_heard);
+    _listened = _reg..addErrorListener(_heard);
     app.addListener(_onApp);
     _loaded = true;
     _writeIndexes();
