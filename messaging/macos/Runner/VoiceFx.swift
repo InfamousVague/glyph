@@ -31,7 +31,30 @@ final class VoiceFx: NSObject, ExternalAudioProcessingDelegate {
         var modes: [String] = []
         if bits & (1 << 1) != 0 { modes.append("rnnoise") }
         if bits & (1 << 2) != 0 { modes.append("deepfilter") }
+        modes.append("live")
         result(modes)
+      // Live voice changing (lib/voice/live_changer.dart): what was said, taken; the changed voice, fed.
+      case "live":
+        let args = call.arguments as? [String: Any] ?? [:]
+        voicefx_live(self.fx, (args["on"] as? Bool ?? false) ? 1 : 0)
+        result(self.attach())
+      case "take":
+        let args = call.arguments as? [String: Any] ?? [:]
+        let most = max(1, args["most"] as? Int ?? 32000)
+        var buf = [Int16](repeating: 0, count: most)
+        let n = Int(buf.withUnsafeMutableBufferPointer { voicefx_take(self.fx, $0.baseAddress, Int32(most)) })
+        result(FlutterStandardTypedData(bytes: buf.prefix(n).withUnsafeBufferPointer { Data(buffer: $0) }))
+      case "feed":
+        let args = call.arguments as? [String: Any] ?? [:]
+        if let pcm = (args["pcm"] as? FlutterStandardTypedData)?.data, pcm.count >= 2 {
+          let rate = Int32(args["rate"] as? Int ?? 24000)
+          pcm.withUnsafeBytes { raw in
+            if let p = raw.bindMemory(to: Int16.self).baseAddress { voicefx_feed(self.fx, p, Int32(pcm.count / 2), rate) }
+          }
+        }
+        result(Int(voicefx_queued_ms(self.fx)))
+      case "queued":
+        result(Int(voicefx_queued_ms(self.fx)))
       case "configure":
         let args = call.arguments as? [String: Any] ?? [:]
         let mode: Int32 = switch args["mode"] as? String { case "rnnoise": 1; case "deepfilter": 2; default: 0 }

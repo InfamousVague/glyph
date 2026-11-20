@@ -8,6 +8,7 @@ import '../kit/semantic_colors.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../voice/soundboard.dart' show Soundboard;
+import '../voice/live_changer.dart';
 import '../voice/voice_changer.dart';
 import 'common.dart';
 
@@ -69,6 +70,24 @@ class VoiceChangerOnRow extends _Row {
                 ? 'Off: they go out in your own voice, and nothing is sent to ElevenLabs.'
                 : 'Each one goes to ElevenLabs to be changed before it is sent. If it can\'t be changed it isn\'t sent.'),
         control: GlacierSwitch(checked: c.ready && !c.paused, disabled: !c.ready, ariaLabel: 'Change my voice messages', onCheckedChange: (v) => c.setPaused(!v)),
+      );
+}
+
+/// Live in space calls (lib/voice/live_changer.dart; Matt, 2026-11-20: "I'd like the voice changer to work in spaces
+/// calls in real time").
+class VoiceChangerLiveRow extends _Row {
+  const VoiceChangerLiveRow({super.key});
+
+  @override
+  Widget row(BuildContext context, VoiceChanger c) => SettingRow(
+        key: const ValueKey('changer-live'),
+        icon: _icon(Lucide.audioLines),
+        label: 'Change my voice in calls, live',
+        hint: Text(!c.ready
+            ? 'Once there is a key and a voice.'
+            : 'In space calls, each thing you say goes to ElevenLabs and is heard in the voice you chose, a second or two after you say it. '
+                'Your own voice is never heard. It costs what your ElevenLabs plan charges per minute.'),
+        control: GlacierSwitch(checked: c.ready && !c.paused && c.live, disabled: !c.ready || c.paused, ariaLabel: 'Change my voice in calls, live', onCheckedChange: c.setLive),
       );
 }
 
@@ -250,6 +269,58 @@ class VoiceChangerVoicesScreen extends StatelessWidget {
               ),
             ]),
           ),
+        );
+      },
+    );
+  }
+}
+
+
+/// Over the call while one's voice is changed live in it (lib/voice/live_changer.dart): whose voice, how far behind,
+/// and a way back to one's own; where ElevenLabs refused, why, and that nothing of one's voice is going out.
+class LiveChangerLine extends StatelessWidget {
+  const LiveChangerLine({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final live = LiveChanger.instance;
+    return ListenableBuilder(
+      listenable: Listenable.merge([live, VoiceChanger.instance]),
+      builder: (context, _) {
+        if (!live.on) return const SizedBox.shrink();
+        final t = context.tokens;
+        final name = VoiceChanger.instance.voice?.name ?? 'another voice';
+        final trouble = live.problem;
+        final behind = live.behind.inMilliseconds;
+        final words = trouble != null
+            ? 'Your voice isn\'t going out: $trouble'
+            : 'You sound like $name${behind > 0 ? ' · about ${(behind / 1000).toStringAsFixed(1)} s behind' : ''}';
+        return Container(
+          key: const ValueKey('live-changer'),
+          margin: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1)),
+          padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+          decoration: BoxDecoration(color: trouble != null ? const Color(0xFFB3261E) : const Color(0xFF4B3FB0), borderRadius: BorderRadius.circular(t.radius('lg'))),
+          child: Row(children: [
+            AppIcon(Lucide.audioLines, size: 16, strokeWidth: 2.4, color: const Color(0xFFFFFFFF)),
+            SizedBox(width: t.space(2)),
+            Expanded(
+              child: Semantics(
+                liveRegion: trouble != null,
+                child: Text(words, maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: const Color(0xFFFFFFFF))),
+              ),
+            ),
+            SizedBox(width: t.space(2)),
+            GlacierPressable(
+              onPressed: () => live.stop(),
+              semanticLabel: 'Use my own voice',
+              builder: (context, state) => Container(
+                key: const ValueKey('live-changer-own'),
+                padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1)),
+                decoration: BoxDecoration(color: const Color(0x33FFFFFF), borderRadius: BorderRadius.circular(999)),
+                child: Text('My own voice', style: pageText(t, t.fontSize('xs'), weight: 'bold', color: const Color(0xFFFFFFFF))),
+              ),
+            ),
+          ]),
         );
       },
     );

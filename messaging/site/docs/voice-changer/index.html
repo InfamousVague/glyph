@@ -64,13 +64,25 @@
 <ul>
   <li>It works in spaces and in chats on other networks (Telegram, Signal and the rest). Voice messages in ordinary texts still go in your own voice.</li>
   <li>If a recording can't be changed (no connection, or your plan has run out), it is <b>not</b> sent, and you're told why. It never goes out in your own voice by mistake.</li>
-  <li>It doesn't change your voice in calls. ElevenLabs needs the whole recording first, so a call would run a sentence behind.</li>
+</ul>
+
+<h2 id="calls">In calls, live</h2>
+<p>Turn on <b>Change my voice in calls, live</b> and, in a space's call, everyone hears you in the voice you chose. ElevenLabs needs a whole phrase before it can change it, so each thing you say is heard a second or two after you say it, at your pauses (or every four seconds if you keep talking).</p>
+<figure class="mock"><div class="m-screen"><div class="m-body">
+  <div class="m-banner"><b>You sound like Rachel</b> · about 1.8 s behind</div>
+</div></div></figure>
+<ul>
+  <li>Your own voice is never heard in the call while it's on. Between phrases, others hear silence.</li>
+  <li>Nothing is sent while you're muted, and what you say while muted is dropped.</li>
+  <li>If ElevenLabs can't change a phrase (no connection, or your plan has run out), the line over the call turns red and says why. You stay silent rather than heard as yourself; tap <b>My own voice</b> to go back.</li>
+  <li>It costs what your ElevenLabs plan charges for every minute you talk.</li>
 </ul>
 
 <h2 id="settings">Settings</h2>
 <figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Voice changer</span></div><div class="m-body">
   <div class="m-section"><div class="m-card">
     <div class="m-row tap"><span class="m-ico" data-hue="indigo"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#mic"/></svg></span><span class="m-txt"><b>Change my voice messages</b><small>Off: they go out in your own voice, and nothing is sent to ElevenLabs.</small></span><span class="m-end"><span class="m-switch on"></span></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="indigo"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#audio-lines"/></svg></span><span class="m-txt"><b>Change my voice in calls, live</b><small>Heard in your chosen voice a second or two late.</small></span><span class="m-end"><span class="m-switch"></span></span></div>
     <div class="m-row"><span class="m-ico" data-hue="indigo"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#ear"/></svg></span><span class="m-txt"><b>Take out background noise</b></span><span class="m-end"><span class="m-switch on"></span></span></div>
     <div class="m-row danger"><span class="m-ico" data-hue="indigo"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#trash-2"/></svg></span><span class="m-txt"><b>Forget the key</b></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
   </div></div>
@@ -80,7 +92,7 @@
     <nav class="prevnext"><a class="prev" href="/docs/auto-leveler/"><small>Previous</small>Auto leveler</a><a class="next" href="/docs/translate/"><small>Next</small>Translate</a></nav>
     <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
   </main>
-  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#setup">Set it up</a><a href="#send">Send a voice message</a><a href="#settings">Settings</a></nav>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#setup">Set it up</a><a href="#send">Send a voice message</a><a href="#calls">In calls, live</a><a href="#settings">Settings</a></nav>
 </div>
 <script src="/docs/docs.js" defer></script>
 </body>

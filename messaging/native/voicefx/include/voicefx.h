@@ -14,6 +14,8 @@
 #ifndef VOICEFX_H
 #define VOICEFX_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,6 +44,21 @@ VOICEFX_EXPORT void voicefx_configure(VoiceFx *fx, int mode, float gain);
 
 /* One block of [frames] samples at [rate] Hz, in place. */
 VOICEFX_EXPORT void voicefx_process(VoiceFx *fx, float *samples, int frames, int rate);
+
+/* Live voice changing in a call (Matt, 2026-11-20: "I'd like the voice changer to work in spaces calls in real time";
+ * ElevenLabs chosen over effects on the device, with its delay). While [on], what the microphone says (after the
+ * noise suppression and the gain) is kept for the app to take, and what goes into the call is only what the app feeds
+ * back: the changed voice, or silence until some comes. */
+VOICEFX_EXPORT void voicefx_live(VoiceFx *fx, int on);
+
+/* What was said since last asked, at 16 kHz, 16-bit, mono: up to [most] samples into [out]; how many. */
+VOICEFX_EXPORT int voicefx_take(VoiceFx *fx, int16_t *out, int most);
+
+/* The changed voice to play into the call: [n] samples of 16-bit mono at [rate] Hz, after whatever is queued. */
+VOICEFX_EXPORT void voicefx_feed(VoiceFx *fx, const int16_t *pcm, int n, int rate);
+
+/* How much of the changed voice is still to be played, in milliseconds. */
+VOICEFX_EXPORT int voicefx_queued_ms(VoiceFx *fx);
 
 #ifdef __cplusplus
 }
