@@ -174,12 +174,9 @@ void main() {
     await settle(tester);
     expect(phone.asked.toSet(), {'markRead 1', 'markRead 3'});
     expect(find.text('2 conversations marked as read'), findsOneWidget);
-    expect(tester.widget<MarkAllRead>(find.byType(MarkAllRead)).unread, 0);
-    // Nothing left unread there: the button is quiet, and a press on it asks nothing.
-    phone.asked.clear();
-    await tester.tap(find.byType(MarkAllRead));
-    await settle(tester);
-    expect(phone.asked, isEmpty);
+    // Nothing left unread there: the button goes (Matt, 2026-11-19: "if there is no mark as read or cleaner icons
+    // rendered at the top remove the extra space above the searchbar too").
+    expect(find.byType(MarkAllRead), findsNothing);
     await tester.pump(const Duration(seconds: 6));
     await settle(tester);
 
@@ -209,7 +206,7 @@ void main() {
     await settle(tester);
   });
 
-  testWidgets('with no section to make a tab of, Mark all read is still in the title row, quiet when nothing is unread', (tester) async {
+  testWidgets('with no section to make a tab of, Mark all read is in the title row while anything is unread, and goes after', (tester) async {
     PluginRegistry.instance = PluginRegistry(const []);
     final all = _phone();
     all[0] = ListPhone.conversation(1, '+15551230001', 'Sounds good, see you at 7', name: 'Maya Chen', minutes: 4, unread: true);
@@ -225,10 +222,10 @@ void main() {
     await tester.tap(find.byType(MarkAllRead));
     await settle(tester);
     expect(phone.asked.toSet(), {'markRead 1', 'markRead 2'});
-    // Nothing unread: the button stays, quiet.
+    // Nothing unread: the button goes, and with no other button the bar over the search goes too.
     await tester.pump(const Duration(seconds: 6));
     await settle(tester);
-    expect(tester.widget<MarkAllRead>(find.byType(MarkAllRead)).unread, 0);
+    expect(find.byType(MarkAllRead), findsNothing);
   });
 
   testWidgets('several can be chosen in a section, where a tap then chooses', (tester) async {
