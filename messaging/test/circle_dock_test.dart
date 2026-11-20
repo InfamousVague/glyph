@@ -7,6 +7,7 @@ import 'package:ghost_messaging/ui/circles/circle_screen.dart' show showCircleMe
 import 'package:ghost_messaging/ui/circles/circle_settings.dart';
 import 'package:ghost_messaging/ui/settings.dart' show SettingsScreen;
 import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/ui/nav_style.dart';
 import 'package:ghost_messaging/circles/circles.dart';
 import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
 import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner;
@@ -60,7 +61,7 @@ void main() {
     testWidgets('on $name the dock is the circle\'s while it is open, and Home takes it back to the main layout', (tester) async {
       Circles.instance.join(_circle);
       final sheet = await loadSheet(tester);
-      await pumpScreen(tester, sheet, const AppShell(), AppState(), size: size);
+      await pumpScreen(tester, sheet, const AppShell(), AppState()..set(NavStyle.pref, NavStyle.classic.name), size: size);
       expect(_ring('messages'), findsOneWidget);
       expect(_ring('home'), findsNothing);
 
@@ -91,7 +92,7 @@ void main() {
   testWidgets('the dock\'s Settings is the app\'s; the circle\'s are in its menu, over the whole window', (tester) async {
     Circles.instance.join(_circle);
     final sheet = await loadSheet(tester);
-    await pumpScreen(tester, sheet, const AppShell(), AppState(), size: const Size(900, 832));
+    await pumpScreen(tester, sheet, const AppShell(), AppState()..set(NavStyle.pref, NavStyle.classic.name), size: const Size(900, 832));
     AppShellState.live!.openCircle(_circle);
     await settle(tester);
     await tester.tap(_ring('circle-settings'));
@@ -132,7 +133,7 @@ void main() {
   testWidgets('the header holds only Add people, and the dock leads with Home, Invite in the face\'s room', (tester) async {
     Circles.instance.join(_circle);
     final sheet = await loadSheet(tester);
-    await pumpScreen(tester, sheet, const AppShell(), AppState());
+    await pumpScreen(tester, sheet, const AppShell(), AppState()..set(NavStyle.pref, NavStyle.classic.name));
     AppShellState.live!.openCircle(_circle);
     await settle(tester);
     expect(find.byKey(const ValueKey('circle-invite')), findsNothing, reason: 'Add people is in the Members drawer');
@@ -146,7 +147,7 @@ void main() {
   testWidgets('from a circle, Home then a ring of the app\'s dock: that place in the main layout, nothing of the circle\'s', (tester) async {
     Circles.instance.join(_circle);
     final sheet = await loadSheet(tester);
-    await pumpScreen(tester, sheet, const AppShell(), AppState(), size: const Size(900, 832));
+    await pumpScreen(tester, sheet, const AppShell(), AppState()..set(NavStyle.pref, NavStyle.classic.name), size: const Size(900, 832));
     final shell = AppShellState.live!;
     // A space of the circle open beside its list, then Home and Contacts: the contacts in the pane, nothing of the
     // circle's anywhere.
@@ -165,7 +166,7 @@ void main() {
   testWidgets('Members is a drawer, and Add people at its top switches it to the invite drawer', (tester) async {
     Circles.instance.join(_circle);
     final sheet = await loadSheet(tester);
-    await pumpScreen(tester, sheet, const AppShell(), AppState());
+    await pumpScreen(tester, sheet, const AppShell(), AppState()..set(NavStyle.pref, NavStyle.classic.name));
     AppShellState.live!.openCircle(_circle);
     await settle(tester);
     await tester.tap(_ring('circle-members'));
@@ -232,7 +233,7 @@ void main() {
     final sheet = await loadSheet(tester);
     tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
     addTearDown(tester.view.reset);
-    await pumpScreen(tester, sheet, const AppShell(), AppState());
+    await pumpScreen(tester, sheet, const AppShell(), AppState()..set(NavStyle.pref, NavStyle.classic.name));
     final screen = tester.view.physicalSize.height / tester.view.devicePixelRatio;
     final pill = tester.getRect(find.descendant(of: find.byType(NavPill), matching: find.byType(ClipRRect)).first);
     final dockGap = screen - pill.bottom;

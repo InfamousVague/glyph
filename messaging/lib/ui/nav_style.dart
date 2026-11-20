@@ -27,8 +27,9 @@ enum NavStyle {
 
   static const pref = 'dev_nav_style';
 
-  /// What a device that never chose has: the earlier way, until one of the others is settled on.
-  static const fallback = NavStyle.classic;
+  /// What a device that never chose has: the rail (Matt, 2026-11-19, asked which new installs should get: "Rail with
+  /// circles").
+  static const fallback = NavStyle.rail;
 
   static NavStyle of(AppState app) {
     final name = app.choice(pref, '');

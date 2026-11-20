@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/ui/shell.dart' show pillScrolledScale;
 import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/ui/nav_style.dart';
 import 'package:ghost_messaging/desktop/link/crypto.dart';
 import 'package:ghost_messaging/desktop/link/link.dart';
 import 'package:ghost_messaging/desktop/main.dart';
@@ -146,7 +147,8 @@ void main() {
       if (updates != null) calls.attachUpdates(updates);
       final state = AppState()
         ..setTheme(dark ? 'dark' : 'light')
-        ..set('emoji', 'noto');
+        ..set('emoji', 'noto')
+        ..set(NavStyle.pref, NavStyle.classic.name);
       await tester.pumpWidget(KeyedSubtree(key: ValueKey('$name$dark'), child: DesktopApp(sheet: sheet, state: state, link: link, calls: calls, store: store, updates: updates)));
       for (var i = 0; i < 16; i++) {
         await tester.pump(const Duration(milliseconds: 60));
