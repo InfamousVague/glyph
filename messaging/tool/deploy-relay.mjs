@@ -75,7 +75,7 @@ const KNOWN = {
   // The admin page's sign-in (tool/admin-password.mjs; relay/lib/handles.dart HandlesConfig.adminUser): a username,
   // the password's salted hash, and the Ghost usernames that may sign in.
   GHOST_ADMIN_USER: /^[a-z0-9-]{3,40}$/,
-  GHOST_ADMIN_HASH: /^[0-9a-f]{32}\$[0-9a-f]{64}$/,
+  GHOST_ADMIN_HASH: /^[0-9a-f]{32}:[0-9a-f]{64}$/,
   GHOST_ADMIN_NAMES: /^[a-z0-9._]{3,20}(,[a-z0-9._]{3,20})*$/,
   // Files spaces' limits (relay/lib/files.dart `FilesConfig.fromEnvironment`, which lists the same names in
   // FilesConfig.names): bytes for the sizes, counts, days and hours for the rest. Each has a default where it is not

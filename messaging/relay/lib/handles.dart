@@ -143,11 +143,11 @@ class Handles {
   int soulsOf(String id) => _souls[id] ?? 0;
   List<String> specialOf(String id) => List.unmodifiable(_special[id] ?? const <String>[]);
 
-  /// Whether [user] and [pass] are the admin's, as [HandlesConfig.adminHash] keeps the password: `salt$hash`, the
+  /// Whether [user] and [pass] are the admin's, as [HandlesConfig.adminHash] keeps the password: `salt:hash`, the
   /// hash SHA-256 taken [adminRounds] times over the salt and the password.
   bool adminPassword(String user, String pass) {
     final want = config.adminHash;
-    final at = want.indexOf(r'$');
+    final at = want.indexOf(':');
     if (config.adminUser.isEmpty || at <= 0 || user != config.adminUser) return false;
     return _same(adminHashOf(want.substring(0, at), pass), want.substring(at + 1));
   }
@@ -1146,7 +1146,7 @@ class HandlesConfig {
       );
 
   /// The admin page's sign-in (Matt, 2026-11-19: "a simple admin page for me to login to ... with a pre generated
-  /// username and password"): the username, and the password as `salt$hash` (Handles.adminHashOf). Either empty and
+  /// username and password"): the username, and the password as `salt:hash` (Handles.adminHashOf). Either empty and
   /// nobody can sign in. Only an install holding one of [adminNames] may try ("only my matt account").
   final String adminUser;
   final String adminHash;

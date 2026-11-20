@@ -29,7 +29,8 @@ if (process.argv[1] && process.argv[1].endsWith('admin-password.mjs')) {
   const user = `${words[randomBytes(1)[0] % words.length]}-keeper-${randomBytes(2).toString('hex')}`;
   const pass = randomBytes(18).toString('base64url');
   const salt = randomBytes(16).toString('hex');
-  const hash = `${salt}$${adminHash(salt, pass)}`;
+  // salt:hash (the relay's env file takes letters, digits and a few marks: no "$").
+  const hash = `${salt}:${adminHash(salt, pass)}`;
   const before = existsSync(envFile) ? readFileSync(envFile, 'utf8') : '';
   const kept = before.split('\n').filter((l) => l.trim() && !/^GHOST_ADMIN_(USER|HASH)=/.test(l));
   writeFileSync(envFile, [...kept, `GHOST_ADMIN_USER=${user}`, `GHOST_ADMIN_HASH=${hash}`, ''].join('\n'), { mode: 0o600 });

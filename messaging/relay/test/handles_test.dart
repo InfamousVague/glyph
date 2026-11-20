@@ -186,7 +186,7 @@ void main() {
   // special badges and souls".
   test('souls and special badges: only @matt with the admin password gives them; each person is told', () async {
     const salt = '0123456789abcdef0123456789abcdef';
-    final adminConfig = HandlesConfig(adminUser: 'wisp-keeper-1a2b', adminHash: '$salt\$${Handles.adminHashOf(salt, 'open sesame')}');
+    final adminConfig = HandlesConfig(adminUser: 'wisp-keeper-1a2b', adminHash: '$salt:${Handles.adminHashOf(salt, 'open sesame')}');
     final a = Handles(dataDir: dir, config: adminConfig, fetch: net.fetch)..load();
     for (final id in [alice, bob, carol]) {
       come(a, id);
@@ -246,7 +246,7 @@ void main() {
 
   test('an install says its own username as it says hello, and the admin list names it', () async {
     const salt = '0123456789abcdef0123456789abcdef';
-    final adminConfig = HandlesConfig(adminUser: 'u-keeper', adminHash: '$salt\$${Handles.adminHashOf(salt, 'pw')}');
+    final adminConfig = HandlesConfig(adminUser: 'u-keeper', adminHash: '$salt:${Handles.adminHashOf(salt, 'pw')}');
     final a = Handles(dataDir: dir, config: adminConfig, fetch: net.fetch)..load();
     come(a, alice);
     come(a, bob);
