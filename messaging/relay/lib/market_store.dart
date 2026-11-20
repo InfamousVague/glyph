@@ -202,14 +202,16 @@ class MarketStore {
   }
 
   Future<void> _write() async {
-    final copy = toJson();
-    final words = await Isolate.run(() => jsonEncode(copy));
+    final words = await _wordsOf(toJson());
     // stop() writes the newest itself, once this is done.
     if (_closed) return;
     await _tmp.writeAsString(words, flush: true);
     if (await _state.exists()) await _state.rename(_bak.path);
     await _tmp.rename(_state.path);
   }
+
+  /// [state] in words, made on another isolate. Static, so all the isolate is sent is the copy, never the store.
+  static Future<String> _wordsOf(Map<String, Object?> state) => Isolate.run(() => jsonEncode(state));
 
   /// Saves synchronously, after any save under way, so this one is the last; and the audit's lines with it.
   Future<void> close() async {
