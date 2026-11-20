@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/market/market_api.dart';
 import 'package:ghost_messaging/market/market_models.dart';
 import 'package:ghost_messaging/market/market_state.dart';
@@ -19,35 +20,44 @@ import 'support/market_fakes.dart';
 /// able to develop and submit their own plugins to our plugin marketplace and I'd like to be able to verify them for
 /// the store through a review process"): what the relay sends is bounded, every listed package is fetched and checked
 /// before it is a listing, the withdrawals are read from Ghost Messaging's own relay too, signatures that verified are
-/// not checked again, and the catalog's three problems. The runtime's own parse and verify are stubs until it lands,
-/// so the tests' stand in for them (test/support/market_fakes.dart).
+/// not checked again, and the catalog's three problems. The packs, their approvals and the installer are the
+/// runtime's own (lib/plugins/pack); only the relay is made up (test/support/market_fakes.dart).
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late Directory dir;
   late FakeRelay relay;
-  late FakeChecks checks;
-  late FakeInstalled installed;
+  late AppState app;
+  late InstalledPlugins installed;
   final logged = <String>[];
   final oldRegistry = PluginRegistry.instance;
+  var verified = 0;
 
-  setUp(() {
+  setUp(() async {
     dir = Directory.systemTemp.createTempSync('market-state-');
     relay = FakeRelay();
-    checks = FakeChecks();
     PluginRegistry.instance = PluginRegistry([const CodesPlugin()]);
-    installed = FakeInstalled(root: Directory('${dir.path}/plugins'), checks: checks);
     logged.clear();
+    verified = 0;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async {
       if (call.method == 'devLog') logged.add('${(call.arguments as Map)['tag']} ${(call.arguments as Map)['line']}');
       return null;
     });
+    app = AppState();
+    installed = await installedFor(app, Directory('${dir.path}/plugins'));
   });
   tearDown(() {
     PluginRegistry.instance = oldRegistry;
+    MarketState.verifyInIsolate = false;
     dir.deleteSync(recursive: true);
   });
 
-  MarketState market({FakeInstalled? on}) => marketOver(relay, on ?? installed, checks, Directory('${dir.path}/market'));
+  /// The runtime's own check of each approval, counted.
+  Future<List<bool>> counted(List<ApprovalCheck> checks) {
+    verified += checks.length;
+    return MarketState.verifyApprovals(checks);
+  }
+
+  MarketState market({InstalledPlugins? on}) => marketOver(relay, Directory('${dir.path}/market'), installed: on ?? installed, verify: counted);
 
   test('a catalog of 9 MiB is too large, and the app keeps answering', () async {
     relay.catalogBytes = Uint8List(9 * 1024 * 1024)..fillRange(0, 9 * 1024 * 1024, 0x20);
@@ -58,9 +68,7 @@ void main() {
     expect(m.problem?.code, 'unreachable', reason: 'nothing was kept from before');
     // The next answer is read as ever.
     relay.catalogBytes = null;
-    final bills = billsPack();
-    checks.know(bills);
-    relay.list(bills);
+    await relay.list(billsPack());
     expect((await api.catalog())!.plugins.single.id, 'bills');
     await m.refresh(force: true);
     expect(m.problem, isNull);
@@ -68,8 +76,7 @@ void main() {
   });
 
   test('a catalog of 2,001 entries is refused', () async {
-    final bills = billsPack();
-    final e = entryOf(bills);
+    final e = await entryOf(billsPack());
     relay.catalog = Catalog(plugins: List.filled(2001, e));
     final api = MarketApi(hubUrl: 'https://relay.test', transport: relay.call);
     await expectLater(api.catalog(), throwsA(isA<MarketError>().having((e) => e.code, 'code', 'too_large')));
@@ -77,11 +84,19 @@ void main() {
     expect((await api.catalog())!.plugins, hasLength(2000));
   });
 
-  test('the withdrawals are read from Ghost Messaging\'s own relay too, where the market is another', () async {
+  test('the withdrawals are read from Ghost Messaging\'s own relay too, where the market is another, and each is checked', () async {
+    final bills = billsPack();
+    await addStore(installed, bills);
+    final good = await signRevocation(reviewer, plugin: 'bills', sha256: sha256Hex(packBytes(bills)), why: 'It copied texts it shouldn\'t have');
+    final forged = await signRevocation(KeysSigner(NetKeys.generate()), plugin: 'bills', sha256: 'f' * 64, why: 'Nobody pinned signed this');
+    // The market's own relay keeps it back; Ghost Messaging's says it.
+    relay.revokedOf['gogho.st'] = {'ok': true, 'v': 1, 'at': 0, 'revoked': [good.toJson(), forged.toJson()], 'retired': []};
     final m = market();
     await m.refresh(force: true);
     expect(relay.paths, containsAll(['GET https://relay.test/market/revoked', 'GET https://gogho.st/market/revoked']));
-    expect(installed.took, hasLength(2), reason: 'each list handed to the installer, which checks every entry itself');
+    expect([for (final r in installed.revocations) r.why], ['It copied texts it shouldn\'t have'], reason: 'only what a pinned key signed is kept');
+    expect(installed.storeOf('bills')!.problem, 'revoked');
+    expect(PluginRegistry.instance.plugins.any((p) => p.id == 'xbills'), isFalse, reason: 'withdrawn, it is off');
   });
 
   test('a listing is only what checked out: its package\'s hash, its id and version, its approval, not withdrawn', () async {
@@ -89,17 +104,13 @@ void main() {
     final parcels = billsPack(id: 'parcels', name: 'Parcels');
     final unsigned = billsPack(id: 'receipts', name: 'Receipts');
     final pulled = billsPack(id: 'tickets', name: 'Tickets');
-    for (final p in [bills, parcels, unsigned, pulled]) {
-      checks.know(p);
-    }
-    relay.list(bills);
-    // An entry for "lookalike" whose package is Parcels': its approval is for lookalike, the bytes another plugin's.
-    final other = entryOf(parcels, approvedId: 'lookalike');
-    relay.catalog = Catalog(plugins: [...relay.catalog.plugins, CatalogEntry(id: 'lookalike', version: '1.0.0', sha256: other.sha256, approval: PackApproval(plugin: 'lookalike', version: '1.0.0', sha256: other.sha256, key: reviewKey, sig: 'good', at: 0), updatedAt: 1)]);
-    relay.packages[other.sha256] = packBytes(parcels);
-    relay.list(unsigned, entry: entryOf(unsigned, sig: 'forged'));
-    relay.list(pulled);
-    installed.revokedShas.add(sha256Hex(packBytes(pulled)));
+    await relay.list(bills);
+    // An entry for "lookalike" whose package is Parcels': its approval, the reviewer's own, is for lookalike, and the
+    // bytes are another plugin's.
+    await relay.list(parcels, entry: await entryOf(parcels, approvedId: 'lookalike'));
+    await relay.list(unsigned, entry: await entryOf(unsigned, forged: true));
+    await relay.list(pulled);
+    await withdraw(installed, pulled, 'Pulled by the review');
     final m = market();
     await m.refresh(force: true);
     expect([for (final l in m.listings) l.id], ['xbills']);
@@ -112,18 +123,19 @@ void main() {
     expect(l.name, 'Bills');
     expect(l.developer, 'maya');
     expect(l.reaches.first.label, 'Reads texts from numbers not in your contacts');
+    expect(l.iconPng, billsIcon);
   });
 
-  test('a signature that verified is not checked again, even by a new start', () async {
-    final bills = billsPack();
-    checks.know(bills);
-    relay.list(bills);
+  test('a signature that verified is not checked again, even by a new start; in the app, on an isolate of its own', () async {
+    await relay.list(billsPack());
+    // As the app checks them: on an isolate.
+    MarketState.verifyInIsolate = true;
     await market().refresh(force: true);
-    expect(checks.verified, 1);
+    expect(verified, 1);
     final again = market();
     await again.refresh(force: true);
     expect(again.listings, hasLength(1));
-    expect(checks.verified, 1, reason: 'verified.json spared it');
+    expect(verified, 1, reason: 'verified.json spared it');
     expect(File('${dir.path}/market/verified.json').existsSync(), isTrue);
   });
 
@@ -138,14 +150,13 @@ void main() {
     expect(m.problem?.code, 'off');
     relay.answers.clear();
     final bills = billsPack();
-    checks.know(bills);
-    relay.list(bills, entry: entryOf(bills, key: base64Encode(NetKeys.generate().public)));
+    await relay.list(bills, entry: await entryOf(bills, by: KeysSigner(NetKeys.generate())));
     await m.refresh(force: true);
     expect(m.problem?.code, 'untrusted', reason: 'an entry, and its approval is by a key this build doesn\'t pin');
     expect(m.listings, isEmpty);
     // A build that pins no key at all (marketReviewKeys before Matt gives his) trusts none.
-    final none = FakeInstalled(root: Directory('${dir.path}/none'), checks: checks, reviewKeys: const []);
-    relay.list(bills);
+    final none = await installedFor(AppState(), Directory('${dir.path}/none'), keys: const []);
+    await relay.list(bills);
     final m2 = market(on: none);
     await m2.refresh(force: true);
     expect(m2.problem?.code, 'untrusted');
@@ -163,8 +174,7 @@ void main() {
   test('packages are fetched four at a time', () async {
     for (var i = 0; i < 10; i++) {
       final p = billsPack(id: 'pack$i', name: 'Pack $i');
-      checks.know(p);
-      relay.list(p, entry: entryOf(p, updatedAt: 1763600000000 + i));
+      await relay.list(p, entry: await entryOf(p, updatedAt: 1763600000000 + i));
     }
     final m = market();
     await m.refresh(force: true);
@@ -175,18 +185,13 @@ void main() {
   });
 
   test('updates: a newer listing by the same developer; by another, a new plugin', () async {
-    final old = billsPack();
-    installed.putStore(old);
-    final newer = billsPack(version: '1.1.0', whatsNew: 'Receipts in a kind of their own.');
-    checks.know(newer);
-    relay.list(newer);
+    await addStore(installed, billsPack());
+    await relay.list(billsPack(version: '1.1.0', whatsNew: 'Receipts in a kind of their own.'));
     final m = market();
     await m.refresh(force: true);
     expect([for (final u in m.updates) '${u.installed.version} → ${u.listing.version}'], ['1.0.0 → 1.1.0']);
     expect(m.developerChanged('bills'), isNull);
-    final taken = billsPack(version: '1.2.0', developer: 'someoneelse');
-    checks.know(taken);
-    relay.list(taken);
+    await relay.list(billsPack(version: '1.2.0', developer: 'someoneelse'));
     await m.refresh(force: true);
     expect(m.updates, isEmpty, reason: 'never an update by another developer');
     expect(m.developerChanged('bills')?.developer, 'someoneelse');
@@ -194,18 +199,25 @@ void main() {
 
   test('install hands the checked bytes to the installer with the approval, switched on; update leaves the switch', () async {
     final bills = billsPack();
-    checks.know(bills);
-    relay.list(bills);
+    final entry = await relay.list(bills);
     final m = market();
     await m.refresh(force: true);
     final out = await m.install(m.listings.single);
-    expect(out.ok, isTrue);
-    expect(installed.installs.single.bytes, packBytes(bills));
-    expect(installed.installs.single.approval.sig, 'good');
-    expect(installed.installs.single.on, isTrue);
-    expect(installed.installs.single.listing, {'listedAt': 1763600000000});
-    await m.update(m.listings.single);
-    expect(installed.installs.last.on, isFalse);
+    expect(out.ok, isTrue, reason: out.message);
+    final here = installed.storeOf('bills')!;
+    expect(File('${dir.path}/plugins/store/bills/1.0.0/package.ghostplugin').readAsBytesSync(), packBytes(bills), reason: 'the bytes that were checked');
+    expect(here.approval!.toJson(), entry.approval.toJson());
+    expect(here.listing['listedAt'], 1763600000000);
+    expect(app.flag('plugin_xbills', fallback: false), isTrue);
+    // Switched off, then updated: still off, the new version in the old one's place.
+    app.set('plugin_xbills', 'off');
+    await relay.list(billsPack(version: '1.1.0'));
+    await m.refresh(force: true);
+    final update = await m.update(m.updates.single.listing);
+    expect(update.ok, isTrue, reason: update.message);
+    expect(installed.storeOf('bills')!.version, '1.1.0');
+    expect(app.choice('plugin_xbills', ''), 'off');
+    expect(m.updates, isEmpty);
   });
 
   test('the developer hears of each decision once, never of what was there the first time', () async {

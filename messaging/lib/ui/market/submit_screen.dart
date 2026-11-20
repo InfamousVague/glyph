@@ -37,7 +37,7 @@ import '../../me/me.dart';
 import '../../net/net.dart';
 import '../../plugins/pack/pack.dart';
 import '../../plugins/plugin.dart';
-import '../../plugins/registry.dart' show AppStore, PluginStore;
+import '../../plugins/registry.dart' show AppStore;
 import '../../sms.dart';
 import '../common.dart';
 import '../plugins_page/market_parts.dart' show MarketChip;
@@ -993,11 +993,11 @@ class _PressToggle extends StatelessWidget implements PaneRow {
 /// The list's rows for the sample texts [pack] sorts, each as the list draws a sorted conversation (its tab or kind,
 /// its row's value and caption, the words), drawn off the screen and made a plain PNG: a screenshot of made-up texts
 /// alone, never anyone's conversations. Null where it sorts none of them, or the picture couldn't be made.
-Future<Uint8List?> samplesPicture(BuildContext context, PluginPack pack, {PackTrialRun? run}) async {
+Future<Uint8List?> samplesPicture(BuildContext context, PluginPack pack) async {
   final rows = <(PackSample, PackTrial)>[];
   for (final s in packSamples) {
     try {
-      final r = (run ?? _trial)(pack, text: s.text, from: s.from);
+      final r = tryPack(pack, text: s.text, from: s.from);
       if (r.seen && r.section != null) rows.add((s, r));
     } catch (_) {}
   }
@@ -1024,8 +1024,6 @@ Future<Uint8List?> samplesPicture(BuildContext context, PluginPack pack, {PackTr
     entry.remove();
   }
 }
-
-PackTrial _trial(PluginPack pack, {required String text, String from = '72975', bool switchesOn = false, PluginStore? store}) => tryPack(pack, text: text, from: from, switchesOn: switchesOn, store: store);
 
 class _SampleRows extends StatelessWidget {
   const _SampleRows({required this.pack, required this.rows});

@@ -216,13 +216,10 @@ Future<void> showDevProblems(BuildContext context, List<PackIssue> issues) {
 /// it is on, and Reload, Open in the Marketplace, Submit it and Remove. It looks its pack up by id on every build, so a
 /// reload shows the new copy.
 class DevPluginScreen extends StatelessWidget {
-  const DevPluginScreen({super.key, required this.packId, this.registry, this.trial});
+  const DevPluginScreen({super.key, required this.packId, this.registry});
 
   final String packId;
   final PluginRegistry? registry;
-
-  /// How Try it runs, for a test while the runtime's own is a stub.
-  final PackTrialRun? trial;
 
   @override
   Widget build(BuildContext context) {
@@ -276,7 +273,7 @@ class DevPluginScreen extends StatelessWidget {
                     ]),
                     if (pack != null) ...[
                       SizedBox(height: t.space(4)),
-                      KeyedSubtree(key: ValueKey('dev-plugin-try-$packId-section'), child: TryPackSection(pack, keyPrefix: 'dev-plugin-', keySuffix: '-$packId', store: store, run: trial)),
+                      KeyedSubtree(key: ValueKey('dev-plugin-try-$packId-section'), child: TryPackSection(pack, keyPrefix: 'dev-plugin-', keySuffix: '-$packId', store: store)),
                     ],
                     if (plugin != null && r.isOn(plugin, store)) ...[
                       SizedBox(height: t.space(4)),

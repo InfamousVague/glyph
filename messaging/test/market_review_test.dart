@@ -40,7 +40,7 @@ class _Followed implements SmsCalls {
 
 void main() {
   late Directory dir;
-  late FakeInstalled installed;
+  InstalledPlugins? installed;
   late FakeRelay relay;
   late MarketApi api;
   late AppState state;
@@ -60,11 +60,11 @@ void main() {
     });
     dir = Directory.systemTemp.createTempSync('market-review-');
     PluginRegistry.instance = PluginRegistry(shippedPlugins);
-    installed = FakeInstalled(root: Directory('${dir.path}/plugins'), checks: FakeChecks(), reviewKeys: [adminKey]);
-    InstalledPlugins.instance = installed;
+    installed = null;
     relay = FakeRelay();
     api = MarketApi(hubUrl: 'https://relay.test', signer: admin, transport: relay.call);
-    MarketState.instance = MarketState(api: () => api, cache: Directory('${dir.path}/market'), installed: installed, appVersion: '0.10.1');
+    // It reads InstalledPlugins.instance as it goes: each test puts its own in place.
+    MarketState.instance = MarketState(api: () => api, cache: Directory('${dir.path}/market'), appVersion: '0.10.1');
     state = AppState();
   });
   tearDown(() {
@@ -89,7 +89,13 @@ void main() {
     };
   }
 
+  /// This build's review keys on this device, as the runtime holds them: the admin's own pinned unless [keys] says
+  /// otherwise. Made inside the test, whose zone its work runs in.
+  var made = 0;
+  Future<InstalledPlugins> ready({List<String>? keys}) async => installed = InstalledPlugins.instance = await installedFor(state, Directory('${dir.path}/plugins-${made++}'), keys: keys ?? [adminKey]);
+
   Future<void> show(WidgetTester tester, Widget screen, {Size size = const Size(412, 6400)}) async {
+    if (installed == null) await ready();
     await tester.pumpWidget(const SizedBox());
     final sheet = await loadSheet(tester);
     await pumpScreen(tester, sheet, screen, state, size: size);
@@ -153,7 +159,7 @@ void main() {
     expect(verifyRetirement(retirement), isTrue);
     expect(relay.asked.length, sent);
     // A key this build doesn't pin.
-    InstalledPlugins.instance = FakeInstalled(root: Directory('${dir.path}/other'), checks: FakeChecks(), reviewKeys: [reviewKey]);
+    await ready(keys: [reviewKey]);
     await show(tester, panel(api));
     await signIn(tester);
     expect(hint(tester, 'admin-market-key'), '${adminKey.substring(0, 12)}… · not trusted by this build: its approvals wouldn\'t install');
@@ -243,15 +249,17 @@ void main() {
   testWidgets('Approve: only with a key this build pins and isn\'t retired, and a package that is the row\'s', (tester) async {
     final sid = relay.store.put(bills(), status: 'submitted');
     // Unpinned.
-    InstalledPlugins.instance = FakeInstalled(root: Directory('${dir.path}/unpinned'), checks: FakeChecks(), reviewKeys: [reviewKey]);
+    await ready(keys: [reviewKey]);
     await show(tester, ReviewItemScreen(sid, api: api, ask: ask));
     expect(pressable(tester, 'market-review-approve'), isFalse);
     expect(find.text('This build doesn\'t trust this device\'s key for reviews: its approvals wouldn\'t install.'), findsOneWidget);
-    // Retired.
-    InstalledPlugins.instance = installed..retired = {adminKey};
+    // Pinned, then retired by its own signature, as the revoked list would hand it over.
+    await retire(await ready(), admin);
+    expect(installed!.retiredKeys, {adminKey});
     await show(tester, ReviewItemScreen(sid, api: api, ask: ask));
     expect(pressable(tester, 'market-review-approve'), isFalse);
-    installed.retired = {};
+    expect(find.text('This build doesn\'t trust this device\'s key for reviews: its approvals wouldn\'t install.'), findsOneWidget);
+    await ready();
     // A row whose version isn't its package's.
     relay.store.submissions[sid]!['version'] = '9.9.9';
     await show(tester, ReviewItemScreen(sid, api: api, ask: ask));
@@ -328,6 +336,30 @@ void main() {
     expect(relay.store.decided.last['note'], 'Say which kind it adds, too.');
     expect(relay.store.decided.first['note'], 'Say which kind it adds, too.', reason: 'the same decision');
     expect(relay.store.submissions[sid]!['status'], 'changes_requested');
+  });
+
+  testWidgets('a decision that can\'t reach the Marketplace is kept, its note with it, and Try again sends it as it was', (tester) async {
+    final sid = relay.store.put(bills(), status: 'in_review');
+    await show(tester, ReviewItemScreen(sid, api: api, ask: ask));
+    await tester.enterText(find.descendant(of: _key('market-review-note'), matching: find.byType(EditableText)), 'Thanks: a clear one.');
+    relay.down = true;
+    await tester.tap(_key('market-review-approve'));
+    await settle(tester);
+    expect(find.text('Couldn\'t reach the Marketplace. Try again in a moment.'), findsOneWidget);
+    expect(_key('market-review-again'), findsOneWidget);
+    expect(relay.store.decided, isEmpty);
+    final tried = relay.asked.where((r) => r.method == 'POST' && r.url.path == '/market/review/$sid').single;
+    final first = PackApproval.fromJson((jsonDecode(utf8.decode(tried.body)) as Map)['approval'] as Map);
+    relay.down = false;
+    await tester.tap(_key('market-review-again'));
+    await settle(tester);
+    final d = relay.store.decided.single;
+    expect(d['decision'], 'approve');
+    expect(d['note'], 'Thanks: a clear one.');
+    expect(PackApproval.fromJson(d['approval'] as Map).toJson(), first.toJson(), reason: 'the same approval, sent again');
+    expect(verifyApproval(first, plugin: 'mybills', version: '1.0.0', sha256: sha256Hex(bills()), keys: [adminKey]), isTrue);
+    expect(_key('market-review-again'), findsNothing);
+    expect(relay.store.submissions[sid]!['status'], 'approved');
   });
 
   testWidgets('Unlist, List again and Withdraw this version send C\'s bodies', (tester) async {

@@ -23,15 +23,16 @@ import 'support/market_fakes.dart';
 /// to accept an icon, description, plugin tags, etc"): what stops it before anything (no identity of this device's own,
 /// no username, another server, a blocked account), a plugin pasted filling the form and tried, each of the form's
 /// rules, the Marketplace's check, the draft kept across leaving and loading again, what each platform offers for
-/// pictures, the screenshots a new version keeps, and exactly what is sent and how it is signed. The runtime's checks
-/// are the real ones (lib/plugins/pack); the relay is test/support/market_fakes.dart's, in memory.
+/// pictures, the screenshots a new version keeps, a plugin in development used as it is, and exactly what is sent and
+/// how it is signed. The runtime's checks and the device's packs are the real ones (lib/plugins/pack); the relay is
+/// test/support/market_fakes.dart's, in memory.
 Finder _key(String k) => find.byKey(ValueKey(k));
 
 const _tall = Size(412, 5200);
 
 void main() {
   late Directory dir;
-  late FakeInstalled installed;
+  InstalledPlugins? installed;
   late FakeRelay relay;
   late MarketState market;
   late MarketApi api;
@@ -51,11 +52,11 @@ void main() {
     });
     dir = Directory.systemTemp.createTempSync('market-submit-');
     PluginRegistry.instance = PluginRegistry(shippedPlugins);
-    installed = FakeInstalled(root: Directory('${dir.path}/plugins'), checks: FakeChecks());
-    InstalledPlugins.instance = installed;
+    installed = null;
     relay = FakeRelay();
     api = MarketApi(hubUrl: 'https://relay.test', signer: devSigner, transport: relay.call);
-    market = MarketState(api: () => api, cache: Directory('${dir.path}/market'), installed: installed, appVersion: '0.10.1');
+    // It reads InstalledPlugins.instance as it goes: each test puts its own in place.
+    market = MarketState(api: () => api, cache: Directory('${dir.path}/market'), appVersion: '0.10.1');
     MarketState.instance = market;
     state = AppState();
     SubmitPluginScreen.debugPlatform = 'android';
@@ -75,10 +76,15 @@ void main() {
     addTearDown(() => tester.runAsync(() => Me.instance.start(MemoryMeStore(), ValueNotifier(0), () => null)));
   }
 
+  /// This device's packs, read for the app the form draws from: made inside the test, whose zone its work runs in, the
+  /// first time the test asks.
+  Future<InstalledPlugins> ready() async => installed ??= InstalledPlugins.instance = await installedFor(state, Directory('${dir.path}/plugins'));
+
   Future<String?> icon(Uint8List bytes) async => base64Encode(bytes);
   Future<Uint8List?> shot(Uint8List bytes) async => bytes;
 
   Future<void> form(WidgetTester tester, {MarketApi? with_, String? hub, PluginPack? start, String? startVersion, Future<Uint8List?> Function()? pick}) async {
+    await ready();
     // A form of its own each time: its state (the api it signs with) is made once.
     await tester.pumpWidget(const SizedBox());
     final sheet = await loadSheet(tester);
@@ -170,6 +176,21 @@ void main() {
     expect(said, contains('Tags: bill=\$45.20'));
     expect(said, contains('It goes to Bills'));
     expect(said.any((l) => l.contains('Copy the amount')), isTrue);
+  });
+
+  testWidgets('Use one in development: a plugin loaded in Settings › Developer fills the form as it is', (tester) async {
+    await named(tester, 'maya');
+    state.setFlag('dev_mode', true);
+    await addDev(await ready(), billsPack(id: 'mybills', name: 'My bills'));
+    await form(tester);
+    await tester.tap(_key('market-submit-dev'));
+    await settle(tester);
+    expect(find.text('1.0.0 · mybills'), findsOneWidget, reason: 'each one in development, with its version and id');
+    await tester.tap(find.text('My bills'));
+    await settle(tester);
+    expect(find.descendant(of: _key('market-submit-loaded'), matching: find.text('mybills · 1.0.0 · 2 tag rules, 1 tab, 1 kind, 1 button')), findsOneWidget);
+    expect(tester.widget<EditableText>(find.descendant(of: _key('market-submit-name'), matching: find.byType(EditableText))).controller.text, 'My bills');
+    expect(relay.store.checks, 1, reason: 'asked of the Marketplace as any plugin loaded is');
   });
 
   testWidgets('the form\'s rules: a reserved name, tags, the help link, a version above the one listed and what\'s new for it', (tester) async {

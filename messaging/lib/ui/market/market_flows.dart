@@ -172,10 +172,11 @@ Future<void> removeStorePack(BuildContext context, GhostPlugin plugin) async {
 }
 
 /// What [now] can do that [before] couldn't: the lines of its privacy card and of what it adds, compared as text, that
-/// the copy on this device hasn't (everything, where that copy can't be read).
+/// the copy on this device hasn't (everything, where that copy can't be read). The lines are the runtime's own, as a
+/// pack in development's consent keeps them (DevPack.consentLines), so the two never disagree on what is new.
 ({List<PluginReach> reaches, List<String> adds}) packGrew(PluginPack now, PluginPack? before) {
   String line(PluginReach r) => r.hint == null ? r.label : '${r.label}: ${r.hint}';
-  final had = before == null ? const <String>{} : {for (final r in packReaches(before)) line(r), ...packAdds(before)};
+  final had = before == null ? const <String>{} : DevPack.consentLines(before).toSet();
   return (reaches: [for (final r in packReaches(now)) if (!had.contains(line(r))) r], adds: [for (final a in packAdds(now)) if (!had.contains(a)) a]);
 }
 

@@ -6,7 +6,6 @@ import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/kit/settings_kit.dart' show SettingsFindableMark;
 import 'package:ghost_messaging/looks.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides;
-import 'package:ghost_messaging/market/listing_plugin.dart';
 import 'package:ghost_messaging/market/market_api.dart';
 import 'package:ghost_messaging/market/market_state.dart';
 import 'package:ghost_messaging/me/me.dart';
@@ -35,11 +34,11 @@ const _phone = Size(412, 892), _wide = Size(1000, 760);
 
 void main() {
   late Directory dir;
-  late FakeChecks checks;
-  late FakeInstalled installed;
+  InstalledPlugins? installed;
   late FakeRelay relay;
   late MarketState market;
   late AppState state;
+  var made = 0;
   final oldInstalled = InstalledPlugins.instance, oldMarket = MarketState.instance, oldRegistry = PluginRegistry.instance;
 
   setUp(() {
@@ -48,15 +47,13 @@ void main() {
       ListPhone.conversation(2, '+15551230002', 'The build is out', name: 'Sam Ortiz', archived: true),
     ]).install();
     dir = Directory.systemTemp.createTempSync('marketplace-');
-    checks = FakeChecks();
     PluginRegistry.instance = PluginRegistry(shippedPlugins);
-    installed = FakeInstalled(root: Directory('${dir.path}/plugins'), checks: checks);
-    InstalledPlugins.instance = installed;
     relay = FakeRelay();
-    market = marketOver(relay, installed, checks, Directory('${dir.path}/market'));
+    // It reads InstalledPlugins.instance as it goes: each test puts its own in place.
+    market = marketOver(relay, Directory('${dir.path}/market'));
     MarketState.instance = market;
     state = AppState();
-    installed.switches = AppStore(state);
+    installed = null;
   });
   tearDown(() {
     InstalledPlugins.instance = oldInstalled;
@@ -67,7 +64,15 @@ void main() {
 
   AppShellState shell() => AppShellState.live!;
 
+  /// This device's packs, read for the app the frame draws from: made inside the test, whose zone its work runs in.
+  Future<InstalledPlugins> ready({bool storeAllowed = true}) async {
+    final here = await installedFor(state, Directory('${dir.path}/plugins-${made++}'), storeAllowed: storeAllowed);
+    InstalledPlugins.instance = installed = here;
+    return here;
+  }
+
   Future<void> frame(WidgetTester tester, {Size size = _phone, NavStyle style = NavStyle.rail}) async {
+    if (installed == null) await ready();
     state.set(NavStyle.pref, style.name);
     final sheet = await loadSheet(tester);
     await pumpScreen(tester, sheet, const AppShell(), state, size: size);
@@ -90,12 +95,13 @@ void main() {
   });
 
   testWidgets('the ring counts the updates waiting', (tester) async {
-    installed.putStore(billsPack());
-    final newer = billsPack(version: '1.1.0');
-    market.debugListings = [ListingPlugin(entryOf(newer), newer, market)];
+    await addStore(await ready(), billsPack());
+    await relay.list(billsPack(version: '1.1.0'));
+    await tester.runAsync(() => market.refresh(force: true));
     await frame(tester);
     expect(tester.widget<NavRing>(_key('rail-marketplace')).item.count, 1);
-    market.debugListings = const [];
+    // Updated, nothing waits.
+    expect((await market.update(market.updates.single.listing)).ok, isTrue);
     await settle(tester);
     expect(tester.widget<NavRing>(_key('rail-marketplace')).item.count, 0);
   });
@@ -150,8 +156,8 @@ void main() {
     expect(_key('market-row-discover'), findsNothing);
     expect(_key('plugins-entry'), findsNothing);
     // And plugins, by name, tag or who made them: a listing among them, opening Discover at its page.
-    final listing = billsPack();
-    market.debugListings = [ListingPlugin(entryOf(listing), listing, market)];
+    await relay.list(billsPack());
+    await tester.runAsync(() => market.refresh(force: true));
     await tester.enterText(find.descendant(of: _key('market-search'), matching: find.byType(EditableText)), 'maya');
     await settle(tester);
     expect(_key('market-hit-xbills'), findsOneWidget);
@@ -190,7 +196,7 @@ void main() {
     expect(_key('market-row-review'), findsOneWidget);
     expect(marketOffered('review', state), isTrue);
     // A computer that follows its phone has no identity of its own: no review from there.
-    MarketState.instance = MarketState(api: () => MarketApi(hubUrl: 'https://relay.test', transport: relay.call), installed: installed, cache: dir);
+    MarketState.instance = MarketState(api: () => MarketApi(hubUrl: 'https://relay.test', transport: relay.call), cache: dir);
     expect(marketOffered('review', state), isFalse);
     // Developer mode off: In development goes, and its page with it.
     MarketState.instance = market;
@@ -206,7 +212,7 @@ void main() {
   });
 
   testWidgets('no Make your own on an iPhone, nor anything from other developers', (tester) async {
-    InstalledPlugins.instance = FakeInstalled(root: Directory('${dir.path}/ios'), checks: checks, storeAllowed: false);
+    await ready(storeAllowed: false);
     state.setFlag('dev_mode', true);
     await frame(tester);
     shell().marketplace();
@@ -337,7 +343,7 @@ void main() {
     shell().go('messages');
     await settle(tester);
     // Bills, added from the Marketplace: its own settings are in the unlisted Plugins section Settings' search reads.
-    installed.putStore(billsPack());
+    await addStore(installed!, billsPack());
     await settle(tester);
     await search('more words for bills', 'More words for bills');
     expect(_key('plugins-detail-xbills'), findsOneWidget);
@@ -368,7 +374,8 @@ void main() {
   testWidgets('Submit with a dev pack opens the form with it loaded, and My submissions at a submission marks it', (tester) async {
     await tester.runAsync(() => Me.instance.start(MemoryMeStore()..set('me_username', 'maya'), ValueNotifier(0), () => null));
     addTearDown(() => tester.runAsync(() => Me.instance.start(MemoryMeStore(), ValueNotifier(0), () => null)));
-    installed.putDev(billsPack());
+    state.setFlag('dev_mode', true);
+    await addDev(await ready(), billsPack());
     await frame(tester, size: _wide);
     shell().marketplace(section: 'submit', arg: 'bills');
     await settle(tester);

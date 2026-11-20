@@ -3,105 +3,178 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:ghost_messaging/art/app_icon.dart';
-import 'package:ghost_messaging/art/lucide.g.dart';
+import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/market/market_api.dart';
 import 'package:ghost_messaging/market/market_models.dart';
 import 'package:ghost_messaging/market/market_state.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/plugins/pack/pack.dart';
-import 'package:ghost_messaging/plugins/plugin.dart';
-import 'package:ghost_messaging/plugins/registry.dart';
+import 'package:ghost_messaging/ui/settings_panes.dart' show appVersion;
 
-/// The Marketplace made up for the tests (test/market_*.dart, test/marketplace_test.dart, test/dev_plugins_settings_test
-/// .dart): packs like the format's examples (SPEC A.15), a relay answered from memory, and the device's installed and
-/// in-development packs held in memory. The runtime's own checks (parsing, verifying, installing) are stubs until it
-/// lands (lib/plugins/pack), so these stand in for them: a parse that knows the packs by their bytes' SHA-256, a
-/// verify that believes an approval signed "good", and an installer that puts a plugin in the registry.
+/// The Marketplace for the tests (test/market_*.dart, test/marketplace_test.dart, test/dev_plugins_settings_test.dart,
+/// test/themes_test.dart, test/souls_test.dart). Everything a plugin from another developer is and does is the runtime's
+/// own (lib/plugins/pack): the docs' Bills (test/fixtures/packs/bills.ghostplugin, SPEC A.15), changed as a test needs
+/// and read by parsePack; approvals, withdrawals and retirements signed for real by the tests' review key; the device's
+/// packs in a real InstalledPlugins in a folder of the test's own. Only the relay is made up: [FakeRelay] answers the
+/// Marketplace's routes from memory.
+///
+/// An InstalledPlugins keeps its work in one queue of futures, made where it is made: a widget test makes its own inside
+/// the test ([installedFor]), never in setUp, whose zone is not the test's, and a refresh it waits for with
+/// tester.runAsync never hands the installer anything (an empty revoked list is not handed over), so the queue is only
+/// ever used from the test's own zone.
+
+/// The docs' Bills as the fixture holds it.
+final Map<String, Object?> _fixture = (jsonDecode(File('test/fixtures/packs/bills.ghostplugin').readAsStringSync()) as Map).cast<String, Object?>();
 
 /// The 64 px glyph Bills carries (SPEC A.15): a PNG of pixels alone.
-final Uint8List billsIcon = base64Decode('iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAaklEQVR42u3awQ0AIAgAMfZfGoeQEMHeAMb0AT6MkCRJkq7K5gAAAPA2wLTzAQAAAAAAAAD1F6x68AAAAMAQBAAAAABbAAAAAIYgAAAAAGzbAgAAADAEAQAAAADAFgC/xAAA+AtAkiRJwzpcxpX3TIHg+gAAAABJRU5ErkJggg==');
+final Uint8List billsIcon = base64Decode(_fixture['icon'] as String);
 
-/// A pack shaped as A.15's Bills is once parsed: a Bills tab with the amount on its row, a Receipts kind that can mark
-/// them read as they come, a button to copy the amount, two settings of its own.
-PluginPack billsPack({String id = 'bills', String name = 'Bills', String version = '1.0.0', String? developer = 'maya', Uint8List? icon, List<String> labels = const ['bills', 'money', 'sorting'], List<String> shots = const [], String? whatsNew, String? minApp, String? support = 'https://example.com/plugins/bills', String shelf = 'organise', String hue = 'amber', List<String> links = const [], Set<PackPermission> permissions = const {PackPermission.sort, PackPermission.copy, PackPermission.markRead}}) {
-  final json = <String, Object?>{
-    'format': packFormat, 'id': id, 'version': version, 'name': name, 'tagline': 'Bills and payment reminders in a tab of their own',
-    'description': 'Texts from companies about a bill go to a Bills tab, with the amount large on the row and a press to copy it.',
-    'symbol': 'calculator', 'hue': hue, 'shelf': shelf, 'labels': labels, 'permissions': [for (final p in permissions) p.wire],
-    'developer': ?developer, 'support': ?support, 'whatsNew': ?whatsNew, 'minApp': ?minApp, 'shots': shots, 'links': links,
-    'rules': {'sections': [{'key': 'bills'}]},
-  };
-  return PluginPack(
-    id: id,
-    version: version,
-    name: name,
-    tagline: 'Bills and payment reminders in a tab of their own',
-    description: 'Texts from companies about a bill go to a Bills tab, with the amount large on the row and a press to copy it.',
-    symbol: 'calculator',
-    hue: hue,
-    shelf: shelf,
-    icon: icon,
-    labels: labels,
-    permissions: permissions,
-    links: links,
-    shots: shots,
-    developer: developer,
-    support: support,
-    whatsNew: whatsNew,
-    minApp: minApp,
-    settings: const [
-      PackSetting(type: 'toggle', key: 'autoread', label: 'Mark receipts as read', hint: 'As they come: texts that say a payment went through.', icon: 'check-check'),
-      PackSetting(type: 'words', key: 'extra', label: 'More words for bills', hint: 'A text with any of these goes to Bills too.', placeholder: 'council tax, water rates'),
-    ],
-    rules: PackRules(
-      sections: const [
-        PackSection(key: 'bills', label: 'Bills', icon: 'calculator', kind: 'tab', takes: PackWhen(tagged: ['bill'], untagged: ['paid']), row: PackRow(value: '{tag:bill}', caption: 'A bill', end: 'copyamount')),
-        PackSection(key: 'receipts', label: 'Receipts', icon: 'check-check', kind: 'filter', takes: PackWhen(tagged: ['paid'])),
-      ],
-      actions: [
-        const PackAction(id: 'copyamount', label: 'Copy the amount', icon: 'copy', verb: 'copy', slots: ['row', 'list.conversation.menu', 'conversation.message.menu'], when: PackWhen(tagged: ['bill']), text: '{tag:bill}', say: 'Amount copied'),
-        if (links.isNotEmpty) PackAction(id: 'open', label: 'Open the page', icon: 'link', verb: 'link', slots: const ['conversation.header'], url: links.first),
-      ],
-      incoming: const [PackIncoming(section: 'receipts', verbs: ['markread'], setting: 'autoread')],
-    ),
-    json: json,
-  );
-}
-
-/// [pack]'s bytes as the store would hold them: canonical, so each pack has a SHA-256 of its own.
-Uint8List packBytes(PluginPack pack) => canonicalBytes(pack.json);
-
-/// A test's review key, and its signer: approvals signed "good" by it verify in [FakeChecks.verify].
+/// The tests' reviewer: the one review key their InstalledPlugins pin, whose approvals install and verify.
 final NetKeys reviewKeys = NetKeys.generate();
+final NetSigner reviewer = KeysSigner(reviewKeys);
 final String reviewKey = base64Encode(reviewKeys.public);
+
+/// A developer's identity, signing their own requests.
 final NetSigner devSigner = KeysSigner(NetKeys.generate());
 
-/// The catalog's entry for [pack], approved by [key] (the test's review key where not given).
-CatalogEntry entryOf(PluginPack pack, {String? key, String sig = 'good', int updatedAt = 1763600000000, String? sha, String? approvedId}) {
-  final sha256 = sha ?? sha256Hex(packBytes(pack));
-  return CatalogEntry(id: pack.id, version: pack.version, sha256: sha256, size: packBytes(pack).length, approval: PackApproval(plugin: approvedId ?? pack.id, version: pack.version, sha256: sha256, key: key ?? reviewKey, sig: sig, at: 0), listedAt: updatedAt, updatedAt: updatedAt);
+/// The docs' Bills (test/fixtures/packs/bills.ghostplugin, SPEC A.15) as decoded JSON: the example's id is refused for a
+/// submission, so the tests give it one of their own.
+Map<String, Object?> billsJson({String id = 'mybills'}) => (jsonDecode(jsonEncode(_fixture)) as Map).cast<String, Object?>()..['id'] = id;
+
+/// The docs' Bills as a test wants it, read by the runtime's parsePack: [id], [name], [version] and the rest in place of
+/// the docs' own, made by @maya. [link] gives it a page its header's button opens, with the permission that needs;
+/// [icon] another picture, [noIcon] none (as a pack in development may be). A pack that doesn't parse throws, saying why.
+PluginPack billsPack({String id = 'bills', String name = 'Bills', String version = '1.0.0', String? developer = 'maya', Uint8List? icon, bool noIcon = false, List<String> shots = const [], String? whatsNew, String? minApp, String? support, String? link, String? description}) {
+  final json = billsJson(id: id)
+    ..['name'] = name
+    ..['version'] = version;
+  if (description != null) json['description'] = description;
+  if (developer == null) {
+    json.remove('developer');
+  } else {
+    json['developer'] = developer;
+  }
+  if (noIcon) {
+    json.remove('icon');
+  } else if (icon != null) {
+    json['icon'] = base64Encode(icon);
+  }
+  if (shots.isNotEmpty) json['shots'] = shots;
+  if (whatsNew != null) json['whatsNew'] = whatsNew;
+  if (minApp != null) json['minApp'] = minApp;
+  if (support != null) json['support'] = support;
+  if (link != null) {
+    json['links'] = [link];
+    json['permissions'] = [...(json['permissions'] as List).cast<String>(), 'links'];
+    ((json['rules'] as Map)['actions'] as List).add({'id': 'openpage', 'label': 'Open the page', 'icon': 'link', 'slots': ['conversation.header'], 'do': 'link', 'url': link});
+  }
+  return parsed(json);
 }
 
-/// The runtime's checks, as the tests have them: a parse that knows the packs given it by their bytes, and a verify
-/// that believes "good" signatures, counting what it was asked.
-class FakeChecks {
-  final Map<String, PluginPack> _packs = {};
-  int verified = 0;
+/// [json] read by the runtime's parsePack, its minApp left for the Marketplace to judge (as a listing is read); throws
+/// with its errors where it isn't a pack.
+PluginPack parsed(Map<String, Object?> json) {
+  final parse = parsePack(canonicalBytes(json), appVersion: appVersion, checkMinApp: false);
+  final pack = parse.pack;
+  if (pack == null) throw StateError('Not a pack: ${[for (final e in parse.errors) '${e.code} at ${e.path}: ${e.message}'].join('; ')}');
+  return pack;
+}
 
-  void know(PluginPack pack) => _packs[sha256Hex(packBytes(pack))] = pack;
+/// [pack]'s bytes as the store holds them: canonical, so each pack has a SHA-256 of its own.
+Uint8List packBytes(PluginPack pack) => canonicalBytes(pack.json);
 
-  PackParse parse(List<int> bytes, {required String appVersion, bool checkMinApp = true}) {
-    final sha = sha256Hex(bytes);
-    final pack = _packs[sha];
-    return pack == null ? const PackParse(issues: [PackIssue('bad_json', '', 'Not a pack these tests know.')]) : PackParse(pack: pack, canonical: Uint8List.fromList(bytes), sha256: sha);
+/// [pack] as a file a developer would load: its JSON made canonical, with [change] made to it first.
+Uint8List packFile(Map<String, Object?> json, [void Function(Map<String, Object?> json)? change]) {
+  final copy = (jsonDecode(jsonEncode(json)) as Map).cast<String, Object?>();
+  change?.call(copy);
+  return canonicalBytes(copy);
+}
+
+/// [pack]'s approval, signed for real by [by] (the tests' reviewer where not given) over its id, version and SHA-256;
+/// [plugin] signs another id over the same bytes. [forged] keeps the reviewer's key but takes another key's signature,
+/// so it reads as theirs and doesn't verify.
+Future<PackApproval> approvalOf(PluginPack pack, {NetSigner? by, String? plugin, bool forged = false}) async {
+  final sha = sha256Hex(packBytes(pack));
+  if (!forged) return signApproval(by ?? reviewer, plugin: plugin ?? pack.id, version: pack.version, sha256: sha);
+  final other = await signApproval(KeysSigner(NetKeys.generate()), plugin: plugin ?? pack.id, version: pack.version, sha256: sha);
+  return PackApproval(plugin: other.plugin, version: other.version, sha256: other.sha256, key: base64Encode((by ?? reviewer).publicKey), sig: other.sig, at: other.at);
+}
+
+/// The catalog's entry for [pack], its approval [approvalOf]'s; [approvedId] lists it, and signs it, under another id.
+Future<CatalogEntry> entryOf(PluginPack pack, {NetSigner? by, bool forged = false, int updatedAt = 1763600000000, String? approvedId}) async {
+  final bytes = packBytes(pack);
+  final approval = await approvalOf(pack, by: by, plugin: approvedId, forged: forged);
+  return CatalogEntry(id: approvedId ?? pack.id, version: pack.version, sha256: sha256Hex(bytes), size: bytes.length, approval: approval, listedAt: updatedAt, updatedAt: updatedAt);
+}
+
+/// A PNG whose chunks are all a pack's icon may hold (so the format takes it) and whose pixels don't decode: what a
+/// tile falls back from.
+Uint8List brokenPng() {
+  Uint8List chunk(String type, List<int> data) {
+    final body = [...ascii.encode(type), ...data];
+    final crc = _crc32(body);
+    return Uint8List.fromList([...(ByteData(4)..setUint32(0, data.length)).buffer.asUint8List(), ...body, ...(ByteData(4)..setUint32(0, crc)).buffer.asUint8List()]);
   }
 
-  Future<List<bool>> verify(List<ApprovalCheck> checks) async {
-    verified += checks.length;
-    return [for (final c in checks) c.approval.sig == 'good' && c.keys.contains(c.approval.key) && !c.retired.contains(c.approval.key)];
+  final ihdr = (ByteData(13)
+        ..setUint32(0, 64)
+        ..setUint32(4, 64)
+        ..setUint8(8, 8)
+        ..setUint8(9, 6))
+      .buffer
+      .asUint8List();
+  return Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, ...chunk('IHDR', ihdr), ...chunk('IDAT', List.filled(24, 7)), ...chunk('IEND', const [])]);
+}
+
+int _crc32(List<int> bytes) {
+  var c = 0xFFFFFFFF;
+  for (final b in bytes) {
+    c ^= b;
+    for (var k = 0; k < 8; k++) {
+      c = (c & 1) != 0 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    }
   }
+  return c ^ 0xFFFFFFFF;
+}
+
+/// The device's packs for real, in [root], pinning the tests' review key (or [keys]), read for [app]: the installers
+/// answer not_loaded before that. Made inside a widget test, never in setUp (see the top of this file).
+Future<InstalledPlugins> installedFor(AppState app, Directory root, {List<String>? keys, bool storeAllowed = true, bool devAllowed = true, HttpClient Function()? http}) async {
+  final installed = InstalledPlugins(root: root, reviewKeys: keys ?? [reviewKey], storeAllowed: storeAllowed, devAllowed: devAllowed, http: http);
+  await installed.load(app, appVersion: appVersion);
+  return installed;
+}
+
+/// [pack] added from the Marketplace for real: its canonical bytes and its approval by [by] (the tests' reviewer),
+/// switched [on]. Throws where the installer refuses it, saying why.
+Future<PackOutcome> addStore(InstalledPlugins installed, PluginPack pack, {bool on = true, NetSigner? by}) async {
+  final out = await installed.installReviewed(packBytes(pack), await approvalOf(pack, by: by), listing: const {'listedAt': 1763600000000}, on: on);
+  if (!out.ok) throw StateError('${pack.id} wasn\'t added: ${out.code}: ${out.message}');
+  return out;
+}
+
+/// [pack] loaded in development for real, as pasting it would load it (or from [source]); [agree] switches it on as
+/// its consent sheet would. Developer mode must be on in the app [installed] was read for. Throws where it isn't loaded.
+Future<PackOutcome> addDev(InstalledPlugins installed, PluginPack pack, {DevSource source = const DevSource('paste'), bool agree = false}) async {
+  final out = await installed.loadDev(packBytes(pack), source);
+  if (!out.ok) throw StateError('${pack.id} wasn\'t loaded: ${out.code}: ${out.message}');
+  if (agree) await installed.agreeDev(pack.id);
+  return out;
+}
+
+/// [pack] withdrawn by the tests' reviewer, [why] its signed reason, handed over as the revoked list would hand it.
+Future<PackRevocation> withdraw(InstalledPlugins installed, PluginPack pack, String why) async {
+  final r = await signRevocation(reviewer, plugin: pack.id, sha256: sha256Hex(packBytes(pack)), why: why);
+  await installed.takeRevocations({'revoked': [r.toJson()], 'retired': const []});
+  return r;
+}
+
+/// [by]'s key retired by its own signature, handed over as the revoked list would hand it: what it approved stops
+/// running, and whatever it signs is no longer a review here.
+Future<void> retire(InstalledPlugins installed, NetSigner by) async {
+  final r = await signRetirement(by);
+  await installed.takeRevocations({'revoked': const [], 'retired': [r.toJson()]});
 }
 
 /// One request the relay was asked.
@@ -115,6 +188,9 @@ class FakeRelay {
   final packages = <String, Uint8List>{};
   final shots = <String, Uint8List>{};
   Map<String, Object?> revoked = const {'ok': true, 'v': 1, 'at': 0, 'revoked': [], 'retired': []};
+
+  /// The revoked list one host answers in place of [revoked] (Ghost Messaging's own, read beside another market).
+  final revokedOf = <String, Map<String, Object?>>{};
   final answers = <String, ({int status, Object? body})>{};
 
   /// A catalog's bytes in place of the one above (a test's too large one).
@@ -124,10 +200,15 @@ class FakeRelay {
   /// Unreachable: every request fails as a socket would.
   bool down = false;
 
-  void list(PluginPack pack, {CatalogEntry? entry}) {
-    final e = entry ?? entryOf(pack);
+  /// While set, packages are answered only once it completes: a refresh caught while it checks.
+  Future<void>? hold;
+
+  /// Lists [pack] with its package, as an approved plugin is: its entry [entry], else one the tests' reviewer signed.
+  Future<CatalogEntry> list(PluginPack pack, {CatalogEntry? entry}) async {
+    final e = entry ?? await entryOf(pack);
     catalog = Catalog(plugins: [...catalog.plugins.where((p) => p.id != e.id), e]);
     packages[e.sha256] = packBytes(pack);
+    return e;
   }
 
   static ({int status, Map<String, String> headers, Uint8List body}) _json(int status, Object? body) => (status: status, headers: const {'content-type': 'application/json'}, body: utf8.encode(jsonEncode(body)));
@@ -142,13 +223,15 @@ class FakeRelay {
       if (catalogBytes != null) return (status: 200, headers: const <String, String>{}, body: catalogBytes!);
       return _json(200, {'ok': true, ...catalog.toJson()});
     }
-    if (path.endsWith('/market/revoked')) return _json(200, revoked);
+    if (path.endsWith('/market/revoked')) return _json(200, revokedOf[url.host] ?? revoked);
     final package = RegExp(r'/market/packages/([0-9a-f]{64})$').firstMatch(path);
     if (package != null) {
       inFlight++;
       if (inFlight > mostInFlight) mostInFlight = inFlight;
       // A turn of the event loop, so the other fetches can start before this one ends.
       await Future<void>.delayed(Duration.zero);
+      final held = hold;
+      if (held != null) await held;
       inFlight--;
       final bytes = packages[package.group(1)];
       return bytes == null ? _json(404, {'ok': false, 'error': 'not_found', 'message': 'There\'s nothing here by that name.'}) : (status: 200, headers: const <String, String>{}, body: bytes);
@@ -171,201 +254,13 @@ class FakeRelay {
   List<String> get paths => [for (final r in asked) '${r.method} ${r.url}'];
 }
 
-/// A pack running in the registry, as the runtime's PackPlugin would be: drawn from its pack, its tab and kind as the
-/// registry's sections, nothing it does to texts.
-class FakePackPlugin extends GhostPlugin {
-  FakePackPlugin(this.pack, {this.source = PluginSource.reviewed});
-  final PluginPack pack;
-  @override
-  final PluginSource source;
-
-  @override
-  String get id => registryIdOf(pack.id);
-  @override
-  String get name => pack.name;
-  @override
-  String get description => pack.description;
-  @override
-  String get tagline => pack.tagline;
-  @override
-  String get hue => pack.hue;
-  @override
-  PluginShelf get shelf => PluginShelf.values.byName(pack.shelf);
-  @override
-  LucideIcon get icon => Lucide.all[pack.symbol] ?? Lucide.puzzle;
-  @override
-  Uint8List? get iconPng => pack.icon;
-  @override
-  List<String> get labels => pack.labels;
-  @override
-  String? get developer => pack.developer;
-  @override
-  String? get version => pack.version;
-  @override
-  bool get onByDefault => false;
-  @override
-  late final List<PluginReach> reaches = packReaches(pack);
-  @override
-  late final List<String> adds = packAdds(pack);
-  @override
-  late final List<ListSection> sections = [
-    for (final s in pack.rules.sections) ListSection(id: sectionIdOf(pack.id, s.key), label: s.label, icon: Lucide.all[s.icon] ?? Lucide.puzzle, filter: s.kind == 'filter', takes: (f, t, p) => false),
-  ];
-  @override
-  late final List<PluginSetting> settings = [
-    for (final s in pack.settings)
-      if (s.type == 'toggle') PluginSetting.toggle(key: s.key!, label: s.label, hint: s.hint, fallback: s.fallback) else if (s.type == 'words') PluginSetting.words(key: s.key!, label: s.label, hint: s.hint, placeholder: s.placeholder),
-  ];
-}
-
-/// The device's packs held in memory, the registry's plugins changed as the runtime would change them.
-class FakeInstalled extends InstalledPlugins {
-  FakeInstalled({required Directory root, required this.checks, PluginRegistry? registry, List<String>? reviewKeys, bool storeAllowed = true, bool devAllowed = true})
-      : _registry = registry,
-        super(root: root, reviewKeys: reviewKeys ?? [reviewKey], storeAllowed: storeAllowed, devAllowed: devAllowed);
-
-  /// How bytes are read as packs: the test's.
-  final FakeChecks checks;
-
-  /// Where a switch is written as the runtime would write it: the test's app.
-  PluginStore? switches;
-
-  final PluginRegistry? _registry;
-  PluginRegistry get registry => _registry ?? PluginRegistry.instance;
-
-  final stores = <InstalledPack>[];
-  final devs = <DevPack>[];
-  final revokedShas = <String>{};
-  final took = <Object?>[];
-  final installs = <({Uint8List bytes, PackApproval approval, Map<String, Object?> listing, bool on})>[];
-  final calls = <String>[];
-
-  /// What the next installReviewed answers where it isn't ok (a test's refusal).
-  PackOutcome? refuse;
-
-  /// The dev packs agreed to, and what the next load answers.
-  final agreed = <String>{};
-  PackOutcome? nextLoad;
-
-  @override
-  List<InstalledPack> get store => List.unmodifiable(stores);
-  @override
-  List<DevPack> get dev => List.unmodifiable(devs);
-  @override
-  bool isRevoked(String sha256) => revokedShas.contains(sha256);
-
-  /// Review keys retired by their own signature, as a test says (the runtime's are read from the revoked list).
-  Set<String> retired = {};
-  @override
-  Set<String> get retiredKeys => retired;
-  @override
-  bool mayTurnOnDev(String packId) => agreed.contains(packId);
-
-  void tell() => notifyListeners();
-
-  /// A store pack on this device, running in the registry (switched [on]) or stuck with [problem].
-  void putStore(PluginPack pack, {bool on = true, String? problem, bool running = true, PackRevocation? revoked}) {
-    final plugin = FakePackPlugin(pack);
-    stores.removeWhere((p) => p.id == pack.id);
-    if (running) {
-      registry.uninstall(plugin.id);
-      registry.install(plugin);
-      switches?.write(PluginRegistry.switchKey(plugin), on ? 'on' : 'off');
-    }
-    stores.add(InstalledPack(id: pack.id, version: pack.version, sha256: sha256Hex(packBytes(pack)), installedAt: DateTime(2026, 11, 20), pack: pack, running: running, problem: problem, revoked: revoked, listing: {'name': pack.name, 'tagline': pack.tagline, 'hue': pack.hue, 'symbol': pack.symbol}));
-    tell();
-  }
-
-  /// A dev pack loaded, running in the registry.
-  void putDev(PluginPack? pack, {String? id, DevSource source = const DevSource('paste'), List<PackIssue> issues = const [], List<DevError> errors = const [], bool running = true, String? problem}) {
-    final packId = pack?.id ?? id!;
-    devs.removeWhere((d) => d.id == packId);
-    if (pack != null && running) {
-      registry.uninstall(registryIdOf(packId));
-      registry.install(FakePackPlugin(pack, source: PluginSource.dev));
-    }
-    devs.add(DevPack(id: packId, source: source, loadedAt: DateTime(2026, 11, 20, 9), pack: pack, issues: issues, errors: errors, agreed: agreed.contains(packId) ? DevPack.consentLines(pack!) : null, problem: problem, running: running && pack != null));
-    tell();
-  }
-
-  @override
-  Future<PackOutcome> installReviewed(Uint8List bytes, PackApproval approval, {Map<String, Object?> listing = const {}, bool on = true}) async {
-    installs.add((bytes: bytes, approval: approval, listing: listing, on: on));
-    final refused = refuse;
-    if (refused != null) return refused;
-    final pack = checks.parse(bytes, appVersion: '0.10.1').pack;
-    if (pack == null) return const PackOutcome.failed('invalid', 'The plugin has problems.');
-    final had = stores.where((p) => p.id == pack.id).firstOrNull;
-    final wasOn = had != null && switches?.read('plugin_x${pack.id}') == 'on';
-    putStore(pack, on: had == null ? on : (on || wasOn));
-    return PackOutcome.ok(registry.plugins.firstWhere((p) => p.id == registryIdOf(pack.id)));
-  }
-
-  @override
-  Future<PackOutcome> removeStore(String packId, {bool forget = false}) async {
-    calls.add('removeStore $packId${forget ? ' forget' : ''}');
-    stores.removeWhere((p) => p.id == packId);
-    registry.uninstall(registryIdOf(packId));
-    switches?.write('plugin_x$packId', '');
-    tell();
-    return PackOutcome.ok(FakePackPlugin(billsPack(id: packId)));
-  }
-
-  @override
-  Future<PackOutcome> loadDev(List<int> bytes, DevSource source, {bool on = false}) async {
-    calls.add('loadDev ${source.kind} ${utf8.decode(bytes, allowMalformed: true).length}');
-    final out = nextLoad;
-    if (out != null) return out;
-    final pack = checks.parse(bytes, appVersion: '0.10.1').pack;
-    if (pack == null) return const PackOutcome.failed('invalid', 'The plugin has problems.', issues: [PackIssue('bad_json', '', 'That isn\'t JSON.')]);
-    putDev(pack, source: source);
-    return PackOutcome.ok(registry.plugins.firstWhere((p) => p.id == registryIdOf(pack.id)), needsConsent: !agreed.contains(pack.id));
-  }
-
-  @override
-  Future<PackOutcome> agreeDev(String packId) async {
-    calls.add('agreeDev $packId');
-    agreed.add(packId);
-    final d = devs.where((d) => d.id == packId).firstOrNull;
-    if (d?.pack != null) putDev(d!.pack, source: d.source);
-    final plugin = registry.plugins.where((p) => p.id == registryIdOf(packId)).firstOrNull;
-    if (plugin != null) switches?.write(PluginRegistry.switchKey(plugin), 'on');
-    tell();
-    return plugin == null ? const PackOutcome.failed('not_found', 'Not loaded.') : PackOutcome.ok(plugin);
-  }
-
-  @override
-  Future<PackOutcome> reloadDev(String packId) async {
-    calls.add('reloadDev $packId');
-    final d = devs.where((d) => d.id == packId).first;
-    return PackOutcome.ok(registry.plugins.firstWhere((p) => p.id == registryIdOf(d.id)));
-  }
-
-  @override
-  Future<PackOutcome> removeDev(String packId) async {
-    calls.add('removeDev $packId');
-    devs.removeWhere((d) => d.id == packId);
-    registry.uninstall(registryIdOf(packId));
-    tell();
-    return PackOutcome.ok(FakePackPlugin(billsPack(id: packId), source: PluginSource.dev));
-  }
-
-  @override
-  void unpause(String packId) => calls.add('unpause $packId');
-
-  @override
-  Future<int> takeRevocations(Object? json) async {
-    took.add(json);
-    return 0;
-  }
-}
-
-/// A MarketState over [relay], [installed] and [checks], its cache in [cache].
-MarketState marketOver(FakeRelay relay, FakeInstalled installed, FakeChecks checks, Directory cache, {DateTime Function()? now, NetSigner? signer}) {
+/// A MarketState over [relay], its cache in [cache], reading the device's packs from [installed] (else whatever
+/// InstalledPlugins.instance is when it asks, so a test can put its own in place after this is made), checking
+/// approvals with the runtime's own verifyApproval ([verify] may wrap it, to count).
+MarketState marketOver(FakeRelay relay, Directory cache, {InstalledPlugins? installed, DateTime Function()? now, NetSigner? signer, MarketVerify? verify}) {
   final api = MarketApi(hubUrl: 'https://relay.test', signer: signer ?? devSigner, transport: relay.call, now: now);
-  return MarketState(api: () => api, cache: cache, installed: installed, parse: checks.parse, verify: checks.verify, now: now, appVersion: '0.10.1');
+  return MarketState(api: () => api, cache: cache, installed: installed, now: now, verify: verify, appVersion: appVersion);
 }
-
 
 /// The Marketplace's submissions, plugins, reports and review as a relay would keep them (SPEC C.4 to C.6), in memory:
 /// enough of the relay for the submission form, My submissions and the review screens to run against.
@@ -614,19 +509,4 @@ class FakeMarketStore {
     }
     return null;
   }
-}
-
-/// [pack] as a file a developer would load: its JSON made canonical, with [change] made to it first.
-Uint8List packFile(Map<String, Object?> json, [void Function(Map<String, Object?> json)? change]) {
-  final copy = (jsonDecode(jsonEncode(json)) as Map).cast<String, Object?>();
-  change?.call(copy);
-  return canonicalBytes(copy);
-}
-
-/// The docs' Bills (test/fixtures/packs/bills.ghostplugin, SPEC A.15) as decoded JSON: the example's id is refused for a
-/// submission, so the tests give it one of their own.
-Map<String, Object?> billsJson({String id = 'mybills'}) {
-  final j = (jsonDecode(File('test/fixtures/packs/bills.ghostplugin').readAsStringSync()) as Map).cast<String, Object?>();
-  j['id'] = id;
-  return j;
 }

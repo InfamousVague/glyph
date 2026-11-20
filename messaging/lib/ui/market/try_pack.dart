@@ -15,11 +15,6 @@ import '../../kit/settings_type.dart';
 import '../../plugins/pack/pack.dart';
 import '../../plugins/registry.dart' show PluginStore;
 
-/// How a trial is run: [tryPack] where not given (a test gives its own while the runtime is a stub).
-typedef PackTrialRun = PackTrial Function(PluginPack pack, {required String text, String from, bool switchesOn, PluginStore? store});
-
-PackTrial _realTry(PluginPack pack, {required String text, String from = '72975', bool switchesOn = false, PluginStore? store}) => tryPack(pack, text: text, from: from, switchesOn: switchesOn, store: store);
-
 /// Where a pack's button is offered, in words.
 String _slotWords(String slot) => switch (slot) {
       'row' => 'On its row',
@@ -50,13 +45,12 @@ List<String> trialLines(PluginPack pack, PackTrial r) {
 /// try-result, samples), then [keySuffix]: a dev pack's page passes `dev-plugin-` and `-<packId>`. Given the person's
 /// [store], a built-in that would take a text first is named.
 class TryPackSection extends StatefulWidget {
-  const TryPackSection(this.pack, {super.key, required this.keyPrefix, this.keySuffix = '', this.store, this.run});
+  const TryPackSection(this.pack, {super.key, required this.keyPrefix, this.keySuffix = '', this.store});
 
   final PluginPack pack;
   final String keyPrefix;
   final String keySuffix;
   final PluginStore? store;
-  final PackTrialRun? run;
 
   @override
   State<TryPackSection> createState() => _TryPackSectionState();
@@ -71,8 +65,6 @@ class _TryPackSectionState extends State<TryPackSection> {
 
   Key _k(String name) => ValueKey('${widget.keyPrefix}$name${widget.keySuffix}');
 
-  PackTrialRun get _run => widget.run ?? _realTry;
-
   @override
   void dispose() {
     _text.dispose();
@@ -86,7 +78,7 @@ class _TryPackSectionState extends State<TryPackSection> {
     final from = _from.text.trim().isEmpty ? '72975' : _from.text.trim();
     setState(() {
       try {
-        _result = trialLines(widget.pack, _run(widget.pack, text: text, from: from, switchesOn: _on, store: widget.store));
+        _result = trialLines(widget.pack, tryPack(widget.pack, text: text, from: from, switchesOn: _on, store: widget.store));
       } catch (e) {
         _result = ['It couldn\'t be tried: $e'];
       }
@@ -101,7 +93,7 @@ class _TryPackSectionState extends State<TryPackSection> {
             s,
             () {
               try {
-                final r = _run(widget.pack, text: s.text, from: s.from, switchesOn: _on, store: widget.store);
+                final r = tryPack(widget.pack, text: s.text, from: s.from, switchesOn: _on, store: widget.store);
                 if (!r.seen) return 'not seen';
                 final label = r.section == null ? null : widget.pack.rules.sections.where((x) => x.key == r.section).firstOrNull?.label;
                 final tags = [for (final e in r.tags.entries) e.value == null ? e.key : '${e.key}=${e.value}'];

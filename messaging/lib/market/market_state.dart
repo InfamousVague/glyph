@@ -27,23 +27,19 @@ import 'market_models.dart';
 /// One approval to check, as verifyApproval is asked it.
 typedef ApprovalCheck = ({PackApproval approval, String plugin, String version, String sha256, List<String> keys, Set<String> retired});
 
-/// How a package is read (parsePack's shape): a test gives its own while the runtime's checks are stubs.
-typedef MarketParse = PackParse Function(List<int> bytes, {required String appVersion, bool checkMinApp});
-
-/// How approvals are checked, a batch at once: by default verifyApproval for each, in Isolate.run, since a P-256
-/// verification in pure Dart costs milliseconds and a catalog has many.
+/// How approvals are checked, a batch at once: [MarketState.verifyApprovals] unless a test wraps it, to count.
 typedef MarketVerify = Future<List<bool>> Function(List<ApprovalCheck> checks);
 
 class MarketState extends ChangeNotifier {
   /// Nothing is read or written here: [start] and [refresh] do it. [installed] and [cache] are read when first used, so
-  /// lib/desktop/main.dart can put its own InstalledPlugins in place at startup after this is made.
-  MarketState({MarketApi Function()? api, Directory? cache, InstalledPlugins? installed, DateTime Function()? now, MarketParse? parse, MarketVerify? verify, String? appVersion})
+  /// lib/desktop/main.dart can put its own InstalledPlugins in place at startup after this is made. [now], [verify] and
+  /// [appVersion] are a test's: its clock, the runtime's verifyApproval counted, the version its packs are read for.
+  MarketState({MarketApi Function()? api, Directory? cache, InstalledPlugins? installed, DateTime Function()? now, MarketVerify? verify, String? appVersion})
       : _api = api,
         _cache = cache,
         _installed = installed,
         _now = now ?? DateTime.now,
-        _parse = parse ?? _parseOf,
-        _verify = verify ?? _verifyAll,
+        _verify = verify ?? verifyApprovals,
         _appVersion = appVersion;
 
   static MarketState instance = MarketState();
@@ -52,22 +48,31 @@ class MarketState extends ChangeNotifier {
   Directory? _cache;
   final InstalledPlugins? _installed;
   final DateTime Function() _now;
-  final MarketParse _parse;
   final MarketVerify _verify;
   final String? _appVersion;
 
-  static PackParse _parseOf(List<int> bytes, {required String appVersion, bool checkMinApp = true}) => parsePack(bytes, appVersion: appVersion, checkMinApp: checkMinApp);
+  /// Whether approvals are checked on an isolate of their own, as they are in the app: a P-256 verification in pure
+  /// Dart costs milliseconds, and a catalog has many. A widget test's clock never lets an isolate's answer arrive, so
+  /// under flutter test they are checked in place, as InstalledPlugins checks its own, unless a test asks for the
+  /// isolate.
+  @visibleForTesting
+  static bool verifyInIsolate = !Platform.environment.containsKey('FLUTTER_TEST');
 
-  static Future<List<bool>> _verifyAll(List<ApprovalCheck> checks) => Isolate.run(() => [
-        for (final c in checks)
-          () {
-            try {
-              return verifyApproval(c.approval, plugin: c.plugin, version: c.version, sha256: c.sha256, keys: c.keys, retired: c.retired);
-            } catch (_) {
-              return false;
-            }
-          }(),
-      ]);
+  /// The runtime's verifyApproval for each of [checks], in order; one that throws is false. Not an async function, so
+  /// what goes to the isolate holds [checks] and nothing of an await's.
+  static Future<List<bool>> verifyApprovals(List<ApprovalCheck> checks) {
+    List<bool> all() => [
+          for (final c in checks)
+            () {
+              try {
+                return verifyApproval(c.approval, plugin: c.plugin, version: c.version, sha256: c.sha256, keys: c.keys, retired: c.retired);
+              } catch (_) {
+                return false;
+              }
+            }(),
+        ];
+    return verifyInIsolate ? Isolate.run(all) : Future.value(all());
+  }
 
   /// Asked each time: the identity and the relay can change while the app runs.
   MarketApi get api => (_api ?? MarketApi.live)();
@@ -83,13 +88,6 @@ class MarketState extends ChangeNotifier {
   /// The checked listings, newest change first: an approved plugin's package that checked out.
   List<ListingPlugin> get listings => List.unmodifiable(_listings);
   List<ListingPlugin> _listings = const [];
-
-  /// Listings put in place without a refresh: a test drawing a screen, whose fakes can't wait for one.
-  @visibleForTesting
-  set debugListings(List<ListingPlugin> listings) {
-    _listings = listings;
-    _say();
-  }
 
   /// How many packages are still being fetched or checked.
   int checking = 0;
@@ -217,7 +215,8 @@ class MarketState extends ChangeNotifier {
   Future<void> _takeRevoked(MarketApi api) async {
     try {
       final list = await api.revoked();
-      if (list != null) await installed.takeRevocations(list.json);
+      // An empty list has nothing to take: the installer is left alone, and its revoked.json isn't written again.
+      if (list != null && (list.revoked.isNotEmpty || list.retired.isNotEmpty)) await installed.takeRevocations(list.json);
     } catch (e) {
       _log('revoked: ${e is MarketError ? e.code : e}');
     }
@@ -267,7 +266,7 @@ class MarketState extends ChangeNotifier {
             _leaveOut(e, 'sha_mismatch');
             continue;
           }
-          final parse = _parse(bytes, appVersion: _version, checkMinApp: false);
+          final parse = parsePack(bytes, appVersion: _version, checkMinApp: false);
           final pack = parse.pack;
           if (pack == null) {
             _leaveOut(e, 'invalid');

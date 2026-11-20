@@ -27,7 +27,7 @@ Finder _key(String k) => find.byKey(ValueKey(k));
 
 void main() {
   late Directory dir;
-  late FakeInstalled installed;
+  InstalledPlugins? installed;
   late FakeRelay relay;
   late MarketState market;
   late MarketApi api;
@@ -44,11 +44,11 @@ void main() {
     });
     dir = Directory.systemTemp.createTempSync('market-mine-');
     PluginRegistry.instance = PluginRegistry(shippedPlugins);
-    installed = FakeInstalled(root: Directory('${dir.path}/plugins'), checks: FakeChecks());
-    InstalledPlugins.instance = installed;
+    installed = null;
     relay = FakeRelay();
     api = MarketApi(hubUrl: 'https://relay.test', signer: devSigner, transport: relay.call);
-    market = MarketState(api: () => api, cache: Directory('${dir.path}/market'), installed: installed, appVersion: '0.10.1');
+    // It reads InstalledPlugins.instance as it goes: each test puts its own in place.
+    market = MarketState(api: () => api, cache: Directory('${dir.path}/market'), appVersion: '0.10.1');
     MarketState.instance = market;
     state = AppState();
   });
@@ -59,7 +59,12 @@ void main() {
     dir.deleteSync(recursive: true);
   });
 
+  /// This device's packs, read for the app the page draws from: made inside the test, whose zone its work runs in, the
+  /// first time the test asks.
+  Future<InstalledPlugins> ready() async => installed ??= InstalledPlugins.instance = await installedFor(state, Directory('${dir.path}/plugins'));
+
   Future<void> page(WidgetTester tester, {MarketApi? with_, String? highlight}) async {
+    await ready();
     await tester.pumpWidget(const SizedBox());
     final sheet = await loadSheet(tester);
     await pumpScreen(tester, sheet, MySubmissionsScreen(api: with_ ?? api, market: market, highlight: highlight), state, size: const Size(412, 5200));

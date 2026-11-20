@@ -1,15 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/art/app_icon.dart';
-import 'package:ghost_messaging/market/listing_plugin.dart';
 import 'package:ghost_messaging/market/market_models.dart';
 import 'package:ghost_messaging/market/market_state.dart';
 import 'package:ghost_messaging/net/crypto.dart';
+import 'package:ghost_messaging/net/hub_carrier.dart' show KeysSigner;
 import 'package:ghost_messaging/plugins/codes.dart';
 import 'package:ghost_messaging/plugins/pack/pack.dart';
 import 'package:ghost_messaging/plugins/registry.dart';
@@ -26,13 +26,13 @@ import 'support/market_fakes.dart';
 /// would like users to be able to develop and submit their own plugins to our plugin marketplace and I'd like to be able
 /// to verify them for the store through a review process"): a checked listing's card and page drawn from its package,
 /// adding it after its consent sheet, the chips and shelves for packs, a store pack's Remove, a stuck pack's words,
-/// Updates, a new developer, a computer with no texts, an iPhone, the catalog's lines, pictures and screenshots.
+/// Updates, a new developer, a computer with no texts, an iPhone, the catalog's lines, pictures and screenshots. Every
+/// pack is read, checked, installed, withdrawn and retired by the runtime itself; only the relay is made up.
 Finder _key(String k) => find.byKey(ValueKey(k));
 
 void main() {
   late Directory dir;
-  late FakeChecks checks;
-  late FakeInstalled installed;
+  late InstalledPlugins installed;
   late FakeRelay relay;
   late MarketState market;
   late AppState state;
@@ -41,15 +41,12 @@ void main() {
   setUp(() {
     ListPhone(const []).install();
     dir = Directory.systemTemp.createTempSync('market-discover-');
-    checks = FakeChecks();
     PluginRegistry.instance = PluginRegistry(const [CodesPlugin(), SpamPlugin()]);
-    installed = FakeInstalled(root: Directory('${dir.path}/plugins'), checks: checks);
-    InstalledPlugins.instance = installed;
     relay = FakeRelay();
-    market = marketOver(relay, installed, checks, Directory('${dir.path}/market'));
+    // It reads InstalledPlugins.instance as it goes: each test puts its own in place.
+    market = marketOver(relay, Directory('${dir.path}/market'));
     MarketState.instance = market;
     state = AppState();
-    installed.switches = AppStore(state);
   });
   tearDown(() {
     InstalledPlugins.instance = oldInstalled;
@@ -59,11 +56,17 @@ void main() {
     dir.deleteSync(recursive: true);
   });
 
-  /// Lists [packs] on the relay and has the Marketplace check them, as a refresh does (real I/O, outside the fake clock).
+  /// This device's packs, read for the app the screens draw from: made inside the test, whose zone its work runs in.
+  Future<void> ready({List<String>? keys, bool storeAllowed = true}) async {
+    installed = await installedFor(state, Directory('${dir.path}/plugins'), keys: keys, storeAllowed: storeAllowed);
+    InstalledPlugins.instance = installed;
+  }
+
+  /// Lists [packs] on the relay, each approved by the tests' reviewer unless [entries] says otherwise, and has the
+  /// Marketplace fetch and check them, as a refresh does (real I/O, outside the test's clock).
   Future<void> listed(WidgetTester tester, List<PluginPack> packs, {Map<String, CatalogEntry> entries = const {}}) async {
     for (final p in packs) {
-      checks.know(p);
-      relay.list(p, entry: entries[p.id]);
+      await relay.list(p, entry: entries[p.id]);
     }
     await tester.runAsync(() => market.refresh(force: true));
   }
@@ -73,10 +76,12 @@ void main() {
     await pumpScreen(tester, sheet, screen, state, size: size);
   }
 
+  bool running(String id) => PluginRegistry.instance.plugins.any((p) => p.id == id);
+
   testWidgets('a checked listing\'s card: drawn from its package, Reviewed, its tags; an unchecked entry isn\'t shown', (tester) async {
-    final bills = billsPack();
+    await ready();
     final forged = billsPack(id: 'receipts', name: 'Receipts');
-    await listed(tester, [bills, forged], entries: {'receipts': entryOf(forged, sig: 'forged')});
+    await listed(tester, [billsPack(), forged], entries: {'receipts': await entryOf(forged, forged: true)});
     await page(tester, marketPluginsScreen());
     final card = _key('plugins-card-xbills');
     await tester.ensureVisible(card);
@@ -96,6 +101,7 @@ void main() {
   });
 
   testWidgets('the consent sheet is the package\'s own lines; Add installs it, it moves to Added, and the toast names its tab', (tester) async {
+    await ready();
     await listed(tester, [billsPack()]);
     await page(tester, marketPluginsScreen());
     await tester.ensureVisible(_key('plugins-add-xbills'));
@@ -104,16 +110,18 @@ void main() {
     await settle(tester);
     final consent = _key('market-consent');
     expect(consent, findsOneWidget);
-    for (final line in ['By @maya', 'Reviewed by Ghost Messaging', 'Reads texts from numbers not in your contacts', 'Sorts texts into its own tabs and kinds', 'Copies to your clipboard when you ask', 'It adds:', 'A Bills tab in the list', 'A kind in the list\'s filter: Receipts']) {
+    for (final line in ['By @maya', 'Reviewed by Ghost Messaging', 'Reads texts from numbers not in your contacts', 'Sorts texts into its own tabs and kinds', 'Can mark texts as read', 'Copies to your clipboard when you ask', 'It adds:', 'A Bills tab in the list', 'A kind in the list\'s filter: Receipts', 'Can mark Receipts texts as read as they come, once you switch it on']) {
       expect(find.descendant(of: consent, matching: find.text(line)), findsOneWidget, reason: line);
     }
     expect(_key('market-consent-dev'), findsNothing);
+    expect(installed.store, isEmpty, reason: 'nothing is added before the sheet is answered');
     await tester.ensureVisible(find.text('Add Bills'));
     await settle(tester);
     await tester.tap(find.text('Add Bills'));
     await settle(tester);
-    expect(installed.installs.single.on, isTrue);
-    expect(installed.installs.single.bytes, packBytes(billsPack()), reason: 'the bytes that were checked');
+    expect(File('${dir.path}/plugins/store/bills/1.0.0/package.ghostplugin').readAsBytesSync(), packBytes(billsPack()), reason: 'the bytes that were checked');
+    expect(state.flag('plugin_xbills', fallback: false), isTrue);
+    expect(running('xbills'), isTrue);
     expect(find.text('Bills added. Its Bills tab is in Messages.'), findsOneWidget);
     await tester.ensureVisible(_key('plugins-shelf-added'));
     await settle(tester);
@@ -122,6 +130,7 @@ void main() {
   });
 
   testWidgets('a listing that needs a newer app, and one on a computer with no texts, can\'t be added, and say why', (tester) async {
+    await ready();
     await listed(tester, [billsPack(minApp: '9.0.0')]);
     expect(market.listings.single.needsNewerApp, isTrue);
     await page(tester, marketPluginsScreen(open: 'xbills'));
@@ -132,17 +141,18 @@ void main() {
     expect(_key('market-consent'), findsNothing);
     // A computer of its own, with no phone's texts.
     Sms.standalone = true;
-    final fine = billsPack(id: 'parcels', name: 'Parcels');
-    await listed(tester, [fine]);
+    await listed(tester, [billsPack(id: 'parcels', name: 'Parcels')]);
     await page(tester, marketPluginsScreen(open: 'xparcels'));
     expect(_key('plugins-detail-nohere'), findsOneWidget);
     expect(find.text(marketNoTextsWords), findsWidgets);
     await tester.tap(find.descendant(of: _key('plugins-detail-xparcels'), matching: _key('plugins-add-xparcels')), warnIfMissed: false);
     await settle(tester);
     expect(_key('market-consent'), findsNothing);
+    expect(installed.store, isEmpty);
   });
 
   testWidgets('From developers and In development chips; Added and In development alone, and their empty words', (tester) async {
+    await ready();
     await listed(tester, [billsPack()]);
     await page(tester, marketPluginsScreen());
     expect(_key('plugins-chip-store'), findsOneWidget);
@@ -153,7 +163,9 @@ void main() {
     await settle(tester);
     expect(find.descendant(of: _key('plugins-shelf-store'), matching: _key('plugins-card-xbills')), findsOneWidget);
     expect(find.descendant(of: _key('plugins-shelf-store'), matching: _key('plugins-card-codes')), findsNothing);
-    installed.putDev(billsPack(id: 'tickets', name: 'Tickets'));
+    state.setFlag('dev_mode', true);
+    // A pack in development may come with no picture: its tile draws its symbol.
+    await addDev(installed, billsPack(id: 'tickets', name: 'Tickets', noIcon: true));
     await settle(tester);
     expect(_key('plugins-chip-dev'), findsOneWidget);
     await tester.ensureVisible(_key('plugins-chip-dev'));
@@ -162,6 +174,9 @@ void main() {
     await settle(tester);
     expect(find.descendant(of: _key('plugins-shelf-dev'), matching: _key('plugins-card-xtickets')), findsOneWidget);
     expect(_key('plugins-dev-xtickets'), findsOneWidget);
+    final tile = find.descendant(of: _key('plugins-card-xtickets'), matching: find.byType(PluginTile));
+    expect(find.descendant(of: tile, matching: find.byType(AppIcon)), findsOneWidget);
+    expect(find.descendant(of: tile, matching: find.byType(Image)), findsNothing);
     // In development alone: the dev packs, no band, no chips, no search.
     await page(tester, marketPluginsScreen(title: 'In development', shelf: 'dev', head: false));
     expect(find.descendant(of: _key('plugins-shelf-dev'), matching: _key('plugins-card-xtickets')), findsOneWidget);
@@ -181,6 +196,7 @@ void main() {
   });
 
   testWidgets('search finds a plugin by who made it and by its tag', (tester) async {
+    await ready();
     await listed(tester, [billsPack()]);
     await page(tester, marketPluginsScreen());
     Future<void> search(String words) async {
@@ -193,11 +209,13 @@ void main() {
     expect(find.descendant(of: _key('plugins-shelf-found'), matching: _key('plugins-card-codes')), findsNothing);
     await search('money');
     expect(find.descendant(of: _key('plugins-shelf-found'), matching: _key('plugins-card-xbills')), findsOneWidget);
-    await search('nobody');
-    expect(find.text('Nothing called “nobody”.'), findsOneWidget);
+    // The docs' Bills says "Nobody in your contacts is ever sorted": a word no plugin here has.
+    await search('zebra');
+    expect(find.text('Nothing called “zebra”.'), findsOneWidget);
   });
 
   testWidgets('a tag pressed on a plugin\'s page searches for it', (tester) async {
+    await ready();
     await listed(tester, [billsPack()]);
     await page(tester, marketPluginsScreen(open: 'xbills'), size: const Size(1180, 860));
     await tester.tap(_key('plugins-detail-label-money'));
@@ -207,7 +225,8 @@ void main() {
   });
 
   testWidgets('a store pack\'s page: Reviewed by Ghost Messaging; Remove asks, then removes', (tester) async {
-    installed.putStore(billsPack(support: 'help@example.com'));
+    await ready();
+    await addStore(installed, billsPack(support: 'help@example.com'));
     await page(tester, marketPluginsScreen(open: 'xbills'));
     expect(_key('plugins-detail-xbills'), findsOneWidget);
     expect(tester.widget<Text>(_key('plugins-detail-source')).data, 'By @maya\nReviewed by Ghost Messaging');
@@ -226,18 +245,25 @@ void main() {
     await tester.tap(find.descendant(of: _key('plugins-detail-xbills'), matching: _key('plugins-remove-xbills')));
     await settle(tester);
     expect(_key('market-remove-confirm'), findsOneWidget);
-    expect(installed.calls, isEmpty, reason: 'asks first');
+    expect(installed.storeOf('bills'), isNotNull, reason: 'asks first');
     await tester.ensureVisible(find.text('Remove Bills'));
     await settle(tester);
     await tester.tap(find.text('Remove Bills'));
     await settle(tester);
-    expect(installed.calls, ['removeStore bills']);
+    expect(installed.storeOf('bills'), isNull);
+    expect(running('xbills'), isFalse);
+    expect(Directory('${dir.path}/plugins/store/bills').existsSync(), isFalse);
   });
 
-  testWidgets('a withdrawn pack and one whose key isn\'t trusted show on Added as stuck, with their words, and go with Remove', (tester) async {
-    final why = PackRevocation(plugin: 'bills', sha256: sha256Hex(packBytes(billsPack())), at: 1, why: 'It copied texts it shouldn\'t have', key: reviewKey, sig: 'x');
-    installed.putStore(billsPack(), running: false, problem: 'revoked', revoked: why);
-    installed.putStore(billsPack(id: 'parcels', name: 'Parcels'), running: false, problem: 'untrusted_key');
+  testWidgets('a withdrawn pack and one whose key was retired show on Added as stuck, with their words, and go with Remove', (tester) async {
+    // A second review key this build pins, then retires by its own signature.
+    final second = KeysSigner(NetKeys.generate());
+    await ready(keys: [reviewKey, base64Encode(second.publicKey)]);
+    await addStore(installed, billsPack());
+    await addStore(installed, billsPack(id: 'parcels', name: 'Parcels'), by: second);
+    await withdraw(installed, billsPack(), 'It copied texts it shouldn\'t have');
+    await retire(installed, second);
+    expect([for (final p in installed.store) '${p.id} ${p.problem} ${p.running}'], ['bills revoked false', 'parcels untrusted_key false']);
     await page(tester, marketPluginsScreen(title: 'Added', shelf: 'added', head: false));
     final stuck = _key('plugins-shelf-stuck');
     expect(find.descendant(of: stuck, matching: _key('plugins-card-xbills')), findsOneWidget);
@@ -255,13 +281,22 @@ void main() {
     await settle(tester);
     await tester.tap(find.text('Remove Bills'));
     await settle(tester);
-    expect(installed.calls, ['removeStore bills']);
+    expect([for (final p in installed.store) p.id], ['parcels']);
     await page(tester, marketPluginsScreen(open: 'xparcels'));
     expect(find.descendant(of: _key('plugins-detail-withdrawn'), matching: find.text('This version of Ghost Messaging can\'t check its review, so it\'s off. An update may fix it.')), findsOneWidget);
+    await tester.tap(find.descendant(of: _key('plugins-detail-xparcels'), matching: _key('plugins-remove-xparcels')));
+    await settle(tester);
+    await tester.ensureVisible(find.text('Remove Parcels'));
+    await settle(tester);
+    await tester.tap(find.text('Remove Parcels'));
+    await settle(tester);
+    expect(installed.store, isEmpty);
+    expect(Directory('${dir.path}/plugins/store').listSync(), isEmpty, reason: 'their files went with them');
   });
 
   testWidgets('Updates: Update replaces it keeping the switch off; where it can do more, it asks first, the new host shown', (tester) async {
-    installed.putStore(billsPack(), on: false);
+    await ready();
+    await addStore(installed, billsPack(), on: false);
     await listed(tester, [billsPack(version: '1.1.0', whatsNew: 'Faster.')]);
     expect(market.updates, hasLength(1));
     await page(tester, const MarketUpdatesPage());
@@ -269,28 +304,48 @@ void main() {
     expect(find.textContaining('1.0.0 → 1.1.0'), findsOneWidget);
     await tester.tap(find.descendant(of: _key('market-update-bills'), matching: find.text('Update')));
     await settle(tester);
-    expect(installed.installs.single.on, isFalse, reason: 'an update leaves the switch as it was');
-    expect(state.flag('plugin_xbills', fallback: false), isFalse);
-    expect(installed.store.single.version, '1.1.0');
+    expect(installed.storeOf('bills')!.version, '1.1.0');
+    expect(state.flag('plugin_xbills', fallback: false), isFalse, reason: 'an update leaves the switch as it was');
     expect(_key('market-updates-none'), findsOneWidget, reason: 'it stays, saying so');
     // A version that opens a page of its own asks first, saying where.
-    await listed(tester, [billsPack(version: '1.2.0', links: const ['https://bills.example/pay'], permissions: const {PackPermission.sort, PackPermission.copy, PackPermission.markRead, PackPermission.links})]);
+    await listed(tester, [billsPack(version: '1.2.0', link: 'https://bills.example/pay')]);
     await settle(tester);
     await tester.tap(find.descendant(of: _key('market-update-bills'), matching: find.text('Update')));
     await settle(tester);
     expect(_key('market-update-grew'), findsOneWidget);
     expect(find.text('It can now:'), findsOneWidget);
     expect(find.text('Opens bills.example in your browser'), findsOneWidget);
+    expect(find.text('A button in a conversation\'s header'), findsOneWidget);
     expect(find.text('Reads texts from numbers not in your contacts'), findsNothing, reason: 'only what is new');
+    expect(installed.storeOf('bills')!.version, '1.1.0', reason: 'nothing until it is agreed to');
     await tester.ensureVisible(find.text('Update Bills'));
     await settle(tester);
     await tester.tap(find.text('Update Bills'));
     await settle(tester);
-    expect(installed.store.single.version, '1.2.0');
+    expect(installed.storeOf('bills')!.version, '1.2.0');
+    expect(installed.storeOf('bills')!.pack!.links, ['https://bills.example/pay']);
+  });
+
+  testWidgets('Update all: those that can do nothing new; one that can do more asks on its own', (tester) async {
+    await ready();
+    await addStore(installed, billsPack());
+    await addStore(installed, billsPack(id: 'parcels', name: 'Parcels'));
+    await listed(tester, [billsPack(version: '1.1.0'), billsPack(id: 'parcels', name: 'Parcels', version: '1.1.0', link: 'https://parcels.example/track')]);
+    await page(tester, const MarketUpdatesPage());
+    expect(find.descendant(of: _key('market-update-all'), matching: find.text('1 of 2: the others can do something new, so each asks first.')), findsOneWidget);
+    await tester.tap(_key('market-update-all'));
+    await settle(tester);
+    expect([for (final p in installed.store) '${p.id} ${p.version}'], ['bills 1.1.0', 'parcels 1.0.0']);
+    expect(find.text('1 updated'), findsOneWidget);
+    expect(_key('market-update-parcels'), findsOneWidget, reason: 'still waiting, to be asked about');
+    expect(_key('market-update-all'), findsNothing, reason: 'one left');
   });
 
   testWidgets('a newer version by another developer is offered as a new plugin, never as an update', (tester) async {
-    installed.putStore(billsPack());
+    await ready();
+    await addStore(installed, billsPack());
+    // A choice of its own, which goes with the copy by @maya.
+    state.set('plugin_xbills_extra', 'council tax');
     await listed(tester, [billsPack(version: '1.2.0', developer: 'someoneelse')]);
     expect(market.updates, isEmpty);
     await page(tester, marketPluginsScreen());
@@ -308,13 +363,16 @@ void main() {
     await settle(tester);
     await tester.tap(find.text('Add Bills'));
     await settle(tester);
-    expect(installed.calls, ['removeStore bills forget']);
-    expect(installed.installs.single.bytes, packBytes(billsPack(version: '1.2.0', developer: 'someoneelse')));
+    final now = installed.storeOf('bills')!;
+    expect([now.version, now.pack!.developer], ['1.2.0', 'someoneelse']);
+    expect(state.choice('plugin_xbills_extra', ''), '', reason: 'the old copy\'s choices went with it');
   });
 
   testWidgets('on an iPhone nothing from other developers, and a line saying so', (tester) async {
-    InstalledPlugins.instance = FakeInstalled(root: Directory('${dir.path}/ios'), checks: checks, storeAllowed: false);
-    market.debugListings = [ListingPlugin(entryOf(billsPack()), billsPack(), market)];
+    await ready(storeAllowed: false);
+    // Checked by the Marketplace all the same: an iPhone draws none of it.
+    await listed(tester, [billsPack()]);
+    expect(market.listings, hasLength(1));
     await page(tester, marketPluginsScreen());
     expect(_key('market-ios'), findsOneWidget);
     expect(find.text('Plugins from other developers aren\'t on iPhone.'), findsOneWidget);
@@ -323,6 +381,7 @@ void main() {
   });
 
   testWidgets('the catalog\'s lines: unreachable with Try again, off, untrusted, and still checking', (tester) async {
+    await ready();
     relay.down = true;
     await tester.runAsync(() => market.refresh(force: true));
     await page(tester, marketPluginsScreen());
@@ -336,7 +395,7 @@ void main() {
     expect(find.text('The Marketplace isn\'t open just now.'), findsOneWidget);
     relay.answers.clear();
     final elsewhere = billsPack();
-    await listed(tester, [elsewhere], entries: {'bills': entryOf(elsewhere, key: base64Encode(NetKeys.generate().public))});
+    await listed(tester, [elsewhere], entries: {'bills': await entryOf(elsewhere, by: KeysSigner(NetKeys.generate()))});
     await settle(tester);
     expect(find.text('This version of Ghost Messaging can\'t check plugins from other developers. Update it to see them.'), findsOneWidget);
     // The line is All's and From developers', not a shelf's of the app's own.
@@ -345,18 +404,36 @@ void main() {
     expect(_key('market-catalog-problem'), findsNothing);
     await tester.tap(_key('plugins-chip-all'));
     await settle(tester);
-    market
-      ..problem = null
-      ..checking = 3
-      ..debugListings = const [];
+    // A refresh caught while its three packages are fetched.
+    relay.catalog = const Catalog();
+    for (final id in ['bills', 'parcels', 'receipts']) {
+      await relay.list(billsPack(id: id, name: '${id[0].toUpperCase()}${id.substring(1)}'));
+    }
+    late Completer<void> gate;
+    late Future<void> refreshing;
+    await tester.runAsync(() async {
+      gate = Completer<void>();
+      relay.hold = gate.future;
+      refreshing = market.refresh(force: true);
+      while (market.checking == 0) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+    });
     await settle(tester);
     expect(find.descendant(of: _key('market-catalog-checking'), matching: find.text('Checking 3 plugins from other developers…')), findsOneWidget);
+    await tester.runAsync(() async {
+      gate.complete();
+      await refreshing;
+    });
+    await settle(tester);
+    expect(_key('market-catalog-checking'), findsNothing);
+    expect(market.listings, hasLength(3));
   });
 
-  testWidgets('a pack\'s picture in its tile; a broken one falls back to its symbol', (tester) async {
-    final good = billsPack(icon: billsIcon);
-    final broken = billsPack(id: 'parcels', name: 'Parcels', icon: Uint8List.fromList(List.filled(80, 7)));
-    market.debugListings = [ListingPlugin(entryOf(good), good, market), ListingPlugin(entryOf(broken), broken, market)];
+  testWidgets('a pack\'s picture in its tile; one that doesn\'t decode falls back to its symbol', (tester) async {
+    await ready();
+    await listed(tester, [billsPack(), billsPack(id: 'parcels', name: 'Parcels', icon: brokenPng())]);
+    expect([for (final l in market.listings) l.id], unorderedEquals(['xbills', 'xparcels']), reason: 'the format checks a picture\'s chunks, not its pixels');
     await page(tester, marketPluginsScreen());
     await tester.ensureVisible(_key('plugins-card-xparcels'));
     await settle(tester);
@@ -366,7 +443,8 @@ void main() {
     // Decoded by the engine on a real gap: waited for until the broken one's error has come back and its symbol is
     // drawn in its place (however busy the machine), not for a fixed time.
     final symbol = find.descendant(of: tile('xparcels'), matching: find.byType(AppIcon));
-    for (var i = 0; i < 500 && symbol.evaluate().isEmpty; i++) {
+    final watch = Stopwatch()..start();
+    while (symbol.evaluate().isEmpty && watch.elapsed < const Duration(seconds: 60)) {
       await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pump();
     }
@@ -375,13 +453,13 @@ void main() {
   });
 
   testWidgets('screenshots: only those whose bytes are the ones its package names', (tester) async {
+    await ready();
     final a = sha256Hex(billsIcon);
     final b = 'b' * 64;
-    final pack = billsPack(shots: [a, b]);
     relay.shots[a] = billsIcon;
     // Another picture's bytes under b's name: not the one the package names, so not shown.
     relay.shots[b] = billsIcon;
-    market.debugListings = [ListingPlugin(entryOf(pack), pack, market)];
+    await listed(tester, [billsPack(shots: [a, b])]);
     await page(tester, marketPluginsScreen(open: 'xbills'));
     await settle(tester);
     expect(_key('plugins-detail-shots'), findsOneWidget);
@@ -392,7 +470,9 @@ void main() {
   });
 
   testWidgets('a plugin in development switched on the first time asks first, saying nobody reviewed it', (tester) async {
-    installed.putDev(billsPack());
+    await ready();
+    state.setFlag('dev_mode', true);
+    await addDev(installed, billsPack());
     await page(tester, marketPluginsScreen(open: 'xbills'));
     expect(_key('plugins-detail-dev'), findsOneWidget);
     expect(tester.widget<Text>(_key('plugins-detail-source')).data, 'By @maya · In development · not reviewed');
@@ -403,16 +483,18 @@ void main() {
     expect(_key('market-consent'), findsOneWidget);
     expect(_key('market-consent-dev'), findsOneWidget);
     expect(find.text('Reviewed by Ghost Messaging'), findsNothing);
+    expect(installed.devOf('bills')!.agreed, isNull, reason: 'nothing agreed to before the sheet is answered');
     await tester.ensureVisible(find.text('Switch it on'));
     await settle(tester);
     await tester.tap(find.text('Switch it on'));
     await settle(tester);
-    expect(installed.calls, ['agreeDev bills']);
+    expect(installed.devOf('bills')!.agreed, DevPack.consentLines(billsPack()));
     expect(state.flag('plugin_xbills', fallback: false), isTrue);
   });
 
   testWidgets('Report: a reason, a few words, the username only where asked, signed', (tester) async {
-    installed.putStore(billsPack());
+    await ready();
+    await addStore(installed, billsPack());
     await page(tester, marketPluginsScreen(open: 'xbills'));
     await tester.ensureVisible(_key('plugins-report-xbills'));
     await settle(tester);
