@@ -27,7 +27,14 @@ import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
 import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner;
 import 'package:ghost_messaging/plugins/plugin.dart' show DeviceLanguage, DeviceTranslation, TextHost;
 import 'package:ghost_messaging/plugins/registry.dart' show PluginRegistry;
-import 'package:ghost_messaging/plugins/settings.dart' show pluginsScreen;
+import 'package:ghost_messaging/market/market_api.dart';
+import 'package:ghost_messaging/market/market_state.dart';
+import 'package:ghost_messaging/me/me.dart' show Me, MemoryMeStore;
+import 'package:ghost_messaging/plugins/pack/pack.dart' show InstalledPlugins, PluginPack, parsePack;
+import 'package:ghost_messaging/plugins/settings.dart' show marketPluginsScreen, pluginsScreen;
+import 'package:ghost_messaging/ui/market/marketplace_screen.dart' show MarketplaceScreen;
+import 'package:ghost_messaging/ui/market/review_item.dart' show ReviewItemScreen;
+import 'package:ghost_messaging/ui/market/submit_screen.dart' show SubmitPluginScreen;
 import 'package:ghost_messaging/plugins/shown_store.dart' show ShownStore;
 import 'package:ghost_messaging/plugins/ui.dart' show SectionTabs;
 import 'package:ghost_messaging/sms.dart' show Person, Sms;
@@ -60,6 +67,7 @@ import 'circle_sample.dart';
 import 'files_shots.dart';
 import 'files_share_in_shots.dart';
 import 'support/fake_friends.dart';
+import 'support/market_fakes.dart';
 import 'support/fake_video.dart';
 
 /// The looks (lib/looks.dart; Matt, 2026-11-16: "spend some time making a few themes for ghost, base one of them
@@ -440,11 +448,15 @@ class _DialupPieces extends StatelessWidget {
 /// A screen drawn in every look by [shootLook]: its [name] in the file's name, how to make it, the window it is drawn
 /// in, and anything to put in place before (a network signed in, a space's chat).
 class ThemeScreen {
-  const ThemeScreen(this.name, this.build, {this.size = phone, this.before, this.choices, this.after});
+  const ThemeScreen(this.name, this.build, {this.size = phone, this.before, this.ready, this.choices, this.after});
   final String name;
   final Widget Function() build;
   final Size size;
   final void Function()? before;
+
+  /// Made ready inside the look's own test, after [before], with the tester for work on the real event loop: a
+  /// plugin's package checked by the Marketplace, a pack loaded on the device.
+  final Future<void> Function(WidgetTester tester)? ready;
 
   /// The person's choices for this screen alone, made on the [AppState] it is drawn with (a plugin switched on).
   final void Function(AppState state)? choices;
@@ -480,7 +492,19 @@ final themeScreens = <ThemeScreen>[
   // marketplace like look how ghostmd has"): Settings' list with its band leading there, the page on a phone, a
   // plugin's page over it, and on a computer's window with a plugin's page beside the shelves.
   ThemeScreen('settings', () => const SettingsScreen(), size: const Size(412, 2100)),
-  ThemeScreen('plugins', () => const SettingsSectionScreen('plugins')),
+  // The Marketplace since 2026-11-20 (Matt: "Move plugins out of settings into a marketplace button on the navigation
+  // rail with a marketplace icon"): its list on a phone, with the band, and its Discover.
+  ThemeScreen('marketplace', () => const MarketplaceScreen()),
+  ThemeScreen('plugins', () => marketPluginsScreen()),
+  // A plugin in development's page and a listing's: whether it was reviewed is said in every look, Dial-Up's lines and
+  // bevelled label among them, so an unreviewed pack's page never looks like a reviewed one's.
+  ThemeScreen('plugin-detail-dev', () => marketPluginsScreen(open: 'xbills'), ready: _devPack, after: _packsGone),
+  ThemeScreen('plugin-detail-listing', () => marketPluginsScreen(open: 'xbills'), ready: _listing, after: _packsGone),
+  // Submit a plugin, a plugin loaded (Matt, 2026-11-20: "Add a submission area with a form to accept an icon,
+  // description, plugin tags, etc"), and a submission as the reviewer reads it ("I'd like to be able to verify them for
+  // the store through a review process"), each against a Marketplace in memory.
+  ThemeScreen('plugin-submit', () => SubmitPluginScreen(api: _marketApi(), market: _submitMarket, start: _submitPack()), before: _submitting, after: _submitted),
+  ThemeScreen('market-review-item', () => ReviewItemScreen(_reviewSid ?? '', api: _marketApi()), before: _reviewing, after: _submitted),
   // Translate's page, as it is before it is added (its picture of a translated text, Add) and once it is (its
   // settings, beside the shelves on a computer); and the Spam filter's, a plugin with a shelf tag and a summary.
   ThemeScreen('plugin-detail', () => pluginsScreen(null, 'translate'), before: _translating, after: _translated),
@@ -732,6 +756,90 @@ void _translateOn(AppState state) => state.set('plugin_translate', 'on');
 final _priyaTg = InboxChat(network: 'telegram', id: '12', title: 'Priya Natarajan', date: _now.subtract(const Duration(minutes: 1)), snippet: 'Text 40');
 final _camille = InboxChat(network: 'telegram', id: '11', title: 'Camille Laurent', date: _now.subtract(const Duration(minutes: 4)), snippet: 'Yes, where?');
 
+InstalledPlugins? _installedBefore;
+MarketState? _marketBefore;
+InstalledPlugins? _packsHere;
+Directory? _packsDir;
+
+// A screen's `after` runs when the whole look's test ends (addTearDown), so each of these first puts back what the one
+// before it changed: the dev pack must be gone before the listing is drawn.
+
+/// A pack loaded in development by the runtime, running: its own page shows it unreviewed.
+Future<void> _devPack(WidgetTester tester) async {
+  _packsGone();
+  _installedBefore = InstalledPlugins.instance;
+  _packsDir = Directory.systemTemp.createTempSync('theme-packs-');
+  final here = _packsHere = await installedFor(AppState()..setFlag('dev_mode', true), Directory('${_packsDir!.path}/plugins'));
+  InstalledPlugins.instance = here;
+  await addDev(here, billsPack());
+}
+
+/// An approved plugin the Marketplace has fetched and checked, not on this device.
+Future<void> _listing(WidgetTester tester) async {
+  _packsGone();
+  _installedBefore = InstalledPlugins.instance;
+  _marketBefore = MarketState.instance;
+  _packsDir = Directory.systemTemp.createTempSync('theme-packs-');
+  // Nothing installed: only the review key it pins is asked.
+  final here = _packsHere = InstalledPlugins(root: Directory('${_packsDir!.path}/plugins'), reviewKeys: [reviewKey]);
+  InstalledPlugins.instance = here;
+  final relay = FakeRelay();
+  await relay.list(billsPack(whatsNew: 'Receipts are a kind of their own.'));
+  final m = marketOver(relay, Directory('${_packsDir!.path}/market'), installed: here);
+  await tester.runAsync(() => m.refresh(force: true));
+  MarketState.instance = m;
+}
+
+void _packsGone() {
+  PluginRegistry.instance.uninstall('xbills');
+  _packsHere?.dispose();
+  _packsHere = null;
+  if (_installedBefore != null) InstalledPlugins.instance = _installedBefore!;
+  if (_marketBefore != null) MarketState.instance = _marketBefore!;
+  _installedBefore = null;
+  _marketBefore = null;
+  try {
+    _packsDir?.deleteSync(recursive: true);
+  } catch (_) {}
+  _packsDir = null;
+}
+
+FakeRelay? _relay;
+MarketState? _submitMarket;
+String? _reviewSid;
+Directory? _submitDir;
+final _reviewer = KeysSigner(NetKeys.generate());
+
+MarketApi _marketApi() => MarketApi(hubUrl: 'https://relay.test', signer: _reviewer, transport: (_relay ??= FakeRelay()).call);
+
+PluginPack _submitPack() => parsePack(packFile(billsJson()), appVersion: '0.10.1').pack!;
+
+/// A developer with a username, and a Marketplace in memory for the form to ask.
+void _submitting() {
+  _submitted();
+  _relay = FakeRelay();
+  _submitDir = Directory.systemTemp.createTempSync('theme-submit-');
+  _submitMarket = MarketState(api: _marketApi, cache: _submitDir, installed: InstalledPlugins.instance, appVersion: '0.10.1');
+  unawaited(Me.instance.start(MemoryMeStore()..set('me_username', 'maya'), ValueNotifier(0), () => null));
+}
+
+/// A submission waiting for review, with the developer's notes.
+void _reviewing() {
+  _submitting();
+  _reviewSid = _relay!.store.put(packFile(billsJson(), (j) => j['developer'] = 'maya'), status: 'submitted', notes: 'Try it on s01.');
+}
+
+void _submitted() {
+  _relay = null;
+  _submitMarket = null;
+  _reviewSid = null;
+  try {
+    _submitDir?.deleteSync(recursive: true);
+  } catch (_) {}
+  _submitDir = null;
+  unawaited(Me.instance.start(MemoryMeStore(), ValueNotifier(0), () => null));
+}
+
 void _translating() {
   _hostBefore ??= PluginRegistry.textHost;
   PluginRegistry.textHost = _FakeTranslator();
@@ -784,6 +892,7 @@ Future<void> shootLook(WidgetTester tester, TokenSheet sheet, Look look, String 
   tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
   addTearDown(tester.view.reset);
   screen.before?.call();
+  await screen.ready?.call(tester);
   // Sms keeps a part's future, made in the test that first asked for it: in a later test its callbacks wait on that
   // test's fake zone, which has gone, so the group's sticker was blank in every look but the first. Each screen is
   // handed one made here, and the picture is decoded afresh.

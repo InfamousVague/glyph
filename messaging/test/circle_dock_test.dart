@@ -72,7 +72,8 @@ void main() {
       for (final id in ['home', 'circle-spaces', 'circle-members', 'circle-settings']) {
         expect(_ring(id), findsOneWidget, reason: id);
       }
-      for (final id in ['new', 'messages', 'contacts', 'archive', 'settings', 'circle-new']) {
+      // The Marketplace's ring is one of the app's too (Matt, 2026-11-20).
+      for (final id in ['new', 'messages', 'contacts', 'archive', 'marketplace', 'settings', 'circle-new']) {
         expect(_ring(id), findsNothing, reason: id);
       }
 

@@ -11,6 +11,7 @@ import 'circles/new_circle.dart';
 import 'split_handle.dart';
 import 'window_chrome.dart';
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/widgets.dart';
@@ -18,6 +19,9 @@ import 'package:glacier/glacier.dart';
 
 import '../me/me.dart';
 import '../app_state.dart';
+import '../market/market_state.dart';
+import '../plugins/pack/pack.dart' show InstalledPlugins, PackNotice, registryIdOf;
+import 'market/marketplace_screen.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
@@ -64,9 +68,10 @@ import '../inbox/inbox.dart';
 /// first, then goes back in the list, then leaves the app.
 ///
 /// The way round is the pill floating at the list's foot (lib/ui/nav_bar.dart), the one the Mac's sidebar has: a
-/// new chat, the messages, the contacts, the archive with how many are in it, Settings. A new chat and the contacts
-/// open in the pane; Messages, Archive and Settings are the list's place itself: the conversations, the archived
-/// ones, or Settings' sections, with the page of the section chosen in the pane.
+/// new chat, the messages, the contacts, the archive with how many are in it, the Marketplace, Settings. A new chat
+/// and the contacts open in the pane; Messages, Archive, the Marketplace and Settings are the list's place itself: the
+/// conversations, the archived ones, or the Marketplace's or Settings' sections, with the page of the section chosen in
+/// the pane.
 ///
 /// On a wide phone (a folding phone opened out, a tablet) the pill is not at the list's foot: it stands up at the
 /// foot of a strip of its own down the window's right, as Ghost.md's dock does there (Matt, 2026-11-14: "on wider
@@ -220,6 +225,15 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// Whether Settings is open in the list's place.
   bool get settingsOpen => _settings != null;
 
+  /// The Marketplace's list of sections, while it is open in the list's place (Matt, 2026-11-20: "Move plugins out of
+  /// settings into a marketplace button on the navigation rail with a marketplace icon"): the page of the section chosen
+  /// is the pane's, beside it in a wide window and over it on a phone, as Settings' are.
+  Route<void>? _market;
+  bool get marketOpen => _market != null;
+
+  /// The section whose page is in the pane, or null: the row the Marketplace's list marks.
+  final marketSection = ValueNotifier<String?>(null);
+
   /// A circle, while it is open in the list's place, with a way back at its top (Matt, 2026-11-17: "make a new design
   /// for [circles] ... with it's own sidebar full of spaces"); its spaces open in the pane.
   Route<void>? _circle;
@@ -280,6 +294,23 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     _renewWords = Timer(const Duration(seconds: 30), () {
       if (mounted) unawaited(Circles.instance.renewInviteWords());
     });
+    // The Marketplace's catalog, withdrawals and a developer's own submissions, read a little after starting and every
+    // few hours (lib/market/market_state.dart): never under a test, never on an iPhone, which has no store packs.
+    if (!Platform.environment.containsKey('FLUTTER_TEST') && InstalledPlugins.instance.storeAllowed) unawaited(MarketState.instance.start());
+    // What the packs and the Marketplace have to say as it happens: a pack withdrawn (with the way to its page), paused,
+    // loaded from the API, and a developer's decisions.
+    _notices = [InstalledPlugins.instance.notices.listen(_notice), MarketState.instance.notices.listen(_notice)];
+  }
+
+  List<StreamSubscription<PackNotice>> _notices = const [];
+
+  void _notice(PackNotice n) {
+    if (!mounted) return;
+    if (n.kind == 'withdrawn') {
+      toast(context, n.words, action: GlacierToastAction(label: 'See it', onPress: () => marketplace(plugin: registryIdOf(n.packId))));
+      return;
+    }
+    toast(context, n.words);
   }
 
   /// Put out of a circle by its owner or an admin (Circles.removeMember): said, since the circle just goes.
@@ -326,11 +357,15 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     Voice.instance.removeListener(_voiceChanged);
     Circles.instance.removedFrom.removeListener(_removed);
     unawaited(_joins?.cancel());
+    for (final sub in _notices) {
+      unawaited(sub.cancel());
+    }
     _renewWords?.cancel();
     _small.dispose();
     closed.dispose();
     archived.dispose();
     settingsSection.dispose();
+    marketSection.dispose();
     super.dispose();
   }
 
@@ -369,10 +404,16 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
       _thread = thread;
       _showing = showing;
     });
-    settingsSection.value = section;
+    settingsSection.value = showing == 'settings' ? section : null;
+    marketSection.value = showing == 'marketplace' ? section : null;
     // Anything but a page of Settings puts Settings' list away: a conversation, a new chat and the contacts are
-    // kept with the conversations.
+    // kept with the conversations. The Marketplace's likewise, gone at once: its popped future comes too late for
+    // whatever is asked next.
     if (showing != 'settings' && settingsOpen) home();
+    if (showing != 'marketplace' && marketOpen) {
+      home();
+      setState(() => _market = null);
+    }
     nav.pushAndRemoveUntil(route, (r) => r.isFirst);
     // The list under a page that covers it is not drawn, and is drawn again as the page starts to leave.
     route.animation?.addStatusListener((_) {
@@ -386,6 +427,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         _showing = null;
       });
       settingsSection.value = null;
+      marketSection.value = null;
       closed.value++;
     });
     if (had) closed.value++;
@@ -416,6 +458,10 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// list of sections takes the list's place, and the section's page is the pane's: beside the list in a wide
   /// window, where the first section is opened if none is named, and over it on a phone.
   void settings([String? section, String? seek]) {
+    // Plugins left Settings for the Marketplace (Matt, 2026-11-20): `ui.openSettings('plugin-spam')` and any old link
+    // to Settings › Plugins open Discover there, at the plugin.
+    if (section == 'plugins' || (section?.startsWith('plugin-') ?? false)) return marketplace(section: 'discover', plugin: section == 'plugins' ? null : section!.substring('plugin-'.length), seek: seek);
+    if (marketOpen) closeMarketplace();
     final side = _side.currentState;
     if (side == null) {
       // Asked for before the first frame: once there is a list.
@@ -440,8 +486,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         if (_showing == 'settings') close();
       });
     }
-    // Beside the list there is always a section's page: the first, where none is named and none is open.
-    if (section == null && _wide && settingsSection.value == null) section = settingsSections.where((s) => s.when == null).firstOrNull?.id;
+    // Beside the list there is always a section's page: the first listed, where none is named and none is open (the
+    // unlisted Plugins section, a plugin's own, would open with no row marked).
+    if (section == null && _wide && settingsSection.value == null) section = settingsSections.where((s) => s.listed && s.when == null).firstOrNull?.id;
     if (section != null) {
       show(SettingsSectionScreen(section, key: ValueKey('settings-$section-${seek ?? ''}'), seek: seek), showing: 'settings', section: section);
     } else if (!_wide && _showing == 'settings') {
@@ -587,6 +634,67 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     if (_showing == 'settings') close();
   }
 
+  /// Opens the Marketplace, or one [section] of it. [plugin] (a registry id, 'xbills', or a built-in's, 'codes') opens
+  /// Discover at that plugin's page; [seek] is a setting on that page to light (a Settings search found it); [arg] is
+  /// the section's own: a dev pack's id for `submit` (the form starts with that pack), a submission's sid for `mine`
+  /// (marked and scrolled to).
+  void marketplace({String? section, String? plugin, String? seek, String? arg}) {
+    final side = _side.currentState;
+    if (side == null) {
+      // Asked for before the first frame (`ui.openSettings('plugins')`, a link): once there is a list.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _side.currentState != null) marketplace(section: section, plugin: plugin, seek: seek, arg: arg);
+      });
+      return;
+    }
+    if (settingsOpen) closeSettings();
+    if (!marketOpen) {
+      final route = PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 260),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (context, _, _) => const MarketplaceScreen(key: ValueKey('marketplace')),
+        transitionsBuilder: _arrive,
+      );
+      setState(() => _market = route);
+      side.push(route);
+      route.popped.then((_) {
+        if (!mounted || _market != route) return;
+        setState(() => _market = null);
+        // Its page goes with it.
+        if (_showing == 'marketplace') close();
+      });
+    }
+    // Which section: the one named; Discover for a plugin or a setting; beside the list, Discover where nothing is in
+    // the pane yet; and Discover for one not offered now (developer mode off, an admin signed out).
+    var id = section;
+    if (id == null && (plugin != null || seek != null)) id = 'discover';
+    if (id == null && _wide && marketSection.value == null) id = 'discover';
+    if (id != null && !marketOffered(id, AppState.of(context), current: marketSection.value)) id = 'discover';
+    if (id != null) {
+      show(MarketSectionScreen(id, plugin: plugin, seek: seek, arg: arg, key: ValueKey('market-$id-${plugin ?? ''}-${seek ?? ''}-${arg ?? ''}')), showing: 'marketplace', section: id);
+    } else if (!_wide && _showing == 'marketplace') {
+      // On a phone, the Marketplace asked for from one of its pages is its list.
+      close();
+    }
+  }
+
+  /// Takes the Marketplace away, back to what it was opened over, its page going with it: at once, as a pop's future
+  /// would come too late for the next call.
+  void closeMarketplace() {
+    final route = _market;
+    if (route == null) return;
+    final side = _side.currentState;
+    if (side != null && route.isActive) side.removeRoute(route);
+    if (_market == route) setState(() => _market = null);
+    if (_showing == 'marketplace') close();
+  }
+
+  /// The section in the pane is no longer offered (developer mode went off, the admin signed out): the page goes, and
+  /// beside the list Discover takes its place (the Marketplace's list sees to that).
+  void marketGone() {
+    if (_showing == 'marketplace') close();
+  }
+
   /// Opens the address book: a press on someone in it opens the conversation with them.
   void contacts() => show(const ContactsScreen(key: ValueKey('contacts')), showing: 'contacts');
 
@@ -615,7 +723,12 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         show(const VoiceScreen(key: ValueKey('voice')), showing: 'voice');
       case 'settings':
         settings();
+      case 'marketplace':
+        marketplace();
       default:
+        // The Marketplace is over whatever is in the list's place (Archive): put away first, at once, so what is under
+        // it is seen by the checks below (Archive, then the Marketplace, then Archive again left the Marketplace up).
+        if (marketOpen) closeMarketplace();
         if (_showing != null) close();
         final side = _side.currentState;
         if (side == null) return;
@@ -687,7 +800,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// How the app is got round, as chosen in Settings › Developer (lib/ui/nav_style.dart).
   NavStyle get _style => NavStyle.of(AppState.of(context));
 
-  /// The rings the app's own navigation has, in the pill's order: New, Messages, Contacts, Archive and Settings.
+  /// The rings the app's own navigation has, in the pill's order: New, Messages, Contacts, Archive, Marketplace and
+  /// Settings.
   List<NavItem> _appRings(int archivedCount) => [
         // A plain plus that says New: it starts a chat, a group or a space (Matt, 2026-11-17: "change the new chat
         // button to be a generic plus button and change the tooltip to simply say \"new\"").
@@ -696,17 +810,20 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         // Contacts with how many friend requests wait for an answer there (lib/ui/username_friends.dart).
         NavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts', count: Sms.paired ? 0 : Buddies.instance.requests.length),
         NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: archivedCount, menu: _archiveRows),
+        // The Marketplace, with how many updates wait (Matt, 2026-11-20: "Move plugins out of settings into a marketplace
+        // button on the navigation rail with a marketplace icon"): "Market" on Dial-Up's taskbar, where six words share it.
+        NavItem(id: 'marketplace', icon: Lucide.store, label: 'Marketplace', short: 'Market', count: MarketState.instance.updates.length, menu: _marketRows),
         NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings', count: Me.instance.unseen, menu: _settingsRows),
       ];
 
   /// The ring that is the page shown: none while a circle is open, whose face the rail marks instead.
-  String get _activeRing => _showing ?? (settingsOpen ? 'settings' : (_archivedOpen ? 'archive' : (circleOpen ? 'circle' : 'messages')));
+  String get _activeRing => _showing ?? (settingsOpen ? 'settings' : (marketOpen ? 'marketplace' : (_archivedOpen ? 'archive' : (circleOpen ? 'circle' : 'messages'))));
 
   /// The rail (NavStyle.rail): Home, the circles, the app's places at its foot.
   Widget _rail() => ValueListenableBuilder<int>(
         valueListenable: archived,
         builder: (context, count, _) => ListenableBuilder(
-          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance]),
+          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance, MarketState.instance, InstalledPlugins.instance]),
           builder: (context, _) {
             final rings = _appRings(count);
             return NavRail(
@@ -766,6 +883,15 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     return rows;
   }
 
+  /// The Marketplace ring's menu: its sections offered now, each opening the Marketplace there.
+  List<Widget> _marketRows(BuildContext context) {
+    final app = AppState.of(this.context);
+    return [
+      const GlacierMenuLabel(child: Text('Marketplace')),
+      for (final s in marketSectionsNow(app, current: marketSection.value)) GlacierMenuItem(icon: AppIcon(s.icon, size: 16), onSelect: () => marketplace(section: s.id), child: Text(s.label)),
+    ];
+  }
+
   /// Marks every archived conversation that is unread as read, from the Archive ring's menu: where they are, with
   /// the archive left closed.
   Future<void> _archiveRead() async {
@@ -818,7 +944,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   Widget _pill({required bool upright}) => ValueListenableBuilder<int>(
         valueListenable: archived,
         builder: (context, count, _) => ListenableBuilder(
-          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance]),
+          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance, MarketState.instance, InstalledPlugins.instance]),
           builder: (context, _) {
             // A circle in the list's place: its own dock, Home first (lib/ui/circles/circle_dock.dart).
             // Not where every page has the same navigation (NavStyle.unified): the app's own rings stay.
@@ -844,13 +970,13 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
       );
 
   /// How many rings the pill has: what a window must be tall enough for, to have it stood up. The most any dock has:
-  /// a circle's, its face and five rings; the app's own has five, and a list leaves room for the one it has.
+  /// a circle's, its face and five rings, and the app's own six; a list leaves room for the one it has.
   static const _rings = 6;
 
-  /// The rings on the pill now: a circle's face and its rings while one is open, else the app's five.
+  /// The rings on the pill now: a circle's face and its rings while one is open, else the app's six.
   int get _dockRings {
     final c = circleOpen && _circleSeed != null && !_style.unified ? Circles.instance.bySeed(_circleSeed!) : null;
-    return c == null ? 5 : CircleDock.items(c, canEdit: Circles.instance.can(c, CirclePerm.spaces)).length;
+    return c == null ? _appRings(0).length : CircleDock.items(c, canEdit: Circles.instance.can(c, CirclePerm.spaces)).length;
   }
 
   static Widget _lightsIf(bool on, Widget child) => on ? TopBarLights(child: child) : child;
@@ -903,6 +1029,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
             if (didPop) return;
             // Beside Settings' list its page is all there is to go back from: back leaves Settings whole.
             if (wide && settingsOpen && _showing == 'settings' && (_open?.isCurrent ?? false)) return go('messages');
+            // The Marketplace beside its page likewise.
+            if (wide && marketOpen && _showing == 'marketplace' && (_open?.isCurrent ?? false)) return go('messages');
             // What is open closes first; then the list goes back from Archived or Settings, or stops choosing.
             (_paneBack ? _pane : _side).currentState?.maybePop();
           },
@@ -967,9 +1095,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                             // Dial-Up's taskbar is silver down to the screen's edge, under the bar at its foot.
                             bottom: dialup ? 0 : edges.bottom,
                             child: IgnorePointer(
-                              ignoring: !wide && settingsOpen && !style.unified,
+                              ignoring: !wide && (settingsOpen || marketOpen) && !style.unified,
                               child: AnimatedOpacity(
-                                opacity: !wide && settingsOpen && !style.unified ? 0 : 1,
+                                opacity: !wide && (settingsOpen || marketOpen) && !style.unified ? 0 : 1,
                                 duration: const Duration(milliseconds: 160),
                                 // Held to its corner as it shrinks: the foot's middle, or the corner it stands in.
                                 // In a hangout's call beside the pane the call's buttons stand where the pill was
@@ -1031,7 +1159,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                         // The call you're in: a banner just above the dock (Matt, 2026-11-15: "switch the active
                         // call to be a banner again in the sidebar just above the navigation bar"); not while the call
                         // itself is open, nor under a page on a phone. Beside a dock stood up, it keeps clear of it.
-                        if (_showing != 'voice' && !(!wide && (settingsOpen || _open != null)) && !(wide && _inHangout != null && !spaceDesignChosen(context)))
+                        if (_showing != 'voice' && !(!wide && (settingsOpen || marketOpen || _open != null)) && !(wide && _inHangout != null && !spaceDesignChosen(context)))
                           Positioned(
                             left: t.space(3),
                             right: docked ? edges.right + NavPill.railWidth(t) : t.space(3),

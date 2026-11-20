@@ -19,6 +19,7 @@ import '../kit/settings_icons.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../net/net.dart';
+import '../plugins/pack/pack.dart' show InstalledPlugins;
 import '../sms.dart';
 import 'common.dart';
 import 'nav_bar.dart';
@@ -96,6 +97,7 @@ class SettingsModel extends ChangeNotifier {
   StreamSubscription<int>? _changes;
   StreamSubscription<void>? _computers;
   List<Listenable> _watching = const [];
+  InstalledPlugins? _installed;
   bool _gone = false;
 
   void start() {
@@ -107,6 +109,9 @@ class SettingsModel extends ChangeNotifier {
     // The app's routes come and go on their own (lib/net/net.dart): Settings › Network is drawn again as they do.
     Net.instance.addListener(_say);
     Me.instance.addListener(_say);
+    // The packs on this device (lib/plugins/pack): Settings › Developer's Plugins in development lists them, and the
+    // search reads their switches.
+    _installed = InstalledPlugins.instance..addListener(_say);
     // And whatever the sections that come from outside are read from (a computer's link to its phone).
     _watching = SettingsSources.watched;
     for (final w in _watching) {
@@ -161,6 +166,7 @@ class SettingsModel extends ChangeNotifier {
     _gone = true;
     Net.instance.removeListener(_say);
     Me.instance.removeListener(_say);
+    _installed?.removeListener(_say);
     for (final w in _watching) {
       w.removeListener(_say);
     }
@@ -328,9 +334,14 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     if (state == AppLifecycleState.resumed) _model?.refresh();
   }
 
-  /// Opens a section: in the frame's pane where there is a frame, over this page where there is none.
+  /// Opens a section: in the frame's pane where there is a frame, over this page where there is none. A plugin's, or
+  /// one of its settings, is the Marketplace's now (Matt, 2026-11-20: "Move plugins out of settings into a
+  /// marketplace button on the navigation rail with a marketplace icon"): Discover at that plugin, the setting lit. A
+  /// hit in the unlisted Plugins section itself (Record call, Scribe, every pack's switch and cards are only there)
+  /// carries its words as the seek, which alone makes it Discover, on a phone as beside the list.
   void _open(SettingsSection s, {String? seek}) {
     final shell = AppShell.maybeOf(context);
+    if (shell != null && s.group == 'plugins') return shell.marketplace(section: 'discover', plugin: s.id.startsWith('plugin-') ? s.id.substring('plugin-'.length) : null, seek: seek);
     if (shell != null) return shell.settings(s.id, seek);
     final model = _model!;
     push<void>(context, (context) => s.screen != null ? SettingsSeek(seek: seek, child: Builder(builder: (context) => s.screen!(context, model))) : SectionPage(section: s, model: model, seek: seek));
@@ -384,9 +395,9 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                       child: Text('Nothing called “$query”.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'))),
                     )
                   else
-                    _Group(rows: [
+                    SettingsGroup(rows: [
                       for (var i = 0; i < hits.length; i++)
-                        _SectionRow(
+                        SettingsSectionRow(
                           label: hits[i].setting ?? hits[i].section.label,
                           icon: hits[i].section.icon,
                           hue: hits[i].section.hue,
@@ -556,21 +567,21 @@ class SettingsList extends StatelessWidget {
           // A section with an entry of its own (the Plugins page's band) stands on its own above its group's card.
           for (final section in group)
             if (section.entry != null) ...[
-              _Reveal(
+              SettingsReveal(
                 shown: beside && section.id == chosen,
                 foot: beside && !AppShell.railOf(context) ? NavPill.clearance(t) : 0,
                 child: section.entry!(context, model, () => open(section), beside && section.id == chosen),
               ),
               if (group.any((s) => s.entry == null)) SizedBox(height: t.space(3)),
             ],
-          if (group.any((s) => s.entry == null)) _Group(rows: [
+          if (group.any((s) => s.entry == null)) SettingsGroup(rows: [
             for (final section in group.where((s) => s.entry == null))
-              _Reveal(
+              SettingsReveal(
                 // The row of the section open beside the list is brought into view when it was not: a section
                 // jumped to from somewhere else (a search, the Settings ring's menu) is marked where it can be seen.
                 shown: beside && section.id == chosen,
                 foot: beside && !AppShell.railOf(context) ? NavPill.clearance(t) : 0,
-                child: _SectionRow(
+                child: SettingsSectionRow(
                   label: section.label,
                   icon: section.icon,
                   hue: section.hue,
@@ -590,18 +601,18 @@ class SettingsList extends StatelessWidget {
 }
 
 /// Scrolls its child into view when [shown] becomes true and the child is not wholly seen ([foot]: how much of
-/// the list's end something stands over, which is not seen either).
-class _Reveal extends StatefulWidget {
-  const _Reveal({required this.shown, required this.child, this.foot = 0});
+/// the list's end something stands over, which is not seen either). The Marketplace's list marks its rows so too.
+class SettingsReveal extends StatefulWidget {
+  const SettingsReveal({super.key, required this.shown, required this.child, this.foot = 0});
   final bool shown;
   final double foot;
   final Widget child;
 
   @override
-  State<_Reveal> createState() => _RevealState();
+  State<SettingsReveal> createState() => _SettingsRevealState();
 }
 
-class _RevealState extends State<_Reveal> {
+class _SettingsRevealState extends State<SettingsReveal> {
   @override
   void initState() {
     super.initState();
@@ -609,7 +620,7 @@ class _RevealState extends State<_Reveal> {
   }
 
   @override
-  void didUpdateWidget(_Reveal old) {
+  void didUpdateWidget(SettingsReveal old) {
     super.didUpdateWidget(old);
     if (widget.shown && !old.shown) _reveal();
   }
@@ -632,9 +643,9 @@ class _RevealState extends State<_Reveal> {
   Widget build(BuildContext context) => widget.child;
 }
 
-/// `.settingsScreen__group`: rows sharing one card, a hairline between them.
-class _Group extends StatelessWidget {
-  const _Group({required this.rows});
+/// `.settingsScreen__group`: rows sharing one card, a hairline between them. The Marketplace's list's too.
+class SettingsGroup extends StatelessWidget {
+  const SettingsGroup({super.key, required this.rows});
   final List<Widget> rows;
 
   @override
@@ -662,9 +673,10 @@ class _Group extends StatelessWidget {
   }
 }
 
-/// `.settingsScreen__row`: the section's chip in its colour, its name and a line under it, and a chevron.
-class _SectionRow extends StatelessWidget {
-  const _SectionRow({required this.label, required this.icon, required this.hue, required this.summary, required this.index, required this.onPress, this.selected = false, this.chevron = true});
+/// `.settingsScreen__row`: the section's chip in its colour, its name and a line under it, and a chevron. The
+/// Marketplace's list draws its sections with it.
+class SettingsSectionRow extends StatelessWidget {
+  const SettingsSectionRow({super.key, required this.label, required this.icon, required this.hue, required this.summary, required this.index, required this.onPress, this.selected = false, this.chevron = true, this.summaryDanger = false});
 
   final String label;
   final Widget icon;
@@ -672,6 +684,9 @@ class _SectionRow extends StatelessWidget {
   final String? summary;
   final int index;
   final VoidCallback onPress;
+
+  /// Its line is something to act on, in the danger tone: My submissions' "1 needs changes".
+  final bool summaryDanger;
 
   /// Its page is the one shown beside the list.
   final bool selected;
@@ -722,7 +737,7 @@ class _SectionRow extends StatelessWidget {
                         Text(label, style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('app-ink'))),
                         if (hasSummary) ...[
                           SizedBox(height: t.lenOf('0.1rem')),
-                          Text(summary!, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+                          Text(summary!, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color(summaryDanger ? 'app-danger' : 'app-ink-3'))),
                         ],
                       ],
                     ),
