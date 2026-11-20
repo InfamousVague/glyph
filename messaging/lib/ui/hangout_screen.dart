@@ -62,7 +62,10 @@ import '../me/pictures.dart';
 import 'mention_field.dart';
 import 'poll_card.dart';
 import 'verified_badge.dart';
+import 'paste_images.dart';
 import 'thread.dart' show LinkedText;
+import 'schedule_ui.dart';
+import '../scheduled.dart' show ScheduleTarget;
 
 /// A hangout: its chat, who is in it, and its call (Matt, 2026-11-15: "add a chat to hangouts so the whole group can
 /// send messages to the hangout as well as voice and video"; roles: "Implement a permissions system similar to
@@ -1151,6 +1154,7 @@ class _HangoutChatState extends State<HangoutChat> {
                       final left = _slowLeft;
                       final waiting = left > Duration.zero;
                       if (waiting) _tickSlowMode();
+                      final ScheduleTarget schedule = (kind: 'space', target: room.channel.seed, who: room.channel.name);
                       final buttons = composerButtons(
                         t,
                         hasSomething: _text.text.isNotEmpty || _picked.isNotEmpty,
@@ -1165,6 +1169,16 @@ class _HangoutChatState extends State<HangoutChat> {
                                 : _send,
                         emoji: Sms.remote,
                         onEmoji: _emoji,
+                        // Send later (lib/ui/schedule_ui.dart): words alone; mentions go as plain words then.
+                        onSendMenu: _editing != null
+                            ? null
+                            : () {
+                                if (_picked.isNotEmpty) {
+                                  toast(context, 'Files can\'t be scheduled yet. Send them now, or schedule the words alone.');
+                                  return;
+                                }
+                                openSendMenu(context, to: room.mayWrite ? schedule : null, text: _text.text, onScheduled: _text.clear);
+                              },
                         // Saving an edit: a tick, as a text being edited has (lib/ui/thread.dart).
                         send: _editing == null
                             ? null
@@ -1187,12 +1201,19 @@ class _HangoutChatState extends State<HangoutChat> {
                         if (_editing != null) _EditingBar(words: _editing!.text, onClose: _stopEditing),
                         if (slow > 0 && _editing == null) _SlowModeLine(seconds: slow, left: left),
                         if (_picked.isNotEmpty) SpacePickedStrip(files: _picked, onRemove: (p) => setState(() => _picked.remove(p))),
+                        if (_editing == null) ScheduledStrip(to: schedule),
                         ComposerBox(
                           typing: _typing,
                           plus: buttons.plus,
                           ends: buttons.ends,
                           below: buttons.below,
-                          field: ComposerField(controller: _text, focusNode: _focus, hint: 'Message ${room.channel.name}', onSubmitted: _send, enterSends: AppState.of(context).enterSends),
+                          // A picture pasted on a computer goes with the message (lib/ui/paste_images.dart).
+                          field: PasteImages(
+                            focusNode: _focus,
+                            enabled: attach && _editing == null && _picked.length < HangoutMessage.mostFiles,
+                            onImage: (path) => setState(() => _picked.add((path: path, owned: false))),
+                            child: ComposerField(controller: _text, focusNode: _focus, hint: 'Message ${room.channel.name}', onSubmitted: _send, enterSends: AppState.of(context).enterSends),
+                          ),
                         ),
                       ]);
                     })
@@ -2415,7 +2436,7 @@ class _SpaceFaceState extends State<SpaceFace> {
 
   String? _picture() {
     final room = widget.room, id = widget.id;
-    if (id == room.me) return Me.instance.picture;
+    if (id == room.me) return Me.instance.pictureSharp;
     final hash = room.present[id]?.pictureHash ?? '';
     // Here and saying they have none: none.
     if (room.present.containsKey(id) && hash.isEmpty) return null;

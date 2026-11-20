@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../games/game_activity.dart';
 import '../accent.dart';
 import '../account/account.dart';
 import '../app_state.dart';
@@ -14,6 +15,7 @@ import '../kit/settings_css.dart';
 import '../looks.dart';
 import '../main.dart' show InkOverrides, ghostTypography;
 import '../sounds.dart';
+import '../keys.dart';
 import '../net/net.dart';
 import '../sms.dart';
 import '../ui/files_space/share_in.dart';
@@ -40,6 +42,7 @@ import '../files/files_store.dart';
 import 'gm_web.dart';
 import 'updates.dart';
 import '../people.dart';
+import '../plugins/pack/pack.dart' show InstalledPlugins;
 import 'own_calls.dart';
 import '../friends/buddies.dart';
 import '../me/me.dart';
@@ -134,6 +137,10 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // Voice channels (lib/voice): the computer's own connection to the hub, made once it has a channel.
   // The interface sounds (lib/sounds.dart) read the person's choices from here.
   Sounds.instance.start(state);
+  // The keyboard's commands and push to talk (lib/keys.dart).
+  Keys.instance.start(state);
+  // What game runs on this computer, told to friends and spaces while Game activity is added (lib/games).
+  GamePresence.instance.start(state);
   // And the circles, whose rooms ride Voice's connection (lib/circles/circles.dart).
   // On its own it runs the app's network itself, as the phone does: the routes, friends, groups, then voice and circles
   // (lib/people.dart). Paired, those are the phone's, asked across the link.
@@ -163,6 +170,11 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // The updates looked for at the splash, told to the phone's screens too, so its banner and its words are the
   // computer's (remote.dart).
   if (macUpdates != null) calls.attachUpdates(macUpdates);
+  // Plugins from the Marketplace and in development (lib/plugins/pack; Matt, 2026-11-20: "I would like users to be able
+  // to develop and submit their own plugins to our plugin marketplace"), read while the splash shows, from a plugins
+  // folder beside everything else this computer keeps: GHOST_DESK_DIR's when it is set, as the store's is.
+  InstalledPlugins.instance = InstalledPlugins(root: Directory('${store.dir.path}${Platform.pathSeparator}plugins'));
+  await InstalledPlugins.instance.load(state, appVersion: appVersion);
   // Loaded: the window its own size again, and the app in it; on its own with no username yet, the small window for
   // signing up or in (lib/desktop/window_size.dart; Matt, 2026-11-20: "make the sign up / sign in window smaller").
   await leaveSplashWindow(compact: alone && state.choice('me_username', '').isEmpty);

@@ -8,13 +8,23 @@ import 'package:pointycastle/export.dart' show SHA256Digest;
 /// space says only their picture's [hashOf] when they come in, and the picture itself is asked of them when someone
 /// looks at their profile (lib/voice/hangout.dart, `pic?`), so a space's greetings stay small.
 ///
-/// Each picture is a square base64 PNG of at most [most] characters (lib/ui/circles/circle_picture.dart makes them).
+/// Each picture is a square base64 JPEG (or, from before 0.10.4, PNG) of at most [most] characters
+/// (lib/me/picture_make.dart makes them).
 class ProfilePictures extends ChangeNotifier {
   ProfilePictures._();
   static final ProfilePictures instance = ProfilePictures._();
 
-  /// The longest a picture may be, as base64: one circle's picture, which rides in one packet with room to spare.
-  static const most = 24000;
+  /// The longest a picture may be, as base64: a sharp one ([sharpMost]) with room to spare. A friend's profile
+  /// carries the sharp one (`pp`) and the small (`p`) together in one packet of the hub's 60 KB.
+  static const most = 48000;
+
+  /// The longest builds from before 0.10.4 take (`p`); what a picture was made at until then.
+  static const oldMost = 24000;
+
+  /// What this person's own pictures are made at most: the one shown, and the stand-in for builds from before.
+  static const sharpMost = 40000;
+  static const smallMost = 14000;
+  static const sharpSide = 256;
 
   final Map<String, ({String hash, String picture})> _by = {};
 
@@ -32,16 +42,17 @@ class ProfilePictures extends ChangeNotifier {
     return had.picture;
   }
 
-  /// Keeps [picture] as [id]'s. An empty one forgets theirs; one too long, or not base64, is not kept.
-  void keep(String id, String picture) {
+  /// Keeps [picture] as [id]'s, marked as [markOf] (the small one a space's greeting names by [hashOf]) where given.
+  /// An empty one forgets theirs; one too long, or not base64, is not kept.
+  void keep(String id, String picture, {String? markOf}) {
     if (id.isEmpty) return;
     if (picture.isEmpty) {
       if (_by.remove(id) != null) notifyListeners();
       return;
     }
     if (picture.length > most || !RegExp(r'^[A-Za-z0-9+/=]+$').hasMatch(picture)) return;
-    final hash = hashOf(picture);
-    if (_by[id]?.hash == hash) return;
+    final hash = hashOf(markOf != null && markOf.isNotEmpty ? markOf : picture);
+    if (_by[id]?.hash == hash && _by[id]?.picture == picture) return;
     _by[id] = (hash: hash, picture: picture);
     notifyListeners();
   }

@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/feedback/feedback_api.dart';
 import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
 import 'package:ghost_messaging/net/hub_carrier.dart' show KeysSigner;
+import 'package:ghost_messaging/ui/circles/members_drawer.dart' show MembersDrawer;
+import 'package:ghost_messaging/ui/common.dart' show GhostPage;
 import 'package:ghost_messaging/ui/feedback_screen.dart';
 
 import 'support/space_call_harness.dart';
@@ -224,5 +226,78 @@ void main() {
     expect(find.byType(FeedbackScreen), findsOneWidget);
     expect(find.text('Send'), findsOneWidget);
     await tester.pump(const Duration(seconds: 6));
+  });
+
+  // Matt, 2026-11-20: "make share feedback open in a drawer on mobile".
+  group('Share feedback in a drawer on a phone', () {
+    tearDown(() => FeedbackButton.drawerOverride = null);
+
+    /// A page with something to press that opens Share feedback, as the list's row does: [open] says how.
+    Widget opener(void Function(BuildContext context) open) => Builder(
+          builder: (context) => Center(child: GestureDetector(key: const ValueKey('open-feedback'), behavior: HitTestBehavior.opaque, onTap: () => open(context), child: const SizedBox(width: 120, height: 48))),
+        );
+
+    Future<void> openIt(WidgetTester tester) async {
+      await tester.tap(find.byKey(const ValueKey('open-feedback')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    testWidgets('on a phone the button opens the form in the drawer from the foot', (tester) async {
+      final h = await SpaceHarness.load(tester);
+      FeedbackButton.drawerOverride = true;
+      await h.shoot(tester, opener(FeedbackButton.open), 'feedback-drawer-closed');
+      await openIt(tester);
+      final drawer = find.byKey(const ValueKey('feedback-drawer'));
+      expect(drawer, findsOneWidget);
+      expect(find.text('Share feedback'), findsOneWidget, reason: 'the drawer\'s title');
+      final screen = tester.getSize(find.byType(WidgetsApp));
+      expect(tester.getRect(drawer).bottom, lessThan(screen.height), reason: 'standing on the foot of the screen');
+      expect(find.ancestor(of: drawer, matching: find.byType(MembersDrawer)), findsOneWidget, reason: 'in the app\'s drawer, not a page');
+      expect(find.byType(GhostPage), findsNothing, reason: 'no page was pushed');
+      await h.again(tester, 'feedback-drawer-open');
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('on a computer the button opens the page, not the drawer', (tester) async {
+      final h = await SpaceHarness.load(tester);
+      FeedbackButton.drawerOverride = false;
+      await h.shoot(tester, opener(FeedbackButton.open), 'feedback-page-closed');
+      await openIt(tester);
+      expect(find.byKey(const ValueKey('feedback-drawer')), findsNothing, reason: 'a computer keeps the page');
+      expect(find.byType(FeedbackScreen), findsOneWidget);
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('in the drawer the form works as the page does, and sending closes it', (tester) async {
+      final h = await SpaceHarness.load(tester);
+      final sent = <FeedbackReport>[];
+      await h.shoot(tester, opener((c) => showFeedbackDrawer(c, username: 'maya', send: (r) async => (sent..add(r)).isEmpty ? '' : 'GMFB-14')), 'feedback-drawer-send');
+      await openIt(tester);
+      await _press(tester, 'feedback-send');
+      expect(sent, isEmpty, reason: 'Send waits for a description');
+      await tester.enterText(find.descendant(of: find.byKey(const ValueKey('feedback-text')), matching: find.byType(EditableText)), 'The call drops when I lock my phone.');
+      await tester.pump();
+      await _press(tester, 'feedback-send');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(sent.single.text, 'The call drops when I lock my phone.');
+      expect(sent.single.username, 'maya');
+      expect(find.byKey(const ValueKey('feedback-drawer')), findsNothing, reason: 'the drawer closed');
+      expect(find.text('Thanks! Sent as GMFB-14'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 6));
+    });
+
+    testWidgets('the drawer stands above the keyboard', (tester) async {
+      final h = await SpaceHarness.load(tester);
+      await h.shoot(tester, opener((c) => showFeedbackDrawer(c, username: '', send: (r) async => '')), 'feedback-drawer-keyboard');
+      await openIt(tester);
+      final screen = tester.getSize(find.byType(WidgetsApp));
+      tester.view.viewInsets = FakeViewPadding(bottom: 300 * tester.view.devicePixelRatio);
+      await tester.pump();
+      expect(tester.getRect(find.byKey(const ValueKey('feedback-drawer'))).bottom, lessThanOrEqualTo(screen.height - 300), reason: 'clear of a keyboard 300 high');
+      tester.view.resetViewInsets();
+      await tester.pump(const Duration(seconds: 1));
+    });
   });
 }

@@ -9,23 +9,32 @@
 /// clip growing to the right with its waveform in it, the playhead at the live end. Everyone's mix is the first track,
 /// as the file's first track is. The timeline follows the live end; dragged back, it stays where it is until Live.
 /// Stop and the way back to the pill are in the panel's header.
+///
+/// Reworked the same day (Matt: "show audio tracks being recorded in real time with meters and whatnot as well as
+/// voice level changing and more"): every track has a real meter (recording_mixer.dart) and mute and solo; the panel
+/// has a second face, the mixer, with a fader per voice for how loud it is in the mix; the mix's lane is what the
+/// faders made of the voices at each moment; and a moment can be marked, a flag on the ruler kept with the recording.
 library;
 
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../app_state.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
+import '../art/lucide_more.dart';
 import '../kit/settings_type.dart';
 import '../voice/recorder.dart';
 import '../voice/channels.dart' show Voice;
 import 'common.dart';
 import 'plugins_page/plugin_art.dart' show PluginHues;
 import 'recording_ui.dart' show RecordingsScreen;
+
+part 'recording_mixer.dart';
 
 /// The key 'Everyone' is drawn under: the mix of every track, as the file's first track is.
 const _mixKey = '*mix';
@@ -110,7 +119,7 @@ class _RecordingFloatState extends State<RecordingFloat> {
             left: t.space(3) + pad.left,
             right: t.space(3) + pad.right,
             bottom: t.space(3) + pad.bottom,
-            height: math.max(height, t.lenOf('14rem')),
+            height: math.max(height, t.lenOf('17rem')),
             child: RecordingTimeline(recorder: rec, onClose: () => setState(() => _open = false)),
           ),
         ]);
@@ -173,7 +182,8 @@ class _Pill extends StatelessWidget {
           SizedBox(width: t.space(2)),
           Flexible(child: Text(_short(elapsed), maxLines: 1, overflow: TextOverflow.clip, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: _Studio.ink, mono: true))),
           const Spacer(),
-          ListenableBuilder(listenable: recorder.meter, builder: (context, _) => _MiniBars(levels: _mixOf(recorder.meter.levels))),
+          // Everyone mixed, now.
+          SizedBox(width: 44, child: LevelMeter(listenable: Listenable.merge([recorder.meter, recorder.mix]), read: () => _mixNow(recorder), vertical: false, thickness: 6, clipped: recorder.meter.clipped.isNotEmpty)),
         ]),
       ),
     );
@@ -203,30 +213,6 @@ class _RecDotState extends State<_RecDot> with SingleTickerProviderStateMixin {
       );
 }
 
-/// The last few steps of everyone's level, as five bars.
-class _MiniBars extends StatelessWidget {
-  const _MiniBars({required this.levels});
-  final List<double> levels;
-
-  @override
-  Widget build(BuildContext context) {
-    final last = levels.length > 5 ? levels.sublist(levels.length - 5) : levels;
-    return SizedBox(
-      width: 26,
-      height: 18,
-      child: Row(crossAxisAlignment: CrossAxisAlignment.center, mainAxisAlignment: MainAxisAlignment.end, children: [
-        for (var i = 0; i < 5; i++)
-          Container(
-            margin: const EdgeInsets.only(left: 2),
-            width: 3,
-            height: 3 + 15 * _shape(i < 5 - last.length ? 0 : last[i - (5 - last.length)]),
-            decoration: BoxDecoration(color: _Studio.wave, borderRadius: BorderRadius.circular(2)),
-          ),
-      ]),
-    );
-  }
-}
-
 /// The open panel: a video editor's timeline of the recording.
 class RecordingTimeline extends StatefulWidget {
   const RecordingTimeline({super.key, required this.recorder, required this.onClose});
@@ -244,6 +230,32 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
   /// How far back from the live end the view is, in seconds; zero follows the live end.
   double _back = 0;
   bool _stopping = false;
+
+  /// The mixer rather than the timeline; kept between runs.
+  bool? _mixer;
+  static const _viewPref = 'rec_float_view';
+
+  /// Everyone mixed, by step, as the faders stood at each: worked out as the steps come, and again from the start
+  /// when a fader, a mute or a solo has moved.
+  final List<double> _mixLevels = [];
+  int _mixRevision = -1;
+
+  List<double> _mixed(CallRecorder rec) {
+    final levels = rec.meter.levels;
+    final n = _stepsOf(levels);
+    if (rec.mix.revision != _mixRevision || n < _mixLevels.length) {
+      _mixLevels.clear();
+      _mixRevision = rec.mix.revision;
+    }
+    for (var i = _mixLevels.length; i < n; i++) {
+      var sum = 0.0;
+      for (final e in levels.entries) {
+        if (i < e.value.length) sum += e.value[i] * rec.mix.gainAt(e.key, i * RecordingMeter.step);
+      }
+      _mixLevels.add(math.min(1.0, sum));
+    }
+    return _mixLevels;
+  }
 
   Future<void> _stop() async {
     if (_stopping) return;
@@ -272,7 +284,7 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
       ),
       clipBehavior: Clip.antiAlias,
       child: ListenableBuilder(
-        listenable: Listenable.merge([rec, rec.meter]),
+        listenable: Listenable.merge([rec, rec.meter, rec.mix]),
         builder: (context, _) {
           final since = rec.since;
           final elapsed = since == null ? Duration.zero : DateTime.now().difference(since);
@@ -280,7 +292,9 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
             (key: _mixKey, name: 'Everyone', live: true),
             ...rec.tracks,
           ];
-          final levels = {...rec.meter.levels, _mixKey: _mixOf(rec.meter.levels)};
+          final levels = {...rec.meter.levels, _mixKey: _mixed(rec)};
+          final app = AppState.maybeOf(context);
+          final mixer = _mixer ??= app?.choice(_viewPref, 'timeline') == 'mixer';
           final space = Voice.instance.session?.channel.name ?? '';
           return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             // The header: the time as a timecode, what is recorded, the zoom, Live, Stop and the way back to the pill.
@@ -307,9 +321,31 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
                     style: pageText(t, t.fontSize('sm'), color: _Studio.ink2),
                   ),
                 ),
-                _ToolButton(icon: Lucide.zoomOut, label: 'Zoom out', onPressed: () => setState(() => _perSecond = math.max(4, _perSecond / 1.5))),
-                _ToolButton(icon: Lucide.zoomIn, label: 'Zoom in', onPressed: () => setState(() => _perSecond = math.min(160, _perSecond * 1.5))),
-                if (_back > 0) _ToolButton(icon: Lucide.chevronRight, label: 'Live', text: narrow ? null : 'Live', onPressed: () => setState(() => _back = 0)),
+                _ToolButton(
+                  key: const ValueKey('recording-mark'),
+                  icon: Lucide.flag,
+                  label: 'Mark this moment',
+                  onPressed: () {
+                    final at = rec.mark();
+                    if (at != null) toast(context, 'Marked ${_rulerTime(at.floor())}');
+                  },
+                ),
+                if (!mixer) ...[
+                  _ToolButton(icon: Lucide.zoomOut, label: 'Zoom out', onPressed: () => setState(() => _perSecond = math.max(4, _perSecond / 1.5))),
+                  _ToolButton(icon: Lucide.zoomIn, label: 'Zoom in', onPressed: () => setState(() => _perSecond = math.min(160, _perSecond * 1.5))),
+                  if (_back > 0) _ToolButton(icon: Lucide.chevronRight, label: 'Live', text: narrow ? null : 'Live', onPressed: () => setState(() => _back = 0)),
+                ],
+                // The panel's other face: the mixer's faders, or the timeline's lanes.
+                _ToolButton(
+                  key: const ValueKey('recording-view'),
+                  icon: mixer ? LucideMore.audioLines : LucideMore.slidersHorizontal,
+                  label: mixer ? 'Show the timeline' : 'Show the mixer',
+                  text: narrow ? null : (mixer ? 'Timeline' : 'Mixer'),
+                  onPressed: () => setState(() {
+                    _mixer = !mixer;
+                    app?.set(_viewPref, mixer ? 'timeline' : 'mixer');
+                  }),
+                ),
                 SizedBox(width: t.space(1)),
                 GlacierPressable(
                   key: const ValueKey('recording-stop'),
@@ -330,9 +366,12 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
               }),
             ),
             Container(height: 1, color: _Studio.edge),
+            if (mixer)
+              Expanded(child: MixerView(key: const ValueKey('recording-mixer'), recorder: rec, tracks: tracks))
+            else
             Expanded(
               child: LayoutBuilder(builder: (context, box) {
-                final headerW = math.min(t.lenOf('10rem'), box.maxWidth * 0.36);
+                final headerW = math.min(t.lenOf('12.5rem'), box.maxWidth * 0.42);
                 final rulerH = t.lenOf('1.6rem');
                 final rows = tracks.length;
                 final laneH = math.max(t.lenOf('2.5rem'), math.min(t.lenOf('3.75rem'), (box.maxHeight - rulerH) / rows));
@@ -358,7 +397,8 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
                               name: tracks[i].name,
                               live: tracks[i].live,
                               colour: _colourOf(t, tracks[i].key),
-                              level: tracks[i].live ? _last(levels[tracks[i].key]) : 0,
+                              recorder: rec,
+                              trackKey: tracks[i].key,
                               height: laneH,
                             ),
                         ]),
@@ -378,7 +418,11 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
                               key: const ValueKey('recording-lanes'),
                               size: Size(lanes.maxWidth, rulerH + laneH * rows),
                               painter: _TimelinePainter(
-                                tracks: [for (final tr in tracks) (levels: levels[tr.key] ?? const <double>[], colour: _colourOf(t, tr.key), name: tr.name)],
+                                tracks: [
+                                  for (final tr in tracks)
+                                    (levels: levels[tr.key] ?? const <double>[], colour: _colourOf(t, tr.key), name: tr.name, out: tr.key != _mixKey && rec.mix.gain(tr.key) == 0),
+                                ],
+                                markers: rec.markers,
                                 start: start,
                                 perSecond: _perSecond,
                                 total: total,
@@ -403,53 +447,67 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
   }
 }
 
-/// A track's header: its colour, A1…, its name, live or left, and its level now.
+/// A track's header: its colour, its name, A1… (or Left), mute and solo in the mix, and its meter.
 class _TrackHeader extends StatelessWidget {
-  const _TrackHeader({super.key, required this.label, required this.name, required this.live, required this.colour, required this.level, required this.height});
+  const _TrackHeader({super.key, required this.label, required this.name, required this.live, required this.colour, required this.recorder, required this.trackKey, required this.height});
   final String label;
   final String name;
   final bool live;
   final Color colour;
-  final double level;
+  final CallRecorder recorder;
+  final String trackKey;
   final double height;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final rec = recorder;
+    final mix = rec.mix;
+    final isMix = trackKey == _mixKey;
+    final out = !isMix && mix.gain(trackKey) == 0;
+    final fader = isMix ? 1.0 : mix.fader(trackKey);
     return Container(
       height: height,
       decoration: const BoxDecoration(color: _Studio.header, border: Border(bottom: BorderSide(color: _Studio.edge))),
       child: Row(children: [
-        Container(width: 4, color: colour),
-        SizedBox(width: t.space(2)),
-        Container(
-          width: t.lenOf('1.9rem'),
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(color: _Studio.bar, borderRadius: BorderRadius.circular(4), border: Border.all(color: _Studio.edge)),
-          child: Text(label, style: pageText(t, 10, weight: 'bold', color: _Studio.ink2, mono: true)),
-        ),
+        Container(width: 4, color: out ? colour.withValues(alpha: 0.35) : colour),
         SizedBox(width: t.space(2)),
         Expanded(
           child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: live ? _Studio.ink : _Studio.ink3)),
-            if (!live) Text('Left', style: pageText(t, 10, color: _Studio.ink3)),
+            Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: live && !out ? _Studio.ink : _Studio.ink3)),
+            const SizedBox(height: 3),
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(color: _Studio.bar, borderRadius: BorderRadius.circular(4), border: Border.all(color: _Studio.edge)),
+                child: Text(live ? label : 'Left', style: pageText(t, 9, weight: 'bold', color: _Studio.ink2, mono: true)),
+              ),
+              if (!isMix) ...[
+                const SizedBox(width: 4),
+                _StripButton(key: ValueKey('recording-lane-mute-$trackKey'), letter: 'M', label: mix.muted(trackKey) ? 'Unmute $name in the mix' : 'Mute $name in the mix', on: mix.muted(trackKey), lit: _muteLit, size: 18, onPressed: () => rec.setMuted(trackKey, !mix.muted(trackKey))),
+                const SizedBox(width: 3),
+                _StripButton(key: ValueKey('recording-lane-solo-$trackKey'), letter: 'S', label: mix.soloed(trackKey) ? 'Stop soloing $name' : 'Solo $name in the mix', on: mix.soloed(trackKey), lit: _soloLit, size: 18, onPressed: () => rec.setSolo(trackKey, !mix.soloed(trackKey))),
+                // A fader that has been moved says by how much.
+                if (fader != 1) ...[
+                  const SizedBox(width: 4),
+                  Flexible(child: Text(_gainWords(fader), maxLines: 1, overflow: TextOverflow.clip, style: pageText(t, 9, weight: 'semibold', color: _Studio.ink2, mono: true))),
+                ],
+              ],
+            ]),
           ]),
         ),
-        // The level now, as a meter that climbs green to amber to red.
-        Container(
-          width: 5,
-          height: height - 14,
-          margin: EdgeInsets.symmetric(horizontal: t.space(2)),
-          decoration: BoxDecoration(color: _Studio.bar, borderRadius: BorderRadius.circular(3)),
-          alignment: Alignment.bottomCenter,
-          child: FractionallySizedBox(
-            heightFactor: _shape(level).clamp(0.0, 1.0),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(3),
-                gradient: const LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Color(0xFF34C759), Color(0xFFFFCC00), Color(0xFFFF3B30)], stops: [0.0, 0.7, 1.0]),
-              ),
+        // Its level now, after its fader: the average solid, the peaks light, the loudest held, a lamp when it clips.
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: 5),
+          child: Opacity(
+            opacity: out || !live ? 0.45 : 1,
+            child: LevelMeter(
+              key: ValueKey('recording-lane-meter-$trackKey'),
+              listenable: Listenable.merge([rec.meter, rec.mix]),
+              read: () => _trackNow(rec, trackKey, live: live),
+              clipped: !isMix && rec.meter.clipped.contains(trackKey),
+              onClearClip: () => rec.meter.clearClip(trackKey),
+              thickness: 7,
             ),
           ),
         ),
@@ -488,9 +546,12 @@ class _ToolButton extends StatelessWidget {
 
 /// The ruler, each track's clip with its waveform, and the playhead at the live end.
 class _TimelinePainter extends CustomPainter {
-  _TimelinePainter({required this.tracks, required this.start, required this.perSecond, required this.total, required this.rulerH, required this.laneH, required this.label, required this.clipLabel});
+  _TimelinePainter({required this.tracks, this.markers = const [], required this.start, required this.perSecond, required this.total, required this.rulerH, required this.laneH, required this.label, required this.clipLabel});
 
-  final List<({List<double> levels, Color colour, String name})> tracks;
+  final List<({List<double> levels, Color colour, String name, bool out})> tracks;
+
+  /// The moments marked, in seconds.
+  final List<double> markers;
 
   /// The second at the left edge.
   final double start;
@@ -541,23 +602,25 @@ class _TimelinePainter extends CustomPainter {
       final right = math.min(_x(tr.levels.length / RecordingMeter.perSecond), size.width + 4);
       if (right <= left) continue;
       final clip = RRect.fromRectAndRadius(Rect.fromLTRB(left, top, right, top + h), const Radius.circular(4));
-      canvas.drawRRect(clip, Paint()..color = tr.colour.withValues(alpha: 0.22));
+      // A voice that is out of the mix (muted, or another soloed) is still recorded: its clip is drawn faint.
+      final dim = tr.out ? 0.4 : 1.0;
+      canvas.drawRRect(clip, Paint()..color = tr.colour.withValues(alpha: 0.22 * dim));
       canvas.drawRRect(clip, Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1
-        ..color = tr.colour.withValues(alpha: 0.6));
+        ..color = tr.colour.withValues(alpha: 0.6 * dim));
       // The clip's name along its top, as an editor names a clip.
       final nameH = 13.0;
       canvas.save();
       canvas.clipRRect(clip);
-      canvas.drawRect(Rect.fromLTWH(left, top, right - left, nameH), Paint()..color = tr.colour.withValues(alpha: 0.45));
+      canvas.drawRect(Rect.fromLTWH(left, top, right - left, nameH), Paint()..color = tr.colour.withValues(alpha: 0.45 * dim));
       final tp = TextPainter(text: TextSpan(text: tr.name, style: clipLabel), textDirection: TextDirection.ltr, maxLines: 1, ellipsis: '…')..layout(maxWidth: math.max(0, right - left - 8));
       tp.paint(canvas, Offset(math.max(left, 0) + 4, top + (nameH - tp.height) / 2));
       // The waveform: each point of width the loudest step in it, mirrored about the middle of the space under the
       // name.
       final mid = top + nameH + (h - nameH) / 2;
       final half = (h - nameH) / 2 - 2;
-      final wave = Paint()..color = tr.colour;
+      final wave = Paint()..color = tr.colour.withValues(alpha: dim);
       final stepW = perSecond / RecordingMeter.perSecond;
       final from = math.max(0, ((start) * RecordingMeter.perSecond).floor());
       final to = math.min(tr.levels.length, ((start + size.width / perSecond) * RecordingMeter.perSecond).ceil() + 1);
@@ -581,6 +644,21 @@ class _TimelinePainter extends CustomPainter {
         }
       }
       canvas.restore();
+    }
+    // The moments marked: a flag in the ruler and a line down the lanes.
+    const flag = Color(0xFFFFD60A);
+    for (final m in markers) {
+      final x = _x(m);
+      if (x < -8 || x > size.width + 8) continue;
+      canvas.drawRect(Rect.fromLTWH(x - 0.5, 0, 1, size.height), Paint()..color = flag.withValues(alpha: 0.55));
+      canvas.drawPath(
+        Path()
+          ..moveTo(x, 2)
+          ..lineTo(x + 8, 5.5)
+          ..lineTo(x, 9)
+          ..close(),
+        Paint()..color = flag,
+      );
     }
     // The playhead at the live end, its head in the ruler.
     final px = _x(total);
@@ -624,29 +702,7 @@ Color _colourOf(Tokens t, String key) {
   return PluginHues.of(t.child(attrs: {'theme': 'dark'}), hueFor(key)).accent;
 }
 
-/// Everyone's level at each step: the loudest track's.
-List<double> _mixOf(Map<String, List<double>> levels) {
-  final n = _stepsOf(levels);
-  final out = List<double>.filled(n, 0);
-  for (final l in levels.values) {
-    for (var i = 0; i < l.length; i++) {
-      if (l[i] > out[i]) out[i] = l[i];
-    }
-  }
-  return out;
-}
-
 int _stepsOf(Map<String, List<double>> levels) => levels.values.fold<int>(0, (n, l) => l.length > n ? l.length : n);
-
-double _last(List<double>? l) {
-  if (l == null || l.isEmpty) return 0;
-  // The loudest of the last three steps, so the meter doesn't flicker.
-  var peak = 0.0;
-  for (var i = math.max(0, l.length - 3); i < l.length; i++) {
-    peak = math.max(peak, l[i]);
-  }
-  return peak;
-}
 
 /// A level as it is drawn: speech sits low on a straight scale, so it is lifted (a square root) as editors draw it.
 double _shape(double level) => math.sqrt(level.clamp(0.0, 1.0));

@@ -141,7 +141,7 @@ class RecordingsScreen extends StatelessWidget {
                         key: ValueKey('recording-${r.id}'),
                         icon: AppIcon(Lucide.audioLines, size: 18),
                         label: '${r.space.isEmpty ? 'A call' : r.space} · ${_date(r.at)}',
-                        hint: Text('${_clock(Duration(seconds: r.seconds))} · ${r.people.join(', ')}${_wordsNote(r)}'),
+                        hint: Text('${_clock(Duration(seconds: r.seconds))} · ${r.people.join(', ')}${r.markers.isEmpty ? '' : ' · marked at ${r.markers.map((m) => _clock(Duration(seconds: m.floor()))).join(', ')}'}${_wordsNote(r)}'),
                         onPress: () => _actions(context, r),
                       ),
                   ]),

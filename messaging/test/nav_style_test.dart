@@ -77,6 +77,16 @@ void main() {
         expect(_key('quick-mark-read'), findsOneWidget);
         expect(_key('share-feedback'), findsOneWidget);
         expect(tester.getTopLeft(_key('share-feedback')).dy, greaterThan(tester.getTopLeft(_key('quick-mark-read')).dy));
+        // Share feedback opens over the whole app, in the middle of the window, not in the sidebar (Matt, 2026-11-20: "the
+        // share feedback drawer should open over the whole app not just in the sidebar").
+        await tester.tap(_key('share-feedback'));
+        await settle(tester);
+        expect(_key('feedback-drawer'), findsOneWidget);
+        expect(tester.getCenter(_key('feedback-drawer')).dx, closeTo(at.width / 2, 2));
+        await _keep(tester, '${style.name}-$size-feedback');
+        await tester.tapAt(const Offset(4, 4));
+        await settle(tester);
+        expect(_key('feedback-drawer'), findsNothing);
 
         AppShellState.live!.openCircle(_owls);
         await settle(tester);
@@ -88,14 +98,19 @@ void main() {
             expect(_key('nav-home'), findsOneWidget);
             expect(_key('nav-messages'), findsNothing);
           case NavStyle.dock:
-            // The app's rings stay, inside the circle too.
+            // The app's rings stay, inside the circle too: the Marketplace's among them (Matt, 2026-11-20: "Move plugins
+            // out of settings into a marketplace button on the navigation rail with a marketplace icon").
             expect(_key('nav-home'), findsNothing);
-            for (final id in ['new', 'messages', 'contacts', 'archive', 'settings']) {
+            for (final id in ['new', 'messages', 'contacts', 'archive', 'marketplace', 'settings']) {
               expect(_key('nav-$id'), findsOneWidget, reason: id);
             }
           case NavStyle.rail:
             // No pill: the rail, its circles by their faces, and Home taking the circle away.
             expect(_key('nav-messages'), findsNothing);
+            // The Marketplace's ring at the foot, between Archive and Settings.
+            final archive = tester.getTopLeft(_key('rail-archive')).dy, market = tester.getTopLeft(_key('rail-marketplace')).dy, settings = tester.getTopLeft(_key('rail-settings')).dy;
+            expect(market, greaterThan(archive));
+            expect(market, lessThan(settings));
             expect(_key('rail-circle-${_owls.seed}'), findsOneWidget);
             expect(_key('rail-circle-${_alpha.seed}'), findsOneWidget);
             await tester.tap(_key('rail-circle-${_alpha.seed}'));

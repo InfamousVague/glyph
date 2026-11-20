@@ -1,4 +1,4 @@
-<p>Thank you for trying Ghost Messaging early. Five steps, about five minutes. Answer the questions and the steps fit your device. Your answers and ticks stay in this browser.</p>
+<p>Thank you for trying Ghost Messaging early. Five steps, about three minutes. Answer the questions and the steps fit your device. Your answers and ticks stay in this browser.</p>
 
 <div class="alpha-invite" data-invite="yes" hidden>
 <note kind="alpha" title="You've been invited">
@@ -64,8 +64,19 @@
   <p class="mark"><button type="button">Mark done</button></p>
 </div></li>
 <li class="step" data-step="3"><div class="step-body">
-  <h3>Go through the welcome</h3>
-  <p>A short walkthrough opens the first time. A voice reads each page; switch it off at the top if you're somewhere quiet.</p>
+  <h3>Pick a username and password</h3>
+  <p data-when="device=mac device=windows device=iphone device=" hidden>The first screen asks for two things: a username, which is how the other testers find you, and a password, which makes your Ghost account so you can sign in on another device. Tap <b>Continue</b>.</p>
+  <div data-when="device=mac device=windows device=iphone device=" hidden><m-screen caption="The whole first screen.">
+    <m-p>Pick a username and a password.</m-p>
+    <m-field label="Username" value="alex"/>
+    <m-field label="Password" value="••••••••••••"/>
+    <m-btn kind="primary" tap>Continue</m-btn>
+    <m-p>Already have an account?</m-p>
+    <m-btn kind="secondary">Sign in</m-btn>
+  </m-screen></div>
+  <div data-when="device=android" hidden>
+    <p>First, one page about your texts (below). Then a username, which is how the other testers find you, and a password, which makes your Ghost account so you can sign in on another device. Tap <b>Continue</b>.</p>
+  </div>
   <div data-when="device=android sms=beside" hidden>
     <p>On the texts page, tap <b>Use beside Google Messages</b>. Your texts stay where they are, and you don't need to make Ghost your texting app.</p>
     <m-screen caption="The welcome's texts page.">
@@ -78,7 +89,9 @@
     <p>If Android refuses, tap <b>Open Android's page for Ghost Messaging</b>, then <b>⋮ › Allow restricted settings</b>, and try again.</p>
     <div data-when="device=android sms=default rcs=yes" hidden><note kind="warn" title="Turn off RCS chats first"><p>While they're on in Google Messages, people who use RCS keep sending you chats that never arrive as texts. The welcome shows a <b>Coming from Google Messages? Do this first</b> card that opens the right setting.</p></note></div>
   </div>
-  <p>Pick a look, tap through, and you're in. You don't need to pair a phone to join the circle; skip it if the welcome offers it. More about the welcome in <a href="/docs/first-run/">The first time you open it</a>.</p>
+  <p>Next come your 12 recovery words. Write them down if you can: with them you can get your account back without your password. Then tap them in order to check, or tap <b>Skip this check</b> and you're in. You can see them again any time in <ui>Settings › Me › Account</ui>.</p>
+  <p>Already have a Ghost account? Tap <b>Sign in</b> under <b>Already have an account?</b> on that same screen instead. You don't need to pair a phone to join the circle; skip it if Ghost offers it. More in <a href="/docs/first-run/">The first time you open it</a>.</p>
+  <note kind="alpha" title="Signing up got simpler"><p>If you joined before, you went through six pages and made your account later in Settings. New testers now pick a username and password on the first screen and are done. Nothing changes for you.</p></note>
   <p class="mark"><button type="button">Mark done</button></p>
 </div></li>
 <li class="step" data-step="4"><div class="step-body">

@@ -36,17 +36,18 @@ class GuideLook {
   Color get hue => guideHues[hues.first]!.$1;
 }
 
-/// The pages, in order: an id (narration.dart's, and its voice's file), a title, and a look. Six, about Ghost as one
-/// messenger for everyone (Matt, 2026-11-15: "Rework the onboarding to be a bit shorter and have it focus on the fact
-/// that ghost is an all in one messenger"); contacts and notifications are asked for as the app opens (lib/main.dart).
+/// The pages, in order: an id (narration.dart's, and its voice's file), a title, and a look. The texts step alone since
+/// 2026-11-20 (Matt: "rework the onboarding flow to be very simple and just ask for a username and password"; "Yes,
+/// replace it"): the tour of Ghost's features is gone, the look is Settings' to choose, and the username and password
+/// come next (lib/standalone/welcome.dart, from lib/main.dart). Contacts and notifications are asked for as the app
+/// opens (lib/main.dart).
 const List<(String, String, GuideLook)> guidePages = [
-  ('welcome', 'Everyone, in one place', GuideLook(['indigo', 'purple', 'rose'], Lucide.ghost, [Lucide.messageSquare, Lucide.users, LucideMore.headphones, Lucide.lock])),
   ('texts', 'Start with your texts', GuideLook(['green', 'mint', 'cyan'], LucideMore.smartphone, [Lucide.messageSquare, Lucide.shieldCheck, Lucide.link, Lucide.check])),
-  ('together', 'Texts and chats, side by side', GuideLook(['blue', 'indigo', 'purple'], Lucide.users, [Lucide.lock, Lucide.sticker, Lucide.atSign, LucideMore.smile])),
-  ('calls', 'Drop in, out loud', GuideLook(['rose', 'red', 'orange'], LucideMore.headphones, [Lucide.mic, Lucide.video, Lucide.users, Lucide.link])),
-  ('everywhere', 'On every screen', GuideLook(['cyan', 'blue', 'indigo'], Lucide.laptop, [LucideMore.qrCode, LucideMore.smartphone, Lucide.refreshCw, Lucide.messageSquare])),
-  ('start', 'You\'re in', GuideLook(['magenta', 'rose', 'orange'], LucideMore.rocket, [Lucide.palette, Lucide.sunMoon, Lucide.sparkles, Lucide.messageSquare])),
 ];
+
+/// Set as a new install finishes the walkthrough: the username and password are asked for next (lib/main.dart), once.
+/// An install that finished it before 2026-11-20 is not asked; Settings › Me has the account for it.
+const accountDueKey = 'account_due';
 
 /// The choice that texts were passed by in the walkthrough (lib/main.dart opens the app without them).
 const textsSkippedKey = 'texts_skipped';
@@ -174,7 +175,7 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
   void _skipTexts() {
     AppState.of(context).setFlag(textsSkippedKey, true);
     setState(() {});
-    _go(_page + 1);
+    _next();
   }
 
   /// Next waits on the texts page until Ghost can send texts, or they are skipped.
@@ -187,6 +188,7 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
 
   void _finish() {
     widget.voice.stop();
+    if (!widget.replay && !AppState.of(context).flag('onboarded', fallback: false)) AppState.of(context).setFlag(accountDueKey, true);
     AppState.of(context).setFlag('onboarded', true);
     // A new install has nothing new to be told of: the notes start after the version it began with (lib/ui/whats_new.dart).
     if (AppState.of(context).choice(changelogSeenKey, '').isEmpty) AppState.of(context).set(changelogSeenKey, appVersion);
@@ -247,7 +249,8 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
             Padding(
               padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(4)),
               child: Row(children: [
-                for (var i = 0; i < guidePages.length; i++)
+                if (guidePages.length > 1)
+                  for (var i = 0; i < guidePages.length; i++)
                   AnimatedContainer(
                     duration: t.reducedMotion ? Duration.zero : const Duration(milliseconds: 220),
                     margin: EdgeInsets.only(right: t.space(1)),
@@ -259,8 +262,8 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
                 if (_page > 0) ...[GuideButton(label: 'Back', look: GuideButtonLook.ring, onPress: () => _go(_page - 1)), SizedBox(width: t.space(2))],
                 GuideButton(
                   key: const ValueKey('guide-next'),
-                  label: last ? 'Say hi' : 'Next',
-                  icon: last ? Lucide.check : Lucide.arrowRight,
+                  label: last ? (widget.replay ? 'Done' : 'Continue') : 'Next',
+                  icon: last && widget.replay ? Lucide.check : Lucide.arrowRight,
                   look: GuideButtonLook.filled,
                   color: look.hue,
                   large: true,

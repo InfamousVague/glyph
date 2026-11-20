@@ -30,6 +30,37 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **The Marketplace, and plugins from other developers** (not released; `lib/plugins/pack/`, `lib/market/`,
+  `lib/ui/market/`, `relay/lib/market.dart`; Matt, 2026-11-20: "This is a lengthly feature request, I would like users
+  to be able to develop and submit their own plugins to our plugin marketplace and I'd like to be able to verify them for
+  the store through a review process. Please include documents on how users can develop plugins, please add a developer
+  setting for users to be able to manually upload plugins for development testing and a listing process. Move plugins
+  out of settings into a marketplace button on the navigation rail with a marketplace icon. Add a submission area with a
+  form to accept an icon, description, plugin tags, etc"). A plugin from another developer is a pack: one
+  `<id>.ghostplugin` file of JSON in the format `ghost-plugin/1`, its manifest, rules and icon and nothing that runs,
+  compiled into the extension points the built-ins use (`lib/plugins/pack/`: `manifest.dart` checks it, `phrases.dart`
+  finds words with phrases and bounded tokens in place of regular expressions, `pack_plugin.dart` runs it through
+  `gated_host.dart`, `installed.dart` keeps what is installed in the app's `plugins` folder and checks it again at every
+  start). A pack sees only one-to-one texts from numbers not in the contacts, not encrypted, and never acts on one with a
+  sign-in code. Its switch is `plugin_x<id>`, and the indexes `plugins_store`, `plugins_dev`, `plugins_floor` (the
+  highest version ever installed, so no older one comes back) and `plugins_paused` (a pack too slow five times in ten
+  minutes). The store is `/market` on the relay (`relay/lib/market.dart`, `market_pack.dart`, `market_store.dart`):
+  requests signed with the hub key over `ghost-market v1` words, every check made before a body is read, submissions,
+  the review queue, reports, a daily sweep and `GHOST_MARKET_*` limits. Matt reviews in Settings › Admin › Plugin review:
+  an approval is his key's signature over `ghost-market approve v1`, the id, the version and the package's SHA-256,
+  checked against `marketReviewKeys` (empty until he gives his key) when a plugin is added and at every start;
+  `ghost-market revoke v1` withdraws a version, with its reason signed, and `ghost-market retire v1` retires a key.
+  Plugins left Settings for a Marketplace ring (`Lucide.store`) between Archive and Settings on the rail, the dock and
+  Dial-Up's taskbar ("Market"): Discover, Added, Updates, Submit a plugin (the plugin, its icon, description, category,
+  colour, tags, screenshots and notes; `lib/ui/market/submit_screen.dart`), My submissions and the review queue.
+  Settings › Developer › Plugins in development loads one from a file, the clipboard or a link, with Reload and Try it,
+  and the API has `plugins.devInstall` and `plugins.devRemove`. Nothing from other developers on iPhone. Docs: "Build a
+  plugin" on gogho.st/docs (`docs-src/pages/build-a-plugin.html` and eight more), `docs/marketplace.md` for whoever
+  maintains it, and two example packs in `examples/plugins/`. Tests: pack_canonical_test, pack_phrases_test,
+  pack_format_test, pack_plugin_test, pack_registry_test, pack_review_test, pack_words_test, pack_installed_test,
+  pack_examples_test, api_plugins_dev_test, marketplace_test, market_discover_test, market_submit_test,
+  market_mine_test, market_review_test, market_state_test, dev_plugins_settings_test, docs_slugs_test, and the relay's
+  market_pack_test, market_test, market_config_test and handles_test.
 - **Souls, special badges and the admin page** (0.9.36, not released; Matt, 2026-11-19: "Build a new points system into
   the app called souls ... display the points in the top bar next to the feedback button with a flame icon ... a simple
   admin page for me to login to ... only my matt account ... see all users who signed up on the relay and issue special
@@ -1528,7 +1559,9 @@ choice (the phone's default SMS SIM is used), and a backup.
 | Notifications | `Notifier.kt` | Notifications with Reply and Mark as read, the "respond via message" service, and the file provider Android's MMS service reads and writes through. |
 | Paired computers, on the phone | `Desk.kt`, `DeskService.kt`, `DeskSession.kt`, `DeskCrypto.kt`, `WsClient.kt`, `ScanActivity.kt` | Who is paired and each one's key (under an Android Keystore key), the foreground service that listens on the local network (NSD) and dials the relay, one connection as the phone answers it, the sealing, a WebSocket client written out, and the QR scanner (Camera2 and ZXing). Tests: `DeskCryptoTest`, `DeskSessionTest`, `WsClientTest`, `ScanTest`. |
 | The Mac app | `macos/`, `lib/desktop/` | The same Flutter project with a macOS runner: `lib/main.dart` goes to `lib/desktop/main.dart` on a computer. `link/` is the sealing (pointycastle), a connection, the relay's socket and `PhoneLink` (pairing, local first, the relay when it fails); `remote.dart` answers the phone's screens' calls from the phone; `ui/` is the wizard, the two panes and Settings; `macos/Runner/DeskChannels.swift` is Bonjour, the Keychain and the Mac's name. |
-| Plugins | `lib/plugins/` | The contract (`plugin.dart`), the registry and the plugins the app ships with (`registry.dart`), the conversations' tags (`tag_store.dart`), what the list of conversations keeps of them (`list.dart`), what a conversation would ask (`conversation.dart`), what is drawn of them (`ui.dart`), Settings › Plugins (`settings.dart`), and the plugins themselves (`codes.dart`, `kinds.dart`, `spam.dart`, `embeds.dart`, `actions.dart`, `replies.dart`, `day.dart`, `quiet.dart`, `strangers.dart`). |
+| Plugins | `lib/plugins/` | The contract (`plugin.dart`), the registry and the plugins the app ships with (`registry.dart`), the conversations' tags (`tag_store.dart`), what the list of conversations keeps of them (`list.dart`), what a conversation would ask (`conversation.dart`), what is drawn of them (`ui.dart`), their settings for the Marketplace's pages and Settings' search (`settings.dart`), the plugins themselves (`codes.dart`, `kinds.dart`, `spam.dart`, `embeds.dart`, `actions.dart`, `replies.dart`, `day.dart`, `quiet.dart`, `strangers.dart`), and plugins from other developers (`pack/`: the `ghost-plugin/1` format, its phrases, running a pack, review and what is installed). |
+| The Marketplace | `lib/ui/market/`, `lib/market/`, `relay/lib/market.dart` | The ring's place on the rail and its sections: Discover, Added, Updates, Submit a plugin, My submissions, Plugins in development and the review queue (`lib/ui/market`); the client and the catalog's checked state (`lib/market`); the store and its review on the relay (`relay/lib/market.dart`, `market_pack.dart`, `market_store.dart`). `docs/marketplace.md` says how it fits together. |
+| The docs | `docs-src/`, `tool/build-docs.mjs` | gogho.st/docs: each page's body, with mock tags drawn as the app draws itself, built into `site/docs` with the example plugins (`examples/plugins`) copied in (`node tool/build-docs.mjs`; `--check` fails where they differ), and shipped by `tool/deploy-site.mjs`. |
 | The relay | `relay/` | A WebSocket server in Dart's own library alone (`relay/README.md`). Not on a server. |
 
 ## Building

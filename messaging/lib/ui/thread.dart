@@ -52,7 +52,10 @@ import '../kit/semantic_colors.dart';
 import 'dialup/bevel.dart' show DialupColors, isDialup;
 import 'message_line.dart';
 import 'jump_to_latest.dart';
+import 'schedule_ui.dart';
+import '../scheduled.dart' show ScheduleTarget;
 import 'translated_card.dart';
+import 'paste_images.dart';
 
 /// One conversation: its messages oldest at the top, newest by the composer.
 class ThreadScreen extends StatefulWidget {
@@ -158,6 +161,27 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
 
   /// Sends [body] to whoever this conversation is with: in a group of friends to each member by the app's routes,
   /// which is the only way one is written to; anywhere else as a text.
+  /// Where a message scheduled from Send goes (lib/ui/schedule_ui.dart): this group of friends, or these people by
+  /// text (to a friend by the app's routes where one is up, as Send does); none in a group that can't be written to.
+  ScheduleTarget? get _scheduleTarget {
+    if (_people.isEmpty) return null;
+    final who = _people.map((p) => p.label).join(', ');
+    if (_isGhost) return _closed != null ? null : (kind: 'group', target: _ghost?.id ?? _groupId!, who: who);
+    return (kind: 'text', target: _people.map((p) => p.address).join(','), who: who);
+  }
+
+  void _sendMenu() {
+    if (_attachments.isNotEmpty) {
+      toast(context, 'Pictures can\'t be scheduled yet. Send them now, or schedule the words alone.');
+      return;
+    }
+    openSendMenu(context, to: _scheduleTarget, text: _text.text, onScheduled: () {
+      _text.clear();
+      _draftSave?.cancel();
+      Sms.instance.setDraft(widget.thread, '');
+    });
+  }
+
   Future<void> _sendWords(String body) async {
     if (!_isGhost) {
       await Sms.instance.send(_people.map((p) => p.address).toList(), body);
@@ -584,18 +608,6 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (mounted) setState(() => _sending = false);
       _load();
     }
-  }
-
-  /// A picture on the computer's clipboard (a screenshot, an image copied, an image file copied) is added as one
-  /// chosen with the picker would be; with none, the words on it are pasted as they always were.
-  Future<void> _paste() async {
-    final picture = _attachments.length < 5 ? await MacPlatform.pasteImage() : null;
-    if (!mounted) return;
-    if (picture != null) {
-      setState(() => _attachments.add(picture));
-      return;
-    }
-    _field.currentState?.pasteText(SelectionChangedCause.keyboard);
   }
 
   Future<void> _attach() async {
@@ -1432,14 +1444,13 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                         if (_text.text.isEmpty)
                           IgnorePointer(child: Text(_isGhost ? 'Message' : isMms ? 'Picture message' : (sealed ? 'Encrypted message' : 'Text message'), style: composerText.copyWith(color: t.color('app-ink-3')), strutStyle: composerStrut, textHeightBehavior: _evenLeading)),
                         // On a computer the paste keys bring in a picture on the clipboard first, then words as ever
-                        // (Matt, 2026-11-16: "add the ability to paste images into the chatbar on desktop"). Nearer the
-                        // field than the app's own text shortcuts, so these are the ones used.
-                        Shortcuts(
-                          shortcuts: Sms.remote
-                              ? {SingleActivator(LogicalKeyboardKey.keyV, meta: Platform.isMacOS, control: !Platform.isMacOS): const _PasteIntent()}
-                              : const <ShortcutActivator, Intent>{},
-                          child: Actions(
-                            actions: {_PasteIntent: CallbackAction<_PasteIntent>(onInvoke: (_) => _paste())},
+                        // (Matt, 2026-11-16: "add the ability to paste images into the chatbar on desktop"; on the Mac
+                        // the window catches ⌘V ahead of its Edit menu: lib/ui/paste_images.dart).
+                        PasteImages(
+                          focusNode: _focus,
+                          enabled: Sms.remote && _attachments.length < 5,
+                          onImage: (path) => setState(() => _attachments.add(path)),
+                          child: KeyedSubtree(
                             child: EditableText(
                           key: _field,
                           controller: _text,
@@ -1485,8 +1496,12 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                 if (mounted) _focus.requestFocus();
               },
               send: editing ? IconTap(key: const ValueKey('composer-send'), icon: Lucide.check, label: 'Save edit', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _saveEdit : null) : null,
+              onSendMenu: editing ? null : _sendMenu,
             );
-            return ComposerBox(field: field, typing: typing, plus: buttons.plus, ends: buttons.ends, below: buttons.below);
+            return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              if (!editing) ScheduledStrip(to: _scheduleTarget),
+              ComposerBox(field: field, typing: typing, plus: buttons.plus, ends: buttons.ends, below: buttons.below),
+            ]);
           }),
           if (!isMms && !editing && parts > 1)
             Padding(
@@ -2279,7 +2294,4 @@ class _NotSent implements Exception {
   String toString() => why;
 }
 
-/// The paste keys in the message field on a computer (_ThreadScreenState._paste).
-class _PasteIntent extends Intent {
-  const _PasteIntent();
-}
+

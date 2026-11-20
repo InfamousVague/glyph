@@ -16,6 +16,7 @@ import 'package:ghost_messaging/me/me.dart';
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/standalone/standalone.dart';
 import 'package:ghost_messaging/standalone/welcome.dart';
+import 'package:ghost_messaging/ui/account_screens.dart';
 import 'package:ghost_messaging/ui/shell.dart';
 import 'package:glacier/glacier.dart';
 
@@ -84,8 +85,20 @@ void main() {
   testWidgets('first a username, said in a computer\'s words', (tester) async {
     await open(tester);
     expect(find.byType(StandaloneWelcome), findsOneWidget);
-    expect(find.textContaining('No phone needed'), findsOneWidget);
+    // Only a username and a password (Matt, 2026-11-20: "very simple and just ask for a username and password").
+    expect(find.byKey(const ValueKey('welcome-username')), findsOneWidget);
+    expect(find.byKey(const ValueKey('welcome-password')), findsOneWidget);
+    expect(find.byType(GlacierInput), findsNWidgets(2));
     expect(find.byType(PairWizard), findsNothing, reason: 'no phone is asked for before anything else');
+    // Signing in is a section on this same page, not a page first (Matt, 2026-11-20: "it should have an 'already have
+    // an account' section on the first page").
+    expect(find.text('Already have an account?'), findsOneWidget);
+    expect(find.byKey(const ValueKey('welcome-sign-in')), findsOneWidget);
+    expect(find.byType(SignInScreen), findsNothing);
+    await tester.ensureVisible(find.byKey(const ValueKey('welcome-sign-in')));
+    await tester.tap(find.byKey(const ValueKey('welcome-sign-in')));
+    await settle(tester);
+    expect(find.byType(SignInScreen), findsOneWidget);
   });
 
   testWidgets('then linking a phone, offered once and passed by; the app opens without one', (tester) async {

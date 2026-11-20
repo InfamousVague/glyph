@@ -167,6 +167,9 @@ void main() {
   testWidgets('with room a plugin\'s page stands beside the shelves, its card ringed, and closes with its X', (tester) async {
     await page(tester, size: const Size(1180, 860));
     expect(_key('plugins-pane'), findsNothing);
+    // The band's line is longer since the Marketplace (plugins from other developers too): the shelf starts lower.
+    await tester.ensureVisible(find.descendant(of: _key('plugins-shelf-added'), matching: _key('plugins-card-codes')));
+    await settle(tester);
     await tester.tap(find.descendant(of: _key('plugins-shelf-added'), matching: _key('plugins-card-codes')));
     await settle(tester);
     expect(_key('plugins-pane'), findsOneWidget);
@@ -189,17 +192,20 @@ void main() {
     expect(_key('plugins-detail-quiet'), findsOneWidget);
   });
 
-  test('in Settings: Plugins is the page, led to by its band; a plugin\'s own section is not a row of the list', () {
+  test('Settings no longer lists Plugins: the Marketplace is their place; the section stays, unlisted, for the search', () {
+    // Matt, 2026-11-20: "Move plugins out of settings into a marketplace button on the navigation rail with a
+    // marketplace icon".
     final section = pluginsSection(registry);
-    expect(section.screen, isNotNull);
-    expect(section.entry, isNotNull);
-    expect(section.listed, isTrue);
+    expect(section.listed, isFalse);
+    expect(section.entry, isNull, reason: 'the band is the Marketplace\'s list\'s now');
+    expect(section.screen, isNull);
+    expect(section.label, 'Marketplace');
     final own = pluginPages(registry);
     expect(own, isNotEmpty);
     expect(own.every((s) => !s.listed), isTrue, reason: 'still opened by its id, and searched, but not listed');
   });
 
-  testWidgets('Settings\' search finds a plugin by name, and the hit opens the Plugins page at its page', (tester) async {
+  testWidgets('Settings\' search finds a plugin by name, and the seek it carries opens the plugin\'s page', (tester) async {
     final sheet = await loadSheet(tester);
     final model = SettingsModel(state);
     addTearDown(model.dispose);
@@ -208,8 +214,9 @@ void main() {
     final context = tester.element(find.byType(SectionPage));
     final hits = searchSettings(context, model, [section], 'link previews');
     expect([for (final h in hits) h.setting], contains('Link previews'));
-    // A hit carries the setting it found to the screen ([SettingsSeek]), which opens that plugin.
-    await pumpScreen(tester, sheet, SettingsSeek(seek: 'Link previews', child: Builder(builder: (context) => section.screen!(context, model))), state);
+    // A hit carries the setting it found to the shelves ([SettingsSeek]), which open that plugin: in the app the
+    // Marketplace's Discover (lib/ui/shell.dart, test/marketplace_test.dart).
+    await pumpScreen(tester, sheet, SettingsSeek(seek: 'Link previews', child: pluginsScreen(registry)), state);
     expect(find.byType(PluginDetailPage), findsOneWidget);
     expect(_key('plugins-detail-embeds'), findsOneWidget);
   });

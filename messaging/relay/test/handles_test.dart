@@ -286,6 +286,97 @@ void main() {
     expect(last(alice, 'admin'), containsPair('ok', false));
   });
 
+  // Matt, 2026-11-20: "I would like users to be able to develop and submit their own plugins to our plugin marketplace
+  // and I'd like to be able to verify them for the store through a review process". The Marketplace's review rides on
+  // the admin page's sign-in (relay/lib/market.dart), so a sign-in is now the connection's that made it, and it ages.
+  group('the admin page\'s sign-in, for the Marketplace', () {
+    const salt = '0123456789abcdef0123456789abcdef';
+    final adminConfig = HandlesConfig(adminUser: 'k', adminHash: '$salt:${Handles.adminHashOf(salt, 'pw')}');
+
+    test('is the connection\'s that signed in, for eight hours; the market asks how lately; it goes with its connection and a restart', () async {
+      var clock = DateTime.utc(2026, 11, 20, 9);
+      final a = Handles(dataDir: dir, config: adminConfig, fetch: net.fetch, now: () => clock)..load();
+      come(a, alice);
+      come(a, bob);
+      await a.said(alice, {'dir': 'claim', 'name': 'matt'});
+      expect(a.adminSignedIn(alice), isFalse, reason: 'before signing in');
+      await a.said(alice, {'dir': 'admin-login', 'user': 'k', 'pass': 'pw'});
+      expect(last(alice, 'admin'), containsPair('ok', true));
+      expect(a.adminSignedIn(alice), isTrue);
+      expect(a.adminSignedIn(alice, within: const Duration(minutes: 30)), isTrue);
+      expect(a.adminSignedIn(bob), isFalse);
+      clock = clock.add(const Duration(minutes: 31));
+      expect(a.adminSignedIn(alice, within: const Duration(minutes: 30)), isFalse, reason: 'not lately enough to approve');
+      expect(a.adminSignedIn(alice), isTrue);
+      await a.said(alice, {'dir': 'admin-users'});
+      expect(last(alice, 'admin-users'), containsPair('ok', true));
+      clock = clock.add(const Duration(hours: 8));
+      expect(a.adminSignedIn(alice), isFalse, reason: 'eight hours on');
+      await a.said(alice, {'dir': 'admin-users'});
+      expect(last(alice, 'admin-users'), containsPair('ok', false), reason: 'nor the admin page itself');
+      await a.said(alice, {'dir': 'admin-login', 'user': 'k', 'pass': 'pw'});
+      expect(a.adminSignedIn(alice), isTrue);
+      leave(a, alice);
+      expect(a.adminSignedIn(alice), isFalse, reason: 'its connection left');
+      come(a, alice);
+      await a.said(alice, {'dir': 'admin-login', 'user': 'k', 'pass': 'pw'});
+      expect(a.adminSignedIn(alice), isTrue);
+      a.save();
+      final again = Handles(dataDir: dir, config: adminConfig, fetch: net.fetch, now: () => clock)..load();
+      come(again, alice);
+      expect(again.adminSignedIn(alice), isFalse, reason: 'a restart signs everyone out');
+      // Not an admin's account any more: signed in or not, no.
+      await a.said(alice, {'dir': 'claim', 'name': 'not_matt'});
+      expect(a.adminSignedIn(alice), isFalse);
+    });
+
+    test('two connections of one identity: each its own sign-in, and each answer to the one that asked', () async {
+      final a = Handles(dataDir: dir, config: adminConfig, fetch: net.fetch)..load();
+      final byPhone = <Map<String, Object?>>[], byComputer = <Map<String, Object?>>[];
+      void Function(Map<String, Object?>) phone = byPhone.add, computer = byComputer.add;
+      a.came(alice, phone, key: utf8.encode('key of $alice'));
+      await a.said(alice, {'dir': 'claim', 'name': 'matt'}, phone);
+      await a.said(alice, {'dir': 'admin-login', 'user': 'k', 'pass': 'pw'}, phone);
+      expect(byPhone.last, {'dir': 'admin', 'ok': true}, reason: 'the sign-in\'s answer reached the phone');
+      // A computer that became the same you comes, and goes.
+      a.came(alice, computer);
+      a.went(alice, computer);
+      expect(a.adminSignedIn(alice), isTrue, reason: 'the phone is still signed in');
+      await a.said(alice, {'dir': 'admin-users'}, phone);
+      expect(byPhone.last, containsPair('ok', true));
+      a.came(alice, computer);
+      await a.said(alice, {'dir': 'admin-users'}, computer);
+      expect(byComputer.last, containsPair('ok', false), reason: 'the computer never signed in');
+      expect(byPhone.where((m) => m['dir'] == 'admin-users'), hasLength(1), reason: 'its refusal went to the computer');
+      a.went(alice, phone);
+      expect(a.adminSignedIn(alice), isFalse);
+    });
+
+    test('when a username was claimed, kept when it is claimed again; and the name itself', () async {
+      var clock = DateTime.utc(2026, 11, 1, 15, 30);
+      final a = Handles(dataDir: dir, config: config, fetch: net.fetch, now: () => clock)..load();
+      come(a, alice);
+      expect(a.claimedOn(alice), isNull);
+      expect(a.usernameOf(alice), isNull);
+      await a.said(alice, {'dir': 'claim', 'name': 'Maya.B'});
+      expect(a.claimedOn(alice), DateTime.utc(2026, 11, 1));
+      expect(a.usernameOf(alice), 'maya.b');
+      clock = DateTime.utc(2026, 11, 5, 8);
+      await a.said(alice, {'dir': 'claim', 'name': 'maya.b'});
+      expect(last(alice, 'claim'), containsPair('ok', true));
+      expect(a.claimedOn(alice), DateTime.utc(2026, 11, 1), reason: 'claiming the name it holds again keeps its day');
+      await a.said(alice, {'dir': 'claim', 'name': 'maya_b'});
+      expect(a.claimedOn(alice), DateTime.utc(2026, 11, 5), reason: 'another name is claimed anew');
+      a.save();
+      final again = Handles(dataDir: dir, config: config, fetch: net.fetch, now: () => clock)..load();
+      expect(again.claimedOn(alice), DateTime.utc(2026, 11, 5));
+      expect(again.usernameOf(alice), 'maya_b');
+      await a.said(alice, {'dir': 'release'});
+      expect(a.claimedOn(alice), isNull);
+      expect(a.usernameOf(alice), isNull);
+    });
+  });
+
   // Matt, 2026-11-20: "allow the user to choose one badge to showcase next to their names don't show them all".
   test('one badge shown beside a name: the one its holder chose of theirs, else their highest', () async {
     const salt = '0123456789abcdef0123456789abcdef';

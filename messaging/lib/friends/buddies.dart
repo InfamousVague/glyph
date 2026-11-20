@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../games/game_activity.dart';
 import '../invites/pending_invites.dart';
 import '../me/me.dart';
 import '../me/pictures.dart';
@@ -182,6 +183,8 @@ class Buddies extends ChangeNotifier {
       all = [for (final j in list) ?Buddy.fromJson(j)];
       notifyListeners();
     }
+    // What the phone's friends are playing (lib/games/game_activity.dart): said to the phone, so told here by it.
+    if (r['ga'] is Map) GameActivities.instance.heardAll(r['ga']);
     return r;
   }
 
@@ -222,8 +225,11 @@ class Buddies extends ChangeNotifier {
         await remove(want());
       case 'share':
         await shareProfile();
+      case 'ga':
+        // The computer's game, said to friends in this phone's name: the phone is who they are friends with.
+        await sayActivity(GameActivity.fromJson(what['ga']));
     }
-    return {'list': list()};
+    return {'list': list(), 'ga': GameActivities.instance.all()};
   }
 
   Future<void> start() async {
@@ -291,13 +297,19 @@ class Buddies extends ChangeNotifier {
   /// passes over them.
   Map<String, Object> _profile() {
     final me = Me.instance;
-    return {'u': _port.username ?? '', 'n': _port.displayName, 'b': _port.bio, if (me.picture.isNotEmpty) 'p': me.picture, 'st': me.status, 'l': me.shareLinks ? me.links : const <String, String>{}};
+    // `p`, the small picture, for builds from before 0.10.4; `pp`, the sharp one shown, for the rest.
+    final sharp = me.pictureSharp;
+    return {'u': _port.username ?? '', 'n': _port.displayName, 'b': _port.bio, if (me.picture.isNotEmpty) 'p': me.picture, if (sharp != me.picture) 'pp': sharp, 'st': me.status, 'l': me.shareLinks ? me.links : const <String, String>{}};
   }
 
   /// A picture and status said in [body], where it says them: null for each it does not (a build from before).
+  @visibleForTesting
+  static ({String? picture, String? status, Map<String, String>? links}) saidOf(Map body) => _said(body);
+
   static ({String? picture, String? status, Map<String, String>? links}) _said(Map body) {
-    final p = body['p'];
-    return (picture: p is String && p.length <= ProfilePictures.most ? p : (body.containsKey('st') ? '' : null), status: body['st'] is String ? body['st'] as String : null, links: Buddy._linksOf(body['l']));
+    final pp = body['pp'], p = body['p'];
+    final picture = pp is String && pp.isNotEmpty && pp.length <= ProfilePictures.most ? pp : p;
+    return (picture: picture is String && picture.length <= ProfilePictures.most ? picture : (body.containsKey('st') ? '' : null), status: body['st'] is String ? body['st'] as String : null, links: Buddy._linksOf(body['l']));
   }
 
   /// Who [username] is, as the add-friend drawer shows it while it is typed: nobody, this install itself, or someone
@@ -371,6 +383,18 @@ class Buddies extends ChangeNotifier {
     }
   }
 
+  /// Tells every friend what this person is playing ([game]), or that they are not (null): lib/games/game_activity.dart.
+  /// A small envelope of its own, so a game starting doesn't send the whole profile, picture and all.
+  Future<void> sayActivity(GameActivity? game) async {
+    if (_remote) {
+      await _ask({'op': 'ga', 'ga': game?.toJson()});
+      return;
+    }
+    for (final b in friends) {
+      await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'ga', if (game != null) 'ga': game.toJson()}));
+    }
+  }
+
   void _greeting(String from, Envelope e) {
     if (e.body['buddy'] != 'ask') return;
     final key = e.body['k'], username = e.body['u'];
@@ -412,8 +436,13 @@ class Buddies extends ChangeNotifier {
         if (had.state == 'asked' || had.state == 'yes') _put(had.copyWith(state: 'yes', name: name, bio: bio, picture: said.picture, status: said.status, links: said.links));
       case 'me':
         if (had.state == 'yes') _put(had.copyWith(name: name, bio: bio, picture: said.picture, status: said.status, links: said.links));
+      case 'ga':
+        // What a friend is playing, or that they stopped: kept in memory, never with the list.
+        if (had.state == 'yes') GameActivities.instance.heard(from, e.body['ga']);
+        return;
       case 'no':
       case 'end':
+        GameActivities.instance.heard(from, null);
         all = [for (final o in all) if (o.id != from) o];
       default:
         return;

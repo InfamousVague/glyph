@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -19,7 +20,9 @@ import '../me/me.dart';
 import '../net/net.dart';
 import '../sms.dart';
 import '../voice/channels.dart';
+import 'circles/members_drawer.dart' show showMembersDrawer;
 import 'common.dart';
+import 'drawer_head.dart' show DrawerHead;
 import 'dialup/bevel.dart' show isBevelChrome;
 import 'settings_panes.dart' show appVersion;
 
@@ -53,7 +56,16 @@ class FeedbackButton extends StatelessWidget {
   /// Its side; the look's control height where not said.
   final double? side;
 
-  static void open(BuildContext context) => push<void>(context, (_) => const FeedbackScreen());
+  /// Whether the form opens in a drawer: on a phone (Android, iPhone), where a page would cover the list it was opened
+  /// from; a computer keeps the page beside the list (Matt, 2026-11-20: "make share feedback open in a drawer on
+  /// mobile"). Tests say which with [drawerOverride].
+  static bool? drawerOverride;
+  /// Everywhere since 2026-11-20 (Matt: "the share feedback drawer should open over the whole app not just in the
+  /// sidebar"): the drawer is on the app's own navigator, over the whole window with it dimmed behind, where the page was
+  /// pushed in the sidebar's.
+  static bool get inDrawer => drawerOverride ?? true;
+
+  static void open(BuildContext context) => inDrawer ? unawaited(showFeedbackDrawer(context)) : push<void>(context, (_) => const FeedbackScreen());
 
   @override
   Widget build(BuildContext context) {
@@ -93,10 +105,23 @@ class FeedbackButton extends StatelessWidget {
   }
 }
 
+/// The feedback form in the drawer that slides up from the foot, as Members and Add people do (lib/ui/circles/
+/// members_drawer.dart): on a phone, in place of the page (Matt, 2026-11-20: "make share feedback open in a drawer on
+/// mobile"). Sending closes it.
+Future<void> showFeedbackDrawer(BuildContext context, {FeedbackSend? send, String? username, Future<List<({String name, Uint8List bytes})>> Function()? pickPictures}) => showMembersDrawer(
+      context,
+      title: 'Share feedback',
+      subtitle: 'It goes to the Ghost Messaging team',
+      list: (_) => FeedbackScreen(key: const ValueKey('feedback-drawer'), drawer: true, send: send, username: username, pickPictures: pickPictures),
+    );
+
 /// The feedback page: what it is (a select of [FeedbackType]), a short title, what happened, up to three
-/// screenshots, and whether to say the username, for a bug bounty.
+/// screenshots, and whether to say the username, for a bug bounty. [drawer]: the form alone, for the drawer
+/// ([showFeedbackDrawer]), as tall as what it holds.
 class FeedbackScreen extends StatefulWidget {
-  const FeedbackScreen({super.key, this.send, this.username, this.pickPictures});
+  const FeedbackScreen({super.key, this.send, this.username, this.pickPictures, this.drawer = false});
+
+  final bool drawer;
 
   /// How it is sent; the app's own ([sendFeedbackLive]) where null.
   final FeedbackSend? send;
@@ -258,17 +283,13 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final gap = SizedBox(height: t.space(5));
+    // Closer together in the drawer, where the form shares the screen with what it was opened over.
+    final gap = SizedBox(height: widget.drawer ? t.space(3) : t.space(5));
     final ink = pageText(t, t.fontSize('md'), color: t.color('app-ink'), height: 1.4);
     final name = _username;
-    return GhostPage(
-      title: 'Share feedback',
-      body: SettingsPaneScope(
-        finder: SettingsFinder(),
-        child: LayoutBuilder(builder: (context, box) {
-          final side = math.max(t.space(4), (box.maxWidth - 640) / 2);
-          return ListView(
-            padding: EdgeInsets.fromLTRB(side, t.space(2), side, t.space(8) + MediaQuery.paddingOf(context).bottom),
+    ListView form({required EdgeInsets padding, bool shrinkWrap = false}) => ListView(
+            padding: padding,
+            shrinkWrap: shrinkWrap,
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
               PaneSection(children: [
@@ -389,6 +410,19 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
               ]),
             ],
           );
+    // In the drawer: the form alone on the drawer's gutter, as tall as it is (the drawer is no taller than the screen
+    // and scrolls it).
+    if (widget.drawer) {
+      final gutter = DrawerHead.gutter(t);
+      return SettingsPaneScope(finder: SettingsFinder(), child: form(padding: EdgeInsets.fromLTRB(gutter, t.space(3), gutter, t.space(4)), shrinkWrap: true));
+    }
+    return GhostPage(
+      title: 'Share feedback',
+      body: SettingsPaneScope(
+        finder: SettingsFinder(),
+        child: LayoutBuilder(builder: (context, box) {
+          final side = math.max(t.space(4), (box.maxWidth - 640) / 2);
+          return form(padding: EdgeInsets.fromLTRB(side, t.space(2), side, t.space(8) + MediaQuery.paddingOf(context).bottom));
         }),
       ),
     );

@@ -8,7 +8,9 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
+import '../games/game_activity.dart';
 import '../art/lucide.g.dart';
+import '../art/lucide_more.dart';
 import '../friends/buddies.dart';
 import '../inbox/inbox.dart';
 import '../kit/settings_type.dart';
@@ -78,7 +80,7 @@ Future<void> showProfile(BuildContext context, ProfileSubject who, {List<Choice>
 /// What is known here of someone on Ghost: a friend's own profile, else what they said in the space, else their
 /// username alone.
 class _Ghost {
-  _Ghost({required this.id, required this.username, required this.name, this.buddy, this.status = '', this.pictureHash = '', this.me = false});
+  _Ghost({required this.id, required this.username, required this.name, this.buddy, this.status = '', this.pictureHash = '', this.me = false, this.game});
   final String id;
   final String username;
   final String name;
@@ -86,6 +88,10 @@ class _Ghost {
   final String status;
   final String pictureHash;
   final bool me;
+
+  /// What they are playing, where they said so lately (lib/games/game_activity.dart): to this person as a friend, or
+  /// to the space this was opened from.
+  final GameActivity? game;
 
   bool get friend => buddy?.state == 'yes';
 }
@@ -105,6 +111,7 @@ _Ghost _ghostOf(ProfileSubject who) {
     status: me ? Me.instance.status : (buddy?.status.isNotEmpty == true ? buddy!.status : (here?.status ?? '')),
     pictureHash: here?.pictureHash ?? '',
     me: me,
+    game: me ? GameActivities.instance.mine : (GameActivities.instance.of(buddy?.id ?? who.id) ?? here?.game),
   );
 }
 
@@ -237,7 +244,7 @@ class _ProfileCardState extends State<_ProfileCard> {
         _network = await who.network!.profileOf(user: who.id, username: who.username).timeout(const Duration(seconds: 10));
       } else if (g != null) {
         if (g.me) {
-          _picture = Me.instance.picture;
+          _picture = Me.instance.pictureSharp;
         } else if (g.buddy != null && g.buddy!.picture.isNotEmpty) {
           _picture = g.buddy!.picture;
         } else if (g.id.isNotEmpty) {
@@ -378,6 +385,21 @@ class _ProfileCardState extends State<_ProfileCard> {
               padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
               decoration: BoxDecoration(color: t.color('app-paper'), borderRadius: BorderRadius.circular(t.radius('lg'))),
               child: Text(status, maxLines: 3, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink'))),
+            ),
+          ],
+          if (g?.game != null) ...[
+            SizedBox(height: t.space(2)),
+            // What they are playing, as Discord shows it: the game and for how long (Matt, 2026-11-20: "game presence
+            // sensing like discord has").
+            Container(
+              key: const ValueKey('profile-game'),
+              padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+              decoration: BoxDecoration(color: t.color('app-paper'), borderRadius: BorderRadius.circular(t.radius('lg'))),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                AppIcon(LucideMore.gamepad, size: 16, color: t.colorOf('#2fb35a')),
+                SizedBox(width: t.space(2)),
+                Flexible(child: Text(g!.game!.words(), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink')))),
+              ]),
             ),
           ],
           if (panel.isNotEmpty || known)

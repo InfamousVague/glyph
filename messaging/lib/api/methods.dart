@@ -2,6 +2,7 @@
 /// networks (Telegram, Signal), friends on our own system and the relay server's hub, and what is on the screen.
 library;
 
+import 'dart:convert';
 import 'dart:io' show Platform;
 
 import '../app_state.dart';
@@ -9,6 +10,7 @@ import '../friends/buddies.dart';
 import '../inbox/inbox.dart';
 import '../me/me.dart';
 import '../net/net.dart';
+import '../plugins/pack/pack.dart' show DevSource, InstalledPlugins, PackIssue, packAppStoreBuild, parsePack, registryIdOf;
 import '../plugins/plugin.dart';
 import '../plugins/registry.dart';
 import '../presence.dart';
@@ -92,6 +94,22 @@ InboxNetwork _network(Map<String, Object?> p) {
 }
 
 AppShellState _shell() => AppShellState.live ?? (throw const ApiError('failed', 'The app\'s screens are not open.'));
+
+/// The id a plugin's file gives itself, where it is readable at all: what an answer about a broken one names.
+String? _packIdIn(Object? pack, Object? text) {
+  try {
+    final json = pack ?? jsonDecode(text as String);
+    final id = json is Map ? json['id'] : null;
+    return id is String ? id : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Plugins in development are loaded and removed in developer mode only, as Settings › Developer has them.
+void _devModeOn(AppState app) {
+  if (!app.flag('dev_mode', fallback: false)) throw const ApiError('failed', 'Turn on developer mode first: tap Settings › About › Version twelve times.');
+}
 
 const _thread = ApiParam('thread', 'int', 'The conversation\'s number (conversations.list gives them).', required: true, example: 4);
 const _netParam = ApiParam('network', 'string', 'telegram or signal.', required: true, example: 'telegram');
@@ -277,10 +295,10 @@ List<ApiMethod> appMethods(AppState app) {
     // --- plugins and the filters -------------------------------------------------------------------------------------
     ApiMethod(
       name: 'plugins.list',
-      summary: 'Every plugin, whether it is on, and its own choices.',
-      returns: '[{"id", "name", "description", "on", "prefs"}...]',
+      summary: 'Every plugin, whether it is on, and its own choices: the built-in ones and those from the Marketplace and in development (whose ids start with x).',
+      returns: '[{"id", "name", "description", "on", "prefs", "source": "builtIn"|"reviewed"|"dev", "version"}...]',
       run: (_) async => [
-        for (final x in plugins.plugins) {'id': x.id, 'name': x.name, 'description': x.description, 'on': plugins.isOn(x, store), 'prefs': app.withPrefix('plugin_${x.id}_')},
+        for (final x in plugins.plugins) {'id': x.id, 'name': x.name, 'description': x.description, 'on': plugins.isOn(x, store), 'prefs': app.withPrefix('plugin_${x.id}_'), 'source': x.source.name, 'version': x.version},
       ],
     ),
     ApiMethod(
@@ -315,11 +333,73 @@ List<ApiMethod> appMethods(AppState app) {
       returns: '{"tags": {"name": "detail"}, "section": string|null}',
       example: const {'text': 'Congratulations! You\'ve won a gift card. Claim now: http://prize.example/win'},
       run: (p) async {
-        final facts = MessageFacts(thread: 0, senders: [(p['from'] as String?) ?? '+15555550100'], text: _str(p, 'text'), contact: p['contact'] == true);
+        // A text someone sent (outgoing: false), so plugins from other developers see it as they would theirs.
+        final facts = MessageFacts(thread: 0, senders: [(p['from'] as String?) ?? '+15555550100'], text: _str(p, 'text'), contact: p['contact'] == true, outgoing: false);
         final tags = plugins.classify(facts, store);
         return {'tags': {for (final n in tags.names) n: tags.detail(n)}, 'section': plugins.sectionOf(facts, tags, store)?.id};
       },
     ),
+    // Loading a plugin being made, as Settings › Developer › Plugins in development does (Matt, 2026-11-20: "please add a
+    // developer setting for users to be able to manually upload plugins for development testing"). Never in an App
+    // Store build, which has no plugins in development.
+    if (!packAppStoreBuild) ...[
+      ApiMethod(
+        name: 'plugins.devInstall',
+        summary: 'Loads a plugin you are making (a ghost-plugin/1 file) on this phone, unreviewed, as Settings › Developer › Plugins in development does. Developer mode only. dryRun checks it without loading it.',
+        params: const [
+          ApiParam('pack', 'object', 'The plugin file\'s JSON. Give this or text.'),
+          ApiParam('text', 'string', 'The plugin file\'s words, as they are on disk. Give this or pack.'),
+          ApiParam('on', 'bool', 'Switch it on once loaded: only where you agreed on the phone to everything it can do already (false where not given).'),
+          ApiParam('dryRun', 'bool', 'Only check it: what is wrong with it, if anything.'),
+        ],
+        returns: '{"ok": bool, "id": "bills", "plugin": "xbills", "on": bool, "needs": "consent on the phone" (where on was asked and could not be), "issues": [{"code", "path", "message", "severity"}...]}',
+        danger: true,
+        run: (p) async {
+          _devModeOn(app);
+          final pack = p['pack'], text = p['text'];
+          if (pack == null && text == null) throw const ApiError('bad_params', 'Give the plugin as pack (its JSON) or text (its words).');
+          final bytes = text is String ? utf8.encode(text) : utf8.encode(jsonEncode(pack));
+          List<Map<String, Object?>> issues(List<PackIssue> all) => [for (final i in all) i.toJson()];
+          if (p['dryRun'] == true) {
+            final parse = parsePack(bytes, appVersion: appVersion);
+            final id = parse.pack?.id;
+            return {'ok': parse.ok, 'id': id, 'plugin': id == null ? null : registryIdOf(id), 'on': false, 'issues': issues(parse.issues)};
+          }
+          final wanted = p['on'] == true;
+          final installed = InstalledPlugins.instance;
+          final outcome = await installed.loadDev(bytes, const DevSource('api'), on: wanted);
+          // An invalid pack is not an error: what is wrong with it is the answer. Refused outright (developer mode,
+          // the caps), it is.
+          if (!outcome.ok && outcome.code != 'invalid') throw ApiError('failed', outcome.message);
+          final plugin = outcome.plugin;
+          final on = plugin != null && plugins.isOn(plugin, store);
+          final id = plugin?.id.substring(1) ?? _packIdIn(pack, text);
+          return {
+            'ok': outcome.ok,
+            'id': id,
+            'plugin': id == null ? null : registryIdOf(id),
+            'on': on,
+            if (wanted && plugin != null && !on) 'needs': 'consent on the phone',
+            'issues': issues(outcome.issues),
+          };
+        },
+      ),
+      ApiMethod(
+        name: 'plugins.devRemove',
+        summary: 'Removes a plugin in development from this phone.',
+        params: const [ApiParam('id', 'string', 'Its id, as in its file.', required: true, example: 'bills')],
+        danger: true,
+        run: (p) async {
+          _devModeOn(app);
+          final id = _str(p, 'id');
+          final installed = InstalledPlugins.instance;
+          if (installed.devOf(id) == null) throw ApiError('not_found', 'No plugin in development called "$id". plugins.list gives them, without their x.');
+          final outcome = await installed.removeDev(id);
+          if (!outcome.ok) throw ApiError('failed', outcome.message);
+          return null;
+        },
+      ),
+    ],
 
     // --- Telegram, Signal and the rest -------------------------------------------------------------------------------
     ApiMethod(name: 'networks.list', summary: 'The other networks: whether each is signed in, and as whom.', returns: '[{"id", "name", "state", "account", "chats"}...]', run: (_) async => [
@@ -439,7 +519,7 @@ List<ApiMethod> appMethods(AppState app) {
     }),
     ApiMethod(
       name: 'ui.openSettings',
-      summary: 'Opens Settings, at one of its sections where given (messages, sounds, plugins, plugin-spam, developer, api, ...).',
+      summary: 'Opens Settings, at one of its sections where given (messages, sounds, developer, api, ...). plugins and plugin-<id> open the Marketplace instead.',
       params: const [ApiParam('section', 'string', 'A section\'s id.', example: 'api')],
       run: (p) async {
         _shell().settings(p['section'] as String?);

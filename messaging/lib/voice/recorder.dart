@@ -22,6 +22,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -39,7 +40,7 @@ import 'voice.dart';
 /// One recording kept on this device.
 @immutable
 class Recording {
-  const Recording({required this.id, required this.path, required this.space, required this.at, required this.seconds, required this.people, this.by = '', this.seed = ''});
+  const Recording({required this.id, required this.path, required this.space, required this.at, required this.seconds, required this.people, this.by = '', this.seed = '', this.markers = const []});
 
   final String id;
 
@@ -60,7 +61,10 @@ class Recording {
   /// The space's seed, to send it to that space's chat.
   final String seed;
 
-  Map<String, Object?> toJson() => {'id': id, 'path': path, 'space': space, 'at': at.millisecondsSinceEpoch, 'seconds': seconds, 'people': people, 'by': by, 'seed': seed};
+  /// The moments its maker marked while recording, in seconds from its start.
+  final List<double> markers;
+
+  Map<String, Object?> toJson() => {'id': id, 'path': path, 'space': space, 'at': at.millisecondsSinceEpoch, 'seconds': seconds, 'people': people, 'by': by, 'seed': seed, if (markers.isNotEmpty) 'markers': markers};
 
   static Recording? fromJson(Object? j) {
     if (j is! Map || j['id'] is! String || j['path'] is! String || j['at'] is! int) return null;
@@ -73,6 +77,7 @@ class Recording {
       people: [for (final p in (j['people'] as List? ?? const [])) '$p'],
       by: '${j['by'] ?? ''}',
       seed: '${j['seed'] ?? ''}',
+      markers: [for (final m in (j['markers'] as List? ?? const [])) if (m is num) m.toDouble()],
     );
   }
 }
@@ -91,6 +96,9 @@ class _Taking {
 
   /// The members tapped now.
   final Set<String> tapped = {};
+
+  /// The moments marked, in seconds from the start.
+  final List<double> markers = [];
 }
 
 /// How loud each voice is as it is recorded, a tenth of a second at a time: read from the files the native half
@@ -104,17 +112,43 @@ class RecordingMeter extends ChangeNotifier {
   /// Steps a second.
   static const perSecond = 10;
 
+  /// Samples in what a meter shows as "now": a twentieth of a second, so a meter moves as the voice does.
+  static const window = 2400;
+
+  /// At or over this a sample is at the top of what the file holds: the voice is clipping.
+  static const clipAt = 0.985;
+
   /// Each voice's loudness by step, 0 to 1 (the loudest sample in it), from the recording's start.
   final Map<String, List<double>> levels = {};
   final Map<String, int> _read = {};
 
+  /// Each voice now (Matt, 2026-11-20: "show audio tracks being recorded in real time with meters and whatnot as well
+  /// as voice level changing"): the loudest sample and the average power (RMS) of the newest twentieth of a second
+  /// written, both 0 to 1 as the file holds them, before any fader. Zero for a voice that has stopped being written.
+  final Map<String, ({double peak, double rms})> now = {};
+  final Map<String, int> _length = {};
+
+  /// Voices that have clipped since the lamp was last cleared ([clearClip]).
+  final Set<String> clipped = {};
+
   void clear() {
     levels.clear();
     _read.clear();
+    now.clear();
+    _length.clear();
+    clipped.clear();
     notifyListeners();
   }
 
-  /// Reads what has been written to each of [files] (a voice's key and its file) since the last look.
+  /// Puts a voice's clip lamp out (all of them where [key] is null).
+  void clearClip([String? key]) {
+    if (key == null ? clipped.isEmpty : !clipped.remove(key)) return;
+    if (key == null) clipped.clear();
+    notifyListeners();
+  }
+
+  /// Reads what has been written to each of [files] (a voice's key and its file) since the last look: whole steps
+  /// for the waveform, and the newest [window] for the meters.
   void read(Map<String, String> files) {
     var any = false;
     for (final e in files.entries) {
@@ -122,11 +156,38 @@ class RecordingMeter extends ChangeNotifier {
       if (!f.existsSync()) continue;
       final length = f.lengthSync();
       final from = _read[e.key] ?? 0;
-      // Whole steps only: what is past the last whole one is read next time.
-      final whole = ((length - from) ~/ (step * 2)) * step * 2;
-      if (whole <= 0) continue;
-      final raf = f.openSync();
+      final grew = length != (_length[e.key] ?? -1);
+      _length[e.key] = length;
+      RandomAccessFile? raf;
       try {
+        // Now: the newest window, or silence where nothing has been written since the last look.
+        final was = now[e.key];
+        if (grew && length >= 2) {
+          raf = f.openSync();
+          final take = (length < window * 2 ? length : window * 2) & ~1;
+          raf.setPositionSync((length - take) & ~1);
+          final d = ByteData.sublistView(raf.readSync(take));
+          var peak = 0;
+          var sum = 0.0;
+          final n = d.lengthInBytes ~/ 2;
+          for (var i = 0; i < n; i++) {
+            final v = d.getInt16(i * 2, Endian.little);
+            final a = v.abs();
+            if (a > peak) peak = a;
+            sum += v * v;
+          }
+          final level = (peak: peak / 32768, rms: n == 0 ? 0.0 : math.sqrt(sum / n) / 32768);
+          now[e.key] = level;
+          if (level.peak >= clipAt && clipped.add(e.key)) any = true;
+          if (was != level) any = true;
+        } else if (was != null && (was.peak != 0 || was.rms != 0)) {
+          now[e.key] = (peak: 0, rms: 0);
+          any = true;
+        }
+        // Whole steps only: what is past the last whole one is read next time.
+        final whole = ((length - from) ~/ (step * 2)) * step * 2;
+        if (whole <= 0) continue;
+        raf ??= f.openSync();
         raf.setPositionSync(from);
         final bytes = raf.readSync(whole);
         final d = ByteData.sublistView(bytes);
@@ -142,18 +203,117 @@ class RecordingMeter extends ChangeNotifier {
         _read[e.key] = from + bytes.length;
         any = true;
       } finally {
-        raf.closeSync();
+        raf?.closeSync();
       }
     }
     if (any) notifyListeners();
   }
 
-  /// [levels] as given, for a picture or a test.
+  /// [levels] as given, for a picture or a test; [live] is each voice now where it is not its last step.
   @visibleForTesting
-  void seed(Map<String, List<double>> given) {
+  void seed(Map<String, List<double>> given, {Map<String, ({double peak, double rms})>? live, Set<String> clipping = const {}}) {
     levels
       ..clear()
       ..addAll(given);
+    now
+      ..clear()
+      ..addAll(live ?? {for (final e in given.entries) e.key: (peak: e.value.isEmpty ? 0.0 : e.value.last, rms: e.value.isEmpty ? 0.0 : e.value.last * 0.6)});
+    clipped
+      ..clear()
+      ..addAll(clipping);
+    notifyListeners();
+  }
+}
+
+/// A point where a voice's loudness in the mix changes: from [sample] of the recording on it is [gain] (0 silent, 1
+/// as recorded, up to [RecordingMix.most]).
+typedef GainPoint = ({int sample, double gain});
+
+/// The recording's mixer (Matt, 2026-11-20: "voice level changing and more"): how loud each voice is in the track of
+/// everyone mixed, its fader, and whether it is muted or soloed there. Moved while recording, the mix follows as it
+/// was moved: each change is kept with the moment it was made and played back into the mix when the recording stops
+/// ([mixPcm]). Each person's own track is left as it was recorded, so the recording can always be mixed again.
+class RecordingMix extends ChangeNotifier {
+  /// The most a fader gives: twice as loud, +6 dB.
+  static const most = 2.0;
+
+  final Map<String, double> _fader = {};
+  final Set<String> _muted = {};
+  final Set<String> _solo = {};
+  final Map<String, List<GainPoint>> _points = {};
+
+  /// Goes up with every change, for whoever keeps something worked out from the points.
+  int revision = 0;
+
+  /// How loud [key] was in the mix at [sample] of the recording.
+  double gainAt(String key, int sample) {
+    var g = 1.0;
+    for (final p in _points[key] ?? const <GainPoint>[]) {
+      if (p.sample > sample) break;
+      g = p.gain;
+    }
+    return g;
+  }
+
+  /// A voice's fader, 0 to [most]; 1 where it has not been moved.
+  double fader(String key) => _fader[key] ?? 1;
+  bool muted(String key) => _muted.contains(key);
+  bool soloed(String key) => _solo.contains(key);
+  bool get anySolo => _solo.isNotEmpty;
+
+  /// How loud a voice is in the mix now: its fader, or nothing while it is muted or another voice is soloed.
+  double gain(String key) => _muted.contains(key) || (_solo.isNotEmpty && !_solo.contains(key)) ? 0 : fader(key);
+
+  /// Every change made to [key]'s loudness in the mix, in order; empty where it was never other than as recorded.
+  List<GainPoint> points(String key) => List.unmodifiable(_points[key] ?? const <GainPoint>[]);
+
+  void clear() {
+    _fader.clear();
+    _muted.clear();
+    _solo.clear();
+    _points.clear();
+    revision++;
+    notifyListeners();
+  }
+
+  /// Sets [key]'s fader at [sample] of the recording.
+  void setFader(String key, double value, int sample, {Iterable<String> among = const []}) {
+    final v = value.clamp(0.0, most).toDouble();
+    if (v == fader(key)) return;
+    _change(sample, [key, ...among], () => v == 1 ? _fader.remove(key) : _fader[key] = v);
+  }
+
+  /// Mutes or unmutes [key] in the mix at [sample].
+  void setMuted(String key, bool on, int sample, {Iterable<String> among = const []}) {
+    if (on == muted(key)) return;
+    _change(sample, [key, ...among], () => on ? _muted.add(key) : _muted.remove(key));
+  }
+
+  /// Solos [key] at [sample]: while any voice is soloed only the soloed are in the mix, so every one of [among] (the
+  /// voices there are) may change.
+  void setSolo(String key, bool on, int sample, {Iterable<String> among = const []}) {
+    if (on == soloed(key)) return;
+    _change(sample, [key, ...among], () => on ? _solo.add(key) : _solo.remove(key));
+  }
+
+  /// Makes a change and writes down each of [keys] whose loudness in the mix it moved.
+  void _change(int sample, Iterable<String> keys, void Function() make) {
+    final all = keys.toSet();
+    final before = {for (final k in all) k: gain(k)};
+    make();
+    for (final k in all) {
+      final g = gain(k);
+      if (g == before[k]) continue;
+      final list = _points.putIfAbsent(k, () => <GainPoint>[]);
+      final at = sample < 0 ? 0 : sample;
+      // A fader dragged makes many changes in a moment: one at the same place replaces the last.
+      if (list.isNotEmpty && list.last.sample >= at) {
+        list[list.length - 1] = (sample: list.last.sample, gain: g);
+      } else {
+        list.add((sample: at, gain: g));
+      }
+    }
+    revision++;
     notifyListeners();
   }
 }
@@ -165,10 +325,11 @@ class CallRecorder extends ChangeNotifier {
   /// Recording as given, for a picture of the recording's panel: [names] by key ('me' first), those in [left] no
   /// longer taken. It takes nothing and writes nothing.
   @visibleForTesting
-  CallRecorder.standing({required Map<String, String> names, required DateTime since, Set<String> left = const {}}) {
+  CallRecorder.standing({required Map<String, String> names, required DateTime since, Set<String> left = const {}, List<double> markers = const []}) {
     final t = _now = _Taking('rec-standing', Directory.systemTemp.path, 'general', 'standing', since);
     t.names.addAll(names);
     t.tapped.addAll(names.keys.where((k) => k != 'me' && !left.contains(k)));
+    t.markers.addAll(markers);
   }
 
   static const _channel = MethodChannel('ghost/recorder');
@@ -182,6 +343,35 @@ class CallRecorder extends ChangeNotifier {
   /// Each voice's loudness as it is recorded (RecordingMeter), read every tenth of a second while recording.
   final RecordingMeter meter = RecordingMeter();
   Timer? _metering;
+
+  /// The recording's mixer: each voice's fader, mute and solo in the mix (RecordingMix).
+  final RecordingMix mix = RecordingMix();
+
+  /// Where the recording is now, in samples from its start (the voices' files are kept in step by the clock).
+  int get position {
+    final t = _now;
+    return t == null ? 0 : (DateTime.now().difference(t.started).inMicroseconds * 48 ~/ 1000);
+  }
+
+  /// The keys of the voices there are, for a solo, which moves every one of them.
+  Iterable<String> get _keys => _now?.names.keys ?? const <String>[];
+
+  void setFader(String key, double value) => mix.setFader(key, value, position);
+  void setMuted(String key, bool on) => mix.setMuted(key, on, position, among: _keys);
+  void setSolo(String key, bool on) => mix.setSolo(key, on, position, among: _keys);
+
+  /// The moments marked so far, in seconds from the start.
+  List<double> get markers => List.unmodifiable(_now?.markers ?? const <double>[]);
+
+  /// Marks this moment of the recording, to find again afterwards; the second marked, or null where nothing records.
+  double? mark() {
+    final t = _now;
+    if (t == null) return null;
+    final at = DateTime.now().difference(t.started).inMilliseconds / 1000;
+    t.markers.add(at);
+    notifyListeners();
+    return at;
+  }
 
   /// The tracks being recorded, 'me' first: each voice's key, its name, and whether it is being taken now (false for
   /// someone who left or took back their yes; their track keeps what it has).
@@ -288,7 +478,9 @@ class CallRecorder extends ChangeNotifier {
     _watch = _changes(s).listen((_) => _follow(s));
     _follow(s);
     meter.clear();
-    _metering = Timer.periodic(const Duration(milliseconds: 100), (_) {
+    mix.clear();
+    // Twenty times a second: the meters move as the voices do.
+    _metering = Timer.periodic(const Duration(milliseconds: 50), (_) {
       final now = _now;
       if (now != null) meter.read(_files(now));
     });
@@ -368,7 +560,9 @@ class CallRecorder extends ChangeNotifier {
       if (keys.isEmpty) return null;
       final paths = [for (final k in keys) '${t.dir}/${_safe(k)}.pcm'];
       final mix = '${t.dir}/mix.pcm';
-      await Isolate.run(() => mixPcm(paths, mix));
+      // The mix as its faders, mutes and solos were moved while it recorded; each voice's own track as recorded.
+      final moved = [for (final k in keys) this.mix.points(k)];
+      await Isolate.run(() => mixPcm(paths, mix, gains: moved));
       final out = '${folder().path}/${t.id}.mp4';
       await _channel.invokeMethod('mux', {
         'out': out,
@@ -378,7 +572,7 @@ class CallRecorder extends ChangeNotifier {
       await Mp4Names.apply(out, names);
       seconds = (counts.values.fold<int>(0, (a, b) => a > b ? a : b) / 48000).round();
       voices = keys.length;
-      final r = Recording(id: t.id, path: out, space: t.space, at: t.started, seconds: seconds, people: names.skip(1).toList(), by: t.names['me']!, seed: t.seed);
+      final r = Recording(id: t.id, path: out, space: t.space, at: t.started, seconds: seconds, people: names.skip(1).toList(), by: t.names['me']!, seed: t.seed, markers: List.of(t.markers));
       _readKept();
       _kept.insert(0, r);
       _writeKept();
@@ -399,6 +593,7 @@ class CallRecorder extends ChangeNotifier {
       return null;
     } finally {
       finishing = false;
+      mix.clear();
       notifyListeners();
       final room = s == null ? null : Voice.instance.hangoutFor(s.channel);
       room?.sendWith(
@@ -407,7 +602,7 @@ class CallRecorder extends ChangeNotifier {
           'by': t.names['me']!,
           'seconds': '$seconds',
           if (voices > 0) 'voices': '$voices',
-          if (savedTo != null) 'savedTo': savedTo!,
+          'savedTo': ?savedTo,
         }),
       );
     }
@@ -424,28 +619,59 @@ class CallRecorder extends ChangeNotifier {
 
 /// Mixes [inputs] (48 kHz mono 16-bit files, the shorter ones read as silence past their end) into [out], each voice at
 /// its own loudness and the sum held under clipping.
-void mixPcm(List<String> inputs, String out) {
+///
+/// [gains] gives, for each input in order, the changes made to its loudness while it was recorded (RecordingMix): it
+/// is as recorded until its first point, then each point's gain from that sample on, reached over a hundredth of a
+/// second so a mute or a fader's move is never a click. An input with no points, or no [gains] at all, is as recorded.
+void mixPcm(List<String> inputs, String out, {List<List<GainPoint>>? gains}) {
   final files = [for (final p in inputs) File(p).openSync()];
   final sink = File(out).openSync(mode: FileMode.write);
+  // Where each input is in its points, and how loud it is and is heading.
+  const ramp = 480;
+  final next = List<int>.filled(inputs.length, 0);
+  final at = List<double>.filled(inputs.length, 1);
+  final goal = List<double>.filled(inputs.length, 1);
   try {
     const block = 48000; // A second at a time.
+    var done = 0;
     while (true) {
       final reads = [for (final f in files) f.readSync(block * 2)];
       final longest = reads.fold<int>(0, (n, b) => b.length > n ? b.length : n);
       if (longest == 0) break;
       final n = longest ~/ 2;
-      final sum = Int32List(n);
-      for (final b in reads) {
+      final sum = Float64List(n);
+      for (var f = 0; f < reads.length; f++) {
+        final b = reads[f];
         final d = ByteData.sublistView(b);
-        for (var i = 0; i < b.length ~/ 2; i++) {
-          sum[i] += d.getInt16(i * 2, Endian.little);
+        final points = gains != null && f < gains.length ? gains[f] : const <GainPoint>[];
+        final has = b.length ~/ 2;
+        if (points.isEmpty) {
+          for (var i = 0; i < has; i++) {
+            sum[i] += d.getInt16(i * 2, Endian.little);
+          }
+          continue;
         }
+        var g = at[f], to = goal[f], k = next[f];
+        const stepBy = 1 / ramp;
+        // Past this input's end too: its points still pass, so a later block starts from the right loudness.
+        for (var i = 0; i < n; i++) {
+          while (k < points.length && points[k].sample <= done + i) {
+            to = points[k].gain;
+            k++;
+          }
+          if (g != to) g = g < to ? math.min(to, g + stepBy * RecordingMix.most) : math.max(to, g - stepBy * RecordingMix.most);
+          if (i < has) sum[i] += d.getInt16(i * 2, Endian.little) * g;
+        }
+        at[f] = g;
+        goal[f] = to;
+        next[f] = k;
       }
       final o = ByteData(n * 2);
       for (var i = 0; i < n; i++) {
-        o.setInt16(i * 2, sum[i].clamp(-32768, 32767), Endian.little);
+        o.setInt16(i * 2, sum[i].round().clamp(-32768, 32767), Endian.little);
       }
       sink.writeFromSync(o.buffer.asUint8List());
+      done += n;
     }
   } finally {
     for (final f in files) {

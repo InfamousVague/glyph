@@ -294,8 +294,11 @@ class DeskFile(val name: String, val type: String, val bytes: ByteArray)
  * and offers only that.
  */
 class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = System::currentTimeMillis) {
-    /** The picture last asked for, kept while its pieces are fetched. */
-    private var lastPart: Pair<Long, ByteArray>? = null
+    /** The pictures and videos being handed over a piece at a time, newest last: several at once, since a computer
+     *  fetches every picture a conversation shows together. It held one, so two fetched together each read their
+     *  whole file again for every piece (a 10 MB video 27 times over), on two threads, until the computer gave up
+     *  waiting and the picture never came (Matt, 2026-11-20: "some photos and videos are not coming through"). */
+    private val parts = LinkedHashMap<Long, ByteArray>(8, 0.75f, true)
 
     /** What the computer is handing over, by the name it gave each: filled a piece at a time, taken by what sends it. */
     private class Upload(val total: Int, var touched: Long) { val bytes = java.io.ByteArrayOutputStream() }
@@ -467,11 +470,22 @@ class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = Syst
     /** A picture crosses in pieces: [max] bytes from [offset], and how long the whole is. */
     @Synchronized
     private fun piece(id: Long, offset: Int, max: Int): Map<String, Any?>? {
-        val bytes = lastPart?.takeIf { it.first == id }?.second ?: (phone.part(id) ?: return null).also { lastPart = id to it }
+        val bytes = synchronized(parts) { parts[id] } ?: (phone.part(id) ?: return null).also { keepPart(id, it) }
         val from = offset.coerceIn(0, bytes.size)
         val to = (from + max.coerceIn(1, PIECE)).coerceAtMost(bytes.size)
-        if (to >= bytes.size) lastPart = null
+        if (to >= bytes.size) synchronized(parts) { parts.remove(id) }
         return mapOf("data" to bytes.copyOfRange(from, to), "total" to bytes.size)
+    }
+
+    /** Keeps [bytes] for the pieces to come, the longest unused going first past [PARTS_HELD] or [PARTS_BYTES]. */
+    private fun keepPart(id: Long, bytes: ByteArray) = synchronized(parts) {
+        parts[id] = bytes
+        val it = parts.entries.iterator()
+        while ((parts.size > PARTS_HELD || parts.values.sumOf { b -> b.size.toLong() } > PARTS_BYTES) && it.hasNext()) {
+            it.next()
+            if (parts.size <= 1) break
+            it.remove()
+        }
     }
 
     private fun strings(a: JSONArray): List<String> = (0 until a.length()).map { a.getString(it) }
@@ -479,6 +493,10 @@ class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = Syst
     companion object {
         /** As much of a picture as one frame carries: its base64 stays well under [DeskCrypto.MAX_FRAME]. */
         const val PIECE = 384 * 1024
+
+        /** The most pictures and videos held while their pieces go over, and their bytes in all. */
+        const val PARTS_HELD = 6
+        const val PARTS_BYTES = 64L * 1024 * 1024
 
         /** The most conversations handed over at once. */
         const val LOT = 250

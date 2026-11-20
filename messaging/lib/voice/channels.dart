@@ -14,6 +14,7 @@ import '../net/net.dart';
 import '../net/packet.dart';
 import '../net/switchboard.dart';
 import '../sms.dart';
+import '../keys.dart';
 import '../sounds.dart';
 import '../circles/circles.dart';
 import '../circles/sms_space.dart';
@@ -725,6 +726,13 @@ class Voice extends ChangeNotifier {
   final Map<String, HangoutRoom> _hangouts = {};
   final Map<String, int> _holds = {};
 
+  /// Says who this device is again in every space's chat it holds: its game began or ended (lib/games/game_activity.dart).
+  void sayMeEverywhere() {
+    for (final room in _hangouts.values) {
+      room.sayMe();
+    }
+  }
+
   /// [c]'s chat and roles where they are made already; null where not (nothing is made).
   HangoutRoom? heldHangout(VoiceChannel c) => _hangouts[c.seed];
 
@@ -885,6 +893,8 @@ class Voice extends ChangeNotifier {
       // is locked").
       await Sms.instance.callStarted(c.name, video: withVideo);
       await s.join(withVideo: withVideo);
+      // Push to talk (lib/keys.dart): in with the microphone off, on only while its key is held.
+      if (Keys.instance.pushToTalk) s.setMuted(true, quiet: true);
       _enforce();
       // The call's captions follow it: this device writes out its own voice while anyone wants them (captions.dart).
       CallCaptions.instance.follow();
