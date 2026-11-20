@@ -5,7 +5,9 @@ library;
 
 import '../plugin.dart';
 import '../registry.dart';
+import 'format.dart';
 import 'manifest.dart';
+import 'pack_plugin.dart';
 
 /// What [tryPack] found for one text.
 class PackTrial {
@@ -28,7 +30,69 @@ class PackTrial {
 /// [prefs] over the settings' defaults (every toggle on where [switchesOn]); the facts are thread 1, from [from], not a
 /// contact, not a group, not encrypted, `outgoing: false`, one sender, unread, the text as given (so A.9 holds).
 /// [beside] (default PluginRegistry.instance) with the person's choices in [store] says what would take it first.
-PackTrial tryPack(PluginPack pack, {required String text, String from = '72975', Map<String, String> prefs = const {}, bool switchesOn = false, PluginRegistry? beside, PluginStore? store}) => throw UnimplementedError(_later);
+PackTrial tryPack(PluginPack pack, {required String text, String from = '72975', Map<String, String> prefs = const {}, bool switchesOn = false, PluginRegistry? beside, PluginStore? store}) {
+  late final PluginRegistry registry;
+  // Its own registry hears what it throws, and its clock is the real one: one text, classified once, is never paused.
+  final plugin = PackPlugin(pack, source: PluginSource.dev, onError: (p, e) => registry.failed(p, e));
+  registry = PluginRegistry([plugin]);
+  final own = 'plugin_${plugin.id}_';
+  final choices = MemoryStore({
+    PluginRegistry.switchKey(plugin): 'on',
+    if (switchesOn)
+      for (final s in pack.settings)
+        if (s.type == 'toggle' && s.key != null) '$own${s.key}': 'on',
+    for (final e in prefs.entries) '$own${e.key}': e.value,
+  });
+  final facts = MessageFacts(thread: 1, senders: [from], text: text, contact: false, outgoing: false, unread: true);
+  final watch = Stopwatch()..start();
+  final tags = registry.classify(facts, choices);
+  watch.stop();
+  final prefix = tagNameOf(pack.id, '');
+  final placed = registry.sectionOf(facts, tags, choices);
+  final row = placed == null ? null : registry.look(placed, facts, tags, choices);
+  List<String> labels<P>(ActionSlot<P> slot, P place) => [for (final b in registry.actions(slot, place, choices)) b.action.label];
+  final place = ConversationPlace(facts, tags, section: placed?.id);
+  final actions = <String, List<String>>{
+    'row': [for (final a in [row?.end, row?.word, row?.tap]) if (a != null) a.label],
+    'list.conversation.menu': labels(Slots.conversationMenu, place),
+    'conversation.header': labels(Slots.conversationHeader, place),
+    'conversation.message.menu': labels(Slots.messageMenu, MessagePlace(facts, tags)),
+  }..removeWhere((_, v) => v.isEmpty);
+  final asked = registry.incoming(facts, tags, choices);
+  return PackTrial(
+    seen: packSees(facts),
+    tags: {for (final n in tags.names) if (n.startsWith(prefix)) n.substring(prefix.length): tags.detail(n)},
+    section: placed?.id.substring(sectionIdOf(pack.id, '').length),
+    row: row,
+    actions: actions,
+    incoming: [
+      for (final b in asked)
+        switch (b.action) {
+          MarkRead() => 'markread',
+          MuteNotification() => 'mute',
+          MoveToSection() => 'move',
+        },
+    ],
+    shadowedBy: placed == null || store == null ? null : _shadowedBy(facts, beside ?? PluginRegistry.instance, store),
+    took: watch.elapsed,
+  );
+}
+
+/// The first of the app's own sections that is on in [beside] and takes [facts], as `<plugin> › <section>`: the
+/// built-ins are asked before any pack (A.8.3). Only they are asked here, in a registry of their own, so trying a pack
+/// never runs another pack, nor the same one's installed copy.
+String? _shadowedBy(MessageFacts facts, PluginRegistry beside, PluginStore store) {
+  try {
+    final builtIns = PluginRegistry([for (final p in beside.plugins) if (p.source == PluginSource.builtIn) p]);
+    final tags = builtIns.classify(facts, store);
+    for (final s in builtIns.sections(store)) {
+      if (s.section.takes(facts, tags, builtIns.prefsOf(s.plugin, store))) return '${s.plugin.name} › ${s.section.label}';
+    }
+  } catch (_) {
+    // A built-in that throws takes nothing here, as the registry would leave it out.
+  }
+  return null;
+}
 
 /// One of the texts every pack is tried on ("Try the samples").
 class PackSample {
@@ -57,8 +121,71 @@ const List<PackSample> packSamples = [
   PackSample('s16', 'Vote YES on Measure 12 this Tuesday. Paid for by Friends of the Park.'),
 ];
 
+// Words that are in nearly every text: a phrase of one of these alone tags almost everything.
+const Set<String> _commonWords = {'the', 'you', 'your', 'and', 'for', 'are', 'our', 'this', 'that', 'with', 'have', 'will', 'from', 'now', 'get', 'new', 'can', 'any', 'all', 'one', 'out', 'day', 'see', 'use', 'hi', 'hello', 'thanks', 'ok', 'yes', 'no'};
+final RegExp _run = RegExp(r'[\p{L}\p{N}]+', unicode: true);
+
 /// What a developer and the reviewer should look at again: warnings only (broad_phrase, description_link, unused_tag,
 /// opens_links).
-List<PackIssue> lintPack(PluginPack pack) => throw UnimplementedError(_later);
+List<PackIssue> lintPack(PluginPack pack) {
+  final out = <PackIssue>[];
+  void warn(String code, String path, String words) => out.add(PackIssue(code, path, '$path: $words', severity: PackSeverity.warning));
+  final rules = pack.rules;
+  for (var i = 0; i < rules.tags.length; i++) {
+    final rule = rules.tags[i];
+    for (final (key, phrases) in [('any', rule.any), ('all', rule.all)]) {
+      for (var j = 0; j < phrases.length; j++) {
+        final p = phrases[j];
+        if (p.hasToken) continue;
+        final runs = [for (final m in _run.allMatches(p.source)) m[0]!];
+        if (runs.length == 1 && (runs.single.length <= 4 || _commonWords.contains(runs.single.toLowerCase()))) {
+          warn('broad_phrase', 'rules.tags[$i].$key[$j]', '"${p.source}" is one short or common word: it will match a great many texts.');
+        }
+      }
+    }
+  }
+  final description = pack.description.toLowerCase();
+  if (description.contains('http://') || description.contains('https://') || description.contains('www.')) {
+    warn('description_link', 'description', 'holds a web address: put your page in "support", and a page a button opens in "links".');
+  }
+  final used = <String>{};
+  void uses(PackWhen? w) {
+    if (w == null) return;
+    used
+      ..addAll(w.tagged)
+      ..addAll(w.untagged);
+  }
 
-const String _later = 'Trying and linting a pack come with the Marketplace\'s runtime (lib/plugins/pack/trial.dart).';
+  void inTemplate(String? t) {
+    if (t == null) return;
+    for (final m in RegExp(r'\{tag:([a-z][a-z0-9]{0,15})\}').allMatches(t)) {
+      used.add(m[1]!);
+    }
+  }
+
+  for (final r in rules.tags) {
+    uses(r.when);
+  }
+  for (final s in rules.sections) {
+    uses(s.takes);
+    inTemplate(s.row?.value);
+    inTemplate(s.row?.caption);
+  }
+  for (final a in rules.actions) {
+    uses(a.when);
+    if (a.verb == 'copy') inTemplate(a.text);
+  }
+  for (final r in rules.incoming) {
+    uses(r.when);
+  }
+  final told = <String>{};
+  for (var i = 0; i < rules.tags.length; i++) {
+    final tag = rules.tags[i].tag;
+    if (used.contains(tag) || !told.add(tag)) continue;
+    warn('unused_tag', 'rules.tags[$i].tag', '"$tag" is given, and nothing asks for it: no section takes it, no row shows it, and no button or rule asks about it.');
+  }
+  if (pack.links.isNotEmpty && rules.actions.any((a) => a.verb == 'link')) {
+    warn('opens_links', 'links[0]', 'Opens ${pack.links.first} when pressed: check it is the developer\'s own page.');
+  }
+  return out;
+}

@@ -88,6 +88,10 @@ class MessageFacts {
         date: c.date,
         unread: c.unread,
         muted: c.muted,
+        // Whose words these are: heard is set only for a conversation with one person not in the contacts where
+        // something came in (Store.kt fills it with the newest words that came in), so where it is set the words are
+        // theirs. Elsewhere the row's words may be the person's own, and that isn't known.
+        outgoing: c.heard != null ? false : null,
         encrypted: c.encrypted,
       );
 

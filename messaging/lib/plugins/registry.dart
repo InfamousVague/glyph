@@ -14,6 +14,8 @@ import 'cleaner.dart';
 import 'embeds.dart';
 import 'kinds.dart';
 import 'live_captions.dart';
+import 'pack/format.dart' show packMayAct;
+import 'pack/pack_plugin.dart' show PackPlugin;
 import 'quiet.dart';
 import 'record_call.dart';
 import 'scribe.dart';
@@ -230,8 +232,9 @@ class PluginRegistry with ChangeNotifier {
   }
 
   /// The app's own: the plugins it ships with. A test puts its own here; the app never puts another here once it has
-  /// started (screens and the API hold this one), and adds packs to it with [install].
-  static PluginRegistry instance = PluginRegistry(shippedPlugins);
+  /// started (screens and the API hold this one), and adds packs to it with [install]. Its errors go to the Developer
+  /// log from the start, not only once a list of conversations exists to say where they go.
+  static PluginRegistry instance = PluginRegistry(shippedPlugins, onError: logPluginError);
 
   /// The ids and section ids of the plugins the app ships with: never replaced or uninstalled, and never a pack's
   /// (a pack's start with x: lib/plugins/pack/format.dart).
@@ -495,7 +498,15 @@ class PluginRegistry with ChangeNotifier {
     if (filed != null) {
       if (filed == Filing.main) return null;
       for (final s in sections) {
-        if (s.id == filed) return s;
+        if (s.id != filed) continue;
+        // Filed into a plugin from another developer's section, it stays only while that plugin may act on the
+        // conversation (lib/plugins/pack/format.dart packMayAct) and isn't paused: one press of its move can never keep
+        // a bank's codes, or a contact's texts, in its tab. Passed over, the sections decide as if it weren't filed;
+        // the filing is kept, and holds again if the facts change back.
+        if (s.plugin.source == PluginSource.builtIn) return s;
+        final plugin = s.plugin;
+        if (packMayAct(facts) && !(plugin is PackPlugin && plugin.paused)) return s;
+        break;
       }
     }
     return _taker(facts, tags, store, sections);

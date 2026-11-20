@@ -40,6 +40,11 @@ class CleanerPlugin extends GhostPlugin {
   @override
   PluginShelf get shelf => PluginShelf.organise;
 
+  // Its tags in the Marketplace, so a search by tag finds it beside the plugins from other developers (Matt, 2026-11-20:
+  // "plugin tags").
+  @override
+  List<String> get labels => const ['sorting'];
+
   @override
   String get tagline => 'Delete conversations in bulk, by kind.';
 
