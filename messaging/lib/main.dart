@@ -54,7 +54,6 @@ import 'files/files_store.dart';
 import 'inbox/inbox.dart';
 import 'inbox/telegram.dart';
 import 'ui/inbox_ui.dart';
-import 'ui/recording_float.dart';
 import 'ui/settings_panes.dart' show appVersion;
 import 'ui/shell.dart';
 import 'ui/update_banner.dart';
@@ -216,9 +215,9 @@ class GhostMessagingApp extends StatelessWidget {
             typography: ghostTypography(state.emoji),
             child: HapticsProvider(
               enabled: true,
-              // A call being recorded: its pill and tracks over every page, the call's own among them (a page pushed
-              // over the conversations hid it when it was drawn with them; lib/ui/recording_float.dart).
-              child: InkOverrides(child: _SystemBars(child: GlacierToastProvider(child: Stack(children: [child!, Positioned.fill(child: RecordingFloat(navigator: _navigator))])))),
+              // A call being recorded shows in its banner over the call, whose Mixer opens the tracks full screen
+              // (lib/ui/recording_float.dart); nothing floats over the pages.
+              child: InkOverrides(child: _SystemBars(child: GlacierToastProvider(child: child!))),
             ),
           ),
           home: const _Home(),

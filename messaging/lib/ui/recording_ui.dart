@@ -24,6 +24,7 @@ import '../voice/recorder.dart';
 import '../voice/scribe.dart';
 import '../voice/voice.dart';
 import 'common.dart';
+import 'recording_float.dart' show showRecordingMixer;
 import 'video_screen.dart';
 
 /// The red line over a call that is being recorded: who records, whose voices are in it, and this device's answer.
@@ -125,7 +126,12 @@ class _RecordingBannerState extends State<RecordingBanner> {
           final clock = since == null ? '' : ' · ${_clock(DateTime.now().difference(since))}';
           final names = rec.recordedNames;
           final others = names.length <= 1 ? 'only your voice so far' : names.skip(1).join(', ');
-          lines.add(line('Recording$clock · $others', [pill('Stop', () => _stop(context), solid: true, icon: Lucide.square)], key: 'recording-mine'));
+          // Mixer opens the tracks, their meters and faders full screen (Matt, 2026-11-20: "make the recording plugin
+          // banner have a button for "mixer" and have it open a drawer full screen with the audio tracks and whatnot").
+          lines.add(line('Recording$clock · $others', [
+            pill('Mixer', () => unawaited(showRecordingMixer(context)), icon: Lucide.slidersHorizontal),
+            pill('Stop', () => _stop(context), solid: true, icon: Lucide.square),
+          ], key: 'recording-mine'));
         } else if (rec.finishing) {
           lines.add(line('Saving the recording…', const [], key: 'recording-saving'));
         }
