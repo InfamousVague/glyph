@@ -34,8 +34,10 @@ import '../voice/voice.dart';
 import 'circle.dart';
 import 'invite_word.dart';
 import 'slow_mode.dart';
+import 'welcome.dart';
 
 export 'slow_mode.dart';
+export 'welcome.dart';
 
 export 'circle.dart';
 
@@ -178,6 +180,11 @@ class Circles extends ChangeNotifier {
         _joins['${e.key}'] = {for (final p in ((e.value as Map?) ?? const {}).entries) '${p.key}': p.value is int ? p.value as int : 0};
       }
       _announce.addAll((jsonDecode(app.choice('circles_announce', '[]')) as List).whereType<String>());
+    } catch (_) {}
+    try {
+      for (final e in (jsonDecode(app.choice('circles_system', '{}')) as Map).entries) {
+        _notes['${e.key}'] = [for (final j in (e.value is List ? e.value as List : const [])) ?CircleSystemNote.fromJson(j)];
+      }
     } catch (_) {}
     // A circle held from before joins were said: when this device came in is taken as now, so whoever came before is
     // not told of as coming now.
@@ -407,6 +414,90 @@ class Circles extends ChangeNotifier {
     final seconds = slowModeOf(s);
     return seconds == 0 || allows(space, CirclePerm.spaces) ? 0 : seconds;
   }
+
+  // --- welcome, read-only and system spaces (Matt, 2026-11-20; lib/circles/welcome.dart) -----------------------------
+
+  /// Makes [seed] read-only in [c] ([on]), or open to everyone again: only the owner and admins write there. The system
+  /// space stops being one when it is opened again.
+  Future<bool> setReadOnly(Circle c, String seed, bool on) {
+    final space = c.space(seed);
+    if (space == null || !can(c, CirclePerm.spaces)) return Future.value(false);
+    return _publish(c, (m) => m.next(
+          spaces: [for (final s in m.spaces) s.seed == seed ? s.copyWith(extra: {...s.extra}..remove('rdo')..addAll({if (on) 'rdo': true})) : s],
+          extra: !on && m.systemSpace == seed ? m.withSystemSpace(null) : null,
+        ));
+  }
+
+  /// Sets [c]'s welcome: its words ([text], '' for none) and the space newcomers land in ([space], null for none).
+  Future<bool> setWelcome(Circle c, {required String text, required String? space}) {
+    if (!can(c, CirclePerm.circle) || (space != null && c.space(space) == null)) return Future.value(false);
+    return _publish(c, (m) => m.next(extra: m.withWelcome(text: text, space: space)));
+  }
+
+  /// Makes [seed] [c]'s system space (null: none), read-only as it becomes one.
+  Future<bool> setSystemSpace(Circle c, String? seed) {
+    if (!can(c, CirclePerm.circle) || !can(c, CirclePerm.spaces) || (seed != null && c.space(seed) == null)) return Future.value(false);
+    return _publish(c, (m) => m.next(
+          spaces: seed == null ? null : [for (final s in m.spaces) s.seed == seed ? s.copyWith(extra: {...s.extra, 'rdo': true}) : s],
+          extra: m.withSystemSpace(seed),
+        ));
+  }
+
+  /// Whether [space] is a read-only space of its circle.
+  bool isReadOnly(VoiceChannel space) {
+    final s = circleOf(space)?.space(space.seed);
+    return s != null && readOnlyOf(s);
+  }
+
+  /// Whether [id] may post in [space]: anyone outside a read-only space; inside one, the circle's owner and admins.
+  bool mayPostIn(VoiceChannel space, String id) {
+    final c = circleOf(space);
+    final s = c?.space(space.seed);
+    if (c == null || s == null || !readOnlyOf(s)) return true;
+    return c.manifest.writesReadOnly(id) || c.manifest.writesReadOnly(sameAs(id));
+  }
+
+  /// [space]'s room on the relay where it is read-only (lib/circles/welcome.dart readOnlyRoomOf); null where it isn't.
+  ReadOnlyRoom? readOnlyRoomFor(VoiceChannel space) {
+    final c = circleOf(space);
+    final s = c?.space(space.seed);
+    return c == null || s == null ? null : readOnlyRoomOf(c.manifest, s);
+  }
+
+  /// The space newcomers to [c] land in: its welcome space, where it has one.
+  VoiceChannel? landingOf(Circle c) {
+    final seed = c.manifest.welcomeSpace;
+    final s = seed == null ? null : c.space(seed);
+    return s == null ? null : c.channelOf(s);
+  }
+
+  /// What [c]'s system space shows, oldest first: written here as it was heard (`circles_system`).
+  List<CircleSystemNote> systemNotesIn(Circle c) => List.unmodifiable(_notes[c.seed] ?? const <CircleSystemNote>[]);
+  final Map<String, List<CircleSystemNote>> _notes = {};
+  static const _notesKept = 200;
+
+  void _note(String seed, Iterable<CircleSystemNote> notes) {
+    final list = _notes.putIfAbsent(seed, () => []);
+    var added = false;
+    for (final n in notes) {
+      if (list.contains(n)) continue;
+      list.add(n);
+      added = true;
+    }
+    if (!added) return;
+    list.sort((a, b) => a.at.compareTo(b.at));
+    while (list.length > _notesKept) {
+      list.removeAt(0);
+    }
+    _app?.set('circles_system', jsonEncode({for (final e in _notes.entries) e.key: [for (final n in e.value) n.toJson()]}));
+  }
+
+  /// The name [id] goes by in [c], as far as this device knows.
+  String _nameIn(Circle c, String id) => seenIn(c)[id] ?? seenIn(c)[sameAs(id)] ?? '';
+
+  /// For a test: [notes] written in [c]'s system space.
+  @visibleForTesting
+  void noteForTest(Circle c, List<CircleSystemNote> notes) => _note(c.seed, notes);
 
   /// Takes a space out of [c]'s list, with what it said of each role. Its chat stays with whoever has it; it is just no
   /// longer the circle's.
@@ -813,6 +904,11 @@ class Circles extends ChangeNotifier {
 
   /// Puts [c] in place of the one held with its seed.
   void _put(Circle c) {
+    // What changed that the system space tells of: removals, admins made and unmade.
+    final was = bySeed(c.seed);
+    if (was != null && was.manifest.isSigned && c.manifest.isSigned && !identical(was.manifest, c.manifest)) {
+      _note(c.seed, systemNotesBetween(was.manifest, c.manifest, nameOf: (id) => _nameIn(c, id), at: DateTime.now().millisecondsSinceEpoch));
+    }
     all = [for (final x in all) x.seed == c.seed ? c : x];
     _rooms[c.seed]?.circle = c;
     _changed();
@@ -1128,6 +1224,7 @@ class Circles extends ChangeNotifier {
     final clean = bareName(name);
     if (clean.isNotEmpty) noteSeen(c, {id: clean});
     if (heard.containsKey(id)) return;
+    _note(seed, [CircleSystemNote(kind: SystemNoteKind.joined, id: id, name: clean, at: at)]);
     heard[id] = at;
     while (heard.length > _joinsKept) {
       heard.remove(heard.keys.first);
@@ -1170,6 +1267,7 @@ class Circles extends ChangeNotifier {
     _joinedAt.clear();
     _joins.clear();
     _announce.clear();
+    _notes.clear();
     Voice.instance.setCircled(const []);
     notifyListeners();
     for (final r in rooms) {
