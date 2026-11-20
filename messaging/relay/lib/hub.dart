@@ -38,6 +38,15 @@ import 'sha256.dart';
 ///   key only they hold; the first to name a room sets its token. Whoever holds the token may join and leave at any
 ///   time, is told who is in it, and what one member sends to the room goes to the others. A room nobody is in is
 ///   forgotten.
+/// - **Read-only rooms** (Matt, 2026-11-20: "read only channels for system messages and admin / moderation
+///   announcements"): a circle's read-only space has a room whose name is made from the circle owner's public key
+///   ([anchoredName]), joined with that key and what makes the name (`ro` in the join), so the hub can check the room
+///   is that owner's and nobody else's. In it only the owner and the admins the owner signed may post: the admin list
+///   is the circle's own (its generation signed by the owner, as the app checks it: lib/circles/circle.dart), handed
+///   over by any member and kept at its highest generation. Anyone else's packet the hub would keep is refused, and
+///   anything else they send goes to the writers alone, so a changed app can't put words in front of the other
+///   members. Such rooms are apart from ordinary ones of the same name, so joining without `ro` never reaches one.
+///   Reactions ([toRoomReaction]) are the exception: anyone in the room may react, as a packet too small to be a post.
 /// - **What it can see:** which names talk to which, when, and how much. Never what: packets are sealed by the apps
 ///   with keys the hub never has. It logs no addresses.
 /// - **What it does not carry:** a call's sound and picture. Those go between the phones directly (or through a
@@ -101,6 +110,13 @@ class Hub {
   /// roster and description so ([toRoomKept]); each joining device is handed what is kept, sealed as it came, which
   /// the hub cannot read. Handed on as [toRoom], so nothing on the app's side reads another kind.
   static const toRoomKept = 3;
+
+  /// A reaction to a message in a room (Matt, 2026-11-20: "add reactions after done to spaces and circles"): kept as
+  /// [toRoomKept] is, handed to everyone in the room, and passed on with this first byte so the apps take nothing but a
+  /// reaction from it. At most [maxReaction] bytes. The one thing someone who may not post in a read-only room may send
+  /// to everyone there: a reaction is no post, and a packet that small carries no message the apps would show.
+  static const toRoomReaction = 4;
+  static const maxReaction = 512;
 
   /// What a room keeps: its newest [roomKeepFrames], none older than [roomKeepFor], [roomKeepBytes] in all at most.
   static const roomKeepFrames = 300;
@@ -220,6 +236,66 @@ class Hub {
   /// The name a public key is known by here.
   static String nameOf(List<int> publicKey) => hexOf(sha256(publicKey).sublist(0, 16));
 
+  /// What a read-only room's name is made from: these words, then 16 bytes only its members know (from the space's
+  /// seed), then the circle owner's public key (33 bytes).
+  static const anchorWords = 'ghost-ro|';
+
+  /// The name of the read-only room made from [base] for the circle owner [owner].
+  static String anchoredName(List<int> base, List<int> owner) => hexOf(sha256([...utf8.encode(anchorWords), ...base, ...owner]).sublist(0, 16));
+
+  /// What the circle's owner signs for generation [gv] of its admin list (CircleManifest.grantsMessage in the app).
+  static List<int> grantsMessage(String owner, int gv, Map<String, String> grants) =>
+      utf8.encode('ghost-circle grants|$owner|$gv|${jsonEncode(Map.fromEntries(grants.entries.toList()..sort((a, b) => a.key.compareTo(b.key))))}');
+
+  /// What the owner signs to make [id] an admin (CircleManifest.grantMessage in the app).
+  static List<int> grantMessage(String owner, String id) => utf8.encode('ghost-circle admin|$owner|$id');
+
+  /// The most admins a read-only room's list is read for.
+  static const maxGrants = 200;
+
+  /// The key a room is kept under: a read-only room's apart from an ordinary one of the same name.
+  static String _keyOf(String name, bool anchored) => anchored ? 'ro:$name' : name;
+  static String _nameOf(String key) => key.startsWith('ro:') ? key.substring(3) : key;
+
+  /// The room [e] is in by [name]: its read-only one where it joined that.
+  String _keyIn(_End e, String name) => e.rooms.contains('ro:$name') ? 'ro:$name' : name;
+
+  /// Who may post in a read-only room, for a test.
+  Set<String>? writersIn(String name) => _rooms['ro:$name']?.writers;
+
+  /// Takes the admin list [ro] carries for [room]: a newer generation signed by the owner replaces what is kept; a
+  /// circle from before generations (0) adds each grant that checks out. Anything that doesn't check out is passed over.
+  void _takeGrants(_Room room, Map ro) {
+    final owner = room.owner;
+    if (owner == null) return;
+    final gv = ro['gv'] is int ? ro['gv'] as int : 0;
+    final raw = ro['g'] is Map ? ro['g'] as Map : const {};
+    final grants = <String, String>{
+      for (final e in raw.entries.take(maxGrants))
+        if (_hex(e.key, 32) && _hex(e.value, 128)) e.key as String: e.value as String,
+    };
+    bool granted(String id) {
+      try {
+        return P256.verify(_unhex(owner), grantMessage(owner, id), _unhex(grants[id]!));
+      } catch (_) {
+        return false;
+      }
+    }
+
+    if (gv > 0) {
+      if (gv <= room.gv || !_hex(ro['gs'], 128)) return;
+      if (raw.length > maxGrants || !P256.verify(_unhex(owner), grantsMessage(owner, gv, grants), _unhex(ro['gs'] as String))) return;
+      room.gv = gv;
+      room.writers
+        ..clear()
+        ..add(room.ownerId)
+        ..addAll(grants.keys.where(granted));
+    } else if (room.gv <= 0) {
+      room.gv = 0;
+      room.writers.addAll(grants.keys.where(granted));
+    }
+  }
+
   void _say(String what) {
     // Never an address, never a whole name.
     if (verbose) stdout.writeln('${_now().toIso8601String()} hub $what');
@@ -255,7 +331,8 @@ class Hub {
     });
     // `peek`: this hub knows a look (below), so a closed app's check can sign in without being handed anything; a
     // hub from before would hand it all over, and the check does not sign in to one that does not say so.
-    _tell(ws, {'hello': hexOf(nonce), 'peek': true});
+    // `react`: this hub takes reactions ([toRoomReaction]); an app sends them as kept packets to one that doesn't say so.
+    _tell(ws, {'hello': hexOf(nonce), 'peek': true, 'react': true});
 
     void leave() {
       waiting.cancel();
@@ -441,10 +518,18 @@ class Hub {
           _tell(w.ws, {'away': e.id, 'is': away, 'at': at});
         }
       } else if (said.containsKey('join')) {
-        _join(e, said['join'], said['token']);
+        _join(e, said['join'], said['token'], said['ro'] is Map ? said['ro'] as Map : null);
+      } else if (said.containsKey('anchor')) {
+        // A read-only room's admin list, newer than the one it was joined with (an admin made or taken away).
+        final name = said['anchor'];
+        final room = name is String && e.rooms.contains('ro:$name') ? _rooms['ro:$name'] : null;
+        if (room != null) _takeGrants(room, said);
       } else if (said.containsKey('leave')) {
         final room = said['leave'];
-        if (room is String && e.rooms.contains(room)) _leave(e, room);
+        if (room is String) {
+          final key = _keyIn(e, room);
+          if (e.rooms.contains(key)) _leave(e, key);
+        }
       } else if (said.containsKey('look')) {
         _look(e, said['look'], said['token']);
       } else if (said.containsKey('unlook')) {
@@ -485,16 +570,39 @@ class Hub {
       _tell(from.ws, {'ack': seq, 'here': false});
       // Their app is closed: woken where it can be (an iPhone's push; an Android phone looks for itself).
       pushes?.held(to);
+    } else if (data[0] == toRoomReaction && data.length > 17) {
+      // [4][the room, 16 bytes][a sealed reaction]: kept, and to everyone else in it, whoever may post there.
+      if (data.length - 17 > maxReaction) return;
+      final name = hexOf(data.sublist(1, 17));
+      final key = _keyIn(from, name);
+      final room = _rooms[key];
+      if (room == null || !(room.members[from.id]?.contains(from) ?? false)) return;
+      final frame = Uint8List.fromList([toRoomReaction, ...data.sublist(1, 17), ..._unhex(from.id), ...data.sublist(17)]);
+      _keep(key, room.hash, frame);
+      for (final m in room.members.values.expand((d) => d)) {
+        if (!identical(m, from) && m.ws.readyState == WebSocket.open) m.ws.add(frame);
+      }
     } else if ((data[0] == toRoom || data[0] == toRoomKept) && data.length > 17) {
       // [2][the room, 16 bytes][the packet]: to everyone else in it.
       final name = hexOf(data.sublist(1, 17));
-      final room = _rooms[name];
+      final key = _keyIn(from, name);
+      final room = _rooms[key];
       if (room == null || !(room.members[from.id]?.contains(from) ?? false)) return;
       final frame = Uint8List.fromList([toRoom, ...data.sublist(1, 17), ..._unhex(from.id), ...data.sublist(17)]);
-      if (data[0] == toRoomKept) _keep(name, room.hash, frame);
+      // A read-only room: someone who may not post keeps nothing in it, and what else they say (who they are, asking
+      // for what was missed) reaches only those who may.
+      final reader = room.owner != null && !room.writers.contains(from.id);
+      if (reader && data[0] == toRoomKept) {
+        _tell(from.ws, {'room': name, 'ro': 'refused'});
+        return;
+      }
+      if (data[0] == toRoomKept) _keep(key, room.hash, frame);
       // To every device of everyone in it, the sender's other devices too, but not the connection it came from.
-      for (final m in room.members.values.expand((d) => d)) {
-        if (!identical(m, from) && m.ws.readyState == WebSocket.open) m.ws.add(frame);
+      for (final e in room.members.entries) {
+        if (reader && !room.writers.contains(e.key)) continue;
+        for (final m in e.value) {
+          if (!identical(m, from) && m.ws.readyState == WebSocket.open) m.ws.add(frame);
+        }
       }
     }
   }
@@ -527,19 +635,35 @@ class Hub {
     if (lookers != null && lookers.isEmpty) _lookers.remove(name);
   }
 
-  void _join(_End e, Object? name, Object? token) {
+  void _join(_End e, Object? name, Object? token, [Map? ro]) {
     if (!_hex(name, 32) || !_hex(token, 64)) {
       _tell(e.ws, {'room': name, 'ok': false, 'err': 'bad room'});
       return;
     }
+    // A read-only room: its name must be the one made from the owner's key it is joined with.
+    String? owner;
+    if (ro != null) {
+      final base = ro['base'], key = ro['owner'];
+      if (!_hex(base, 32) || !_hex(key, 66) || !(key as String).startsWith(RegExp('0[23]')) || anchoredName(_unhex(base as String), _unhex(key)) != name) {
+        _tell(e.ws, {'room': name, 'ok': false, 'err': 'bad anchor'});
+        return;
+      }
+      owner = key;
+    }
+    final at = _keyOf(name as String, owner != null);
+    // In one of a name's two rooms at a time.
+    if (e.rooms.contains(_keyOf(name, owner == null))) {
+      _tell(e.ws, {'room': name, 'ok': false, 'err': 'refused'});
+      return;
+    }
     final hash = hexOf(sha256(utf8.encode(token as String)));
-    var room = _rooms[name as String];
+    var room = _rooms[at];
     if (room == null) {
       if (_rooms.length >= maxRooms) {
         _tell(e.ws, {'room': name, 'ok': false, 'err': 'full'});
         return;
       }
-      room = _rooms[name] = _Room(hash);
+      room = _rooms[at] = _Room(hash, owner: owner);
     }
     if (room.hash != hash || (room.members.length >= maxRoom && !room.members.containsKey(e.id))) {
       _tell(e.ws, {'room': name, 'ok': false, 'err': room.hash != hash ? 'refused' : 'full'});
@@ -552,10 +676,11 @@ class Hub {
     final devices = room.members.putIfAbsent(e.id, () => <_End>[]);
     final first = devices.isEmpty;
     if (!devices.any((d) => identical(d, e))) devices.add(e);
-    e.rooms.add(name);
-    _tell(e.ws, {'room': name, 'ok': true, 'members': others});
+    e.rooms.add(at);
+    if (ro != null) _takeGrants(room, ro);
+    _tell(e.ws, {'room': name, 'ok': true, 'members': others, if (room.owner != null) 'ro': room.writers.contains(e.id) ? 'writer' : 'reader'});
     // What the room kept, for one who knows its token: written while this device was away.
-    final kept = _kept[name];
+    final kept = _kept[at];
     if (kept != null && kept.hash == hash) {
       final cutoff = _now().subtract(roomKeepFor);
       for (final h in kept.frames) {
@@ -569,13 +694,15 @@ class Hub {
         }
       }
     }
-    _showLookers(name);
-    _say('${e.id.substring(0, 6)} joined room ${name.substring(0, 6)} (${room.members.length} in it)');
+    if (owner == null) _showLookers(name);
+    _say('${e.id.substring(0, 6)} joined ${owner == null ? '' : 'read-only '}room ${name.substring(0, 6)} (${room.members.length} in it)');
   }
 
-  void _leave(_End e, String name) {
-    e.rooms.remove(name);
-    final room = _rooms[name];
+  /// [e] out of the room kept under [key] (a read-only room's is `ro:` and its name).
+  void _leave(_End e, String key) {
+    final name = _nameOf(key);
+    e.rooms.remove(key);
+    final room = _rooms[key];
     final devices = room?.members[e.id];
     if (room == null || devices == null || !devices.any((d) => identical(d, e))) return;
     devices.removeWhere((d) => identical(d, e));
@@ -583,13 +710,13 @@ class Hub {
     if (devices.isNotEmpty) return;
     room.members.remove(e.id);
     if (room.members.isEmpty) {
-      _rooms.remove(name);
+      _rooms.remove(key);
     } else {
       for (final m in room.members.values.expand((d) => d)) {
         _tell(m.ws, {'room': name, 'went': e.id});
       }
     }
-    _showLookers(name);
+    if (key == name) _showLookers(name);
     _say('${e.id.substring(0, 6)} left room ${name.substring(0, 6)}');
   }
 
@@ -640,10 +767,22 @@ class _Held {
 }
 
 class _Room {
-  _Room(this.hash);
+  _Room(this.hash, {this.owner}) : ownerId = owner == null ? '' : Hub.nameOf(Hub._unhex(owner)) {
+    if (owner != null) writers.add(ownerId);
+  }
 
   /// SHA-256 of the room's token, in hex.
   final String hash;
+
+  /// A read-only room's circle owner (their public key, 33 bytes in hex) and name; null for an ordinary room.
+  final String? owner;
+  final String ownerId;
+
+  /// Who may post in a read-only room: the owner and the admins they signed.
+  final Set<String> writers = {};
+
+  /// The generation of the admin list [writers] came from; -1 before any.
+  int gv = -1;
   /// Each member by name, with every device of theirs in the room.
   final Map<String, List<_End>> members = {};
 }
