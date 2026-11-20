@@ -93,6 +93,20 @@ void main() {
     expect([for (final c in later['items'] as List) (c as Map)['id']], isNot(contains(bee.id)));
   });
 
+  // Matt, 2026-11-20: "rework the onboarding on mobile so that SMS is not required and you can 'skip this step'".
+  test('with texts off, Android is asked for no conversations; friends\' chats go on; a number says why it can\'t', () async {
+    Sms.textsOff = true;
+    addTearDown(() => Sms.textsOff = false);
+    await calls.invokeMethod('netTextIn', {'address': '@bee', 'body': 'hi', 'at': 9000});
+    phone.asked.clear();
+    final page = (await calls.invokeMethod<Map>('conversationsPage', {'limit': 30, 'offset': 0, 'pinned': true}))!;
+    expect([for (final c in page['items'] as List) Conversation.from(c as Map).people.single.address], ['@bee']);
+    expect(await calls.invokeMethod('archivedCount', const {}), 0);
+    expect(phone.asked, isNot(anyOf(contains('conversationsPage'), contains('archivedCount'))));
+    expect(() => calls.invokeMethod('threadFor', {'addresses': ['+15551234567']}), throwsA(isA<StateError>().having((e) => e.message, 'says', textsOffWords)));
+    expect(() => calls.invokeMethod('send', {'addresses': ['+15551234567'], 'body': 'x'}), throwsA(isA<StateError>()));
+  });
+
   test('sending, where things stand, contacts: friends by username added to the phone\'s', () async {
     final row = (await calls.invokeMethod<int>('netTextOut', {'address': '@bee', 'body': 'going'}))!;
     await calls.invokeMethod('netTextState', {'id': row, 'state': 'delivered'});

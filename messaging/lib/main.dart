@@ -282,8 +282,13 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     // see nothing, since a contact can't be told from a stranger (lib/plugins/pack/format.dart packSees).
     MessageFacts.heardStatus(s);
     if (!mounted) return;
-    setState(() => _isDefault = s.usable);
-    if (first && s.usable) {
+    // Texts may be passed by in the walkthrough (Matt, 2026-11-20: "rework the onboarding on mobile so that SMS is not
+    // required and you can 'skip this step'"): the app opens without them, and asks Android for none (Sms.textsOff).
+    final skipped = AppState.of(context).flag(textsSkippedKey, fallback: false);
+    Sms.textsOff = !s.usable;
+    final allowed = s.usable || skipped;
+    setState(() => _isDefault = allowed);
+    if (first && allowed) {
       // The app's own updates: a look at most twice a day, as it opens.
       Sms.instance.updateBackground();
       // The app's routes to other phones with it (lib/net/net.dart): set up once, as the app opens.

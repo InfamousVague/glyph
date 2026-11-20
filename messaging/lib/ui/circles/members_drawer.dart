@@ -8,6 +8,8 @@
 /// window). Add people at its top closes it and opens that drawer in its place.
 library;
 
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -80,13 +82,15 @@ class MembersDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final pad = MediaQuery.paddingOf(context);
+    // Above the keyboard while one is up, so a field in the drawer (Share feedback's) isn't under it.
+    final foot = math.max(pad.bottom, MediaQuery.viewInsetsOf(context).bottom);
     final add = onAddPeople;
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
+        padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), foot + t.space(3)),
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: t.lenOf('30rem'), maxHeight: MediaQuery.sizeOf(context).height - pad.top - pad.bottom - t.space(8)),
+          constraints: BoxConstraints(maxWidth: t.lenOf('30rem'), maxHeight: math.max(t.lenOf('12rem'), MediaQuery.sizeOf(context).height - pad.top - foot - t.space(8))),
           child: _Frame(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               // The invite drawer's own head (lib/ui/drawer_head.dart): the same words in the same places.

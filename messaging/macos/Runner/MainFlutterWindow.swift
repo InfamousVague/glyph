@@ -63,6 +63,11 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
       case "splash":
         if (call.arguments as? Bool) == false { self.leaveSplash() }
         result(nil)
+      case "compact":
+        // Signing up or in (lib/desktop/window_size.dart; Matt, 2026-11-20: "make the sign up / sign in window
+        // smaller"): a small window of its own, as Discord's sign-in is; false gives the window its own size back.
+        if (call.arguments as? Bool) == true { self.enterCompact() } else { self.leaveSplash() }
+        result(nil)
       case "drag":
         // The press that began on a top bar moves the window, as a title bar does.
         if let e = NSApp.currentEvent ?? self.currentEvent { self.performDrag(with: e) }
@@ -166,6 +171,25 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
     isMovableByWindowBackground = true
     let screen = (self.screen ?? NSScreen.main)?.visibleFrame ?? frame
     setFrame(NSRect(x: screen.midX - size.width / 2, y: screen.midY - size.height / 2, width: size.width, height: size.height), display: true)
+  }
+
+  /// Signing up or in: smaller than the app, not resizable, the close and minimise buttons kept.
+  private func enterCompact() {
+    if fullFrame == nil {
+      fullFrame = frame
+      fullMin = minSize
+    }
+    let size = NSSize(width: 480, height: 720)
+    minSize = size
+    styleMask.remove(.resizable)
+    standardWindowButton(.closeButton)?.isHidden = false
+    standardWindowButton(.miniaturizeButton)?.isHidden = false
+    standardWindowButton(.zoomButton)?.isHidden = true
+    isMovableByWindowBackground = false
+    let screen = (self.screen ?? NSScreen.main)?.visibleFrame ?? frame
+    let h = min(size.height, screen.height)
+    setFrame(NSRect(x: screen.midX - size.width / 2, y: screen.midY - h / 2, width: size.width, height: h), display: true, animate: frame.width > size.width + 40)
+    placeLights()
   }
 
   /// The app is ready: the window as it was meant to be, centred where the splash was.

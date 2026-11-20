@@ -869,12 +869,13 @@ class HangoutRoom extends ChangeNotifier {
         if (m['q'] == true) _greet(from);
       case 'pic?':
         // Someone looking at this person's profile (it came to them alone: `to` above).
-        final mine = Me.instance.picture;
-        if (mine.isNotEmpty) _say({'t': 'pic', 'to': from, 'p': mine});
+        // `p` the small one, for builds from before 0.10.4; `pp` the sharp one shown, for the rest.
+        final mine = Me.instance.picture, sharp = Me.instance.pictureSharp;
+        if (mine.isNotEmpty) _say({'t': 'pic', 'to': from, 'p': mine, if (sharp != mine) 'pp': sharp});
       case 'pic':
-        final p = m['p'];
+        final p = m['p'], pp = m['pp'];
         if (p is String) {
-          ProfilePictures.instance.keep(from, p);
+          ProfilePictures.instance.keep(from, pp is String && pp.isNotEmpty ? pp : p, markOf: p);
           final asked = _askedPictures[from];
           if (asked != null && !asked.isCompleted) asked.complete(ProfilePictures.instance.of(from));
         }

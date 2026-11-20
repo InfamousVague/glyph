@@ -77,6 +77,16 @@ void main() {
         expect(_key('quick-mark-read'), findsOneWidget);
         expect(_key('share-feedback'), findsOneWidget);
         expect(tester.getTopLeft(_key('share-feedback')).dy, greaterThan(tester.getTopLeft(_key('quick-mark-read')).dy));
+        // Share feedback opens over the whole app, in the middle of the window, not in the sidebar (Matt, 2026-11-20: "the
+        // share feedback drawer should open over the whole app not just in the sidebar").
+        await tester.tap(_key('share-feedback'));
+        await settle(tester);
+        expect(_key('feedback-drawer'), findsOneWidget);
+        expect(tester.getCenter(_key('feedback-drawer')).dx, closeTo(at.width / 2, 2));
+        await _keep(tester, '${style.name}-$size-feedback');
+        await tester.tapAt(const Offset(4, 4));
+        await settle(tester);
+        expect(_key('feedback-drawer'), findsNothing);
 
         AppShellState.live!.openCircle(_owls);
         await settle(tester);
@@ -106,6 +116,11 @@ void main() {
             await tester.tap(_key('rail-circle-${_alpha.seed}'));
             await settle(tester);
             expect(AppShellState.live!.openCircleSeed, _alpha.seed);
+            // Its picture fills its face, one ring round it, the rail's halo (Matt, 2026-11-20: "make sure the circle
+            // icons take up the full width there are double borders right now").
+            await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+            await settle(tester);
+            await _keep(tester, '${style.name}-$size-picture-open');
             // The open circle's mark is a halo in its own colour round its face, not a bar at the rail's edge (Matt,
             // 2026-11-20: "the hover and click indicator on the rail is too similar to discords").
             final halo = tester.widget<AnimatedContainer>(_key('rail-halo-${_alpha.seed}'));

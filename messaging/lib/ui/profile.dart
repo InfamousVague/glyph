@@ -7,7 +7,7 @@ import '../art/lucide.g.dart';
 import '../friends/buddies.dart';
 import '../kit/settings_kit.dart';
 import '../me/me.dart';
-import 'circles/circle_picture.dart' show pickCirclePicture;
+import 'circles/circle_picture.dart' show pickProfilePicture;
 import 'common.dart';
 import 'profile_card.dart' show ProfileFace;
 import 'sign_up_from.dart';
@@ -68,7 +68,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (p.status.isNotEmpty) _status.text = p.status;
       if (p.bio.isNotEmpty && _bio.text.trim().isEmpty) _bio.text = p.bio;
     });
-    if (p.picture != null) Me.instance.setProfile(picture: p.picture);
+    if (p.picture != null) Me.instance.setPicture(p.picture);
     toast(context, 'Filled in from ${p.from}. Claim the username and save to keep it.');
   }
 
@@ -81,17 +81,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     toast(context, 'Saved. Your friends will see it.');
   }
 
-  /// A picture chosen, made square and small (as a circle's is), kept and sent to friends at once.
+  /// A picture chosen, made square and sharp (lib/me/picture_make.dart), kept and sent to friends at once.
   Future<void> _choosePicture() async {
-    final picked = await pickCirclePicture(context);
+    final picked = await pickProfilePicture(context);
     if (picked == null) return;
-    Me.instance.setProfile(picture: picked);
+    Me.instance.setPicture(picked);
     Buddies.instance.shareProfile();
     if (mounted) toast(context, 'Your picture is set. Your friends will see it.');
   }
 
   void _removePicture() {
-    Me.instance.setProfile(picture: '');
+    Me.instance.setPicture(null);
     Buddies.instance.shareProfile();
   }
 
@@ -150,7 +150,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 description: const Text('Shown to your friends, and to people in your spaces and circles who open your profile.'),
                 children: [
                   SettingRow(
-                    icon: ProfileFace(key: const ValueKey('profile-picture'), name: me.shownName, picture: me.picture, size: 40),
+                    icon: ProfileFace(key: const ValueKey('profile-picture'), name: me.shownName, picture: me.pictureSharp, size: 40),
                     label: me.picture.isEmpty ? 'Choose a picture' : 'Change your picture',
                     onPress: () => _choosePicture(),
                   ),

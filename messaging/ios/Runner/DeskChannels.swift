@@ -54,6 +54,12 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
           let png = videoFramePNG(path)
           DispatchQueue.main.async { result(png.map { FlutterStandardTypedData(bytes: $0) }) }
         }
+      case "openLink":
+        // A web address in the iPhone's own browser (lib/desktop/platform.dart MacPlatform.openLink): signing up with
+        // Discord, a link in a message.
+        guard let text = args["url"] as? String, let url = URL(string: text),
+              url.scheme == "https" || url.scheme == "http" else { return result(false) }
+        UIApplication.shared.open(url, options: [:]) { result($0) }
       case "name":
         // iOS gives apps "iPhone" rather than the name in Settings › General › About.
         result(UIDevice.current.name)

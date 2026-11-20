@@ -80,9 +80,9 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
         Me.instance.setProfile(
           displayName: name.isNotEmpty ? name : null,
           bio: from != null && from.bio.isNotEmpty && Me.instance.bio.isEmpty ? from.bio : Me.instance.bio,
-          picture: from?.picture,
           status: from != null && from.status.isNotEmpty ? from.status : null,
         );
+        if (from?.picture != null) Me.instance.setPicture(from!.picture);
         Buddies.instance.shareProfile();
       }
       // An account made a moment ago, before there was a username: its backup carries the username from now.

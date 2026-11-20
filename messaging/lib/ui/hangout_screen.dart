@@ -2415,7 +2415,7 @@ class _SpaceFaceState extends State<SpaceFace> {
 
   String? _picture() {
     final room = widget.room, id = widget.id;
-    if (id == room.me) return Me.instance.picture;
+    if (id == room.me) return Me.instance.pictureSharp;
     final hash = room.present[id]?.pictureHash ?? '';
     // Here and saying they have none: none.
     if (room.present.containsKey(id) && hash.isEmpty) return null;

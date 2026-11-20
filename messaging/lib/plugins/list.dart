@@ -435,6 +435,16 @@ class ListPlugins {
     ];
   }
 
+  /// The plugins' actions for the list's header as (icon, label, press), for the rows under the search (Matt, 2026-11-20:
+  /// "also the clean button is still in the header we should remove that"): the cleaner's Clean up among them.
+  List<({LucideIcon icon, String label, VoidCallback press})> headerActions(BuildContext context, ListPlace place) {
+    final store = _store;
+    if (store == null) return const [];
+    return [
+      for (final b in registry.actions(Slots.listHeader, place, store)) (icon: b.action.icon, label: b.action.label, press: () => b.action.run(_Host(this, b.plugin, context))),
+    ];
+  }
+
   /// What the plugins put between the search field and the list.
   List<Widget> above(BuildContext context, ListPlace place) {
     final store = _store;
