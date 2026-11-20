@@ -20,6 +20,7 @@ import '../ui/files_space/share_in.dart';
 import '../ui/window_chrome.dart';
 import 'ui/desk_title_bar.dart';
 import 'ui/launch_splash.dart';
+import 'window_size.dart';
 import '../ui/settings_panes.dart' show appVersion;
 import 'desk.dart';
 import 'link/link.dart';
@@ -160,8 +161,9 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // The updates looked for at the splash, told to the phone's screens too, so its banner and its words are the
   // computer's (remote.dart).
   if (macUpdates != null) calls.attachUpdates(macUpdates);
-  // Loaded: the window its own size again, and the app in it.
-  await leaveSplashWindow();
+  // Loaded: the window its own size again, and the app in it; on its own with no username yet, the small window for
+  // signing up or in (lib/desktop/window_size.dart; Matt, 2026-11-20: "make the sign up / sign in window smaller").
+  await leaveSplashWindow(compact: alone && state.choice('me_username', '').isEmpty);
   runApp(DesktopApp(sheet: sheet, state: state, link: link, calls: calls, store: store, envPeers: envPeers, updates: macUpdates, accents: accents));
 }
 
@@ -400,6 +402,13 @@ class _DeskHomeState extends State<DeskHome> {
         Positioned(left: 0, right: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),
       ]);
 
+  /// The window small for signing up or in and the offers around it, its own size for the app and the pairing
+  /// wizard (lib/desktop/window_size.dart).
+  Widget _sized(bool compact, Widget child) {
+    WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(DeskWindow.compact(compact)));
+    return child;
+  }
+
   @override
   Widget build(BuildContext context) {
     final link = DeskScope.of(context).link;
@@ -415,7 +424,7 @@ class _DeskHomeState extends State<DeskHome> {
             // Become the same you as the phone a moment ago, and in no account: signing in offered once.
             if (Sms.ownNetwork && _accountOffered == false && !Account.instance.signedIn) {
               final calls = Sms.calls;
-              return Stack(children: [
+              return _sized(true, Stack(children: [
                 Positioned.fill(
                   child: AccountOffer(
                     phoneUsername: calls is DeskOwnCalls ? calls.phoneAccount?.username : null,
@@ -428,12 +437,12 @@ class _DeskHomeState extends State<DeskHome> {
                   ),
                 ),
                 Positioned(left: 0, right: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),
-              ]);
+              ]));
             }
-            return DeskShell(key: ValueKey(link.phone!.id));
+            return _sized(false, DeskShell(key: ValueKey(link.phone!.id)));
           }
           // Unpaired since it opened: the wizard, or the app of its own again.
-          return _wizard(skipLabel: 'Use without a phone', onSkip: _restart);
+          return _sized(false, _wizard(skipLabel: 'Use without a phone', onSkip: _restart));
         }
         // Linked from here or from Settings: the app opens again on the phone.
         if (linked) {
@@ -441,29 +450,29 @@ class _DeskHomeState extends State<DeskHome> {
           return LinkRestarting(phone: link.phone!.name);
         }
         if (_linking) {
-          return _wizard(
+          return _sized(false, _wizard(
             skipLabel: 'Not now',
             onSkip: () {
               unawaited(link.cancelPairing());
               _passBy();
             },
-          );
+          ));
         }
         // The username is how anyone reaches someone here (lib/standalone/welcome.dart).
         if (Me.instance.username == null) {
-          return Stack(children: [
+          return _sized(true, Stack(children: [
             Positioned.fill(child: StandaloneWelcome(onDone: () => setState(() {}))),
             Positioned(left: 0, right: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),
-          ]);
+          ]));
         }
         if (_offered == null) return ColoredBox(color: context.tokens.color('glacier-bg'));
         if (!_offered!) {
-          return Stack(children: [
+          return _sized(true, Stack(children: [
             Positioned.fill(child: LinkOffer(onLink: () => setState(() => _linking = true), onSkip: _passBy)),
             Positioned(left: 0, right: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),
-          ]);
+          ]));
         }
-        return const DeskShell(key: ValueKey('alone'));
+        return _sized(false, const DeskShell(key: ValueKey('alone')));
       },
     );
   }

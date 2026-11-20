@@ -21,6 +21,8 @@ constexpr int kFullWidth = 1100;
 constexpr int kFullHeight = 740;
 constexpr int kSplashWidth = 300;
 constexpr int kSplashHeight = 340;
+constexpr int kCompactWidth = 480;
+constexpr int kCompactHeight = 720;
 
 void Centre(HWND window, int width, int height) {
   const UINT dpi = GetDpiForWindow(window);
@@ -47,6 +49,16 @@ void Leave() {
   Centre(g_window, kFullWidth, kFullHeight);
 }
 
+// Signing up or in: smaller than the app and not resizable, its minimise and close buttons kept. Leave() gives the
+// window its own size back, as after the splash.
+void Compact() {
+  if (g_window == nullptr) return;
+  const LONG_PTR now = GetWindowLongPtr(g_window, GWL_STYLE);
+  SetWindowLongPtr(g_window, GWL_STYLE, now & ~(WS_THICKFRAME | WS_MAXIMIZEBOX));
+  g_splash = true;
+  Centre(g_window, kCompactWidth, kCompactHeight);
+}
+
 }  // namespace
 
 void RegisterSplash(flutter::BinaryMessenger* messenger, HWND window) {
@@ -60,6 +72,15 @@ void RegisterSplash(flutter::BinaryMessenger* messenger, HWND window) {
     if (call.method_name() == "splash") {
       const auto* on = std::get_if<bool>(call.arguments());
       if (on != nullptr && !*on) Leave();
+      result->Success();
+    } else if (call.method_name() == "compact") {
+      // Signing up or in: a small window of its own (Matt, 2026-11-20: "make the sign up / sign in window smaller").
+      const auto* on = std::get_if<bool>(call.arguments());
+      if (on != nullptr && *on) {
+        Compact();
+      } else {
+        Leave();
+      }
       result->Success();
     } else {
       result->NotImplemented();

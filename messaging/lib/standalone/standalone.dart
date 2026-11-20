@@ -307,6 +307,11 @@ class StandaloneCalls implements SmsCalls {
       case 'blockedNumbers':
         return const [];
 
+      // A link opened in this device's own browser: a link in a message, and signing up with Discord (Matt,
+      // 2026-11-20: "when clicking sign up with discord it says "no browser could be opened""), which had nothing here.
+      case 'openLink':
+        return MacPlatform.openLink('${a['url'] ?? ''}');
+
       // The iPhone's own: pictures, the microphone, playing (ios/Runner/DeskChannels.swift, as on a Mac).
       case 'pickImages':
         return await MacPlatform.pickPictures(most: (a['most'] as num?)?.toInt() ?? 5);
