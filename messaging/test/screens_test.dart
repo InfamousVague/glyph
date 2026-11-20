@@ -72,6 +72,7 @@ import 'package:ghost_messaging/ui/nav_bar.dart';
 import 'package:ghost_messaging/ui/new_group.dart';
 import 'package:ghost_messaging/ui/network.dart' show inviteText;
 import 'package:ghost_messaging/onboarding/onboarding.dart';
+import 'package:ghost_messaging/standalone/welcome.dart';
 import 'package:ghost_messaging/ui/shell.dart';
 import 'package:ghost_messaging/ui/sticker_picker.dart';
 import 'package:ghost_messaging/ui/thread.dart';
@@ -978,6 +979,11 @@ void main() {
       expect(find.text('Ghost is your texting app.'), findsOneWidget);
       expect(find.text('Continue'), findsOneWidget);
       _statusSaid = const {'isDefault': true, 'contacts': true, 'notifications': false, 'phone': true};
+      // Then the first page of one's own: a username and a password, and signing in to an account one has as a section
+      // on the same page (Matt, 2026-11-20).
+      await _shoot(tester, sheet, StandaloneWelcome(onDone: () {}), '0-welcome', dark: dark);
+      expect(find.text('Already have an account?'), findsOneWidget);
+      expect(find.byKey(const ValueKey('welcome-sign-in')), findsOneWidget);
       // Each effect at a moment of its run, over the conversation.
       const night = {ScreenEffect.fireworks, ScreenEffect.celebration, ScreenEffect.lasers, ScreenEffect.snow, ScreenEffect.goodNight, ScreenEffect.party, ScreenEffect.spotlight};
       for (final effect in ScreenEffect.values) {
