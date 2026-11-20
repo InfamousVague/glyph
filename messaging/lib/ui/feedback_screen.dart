@@ -21,7 +21,6 @@ import '../sms.dart';
 import '../voice/channels.dart';
 import 'common.dart';
 import 'dialup/bevel.dart' show isBevelChrome;
-import 'nav_bar.dart' show HoverTip;
 import 'settings_panes.dart' show appVersion;
 
 /// Share feedback (Matt, 2026-11-19: "add a "share feedback" button hovering in the topbar of the app it should be a
@@ -62,27 +61,31 @@ class FeedbackButton extends StatelessWidget {
     void press() => onOpen != null ? onOpen!() : open(context);
     if (isBevelChrome(t)) return IconTap(key: const ValueKey('share-feedback'), icon: LucideMore.messageSquareWarning, label: 'Share feedback', onPressed: press);
     final side = this.side ?? t.len('glacier-control-height-md');
-    return HoverTip(
-      message: 'Share feedback',
-      below: true,
-      end: true,
-      child: GlacierPressable(
-        key: const ValueKey('share-feedback'),
-        onPressed: press,
-        semanticLabel: 'Share feedback',
-        builder: (context, state) => GlacierFocusRing(
-          visible: state.focused,
-          radius: t.radius('full'),
+    // A pill in the app's primary colour with its words, "Share Feedback" (Matt, 2026-11-19: "add the text "Share
+    // Feedback" to the feedback bubble and make it the primary color"), pressed in a little as Send is.
+    final ink = t.color('app-on-accent');
+    return GlacierPressable(
+      key: const ValueKey('share-feedback'),
+      onPressed: press,
+      semanticLabel: 'Share feedback',
+      builder: (context, state) => GlacierFocusRing(
+        visible: state.focused,
+        radius: t.radius('full'),
+        child: AnimatedScale(
+          scale: state.pressed ? 0.96 : 1,
+          duration: const Duration(milliseconds: 120),
           child: Container(
-            width: side,
             height: side,
-            decoration: BoxDecoration(
-              color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'),
-              shape: BoxShape.circle,
-              border: Border.all(color: t.color('app-rule')),
-            ),
+            padding: EdgeInsets.symmetric(horizontal: t.space(3)),
+            decoration: BoxDecoration(color: t.color('app-accent'), borderRadius: BorderRadius.circular(side / 2)),
             alignment: Alignment.center,
-            child: ExcludeSemantics(child: AppIcon(LucideMore.messageSquareWarning, size: 17, strokeWidth: 2.2, wash: false, color: t.color('app-ink'))),
+            child: ExcludeSemantics(
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                AppIcon(LucideMore.messageSquareWarning, size: 15, strokeWidth: 2.2, wash: false, color: ink),
+                SizedBox(width: t.space(1) + 2),
+                Text('Share Feedback', maxLines: 1, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: ink)),
+              ]),
+            ),
           ),
         ),
       ),
