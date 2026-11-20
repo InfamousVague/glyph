@@ -115,6 +115,50 @@ void main() {
     expect(mine.bySeed(c.seed)!.manifest.removed, {admin.id});
   });
 
+  // Matt, 2026-11-20: "I can't seem to kick users or ban them from circles, please add that functionality".
+  test('a kick puts someone out now, and they may come back; a ban keeps them out until unbanned', () async {
+    final hub = _Hub();
+    final owner = NetKeys.generate(), sam = NetKeys.generate();
+    final mine = Circles.forTest(signer: KeysSigner(owner), route: _Route(hub, owner.id));
+    final c = (await mine.make(name: 'Book club'))!;
+    final samDevice = Circles.forTest(signer: KeysSigner(sam), route: _Route(hub, sam.id));
+    samDevice.join(_copy(mine.bySeed(c.seed)!));
+    await _until(() => samDevice.bySeed(c.seed)?.manifest.isSigned ?? false);
+
+    // Kicked: Sam's app leaves and says so; he is not banned.
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    expect(await mine.kickMember(mine.bySeed(c.seed)!, sam.id), isTrue);
+    await _until(() => samDevice.bySeed(c.seed) == null);
+    expect(samDevice.bySeed(c.seed), isNull);
+    expect(samDevice.removedFrom.value, 'Book club');
+    expect(mine.bySeed(c.seed)!.manifest.removed, isEmpty, reason: 'a kick is not a ban');
+    expect(mine.bySeed(c.seed)!.manifest.kicked.keys, [sam.id]);
+
+    // Back by the link: the kick was before he came in again, so he stays.
+    samDevice.removedFrom.value = null;
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    samDevice.join(Circle.fromLink(mine.bySeed(c.seed)!.link)!);
+    await _until(() => samDevice.bySeed(c.seed)?.manifest.kicked.containsKey(sam.id) ?? false);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(samDevice.bySeed(c.seed), isNotNull, reason: 'kicked before he came back: he stays');
+    expect(samDevice.removedFrom.value, isNull);
+
+    // Banned: out, and kept out.
+    expect(await mine.removeMember(mine.bySeed(c.seed)!, sam.id), isTrue);
+    await _until(() => samDevice.bySeed(c.seed) == null);
+    expect(samDevice.bySeed(c.seed), isNull);
+    samDevice.join(Circle.fromLink(mine.bySeed(c.seed)!.link)!);
+    await _until(() => samDevice.bySeed(c.seed) == null);
+    expect(samDevice.bySeed(c.seed), isNull, reason: 'banned: his app leaves again as soon as it hears the circle');
+
+    // Unbanned: he may come back.
+    expect(await mine.removeMember(mine.bySeed(c.seed)!, sam.id, back: true), isTrue);
+    samDevice.join(Circle.fromLink(mine.bySeed(c.seed)!.link)!);
+    await _until(() => samDevice.bySeed(c.seed)?.manifest.removed.isEmpty == true && (samDevice.bySeed(c.seed)?.manifest.isSigned ?? false));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(samDevice.bySeed(c.seed), isNotNull);
+  });
+
   test('in a circle\'s space, whoever was removed is not heard', () async {
     final hub = _Hub();
     final c = VoiceChannel.make('General', kind: SpaceKind.text);
