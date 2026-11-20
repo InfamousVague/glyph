@@ -12,6 +12,7 @@ import '../mentions.dart';
 import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
 import 'channels.dart' show AppHangoutStore;
+import '../circles/welcome.dart' show ReadOnlyRoom;
 import 'roles.dart';
 import 'voice.dart';
 import '../me/me.dart' show Me;
@@ -41,6 +42,38 @@ export 'polls.dart';
 class HangoutRoom extends ChangeNotifier {
   /// Someone not heard here at all besides the banned: put out of the circle this space is in (Voice sets it).
   bool Function(String id)? shut;
+
+  /// Who may post here, where not everyone may: a circle's read-only space lets its owner and admins alone (Matt,
+  /// 2026-11-20; lib/circles/welcome.dart). Null: everyone the roster lets. What anyone else says is dropped.
+  bool Function(String id)? mayPost;
+
+  /// A read-only space's room on the relay, bound to its circle owner's key, where the hub itself refuses anyone but the
+  /// owner and admins ([setReadOnly]); null for the space's ordinary room.
+  ReadOnlyRoom? get readOnly => _readOnly;
+  ReadOnlyRoom? _readOnly;
+
+  /// The room on the relay this chat is in: its read-only one, else the space's own. Messages are kept on the device
+  /// under the space's own either way, so a space made read-only keeps what was said in it.
+  String get hubRoom => _readOnly?.room ?? channel.chatRoom;
+
+  /// The room [open] joined, left by [close].
+  String? _inRoom;
+
+  /// Makes this a read-only space's chat ([ro]), or an ordinary one again (null): into the other room where it is open;
+  /// the relay told of a new admin list where only that changed.
+  Future<void> setReadOnly(ReadOnlyRoom? ro) async {
+    if (ro == _readOnly) return;
+    final moved = (ro?.room ?? channel.chatRoom) != hubRoom;
+    _readOnly = ro;
+    if (!opened) return;
+    if (moved) {
+      await close();
+      await open();
+    } else if (ro != null && route is ReadOnlyRoute) {
+      (route as ReadOnlyRoute).anchor(ro.room, ro.grantsJson);
+    }
+    notifyListeners();
+  }
 
   HangoutRoom({required this.channel, required this.route, required this.name, this.username, this.signer, HangoutStore? store})
       : store = store ?? MemoryHangoutStore() {
@@ -111,11 +144,14 @@ class HangoutRoom extends ChangeNotifier {
     if (opened) return;
     opened = true;
     putOut = roster.banned.contains(me) ? 'You were banned from this space.' : null;
-    _subs.add(route.packets.where((p) => p.room == channel.chatRoom).listen((p) => _heard(p.from, p.bytes)));
-    _subs.add(route.events.where((e) => e.room == channel.chatRoom).listen(_event));
+    final at = _inRoom = hubRoom;
+    _subs.add(route.packets.where((p) => p.room == at).listen((p) => _heard(p.from, p.bytes)));
+    _subs.add(route.events.where((e) => e.room == at).listen(_event));
     final List<String> there;
     try {
-      there = await route.join(channel.chatRoom, channel.chatToken);
+      final ro = _readOnly;
+      final r = route is ReadOnlyRoute ? route as ReadOnlyRoute : null;
+      there = ro != null && r != null ? await r.joinReadOnly(at, channel.chatToken, ro.join) : await route.join(at, channel.chatToken);
     } catch (_) {
       // Not in yet (the relay server slow to answer): in as soon as it is, when [_event] hears who is here.
       _dropped = true;
@@ -132,7 +168,8 @@ class HangoutRoom extends ChangeNotifier {
   Future<void> close() async {
     if (!opened) return;
     opened = false;
-    route.leave(channel.chatRoom);
+    route.leave(_inRoom ?? hubRoom);
+    _inRoom = null;
     // Taken out first: an open() while these are cancelled starts a list of its own.
     final subs = [..._subs];
     _subs.clear();
@@ -198,7 +235,10 @@ class HangoutRoom extends ChangeNotifier {
   /// Whether this device may write here at all: the roster's Send messages, and not put out. Files and stickers are
   /// part of writing (Matt, 2026-11-18): whoever may write may send them (in a circle its roles say more:
   /// lib/ui/space_chat_files.dart spaceMayAttach).
-  bool get mayWrite => can(Perm.chat) && putOut == null;
+  bool get mayWrite => can(Perm.chat) && putOut == null && (mayPost?.call(me) ?? true);
+
+  /// Whether [id] may post here (the roster aside): everyone but where [mayPost] says otherwise.
+  bool _posts(String id) => mayPost?.call(id) ?? true;
 
   /// Writes [text], with [files] that are up already or a [sticker], to the hangout; false where this device may not or
   /// there is nothing to send. [id]: the one an [OutgoingMessage] was shown under.
@@ -819,16 +859,17 @@ class HangoutRoom extends ChangeNotifier {
       final sealed = NetCrypto.seal(channel.key, utf8.encode(jsonEncode(what)));
       final r = route;
       if (keep && r is HubVoiceRoute) {
-        r.sendKept(channel.chatRoom, sealed);
+        r.sendKept(_inRoom ?? hubRoom, sealed);
       } else {
-        r.send(channel.chatRoom, sealed);
+        r.send(_inRoom ?? hubRoom, sealed);
       }
     } catch (_) {}
   }
 
   /// Whether this device is the one to answer [asker]: the lowest id of those here besides them.
   bool _answers(String asker) {
-    final ids = [me, ...present.keys.where((id) => id != asker)]..sort();
+    // In a read-only space the relay passes what a reader asks to those who may post alone: one of them answers.
+    final ids = [me, ...present.keys.where((id) => id != asker && _posts(id))]..sort();
     return ids.first == me;
   }
 
@@ -882,15 +923,15 @@ class HangoutRoom extends ChangeNotifier {
         onSignal?.call(from, m);
       case 'msg':
         final msg = HangoutMessage.fromJson(m, from);
-        if (msg != null && roster.can(from, Perm.chat)) _add([msg]);
+        if (msg != null && roster.can(from, Perm.chat) && _posts(from)) _add([msg]);
       case 'vote':
-        _heardVote(from, m);
+        if (_posts(from)) _heardVote(from, m);
       case 'votes':
         _heardVotes(m['v']);
       case 'edit':
         // Only its writer's own word, from any of their devices: an edit from anyone else is no edit.
         final id = '${m['id']}', text = m['x'], at = m['ed'];
-        if (text is! String || at is! int) return;
+        if (text is! String || at is! int || !_posts(from)) return;
         final words = text.trim();
         final mentions = Mention.checked(Mention.listFromJson(m['mn'], text), words);
         final msg = messages.where((x) => x.id == id).firstOrNull;
@@ -924,7 +965,8 @@ class HangoutRoom extends ChangeNotifier {
       case 'hist':
         _add([
           for (final j in (m['m'] as List? ?? const []))
-            if (j is Map && j['f'] is String) ?HangoutMessage.fromJson(j.cast<String, dynamic>(), j['f'] as String),
+            // In a read-only space, only what its owner and admins wrote, whoever passes it on.
+            if (j is Map && j['f'] is String && _posts(j['f'] as String)) ?HangoutMessage.fromJson(j.cast<String, dynamic>(), j['f'] as String),
         ]);
       case 'roster':
         final r = Roster.fromJson(m['r']);

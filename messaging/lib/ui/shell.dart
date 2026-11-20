@@ -267,6 +267,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     Voice.instance.addListener(_voiceChanged);
     Circles.instance.removedFrom.addListener(_removed);
     _joins = Circles.instance.joined.listen(_someoneJoined);
+    Circles.instance.addListener(_landIfReady);
     // A circle's link held while the app was being set up, or copied by the invite page before the app was got
     // (lib/circles/pending_link.dart): the circle joined and opened, now there is a list to open it in.
     WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_takeHeldLink()));
@@ -316,7 +317,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     if (link == null || !mounted) return;
     final c = Circles.instance.joinLink(link);
     if (c == null || !mounted) return;
-    openCircle(c);
+    openCircle(c, land: true);
     toast(context, 'You joined ${c.name}');
   }
 
@@ -325,6 +326,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     if (identical(live, this)) live = null;
     Voice.instance.removeListener(_voiceChanged);
     Circles.instance.removedFrom.removeListener(_removed);
+    Circles.instance.removeListener(_landIfReady);
     unawaited(_joins?.cancel());
     _renewWords?.cancel();
     _small.dispose();
@@ -470,15 +472,20 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     go('voice');
   }
 
-  void openCircle(Circle circle) {
+  ///
+  /// [land]: just joined, so it opens on its welcome space (Matt, 2026-11-20: "allow setting a "welcome" channel";
+  /// lib/circles/welcome.dart), on a phone as well, as soon as its manifest says which that is (a link's circle has only
+  /// its name until then).
+  void openCircle(Circle circle, {bool land = false}) {
     final side = _side.currentState;
     if (side == null) {
       // Asked for before the first frame: once there is a list.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _side.currentState != null) openCircle(circle);
+        if (mounted && _side.currentState != null) openCircle(circle, land: land);
       });
       return;
     }
+    _landing = land ? (seed: circle.seed, until: DateTime.now().add(const Duration(minutes: 2))) : null;
     if (_showing != null) close();
     side.popUntil((r) => r.isFirst);
     final route = PageRouteBuilder<void>(
@@ -504,8 +511,10 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
       // Its spaces go with it, and its settings or a new space of it open in the pane.
       if (_circlePage) close();
     });
+    if (land && _landIfReady()) return;
     if (_wide) {
-      final first = circle.channels.firstOrNull;
+      // Its welcome space where it has one, else its first.
+      final first = Circles.instance.landingOf(Circles.instance.bySeed(circle.seed) ?? circle) ?? circle.channels.firstOrNull;
       if (first != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           final ctx = _side.currentContext;
@@ -513,6 +522,28 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         });
       }
     }
+  }
+
+  /// A circle just joined, to be opened on its welcome space once its manifest names one, for a little while.
+  ({String seed, DateTime until})? _landing;
+
+  /// Opens the circle just joined on its welcome space, where its manifest names one now; true where it did.
+  bool _landIfReady() {
+    final l = _landing;
+    if (l == null || !mounted) return false;
+    final c = Circles.instance.bySeed(l.seed);
+    if (c == null || _circleSeed != l.seed || DateTime.now().isAfter(l.until)) {
+      _landing = null;
+      return false;
+    }
+    final to = Circles.instance.landingOf(c);
+    if (to == null) return false;
+    _landing = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _side.currentContext;
+      if (mounted && _circleSeed == c.seed && ctx != null) openCircleSpace(ctx, to);
+    });
+    return true;
   }
 
   /// What is open in the pane is the circle's own: one of its spaces, its settings, or a new space of it.
@@ -665,7 +696,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
           toast(context, 'That isn\'t a circle\'s invite link.', tone: GlacierToastTone.danger);
           return;
         }
-        openCircle(c);
+        openCircle(c, land: true);
       });
 
   /// The rail's plus under the circles: a new circle, or one joined by its link.

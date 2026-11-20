@@ -161,13 +161,24 @@ abstract class VoiceRoute {
   Stream<({String room, List<String> members})> get looks;
 }
 
-class HubVoiceRoute implements VoiceRoute {
+/// A route that knows read-only rooms (relay/lib/hub.dart): joined with what binds the room to its circle owner's key and
+/// the circle's admin list (`ro`), and told when that list changes. The hub's route is one; a test's may be.
+abstract class ReadOnlyRoute {
+  Future<List<String>> joinReadOnly(String room, String token, Map<String, Object?> ro);
+  void anchor(String room, Map<String, Object?> grants);
+}
+
+class HubVoiceRoute implements VoiceRoute, ReadOnlyRoute {
   HubVoiceRoute(this.hub);
   final HubCarrier hub;
   @override
   String get me => hub.signer.id;
   @override
   Future<List<String>> join(String room, String token) => hub.join(room, token);
+  @override
+  Future<List<String>> joinReadOnly(String room, String token, Map<String, Object?> ro) => hub.join(room, token, ro: ro);
+  @override
+  void anchor(String room, Map<String, Object?> grants) => hub.anchorRoom(room, grants);
   @override
   void leave(String room) => hub.leave(room);
   @override

@@ -277,7 +277,7 @@ class HubCarrier implements Carrier {
       if (_awayNow) ws.add(jsonEncode({'away': true}));
       if (_push != null) ws.add(jsonEncode({'push': _push}));
       for (final e in _joined.entries) {
-        ws.add(jsonEncode({'join': e.key, 'token': e.value}));
+        ws.add(jsonEncode({'join': e.key, 'token': e.value, 'ro': ?_readOnly[e.key]}));
       }
       for (final e in _looked.entries) {
         ws.add(jsonEncode({'look': e.key, 'token': e.value}));
@@ -391,12 +391,20 @@ class HubCarrier implements Carrier {
   /// circle's members' messages seen on no device: each room asked for too early was never joined, so nothing came
   /// from it and what was written in it went nowhere). Unanswered once connected, it stays asked for, and is asked again
   /// on the next connection.
-  Future<List<String>> join(String room, String token) {
+  ///
+  /// [ro]: a circle's read-only space's room, bound to its owner's key (relay/lib/hub.dart; lib/circles/welcome.dart),
+  /// said with each join.
+  Future<List<String>> join(String room, String token, {Map<String, Object?>? ro}) {
     _joined[room] = token;
+    if (ro != null) {
+      _readOnly[room] = ro;
+    } else {
+      _readOnly.remove(room);
+    }
     final done = _joining[room] ??= Completer<List<String>>();
     final ws = _ws;
     if (ws == null || !_ready) return done.future;
-    ws.add(jsonEncode({'join': room, 'token': token}));
+    ws.add(jsonEncode({'join': room, 'token': token, 'ro': ?ro}));
     return done.future.timeout(const Duration(seconds: 8), onTimeout: () {
       if (identical(_joining[room], done)) _joining.remove(room);
       throw CarrierError('the relay server did not answer');
@@ -404,7 +412,19 @@ class HubCarrier implements Carrier {
   }
 
   void leave(String room) {
+    _readOnly.remove(room);
     if (_joined.remove(room) != null && _ready) _ws?.add(jsonEncode({'leave': room}));
+  }
+
+  /// What each read-only room this install is in was joined with ([join]'s `ro`), to join it so again on reconnecting.
+  final Map<String, Map<String, Object?>> _readOnly = {};
+
+  /// Tells the relay a read-only room's newer admin list ([grants]: `gv`, `g`, `gs`), kept for the next join too.
+  void anchorRoom(String room, Map<String, Object?> grants) {
+    final ro = _readOnly[room];
+    if (ro == null) return;
+    _readOnly[room] = {...ro, ...grants};
+    if (_ready) _ws?.add(jsonEncode({'anchor': room, ...grants}));
   }
 
   /// Sends a packet to everyone else in a room this install is in.

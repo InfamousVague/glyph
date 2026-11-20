@@ -95,6 +95,12 @@ class Voice extends ChangeNotifier {
     final before = circled.map((c) => '${c.seed}${c.kind.wire}${c.name}').join();
     circled = spaces;
     if (spaces.map((c) => '${c.seed}${c.kind.wire}${c.name}').join() != before) _look();
+    // A space made read-only or opened again, or its circle's admins changed: its chat follows (into the room bound to
+    // the owner's key, or out of it; lib/circles/welcome.dart).
+    for (final c in spaces) {
+      final held = _hangouts[c.seed];
+      if (held != null) unawaited(held.setReadOnly(Circles.instance.readOnlyRoomFor(c)));
+    }
   }
 
   /// What this device's spaces stand on, once the relay is connected: the circles' rooms go through it too.
@@ -747,6 +753,10 @@ class Voice extends ChangeNotifier {
     room.onRoster = (_) => _enforce();
     // In a circle's space, whoever the circle put out is not heard (Circles.removeMember).
     room.shut = (id) => Circles.instance.putOutOf(c, id);
+    // In a circle's read-only space, only its owner and admins are heard, and its room is the one bound to the owner's
+    // key, where the relay holds everyone else to it too (Matt, 2026-11-20; lib/circles/welcome.dart).
+    room.mayPost = (id) => Circles.instance.mayPostIn(room.channel, id);
+    unawaited(room.setReadOnly(Circles.instance.readOnlyRoomFor(c)));
     // Someone mentioning this device: its notification (lib/voice/mention_alerts.dart).
     room.onFresh = (fresh) {
       MentionAlerts.instance?.heard(room, fresh, readAt: _readAt[c.seed] ?? 0, nameOf: nameOf);

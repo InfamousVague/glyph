@@ -1,4 +1,4 @@
-import '../circles/circles.dart' show Circles, CirclePerm, slowModeLabel, slowModeLeft;
+import '../circles/circles.dart' show Circles, CirclePerm, CircleSystemNote, CircleWelcome, slowModeLabel, slowModeLeft;
 import 'package:flutter/foundation.dart' show listEquals;
 import 'dart:async';
 import 'dart:convert' show base64Decode;
@@ -28,6 +28,7 @@ import '../app_state.dart';
 import '../backgrounds.dart';
 import '../sms.dart' show Person;
 import 'circles/circle_face.dart' show SpaceKindBadge, TitleBarMark, spaceKindIcon;
+import 'circles/circle_welcome.dart' show CircleSystemLine, CircleWelcomeCard, ReadOnlyAdminLine, ReadOnlyFoot;
 import 'circles/new_circle.dart' show circleHueInk;
 import 'circles/members_drawer.dart' show showMembersDrawer;
 import 'drawer_head.dart';
@@ -1059,18 +1060,30 @@ class _HangoutChatState extends State<HangoutChat> {
       // And the circle's, whose roles colour the names.
       listenable: Listenable.merge([room, Circles.instance]),
       builder: (context, _) {
-        final list = room.messages.reversed.toList();
+        final circles = widget.circles ?? Circles.instance;
+        final circle = circles.circleOf(room.channel);
+        // A circle's welcome space starts with its welcome, and its system space has the circle's comings and goings
+        // among its messages (Matt, 2026-11-20; lib/circles/welcome.dart): newest first, as the list runs.
+        final welcome = circle != null && circle.manifest.welcomeSpace == room.channel.seed;
+        final system = circle != null && circle.manifest.systemSpace == room.channel.seed;
+        final list = <Object>[
+          ...room.messages,
+          if (system) ...circles.systemNotesIn(circle),
+        ];
+        if (system) list.sort((a, b) => _atOf(a).compareTo(_atOf(b)));
+        final rows = [...list.reversed, if (welcome) _welcomeRow];
         // Messages with files on their way, newest at the foot, under everything sent.
         final going = room.outgoing.reversed.toList();
         // The space's own roles, and in a circle its roles too (lib/circles: CirclePerm.write; spaceMayWrite).
         final mayWrite = spaceMayWrite(room, circles: widget.circles);
+        final readOnly = circles.isReadOnly(room.channel);
         final (mineBg, mineInk) = myBubble(t, AppState.of(context));
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(
             // Dial-Up writes the space as a chat room: its transcript, and who is here beside it or over it.
             child: isDialup(context)
                 ? _chatRoom(room)
-                : list.isEmpty && going.isEmpty
+                : rows.isEmpty && going.isEmpty
                 ? Center(child: Text('No messages yet', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))
                 // The down arrow over the list's foot, back to the newest message (Matt, 2026-11-17: "add a down arrow
                 // that pops up when we enter a chat and we're not scrolled to the bottom or after we scroll up a certain
@@ -1084,30 +1097,49 @@ class _HangoutChatState extends State<HangoutChat> {
                     controller: _scroll,
                     reverse: true,
                     padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
-                    itemCount: going.length + list.length,
+                    itemCount: going.length + rows.length,
                     itemBuilder: (context, i) {
                       if (i < going.length) return _outgoing(room, going[i], mineBg, mineInk);
                       i -= going.length;
-                      final m = list[i];
+                      final row = rows[i];
+                      if (identical(row, _welcomeRow)) return CircleWelcomeCard(circle: circle!, name: room.name);
+                      final before = i == rows.length - 1 || rows[i + 1] is! HangoutMessage ? null : rows[i + 1] as HangoutMessage;
+                      final after = i == 0 || rows[i - 1] is! HangoutMessage ? null : rows[i - 1] as HangoutMessage;
+                      if (row is CircleSystemNote) {
+                        final at = DateTime.fromMillisecondsSinceEpoch(row.at);
+                        final prev = i == rows.length - 1 ? null : rows[i + 1];
+                        final newDay = prev == null || !_sameDay(_atOf(prev), row.at);
+                        final line = CircleSystemLine(note: row);
+                        if (!newDay) return line;
+                        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                          Padding(
+                            padding: EdgeInsets.only(top: t.space(4), bottom: t.space(1)),
+                            child: Text(dayHeading(at), textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
+                          ),
+                          line,
+                        ]);
+                      }
+                      final m = row as HangoutMessage;
                       // Laid out as a conversation of texts is (Matt, 2026-11-16: "update the chat inside spaces to match
                       // the look and layout of the normal chats"): a run from one person is one stack of bubbles, the
                       // name over its first, the face and the time by its last, and a day's heading where the day turns.
                       // The list runs newest first: [i + 1] is the message before, [i - 1] the one after.
                       final at = DateTime.fromMillisecondsSinceEpoch(m.at);
-                      final before = i == list.length - 1 ? null : list[i + 1];
-                      final after = i == 0 ? null : list[i - 1];
                       bool sameDay(HangoutMessage? o) {
                         if (o == null) return false;
                         final d = DateTime.fromMillisecondsSinceEpoch(o.at);
                         return d.year == at.year && d.month == at.month && d.day == at.day;
                       }
-                      final newDay = !sameDay(before);
+                      // A system line just before starts the day too where the day turned there.
+                      final prev = i == rows.length - 1 ? null : rows[i + 1];
+                      final newDay = prev == null || prev is HangoutMessage ? !sameDay(before) : !_sameDay(_atOf(prev), m.at);
                       // In a circle's channel a pause of five minutes starts a new run, its name and time shown again,
                       // as Slack and Discord do.
                       final flat = room.channel.circle != null;
                       bool apart(HangoutMessage a, HangoutMessage b) => flat && (a.at - b.at).abs() > 5 * 60 * 1000;
-                      final first = newDay || before!.from != m.from || apart(m, before);
-                      final last = !sameDay(after) || after!.from != m.from || apart(after, m);
+                      // A system line beside it (lib/circles/welcome.dart) ends the run as a day's turn does.
+                      final first = newDay || before == null || before.from != m.from || apart(m, before);
+                      final last = after == null || !sameDay(after) || after.from != m.from || apart(after, m);
                       final message = Poof(
                         key: ValueKey('poof-${m.id}'),
                         gone: _poofing.contains(m.id),
@@ -1186,6 +1218,7 @@ class _HangoutChatState extends State<HangoutChat> {
                           MentionSuggestions(people: _found, chosen: _chosen, onPick: _pickMention, inkOf: (p) => spaceNameInk(t, widget.room, p.id)),
                         if (_editing != null) _EditingBar(words: _editing!.text, onClose: _stopEditing),
                         if (slow > 0 && _editing == null) _SlowModeLine(seconds: slow, left: left),
+                        if (readOnly && _editing == null) const ReadOnlyAdminLine(),
                         if (_picked.isNotEmpty) SpacePickedStrip(files: _picked, onRemove: (p) => setState(() => _picked.remove(p))),
                         ComposerBox(
                           typing: _typing,
@@ -1196,13 +1229,30 @@ class _HangoutChatState extends State<HangoutChat> {
                         ),
                       ]);
                     })
-                  : Text('Your role can\'t send messages here.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+                  : readOnly
+                      ? ReadOnlyFoot(space: room.channel, system: system)
+                      : Text('Your role can\'t send messages here.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
             ),
           ),
         ]);
       },
     );
   }
+}
+
+/// The welcome card's place in a chat's list (circle_welcome.dart CircleWelcomeCard): at its top, the oldest end.
+const Object _welcomeRow = Object();
+
+/// When a row of a space's chat was said: a message's, or a system line's (lib/circles/welcome.dart).
+int _atOf(Object row) => switch (row) {
+      HangoutMessage m => m.at,
+      CircleSystemNote n => n.at,
+      _ => 0,
+    };
+
+bool _sameDay(int a, int b) {
+  final x = DateTime.fromMillisecondsSinceEpoch(a), y = DateTime.fromMillisecondsSinceEpoch(b);
+  return x.year == y.year && x.month == y.month && x.day == y.day;
 }
 
 /// Over the box while a message's words are being changed: what is being edited, and the way to stop.
