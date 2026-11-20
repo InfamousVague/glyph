@@ -677,6 +677,17 @@ abstract class InboxNetwork extends ChangeNotifier {
   /// Shown in Settings as "Coming soon", and never started: not offered yet.
   bool get soon => false;
 
+  /// An official Ghost connection: Telegram and Signal (texts through Google Messages are the app's own, not a network
+  /// here). The rest are plugins — opt-in, off until switched on, and not started until then (Matt, 2026-11-20: "only
+  /// keep telegram and signal as the official services ... Setup all these other services as plugins"). Official ones
+  /// are shown first in Settings › Connections and always started.
+  bool get official => false;
+
+  /// Whether this plugin network is switched on (Settings › Connections › Plugins, kept per network). Official ones are
+  /// always on. An unset switch reads as off; [Inbox.start] settles it once on upgrade, keeping a network already
+  /// signed in. 
+  bool get enabled => official || state == InboxState.ready || state == InboxState.signingIn || (listStore?.choice('inbox_on_$id', '') == 'on');
+
   /// Reactions can be put on its messages ([react]), and which: the first few are offered in a row.
   bool get canReact => false;
   List<String> get reactionChoices => const ['❤️', '👍', '👎', '😂', '😮', '😢', '🙏', '🔥', '🎉'];
@@ -802,11 +813,53 @@ class Inbox {
     for (final n in networks) {
       if (n.soon) continue;
       n.listStore = app;
+      // Plugins (everything but Telegram and Signal) are off until switched on. 'off' never starts; 'on' starts; an
+      // unset switch is an install from before plugins existed, started once to find a session it was already signed
+      // in to — kept on where there was one, settled off where there wasn't.
+      if (!n.official) {
+        final pref = app.choice('inbox_on_${n.id}', '');
+        if (pref == 'off') continue;
+        if (pref != 'on') {
+          try {
+            await n.start(app);
+          } catch (e) {
+            debugPrint('inbox: ${n.id} did not start: \$e');
+          }
+          app.set('inbox_on_${n.id}', (n.state == InboxState.ready || n.state == InboxState.signingIn) ? 'on' : 'off');
+          continue;
+        }
+      }
       try {
         await n.start(app);
       } catch (e) {
-        debugPrint('inbox: ${n.id} did not start: $e');
+        debugPrint('inbox: ${n.id} did not start: \$e');
       }
     }
   }
+
+  /// Switches a plugin network on and starts it, so it can be signed in to.
+  Future<void> enable(InboxNetwork n) async {
+    n.listStore?.set('inbox_on_${n.id}', 'on');
+    try {
+      await n.start(n.listStore!);
+    } catch (e) {
+      debugPrint('inbox: ${n.id} did not start: \$e');
+    }
+    notifyChange();
+  }
+
+  /// Switches a plugin network off: signed out where it was signed in, and not started again until switched on.
+  Future<void> disable(InboxNetwork n) async {
+    if (n.state == InboxState.ready || n.state == InboxState.signingIn) await n.signOut();
+    n.listStore?.set('inbox_on_${n.id}', 'off');
+    notifyChange();
+  }
+
+  void notifyChange() => _change.value++;
+  final ValueNotifier<int> _change = ValueNotifier(0);
+  ValueListenable<int> get switches => _change;
+
+  /// Official networks, then plugins the person switched on.
+  List<InboxNetwork> get official => [for (final n in networks) if (n.official) n];
+  List<InboxNetwork> get plugins => [for (final n in networks) if (!n.official) n];
 }

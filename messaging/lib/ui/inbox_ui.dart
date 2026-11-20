@@ -1337,23 +1337,38 @@ List<SettingsSection> inboxSettingsSections() => [
         ),
     ];
 
-/// The Connections page: every network as a row, its mark, its name and where it stands, opening its own page.
-List<Widget> _connections(BuildContext context) {
-  final all = Inbox.instance.networks;
-  final on = [for (final n in all) if (!n.soon && (n.state == InboxState.ready || n.state == InboxState.signingIn)) n];
-  final off = [for (final n in all) if (!n.soon && !on.contains(n)) n];
-  final soon = [for (final n in all) if (n.soon) n];
-  Widget row(InboxNetwork n) => SettingRow(
+/// The Connections page: Telegram and Signal (the official networks) first, then plugins — the other networks, off
+/// until switched on (Matt, 2026-11-20: "only keep telegram and signal as the official services ... Setup all these
+/// other services as plugins"). Each row shows where it stands and opens its own page.
+List<Widget> _connections(BuildContext context) => [
+      ListenableBuilder(
+        listenable: Listenable.merge([Inbox.instance.switches, ...Inbox.instance.networks]),
+        builder: (context, _) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _connectionsBody(context)),
+      ),
+    ];
+
+List<Widget> _connectionsBody(BuildContext context) {
+  final officials = Inbox.instance.official;
+  final plugins = Inbox.instance.plugins;
+  final on = [for (final n in officials) if (n.state == InboxState.ready || n.state == InboxState.signingIn) n];
+  final off = [for (final n in officials) if (!on.contains(n)) n];
+  final pluginRows = [for (final n in plugins) if (!n.soon) n];
+  final soon = [for (final n in plugins) if (n.soon) n];
+  Widget row(InboxNetwork n, {String? hint}) => SettingRow(
         key: ValueKey('connection-${n.id}'),
         icon: inboxMark(n),
         label: n.name,
-        hint: Text(_summary(n)),
+        hint: Text(hint ?? _summary(n)),
         onPress: () => push<void>(context, (_) => SettingsSectionScreen('inbox-${n.id}')),
       );
-  const intro = Text('Your chats on other networks among your texts in Messages, each marked with its logo. Ghost signs in to each as an app of its own, on this device; its own server never sees your chats. Choose one to connect it or change it.');
-  final groups = [('Connected', on), ('Add a connection', off), ('Coming soon', soon)].where((g) => g.$2.isNotEmpty).toList();
+  const intro = Text('Your chats on other networks among your texts in Messages, each marked with its logo. Ghost signs in to each as an app of its own, on this device; its own server never sees your chats.');
+  const pluginIntro = Text('Beyond Telegram and Signal, Ghost can bring in other networks as plugins. These aren\'t official Ghost connections — each signs in the way that network\'s own website or app does, and some don\'t allow other apps at all. Switch one on to connect it.');
   return [
-    for (final (i, g) in groups.indexed) PaneSection(title: g.$1, description: i == 0 ? intro : null, children: [for (final n in g.$2) row(n)]),
+    if (on.isNotEmpty) PaneSection(title: 'Connected', description: intro, children: [for (final n in on) row(n)]),
+    if (off.isNotEmpty) PaneSection(title: on.isEmpty ? 'Official networks' : 'Add a connection', description: on.isEmpty ? intro : null, children: [for (final n in off) row(n)]),
+    if (pluginRows.isNotEmpty)
+      PaneSection(title: 'Plugins', description: pluginIntro, children: [for (final n in pluginRows) row(n, hint: n.enabled ? _summary(n) : 'Off')]),
+    if (soon.isNotEmpty) PaneSection(title: 'Coming soon', children: [for (final n in soon) row(n)]),
   ];
 }
 
@@ -1364,13 +1379,53 @@ String _summary(InboxNetwork n) => n.soon ? 'Coming soon' : switch (n.state) {
       InboxState.unavailable => 'Not in this build',
     };
 
-List<Widget> _pane(BuildContext context, InboxNetwork n) {
+List<Widget> _pane(BuildContext context, InboxNetwork n) => [
+      ListenableBuilder(
+        listenable: Listenable.merge([Inbox.instance.switches, n]),
+        builder: (context, _) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _paneBody(context, n)),
+      ),
+    ];
+
+/// Switches a plugin network off: signs out first where it is signed in, asked for.
+Future<void> _turnOff(BuildContext context, InboxNetwork n) async {
+  if (n.state != InboxState.ready && n.state != InboxState.signingIn) {
+    await Inbox.instance.disable(n);
+    return;
+  }
+  await showChoices(context, title: 'Turn off ${n.name}?', choices: [
+    Choice('Turn off and sign out', Lucide.logOut, () {
+      ScrollMemory.forgetAll('inbox:${n.id}:');
+      Inbox.instance.disable(n);
+    }, danger: true, hint: 'You can switch it on and sign in again any time.'),
+  ]);
+}
+
+List<Widget> _paneBody(BuildContext context, InboxNetwork n) {
   void signIn() {
     final page = switch (n) { Telegram tg => TelegramSignInScreen(network: tg), Bluesky b => BlueskySignInScreen(network: b), Mastodon m => MastodonSignInScreen(network: m), Signal sg => SignalLinkScreen(network: sg), Teams tm => TeamsSignInScreen(network: tm), GoogleChat gc => GoogleChatSignInScreen(network: gc), WhatsApp wa => WhatsAppLinkScreen(network: wa), Matrix mx => MatrixSignInScreen(network: mx), AccountHelper h => HelperSignInScreen(network: h), _ => null };
     if (page != null) push<void>(context, (_) => page);
   }
 
+  // A plugin (every network but Telegram and Signal) is off until switched on here, and not signed in to until it is.
+  // One not in this build shows why instead of a switch it can't honour.
+  final plugin = !n.official && !n.soon;
+  final showToggle = plugin && n.state != InboxState.unavailable;
+  final showMain = !plugin || n.enabled || n.state == InboxState.unavailable;
   return [
+    if (showToggle)
+      PaneSection(
+        title: 'Plugin',
+        description: Text('${n.name} is a plugin, not an official Ghost connection. Switch it on to connect it; switch it off and it is signed out and left alone.'),
+        children: [
+          SettingRow(
+            key: const ValueKey('plugin-switch'),
+            icon: _icon(Lucide.puzzle),
+            label: 'Use ${n.name}',
+            control: GlacierSwitch(checked: n.enabled, ariaLabel: 'Use ${n.name}', onCheckedChange: (want) => want ? Inbox.instance.enable(n) : _turnOff(context, n)),
+          ),
+        ],
+      ),
+    if (showMain)
     PaneSection(
       title: n.name,
       description: Text('Your ${n.name} chats among your texts in Messages, marked with its logo, read and answered here. They go between this device and ${n.name} only.'),
@@ -1405,7 +1460,7 @@ List<Widget> _pane(BuildContext context, InboxNetwork n) {
 }
 
 /// Puts the networks' sections into Settings, and redraws it as they change.
-void addInboxSettings() => SettingsSources.add(inboxSettingsSections, watch: Inbox.instance.networks);
+void addInboxSettings() => SettingsSources.add(inboxSettingsSections, watch: [Inbox.instance.switches, ...Inbox.instance.networks]);
 
 
 

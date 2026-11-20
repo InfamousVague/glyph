@@ -26,7 +26,9 @@ import 'support/list_harness.dart';
 
 /// A network signed in, held in memory: what the screens of the inbox (lib/ui/inbox_ui.dart) draw from.
 class FakeNetwork extends InboxNetwork {
-  FakeNetwork(this.id, this.name, this._chats, this._messages);
+  FakeNetwork(this.id, this.name, this._chats, this._messages, {this.official = false});
+  @override
+  final bool official;
   @override
   final String id;
   @override
@@ -144,7 +146,7 @@ void main() {
         InboxMessage(id: '5', text: 'the park', date: now.subtract(const Duration(minutes: 1)), mine: false, media: const [InboxMedia(kind: 'photo', fileId: 42, width: 800, height: 600)]),
         InboxMessage(id: '6', text: '', date: now.subtract(const Duration(seconds: 30)), mine: false, media: const [InboxMedia(kind: 'file', fileId: 43, name: 'tickets.pdf', size: 245760)]),
       ],
-    });
+    }, official: true);
     Inbox.instance = Inbox.of([telegram, FakeNetwork('bluesky', 'Bluesky', const [], const {})]);
   });
 
