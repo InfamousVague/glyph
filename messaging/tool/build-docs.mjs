@@ -17,6 +17,8 @@
  * THE MOCK TAGS are the app's own pieces drawn in HTML, never pictures of it (so they read in both themes, at any
  * width, and stay true when a label changes in one place). Each expands to plain HTML here; nothing runs in the page.
  *   <m-screen title back caption wide actions="icon,icon">…</m-screen>   a phone's (or, wide, a computer's) screen
+ *     rail="messages|circle|new|contacts|archive|settings" circles="Name:hue|…" open="Name" railtap="id or Name"
+ *                                                                        the rail down its left: Home, the circles, the rest
  *   <m-section title foot>…</m-section>                                  a settings group: a card of rows
  *   <m-row icon hue label hint value chev switch=on|off tap danger/>      a settings row
  *   <m-btn kind=primary|secondary|ghost|danger icon tap>Label</m-btn>     a button
@@ -85,11 +87,25 @@ const tap = (a) => (a.tap ? ' tap' : '');
 const HUES = ['blue', 'teal', 'green', 'amber', 'orange', 'coral', 'rose', 'purple', 'indigo', 'slate', 'cyan', 'mint'];
 const hueOf = (s) => HUES[[...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % HUES.length];
 
+// The rail (lib/ui/nav_rail.dart): Home at its head, each circle as its face (a bar at its edge for the one open), a
+// circled plus to start or join one, and New, Contacts, Archive and Settings at its foot.
+function rail(a) {
+  const ring = (id, ic, label) => `<span class="m-ring${a.rail === id ? ' on' : ''}${a.railtap === id ? ' tap' : ''}" title="${label}">${icon(ic)}</span>`;
+  const circles = String(a.circles ?? '').split('|').filter(Boolean).map((c) => {
+    const [name, hue] = c.split(':');
+    const initials = name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+    return `<span class="m-rail-circle${a.open === name ? ' open' : ''}" title="${esc(name)}"><span class="m-avatar${a.railtap === name ? ' tap' : ''}" data-hue="${hue ?? hueOf(name)}">${esc(initials)}</span></span>`;
+  }).join('');
+  return `<div class="m-rail" role="img" aria-label="The rail: Messages, your circles, New, Contacts, Archive, Settings">${ring('messages', 'message-square', 'Messages')}<span class="m-rail-rule"></span>${circles}${ring('add-circle', 'circle-plus', 'New or join a circle')}<span class="m-rail-gap"></span><span class="m-rail-rule"></span>${ring('new', 'plus', 'New')}${ring('contacts', 'contact-round', 'Contacts')}${ring('archive', 'archive', 'Archive')}${ring('settings', 'settings', 'Settings')}</div>`;
+}
+
 const render = {
   'm-screen': (a, inner) => {
     const actions = String(a.actions ?? '').split(',').filter(Boolean).map((n) => `<span class="m-iconbtn">${icon(n.trim())}</span>`).join('');
     const head = a.title === undefined && !a.back ? '' : `<div class="m-head">${a.back ? `<span class="m-iconbtn">${icon('arrow-left')}</span>` : ''}<span class="m-title">${esc(a.title ?? '')}</span>${actions}</div>`;
-    return `<figure class="mock${a.wide ? ' wide' : ''}"><div class="m-screen">${head}<div class="m-body">${inner}</div></div>${a.caption ? `<figcaption>${esc(a.caption)}</figcaption>` : ''}</figure>`;
+    const main = `${head}<div class="m-body">${inner}</div>`;
+    const screen = a.rail === undefined ? `<div class="m-screen">${main}</div>` : `<div class="m-screen has-rail">${rail(a)}<div class="m-main">${main}</div></div>`;
+    return `<figure class="mock${a.wide ? ' wide' : ''}">${screen}${a.caption ? `<figcaption>${esc(a.caption)}</figcaption>` : ''}</figure>`;
   },
   'm-section': (a, inner) => `<div class="m-section">${a.title ? `<div class="m-section-title">${esc(a.title)}</div>` : ''}<div class="m-card">${inner}</div>${a.foot ? `<p class="m-foot">${esc(a.foot)}</p>` : ''}</div>`,
   'm-row': (a) => {
