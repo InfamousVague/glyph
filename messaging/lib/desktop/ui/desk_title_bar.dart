@@ -1,3 +1,4 @@
+import '../../ui/souls.dart' show SoulsChip, showSouls;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -44,6 +45,17 @@ class DeskTitleBar extends StatelessWidget {
             ),
           ),
           for (final make in extras) Padding(padding: EdgeInsets.only(left: room), child: make(context, navigator)),
+          // Souls, with their flame, beside Share feedback (lib/ui/souls.dart; Matt, 2026-11-19).
+          Padding(
+            padding: EdgeInsets.only(left: room),
+            child: SoulsChip(
+              side: 28,
+              onOpen: () {
+                final c = navigator.currentContext;
+                if (c != null) showSouls(c);
+              },
+            ),
+          ),
           Padding(
             padding: EdgeInsets.only(left: room),
             child: FeedbackButton(

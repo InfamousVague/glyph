@@ -36,7 +36,13 @@ String soulsCount(int n) {
 /// The count of souls with its flame, round like the top bar's other buttons, beside Share feedback. A press says
 /// what souls are. Souls given while the app is open are said as they come.
 class SoulsChip extends StatefulWidget {
-  const SoulsChip({super.key});
+  const SoulsChip({super.key, this.side, this.onOpen});
+
+  /// How tall it is: the bar's buttons' height, unless a strip says less (the Mac's title strip).
+  final double? side;
+
+  /// What a press does, where the sheet must open on a navigator below the chip (the Mac's title strip).
+  final VoidCallback? onOpen;
 
   @override
   State<SoulsChip> createState() => _SoulsChipState();
@@ -65,7 +71,10 @@ class _SoulsChipState extends State<SoulsChip> {
         : g.souls > 0
             ? 'You got ${soulsCount(g.souls)} ${g.souls == 1 ? 'soul' : 'souls'}${g.why.isEmpty ? '' : ': ${g.why}'}'
             : '${soulsCount(-g.souls)} ${g.souls == -1 ? 'soul was' : 'souls were'} taken back';
-    toast(context, words);
+    // Above the app's pages (the Mac's title strip) there may be nothing to toast on: then the count says it alone.
+    try {
+      toast(context, words);
+    } catch (_) {}
   }
 
   @override
@@ -76,17 +85,18 @@ class _SoulsChipState extends State<SoulsChip> {
       builder: (context, _) {
         final n = Me.instance.souls;
         final label = '${soulsCount(n)} ${n == 1 ? 'soul' : 'souls'}';
+        void open() => widget.onOpen != null ? widget.onOpen!() : showSouls(context);
         if (isBevelChrome(t)) {
-          return IconTap(key: const ValueKey('souls'), icon: Lucide.flame, label: label, onPressed: () => showSouls(context));
+          return IconTap(key: const ValueKey('souls'), icon: Lucide.flame, label: label, onPressed: open);
         }
-        final side = t.len('glacier-control-height-md');
+        final side = widget.side ?? t.len('glacier-control-height-md');
         return HoverTip(
           message: label,
           below: true,
           end: true,
           child: GlacierPressable(
             key: const ValueKey('souls'),
-            onPressed: () => showSouls(context),
+            onPressed: open,
             semanticLabel: label,
             builder: (context, state) => GlacierFocusRing(
               visible: state.focused,

@@ -47,6 +47,7 @@ import '../inbox/inbox.dart';
 import '../friends/groups.dart';
 import 'thread.dart';
 import 'feedback_screen.dart' show FeedbackButton;
+import 'souls.dart' show SoulsChip;
 import 'window_chrome.dart' show MacChrome;
 import '../kit/semantic_colors.dart';
 
@@ -1310,6 +1311,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   // above the searchbar too").
                   return Row(children: [
                     Expanded(child: search),
+                    // Souls, with their flame, beside Share feedback (lib/ui/souls.dart; Matt, 2026-11-19: "display the
+                    // points in the top bar next to the feedback button with a flame icon next to them").
+                    Padding(padding: EdgeInsets.only(left: t.space(2)), child: const SoulsChip()),
                     Padding(padding: EdgeInsets.only(left: t.space(2)), child: const FeedbackButton()),
                   ]);
                 }),
