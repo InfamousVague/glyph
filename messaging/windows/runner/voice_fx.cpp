@@ -130,13 +130,13 @@ void RegisterVoiceFx(flutter::BinaryMessenger* messenger) {
     if (call.method_name() == "configure") {
       int mode = VOICEFX_OFF;
       double gain = 1.0;
-      if (const auto* args = std::get_if<flutter::EncodableMap>(call.arguments())) {
-        auto m = args->find(flutter::EncodableValue("mode"));
-        if (m != args->end()) {
+      if (const auto* given = std::get_if<flutter::EncodableMap>(call.arguments())) {
+        auto m = given->find(flutter::EncodableValue("mode"));
+        if (m != given->end()) {
           if (const auto* name = std::get_if<std::string>(&m->second)) mode = *name == "rnnoise" ? VOICEFX_RNNOISE : *name == "deepfilter" ? VOICEFX_DEEPFILTER : VOICEFX_OFF;
         }
-        auto g = args->find(flutter::EncodableValue("gain"));
-        if (g != args->end()) {
+        auto g = given->find(flutter::EncodableValue("gain"));
+        if (g != given->end()) {
           if (const auto* v = std::get_if<double>(&g->second)) gain = *v;
         }
       }
