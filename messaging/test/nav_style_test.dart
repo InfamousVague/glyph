@@ -77,6 +77,16 @@ void main() {
         expect(_key('quick-mark-read'), findsOneWidget);
         expect(_key('share-feedback'), findsOneWidget);
         expect(tester.getTopLeft(_key('share-feedback')).dy, greaterThan(tester.getTopLeft(_key('quick-mark-read')).dy));
+        // Share feedback opens over the whole app, in the middle of the window, not in the sidebar (Matt, 2026-11-20: "the
+        // share feedback drawer should open over the whole app not just in the sidebar").
+        await tester.tap(_key('share-feedback'));
+        await settle(tester);
+        expect(_key('feedback-drawer'), findsOneWidget);
+        expect(tester.getCenter(_key('feedback-drawer')).dx, closeTo(at.width / 2, 2));
+        await _keep(tester, '${style.name}-$size-feedback');
+        await tester.tapAt(const Offset(4, 4));
+        await settle(tester);
+        expect(_key('feedback-drawer'), findsNothing);
 
         AppShellState.live!.openCircle(_owls);
         await settle(tester);
