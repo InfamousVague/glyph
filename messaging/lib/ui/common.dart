@@ -121,11 +121,14 @@ class GhostPage extends StatelessWidget {
             // header doesn't line up with the header background image correctly"): the row stood on the picture's top
             // edge and out to the page's sides, so the circle's face touched or crossed the rounded top.
             SizedBox(height: pad.top),
+            // Two points into the picture rather than a whole step: the row is taller than the face in it, which leaves
+            // room enough above (Matt, 2026-11-20: "remove some of the extra space above the header text and profile
+            // picture").
             SizedBox(
-              height: t.space(2) + t.space(2) + bar + headerExtra,
+              height: t.space(2) + 2 + bar + headerExtra,
               child: Stack(fit: StackFit.expand, children: [
                 headerBackground!,
-                Positioned(top: t.space(2) + t.space(2), left: t.space(2), right: t.space(2), height: bar, child: row),
+                Positioned(top: t.space(2) + 2, left: t.space(2), right: t.space(2), height: bar, child: row),
               ]),
             ),
             ?top,
