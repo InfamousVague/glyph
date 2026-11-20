@@ -4,6 +4,7 @@
 #include "sounds.h"
 #include "clipboard.h"
 #include "links.h"
+#include "splash.h"
 
 #include <optional>
 #include <utility>
@@ -40,6 +41,8 @@ bool FlutterWindow::OnCreate() {
   // Circles' invite links opened into the app (links.cpp).
   RegisterLinks(flutter_controller_->engine()->messenger(), link_);
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+  // The launch splash first: small and centred until the app says it is ready (splash.cpp).
+  RegisterSplash(flutter_controller_->engine()->messenger(), GetHandle());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
