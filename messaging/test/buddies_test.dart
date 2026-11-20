@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:glacier/glacier.dart';
 import 'package:ghost_messaging/friends/buddies.dart';
+import 'package:ghost_messaging/games/game_activity.dart';
 import 'package:ghost_messaging/me/me.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/packet.dart';
@@ -118,6 +119,38 @@ void main() {
     await _settle();
     expect(a.all, isEmpty);
     expect(b.all, isEmpty);
+  });
+
+  // Matt, 2026-11-20: "what about game presence sensing like discord has?" (lib/games/game_activity.dart).
+  test('a friend is told what you are playing, and that you stopped; someone who is not a friend is told nothing', () async {
+    final world = _World();
+    final maya = _Port(world, 'maya'), sam = _Port(world, 'sam'), theo = _Port(world, 'theo');
+    final a = Buddies(maya), b = Buddies(sam), c = Buddies(theo);
+    await a.start();
+    await b.start();
+    await c.start();
+    await a.add('@sam');
+    await _settle();
+    await b.accept(b.requests.single);
+    await _settle();
+    // Theo asked Maya and she has not answered: not a friend.
+    await c.add('@maya');
+    await _settle();
+    final heard = GameActivities.instance = GameActivities();
+    addTearDown(() => GameActivities.instance = GameActivities());
+    final since = DateTime.now().subtract(const Duration(minutes: 25));
+    await a.sayActivity(GameActivity('Hades', since));
+    await _settle();
+    expect(heard.of(maya.keys.id)?.name, 'Hades', reason: 'Sam, her friend, was told');
+    expect(heard.of(maya.keys.id)!.words(), 'Playing Hades · 25 min');
+    expect(b.friends.single.status, '', reason: 'nothing of it is kept with the list');
+    await a.sayActivity(null);
+    await _settle();
+    expect(heard.of(maya.keys.id), isNull, reason: 'and told she stopped');
+    // What someone who is not a friend says is not taken.
+    await sam.send(theo.keys.id, Envelope(kind: 'buddy', body: {'s': 'ga', 'ga': {'n': 'Doom', 's': 1}}), sealed: false);
+    await _settle();
+    expect(heard.of(sam.keys.id), isNull);
   });
 
   test('a request lost on its way, and then the yes, are asked again until both are friends', () async {
