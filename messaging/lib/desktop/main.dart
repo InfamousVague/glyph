@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../games/game_activity.dart';
 import '../accent.dart';
 import '../account/account.dart';
 import '../app_state.dart';
@@ -138,6 +139,8 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   Sounds.instance.start(state);
   // The keyboard's commands and push to talk (lib/keys.dart).
   Keys.instance.start(state);
+  // What game runs on this computer, told to friends and spaces while Game activity is added (lib/games).
+  GamePresence.instance.start(state);
   // And the circles, whose rooms ride Voice's connection (lib/circles/circles.dart).
   // On its own it runs the app's network itself, as the phone does: the routes, friends, groups, then voice and circles
   // (lib/people.dart). Paired, those are the phone's, asked across the link.

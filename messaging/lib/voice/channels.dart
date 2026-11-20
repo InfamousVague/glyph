@@ -726,6 +726,13 @@ class Voice extends ChangeNotifier {
   final Map<String, HangoutRoom> _hangouts = {};
   final Map<String, int> _holds = {};
 
+  /// Says who this device is again in every space's chat it holds: its game began or ended (lib/games/game_activity.dart).
+  void sayMeEverywhere() {
+    for (final room in _hangouts.values) {
+      room.sayMe();
+    }
+  }
+
   /// [c]'s chat and roles where they are made already; null where not (nothing is made).
   HangoutRoom? heldHangout(VoiceChannel c) => _hangouts[c.seed];
 
