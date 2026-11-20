@@ -14,6 +14,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/rendering.dart' show ScrollDirection;
+import 'package:flutter/services.dart' show HardwareKeyboard, KeyDownEvent, KeyEvent, KeyRepeatEvent, KeyUpEvent, LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -45,8 +46,10 @@ import 'nav_rail.dart';
 import 'nav_style.dart';
 import 'recording_float.dart';
 import 'settings.dart';
+import 'settings_shortcuts.dart' show KeyRecorder;
 import 'settings_panes.dart' show settingsGroupLabel, settingsSections;
 import 'thread.dart';
+import '../keys.dart';
 import '../inbox/inbox.dart';
 
 /// The app's one frame, on the phone and on a computer alike (Matt, 2026-11-14: "Unify the UI experience to match on
@@ -278,6 +281,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   void initState() {
     super.initState();
     live = this;
+    // The keyboard's commands and push to talk, heard on every page (lib/keys.dart).
+    HardwareKeyboard.instance.addHandler(_key);
     Voice.instance.addListener(_voiceChanged);
     Circles.instance.removedFrom.addListener(_removed);
     _joins = Circles.instance.joined.listen(_someoneJoined);
@@ -303,6 +308,72 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   }
 
   List<StreamSubscription<PackNotice>> _notices = const [];
+
+  /// The key push to talk is held on, while it is: its letting go turns the microphone off again.
+  LogicalKeyboardKey? _talking;
+
+  /// A key pressed anywhere in the app: a command of lib/keys.dart, or push to talk. True where it was one, so the
+  /// page under it does not also take it. Not while Settings is waiting for keys to put a command on.
+  bool _key(KeyEvent e) {
+    if (!mounted || KeyRecorder.listening) return false;
+    final keys = Keys.instance;
+    final session = Voice.instance.session;
+    // Letting go of push to talk: off again.
+    if (e is KeyUpEvent && _talking != null && e.logicalKey == _talking) {
+      _talking = null;
+      if (session != null && keys.pushToTalk) session.setMuted(true, quiet: true);
+      return true;
+    }
+    if (e is! KeyDownEvent) return e is KeyRepeatEvent && _talking != null && e.logicalKey == _talking;
+    final command = keys.commandFor(e, typing: Keys.typing);
+    if (command == null) return false;
+    switch (command) {
+      case KeyCommand.pushToTalk:
+        // Only in a call, with push to talk on: otherwise the key is the key.
+        if (session == null || !keys.pushToTalk || session.locked) return false;
+        _talking = e.logicalKey;
+        session.setMuted(false, quiet: true);
+      case KeyCommand.toggleMute:
+        if (session == null) return false;
+        session.setMuted(!session.muted);
+      case KeyCommand.toggleDeafen:
+        if (session == null) return false;
+        session.setDeafened(!session.deafened);
+      case KeyCommand.leaveCall:
+        if (session == null) return false;
+        unawaited(Voice.instance.leave());
+      case KeyCommand.newChat:
+        go('new');
+      case KeyCommand.search:
+        go('messages');
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (Keys.searchFocus.context != null) Keys.searchFocus.requestFocus();
+        });
+      case KeyCommand.messages:
+        go('messages');
+      case KeyCommand.contacts:
+        go('contacts');
+      case KeyCommand.archive:
+        go('archive');
+      case KeyCommand.voice:
+        go('voice');
+      case KeyCommand.settings:
+        settings();
+      case KeyCommand.marketplace:
+        go('marketplace');
+      case KeyCommand.closePage:
+        if (settingsOpen) {
+          closeSettings();
+        } else if (marketOpen) {
+          closeMarketplace();
+        } else {
+          close();
+        }
+      case KeyCommand.shortcuts:
+        settings('shortcuts');
+    }
+    return true;
+  }
 
   void _notice(PackNotice n) {
     if (!mounted) return;
@@ -353,6 +424,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_key);
     if (identical(live, this)) live = null;
     Voice.instance.removeListener(_voiceChanged);
     Circles.instance.removedFrom.removeListener(_removed);

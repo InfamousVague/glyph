@@ -14,6 +14,7 @@ import '../kit/settings_css.dart';
 import '../looks.dart';
 import '../main.dart' show InkOverrides, ghostTypography;
 import '../sounds.dart';
+import '../keys.dart';
 import '../net/net.dart';
 import '../sms.dart';
 import '../ui/files_space/share_in.dart';
@@ -135,6 +136,8 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // Voice channels (lib/voice): the computer's own connection to the hub, made once it has a channel.
   // The interface sounds (lib/sounds.dart) read the person's choices from here.
   Sounds.instance.start(state);
+  // The keyboard's commands and push to talk (lib/keys.dart).
+  Keys.instance.start(state);
   // And the circles, whose rooms ride Voice's connection (lib/circles/circles.dart).
   // On its own it runs the app's network itself, as the phone does: the routes, friends, groups, then voice and circles
   // (lib/people.dart). Paired, those are the phone's, asked across the link.
