@@ -132,6 +132,17 @@ ${DOMAIN} {
 		header Cache-Control "no-cache"
 		file_server
 	}
+	# The example plugins the docs link (docs-src/examples/*.ghostplugin): a ghost-plugin/1 file is JSON, which Caddy
+	# can't tell from the extension, so without this a download, or a fetch that doesn't take gzip, came with no type.
+	@plugins path *.ghostplugin
+	handle @plugins {
+		root * ${SITE}
+		header Content-Type "application/json"
+		header Cache-Control "no-cache"
+		header X-Content-Type-Options "nosniff"
+		header Referrer-Policy "strict-origin-when-cross-origin"
+		file_server
+	}
 	handle {
 		root * ${SITE}
 		header Cache-Control "no-cache"
@@ -265,5 +276,7 @@ const info = curl(['-o', '/dev/null', '-w', '%{http_code}', `https://${DOMAIN}/a
 const apk = curl(['-o', '/dev/null', '-w', '%{http_code}', '-r', '0-0', `https://${DOMAIN}/${APK}`]).stdout;
 const links = curl(['-o', '/dev/null', '-w', '%{http_code} %{content_type}', `https://${DOMAIN}/.well-known/assetlinks.json`]).stdout;
 console.log(`  https://${DOMAIN}/.well-known/assetlinks.json answers ${links || 'nothing yet'} (200 application/json once the block from --caddy is live)`);
+const example = curl(['-o', '/dev/null', '-w', '%{http_code} %{content_type}', `https://${DOMAIN}/docs/examples/bills.ghostplugin`]).stdout;
+console.log(`  https://${DOMAIN}/docs/examples/bills.ghostplugin answers ${example || 'nothing yet'} (200 application/json once the block from --caddy is live)`);
 console.log(`  https://${DOMAIN}/ answers ${page || 'nothing yet'}; /apk.json ${info || 'nothing yet'}; /${APK} ${apk || 'nothing yet'} (404 for those two until the first tool/release.mjs)`);
 if (page !== '200') console.log('  (a certificate can take a minute, or longer while the domain\'s DNS settles: Caddy keeps trying.)');

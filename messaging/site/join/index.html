@@ -243,7 +243,11 @@ if (circle) {
     $('circle-get').href = files[kind];
     fetch('/' + (kind === 'apk' ? 'apk' : kind) + '.json', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((info) => { if (info && /^[A-Za-z0-9._-]+$/.test(info.url)) $('circle-get').href = '/' + info.url; })
+      // The Mac's is the disk image where the release made one; mac.json's url stays the zip installed copies update from.
+      .then((info) => {
+        const file = info && info.dmg && /^[A-Za-z0-9._-]+$/.test(info.dmg.url) ? info.dmg : info;
+        if (file && /^[A-Za-z0-9._-]+$/.test(file.url)) $('circle-get').href = '/' + file.url;
+      })
       .catch(() => {});
   } else {
     // An iPhone, or anything else: the home page, which says what there is for it.

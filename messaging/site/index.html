@@ -525,11 +525,14 @@
       .then((r) => (r.ok ? r.json() : null))
       .then((info) => {
         if (!info) return;
+        // The Mac's download is the notarised disk image where the release made one (mac.json's dmg; Matt, 2026-11-19:
+        // "deploy it from a dmg"). Its url stays the zip, which installed copies update from.
+        const file = info.dmg && /^[A-Za-z0-9._-]+$/.test(info.dmg.url) ? info.dmg : info;
         for (const a of document.querySelectorAll('[data-feed="' + id + '"]')) {
-          if (/^[A-Za-z0-9._-]+$/.test(info.url)) a.href = '/' + info.url;
+          if (/^[A-Za-z0-9._-]+$/.test(file.url)) a.href = '/' + file.url;
           a.hidden = false;
         }
-        for (const s of document.querySelectorAll('[data-version="' + id + '"]')) s.textContent = 'Version ' + info.version + ' · ' + mb(info.bytes);
+        for (const s of document.querySelectorAll('[data-version="' + id + '"]')) s.textContent = 'Version ' + info.version + ' · ' + mb(file.bytes ?? info.bytes);
         if (id === 'apk') document.getElementById('now').textContent = info.version;
       })
       .catch(() => {});
