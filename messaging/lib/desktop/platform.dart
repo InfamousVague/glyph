@@ -14,6 +14,29 @@ String get computerWord => Platform.isWindows ? 'PC' : Platform.isIOS ? 'iPhone'
 String get desktopName => Platform.isWindows ? 'Windows' : Platform.isIOS ? 'the iPhone' : 'the Mac';
 
 class MacPlatform {
+  /// Opens a web address in this device's own browser, and says whether it could (Matt, 2026-11-20: "when clicking sign
+  /// up with discord it says "no browser could be opened""): `open` on a Mac, `explorer` on Windows, the iPhone's own
+  /// browser through iOS (DeskChannels.swift). Only http and https addresses with a host, handed over alone.
+  static Future<bool> openLink(String url) async {
+    // Exactly as given: an address with a space before it is refused rather than tidied (test/desk_link_test.dart).
+    final uri = Uri.tryParse(url);
+    if (uri == null || url != url.trim() || (uri.scheme != 'http' && uri.scheme != 'https') || uri.host.isEmpty) return false;
+    if (Platform.isIOS) {
+      try {
+        return await _system.invokeMethod<bool>('openLink', {'url': uri.toString()}) ?? false;
+      } catch (_) {
+        return false;
+      }
+    }
+    final opener = Platform.isMacOS ? 'open' : Platform.isWindows ? 'explorer' : 'xdg-open';
+    try {
+      // Windows' explorer answers 1 even when it opened the address.
+      return (await Process.run(opener, [uri.toString()])).exitCode == 0 || Platform.isWindows;
+    } catch (_) {
+      return false;
+    }
+  }
+
   MacPlatform._();
   static const _system = MethodChannel('ghost_desktop/system');
 
