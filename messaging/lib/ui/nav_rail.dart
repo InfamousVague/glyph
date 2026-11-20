@@ -55,14 +55,14 @@ class NavRail extends StatelessWidget {
   final VoidCallback? onFeedback;
 
   /// How wide it is: a ring and room round it.
-  static double width(Tokens t) => t.len('app-ring') + t.space(3) * 2;
+  static double width(Tokens t) => t.len('app-rail-ring') + t.space(3) * 2;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final pad = MediaQuery.paddingOf(context);
     final gap = t.space(2);
-    final rule = Container(width: t.len('app-ring') * 0.6, height: t.len('app-line'), margin: EdgeInsets.symmetric(vertical: gap), color: t.color('app-rule'));
+    final rule = Container(width: t.len('app-rail-ring') * 0.6, height: t.len('app-line'), margin: EdgeInsets.symmetric(vertical: gap), color: t.color('app-rule'));
     return Semantics(
       container: true,
       label: 'Navigation',
@@ -134,7 +134,7 @@ class _CircleRing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final ring = t.len('app-ring');
+    final ring = t.len('app-rail-ring');
     final circles = Circles.instance;
     final unread = circles.unread(circle);
     final mentions = circles.mentions(circle);

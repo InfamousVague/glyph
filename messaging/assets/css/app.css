@@ -74,6 +74,9 @@
    * moves every ring together.
    */
   --app-ring: calc(var(--glacier-space-10) * 0.88);
+  /* The rail's rings and circles' faces: the pill's on a phone (Matt, 2026-11-20: "leave them the same size on mobile,
+     though"), a little smaller on a computer (below). */
+  --app-rail-ring: var(--app-ring);
   /*
    * The header's rings, a size under the app's (Matt, 2026-10-03, of the bar's people and bell buttons: "decrease the
    * padding around the buttons in the header it's too much"): the bar's sidebar button, its arrows and its tools
@@ -1381,4 +1384,12 @@ body:has(.app-headerPane) .app-statusScrim {
 /* Dial-Up's face (lib/looks.dart stamps it): Arimo, bundled, drawn to Arial's measures. */
 [data-font='arimo'] {
   --glacier-font-sans: 'Arimo', Arial, Helvetica, sans-serif;
+}
+
+/*
+ * The rail on a computer: its rings and circles' faces a little smaller than the pill's (lib/ui/nav_rail.dart; Matt,
+ * 2026-11-20: "make the navigtion rail icons just a bit smaller as well", then "leave them the same size on mobile").
+ */
+:root[data-platform='desktop'] {
+  --app-rail-ring: calc(var(--app-ring) * 0.86);
 }

@@ -118,4 +118,20 @@ void main() {
       });
     }
   }
+
+  // The rail's rings a little smaller on a computer, the pill's size on a phone (Matt, 2026-11-20: "make the navigtion
+  // rail icons just a bit smaller as well", then "leave them the same size on mobile, though").
+  testWidgets('the rail\'s rings are smaller on a computer than on a phone', (tester) async {
+    final sides = <String, double>{};
+    for (final platform in ['mobile', 'desktop']) {
+      final state = AppState()..set(NavStyle.pref, NavStyle.rail.name);
+      final sheet = await loadSheet(tester);
+      await pumpScreen(tester, sheet, const AppShell(), state, size: const Size(1000, 760), platform: platform);
+      await settle(tester);
+      await _keep(tester, 'rail-$platform-rings');
+      sides[platform] = tester.getSize(_key('rail-settings')).height;
+    }
+    expect(sides['desktop']!, lessThan(sides['mobile']! * 0.95));
+    expect(sides['desktop']!, greaterThan(sides['mobile']! * 0.75));
+  });
 }
