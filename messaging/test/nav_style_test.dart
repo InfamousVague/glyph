@@ -71,6 +71,12 @@ void main() {
         await pumpScreen(tester, sheet, const AppShell(), state, size: at);
         await settle(tester);
         await _keep(tester, '${style.name}-$size-home');
+        // Mark all read and Share feedback are rows under the search in every style, not a ring of the rail or a button
+        // beside the search (Matt, 2026-11-20: "layout the mark all read and the share feedback buttons to a icon list
+        // ... under the searchbar").
+        expect(_key('quick-mark-read'), findsOneWidget);
+        expect(_key('share-feedback'), findsOneWidget);
+        expect(tester.getTopLeft(_key('share-feedback')).dy, greaterThan(tester.getTopLeft(_key('quick-mark-read')).dy));
 
         AppShellState.live!.openCircle(_owls);
         await settle(tester);
@@ -90,10 +96,6 @@ void main() {
           case NavStyle.rail:
             // No pill: the rail, its circles by their faces, and Home taking the circle away.
             expect(_key('nav-messages'), findsNothing);
-            // Share feedback is the rail's, one ring above Settings, not beside the search (Matt, 2026-11-20).
-            expect(_key('share-feedback'), findsOneWidget);
-            expect(tester.getCenter(_key('share-feedback')).dy, lessThan(tester.getCenter(_key('rail-settings')).dy));
-            expect(tester.getCenter(_key('share-feedback')).dy, greaterThan(tester.getCenter(_key('rail-archive')).dy));
             expect(_key('rail-circle-${_owls.seed}'), findsOneWidget);
             expect(_key('rail-circle-${_alpha.seed}'), findsOneWidget);
             await tester.tap(_key('rail-circle-${_alpha.seed}'));

@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' show ValueKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
-import 'package:ghost_messaging/ui/nav_style.dart';
 import 'package:ghost_messaging/art/app_icon.dart';
 import 'package:ghost_messaging/art/lucide.g.dart';
 import 'package:ghost_messaging/circles/circles.dart';
@@ -654,8 +653,7 @@ void main() {
       Circles.instance.join(c);
       addTearDown(Circles.instance.clear);
       final sheet = await loadSheet(tester);
-      // The Circles tab is the dock's; under the rail (the default) the rail lists the circles instead.
-      await pumpScreen(tester, sheet, const AppShell(), AppState()..set(NavStyle.pref, NavStyle.dock.name), size: const Size(412, 892));
+      await pumpScreen(tester, sheet, const AppShell(), AppState(), size: const Size(412, 892));
       await settle(tester);
       expect(find.byWidgetPredicate((w) => w is AppIcon && w.icon == Lucide.circleDot), findsNothing, reason: 'no Circles tab under the rail');
       await tester.tap(find.byKey(ValueKey('rail-circle-${c.seed}')));
