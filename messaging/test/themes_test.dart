@@ -28,10 +28,14 @@ import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner
 import 'package:ghost_messaging/plugins/plugin.dart' show DeviceLanguage, DeviceTranslation, TextHost;
 import 'package:ghost_messaging/plugins/registry.dart' show PluginRegistry;
 import 'package:ghost_messaging/market/listing_plugin.dart';
+import 'package:ghost_messaging/market/market_api.dart';
 import 'package:ghost_messaging/market/market_state.dart';
-import 'package:ghost_messaging/plugins/pack/pack.dart' show InstalledPlugins;
+import 'package:ghost_messaging/me/me.dart' show Me, MemoryMeStore;
+import 'package:ghost_messaging/plugins/pack/pack.dart' show InstalledPlugins, PluginPack, parsePack;
 import 'package:ghost_messaging/plugins/settings.dart' show marketPluginsScreen, pluginsScreen;
 import 'package:ghost_messaging/ui/market/marketplace_screen.dart' show MarketplaceScreen;
+import 'package:ghost_messaging/ui/market/review_item.dart' show ReviewItemScreen;
+import 'package:ghost_messaging/ui/market/submit_screen.dart' show SubmitPluginScreen;
 import 'package:ghost_messaging/plugins/shown_store.dart' show ShownStore;
 import 'package:ghost_messaging/plugins/ui.dart' show SectionTabs;
 import 'package:ghost_messaging/sms.dart' show Person, Sms;
@@ -493,6 +497,11 @@ final themeScreens = <ThemeScreen>[
   // bevelled label among them, so an unreviewed pack's page never looks like a reviewed one's.
   ThemeScreen('plugin-detail-dev', () => marketPluginsScreen(open: 'xbills'), before: _devPack, after: _packsGone),
   ThemeScreen('plugin-detail-listing', () => marketPluginsScreen(open: 'xbills'), before: _listing, after: _packsGone),
+  // Submit a plugin, a plugin loaded (Matt, 2026-11-20: "Add a submission area with a form to accept an icon,
+  // description, plugin tags, etc"), and a submission as the reviewer reads it ("I'd like to be able to verify them for
+  // the store through a review process"), each against a Marketplace in memory.
+  ThemeScreen('plugin-submit', () => SubmitPluginScreen(api: _marketApi(), market: _submitMarket, start: _submitPack()), before: _submitting, after: _submitted),
+  ThemeScreen('market-review-item', () => ReviewItemScreen(_reviewSid ?? '', api: _marketApi()), before: _reviewing, after: _submitted),
   // Translate's page, as it is before it is added (its picture of a translated text, Add) and once it is (its
   // settings, beside the shelves on a computer); and the Spam filter's, a plugin with a shelf tag and a summary.
   ThemeScreen('plugin-detail', () => pluginsScreen(null, 'translate'), before: _translating, after: _translated),
@@ -773,6 +782,42 @@ void _packsGone() {
   if (_marketBefore != null) MarketState.instance = _marketBefore!;
   _installedBefore = null;
   _marketBefore = null;
+}
+
+FakeRelay? _relay;
+MarketState? _submitMarket;
+String? _reviewSid;
+Directory? _submitDir;
+final _reviewer = KeysSigner(NetKeys.generate());
+
+MarketApi _marketApi() => MarketApi(hubUrl: 'https://relay.test', signer: _reviewer, transport: (_relay ??= FakeRelay()).call);
+
+PluginPack _submitPack() => parsePack(packFile(billsJson()), appVersion: '0.10.1').pack!;
+
+/// A developer with a username, and a Marketplace in memory for the form to ask.
+void _submitting() {
+  _submitted();
+  _relay = FakeRelay();
+  _submitDir = Directory.systemTemp.createTempSync('theme-submit-');
+  _submitMarket = MarketState(api: _marketApi, cache: _submitDir, installed: InstalledPlugins.instance, appVersion: '0.10.1');
+  unawaited(Me.instance.start(MemoryMeStore()..set('me_username', 'maya'), ValueNotifier(0), () => null));
+}
+
+/// A submission waiting for review, with the developer's notes.
+void _reviewing() {
+  _submitting();
+  _reviewSid = _relay!.store.put(packFile(billsJson(), (j) => j['developer'] = 'maya'), status: 'submitted', notes: 'Try it on s01.');
+}
+
+void _submitted() {
+  _relay = null;
+  _submitMarket = null;
+  _reviewSid = null;
+  try {
+    _submitDir?.deleteSync(recursive: true);
+  } catch (_) {}
+  _submitDir = null;
+  unawaited(Me.instance.start(MemoryMeStore(), ValueNotifier(0), () => null));
 }
 
 void _translating() {

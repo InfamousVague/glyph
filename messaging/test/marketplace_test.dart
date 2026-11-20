@@ -365,7 +365,33 @@ void main() {
     expect(find.text('Updates'), findsNothing, reason: 'none waiting');
   });
 
-  testWidgets('Submit with a dev pack, and My submissions at a submission, slot in with their screens', (tester) async {}, skip: true); // Submit a plugin and My submissions (SPEC D.8, D.9) are part 2's: their screens and this check come with them.
+  testWidgets('Submit with a dev pack opens the form with it loaded, and My submissions at a submission marks it', (tester) async {
+    await tester.runAsync(() => Me.instance.start(MemoryMeStore()..set('me_username', 'maya'), ValueNotifier(0), () => null));
+    addTearDown(() => tester.runAsync(() => Me.instance.start(MemoryMeStore(), ValueNotifier(0), () => null)));
+    installed.putDev(billsPack());
+    await frame(tester, size: _wide);
+    shell().marketplace(section: 'submit', arg: 'bills');
+    await settle(tester);
+    expect(shell().marketSection.value, 'submit');
+    expect(_key('market-submit'), findsOneWidget);
+    expect(find.descendant(of: _key('market-submit-loaded'), matching: find.textContaining('bills · 1.0.0')), findsOneWidget);
+    expect(tester.widget<SettingsSectionRow>(_key('market-row-submit')).selected, isTrue);
+    final sid = relay.store.put(packBytes(billsPack()), status: 'submitted');
+    shell().marketplace(section: 'mine', arg: sid);
+    await settle(tester);
+    expect(shell().marketSection.value, 'mine');
+    expect(_key('market-mine'), findsOneWidget);
+    expect(find.descendant(of: _key('market-mine-marked'), matching: _key('market-mine-$sid')), findsOneWidget);
+    // The Review queue, for the admin, reads its queue in the pane.
+    state.setFlag('dev_mode', true);
+    await tester.runAsync(() => Me.instance.start(MemoryMeStore()..set('me_username', 'matt'), ValueNotifier(0), () => null));
+    await settle(tester);
+    shell().marketplace(section: 'review');
+    await settle(tester);
+    expect(_key('market-review'), findsOneWidget);
+    expect(_key('market-review-$sid'), findsOneWidget);
+    expect(market.reviewWaiting, 1);
+  });
 }
 
 /// The app's tree as pumpScreen (test/support/list_harness.dart) makes it, to pump only part of a frame.

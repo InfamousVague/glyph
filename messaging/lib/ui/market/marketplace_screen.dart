@@ -33,6 +33,9 @@ import '../plugins_page/plugins_page.dart';
 import '../settings.dart';
 import '../shell.dart';
 import 'market_flows.dart';
+import 'my_submissions.dart';
+import 'review_queue.dart';
+import 'submit_screen.dart';
 
 /// One of the Marketplace's sections: its row, and the heading it stands under ('' for none).
 class MarketSection {
@@ -293,8 +296,12 @@ class _MarketSectionScreenState extends State<MarketSectionScreen> {
           'added' => marketPluginsScreen(title: 'Added', shelf: 'added', head: false),
           'updates' => const MarketUpdatesPage(),
           'dev' => marketPluginsScreen(title: 'In development', shelf: 'dev', head: false, lead: _devManage(context, shell)),
-          // Submit a plugin, My submissions and the Review queue (SPEC D.8 to D.10) come with their own screens.
-          _ => _Later(id: widget.id),
+          // A dev pack's "Submit it" names its pack: the form starts with it (SPEC D.8).
+          'submit' => SubmitPluginScreen(start: widget.arg == null ? null : InstalledPlugins.instance.devOf(widget.arg!)?.pack),
+          // The submission just sent, marked (SPEC D.9).
+          'mine' => MySubmissionsScreen(highlight: widget.arg),
+          'review' => const ReviewQueueScreen(),
+          _ => const MarketplaceScreen(),
         };
       },
     );
@@ -311,21 +318,4 @@ class _MarketSectionScreenState extends State<MarketSectionScreen> {
           ),
         ]),
       );
-}
-
-/// Where a section of Make your own or Admin stands until its own screen is in this build.
-class _Later extends StatelessWidget {
-  const _Later({required this.id});
-  final String id;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final s = marketSections.where((s) => s.id == id).firstOrNull;
-    return GhostPage(
-      key: ValueKey('market-later-$id'),
-      title: s?.label ?? 'Marketplace',
-      body: Center(child: Padding(padding: EdgeInsets.all(t.space(6)), child: Text('This part of the Marketplace isn\'t in this build yet.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('md'), color: t.color('app-ink-2'))))),
-    );
-  }
 }

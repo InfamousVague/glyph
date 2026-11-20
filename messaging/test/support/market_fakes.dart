@@ -159,9 +159,13 @@ class FakeRelay {
       return bytes == null ? _json(404, {'ok': false, 'error': 'not_found', 'message': 'There\'s nothing here by that name.'}) : (status: 200, headers: const <String, String>{}, body: bytes);
     }
     if (path.endsWith('/market/report')) return _json(201, {'ok': true, 'id': '0123456789abcdef'});
-    if (path.endsWith('/market/mine')) return _json(200, {'ok': true, 'blocked': false, 'submissions': [], 'plugins': []});
+    final kept = store.answer(method, path, headers, body);
+    if (kept != null) return kept.bytes != null ? (status: kept.status, headers: const <String, String>{}, body: kept.bytes!) : _json(kept.status, kept.body);
     return _json(404, {'ok': false, 'error': 'not_found', 'message': 'There\'s nothing here by that name.'});
   }
+
+  /// The developers' and the reviewer's routes (8 to 21), answered from memory.
+  final store = FakeMarketStore();
 
   /// The paths asked for, in order.
   List<String> get paths => [for (final r in asked) '${r.method} ${r.url}'];
@@ -249,6 +253,11 @@ class FakeInstalled extends InstalledPlugins {
   List<DevPack> get dev => List.unmodifiable(devs);
   @override
   bool isRevoked(String sha256) => revokedShas.contains(sha256);
+
+  /// Review keys retired by their own signature, as a test says (the runtime's are read from the revoked list).
+  Set<String> retired = {};
+  @override
+  Set<String> get retiredKeys => retired;
   @override
   bool mayTurnOnDev(String packId) => agreed.contains(packId);
 
@@ -355,4 +364,269 @@ class FakeInstalled extends InstalledPlugins {
 MarketState marketOver(FakeRelay relay, FakeInstalled installed, FakeChecks checks, Directory cache, {DateTime Function()? now, NetSigner? signer}) {
   final api = MarketApi(hubUrl: 'https://relay.test', signer: signer ?? devSigner, transport: relay.call, now: now);
   return MarketState(api: () => api, cache: cache, installed: installed, parse: checks.parse, verify: checks.verify, now: now, appVersion: '0.10.1');
+}
+
+
+/// The Marketplace's submissions, plugins, reports and review as a relay would keep them (SPEC C.4 to C.6), in memory:
+/// enough of the relay for the submission form, My submissions and the review screens to run against.
+class FakeMarketStore {
+  final submissions = <String, Map<String, Object?>>{};
+  final plugins = <String, Map<String, Object?>>{};
+  final reports = <String, Map<String, Object?>>{};
+  final shotBytes = <String, Uint8List>{};
+
+  /// What each decision, listing, revocation and block asked, in order.
+  final decided = <Map<String, Object?>>[];
+
+  /// Who sent the submissions, as the relay names them, and whether they're verified, blocked or signed in as the admin.
+  String developerId = 'd' * 32;
+  bool verified = true, blocked = false, admin = true;
+
+  /// Who route 17 says took a plugin off: the developer from My submissions, the admin from the review.
+  String unlistedBy = 'owner';
+
+  /// What the next check (route 8 with `check: true`) and the next submit answer, where not ok.
+  ({int status, Map<String, Object?> body})? checkRefusal, submitRefusal;
+
+  /// What the next decision answers, where not ok (a `not_admin`, then the real answer).
+  final decideRefusals = <({int status, Map<String, Object?> body})>[];
+  int checks = 0;
+  int _n = 0;
+  int now = 1763600000000;
+
+  static String _hex(int n, int width) => n.toRadixString(16).padLeft(width, '0');
+
+  /// A submission put in place as if it had been sent: [package] the pack's canonical bytes.
+  String put(Uint8List package, {String status = 'submitted', List<Uint8List> shots = const [], String notes = '', String list = 'now', List<Map<String, Object?>> reviewerNotes = const []}) {
+    final pack = (jsonDecode(utf8.decode(package)) as Map).cast<String, Object?>();
+    final sid = _hex(++_n, 24);
+    final shas = <String>[];
+    for (final b in shots) {
+      final sha = sha256Hex(b);
+      shotBytes[sha] = b;
+      shas.add(sha);
+    }
+    submissions[sid] = {
+      'sid': sid, 'plugin': pack['id'], 'version': pack['version'], 'sha256': sha256Hex(package), 'size': package.length, 'status': status,
+      'name': pack['name'], 'tagline': pack['tagline'], 'description': pack['description'], 'symbol': pack['symbol'] ?? 'puzzle', 'hue': pack['hue'], 'shelf': pack['shelf'],
+      'labels': pack['labels'] ?? const [], 'permissions': pack['permissions'] ?? const [], 'links': pack['links'] ?? const [], 'developer': pack['developer'], 'support': pack['support'], 'whatsNew': pack['whatsNew'], 'minApp': pack['minApp'],
+      'submittedAt': now + _n, 'updatedAt': now + _n,
+      'notes': [if (notes.isNotEmpty) {'at': now + _n, 'by': 'developer', 'text': notes, 'status': null}, ...reviewerNotes],
+      'shots': [for (final sha in shas) {'sha256': sha, 'mime': 'image/png'}], 'list': list, 'listing': null, 'revoked': null,
+      'package': base64Encode(package),
+    };
+    plugins.putIfAbsent(pack['id'] as String, () => {'id': pack['id'], 'listing': 'none', 'current': null, 'by': null, 'note': null, 'noteAt': null});
+    if (status == 'approved') _approve(sid);
+    return sid;
+  }
+
+  void _approve(String sid) {
+    final s = submissions[sid]!;
+    final p = plugins[s['plugin']]!;
+    // The version before stops being current, and its listing with it.
+    for (final other in submissions.values) {
+      if (other['plugin'] == s['plugin'] && other['sid'] != sid) other['listing'] = null;
+    }
+    s['status'] = 'approved';
+    final listed = s['list'] == 'now' && p['by'] != 'owner';
+    s['listing'] = listed ? 'listed' : 'unlisted';
+    p['current'] = s['version'];
+    p['listing'] = listed ? 'listed' : 'unlisted';
+    p['by'] = listed ? null : 'owner';
+  }
+
+  Map<String, Object?> _view(Map<String, Object?> s) => {for (final e in s.entries) if (e.key != 'package') e.key: e.value};
+
+  Map<String, Object?> _row(Map<String, Object?> s) {
+    final current = submissions.values.where((x) => x['plugin'] == s['plugin'] && x['listing'] != null && x['sid'] != s['sid']).firstOrNull;
+    final had = {...?(current?['permissions'] as List?)?.cast<String>()};
+    return {
+      ..._view(s),
+      'developerId': developerId, 'verified': verified, 'blocked': blocked,
+      'isUpdate': current != null || (s['listing'] == null && plugins[s['plugin']]?['current'] != null && s['status'] != 'approved'),
+      'newPermissions': current == null ? const <String>[] : [for (final p in (s['permissions'] as List).cast<String>()) if (!had.contains(p)) p],
+      'again': submissions.values.any((x) => x['plugin'] == s['plugin'] && x['sid'] != s['sid'] && ((x['notes'] as List).any((n) => (n as Map)['by'] == 'reviewer'))),
+    };
+  }
+
+  static const _notAdmin = {'ok': false, 'error': 'not_admin', 'message': 'Sign in on Settings › Admin again to do that.'};
+  static const _notFound = {'ok': false, 'error': 'not_found', 'message': 'There\'s nothing here by that name.'};
+
+  /// The answer to one request, or null where it isn't one of these routes.
+  ({int status, Object? body, Uint8List? bytes})? answer(String method, String path, Map<String, String> headers, List<int> body) {
+    ({int status, Object? body, Uint8List? bytes}) json(int status, Object? b) => (status: status, body: b, bytes: null);
+    Map<String, Object?> read() => body.isEmpty ? const {} : (jsonDecode(utf8.decode(body)) as Map).cast<String, Object?>();
+    final parts = path.split('/').where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty || parts.first != 'market') return null;
+    final rest = parts.sublist(1);
+    // Route 8: a check, or a submission.
+    if (method == 'POST' && rest.length == 1 && rest[0] == 'submissions') {
+      final j = read();
+      if (j['check'] == true) {
+        checks++;
+        final r = checkRefusal;
+        return r == null ? json(200, {'ok': true, 'checked': true}) : json(r.status, r.body);
+      }
+      final refused = submitRefusal;
+      if (refused != null) return json(refused.status, refused.body);
+      if (blocked) return json(403, {'ok': false, 'error': 'blocked', 'message': 'This account can\'t submit plugins.'});
+      final package = base64Decode(j['package'] as String);
+      final shots = <Uint8List>[];
+      final keptShas = <String>[];
+      for (final s in (j['shots'] as List? ?? const [])) {
+        final m = s as Map;
+        if (m['keep'] is String) {
+          keptShas.add(m['keep'] as String);
+        } else {
+          shots.add(base64Decode(m['data'] as String));
+        }
+      }
+      // Earlier open submissions of the plugin are replaced by this one.
+      final id = (jsonDecode(utf8.decode(package)) as Map)['id'];
+      for (final s in submissions.values) {
+        if (s['plugin'] == id && (s['status'] == 'submitted' || s['status'] == 'in_review' || s['status'] == 'changes_requested')) s['status'] = 'superseded';
+      }
+      final sid = put(package, shots: shots, notes: '${j['notes'] ?? ''}', list: '${j['list'] ?? 'now'}');
+      // Kept screenshots in the order the package names them.
+      final names = ((jsonDecode(utf8.decode(package)) as Map)['shots'] as List? ?? const []).cast<String>();
+      submissions[sid]!['shots'] = [for (final sha in names) if (shotBytes.containsKey(sha) || keptShas.contains(sha)) {'sha256': sha, 'mime': 'image/png'}];
+      return json(201, {'ok': true, 'submission': _view(submissions[sid]!)});
+    }
+    if (method == 'GET' && rest.length == 1 && rest[0] == 'mine') {
+      final mine = submissions.values.toList()..sort((a, b) => (b['submittedAt'] as int).compareTo(a['submittedAt'] as int));
+      return json(200, {'ok': true, 'blocked': blocked, 'submissions': [for (final s in mine) _view(s)], 'plugins': plugins.values.toList()});
+    }
+    if (rest.length >= 2 && rest[0] == 'submissions') {
+      final s = submissions[rest[1]];
+      if (s == null) return json(404, _notFound);
+      if (rest.length == 2 && method == 'GET') return json(200, {'ok': true, 'submission': _view(s)});
+      if (rest.length == 2 && method == 'DELETE') {
+        s['status'] = 'withdrawn';
+        decided.add({'withdraw': s['sid']});
+        return json(200, {'ok': true, 'submission': _view(s)});
+      }
+      if (rest.length == 3 && rest[2] == 'package') return (status: 200, body: null, bytes: base64Decode(s['package'] as String));
+      if (rest.length == 4 && rest[2] == 'shots') {
+        final n = int.tryParse(rest[3]) ?? -1;
+        final shots = s['shots'] as List;
+        if (n < 0 || n >= shots.length) return json(404, _notFound);
+        final bytes = shotBytes[(shots[n] as Map)['sha256']];
+        return bytes == null ? json(404, _notFound) : (status: 200, body: null, bytes: bytes);
+      }
+    }
+    // The review: the admin's alone.
+    final review = rest.isNotEmpty && (rest[0] == 'review' || rest[0] == 'reports' || rest[0] == 'developers' || (rest[0] == 'plugins' && rest.length == 3 && rest[2] == 'revoke'));
+    if (review && !admin) return json(403, _notAdmin);
+    if (method == 'GET' && rest.length == 1 && rest[0] == 'review') {
+      final all = submissions.values.toList()..sort((a, b) => (a['submittedAt'] as int).compareTo(b['submittedAt'] as int));
+      final open = [for (final s in all) if (s['status'] == 'submitted' || s['status'] == 'in_review' || s['status'] == 'changes_requested') _row(s)];
+      final recent = [for (final s in all.reversed) if (!(s['status'] == 'submitted' || s['status'] == 'in_review' || s['status'] == 'changes_requested')) _row(s)];
+      int count(String st) => all.where((s) => s['status'] == st).length;
+      return json(200, {'ok': true, 'open': open, 'recent': recent, 'counts': {'submitted': count('submitted'), 'in_review': count('in_review'), 'changes_requested': count('changes_requested'), 'reports': reports.values.where((r) => r['done'] != true).length}});
+    }
+    if (rest.length == 2 && rest[0] == 'review') {
+      final s = submissions[rest[1]];
+      if (s == null) return json(404, _notFound);
+      if (method == 'GET') {
+        final current = submissions.values.where((x) => x['plugin'] == s['plugin'] && x['listing'] != null && x['sid'] != s['sid']).firstOrNull;
+        final asked = (submissions.values.toList()..sort((a, b) => (b['submittedAt'] as int).compareTo(a['submittedAt'] as int)))
+            .where((x) => x['plugin'] == s['plugin'] && x['sid'] != s['sid'] && (x['notes'] as List).any((n) => (n as Map)['by'] == 'reviewer'))
+            .firstOrNull;
+        return json(200, {
+          'ok': true,
+          'submission': _row(s),
+          'package': s['package'],
+          'previous': current == null ? null : {'version': current['version'], 'sha256': current['sha256'], 'package': current['package']},
+          'asked': asked == null ? null : {'sid': asked['sid'], 'version': asked['version'], 'sha256': asked['sha256'], 'package': asked['package'], 'note': ((asked['notes'] as List).lastWhere((n) => (n as Map)['by'] == 'reviewer') as Map)['text'], 'status': asked['status']},
+          'history': [for (final x in submissions.values) if (x['plugin'] == s['plugin'] && x['sid'] != s['sid']) _view(x)],
+          'developer': {'id': developerId, 'username': s['developer'], 'blocked': blocked, 'plugins': plugins.length, 'submissions': submissions.length, 'firstAt': now},
+        });
+      }
+      if (method == 'POST') {
+        if (decideRefusals.isNotEmpty) {
+          final r = decideRefusals.removeAt(0);
+          decided.add({'refused': r.body['error'], ...read()});
+          return json(r.status, r.body);
+        }
+        final d = read();
+        decided.add({'sid': s['sid'], 'key': headers['x-ghost-key'], ...d});
+        final decision = d['decision'];
+        final note = d['note'];
+        void noted(String status) => (s['notes'] as List).add({'at': now, 'by': 'reviewer', 'text': note ?? '', 'status': status});
+        switch (decision) {
+          case 'start':
+            s['status'] = 'in_review';
+          case 'approve':
+            final a = d['approval'] as Map;
+            if (a['key'] != headers['x-ghost-key'] || a['sha256'] != s['sha256'] || a['plugin'] != s['plugin'] || a['version'] != s['version']) return json(400, {'ok': false, 'error': 'bad_approval', 'message': 'The approval\'s signature or its words don\'t match this plugin.'});
+            _approve(s['sid'] as String);
+            for (final r in (d['revokes'] as List? ?? const [])) {
+              final sha = (r as Map)['sha256'];
+              for (final x in submissions.values) {
+                if (x['sha256'] == sha) x['revoked'] = {'at': r['at'], 'why': r['why']};
+              }
+            }
+            if (note is String && note.isNotEmpty) noted('approved');
+          case 'changes' || 'reject':
+            if (note is! String || note.isEmpty) return json(400, {'ok': false, 'error': 'bad_request', 'message': 'Something in that isn\'t right.'});
+            s['status'] = decision == 'changes' ? 'changes_requested' : 'rejected';
+            noted(s['status'] as String);
+        }
+        return json(200, {'ok': true, 'submission': _row(s)});
+      }
+    }
+    if (method == 'POST' && rest.length == 3 && rest[0] == 'plugins') {
+      final p = plugins[rest[1]];
+      if (p == null) return json(404, _notFound);
+      final d = read();
+      decided.add({'plugin': rest[1], 'route': rest[2], ...d});
+      if (rest[2] == 'listing') {
+        final listed = d['listed'] == true;
+        p['listing'] = listed ? 'listed' : 'unlisted';
+        p['by'] = listed ? null : unlistedBy;
+        p['note'] = d['note'];
+        for (final s in submissions.values) {
+          if (s['plugin'] == rest[1] && s['listing'] != null) s['listing'] = p['listing'];
+        }
+        return json(200, {'ok': true, 'plugin': p});
+      }
+      if (rest[2] == 'revoke') {
+        for (final s in submissions.values) {
+          if (s['sha256'] == d['sha256']) s['revoked'] = {'at': d['at'], 'why': d['why']};
+        }
+        return json(200, {'ok': true, 'revoked': d, 'plugin': p});
+      }
+    }
+    if (method == 'GET' && rest.length == 1 && rest[0] == 'reports') return json(200, {'ok': true, 'reports': reports.values.toList()});
+    if (method == 'POST' && rest.length == 2 && rest[0] == 'reports') {
+      final r = reports[rest[1]];
+      if (r == null) return json(404, _notFound);
+      r['done'] = true;
+      r['doneAt'] = now;
+      decided.add({'resolved': rest[1]});
+      return json(200, {'ok': true});
+    }
+    if (method == 'POST' && rest.length == 3 && rest[0] == 'developers' && rest[2] == 'block') {
+      final d = read();
+      decided.add({'block': rest[1], ...d});
+      blocked = d['blocked'] == true;
+      return json(200, {'ok': true, 'developer': {'id': rest[1], 'username': 'maya', 'blocked': blocked, 'plugins': plugins.length, 'submissions': submissions.length, 'firstAt': now}});
+    }
+    return null;
+  }
+}
+
+/// [pack] as a file a developer would load: its JSON made canonical, with [change] made to it first.
+Uint8List packFile(Map<String, Object?> json, [void Function(Map<String, Object?> json)? change]) {
+  final copy = (jsonDecode(jsonEncode(json)) as Map).cast<String, Object?>();
+  change?.call(copy);
+  return canonicalBytes(copy);
+}
+
+/// The docs' Bills (test/fixtures/packs/bills.ghostplugin, SPEC A.15) as decoded JSON: the example's id is refused for a
+/// submission, so the tests give it one of their own.
+Map<String, Object?> billsJson({String id = 'mybills'}) {
+  final j = (jsonDecode(File('test/fixtures/packs/bills.ghostplugin').readAsStringSync()) as Map).cast<String, Object?>();
+  j['id'] = id;
+  return j;
 }

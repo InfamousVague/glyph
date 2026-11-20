@@ -15,7 +15,7 @@ import 'dart:typed_data';
 
 import '../net/hub_carrier.dart' show NetSigner;
 import '../net/net.dart';
-import '../plugins/pack/pack.dart' show PackIssue, PackLimits, packHere, sha256Hex;
+import '../plugins/pack/pack.dart' show PackIssue, PackLimits, PackRevocation, packHere, packIdPattern, sha256Hex;
 import 'market_models.dart';
 
 /// Whether [hubUrl] is Ghost Messaging's own relay: its host is gogho.st or ghost-sms.com.
@@ -138,18 +138,54 @@ class MarketApi {
   Future<Uint8List> submissionShot(String sid, int n) => _bytes('GET', ['submissions', _sid(sid), 'shots', '$n'], most: MarketReads.shot, who: _submitting);   // route 12
   Future<SubmissionView> withdraw(String sid) async => _submission(await _json('DELETE', ['submissions', _sid(sid)], who: _submitting));     // route 13
 
-  /// Route 17: a plugin taken off the Marketplace, or listed again, by its owner (or the reviewer).
+  // --- the review (routes 14 to 21): the admin signed in on this device's hub, by its own key -----------------------
+
+  Future<ReviewQueue> reviewQueue() async => ReviewQueue.fromJson(await _json('GET', const ['review'], who: _reviewing));                       // route 14
+  Future<ReviewItem> reviewItem(String sid) async => ReviewItem.fromJson(await _json('GET', ['review', _sid(sid)], who: _reviewing));         // route 15
+
+  /// Route 16: start, approve, ask for changes or reject. An approval in [d] must be signed by this api's own signer,
+  /// the key the request is signed with (the relay wants the two to be one).
+  Future<ReviewRow> decide(String sid, ReviewDecision d) async {
+    final j = await _json('POST', ['review', _sid(sid)], body: d.toJson(), who: _reviewing);
+    return ReviewRow.fromJson(j['submission'] is Map ? j['submission'] as Map : const {});
+  }
+
+  /// Route 17: a plugin taken off the Marketplace, or listed again, by its owner (My submissions) or the reviewer. Its
+  /// words with no identity are the review's, as the routes from 14 on are; My submissions never gets that far without
+  /// one, since it says so before anything.
   Future<PluginState> setListed(String plugin, bool listed, {String? note}) async {
-    final j = await _json('POST', ['plugins', plugin, 'listing'], body: {'listed': listed, 'note': ?note}, who: _submitting);
+    final j = await _json('POST', ['plugins', _id(plugin), 'listing'], body: {'listed': listed, 'note': ?note}, who: _reviewing);
     return PluginState.fromJson(j['plugin'] is Map ? j['plugin'] as Map : const {});
   }
 
-  // The review's routes (14 to 21) come with the review screens (lib/ui/market/review_*.dart).
+  /// Route 18: one approved version of [plugin] withdrawn, its reason signed in [r].
+  Future<PluginState> revoke(String plugin, PackRevocation r) async {
+    final j = await _json('POST', ['plugins', _id(plugin), 'revoke'], body: r.toJson(), who: _reviewing);
+    return PluginState.fromJson(j['plugin'] is Map ? j['plugin'] as Map : const {});
+  }
+
+  /// Route 19: the reports, newest first.
+  Future<List<ReportView>> reports() async {
+    final j = await _json('GET', const ['reports'], who: _reviewing);
+    return [for (final r in (j['reports'] is List ? j['reports'] as List : const [])) if (r is Map) ReportView.fromJson(r)];
+  }
+
+  /// Route 20: a report dealt with.
+  Future<void> resolveReport(String rid) async {
+    await _json('POST', ['reports', _rid(rid)], body: const {'done': true}, who: _reviewing);
+  }
+
+  /// Route 21: a developer blocked from submitting (their plugins unlisted too, with [unlist]), or let back.
+  Future<DeveloperView> block(String developerId, {required bool blocked, String? note, bool unlist = false}) async {
+    final j = await _json('POST', ['developers', _dev(developerId), 'block'], body: {'blocked': blocked, 'note': ?note, if (unlist) 'unlist': true}, who: _reviewing);
+    return DeveloperView.fromJson(j['developer'] is Map ? j['developer'] as Map : const {});
+  }
 
   // --- how a call is made --------------------------------------------------------------------------------------------
 
   static String get _submitting => 'Submitting needs your Ghost identity on this ${packHere()}. Become the same you as your phone in Settings › Me, or submit from your phone.';
   static String get _reporting => 'Reporting needs your Ghost identity on this ${packHere()}. Become the same you as your phone in Settings › Me.';
+  static String get _reviewing => 'Reviewing needs your Ghost identity on this ${packHere()}. Become the same you as your phone in Settings › Me.';
 
   static const _tooLarge = MarketError('too_large', 'The Marketplace sent more than the app reads.');
 
@@ -158,6 +194,11 @@ class MarketApi {
   static final _hex24 = RegExp(r'^[0-9a-f]{24}$');
   static String _sha(String s) => _hex64.hasMatch(s) ? s : throw const MarketError('bad_request', 'That isn\'t a package\'s or a picture\'s name.');
   static String _sid(String s) => _hex24.hasMatch(s) ? s : throw const MarketError('bad_request', 'That isn\'t a submission\'s name.');
+  static final _hex16 = RegExp(r'^[0-9a-f]{16}$');
+  static final _hex32 = RegExp(r'^[0-9a-f]{32}$');
+  static String _rid(String s) => _hex16.hasMatch(s) ? s : throw const MarketError('bad_request', 'That isn\'t a report\'s name.');
+  static String _dev(String s) => _hex32.hasMatch(s) ? s : throw const MarketError('bad_request', 'That isn\'t a developer\'s name.');
+  static String _id(String s) => packIdPattern.hasMatch(s) ? s : throw const MarketError('bad_request', 'That isn\'t a plugin\'s id.');
   static SubmissionView _submission(Map j) => SubmissionView.fromJson(j['submission'] is Map ? j['submission'] as Map : const {});
 
   /// Asks and reads a JSON answer: `ok: true`, or the relay's refusal thrown as a [MarketError].

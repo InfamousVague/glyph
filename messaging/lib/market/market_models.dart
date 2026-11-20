@@ -10,7 +10,7 @@ library;
 import 'dart:convert';
 import 'dart:typed_data';
 
-import '../plugins/pack/pack.dart' show PackApproval, PackRevocation, PackRetirement;
+import '../plugins/pack/pack.dart' show PackApproval, PackRetirement, PackRevocation;
 
 String _text(Object? v, [String or = '']) => v is String ? v : or;
 String? _maybe(Object? v) => v is String ? v : null;
@@ -358,5 +358,172 @@ extension RevokedRecords on RevokedList {
   }
 }
 
-// The review's own shapes (ReviewRow, ReviewQueue, ReviewItem, AskedBefore, DeveloperView, ReviewDecision, ReportView)
-// come with the review screens (lib/ui/market/review_*.dart).
+// --- the review (routes 14 to 21; Matt, 2026-11-20: "I'd like to be able to verify them for the store through a review
+// process") -------------------------------------------------------------------------------------------------------------
+
+/// A submission as the reviewer sees it: everything its developer sees, and who sent it (their id, never their number),
+/// whether the plugin is listed already, what this version may do that the listed one may not, and whether it was
+/// sent again after a reviewer's note.
+class ReviewRow {
+  const ReviewRow({required this.view, this.developerId = '', this.verified = false, this.blocked = false, this.isUpdate = false, this.newPermissions = const [], this.again = false});
+  final SubmissionView view;
+  final String developerId;
+
+  /// The developer's number is verified (the relay's whoOf knows them).
+  final bool verified;
+  final bool blocked;
+
+  /// The plugin has a current approved version: this one would replace it.
+  final bool isUpdate;
+
+  /// The permissions this version has that the current one hasn't.
+  final List<String> newPermissions;
+
+  /// An earlier submission of this plugin carries a reviewer's note (changes asked for, or rejected).
+  final bool again;
+
+  String get sid => view.sid;
+  String get plugin => view.plugin;
+  String get version => view.version;
+  String get status => view.status;
+  String get name => view.name;
+  String? get developer => view.developer;
+
+  factory ReviewRow.fromJson(Map j) => ReviewRow(
+        view: SubmissionView.fromJson(j),
+        developerId: _text(j['developerId']),
+        verified: j['verified'] == true,
+        blocked: j['blocked'] == true,
+        isUpdate: j['isUpdate'] == true,
+        newPermissions: _texts(j['newPermissions']),
+        again: j['again'] == true,
+      );
+
+  Map<String, Object?> toJson() => {...view.toJson(), 'developerId': developerId, 'verified': verified, 'blocked': blocked, 'isUpdate': isUpdate, 'newPermissions': newPermissions, 'again': again};
+}
+
+/// The review queue (route 14): what waits (oldest first), the last decided (newest first), and how many of each.
+class ReviewQueue {
+  const ReviewQueue({this.open = const [], this.recent = const [], this.counts = const {}});
+  final List<ReviewRow> open, recent;
+
+  /// 'submitted', 'in_review', 'changes_requested' and 'reports' (those not yet done).
+  final Map<String, int> counts;
+
+  /// Waiting on the reviewer: sent, or being reviewed. Changes asked for wait on the developer.
+  int get waiting => (counts['submitted'] ?? 0) + (counts['in_review'] ?? 0);
+  int get reports => counts['reports'] ?? 0;
+
+  factory ReviewQueue.fromJson(Map j) => ReviewQueue(
+        open: [for (final r in _maps(j['open'])) ReviewRow.fromJson(r)],
+        recent: [for (final r in _maps(j['recent'])) ReviewRow.fromJson(r)],
+        counts: {for (final e in (j['counts'] is Map ? j['counts'] as Map : const {}).entries) if (e.key is String && e.value is num) e.key as String: (e.value as num).toInt()},
+      );
+
+  Map<String, Object?> toJson() => {'open': [for (final r in open) r.toJson()], 'recent': [for (final r in recent) r.toJson()], 'counts': counts};
+}
+
+/// The plugin's current approved version, beside a submission that would replace it: its package to compare with.
+class PreviousVersion {
+  const PreviousVersion({required this.version, required this.sha256, required this.package});
+  final String version, sha256;
+
+  /// Base64 of its canonical bytes.
+  final String package;
+
+  static PreviousVersion? fromJson(Object? j) => j is Map && j['version'] is String && j['sha256'] is String && j['package'] is String ? PreviousVersion(version: j['version'] as String, sha256: j['sha256'] as String, package: j['package'] as String) : null;
+  Map<String, Object?> toJson() => {'version': version, 'sha256': sha256, 'package': package};
+}
+
+/// The newest earlier submission of this plugin that carries a reviewer's note, with that note: what the reviewer
+/// asked, to see what changed since.
+class AskedBefore {
+  const AskedBefore({required this.sid, required this.version, required this.sha256, required this.package, required this.note, required this.status});
+  final String sid, version, sha256, package, note;
+
+  /// 'changes_requested' or 'rejected'.
+  final String status;
+
+  static AskedBefore? fromJson(Object? j) {
+    if (j is! Map || j['package'] is! String) return null;
+    return AskedBefore(sid: _text(j['sid']), version: _text(j['version']), sha256: _text(j['sha256']), package: j['package'] as String, note: _text(j['note']), status: _text(j['status'], 'changes_requested'));
+  }
+
+  Map<String, Object?> toJson() => {'sid': sid, 'version': version, 'sha256': sha256, 'package': package, 'note': note, 'status': status};
+}
+
+/// Who sent a submission, as the reviewer sees them: their id, the username they submit under, whether they are
+/// blocked, how many plugins and submissions they have, and since when.
+class DeveloperView {
+  const DeveloperView({required this.id, this.username, this.blocked = false, this.plugins = 0, this.submissions = 0, this.firstAt = 0});
+  final String id;
+  final String? username;
+  final bool blocked;
+  final int plugins, submissions, firstAt;
+
+  factory DeveloperView.fromJson(Map j) => DeveloperView(id: _text(j['id']), username: _maybe(j['username']), blocked: j['blocked'] == true, plugins: _int(j['plugins']), submissions: _int(j['submissions']), firstAt: _int(j['firstAt']));
+  Map<String, Object?> toJson() => {'id': id, 'username': username, 'blocked': blocked, 'plugins': plugins, 'submissions': submissions, 'firstAt': firstAt};
+}
+
+/// One submission for review (route 15): its row, its package, the version it would replace, what the reviewer asked
+/// last time, its other submissions and who sent it.
+class ReviewItem {
+  const ReviewItem({required this.submission, required this.package, this.previous, this.asked, this.history = const [], required this.developer});
+  final ReviewRow submission;
+
+  /// Base64 of the package as sent: the screen works out its SHA-256 itself.
+  final String package;
+  final PreviousVersion? previous;
+  final AskedBefore? asked;
+  final List<SubmissionView> history;
+  final DeveloperView developer;
+
+  factory ReviewItem.fromJson(Map j) => ReviewItem(
+        submission: ReviewRow.fromJson(j['submission'] is Map ? j['submission'] as Map : const {}),
+        package: _text(j['package']),
+        previous: PreviousVersion.fromJson(j['previous']),
+        asked: AskedBefore.fromJson(j['asked']),
+        history: [for (final s in _maps(j['history'])) SubmissionView.fromJson(s)],
+        developer: DeveloperView.fromJson(j['developer'] is Map ? j['developer'] as Map : const {}),
+      );
+
+  Map<String, Object?> toJson() => {'submission': submission.toJson(), 'package': package, 'previous': previous?.toJson(), 'asked': asked?.toJson(), 'history': [for (final h in history) h.toJson()], 'developer': developer.toJson()};
+}
+
+/// What the reviewer decides (route 16): start, approve (with the approval this device signed, and any earlier
+/// versions withdrawn in the same step), ask for changes or reject (each with a note).
+class ReviewDecision {
+  const ReviewDecision(this.decision, {this.note, this.approval, this.revokes = const []});
+  const ReviewDecision.start() : this('start');
+
+  /// 'start', 'approve', 'changes' or 'reject'.
+  final String decision;
+  final String? note;
+  final PackApproval? approval;
+  final List<PackRevocation> revokes;
+
+  Map<String, Object?> toJson() => {
+        'decision': decision,
+        if (note != null && note!.isNotEmpty) 'note': note,
+        if (approval != null) 'approval': approval!.toJson(),
+        if (revokes.isNotEmpty) 'revokes': [for (final r in revokes) r.toJson()],
+      };
+}
+
+/// A report of a plugin as the reviewer reads it (route 19): what, why, the reporter's words, their username where
+/// they chose to send it (and whether it is theirs), when, and whether it was dealt with.
+class ReportView {
+  const ReportView({required this.rid, required this.plugin, this.version = '', this.reason = 'other', this.text = '', this.username, this.verified = false, this.at = 0, this.done = false, this.doneAt});
+  final String rid, plugin, version, reason, text;
+  final String? username;
+  final bool verified;
+  final int at;
+  final bool done;
+  final int? doneAt;
+
+  factory ReportView.fromJson(Map j) => ReportView(rid: _text(j['rid']), plugin: _text(j['plugin']), version: _text(j['version']), reason: _text(j['reason'], 'other'), text: _text(j['text']), username: _maybe(j['username']), verified: j['verified'] == true, at: _int(j['at']), done: j['done'] == true, doneAt: _maybeInt(j['doneAt']));
+  Map<String, Object?> toJson() => {'rid': rid, 'plugin': plugin, 'version': version, 'reason': reason, 'text': text, 'username': username, 'verified': verified, 'at': at, 'done': done, 'doneAt': doneAt};
+
+  /// The reason in the words the report sheet offered.
+  String get reasonWords => ReportReason.values.where((r) => r.wire == reason).firstOrNull?.label ?? reason;
+}

@@ -533,8 +533,18 @@ class MarketState extends ChangeNotifier {
       _log('mine: ${e is MarketError ? e.code : e}');
       return null;
     }
+    await _heardMine(got, tell: true);
+    return got;
+  }
+
+  /// Route 9's answer, read by My submissions itself: kept as [mine] and in mine.json as seen, with no notice, since the
+  /// developer is looking at it.
+  Future<void> seenMine(MyMarket got) => _heardMine(got, tell: false);
+
+  Future<void> _heardMine(MyMarket got, {required bool tell}) async {
     mine = got;
-    final kept = await _mineKept();
+    _say();
+    final kept = tell ? await _mineKept() : null;
     final seen = {for (final s in got.submissions) s.sid: s.status};
     final plugins = {for (final p in got.plugins) p.id: p.listing};
     if (kept != null) {
@@ -554,7 +564,6 @@ class MarketState extends ChangeNotifier {
     }
     await _keepMine(seen, plugins);
     _say();
-    return got;
   }
 
   static String? _toldOf(SubmissionView s, MyMarket mine) => switch (s.status) {
@@ -570,14 +579,37 @@ class MarketState extends ChangeNotifier {
 
   final Map<String, SubmitDraft> _drafts = {};
 
+  /// The pack the submission form last held, in memory: the form opened again comes back to it and its draft, so
+  /// leaving the Marketplace (Settings › Me, a notification's conversation) loses nothing. Null once it is sent.
+  PluginPack? submitting;
+
   Directory _draftDir(String packId) => Directory('${cache.path}${Platform.pathSeparator}drafts${Platform.pathSeparator}$packId');
 
   /// The draft kept for [packId], where there is one.
   SubmitDraft? draftOf(String packId) => _drafts[packId];
 
-  /// Keeps [d] in memory and on disk, its new screenshots written beside it (`shot-<n>.png`).
-  Future<void> saveDraft(SubmitDraft d) async {
-    if (!packIdPattern.hasMatch(d.packId)) return;
+  /// The writes of each pack's draft, one after another, so two saves never write the same files at once.
+  final Map<String, Future<void>> _draftWrites = {};
+
+  /// Keeps [d] in memory at once (the form comes back to it however soon it is opened again), and, with [toDisk], on
+  /// disk after any earlier save of the same draft, its new screenshots written beside it (`shot-<n>.png`). The form
+  /// keeps each change in memory as it is made and writes the whole when a pack loads, its screenshots change and it
+  /// goes: a screenshot is up to a megabyte, too much to write again for every letter typed.
+  Future<void> saveDraft(SubmitDraft d, {bool toDisk = true}) {
+    if (!packIdPattern.hasMatch(d.packId)) return Future.value();
+    final kept = d.copyWith(at: _now().millisecondsSinceEpoch);
+    _drafts[d.packId] = kept;
+    if (!toDisk) return Future.value();
+    final write = (_draftWrites[d.packId] ?? Future<void>.value()).then((_) => _writeDraft(kept));
+    _draftWrites[d.packId] = write;
+    return write.whenComplete(() {
+      if (identical(_draftWrites[d.packId], write)) _draftWrites.remove(d.packId);
+    });
+  }
+
+  Future<void> _writeDraft(SubmitDraft d) async {
+    // Sent for review (or dropped) while it waited: nothing of it is written again.
+    if (_drafts[d.packId] == null) return;
     final dir = _draftDir(d.packId);
     final shots = <DraftShot>[];
     try {
@@ -591,22 +623,22 @@ class MarketState extends ChangeNotifier {
         await _write(file, s.bytes!);
         shots.add(DraftShot(bytes: s.bytes, path: file.path));
       }
-    } catch (_) {
-      shots
-        ..clear()
-        ..addAll(d.shots);
-    }
-    final kept = d.copyWith(shots: shots, at: _now().millisecondsSinceEpoch);
-    _drafts[d.packId] = kept;
-    try {
-      await _write(File('${dir.path}${Platform.pathSeparator}draft.json'), utf8.encode(jsonEncode(kept.toJson())));
+      if (_drafts[d.packId] == null) return;
+      await _write(File('${dir.path}${Platform.pathSeparator}draft.json'), utf8.encode(jsonEncode(d.copyWith(shots: shots).toJson())));
     } catch (_) {}
   }
 
-  /// Deletes the draft for [packId]: sent for review.
+  /// The version of [packId] the Marketplace holds as current, as route 9 last said (its developer's own plugin), else
+  /// as the catalog lists it; null where it has none.
+  String? currentVersionOf(String packId) => mine?.plugins.where((p) => p.id == packId).firstOrNull?.current ?? catalog?.plugins.where((e) => e.id == packId).firstOrNull?.version;
+
+  /// Deletes the draft for [packId]: sent for review. After any save still writing it, so none puts it back.
   Future<void> dropDraft(String packId) async {
     _drafts.remove(packId);
     if (!packIdPattern.hasMatch(packId)) return;
+    try {
+      await _draftWrites[packId];
+    } catch (_) {}
     try {
       final dir = _draftDir(packId);
       if (await dir.exists()) await dir.delete(recursive: true);
