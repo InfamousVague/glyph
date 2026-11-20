@@ -20,8 +20,31 @@ import 'dialup/bevel.dart' show isBevelChrome;
 import 'nav_bar.dart' show HoverTip;
 import 'special_badges.dart';
 
-/// The flame's colour.
-const soulsFlame = Color(0xFFF2762E);
+/// The flame's colour: a soul's, a ghostly white-green (Matt, 2026-11-20: "make the fire for souls the white green
+/// ghostly color like a soul"), pale and glowing on a dark look, a deeper mint on a light one so it reads on white.
+Color soulsFlame(Tokens t) => t.isDark ? const Color(0xFFC9FFE6) : const Color(0xFF3DBF8F);
+
+/// The souls' flame: its icon, washed in its own colour, with a soft glow behind it on a dark look.
+class SoulFlame extends StatelessWidget {
+  const SoulFlame({super.key, this.size = 16});
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final c = soulsFlame(t);
+    final icon = AppIcon(Lucide.flame, size: size, strokeWidth: 2.1, color: c);
+    if (!t.isDark) return icon;
+    return Stack(alignment: Alignment.center, clipBehavior: Clip.none, children: [
+      Container(
+        width: size * 0.55,
+        height: size * 0.55,
+        decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: c.withValues(alpha: 0.55), blurRadius: size * 0.6, spreadRadius: size * 0.05)]),
+      ),
+      icon,
+    ]);
+  }
+}
 
 /// 1234 as "1,234", 12 500 as "12.5k".
 String soulsCount(int n) {
@@ -113,7 +136,7 @@ class _SoulsChipState extends State<SoulsChip> {
                 alignment: Alignment.center,
                 child: ExcludeSemantics(
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const AppIcon(Lucide.flame, size: 16, strokeWidth: 2.2, wash: false, color: soulsFlame),
+                    const SoulFlame(size: 16),
                     SizedBox(width: t.space(1)),
                     Text(soulsCount(n), style: pageText(t, t.fontSize('sm'), weight: 'bold', color: t.color('app-ink'))),
                   ]),
@@ -167,7 +190,7 @@ class SoulsSheet extends StatelessWidget {
                 final badges = specialBadgesOf(Me.instance.special);
                 return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    const AppIcon(Lucide.flame, size: 30, strokeWidth: 2, wash: false, color: soulsFlame),
+                    const SoulFlame(size: 30),
                     SizedBox(width: t.space(2)),
                     Text(soulsCount(n), style: pageText(t, t.fontSize('3xl'), weight: 'bold', color: t.color('app-ink'), height: 1.1)),
                     SizedBox(width: t.space(2)),

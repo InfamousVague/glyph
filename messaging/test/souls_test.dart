@@ -81,6 +81,20 @@ void main() {
     Me.instance.seedSouls(0);
   });
 
+  testWidgets('the flame is a soul\'s ghostly white-green, glowing on a dark look (Matt, 2026-11-20: "make the fire for souls the white green ghostly color like a soul")', (tester) async {
+    final h = await SpaceHarness.load(tester);
+    Me.instance.seedSouls(1250);
+    await h.shoot(tester, GhostPage(title: 'Messages', actions: const [SoulsChip()], body: const SizedBox.expand()), 'souls-chip', dark: true);
+    final t = tester.element(find.byType(SoulsChip)).tokens;
+    expect(t.isDark, isTrue);
+    final flame = tester.widget<SoulFlame>(find.byType(SoulFlame));
+    expect(flame.size, 16);
+    final c = soulsFlame(t);
+    expect(c.g, greaterThan(c.r), reason: 'green');
+    expect(c.computeLuminance(), greaterThan(0.7), reason: 'and nearly white');
+    Me.instance.seedSouls(0);
+  });
+
   testWidgets('the admin page: a wrong sign-in says so; signed in, everyone listed; souls and a badge given', (tester) async {
     final h = await SpaceHarness.load(tester);
     final said = <Map<String, Object?>>[];
