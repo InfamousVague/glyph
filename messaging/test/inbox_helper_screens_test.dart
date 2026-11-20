@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:glacier/glacier.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/inbox/account_helper.dart';
 import 'package:ghost_messaging/inbox/inbox.dart';
@@ -99,9 +100,11 @@ void main() {
     final none = AccountHelper(linkedInService, link: () async => null, folder: '${dir.path}/l');
     final insta = AccountHelper(instagramService, link: () async => null, folder: '${dir.path}/i');
     Inbox.instance = Inbox.of([signedOut, insta, none]);
+    final store = AppState();
     await tester.runAsync(() async {
       for (final n in Inbox.instance.networks) {
-        await n.start(AppState());
+        n.listStore = store;
+        await n.start(store);
       }
     });
     addInboxSettings();
@@ -115,7 +118,15 @@ void main() {
       for (final w in tester.widgetList<NetworkMark>(find.byType(NetworkMark))) {
         expect(find.descendant(of: find.byWidget(w), matching: find.byType(CustomPaint)), findsWidgets, reason: '${w.network.name} has a mark');
       }
+      store.set('inbox_on_messenger', 'off'); // the shared store carries a switch between the two runs; start each off
       await h.shoot(tester, const SettingsSectionScreen('inbox-messenger'), 'helper-settings', dark: dark);
+      // A plugin is off until switched on; then its warning and sign-in show (Matt, 2026-11-20: "Setup all these other
+      // services as plugins ... off by default").
+      expect(find.text('Use Messenger'), findsOneWidget);
+      expect(find.text('Sign in'), findsNothing);
+      await tester.tap(find.descendant(of: find.byKey(const ValueKey('plugin-switch')), matching: find.byType(GlacierSwitch)));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+      await tester.pumpAndSettle();
       expect(find.textContaining('Messenger doesn\'t support or allow other apps'), findsOneWidget);
       expect(find.text('Sign in'), findsOneWidget);
       await h.shoot(tester, const SettingsSectionScreen('inbox-linkedin'), 'helper-not-in-build', dark: dark);

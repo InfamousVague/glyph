@@ -557,7 +557,7 @@ class AccountHelper extends InboxNetwork {
   bool get canSendFiles => true;
 
   @override
-  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false}) async {
+  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false, bool sticker = false}) async {
     if (_state != InboxState.ready) return;
     for (final (i, path) in paths.indexed) {
       final ext = path.split('.').last.toLowerCase();
@@ -579,7 +579,7 @@ class AccountHelper extends InboxNetwork {
             'from': _me ?? '',
             'mine': true,
             'text': text,
-            'media': [{'local': kept, 'mime': mime, 'name': name, 'pointer': pointer}],
+            'media': [{'local': kept, 'mime': mime, 'name': name, 'pointer': pointer, if (sticker) 'sticker': true}],
             'state': 'sent',
           });
           _files[jsonEncode(pointer).hashCode & 0x3fffffff] = kept;
@@ -687,7 +687,7 @@ class AccountHelper extends InboxNetwork {
     _pointers[key] = a.cast<String, Object?>();
     final mime = '${a['mime'] ?? ''}';
     return InboxMedia(
-      kind: mime.startsWith('image/') ? 'photo' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'file',
+      kind: InboxMedia.kindOf(mime, sticker: a['sticker'] == true),
       fileId: key,
       path: _files[key],
       name: a['name'] as String?,

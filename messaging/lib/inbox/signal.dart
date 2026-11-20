@@ -28,6 +28,9 @@ abstract class SignalLink {
 /// is the way Signal Desktop and mautrix-signal go, and may need mending when Signal changes. Offered as Coming soon
 /// until it has been proven.
 class Signal extends InboxNetwork {
+  @override
+  bool get official => true;
+
   Signal({this.soon = false, this.link, this.folder});
 
   @override
@@ -648,7 +651,8 @@ class Signal extends InboxNetwork {
     _pointers[key] = a.cast<String, Object?>();
     final mime = '${a['mime'] ?? ''}';
     return InboxMedia(
-      kind: mime.startsWith('image/') ? 'photo' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'file',
+      // A Signal sticker (the helper marks it), or one of Ghost's sent from here: drawn on its own, with no bubble.
+      kind: InboxMedia.kindOf(mime, sticker: a['sticker'] == true),
       fileId: key,
       path: _files[key],
       name: a['name'] as String?,
@@ -689,7 +693,7 @@ class Signal extends InboxNetwork {
   bool get canSendFiles => true;
 
   @override
-  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false}) async {
+  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false, bool sticker = false}) async {
     if (_state != InboxState.ready) return;
     for (final (i, path) in paths.indexed) {
       final ext = path.split('.').last.toLowerCase();
@@ -706,7 +710,7 @@ class Signal extends InboxNetwork {
         // sent showed "Bad state: the attachment has no key", the pointer kept having been only the picked file's path).
         final kept = await _keepSent(path, ts, i, name);
         final pointer = r['pointer'] is Map ? r['pointer'] : {'local': kept};
-        _messages.putIfAbsent(chatId, () => []).add({'ts': ts, 'from': '', 'mine': true, 'text': i == paths.length - 1 ? caption : '', 'media': [{'local': kept, 'mime': mime, 'name': name, 'pointer': pointer}], 'state': 'sent'});
+        _messages.putIfAbsent(chatId, () => []).add({'ts': ts, 'from': '', 'mine': true, 'text': i == paths.length - 1 ? caption : '', 'media': [{'local': kept, 'mime': mime, 'name': name, 'pointer': pointer, if (sticker) 'sticker': true}], 'state': 'sent'});
         _files[jsonEncode(pointer).hashCode & 0x3fffffff] = kept;
         _chats.putIfAbsent(chatId, () => {'unread': 0})['last'] = ts;
       } catch (e) {
