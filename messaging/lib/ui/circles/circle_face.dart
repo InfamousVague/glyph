@@ -123,6 +123,25 @@ class CircleFace extends StatelessWidget {
             final bevel = isBevelChrome(t);
             final bytes = picture == null ? null : _bytes(picture!);
             final colour = settingsHue(t);
+            // A picture fills the round itself: clipped to it, a little zoomed so no edge of a square picture shows, with
+            // nothing of the circle's colour behind it to show round its rim (Matt, 2026-11-19: "the icons inside the
+            // sidebar rail for the circles bleed around the edges since they're square and not zoomed to fit"). Chosen,
+            // its ring is drawn over it.
+            if (bytes != null && !bevel) {
+              return SizedBox.square(
+                dimension: size,
+                child: DecoratedBox(
+                  position: DecorationPosition.foreground,
+                  decoration: BoxDecoration(shape: BoxShape.circle, border: selected ? Border.all(color: colour, width: 2) : null),
+                  child: ClipOval(
+                    child: Transform.scale(
+                      scale: 1.08,
+                      child: Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, filterQuality: FilterQuality.medium, errorBuilder: (_, _, _) => ColoredBox(color: settingsHueWash(t), child: Center(child: _icon(t, colour, bevel)))),
+                    ),
+                  ),
+                ),
+              );
+            }
             return Container(
               width: size,
               height: size,

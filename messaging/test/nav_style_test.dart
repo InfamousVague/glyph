@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -22,17 +23,20 @@ Future<void> _fonts() async {
   await loader.load();
 }
 
-Circle _circle(String n, String name, String hue, String icon) => Circle(
+Circle _circle(String n, String name, String hue, String icon, {String? picture}) => Circle(
       seed: n * 64,
       owner: '',
-      manifest: CircleManifest(owner: '', version: 1, name: name, hue: hue, icon: icon, spaces: [
+      manifest: CircleManifest(owner: '', version: 1, name: name, hue: hue, icon: icon, picture: picture, spaces: [
         CircleSpace(seed: '${n}a' * 32, name: 'General', kind: SpaceKind.text),
         CircleSpace(seed: '${n}b' * 32, name: 'Lounge', order: 1),
       ]),
     );
 
 final _owls = _circle('7', 'Night Owls', 'indigo', 'sparkles');
-final _alpha = _circle('8', 'Alpha Testers', 'teal', 'flask-conical');
+// With a picture of its own: a square one, a dark ground to its edges, which the rail's round must fill with none of
+// the circle's colour round its rim (Matt, 2026-11-19: "the icons inside the sidebar rail for the circles bleed around
+// the edges since they're square and not zoomed to fit").
+final _alpha = _circle('8', 'Alpha Testers', 'teal', 'flask-conical', picture: base64.encode(File('test/fixtures/circle-face.png').readAsBytesSync()));
 
 Future<void> _keep(WidgetTester tester, String name) async {
   final element = find.byType(WidgetsApp).evaluate().single;
