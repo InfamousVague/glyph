@@ -23,6 +23,10 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.9.35', '2026-11-20', [
+    'An emoji picker of Ghost\'s own, from the smiley button in any chat: search by name, pick a skin tone, and your recent ones come first. It stays open while you pick a few.',
+    'Contacts: Blocked is a button beside Add, not a row of its own.',
+  ]),
   ReleaseNotes('0.9.34', '2026-11-19', [
     'Help and docs: step-by-step guides for everything at gogho.st/docs, from Settings › About, and a ? on Pair a computer and Add a Discord server.',
     'Settings › Network is called Routes now, so it isn\'t mixed up with Connections (your linked accounts).',

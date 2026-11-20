@@ -30,6 +30,13 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **An emoji picker of the app's own; Blocked beside Add** (not released; Matt, 2026-11-19: "roll an in house emoji
+  picker we should be able to pull the code out from other apps we've built", "move blocked to the right of the add
+  friend button"). Ghost Keyboard's emoji data and search ported (`lib/emoji_data.dart`, `assets/emoji/emoji.tsv`,
+  emojibase MIT; Emoji 15.0 and older, so nothing draws as a box), in a sheet like the sticker sheet
+  (`lib/ui/emoji_picker.dart`): search by name, keyword or shortcode, a skin tone, a tab per group with Recent first.
+  It stays up while emoji are picked into the box at the cursor; every composer's Emoji opens it in place of the
+  computer's own panel. Contacts' Blocked is a round button beside Add, not a row. Tests: emoji_picker_test.
 - **Plugins' messages as cards** (0.9.33, not released; Matt, 2026-11-19: "use icons for starting and stopping
   recording and allow plugins to render messages like these as cards with iconography and details"). A space's
   message may carry a plugin's note (`lib/voice/plugin_note.dart`, `pn`: plugin id, kind, short details) beside its

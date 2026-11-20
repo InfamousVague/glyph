@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/emoji_data.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/me/pictures.dart';
 import 'package:ghost_messaging/sms.dart' show Sms, SmsCalls;
@@ -92,7 +93,7 @@ class _Computer implements SmsCalls {
 }
 
 void main() {
-  testWidgets('on a computer, Emoji opens the box\'s text input and then the emoji panel (Matt, 2026-11-19: "the emoji picker doesn\'t open anything on desktop when in a circle")', (tester) async {
+  testWidgets('on a computer, Emoji opens the app\'s own picker, and what is picked goes into the box (Matt, 2026-11-19: "roll an in house emoji picker")', (tester) async {
     final h = await SpaceHarness.load(tester);
     final (:room, route: _) = _room();
     await room.open();
@@ -100,12 +101,19 @@ void main() {
     final computer = _Computer(() => tester.testTextInput.hasAnyClients);
     Sms.calls = computer;
     addTearDown(() => Sms.calls = was);
+    await tester.runAsync(EmojiData.load);
     await h.shoot(tester, GhostPage(title: '# general', body: HangoutChat(room: room)), 'space-emoji');
-    expect(tester.testTextInput.hasAnyClients, isFalse, reason: 'nothing typed in yet');
     await tester.tap(find.byKey(const ValueKey('composer-emoji')));
-    await tester.pump();
-    expect(computer.made, contains('emoji'));
-    expect(computer.typingAtEmoji, isTrue, reason: 'the box takes typing already when the panel is asked for');
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(find.byKey(const ValueKey('emoji-sheet')), findsOneWidget);
+    expect(computer.made, isNot(contains('emoji')), reason: 'not the computer\'s own panel');
+    await tester.tap(find.byKey(const ValueKey('emoji-😀')));
+    await tester.tap(find.byKey(const ValueKey('emoji-😃')));
+    await tester.pump(const Duration(milliseconds: 300));
+    final box = tester.widgetList<EditableText>(find.byType(EditableText, skipOffstage: false)).where((e) => e.controller.text.isNotEmpty).single;
+    expect(box.controller.text, '😀😃');
     await tester.pump(const Duration(seconds: 1));
   });
 
