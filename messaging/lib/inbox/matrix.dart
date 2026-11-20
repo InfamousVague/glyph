@@ -470,7 +470,7 @@ class Matrix extends InboxNetwork {
           mine: m['mine'] == true,
           sender: m['mine'] == true ? '' : _nameOf(m),
           state: switch (m['state']) { 'sending' => 'sending', 'failed' => 'failed', _ => 'sent' },
-          media: [for (final a in (m['media'] as List? ?? const [])) _mediaOf(a as Map)],
+          media: [for (final a in (m['media'] as List? ?? const [])) _mediaOf(a as Map, sticker: m['kind'] == 'm.sticker' || a['sticker'] == true)],
           reactions: matrixReactions(m['reactions'] as Map?, me: _me),
           replyTo: m['reply_to'] as String?,
           replyText: m['reply_to'] == null ? null : (byId[m['reply_to']]?['text'] as String?),
@@ -487,12 +487,13 @@ class Matrix extends InboxNetwork {
     return from.startsWith('@') && from.contains(':') ? from.substring(1, from.indexOf(':')) : from;
   }
 
-  InboxMedia _mediaOf(Map a) {
+  InboxMedia _mediaOf(Map a, {bool sticker = false}) {
     final key = '${a['mxc'] ?? a['local'] ?? ''}'.hashCode & 0x3fffffff;
     _media[key] = a.cast<String, Object?>();
     final mime = '${a['mime'] ?? ''}';
     return InboxMedia(
-      kind: mime.startsWith('image/') ? 'photo' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'file',
+      // An m.sticker event, or one of Ghost's sent from here: drawn on its own, with no bubble.
+      kind: InboxMedia.kindOf(mime, sticker: sticker),
       fileId: key,
       path: _files[key],
       name: a['name'] as String?,
@@ -633,7 +634,7 @@ class Matrix extends InboxNetwork {
   bool get canSendFiles => true;
 
   @override
-  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false}) async {
+  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false, bool sticker = false}) async {
     if (_state != InboxState.ready) return;
     for (final (i, path) in paths.indexed) {
       final ext = path.split('.').last.toLowerCase();
@@ -649,7 +650,7 @@ class Matrix extends InboxNetwork {
         // A copy kept in Matrix's own folder for the bubble (the picked file is a copy Android may clear); the media's
         // address and key come back with it, to fetch it again should the copy go.
         final kept = await _keepSent(path, now, i, name);
-        final media = {...(r['media'] as Map? ?? const {}).cast<String, Object?>(), 'local': kept};
+        final media = {...(r['media'] as Map? ?? const {}).cast<String, Object?>(), 'local': kept, if (sticker) 'sticker': true};
         final eventId = '${r['id'] ?? 'local-$now-$i'}';
         final list = _messages.putIfAbsent(chatId, () => []);
         final echoed = list.where((x) => x['id'] == eventId).firstOrNull;

@@ -580,7 +580,8 @@ class WhatsApp extends InboxNetwork {
     _pointers[key] = a.cast<String, Object?>();
     final mime = '${a['mime'] ?? ''}';
     return InboxMedia(
-      kind: mime.startsWith('image/') ? 'photo' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'file',
+      // A WhatsApp sticker (its pointer is one), or one of Ghost's sent from here: drawn on its own, with no bubble.
+      kind: InboxMedia.kindOf(mime, sticker: a['sticker'] == true || (a['pointer'] as Map?)?['kind'] == 'sticker'),
       fileId: key,
       path: _files[key],
       name: a['name'] as String?,
@@ -600,7 +601,7 @@ class WhatsApp extends InboxNetwork {
   bool get canSendFiles => true;
 
   @override
-  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false}) async {
+  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false, bool sticker = false}) async {
     if (_state != InboxState.ready) return;
     for (final (i, path) in paths.indexed) {
       final ext = path.split('.').last.toLowerCase();
@@ -622,7 +623,7 @@ class WhatsApp extends InboxNetwork {
           'from': _jid ?? '',
           'mine': true,
           'text': text,
-          'media': [{'local': kept, 'mime': mime, 'name': name, 'pointer': pointer}],
+          'media': [{'local': kept, 'mime': mime, 'name': name, 'pointer': pointer, if (sticker) 'sticker': true}],
           'state': 'sent',
         });
         _files[jsonEncode(pointer).hashCode & 0x3fffffff] = kept;

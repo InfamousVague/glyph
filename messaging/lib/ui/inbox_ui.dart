@@ -243,7 +243,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
       final dir = await Directory.systemTemp.createTemp('ghost-sticker');
       final file = File('${dir.path}/${asset.split('/').last}');
       await file.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
-      await _n.sendFiles(widget.chatId, [file.path]);
+      await _n.sendFiles(widget.chatId, [file.path], sticker: true);
     } catch (e) {
       if (mounted) toast(context, 'Couldn\'t send the sticker: $e', tone: GlacierToastTone.danger);
     }
@@ -797,6 +797,8 @@ class _InboxBubble extends StatelessWidget {
         if (shown != null) OriginalCard(view: shown, maxWidth: maxWidth, mine: m.mine),
         // Its reactions over the bubble's lower edge, as under a text (lib/ui/thread.dart).
         _withReactions(context, m, onReactionsTap,
+        // A sticker alone, no words and nothing quoted, is drawn on its own: no bubble behind its see-through parts.
+        isStickerAlone(m) ? Opacity(opacity: m.state == 'sending' ? 0.6 : 1, child: InboxMediaView(network: network, media: m.media.single, ink: m.mine ? mineInk : t.color('app-ink'))) :
         ConstrainedBox(
           constraints: BoxConstraints(maxWidth: maxWidth),
           child: Opacity(
@@ -1468,7 +1470,7 @@ class InboxMediaView extends StatelessWidget {
     final path = media.path ?? await network.fileOf(media.fileId);
     if (path == null || !context.mounted) return;
     switch (media.kind) {
-      case 'photo':
+      case 'photo' || 'sticker':
         // The same full-screen overlay as a picture in a space's chat (lib/ui/picture_overlay.dart).
         await showPictureOverlay(context, path: path, title: media.name);
       default:
@@ -1492,6 +1494,8 @@ class InboxMediaView extends StatelessWidget {
 
     final Widget body = switch (media.kind) {
       'photo' => ClipRRect(borderRadius: BorderRadius.circular(t.radius('md')), child: picture(media.path, media.fileId)),
+      // A sticker as it is: its own size, its see-through parts showing the chat behind it, nothing round it.
+      'sticker' => InboxSticker(network: network, media: media),
       'video' => ClipRRect(
           borderRadius: BorderRadius.circular(t.radius('md')),
           child: Stack(alignment: Alignment.center, children: [
@@ -1521,6 +1525,38 @@ class InboxMediaView extends StatelessWidget {
 
   static String _clock(int s) => '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
   static String _bytes(int b) => b >= 1 << 20 ? '${(b / (1 << 20)).toStringAsFixed(1)} MB' : '${(b / 1024).ceil()} KB';
+}
+
+/// [m] is a sticker and nothing else: drawn with no bubble round it.
+bool isStickerAlone(InboxMessage m) => m.media.length == 1 && m.media.single.kind == 'sticker' && m.text.trim().isEmpty && m.replyTo == null;
+
+/// A sticker in a chat (Matt, 2026-11-20: "stickers in telegram chat and others render inside chat bubbles instead of
+/// transparent backgrounds when sent and when recieved"): at most 9rem a side in its own shape, contained, nothing
+/// behind it; a soft square while it comes down.
+class InboxSticker extends StatelessWidget {
+  const InboxSticker({super.key, required this.network, required this.media});
+  final InboxNetwork network;
+  final InboxMedia media;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final most = t.lenOf('9rem');
+    final ratio = media.width > 0 && media.height > 0 ? (media.width / media.height).clamp(0.5, 2.0) : 1.0;
+    final w = ratio >= 1 ? most : most * ratio, h = ratio >= 1 ? most / ratio : most;
+    final path = media.path;
+    if (path == null) network.wantFile(media.fileId);
+    return SizedBox(
+      width: w,
+      height: h,
+      child: path == null
+          ? DecoratedBox(
+              decoration: BoxDecoration(color: t.color('app-paper-3').withValues(alpha: 0.5), borderRadius: BorderRadius.circular(t.radius('lg'))),
+              child: const Center(child: GhostSpinner(size: 20)),
+            )
+          : Image.file(File(path), fit: BoxFit.contain, gaplessPlayback: true, cacheWidth: fillDecodeWidth(context, w * 2)),
+    );
+  }
 }
 
 /// [bubble] with [m]'s reactions stuck on it, as a text's are (lib/ui/reaction_stickers.dart).

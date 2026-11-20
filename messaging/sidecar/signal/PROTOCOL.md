@@ -40,7 +40,7 @@ Every request has `id` (a number the app picks) and `op`. Each is answered by on
 | `linked` | `aci`, `number` |
 | `link_failed` | `error` |
 | `connected` / `disconnected` | |
-| `message` | `chat` (the other person's ACI, or the group id), `group` (bool), `from` (sender ACI), `name` (sender's name where known), `mine` (bool: sent from another of the person's devices), `ts` (ms), `text`, `media` (list of `{"pointer": <opaque JSON>, "mime": "…", "name": "…", "size": n, "width": n, "height": n}`), `quote` (optional `{"ts", "author", "text"}`), `mentions` (see below) |
+| `message` | `chat` (the other person's ACI, or the group id), `group` (bool), `from` (sender ACI), `name` (sender's name where known), `mine` (bool: sent from another of the person's devices), `ts` (ms), `text`, `media` (list of `{"pointer": <opaque JSON>, "mime": "…", "name": "…", "size": n, "width": n, "height": n}`, a Signal sticker with `"sticker": true` too), `quote` (optional `{"ts", "author", "text"}`), `mentions` (see below) |
 | `receipt` | `chat` (the ACI of the person whose device sent the receipt, in a group too), `ts` (list), `kind` (`delivered` or `read`) |
 | `reaction` | `chat`, `from`, `target_ts`, `target_author`, `emoji`, `remove` |
 | `edited` | `chat`, `from`, `target_ts` (the message's first time, as its `message` event gave it), `ts` (when it was edited), `text` (its words now), `mentions` (in the words now) |

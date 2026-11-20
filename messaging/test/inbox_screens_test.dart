@@ -272,6 +272,42 @@ void main() {
     expect(tester.getTopLeft(find.text('Priya')).dx, moreOrLessEquals(tester.getTopLeft(find.text(clock(at))).dx, epsilon: 0.5));
   });
 
+  testWidgets('a sticker, sent or received, is drawn on its own with no bubble behind it; a picture keeps its bubble', (tester) async {
+    // Matt, 2026-11-20: "stickers in telegram chat and others render inside chat bubbles instead of transparent
+    // backgrounds when sent and when recieved".
+    final sheet = await loadSheet(tester);
+    final dir = Directory.systemTemp.createTempSync('stickers');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final sticker = File('${dir.path}/sticker.png')..writeAsBytesSync(File('assets/stickers/mischief/14.png').readAsBytesSync());
+    final at = now.subtract(const Duration(minutes: 5));
+    final crew = FakeNetwork('telegram', 'Telegram', [
+      InboxChat(network: 'telegram', id: '30', title: 'Priya', date: at, snippet: 'Sticker'),
+    ], {
+      '30': [
+        InboxMessage(id: '1', text: 'look at this', date: at, mine: false),
+        InboxMessage(id: '2', text: '', date: at, mine: false, media: [InboxMedia(kind: 'sticker', fileId: 50, path: sticker.path, width: 512, height: 512)]),
+        InboxMessage(id: '3', text: '', date: at.add(const Duration(minutes: 1)), mine: true, media: [InboxMedia(kind: 'sticker', fileId: 51, path: sticker.path, width: 512, height: 512)]),
+        InboxMessage(id: '4', text: 'and a photo', date: at.add(const Duration(minutes: 2)), mine: true, media: const [InboxMedia(kind: 'photo', fileId: 52, width: 800, height: 600)]),
+      ],
+    });
+    for (final dark in [false, true]) {
+      await _shoot(tester, sheet, InboxChatScreen(network: crew, chatId: '30'), 'x-inbox-stickers', dark: dark);
+      // The stickers' files read and decoded for real, then the picture taken again with them drawn.
+      for (var i = 0; i < 3; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 250)));
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      await _again(tester, 'x-inbox-stickers', dark: dark);
+      expect(find.byType(InboxSticker), findsNWidgets(2));
+      bool bubble(Widget w) => w is Container && w.decoration is BoxDecoration && (w.decoration! as BoxDecoration).color != null;
+      for (final e in find.byType(InboxSticker).evaluate()) {
+        expect(find.ancestor(of: find.byWidget(e.widget), matching: find.byWidgetPredicate(bubble)), findsNothing, reason: 'no bubble behind a sticker');
+      }
+      expect(find.ancestor(of: find.text('and a photo'), matching: find.byWidgetPredicate(bubble)), findsOneWidget, reason: 'words keep their bubble');
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
   testWidgets('a group chat opened with unread messages marks where they begin; a chat with one person does not', (tester) async {
     // Matt, 2026-11-16: "Add a "new messages" divider like discord has for all group chats across telegram signal and
     // RCS".

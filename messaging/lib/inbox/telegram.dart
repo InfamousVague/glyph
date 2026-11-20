@@ -1076,9 +1076,9 @@ class Telegram extends InboxNetwork {
         return [one('video', v['video'] as Map?, dims: {'width': v['length'], 'height': v['length']}, duration: (v['duration'] as num?)?.toInt() ?? 0, thumb: v['thumbnail'] as Map?)];
       case 'messageSticker':
         final st = c['sticker'] as Map;
-        // A still sticker is a picture; an animated one is not drawn here yet.
+        // A still sticker is drawn on its own, with no bubble; an animated one is not drawn here yet.
         if ((st['format'] as Map?)?['@type'] != 'stickerFormatWebp') return const [];
-        return [one('photo', st['sticker'] as Map?, dims: st)];
+        return [one('sticker', st['sticker'] as Map?, dims: st)];
       case 'messageDocument':
         final d = c['document'] as Map;
         return [one('file', d['document'] as Map?, name: d['file_name'] as String?, thumb: d['thumbnail'] as Map?)];
@@ -1174,12 +1174,16 @@ class Telegram extends InboxNetwork {
   }
 
   @override
-  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false}) async {
+  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false, bool sticker = false}) async {
     if (_state != InboxState.ready) return;
     for (final (i, path) in paths.indexed) {
       final words = i == paths.length - 1 && caption.trim().isNotEmpty ? {'caption': {'@type': 'formattedText', 'text': caption.trim()}} : const <String, Object?>{};
       final file = {'@type': 'inputFileLocal', 'path': path};
-      final content = voice
+      // A sticker of Ghost's goes as a Telegram sticker (WEBP is what Telegram takes for one), so it arrives as one
+      // there and comes back as one here; one in another format goes as the picture it is.
+      final content = sticker && path.toLowerCase().endsWith('.webp')
+          ? {'@type': 'inputMessageSticker', 'sticker': file, 'width': 512, 'height': 512}
+          : voice
           // Ghost records AAC in .m4a; Telegram's voice messages are Opus, so it goes as a sound named for what it is.
           ? {'@type': 'inputMessageAudio', 'audio': file, 'title': 'Voice message', ...words}
           : switch (kindOf(path)) {

@@ -124,8 +124,19 @@ class InboxChat {
 class InboxMedia {
   const InboxMedia({required this.kind, required this.fileId, this.path, this.name, this.size = 0, this.width = 0, this.height = 0, this.duration = 0, this.thumbId, this.thumbPath});
 
-  /// "photo", "video", "audio" or "file".
+  /// "photo", "sticker", "video", "audio" or "file". A sticker is a picture drawn on its own, with no bubble round it
+  /// (Matt, 2026-11-20: "stickers in telegram chat and others render inside chat bubbles instead of transparent
+  /// backgrounds when sent and when recieved").
   final String kind;
+
+  /// The kind a file of [mime] is shown as; [sticker] where the network said it is one.
+  static String kindOf(String mime, {bool sticker = false}) => mime.startsWith('image/')
+      ? (sticker ? 'sticker' : 'photo')
+      : mime.startsWith('video/')
+          ? 'video'
+          : mime.startsWith('audio/')
+              ? 'audio'
+              : 'file';
   final int fileId;
   final String? path;
   final String? name;
@@ -592,7 +603,9 @@ abstract class InboxNetwork extends ChangeNotifier {
   bool get canSendFiles => false;
 
   /// Sends the files at [paths] to [chatId], [caption] with the last; [voice] for a recorded voice message.
-  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false}) async =>
+  /// [sticker]: the one file is one of Ghost's stickers, sent as the network sends stickers where it can, and shown as
+  /// one here either way.
+  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false, bool sticker = false}) async =>
       throw UnsupportedError('$name can\'t send files here yet');
 
   /// The file [fileId] on this device, brought down first where it is not yet; null where it can't be.
