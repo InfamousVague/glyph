@@ -23,7 +23,7 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
-  ReleaseNotes('0.10.9', '2026-11-20', [
+  ReleaseNotes('0.11.0', '2026-11-20', [
     'Marketplace: WhatsApp, Matrix, Microsoft Teams, Google Chat, Messenger, Instagram and LinkedIn are listed as plugins, on a Networks shelf. Add one and it is switched on in Settings › Connections too, ready to sign in to; remove it and it is signed out.',
   ]),
   ReleaseNotes('0.10.8', '2026-11-20', [
