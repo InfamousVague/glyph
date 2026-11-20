@@ -1761,12 +1761,17 @@ class QuickRow extends StatelessWidget {
               SizedBox(width: t.space(3)),
               Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color(state.hovered && on ? 'app-ink' : 'app-ink-2')))),
               if (count > 0)
+                // A small circle, a short pill for 10 and up (Matt, 2026-11-20: "make the mark all read pill a small circle
+                // it's tall and ugly right now"): its height is its own, where centring its number had stretched it to
+                // the row's.
                 Container(
-                  constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  key: const ValueKey('quick-row-count'),
+                  height: 20,
+                  constraints: const BoxConstraints(minWidth: 20),
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
                   alignment: Alignment.center,
-                  decoration: BoxDecoration(color: t.danger, borderRadius: BorderRadius.circular(11)),
-                  child: Text(count > 99 ? '99+' : '$count', style: t.textAt(12, weight: 'bold', height: 1.15, color: const Color(0xFFFFFFFF))),
+                  decoration: BoxDecoration(color: t.danger, borderRadius: BorderRadius.circular(10)),
+                  child: Text(count > 99 ? '99+' : '$count', style: t.textAt(11, weight: 'bold', height: 1.1, color: const Color(0xFFFFFFFF))),
                 ),
             ]),
           ),
