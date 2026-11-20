@@ -59,6 +59,8 @@ import 'inbox_signin_teams.dart';
 import 'inbox_signin_google_chat.dart';
 import 'inbox_signin_whatsapp.dart' show WhatsAppLinkScreen;
 import 'inbox_signin_matrix.dart';
+import 'schedule_ui.dart';
+import '../scheduled.dart' show ScheduleTarget;
 
 /// The screens of the inbox of other networks (lib/inbox): a chat's row in the list, the chat itself, signing in, and
 /// the sections of Settings for each network.
@@ -508,6 +510,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                 }
                 // The same buttons in the same places as every other conversation (lib/ui/composer_box.dart), each
                 // greyed out where this network can't do it.
+                final ScheduleTarget schedule = (kind: 'inbox', target: '${_n.id}:${widget.chatId}', who: chat?.title ?? _n.name);
                 final buttons = composerButtons(
                   t,
                   hasSomething: _text.text.isNotEmpty || _files.isNotEmpty,
@@ -521,6 +524,17 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                     await showEmojiPicker(context, onPick: (e) => insertEmoji(_text, e));
                     if (mounted) _focus.requestFocus();
                   },
+                  // Send later (lib/ui/schedule_ui.dart): words alone, as a new message in this chat.
+                  onSendMenu: () {
+                    if (_files.isNotEmpty) {
+                      toast(context, 'Files can\'t be scheduled yet. Send them now, or schedule the words alone.');
+                      return;
+                    }
+                    openSendMenu(context, to: schedule, text: _text.text, onScheduled: () {
+                      _text.clear();
+                      setState(() => _replying = null);
+                    });
+                  },
                 );
                 return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   if (_replying != null)
@@ -530,6 +544,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                       onClose: () => setState(() => _replying = null),
                     ),
                   if (_files.isNotEmpty) _FilesStrip(files: _files, onRemove: (f) => setState(() => _files.remove(f))),
+                  ScheduledStrip(to: schedule),
                   ComposerBox(
                   typing: _text.text.isNotEmpty,
                   plus: buttons.plus,
