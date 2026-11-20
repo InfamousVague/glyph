@@ -65,23 +65,6 @@ import 'ui/link_offer.dart';
 Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool updates = true}) async {
   WidgetsFlutterBinding.ensureInitialized();
   final env = Platform.environment;
-  // The look first, for the launch splash (lib/desktop/ui/launch_splash.dart; Matt, 2026-11-20: "add a checking for
-  // updates splash window that shows before the app launches and load the app on this screen too similar to how discord
-  // does on launch"): it shows while the app looks for an update and loads, in the window the Mac's and Windows' halves
-  // have made small for it.
-  final state = AppState();
-  final loaded = await Future.wait<Object?>([AccentSheets.load(), state.load()]);
-  final accents = loaded[0]! as AccentSheets;
-  final sheet = accents.base;
-  installSettingsStyles(sheet);
-  final step = ValueNotifier<SplashStep>((words: 'Starting Ghost Messaging', progress: null));
-  runApp(_SplashApp(sheet: accents.of(state), state: state, step: step));
-  // The app's own updates, looked for before anything else, as Discord does: a version found is brought down and
-  // restarted into from the splash. Offline, or with nothing new, the app opens as it is and goes on looking every few
-  // hours. A Mac swaps in the Mac's zip; Windows runs the new installer from gogho.st, silently.
-  final macUpdates = updates && (Platform.isMacOS || Platform.isWindows) ? MacUpdates.fromEnvironment(env, windows: Platform.isWindows) : null;
-  if (macUpdates != null) await checkAtLaunch(macUpdates, step);
-  step.value = (words: 'Starting Ghost Messaging', progress: null);
   final dir = folder ?? env['GHOST_DESK_DIR'];
   // The Keychain holds the key in a release build. A build signed to run on this Mac alone loses its Keychain
   // items' trust each time it is rebuilt, so those keep the key in the app's own folder.
@@ -122,6 +105,25 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
     await own.load();
   }
   if (!alone) Sms.calls = own ?? calls;
+  // The look, for the launch splash (lib/desktop/ui/launch_splash.dart; Matt, 2026-11-20: "add a checking for updates
+  // splash window that shows before the app launches and load the app on this screen too similar to how discord does on
+  // launch"): it shows while the app looks for an update and loads, in the window the Mac's and Windows' halves have
+  // made small for it. Read only now that what answers the screens is chosen (Sms.calls, above): read before, as 0.10.0
+  // did, the choices came from nowhere and every launch started with none, a computer of its own back at the welcome
+  // (Matt, 2026-11-20: "when signing in the app re launches and I have to login twice").
+  final state = AppState();
+  final loaded = await Future.wait<Object?>([AccentSheets.load(), state.load()]);
+  final accents = loaded[0]! as AccentSheets;
+  final sheet = accents.base;
+  installSettingsStyles(sheet);
+  final step = ValueNotifier<SplashStep>((words: 'Starting Ghost Messaging', progress: null));
+  runApp(_SplashApp(sheet: accents.of(state), state: state, step: step));
+  // The app's own updates, looked for before anything else, as Discord does: a version found is brought down and
+  // restarted into from the splash. Offline, or with nothing new, the app opens as it is and goes on looking every few
+  // hours. A Mac swaps in the Mac's zip; Windows runs the new installer from gogho.st, silently.
+  final macUpdates = updates && (Platform.isMacOS || Platform.isWindows) ? MacUpdates.fromEnvironment(env, windows: Platform.isWindows) : null;
+  if (macUpdates != null) await checkAtLaunch(macUpdates, step);
+  step.value = (words: 'Starting Ghost Messaging', progress: null);
   // Google Messages on this computer (gm_web.dart): its helper started where this copy carries it, and what changes
   // there told to the screens as the phone's changes are.
   GmWeb.instance.changed.stream.listen(Sms.instance.changes.add);
