@@ -232,3 +232,6 @@ List<int> washedShapes(String name, List<IconShape> shapes) {
   if (wholeWashed.contains(name)) return [for (var i = 0; i < shapes.length; i++) i];
   return {...bodiesOf(shapes), ...?openBodies[name]}.toList()..sort();
 }
+
+/// A Phosphor duotone icon's body: a fifth of the ink, as Phosphor draws it (opacity 0.2).
+const double phosphorWash = 0.2;

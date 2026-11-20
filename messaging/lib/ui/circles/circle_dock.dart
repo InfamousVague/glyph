@@ -13,10 +13,7 @@ import '../../circles/circles.dart';
 import '../nav_bar.dart';
 
 /// Lucide's house (lucide-static 1.70.0, ISC licence), which Ghost.md's set has not: Home on the circle's dock.
-const houseIcon = LucideIcon('house', [
-  'M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8',
-  'M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
-], [1]);
+const houseIcon = LucideIcon.phosphor('house', 'M216,120v96H152V152H104v64H40V120a8,8,0,0,1,2.34-5.66l80-80a8,8,0,0,1,11.32,0l80,80A8,8,0,0,1,216,120Z', 'M219.31,108.68l-80-80a16,16,0,0,0-22.62,0l-80,80A15.87,15.87,0,0,0,32,120v96a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V160h32v56a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V120A15.87,15.87,0,0,0,219.31,108.68ZM208,208H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48V120l80-80,80,80Z');
 
 /// The rings' ids, which the frame answers.
 abstract final class CircleDock {

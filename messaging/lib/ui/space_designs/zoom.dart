@@ -56,13 +56,8 @@ abstract final class _W {
 }
 
 // Lucide's minimize-2 (ISC licence), and a speaker-view mark drawn in Lucide's style: a filmstrip over a big tile.
-const _minimize = LucideIcon('minimize-2', ['m14 10 7-7', 'M20 10h-6V4', 'm3 21 7-7', 'M4 14h6v6'], []);
-const _speakerView = LucideIcon('speaker-view', [
-  'M4 3H7A1 1 0 0 1 8 4V6A1 1 0 0 1 7 7H4A1 1 0 0 1 3 6V4A1 1 0 0 1 4 3Z',
-  'M10.5 3H13.5A1 1 0 0 1 14.5 4V6A1 1 0 0 1 13.5 7H10.5A1 1 0 0 1 9.5 6V4A1 1 0 0 1 10.5 3Z',
-  'M17 3H20A1 1 0 0 1 21 4V6A1 1 0 0 1 20 7H17A1 1 0 0 1 16 6V4A1 1 0 0 1 17 3Z',
-  'M5 10H19A2 2 0 0 1 21 12V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V12A2 2 0 0 1 5 10Z',
-], [0, 1, 2, 3]);
+const _minimize = LucideIcon.phosphor('minimize-2', 'M224,48V208a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V48A16,16,0,0,1,48,32H208A16,16,0,0,1,224,48Z', 'M213.66,53.66,163.31,104H192a8,8,0,0,1,0,16H144a8,8,0,0,1-8-8V64a8,8,0,0,1,16,0V92.69l50.34-50.35a8,8,0,0,1,11.32,11.32ZM112,136H64a8,8,0,0,0,0,16H92.69L42.34,202.34a8,8,0,0,0,11.32,11.32L104,163.31V192a8,8,0,0,0,16,0V144A8,8,0,0,0,112,136Z');
+const _speakerView = LucideIcon.phosphor('speaker-view', 'M224,56V176a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V56a8,8,0,0,1,8-8H216A8,8,0,0,1,224,56Z', 'M216,40H136V24a8,8,0,0,0-16,0V40H40A16,16,0,0,0,24,56V176a16,16,0,0,0,16,16H79.36L57.75,219a8,8,0,0,0,12.5,10l29.59-37h56.32l29.59,37a8,8,0,1,0,12.5-10l-21.61-27H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,136H40V56H216V176Z');
 
 /// A pressable that is read out by its [semanticLabel] alone: the words drawn inside it are left out, so a button
 /// is "Chat", not "Chat Chat".

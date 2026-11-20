@@ -3,16 +3,24 @@ import 'package:flutter/widgets.dart';
 import 'icon_wash.dart';
 import 'svg_path.dart';
 
-/// One of the kit's lucide icons as the web app draws it: its shapes as paths on the 24 grid, and the places of the
-/// shapes that wear the wash. Made by tool/lucide.dart (lib/art/lucide.g.dart), never written by hand.
+/// One of the app's icons. Since 2026-11-20 every one is Phosphor's duotone (Matt: "switch to using phosphor icons"),
+/// made by tool/phosphor.mjs from tool/phosphor-map.json: [body], the shape filled at a fifth of the ink, and
+/// [outline], filled in the whole ink, both on Phosphor's 256 grid. The code still calls each by its Lucide name
+/// (`Lucide.search`), so nothing that names an icon had to change. The plain constructor, Lucide's stroked paths on
+/// the 24 grid, is kept for a drawing of the app's own made the same way.
 @immutable
 class LucideIcon {
-  const LucideIcon(this.name, this.shapes, this.wash);
+  const LucideIcon(this.name, this.shapes, this.wash) : body = null, outline = null;
+  const LucideIcon.phosphor(this.name, this.body, String this.outline) : shapes = const [], wash = const [];
 
-  /// Lucide's own name for it: the class its svg wears on the page, less `lucide-`.
+  /// Lucide's own name for it: the class its svg wears on the page, less `lucide-`, and the key in the docs' pages.
   final String name;
   final List<String> shapes;
   final List<int> wash;
+
+  /// Phosphor's: the duotone layer (empty for an icon with none) and the outline, filled.
+  final String? body;
+  final String? outline;
 }
 
 /// A lucide icon drawn the way the web app draws them: an outline in the text's own colour with round ends and
@@ -42,7 +50,18 @@ class AppIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ink = color ?? inkAt(context);
-    final painter = DrawnIconPainter(strokes: icon.shapes, washed: wash ? [for (final index in icon.wash) icon.shapes[index]] : const [], color: ink, strokeWidth: strokeWidth);
+    final outline = icon.outline;
+    final painter = outline != null
+        ? DrawnIconPainter(
+            strokes: const [],
+            washed: wash && (icon.body ?? '').isNotEmpty ? [icon.body!] : const [],
+            fills: [outline],
+            washAlpha: phosphorWash,
+            color: ink,
+            strokeWidth: strokeWidth,
+            viewBox: 256,
+          )
+        : DrawnIconPainter(strokes: icon.shapes, washed: wash ? [for (final index in icon.wash) icon.shapes[index]] : const [], color: ink, strokeWidth: strokeWidth);
     final picture = CustomPaint(size: Size.square(size), painter: painter);
     if (semanticLabel == null) return ExcludeSemantics(child: picture);
     return Semantics(label: semanticLabel, image: true, child: picture);
@@ -58,10 +77,16 @@ Color inkAt(BuildContext context) =>
 /// [viewBox] wide scaled to the size it is given. Shared by the kit's icons ([AppIcon]) and the app's own
 /// (icons.dart).
 class DrawnIconPainter extends CustomPainter {
-  const DrawnIconPainter({required this.strokes, required this.washed, required this.color, required this.strokeWidth, this.viewBox = 24, this.evenOdd = false, this.filled = false, this.cut = const []});
+  const DrawnIconPainter({required this.strokes, required this.washed, required this.color, required this.strokeWidth, this.viewBox = 24, this.evenOdd = false, this.filled = false, this.fills = const [], this.washAlpha, this.cut = const []});
 
   final List<String> strokes;
   final List<String> washed;
+
+  /// Shapes filled in the whole ink: a Phosphor icon's outline, which is a filled shape rather than a stroke.
+  final List<String> fills;
+
+  /// How much of the ink the wash is, when not the app's own third ([iconWash]): Phosphor's duotone is a fifth.
+  final double? washAlpha;
   final Color color;
   final double strokeWidth;
   final double viewBox;
@@ -80,11 +105,19 @@ class DrawnIconPainter extends CustomPainter {
     canvas.scale(size.width / viewBox, size.height / viewBox);
     final fill = Paint()
       ..style = PaintingStyle.fill
-      ..color = filled ? color : color.withValues(alpha: color.a * iconWash);
+      ..color = filled ? color : color.withValues(alpha: color.a * (washAlpha ?? iconWash));
     if (cut.isNotEmpty) canvas.saveLayer(Rect.fromLTWH(-viewBox / 6, -viewBox / 6, viewBox * 4 / 3, viewBox * 4 / 3), Paint());
     // Each path from the store of them (svg_path.dart): parsed once for its string, and its even-odd self made once.
     for (final d in washed) {
       canvas.drawPath(svgPath(d, evenOdd: evenOdd), fill);
+    }
+    if (fills.isNotEmpty) {
+      final ink = Paint()
+        ..style = PaintingStyle.fill
+        ..color = color;
+      for (final d in fills) {
+        canvas.drawPath(svgPath(d), ink);
+      }
     }
     final stroke = Paint()
       ..style = PaintingStyle.stroke
@@ -117,6 +150,8 @@ class DrawnIconPainter extends CustomPainter {
       old.viewBox != viewBox ||
       old.evenOdd != evenOdd ||
       old.filled != filled ||
+      old.washAlpha != washAlpha ||
+      !_same(old.fills, fills) ||
       !_same(old.strokes, strokes) ||
       !_same(old.washed, washed) ||
       !_same(old.cut, cut);

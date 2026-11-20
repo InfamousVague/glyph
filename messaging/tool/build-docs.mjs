@@ -12,7 +12,7 @@
  *   docs-src/pages/<slug>.html each page's body: plain HTML with the mock tags below, `<h2 id>` for its outline
  *   docs-src/docs.css, docs.js the frame's style and behaviour (theme, sidebar, search, outline)
  *   packages/glacier/assets/css/tokens.css  Glacier's own tokens, copied so the mocks are drawn with the app's sizes
- *   lib/art/lucide.g.dart, lib/art/lucide_more.dart  the app's icons: only those a page uses go in the sprite
+ *   lib/art/lucide.g.dart, lib/art/lucide_more.dart  the app's icons (Phosphor duotone): only those a page uses go in the sprite
  *
  * THE MOCK TAGS are the app's own pieces drawn in HTML, never pictures of it (so they read in both themes, at any
  * width, and stay true when a label changes in one place). Each expands to plain HTML here; nothing runs in the page.
@@ -46,31 +46,28 @@ const check = process.argv.includes('--check');
 const { sections } = await import(pathToFileURL(join(SRC, 'pages.mjs')).href);
 const pages = sections.flatMap((s) => s.pages.map((p) => ({ ...p, section: s.title })));
 
-// --- icons: the app's own lucide data ---------------------------------------------------------------------------------
+// --- icons: the app's own, Phosphor's duotone under their Lucide names (tool/phosphor.mjs) ----------------------------
 
 const icons = new Map();
 for (const f of ['lib/art/lucide.g.dart', 'lib/art/lucide_more.dart']) {
   const p = join(ROOT, f);
   if (!existsSync(p)) continue;
-  for (const m of readFileSync(p, 'utf8').matchAll(/LucideIcon\('([a-z0-9-]+)',\s*\[([\s\S]*?)\],\s*\[([0-9,\s]*)\]\)/g)) {
-    const shapes = [...m[2].matchAll(/'([^']*)'/g)].map((x) => x[1]);
-    const wash = m[3].split(',').map((x) => x.trim()).filter(Boolean).map(Number);
-    if (!icons.has(m[1])) icons.set(m[1], { shapes, wash });
+  for (const m of readFileSync(p, 'utf8').matchAll(/LucideIcon\.phosphor\('([a-z0-9-]+)',\s*'([^']*)',\s*'([^']*)'\)/g)) {
+    if (!icons.has(m[1])) icons.set(m[1], { body: m[2], outline: m[3] });
   }
 }
 const used = new Set();
 function icon(name, cls = 'i') {
   if (!name) return '';
-  if (!icons.has(name)) throw new Error(`No icon "${name}" in the app's lucide set`);
+  if (!icons.has(name)) throw new Error(`No icon "${name}" in the app's icon set`);
   used.add(name);
   return `<svg class="${cls}" aria-hidden="true"><use href="/docs/icons.svg#${name}"/></svg>`;
 }
 function sprite() {
   const out = [...used].sort().map((n) => {
-    const { shapes, wash } = icons.get(n);
-    // Each shape's look on the shape itself: a symbol used from another file inherits nothing from this one's root.
-    const paths = shapes.map((d, i) => (wash.includes(i) ? `<path d="${d}" fill="currentColor" fill-opacity=".18" stroke="none"/>` : '') + `<path d="${d}"/>`).join('');
-    return `<symbol id="${n}" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</g></symbol>`;
+    const { body, outline } = icons.get(n);
+    // The body at a fifth of the ink, as Phosphor's duotone draws it, and the outline in the whole ink.
+    return `<symbol id="${n}" viewBox="0 0 256 256"><g fill="currentColor">${body ? `<path d="${body}" opacity=".2"/>` : ''}<path d="${outline}"/></g></symbol>`;
   });
   return `<svg xmlns="http://www.w3.org/2000/svg">${out.join('')}</svg>\n`;
 }
