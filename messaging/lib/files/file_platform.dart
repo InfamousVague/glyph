@@ -1,3 +1,4 @@
+import '../desktop/linux_dialogs.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -51,6 +52,8 @@ class FilePlatform {
   /// A computer's own panel for any file: the paths chosen. Also what a Telegram chat's + uses on a computer
   /// (lib/desktop/remote.dart).
   static Future<List<String>> pickPaths({int most = 50}) async {
+    // Linux: the desktop's own chooser (lib/desktop/linux_dialogs.dart).
+    if (!kIsWeb && Platform.isLinux) return linuxPick(most: most);
     try {
       return [for (final p in (await _system.invokeMethod<List>('pickFiles', {'most': most})) ?? const []) '$p'];
     } on MissingPluginException {

@@ -301,7 +301,8 @@ EdgeInsets composerFootPadding(Tokens t, {double bottom = 0}) => EdgeInsets.from
 /// microphone's place once something is; and once words are written, the microphone, emoji and Send in the row under
 /// them. One a conversation can't do is still shown, greyed out ([VoidCallback] null), so nothing moves from one
 /// conversation to the next ("if it's not avilable on a given chat just disable the button but still show it so the
-/// layout doesn't shift"). [send] replaces Send where something else goes there (Save edit).
+/// layout doesn't shift"). [send] replaces Send where something else goes there (Save edit). [onSendMenu] is Send
+/// pressed and held, or right-clicked: its menu, Send later (lib/ui/schedule_ui.dart).
 ({Widget plus, List<Widget> ends, List<Widget> below}) composerButtons(
   Tokens t, {
   required bool hasSomething,
@@ -312,11 +313,13 @@ EdgeInsets composerFootPadding(Tokens t, {double bottom = 0}) => EdgeInsets.from
   VoidCallback? onEmoji,
   bool emoji = false,
   Widget? send,
+  VoidCallback? onSendMenu,
 }) {
   final box = t.lenOf('2.25rem');
   final ink = t.color('app-ink-2');
   Widget tap(LucideIcon icon, String label, VoidCallback? on, {String? key}) => IconTap(key: key == null ? null : ValueKey(key), icon: icon, label: label, size: 19, box: box, color: ink, onPressed: on);
-  final sendButton = send ?? IconTap(key: const ValueKey('composer-send'), icon: Lucide.arrowUp, label: 'Send', filled: true, size: 19, box: box, onPressed: onSend);
+  final sendTap = send ?? IconTap(key: const ValueKey('composer-send'), icon: Lucide.arrowUp, label: 'Send', filled: true, size: 19, box: box, onPressed: onSend);
+  final sendButton = send != null || onSendMenu == null || onSend == null ? sendTap : GestureDetector(key: const ValueKey('composer-send-hold'), onLongPress: onSendMenu, onSecondaryTap: onSendMenu, child: sendTap);
   Widget emojiButton() => tap(LucideMore.smile, 'Emoji', onEmoji, key: 'composer-emoji');
   return (
     plus: tap(Lucide.plus, 'Add an attachment', onAttach, key: 'composer-plus'),

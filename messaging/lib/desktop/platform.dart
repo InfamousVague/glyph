@@ -1,3 +1,4 @@
+import 'linux_dialogs.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -8,10 +9,10 @@ import 'link/link.dart';
 
 /// What the Mac app asks of macOS (macos/Runner/DeskChannels.swift): the Mac's name, the Keychain, and Bonjour.
 /// What the computer is called in the app's words: "Mac", or "PC" on Windows.
-String get computerWord => Platform.isWindows ? 'PC' : Platform.isIOS ? 'iPhone' : 'Mac';
+String get computerWord => Platform.isWindows ? 'PC' : Platform.isIOS ? 'iPhone' : Platform.isLinux ? 'computer' : 'Mac';
 
 /// What the desktop app is for, in its name: "the Mac", or "Windows".
-String get desktopName => Platform.isWindows ? 'Windows' : Platform.isIOS ? 'the iPhone' : 'the Mac';
+String get desktopName => Platform.isWindows ? 'Windows' : Platform.isIOS ? 'the iPhone' : Platform.isLinux ? 'Linux' : 'the Mac';
 
 class MacPlatform {
   /// Opens a web address in this device's own browser, and says whether it could (Matt, 2026-11-20: "when clicking sign
@@ -69,6 +70,8 @@ class MacPlatform {
 
   /// The Mac's panel for choosing pictures: the paths chosen, none where it was put away.
   static Future<List<String>> pickPictures({int most = 5}) async {
+    // Linux: the desktop's own chooser (lib/desktop/linux_dialogs.dart).
+    if (Platform.isLinux) return linuxPick(most: most, pictures: true);
     try {
       return [for (final p in (await _system.invokeMethod<List>('pickPictures', {'most': most})) ?? const []) '$p'];
     } catch (_) {
