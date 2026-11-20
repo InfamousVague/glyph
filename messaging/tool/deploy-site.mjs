@@ -44,6 +44,9 @@ const DOMAIN = 'gogho.st';
 // the relay's sign-in pages (/link/*, whose addresses Discord, X and Telegram were given); anything else there goes
 // to the same address on gogho.st. /discord/* answers on both names (the Discord presence bot, tool/deploy-discord.mjs).
 const OLD = 'ghost-sms.com';
+// Another name for the site, sent on to gogho.st (Matt, 2026-11-20: "link satellite.im to the list of domains and point it
+// to the gogho.st page"). Its DNS has to point at the box (as gogho.st's does) before Caddy can get it a certificate.
+const ALSO = 'satellite.im';
 const args = process.argv.slice(2);
 const withCaddy = args.includes('--caddy');
 const printOnly = args.includes('--print');
@@ -191,10 +194,16 @@ ${OLD} {
 www.${OLD} {
 	redir https://${DOMAIN}{uri} permanent
 }
+${ALSO} {
+	redir https://${DOMAIN}{uri} permanent
+}
+www.${ALSO} {
+	redir https://${DOMAIN}{uri} permanent
+}
 `;
 
 // Both names' blocks are this site's: each is taken out and written again.
-const dom = `(${DOMAIN.replace('.', '[.]')}|${OLD.replace('.', '[.]')})`;
+const dom = `(${DOMAIN.replace('.', '[.]')}|${OLD.replace('.', '[.]')}|${ALSO.replace('.', '[.]')})`;
 // Run on the box. Reads the site as a tarball on stdin.
 const REMOTE = `set -e
 SUDO=; [ "$(id -u)" -eq 0 ] || SUDO=sudo
