@@ -503,6 +503,18 @@ abstract class InboxNetwork extends ChangeNotifier {
     return _archivedList = kept.isEmpty ? const [] : [for (final c in chats) if (kept.contains(c.id)) c];
   }
 
+  /// Whether two lists of chats would draw the same rows: a network that asks its service every so often tells its
+  /// listeners only when the answer differs from the last, where every asking drew the whole list of conversations
+  /// again for nothing (docs/performance-audit.md, finding 8).
+  static bool sameChats(List<InboxChat> a, List<InboxChat> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      final x = a[i], y = b[i];
+      if (x.id != y.id || x.title != y.title || x.snippet != y.snippet || x.unread != y.unread || x.date != y.date || x.avatar != y.avatar || x.lastFromMe != y.lastFromMe || x.group != y.group || x.pinned != y.pinned || x.muted != y.muted) return false;
+    }
+    return true;
+  }
+
   /// Goes up each time this network tells its listeners anything: what was worked out from it is worked out again.
   int stamp = 0;
 

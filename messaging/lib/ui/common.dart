@@ -244,9 +244,12 @@ class _GhostSpinnerState extends State<GhostSpinner> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final arc = RotationTransition(
-      turns: _turn,
-      child: CustomPaint(size: Size.square(widget.size), painter: _ArcPainter(t.color('app-ink-2'), t.color('app-rule'))),
+    // Painted by itself: its turning does not have what stands round it painted again at every frame.
+    final arc = RepaintBoundary(
+      child: RotationTransition(
+        turns: _turn,
+        child: CustomPaint(size: Size.square(widget.size), painter: _ArcPainter(t.color('app-ink-2'), t.color('app-rule'))),
+      ),
     );
     return Semantics(
       label: widget.label ?? 'Loading',
