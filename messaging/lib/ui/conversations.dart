@@ -606,8 +606,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // the three icons instead of intertwining them remove the other options for now"). Voice is there always: it is
     // where calls are.
     final tabs = _plugins.tabs(_section, (section) => setState(() => _section = section), onMenu: _tabMenu, extra: [
-      // Counted by how many circles have anyone in voice now, and the invites not yet answered or put off.
-      (id: circlesTab, icon: Lucide.circleDot, label: 'Circles', count: Circles.instance.all.where((c) => Circles.instance.liveSpaces(c).isNotEmpty).length + Circles.instance.invites.where((i) => !i.later).length),
+      // Counted by how many circles have anyone in voice now, and the invites not yet answered or put off. Not under
+      // the rail, which shows the circles itself (Matt, 2026-11-20: "remove the circles icon from the segmented toggle
+      // on the messages view since circles are now shown in the sidebar"); their invites are then atop Messages.
+      if (!AppShell.railOf(context)) (id: circlesTab, icon: Lucide.circleDot, label: 'Circles', count: Circles.instance.all.where((c) => Circles.instance.liveSpaces(c).isNotEmpty).length + Circles.instance.invites.where((i) => !i.later).length),
     ]);
     final kinds = _plugins.kinds;
     if (tabs == null && kinds.isEmpty) return null;
@@ -980,7 +982,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     }
     final sorted = _plugins.sort(widget.archived ? null : _all, chats: widget.archived ? const [] : _chatFacts());
     final inbox = widget.archived ? null : inboxOfTab(_section);
-    if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0) && !(_section == circlesTab && !widget.archived) && inbox?.state != InboxState.ready) _section = null;
+    // Under the rail there is no Circles tab: what was on it is the rail's, and its invites are atop Messages.
+    final railed = AppShell.railOf(context);
+    if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0) && !(_section == circlesTab && !widget.archived && !railed) && inbox?.state != InboxState.ready) _section = null;
     if (!widget.archived && ConversationsScreen.shownTab.value != _section) {
       final now = _section;
       WidgetsBinding.instance.addPostFrameCallback((_) => ConversationsScreen.shownTab.value = now);
@@ -1000,7 +1004,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         : _section == circlesTab
             // Circles offered and not yet joined at the top (lib/ui/circles/circle_invite_card.dart), then each circle.
             ? _circlesTabRows()
-            : _mixed(shown);
+            : [
+                // Circle invites waiting, at the top of Messages where the rail has taken the Circles tab's place.
+                if (railed && _section == null && _query.isEmpty && !widget.archived && !_selecting) ...circleInviteRows(context, Circles.instance.invites),
+                ..._mixed(shown),
+              ];
     // Android's own count, where it has answered: the ones held are not all of them until the read ends.
     final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length) + Inbox.instance.ready.fold<int>(0, (n, net) => n + net.archivedChats.length);
     // Older conversations still arriving: said at the foot of the list, and in place of "Nothing found".
