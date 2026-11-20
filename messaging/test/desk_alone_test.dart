@@ -84,7 +84,10 @@ void main() {
   testWidgets('first a username, said in a computer\'s words', (tester) async {
     await open(tester);
     expect(find.byType(StandaloneWelcome), findsOneWidget);
-    expect(find.textContaining('No phone needed'), findsOneWidget);
+    // Only a username and a password (Matt, 2026-11-20: "very simple and just ask for a username and password").
+    expect(find.byKey(const ValueKey('welcome-username')), findsOneWidget);
+    expect(find.byKey(const ValueKey('welcome-password')), findsOneWidget);
+    expect(find.byType(GlacierInput), findsNWidgets(2));
     expect(find.byType(PairWizard), findsNothing, reason: 'no phone is asked for before anything else');
   });
 
