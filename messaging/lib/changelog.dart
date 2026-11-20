@@ -23,6 +23,18 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.10.8', '2026-11-20', [
+    'Soundboard: a new plugin that puts pads in a call. Press one and everyone in the call hears it: an air horn, applause, a sad trombone and nine more. A circle\'s owner and admins can add sounds of the circle\'s own. Add it from the Marketplace, or turn it on for a whole circle in its Settings › Plugins; you choose how loud it is for you, or to hear none of it.',
+  ]),
+  ReleaseNotes('0.10.7', '2026-11-20', [
+    'Connections: Telegram and Signal are Ghost\'s official networks, there and ready to sign in to. The others — WhatsApp, Matrix, Microsoft Teams, Google Chat, Messenger, Instagram and LinkedIn — are now plugins under Connections › Plugins: off until you switch one on, and not run until then. Anything you\'d already connected stays on. Your texts, through Google Messages, are unchanged.',
+  ]),
+  ReleaseNotes('0.10.6', '2026-11-20', [
+    'Spaces and circles: react to messages. Press and hold a message (or right-click on a computer) and pick an emoji; tap a reaction in a circle to add yours or take it off. Everyone can react in read-only spaces.',
+    'Circles: a welcome message for new members and a welcome space they land in, read-only spaces where only the owner and admins post, and a system space that shows who joined, was kicked or banned, or became an admin. Set them in a circle\'s Settings › Welcome.',
+    'Messenger, Instagram and LinkedIn: your chats on each, among your messages, on a Mac and an Android phone. Connect one in Settings › Connections. None of the three supports other apps, so each asks you to read a warning first; you sign in with the session of a browser signed in to your account.',
+    'Faster and smoother everywhere, most of all on Linux: the chat list, long conversations and pictures do far less work, saving chats no longer pauses the screen, changing a setting no longer redraws the whole app, and the call banner no longer keeps the window drawing after a call has ended.',
+  ]),
   ReleaseNotes('0.10.5', '2026-11-20', [
     'Game activity: a new plugin that shows friends and the spaces you\'re in which game you\'re playing on your Mac or Windows computer, and for how long. Add it from the Marketplace; it\'s off until you do, and you choose who is told.',
     'Recording a call: every track has a real meter now, with its peaks, its average and a lamp that lights if a voice clips.',

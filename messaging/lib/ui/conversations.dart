@@ -528,16 +528,20 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final list = _section != null ? all : [...all.where((c) => c.pinned), ...all.where((c) => !c.pinned)];
     if (_query.trim().isEmpty) return list;
     final q = fold(_query.trim());
-    final digits = q.replaceAll(RegExp(r'[^0-9]'), '');
+    final digits = q.replaceAll(_notDigit, '');
+    // Each conversation's words and numbers are folded once for as long as it is held, not at every key pressed
+    // (docs/performance-audit.md, finding 8): a search of thousands is then a look through strings made already.
     return list.where((c) {
-      if (fold(c.snippet).contains(q) || (c.draft != null && fold(c.draft!).contains(q))) return true;
-      for (final p in c.people) {
-        if (fold(p.label).contains(q)) return true;
-        if (digits.length >= 3 && p.address.replaceAll(RegExp(r'[^0-9]'), '').contains(digits)) return true;
-      }
-      return false;
+      final (words, numbers) = _searched[c] ??= (
+        [fold(c.snippet), if (c.draft != null) fold(c.draft!), for (final p in c.people) fold(p.label)].join('\u001f'),
+        [for (final p in c.people) p.address.replaceAll(_notDigit, '')].join('\u001f'),
+      );
+      return words.contains(q) || (digits.length >= 3 && numbers.contains(digits));
     }).toList();
   }
+
+  static final RegExp _notDigit = RegExp(r'[^0-9]');
+  static final Expando<(String, String)> _searched = Expando();
 
   // --- the tabs --------------------------------------------------------------------------------------------------------
 
@@ -595,9 +599,19 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   /// One tab's conversations (null: the main list's), whatever is typed in the search: not the archived ones.
   List<Conversation> _of(String? section) {
-    final held = (_all ?? const <Conversation>[]).where((c) => !c.archived).toList();
-    return _plugins.pick(held, section, searching: false);
+    // Asked several times a build (the tabs' counts, Mark all read): worked out once for each list held.
+    if (!identical(_ofFor, _all)) {
+      _ofFor = _all;
+      _ofMemo.clear();
+    }
+    return _ofMemo[section] ??= () {
+      final held = (_all ?? const <Conversation>[]).where((c) => !c.archived).toList();
+      return _plugins.pick(held, section, searching: false);
+    }();
   }
+
+  List<Conversation>? _ofFor;
+  final Map<String?, List<Conversation>> _ofMemo = {};
 
   /// The row under the search field: the tabs as a segmented toggle (Matt, 2026-11-14: "change the messages and
   /// codes to a segmented toggle") and, at its end, the filter. With neither there is no row. Mark all read is at the
@@ -1015,6 +1029,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final app = AppState.of(context);
+    // What a tab holds is worked out again for each build (the filters may have changed), once ([_of]).
+    _ofMemo.clear();
     // Plugins: given the person's choices, then asked which section each conversation is in. A section that has
     // emptied gives way to the main list.
     if (!widget.archived) {

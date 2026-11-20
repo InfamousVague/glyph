@@ -14,6 +14,7 @@ import '../sms.dart';
 import '../kit/semantic_colors.dart';
 import 'dialup/dialup.dart';
 import 'window_chrome.dart';
+import '../kit/picture_decode.dart';
 
 /// The page under every screen: the ground, a bar with the way back (or a big title), its actions, and the body.
 class GhostPage extends StatelessWidget {
@@ -243,9 +244,12 @@ class _GhostSpinnerState extends State<GhostSpinner> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final arc = RotationTransition(
-      turns: _turn,
-      child: CustomPaint(size: Size.square(widget.size), painter: _ArcPainter(t.color('app-ink-2'), t.color('app-rule'))),
+    // Painted by itself: its turning does not have what stands round it painted again at every frame.
+    final arc = RepaintBoundary(
+      child: RotationTransition(
+        turns: _turn,
+        child: CustomPaint(size: Size.square(widget.size), painter: _ArcPainter(t.color('app-ink-2'), t.color('app-rule'))),
+      ),
     );
     return Semantics(
       label: widget.label ?? 'Loading',
@@ -761,17 +765,17 @@ class _Face extends StatelessWidget {
         final photo = person.photo!;
         Widget clip(Widget child) => square ? ClipRect(child: child) : ClipOval(child: child);
         if (photo.startsWith('/')) {
-          return clip(Image.file(File(photo), width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, errorBuilder: (_, _, _) => fallback));
+          return clip(Image.file(File(photo), width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: faceDecodeWidth(context, size), errorBuilder: (_, _, _) => fallback));
         }
         if (photo.startsWith('https://')) {
-          return clip(Image.network(photo, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, errorBuilder: (_, _, _) => fallback));
+          return clip(Image.network(photo, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: faceDecodeWidth(context, size), errorBuilder: (_, _, _) => fallback));
         }
         return FutureBuilder<Uint8List?>(
           future: Sms.instance.photo(person.photo!),
           builder: (context, snap) {
             final bytes = snap.data;
             if (bytes == null) return fallback;
-            return clip(Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true));
+            return clip(Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: faceDecodeWidth(context, size)));
           },
         );
       }),

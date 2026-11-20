@@ -10,6 +10,7 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../kit/semantic_colors.dart';
 import '../kit/settings_type.dart' show pageText;
 
 /// One kind of reaction: its emoji and how many gave it.
@@ -128,5 +129,115 @@ class _Sticker extends StatelessWidget {
         ),
       ),
     ]);
+  }
+}
+
+/// The emoji to react with in a row, each a round to press, those already given ([mine]) ringed: over a message's menu
+/// where there is no room to put the reactions beside the message (a space's chat; Matt, 2026-11-20: "add reactions
+/// after done to spaces and circles").
+class ReactionPickRow extends StatelessWidget {
+  const ReactionPickRow({super.key, required this.emojis, required this.mine, required this.onPick});
+  final List<String> emojis;
+  final Set<String> mine;
+  final ValueChanged<String> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final side = t.lenOf('2.75rem');
+    return Padding(
+      key: const ValueKey('reaction-pick-row'),
+      padding: EdgeInsets.only(top: t.space(3), bottom: t.space(1)),
+      child: SizedBox(
+        height: side,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: EdgeInsets.symmetric(horizontal: t.space(3)),
+          children: [
+            for (final emoji in emojis)
+              GlacierPressable(
+                key: ValueKey('react-$emoji'),
+                onPressed: () => onPick(emoji),
+                semanticLabel: mine.contains(emoji) ? 'Remove $emoji' : 'React $emoji',
+                builder: (context, state) => AnimatedScale(
+                  scale: state.pressed ? 1.25 : 1,
+                  duration: const Duration(milliseconds: 120),
+                  child: Container(
+                    width: side,
+                    height: side,
+                    margin: EdgeInsets.only(right: t.space(1)),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: mine.contains(emoji) ? t.chosenWash : t.color('app-paper-3'),
+                      border: mine.contains(emoji) ? Border.all(color: t.chosen, width: 2) : null,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(emoji, style: pageText(t, t.lenOf('1.35rem'), height: 1.15)),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A message's reactions as small pills under it, each its emoji and how many gave it, this person's ringed: pressed,
+/// this person's is put on or taken off ([onToggle]). How a circle's channel shows them, as Discord and Slack do.
+class ReactionChips extends StatelessWidget {
+  const ReactionChips({super.key, required this.kinds, required this.onToggle, this.onAdd});
+  final List<({String emoji, int count, bool mine})> kinds;
+  final ValueChanged<String>? onToggle;
+
+  /// The pill with a plus at the end, for another emoji; none where null.
+  final VoidCallback? onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    if (kinds.isEmpty) return const SizedBox.shrink();
+    final h = t.lenOf('1.6rem');
+    Widget pill({required Widget child, required bool mine, VoidCallback? onPressed, String? label, Key? key}) => GlacierPressable(
+          key: key,
+          onPressed: onPressed,
+          semanticLabel: label,
+          builder: (context, state) => Container(
+            height: h,
+            padding: EdgeInsets.symmetric(horizontal: t.space(2)),
+            decoration: BoxDecoration(
+              color: mine ? t.chosenWash : t.color('app-paper-3'),
+              borderRadius: BorderRadius.circular(h),
+              border: Border.all(color: mine ? t.chosen : (state.hovered ? t.color('app-ink-4') : const Color(0x00000000)), width: 1.2),
+            ),
+            // As wide as what it holds: a centred box would take the whole line.
+            child: Center(widthFactor: 1, child: child),
+          ),
+        );
+    return Padding(
+      padding: EdgeInsets.only(top: t.space(1)),
+      child: Wrap(spacing: t.space(1), runSpacing: t.space(1), children: [
+        for (final k in kinds)
+          pill(
+            key: ValueKey('reaction-chip-${k.emoji}'),
+            mine: k.mine,
+            onPressed: onToggle == null ? null : () => onToggle!(k.emoji),
+            label: '${k.emoji} ${k.count}${k.mine ? ', yours' : ''}',
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(k.emoji, style: pageText(t, t.fontSize('sm'), height: 1.1)),
+              SizedBox(width: t.space(1)),
+              Text('${k.count}', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: k.mine ? t.chosen : t.color('app-ink-2'))),
+            ]),
+          ),
+        if (onAdd != null)
+          pill(
+            key: const ValueKey('reaction-chip-add'),
+            mine: false,
+            onPressed: onAdd,
+            label: 'Add a reaction',
+            child: Text('+', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink-3'))),
+          ),
+      ]),
+    );
   }
 }

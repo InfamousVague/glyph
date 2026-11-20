@@ -9,6 +9,7 @@ import '../app_state.dart';
 import '../desktop/store.dart';
 import '../sms.dart';
 import 'inbox.dart';
+import 'kept_writer.dart';
 import 'signal.dart' show signalReactions;
 
 /// What the WhatsApp helper is to the app: lines out, lines in. A process in the app; a stand-in in a test.
@@ -208,6 +209,7 @@ class WhatsApp extends InboxNetwork {
     } catch (_) {}
     _chats.clear();
     _messages.clear();
+    _ids.clear();
     _contacts.clear();
     _account = null;
     _state = InboxState.signedOut;
@@ -357,6 +359,7 @@ class WhatsApp extends InboxNetwork {
         notifyListeners();
       case 'deleted':
         _messages['${m['chat']}']?.removeWhere((x) => x['id'] == '${m['target_id']}');
+        _ids.remove('${m['chat']}');
         _save();
         notifyListeners();
     }
@@ -398,8 +401,11 @@ class WhatsApp extends InboxNetwork {
     }
     final list = _messages.putIfAbsent(chat, () => []);
     final mid = '${m['id'] ?? ''}';
-    if (mid.isNotEmpty && list.any((x) => x['id'] == mid)) return false;
+    final ids = _idsOf(chat, list);
+    if (mid.isNotEmpty && ids.contains(mid)) return false;
     final ts = (m['ts'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch;
+    final inOrder = list.isEmpty || ts >= (list.last['ts'] as int);
+    ids.add(mid.isEmpty ? 'in-$ts' : mid);
     list.add({
       'id': mid.isEmpty ? 'in-$ts' : mid,
       'ts': ts,
@@ -411,10 +417,22 @@ class WhatsApp extends InboxNetwork {
       if (m['quote'] is Map) 'quote': m['quote'],
       if (m['reactions'] is Map) 'reactions': m['reactions'],
     });
-    list.sort((a, b) => (a['ts'] as int).compareTo(b['ts'] as int));
+    // Sorted only where it came out of order (history arrives oldest first, live messages newest last): a history
+    // sync of thousands sorted the whole chat for each one (docs/performance-audit.md, finding 4).
+    if (!inOrder) list.sort((a, b) => (a['ts'] as int).compareTo(b['ts'] as int));
     final c = _chats.putIfAbsent(chat, () => {'unread': 0});
     if (ts > ((c['last'] as int?) ?? 0)) c['last'] = ts;
     return true;
+  }
+
+  /// The ids of [chat]'s messages, for knowing one that is here already without looking through them all. Made from
+  /// the list when it is first wanted, and again whenever the two no longer agree (a message deleted, one's id changed
+  /// as it was sent).
+  final Map<String, Set<String>> _ids = {};
+  Set<String> _idsOf(String chat, List<Map<String, Object?>> list) {
+    final had = _ids[chat];
+    if (had != null && had.length == list.length) return had;
+    return _ids[chat] = {for (final x in list) '${x['id']}'};
   }
 
   Map<String, Object?>? _find(String chatId, String messageId) => (_messages[chatId] ?? const []).where((x) => x['id'] == messageId).firstOrNull;
@@ -472,6 +490,7 @@ class WhatsApp extends InboxNetwork {
     try {
       final r = (await _ask('send', {'to': chatId, 'text': text, 'quote': ?quote}) as Map?) ?? const {};
       local['id'] = r['id'] ?? local['id'];
+      _ids.remove(chatId);
       local['ts'] = (r['ts'] as num?)?.toInt() ?? local['ts'];
       local['state'] = 'sent';
       _error = null;
@@ -561,7 +580,8 @@ class WhatsApp extends InboxNetwork {
     _pointers[key] = a.cast<String, Object?>();
     final mime = '${a['mime'] ?? ''}';
     return InboxMedia(
-      kind: mime.startsWith('image/') ? 'photo' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'file',
+      // A WhatsApp sticker (its pointer is one), or one of Ghost's sent from here: drawn on its own, with no bubble.
+      kind: InboxMedia.kindOf(mime, sticker: a['sticker'] == true || (a['pointer'] as Map?)?['kind'] == 'sticker'),
       fileId: key,
       path: _files[key],
       name: a['name'] as String?,
@@ -581,7 +601,7 @@ class WhatsApp extends InboxNetwork {
   bool get canSendFiles => true;
 
   @override
-  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false}) async {
+  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false, bool sticker = false}) async {
     if (_state != InboxState.ready) return;
     for (final (i, path) in paths.indexed) {
       final ext = path.split('.').last.toLowerCase();
@@ -603,7 +623,7 @@ class WhatsApp extends InboxNetwork {
           'from': _jid ?? '',
           'mine': true,
           'text': text,
-          'media': [{'local': kept, 'mime': mime, 'name': name, 'pointer': pointer}],
+          'media': [{'local': kept, 'mime': mime, 'name': name, 'pointer': pointer, if (sticker) 'sticker': true}],
           'state': 'sent',
         });
         _files[jsonEncode(pointer).hashCode & 0x3fffffff] = kept;
@@ -699,6 +719,7 @@ class WhatsApp extends InboxNetwork {
       }
     }
     _messages[chatId]?.removeWhere((m) => m['id'] == messageId);
+    _ids.remove(chatId);
     _save();
     notifyListeners();
   }
@@ -737,6 +758,7 @@ class WhatsApp extends InboxNetwork {
   Future<void> deleteChat(String chatId) async {
     _chats.remove(chatId);
     _messages.remove(chatId);
+    _ids.remove(chatId);
     _save();
     notifyListeners();
   }
@@ -757,33 +779,15 @@ class WhatsApp extends InboxNetwork {
     } catch (_) {}
   }
 
-  String _kept() => jsonEncode({'chats': _chats, 'messages': _messages, 'names': _names, 'numbers': _numbers, 'groups': _groups.toList()});
+  /// What is kept, as it stands: handed to [_writer], which makes the file elsewhere (lib/inbox/kept_writer.dart).
+  Map<String, Object?> _keptNow() => {'chats': _chats, 'messages': _messages, 'names': _names, 'numbers': _numbers, 'groups': _groups.toList()};
 
-  Timer? _saving;
-  void _save() {
-    _saving?.cancel();
-    _saving = Timer(const Duration(milliseconds: 400), () {
-      try {
-        _file.parent.createSync(recursive: true);
-        final tmp = File('${_file.path}.tmp');
-        tmp.writeAsStringSync(_kept());
-        tmp.renameSync(_file.path);
-      } catch (_) {}
-    });
-  }
+  late final KeptWriter _writer = KeptWriter(file: () => _file, snapshot: _keptNow);
+  void _save() => _writer.save();
 
   /// Writes what is kept now (a test's end, the app going).
   @visibleForTesting
-  void flush() {
-    if (_saving?.isActive ?? false) {
-      _saving!.cancel();
-      _saving = null;
-      try {
-        _file.parent.createSync(recursive: true);
-        _file.writeAsStringSync(_kept());
-      } catch (_) {}
-    }
-  }
+  void flush() => _writer.flush();
 
   Future<Object?> _ask(String op, [Map<String, Object?> args = const {}]) {
     final link = _link;

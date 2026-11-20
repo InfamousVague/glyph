@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../app_state.dart';
 import '../kept_lists.dart';
+import 'account_helper.dart';
 import 'bluesky.dart';
 import 'google_chat.dart';
 import 'mastodon.dart';
@@ -123,8 +124,19 @@ class InboxChat {
 class InboxMedia {
   const InboxMedia({required this.kind, required this.fileId, this.path, this.name, this.size = 0, this.width = 0, this.height = 0, this.duration = 0, this.thumbId, this.thumbPath});
 
-  /// "photo", "video", "audio" or "file".
+  /// "photo", "sticker", "video", "audio" or "file". A sticker is a picture drawn on its own, with no bubble round it
+  /// (Matt, 2026-11-20: "stickers in telegram chat and others render inside chat bubbles instead of transparent
+  /// backgrounds when sent and when recieved").
   final String kind;
+
+  /// The kind a file of [mime] is shown as; [sticker] where the network said it is one.
+  static String kindOf(String mime, {bool sticker = false}) => mime.startsWith('image/')
+      ? (sticker ? 'sticker' : 'photo')
+      : mime.startsWith('video/')
+          ? 'video'
+          : mime.startsWith('audio/')
+              ? 'audio'
+              : 'file';
   final int fileId;
   final String? path;
   final String? name;
@@ -479,15 +491,49 @@ abstract class InboxNetwork extends ChangeNotifier {
   // in a list of Ghost's own on this device, so they are gone from here all the same.
 
   /// The chats the list shows: [chats] without those in Ghost's own lists (archived, deleted or blocked here).
+  ///
+  /// Worked out once for each change ([stamp]) and each state of those lists, not at every asking: the list of
+  /// conversations asks several times a build, and a network's [chats] may itself be made anew each time
+  /// (docs/performance-audit.md, finding 2).
   List<InboxChat> get shownChats {
+    final key = '$stamp|${_raw('archived')}|${_raw('deleted')}|${_raw('blocked')}';
+    if (key == _shownKey && _shown != null) return _shown!;
     final gone = {...localList('archived'), ...localList('deleted'), ...localList('blocked')};
-    return gone.isEmpty ? chats : [for (final c in chats) if (!gone.contains(c.id)) c];
+    _shownKey = key;
+    return _shown = gone.isEmpty ? chats : [for (final c in chats) if (!gone.contains(c.id)) c];
   }
+
+  String? _shownKey, _archivedKey;
+  List<InboxChat>? _shown, _archivedList;
 
   /// The chats archived: the network's own archive, or Ghost's list for it.
   List<InboxChat> get archivedChats {
+    final key = '$stamp|${_raw('archived')}';
+    if (key == _archivedKey && _archivedList != null) return _archivedList!;
     final kept = localList('archived');
-    return kept.isEmpty ? const [] : [for (final c in chats) if (kept.contains(c.id)) c];
+    _archivedKey = key;
+    return _archivedList = kept.isEmpty ? const [] : [for (final c in chats) if (kept.contains(c.id)) c];
+  }
+
+  /// Whether two lists of chats would draw the same rows: a network that asks its service every so often tells its
+  /// listeners only when the answer differs from the last, where every asking drew the whole list of conversations
+  /// again for nothing (docs/performance-audit.md, finding 8).
+  static bool sameChats(List<InboxChat> a, List<InboxChat> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      final x = a[i], y = b[i];
+      if (x.id != y.id || x.title != y.title || x.snippet != y.snippet || x.unread != y.unread || x.date != y.date || x.avatar != y.avatar || x.lastFromMe != y.lastFromMe || x.group != y.group || x.pinned != y.pinned || x.muted != y.muted) return false;
+    }
+    return true;
+  }
+
+  /// Goes up each time this network tells its listeners anything: what was worked out from it is worked out again.
+  int stamp = 0;
+
+  @override
+  void notifyListeners() {
+    stamp++;
+    super.notifyListeners();
   }
 
   /// Moves [chatId] into the archive, or out of it.
@@ -557,7 +603,9 @@ abstract class InboxNetwork extends ChangeNotifier {
   bool get canSendFiles => false;
 
   /// Sends the files at [paths] to [chatId], [caption] with the last; [voice] for a recorded voice message.
-  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false}) async =>
+  /// [sticker]: the one file is one of Ghost's stickers, sent as the network sends stickers where it can, and shown as
+  /// one here either way.
+  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false, bool sticker = false}) async =>
       throw UnsupportedError('$name can\'t send files here yet');
 
   /// The file [fileId] on this device, brought down first where it is not yet; null where it can't be.
@@ -595,10 +643,23 @@ abstract class InboxNetwork extends ChangeNotifier {
   AppState? listStore;
 
   /// One of Ghost's own lists for this network ("archived", "deleted", "deleted_msg_<chat>").
-  Set<String> localList(String what) => (listStore?.choice('inbox_${id}_$what', '') ?? '').split('\u001f').where((x) => x.isNotEmpty).toSet();
+  ///
+  /// Read from its kept form once for each form it has had: rows ask for these lists while they are built, a chat a
+  /// time, and splitting the same string for every row was most of a build of the list.
+  Set<String> localList(String what) {
+    final raw = _raw(what);
+    final had = _lists[what];
+    if (had != null && had.$1 == raw) return had.$2;
+    final set = Set<String>.unmodifiable(raw.split('\u001f').where((x) => x.isNotEmpty));
+    _lists[what] = (raw, set);
+    return set;
+  }
+
+  String _raw(String what) => listStore?.choice('inbox_${id}_$what', '') ?? '';
+  final Map<String, (String, Set<String>)> _lists = {};
 
   void setLocal(String what, String item, bool on) {
-    final s = localList(what);
+    final s = {...localList(what)};
     on ? s.add(item) : s.remove(item);
     listStore?.set('inbox_${id}_$what', s.join('\u001f'));
     KeptLists.instance.changed();
@@ -615,6 +676,17 @@ abstract class InboxNetwork extends ChangeNotifier {
 
   /// Shown in Settings as "Coming soon", and never started: not offered yet.
   bool get soon => false;
+
+  /// An official Ghost connection: Telegram and Signal (texts through Google Messages are the app's own, not a network
+  /// here). The rest are plugins — opt-in, off until switched on, and not started until then (Matt, 2026-11-20: "only
+  /// keep telegram and signal as the official services ... Setup all these other services as plugins"). Official ones
+  /// are shown first in Settings › Connections and always started.
+  bool get official => false;
+
+  /// Whether this plugin network is switched on (Settings › Connections › Plugins, kept per network). Official ones are
+  /// always on. An unset switch reads as off; [Inbox.start] settles it once on upgrade, keeping a network already
+  /// signed in. 
+  bool get enabled => official || state == InboxState.ready || state == InboxState.signingIn || (listStore?.choice('inbox_on_$id', '') == 'on');
 
   /// Reactions can be put on its messages ([react]), and which: the first few are offered in a row.
   bool get canReact => false;
@@ -676,7 +748,22 @@ class Inbox {
   // Microsoft Teams over Microsoft Graph (Matt, 2026-11-17: "Let's add support for matrix, microsoft teams and google
   // chat"): "Not in this build" until it is built with a Microsoft app id (GHOST_TEAMS_CLIENT_ID). Google Chat the same, until
   // built with a Google app id (GHOST_GCHAT_CLIENT_ID and _SECRET).
-  static Inbox get instance => _instance ??= Inbox._([Telegram(), Bluesky(soon: true), Mastodon(soon: true), Signal(), WhatsApp(), Matrix(), Teams(), GoogleChat()]);
+  // Messenger, Instagram and LinkedIn through account helpers (Matt, 2026-11-20: "Let's do the feasible ones but skip
+  // X and google voice"; lib/inbox/account_helper.dart, sidecar/ACCOUNT_HELPERS.md): each signed in with a browser's
+  // session after a warning, "Not in this build" where its helper is not carried.
+  static Inbox get instance => _instance ??= Inbox._([
+        Telegram(),
+        Bluesky(soon: true),
+        Mastodon(soon: true),
+        Signal(),
+        WhatsApp(),
+        Matrix(),
+        Teams(),
+        GoogleChat(),
+        AccountHelper(messengerService),
+        AccountHelper(instagramService),
+        AccountHelper(linkedInService),
+      ]);
 
   /// Stand-ins for a test of a screen; null puts the app's own back.
   @visibleForTesting
@@ -726,11 +813,53 @@ class Inbox {
     for (final n in networks) {
       if (n.soon) continue;
       n.listStore = app;
+      // Plugins (everything but Telegram and Signal) are off until switched on. 'off' never starts; 'on' starts; an
+      // unset switch is an install from before plugins existed, started once to find a session it was already signed
+      // in to — kept on where there was one, settled off where there wasn't.
+      if (!n.official) {
+        final pref = app.choice('inbox_on_${n.id}', '');
+        if (pref == 'off') continue;
+        if (pref != 'on') {
+          try {
+            await n.start(app);
+          } catch (e) {
+            debugPrint('inbox: ${n.id} did not start: \$e');
+          }
+          app.set('inbox_on_${n.id}', (n.state == InboxState.ready || n.state == InboxState.signingIn) ? 'on' : 'off');
+          continue;
+        }
+      }
       try {
         await n.start(app);
       } catch (e) {
-        debugPrint('inbox: ${n.id} did not start: $e');
+        debugPrint('inbox: ${n.id} did not start: \$e');
       }
     }
   }
+
+  /// Switches a plugin network on and starts it, so it can be signed in to.
+  Future<void> enable(InboxNetwork n) async {
+    n.listStore?.set('inbox_on_${n.id}', 'on');
+    try {
+      await n.start(n.listStore!);
+    } catch (e) {
+      debugPrint('inbox: ${n.id} did not start: \$e');
+    }
+    notifyChange();
+  }
+
+  /// Switches a plugin network off: signed out where it was signed in, and not started again until switched on.
+  Future<void> disable(InboxNetwork n) async {
+    if (n.state == InboxState.ready || n.state == InboxState.signingIn) await n.signOut();
+    n.listStore?.set('inbox_on_${n.id}', 'off');
+    notifyChange();
+  }
+
+  void notifyChange() => _change.value++;
+  final ValueNotifier<int> _change = ValueNotifier(0);
+  ValueListenable<int> get switches => _change;
+
+  /// Official networks, then plugins the person switched on.
+  List<InboxNetwork> get official => [for (final n in networks) if (n.official) n];
+  List<InboxNetwork> get plugins => [for (final n in networks) if (!n.official) n];
 }

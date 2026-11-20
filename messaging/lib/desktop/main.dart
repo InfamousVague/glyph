@@ -54,6 +54,10 @@ import '../ui/common.dart' show push;
 import '../ui/recording_float.dart';
 import 'ui/link_offer.dart';
 
+/// How long a window's size stands still before the theme is worked out for it. Null in a test that sizes a window
+/// and looks at once.
+Duration? deskResizeSettle = const Duration(milliseconds: 120);
+
 /// Ghost Messaging on a computer (Matt, 2026-11-13: "a companion desktop app that can proxy messages encrypted from
 /// my phone to my desktop and then send back to the phone to send again"; docs/desktop.md). The phone's screens,
 /// with the link to the phone where the phone has Android: paired by a QR code, sealed between the two, over the
@@ -336,6 +340,10 @@ class _DesktopAppState extends State<DesktopApp> {
               sheet: accents?.of(state) ?? sheet,
               attrs: ghostAttrs(state, 'desktop'),
               typography: ghostTypography(state.emoji),
+              // A window being dragged larger or smaller keeps its tokens until it has stood still a moment: they,
+              // and all that is drawn from them, were made anew at every frame of the drag
+              // (docs/performance-audit.md, finding 8).
+              resizeSettle: deskResizeSettle,
               // A newer version says so with the card the phone has, at the top of the list (lib/ui/update_banner.dart).
               // On the Mac, the window's own title strip over everything (lib/desktop/ui/desk_title_bar.dart).
               child: InkOverrides(

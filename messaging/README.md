@@ -30,6 +30,62 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Stickers in Telegram, Signal, WhatsApp and Matrix chats stand on their own** (0.10.7, not released; Matt,
+  2026-11-20: "stickers in telegram chat and others render inside chat bubbles instead of transparent backgrounds when
+  sent and when recieved"). A sticker is its own kind of picture (`InboxMedia` kind `sticker`), drawn at most 9rem a
+  side with nothing behind its see-through parts and no bubble round it (`InboxSticker`, `isStickerAlone`); a sticker
+  with words or a quote keeps its bubble. Each network says which are stickers: Telegram's `messageSticker`,
+  WhatsApp's pointer kind, Matrix's `m.sticker`, and Signal's helper marks its sticker attachment (`"sticker": true`,
+  sidecar/signal). One of Ghost's own stickers goes to Telegram as a Telegram sticker where it is WEBP (a PNG one goes
+  as a picture), and to the others as a picture shown here as a sticker.
+- **Reactions in spaces and circles** (0.10.6, not released; Matt, 2026-11-20: "add reactions after done to spaces and
+  circles"). Press and hold (or right-click) a message in a space's or a circle's chat: the reaction row from texts
+  (`reactionChoices`, `ReactionPickRow`) sits over its menu. A space's bubbles wear them as stickers, as texts do
+  (`ReactionStickers`); a circle channel's lines have pills under them, each emoji with how many gave it, yours ringed,
+  pressed to put yours on or take it off, and a + for another (`ReactionChips`). Each person's each emoji on a message
+  is on or off with when it was said, the newest word winning (`lib/voice/space_reactions.dart`), so it ends the same
+  on every device whatever order the words come in; one person's phone and computer count once. Said in the room as
+  `react`, kept by the hub for devices that were away, and handed over with the history (`reacts`); kept on the device
+  beside the polls' votes.
+  - **In read-only spaces everyone may react**: only posting is the admins'. The relay takes reactions as a packet
+    kind of their own (`toRoomReaction`, 4: kept, to everyone, at most 512 bytes), which a reader in a read-only room
+    may send, and passes them on with that first byte, so the apps take nothing but a reaction from one: the hub still
+    refuses a reader's words and an app still drops them. A relay from before (until this one is deployed) doesn't say
+    `react` in its hello; the apps then send reactions as ordinary kept packets, which work everywhere but a read-only
+    space, where that relay refuses a reader's.
+  - Tests: space_reactions_test (pictures `test/shots/space-reactions-*`), relay read_only_rooms_test.
+- **Welcome messages, a welcome space and read-only spaces** (0.10.6, not released; Matt, 2026-11-20: "add - Welcome
+  messages for new members and allow setting a "welcome" channel as well as read only channels for system messages
+  and admin / moderation announcements"). Circle settings › Welcome, for whoever may change the circle
+  (`lib/ui/circles/circle_welcome.dart`, `lib/circles/welcome.dart`):
+  - **Welcome message and welcome space**, kept in the circle's signed manifest (`wl`: the words, and the space's seed).
+    A newcomer's app opens the circle on the welcome space (on a phone too, as soon as a link's circle has its
+    manifest: `AppShell.openCircle(land: true)`), and that space's chat starts with the welcome as a card, "{name}"
+    in it being whoever reads it. Nothing is sent: every app draws it from the manifest, so it is there for someone
+    who joined while the admins were away. A wide window opens a circle on its welcome space too.
+  - **Read-only spaces**: Space settings › Read-only (`rdo` in the space's entry). Only the owner and the admins (whom
+    the owner granted, as every role that can change the circle, its spaces or its roles makes its holder) post
+    there; everyone else sees "Only admins can post in # …" in the box's place, and an admin sees a line saying
+    everyone else reads. Held three ways: the box isn't offered; every member's app drops anyone else's words, edits,
+    votes and passed-on history there (`HangoutRoom.mayPost`); and the relay itself holds them to it. A read-only
+    space's chat is a room of its own on the relay whose name is made from 16 bytes of the space's seed and the
+    circle owner's public key (`readOnlyRoomOf`, relay `Hub.anchoredName`), joined with what makes the name and the
+    circle's owner-signed admin list (`ro` in the join, `anchor` when the list changes), so the hub can check whose
+    room it is: it refuses to keep anything from anyone else (`{"ro": "refused"}`) and passes what else they say
+    (who they are, asking for history) to the owner and admins alone, so a changed app can't put words in front of
+    the other members. Read-only rooms are apart from ordinary rooms of the same name, and messages stay on the device
+    under the space's own room, so a space made read-only (or opened again) keeps what was said in it; what the hub
+    kept for the old room for others' closed phones is not carried over. An older app sees the space as an ordinary
+    one in the old room, which current apps have left.
+  - **System space**: a read-only space where each member's app writes, for that member, the circle's comings and
+    goings as they are heard: who joined (from the joins the circle's room carries), who was kicked or banned, who became or
+    stopped being an admin (from the manifest's changes), as small lines among the admins' announcements
+    (`CircleSystemNote`, kept on the device as `circles_system`, 200 to a circle). Chosen in Circle settings ›
+    Welcome; it becomes read-only as it is chosen, and stops being the system space if opened again.
+  - Not drawn in the Dial-Up look's transcript, whose chat is its own. Needs the relay deployed for the hub's half; a
+    relay from before takes `ro` as an ordinary join (everything still works, held by the apps alone).
+  - Tests: circle_welcome_test, circle_welcome_screens_test (pictures `test/shots/circle-welcome-*`), relay
+    read_only_rooms_test.
 - **The Marketplace, and plugins from other developers** (not released; `lib/plugins/pack/`, `lib/market/`,
   `lib/ui/market/`, `relay/lib/market.dart`; Matt, 2026-11-20: "This is a lengthly feature request, I would like users
   to be able to develop and submit their own plugins to our plugin marketplace and I'd like to be able to verify them for
@@ -111,6 +167,20 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     copy hands the link to the running one by WM_COPYDATA) take, on "ghost_desktop/links" (`lib/desktop/links.dart`).
     A link opened while the app is still being set up is held and opened once it is.
   - Tests: circle_joins_test.
+- **Soundboard, a plugin for calls and whole circles** (0.10.8, not released; Matt, 2026-11-20: "build a soundboards
+  plugin for circles"). Pads in a call (`lib/ui/soundboard_screen.dart`, from the call's menu and the space's header)
+  that play a short sound on every device in it (`lib/voice/soundboard.dart`, `lib/plugins/soundboard.dart`). No sound
+  is sent: the pad's id is said in the call's room (`sb`), and each device plays its own copy through the app's player
+  (`VideoEngine`), at a loudness of its own or not at all (`soundboard_volume`, `soundboard_quiet`); nothing while
+  deafened; no more than six from one person in ten seconds; ten seconds at most. Twelve sounds of the app's own
+  (`assets/soundboard/`, synthesized by `tool/soundboard_sounds.py`, nothing recorded). A circle's own, up to 16 clips
+  of 1 MB, added by whoever may change it: each sealed where the circle's banner is kept (`Circle.bannerChannel`) and
+  named with its key in the signed manifest (`pl.soundboard.snd`), so a device plays only what its own list has, never
+  a file someone names in a call. A line over the call says who played what.
+  - Tests: soundboard_test (pictures soundboard-*).
+  - Not yet: heard on a device. The app's sounds have not been listened to by anyone, and nothing has been played in a
+    real call (in particular an Android phone in a call, whose sound goes through the call's own audio mode). A removed
+    clip's sealed file stays on the relay.
 - **Plugins for whole circles: Record call, Scribe, Live captions, Watch together, and SMS spaces** (0.9.21, not
   released; Matt, 2026-11-19: "Start with the recording plugin, then scribe, then a special space in the circle called a
   "SMS Space" to text members, Live captions, and watch together"; "Some plugins should be serverside / cirlce side as

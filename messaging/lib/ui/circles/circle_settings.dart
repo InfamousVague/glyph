@@ -33,6 +33,9 @@ import '../../kit/semantic_colors.dart';
 import '../../kit/settings_kit.dart';
 import '../../kit/settings_type.dart';
 import '../../plugins/plugin.dart' show PluginScope;
+import '../../plugins/soundboard.dart' show SoundboardPlugin;
+import '../../voice/soundboard.dart' show circleSounds, boardCircleMost;
+import '../soundboard_screen.dart';
 import '../../plugins/registry.dart' show PluginRegistry;
 import '../../plugins/record_call.dart' show RecordCallPlugin;
 import '../../files/files_model.dart' show SpaceFile;
@@ -46,6 +49,7 @@ import 'arrange_spaces.dart';
 import 'circle_face.dart';
 import 'circle_invite.dart';
 import 'circle_picture.dart';
+import 'circle_welcome.dart';
 import 'new_circle.dart';
 import 'perm_toggle.dart';
 
@@ -56,6 +60,7 @@ enum CircleSettingsSection {
   plugins('Plugins', Lucide.puzzle, 'rose', 'Circle'),
   members('Members', Lucide.users, 'green', 'People'),
   invite('Invites', Lucide.link, 'purple', 'People'),
+  welcome('Welcome', Lucide.doorOpen, 'mint', 'People'),
   spaces('Spaces', Lucide.listTree, 'amber', 'Spaces');
 
   const CircleSettingsSection(this.label, this.icon, this.hue, this.group);
@@ -352,6 +357,8 @@ class _SectionBody extends StatelessWidget {
       CircleSettingsSection.plugins => _Scroll(hue: section.hue, children: _plugins(context, c)),
       CircleSettingsSection.members => _Members(circle: c, hue: section.hue, onOpen: onOpen),
       CircleSettingsSection.invite => _Scroll(hue: section.hue, children: _invites(context, c)),
+      // Welcome messages, the welcome space and read-only spaces (Matt, 2026-11-20; circle_welcome.dart).
+      CircleSettingsSection.welcome => _Scroll(hue: section.hue, children: circleWelcomeSection(context, c, onOpenSpace: (seed) => onOpen((kind: 'space', id: seed)))),
       CircleSettingsSection.spaces => _Scroll(hue: section.hue, children: _spaces(context, c)),
     };
   }
@@ -449,6 +456,23 @@ class _SectionBody extends StatelessWidget {
       if (list.any((p) => p.id == 'recordcall')) ...[
         SizedBox(height: context.tokens.space(5)),
         _recordingsTo(context, c, edit),
+      ],
+      // Soundboard's own sounds for the circle (Matt, 2026-11-20: "build a soundboards plugin for circles").
+      if (list.any((p) => p.id == SoundboardPlugin.pluginId)) ...[
+        SizedBox(height: context.tokens.space(5)),
+        PaneSection(
+          title: 'Soundboard',
+          description: Text(edit ? 'Sounds of ${c.name}\'s own, beside the app\'s, for everyone in a call here.' : 'Sounds of ${c.name}\'s own, beside the app\'s. Whoever has Change the circle adds them.'),
+          children: [
+            SettingRow(
+              key: const ValueKey('circle-soundboard'),
+              icon: AppIcon(Lucide.megaphone, size: 18),
+              label: edit ? 'Its sounds' : 'Hear its sounds',
+              value: Text('${circleSounds(c).length} of $boardCircleMost'),
+              onPress: () => push(context, (_) => SoundboardScreen(circle: c)),
+            ),
+          ],
+        ),
       ],
     ];
   }
@@ -1158,6 +1182,24 @@ class _SpacePermissionsState extends State<_SpacePermissions> {
                   ])
               : null,
         ),
+        // Only the owner and admins write here (Matt, 2026-11-20: "read only channels for system messages and admin /
+        // moderation announcements"); the relay holds everyone else to it too (lib/circles/welcome.dart).
+        if (s.kind != SpaceKind.files)
+          SettingRow(
+            key: const ValueKey('space-read-only'),
+            icon: AppIcon(Lucide.lock, size: 18),
+            label: 'Read-only',
+            hint: Text(m.systemSpace == s.seed ? 'The circle\'s system messages are written here. Only the owner and admins can post.' : 'Only the owner and admins can post here: announcements, rules. Everyone else reads.'),
+            control: GlacierSwitch(
+              checked: readOnlyOf(s),
+              disabled: !edit,
+              ariaLabel: 'Read-only',
+              onCheckedChange: (on) async {
+                final ok = await circles.setReadOnly(circles.bySeed(c.seed) ?? c, s.seed, on);
+                if (!ok && context.mounted) toast(context, 'Couldn\'t change ${s.name}', tone: GlacierToastTone.danger);
+              },
+            ),
+          ),
       ]),
       gap,
       PaneSection(

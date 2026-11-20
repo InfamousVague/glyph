@@ -386,6 +386,28 @@ void main() {
     expect(_arrow(), isTrue);
     semantics.dispose();
   });
+
+  // docs/performance-audit.md, finding 3: a conversation's messages are built a row at a time as they come near the
+  // screen, where every message held was built at every build.
+  testWidgets('a long conversation builds only the rows near the screen, and the rest as they are scrolled to', (tester) async {
+    _phone(count: 120);
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, ThreadScreen(key: const ValueKey('long'), thread: 3, people: const [Person(address: '+15551230003', name: 'Person 3')]), AppState());
+    await settle(tester);
+    int rows() => find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('row-'), skipOffstage: false).evaluate().length;
+    final first = rows();
+    expect(first, greaterThan(3));
+    expect(first, lessThan(60), reason: '120 messages held, and only those near the screen built');
+    expect(find.textContaining('Text 119 in thread 3'), findsOneWidget, reason: 'the newest is at the foot');
+    expect(find.textContaining('Text 0 in thread 3', skipOffstage: false), findsNothing);
+    // Scrolled to the oldest: it is built then.
+    _list(tester).jumpTo(_list(tester).maxScrollExtent);
+    await settle(tester);
+    _list(tester).jumpTo(_list(tester).maxScrollExtent);
+    await settle(tester);
+    expect(find.textContaining('Text 0 in thread 3'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 /// Matt, 2026-11-18: "when typing in a space the chat and chatbar don't slide up above the keyboard".

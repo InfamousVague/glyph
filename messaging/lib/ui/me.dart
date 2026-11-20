@@ -16,6 +16,7 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart';
 import '../me/network_marks.g.dart';
+import '../plugins/company_marks.g.dart' show companyMarks;
 import '../sms.dart';
 import '../friends/buddies.dart';
 import '../friends/handover.dart' show DeskHandover;
@@ -44,7 +45,8 @@ class NetworkMark extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final ink = IconTheme.of(context).color ?? t.color('app-ink');
-    final logo = networkMarks[network.id] ?? inboxOnlyMarks[network.id];
+    // Messenger, Instagram and LinkedIn: the marks the Codes tab already carries (lib/plugins/company_marks.g.dart).
+    final logo = networkMarks[network.id] ?? inboxOnlyMarks[network.id] ?? companyMarks[_companyOf[network.id]];
     // In the network's own colour (Simple Icons' for each), where it has one that is not black: X and GitHub are
     // the page's ink, so they read on the dark page too. Dimmed with the row where it is not to be pressed.
     final brand = _brand[network.id];
@@ -75,7 +77,12 @@ class NetworkMark extends StatelessWidget {
   /// Marks that are a disc with the mark cut out of it.
   static const _discs = {'telegram'};
 
+  static const _companyOf = {'messenger': 'messenger.com', 'instagram': 'instagram.com', 'linkedin': 'linkedin.com'};
+
   static const _brand = {
+    'messenger': Color(0xFF0866FF),
+    'instagram': Color(0xFFE4405F),
+    'linkedin': Color(0xFF0A66C2),
     'signal': Color(0xFF3A76F0),
     'discord': Color(0xFF5865F2),
     'telegram': Color(0xFF26A5E4),

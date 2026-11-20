@@ -104,6 +104,9 @@ abstract class BuddiesPort {
 enum BuddyLookup { nobody, you, someone }
 
 class Buddies extends ChangeNotifier {
+  /// What the phone last said its friends are, as it said it ([refresh]).
+  String? _lastSaid;
+
   Buddies(this._port);
 
   static Buddies? _instance;
@@ -180,8 +183,13 @@ class Buddies extends ChangeNotifier {
     }
     final list = r['list'];
     if (list is List) {
+      // Asked of the phone every twenty seconds: the listeners (the rail, people's faces) are told only when the
+      // friends are different from the last asking (docs/performance-audit.md, finding 8).
+      final said = jsonEncode(list);
+      final same = said == _lastSaid;
+      _lastSaid = said;
       all = [for (final j in list) ?Buddy.fromJson(j)];
-      notifyListeners();
+      if (!same) notifyListeners();
     }
     // What the phone's friends are playing (lib/games/game_activity.dart): said to the phone, so told here by it.
     if (r['ga'] is Map) GameActivities.instance.heardAll(r['ga']);

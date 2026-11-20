@@ -161,13 +161,39 @@ abstract class VoiceRoute {
   Stream<({String room, List<String> members})> get looks;
 }
 
-class HubVoiceRoute implements VoiceRoute {
+/// A route that knows read-only rooms (relay/lib/hub.dart): joined with what binds the room to its circle owner's key and
+/// the circle's admin list (`ro`), and told when that list changes. The hub's route is one; a test's may be.
+abstract class ReadOnlyRoute {
+  Future<List<String>> joinReadOnly(String room, String token, Map<String, Object?> ro);
+  void anchor(String room, Map<String, Object?> grants);
+}
+
+/// A route with reactions as packets of their own (relay/lib/hub.dart toRoomReaction): anyone in a room may send one,
+/// even where only some may post (a read-only space), and nothing but a reaction is taken from one.
+abstract class ReactionRoute {
+  /// Whether the relay takes them now; where not, a reaction goes as an ordinary kept packet.
+  bool get takesReactions;
+  void sendReaction(String room, Uint8List bytes);
+  Stream<({String room, String from, Uint8List bytes})> get reactionPackets;
+}
+
+class HubVoiceRoute implements VoiceRoute, ReadOnlyRoute, ReactionRoute {
   HubVoiceRoute(this.hub);
   final HubCarrier hub;
   @override
   String get me => hub.signer.id;
   @override
   Future<List<String>> join(String room, String token) => hub.join(room, token);
+  @override
+  Future<List<String>> joinReadOnly(String room, String token, Map<String, Object?> ro) => hub.join(room, token, ro: ro);
+  @override
+  void anchor(String room, Map<String, Object?> grants) => hub.anchorRoom(room, grants);
+  @override
+  bool get takesReactions => hub.takesReactions;
+  @override
+  void sendReaction(String room, Uint8List bytes) => hub.sendReaction(room, bytes);
+  @override
+  Stream<({String room, String from, Uint8List bytes})> get reactionPackets => hub.roomReactions;
   @override
   void leave(String room) => hub.leave(room);
   @override
@@ -369,6 +395,12 @@ class VoiceSession extends ChangeNotifier {
   /// Says [what] of watching together to the call.
   void sayWatch(Map<String, Object?> what) => _say({'t': 'wt', ...what});
 
+  /// Told a soundboard's sound someone in the call played ('sb', lib/voice/soundboard.dart): who, and its id.
+  void Function(String from, String sound)? onSound;
+
+  /// Says to the call that this device played the soundboard's sound [sound], for each device to play its own copy.
+  void saySound(String sound) => _say({'t': 'sb', 's': sound});
+
   /// Says [words] of this device's voice to the call; [done]: the line is finished.
   void sayCaption(String words, {required bool done}) => _say({'t': 'cap', 'x': words.length > 600 ? words.substring(words.length - 600) : words, 'f': done});
 
@@ -547,6 +579,8 @@ class VoiceSession extends ChangeNotifier {
         notifyListeners();
       case 'wt':
         onWatch?.call(from, m);
+      case 'sb':
+        if (m['s'] is String) onSound?.call(from, m['s'] as String);
       case 'cap':
         if (m['x'] is String) onCaption?.call(from, m['x'] as String, m['f'] == true);
       case 'offer':

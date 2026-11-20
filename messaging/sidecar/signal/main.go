@@ -1407,12 +1407,17 @@ func chatEvent(c *signalmeow.Client, evt *events.ChatEvent) {
 
 func message(c *signalmeow.Client, chat string, group bool, sender uuid.UUID, dm *signalpb.DataMessage) map[string]any {
 	atts := dm.GetAttachments()
-	if st := dm.GetSticker(); st != nil && st.GetData() != nil {
-		atts = append(atts, st.GetData())
-	}
-	media := make([]map[string]any, 0, len(atts))
+	media := make([]map[string]any, 0, len(atts)+1)
 	for _, a := range atts {
 		if m := mediaOf(a); m != nil {
+			media = append(media, m)
+		}
+	}
+	// A sticker is marked as one, so the app draws it on its own with no bubble behind it (Matt, 2026-11-20:
+	// "stickers in telegram chat and others render inside chat bubbles instead of transparent backgrounds").
+	if st := dm.GetSticker(); st != nil && st.GetData() != nil {
+		if m := mediaOf(st.GetData()); m != nil {
+			m["sticker"] = true
 			media = append(media, m)
 		}
 	}

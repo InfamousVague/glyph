@@ -235,7 +235,7 @@ class Roster {
   bool _granted(String id) {
     final g = adminGrants[id];
     if (g == null || !hasOwner) return false;
-    return NetCrypto.verify(NetCrypto.unhex(owner), grantMessage(owner, id), NetCrypto.unhex(g));
+    return NetCrypto.verifyOnce(NetCrypto.unhex(owner), grantMessage(owner, id), NetCrypto.unhex(g));
   }
 
   Map<String, Object?> _body() => {

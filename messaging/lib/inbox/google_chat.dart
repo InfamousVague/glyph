@@ -413,10 +413,12 @@ class GoogleChat extends InboxNetwork {
         ));
       }
       next.sort((a, b) => b.date.compareTo(a.date));
+      // Asked every so often: the listeners are told only when something is different (InboxNetwork.sameChats).
+      final same = _error == null && InboxNetwork.sameChats(_chats, next);
       _chats = next;
       _error = null;
       _calm();
-      notifyListeners();
+      if (!same) notifyListeners();
     } catch (e) {
       _setError(e);
     }

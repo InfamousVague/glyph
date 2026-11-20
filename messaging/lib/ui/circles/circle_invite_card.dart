@@ -42,7 +42,8 @@ void joinCircleInvite(BuildContext context, CircleInvite i) {
   final c = Circles.instance.acceptInvite(i.seed);
   if (c == null) return;
   if (shell != null) {
-    shell.openCircle(c);
+    // On its welcome space, where it has one (lib/circles/welcome.dart).
+    shell.openCircle(c, land: true);
   } else {
     push<void>(context, (_) => CircleScreen(seed: c.seed));
   }
