@@ -28,6 +28,8 @@ const List<ReleaseNotes> changelog = [
     'Circles: a circle\'s picture fills its round in the rail, with only the halo round the open one.',
     'Messages: Mark all read\'s count is a small circle.',
     'Sign up with Discord opens your browser on a computer or an iPhone.',
+    'On a Mac or Windows, signing up or in happens in a small window of its own, as Discord\'s does.',
+    'On a Mac or Windows the app keeps your settings and your username across restarts again: since 0.10.0 it forgot them each time it opened, and could send you back to sign up after signing in.',
   ]),
   ReleaseNotes('0.10.1', '2026-11-20', [
     'Circles: give a circle an invite word, so gogho.st/c/bookclub opens it in place of the long link. Set it in its Settings › Invites.',
