@@ -636,7 +636,8 @@ class Me extends ChangeNotifier {
             for (final e in m.entries)
               if (e.value is List) '${e.key}'.toLowerCase(): [for (final b in e.value as List) if (b is String) b],
         };
-    onSpecial?.call(ids, usernames, lists(got['special']), lists(got['specialNames']));
+    Map<String, String> ones(Object? m) => {if (m is Map) for (final e in m.entries) if (e.value is String) '${e.key}'.toLowerCase(): e.value as String};
+    onSpecial?.call(ids, usernames, lists(got['special']), lists(got['specialNames']), ones(got['show']), ones(got['showNames']));
     return (
       ids: {for (final x in (got['ids'] as List? ?? const [])) if (x is String) x},
       names: {for (final x in (got['names'] as List? ?? const [])) if (x is String) x.toLowerCase()},
@@ -801,7 +802,20 @@ class Me extends ChangeNotifier {
 
   /// Told the special badges that came with a verified-number answer: who was asked of, and who has which by id and by
   /// username (set by lib/ui/special_badges.dart's store, which this file can't name).
-  static void Function(List<String> ids, List<String> names, Map<String, List<String>> byId, Map<String, List<String>> byName)? onSpecial;
+  static void Function(List<String> ids, List<String> names, Map<String, List<String>> byId, Map<String, List<String>> byName, Map<String, String> showById, Map<String, String> showByName)? onSpecial;
+
+  /// The badge this person shows beside their name, as the relay last said; null for none (their highest is shown).
+  String? get showcase => _showcaseHeard ?? (_app?.choice('me_showcase', '') ?? '').ifEmptyNull;
+  String? _showcaseHeard;
+
+  /// Shows [badge] beside this person's name everywhere (one of [special]; '' for their highest), told to the relay
+  /// (Matt, 2026-11-20: "allow the user to choose one badge to showcase next to their names").
+  Future<void> setShowcase(String badge) async {
+    _showcaseHeard = badge;
+    _app?.set('me_showcase', badge);
+    notifyListeners();
+    await _ask({'dir': 'showcase', 'badge': badge}, 'souls');
+  }
 
   /// Souls or a badge just given, for the app to say so (lib/ui/souls.dart).
   final gifts = ValueNotifier<SoulsGift?>(null);
@@ -810,6 +824,12 @@ class Me extends ChangeNotifier {
     final n = m['n'] ?? m['souls'];
     final list = m['special'];
     var changed = false;
+    final show = m['show'] is String ? m['show'] as String : '';
+    if (list is List && show != (showcase ?? '')) {
+      _showcaseHeard = show;
+      _app?.set('me_showcase', show);
+      changed = true;
+    }
     if (n is int && n != souls) {
       _soulsHeard = n;
       _app?.set('me_souls', '$n');
@@ -874,4 +894,8 @@ class SoulsGift {
   final int souls;
   final String why;
   final String? badge;
+}
+
+extension on String {
+  String? get ifEmptyNull => isEmpty ? null : this;
 }

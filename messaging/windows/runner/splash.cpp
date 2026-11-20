@@ -36,10 +36,14 @@ void Centre(HWND window, int width, int height) {
   SetWindowPos(window, nullptr, x, y, cw, ch, SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
 }
 
+// The splash's edges back: only the resize edge and maximise button it took away, added to the window's style as it is
+// now. The style kept at RegisterSplash is from before the window was shown, without WS_VISIBLE: put back whole, it
+// hid the window as the app loaded (the release check's "the app is running with no window", 0.10.0).
 void Leave() {
   if (!g_splash || g_window == nullptr) return;
   g_splash = false;
-  SetWindowLongPtr(g_window, GWL_STYLE, g_style);
+  const LONG_PTR now = GetWindowLongPtr(g_window, GWL_STYLE);
+  SetWindowLongPtr(g_window, GWL_STYLE, now | (g_style & (WS_THICKFRAME | WS_MAXIMIZEBOX)));
   Centre(g_window, kFullWidth, kFullHeight);
 }
 

@@ -1629,7 +1629,7 @@ extension on _Message {
                   padding: EdgeInsets.only(bottom: 2),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
                     Flexible(child: _toPerson(Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: spaceNameInk(t, room, m.from) ?? ink)))),
-                    Baseline(baseline: 13, baselineType: TextBaseline.alphabetic, child: VerifiedBadge(id: m.from, username: room.usernames[m.from], me: m.from == room.me, size: 15)),
+                    Baseline(baseline: 18, baselineType: TextBaseline.alphabetic, child: VerifiedBadge(id: m.from, username: room.usernames[m.from], me: m.from == room.me, size: 15)),
                     SizedBox(width: t.space(2)),
                     Text(clock(at), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
                   ]),

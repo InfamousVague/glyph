@@ -23,6 +23,14 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.10.1', '2026-11-20', [
+    'Circles: give a circle an invite word, so gogho.st/c/bookclub opens it in place of the long link. Set it in its Settings › Invites.',
+    'Messages: edit your own messages in spaces and circles, from any of your devices. Edited ones say so.',
+    'Profiles: a card like Discord\'s, with a banner in their colour, their badges in a tray and by name, and their status as a bubble.',
+    'Badges: choose the one shown beside your name, in your souls. It sits level with the name now.',
+    'Messages: Mark all read and Share feedback are a list of rows under the search.',
+    'Recording a call: a pill you can move anywhere, opening into each voice\'s track and waveform as it records, like a video editor\'s timeline.',
+  ]),
   ReleaseNotes('0.10.0', '2026-11-20', [
     'On a Mac or Windows the app opens on a small splash that checks for updates first, brings one down and restarts into it, then loads the app.',
     'Developer mode: tap Version in Settings › About twelve times to turn it on, on the phone or a computer. Settings › Developer stays hidden until then.',
@@ -33,6 +41,8 @@ const List<ReleaseNotes> changelog = [
     'Messages: no Circles tab under the rail, which shows your circles; circle invites wait at the top of Messages.',
     'Circles: the rail marks the open circle with a halo in its colour, and something unread with a dot.',
     'Circles: the back arrow sits level with the circle\'s name in its banner.',
+    'Circles: less room above the circle\'s name in its banner.',
+    'Circles: on a computer, the rail\'s buttons are a little smaller.',
   ]),
   ReleaseNotes('0.9.37', '2026-11-20', [
     'Souls: points with a flame beside Share feedback, a thank-you for reporting bugs. They can\'t be spent yet. Tap them to see yours and your badges.',

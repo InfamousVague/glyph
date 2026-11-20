@@ -286,6 +286,34 @@ void main() {
     expect(last(alice, 'admin'), containsPair('ok', false));
   });
 
+  // Matt, 2026-11-20: "allow the user to choose one badge to showcase next to their names don't show them all".
+  test('one badge shown beside a name: the one its holder chose of theirs, else their highest', () async {
+    const salt = '0123456789abcdef0123456789abcdef';
+    final adminConfig = HandlesConfig(adminUser: 'k', adminHash: '$salt:${Handles.adminHashOf(salt, 'pw')}');
+    final a = Handles(dataDir: dir, config: adminConfig, fetch: net.fetch)..load();
+    for (final id in [alice, bob, carol]) {
+      come(a, id);
+    }
+    await a.said(alice, {'dir': 'claim', 'name': 'matt'});
+    await a.said(bob, {'dir': 'claim', 'name': 'bob_builder'});
+    await a.said(alice, {'dir': 'admin-login', 'user': 'k', 'pass': 'pw'});
+    await a.said(alice, {'dir': 'admin-badge', 'to': bob, 'badge': 'alpha', 'on': true});
+    await a.said(alice, {'dir': 'admin-badge', 'to': bob, 'badge': 'bughunter', 'on': true});
+    await a.said(carol, {'dir': 'badges', 'ids': [bob], 'names': ['bob_builder']});
+    expect(last(carol, 'badges')!['show'], {bob: 'bughunter'}, reason: 'none chosen: the highest');
+    await a.said(bob, {'dir': 'showcase', 'badge': 'alpha'});
+    expect(last(bob, 'souls'), containsPair('show', 'alpha'));
+    await a.said(carol, {'dir': 'badges', 'ids': [bob], 'names': ['bob_builder']});
+    expect(last(carol, 'badges')!['show'], {bob: 'alpha'});
+    expect(last(carol, 'badges')!['showNames'], {'bob_builder': 'alpha'});
+    await a.said(bob, {'dir': 'showcase', 'badge': 'team'});
+    expect(last(bob, 'err'), containsPair('about', 'showcase'), reason: 'not one of his');
+    // Kept across a restart.
+    a.save();
+    final again = Handles(dataDir: dir, config: adminConfig, fetch: net.fetch)..load();
+    expect(again.showcaseOf(bob), 'alpha');
+  });
+
   test('an install says its own username as it says hello, and the admin list names it', () async {
     const salt = '0123456789abcdef0123456789abcdef';
     final adminConfig = HandlesConfig(adminUser: 'u-keeper', adminHash: '$salt:${Handles.adminHashOf(salt, 'pw')}');
