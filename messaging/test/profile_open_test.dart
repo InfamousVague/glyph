@@ -5,6 +5,7 @@ import 'package:ghost_messaging/net/packet.dart' show Envelope;
 import 'package:ghost_messaging/friends/buddies.dart';
 import 'package:ghost_messaging/art/app_icon.dart' show AppIcon;
 import 'package:ghost_messaging/ui/composer_box.dart' show ComposerBox;
+import 'package:ghost_messaging/ui/special_badges.dart' show SpecialBadges;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -152,4 +153,31 @@ void main() {
     await h.again(tester, 'profile-dm-card');
     await tester.pump(const Duration(seconds: 1));
   });
+
+  // Shaped as Discord's (Matt, 2026-11-20: "display badges on the users profile popup and redesign the profile popup to
+  // be more like discords"): a banner, the face over its edge, the badges' marks in a tray and by name in the panel.
+  for (final dark in [false, true]) {
+  testWidgets('the card has a banner, the face over its edge, and the badges in a tray and by name (${dark ? 'dark' : 'light'})', (tester) async {
+    SpecialBadges.instance.reset();
+    addTearDown(SpecialBadges.instance.reset);
+    final h = await SpaceHarness.load(tester);
+    final (:room, route: _) = _room();
+    await room.open();
+    SpecialBadges.instance.heard(ids: [_maya], names: const [], byId: {_maya: ['founder', 'bughunter']});
+    await h.shoot(tester, GhostPage(title: '# general', body: HangoutChat(room: room)), 'profile-badges', dark: dark);
+    await tester.tap(find.text('Maya Chen').first);
+    await tester.pump(const Duration(milliseconds: 400));
+    final banner = tester.getRect(find.byKey(const ValueKey('profile-banner')));
+    final face = tester.getRect(find.byKey(const ValueKey('profile-face')));
+    expect(face.top, lessThan(banner.bottom), reason: 'the face over the banner\'s lower edge');
+    expect(face.bottom, greaterThan(banner.bottom));
+    expect(find.byKey(const ValueKey('profile-badge-tray')), findsOneWidget);
+    expect(find.byKey(const ValueKey('profile-badge-founder')), findsOneWidget);
+    expect(find.byKey(const ValueKey('profile-badge-bughunter')), findsOneWidget);
+    expect(find.text('Founder'), findsOneWidget, reason: 'by name in the panel');
+    expect(find.text('Bug hunter'), findsOneWidget);
+    await h.again(tester, 'profile-badges-card', dark: dark);
+    await tester.pump(const Duration(seconds: 1));
+  });
+  }
 }
