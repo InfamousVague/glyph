@@ -12,6 +12,7 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
 import '../art/svg_path.dart';
+import '../kit/menu_room.dart';
 import '../kit/settings_type.dart';
 import '../reactions.dart';
 import '../sms.dart';
@@ -164,20 +165,59 @@ class FilterButton extends StatefulWidget {
   State<FilterButton> createState() => _FilterButtonState();
 }
 
-class _FilterButtonState extends State<FilterButton> {
+class _FilterButtonState extends State<FilterButton> with WidgetsBindingObserver {
   bool _open = false;
+
+  /// The room the menu has on screen, measured as it opens, and again when the window, its bars or the keyboard
+  /// change while it is open (Matt, 2026-11-20: "the filter popover goes off screen it should make sure it renders on
+  /// screen"). A long menu under the button ran off the window's foot.
+  MenuRoom? _room;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    if (!_open) return;
+    // Measured once the frame has put the button where the new window has it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _open) setState(() => _room = MenuRoom.of(context));
+    });
+  }
+
+  void _setOpen(bool open) => setState(() {
+        _open = open;
+        _room = open ? MenuRoom.of(context) : null;
+      });
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final size = MarkAllRead.size(t);
     final ink = widget.only ? t.color('app-on-accent') : t.color('app-ink');
+    final room = _room;
+    final tallest = math.max(t.lenOf('12rem'), MediaQuery.sizeOf(context).height * 0.6);
+    final widest = room?.width ?? double.infinity;
     return GlacierMenu(
       open: _open,
-      onOpenChange: (open) => setState(() => _open = open),
-      placement: Placement.bottomEnd,
+      onOpenChange: _setOpen,
+      // Under the button, or over it where there is more room there; no taller or wider than the room it has.
+      placement: room?.place(Placement.bottomEnd) ?? Placement.bottomEnd,
       ariaLabel: 'Filter',
-      style: GlacierMenuStyle(minWidth: t.lenOf('16rem'), maxWidth: t.lenOf('19rem'), maxHeight: math.max(t.lenOf('12rem'), MediaQuery.sizeOf(context).height * 0.6)),
+      style: GlacierMenuStyle(
+        minWidth: math.min(t.lenOf('16rem'), widest),
+        maxWidth: math.min(t.lenOf('19rem'), widest),
+        maxHeight: room == null ? tallest : math.min(tallest, room.height),
+      ),
       trigger: (context, trigger) => HoverTip(
         message: widget.hidden == 0 ? 'Filter' : 'Filter · ${widget.hidden} hidden',
         below: true,
