@@ -109,6 +109,7 @@ class VoiceChanger extends ChangeNotifier {
   List<ChangerVoice> _voices = const [];
   bool _clean = true;
   bool _paused = false;
+  bool _live = false;
   bool _loaded = false;
 
   /// Asking ElevenLabs now (its list, or a recording).
@@ -128,6 +129,7 @@ class VoiceChanger extends ChangeNotifier {
       _voices = [for (final v in (j['voices'] is List ? j['voices'] as List : const [])) ?ChangerVoice.fromJson(v)];
       _clean = j['clean'] != false;
       _paused = j['paused'] == true;
+      _live = j['live'] == true;
     } catch (_) {
       // Nothing kept yet.
     }
@@ -142,7 +144,7 @@ class VoiceChanger extends ChangeNotifier {
         Process.runSync('chmod', ['700', dir.path]);
         Process.runSync('chmod', ['600', f.path]);
       }
-      f.writeAsStringSync(jsonEncode({'key': _key, 'voice': _voice?.toJson(), 'voices': [for (final v in _voices) v.toJson()], 'clean': _clean, 'paused': _paused}), flush: true);
+      f.writeAsStringSync(jsonEncode({'key': _key, 'voice': _voice?.toJson(), 'voices': [for (final v in _voices) v.toJson()], 'clean': _clean, 'paused': _paused, 'live': _live}), flush: true);
     } catch (_) {
       // Kept for this run alone.
     }
@@ -177,6 +179,23 @@ class VoiceChanger extends ChangeNotifier {
     _load();
     return _paused;
   }
+
+  /// In space calls too, live (lib/voice/live_changer.dart; Matt, 2026-11-20: "I'd like the voice changer to work in
+  /// spaces calls in real time"): off until turned on, since others then hear each phrase a moment after it is said.
+  bool get live {
+    _load();
+    return _live;
+  }
+
+  void setLive(bool on) {
+    _load();
+    _live = on;
+    _save();
+    notifyListeners();
+  }
+
+  /// A call's voice is changed live now.
+  bool get liveActive => active && live;
 
   /// Everything it needs is there.
   bool get ready => hasKey && voice != null;
@@ -342,6 +361,52 @@ class VoiceChanger extends ChangeNotifier {
     } finally {
       client.close(force: true);
       _busy(false);
+    }
+  }
+
+  /// The rate the changed voice of a live phrase comes back at ([convertPhrase]).
+  static const liveRate = 24000;
+
+  /// One phrase said in a call ([wav]: what the microphone heard, as a WAV file's bytes) in the voice chosen: raw
+  /// 16-bit mono at [liveRate] to play into the call. Throws a [VoiceChangerProblem] where it could not be done.
+  Future<Uint8List> convertPhrase(Uint8List wav) async {
+    _load();
+    final v = _voice;
+    if (_key.isEmpty || v == null) throw const VoiceChangerProblem('Choose a voice first, in Settings › Voice changer.');
+    final client = _client();
+    try {
+      final boundary = 'ghost-${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}';
+      List<int> field(String n, String value) => utf8.encode('--$boundary\r\nContent-Disposition: form-data; name="$n"\r\n\r\n$value\r\n');
+      final body = BytesBuilder(copy: false)
+        ..add(field('model_id', model))
+        ..add(field('remove_background_noise', 'false'))
+        ..add(utf8.encode('--$boundary\r\nContent-Disposition: form-data; name="audio"; filename="phrase.wav"\r\nContent-Type: audio/wav\r\n\r\n'))
+        ..add(wav)
+        ..add(utf8.encode('\r\n--$boundary--\r\n'));
+      final req = await client.postUrl(base.replace(path: '/v1/voice-changer/${v.id}', queryParameters: {'output_format': 'pcm_$liveRate'}));
+      req.headers
+        ..set('xi-api-key', _key)
+        ..set(HttpHeaders.contentTypeHeader, 'multipart/form-data; boundary=$boundary');
+      final sent = body.takeBytes();
+      req.contentLength = sent.length;
+      req.add(sent);
+      final res = await req.close().timeout(const Duration(seconds: 20));
+      final got = BytesBuilder(copy: false);
+      await for (final chunk in res.timeout(const Duration(seconds: 20))) {
+        got.add(chunk);
+        if (got.length > most) throw const VoiceChangerProblem('ElevenLabs sent back more than a phrase.');
+      }
+      final back = got.takeBytes();
+      if (res.statusCode != 200) throw VoiceChangerProblem(_why(res.statusCode, utf8.decode(back, allowMalformed: true)));
+      return back;
+    } on VoiceChangerProblem {
+      rethrow;
+    } on TimeoutException {
+      throw const VoiceChangerProblem('ElevenLabs didn\'t answer in time.');
+    } catch (_) {
+      throw const VoiceChangerProblem('Couldn\'t reach ElevenLabs. Check the connection and try again.');
+    } finally {
+      client.close(force: true);
     }
   }
 

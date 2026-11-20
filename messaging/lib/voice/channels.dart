@@ -23,6 +23,7 @@ import 'hangout.dart';
 import 'mention_alerts.dart';
 import 'roles.dart';
 import 'leveler.dart';
+import 'live_changer.dart';
 import 'soundboard.dart';
 import 'watch_together.dart';
 import 'rtc.dart';
@@ -916,6 +917,8 @@ class Voice extends ChangeNotifier {
       Soundboard.instance.follow();
       // And the auto leveler (leveler.dart).
       AutoLeveler.instance.follow();
+      // And the voice changer, live, where it is on (live_changer.dart).
+      unawaited(LiveChanger.instance.follow());
     } catch (e) {
       await leave();
       rethrow;
@@ -952,6 +955,7 @@ class Voice extends ChangeNotifier {
     Sounds.instance.stopLoop(UiSound.ringOut);
     media = null;
     AutoLeveler.instance.follow();
+    unawaited(LiveChanger.instance.follow());
     if (s != null) unawaited(Sms.instance.callEnded());
     if (s != null) {
       s.removeListener(notifyListeners);

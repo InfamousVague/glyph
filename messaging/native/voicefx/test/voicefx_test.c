@@ -87,6 +87,45 @@ int main(void) {
 #else
   CHECK(voicefx_deepfilter_model(fx, "") == 0 && !(voicefx_modes(fx) & (1 << VOICEFX_DEEPFILTER)), "built without DeepFilterNet, it says so");
 #endif
+  /* Live voice changing: what is said is kept at 16 kHz; only what is fed back goes into the call. */
+  {
+    VoiceFx *lv = voicefx_create();
+    voicefx_configure(lv, VOICEFX_OFF, 1.0f);
+    voicefx_live(lv, 1);
+    float blk[480];
+    for (int k = 0; k < 10; k++) {
+      for (int i = 0; i < 480; i++) blk[i] = 8000.0f * sinf((k * 480 + i) * 2 * 3.14159f * 300 / 48000);
+      voicefx_process(lv, blk, 480, 48000);
+      float most2 = 0;
+      for (int i = 0; i < 480; i++) most2 = fmaxf(most2, fabsf(blk[i]));
+      if (k == 9) CHECK(most2 == 0, "live and nothing fed: silence goes into the call, not the microphone (%.0f)", most2);
+    }
+    int16_t took[4000];
+    int n = voicefx_take(lv, took, 4000);
+    CHECK(n == 1600, "a tenth of a second said is 1600 samples at 16 kHz (%d)", n);
+    int16_t peak = 0;
+    for (int i = 0; i < n; i++) peak = (int16_t)fmax(peak, abs(took[i]));
+    CHECK(peak > 6000 && peak < 8200, "and is the voice as said (peak %d)", peak);
+    CHECK(voicefx_take(lv, took, 4000) == 0, "taken once");
+    int16_t fed[2400];
+    for (int i = 0; i < 2400; i++) fed[i] = (int16_t)(5000 * sinf(i * 2 * 3.14159f * 200 / 24000));
+    voicefx_feed(lv, fed, 2400, 24000);
+    CHECK(voicefx_queued_ms(lv) == 100, "a tenth of a second fed is queued (%d ms)", voicefx_queued_ms(lv));
+    for (int i = 0; i < 480; i++) blk[i] = 8000.0f;
+    voicefx_process(lv, blk, 480, 48000);
+    float fmost = 0;
+    for (int i = 0; i < 480; i++) fmost = fmaxf(fmost, fabsf(blk[i]));
+    CHECK(fmost > 3000 && fmost < 5200, "what was fed is what the call gets (peak %.0f, the microphone said 8000)", fmost);
+    CHECK(voicefx_queued_ms(lv) == 90, "and is played at its own pace (%d ms left)", voicefx_queued_ms(lv));
+    voicefx_live(lv, 0);
+    CHECK(voicefx_queued_ms(lv) == 0, "ended, nothing old is played");
+    for (int i = 0; i < 480; i++) blk[i] = 1234.0f;
+    voicefx_process(lv, blk, 480, 48000);
+    CHECK(blk[100] == 1234.0f, "and the microphone goes into the call again");
+    CHECK(voicefx_take(lv, took, 4000) == 0, "and nothing is kept for the app");
+    voicefx_destroy(lv);
+  }
+
   voicefx_destroy(fx);
   printf(failed ? "%d FAILED\n" : "all passed\n", failed);
   return failed ? 1 : 0;
