@@ -159,6 +159,20 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     copy hands the link to the running one by WM_COPYDATA) take, on "ghost_desktop/links" (`lib/desktop/links.dart`).
     A link opened while the app is still being set up is held and opened once it is.
   - Tests: circle_joins_test.
+- **Soundboard, a plugin for calls and whole circles** (0.10.7, not released; Matt, 2026-11-20: "build a soundboards
+  plugin for circles"). Pads in a call (`lib/ui/soundboard_screen.dart`, from the call's menu and the space's header)
+  that play a short sound on every device in it (`lib/voice/soundboard.dart`, `lib/plugins/soundboard.dart`). No sound
+  is sent: the pad's id is said in the call's room (`sb`), and each device plays its own copy through the app's player
+  (`VideoEngine`), at a loudness of its own or not at all (`soundboard_volume`, `soundboard_quiet`); nothing while
+  deafened; no more than six from one person in ten seconds; ten seconds at most. Twelve sounds of the app's own
+  (`assets/soundboard/`, synthesized by `tool/soundboard_sounds.py`, nothing recorded). A circle's own, up to 16 clips
+  of 1 MB, added by whoever may change it: each sealed where the circle's banner is kept (`Circle.bannerChannel`) and
+  named with its key in the signed manifest (`pl.soundboard.snd`), so a device plays only what its own list has, never
+  a file someone names in a call. A line over the call says who played what.
+  - Tests: soundboard_test (pictures soundboard-*).
+  - Not yet: heard on a device. The app's sounds have not been listened to by anyone, and nothing has been played in a
+    real call (in particular an Android phone in a call, whose sound goes through the call's own audio mode). A removed
+    clip's sealed file stays on the relay.
 - **Plugins for whole circles: Record call, Scribe, Live captions, Watch together, and SMS spaces** (0.9.21, not
   released; Matt, 2026-11-19: "Start with the recording plugin, then scribe, then a special space in the circle called a
   "SMS Space" to text members, Live captions, and watch together"; "Some plugins should be serverside / cirlce side as

@@ -23,6 +23,7 @@ import 'scribe.dart';
 import 'replies.dart';
 import 'strangers.dart';
 import 'plugin.dart';
+import 'soundboard.dart';
 import 'spam.dart';
 import 'translate.dart';
 import 'translate_host.dart';
@@ -33,7 +34,7 @@ import 'watch_together.dart';
 // Kinds before Spam: a text that is plainly political or a debt collector is that, whatever else it shows; the kinds
 // that are shown (deliveries, reminders) leave a text that looks like spam to Spam.
 // Translate last: it adds to a conversation and takes nothing from the list, and is off until it is added.
-const List<GhostPlugin> shippedPlugins = [CodesPlugin(), KindsPlugin(), SpamPlugin(), EmbedsPlugin(), ActionsPlugin(), RepliesPlugin(), QuietPlugin(), StrangersPlugin(), CleanerPlugin(), TranslatePlugin(), RecordCallPlugin(), ScribePlugin(), LiveCaptionsPlugin(), WatchTogetherPlugin(), GameActivityPlugin()];
+const List<GhostPlugin> shippedPlugins = [CodesPlugin(), KindsPlugin(), SpamPlugin(), EmbedsPlugin(), ActionsPlugin(), RepliesPlugin(), QuietPlugin(), StrangersPlugin(), CleanerPlugin(), TranslatePlugin(), RecordCallPlugin(), ScribePlugin(), LiveCaptionsPlugin(), WatchTogetherPlugin(), SoundboardPlugin(), GameActivityPlugin()];
 
 /// The person's choices as the plugins' side reads and writes them: the app's own ([AppStore]), or a map in a test.
 abstract interface class PluginStore {

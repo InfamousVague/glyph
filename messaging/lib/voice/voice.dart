@@ -395,6 +395,12 @@ class VoiceSession extends ChangeNotifier {
   /// Says [what] of watching together to the call.
   void sayWatch(Map<String, Object?> what) => _say({'t': 'wt', ...what});
 
+  /// Told a soundboard's sound someone in the call played ('sb', lib/voice/soundboard.dart): who, and its id.
+  void Function(String from, String sound)? onSound;
+
+  /// Says to the call that this device played the soundboard's sound [sound], for each device to play its own copy.
+  void saySound(String sound) => _say({'t': 'sb', 's': sound});
+
   /// Says [words] of this device's voice to the call; [done]: the line is finished.
   void sayCaption(String words, {required bool done}) => _say({'t': 'cap', 'x': words.length > 600 ? words.substring(words.length - 600) : words, 'f': done});
 
@@ -573,6 +579,8 @@ class VoiceSession extends ChangeNotifier {
         notifyListeners();
       case 'wt':
         onWatch?.call(from, m);
+      case 'sb':
+        if (m['s'] is String) onSound?.call(from, m['s'] as String);
       case 'cap':
         if (m['x'] is String) onCaption?.call(from, m['x'] as String, m['f'] == true);
       case 'offer':
