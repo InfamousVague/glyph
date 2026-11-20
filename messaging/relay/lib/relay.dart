@@ -5,6 +5,7 @@ import 'dart:io';
 import 'feedback.dart';
 import 'files.dart';
 import 'hub.dart';
+import 'market.dart';
 import 'sha256.dart';
 
 /// Ghost Messaging's relay (docs/desktop.md): a WebSocket server a phone and the computer it is paired with both dial
@@ -21,7 +22,7 @@ import 'sha256.dart';
 /// - A channel is removed when either end says so (unpairing), or after ninety days unused. One made for pairing
 ///   (`temp`) lives ten minutes at most, goes as soon as both ends have left it, and is never written to disk.
 class Relay {
-  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub, this.files, this.feedback}) : _now = now ?? DateTime.now;
+  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub, this.files, this.feedback, this.market}) : _now = now ?? DateTime.now;
 
   /// Where people's apps find each other (hub.dart), served at any address ending in `/hub`; none where null.
   final Hub? hub;
@@ -31,6 +32,10 @@ class Relay {
 
   /// Feedback from the app, filed in a Notion board (feedback.dart), served under `/feedback`; none where null.
   final Feedback? feedback;
+
+  /// The Marketplace, plugins from other developers and their review (market.dart), served under `/market`; none where
+  /// null.
+  final Market? market;
 
   /// Where `channels.json` is kept; null keeps nothing across restarts.
   final Directory? dataDir;
@@ -58,6 +63,7 @@ class Relay {
     server.listen(_handle, onError: (_) {});
     hub?.start();
     await files?.start();
+    await market?.start();
     _sweeper = Timer.periodic(const Duration(minutes: 1), (_) => sweep());
     return server.port;
   }
@@ -67,6 +73,7 @@ class Relay {
     _saver?.cancel();
     hub?.stop();
     files?.stop();
+    await market?.stop();
     _save();
     for (final c in _channels.values) {
       c.phone?.close(WebSocketStatus.goingAway);
@@ -99,6 +106,10 @@ class Relay {
     if (!upgrade && segments.isNotEmpty && segments.first == 'files' && files != null) return files!.handle(request);
     // A circle's invite word, for the site's /c/ page (invite_words.dart): GET /word/<hash>.
     if (!upgrade && segments.length == 2 && segments.first == 'word' && hub?.words != null) return hub!.words!.handle(request, segments[1]);
+    // The Marketplace (market.dart): plain HTTP under /market. Nothing waits on what _handle returns (server.listen drops
+    // it), so an error escaping the market would be unhandled in the root zone and end the relay, and every hub
+    // connection with it: the market never throws, and this makes sure.
+    if (!upgrade && segments.isNotEmpty && segments.first == 'market' && market != null) return market!.handle(request).catchError((Object _) {});
     // The app's Share feedback (feedback.dart): one POST to /feedback.
     if (!upgrade && segments.length == 1 && segments.first == 'feedback' && feedback != null) return feedback!.handle(request);
     if (!upgrade || !_hex(name, 32)) {
