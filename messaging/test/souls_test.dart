@@ -100,7 +100,7 @@ void main() {
     final said = <Map<String, Object?>>[];
     final users = [
       {'id': 'a1a1a1a1a1a1a1a1', 'name': 'maya', 'named': true, 'at': '2026-11-18', 'verified': true, 'links': ['discord'], 'souls': 40, 'special': ['alpha'], 'here': true},
-      {'id': 'b2b2b2b2b2b2b2b2', 'name': 'kevin', 'named': true, 'at': '2026-11-15', 'verified': false, 'links': <String>[], 'souls': 0, 'special': <String>[], 'here': false},
+      {'id': 'b2b2b2b2b2b2b2b2', 'name': 'kevin', 'named': true, 'at': '2026-11-15', 'verified': false, 'links': <String>[], 'souls': 0, 'special': <String>[], 'here': false, 'account': '0x9f2c00000000000000000000000000000000b2b2', 'was': ['kev_old']},
       {'id': 'c3c3c3c3c3c3c3c3', 'named': true, 'at': '2026-11-14', 'verified': false, 'links': <String>[], 'souls': 0, 'special': <String>[], 'here': false},
     ];
     Future<Map<String, dynamic>> ask(Map<String, Object?> what) async {
@@ -131,15 +131,37 @@ void main() {
     expect(find.textContaining('3 people · 1 connected now'), findsOneWidget);
     await h.again(tester, 'admin-list');
 
+    // Found by a name given up, by the start of the id, and by the account (Matt, 2026-11-20: "tie users names to their
+    // accounts when they sign back in later or reconnect to the app so that we can give out bug bounties properly").
+    for (final q in ['kev_old', 'b2b2', '0x9f2c']) {
+      await tester.enterText(find.descendant(of: find.byKey(const ValueKey('admin-search')), matching: find.byType(EditableText)), q);
+      await tester.pump();
+      expect(find.text('@kevin'), findsOneWidget, reason: q);
+      expect(find.text('@maya'), findsNothing, reason: q);
+    }
+    expect(find.textContaining('was @kev_old'), findsOneWidget);
+    await tester.enterText(find.descendant(of: find.byKey(const ValueKey('admin-search')), matching: find.byType(EditableText)), '');
+    await tester.pump();
+
     await tester.tap(find.text('@kevin'));
     for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
+    // Who: the id the ticket's Reporter line names, the account, the names before.
+    expect(find.text('b2b2b2b2b2b2b2b2'), findsOneWidget);
+    expect(find.text('0x9f2c00000000000000000000000000000000b2b2'), findsOneWidget);
+    expect(find.text('@kev_old'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const ValueKey('admin-amount')));
+    await tester.pump();
     await tester.enterText(find.descendant(of: find.byKey(const ValueKey('admin-amount')), matching: find.byType(EditableText)), '25');
     await tester.enterText(find.descendant(of: find.byKey(const ValueKey('admin-why')), matching: find.byType(EditableText)), 'Found the crash');
+    await tester.ensureVisible(find.byKey(const ValueKey('admin-give')));
+    await tester.pump();
     await tester.tap(find.byKey(const ValueKey('admin-give')));
     await tester.pump(const Duration(milliseconds: 100));
     expect(said.where((w) => w['dir'] == 'admin-give').single, {'dir': 'admin-give', 'to': 'b2b2b2b2b2b2b2b2', 'souls': 25, 'why': 'Found the crash'});
+    await tester.ensureVisible(find.byKey(const ValueKey('admin-badge-bughunter')));
+    await tester.pump();
     await tester.tap(find.descendant(of: find.byKey(const ValueKey('admin-badge-bughunter')), matching: find.byType(GlacierSwitch)));
     await tester.pump(const Duration(milliseconds: 100));
     expect(said.where((w) => w['dir'] == 'admin-badge').single, {'dir': 'admin-badge', 'to': 'b2b2b2b2b2b2b2b2', 'badge': 'bughunter', 'on': true});

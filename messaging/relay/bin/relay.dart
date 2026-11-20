@@ -44,9 +44,11 @@ Future<void> main(List<String> args) async {
   // Ghost accounts' sealed backups, by address (accounts.dart; Matt, 2026-11-17: "We need to have a way to login to
   // existing accounts"): usernames and the texted code for a verified number are handles'.
   final accounts = Accounts(dataDir: data, handles: handles, verbose: verbose);
+  // The account each identity belongs to, on the admin page (handles.dart, accountOf).
+  handles.accountOf = accounts.accountOf;
   // The app's Share feedback, filed in a Notion board (feedback.dart): the integration's secret and the board from the
   // environment (GHOST_NOTION_TOKEN, GHOST_NOTION_FEEDBACK); without them it says it isn't set up.
-  final feedback = Feedback(config: FeedbackConfig.fromEnvironment(Platform.environment), ownsName: handles.ownsName, verbose: verbose);
+  final feedback = Feedback(config: FeedbackConfig.fromEnvironment(Platform.environment), ownsName: handles.ownsName, accountOf: accounts.accountOf, verbose: verbose);
   // Circles' invite words (invite_words.dart): gogho.st/c/<word>.
   final words = InviteWords(dataDir: data);
   final relay = Relay(dataDir: data, verbose: verbose, hub: Hub(verbose: verbose, handles: handles, pushes: pushes, invites: invites, accounts: accounts, words: words), files: files, feedback: feedback);

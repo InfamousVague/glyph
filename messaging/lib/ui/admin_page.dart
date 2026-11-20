@@ -11,7 +11,7 @@ library;
 
 import 'dart:async';
 
-import 'package:flutter/services.dart' show TextCapitalization;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextCapitalization;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -46,7 +46,9 @@ class AdminUser {
         links = [for (final l in (j['links'] as List? ?? const [])) '$l'],
         souls = j['souls'] is int ? j['souls'] as int : 0,
         special = [for (final b in (j['special'] as List? ?? const [])) '$b'],
-        here = j['here'] == true;
+        here = j['here'] == true,
+        account = j['account'] is String ? j['account'] as String : null,
+        was = [for (final n in (j['was'] as List? ?? const [])) '$n'];
   final String id;
   final String? name;
   final bool named;
@@ -56,6 +58,17 @@ class AdminUser {
   int souls;
   List<String> special;
   final bool here;
+
+  /// The Ghost account they signed up or signed back in with (0x…), the same on every device and after a reinstall
+  /// (Matt, 2026-11-20: "tie users names to their accounts when they sign back in later or reconnect to the app so that we
+  /// can give out bug bounties properly"); null where they have none.
+  final String? account;
+
+  /// The usernames they held before this one, newest last: a ticket filed under an old name still finds them.
+  final List<String> was;
+
+  /// Whether [q] (lower case, no @) finds them: a username now or before, the start of their id or of their account.
+  bool matches(String q) => q.isEmpty || (name ?? '').contains(q) || was.any((n) => n.contains(q)) || id.startsWith(q) || (account?.toLowerCase().startsWith(q) ?? false);
 
   String get shown => name != null ? '@$name' : (named ? 'A username from before (not said yet)' : 'No username');
 }
@@ -174,7 +187,7 @@ class _AdminPanelState extends State<AdminPanel> {
     }
     final users = _users;
     final q = _search.text.trim().toLowerCase().replaceFirst('@', '');
-    final shown = users == null ? null : [for (final u in users) if (q.isEmpty || (u.name ?? '').contains(q) || u.id.startsWith(q)) u];
+    final shown = users == null ? null : [for (final u in users) if (u.matches(q)) u];
     final total = users?.fold<int>(0, (n, u) => n + u.souls) ?? 0;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       PaneSection(
@@ -183,7 +196,7 @@ class _AdminPanelState extends State<AdminPanel> {
             ? 'Asking the relay…'
             : '${users.length} ${users.length == 1 ? 'person' : 'people'} · ${users.where((u) => u.here).length} connected now · ${soulsCount(total)} souls given out'),
         children: [
-          SettingRowBox(child: GlacierInput(key: const ValueKey('admin-search'), controller: _search, placeholder: 'Search by username', ariaLabel: 'Search people', autoCorrect: false, autoCapitalize: TextCapitalization.none, size: GlacierFieldSize.md)),
+          SettingRowBox(child: GlacierInput(key: const ValueKey('admin-search'), controller: _search, placeholder: 'Search by username, old username, Ghost id or account', ariaLabel: 'Search people', autoCorrect: false, autoCapitalize: TextCapitalization.none, size: GlacierFieldSize.md)),
           SettingRow(icon: AppIcon(Lucide.refreshCw, size: 18), label: 'Refresh', onPress: _refresh),
           if (shown != null)
             for (final u in shown.take(300))
@@ -193,6 +206,8 @@ class _AdminPanelState extends State<AdminPanel> {
                 label: u.shown,
                 hint: Text([
                   if (u.since != null) 'Joined ${u.since}',
+                  if (u.was.isNotEmpty) 'was ${u.was.reversed.map((n) => '@$n').join(', ')}',
+                  if (u.account != null) 'account ${u.account!.substring(0, 6)}…${u.account!.substring(u.account!.length - 4)}',
                   if (u.verified) 'number verified',
                   if (u.links.isNotEmpty) u.links.join(', '),
                   for (final b in specialBadgesOf(u.special)) b.name,
@@ -307,7 +322,40 @@ class _AdminPersonScreenState extends State<AdminPersonScreen> {
               Text(u.souls == 1 ? 'soul' : 'souls', style: pageText(t, t.fontSize('md'), color: t.color('app-ink-2'))),
             ]),
             SizedBox(height: t.space(1)),
-            Text([if (u.since != null) 'Joined ${u.since}', if (u.verified) 'number verified', if (u.here) 'connected now', u.id].join(' · '), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+            Text([if (u.since != null) 'Joined ${u.since}', if (u.verified) 'number verified', if (u.here) 'connected now'].join(' · '), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+            SizedBox(height: t.space(6)),
+            // Who they are, by what stays theirs: the id a ticket's "Reporter" line names, their account, and their names
+            // before (Matt, 2026-11-20: "tie users names to their accounts ... so that we can give out bug bounties").
+            PaneSection(
+              title: 'Who',
+              children: [
+                SettingRow(
+                  key: const ValueKey('admin-person-id'),
+                  icon: AppIcon(Lucide.keyRound, size: 18),
+                  label: 'Ghost id',
+                  hint: Text(u.id),
+                  value: const Text('Copy'),
+                  onPress: () {
+                    Clipboard.setData(ClipboardData(text: u.id));
+                    toast(context, 'Ghost id copied');
+                  },
+                ),
+                SettingRow(
+                  key: const ValueKey('admin-person-account'),
+                  icon: AppIcon(Lucide.userCheck, size: 18),
+                  label: 'Account',
+                  hint: Text(u.account ?? 'None: a new install without signing in would be someone new.'),
+                  value: u.account == null ? null : const Text('Copy'),
+                  onPress: u.account == null
+                      ? null
+                      : () {
+                          Clipboard.setData(ClipboardData(text: u.account!));
+                          toast(context, 'Account copied');
+                        },
+                ),
+                if (u.was.isNotEmpty) SettingRow(key: const ValueKey('admin-person-was'), icon: AppIcon(Lucide.history, size: 18), label: 'Before', hint: Text(u.was.reversed.map((n) => '@$n').join(', '))),
+              ],
+            ),
             SizedBox(height: t.space(6)),
             PaneSection(
               title: 'Souls',

@@ -42,7 +42,7 @@ class FeedbackConfig {
 typedef NotionCall = Future<(int, String)> Function(String method, Uri url, Map<String, String> headers, List<int> body);
 
 class Feedback {
-  Feedback({required this.config, required this.ownsName, NotionCall? notion, DateTime Function()? now, this.verbose = false})
+  Feedback({required this.config, required this.ownsName, this.accountOf, NotionCall? notion, DateTime Function()? now, this.verbose = false})
       : _notion = notion ?? httpNotion,
         _now = now ?? DateTime.now;
 
@@ -50,6 +50,9 @@ class Feedback {
 
   /// Whether the install [id] holds the username [name] (Handles.ownsName).
   final bool Function(String id, String name) ownsName;
+
+  /// The Ghost account an install's identity belongs to (Accounts.accountOf), or null.
+  final String? Function(String id)? accountOf;
   final NotionCall _notion;
   final DateTime Function() _now;
   final bool verbose;
@@ -119,7 +122,12 @@ class Feedback {
     final named = report.username;
     final username = named == null ? '' : (ownsName(id, named) ? '@$named' : '@$named (not verified)');
     try {
-      final ticket = await file(report, username: username);
+      // Who sent it, by what stays theirs when the name changes (Matt, 2026-11-20: "tie users names to their accounts ...
+      // so that we can give out bug bounties properly"): the install's id, which the admin page gives souls to, and its
+      // account, which signing back in on another device or after a reinstall keeps. Only where they gave their name.
+      final account = accountOf?.call(id);
+      final reporter = named == null ? '' : 'Reporter: $username · Ghost id $id${account == null ? '' : ' · account $account'}';
+      final ticket = await file(report, username: username, reporter: reporter);
       if (verbose) stdout.writeln('${now.toIso8601String()} feedback filed: $ticket');
       return answer(HttpStatus.ok, {'ok': true, 'id': ticket});
     } on _NotionError catch (e) {
@@ -154,7 +162,7 @@ class Feedback {
   Map<String, String> get _headers => {'Authorization': 'Bearer ${config.notionToken}', 'Notion-Version': notionVersion};
 
   /// Files [report] as a page in the board, its screenshots uploaded to Notion first: the ticket's id, `GMFB-12`.
-  Future<String> file(FeedbackReport report, {String username = ''}) async {
+  Future<String> file(FeedbackReport report, {String username = '', String reporter = ''}) async {
     final uploads = <(String, String)>[];
     for (final s in report.shots) {
       uploads.add((await _upload(s), s.name));
@@ -177,6 +185,7 @@ class Feedback {
       },
       // The words and the screenshots in the page itself too, to read without opening the properties.
       'children': [
+        if (reporter.isNotEmpty) {'object': 'block', 'type': 'callout', 'callout': {'rich_text': text(reporter), 'icon': {'type': 'emoji', 'emoji': '🏷️'}}},
         for (final para in report.text.split(RegExp(r'\n{2,}')).where((p) => p.trim().isNotEmpty).take(50))
           {'object': 'block', 'type': 'paragraph', 'paragraph': {'rich_text': text(para.trim())}},
         for (final (u, _) in uploads) {'object': 'block', 'type': 'image', 'image': {'type': 'file_upload', 'file_upload': {'id': u}}},
