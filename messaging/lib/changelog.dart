@@ -26,6 +26,8 @@ const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.10.6', '2026-11-20', [
     'Spaces and circles: react to messages. Press and hold a message (or right-click on a computer) and pick an emoji; tap a reaction in a circle to add yours or take it off. Everyone can react in read-only spaces.',
     'Circles: a welcome message for new members and a welcome space they land in, read-only spaces where only the owner and admins post, and a system space that shows who joined, was kicked or banned, or became an admin. Set them in a circle\'s Settings › Welcome.',
+    'Messenger, Instagram and LinkedIn: your chats on each, among your messages, on a Mac and an Android phone. Connect one in Settings › Connections. None of the three supports other apps, so each asks you to read a warning first; you sign in with the session of a browser signed in to your account.',
+    'Faster: changing a setting, or anything Ghost notes down for itself, no longer redraws the whole app, and the call banner no longer keeps the window drawing after a call has ended.',
   ]),
   ReleaseNotes('0.10.5', '2026-11-20', [
     'Game activity: a new plugin that shows friends and the spaces you\'re in which game you\'re playing on your Mac or Windows computer, and for how long. Add it from the Marketplace; it\'s off until you do, and you choose who is told.',
