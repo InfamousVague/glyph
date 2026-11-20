@@ -33,6 +33,8 @@ const List<ReleaseNotes> changelog = [
     'Messages: no Circles tab under the rail, which shows your circles; circle invites wait at the top of Messages.',
     'Circles: the rail marks the open circle with a halo in its colour, and something unread with a dot.',
     'Circles: the back arrow sits level with the circle\'s name in its banner.',
+    'Circles: less room above the circle\'s name in its banner.',
+    'Circles: on a computer, the rail\'s buttons are a little smaller.',
   ]),
   ReleaseNotes('0.9.37', '2026-11-20', [
     'Souls: points with a flame beside Share feedback, a thank-you for reporting bugs. They can\'t be spent yet. Tap them to see yours and your badges.',
