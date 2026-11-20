@@ -117,7 +117,7 @@ Answers are JSON, `{"ok": true, …}` or `{"ok": false, "error": "<code>", "mess
 would run (`nosniff`, a sandboxing CSP).
 
 **Limits**, each with a default (`GHOST_MARKET_*` in the env file, which tool/deploy-relay.mjs's KNOWN lists): `ON` (0
-closes it), `MAX_PACKAGE`, `MAX_SHOT`, `MAX_SHOTS`, `MAX_BODY` (held to Caddy's 10 MB), `TOTAL`,
+closes it), `MAX_PACKAGE`, `MAX_SHOT`, `MAX_SHOTS`, `MAX_BODY` (held to Caddy's 10 MiB), `TOTAL`,
 `BYTES_PER_DEVELOPER`, `SUBMISSIONS_A_DAY`, `SUBMISSIONS_PER_ADDRESS`, `OPEN_PER_DEVELOPER`, `OPEN_PER_ADDRESS`,
 `OPEN_TOTAL`, `OPEN_UNVERIFIED`, `NAME_AGE_DAYS`, `PLUGINS_PER_DEVELOPER`, `MAX_PLUGINS`, `SIGNED_AN_HOUR`,
 `SIGNED_PER_ADDRESS`, `VERIFY_A_SECOND`, `BODIES_IN_FLIGHT`, `READS_PER_MINUTE`, `REPORTS_A_DAY`, `NEED_VERIFIED` (1

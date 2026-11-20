@@ -14,7 +14,7 @@ import 'package:ghost_messaging/plugins/pack/pack.dart';
 import 'package:ghost_messaging/plugins/registry.dart';
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/ui/admin_page.dart';
-import 'package:ghost_messaging/ui/common.dart' show GhostPage;
+import 'package:ghost_messaging/ui/common.dart' show GhostPage, IconTap;
 import 'package:ghost_messaging/ui/market/reports_page.dart';
 import 'package:ghost_messaging/ui/market/review_item.dart';
 import 'package:ghost_messaging/ui/market/review_queue.dart';
@@ -429,6 +429,82 @@ void main() {
     expect(relay.store.decided.last, {'resolved': '0123456789abcdef'});
     expect(_key('market-report-done-0123456789abcdef'), findsNothing);
     expect(find.text('Done'), findsOneWidget);
+  });
+
+  testWidgets('reports signed out by the relay sign in right there, and Mark done refused for it is done after a sign-in', (tester) async {
+    // A relay restarted with a deploy, or 8 hours gone: the page said "Sign in on Settings › Admin again" with no way
+    // to, outside the Marketplace (review, 2026-11-20).
+    relay.store.reports['0123456789abcdef'] = {'rid': '0123456789abcdef', 'plugin': 'mybills', 'version': '1.0.0', 'reason': 'spam', 'text': '', 'username': null, 'verified': false, 'at': 1763600000000, 'done': false, 'doneAt': null};
+    relay.store.admin = false;
+    await show(tester, ReportsScreen(api: api, ask: ask));
+    expect(_key('market-reports-signin'), findsOneWidget);
+    await signIn(tester, within: _key('market-reports-signin'));
+    expect(_key('market-reports-signin'), findsNothing);
+    expect(_key('market-report-done-0123456789abcdef'), findsOneWidget);
+    relay.store.admin = false;
+    await tester.tap(_key('market-report-done-0123456789abcdef'));
+    await settle(tester);
+    expect(_key('market-reports-signin-sheet'), findsOneWidget);
+    await signIn(tester, within: _key('market-reports-signin-sheet'));
+    await settle(tester);
+    expect(relay.store.decided.last, {'resolved': '0123456789abcdef'});
+    expect(_key('market-report-done-0123456789abcdef'), findsNothing);
+    // Read again and signed out: said, with the sign-in, over the reports still shown.
+    relay.store.admin = false;
+    await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Refresh'));
+    await settle(tester);
+    expect(_key('market-reports-signin'), findsOneWidget);
+    expect(find.text('mybills 1.0.0 · It\'s spam'), findsOneWidget);
+  });
+
+  testWidgets('a package of thousands of problems shows the first hundred, and how many more', (tester) async {
+    // Any submitter's package could hold one problem in every few bytes, and the reviewer's screen drew a line for each:
+    // minutes, on the one phone that holds the review key (review, 2026-11-20).
+    final sid = relay.store.put(bills(change: (j) => ((j['rules'] as Map)['tags'] as List)[0] = {...(((j['rules'] as Map)['tags'] as List)[0] as Map), for (var i = 0; i < 4000; i++) 'k$i': 1}), status: 'submitted');
+    await show(tester, ReviewItemScreen(sid, api: api, ask: ask));
+    final lines = [for (final e in find.descendant(of: _key('market-review-checks'), matching: find.byType(Text)).evaluate()) (e.widget as Text).data ?? ''];
+    expect(lines.where((l) => l.startsWith('error unknown_field')), hasLength(packIssuesMost - 1));
+    expect(lines.where((l) => l.startsWith('error too_many_issues')).single, endsWith('And 3901 more problems like these: fix the ones above and check it again.'));
+  });
+
+  testWidgets('its icon is drawn by the Dart decoder alone, over its symbol', (tester) async {
+    final sid = relay.store.put(bills(), status: 'submitted');
+    await show(tester, ReviewItemScreen(sid, api: api, ask: ask));
+    await until(tester, () => _key('market-review-icon').evaluate().isNotEmpty);
+    expect(find.descendant(of: _key('market-review-head'), matching: find.byType(RawImage)), findsOneWidget);
+    expect(find.descendant(of: _key('market-review-head'), matching: find.byType(Image)), findsNothing, reason: 'a stranger\'s icon never reaches the platform\'s codecs on the review device');
+  });
+
+  testWidgets('withdrawals are signed over the packages this device worked out, never over a hash the relay names', (tester) async {
+    // A relay broken into could name another plugin's approved package as "the version before", or as the row's own:
+    // one press then withdrew that plugin on every device (review, 2026-11-20).
+    final before = bills();
+    relay.store.put(before, status: 'approved');
+    final victim = packFile(billsJson(id: 'victim'), (j) => j['developer'] = 'ada');
+    final sid = relay.store.put(bills(version: '1.1.0'), status: 'submitted');
+    final honest = relay.store.answer('GET', '/market/review/$sid', const {}, const [])!.body! as Map<String, Object?>;
+    Map<String, Object?> lying(Map<String, Object?> previous) => {...honest, 'previous': previous};
+    // The version before named by another plugin's hash.
+    relay.answers['GET /market/review/$sid'] = (status: 200, body: lying({'version': '1.0.0', 'sha256': sha256Hex(victim), 'package': base64Encode(before)}));
+    await show(tester, ReviewItemScreen(sid, api: api, ask: ask));
+    expect(_key('market-review-revoke-previous'), findsNothing);
+    expect(_key('market-review-revoke-previous-off'), findsOneWidget);
+    // Another plugin's package handed over as the version before, its own hash and all.
+    relay.answers['GET /market/review/$sid'] = (status: 200, body: lying({'version': '1.0.0', 'sha256': sha256Hex(victim), 'package': base64Encode(victim)}));
+    await show(tester, ReviewItemScreen(sid, api: api, ask: ask));
+    expect(_key('market-review-revoke-previous'), findsNothing, reason: 'its package isn\'t this plugin\'s');
+    // The honest answer: offered, and signed over the hash worked out here.
+    relay.answers.remove('GET /market/review/$sid');
+    await show(tester, ReviewItemScreen(sid, api: api, ask: ask));
+    expect(_key('market-review-revoke-previous'), findsOneWidget);
+    // Withdraw this version, of a row whose hash isn't its package's: refused here, nothing signed.
+    final approved = relay.store.submissions.values.firstWhere((s) => s['status'] == 'approved')['sid'] as String;
+    final row = relay.store.answer('GET', '/market/review/$approved', const {}, const [])!.body! as Map<String, Object?>;
+    relay.answers['GET /market/review/$approved'] = (status: 200, body: {...row, 'submission': {...(row['submission'] as Map), 'sha256': sha256Hex(victim)}});
+    await show(tester, ReviewItemScreen(approved, api: api, ask: ask));
+    expect(pressable(tester, 'market-review-revoke'), isFalse);
+    expect(hint(tester, 'market-review-revoke'), 'This package isn\'t the one the store lists: it can\'t be withdrawn from here.');
+    expect(relay.store.decided.where((d) => d['route'] == 'revoke'), isEmpty);
   });
 
   test('the line diff: Myers\' shortest edit, and giving up past its bound', () {

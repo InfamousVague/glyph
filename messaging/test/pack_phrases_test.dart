@@ -243,6 +243,55 @@ void main() {
       }
     });
 
+    test('a phrase chaining one token four times stays fast on a stranger\'s run of it, whatever joins them', () {
+      // {phone} and {number} once stopped after any group of a run and started again after any separator, so four in a
+      // row tried some 9^4 ways at every start: one search on "1 1 1 …" took 0.8 s, and a stranger could pause the
+      // pack with a few texts (review, 2026-11-20). The two the review found, then every token four times over with
+      // each joiner a phrase may put between them, on a run of what that token and the joiner make.
+      final cases = <(String, String)>[
+        ('{phone} {phone} {phone} {phone} due', '${'1 ' * 994}x due'),
+        ('{number}.{number}.{number}.{number} due', '${'111.' * 497}x due'),
+        ('{phone}-{phone}-{phone}-{phone} due', '${'1-' * 994}x due'),
+      ];
+      const units = {'digits': '1', 'number': '111', 'amount': r'$1', 'code': 'a1', 'word': 'a', 'email': 'a@a.aa', 'phone': '1', 'date': '1/1', 'time': '1:11'};
+      for (final token in units.keys) {
+        for (final join in [' ', '-', '.', ',', '/', ':', ' (']) {
+          final phrase = '${List.filled(4, '{$token}').join(join)} due';
+          for (final unit in {units[token]!, '1', 'a'}) {
+            final run = unit + join;
+            cases.add((phrase, '${run * (1995 ~/ run.length)}x due'));
+          }
+        }
+      }
+      final slow = <String>[];
+      var worst = (0, '');
+      for (final (phrase, text) in cases) {
+        final p = Phrase.compile(phrase);
+        final t = PreparedText(text);
+        p.find(t); // compiled on its first use, which isn't what is timed
+        final took = medianMicros(() => p.find(t), times: 3);
+        if (took > worst.$1) worst = (took, '"$phrase" on "${text.substring(0, 12)}…"');
+        if (took >= 20000) slow.add('"$phrase" on "${text.substring(0, 12)}…": $took µs');
+      }
+      // ignore: avoid_print
+      print('${cases.length} chained phrases, the slowest ${worst.$1} µs: ${worst.$2}');
+      expect(slow, isEmpty, reason: 'each search is under the 20 ms a strike takes (A.10.9)');
+    });
+
+    test('a phone and a number take the whole run they sit on, or nothing', () {
+      String? capture(String phrase, String text) => Phrase.compile(phrase).find(PreparedText(text))?.token;
+      expect(capture('{phone}', 'Call +1 (555) 010-0100 today'), '+1 (555) 010-0100');
+      expect(capture('call {phone}', 'call 555 010 0100 or 555 0199'), '555 010 0100');
+      // Sixteen digits joined as a phone's are none: no seven of them is a phone on its own.
+      expect(capture('{phone}', 'Ref 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6'), isNull);
+      expect(capture('{phone} {phone}', '5550100100 5550100199'), isNull, reason: 'one run, one phone at most');
+      expect(capture('order {number}', 'Order 1,234 shipped'), '1,234');
+      expect(capture('order {number}', 'Order 1,234. Thanks'), '1,234');
+      expect(capture('amount due {amount}', 'Amount due €12,50 today'), '€12,50');
+      expect(capture('{number}', 'Address 192.168.1.1'), isNull, reason: 'a run of numbers and dots is no number');
+      expect(capture('{number}, {number}', '3, 4'), '3');
+    });
+
     test('sixteen such packs over a 50-bubble build take under 250 ms', () {
       final packs = [for (var i = 0; i < 16; i++) PackPlugin(full('every${String.fromCharCode(0x61 + i)}'), source: PluginSource.dev, now: () => DateTime(2026))];
       final registry = PluginRegistry(packs);

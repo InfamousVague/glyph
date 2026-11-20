@@ -16,8 +16,12 @@ import 'package:ghost_messaging/plugins/registry.dart';
 import 'package:ghost_messaging/plugins/settings.dart';
 import 'package:ghost_messaging/plugins/spam.dart';
 import 'package:ghost_messaging/sms.dart';
+import 'package:ghost_messaging/plugins/record_call.dart';
+import 'package:ghost_messaging/ui/market/dev_plugins.dart';
 import 'package:ghost_messaging/ui/market/market_flows.dart';
+import 'package:ghost_messaging/ui/market/marketplace_screen.dart' show marketSummary;
 import 'package:ghost_messaging/ui/plugins_page/plugin_art.dart';
+import 'package:ghost_messaging/ui/plugins_page/plugin_cards.dart';
 
 import 'support/list_harness.dart';
 import 'support/market_fakes.dart';
@@ -366,6 +370,197 @@ void main() {
     final now = installed.storeOf('bills')!;
     expect([now.version, now.pack!.developer], ['1.2.0', 'someoneelse']);
     expect(state.choice('plugin_xbills_extra', ''), '', reason: 'the old copy\'s choices went with it');
+  });
+
+  testWidgets('in a wide window the new developer\'s card opens its own page, and only that card is chosen', (tester) async {
+    // The copy here and the listing share the id xbills: remembered by id alone, the pane showed the copy's page and
+    // drew both cards chosen (review, 2026-11-20).
+    await ready();
+    await addStore(installed, billsPack());
+    await listed(tester, [billsPack(version: '1.2.0', developer: 'someoneelse')]);
+    await page(tester, marketPluginsScreen(), size: const Size(1180, 860));
+    final listingCard = find.descendant(of: _key('plugins-shelf-discover'), matching: _key('plugins-card-xbills'));
+    await tester.ensureVisible(listingCard);
+    await settle(tester);
+    await tester.tap(listingCard);
+    await settle(tester);
+    expect(_key('plugins-pane'), findsOneWidget);
+    expect(find.descendant(of: _key('plugins-pane'), matching: _key('market-developer-changed')), findsOneWidget);
+    expect(find.descendant(of: _key('plugins-pane'), matching: find.textContaining('By @someoneelse')), findsWidgets);
+    expect(find.descendant(of: _key('plugins-pane'), matching: _key('plugins-remove-xbills')), findsNothing);
+    bool chosen(Finder card) => tester.widget<PluginCard>(find.ancestor(of: card, matching: find.byType(PluginCard)).first).selected;
+    expect(chosen(listingCard), isTrue);
+    expect(chosen(find.descendant(of: _key('plugins-shelf-added'), matching: _key('plugins-card-xbills'))), isFalse);
+    // The copy's card opens the copy's page in its place.
+    await tester.ensureVisible(find.descendant(of: _key('plugins-shelf-added'), matching: _key('plugins-card-xbills')));
+    await settle(tester);
+    await tester.tap(find.descendant(of: _key('plugins-shelf-added'), matching: _key('plugins-card-xbills')));
+    await settle(tester);
+    expect(find.descendant(of: _key('plugins-pane'), matching: _key('market-developer-changed')), findsNothing);
+    expect(find.descendant(of: _key('plugins-pane'), matching: _key('plugins-remove-xbills')), findsOneWidget);
+    // And Discover opened at the listing, as the Marketplace's search hit for it opens it, is the listing's page.
+    await tester.pumpWidget(const SizedBox());
+    await page(tester, marketPluginsScreen(open: 'xbills', openListing: true), size: const Size(1180, 860));
+    expect(find.descendant(of: _key('plugins-pane'), matching: _key('market-developer-changed')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await page(tester, marketPluginsScreen(open: 'xbills', openListing: true));
+    expect(_key('market-developer-changed'), findsOneWidget, reason: 'on a phone too');
+  });
+
+  testWidgets('on a phone a plugin\'s page goes once its plugin is removed and isn\'t listed', (tester) async {
+    // Kept open on the plugin as it was, the page offered Remove again ("It isn't on this device.") or Add, which
+    // switched on a plugin that wasn't there (review, 2026-11-20).
+    await ready();
+    await addStore(installed, billsPack());
+    await withdraw(installed, billsPack(), 'It copied texts it shouldn\'t have');
+    await page(tester, marketPluginsScreen(open: 'xbills'));
+    expect(_key('plugins-detail-withdrawn'), findsOneWidget);
+    await tester.tap(find.descendant(of: _key('plugins-detail-xbills'), matching: _key('plugins-remove-xbills')));
+    await settle(tester);
+    await tester.ensureVisible(find.text('Remove Bills'));
+    await settle(tester);
+    await tester.tap(find.text('Remove Bills'));
+    await settle(tester);
+    expect(installed.store, isEmpty);
+    expect(_key('plugins-detail-xbills'), findsNothing);
+    expect(_key('plugins-detail-withdrawn'), findsNothing);
+    // A running store pack that isn't listed: removed, its page goes rather than offering Add.
+    await addStore(installed, billsPack(id: 'parcels', name: 'Parcels'));
+    await tester.pumpWidget(const SizedBox());
+    await page(tester, marketPluginsScreen(open: 'xparcels'));
+    await tester.tap(find.descendant(of: _key('plugins-detail-xparcels'), matching: _key('plugins-remove-xparcels')));
+    await settle(tester);
+    await tester.ensureVisible(find.text('Remove Parcels'));
+    await settle(tester);
+    await tester.tap(find.text('Remove Parcels'));
+    await settle(tester);
+    expect(_key('plugins-detail-xparcels'), findsNothing);
+    expect(_key('plugins-add-xparcels'), findsNothing);
+    expect(state.choice('plugin_xparcels', ''), '', reason: 'nothing switched on for a plugin that isn\'t here');
+    // One still listed comes back as its listing.
+    await addStore(installed, billsPack(id: 'tickets', name: 'Tickets'));
+    await listed(tester, [billsPack(id: 'tickets', name: 'Tickets')]);
+    await tester.pumpWidget(const SizedBox());
+    await page(tester, marketPluginsScreen(open: 'xtickets'));
+    await tester.tap(find.descendant(of: _key('plugins-detail-xtickets'), matching: _key('plugins-remove-xtickets')));
+    await settle(tester);
+    await tester.ensureVisible(find.text('Remove Tickets'));
+    await settle(tester);
+    await tester.tap(find.text('Remove Tickets'));
+    await settle(tester);
+    expect(find.descendant(of: _key('plugins-detail-xtickets'), matching: _key('plugins-add-xtickets')), findsOneWidget);
+    // A plugin in development removed from its own screen, opened from its page by its problems: both go, leaving no
+    // page that offers to switch on what isn't loaded any more.
+    state.setFlag('dev_mode', true);
+    await addDev(installed, billsPack(id: 'receipts', name: 'Receipts', description: 'Receipts in a kind of their own. See https://example.com/receipts for more.'), agree: true);
+    await tester.pumpWidget(const SizedBox());
+    await page(tester, marketPluginsScreen(open: 'xreceipts'), size: const Size(412, 4000));
+    await tester.tap(_key('plugins-problems-xreceipts'));
+    await settle(tester);
+    expect(_key('dev-plugin-screen-receipts'), findsOneWidget);
+    await tester.tap(_key('dev-plugin-remove-receipts'));
+    await settle(tester);
+    expect(installed.devOf('receipts'), isNull);
+    expect(find.byKey(const ValueKey('dev-plugin-screen-receipts'), skipOffstage: false), findsNothing);
+    expect(find.byKey(const ValueKey('plugins-detail-xreceipts'), skipOffstage: false), findsNothing);
+  });
+
+  testWidgets('an update that needs a newer Ghost Messaging isn\'t counted, nor offered on Updates or its page', (tester) async {
+    await ready();
+    await addStore(installed, billsPack());
+    await listed(tester, [billsPack(version: '1.1.0', minApp: '9.0.0')]);
+    expect(market.updates, isEmpty);
+    await page(tester, const MarketUpdatesPage());
+    expect(_key('market-updates-none'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await page(tester, marketPluginsScreen(open: 'xbills'));
+    expect(_key('plugins-detail-xbills'), findsOneWidget);
+    expect(_key('plugins-update-xbills'), findsNothing);
+  });
+
+  testWidgets('Update all says what was updated and what stopped the rest', (tester) async {
+    // It said "2 updated" whatever happened (review, 2026-11-20): here this device refuses to write Bills' new copy.
+    await ready();
+    await addStore(installed, billsPack());
+    await addStore(installed, billsPack(id: 'parcels', name: 'Parcels'));
+    await listed(tester, [billsPack(version: '1.1.0'), billsPack(id: 'parcels', name: 'Parcels', version: '1.1.0')]);
+    final folder = '${dir.path}/plugins/store/bills';
+    Process.runSync('chmod', ['0555', folder]);
+    addTearDown(() => Process.runSync('chmod', ['0755', folder]));
+    await page(tester, const MarketUpdatesPage());
+    await tester.tap(_key('market-update-all'));
+    await settle(tester);
+    expect([for (final p in installed.store) '${p.id} ${p.version}'], ['bills 1.0.0', 'parcels 1.1.0']);
+    expect(find.text('2 updated'), findsNothing);
+    expect(find.text('1 updated. Bills: It couldn\'t be saved on this phone.'), findsOneWidget);
+    expect(_key('market-update-bills'), findsOneWidget, reason: 'still waiting');
+    Process.runSync('chmod', ['0755', folder]);
+  });
+
+  testWidgets('a tag pressed on In development\'s or Added\'s plugin page searches Discover, and the page stays its own', (tester) async {
+    // It set a search Added and In development don't have, and In development then listed the Added shelf under its
+    // own name (review, 2026-11-20).
+    await ready();
+    state.setFlag('dev_mode', true);
+    await addDev(installed, billsPack(id: 'tickets', name: 'Tickets'));
+    await page(tester, marketPluginsScreen(title: 'In development', shelf: 'dev', head: false));
+    await tester.tap(_key('plugins-card-xtickets'));
+    await settle(tester);
+    await tester.tap(find.descendant(of: _key('plugins-detail-xtickets'), matching: _key('plugins-detail-label-bills')));
+    await settle(tester);
+    expect(find.descendant(of: _key('plugins-shelf-found'), matching: _key('plugins-card-xtickets')), findsOneWidget, reason: 'Discover, searching for Bills');
+    expect(tester.widget<EditableText>(find.descendant(of: _key('plugins-search'), matching: find.byType(EditableText))).controller.text, 'Bills');
+    // Under it, In development as it was.
+    expect(find.byKey(const ValueKey('plugins-shelf-dev'), skipOffstage: false), findsOneWidget, reason: 'In development still lists its own');
+    expect(find.byKey(const ValueKey('plugins-shelf-added'), skipOffstage: false), findsNothing);
+  });
+
+  testWidgets('Added alone lists plugins for circles under their own heading, and its row counts what it lists', (tester) async {
+    await ready();
+    PluginRegistry.instance = PluginRegistry(const [CodesPlugin(), SpamPlugin(), RecordCallPlugin()]);
+    state
+      ..setFlag('plugin_codes', false)
+      ..setFlag('plugin_spam', false)
+      ..setFlag('plugin_recordcall', true);
+    await page(tester, marketPluginsScreen(title: 'Added', shelf: 'added', head: false));
+    expect(find.descendant(of: _key('plugins-shelf-added-circles'), matching: _key('plugins-card-recordcall')), findsOneWidget);
+    expect(find.text('Nothing added yet.'), findsNothing);
+    expect(marketSummary('added', state).text, '1 added');
+    // A withdrawn pack is on the page, and on its row.
+    state.setFlag('plugin_recordcall', false);
+    await addStore(installed, billsPack());
+    await withdraw(installed, billsPack(), 'Pulled');
+    await settle(tester);
+    expect(_key('plugins-shelf-stuck'), findsOneWidget);
+    expect(marketSummary('added', state).text, '1 not running');
+  });
+
+  testWidgets('a paused plugin in development can be turned back on from its page and its own screen', (tester) async {
+    await ready();
+    state.setFlag('dev_mode', true);
+    await addDev(installed, billsPack(id: 'tickets', name: 'Tickets'), agree: true);
+    final sha = sha256Hex(packBytes(billsPack(id: 'tickets', name: 'Tickets')));
+    // Paused as the runtime keeps a pause: by its copy's SHA-256, and loaded again.
+    state.set('plugins_paused', jsonEncode({'xtickets': sha}));
+    await addDev(installed, billsPack(id: 'tickets', name: 'Tickets'));
+    expect(installed.devOf('tickets')!.problem, 'paused');
+    await page(tester, marketPluginsScreen(open: 'xtickets'));
+    expect(_key('plugins-detail-paused'), findsOneWidget);
+    await tester.tap(_key('market-unpause-xtickets'));
+    await settle(tester);
+    expect(installed.devOf('tickets')!.problem, isNot('paused'));
+    expect(_key('plugins-detail-paused'), findsNothing);
+    // Paused again: its own screen turns it back on too, and says it is paused.
+    state.set('plugins_paused', jsonEncode({'xtickets': sha}));
+    await addDev(installed, billsPack(id: 'tickets', name: 'Tickets'));
+    await tester.pumpWidget(const SizedBox());
+    await page(tester, const DevPluginScreen(packId: 'tickets'), size: const Size(412, 4000));
+    expect(find.text('paused'), findsOneWidget);
+    await tester.tap(_key('dev-plugin-unpause-tickets'));
+    await settle(tester);
+    expect(installed.devOf('tickets')!.problem, isNot('paused'));
+    expect(_key('dev-plugin-unpause-tickets'), findsNothing);
+    expect(find.text('Its copy goes from this device. Your choices for it are kept for when you load it again.'), findsOneWidget, reason: 'as removeDev keeps them');
   });
 
   testWidgets('on an iPhone nothing from other developers, and a line saying so', (tester) async {

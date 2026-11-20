@@ -488,6 +488,30 @@ void main() {
       expect(pref('plugins_dev'), '[]');
     });
 
+    test('removeDev clears its incoming switches even where its newest copy is broken and nothing of it ran since a restart', () async {
+      app.set('dev_mode', 'on');
+      await installed.loadDev(billsBytes, const DevSource('paste'));
+      await installed.agreeDev('bills');
+      app
+        ..set('plugin_xbills_autoread', 'on')
+        ..set('plugin_xbills_extra', 'rates');
+      // A broken copy loaded, then a restart: only that copy is on disk, so nothing of the pack is held.
+      expect((await installed.loadDev(utf8.encode(utf8.decode(billsBytes).replaceFirst('"amber"', '"teal"')), const DevSource('paste'))).code, 'invalid');
+      installed.dispose();
+      registry = PluginRegistry([TicketsPlugin()]);
+      installed = InstalledPlugins.instance = make();
+      await installed.load(app, appVersion: '0.10.1');
+      final d = installed.devOf('bills')!;
+      expect([d.pack, d.plugin], [null, null]);
+      expect((await installed.removeDev('bills')).ok, isTrue);
+      expect([pref('plugin_xbills_autoread'), pref('plugin_xbills_extra')], ['', 'rates'], reason: 'the broken copy still names autoread');
+      // Loaded and agreed to again, its incoming rule waits for the person to switch it on.
+      await installed.loadDev(billsBytes, const DevSource('paste'));
+      await installed.agreeDev('bills');
+      final plugin = registry.plugins.firstWhere((p) => p.id == 'xbills');
+      expect(registry.prefsOf(plugin, AppStore(app)).flag('autoread', fallback: false), isFalse);
+    });
+
     test('an id an installed store pack has is refused', () async {
       final (bytes, approval) = await reviewed(billsAt());
       await installed.installReviewed(bytes, approval);
@@ -521,6 +545,53 @@ void main() {
       await installed.removeStore('bills', forget: true);
       expect(pref('plugin_xbills_extra'), '');
     });
+
+    test('a copy that no longer parses here still has its incoming switches cleared', () async {
+      // Each way a store pack stops parsing: a newer app it needs, a package changed on disk, an approval that can't
+      // be read. Its switches were cleared only where the pack could be read, so adding it again marked texts read at
+      // once (review, 2026-11-20).
+      for (final how in ['needs_newer_app', 'changed', 'unreadable']) {
+        final json = billsAt();
+        if (how == 'needs_newer_app') json['minApp'] = '0.10.1';
+        final (bytes, approval) = await reviewed(json);
+        expect((await installed.installReviewed(bytes, approval)).ok, isTrue, reason: how);
+        app
+          ..set('plugin_xbills_autoread', 'on')
+          ..set('plugin_xbills_extra', 'council tax');
+        final dir = '${root.path}/store/bills/1.0.0';
+        if (how == 'changed') File('$dir/package.ghostplugin').writeAsBytesSync([...bytes, 0x20]);
+        if (how == 'unreadable') File('$dir/approval.json').writeAsStringSync('not an approval');
+        final later = make();
+        await later.load(app, appVersion: how == 'needs_newer_app' ? '0.10.0' : '0.10.1');
+        final stuck = later.storeOf('bills')!;
+        expect([stuck.pack, stuck.running], [null, false], reason: how);
+        expect(stuck.problem, switch (how) { 'needs_newer_app' => 'needs_newer_app', 'changed' => 'bad_approval', _ => 'io' });
+        expect((await later.removeStore('bills')).ok, isTrue);
+        expect([pref('plugin_xbills'), pref('plugin_xbills_autoread'), pref('plugin_xbills_extra')], ['', '', 'council tax'], reason: '$how: its other choices are kept');
+        later.dispose();
+        installed.dispose();
+        // The registry the next round starts from, with nothing of this one's in it.
+        registry = PluginRegistry([TicketsPlugin()]);
+        installed = InstalledPlugins.instance = make();
+        await installed.load(app, appVersion: '0.10.1');
+        app.set('plugins_floor', '');
+      }
+    });
+
+    test('a copy that can\'t be read at all leaves none of its switches on', () async {
+      final (bytes, approval) = await reviewed(billsAt());
+      await installed.installReviewed(bytes, approval);
+      app
+        ..set('plugin_xbills_autoread', 'on')
+        ..set('plugin_xbills_extra', 'council tax');
+      File('${root.path}/store/bills/1.0.0/package.ghostplugin').writeAsStringSync('{"rules": ');
+      final later = make();
+      await later.load(app, appVersion: '0.10.1');
+      expect(later.storeOf('bills')!.pack, isNull);
+      await later.removeStore('bills');
+      expect([pref('plugin_xbills_autoread'), pref('plugin_xbills_extra')], ['', 'council tax'], reason: 'every switch that was on goes; words stay');
+      later.dispose();
+    });
   });
 
   group('withdrawals', () {
@@ -536,8 +607,9 @@ void main() {
       final withdrew = await installed.takeRevocations({'v': 1, 'at': 1, 'revoked': [good.toJson(), forged.toJson(), stranger.toJson(), 'junk', {'v': 1}], 'retired': []});
       expect(withdrew, 1);
       expect(installed.revocations.map((r) => r.sha256), [approval.sha256]);
-      expect(installed.isRevoked(approval.sha256), isTrue);
-      expect(installed.isRevoked('a' * 64), isFalse);
+      expect(installed.isRevoked('bills', approval.sha256), isTrue);
+      expect(installed.isRevoked('bills', 'a' * 64), isFalse);
+      expect(installed.isRevoked('parcels', approval.sha256), isFalse, reason: 'a withdrawal counts for the plugin it names alone');
       final pack = installed.storeOf('bills')!;
       expect([pack.running, pack.problem, pack.revoked?.why], [false, 'revoked', 'It sorted contacts\' texts.']);
       expect(running('xbills'), isFalse);
@@ -553,6 +625,21 @@ void main() {
       await again.load(app, appVersion: '0.10.1');
       expect(again.storeOf('bills')!.problem, 'revoked');
       expect(running('xbills'), isFalse);
+    });
+
+    test('a withdrawal signed over another plugin\'s package switches nothing off', () async {
+      // A relay broken into could hand the review screen another plugin's hash to sign as "the version before" (review,
+      // 2026-11-20): the reviewer's signature then names one plugin and another's package, and counts for neither.
+      final (bytes, approval) = await reviewed(billsAt());
+      await installed.installReviewed(bytes, approval);
+      final crossed = await signRevocation(reviewer, plugin: 'mybills', sha256: approval.sha256, why: 'Replaced by 1.1.0: update it from its page.');
+      expect(await installed.takeRevocations({'v': 1, 'revoked': [crossed.toJson()]}), 0);
+      expect([installed.storeOf('bills')!.running, installed.storeOf('bills')!.problem], [true, null]);
+      expect(running('xbills'), isTrue);
+      expect(installed.isRevoked('bills', approval.sha256), isFalse);
+      // Nor is the package refused at a fresh install: it was never withdrawn as Bills.
+      await installed.removeStore('bills');
+      expect((await installed.installReviewed(bytes, approval)).ok, isTrue);
     });
 
     test('a retired key withdraws every pack it approved; another key\'s retirement means nothing here', () async {

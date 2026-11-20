@@ -46,7 +46,7 @@ class MarketConfig {
   final bool on;
 
   /// The largest package, screenshot and request body, in bytes, and how many screenshots a submission may have. A body
-  /// is never more than Caddy lets through (tool/deploy-site.mjs's request_body, 10 MB).
+  /// is never more than Caddy lets through (tool/deploy-site.mjs's request_body, 10 MiB: 10,485,760 bytes).
   final int maxPackage, maxShot, maxShots, maxBody;
 
   /// What the Marketplace may keep on disk in all, packages and screenshots, in bytes; and per developer.
@@ -235,6 +235,10 @@ class Market {
   final Duration _bodyPause, _bodyWhole;
   final Random _random;
   final MarketStore _store;
+
+  /// A test's: run after a submission's files are written and before its record is made, the one wait in which another
+  /// route (a decision) can come between the checks and the record. Null in the relay.
+  Future<void> Function()? debugAfterWrites;
 
   /// What a signed request signs: these words, its method, its path as asked (`/market/mine`), its time and the
   /// SHA-256 of its body (said up front in `x-ghost-body-sha256`; the empty body's for a GET or a DELETE).
@@ -941,6 +945,11 @@ class Market {
       // An owner the audit remembers for an id with no record: a state started empty can't hand it to someone else.
       final held = _store.auditOwners[top.id];
       if (held != null && held != a.id) throw const _Refused('id_taken');
+    }
+    // An id joins the counts as it opens: a new one, or one held for its owner with nothing approved and nothing
+    // waiting (withdrawn or rejected, kept 30 days). Counted for new ids alone, a developer at the cap could withdraw
+    // ids and open them again later past both limits (review, 2026-11-20).
+    if (plugin == null || (plugin.versions.isEmpty && !_hasOpen(plugin.id))) {
       final mine = _store.plugins.values.where((p) => p.owner == a.id && (p.versions.isNotEmpty || _hasOpen(p.id))).length;
       final approved = _store.plugins.values.where((p) => p.versions.isNotEmpty).length;
       if (mine >= config.pluginsPerDeveloper || approved >= config.maxPlugins) throw const _Refused('too_many_plugins');
@@ -1006,10 +1015,16 @@ class Market {
       for (final x in taken) {
         if (x.bytes != null) await _store.writeBlob('shots', x.sha256, x.bytes!);
       }
+      await debugAfterWrites?.call();
     } catch (_) {
       if (made && !_store.submissions.values.any((s) => s.plugin == top.id)) _store.plugins.remove(top.id);
       rethrow;
     }
+    // Asked again after the waits: route 16 isn't one at a time with route 8, so the waiting version may have been
+    // approved meanwhile. Taken then, an older version would be left waiting under a newer current one, and approving
+    // it would list the older (review, 2026-11-20).
+    final approvedMeanwhile = p.current;
+    if (approvedMeanwhile != null && compareVersions(top.version, approvedMeanwhile.version) <= 0) throw const _Refused('version_not_newer');
     for (final old in [for (final s in _store.submissions.values) if (s.plugin == top.id && s.open) s]) {
       _close(old, 'superseded', 'developer', 'Replaced by ${top.version}.');
       _store.audit(a.id, 'supersede', plugin: top.id, sid: old.sid);
@@ -1321,6 +1336,9 @@ class Market {
         _close(s, 'rejected', 'reviewer', words!);
       case 'approve':
         if (s.status != 'submitted' && s.status != 'in_review') throw const _Refused('wrong_state');
+        // Never a version at or below the one listed: the catalog only ever moves forward (C.7 step 9).
+        final listed = p.current;
+        if (listed != null && compareVersions(s.version, listed.version) <= 0) throw const _Refused('version_not_newer');
         final x = _approvalOf(approval);
         final problem = _approvalProblem(x, s, a.key);
         if (problem != null) throw _Refused(problem);

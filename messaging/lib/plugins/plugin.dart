@@ -36,7 +36,26 @@ export '../voice/plugin_note.dart' show PluginChatNote;
 /// whether the phone's contacts know them.
 @immutable
 class MessageFacts {
-  const MessageFacts({required this.thread, required this.senders, required this.text, required this.contact, this.group = false, this.date, this.unread = false, this.muted = false, this.outgoing, this.id, this.network, this.encrypted = false});
+  const MessageFacts({required this.thread, required this.senders, required this.text, required this.contact, this.group = false, this.date, this.unread = false, this.muted = false, this.outgoing, this.id, this.network, this.encrypted = false, this.codeWaiting = false, this.contactByName = false});
+
+  /// Whether this device can read the phone's contacts, which is how [contact] is worked out for its conversations and
+  /// messages ([contactByName]): on a phone, Android's Contacts permission as the app last read it ([heardStatus]); on
+  /// a computer, which can't ask the phone, once a conversation from it has a name at all. Without it no number has a
+  /// name and everyone reads as not a contact, so a plugin from another developer sees nothing (lib/plugins/pack/
+  /// format.dart packSees). The registry's switches carry it, so everything is classified again when it changes.
+  static bool get contactsReadable => _contactsReadable ?? !Sms.remote;
+  static set contactsReadable(bool readable) => _contactsReadable = readable;
+  static bool? _contactsReadable;
+
+  /// Back to as the app starts: a test's own setting forgotten.
+  @visibleForTesting
+  static void forgetContactsReadable() => _contactsReadable = null;
+
+  /// The phone's permissions as just read: on a phone, whether it may read its contacts. A computer's own answer says
+  /// nothing of its phone's, and is left out.
+  static void heardStatus(SmsStatus status) {
+    if (!Sms.remote) contactsReadable = status.contacts;
+  }
 
   /// The conversation it is, or is in.
   final int thread;
@@ -73,8 +92,22 @@ class MessageFacts {
   /// Conversation.encrypted): a plugin from another developer never sees it (lib/plugins/pack/format.dart packSees).
   final bool encrypted;
 
+  /// A text with a sign-in code in it waits unread in the conversation under newer words that have none: a code, then
+  /// "Never share this code" a moment later. Android's one notification for the conversation still holds the code, so a
+  /// plugin from another developer neither sorts it nor marks it read nor takes its notification away until it is
+  /// read (lib/plugins/pack/format.dart packMayAct; lib/plugins/list.dart learns it from the phone).
+  final bool codeWaiting;
+
+  /// [contact] was worked out from whether a sender has a name in the phone's contacts, as it is for the phone's own
+  /// conversations and messages, so it holds only where those can be read ([contactsReadable]); false where the facts
+  /// say who is a contact themselves (a test, Try it, the API's filters.classify).
+  final bool contactByName;
+
   /// The same, with other words: a message's as a bubble shows them (without "(sent with Slam)").
-  MessageFacts withText(String text) => MessageFacts(thread: thread, senders: senders, text: text, contact: contact, group: group, date: date, unread: unread, muted: muted, outgoing: outgoing, id: id, network: network, encrypted: encrypted);
+  MessageFacts withText(String text) => MessageFacts(thread: thread, senders: senders, text: text, contact: contact, group: group, date: date, unread: unread, muted: muted, outgoing: outgoing, id: id, network: network, encrypted: encrypted, codeWaiting: codeWaiting, contactByName: contactByName);
+
+  /// The same, a sign-in code waiting unread under its words ([codeWaiting]).
+  MessageFacts withCodeWaiting() => MessageFacts(thread: thread, senders: senders, text: text, contact: contact, group: group, date: date, unread: unread, muted: muted, outgoing: outgoing, id: id, network: network, encrypted: encrypted, codeWaiting: true, contactByName: contactByName);
 
   /// A conversation as the list holds it: its people and its last words.
   factory MessageFacts.conversation(Conversation c) => MessageFacts(
@@ -93,6 +126,7 @@ class MessageFacts {
         // theirs. Elsewhere the row's words may be the person's own, and that isn't known.
         outgoing: c.heard != null ? false : null,
         encrypted: c.encrypted,
+        contactByName: true,
       );
 
   /// One message of the conversation [thread], whose other people are [people].
@@ -110,6 +144,7 @@ class MessageFacts {
       id: m.key,
       network: 'sms',
       encrypted: m.encrypted,
+      contactByName: true,
     );
   }
 

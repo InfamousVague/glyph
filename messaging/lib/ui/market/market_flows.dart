@@ -329,13 +329,43 @@ class _ReportPageState extends State<_ReportPage> {
 
 /// Marketplace › Updates: each waiting update, from the version here to the new one with what's new, and Update;
 /// Update all for those that can do nothing new. Stays, saying so, once the last is done.
-class MarketUpdatesPage extends StatelessWidget {
+class MarketUpdatesPage extends StatefulWidget {
   const MarketUpdatesPage({super.key, this.market});
   final MarketState? market;
 
   @override
+  State<MarketUpdatesPage> createState() => _MarketUpdatesPageState();
+}
+
+class _MarketUpdatesPageState extends State<MarketUpdatesPage> {
+  /// Update all is running: its row says so and can't be pressed again.
+  bool _all = false;
+
+  /// Updates each of [quiet] in turn and says how it went: how many were updated, and what stopped the first that
+  /// wasn't. "2 updated" was said whatever happened, a disk that refused the write or a version this app can't run
+  /// among it (review, 2026-11-20).
+  Future<void> _updateAll(MarketState m, List<({InstalledPack installed, ListingPlugin listing})> quiet) async {
+    if (_all) return;
+    setState(() => _all = true);
+    final failed = <(ListingPlugin, PackOutcome)>[];
+    var ok = 0;
+    try {
+      for (final u in quiet) {
+        final out = await m.update(u.listing);
+        out.ok ? ok++ : failed.add((u.listing, out));
+      }
+    } finally {
+      if (mounted) setState(() => _all = false);
+    }
+    if (!mounted) return;
+    if (failed.isEmpty) return toast(context, '$ok updated', tone: GlacierToastTone.success);
+    final (first, why) = failed.first;
+    toast(context, [if (ok > 0) '$ok updated.', '${first.name}: ${why.message}', if (failed.length > 1) '${failed.length - 1} more couldn\'t be updated.'].join(' '), tone: GlacierToastTone.danger);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final m = market ?? MarketState.instance;
+    final m = widget.market ?? MarketState.instance;
     return ListenableBuilder(
       listenable: Listenable.merge([m, InstalledPlugins.instance]),
       builder: (context, _) {
@@ -364,7 +394,7 @@ class MarketUpdatesPage extends StatelessWidget {
                         '${u.installed.version} → ${u.listing.version}',
                         if ((u.listing.pack.whatsNew ?? '').isNotEmpty) u.listing.pack.whatsNew!,
                       ].join('\n')),
-                      control: MarketButton(label: m.adding(u.installed.id) ? 'Updating…' : 'Update', look: MarketButtonLook.ring, onPress: m.adding(u.installed.id) ? null : () => updateStorePack(context, u.listing, market: m)),
+                      control: MarketButton(label: m.adding(u.installed.id) ? 'Updating…' : 'Update', look: MarketButtonLook.ring, onPress: m.adding(u.installed.id) || _all ? null : () => updateStorePack(context, u.listing, market: m)),
                     ),
                 ]),
                 if (ups.length > 1 && quiet.isNotEmpty)
@@ -374,14 +404,10 @@ class MarketUpdatesPage extends StatelessWidget {
                       SettingRow(
                         key: const ValueKey('market-update-all'),
                         icon: const AppIcon(Lucide.download, size: 18),
-                        label: 'Update all',
+                        label: _all ? 'Updating…' : 'Update all',
                         hint: Text(quiet.length == ups.length ? 'All ${ups.length}.' : '${quiet.length} of ${ups.length}: the others can do something new, so each asks first.'),
-                        onPress: () async {
-                          for (final u in quiet) {
-                            await m.update(u.listing);
-                          }
-                          if (context.mounted) toast(context, '${quiet.length} updated', tone: GlacierToastTone.success);
-                        },
+                        disabled: _all,
+                        onPress: _all ? null : () => unawaited(_updateAll(m, quiet)),
                       ),
                     ]),
                   ),

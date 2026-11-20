@@ -34,6 +34,7 @@ import '../plugins_page/plugin_art.dart';
 import '../plugins_page/plugins_page.dart' show marketOnIphone, pluginsHere;
 import '../shell.dart';
 import 'market_flows.dart';
+import 'market_forms.dart' show issueLines;
 import 'try_pack.dart';
 
 /// How a dev pack came, in the row's words.
@@ -259,7 +260,7 @@ class DevPluginScreen extends StatelessWidget {
                           SettingRowBox(child: Text('None: it checks out.', style: mono))
                         else
                           SettingRowBox(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            for (final i in d.issues) Padding(padding: EdgeInsets.only(bottom: t.space(1)), child: Text('${i.isError ? '' : 'warning '}${i.code}${i.path.isEmpty ? '' : ' at ${i.path}'}: ${i.message}', style: mono)),
+                            for (final line in issueLines(d.issues, (i) => '${i.isError ? '' : 'warning '}${i.code}${i.path.isEmpty ? '' : ' at ${i.path}'}: ${i.message}')) Padding(padding: EdgeInsets.only(bottom: t.space(1)), child: Text(line, style: mono)),
                           ])),
                       ]),
                       PaneSection(key: ValueKey('dev-plugin-errors-$packId'), title: 'Lately', footer: const Text('What it threw, or was refused, while it ran: the newest first.'), children: [
@@ -281,6 +282,10 @@ class DevPluginScreen extends StatelessWidget {
                     ],
                     SizedBox(height: t.space(4)),
                     PaneSection(children: [
+                      // Paused for slowing the app down, as a store pack is: the pause is kept for this copy across a
+                      // reload of the same file and a restart, so it is turned back on here, or on its page (D.4).
+                      if (d.problem == 'paused')
+                        SettingRow(key: ValueKey('dev-plugin-unpause-$packId'), icon: icon(Lucide.play), label: 'Turn it back on', hint: const Text('Paused: it was slowing the app down.'), onPress: () => here.unpause(packId)),
                       if (d.source.reloadable)
                         SettingRow(key: ValueKey('dev-plugin-reload-$packId'), icon: icon(Lucide.refreshCw), label: 'Reload', hint: Text(d.source.kind == 'link' ? 'Fetches it again from ${d.source.url}.' : 'Reads the file again.'), onPress: () => unawaited(loadDevPlugin(context, () => here.reloadDev(packId)))),
                       if (shell != null)
@@ -292,7 +297,7 @@ class DevPluginScreen extends StatelessWidget {
                         icon: icon(Lucide.trash2),
                         label: 'Remove',
                         labelColor: t.color('app-danger'),
-                        hint: const Text('Its copy goes from this device; its choices go with it.'),
+                        hint: const Text('Its copy goes from this device. Your choices for it are kept for when you load it again.'),
                         onPress: () async {
                           final out = await here.removeDev(packId);
                           if (!context.mounted) return;

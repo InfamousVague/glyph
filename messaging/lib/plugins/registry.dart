@@ -407,7 +407,9 @@ class PluginRegistry with ChangeNotifier {
   /// A tuned classifier is told its plugin's choices ([TunedClassifier]): any of them changing is a change here too.
   /// It starts with [version]: a pack replaced by its update (or a reload in development) keeps its place and its
   /// switch, so without it every conversation would keep the old copy's tags.
-  String switches(PluginStore store) => '$version:${[for (final e in _entries) isOn(e.plugin, store) ? '1' : '0'].join()}:${store.read(tunedKey) ?? ''}';
+  /// Whether the phone's contacts can be read is in it too: a pack sees only strangers it can tell from contacts, so
+  /// once that changes every conversation's tags are worked out again (lib/plugins/pack/format.dart packSees).
+  String switches(PluginStore store) => '$version:${MessageFacts.contactsReadable ? 'c' : 'n'}:${[for (final e in _entries) isOn(e.plugin, store) ? '1' : '0'].join()}:${store.read(tunedKey) ?? ''}';
 
   /// What the text rules' answers are worked out from: which of their plugins are on, and those plugins' own choices.
   /// Not [PluginStore.stamp], which goes up for every plugin's every choice (a conversation filed, Spam's strictness,

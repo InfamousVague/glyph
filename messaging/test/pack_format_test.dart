@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/plugins/pack/pack.dart';
+import 'package:ghost_messaging/plugins/plugin.dart';
+import 'package:ghost_messaging/plugins/registry.dart';
 
 /// The pack format "ghost-plugin/1" (lib/plugins/pack/manifest.dart; Matt, 2026-11-20: "I would like users to be able
 /// to develop and submit their own plugins to our plugin marketplace and I'd like to be able to verify them for the
@@ -398,8 +400,63 @@ void main() {
         ..['permissions'] = ['sort', 'copy', 'write', 'move', 'links']
         ..['rules'].remove('incoming');
       expect(check(noIncoming).ok, isTrue);
-      expect(check(jsonDecode(jsonEncode(noIncoming))..['rules']['tags'][0]['when'] = {'from': ['72975', '+1 (555) 010-0100']}).ok, isTrue, reason: 'from is fine without incoming rules');
       expectError(check(jsonDecode(jsonEncode(noIncoming))..['rules']['actions'][2]['when']['from'] = ['72975']), 'bad_link_when', 'rules.actions[2].when.from');
+      // A pack with a link picks no texts by sender anywhere: a tag given by sender, a tab that takes by sender or that
+      // tab's row would offer its link for those numbers alone just the same (review, 2026-11-20).
+      expectError(check(jsonDecode(jsonEncode(noIncoming))..['rules']['tags'][0]['when'] = {'from': ['72975', '+1 (555) 010-0100']}), 'bad_link_when', 'rules.tags[0].when.from');
+      expectError(check(jsonDecode(jsonEncode(noIncoming))..['rules']['sections'][0]['takes'] = {'from': ['72975']}), 'bad_link_when', 'rules.sections[0].takes.from');
+      final noLink = jsonDecode(jsonEncode(noIncoming))
+        ..['permissions'] = ['sort', 'copy', 'write', 'move']
+        ..['links'] = []
+        ..['rules']['actions'].removeAt(2);
+      expect(check(noLink).ok, isTrue);
+      expect(check(jsonDecode(jsonEncode(noLink))..['rules']['tags'][0]['when'] = {'from': ['72975', '+1 (555) 010-0100']}).ok, isTrue, reason: 'from is fine without incoming rules or a link');
+      expect(check(jsonDecode(jsonEncode(noLink))..['rules']['sections'][0]['takes'] = {'tagged': ['parcel'], 'from': ['72975']}).ok, isTrue);
+    });
+
+    test('thousands of problems give the first hundred, the last saying how many more; nothing past a list\'s cap is looked at', () {
+      // A package of 256 KiB held some 65,000 problems, every one listed and drawn on the review screen (review,
+      // 2026-11-20).
+      final flood = bills();
+      flood['rules']['tags'][0] = {...flood['rules']['tags'][0] as Map, for (var i = 0; i < 4000; i++) 'k$i': 1};
+      final parse = check(flood);
+      expect(parse.pack, isNull);
+      expect(parse.issues, hasLength(packIssuesMost));
+      expect(parse.issues.take(packIssuesMost - 1).every((i) => i.code == 'unknown_field'), isTrue);
+      expect([parse.issues.last.code, parse.issues.last.message], ['too_many_issues', 'And 3901 more problems like these: fix the ones above and check it again.']);
+      final long = bills();
+      long['rules']['tags'][0]['any'] = List.filled(65000, 'a');
+      final errors = check(long).errors.toList();
+      expect(errors.where((e) => e.code == 'too_many').single.path, 'rules.tags[0].any');
+      expect(errors.where((e) => e.code == 'phrase_too_short'), hasLength(PackLimits.any), reason: 'only as many as a rule may have are read');
+      expect(errors, hasLength(PackLimits.any + 1));
+    });
+
+    test('a from entry with nothing to compare holds for no one, never for everyone', () {
+      // "(-)" is three characters a pack may hold and no number or name at all. Dropped, it left the condition with no
+      // senders, which then held for every one (review, 2026-11-20).
+      final json = bills()
+        ..['permissions'] = ['sort', 'copy']
+        ..['settings'] = [(bills()['settings'] as List)[1]]
+        ..['rules'].remove('incoming');
+      json['rules']['sections'][0]['takes'] = {'tagged': ['bill'], 'from': ['(-)']};
+      final parse = check(json);
+      expect(parse.errors, isEmpty);
+      final takes = parse.pack!.rules.sections[0].takes;
+      expect(takes.from, ['']);
+      final plugin = PackPlugin(parse.pack!, source: PluginSource.dev, now: () => DateTime(2026));
+      final registry = PluginRegistry([plugin]);
+      final store = MemoryStore({'plugin_xbills': 'on'});
+      for (final sender in ['+15550100100', '72975', '']) {
+        final facts = MessageFacts(thread: 1, senders: [sender], text: packSamples.first.text, contact: false, outgoing: false);
+        final tags = registry.classify(facts, store);
+        expect(tags.has('xbills.bill'), isTrue, reason: 'it is still tagged');
+        expect(registry.sectionOf(facts, tags, store), isNull, reason: 'its tab takes no one\'s: "$sender"');
+      }
+      // Alone in a condition it is still a condition: a tab that takes by it, or a rule given by it, is no mistake.
+      final alone = jsonDecode(jsonEncode(json));
+      alone['rules']['sections'][0]['takes'] = {'from': ['+ -']};
+      expect(check(alone).errors, isEmpty);
     });
 
     test('needs_permission and permission_unused', () {

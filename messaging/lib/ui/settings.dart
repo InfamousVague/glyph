@@ -20,6 +20,7 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../net/net.dart';
 import '../plugins/pack/pack.dart' show InstalledPlugins;
+import '../plugins/plugin.dart' show MessageFacts;
 import '../sms.dart';
 import 'common.dart';
 import 'nav_bar.dart';
@@ -139,7 +140,7 @@ class SettingsModel extends ChangeNotifier {
     }
 
     await Future.wait([
-      ask(() async => status = await Sms.instance.status()),
+      ask(() async => MessageFacts.heardStatus(status = await Sms.instance.status())),
       ask(() async => ownNumber = await Sms.instance.ownNumber()),
       ask(() async => update = await Sms.instance.update()),
       ask(() async => e2e = await Sms.instance.e2eList()),

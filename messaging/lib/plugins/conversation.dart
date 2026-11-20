@@ -48,11 +48,11 @@ class ConversationPlugins {
     if (newest != null) {
       final facts = MessageFacts.message(newest, thread: thread, people: all);
       // The conversation's facts, with its newest message's words: everyone in it, not that message's sender alone.
-      return MessageFacts(thread: thread, senders: [for (final p in all) p.address], text: facts.text, contact: all.any((p) => p.name != null && p.name!.isNotEmpty), group: all.length > 1, date: facts.date, outgoing: facts.outgoing, encrypted: newest.encrypted);
+      return MessageFacts(thread: thread, senders: [for (final p in all) p.address], text: facts.text, contact: all.any((p) => p.name != null && p.name!.isNotEmpty), group: all.length > 1, date: facts.date, outgoing: facts.outgoing, encrypted: newest.encrypted, contactByName: true);
     }
     // With no newest message whose words they are is not known (outgoing stays null), so no plugin from another
     // developer sees an empty conversation.
-    return MessageFacts(thread: thread, senders: [for (final p in all) p.address], text: '', contact: all.any((p) => p.name != null && p.name!.isNotEmpty), group: all.length > 1);
+    return MessageFacts(thread: thread, senders: [for (final p in all) p.address], text: '', contact: all.any((p) => p.name != null && p.name!.isNotEmpty), group: all.length > 1, contactByName: true);
   }
 
   /// What the classifiers said of each message, by its key ('header:' and the newest's key for the header's facts),

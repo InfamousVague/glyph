@@ -38,11 +38,11 @@ adb reverse tcp:8080 tcp:8080    # then load http://127.0.0.1:8080/yours.ghostpl
   <tr><td>Thank you for your payment of £30.00. It may take 2 days to show.</td><td>paid, Receipts</td><td></td></tr>
   <tr><td>Payment of €12,50 received. Ref 88213.</td><td>paid: €12,50, Receipts</td><td></td></tr>
   <tr><td>Reminder: minimum payment due on your card.</td><td>bill, Bills</td><td></td></tr>
-  <tr><td>Your council tax is due next week.</td><td>bill, Bills, with "council tax" in More words for bills</td><td></td></tr>
+  <tr><td>Your council tax is due next week.</td><td></td><td></td></tr>
   <tr><td>Your parcel has shipped! Tracking number: 1Z999AA10123456784</td><td></td><td>parcel, track: 1Z999AA10123456784, Parcels</td></tr>
   <tr><td>Your order is out for delivery today.</td><td></td><td>parcel, Parcels</td></tr>
   <tr><td>We tried to deliver your parcel. Missed delivery, rebook at example.com</td><td></td><td>parcel, Parcels</td></tr>
-  <tr><td>Good news, your order has been dispatched.</td><td></td><td>parcel, Parcels, with What counts as a parcel on Anything about shipping</td></tr>
+  <tr><td>Good news, your order has been dispatched.</td><td></td><td></td></tr>
   <tr><td>Your new blue parcel has shipped. Tracking no. JD014600006295117</td><td></td><td>parcel, track: JD014600006295117, Parcels</td></tr>
   <tr><td>Your code is 482913. Don’t share it with anyone.</td><td></td><td></td></tr>
   <tr><td>Are we still on for dinner on Friday?</td><td></td><td></td></tr>
@@ -51,6 +51,7 @@ adb reverse tcp:8080 tcp:8080    # then load http://127.0.0.1:8080/yours.ghostpl
   <tr><td>Vote YES on Measure 12 this Tuesday. Paid for by Friends of the Park.</td><td></td><td></td></tr>
 </table>
 <p>Each sample is from <code>72975</code>, with the plugin alone and its settings as they start. A blank is nothing: no tags, no tab.</p>
+<p>Try it and Try the samples use the plugin's settings as they start, not what you've chosen on its page, and <b>Every switch on</b> turns its switches on, never a choice or words. So the council tax and dispatched samples come out blank here: Bills sorts the first only with <b>council tax</b> in <b>More words for bills</b>, and Parcels sorts the second only with <b>What counts as a parcel</b> on <b>Anything about shipping</b>. Try those on real texts once you've chosen them.</p>
 
 <h2 id="reload">Reload</h2>
 <p><b>Reload</b>, on a plugin's page, loads it again from where it came from: a link is fetched again, and a file loaded on a Mac is read again from where it is. A pasted plugin, or a file picked on Android, has no Reload: paste it or pick it again, and the new copy takes the old one's place.</p>

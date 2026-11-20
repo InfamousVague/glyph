@@ -19,8 +19,9 @@ import '../../kit/settings_type.dart';
 import '../../market/market_api.dart' show marketIsOwn;
 import '../../market/market_models.dart';
 import '../../net/net.dart';
-import '../../plugins/pack/pack.dart' show PluginPack, packHere;
+import '../../plugins/pack/pack.dart' show PackIssue, PluginPack, packHere, packIssuesMost;
 import '../../plugins/plugin.dart';
+import '../../sms.dart';
 import '../common.dart';
 import '../settings.dart' show SettingsSectionScreen;
 import '../shell.dart';
@@ -51,8 +52,17 @@ String marketDate(int ms) {
 const String marketUnreachableWords = 'Couldn\'t reach the Marketplace. Try again in a moment.';
 
 /// Where the app's hub isn't Ghost Messaging's own: plugins are reviewed on ours alone (MarketApi.live), so the line
-/// names the server this app uses and where to switch back.
-String marketServerWords(String hub) => 'Plugins are reviewed on Ghost Messaging\'s own server, and this app uses ${Uri.tryParse(hub)?.host.ifEmpty(hub) ?? hub}. Switch back in Settings › Network to submit.';
+/// names the server this app uses and where to switch back: Settings › Routes, as that section has been called since
+/// Matt renamed it (2026-11-19: "Rename 'Network' to 'Routes'"), which is on the phone alone.
+String marketServerWords(String hub) => 'Plugins are reviewed on Ghost Messaging\'s own server, and this app uses ${Uri.tryParse(hub)?.host.ifEmpty(hub) ?? hub}. Switch back in Settings › Routes${Sms.remote ? ' on your phone' : ''} to submit.';
+
+/// The first [most] of [issues] a line each, and one saying how many more where there are more: a stranger's package
+/// held tens of thousands of problems, and a line drawn for each froze the screen of the one device that holds the
+/// review key (review, 2026-11-20).
+List<String> issueLines(List<PackIssue> issues, String Function(PackIssue issue) line, {int most = packIssuesMost}) => [
+      for (final i in issues.take(most)) line(i),
+      if (issues.length > most) 'And ${issues.length - most} more.',
+    ];
 
 /// Opens Settings › Me, [seek] lit, from a Marketplace page: in the frame where there is one, over this page where not.
 void openSettingsMe(BuildContext context, [String? seek]) {

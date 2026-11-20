@@ -15,6 +15,7 @@ import '../art/lucide_more.dart';
 import '../sms.dart';
 import '../ui/common.dart';
 import '../ui/dialup/bevel.dart' show isBevelChrome;
+import 'codes.dart' show signInCode;
 import 'plugin.dart';
 import 'registry.dart';
 import 'tag_store.dart';
@@ -33,10 +34,24 @@ abstract interface class PluginEffects {
   /// Takes away the notification Android has shown for [thread], and nothing else: a plugin from another developer's
   /// mute, one text at a time, never the conversation's lasting one (lib/plugins/pack).
   Future<void> cancelNotification(int thread);
+
+  /// Whether a text that came into [thread] and is still unread has a sign-in code in it: one under newer words, which
+  /// the list's row doesn't show, is still in Android's one notification for the conversation.
+  Future<bool> codeWaiting(int thread);
 }
 
 class SmsEffects implements PluginEffects {
   const SmsEffects();
+
+  /// Android's notification for a conversation lists its newest unread texts (Notifier.kt, eight at most): these are
+  /// read newest first, which is more than it can hold.
+  static const int _looked = 20;
+
+  @override
+  Future<bool> codeWaiting(int thread) async {
+    final newest = await Sms.instance.messages(thread, limit: _looked);
+    return newest.any((m) => !m.outgoing && !m.read && signInCode(m.body) != null);
+  }
 
   @override
   Future<void> markRead(int thread) => Sms.instance.markRead(thread);
@@ -105,8 +120,25 @@ class ListPlugins {
 
   /// Conversations that have just been read, the newest first, before they are drawn.
   void take(Iterable<Conversation> fresh) {
+    // A computer can't ask its phone whether it may read its contacts: a name on any conversation from it says so
+    // (MessageFacts.contactsReadable). Until then a plugin from another developer sees nothing here.
+    if (Sms.remote && !MessageFacts.contactsReadable && fresh.any((c) => c.people.any((p) => (p.name ?? '').isNotEmpty))) MessageFacts.contactsReadable = true;
     if (!registry.isEmpty) tags.take(fresh);
   }
+
+  /// The unread conversations with a sign-in code waiting under newer words, as the phone said when they came
+  /// ([PluginEffects.codeWaiting]): a code, then "Never share this code" a moment later, whose one notification still
+  /// holds the code. A plugin from another developer neither sorts nor draws them, nor marks them read nor takes that
+  /// notification away, until they are read (review, 2026-11-20).
+  final _codeWaiting = <int>{};
+  int _codeVersion = 0;
+
+  /// What each conversation was when the phone was last asked about it (its date and words): it is asked again only
+  /// once something new has come, not every time the plugins' switches have everything classified again.
+  final _codeLooked = <int, (int, String)>{};
+
+  /// [c]'s facts as the plugins judge it: [facts] with a waiting code marked where there is one.
+  MessageFacts _judged(Conversation c, MessageFacts facts) => c.unread && _codeWaiting.contains(c.id) ? facts.withCodeWaiting() : facts;
 
   void dispose() {
     _gone = true;
@@ -119,6 +151,7 @@ class ListPlugins {
   int _sortedTags = -1;
   int _sortedStamp = -1;
   int _sortedChats = 0;
+  int _sortedCodes = -1;
   Sorted _sorted = Sorted.none;
 
   /// Each chat on another network sorted with the texts (Signal's, Telegram's), by its key (`network:chat`): the
@@ -145,11 +178,12 @@ class ListPlugins {
       return _sorted = Sorted.none;
     }
     final chatsSeen = Object.hashAll([for (final c in chats) Object.hash(c.key, c.facts.text, c.facts.unread, c.facts.contact, c.facts.outgoing)]);
-    if (identical(all, _sortedOf) && _sortedTags == tags.version && _sortedStamp == store.stamp && _sortedChats == chatsSeen) return _sorted;
+    if (identical(all, _sortedOf) && _sortedTags == tags.version && _sortedStamp == store.stamp && _sortedChats == chatsSeen && _sortedCodes == _codeVersion) return _sorted;
     _sortedOf = all;
     _sortedTags = tags.version;
     _sortedStamp = store.stamp;
     _sortedChats = chatsSeen;
+    _sortedCodes = _codeVersion;
     final sections = registry.sections(store);
     // With no section there is nothing to sort, unless a plugin that is now off left conversations muted.
     if (sections.isEmpty && store.read(mutedKey) == null) return _sorted = Sorted.none;
@@ -163,7 +197,9 @@ class ListPlugins {
       final facts = tags.facts(c.id);
       if (facts == null) continue;
       listed.add(c.id);
-      final s = registry.sectionOf(facts, tags.of(c.id), store, among: sections);
+      // Read since a code was waiting in it: what the plugins may do to it is as its words say again.
+      if (!c.unread) _codeWaiting.remove(c.id);
+      final s = registry.sectionOf(_judged(c, facts), tags.of(c.id), store, among: sections);
       if (s == null) continue;
       at[c.id] = s;
       counts[s.id] = (counts[s.id] ?? 0) + 1;
@@ -336,7 +372,7 @@ class ListPlugins {
     final store = _store;
     final s = _sorted.at[c.id];
     if (store == null || s == null) return null;
-    final look = registry.look(s, MessageFacts.conversation(c), tags.of(c.id), store);
+    final look = registry.look(s, _judged(c, MessageFacts.conversation(c)), tags.of(c.id), store);
     return look == null ? null : (look, _Host(this, s.plugin, context));
   }
 
@@ -398,15 +434,41 @@ class ListPlugins {
     final store = _store;
     if (!facts.unread || store == null || Sms.remote) return;
     final asked = registry.incoming(facts, tags, store);
-    if (asked.isEmpty) return;
+    // Where a plugin from another developer would sort it or act on it, the phone is asked first whether a code waits
+    // unread under these words, which they never show it.
+    final section = registry.sectionOf(facts, tags, store);
+    final others = asked.any((b) => b.plugin.source != PluginSource.builtIn) || (section != null && section.plugin.source != PluginSource.builtIn);
+    if (asked.isEmpty && !others) return;
     // After the frame that is being built, one conversation at a time.
-    _queue = _queue.then((_) => _apply(facts, tags, asked, store)).catchError((_) {});
+    _queue = _queue.then((_) async {
+      if (others) await _lookForCode(facts);
+      await _apply(facts, tags, asked, store);
+    }).catchError((_) {});
+  }
+
+  Future<void> _lookForCode(MessageFacts facts) async {
+    final thread = facts.thread;
+    final seen = (facts.date?.millisecondsSinceEpoch ?? 0, facts.text);
+    if (_gone || _codeLooked[thread] == seen) return;
+    _codeLooked[thread] = seen;
+    bool waiting;
+    try {
+      waiting = await effects.codeWaiting(thread);
+    } catch (_) {
+      // Not known is taken as waiting: a plugin from another developer leaves it alone until it is read.
+      waiting = true;
+    }
+    if (waiting ? !_codeWaiting.add(thread) : !_codeWaiting.remove(thread)) return;
+    _codeVersion++;
+    if (!_gone) changed();
   }
 
   Future<void> _apply(MessageFacts facts, TagSet tags, List<BoundIncoming> asked, PluginStore store) async {
     if (_gone) return;
     var reread = false;
     for (final b in asked) {
+      // A plugin from another developer never marks read, nor silences, a conversation with a code waiting unread in it.
+      if (b.plugin.source != PluginSource.builtIn && _codeWaiting.contains(facts.thread) && (b.action is MarkRead || b.action is MuteNotification)) continue;
       switch (b.action) {
         case MarkRead():
           await effects.markRead(facts.thread);

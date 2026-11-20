@@ -58,13 +58,15 @@ Widget pluginsScreen([PluginRegistry? registry, String? open]) {
 /// The Marketplace's shelves (Discover, Added, In development): the app's plugins with those from other developers, the
 /// checked listings among them, so a plugin's own settings still show on its page once it is added. [shelf] is the chip
 /// chosen at first; [head] false is that shelf alone, with no band, search or chips; [lead] stands above it.
-Widget marketPluginsScreen({String title = 'Discover', String? shelf, String? open, bool head = true, Widget? lead}) => PluginsPage(
+Widget marketPluginsScreen({String title = 'Discover', String? shelf, String? open, bool openListing = false, bool head = true, Widget? lead, String? search}) => PluginsPage(
       registry: PluginRegistry.instance,
       title: title,
       shelf: shelf,
       open: open,
+      openListing: openListing,
       head: head,
       lead: lead,
+      search: search,
       market: MarketState.instance,
       settingsOf: (context, p) => _ownOf(context, p, PluginRegistry.instance),
       summaryOf: (context, p) => _summaryOf(context, p, PluginRegistry.instance),

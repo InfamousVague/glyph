@@ -13,14 +13,14 @@
 <table>
   <tr><th>Token</th><th>Matches</th><th>For example</th></tr>
   <tr><td><code>{digits:N-M}</code></td><td>A run of N to M digits, not part of a longer run. 1 to 24, and <code>1-24</code> if you give no numbers.</td><td><code>your code is {digits:4-8}</code> finds 123456 in "Your code is 123456.", and nothing in "Your code is 1234567890".</td></tr>
-  <tr><td><code>{number}</code></td><td>A number: 1,234, 1.234,5, 98765 or 12.5.</td><td><code>order {number}</code> finds 1,234 in "Order 1,234 shipped".</td></tr>
+  <tr><td><code>{number}</code></td><td>A number: 1,234, 1.234,5, 98765 or 12.5. The whole run of digits, dots and commas it sits on, or nothing: 192.168.1.1 is no number.</td><td><code>order {number}</code> finds 1,234 in "Order 1,234 shipped".</td></tr>
   <tr><td><code>{amount}</code></td><td>A number with a currency sign or code before or after it: $45.20, 45,00 EUR, £30. The signs are $, €, £, ¥ and ₹; the codes USD, EUR, GBP, CAD and AUD, in any case.</td><td><code>amount due {amount}</code> finds $1,234.56 in "Amount due $1,234.56 by Friday", and nothing in "Amount due 45 by Friday".</td></tr>
   <tr><td><code>{code:N-M}</code></td><td>A whole word of N to M letters and digits with at least one digit in it. 4 to 24, and <code>4-10</code> if you give no numbers.</td><td><code>code {code:4-8}</code> finds AB12CD in "Use code AB12CD to sign in", and nothing in "Use code ABCDEF to sign in".</td></tr>
   <tr><td><code>{word}</code></td><td>One word: letters, digits, <code>'</code> and <code>-</code>.</td><td><code>{word} delivery</code> finds Acme in "Your Acme delivery is near".</td></tr>
   <tr><td><code>{words:N-M}</code></td><td>N to M words of anything but spaces, between two plain parts of the phrase. 0 to 4, and <code>1-3</code> if you give no numbers.</td><td><code>your {words:0-3} has shipped</code> finds "new blue parcel" in "Your new blue parcel has shipped!"</td></tr>
   <tr><td><code>{url}</code></td><td>A web address starting <code>http://</code>, <code>https://</code> or <code>www.</code>.</td><td><code>track {url}</code> finds https://example.com/t/123 in "track https://example.com/t/123 now".</td></tr>
   <tr><td><code>{email}</code></td><td>An email address.</td><td><code>from {email}</code> finds bob.smith+x@mail.example.co.uk in "Reply from bob.smith+x@mail.example.co.uk."</td></tr>
-  <tr><td><code>{phone}</code></td><td>A phone number of 7 to 15 digits, with spaces, brackets, dots or dashes among them.</td><td><code>{phone}</code> finds +1 (555) 010-0100 in "Call +1 (555) 010-0100 today".</td></tr>
+  <tr><td><code>{phone}</code></td><td>A phone number of 7 to 15 digits, with spaces, brackets, dots or dashes among them. The whole run it sits on, or nothing: two numbers with only a space between them read as one run.</td><td><code>{phone}</code> finds +1 (555) 010-0100 in "Call +1 (555) 010-0100 today".</td></tr>
   <tr><td><code>{date}</code></td><td>A date: 12/03/2026, 2026-11-20, March 5th, 5 jan. Months are in English.</td><td><code>on {date}</code> finds March 5th in "Your appointment on March 5th at 3pm".</td></tr>
   <tr><td><code>{time}</code></td><td>A time: 3pm, 10:30 a.m., 14:05.</td><td><code>at {time}</code> finds 10:30 a.m. in "See you at 10:30 a.m. sharp".</td></tr>
 </table>

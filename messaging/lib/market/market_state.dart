@@ -97,12 +97,14 @@ class MarketState extends ChangeNotifier {
   /// keys); null otherwise.
   ({String code, DateTime at})? problem;
 
-  /// Each store pack on this device, running or not, whose checked listing is newer and by the same developer.
+  /// Each store pack on this device, running or not, whose checked listing is newer and by the same developer, and that
+  /// this app can install: one that needs a newer Ghost Messaging would be counted on the ring and refused at every
+  /// press until the app itself is updated (review, 2026-11-20), so it waits until then.
   List<({InstalledPack installed, ListingPlugin listing})> get updates {
     final out = <({InstalledPack installed, ListingPlugin listing})>[];
     for (final p in installed.store) {
       final l = _listings.where((l) => l.pack.id == p.id).firstOrNull;
-      if (l == null || !_newer(l.pack.version, p.version)) continue;
+      if (l == null || l.needsNewerApp || !_newer(l.pack.version, p.version)) continue;
       final had = p.pack?.developer;
       if (had != null && had != l.pack.developer) continue;
       out.add((installed: p, listing: l));
@@ -222,8 +224,12 @@ class MarketState extends ChangeNotifier {
     }
   }
 
-  /// Fetches and checks the catalog's packages: the newest changes first, at most 200, 4 at a time, those already
-  /// checked kept as they are.
+  /// Fetches and checks the catalog's packages: the newest changes first, at most 200, those already checked kept as
+  /// they are. Each entry's approval is checked before anything else is done with it, since it needs the entry alone:
+  /// only one whose signature holds is fetched (4 at a time), kept on disk and read, and the reading is done on an
+  /// isolate of its own. A catalog of signatures that don't hold (a relay broken into could list 200 a refresh, each
+  /// naming a pinned key and a package made to be slow to read) costs this device their checks and nothing more
+  /// (review, 2026-11-20).
   Future<void> _check(MarketApi api, Catalog catalog) async {
     final entries = [...catalog.plugins]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     final todo = entries.take(200).toList();
@@ -233,51 +239,47 @@ class MarketState extends ChangeNotifier {
     for (final e in todo) {
       final l = had[e.sha256];
       // Kept as checked, unless it has been withdrawn since or its key is no longer trusted.
-      if (l != null && l.entry.id == e.id && l.entry.version == e.version && !installed.isRevoked(e.sha256) && _approvalWords(e, installed.reviewKeys, installed.retiredKeys) == null) {
+      if (l != null && l.entry.id == e.id && l.entry.version == e.version && !installed.isRevoked(e.id, e.sha256) && _approvalWords(e, installed.reviewKeys, installed.retiredKeys) == null) {
         kept[e.sha256] = ListingPlugin(e, l.pack, this, needsNewerApp: l.needsNewerApp);
       } else {
         fresh.add(e);
       }
     }
-    checking = fresh.length;
-    _say();
     final keys = installed.reviewKeys;
     final retired = installed.retiredKeys;
-    final ready = <(CatalogEntry, Uint8List, PluginPack)>[];
+    // Judged without a byte fetched: its words and its key, whether it was withdrawn, then its signature.
     var tried = 0;
+    final candidates = <CatalogEntry>[];
+    for (final e in fresh) {
+      final why = _approvalWords(e, keys, retired);
+      if (why != null) {
+        tried++;
+        _leaveOut(e, why);
+      } else if (installed.isRevoked(e.id, e.sha256)) {
+        _leaveOut(e, 'revoked');
+      } else {
+        candidates.add(e);
+      }
+    }
+    checking = candidates.length;
+    _say();
+    final verified = await _verified(candidates, keys, retired);
+    tried += candidates.length;
+    checking = verified.length;
+    _say();
+    final fetched = <(CatalogEntry, Uint8List)>[];
     var next = 0;
     Future<void> worker() async {
-      while (next < fresh.length) {
-        final e = fresh[next++];
+      while (next < verified.length) {
+        final e = verified[next++];
         try {
-          final why = _approvalWords(e, keys, retired);
-          if (why != null) {
-            tried++;
-            _leaveOut(e, why);
-            continue;
-          }
-          if (installed.isRevoked(e.sha256)) {
-            _leaveOut(e, 'revoked');
-            continue;
-          }
-          final bytes = await _packageOf(api, e);
+          final bytes = await _packageOf(api, e, keep: false);
           if (bytes == null) continue;
           if (sha256Hex(bytes) != e.sha256) {
             _leaveOut(e, 'sha_mismatch');
             continue;
           }
-          final parse = parsePack(bytes, appVersion: _version, checkMinApp: false);
-          final pack = parse.pack;
-          if (pack == null) {
-            _leaveOut(e, 'invalid');
-            continue;
-          }
-          if (pack.id != e.id || pack.version != e.version) {
-            _leaveOut(e, 'listing_mismatch');
-            continue;
-          }
-          tried++;
-          ready.add((e, bytes, pack));
+          fetched.add((e, bytes));
         } catch (err) {
           _leaveOut(e, 'failed: $err');
         } finally {
@@ -288,9 +290,25 @@ class MarketState extends ChangeNotifier {
     }
 
     await Future.wait([for (var i = 0; i < 4; i++) worker()]);
-    final checked = await _verified(ready, keys, retired);
+    final packs = await _read(fetched, _version);
+    final checked = <String, (Uint8List, PluginPack)>{};
+    for (var i = 0; i < fetched.length; i++) {
+      final (e, bytes) = fetched[i];
+      final pack = i < packs.length ? packs[i] : null;
+      if (pack == null) {
+        _leaveOut(e, 'invalid');
+        continue;
+      }
+      if (pack.id != e.id || pack.version != e.version) {
+        _leaveOut(e, 'listing_mismatch');
+        continue;
+      }
+      checked[e.sha256] = (bytes, pack);
+      // Only a package that became a listing is kept on disk.
+      final file = _packageFile(e.sha256);
+      if (!await file.exists()) await _keepPackage(file, bytes);
+    }
     final listings = <ListingPlugin>[];
-    var approved = kept.length;
     for (final e in todo) {
       final old = kept[e.sha256];
       if (old != null) {
@@ -299,7 +317,6 @@ class MarketState extends ChangeNotifier {
       }
       final got = checked[e.sha256];
       if (got == null) continue;
-      approved++;
       final (bytes, pack) = got;
       _hold(e.sha256, bytes);
       listings.add(ListingPlugin(e, pack, this, needsNewerApp: pack.minApp != null && _newer(pack.minApp!, _version)));
@@ -307,7 +324,7 @@ class MarketState extends ChangeNotifier {
     _listings = listings;
     checking = 0;
     // Entries, and not one of them verifies with what this build trusts: an older build, or one that pins no key yet.
-    if (problem == null && todo.isNotEmpty && approved == 0 && (tried > 0 || keys.isEmpty)) problem = (code: 'untrusted', at: _now());
+    if (problem == null && todo.isNotEmpty && kept.isEmpty && verified.isEmpty && (tried > 0 || keys.isEmpty)) problem = (code: 'untrusted', at: _now());
     _say();
   }
 
@@ -320,32 +337,26 @@ class MarketState extends ChangeNotifier {
     return null;
   }
 
-  /// The signatures of [ready] checked: those that verify, by SHA-256. A signature that verified once is kept in
+  /// The entries of [entries] whose signatures verify, in order. A signature that verified once is kept in
   /// verified.json (by the SHA-256 of its key, signature and words), so a refresh checks only what is new.
-  Future<Map<String, (Uint8List, PluginPack)>> _verified(List<(CatalogEntry, Uint8List, PluginPack)> ready, List<String> keys, Set<String> retired) async {
+  Future<List<CatalogEntry>> _verified(List<CatalogEntry> entries, List<String> keys, Set<String> retired) async {
+    if (entries.isEmpty) return const [];
     final known = await _verifiedKept();
-    final out = <String, (Uint8List, PluginPack)>{};
-    final ask = <(CatalogEntry, Uint8List, PluginPack)>[];
-    for (final r in ready) {
-      if (known.contains(_markOf(r.$1.approval))) {
-        out[r.$1.sha256] = (r.$2, r.$3);
-      } else {
-        ask.add(r);
-      }
-    }
+    final ask = [for (final e in entries) if (!known.contains(_markOf(e.approval))) e];
+    final good = <CatalogEntry>{for (final e in entries) if (known.contains(_markOf(e.approval))) e};
     if (ask.isNotEmpty) {
       List<bool> ok;
       try {
-        ok = await _verify([for (final (e, _, _) in ask) (approval: e.approval, plugin: e.id, version: e.version, sha256: e.sha256, keys: keys, retired: retired)]);
+        ok = await _verify([for (final e in ask) (approval: e.approval, plugin: e.id, version: e.version, sha256: e.sha256, keys: keys, retired: retired)]);
       } catch (e) {
         _log('verifying: $e');
         ok = List.filled(ask.length, false);
       }
       var added = false;
       for (var i = 0; i < ask.length; i++) {
-        final (e, bytes, pack) = ask[i];
+        final e = ask[i];
         if (i < ok.length && ok[i]) {
-          out[e.sha256] = (bytes, pack);
+          good.add(e);
           added = known.add(_markOf(e.approval)) || added;
         } else {
           _leaveOut(e, 'bad_approval');
@@ -353,7 +364,16 @@ class MarketState extends ChangeNotifier {
       }
       if (added) await _keepVerified(known);
     }
-    return out;
+    return [for (final e in entries) if (good.contains(e)) e];
+  }
+
+  /// Each of [fetched] read as a pack for an app at [version] (its minApp left for the listing to say), on an isolate of
+  /// its own in the app: a package is up to 256 KiB of phrases to compile. Null for one that isn't a pack.
+  static Future<List<PluginPack?>> _read(List<(CatalogEntry, Uint8List)> fetched, String version) {
+    if (fetched.isEmpty) return Future.value(const []);
+    final all = [for (final (_, bytes) in fetched) bytes];
+    List<PluginPack?> each() => [for (final bytes in all) parsePack(bytes, appVersion: version, checkMinApp: false).pack];
+    return verifyInIsolate ? Isolate.run(each) : Future.value(each());
   }
 
   static String _markOf(PackApproval a) => sha256Hex(utf8.encode('${a.key}\n${a.sig}\n${approvalWords(a.plugin, a.version, a.sha256)}'));
@@ -393,8 +413,9 @@ class MarketState extends ChangeNotifier {
 
   File _packageFile(String sha) => File('${cache.path}${Platform.pathSeparator}packages${Platform.pathSeparator}$sha');
 
-  /// [e]'s package: held, kept on disk, or fetched (and then kept). Null where it couldn't be had (said in the log).
-  Future<Uint8List?> _packageOf(MarketApi api, CatalogEntry e) async {
+  /// [e]'s package: held, kept on disk, or fetched (and then kept, unless [keep] is false: the check keeps only what
+  /// became a listing). Null where it couldn't be had (said in the log).
+  Future<Uint8List?> _packageOf(MarketApi api, CatalogEntry e, {bool keep = true}) async {
     final held = _heldOf(e.sha256);
     if (held != null) return held;
     final file = _packageFile(e.sha256);
@@ -410,7 +431,7 @@ class MarketState extends ChangeNotifier {
     try {
       final bytes = await api.package(e.sha256);
       // Only what is the catalog's is kept under its name.
-      if (sha256Hex(bytes) == e.sha256) await _keepPackage(file, bytes);
+      if (keep && sha256Hex(bytes) == e.sha256) await _keepPackage(file, bytes);
       return bytes;
     } on MarketError catch (err) {
       _leaveOut(e, 'fetch ${err.code}');

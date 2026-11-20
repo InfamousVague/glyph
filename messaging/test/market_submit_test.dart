@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -7,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/kit/settings_kit.dart' show SettingRow;
 import 'package:ghost_messaging/market/market_api.dart';
+import 'package:ghost_messaging/market/market_files.dart';
 import 'package:ghost_messaging/market/market_state.dart';
 import 'package:ghost_messaging/me/me.dart';
 import 'package:ghost_messaging/net/crypto.dart';
@@ -14,6 +17,8 @@ import 'package:ghost_messaging/plugins/pack/pack.dart';
 import 'package:ghost_messaging/plugins/registry.dart';
 import 'package:ghost_messaging/ui/market/my_submissions.dart';
 import 'package:ghost_messaging/ui/market/submit_screen.dart';
+import 'package:ghost_messaging/ui/settings.dart' show SettingsWhere;
+import 'package:ghost_messaging/ui/settings_panes.dart' show settingsSectionsOn;
 import 'package:glacier/glacier.dart' show GlacierSwitch;
 
 import 'support/list_harness.dart';
@@ -135,7 +140,9 @@ void main() {
     market.mine = null;
     // Another server: the form is there, Send isn't.
     await form(tester, hub: 'wss://relay.example.org/hub');
-    expect(find.text('Plugins are reviewed on Ghost Messaging\'s own server, and this app uses relay.example.org. Switch back in Settings › Network to submit.'), findsOneWidget);
+    expect(find.text('Plugins are reviewed on Ghost Messaging\'s own server, and this app uses relay.example.org. Switch back in Settings › Routes to submit.'), findsOneWidget, reason: 'the section has been called Routes since 2026-11-19');
+    // The place it names is the one Settings has, where the relay server is changed: on the phone.
+    expect([for (final s in settingsSectionsOn(SettingsWhere.phone)) if (s.id == 'network') s.label], ['Routes']);
     await paste(tester, packFile(billsJson()));
     await agree(tester);
     expect(_key('market-submit-loaded'), findsOneWidget);
@@ -252,6 +259,105 @@ void main() {
     expect(relay.store.checks, 2);
     expect(find.text('The Marketplace can take it.'), findsOneWidget);
     expect(sendable(tester), isTrue);
+  });
+
+  testWidgets('"sent already" is asked again once the plugin changes, so the change asked for can be sent', (tester) async {
+    // Where changes were asked for the form starts as the copy sent, which the Marketplace calls sent already; the
+    // check was asked again only for a new version, so Send stayed off however the plugin was changed (review,
+    // 2026-11-20).
+    await named(tester, 'maya');
+    relay.store.checkRefusal = (status: 409, body: {'ok': false, 'error': 'duplicate', 'message': 'That exact plugin was sent already.'});
+    await form(tester);
+    await paste(tester, packFile(billsJson()));
+    expect(find.descendant(of: _key('market-submit-loaded'), matching: find.text('That exact plugin was sent already.')), findsOneWidget);
+    await agree(tester);
+    expect(sendable(tester), isFalse);
+    // The change asked for, made: the same version, other bytes.
+    relay.store.checkRefusal = null;
+    await type(tester, 'market-submit-description', 'Bills in a tab, the amount on the row. It never reads your contacts\' texts.');
+    expect(relay.store.checks, 2);
+    expect(find.text('That exact plugin was sent already.'), findsNothing);
+    expect(find.text('The Marketplace can take it.'), findsOneWidget);
+    expect(sendable(tester), isTrue);
+    // Typed on, nothing more is asked: the answer holds until the bytes or the version change something it said.
+    await type(tester, 'market-submit-description', 'Bills in a tab, the amount on the row.');
+    expect(relay.store.checks, 2);
+  });
+
+  testWidgets('a plugin with no icon: the form says so, and its icon, category and colour are what is sent', (tester) async {
+    await named(tester, 'maya');
+    final picture = brokenPng();
+    await form(tester, pick: () async => picture);
+    // The docs' smallest plugin has no icon: one is needed to submit.
+    await paste(tester, packFile(billsJson(), (j) => j.remove('icon')));
+    expect(find.text('Icon: is needed.'), findsWidgets, reason: 'under How it\'s listed, and among what stops Send');
+    await agree(tester);
+    expect(sendable(tester), isFalse);
+    await tester.tap(find.descendant(of: _key('market-submit-icon'), matching: find.text('Choose a picture')));
+    await settle(tester);
+    expect(find.text('Icon: is needed.'), findsNothing);
+    await tester.tap(_key('market-submit-shelf'));
+    await settle(tester);
+    await tester.tap(find.text('Tools').last);
+    await settle(tester);
+    await tester.tap(_key('market-submit-hue'));
+    await settle(tester);
+    await tester.tap(find.text('Mint').last);
+    await settle(tester);
+    expect(sendable(tester), isTrue);
+    await tester.tap(_key('market-submit-send'));
+    await settle(tester);
+    final sent = relay.asked.where((r) => r.method == 'POST' && r.url.path == '/market/submissions' && !(jsonDecode(utf8.decode(r.body)) as Map).containsKey('check')).single;
+    final pack = (jsonDecode(utf8.decode(base64Decode((jsonDecode(utf8.decode(sent.body)) as Map)['package'] as String))) as Map).cast<String, Object?>();
+    expect([pack['icon'], pack['shelf'], pack['hue']], [base64Encode(picture), 'tools', 'mint'], reason: 'the form\'s, not the file\'s');
+  });
+
+  testWidgets('the real picture code: an icon and a screenshot made again as plain PNGs, whatever the encoder writes', (tester) async {
+    // Every form test passes stand-ins for these (D.8), so the code that makes a chosen picture an icon or a screenshot,
+    // and cleanPng inside it that keeps the engine's own chunks out, ran in no test (review, 2026-11-20).
+    List<String> chunks(Uint8List png) => pngInfo(png)!.chunks;
+    Uint8List chunk(String type, List<int> data) => Uint8List.fromList([...(ByteData(4)..setUint32(0, data.length)).buffer.asUint8List(), ...ascii.encode(type), ...data, 0, 0, 0, 0]);
+    await tester.runAsync(() async {
+      Future<Uint8List> encoded(int w, int h, {bool noisy = false}) async {
+        final pixels = Uint8List(w * h * 4);
+        var seed = 7;
+        for (var i = 0; i < pixels.length; i++) {
+          seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+          pixels[i] = noisy ? seed >> 16 : (i % 4 == 3 ? 255 : (i % 4) * 90);
+        }
+        final done = Completer<ui.Image>();
+        ui.decodeImageFromPixels(pixels, w, h, ui.PixelFormat.rgba8888, done.complete);
+        final image = await done.future;
+        final data = await image.toByteData(format: ui.ImageByteFormat.png);
+        image.dispose();
+        return data!.buffer.asUint8List();
+      }
+
+      final icon = await pluginIconOf(await encoded(1200, 800));
+      expect(icon, isNotNull);
+      final png = base64Decode(icon!);
+      expect(pngProblem(png, min: PackLimits.iconMin, max: PackLimits.iconMax, square: true), isNull);
+      expect([pngInfo(png)!.width, pngInfo(png)!.height], [256, 256], reason: 'cut square, at its largest');
+      expect(chunks(png).toSet().difference({'IHDR', 'PLTE', 'tRNS', 'IDAT', 'IEND'}), isEmpty, reason: 'nothing but its pixels');
+      final noisy = base64Decode((await pluginIconOf(await encoded(512, 512, noisy: true)))!);
+      expect(pngInfo(noisy)!.width, lessThan(256), reason: 'a picture that doesn\'t compress steps down until it fits');
+      expect(noisy.length, lessThanOrEqualTo(PackLimits.iconBytes));
+      final big = await encoded(3000, 3000);
+      final shot = await shrinkScreenshot(big);
+      expect(shot, isNotNull);
+      expect([pngInfo(shot!)!.width, pngInfo(shot)!.height], [2400, 2400]);
+      expect(shot.length, lessThanOrEqualTo(PackLimits.shotBytes));
+      expect(pngProblem(shot, min: PackLimits.shotMin, max: PackLimits.shotMax), isNull);
+      expect(shot, isNot(big), reason: 'always made again, never the bytes passed through');
+      // cleanPng keeps the five chunks a picture needs, whatever else an encoder or a camera wrote.
+      final plain = await encoded(80, 80);
+      final at = 8 + 25; // after the signature and IHDR
+      final extra = Uint8List.fromList([...plain.sublist(0, at), ...chunk('sBIT', [8, 8, 8, 8]), ...chunk('tEXt', ascii.encode('Software\u0000camera')), ...chunk('iCCP', [0x61, 0, 0, 1, 2]), ...plain.sublist(at)]);
+      expect(pngProblem(extra, min: 64, max: 2400), isNotNull);
+      final cleaned = cleanPng(extra);
+      expect(chunks(cleaned).where((c) => c != 'IDAT').toList(), ['IHDR', 'IEND']);
+      expect(pngProblem(cleaned, min: 64, max: 2400), isNull);
+    });
   });
 
   testWidgets('the draft: kept leaving and coming back; a corrected copy keeps what was changed; another plugin asks', (tester) async {

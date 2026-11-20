@@ -192,6 +192,10 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
   MarketError? _check;
   bool _checked = false, _checking = false;
   String? _checkedVersion;
+
+  /// The SHA-256 of the bytes last checked: a refusal of those bytes themselves ("That exact plugin was sent
+  /// already") no longer holds once they differ.
+  String? _checkedSha;
   bool _checkWasIncomplete = false;
   int _checks = 0;
 
@@ -301,6 +305,7 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
     _check = null;
     _checked = false;
     _checkedVersion = null;
+    _checkedSha = null;
     _reparse();
     _keep(toDisk: true);
     for (final s in _shots) {
@@ -473,20 +478,30 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
     unawaited(_maybeCheck());
   }
 
-  /// Route 8's check, for a loaded pack: when it loads, when its version changes to another version, and once more when
-  /// a form the check couldn't judge yet (the Marketplace said it has problems) has none.
+  /// Route 8's check, for a loaded pack: when it loads, when its version changes to another version, once more when a
+  /// form the check couldn't judge yet (the Marketplace said it has problems) has none, and once more when the bytes it
+  /// refused as sent already have changed. A version where changes were asked for starts as the copy sent, which is
+  /// "sent already" until the change asked for is made; that refusal held Send back for good, whatever was changed
+  /// after it (review, 2026-11-20).
   Future<void> _maybeCheck() async {
     final parse = _parse;
     final bytes = parse?.canonical;
     if (_pack == null || bytes == null || _api.signer == null || _serverOther) return;
     final version = _version.text.trim();
     if (!packVersionPattern.hasMatch(version)) return;
-    final again = _checkWasIncomplete && parse!.errors.isEmpty;
+    final sha = sha256Hex(bytes);
+    final sentAlready = _check?.code == 'duplicate' && sha != _checkedSha;
+    final again = (_checkWasIncomplete && parse!.errors.isEmpty) || sentAlready;
     if (_checkedVersion == version && !again) return;
     _checkedVersion = version;
+    _checkedSha = sha;
     _checkWasIncomplete = false;
     final mine = ++_checks;
-    setState(() => _checking = true);
+    setState(() {
+      _checking = true;
+      // Not these bytes' refusal any more: Send is the Marketplace's to judge again.
+      if (sentAlready) _check = null;
+    });
     MarketError? refused;
     try {
       await _api.check(base64Encode(bytes));

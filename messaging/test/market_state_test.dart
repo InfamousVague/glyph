@@ -171,6 +171,47 @@ void main() {
     expect(m3.listings, hasLength(1));
   });
 
+  test('an approval is checked before its package is fetched: signatures that don\'t hold cost a fetch, a write and a read nothing', () async {
+    // A relay broken into could list 200 entries a refresh naming the pinned key with junk signatures, each package made
+    // to be slow to read: every one was downloaded, kept on disk and parsed on the UI isolate (review, 2026-11-20).
+    final good = billsPack();
+    await relay.list(good);
+    for (var i = 0; i < 6; i++) {
+      final junk = billsPack(id: 'junk$i', name: 'Junk $i');
+      await relay.list(junk, entry: await entryOf(junk, forged: true));
+    }
+    final m = market();
+    await m.refresh(force: true);
+    expect([for (final l in m.listings) l.id], ['xbills']);
+    final fetched = [for (final p in relay.paths) if (p.contains('/packages/')) p];
+    expect(fetched, [contains(sha256Hex(packBytes(good)))], reason: 'only the one whose signature holds');
+    expect(verified, 7, reason: 'each signature checked once');
+    for (var i = 0; i < 6; i++) {
+      expect(logged, contains('market junk$i left out: bad_approval'));
+    }
+    final kept = Directory('${dir.path}/market/packages');
+    expect([for (final f in kept.listSync()) f.uri.pathSegments.last], [sha256Hex(packBytes(good))], reason: 'only a listing\'s package is kept on disk');
+    expect(m.problem, isNull);
+    // In the app, read on an isolate of its own.
+    MarketState.verifyInIsolate = true;
+    await relay.list(billsPack(id: 'parcels', name: 'Parcels'));
+    await m.refresh(force: true);
+    expect([for (final l in m.listings) l.id]..sort(), ['xbills', 'xparcels']);
+  });
+
+  test('an update that needs a newer Ghost Messaging isn\'t offered until the app is updated', () async {
+    // Counted on the ring and offered on Updates and its page, it was refused at every press (review, 2026-11-20).
+    await addStore(installed, billsPack());
+    await relay.list(billsPack(version: '1.1.0', minApp: '9.0.0'));
+    final m = market();
+    await m.refresh(force: true);
+    expect(m.listings.single.needsNewerApp, isTrue);
+    expect(m.updates, isEmpty);
+    await relay.list(billsPack(version: '1.1.0', minApp: '0.10.1'));
+    await m.refresh(force: true);
+    expect([for (final u in m.updates) u.listing.version], ['1.1.0']);
+  });
+
   test('packages are fetched four at a time', () async {
     for (var i = 0; i < 10; i++) {
       final p = billsPack(id: 'pack$i', name: 'Pack $i');

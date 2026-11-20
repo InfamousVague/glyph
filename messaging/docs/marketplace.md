@@ -211,7 +211,7 @@ id with no approved version 30 days after its last open submission. Nothing reco
 
 **Limits**, each with its environment name (`relay/lib/market.dart`'s `MarketConfig.names`, and `KNOWN` in
 `tool/deploy-relay.mjs`): `GHOST_MARKET_ON` (1), `GHOST_MARKET_MAX_PACKAGE` (262144), `GHOST_MARKET_MAX_SHOT` (1048576),
-`GHOST_MARKET_MAX_SHOTS` (4), `GHOST_MARKET_MAX_BODY` (6291456, under Caddy's 10 MB), `GHOST_MARKET_TOTAL` (1 GiB),
+`GHOST_MARKET_MAX_SHOTS` (4), `GHOST_MARKET_MAX_BODY` (6291456, under Caddy's 10 MiB), `GHOST_MARKET_TOTAL` (1 GiB),
 `GHOST_MARKET_SUBMISSIONS_A_DAY` (5 per someone), `GHOST_MARKET_SUBMISSIONS_PER_ADDRESS` (3),
 `GHOST_MARKET_OPEN_PER_DEVELOPER` (3), `GHOST_MARKET_OPEN_PER_ADDRESS` (3), `GHOST_MARKET_OPEN_TOTAL` (200),
 `GHOST_MARKET_OPEN_UNVERIFIED` (20 of those), `GHOST_MARKET_NAME_AGE_DAYS` (7), `GHOST_MARKET_PLUGINS_PER_DEVELOPER`

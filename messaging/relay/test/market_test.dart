@@ -548,6 +548,48 @@ void main() {
       expect(await code(submit(maya, packOf(version: '0.9.0'), address: '10.0.0.3')), (409, 'version_not_newer'));
     });
 
+    test('an id held after a withdrawal counts again as it opens: no way past either plugin limit by withdrawing', () async {
+      // Counted for new ids alone, a developer at the cap could withdraw ids and open them again later past both
+      // limits, by any number (review, 2026-11-20).
+      await fresh(const MarketConfig(pluginsPerDeveloper: 1));
+      final first = ((await submit(maya, packOf(id: 'onebills'))).json['submission'] as Map)['sid'] as String;
+      expect((await call('DELETE', '/market/submissions/$first', as: maya)).status, 200);
+      expect((await submit(maya, packOf(id: 'twobills'), address: '10.0.0.2')).status, 201);
+      expect(await code(submit(maya, packOf(id: 'onebills', version: '1.0.1'), address: '10.0.0.3')), (429, 'too_many_plugins'));
+      expect((await submit(maya, packOf(id: 'twobills', version: '1.0.1'), address: '10.0.0.4')).status, 201, reason: 'the id she has takes new versions');
+      final mine = (await call('GET', '/market/mine', as: maya)).json['submissions'] as List;
+      expect({for (final s in mine) if (s['status'] == 'submitted') s['plugin']}, {'twobills'});
+
+      await fresh(const MarketConfig(maxPlugins: 1));
+      final held = ((await submit(ada, packOf(id: 'adasbills', developer: 'ada'))).json['submission'] as Map)['sid'] as String;
+      expect((await call('DELETE', '/market/submissions/$held', as: ada)).status, 200);
+      await approved(maya, packOf());
+      expect(await code(submit(ada, packOf(id: 'adasbills', developer: 'ada', version: '1.0.1'), address: '10.0.0.5')), (429, 'too_many_plugins'), reason: 'the market is full, held id or not');
+    });
+
+    test('a version approved while a submission\'s files are written leaves no older one waiting to be listed', () async {
+      // Route 16 isn't one at a time with route 8: an approve that came between 1.1.0's checks and its record left 1.1.0
+      // waiting under a current 1.2.0, and approving it then listed the older version (review, 2026-11-20).
+      for (final (version, changes) in [('1.1.0', const <String, Object?>{}), ('1.2.0', {'tagline': 'Bills, in a tab'})]) {
+        await fresh(const MarketConfig());
+        await approved(maya, packOf());
+        final waiting = (await submit(maya, packOf(version: '1.2.0'), address: '10.0.0.2')).json['submission'] as Map;
+        adminAt[matt.id] = now;
+        var decided = 0;
+        market.debugAfterWrites = () async {
+          if (decided++ > 0) return;
+          final got = await decide(waiting['sid'] as String, {'decision': 'approve', 'approval': approval(matt, 'mybills', '1.2.0', waiting['sha256'] as String)});
+          expect(got.status, 200, reason: '$got');
+        };
+        expect(await code(submit(maya, packOf(version: version, changes: changes), address: '10.0.0.3')), (409, 'version_not_newer'), reason: version);
+        market.debugAfterWrites = null;
+        expect(decided, 1);
+        expect([for (final e in (await call('GET', '/market/catalog')).json['plugins'] as List) (e['id'], e['version'])], [('mybills', '1.2.0')]);
+        final mine = (await call('GET', '/market/mine', as: maya)).json['submissions'] as List;
+        expect([for (final s in mine) if (s['status'] == 'submitted' || s['status'] == 'in_review') s['version']], isEmpty, reason: 'nothing older left to approve');
+      }
+    });
+
     test('a check stores nothing and counts nothing, and asks for no icon or help link yet', () async {
       for (var i = 0; i < 8; i++) {
         expect((await call('POST', '/market/submissions', as: maya, json: {'package': base64Encode(packOf()), 'check': true})).json, {'ok': true, 'checked': true});

@@ -65,6 +65,15 @@ class FakeEffects implements PluginEffects {
   Future<void> deleteThread(int thread) async => did.add('delete $thread');
   @override
   Future<void> cancelNotification(int thread) async => did.add('cancel $thread');
+
+  /// The conversations with a sign-in code waiting unread under newer words, and those the phone was asked about.
+  final codes = <int>{};
+  final asked = <int>[];
+  @override
+  Future<bool> codeWaiting(int thread) async {
+    asked.add(thread);
+    return codes.contains(thread);
+  }
 }
 
 /// The calls of a computer: no phone's channel, so Sms.remote.
@@ -494,6 +503,111 @@ void main() {
         }
       }
     });
+
+    test('a code waiting unread under newer words keeps a pack from marking it read, silencing it or sorting it', () async {
+      // "Your code is 482913." then "Thank you for your payment" a moment later: the row and its facts hold the second,
+      // but Android's one notification for the conversation still holds the code (review, 2026-11-20).
+      for (final waiting in [false, true]) {
+        final effects = FakeEffects();
+        if (waiting) effects.codes.add(7);
+        final plugin = PackPlugin(bills, source: PluginSource.reviewed, now: _still);
+        final registry = PluginRegistry([plugin]);
+        var redrawn = 0;
+        final list = ListPlugins(changed: () => redrawn++, open: (_) {}, refresh: () async {}, registry: registry, effects: effects);
+        addTearDown(list.dispose);
+        final app = AppState()
+          ..set('plugin_xbills', 'on')
+          ..set('plugin_xbills_autoread', 'on');
+        list.bind(app);
+        final followUp = Conversation.from({'id': 7, 'date': 1000, 'people': [{'address': '72975'}], 'snippet': sample('s03'), 'heard': sample('s03'), 'unread': true});
+        list.take([followUp]);
+        for (var i = 0; i < 20 && effects.asked.isEmpty; i++) {
+          await pumpEventQueue();
+        }
+        await pumpEventQueue();
+        expect(effects.asked, [7], reason: 'the phone is asked, since a pack would act on it');
+        if (waiting) {
+          expect(effects.did, isEmpty, reason: 'neither marked read nor its notification taken away');
+          expect(list.sort([followUp]).at[7], isNull, reason: 'it stays in Messages, the code with it');
+          expect(redrawn, greaterThan(0));
+          // Everything classified again (a switch changed): the phone isn't asked again of the same words.
+          app.set(PluginRegistry.tunedKey, '1');
+          list.bind(app);
+          for (var i = 0; i < 5; i++) {
+            await pumpEventQueue();
+          }
+          expect(effects.asked, [7]);
+          expect(effects.did, isEmpty);
+          // Read, the pack may sort it again.
+          final read = Conversation.from({'id': 7, 'date': 1000, 'people': [{'address': '72975'}], 'snippet': sample('s03'), 'heard': sample('s03'), 'unread': false});
+          expect(list.sort([read]).at[7]?.id, 'xbills0receipts');
+        } else {
+          expect(effects.did, ['read 7']);
+          expect(list.sort([followUp]).at[7]?.id, 'xbills0receipts');
+        }
+      }
+    });
+
+    test('a built-in is never held back by a waiting code, and nobody asks for one where no pack acts', () async {
+      final effects = FakeEffects()..codes.add(7);
+      final list = ListPlugins(changed: () {}, open: (_) {}, refresh: () async {}, registry: PluginRegistry([const _Hush()]), effects: effects);
+      addTearDown(list.dispose);
+      final app = AppState()..set('plugin_hush', 'on');
+      list.bind(app);
+      list.take([Conversation.from({'id': 7, 'date': 1000, 'people': [{'address': '72975'}], 'snippet': sample('s08'), 'heard': sample('s08'), 'unread': true})]);
+      for (var i = 0; i < 20 && effects.did.isEmpty; i++) {
+        await pumpEventQueue();
+      }
+      expect(effects.did, ['mute 7 true']);
+      expect(effects.asked, isEmpty);
+    });
+  });
+
+  group('without the phone\'s contacts', () {
+    tearDown(MessageFacts.forgetContactsReadable);
+
+    test('a pack sees nothing of the phone\'s conversations and messages, while Try it and the API still say who a stranger is', () {
+      // Without Contacts no number has a name, so every conversation read as a stranger's and a pack sorted, marked
+      // read and silenced contacts' texts (review, 2026-11-20).
+      final (registry, plugin, store) = alone(bills, prefs: {'autoread': 'on'});
+      final row = Conversation.from({'id': 7, 'date': 1000, 'people': [{'address': '+15550100100'}], 'snippet': sample('s03'), 'heard': sample('s03'), 'unread': true});
+      final bubble = MessageFacts.message(Message.from({'id': 1, 'kind': 'sms', 'address': '+15550100100', 'body': sample('s03'), 'date': 1000}), thread: 7, people: const [Person(address: '+15550100100')]);
+      final before = registry.switches(store);
+      MessageFacts.contactsReadable = false;
+      expect(registry.switches(store), isNot(before), reason: 'everything is classified again when it changes');
+      for (final facts in [MessageFacts.conversation(row), bubble]) {
+        expect(packSees(facts), isFalse);
+        final tags = registry.classify(facts, store);
+        expect(tags.has('xbills.paid'), isFalse);
+        expect(registry.sectionOf(facts, tags, store), isNull);
+      }
+      expect(plugin.incoming.single(MessageFacts.conversation(row), registry.classify(MessageFacts.conversation(row), store), 'xbills0receipts', registry.prefsOf(plugin, store)), isEmpty);
+      // Facts that say outright who is a stranger: Try it's, and the API's filters.classify.
+      expect(packSees(textOf(sample('s03'))), isTrue);
+      expect(tryPack(bills, text: sample('s03')).tags.keys, contains('paid'));
+      MessageFacts.contactsReadable = true;
+      expect(registry.classify(MessageFacts.conversation(row), store).has('xbills.paid'), isTrue);
+    });
+
+    test('the phone\'s permissions say it; a computer, which can\'t ask, learns it from a name on a conversation', () {
+      MessageFacts.heardStatus(const SmsStatus(isDefault: true, contacts: false, notifications: true, phone: true));
+      expect(MessageFacts.contactsReadable, isFalse);
+      MessageFacts.heardStatus(const SmsStatus(isDefault: true, contacts: true, notifications: true, phone: true));
+      expect(MessageFacts.contactsReadable, isTrue);
+      MessageFacts.forgetContactsReadable();
+      final was = Sms.calls;
+      Sms.calls = _Computer();
+      addTearDown(() => Sms.calls = was);
+      expect(MessageFacts.contactsReadable, isFalse, reason: 'a computer starts unsure');
+      MessageFacts.heardStatus(const SmsStatus(isDefault: true, contacts: true, notifications: true, phone: true));
+      expect(MessageFacts.contactsReadable, isFalse, reason: 'a computer\'s own answer says nothing of its phone\'s');
+      final list = ListPlugins(changed: () {}, open: (_) {}, refresh: () async {}, registry: PluginRegistry([PackPlugin(bills, source: PluginSource.dev, now: _still)]), effects: FakeEffects());
+      addTearDown(list.dispose);
+      list.take([Conversation.from({'id': 7, 'date': 1000, 'people': [{'address': '+15550100100'}], 'snippet': 'hi', 'unread': false})]);
+      expect(MessageFacts.contactsReadable, isFalse);
+      list.take([Conversation.from({'id': 8, 'date': 1000, 'people': [{'address': '+15550100199', 'name': 'Ada'}], 'snippet': 'hi', 'unread': false})]);
+      expect(MessageFacts.contactsReadable, isTrue);
+    });
   });
 
   group('what it is', () {
@@ -537,7 +651,7 @@ void main() {
 
     test('what it reaches and what it adds, word for word, on a phone and on a computer', () {
       String line(PluginReach r) => '${r.label} | ${r.hint}';
-      const eye = 'Reads texts from numbers not in your contacts | Their words and who they\'re from, on this phone, to sort them. Never your contacts\' texts, group texts, texts sent with Ghost Messaging\'s encryption, your own, chats on other networks, or circles and spaces.';
+      const eye = 'Reads texts from numbers not in your contacts | Their words and who they\'re from, on this phone, to sort them. Never your contacts\' texts, group texts, texts sent with Ghost Messaging\'s encryption, your own, chats on other networks, or circles and spaces. Nothing at all while Ghost Messaging can\'t read your contacts.';
       const sort = 'Sorts texts into its own tabs and kinds | They leave Messages for its tab while it\'s added. Remove it and they\'re back. Texts with a sign-in code in them are never sorted.';
       const copy = 'Copies to your clipboard when you ask | Only when you press its button.';
       const shield = 'Can\'t reach the internet | It has no way to send anything over the internet itself. A button you press can open its page in your browser or copy words to your clipboard.';

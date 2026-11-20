@@ -11,14 +11,14 @@
 <p>A condition, a rule's <code>when</code> or a section's <code>takes</code>, is an object whose keys are all optional. Every one given must hold.</p>
 <table>
   <tr><th>Key</th><th>Holds when</th></tr>
-  <tr><td><code>from</code></td><td>The sender is one of these, 1 to 50 of them, each 3 to 64 characters. A number is compared by its digits alone, so <code>+1 (555) 010-0100</code> and <code>15550100100</code> are the same; a name a company texts from is compared in any case.</td></tr>
+  <tr><td><code>from</code></td><td>The sender is one of these, 1 to 50 of them, each 3 to 64 characters. A number is compared by its digits alone, so <code>+1 (555) 010-0100</code> and <code>15550100100</code> are the same; a name a company texts from is compared in any case. An entry with no digit or letter in it, such as <code>(-)</code>, matches nobody.</td></tr>
   <tr><td><code>tagged</code></td><td>The text has every one of these tags, 1 to 8 of the plugin's own.</td></tr>
   <tr><td><code>untagged</code></td><td>It has none of these, 1 to 8.</td></tr>
   <tr><td><code>setting</code></td><td>A switch's key alone: that switch is on (its <code>default</code> until the person changes it). Or <code>{"key": "level", "is": "loose"}</code>: that choice is <code>loose</code> (its <code>default</code> until changed); for a switch, <code>"is"</code> is <code>"on"</code> or <code>"off"</code>.</td></tr>
   <tr><td><code>section</code></td><td>Actions only: the conversation is in this section of the plugin's own, or <code>"main"</code> for Messages. Never true in a message's menu, which isn't in a section. Anywhere else it's <code>section_condition</code>.</td></tr>
 </table>
 <ul>
-  <li>A plugin with an incoming rule can't use <code>from</code> anywhere (<code>from_with_incoming</code>): nobody can judge a rule that marks read or silences texts from numbers they don't know. A <code>link</code> button's condition can't use it either (<code>bad_link_when</code>).</li>
+  <li>A plugin with an incoming rule can't use <code>from</code> anywhere (<code>from_with_incoming</code>): nobody can judge a rule that marks read or silences texts from numbers they don't know. Nor can a plugin with a <code>link</code> button (<code>bad_link_when</code>): a tag given by sender, a tab that takes by sender or that tab's row would offer the link for those numbers alone, and pressing it would tell the page which numbers wrote.</li>
   <li>In a tag rule, <code>tagged</code> and <code>untagged</code> see only the tags given by the rules before it, so naming a tag no earlier rule gives is <code>unknown_tag</code>. Everywhere else, a tag no rule gives is <code>unknown_tag</code>, and a section the plugin doesn't have is <code>unknown_section</code>.</li>
   <li>There's no condition on groups: a plugin never sees one.</li>
 </ul>
@@ -89,7 +89,7 @@
   <tr><td><code>face</code></td><td><code>{"name": "Parcels", "color": "#4F46E5"}</code>: in place of the sender's face, the first letter of <code>name</code> (1 to 24 characters, plain words) on that colour (<code>#RRGGBB</code>: <code>bad_color</code> otherwise).</td></tr>
   <tr><td><code>end</code></td><td>An action's id: its button at the row's end.</td></tr>
   <tr><td><code>word</code></td><td>An action's id: a word to press after the caption.</td></tr>
-  <tr><td><code>tap</code></td><td>A <code>copy</code> action's id: what tapping the row does, in place of opening the conversation (a long press still opens it).</td></tr>
+  <tr><td><code>tap</code></td><td>A <code>copy</code> action's id: what tapping the row does, in place of opening the conversation (a long press opens its menu, whose first line is <b>Open conversation</b>).</td></tr>
 </table>
 <ul>
   <li>The row always keeps the conversation's own name. A plugin can't choose what a conversation is called, since anyone who texts could then choose the name their conversation shows.</li>
@@ -130,7 +130,7 @@
 <ul>
   <li>Only a copy's <code>text</code> holds placeholders. A label, a <code>say</code>'s text, a copy's <code>say</code> and a <code>write</code>'s text have no <code>{</code> or <code>}</code> at all (<code>bad_template</code>): a stranger's words never reach the app's menus, and the words a button writes are the words the reviewer read.</li>
   <li>A <code>move</code> goes only to Messages or one of the plugin's own tabs, never to a kind (<code>verb_not_here</code>).</li>
-  <li>A <code>link</code> opens only the plugin's one address (<code>link_not_declared</code>), and its <code>when</code> can't use <code>from</code>, so which texts offer the button can't tell a server which numbers wrote.</li>
+  <li>A <code>link</code> opens only the plugin's one address (<code>link_not_declared</code>), and a plugin with one can't use <code>from</code> anywhere, so which texts offer the button can't tell a server which numbers wrote.</li>
   <li>An action is offered only where its <code>when</code> holds and the plugin sees the text, and a copy only where its placeholders can be filled. Its <code>section</code> condition reads the section the conversation is in.</li>
   <li>The list's menu, a texts conversation's header and its messages' menu are where they show. Telegram, Signal and spaces' chats never show a plugin's buttons.</li>
   <li>A plugin's buttons are kept from running away: words it says are shown at most once every second and a half, and it can copy at most ten times a minute.</li>
@@ -165,4 +165,5 @@
   <li>texts not sent with Ghost Messaging's own encryption;</li>
   <li>texts (SMS and picture messages): never chats on other networks, circles and spaces, or friends by username.</li>
 </ul>
-<p>Where those don't hold, it gives no tags and offers no buttons. And whatever it sees, it does nothing to a text with a sign-in code in it: it can tag one, but its tabs don't take it, its rows don't draw it, a conversation moved into its tab by hand goes back to where it belongs, and its incoming rules leave it alone. The same goes for a conversation moved into its tab whose sender is in your contacts now. Try it and <code>filters.classify</code> count as texts from a stranger, so they always reach it: <a href="/docs/plugin-testing/#seen">testing what it sees</a>.</p>
+<p>While Ghost Messaging can't read your contacts (<ui>Settings › Android › Contacts</ui> is Off), no number has a name and a contact can't be told from a stranger, so a plugin from another developer sees nothing at all.</p>
+<p>Where those don't hold, it gives no tags and offers no buttons. And whatever it sees, it does nothing to a text with a sign-in code in it: it can tag one, but its tabs don't take it, its rows don't draw it, a conversation moved into its tab by hand goes back to where it belongs, and its incoming rules leave it alone. Nor does it to a conversation with such a text still unread under newer words, a code then "Never share this code" a moment later, until it's read. The same goes for a conversation moved into its tab whose sender is in your contacts now. Try it and <code>filters.classify</code> count as texts from a stranger, so they always reach it: <a href="/docs/plugin-testing/#seen">testing what it sees</a>.</p>

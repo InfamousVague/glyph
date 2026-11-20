@@ -38,6 +38,7 @@ import '../dialup/bevel.dart';
 import '../market/dev_plugins.dart' show DevPluginScreen;
 import '../market/market_flows.dart';
 import '../settings.dart' show SettingsSeek, settingsMatch;
+import '../shell.dart' show AppShell;
 import 'market_parts.dart';
 import 'plugin_cards.dart';
 import 'plugin_detail.dart';
@@ -69,13 +70,20 @@ const String _dev = 'dev';
 bool get marketOnIphone => !InstalledPlugins.instance.storeAllowed;
 
 class PluginsPage extends StatefulWidget {
-  const PluginsPage({super.key, this.registry, this.open, this.settingsOf, this.summaryOf, this.title = 'Plugins', this.market, this.shelf, this.head = true, this.lead});
+  const PluginsPage({super.key, this.registry, this.open, this.openListing = false, this.settingsOf, this.summaryOf, this.title = 'Plugins', this.market, this.shelf, this.head = true, this.lead, this.search});
 
   /// The plugins: the app's own where not given.
   final PluginRegistry? registry;
 
   /// A plugin's id whose page is open from the start.
   final String? open;
+
+  /// [open] is a listing's: a plugin's new version by another developer has the id of the copy on this device, and is
+  /// a page of its own (D.5).
+  final bool openListing;
+
+  /// What the search holds from the start: a tag pressed on Added's or In development's page searches Discover.
+  final String? search;
 
   /// A plugin's own settings, as cards, for its page once it is added.
   final List<Widget> Function(BuildContext context, GhostPlugin plugin)? settingsOf;
@@ -109,8 +117,11 @@ class _PluginsPageState extends State<PluginsPage> {
   /// The chip chosen: null for All, [_added], [_circles], [_store], [_dev], or a [PluginShelf]'s name.
   String? _shelf;
 
-  /// The plugin whose page stands beside the shelves, with room.
+  /// The plugin whose page stands beside the shelves, with room, and whether it is a listing's: a new version by
+  /// another developer has the id of the copy on this device, so the id alone opened the copy's page (review,
+  /// 2026-11-20).
   String? _open;
+  bool _openListing = false;
 
   /// The setting a search found, to light on its plugin's page.
   String? _seek;
@@ -123,7 +134,9 @@ class _PluginsPageState extends State<PluginsPage> {
   void initState() {
     super.initState();
     _open = widget.open;
+    _openListing = widget.openListing;
     _shelf = widget.shelf;
+    _query = widget.search ?? '';
   }
 
   /// Asked for another shelf or another plugin's page in its place: as if made afresh with them.
@@ -131,10 +144,12 @@ class _PluginsPageState extends State<PluginsPage> {
   void didUpdateWidget(PluginsPage old) {
     super.didUpdateWidget(old);
     if (widget.shelf != old.shelf || widget.head != old.head) _shelf = widget.shelf;
-    if (widget.open != old.open) {
+    if (widget.open != old.open || widget.openListing != old.openListing) {
       _open = widget.open;
+      _openListing = widget.openListing;
       _placed = false;
     }
+    if (widget.search != old.search) _query = widget.search ?? '';
   }
 
   /// Every plugin the shelves have: the registry's (built-ins, the store packs that run, the dev packs while developer
@@ -167,6 +182,7 @@ class _PluginsPageState extends State<PluginsPage> {
     if (plugin == null) return;
     // Opened as [PluginsPage.open] is: beside the shelves with room, over them on a phone (the first layout).
     _open = plugin.id;
+    _openListing = plugin is ListingPlugin;
     if (plugin.name.toLowerCase() != folded) _seek = seek;
     if (_seek != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => WidgetsBinding.instance.addPostFrameCallback((_) => WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -209,26 +225,58 @@ class _PluginsPageState extends State<PluginsPage> {
   }
 
   void _openPlugin(GhostPlugin plugin) {
-    if (_wide) return setState(() => _open = _open == plugin.id ? null : plugin.id);
+    final listing = plugin is ListingPlugin;
+    if (_wide) {
+      return setState(() {
+        if (_open == plugin.id && _openListing == listing) {
+          _open = null;
+        } else {
+          _open = plugin.id;
+          _openListing = listing;
+        }
+      });
+    }
     _push(plugin);
   }
 
   /// Its page over the shelves, looking the plugin up again on every build: a pack replaced by a new copy (an update,
-  /// a reload) shows the new one, and the registry finds its settings.
+  /// a reload) shows the new one, and the registry finds its settings. Once it is gone from this device and isn't
+  /// listed either (removed while withdrawn, unlisted, or a plugin in development), the page goes: drawn as it was, its
+  /// buttons acted on a plugin that was no longer there (review, 2026-11-20). One still listed comes back as its listing.
   void _push(GhostPlugin plugin) {
     final listing = plugin is ListingPlugin;
     push<void>(context, (context) => ListenableBuilder(
           listenable: Listenable.merge([_registry, InstalledPlugins.instance, ?widget.market]),
           builder: (context, _) {
-            final now = _find(plugin.id, listing: listing) ?? plugin;
+            final now = _find(plugin.id, listing: listing);
+            if (now == null) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!context.mounted) return;
+                final route = ModalRoute.of(context);
+                if (route == null || !route.isActive) return;
+                // Popped where it is on top, and taken out from under whatever is over it (its plugin's own screen).
+                route.isCurrent ? Navigator.of(context).pop() : Navigator.of(context).removeRoute(route);
+              });
+              return PluginDetailPage(title: plugin.name, body: (context) => const SizedBox.shrink());
+            }
             return PluginDetailPage(title: now.name, body: (context) => _detail(context, now, close: false));
           },
         ));
   }
 
-  /// A tag pressed on a plugin's page: the shelves search for it, the page beside them or over them put away.
+  /// A tag pressed on a plugin's page: Discover searches for it, the page beside the shelves or over them put away.
+  /// Added and In development have no search of their own, so the search is Discover's (D.4): in the Marketplace's
+  /// pane where there is one, over this page where not. Set here, it left those pages showing another shelf under
+  /// their own name (review, 2026-11-20).
   void _searchFor(String label, BuildContext from) {
     if (!_wide) Navigator.of(from).maybePop();
+    if (!widget.head) {
+      if (_wide) setState(() => _open = null);
+      final shell = AppShell.maybeOf(context);
+      if (shell != null) return shell.marketplace(section: 'discover', arg: label);
+      unawaited(push<void>(context, (_) => PluginsPage(registry: widget.registry, title: 'Discover', market: widget.market, settingsOf: widget.settingsOf, summaryOf: widget.summaryOf, search: label)));
+      return;
+    }
     setState(() {
       _query = label;
       _shelf = null;
@@ -268,7 +316,7 @@ class _PluginsPageState extends State<PluginsPage> {
           // A plugin open from the start (or found by a search) on a phone: its page over the shelves, once they are
           // drawn. Decided here, where the width is known.
           if (!_wide && !_placed && _open != null) {
-            final plugin = _find(_open);
+            final plugin = _find(_open, listing: _openListing);
             _open = null;
             if (plugin != null) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -277,7 +325,7 @@ class _PluginsPageState extends State<PluginsPage> {
             }
           }
           _placed = true;
-          final open = _wide && _open != null ? _find(_open) : null;
+          final open = _wide && _open != null ? _find(_open, listing: _openListing) : null;
           final foot = t.space(8) + MediaQuery.paddingOf(context).bottom;
           final shelves = ListView(
             key: const ValueKey('plugins-scroll'),
@@ -406,7 +454,7 @@ class _PluginsPageState extends State<PluginsPage> {
             onAdd: _addOf(p),
             onOpen: () => _openPlugin(p),
             wide: wide,
-            selected: _open == p.id && wide,
+            selected: _open == p.id && wide && (p is ListingPlugin) == _openListing,
             adding: p is ListingPlugin && (m?.adding(p.pack.id) ?? false),
           );
       if (!wide) {
@@ -466,10 +514,15 @@ class _PluginsPageState extends State<PluginsPage> {
         if (inDevelopment.isEmpty) return [nothing('Nothing loaded yet. Load one in Settings › Developer › Plugins in development.', every: false)];
         return [shelfOf('In development', inDevelopment, meta: '${inDevelopment.length}', key: const ValueKey('plugins-shelf-dev'))];
       }
+      // Every plugin added here, those for circles too: on Discover they are a shelf of their own, which this page
+      // hasn't, so they went missing here while its row counted them (review, 2026-11-20). Under their own heading, as
+      // Matt asked (2026-11-19: "Label plugins meant for circles in a separate section from the ones that are global").
       final on = [for (final p in added) if (!forCircles(p)) p];
-      if (on.isEmpty && stuck.isEmpty) return [nothing('Nothing added yet.', every: false)];
+      final onCircles = [for (final p in added) if (forCircles(p)) p];
+      if (on.isEmpty && onCircles.isEmpty && stuck.isEmpty) return [nothing('Nothing added yet.', every: false)];
       return [
         if (on.isNotEmpty) shelfOf('Added', on, meta: '${on.length}', key: const ValueKey('plugins-shelf-added')),
+        if (onCircles.isNotEmpty) shelfOf('For circles', onCircles, meta: '${onCircles.length}', icon: Lucide.circleDot, key: const ValueKey('plugins-shelf-added-circles')),
         if (stuck.isNotEmpty) shelfOf('Not running', stuck, meta: '${stuck.length}', key: const ValueKey('plugins-shelf-stuck')),
       ];
     }
@@ -659,7 +712,8 @@ PackPage _packPage(BuildContext context, PluginRegistry registry, GhostPlugin pl
     onProblems: dev == null ? null : () => unawaited(push<void>(context, (_) => DevPluginScreen(packId: dev.id))),
     onReport: kind == PackKind.listing || kind == PackKind.store ? () => unawaited(reportPlugin(context, plugin, market: m)) : null,
     stuck: plugin is StuckPackPlugin ? stuckWords(plugin.problem, why: installed?.revoked?.why, here: pluginsHere()) : null,
-    paused: kind == PackKind.store && installed?.problem == 'paused',
+    // A plugin in development pauses as a store pack does, and its pause is kept across a reload of the same copy.
+    paused: (kind == PackKind.store && installed?.problem == 'paused') || (kind == PackKind.dev && dev?.problem == 'paused'),
     onUnpause: id == null ? null : () => here.unpause(id),
     nohere: marketNoTexts,
     takenFrom: plugin is ListingPlugin ? here.storeOf(plugin.pack.id)?.pack?.developer : null,

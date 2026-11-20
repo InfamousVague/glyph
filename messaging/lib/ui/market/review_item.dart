@@ -36,6 +36,7 @@ import '../../plugins/registry.dart' show AppStore;
 import '../admin_page.dart' show AdminSignIn;
 import '../circles/new_circle.dart' show askCircleWords;
 import '../common.dart';
+import '../dialup/bevel.dart' show isBevelChrome;
 import '../plugins_page/plugin_art.dart';
 import '../settings_panes.dart' show appVersion;
 import 'market_flows.dart' show packGrew;
@@ -209,7 +210,8 @@ List<String> lookClosely(PluginPack pack) {
   String label(String key) => rules.sections.where((s) => s.key == key).firstOrNull?.label ?? key;
   void from(PackWhen? w, String path) {
     if (w == null || w.from.isEmpty) return;
-    out.add('$path.from: only from ${w.from.join(', ')}');
+    // An entry with nothing to compare (no digit, no letter) holds for no one, and says so rather than showing blank.
+    out.add('$path.from: only from ${[for (final f in w.from) f.isEmpty ? '(an entry that matches no one)' : f].join(', ')}');
   }
 
   for (final (i, r) in rules.tags.indexed) {
@@ -273,6 +275,16 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
   final Map<int, ui.Image?> _shots = {};
   final Set<int> _shotsAsked = {};
 
+  /// Its icon, decoded in Dart as its screenshots are, and the bytes it was decoded from: its head draws its symbol
+  /// until then, or where it can't be decoded here.
+  ui.Image? _icon;
+  Uint8List? _iconFrom;
+
+  /// The SHA-256 of the version before, worked out here from the package the relay sent with it, where that is the
+  /// hash the relay says and the package is this plugin's: the only hash "Withdraw it too" signs. Null where they
+  /// don't agree, and then it can't be withdrawn from this page.
+  String? _previousSha;
+
   final _note = TextEditingController();
   bool _revokePrevious = false;
   String? _deciding;
@@ -292,6 +304,7 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
     for (final i in _shots.values) {
       i?.dispose();
     }
+    _icon?.dispose();
     super.dispose();
   }
 
@@ -318,6 +331,9 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
     }
     final bytes = _decode(item.package);
     final parse = parsePack(bytes, appVersion: appVersion, submission: true);
+    final previous = item.previous;
+    final previousBytes = previous == null ? null : _decode(previous.package);
+    final previousPack = _parsed(previous?.package);
     if (!mounted) return;
     setState(() {
       _error = null;
@@ -326,11 +342,50 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
       _sha = sha256Hex(bytes);
       _parse = parse;
       _canonical = parse.canonical != null && listEquals(parse.canonical, bytes);
-      _previous = _parsed(item.previous?.package);
+      _previous = previousPack;
+      // Nothing of the relay's is signed as it says: the hash of the bytes it sent, where that is the hash it named and
+      // the package is this plugin's. A relay broken into could otherwise have the reviewer withdraw another plugin
+      // altogether with one switch (review, 2026-11-20).
+      final previousSha = previousBytes == null || previousBytes.isEmpty ? null : sha256Hex(previousBytes);
+      _previousSha = previousSha != null && previousSha == previous!.sha256 && previousPack != null && previousPack.id == parse.pack?.id ? previousSha : null;
+      if (_previousSha == null) _revokePrevious = false;
       _pretty = _prettyOf(bytes);
     });
     unawaited(_diffs(item));
     unawaited(_pictures(item));
+    unawaited(_iconOf(parse.pack?.icon));
+  }
+
+  /// The icon [png], decoded in Dart: it is a stranger's bytes on the one device that holds the review key and the
+  /// admin session, as every submission's screenshot is, so it never reaches the platform's codecs here (D.10, G.5).
+  Future<void> _iconOf(Uint8List? png) async {
+    if (png == null || listEquals(png, _iconFrom)) return;
+    _iconFrom = png;
+    ui.Image? image;
+    try {
+      image = await decodePngInDart(png, most: PackLimits.iconMax);
+    } catch (_) {}
+    if (!mounted || !identical(_iconFrom, png)) {
+      image?.dispose();
+      return;
+    }
+    final was = _icon;
+    setState(() => _icon = image);
+    was?.dispose();
+  }
+
+  /// The plugin's id as the package itself says, where it parses; else as its JSON says, for a package this app no
+  /// longer reads but which was approved once.
+  String? _idInPackage() {
+    final pack = _pack;
+    if (pack != null) return pack.id;
+    try {
+      final json = jsonDecode(utf8.decode(_bytes));
+      final id = json is Map ? json['id'] : null;
+      return id is String && packIdPattern.hasMatch(id) ? id : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   static String? _prettyOf(List<int> bytes) {
@@ -410,9 +465,9 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
     final pack = _pack!, signer = _api.signer!, item = _item!;
     // Signed over what the package itself says and the SHA-256 worked out here, by the key the request is signed with.
     final approval = await signApproval(signer, plugin: pack.id, version: pack.version, sha256: _sha);
-    final previous = item.previous;
+    final previousSha = _previousSha;
     final revokes = [
-      if (_revokePrevious && previous != null) await signRevocation(signer, plugin: pack.id, sha256: previous.sha256, why: 'Replaced by ${pack.version}: update it from its page.'),
+      if (_revokePrevious && item.previous != null && previousSha != null) await signRevocation(signer, plugin: pack.id, sha256: previousSha, why: 'Replaced by ${pack.version}: update it from its page.'),
     ];
     await _decide(ReviewDecision('approve', note: _note.text.trim(), approval: approval, revokes: revokes));
   }
@@ -508,11 +563,25 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
     });
   }
 
+  /// Why this version can't be withdrawn from this page, or null: what is signed is the package shown here (its hash
+  /// worked out here, its id its own), never a hash or an id the relay names alone.
+  String? get _revokeWhy {
+    final row = _row;
+    if (row == null) return 'It hasn\'t been read yet.';
+    if (_sha != row.view.sha256 || _idInPackage() != row.plugin) return 'This package isn\'t the one the store lists: it can\'t be withdrawn from here.';
+    return null;
+  }
+
   Future<void> _revokeFor(ReviewRow row, NetSigner signer, String name, String words) async {
     if (words.isEmpty || words.length > 200 || !packTextOk(words)) return toast(context, 'Say why in one line of up to 200 characters.', tone: GlacierToastTone.danger);
+    final why = _revokeWhy;
+    if (why != null) return toast(context, why, tone: GlacierToastTone.danger);
     if (!await _confirm('Withdraw $name?', 'It\'s switched off on every device that has it, with "$words" on its page. This can\'t be undone.', 'Withdraw this version', danger: true)) return;
-    final r = await signRevocation(signer, plugin: row.plugin, sha256: row.view.sha256, why: words);
-    await _act(() => _api.revoke(row.plugin, r), '$name was withdrawn');
+    // The package as worked out here, in case it changed while the sheet was up.
+    final plugin = _idInPackage(), sha = _sha;
+    if (_revokeWhy != null || plugin == null) return;
+    final r = await signRevocation(signer, plugin: plugin, sha256: sha, why: words);
+    await _act(() => _api.revoke(plugin, r), '$name was withdrawn');
   }
 
   Future<void> _block(DeveloperView dev, {required bool blocked}) async {
@@ -563,6 +632,23 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
   }
 
   // --- drawing ----------------------------------------------------------------------------------------------------
+
+  /// Its tile: its symbol on its hue, with its icon over it once decoded in Dart ([_iconOf]). Never PluginTile's own
+  /// picture, which the platform's codecs decode.
+  Widget _tile(Tokens t, PluginPack? pack, ReviewRow row, double size) {
+    final face = pack == null ? MarketFace.of(row.view) : MarketFace(id: pack.registryId, name: pack.name, symbol: pack.symbol, hue: pack.hue);
+    final icon = _icon;
+    final bevel = isBevelChrome(t);
+    final picture = icon == null ? null : RawImage(key: const ValueKey('market-review-icon'), image: icon, fit: BoxFit.cover, filterQuality: FilterQuality.medium);
+    return SizedBox.square(
+      dimension: size,
+      child: Stack(fit: StackFit.expand, children: [
+        PluginTile(plugin: face, size: size),
+        if (picture != null)
+          bevel ? Center(child: SizedBox.square(dimension: size * 0.7, child: picture)) : ClipRRect(borderRadius: BorderRadius.circular(pluginCorner(t, size * 0.28)), child: picture),
+      ]),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -629,7 +715,8 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
         // The head: what it is, by whom, and where it stands.
         PaneSection(children: [
           SettingRow(
-            icon: PluginTile(plugin: pack == null ? MarketFace.of(row.view) : MarketFace.ofPack(pack), size: t.lenOf('2.4rem')),
+            key: const ValueKey('market-review-head'),
+            icon: _tile(t, pack, row, t.lenOf('2.4rem')),
             label: '${pack?.name ?? row.name.ifEmpty(row.plugin)} ${pack?.version ?? row.version}',
             hint: Text([pack?.tagline ?? row.view.tagline, '@${row.developer ?? '?'}', submissionStatusWords(row.view)].where((s) => s.isNotEmpty).join(' · ')),
           ),
@@ -675,7 +762,7 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
           if ((_parse?.issues ?? const []).isEmpty)
             SettingRow(icon: const AppIcon(Lucide.circleCheck, size: 18), label: 'No problems found')
           else
-            lines([for (final i in _parse!.issues) '${i.isError ? 'error' : 'warning'} ${i.code}${i.path.isEmpty ? '' : ' at ${i.path}'}: ${i.message}'], style: mono),
+            lines(issueLines(_parse!.issues, (i) => '${i.isError ? 'error' : 'warning'} ${i.code}${i.path.isEmpty ? '' : ' at ${i.path}'}: ${i.message}'), style: mono),
         ]),
         if (pack != null) ...[
           gap,
@@ -759,12 +846,20 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
               SettingRow(key: const ValueKey('market-review-again'), icon: const AppIcon(Lucide.refreshCw, size: 18), label: 'Try again', disabled: _deciding != null, onPress: () => unawaited(_decide(_held!))),
             ],
             SettingRowBox(child: MarketTextArea(key: const ValueKey('market-review-note'), controller: _note, label: 'Note', placeholder: 'A note for the developer: what to change, or why not. Needed to ask for changes or to reject.', most: 2000, minLines: 3, maxLines: 10)),
-            if (item.previous != null && open)
+            if (item.previous != null && open && _previousSha != null)
               SettingRow(
                 icon: const AppIcon(Lucide.undo2, size: 18),
                 label: 'Withdraw ${item.previous!.version} too',
                 hint: const Text('Off: devices that haven\'t updated keep it. On: it\'s switched off on each of them.'),
                 control: GlacierSwitch(key: const ValueKey('market-review-revoke-previous'), checked: _revokePrevious, onCheckedChange: (on) => setState(() => _revokePrevious = on), ariaLabel: 'Withdraw ${item.previous!.version} too'),
+              )
+            else if (item.previous != null && open)
+              SettingRow(
+                key: const ValueKey('market-review-revoke-previous-off'),
+                icon: const AppIcon(Lucide.undo2, size: 18),
+                label: 'Withdraw ${item.previous!.version} too',
+                hint: const Text('Can\'t from here: the copy of it the Marketplace sent doesn\'t check out on this device.'),
+                disabled: true,
               ),
             SettingRow(key: const ValueKey('market-review-approve'), icon: const AppIcon(Lucide.circleCheck, size: 18), label: _deciding == 'approve' ? 'Approving…' : 'Approve and list', hint: Text(row.view.list == 'later' ? 'Its developer asked to list it themselves once it\'s approved.' : 'Signed here with this device\'s key, and listed.'), disabled: approveWhy != null || _deciding != null, onPress: approveWhy != null ? null : () => unawaited(_approve())),
             SettingRow(key: const ValueKey('market-review-changes'), icon: const AppIcon(Lucide.pencil, size: 18), label: _deciding == 'changes' ? 'Asking…' : 'Ask for changes', disabled: !open || _deciding != null, onPress: !open ? null : () => unawaited(_ask('changes'))),
@@ -784,9 +879,9 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
                 icon: AppIcon(Lucide.ban, size: 18, color: t.danger),
                 label: 'Withdraw this version',
                 labelColor: t.danger,
-                hint: Text(_api.signer == null ? 'This device has no Ghost identity of its own: review from your phone.' : 'Switched off on every device that has it, with your reason.'),
-                disabled: _busy || _api.signer == null,
-                onPress: _api.signer == null ? null : _revoke,
+                hint: Text(_api.signer == null ? 'This device has no Ghost identity of its own: review from your phone.' : _revokeWhy ?? 'Switched off on every device that has it, with your reason.'),
+                disabled: _busy || _api.signer == null || _revokeWhy != null,
+                onPress: _api.signer == null || _revokeWhy != null ? null : _revoke,
               ),
           ]),
         ],

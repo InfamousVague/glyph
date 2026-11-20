@@ -14,6 +14,7 @@ import '../../kit/settings_type.dart';
 import '../../market/market_api.dart';
 import '../../market/market_models.dart';
 import '../../market/market_state.dart';
+import '../admin_page.dart' show AdminSignIn;
 import '../common.dart';
 import '../plugins_page/market_parts.dart' show MarketButton, MarketButtonLook;
 import 'market_forms.dart';
@@ -22,10 +23,13 @@ import 'market_forms.dart';
 String reporterWords(ReportView r) => r.username == null ? 'No username' : '@${r.username} (${r.verified ? 'verified' : 'not verified'})';
 
 class ReportsScreen extends StatefulWidget {
-  const ReportsScreen({super.key, this.api});
+  const ReportsScreen({super.key, this.api, this.ask});
 
   /// The Marketplace: MarketState.instance.api where null, which is Ghost Messaging's own (MarketApi.live) in the app.
   final MarketApi? api;
+
+  /// For a test: the relay's answers to the admin sign-in, in place of Me.admin.
+  final Future<Map<String, dynamic>> Function(Map<String, Object?> what)? ask;
 
   @override
   State<ReportsScreen> createState() => _ReportsScreenState();
@@ -64,7 +68,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
       setState(() => _reports = [for (final x in _reports ?? const <ReportView>[]) x.rid == r.rid ? ReportView(rid: x.rid, plugin: x.plugin, version: x.version, reason: x.reason, text: x.text, username: x.username, verified: x.verified, at: x.at, done: true, doneAt: DateTime.now().millisecondsSinceEpoch) : x]);
       toast(context, 'Marked done');
     } on MarketError catch (e) {
-      if (mounted) toast(context, e.message, tone: GlacierToastTone.danger);
+      if (!mounted) return;
+      if (e.code == 'not_admin') {
+        // Signed in here, in a sheet, and marked done again: as the review screens do, never a way out of the
+        // Marketplace to Settings › Admin (D.10; review, 2026-11-20).
+        final nav = Navigator.of(context, rootNavigator: true);
+        await showChoices(context, title: 'The Marketplace wants a fresh admin sign-in for that.', header: AdminSignIn(key: const ValueKey('market-reports-signin-sheet'), ask: widget.ask, onDone: () async {
+          nav.pop();
+          if (mounted) unawaited(_done(r));
+        }), choices: [Choice('Not now', Lucide.x, () {})]);
+      } else {
+        toast(context, e.message, tone: GlacierToastTone.danger);
+      }
     } finally {
       if (mounted) setState(() => _busy.remove(r.rid));
     }
@@ -93,13 +108,17 @@ class _ReportsScreenState extends State<ReportsScreen> {
       body: ListView(
         padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: [
-          if (reports == null && error?.code == 'unreachable')
+          // Signed out (the relay restarted with a deploy, or 8 hours went by): signed in again here, as the queue is,
+          // whether the reports were read yet or a Refresh found it so.
+          if (error?.code == 'not_admin')
+            KeyedSubtree(key: const ValueKey('market-reports-signin'), child: AdminSignIn(ask: widget.ask, onDone: _read))
+          else if (reports == null && error?.code == 'unreachable')
             MarketUnreachable(onRetry: () => unawaited(_read()))
           else if (reports == null && error != null)
             MarketBlock(words: error.message)
           else if (reports == null)
-            Padding(padding: EdgeInsets.all(t.space(6)), child: const Center(child: GhostSpinner()))
-          else ...[
+            Padding(padding: EdgeInsets.all(t.space(6)), child: const Center(child: GhostSpinner())),
+          if (reports != null) ...[
             PaneSection(title: 'Open', children: [
               if (open.isEmpty) SettingRow(key: const ValueKey('market-reports-none'), icon: const AppIcon(Lucide.circleCheck, size: 18), label: 'No reports to read.'),
               for (final r in open) row(r),

@@ -82,7 +82,7 @@ const KNOWN = {
   // set; check the box's disk (`df -h /var/lib`) before raising GHOST_FILES_TOTAL. The files live under ${DATA}/files,
   // which ReadWritePaths below already covers, and are streamed to and from the disk, so MemoryMax stays as it is.
   // Every limit has a name since Matt, 2026-11-17: "Finish the missing pieces that went unfinished"; MAX_BODY is held
-  // to 10 MB by the relay, Caddy's request_body in tool/deploy-site.mjs.
+  // to 10 MiB by the relay, Caddy's request_body in tool/deploy-site.mjs.
   GHOST_FILES_MAX_FILE: /^[0-9]{1,13}$/,
   GHOST_FILES_SPACE_QUOTA: /^[0-9]{1,13}$/,
   GHOST_FILES_TOTAL: /^[0-9]{1,14}$/,
@@ -106,7 +106,7 @@ const KNOWN = {
   // bytes for the sizes, counts and days for the rest, 0 or 1 for the two switches, each with a default where it is not
   // set. GHOST_MARKET_ON=0 closes it; GHOST_MARKET_NEED_VERIFIED=1 takes plugins only from developers with a verified
   // number; GHOST_MARKET_REVIEW_KEYS empty takes the signed-in admin's own key alone. What it keeps is under
-  // ${DATA}/market, which ReadWritePaths below already covers; GHOST_MARKET_MAX_BODY is held to Caddy's 10 MB.
+  // ${DATA}/market, which ReadWritePaths below already covers; GHOST_MARKET_MAX_BODY is held to Caddy's 10 MiB.
   GHOST_MARKET_ON: /^[01]$/,
   GHOST_MARKET_MAX_PACKAGE: /^[0-9]{1,8}$/,
   GHOST_MARKET_MAX_SHOT: /^[0-9]{1,8}$/,

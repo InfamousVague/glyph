@@ -24,7 +24,7 @@
 <p>That works on every platform. Or copy the file's words from anywhere (it's plain text) and tap <b>Paste a plugin</b>.</p>
 
 <h2 id="load">What you see</h2>
-<p>Bills gets a row of its own, switched off: its version, where it came from, and whether it's running.</p>
+<p>Bills gets a row of its own, switched off until you agree to what it can do: its version, where it came from, and whether it's running.</p>
 <m-screen title="Developer" back caption="Settings › Developer, with Bills loaded from a link.">
   <m-section>
     <m-row icon="braces" hue="indigo" label="Developer mode" switch="on"/>
@@ -33,7 +33,7 @@
     <m-row icon="folder-open" hue="amber" label="Load a plugin from a file" hint="A .ghostplugin file."/>
     <m-row icon="clipboard-paste" hue="blue" label="Paste a plugin" hint="Its words, copied from anywhere."/>
     <m-row icon="link" hue="purple" label="Load a plugin from a link" hint="https, or http://127.0.0.1 with adb reverse. Reload fetches it again."/>
-    <m-row icon="calculator" hue="amber" label="Bills" hint="1.0.0 · from a link · off" switch="off" tap/>
+    <m-row icon="calculator" hue="amber" label="Bills" hint="1.0.0 · from a link · needs your OK" switch="off" tap/>
     <m-row icon="send" hue="teal" label="Submit a plugin to the Marketplace" chev/>
     <m-row icon="book-open" hue="slate" label="How to build and test one" chev/>
   </m-section>
@@ -60,7 +60,7 @@
 <h2 id="add">Switch it on</h2>
 <p>Back in <ui>Settings › Developer</ui>, switch Bills on. The first time, a sheet says what it can do, made from the file itself, and that nobody has reviewed it. Tap <b>Switch it on</b>.</p>
 <m-screen>
-  <m-sheet title="Add Bills?">
+  <m-sheet title="Switch on Bills?">
     <m-row icon="calculator" hue="amber" label="Bills" hint="By @yourname"/>
     <m-p>Not reviewed by anyone: switch this on only if you made it.</m-p>
     <m-row icon="eye" hue="slate" label="Reads texts from numbers not in your contacts" hint="Their words and who they're from, on this phone, to sort them."/>

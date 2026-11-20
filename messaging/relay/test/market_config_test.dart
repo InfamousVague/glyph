@@ -115,5 +115,8 @@ void main() {
     final site = File('../tool/deploy-site.mjs').readAsStringSync();
     expect('@files path /files /files/* /feedback /market /market/*'.allMatches(site), hasLength(2), reason: 'gogho.st\'s block and ghost-sms.com\'s');
     expect(RegExp(r'@files path /files /files/\* /feedback\n').hasMatch(site), isFalse, reason: 'no block left without it');
+    // Caddy's MB is 1,000,000 bytes: the relay's clamp on a body (MAX_BODY's most, and Files' 10 << 20) is 10 MiB, so is Caddy's.
+    expect(RegExp(r'max_size (\S+)').allMatches(site).map((m) => m[1]).toList(), ['10MiB', '10MiB']);
+    expect(MarketConfig.fromEnvironment({'GHOST_MARKET_MAX_BODY': '${64 << 20}'}).maxBody, 10 << 20);
   });
 }

@@ -1001,7 +1001,9 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.users),
           label: 'Contacts',
-          hint: const Text('Names and photos in place of numbers.'),
+          // Plugins from other developers see only strangers, which can't be told from contacts without it (lib/plugins/
+          // pack/format.dart packSees).
+          hint: const Text('Names and photos in place of numbers. Plugins from other developers see nothing without it, as they can\'t tell your contacts from strangers.'),
           value: Text(s == null ? '' : (s.contacts ? 'Allowed' : 'Off')),
           onPress: s == null || s.contacts
               ? null

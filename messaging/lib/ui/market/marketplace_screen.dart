@@ -85,8 +85,11 @@ List<MarketSection> marketSectionsNow(AppState app, {String? current}) => [for (
       final n = marketPlugins(registry, m).length;
       return (text: '$n ${n == 1 ? 'plugin' : 'plugins'}', danger: false);
     case 'added':
+      // What its page lists: every plugin added here, those for circles too, and those from other developers that are
+      // here but don't run (review, 2026-11-20: the row said "1 added" over a page that said "Nothing added yet.").
       final n = registry.plugins.where((p) => registry.isOn(p, store)).length;
-      return (text: n == 0 ? 'None yet' : '$n added', danger: false);
+      final stuck = marketOnIphone ? 0 : InstalledPlugins.instance.store.where((p) => !p.running).length;
+      return (text: n == 0 && stuck == 0 ? 'None yet' : [if (n > 0) '$n added', if (stuck > 0) '$stuck not running'].join(' · '), danger: false);
     case 'updates':
       final n = m.updates.length;
       return (text: n == 0 ? 'Everything\'s up to date' : '$n waiting', danger: false);
@@ -128,10 +131,10 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   }
 
   /// Opens a section: in the frame's pane where there is a frame, over this page where there is none.
-  void _open(String id, {String? plugin}) {
+  void _open(String id, {String? plugin, String? arg}) {
     final shell = AppShell.maybeOf(context);
-    if (shell != null) return shell.marketplace(section: id, plugin: plugin);
-    push<void>(context, (context) => MarketSectionScreen(id, plugin: plugin));
+    if (shell != null) return shell.marketplace(section: id, plugin: plugin, arg: arg);
+    push<void>(context, (context) => MarketSectionScreen(id, plugin: plugin, arg: arg));
   }
 
   @override
@@ -228,7 +231,8 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
               hue: p.hue,
               summary: [if (p.developer != null) 'By @${p.developer}', p.tagline].join(' · '),
               index: index++,
-              onPress: () => _open('discover', plugin: p.id),
+              // A listing says it is one: a new version by another developer has the id of the copy on this device.
+              onPress: () => _open('discover', plugin: p.id, arg: p is ListingPlugin ? 'listing' : null),
             ),
         ]),
       ];
@@ -264,7 +268,9 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
 
 /// One section's page by its [id]: what the frame puts in its pane for a row of the Marketplace's list. [plugin] opens
 /// Discover at that plugin's page, [seek] lights a setting on it, [arg] is the section's own (a dev pack's id for
-/// Submit, a submission's for My submissions). A section not offered now draws nothing, and the page goes.
+/// Submit, a submission's for My submissions; for Discover, 'listing' where [plugin] names a listing's page, else the
+/// words its search starts with: a tag pressed on Added's or In development's page). A section not offered now draws
+/// nothing, and the page goes.
 class MarketSectionScreen extends StatefulWidget {
   const MarketSectionScreen(this.id, {super.key, this.plugin, this.seek, this.arg});
   final String id;
@@ -292,7 +298,7 @@ class _MarketSectionScreenState extends State<MarketSectionScreen> {
           return ColoredBox(color: context.tokens.color('glacier-bg'), child: const SizedBox.expand());
         }
         return switch (widget.id) {
-          'discover' => SettingsSeek(seek: widget.seek, child: marketPluginsScreen(title: 'Discover', open: widget.plugin)),
+          'discover' => SettingsSeek(seek: widget.seek, child: marketPluginsScreen(title: 'Discover', open: widget.plugin, openListing: widget.plugin != null && widget.arg == 'listing', search: widget.plugin == null ? widget.arg : null)),
           'added' => marketPluginsScreen(title: 'Added', shelf: 'added', head: false),
           'updates' => const MarketUpdatesPage(),
           'dev' => marketPluginsScreen(title: 'In development', shelf: 'dev', head: false, lead: _devManage(context, shell)),

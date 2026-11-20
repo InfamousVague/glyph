@@ -176,7 +176,8 @@ class PackPlugin extends GhostPlugin {
   /// [hasSection] and [section] are the place's, for a button's condition.
   bool _holds(PackWhen? w, MessageFacts facts, PluginPrefs prefs, bool Function(String own) has, {String? section, bool hasSection = false}) {
     if (w == null) return true;
-    if (w.from.isNotEmpty && !facts.senders.any((s) => w.from.contains(packSenderOf(s)))) return false;
+    // A sender with nothing to compare is no one's: neither the '' an entry of "(-)" compares as, nor any other.
+    if (w.from.isNotEmpty && !facts.senders.any((s) => packSenderOf(s).isNotEmpty && w.from.contains(packSenderOf(s)))) return false;
     for (final t in w.tagged) {
       if (!has(t)) return false;
     }

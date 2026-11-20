@@ -221,8 +221,13 @@ class InstalledPlugins extends ChangeNotifier {
   DevPack? devOf(String packId) => dev.where((p) => p.id == packId).firstOrNull;
 
   List<PackRevocation> get revocations => List.unmodifiable(_revocations.values);
-  bool isRevoked(String sha256) => _revocations.values.any((r) => r.sha256 == sha256);
-  PackRevocation? _revocationOf(String sha256) => _revocations.values.where((r) => r.sha256 == sha256).firstOrNull;
+
+  /// Whether the package [sha256] of the plugin [plugin] (a pack id) was withdrawn. A withdrawal counts only for the
+  /// plugin it names: the reviewer signs it over a plugin and a package, and one signed over another plugin's hash (a
+  /// relay broken into could hand the review screen one) must not switch off a plugin it never named (review,
+  /// 2026-11-20).
+  bool isRevoked(String plugin, String sha256) => _revocations.containsKey('$plugin $sha256');
+  PackRevocation? _revocationOf(String plugin, String sha256) => _revocations['$plugin $sha256'];
 
   // The registry load listens to: the app's own may be another by the time this goes (a test puts its own in place).
   PluginRegistry? _listened;
@@ -495,7 +500,7 @@ class InstalledPlugins extends ChangeNotifier {
         approval: c.approval,
         pack: pack,
         plugin: pack == null ? null : _storePlugin(pack, c.approval, paused: c.sha256 != null && _pausedSha(pack.registryId) == c.sha256),
-        revoked: c.sha256 == null ? null : _revocationOf(c.sha256!),
+        revoked: c.sha256 == null ? null : _revocationOf(id, c.sha256!),
         problem: c.problem,
         listing: c.listing,
       ));
@@ -536,7 +541,7 @@ class InstalledPlugins extends ChangeNotifier {
     if (bytes.length > PackLimits.packageBytes) return c..problem = 'invalid';
     if (sha256 != c.approval!.sha256) return c..problem = 'bad_approval';
     final parse = c.parse = parsePack(bytes, appVersion: _appVersion);
-    if (isRevoked(sha256)) return c..problem = 'revoked';
+    if (isRevoked(id, sha256)) return c..problem = 'revoked';
     final errors = parse.errors.toList();
     if (errors.isNotEmpty) return c..problem = errors.every((e) => e.code == 'needs_newer_app') ? 'needs_newer_app' : 'invalid';
     if (parse.pack!.icon == null || !_sameBytes(parse.canonical!, bytes)) return c..problem = 'invalid';
@@ -708,7 +713,8 @@ class InstalledPlugins extends ChangeNotifier {
     if (bytes.length > PackLimits.packageBytes) return PackOutcome.failed('too_large', 'It\'s ${bytes.length} bytes: a plugin is at most ${PackLimits.packageBytes}.');
     final sha256 = sha256Hex(bytes);
     if (sha256 != approval.sha256) return const PackOutcome.failed('sha_mismatch', 'This copy isn\'t the one that was reviewed.');
-    if (isRevoked(sha256)) return const PackOutcome.failed('revoked', 'It was withdrawn from the Marketplace.');
+    // The approval's plugin, which step 7 holds to the pack's own id.
+    if (isRevoked(approval.plugin, sha256)) return const PackOutcome.failed('revoked', 'It was withdrawn from the Marketplace.');
     final parse = parsePack(bytes, appVersion: _appVersion);
     final errors = parse.errors.toList();
     if (errors.isNotEmpty) {
@@ -773,7 +779,8 @@ class InstalledPlugins extends ChangeNotifier {
         final s = _store[packId];
         if (s == null) return const PackOutcome.failed('not_found', 'It isn\'t on this device.');
         if (s.running) _reg.uninstall(registryIdOf(packId));
-        _forget(app, packId, s.pack, everything: forget);
+        // Read before its folder goes: a copy that no longer parses here still names the switches it waited for.
+        _forget(app, packId, s.pack != null ? _incomingOf(s.pack) : _incomingIn([for (final v in _versionsOf(packId)) '${_storeDir(packId, v)}/package.ghostplugin']), everything: forget);
         _delete(_storeDir(packId));
         _store.remove(packId);
         _setPaused(registryIdOf(packId), null);
@@ -782,20 +789,75 @@ class InstalledPlugins extends ChangeNotifier {
         return PackOutcome.ok(s.plugin ?? _Gone(packId, '${s.listing['name'] ?? packId}'));
       });
 
-  /// Its switch, and the switches its incoming rules name, written '' (so adding it again asks again, and starts with
-  /// them off); with [everything], every other choice of its own too. Its other choices are kept otherwise, as removing
-  /// a built-in keeps them.
-  void _forget(AppState app, String packId, PluginPack? pack, {required bool everything}) {
+  /// Its switch, and the switches its incoming rules name ([incoming]), written '' (so adding it again asks again, and
+  /// starts with them off); with [everything], every other choice of its own too. Its other choices are kept otherwise,
+  /// as removing a built-in keeps them. Where no copy of it could be read to say which switches those are ([incoming]
+  /// null), none of its switches is left on: a stuck pack's incoming rule would otherwise mark texts read or silence
+  /// them the moment it was added again, with nobody having switched it on (review, 2026-11-20).
+  void _forget(AppState app, String packId, Set<String>? incoming, {required bool everything}) {
     final id = registryIdOf(packId);
     _put('plugin_$id', '');
-    for (final r in pack?.rules.incoming ?? const <PackIncoming>[]) {
-      _put('plugin_${id}_${r.setting}', '');
+    if (incoming == null) {
+      for (final e in app.withPrefix('plugin_${id}_').entries) {
+        if (e.value == 'on') _put(e.key, '');
+      }
+    } else {
+      for (final setting in incoming) {
+        _put('plugin_${id}_$setting', '');
+      }
     }
     if (everything) {
       for (final k in app.withPrefix('plugin_${id}_').keys) {
         _put(k, '');
       }
     }
+  }
+
+  /// The switches [pack]'s incoming rules wait for.
+  static Set<String> _incomingOf(PluginPack? pack) => {for (final r in pack?.rules.incoming ?? const <PackIncoming>[]) r.setting};
+
+  /// The version folders store/<[packId]>/ holds.
+  List<String> _versionsOf(String packId) {
+    try {
+      return [for (final v in Directory(_storeDir(packId)).listSync().whereType<Directory>()) if (packVersionPattern.hasMatch(_nameOf(v))) _nameOf(v)];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// The switches the incoming rules of each copy in [files] wait for, read however the copy can be: as a pack, the
+  /// app's version not asked (needs_newer_app), else as plain JSON, since a copy a later app's rules refuse still says
+  /// what it named. Null where no copy could be read at all.
+  Set<String>? _incomingIn(List<String> files) {
+    Set<String>? out;
+    for (final path in files) {
+      final Uint8List bytes;
+      try {
+        bytes = File(path).readAsBytesSync();
+      } catch (_) {
+        continue;
+      }
+      final pack = parsePack(bytes, appVersion: _appVersion, checkMinApp: false).pack;
+      if (pack != null) {
+        (out ??= {}).addAll(_incomingOf(pack));
+        continue;
+      }
+      try {
+        final body = bytes.length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF ? bytes.sublist(3) : bytes;
+        if (!jsonDepthOk(body)) continue;
+        final json = jsonDecode(utf8.decode(body));
+        if (json is! Map) continue;
+        final rules = json['rules'];
+        final incoming = rules is Map ? rules['incoming'] : null;
+        final named = out ??= {};
+        if (incoming is List) {
+          for (final r in incoming) {
+            if (r is Map && r['setting'] is String) named.add(r['setting'] as String);
+          }
+        }
+      } catch (_) {}
+    }
+    return out;
   }
 
   // --- packs in development ---------------------------------------------------------------------------------------
@@ -992,7 +1054,11 @@ class InstalledPlugins extends ChangeNotifier {
         final d = _dev[packId];
         if (d == null) return const PackOutcome.failed('not_found', 'It isn\'t loaded on this device.');
         _stopDev(d);
-        _forget(app, packId, d.pack ?? d.plugin?.pack, everything: false);
+        // The copy on disk is read too where the newest doesn't parse (after a restart nothing of it may be held): the
+        // switches of whichever copy ran, and of that one.
+        final pack = d.pack ?? d.plugin?.pack;
+        final onDisk = pack == null || d.pack == null ? _incomingIn(['${_devDir(packId)}/package.ghostplugin']) : null;
+        _forget(app, packId, pack == null ? onDisk : {..._incomingOf(pack), ...?onDisk}, everything: false);
         _delete(_devDir(packId));
         _dev.remove(packId);
         _setPaused(registryIdOf(packId), null);
@@ -1046,7 +1112,7 @@ class InstalledPlugins extends ChangeNotifier {
         var withdrew = 0;
         final retired = retiredKeys;
         for (final s in _store.values) {
-          final revoked = _revocationOf(s.sha256);
+          final revoked = _revocationOf(s.id, s.sha256);
           final untrusted = s.approval != null && retired.contains(s.approval!.key);
           if (revoked == null && !untrusted) continue;
           s

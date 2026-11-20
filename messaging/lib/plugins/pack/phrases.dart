@@ -75,9 +75,17 @@ class PhraseHit {
   final String? token;
 }
 
-// --- the tokens' fragments (A.10.3), each exactly as the format gives it -------------------------------------------------
+// --- the tokens' fragments (A.10.3) ---------------------------------------------------------------------------------------
+//
+// Each token is self-delimiting: its lookarounds fix its length to the run it sits on, so at any start it can match in
+// a few ways at most. {number} and {phone} are the two whose own separators (a number's . and , and a phone's spaces,
+// brackets, dots and dashes) are also what joins one token to the next in a phrase, so as A.10.3 first wrote them each
+// could stop after any group of a run and start again after any separator; a phrase chaining four phones then tried
+// some 9^4 ways at every start, 0.8 s a search on a stranger's "1 1 1 …" (review, 2026-11-20). Both are maximal now: a
+// number never starts just after "1." or "1," nor stops before ".1" or ",1", and a phone never starts or stops beside
+// another of its own separators and a digit, so each takes the whole run or nothing.
 
-const String _num = r'(?<![0-9])(?:[0-9]{1,3}(?:[.,][0-9]{3}){1,4}|[0-9]{1,15})(?:[.,][0-9]{1,2})?(?![0-9])';
+const String _num = r'(?<![0-9]|[0-9][.,])(?:[0-9]{1,3}(?:[.,][0-9]{3}){1,4}|[0-9]{1,15})(?:[.,][0-9]{1,2})?(?![0-9]|[.,][0-9])';
 const String _cur = r'(?:[$€£¥₹]|(?<![\p{L}\p{N}])(?:usd|eur|gbp|cad|aud)(?![\p{L}]))';
 // Longer names first: an alternation takes the first that fits, and "sept" must not stop at "sep".
 const String _month = r'(?:january|february|march|april|may|june|july|august|september|october|november|december|sept|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)';
@@ -90,7 +98,7 @@ String _fragment(String name, int n, int m) => switch (name) {
       'word' => r"(?<![\p{L}\p{N}'-])[\p{L}\p{N}][\p{L}\p{N}'-]{0,31}(?![\p{L}\p{N}'-])",
       'url' => r'(?:https?://|www\.)[^\s<>"]{1,200}',
       'email' => r'(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){1,4}(?![A-Za-z0-9-])',
-      'phone' => r'(?<![0-9+])\+?[0-9](?:[ ().-]{0,2}[0-9]){6,14}(?![0-9])',
+      'phone' => r'(?<![0-9+]|[0-9][ ().-]{1,2})\+?[0-9](?:[ ().-]{0,2}[0-9]){6,14}(?![0-9]|[ ().-]{1,2}[0-9])',
       'date' => '(?:${r'(?<![0-9])[0-9]{1,4}[/.-][0-9]{1,2}(?:[/.-][0-9]{2,4})?(?![0-9])'}|${r'(?<![\p{L}])'}$_month${r'\.?\s[0-9]{1,2}(?:st|nd|rd|th)?(?![\p{L}\p{N}])'}|${r'(?<![0-9])[0-9]{1,2}(?:st|nd|rd|th)?\s'}$_month${r'(?![\p{L}]))'}',
       'time' => r'(?<![0-9:])(?:[0-9]{1,2}(?::[0-5][0-9])?\s?(?:a\.m\.|p\.m\.|am|pm)(?![\p{L}])|[0-9]{1,2}:[0-5][0-9](?![0-9]))',
       _ => throw StateError('No token $name'),

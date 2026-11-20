@@ -35,6 +35,7 @@ import 'kit/settings_css.dart';
 import 'net/net.dart';
 import 'people.dart';
 import 'plugins/pack/pack.dart' show InstalledPlugins;
+import 'plugins/plugin.dart' show MessageFacts;
 import 'voice/channels.dart';
 import 'voice/mention_alerts.dart';
 import 'voice/discord.dart';
@@ -277,6 +278,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
 
   Future<void> _check({bool first = false}) async {
     final s = await Sms.instance.status();
+    // Whether the phone's contacts can be read, before the list is drawn: without them plugins from other developers
+    // see nothing, since a contact can't be told from a stranger (lib/plugins/pack/format.dart packSees).
+    MessageFacts.heardStatus(s);
     if (!mounted) return;
     setState(() => _isDefault = s.usable);
     if (first && s.usable) {

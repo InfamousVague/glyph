@@ -45,7 +45,8 @@ class PackIssue {
 class PackWhen {
   const PackWhen({this.from = const [], this.tagged = const [], this.untagged = const [], this.setting, this.settingIs, this.section});
 
-  /// The senders it holds for, each as compared: only digits for a number, else trimmed and lower-cased.
+  /// The senders it holds for, each as compared: only digits for a number, else trimmed and lower-cased. An entry with
+  /// nothing left to compare is '' and holds for no one; where none is given at all, any sender will do.
   final List<String> from;
 
   /// Own tag names (without the `x<id>.` prefix) that must all be there, and that must all be missing.
@@ -306,21 +307,24 @@ const Map<String, String> _notInFace = {'domain': 'A plugin\'s face is its words
 String _at(String path, String key) => path.isEmpty ? key : '$path.$key';
 
 /// Where a condition is: a tag rule's (seeing only the tags of the rules before it), a section's `takes`, a button's
-/// (which alone may name a section, and a link's which may not pick by sender), or an incoming rule's.
+/// (which alone may name a section), or an incoming rule's.
 class _Where {
-  const _Where.tagRule(this.earlier)
-      : action = false,
-        link = false;
+  const _Where.tagRule(this.earlier) : action = false;
   const _Where.elsewhere()
       : earlier = null,
-        action = false,
-        link = false;
-  const _Where.action({required this.link})
+        action = false;
+  const _Where.action()
       : earlier = null,
         action = true;
   final Set<String>? earlier;
-  final bool action, link;
+  final bool action;
 }
+
+/// The most issues one check gives, the last of them saying how many more there were. A file of 256 KiB holds some
+/// 65,000 one-letter phrases, each a problem of its own, and the reviewer's screen drew a line for every one: minutes on
+/// the one phone that holds the review key, from any stranger's submission (review, 2026-11-20). The first hundred say
+/// what is wrong as well as all of them would.
+const int packIssuesMost = 100;
 
 class _Checker {
   _Checker({required this.appVersion, required this.submission, required this.checkMinApp});
@@ -328,16 +332,32 @@ class _Checker {
   final bool submission, checkMinApp;
   final issues = <PackIssue>[];
 
+  /// The issues past [packIssuesMost], counted rather than kept.
+  var _more = 0;
+
+  /// The file nests deeper than the format: nothing else is looked at.
+  var tooDeep = false;
+
   // What the pack has, read before its rules are checked, so a reference to one is judged against all of them.
   final settingsByKey = <String, PackSetting>{};
   final allTags = <String>{};
   final sectionKinds = <String, String?>{};
   final actionsById = <String, ({String? verb, List<String> slots})>{};
-  var hasIncoming = false;
+  var hasIncoming = false, hasLink = false;
   List<String> links = const [];
   var phraseCount = 0, anchorlessCount = 0;
 
-  void error(String code, String path, String words) => issues.add(PackIssue(code, path, path.isEmpty ? words : '$path: $words'));
+  /// Any problem found means the pack doesn't load, so one past [packIssuesMost] is only counted.
+  void error(String code, String path, String words) {
+    if (issues.length >= packIssuesMost - 1) {
+      _more++;
+      return;
+    }
+    issues.add(PackIssue(code, path, path.isEmpty ? words : '$path: $words'));
+  }
+
+  /// The issues kept, and one more saying how many weren't, where there were too many to keep.
+  List<PackIssue> get kept => [...issues, if (_more > 0) PackIssue('too_many_issues', '', 'And $_more more ${_more == 1 ? 'problem' : 'problems'} like these: fix the ones above and check it again.')];
 
   // --- the whole value, before any field ----------------------------------------------------------------------------
 
@@ -360,6 +380,7 @@ class _Checker {
         continue;
       }
       if (depth > PackLimits.depth) {
+        tooDeep = true;
         error('too_deep', path, 'nests more than ${PackLimits.depth} deep: no plugin needs more than 6.');
         return false;
       }
@@ -383,13 +404,14 @@ class _Checker {
 
   PackParse run(Object? json) {
     final canonicalOk = walk(json);
-    if (issues.any((i) => i.code == 'too_deep')) return PackParse(issues: List.of(issues));
+    // Asked of the walk itself, not of the issues kept: past the most kept, its too_deep would be only counted.
+    if (tooDeep) return PackParse(issues: kept);
     final canonical = canonicalOk ? canonicalBytes(json) : null;
     final sha256 = canonical == null ? null : sha256Hex(canonical);
     PackParse done([PluginPack? pack]) {
       final out = issues.isEmpty ? pack : null;
       // Lints are for a pack that loads: a broken one's issues come first, and alone.
-      return PackParse(pack: out, issues: [...issues, if (out != null) ...lintPack(out)], canonical: canonical, sha256: sha256);
+      return PackParse(pack: out, issues: [...kept, if (out != null) ...lintPack(out)], canonical: canonical, sha256: sha256);
     }
 
     if (json is! Map) {
@@ -484,7 +506,12 @@ class _Checker {
       return null;
     }
     if (v.length < min) error('too_few', p, min == 1 ? 'needs one at least.' : 'needs $min at least.');
-    if (v.length > max) error('too_many', p, 'has ${v.length}: at most $max.');
+    if (v.length > max) {
+      error('too_many', p, 'has ${v.length}: at most $max.');
+      // Only as many as there may be are looked at: nothing past a cap is checked, compiled or listed as a problem of
+      // its own, however long a list a file holds.
+      return v.sublist(0, max);
+    }
     return v;
   }
 
@@ -752,6 +779,7 @@ class _Checker {
       if (a is Map && a['id'] is String) actionsById.putIfAbsent(a['id'] as String, () => (verb: a['do'] is String ? a['do'] as String : null, slots: [if (a['slots'] is List) for (final s in a['slots'] as List) if (s is String) s]));
     }
     hasIncoming = incomingRaw.isNotEmpty;
+    hasLink = actionsRaw.any((a) => a is Map && a['do'] == 'link');
 
     final tags = <PackTagRule>[];
     for (var i = 0; i < tagsRaw.length; i++) {
@@ -862,12 +890,17 @@ class _Checker {
     if (fromRaw != null) {
       final p = _at(path, 'from');
       if (hasIncoming) error('from_with_incoming', p, 'A plugin that marks texts read or silences them as they come can\'t pick texts by who sent them: a reviewer can\'t judge numbers they don\'t know.');
-      if (where.link) error('bad_link_when', p, 'Which texts offer a link can\'t depend on who sent them: the page it opens could tell which numbers wrote.');
+      // Anywhere in the pack, not only in the link's own condition: a tag given by sender, a tab that takes by sender
+      // or that tab's row would offer the link only for those numbers just the same (review, 2026-11-20).
+      if (hasLink) error('bad_link_when', p, 'A plugin with a link can\'t pick texts by who sent them: which texts offer the link, by a tag, a tab or a row, could tell the page it opens which numbers wrote.');
       final entries = strings(fromRaw, p, unique: false);
       for (var i = 0; i < entries.length; i++) {
         checkText(entries[i], '$p[$i]', min: 3, max: 64);
       }
-      from = List.unmodifiable({for (final e in entries) packSenderOf(e)}.where((e) => e.isNotEmpty));
+      // Every entry as it compares, even one with nothing left to compare ("(-)" is no number and no name): it holds
+      // for no sender, as A.8.1 says. Dropped, it left the condition with no senders at all, and so holding for every
+      // one (review, 2026-11-20).
+      from = List.unmodifiable({for (final e in entries) packSenderOf(e)});
     }
     List<String> names(String key) {
       final raw = list(m, key, path, min: 1, max: PackLimits.tagged);
@@ -1056,7 +1089,7 @@ class _Checker {
     final verb = string(m, 'do', p, required: true);
     final verbOk = verb != null && packVerbs.contains(verb);
     if (verb != null && !verbOk) error('bad_verb', _at(p, 'do'), '"$verb" isn\'t something a button does: ${packVerbs.join(', ')}.');
-    final when = m.containsKey('when') ? _when(m['when'], _at(p, 'when'), _Where.action(link: verb == 'link')) : null;
+    final when = m.containsKey('when') ? _when(m['when'], _at(p, 'when'), const _Where.action()) : null;
     String? words, say, to, url;
     if (verbOk) {
       for (final f in _allVerbFields) {

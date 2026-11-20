@@ -141,7 +141,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
       }
       children.addAll([
         PaneSection(children: [
-          SettingRow(key: const ValueKey('market-review-reports'), icon: const AppIcon(Lucide.flag, size: 18), label: 'Reports · ${q.reports} open', onPress: () => unawaited(push<void>(context, (_) => ReportsScreen(api: _api)))),
+          SettingRow(key: const ValueKey('market-review-reports'), icon: const AppIcon(Lucide.flag, size: 18), label: 'Reports · ${q.reports} open', onPress: () => unawaited(push<void>(context, (_) => ReportsScreen(api: _api, ask: widget.ask)))),
         ]),
         gap,
       ]);
