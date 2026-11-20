@@ -272,7 +272,7 @@ class PluginDetail extends StatelessWidget {
         bevel ? _window(t, status) : _hero(t, c, status),
         if (stuck && p!.stuck != null) notice(p.stuck!, key: const ValueKey('plugins-detail-withdrawn')),
         if (p != null && p.paused)
-          notice('Paused: it was slowing the app down.', key: const ValueKey('plugins-detail-paused'), icon: Lucide.pause, then: MarketButton(key: ValueKey('market-unpause-${packIdOrSelf(plugin.id)}'), label: 'Turn it back on', look: MarketButtonLook.ring, onPress: p.onUnpause)),
+          notice('Paused: it was slowing the app down.', key: const ValueKey('plugins-detail-paused'), icon: Lucide.pause, then: MarketButton(key: ValueKey('market-unpause-${plugin.id}'), label: 'Turn it back on', look: MarketButtonLook.ring, onPress: p.onUnpause)),
         if (p != null && p.nohere) notice('This plugin sorts texts, which this computer doesn\'t have.', key: const ValueKey('plugins-detail-nohere'), icon: Lucide.info),
         if (p?.takenFrom != null) notice('This is now by @${plugin.developer}. Adding it removes your copy by @${p!.takenFrom}, and your choices for it.', key: const ValueKey('market-developer-changed'), icon: Lucide.info),
         SizedBox(height: gap),
@@ -438,7 +438,8 @@ class PluginDetail extends StatelessWidget {
                       if (p != null && p.reviewed) _ReviewedTag(key: const ValueKey('plugins-detail-reviewed'), ground: c.tag, ink: c.on, ring: c.tagRing),
                       if (p?.kind == PackKind.dev) MarketTag(key: const ValueKey('plugins-detail-dev'), label: 'In development · not reviewed', ground: c.tag, ink: c.on, ring: c.tagRing),
                       MarketTag(label: plugin.shelf.label, ground: c.tag, ink: c.on, ring: c.tagRing),
-                      ..._labels(t, ground: c.tag, ink: c.on, ring: c.tagRing),
+                      // A pack's tags, which search for it; a built-in's are only for search.
+                      if (p != null) ..._labels(t, ground: c.tag, ink: c.on, ring: c.tagRing),
                     ],
                   ),
                 ],
@@ -479,9 +480,9 @@ class PluginDetail extends StatelessWidget {
                     ]),
                     const SizedBox(height: 2),
                     Text(plugin.tagline, style: pageText(t, 15, height: 1.35, color: c.onChrome)),
+                    const SizedBox(height: 4),
+                    _source(t, c.onChrome),
                     if (p != null) ...[
-                      const SizedBox(height: 4),
-                      _source(t, c.onChrome),
                       if (plugin.labels.isNotEmpty) ...[const SizedBox(height: 4), Wrap(spacing: 6, runSpacing: 4, children: _labels(t))],
                       if (p.kind == PackKind.dev) ...[
                         const SizedBox(height: 6),
@@ -499,9 +500,6 @@ class PluginDetail extends StatelessWidget {
     );
   }
 }
-
-/// A pack id from a registry id ('xbills' → 'bills'), or the id itself where it isn't a pack's.
-String packIdOrSelf(String id) => id.startsWith('x') && id.length > 1 ? id.substring(1) : id;
 
 /// "Reviewed", with its mark: a store pack's and a listing's, never "Verified", which would read as checking who the
 /// developer is (SPEC 0.4).

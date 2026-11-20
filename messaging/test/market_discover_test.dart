@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -19,7 +18,6 @@ import 'package:ghost_messaging/plugins/spam.dart';
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/ui/market/market_flows.dart';
 import 'package:ghost_messaging/ui/plugins_page/plugin_art.dart';
-import 'package:ghost_messaging/ui/plugins_page/plugin_cards.dart';
 
 import 'support/list_harness.dart';
 import 'support/market_fakes.dart';
@@ -365,12 +363,14 @@ void main() {
     Finder tile(String id) => find.descendant(of: _key('plugins-card-$id'), matching: find.byType(PluginTile));
     expect(find.descendant(of: tile('xbills'), matching: find.byType(Image)), findsOneWidget);
     expect(find.descendant(of: tile('xbills'), matching: find.byType(AppIcon)), findsNothing);
-    // Decoded on a real gap: the broken one's error comes back, and its symbol is drawn in its place.
-    for (var i = 0; i < 4; i++) {
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 40)));
-      await tester.pump(const Duration(milliseconds: 50));
+    // Decoded by the engine on a real gap: waited for until the broken one's error has come back and its symbol is
+    // drawn in its place (however busy the machine), not for a fixed time.
+    final symbol = find.descendant(of: tile('xparcels'), matching: find.byType(AppIcon));
+    for (var i = 0; i < 500 && symbol.evaluate().isEmpty; i++) {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
     }
-    expect(find.descendant(of: tile('xparcels'), matching: find.byType(AppIcon)), findsOneWidget);
+    expect(symbol, findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

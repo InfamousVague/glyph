@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data' show Uint8List;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/market/market_api.dart';
 import 'package:ghost_messaging/market/market_models.dart';
 import 'package:ghost_messaging/market/market_state.dart';
+import 'package:ghost_messaging/market/png_view.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart' show KeysSigner;
 import 'package:ghost_messaging/plugins/pack/pack.dart';
@@ -276,6 +276,20 @@ void main() {
     // With no identity, a signed call says why in the words of what it was for.
     final nobody = MarketApi(hubUrl: 'https://relay.test', transport: relay.call);
     await expectLater(nobody.mine(), throwsA(isA<MarketError>().having((e) => e.code, 'code', 'no_identity').having((e) => e.message, 'message', startsWith('Submitting needs your Ghost identity'))));
+  });
+
+  test('a PNG decoded in Dart alone: the plain ones drawn, an interlaced one or a broken one not', () {
+    final rgba = pngPixelsInDart(billsIcon)!;
+    final info = pngInfo(billsIcon)!;
+    expect(rgba.length, info.width * info.height * 4);
+    // The glyph is white on clear: some pixels white and whole, some not there at all.
+    final alphas = {for (var i = 3; i < rgba.length; i += 4) rgba[i]};
+    expect(alphas, containsAll([0, 255]));
+    // Bit 28 is IHDR's interlace: Adam7 is left alone.
+    final interlaced = Uint8List.fromList(billsIcon)..[28] = 1;
+    expect(pngPixelsInDart(interlaced), isNull);
+    expect(pngPixelsInDart(Uint8List.fromList([...billsIcon.take(60), ...List.filled(40, 0)])), isNull);
+    expect(pngPixelsInDart(billsIcon, most: 32), isNull, reason: 'larger than asked for');
   });
 
   test('only https, but for a test\'s own server; the market beside the hub; our own relays known', () {

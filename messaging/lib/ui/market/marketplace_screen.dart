@@ -247,7 +247,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         const HeaderEnd(),
         Expanded(
           child: ListView(
-            key: const ValueKey('marketplace'),
+            key: const ValueKey('marketplace-list'),
             // As Settings' list: the pill behaves under the Marketplace as under Settings (lib/ui/shell.dart).
             padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), MediaQuery.paddingOf(context).bottom + (beside && !AppShell.railOf(context) ? NavPill.clearance(t) : (AppShell.maybeOf(context) != null && NavStyle.of(AppState.of(context)).unified ? AppShell.pillRoom(context) + t.space(4) : t.space(8)))),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,

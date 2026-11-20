@@ -649,7 +649,8 @@ PackPage _packPage(BuildContext context, PluginRegistry registry, GhostPlugin pl
     kind: kind,
     pack: pack,
     onAdd: kind == PackKind.listing ? onAdd : null,
-    whyNot: plugin is ListingPlugin ? listingWhyNot(plugin) : null,
+    // Under the buttons, why Add can't be pressed: not the nohere words again, which have their own box.
+    whyNot: plugin is ListingPlugin && !marketNoTexts ? listingWhyNot(plugin) : null,
     adding: plugin is ListingPlugin && m.adding(plugin.pack.id),
     updateTo: update?.listing.version,
     onUpdate: update == null ? null : () => unawaited(updateStorePack(context, update.listing, market: m)),

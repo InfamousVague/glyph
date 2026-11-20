@@ -82,9 +82,10 @@ Widget? pluginSourceLine(BuildContext context, GhostPlugin plugin, {bool labels 
   );
 }
 
-/// A plugin's first two tags as small tags of their own: a grid card's, under its line.
+/// A plugin from another developer's first two tags as small tags of their own: a grid card's, under its line (a
+/// built-in's tags are for search alone).
 Widget? pluginLabelTags(BuildContext context, GhostPlugin plugin) {
-  if (plugin.labels.isEmpty) return null;
+  if (plugin.labels.isEmpty || plugin.source == PluginSource.builtIn) return null;
   final t = context.tokens;
   return Wrap(spacing: t.space(1), runSpacing: t.space(1), children: [for (final l in plugin.labels.take(2)) MarketTag(label: packLabels[l] ?? l)]);
 }

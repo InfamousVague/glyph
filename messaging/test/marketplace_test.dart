@@ -105,6 +105,7 @@ void main() {
     await tester.tap(_key('rail-marketplace'));
     await settle(tester);
     expect(find.byType(MarketplaceScreen), findsOneWidget);
+    expect(_key('marketplace'), findsOneWidget);
     expect(shell().marketOpen, isTrue);
     expect(shell().marketSection.value, 'discover');
     final discover = find.byWidgetPredicate((w) => w is PluginsPage && w.title == 'Discover');

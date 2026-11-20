@@ -652,7 +652,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
       final route = PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 260),
         reverseTransitionDuration: const Duration(milliseconds: 220),
-        pageBuilder: (context, _, _) => const MarketplaceScreen(key: ValueKey('marketplace-screen')),
+        pageBuilder: (context, _, _) => const MarketplaceScreen(key: ValueKey('marketplace')),
         transitionsBuilder: _arrive,
       );
       setState(() => _market = route);
