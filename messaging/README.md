@@ -30,6 +30,13 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Auto leveler, a plugin that brings everyone in a call to the same loudness** (0.10.8, not released; Matt,
+  2026-11-20: "build the auto leveler plugin that levels everyone's voice levels"). `lib/voice/leveler.dart`
+  (`LevelerCore`, `AutoLeveler`) and `lib/plugins/auto_leveler.dart` (id `autoleveler`, device or circle). It reads
+  how loud each person arrives from WebRTC's own audio level, which is measured before this device's volume, learns
+  each voice's speaking level over a few seconds, and turns them toward -22 dB, at most about 9 dB either way. The gain
+  multiplies each person's own volume and the output volume in `RtcMedia._apply`; nothing is sent. A person's sheet in
+  a call says what it is doing to them. Not heard in a real call yet. Tests: auto_leveler_test.
 - **Stickers in Telegram, Signal, WhatsApp and Matrix chats stand on their own** (0.10.7, not released; Matt,
   2026-11-20: "stickers in telegram chat and others render inside chat bubbles instead of transparent backgrounds when
   sent and when recieved"). A sticker is its own kind of picture (`InboxMedia` kind `sticker`), drawn at most 9rem a

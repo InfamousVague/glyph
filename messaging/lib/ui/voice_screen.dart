@@ -13,6 +13,7 @@ import '../friends/buddies.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../voice/channels.dart';
+import '../voice/leveler.dart';
 import '../voice/voice.dart';
 import '../sms.dart';
 import 'common.dart';
@@ -887,6 +888,21 @@ class _PersonSheet extends StatelessWidget {
                                 SizedBox(width: t.space(3)),
                                 SizedBox(width: 44, child: Text('${(v.volumeOf(id) * 100).round()}%', textAlign: TextAlign.end, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink')))),
                               ]),
+                            ),
+                            // What the auto leveler is doing to them, while it is on (lib/voice/leveler.dart).
+                            ListenableBuilder(
+                              listenable: AutoLeveler.instance,
+                              builder: (context, _) {
+                                final lv = AutoLeveler.instance;
+                                if (!lv.active) return const SizedBox.shrink();
+                                final db = lv.dbOf(id);
+                                final words = db.abs() < 0.5 ? 'Auto leveler: as they are' : 'Auto leveler: ${db > 0 ? 'up' : 'down'} ${db.abs().toStringAsFixed(0)} dB';
+                                return Padding(
+                                  key: const ValueKey('leveler-line'),
+                                  padding: EdgeInsets.only(left: 18 + t.space(3), bottom: t.space(2)),
+                                  child: Text(words, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+                                );
+                              },
                             ),
                             if (m!.username != null && friend?.state != 'yes')
                               SettingRow(
