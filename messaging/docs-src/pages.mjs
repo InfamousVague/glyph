@@ -6,7 +6,7 @@ export const sections = [
     pages: [
       { slug: 'index', icon: 'ghost', title: 'Welcome', summary: 'What Ghost Messaging is, and where to start.' },
       { slug: 'alpha', icon: 'flask-conical', title: 'Join the alpha', summary: 'Try Ghost Messaging before it launches: what to install, and how to join the testers\' circle.' },
-      { slug: 'install', icon: 'download', title: 'Install the app', summary: 'Get Ghost Messaging on an Android phone, a Mac or a Windows PC.' },
+      { slug: 'install', icon: 'download', title: 'Install the app', summary: 'Get Ghost Messaging on an Android phone, a Mac, a Windows PC or a Linux computer.' },
       { slug: 'first-run', icon: 'rocket', title: 'The first time you open it', summary: 'A username and a password, your recovery words, and on Android your texts.' },
       { slug: 'account', icon: 'key-round', title: 'Your account', summary: 'Create an account, keep your recovery words safe, and sign in on another device.' },
       { slug: 'how-accounts-work', icon: 'badge-check', title: 'How your account works', summary: 'Recovery words, your password, the account address, and being the same you on every device.' },
@@ -77,7 +77,7 @@ export const sections = [
   {
     title: 'Computers',
     pages: [
-      { slug: 'computers', icon: 'laptop', title: 'Mac and Windows apps', summary: 'Ghost Messaging on a computer, with or without your phone.' },
+      { slug: 'computers', icon: 'laptop', title: 'Mac, Windows and Linux apps', summary: 'Ghost Messaging on a computer, with or without your phone.' },
       { slug: 'pairing', icon: 'qr-code', title: 'Pair a computer with your phone', summary: 'Your texts on your computer: scan, match the six digits, and keep it connected.' },
     ],
   },

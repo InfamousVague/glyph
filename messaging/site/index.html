@@ -320,6 +320,7 @@
         <a class="dl main" href="/ghost-messaging.apk" data-feed="apk"><svg class="i"><use href="#i-phone"/></svg><span>Download for Android<small data-version="apk">Free, straight from us</small></span></a>
         <a class="dl alt" href="/ghost-messaging-mac.dmg" data-feed="mac" hidden><svg class="i"><use href="#i-laptop"/></svg><span>Mac<small data-version="mac"></small></span></a>
         <a class="dl alt" href="/ghost-messaging-setup.exe" data-feed="windows" hidden><svg class="i"><use href="#i-monitor"/></svg><span>Windows<small data-version="windows"></small></span></a>
+        <a class="dl alt" href="/ghost-messaging-linux.deb" data-feed="linux" hidden><svg class="i"><use href="#i-monitor"/></svg><span>Linux<small data-version="linux"></small></span></a>
       </div>
       <p class="note"><span><svg class="i"><use href="#i-lock"/></svg>Encrypted chats and calls</span><span><svg class="i"><use href="#i-user"/></svg>No account needed</span><span><svg class="i"><use href="#i-zap"/></svg>Updates itself</span></p>
     </div>
@@ -470,9 +471,9 @@
     <div>
       <span class="kicker"><svg class="i" style="width:1rem;height:1rem"><use href="#i-laptop"/></svg>On your computer</span>
       <h2>Everything, on <em>the big screen.</em></h2>
-      <p class="sub">Ghost Messaging for Mac and Windows shows every conversation, sends texts through your phone (sealed between the two), and joins calls and spaces itself.</p>
+      <p class="sub">Ghost Messaging for Mac, Windows and Linux shows every conversation, sends texts through your phone (sealed between the two), and joins calls and spaces itself.</p>
       <ol class="steps">
-        <li><span><b>Download for Mac or Windows.</b> On a Mac, open the disk image and drag Ghost Messaging to Applications. On Windows, run the installer (Windows asks once, as it does for any new app).</span></li>
+        <li><span><b>Download for Mac, Windows or Linux.</b> On a Mac, open the disk image and drag Ghost Messaging to Applications. On Windows, run the installer (Windows asks once, as it does for any new app). On Ubuntu, Debian and their family, open the .deb to install it; on any other Linux, unpack the .tar.gz and run <code>ghost-messaging</code>.</span></li>
         <li><span><b>Pair with your phone.</b> On your phone open Settings › Computers and scan the code the computer shows.</span></li>
         <li><span><b>That's it.</b> Both keep themselves up to date.</span></li>
       </ol>
@@ -497,15 +498,17 @@
 <div class="final" id="get">
   <img class="mascot-end" src="/art/mascot-wave.webp" alt="" onerror="this.outerHTML='<svg class=&quot;mascot-end&quot; viewBox=&quot;0 0 120 130&quot;><use href=&quot;#ghost&quot;/></svg>'">
   <h2>Get Ghost Messaging</h2>
-  <p class="sub">Free, on your Android phone and your Mac or PC.</p>
+  <p class="sub">Free, on your Android phone and your Mac, PC or Linux computer.</p>
   <div class="get">
     <a class="dl main" href="/ghost-messaging.apk" data-feed="apk"><svg class="i"><use href="#i-down"/></svg><span>Download for Android<small data-version="apk">Free, straight from us</small></span></a>
     <a class="dl alt" href="/ghost-messaging-mac.dmg" data-feed="mac" hidden><svg class="i"><use href="#i-laptop"/></svg><span>Download for Mac<small data-version="mac"></small></span></a>
     <a class="dl alt" href="/ghost-messaging-setup.exe" data-feed="windows" hidden><svg class="i"><use href="#i-monitor"/></svg><span>Download for Windows<small data-version="windows"></small></span></a>
+    <a class="dl alt" href="/ghost-messaging-linux.deb" data-feed="linux" hidden><svg class="i"><use href="#i-monitor"/></svg><span>Download for Linux<small data-version="linux"></small></span></a>
   </div>
+  <p class="sub linux-other" data-feed="linux" hidden>Not on Ubuntu or Debian? <a href="/ghost-messaging-linux-x64.tar.gz" data-feed="linux-tar">Download the .tar.gz</a> for any Linux, unpack it and run <code>ghost-messaging</code>.</p>
   <div class="install">
     <div><b><img class="inst" src="/art/icon-install-phone.webp" alt="" loading="lazy">On Android</b><ol><li>Download the APK on your phone and open it. Allow your browser to install apps if Android asks.</li><li>Open Ghost Messaging and choose "Set as default SMS app", or let it work beside your current one.</li></ol></div>
-    <div><b><img class="inst" src="/art/icon-install-computer.webp" alt="" loading="lazy">On a computer</b><ol><li>Download for Mac or Windows and install it.</li><li>On your phone, Settings › Computers, and pair.</li></ol></div>
+    <div><b><img class="inst" src="/art/icon-install-computer.webp" alt="" loading="lazy">On a computer</b><ol><li>Download for Mac, Windows or Linux and install it.</li><li>On your phone, Settings › Computers, and pair.</li></ol></div>
   </div>
 </div>
 
@@ -518,9 +521,10 @@
 
 <script>
   // Each release's own word for its version: apk.json (tool/release.mjs), mac.json (tool/release-mac.mjs) and
-  // windows.json (tool/release-windows.mjs), beside the downloads. A computer's button shows once its release is here.
+  // windows.json (tool/release-windows.mjs) and linux.json (tool/release-linux.mjs), beside the downloads. A computer's
+  // button shows once its release is here.
   const mb = (b) => (b / 1e6).toFixed(1) + ' MB';
-  for (const [id, feed] of [['apk', '/apk.json'], ['mac', '/mac.json'], ['windows', '/windows.json']]) {
+  for (const [id, feed] of [['apk', '/apk.json'], ['mac', '/mac.json'], ['windows', '/windows.json'], ['linux', '/linux.json']]) {
     fetch(feed, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((info) => {
@@ -533,6 +537,10 @@
           a.hidden = false;
         }
         for (const s of document.querySelectorAll('[data-version="' + id + '"]')) s.textContent = 'Version ' + info.version + ' · ' + mb(file.bytes ?? info.bytes);
+        // Linux's other download, the .tar.gz for any distribution (linux.json's tar).
+        if (id === 'linux' && info.tar && /^[A-Za-z0-9._-]+$/.test(info.tar.url)) {
+          for (const a of document.querySelectorAll('[data-feed="linux-tar"]')) a.href = '/' + info.tar.url;
+        }
         if (id === 'apk') document.getElementById('now').textContent = info.version;
       })
       .catch(() => {});
