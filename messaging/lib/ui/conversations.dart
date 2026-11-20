@@ -601,11 +601,22 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// The row under the search field: the tabs as a segmented toggle (Matt, 2026-11-14: "change the messages and
   /// codes to a segmented toggle") and, at its end, the filter. With neither there is no row. Mark all read is at the
   /// end of the title row.
+  /// An empty list's words under [lead] (the rows and the toggle that scroll with the list), in [padding].
+  Widget _withLead(Widget? lead, EdgeInsets padding, List<Widget> children) => ListView(
+        padding: EdgeInsets.zero,
+        children: [?lead, Padding(padding: padding, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children))],
+      );
+
   /// The rows under the search: Mark all read for the tab shown (quiet with nothing unread), and Share feedback (on the
   /// Mac it is in the window's title strip instead).
   Widget _quickRows(Tokens t, int unread) => Padding(
         padding: EdgeInsets.fromLTRB(t.space(2), 0, t.space(2), t.space(2)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          // A plugin's (the cleaner's Clean up, while there is something to clean; Matt, 2026-11-20: "also the clean
+          // button is still in the header we should remove that"). Dial-Up keeps them in its title bar.
+          if (!isBevelChrome(t))
+            for (final a in _plugins.headerActions(context, ListPlace(section: _section, groups: _plugins.groups(_all ?? const []))))
+              QuickRow(key: ValueKey('quick-${a.label}'), icon: a.icon, label: a.label, onPress: a.press),
           QuickRow(
             key: const ValueKey('quick-mark-read'),
             icon: Lucide.checkCheck,
@@ -1048,11 +1059,21 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // flat across the well, so its actions are too.
     final card = dialup ? (inset: EdgeInsets.zero, radius: 0.0) : (inset: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')), radius: t.lenOf('1rem'));
 
+    final unreadHere = _unreadTexts(_section).length + _unreadChats(_section).length + _unreadSpaces(_section).length;
+    // Mark all read, Share feedback and the tabs' toggle scroll away with the list, the search staying (Matt, 2026-11-20:
+    // "scroll the share feedback mark all as read and the segmented toggle when scrolling down"): the list's first row.
+    // Dial-Up's list is a well sunk into the window, so there they stay over it.
+    final lead = widget.archived || _selecting || dialup
+        ? null
+        : Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [_quickRows(t, unreadHere), ?_tabsRow(t)]);
+
     Widget body;
     if (_all == null) {
-      body = const Center(child: GhostSpinner(size: 28, label: 'Loading your conversations…'));
+      body = lead == null
+          ? const Center(child: GhostSpinner(size: 28, label: 'Loading your conversations…'))
+          : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [lead, const Expanded(child: Center(child: GhostSpinner(size: 28, label: 'Loading your conversations…')))]);
     } else if (_error != null && rows.isEmpty) {
-      body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
+      body = _withLead(lead, EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), [
         SettingsEmpty(
           icon: AppIcon(Lucide.circleAlert, size: 28, color: t.danger),
           title: 'Couldn\'t read your messages',
@@ -1061,9 +1082,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         ),
       ]);
     } else if (rows.isEmpty && inbox != null) {
-      body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [inboxEmpty(context, inbox)]);
+      body = _withLead(lead, EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), [inboxEmpty(context, inbox)]);
     } else if (rows.isEmpty && _section == circlesTab) {
-      body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
+      body = _withLead(lead, EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), [
         SettingsEmpty(
           icon: AppIcon(Lucide.circleDot, size: 28, color: t.color('app-ink-3')),
           title: 'No circles yet',
@@ -1074,7 +1095,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     } else if (rows.isEmpty && _section == CodesPlugin.section && _query.isEmpty) {
       // Its tab is there before any code is (Matt, 2026-11-19: "always show the codes tab even if we don't have any
       // codes yet"), so it says what will be here.
-      body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
+      body = _withLead(lead, EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), [
         SettingsEmpty(
           icon: AppIcon(Lucide.keyRound, size: 28, color: t.color('app-ink-3')),
           title: 'No codes yet',
@@ -1083,7 +1104,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       ]);
     } else if (rows.isEmpty) {
       final rcs = _query.isEmpty && !widget.archived && _arriving.rcsLikely;
-      body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
+      body = _withLead(lead, EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), [
         SettingsEmpty(
           // The app's own mark, as it is on the home screen (Matt, 2026-11-14: "I also want the ghost image used
           // when there are no messages to use the logo"), where a drawn outline of a ghost stood.
@@ -1102,7 +1123,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         ),
       ]);
     } else {
-      final extras = (notice ? 1 : 0);
+      final extras = (lead != null ? 1 : 0) + (notice ? 1 : 0);
       // In the frame the way to the archive is the pill's ring, with its number.
       final tail = !framed && !widget.archived && archivedCount > 0 && _query.isEmpty && !_selecting && _section == null;
       // What the filter hides, said at the list's foot with the way to see it: nothing is lost quietly.
@@ -1112,7 +1133,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         onRefresh: _load,
         itemCount: extras + rows.length + (foot ? 1 : 0) + (tail ? 1 : 0) + (more ? 1 : 0) + 1,
         itemBuilder: (context, i) {
-          if (notice && i == 0) {
+          if (lead != null && i == 0) return lead;
+          if (notice && i == (lead != null ? 1 : 0)) {
             return _RcsNotice(app: _arriving.app, onFix: () => _settings('android'), onDismiss: () => app.setFlag('rcs_notice', false));
           }
           final at = i - extras;
@@ -1261,8 +1283,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // The header's buttons: a plugin's (the cleaner), and Mark all read while anything is unread. With neither, and
     // nothing else there, the page has no bar (Matt, 2026-11-19: "if there is no mark as read or cleaner icons rendered
     // at the top remove the extra space above the searchbar too").
-    final headerButtons = widget.archived || _selecting ? const <Widget>[] : _plugins.header(context, ListPlace(section: _section, shown: shown.length, groups: _plugins.groups(_all ?? const [])));
-    final unreadHere = _unreadTexts(_section).length + _unreadChats(_section).length + _unreadSpaces(_section).length;
+    // A plugin's buttons (the cleaner's Clean up) are rows under the search now (_quickRows), but in Dial-Up's title bar.
+    final headerButtons = widget.archived || _selecting || !dialup ? const <Widget>[] : _plugins.header(context, ListPlace(section: _section, shown: shown.length, groups: _plugins.groups(_all ?? const [])));
     final page = GhostPage(
       // Mark all read and Share feedback are rows under the search now (_quickRows): the bar holds a plugin's buttons alone.
       noBar: !dialup && !widget.archived && !_selecting && framed && headerButtons.isEmpty,
@@ -1333,12 +1355,13 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               // Mark all read and Share feedback, as a list of rows with their marks under the search, as Discord lists
               // its places (Matt, 2026-11-20: "layout the mark all read and the share feedback buttons to a icon list
               // like shown in the screenshot under the searchbar").
-              if (!widget.archived && !_selecting) _quickRows(t, unreadHere),
+              // In the list's first row (lead above), but in Dial-Up's window, where they stay.
+              if (dialup && !widget.archived && !_selecting) _quickRows(t, unreadHere),
               // What the frame keeps under the search: on a computer, how the phone is connected.
               if (status != null) Padding(padding: EdgeInsets.fromLTRB(gutter, 0, gutter, t.space(2)), child: status),
               // The tabs: "Messages" and each section that has conversations in it, as one toggle, and beside them
               // the button that marks the tab shown as read (_tabsRow).
-              if (!widget.archived && !_selecting) ?_tabsRow(t),
+              if (dialup && !widget.archived && !_selecting) ?_tabsRow(t),
               // The search is this page's header too.
               const HeaderEnd(),
               // A read of Android's store that is taking a moment: a thin bar, where the list already shows.

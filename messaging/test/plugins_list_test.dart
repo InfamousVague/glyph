@@ -73,9 +73,10 @@ void main() {
     expect(find.byType(ConversationRow), findsNWidgets(3));
     expect(find.text('Your ticket 4411 is ready'), findsNothing);
     expect(find.text('I have ticket 77 for you'), findsOneWidget);
-    // The plugin's button in the header, before New message.
-    expect(_icon('Ticket desk'), findsOneWidget);
-    expect(tester.getCenter(_icon('Ticket desk')).dx, lessThan(tester.getCenter(_icon('New')).dx));
+    // The plugin's button is a row under the search with Mark all read, not in the header (Matt, 2026-11-20: "also the
+    // clean button is still in the header we should remove that").
+    expect(_icon('Ticket desk'), findsNothing);
+    expect(find.byKey(const ValueKey('quick-Ticket desk')), findsOneWidget);
     expect(find.text('Tickets wait here.'), findsNothing);
 
     // Its chip: its own list, the newest first, each row with the number large, and its note over the list.
@@ -225,6 +226,23 @@ void main() {
     await tester.pump(const Duration(seconds: 6));
     await settle(tester);
     expect(_markRead(tester).count, 0);
+  });
+
+  testWidgets('Mark all read, Share feedback and the toggle scroll away with the list; the search stays', (tester) async {
+    // Matt, 2026-11-20: "scroll the share feedback mark all as read and the segmented toggle when scrolling down".
+    PluginRegistry.instance = PluginRegistry(const []);
+    ListPhone([for (var i = 1; i <= 40; i++) ListPhone.conversation(i, '+155512300${i.toString().padLeft(2, '0')}', 'Message $i', name: 'Person $i', minutes: i)]).install();
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, const ConversationsScreen(), AppState());
+    await settle(tester);
+    final search = tester.getTopLeft(find.byType(GlacierSearchField)).dy;
+    final row = tester.getTopLeft(_markReadRow).dy;
+    final toggle = tester.getTopLeft(find.byType(GlacierSegmentedControl)).dy;
+    await tester.drag(find.text('Person 3'), const Offset(0, -120));
+    await settle(tester);
+    expect(tester.getTopLeft(find.byType(GlacierSearchField)).dy, search, reason: 'the search stays');
+    expect(tester.getTopLeft(_markReadRow).dy, lessThan(row - 60), reason: 'Mark all read went up with the list');
+    expect(tester.getTopLeft(find.byType(GlacierSegmentedControl)).dy, lessThan(toggle - 60), reason: 'and the toggle');
   });
 
   testWidgets('several can be chosen in a section, where a tap then chooses', (tester) async {
