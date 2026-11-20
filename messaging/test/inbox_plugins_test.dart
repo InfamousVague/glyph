@@ -2,6 +2,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/inbox/inbox.dart';
+import 'package:ghost_messaging/plugins/networks.dart';
+import 'package:ghost_messaging/plugins/plugin.dart';
+import 'package:ghost_messaging/plugins/registry.dart';
 
 /// Telegram and Signal are official; the rest are plugins, off until switched on (Matt, 2026-11-20: "only keep telegram
 /// and signal as the official services ... Setup all these other services as plugins"). lib/inbox/inbox.dart.
@@ -57,6 +60,61 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async => null));
   tearDown(() => Inbox.instance = null);
+
+  // Matt, 2026-11-20: "I don't see instagram and others listed as plugins in the marketplace"; "i want all of them to
+  // be in the marketplace" (lib/plugins/networks.dart).
+  test('every network that is a plugin is a plugin in the Marketplace, on its own shelf, off until added', () {
+    final ids = [for (final p in shippedPlugins.whereType<NetworkPlugin>()) p.network];
+    expect(ids, ['whatsapp', 'matrix', 'teams', 'googlechat', 'messenger', 'instagram', 'linkedin']);
+    // Each names a network the app has, that is a plugin there and is offered.
+    for (final p in networkPlugins) {
+      final n = Inbox.instance.named(p.network);
+      expect(n, isNotNull, reason: p.network);
+      expect(n!.official, isFalse, reason: p.network);
+      expect(n.soon, isFalse, reason: p.network);
+      expect(n.name, p.name, reason: p.network);
+      expect(p.shelf, PluginShelf.networks);
+      expect(p.onByDefault, isFalse);
+    }
+    // And none that is a plugin and offered is left out.
+    expect([for (final n in Inbox.instance.plugins) if (!n.soon) n.id]..sort(), [...ids]..sort());
+    expect(shippedPlugins.map((p) => p.id).toSet(), hasLength(shippedPlugins.length), reason: 'no id twice');
+  });
+
+  test('adding one in the Marketplace is the network\'s own switch: it starts, and removing it signs out', () async {
+    final wa = _Net('whatsapp'), ig = _Net('instagram');
+    Inbox.instance = Inbox.of([wa, ig]);
+    final app = AppState();
+    await Inbox.instance.start(app);
+    final starts = wa.starts;
+    final registry = PluginRegistry(shippedPlugins);
+    final store = AppStore(app);
+    final plugin = networkPlugins.firstWhere((p) => p.network == 'whatsapp');
+    expect(registry.isOn(plugin, store), isFalse);
+    final stamp = app.pluginsStamp;
+    registry.setOn(plugin, store, true);
+    await pumpEventQueue();
+    expect(registry.isOn(plugin, store), isTrue);
+    expect(wa.enabled, isTrue, reason: 'Settings › Connections shows the same switch');
+    expect(wa.starts, starts + 1);
+    expect(app.pluginsStamp, greaterThan(stamp), reason: 'the Marketplace is drawn again');
+    expect(registry.isOn(networkPlugins.firstWhere((p) => p.network == 'instagram'), store), isFalse);
+    // Switched on in Settings › Connections, it is added here too.
+    await Inbox.instance.enable(ig);
+    expect(registry.isOn(networkPlugins.firstWhere((p) => p.network == 'instagram'), store), isTrue);
+    // Removed: signed out where it was signed in, and off in both places.
+    wa._state = InboxState.ready;
+    registry.setOn(plugin, store, false);
+    await pumpEventQueue();
+    expect(wa.signOuts, 1);
+    expect(wa.enabled, isFalse);
+    expect(registry.isOn(plugin, store), isFalse);
+    // A network this build has none of is never on, and adding it does nothing.
+    const none = NetworkPlugin('nowhere', 'Nowhere', hue: 'blue');
+    registry.setOn(none, store, true);
+    expect(registry.isOn(none, store), isFalse);
+  });
+
 
   test('official networks start; a fresh plugin is discovered once, settles off, and then stays off', () async {
     final tg = _Net('telegram', officialOverride: true);

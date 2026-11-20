@@ -855,7 +855,11 @@ class Inbox {
     notifyChange();
   }
 
-  void notifyChange() => _change.value++;
+  void notifyChange() {
+    _change.value++;
+    // The Marketplace draws these switches too (lib/plugins/networks.dart): a word in the plugins' choices redraws it.
+    networks.map((n) => n.listStore).nonNulls.firstOrNull?.set('plugins_switched', '${DateTime.now().microsecondsSinceEpoch}');
+  }
   final ValueNotifier<int> _change = ValueNotifier(0);
   ValueListenable<int> get switches => _change;
 

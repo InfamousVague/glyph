@@ -17,8 +17,10 @@ import '../art/lucide.g.dart';
 import '../kit/settings_kit.dart';
 import '../sms.dart';
 import '../market/market_state.dart';
+import '../ui/inbox_ui.dart' show networkPluginCard;
 import '../ui/settings.dart';
 import '../ui/plugins_page/plugins_page.dart';
+import 'networks.dart';
 import 'plugin.dart';
 import 'registry.dart';
 
@@ -81,7 +83,10 @@ Widget pluginScreen(GhostPlugin plugin, [PluginRegistry? registry]) {
   return PluginScreen(registry: r, plugin: plugin, settingsOf: (context, p) => _ownOf(context, p, r), summaryOf: (context, p) => _summaryOf(context, p, r));
 }
 
-List<Widget> _ownOf(BuildContext context, GhostPlugin p, PluginRegistry r) => _own(context, p, r, AppStore(AppState.of(context)), title: null);
+List<Widget> _ownOf(BuildContext context, GhostPlugin p, PluginRegistry r) {
+  final n = p is NetworkPlugin ? p.connection : null;
+  return [if (n != null) networkPluginCard(context, n), ..._own(context, p, r, AppStore(AppState.of(context)), title: null)];
+}
 
 String? _summaryOf(BuildContext context, GhostPlugin p, PluginRegistry r) => p.settingsPage?.summary?.call(r.prefsOf(p, AppStore(AppState.of(context))));
 

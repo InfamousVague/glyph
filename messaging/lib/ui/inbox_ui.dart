@@ -1391,7 +1391,7 @@ List<Widget> _pane(BuildContext context, InboxNetwork n) => [
     ];
 
 /// Switches a plugin network off: signs out first where it is signed in, asked for.
-Future<void> _turnOff(BuildContext context, InboxNetwork n) async {
+Future<void> turnOffNetwork(BuildContext context, InboxNetwork n) async {
   if (n.state != InboxState.ready && n.state != InboxState.signingIn) {
     await Inbox.instance.disable(n);
     return;
@@ -1425,7 +1425,7 @@ List<Widget> _paneBody(BuildContext context, InboxNetwork n) {
             key: const ValueKey('plugin-switch'),
             icon: _icon(Lucide.puzzle),
             label: 'Use ${n.name}',
-            control: GlacierSwitch(checked: n.enabled, ariaLabel: 'Use ${n.name}', onCheckedChange: (want) => want ? Inbox.instance.enable(n) : _turnOff(context, n)),
+            control: GlacierSwitch(checked: n.enabled, ariaLabel: 'Use ${n.name}', onCheckedChange: (want) => want ? Inbox.instance.enable(n) : turnOffNetwork(context, n)),
           ),
         ],
       ),
@@ -1462,6 +1462,25 @@ List<Widget> _paneBody(BuildContext context, InboxNetwork n) {
     ),
   ];
 }
+
+/// A network's card on its plugin's page in the Marketplace (lib/plugins/networks.dart): where it stands, and the way
+/// to its own page in Settings › Connections to sign in or out.
+Widget networkPluginCard(BuildContext context, InboxNetwork n) => ListenableBuilder(
+      listenable: Listenable.merge([Inbox.instance.switches, n]),
+      builder: (context, _) => PaneSection(
+        title: 'Connection',
+        children: [
+          SettingRow(
+            key: ValueKey('plugin-connection-${n.id}'),
+            icon: inboxMark(n),
+            label: switch (n.state) { InboxState.ready => n.account ?? 'Signed in', InboxState.signingIn => 'Carry on signing in', InboxState.unavailable => 'Not in this build', InboxState.signedOut => 'Sign in to ${n.name}' },
+            hint: Text(n.state == InboxState.unavailable ? (n.error ?? '${n.name} isn\'t set up in this build of the app.') : _summary(n)),
+            disabled: n.state == InboxState.unavailable,
+            onPress: n.state == InboxState.unavailable ? null : () => push<void>(context, (_) => SettingsSectionScreen('inbox-${n.id}')),
+          ),
+        ],
+      ),
+    );
 
 /// Puts the networks' sections into Settings, and redraws it as they change.
 void addInboxSettings() => SettingsSources.add(inboxSettingsSections, watch: [Inbox.instance.switches, ...Inbox.instance.networks]);

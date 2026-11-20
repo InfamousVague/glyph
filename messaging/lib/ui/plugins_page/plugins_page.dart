@@ -30,11 +30,14 @@ import '../../kit/settings_type.dart';
 import '../../market/listing_plugin.dart';
 import '../../market/market_state.dart';
 import '../../plugins/pack/pack.dart' show DevPack, InstalledPack, InstalledPlugins, packAddressIssue, packIdOf, packLabels;
+import '../../inbox/inbox.dart' show InboxState;
+import '../../plugins/networks.dart';
 import '../../plugins/plugin.dart';
 import '../../plugins/registry.dart';
 import '../../sms.dart';
 import '../common.dart';
 import '../dialup/bevel.dart';
+import '../inbox_ui.dart' show turnOffNetwork;
 import '../market/dev_plugins.dart' show DevPluginScreen, devPackCounts;
 import '../market/market_flows.dart';
 import '../settings.dart' show SettingsSeek, settingsMatch;
@@ -226,6 +229,9 @@ class _PluginsPageState extends State<PluginsPage> {
     final store = AppStore(AppState.of(context));
     if (on) return _add(p);
     if (p is StuckPackPlugin || p.source == PluginSource.reviewed) return unawaited(removeStorePack(context, p));
+    // A network signed in to is signed out by removing it: asked first, as Settings › Connections asks.
+    final n = p is NetworkPlugin ? p.connection : null;
+    if (n != null && (n.state == InboxState.ready || n.state == InboxState.signingIn)) return unawaited(turnOffNetwork(context, n));
     _registry.setOn(p, store, false);
   }
 
