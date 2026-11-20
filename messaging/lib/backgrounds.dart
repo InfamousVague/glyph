@@ -8,6 +8,7 @@ import 'art/app_icon.dart';
 import 'art/lucide.g.dart';
 import 'looks.dart';
 import 'sms.dart';
+import 'kit/picture_decode.dart';
 
 /// What is drawn behind a conversation's messages (Matt, 2026-11-13: "allow changing the backgrounds for chats,
 /// there should be a standard way to have the backgrounds sync between apps as my google background syncs with
@@ -203,7 +204,7 @@ class ChatBackgroundLayer extends StatelessWidget {
     if (b.isNone) return const SizedBox.shrink();
     if (b.kind == 'image') {
       return Stack(fit: StackFit.expand, children: [
-        Image.file(File(b.value), fit: BoxFit.cover, gaplessPlayback: true, errorBuilder: (context, _, _) => const SizedBox.shrink()),
+        Image.file(File(b.value), fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: fillDecodeWidth(context), errorBuilder: (context, _, _) => const SizedBox.shrink()),
         ColoredBox(color: t.color('glacier-bg').withValues(alpha: t.isDark ? 0.42 : 0.28)),
       ]);
     }

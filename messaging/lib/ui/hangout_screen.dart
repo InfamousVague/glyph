@@ -1,7 +1,6 @@
 import '../circles/circles.dart' show Circles, CirclePerm, slowModeLabel, slowModeLeft;
 import 'package:flutter/foundation.dart' show listEquals;
 import 'dart:async';
-import 'dart:convert' show base64Decode;
 import 'dart:math' as math;
 
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeedback, HardwareKeyboard, KeyDownEvent, KeyEvent, LogicalKeyboardKey, TextCapitalization;
@@ -66,6 +65,7 @@ import 'paste_images.dart';
 import 'thread.dart' show LinkedText;
 import 'schedule_ui.dart';
 import '../scheduled.dart' show ScheduleTarget;
+import '../kit/picture_decode.dart';
 
 /// A hangout: its chat, who is in it, and its call (Matt, 2026-11-15: "add a chat to hangouts so the whole group can
 /// send messages to the hangout as well as voice and video"; roles: "Implement a permissions system similar to
@@ -2457,9 +2457,9 @@ class _SpaceFaceState extends State<SpaceFace> {
     final p = _picture();
     Widget? image;
     if (p != null && p.isNotEmpty) {
-      try {
-        image = Image.memory(base64Decode(p), width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true);
-      } catch (_) {}
+      // The same bytes each build, unpacked at the face's size (lib/kit/picture_decode.dart): one a message row.
+      final bytes = pictureBytes(p);
+      if (bytes != null) image = Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: faceDecodeWidth(context, size));
     }
     if (image == null) return Avatar(people: [Person(address: 'space:${widget.id}', name: widget.name)], size: size);
     // Dial-Up's faces are square in a sunken ring, as Avatar draws them there.

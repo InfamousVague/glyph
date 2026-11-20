@@ -8,7 +8,6 @@
 /// and dark, through the app's tokens.
 library;
 
-import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'dart:io';
@@ -29,6 +28,7 @@ import '../shell.dart';
 import 'circle_face.dart';
 import 'circle_view.dart';
 import 'new_circle.dart' show circleHueInk;
+import '../../kit/picture_decode.dart';
 
 /// [view] as the circle's page: [CirclePage] round its [CircleSpaceList].
 class CircleList extends StatelessWidget {
@@ -207,11 +207,10 @@ class _CircleBannerState extends State<CircleBanner> {
     final b = circle.banner;
     final full = _full;
     if (full != null) {
-      image = Image.file(File(full), fit: BoxFit.cover, gaplessPlayback: true, filterQuality: FilterQuality.medium, errorBuilder: (_, _, _) => const SizedBox.shrink());
+      image = Image.file(File(full), fit: BoxFit.cover, gaplessPlayback: true, filterQuality: FilterQuality.medium, cacheWidth: fillDecodeWidth(context), errorBuilder: (_, _, _) => const SizedBox.shrink());
     } else if (b != null) {
-      try {
-        image = Image.memory(base64Decode(b), fit: BoxFit.cover, gaplessPlayback: true, filterQuality: FilterQuality.medium);
-      } catch (_) {}
+      final bytes = pictureBytes(b);
+      if (bytes != null) image = Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true, filterQuality: FilterQuality.medium, cacheWidth: fillDecodeWidth(context));
     }
     // Set in from the edges with rounded corners, not edge to edge (Matt, 2026-11-19: "add just a bit of margin around
     // the sidebar banner header and add some border radius to them so it's not edge to edge").

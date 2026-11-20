@@ -62,6 +62,7 @@ import 'inbox_signin_matrix.dart';
 import 'paste_images.dart';
 import 'schedule_ui.dart';
 import '../scheduled.dart' show ScheduleTarget;
+import '../kit/picture_decode.dart';
 
 /// The screens of the inbox of other networks (lib/inbox): a chat's row in the list, the chat itself, signing in, and
 /// the sections of Settings for each network.
@@ -1422,7 +1423,7 @@ class _FilesStrip extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(t.radius('md')),
                 child: Telegram.kindOf(f) == 'photo'
-                    ? Image.file(File(f), width: side, height: side, fit: BoxFit.cover)
+                    ? Image.file(File(f), width: side, height: side, fit: BoxFit.cover, cacheWidth: faceDecodeWidth(context, side))
                     : Container(
                         width: side,
                         height: side,
@@ -1481,7 +1482,7 @@ class InboxMediaView extends StatelessWidget {
       return SizedBox(
         width: width,
         height: width / ratio,
-        child: path == null ? ColoredBox(color: t.color('app-paper-3'), child: const Center(child: GhostSpinner(size: 20))) : Image.file(File(path), fit: BoxFit.cover, gaplessPlayback: true),
+        child: path == null ? ColoredBox(color: t.color('app-paper-3'), child: const Center(child: GhostSpinner(size: 20))) : Image.file(File(path), fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: fillDecodeWidth(context, width * 2)),
       );
     }
 
