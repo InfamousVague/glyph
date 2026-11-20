@@ -280,6 +280,10 @@ class MarketStore {
     }
   }
 
+  /// Deletes `<kind>/<sha>` where it is there, its bytes no longer counted: what a submission refused after its writes
+  /// had written (market.dart).
+  Future<void> deleteBlob(String kind, String sha) => _deleteBlob('$kind/$sha');
+
   Future<void> _deleteBlob(String name) async {
     final size = blobs.remove(name);
     if (size == null) return;

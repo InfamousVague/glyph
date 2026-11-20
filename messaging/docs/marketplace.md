@@ -69,9 +69,10 @@ and [What a plugin may do](https://gogho.st/docs/plugin-permissions/). What the 
 
 ```dart
 bool packSees(MessageFacts f) =>
-    !f.contact && f.outgoing == false && !f.group && !f.encrypted && f.thread >= 0 &&
-    (f.network == null || f.network == 'sms') && f.senders.length == 1 && !f.senders.single.startsWith('@');
-bool packMayAct(MessageFacts f) => packSees(f) && signInCode(f.text) == null;
+    !f.contact && (!f.contactByName || MessageFacts.contactsReadable) && f.outgoing == false && !f.group &&
+    !f.encrypted && f.thread >= 0 && (f.network == null || f.network == 'sms') && f.senders.length == 1 &&
+    !f.senders.single.startsWith('@');
+bool packMayAct(MessageFacts f) => packSees(f) && !f.codeWaiting && signInCode(f.text) == null;
 ```
 
 Never a contact's texts; never words that may be the person's own (`outgoing` is `false` only where `heard`, the newest
@@ -80,10 +81,17 @@ last words may be anyone's and whose unknown sender reads as not a contact; neve
 encryption; never another network's chat, a space or a friend by username. Where `packSees` fails a pack gives no tags
 and offers no buttons. **`packMayAct` adds the sign-in code rule**: whatever Codes' own switch says, a pack can tag a
 bank's code but never take it into a section, draw its row, keep a filing of it or act on it as it comes. A
-conversation filed by hand into a pack's section stays there only while `packMayAct` holds. `filters.classify`
-(thread 0) and Try it (thread 1) are seen, which makes them test harnesses. On an iPhone or a computer on its own there
-are no texts, so a pack does nothing there; a computer paired with a phone runs it on the phone's texts, but never its
-incoming rules.
+conversation filed by hand into a pack's section stays there only while `packMayAct` holds. **Without Android's
+Contacts permission** (`MessageFacts.contactsReadable`, from `heardStatus`; on a computer, from a name on any
+conversation) every number reads as a stranger's, so where the facts' "not a contact" comes from a name
+(`contactByName`: the phone's conversations and messages) a pack sees nothing. **A code waiting under newer words**
+(`codeWaiting`): `lib/plugins/list.dart` asks the phone (`PluginEffects.codeWaiting`, on a computer across the link)
+whether an unread text with a sign-in code sits under the newest words of a conversation a pack would sort or act on;
+until it answers, and while one does, a pack neither sorts it, draws its row, marks it read nor takes its notification
+away. A failed ask counts as waiting, and is asked again with the next classification. `filters.classify` (thread 0)
+and Try it (thread 1) are seen, which makes them test harnesses; `filters.classify` asks only the plugins that are on.
+On an iPhone or a computer on its own there are no texts, so a pack does nothing there; a computer paired with a phone
+runs it on the phone's texts, but never its incoming rules.
 
 ## The phrase language, and why it can't run away
 
@@ -118,9 +126,12 @@ slowest search took 0.6 ms. What packs cost together is bounded too:
   is as it was. Incoming rules run where they always have: on the phone, while the app is open, after Android has
   notified (`ListPlugins._arrived` returns on a computer or a paired iPhone).
 - **Strikes and pausing.** Each classification is timed with the injected clock. A run of 20 ms or more is run again at
-  once on the same text and is a strike only if that is as slow; over 100 ms of classifying in one second is a strike;
-  the first classification after construction never is (it compiles the expressions). Five strikes in ten minutes
-  pause the pack: it gives nothing until "Turn it back on" or a new version, and the pause is kept in `plugins_paused`.
+  once on the same text and is a strike only if that is as slow; over 100 ms of classifying in one second is a strike
+  where that second's runs took 1 ms or more each on average (`PackLimits.slowOnAverage`), since `TagStore.bind` asks
+  every pack about every conversation at once whenever `switches` changes (a switch, a tuned setting, an install, a
+  pause, Turn it back on), and a pack at 40 µs a text over 3,000 conversations was otherwise a strike at each; the
+  first classification after construction never is (it compiles the expressions). Five strikes in ten minutes pause
+  the pack: it gives nothing until "Turn it back on" or a new version, and the pause is kept in `plugins_paused`.
 
 ## Installing, loading, checking at every load, the floor, withdrawing
 
@@ -154,13 +165,20 @@ The disk is what is installed; prefs hold small indexes, each starting `plugins_
   approval's and the approval verifies with a pinned key that isn't retired; no dev pack of that id; not lower than the
   floor, nor the floor's version with another hash (`not_newer`; the same copy is a reinstall); an update by the same
   developer (`developer_changed` otherwise); within 16 packs and 1,600 phrases. An update replaces the old version in
-  place and keeps its switch.
+  place and keeps its switch. **A switch an incoming rule waits for starts off wherever its job is new**: each switch's
+  jobs are its incoming rules' sections and verbs, and one whose jobs aren't all among the copy before's (every one, for
+  a pack new here or one whose copy couldn't be read) is written `''` as it is installed, updated or loaded in
+  development. A switch the person turned on as an ordinary setting, or for marking one kind read, would otherwise mark
+  texts read or silence them the moment the new copy was in.
 - **Removing** writes `''` to `plugin_x<id>` (adding it again asks again) and to every switch an incoming rule names
   (adding it again starts with them off), keeps its other choices unless `forget`, and keeps the floor.
 - **Withdrawing.** `takeRevocations` reads `/market/revoked` from the market's own address and, where that isn't Ghost
   Messaging's relay, from Ghost Messaging's relay too, so a self-hosted relay can't withhold a withdrawal. It verifies
-  every entry, uninstalls each store pack whose hash is revoked or whose approval's key is retired (files kept, so its
-  page says what happened) and toasts each.
+  every entry by a pinned key (any other fails without a check), each once however often it is sent, on an isolate and
+  outside the installer's queue, so a long list of them never holds up Add, Update or Remove; one that fails is
+  remembered (`unverified.json`, its mark a SHA-256 of its fields) and never checked again, since a bad signature stays
+  bad. Then, in the queue, it uninstalls each store pack whose hash is revoked or whose approval's key is retired (files
+  kept, so its page says what happened) and toasts each.
 
 ## The store on the relay
 
@@ -174,9 +192,11 @@ request has no query string. Everything is checked before a byte of the body is 
 headers; the key, signature and time shapes, the time within 5 minutes; `Content-Length` against the body limit; the
 replay cache (10 minutes, 20,000 entries, the oldest dropped when full); the address's signed budget (60 a minute,
 counted before any verification); the relay's signature budget (20 checks a second); bodies over 64 KiB in flight (3,
-and 3 × the body limit in bytes); then the P-256 verification; then the key's own budget (300 an hour). A refused
-request is answered with `Connection: close` and its body is never read. Only then is the body read, into a
-`BytesBuilder`, whole within 60 s with no gap over 30 s, its length and hash checked as it comes.
+and 3 × the body limit in bytes, and one at a time from one address and from one key, `rate_limited` otherwise); then
+the P-256 verification; then the key's own budget (300 an hour). A refused request is answered with `Connection: close`
+and its body is never read. Only then is the body read, into a `BytesBuilder`, whole within 60 s with no gap over 30 s,
+its length and hash checked as it comes; a body over 64 KiB, which holds one of the few slots while it is read, must
+bring 64 KiB (or the rest of it) every 10 s, so a trickle can't keep a slot for its minute.
 
 | # | Route | Who |
 | --- | --- | --- |
@@ -200,6 +220,10 @@ first submissions of one id from two keys give one `201` and one `409 id_taken`;
 package canonical, not too deep, and its top level checked (the reviewer's app runs the whole of the format on it); the
 developer is the key's own username and no one else's; the id new or the key's; the version newer than the one listed;
 the screenshots PNG only, 64 to 2,400 px, at most 1 MB, and hashing to exactly the package's `shots`; then the quotas.
+The top level's check keeps its first hundred issues (`too_many_issues` says how many more) and reads a list only as far
+as its cap, as the app's does, so a stranger's package of thousands of problems costs an answer of a few KB. A
+submission refused after its files are written (a version approved meanwhile) deletes what it wrote and gives back the
+day's counts it took.
 
 **Storage** is `<data>/market/` (`/var/lib/ghost-relay/market` on the box): `state.json` (and `state.json.bak`),
 `packages/<sha256>`, `shots/<sha256>` and `audit.jsonl`, a line per change. Saves are made in `Isolate.run`, changes
@@ -237,12 +261,20 @@ uploaded is ever served as HTML or SVG.
   `from`, every incoming rule and its switch, every `write` and `copy` text, the link, every anchorless phrase, and what
   changed among these since the last version), the checks, Try it with the samples, the whole file pretty-printed with
   every non-ASCII character in a phrase shown as `\u{…}`, diffs against the previous version and against the version
-  changes were asked of, and the screenshots, decoded in Dart and never by the platform's codecs.
+  changes were asked of, and the screenshots, decoded in Dart and never by the platform's codecs. What it can do is
+  said as on a phone wherever the review is, since an approval covers every phone. The screenshots are the package's
+  own `shots`, each fetched by its place and held to its hash, and the developer in its head the package's: those are
+  what every user's page draws. Approve is held back where the store's row names other screenshots or another
+  developer, where one can't be fetched as the package names it, until each has loaded, and where one can't be shown
+  here (it can't be checked). Notes, a report's words and the reviewer's notes are checked as the relay holds them (a
+  plugin's rule for words, their length in UTF-16 code units) before they are sent, and line ends are made one kind.
 - **The words.** An approval is a P-256 signature by the reviewer's hub key over
   `ghost-market approve v1\n<id>\n<version>\n<sha256>`; it travels in the catalog entry, and the relay takes one only
   from the signed-in admin's own key, not retired, and in `GHOST_MARKET_REVIEW_KEYS` where that is set. A withdrawal
-  signs `ghost-market revoke v1\n<id>\n<sha256>\n<at>\n<why>`, so the reason shown is the reviewer's own. A retirement
-  signs `ghost-market retire v1\n<key>` with the key it retires.
+  signs `ghost-market revoke v1\n<id>\n<sha256>\n<at>\n<why>`, so the reason shown is the reviewer's own; the relay takes
+  one only from a key in `GHOST_MARKET_REVIEW_KEYS` where that is set (a retired one's too), keeps one per package and
+  key, and the review screen offers Withdraw only where this build pins the device's key, since every app drops a
+  withdrawal by any other. A retirement signs `ghost-market retire v1\n<key>` with the key it retires.
 - **The pinned keys** are `marketReviewKeys` in `lib/plugins/pack/review_keys.dart`, empty until Matt gives his: copied
   from Settings › Admin › Plugin review › This device's review key on the device he reviews from and read back to him in
   full, never from a `whois`, the hub or anything else the relay answers, which would make the relay the source of the

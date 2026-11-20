@@ -33,6 +33,7 @@ import '../common.dart';
 import '../plugins_page/market_parts.dart' show MarketButton, MarketButtonLook;
 import '../plugins_page/plugin_art.dart';
 import '../plugins_page/plugins_page.dart' show pluginsHere;
+import 'market_forms.dart' show MarketLengthLimit;
 
 /// A computer on its own, with no phone's texts: a plugin from another developer has nothing here to sort.
 bool get marketNoTexts => Sms.standalone && !Platform.isAndroid && !Platform.isIOS;
@@ -173,11 +174,12 @@ Future<void> removeStorePack(BuildContext context, GhostPlugin plugin) async {
 
 /// What [now] can do that [before] couldn't: the lines of its privacy card and of what it adds, compared as text, that
 /// the copy on this device hasn't (everything, where that copy can't be read). The lines are the runtime's own, as a
-/// pack in development's consent keeps them (DevPack.consentLines), so the two never disagree on what is new.
-({List<PluginReach> reaches, List<String> adds}) packGrew(PluginPack now, PluginPack? before) {
+/// pack in development's consent keeps them (DevPack.consentLines), so the two never disagree on what is new; both
+/// read as on [here] (this device where null; the review screen asks for a phone's, where a pack does the most).
+({List<PluginReach> reaches, List<String> adds}) packGrew(PluginPack now, PluginPack? before, {String? here}) {
   String line(PluginReach r) => r.hint == null ? r.label : '${r.label}: ${r.hint}';
-  final had = before == null ? const <String>{} : DevPack.consentLines(before).toSet();
-  return (reaches: [for (final r in packReaches(now)) if (!had.contains(line(r))) r], adds: [for (final a in packAdds(now)) if (!had.contains(a)) a]);
+  final had = before == null ? const <String>{} : DevPack.consentLines(before, here: here).toSet();
+  return (reaches: [for (final r in packReaches(now, here: here)) if (!had.contains(line(r))) r], adds: [for (final a in packAdds(now, here: here)) if (!had.contains(a)) a]);
 }
 
 /// Updates the store pack of [l]'s id to [l], keeping its switch as it is; first a sheet of only what the new version
@@ -249,10 +251,16 @@ class _ReportPageState extends State<_ReportPage> {
     final id = packIdOf(widget.plugin.id);
     final username = Me.instance.username;
     if (id == null) return;
+    // Said here, and nothing sent: the relay holds a report's words to a plugin's own rule and answers a slip with
+    // "Something in that isn't right." alone, so a report with an emoji made of several couldn't be sent at all, nor
+    // said why (review, 2026-11-20).
+    final words = marketWords(_words.text);
+    final problem = marketWordsProblem(words, MarketMost.report);
+    if (problem != null) return toast(context, 'Your words: $problem', tone: GlacierToastTone.danger);
     setState(() => _sending = true);
     try {
       await m.api.report(
-        PluginReport(plugin: id, version: widget.plugin.version ?? '', reason: widget.reason, text: _words.text.trim(), username: _name && username != null ? tidyHandle(username) : null),
+        PluginReport(plugin: id, version: widget.plugin.version ?? '', reason: widget.reason, text: words, username: _name && username != null ? tidyHandle(username) : null),
         signer: Net.instance.hub?.signer ?? Voice.instance.signer,
       );
       if (!mounted) return;
@@ -300,7 +308,7 @@ class _ReportPageState extends State<_ReportPage> {
                         maxLines: 10,
                         keyboardType: TextInputType.multiline,
                         textCapitalization: TextCapitalization.sentences,
-                        inputFormatters: [LengthLimitingTextInputFormatter(1000)],
+                        inputFormatters: [LengthLimitingTextInputFormatter(MarketMost.report), MarketLengthLimit(MarketMost.report)],
                         readOnly: _sending,
                       ),
                     ),

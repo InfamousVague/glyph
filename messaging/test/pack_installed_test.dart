@@ -191,6 +191,97 @@ void main() {
     });
   });
 
+  group('an incoming rule\'s switch starts off for a job it didn\'t have', () {
+    // A switch the person turned on for something else in the copy before (a setting a tag rule reads), or for marking
+    // one kind read, kept its 'on' under the same key: the new copy marked texts read or took their notifications away
+    // the moment it was in, under sheets that said "once you switch it on" (review, 2026-11-20).
+    String receipt() => 'Thank you for your payment of £30.00. It may take 2 days to show.';
+    List<String> asItComes(String words) {
+      final store = AppStore(app);
+      final facts = MessageFacts(thread: 1, senders: const ['72975'], text: words, contact: false, outgoing: false, unread: true);
+      return [for (final b in registry.incoming(facts, registry.classify(facts, store), store)) '${b.action.runtimeType}'];
+    }
+
+    /// Bills whose autoread switch is an ordinary one, read by its paid rule, with no incoming rule waiting for it.
+    Map<String, Object?> plainBills() {
+      final j = billsAt();
+      final rules = j['rules'] as Map;
+      rules.remove('incoming');
+      j['permissions'] = ['sort', 'copy'];
+      (((rules['tags'] as List)[1]) as Map)['when'] = {'setting': 'autoread'};
+      (((j['settings'] as List)[0]) as Map)['label'] = 'Show paid ones too';
+      return j;
+    }
+
+    test('an update whose incoming rule waits for a switch that was an ordinary one', () async {
+      final (v1, a1) = await reviewed(plainBills());
+      expect((await installed.installReviewed(v1, a1)).ok, isTrue);
+      app.set('plugin_xbills_autoread', 'on');
+      final (v2, a2) = await reviewed(billsAt(version: '1.1.0'));
+      expect((await installed.installReviewed(v2, a2, on: false)).ok, isTrue);
+      expect(pref('plugin_xbills_autoread'), '', reason: 'off until switched on for marking receipts read');
+      expect(asItComes(receipt()), isEmpty);
+      app.set('plugin_xbills_autoread', 'on');
+      expect(asItComes(receipt()), ['MarkRead'], reason: 'once the person switches it on');
+    });
+
+    test('an update that keeps each switch\'s job keeps the switch as it was', () async {
+      final (v1, a1) = await reviewed(billsAt());
+      expect((await installed.installReviewed(v1, a1)).ok, isTrue);
+      app.set('plugin_xbills_autoread', 'on');
+      final (v2, a2) = await reviewed(billsAt(version: '1.1.0')..['tagline'] = 'Bills, in a tab of their own');
+      expect((await installed.installReviewed(v2, a2, on: false)).ok, isTrue);
+      expect(pref('plugin_xbills_autoread'), 'on');
+      expect(asItComes(receipt()), ['MarkRead']);
+    });
+
+    test('an update that adds silencing to a rule, or points a rule at another switch', () async {
+      final (v1, a1) = await reviewed(billsAt());
+      expect((await installed.installReviewed(v1, a1)).ok, isTrue);
+      app.set('plugin_xbills_autoread', 'on');
+      final muting = billsAt(version: '1.1.0');
+      muting['permissions'] = [...(muting['permissions'] as List), 'mute'];
+      ((((muting['rules'] as Map)['incoming'] as List)[0]) as Map)['do'] = ['markread', 'mute'];
+      final (v2, a2) = await reviewed(muting);
+      expect((await installed.installReviewed(v2, a2, on: false)).ok, isTrue);
+      expect(pref('plugin_xbills_autoread'), '', reason: 'switched on to mark read, never to silence');
+      expect(asItComes(receipt()), isEmpty);
+      // 1.2.0 gives its rule a switch of its own the person had on, and keeps autoread for nothing.
+      final moved = billsAt(version: '1.2.0');
+      (moved['settings'] as List).add({'type': 'toggle', 'key': 'showpaid', 'label': 'Show paid ones', 'default': false});
+      ((((moved['rules'] as Map)['incoming'] as List)[0]) as Map)['setting'] = 'showpaid';
+      app.set('plugin_xbills_showpaid', 'on');
+      final (v3, a3) = await reviewed(moved);
+      expect((await installed.installReviewed(v3, a3, on: false)).ok, isTrue);
+      expect(pref('plugin_xbills_showpaid'), '');
+      expect(asItComes(receipt()), isEmpty);
+    });
+
+    test('added again after Remove, a switch that was an ordinary one\'s starts off', () async {
+      final (v1, a1) = await reviewed(plainBills());
+      expect((await installed.installReviewed(v1, a1)).ok, isTrue);
+      app.set('plugin_xbills_autoread', 'on');
+      expect((await installed.removeStore('bills')).ok, isTrue);
+      expect(pref('plugin_xbills_autoread'), 'on', reason: 'an ordinary choice, kept as removing keeps them');
+      final (v2, a2) = await reviewed(billsAt(version: '1.1.0'));
+      expect((await installed.installReviewed(v2, a2)).ok, isTrue);
+      expect(pref('plugin_xbills_autoread'), '');
+      expect(asItComes(receipt()), isEmpty);
+    });
+
+    test('a copy in development whose incoming rule waits for a switch that was on stays off once agreed to', () async {
+      app.set('dev_mode', 'on');
+      expect((await installed.loadDev(canonicalBytes(plainBills()), const DevSource('paste'))).ok, isTrue);
+      await installed.agreeDev('bills');
+      app.set('plugin_xbills_autoread', 'on');
+      final again = await installed.loadDev(canonicalBytes(billsAt(version: '1.1.0')), const DevSource('paste'));
+      expect([again.ok, again.needsConsent], [true, true]);
+      expect((await installed.agreeDev('bills')).ok, isTrue);
+      expect(pref('plugin_xbills_autoread'), '');
+      expect(asItComes(receipt()), isEmpty);
+    });
+  });
+
   group('load checks every pack again', () {
     Future<void> installBills() async {
       final (bytes, approval) = await reviewed(billsAt());
@@ -661,6 +752,38 @@ void main() {
       expect(notices.single.kind, 'withdrawn');
       final (b2, a2) = await reviewed(billsAt(version: '1.1.0'));
       expect((await installed.installReviewed(b2, a2)).code, 'untrusted_key', reason: 'its approvals fail from now on');
+    });
+
+    test('withdrawals are checked beside the installer\'s queue, each once, and one that failed never again', () async {
+      // A relay broken into could hand every device thousands of withdrawals naming a pinned key with bad signatures,
+      // each a P-256 check, all inside the queue Add, Update and Remove wait in, and again at every refresh (review,
+      // 2026-11-20). Checked on an isolate, as in the app.
+      InstalledPlugins.verifyInIsolate = true;
+      final (bytes, approval) = await reviewed(billsAt());
+      expect((await installed.installReviewed(bytes, approval)).ok, isTrue);
+      final good = await signRevocation(reviewer, plugin: 'other', sha256: 'c' * 64, why: 'Withdrawn.');
+      final junk = [for (var i = 0; i < 300; i++) PackRevocation(plugin: 'junk$i', sha256: '$i'.padLeft(64, '0'), at: i, why: 'Junk', key: key, sig: good.sig).toJson()];
+      final done = <String>[];
+      final taking = installed.takeRevocations({'v': 1, 'revoked': [...junk, ...junk, good.toJson()]}).then((_) => done.add('take'));
+      final removing = installed.removeStore('bills').then((out) => done.add(out.ok ? 'remove' : out.code!));
+      await Future.wait([taking, removing]);
+      expect(done, ['remove', 'take'], reason: 'Remove isn\'t held up while they are checked');
+      expect(installed.signaturesChecked, 301, reason: 'each once, however often it is sent');
+      expect(installed.isRevoked('other', 'c' * 64), isTrue, reason: 'one that holds is kept');
+      expect(await installed.takeRevocations({'v': 1, 'revoked': junk}), 0);
+      expect(installed.signaturesChecked, 301, reason: 'none that failed is checked again');
+      // Nor at the next start: what failed is kept beside the withdrawals.
+      registry = PluginRegistry([TicketsPlugin()]);
+      final again = make();
+      await again.load(app, appVersion: '0.10.1');
+      final atLoad = again.signaturesChecked;
+      await again.takeRevocations({'v': 1, 'revoked': junk});
+      expect(again.signaturesChecked, atLoad);
+      expect(again.isRevoked('other', 'c' * 64), isTrue);
+      // A key this build doesn't pin isn't checked at all.
+      final stranger = await signRevocation(KeysSigner(NetKeys.generate()), plugin: 'x', sha256: 'd' * 64, why: 'Not ours');
+      await again.takeRevocations({'v': 1, 'revoked': [stranger.toJson()]});
+      expect(again.signaturesChecked, atLoad);
     });
 
     test('the withdrawals a build ships are merged at load, verified as any other', () async {

@@ -117,7 +117,7 @@ class _Shot {
 }
 
 class SubmitPluginScreen extends StatefulWidget {
-  const SubmitPluginScreen({super.key, this.api, this.market, this.pickFile, this.pickPicture, this.pastePicture, this.iconOf, this.shotOf, this.start, this.startVersion, this.from, this.hub});
+  const SubmitPluginScreen({super.key, this.api, this.market, this.pickFile, this.pickPicture, this.pastePicture, this.iconOf, this.shotOf, this.start, this.startVersion, this.startFor, this.from, this.hub});
 
   /// The Marketplace: MarketState.instance.api where null, which is Ghost Messaging's own (MarketApi.live) in the app.
   final MarketApi? api;
@@ -136,6 +136,10 @@ class SubmitPluginScreen extends StatefulWidget {
 
   /// The version the form starts at, where it isn't [start]'s own.
   final String? startVersion;
+
+  /// The id of the plugin in development the form was opened for ("Submit it"): where its newest copy doesn't load,
+  /// the form says so with its problems, and never starts with another plugin it held before (review, 2026-11-20).
+  final String? startFor;
 
   /// The submission "Submit a new version" was pressed on: its screenshots start the form as kept ones.
   final SubmissionView? from;
@@ -207,6 +211,11 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
     super.initState();
     // What route 9 says of this developer (blocked, their plugins' versions, earlier screenshots), read again now.
     if (_api.signer != null) unawaited(_market.readMine().then((_) => _changedLater()));
+    final asked = widget.startFor == null ? null : InstalledPlugins.instance.devOf(widget.startFor!);
+    if (widget.start == null && asked != null && asked.pack == null) {
+      _fileIssues = asked.issues.isEmpty ? [PackIssue('invalid', '', '${asked.id}\'s newest copy doesn\'t load: see its problems in Settings › Developer.')] : asked.issues;
+      return;
+    }
     final remembered = _market.submitting;
     final start = widget.start ?? (remembered == null ? null : (InstalledPlugins.instance.devOf(remembered.id)?.pack ?? remembered));
     if (start != null) _apply(start, startVersion: widget.start != null ? widget.startVersion : null);
@@ -417,7 +426,8 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
     final m = (jsonDecode(jsonEncode(_base)) as Map).cast<String, Object?>();
     m['name'] = _name.text.trim();
     m['tagline'] = _tagline.text.trim();
-    m['description'] = _description.text.trim();
+    // Line ends one kind: a description pasted from Windows held \r, which the format refuses, unseen (review, 2026-11-20).
+    m['description'] = marketWords(_description.text);
     if (_icon == null) {
       m.remove('icon');
     } else {
@@ -427,7 +437,7 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
     m['shelf'] = _shelf;
     m['labels'] = [..._labels];
     m['version'] = _version.text.trim();
-    final news = _whatsNew.text.trim();
+    final news = marketWords(_whatsNew.text);
     if (news.isEmpty) {
       m.remove('whatsNew');
     } else {
@@ -457,6 +467,10 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
     if (current != null && _whatsNew.text.trim().isEmpty) out.add('What\'s new: say what\'s new in this version.');
     final check = _check;
     if (check != null) out.add(check.message);
+    // The notes are held to a plugin's own rule for words by the relay, which answers a slip with "Something in that
+    // isn't right." alone: said here, under its name (review, 2026-11-20).
+    final notes = marketWordsProblem(marketWords(_notes.text), MarketMost.notes);
+    if (notes != null) out.add('Notes: $notes');
     return out;
   }
 
@@ -648,7 +662,7 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
       final view = await _api.submit(SubmissionRequest(
         package: base64Encode(parse.canonical!),
         shots: [for (final s in _shots) s.kept ? ShotUpload.kept(s.sha) : ShotUpload.png(s.bytes!)],
-        notes: _notes.text.trim(),
+        notes: marketWords(_notes.text),
         list: _list,
         agree: true,
       ));
@@ -749,6 +763,7 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
     final face = pack == null ? null : MarketFace(id: pack.registryId, name: _name.text.ifEmpty(pack.name), symbol: pack.symbol, hue: _hue, iconPng: _iconBytes);
     final current = _current;
     final who = _username ?? '';
+    final ownerOff = pack != null && (_market.mine?.plugins.any((p) => p.id == pack.id && p.listing == 'unlisted' && p.by == 'owner') ?? false);
     final checkLine = _checking
         ? 'Asking the Marketplace whether it can take it…'
         : _check != null
@@ -879,10 +894,17 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
           title: 'Listing',
           children: [
             SettingRow(
+              key: const ValueKey('market-submit-listing'),
               icon: const AppIcon(Lucide.store, size: 18),
               label: 'List it once it\'s approved',
-              hint: Text(_list ? 'It goes in the Marketplace as soon as it\'s approved.' : 'Approved, it waits until you list it in My submissions.'),
-              control: GlacierSwitch(key: const ValueKey('market-submit-list'), checked: _list, disabled: _sending, onCheckedChange: (on) => setState(() {
+              // Taken off the Marketplace by its developer, a plugin's next version is approved unlisted whatever this
+              // says (C.6): the switch promised a listing the relay doesn't make (review, 2026-11-20).
+              hint: Text(ownerOff
+                  ? 'You took it off the Marketplace: approved, it stays off until you list it again in My submissions.'
+                  : _list
+                      ? 'It goes in the Marketplace as soon as it\'s approved.'
+                      : 'Approved, it waits until you list it in My submissions.'),
+              control: GlacierSwitch(key: const ValueKey('market-submit-list'), checked: _list && !ownerOff, disabled: _sending || ownerOff, onCheckedChange: (on) => setState(() {
                 _list = on;
                 _keep();
               }), ariaLabel: 'List it once it\'s approved'),
@@ -893,7 +915,23 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> {
         PaneSection(
           title: 'For the reviewer',
           children: [
-            SettingRowBox(child: MarketTextArea(key: const ValueKey('market-submit-notes'), controller: _notes, label: 'Notes', placeholder: 'Notes for the reviewer (optional): how to try it, what changed', most: 1000, minLines: 3, maxLines: 8, readOnly: _sending, onChanged: (_) => _keep())),
+            SettingRowBox(
+              child: MarketTextArea(
+                key: const ValueKey('market-submit-notes'),
+                controller: _notes,
+                label: 'Notes',
+                placeholder: 'Notes for the reviewer (optional): how to try it, what changed',
+                most: MarketMost.notes,
+                minLines: 3,
+                maxLines: 8,
+                readOnly: _sending,
+                // Checked as they change, and a refusal of what was sent is no longer what the form holds.
+                onChanged: (_) {
+                  setState(() => _refused = null);
+                  _keep();
+                },
+              ),
+            ),
             _PressToggle(
               key: const ValueKey('market-submit-agree'),
               label: 'I made this plugin, and it follows the Marketplace guidelines',

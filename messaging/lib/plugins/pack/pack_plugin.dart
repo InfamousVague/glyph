@@ -84,6 +84,7 @@ class PackPlugin extends GhostPlugin {
   final _strikes = <DateTime>[];
   DateTime? _second;
   var _inSecond = Duration.zero;
+  var _runsInSecond = 0;
   var _secondStruck = false;
 
   /// It was slowing the app down: it gives nothing until [unpause].
@@ -94,19 +95,27 @@ class PackPlugin extends GhostPlugin {
     _strikes.clear();
     _second = null;
     _inSecond = Duration.zero;
+    _runsInSecond = 0;
     _secondStruck = false;
   }
 
-  // Every run's time goes into the second it is in; a second whose runs pass the budget is a strike, once.
+  // Every run's time goes into the second it is in; a second whose runs pass the budget, and took the pack
+  // [PackLimits.slowOnAverage] or more each on average, is a strike, once. The list asks every pack about every
+  // conversation it holds at once whenever a switch, a setting or the plugins themselves change (TagStore.bind), so a
+  // pack that takes some 40 µs a text was charged 120 ms for 3,000 conversations in one second, a strike at each change
+  // and a pause after five; its pause and its Turn it back on were changes too, a strike to every other heavy pack
+  // (review, 2026-11-20). A pack that is slow on each text is caught as before.
   void _count(DateTime start, Duration took) {
     final second = _second;
     if (second == null || start.difference(second) >= const Duration(seconds: 1)) {
       _second = start;
       _inSecond = Duration.zero;
+      _runsInSecond = 0;
       _secondStruck = false;
     }
     _inSecond += took;
-    if (_inSecond > PackLimits.slowInASecond && !_secondStruck) {
+    _runsInSecond++;
+    if (_inSecond > PackLimits.slowInASecond && _inSecond >= PackLimits.slowOnAverage * _runsInSecond && !_secondStruck) {
       _secondStruck = true;
       _strike(start);
     }

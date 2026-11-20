@@ -247,6 +247,21 @@ void main() {
       expect(issues(pack(changes: {'shots': [for (var i = 0; i < 4; i++) '$i' * 64]})), isEmpty);
     });
 
+    test('a list past its cap is read only as far as the cap, and a check keeps its first hundred problems', () {
+      // Any fresh key's 256 KiB package of 87,000 empty permissions came back as 87,000 issues, a 14 MB answer built on
+      // the hub's one isolate before its owner was even asked (review, 2026-11-20); the app's check keeps a hundred.
+      expect(issues(pack(changes: {'permissions': [...packPermissions, 'sort']})), [('too_many', 'permissions')], reason: 'seven at most, as the app says');
+      final many = checkPackTop(pack(changes: {'permissions': List.filled(87307, '')})).issues;
+      expect([for (final i in many) i.code], ['too_many', ...List.filled(packPermissions.length, 'bad_permission')], reason: 'the cap said once, then the seven a pack may have');
+      final labels = checkPackTop(pack(changes: {'labels': List.filled(130978, '')})).issues;
+      expect([for (final i in labels) i.code], ['too_many', 'bad_label', 'bad_label', 'bad_label', 'bad_label'], reason: 'only the four a pack may have are read');
+      final unknown = checkPackTop(pack(changes: {for (var i = 0; i < 24820; i++) 'k$i': 1})).issues;
+      expect(unknown, hasLength(packIssuesMost));
+      expect(unknown.last.code, 'too_many_issues');
+      expect(unknown.last.message, 'And 24721 more problems like these: fix the ones above and check it again.');
+      expect(utf8.encode(jsonEncode([for (final i in unknown) i.toJson()])).length, lessThan(16 * 1024), reason: 'an answer of a few KB');
+    });
+
     test('the developer: a username with no reserved word anywhere in it', () {
       for (final bad in ['ghostdev', 'officialbills', 'goghostore', 'verifiedmaya', 'mayasupport', 'Maya', 'ma', 'ma..ya', '.maya', 'maya!', 'a' * 21]) {
         expect(issues(pack(changes: {'developer': bad})), [('bad_developer', 'developer')], reason: bad);

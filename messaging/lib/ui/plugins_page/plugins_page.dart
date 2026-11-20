@@ -23,13 +23,13 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../app_state.dart';
-import '../../art/app_icon.dart' show LucideIcon;
+import '../../art/app_icon.dart' show AppIcon, LucideIcon;
 import '../../art/lucide.g.dart';
 import '../../kit/settings_kit.dart';
 import '../../kit/settings_type.dart';
 import '../../market/listing_plugin.dart';
 import '../../market/market_state.dart';
-import '../../plugins/pack/pack.dart' show InstalledPlugins, packAddressIssue, packIdOf, packLabels;
+import '../../plugins/pack/pack.dart' show DevPack, InstalledPlugins, packAddressIssue, packIdOf, packLabels;
 import '../../plugins/plugin.dart';
 import '../../plugins/registry.dart';
 import '../../sms.dart';
@@ -177,8 +177,13 @@ class _PluginsPageState extends State<PluginsPage> {
     if (seek == null) return;
     final folded = seek.toLowerCase();
     final every = _every();
-    final plugin = every.where((p) => p.name.toLowerCase() == folded || (p.settingsPage?.label ?? '').toLowerCase() == folded).firstOrNull ??
-        every.where((p) => _registry.settingsOf(p).any((s) => s.label.toLowerCase() == folded)).firstOrNull;
+    bool named(GhostPlugin p) => p.name.toLowerCase() == folded || (p.settingsPage?.label ?? '').toLowerCase() == folded;
+    bool holds(GhostPlugin p) => _registry.settingsOf(p).any((s) => s.label.toLowerCase() == folded);
+    // The plugin the link names, where the hit is one of its own: two plugins share labels ("Signal and Telegram",
+    // "On this phone only"), and a hit in Spam filter's section opened Kinds of text's page, which comes first (review,
+    // 2026-11-20). Only a hit with no plugin of its own (the unlisted plugins section's) is looked for across them all.
+    final asked = _find(widget.open, listing: widget.openListing);
+    final plugin = (asked != null && (named(asked) || holds(asked)) ? asked : null) ?? every.where(named).firstOrNull ?? every.where(holds).firstOrNull;
     if (plugin == null) return;
     // Opened as [PluginsPage.open] is: beside the shelves with room, over them on a phone (the first layout).
     _open = plugin.id;
@@ -511,8 +516,31 @@ class _PluginsPageState extends State<PluginsPage> {
     // plugin", which is Discover's.
     if (!widget.head) {
       if (shelf == _dev) {
-        if (inDevelopment.isEmpty) return [nothing('Nothing loaded yet. Load one in Settings › Developer › Plugins in development.', every: false)];
-        return [shelfOf('In development', inDevelopment, meta: '${inDevelopment.length}', key: const ValueKey('plugins-shelf-dev'))];
+        // Those whose copy doesn't load (or can't run here) too, with their problems: the Marketplace's row counted
+        // them while this page said nothing was loaded (review, 2026-11-20).
+        final notLoading = [for (final d in InstalledPlugins.instance.dev) if (!d.running) d];
+        if (inDevelopment.isEmpty && notLoading.isEmpty) return [nothing('Nothing loaded yet. Load one in Settings › Developer › Plugins in development.', every: false)];
+        return [
+          if (inDevelopment.isNotEmpty) shelfOf('In development', inDevelopment, meta: '${inDevelopment.length}', key: const ValueKey('plugins-shelf-dev')),
+          if (notLoading.isNotEmpty)
+            Padding(
+              key: const ValueKey('plugins-shelf-dev-broken'),
+              padding: EdgeInsets.only(top: gap),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                MarketHeading(title: 'Not loading', meta: '${notLoading.length}'),
+                PaneSection(children: [
+                  for (final d in notLoading)
+                    SettingRow(
+                      key: ValueKey('plugins-dev-broken-${d.id}'),
+                      icon: const AppIcon(Lucide.flaskConical, size: 18),
+                      label: d.pack?.name ?? d.plugin?.pack.name ?? d.id,
+                      hint: Text(_notLoadingWords(d)),
+                      onPress: () => unawaited(push<void>(context, (_) => DevPluginScreen(packId: d.id))),
+                    ),
+                ]),
+              ]),
+            ),
+        ];
       }
       // Every plugin added here, those for circles too: on Discover they are a shelf of their own, which this page
       // hasn't, so they went missing here while its row counted them (review, 2026-11-20). Under their own heading, as
@@ -618,6 +646,17 @@ class _PluginsPageState extends State<PluginsPage> {
       clipBehavior: Clip.none,
       child: Row(children: [for (var i = 0; i < chips.length; i++) ...[if (i > 0) SizedBox(width: gap), chips[i]]]),
     );
+  }
+
+  /// Why a plugin in development isn't running, in a few words for its row: its problems, or what holds it back.
+  static String _notLoadingWords(DevPack d) {
+    final errors = d.issues.where((i) => i.isError).length;
+    if (d.pack == null) return errors == 0 ? 'Its copy doesn\'t load' : '$errors ${errors == 1 ? 'problem' : 'problems'}';
+    return switch (d.problem) {
+      'id_installed' => 'Its id is a plugin\'s from the Marketplace here',
+      'too_many_packs' => 'As many plugins from other developers are here as may be',
+      _ => 'It isn\'t running',
+    };
   }
 
   /// Whether [plugin] answers the search: its name, its lines, its shelf, what it adds, who made it and its tags.

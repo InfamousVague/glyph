@@ -181,6 +181,29 @@ void main() {
     expect(state.flag('plugin_xbills', fallback: false), isTrue);
   });
 
+  testWidgets('a plugin that loads with a warning is said to be loaded, its consent line and its warning with it', (tester) async {
+    // A copy that loads has warnings at most, and every pack with a link button has one (opens_links): the docs' own
+    // Parcels was told only "1 problem: see its row", never that it was loaded nor that it waited to be agreed to
+    // (review, 2026-11-20).
+    await ready();
+    clipboard = File('test/fixtures/packs/parcels.ghostplugin').readAsStringSync();
+    await developer(tester);
+    await tester.tap(_key('dev-plugin-paste'));
+    await settle(tester);
+    expect(installed.devOf('parcels')!.issues.map((i) => i.code), ['opens_links']);
+    expect(find.text('Parcels loaded. Switch it on to agree to what it can do now. One warning: see its row.'), findsOneWidget);
+    expect(find.text('1 problem: see its row'), findsNothing);
+    await tester.pump(const Duration(seconds: 6));
+    await settle(tester);
+    // A copy that doesn't load, kept with its row, is still its problems.
+    clipboard = utf8.decode(packFile(billsJson(id: 'mybills'), (j) => j['hue'] = 'chartreuse'));
+    await tester.tap(_key('dev-plugin-paste'));
+    await settle(tester);
+    expect(find.text('1 problem: see its row'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 6));
+    await settle(tester);
+  });
+
   testWidgets('words that aren\'t a plugin say what is wrong, add no row, and copy', (tester) async {
     await ready();
     clipboard = 'not a plugin at all';

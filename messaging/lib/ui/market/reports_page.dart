@@ -70,13 +70,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
     } on MarketError catch (e) {
       if (!mounted) return;
       if (e.code == 'not_admin') {
-        // Signed in here, in a sheet, and marked done again: as the review screens do, never a way out of the
-        // Marketplace to Settings › Admin (D.10; review, 2026-11-20).
-        final nav = Navigator.of(context, rootNavigator: true);
-        await showChoices(context, title: 'The Marketplace wants a fresh admin sign-in for that.', header: AdminSignIn(key: const ValueKey('market-reports-signin-sheet'), ask: widget.ask, onDone: () async {
-          nav.pop();
+        // Signed in here, on a page over this one whose fields the keyboard leaves in sight, and marked done again: as
+        // the review screens do, never a way out of the Marketplace to Settings › Admin (D.10; review, 2026-11-20).
+        await pushAdminSignIn(context, words: 'The Marketplace wants a fresh admin sign-in for that.', key: const ValueKey('market-reports-signin-sheet'), ask: widget.ask, signedIn: () {
           if (mounted) unawaited(_done(r));
-        }), choices: [Choice('Not now', Lucide.x, () {})]);
+        });
       } else {
         toast(context, e.message, tone: GlacierToastTone.danger);
       }

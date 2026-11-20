@@ -7,7 +7,7 @@ library;
 
 import 'dart:typed_data';
 
-import 'package:flutter/services.dart' show LengthLimitingTextInputFormatter, TextCapitalization, TextInputType;
+import 'package:flutter/services.dart' show LengthLimitingTextInputFormatter, TextCapitalization, TextEditingValue, TextInputFormatter, TextInputType, TextSelection;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -22,6 +22,7 @@ import '../../net/net.dart';
 import '../../plugins/pack/pack.dart' show PackIssue, PluginPack, packHere, packIssuesMost;
 import '../../plugins/plugin.dart';
 import '../../sms.dart';
+import '../admin_page.dart' show AdminSignIn;
 import '../common.dart';
 import '../settings.dart' show SettingsSectionScreen;
 import '../shell.dart';
@@ -103,6 +104,52 @@ Widget marketWhoBlock(BuildContext context, {required Key key, required Key rowK
 /// is.
 bool marketHubIsOther(String? hub) => !marketIsOwn(hub ?? Net.instance.hubUrl);
 
+/// The admin sign-in on a page of its own over this one, [words] saying why above it; signed in, the page goes and
+/// [signedIn] is called. A sheet rising from the foot of the screen sat under the phone's keyboard once a field was
+/// pressed, its fields and Sign in hidden, and the relay wants a sign-in within the half hour for every approval
+/// (review, 2026-11-20): a page's list puts the fields at its top, over the keyboard, as askCircleWords asks for words.
+Future<void> pushAdminSignIn(BuildContext context, {required String words, required Key key, Future<Map<String, dynamic>> Function(Map<String, Object?> what)? ask, required VoidCallback signedIn}) => push<void>(
+      context,
+      (page) => GhostPage(
+        title: 'Admin sign-in',
+        body: ListView(
+          padding: EdgeInsets.all(page.tokens.space(4)),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          children: [
+            PaneSection(children: [SettingRow(icon: const AppIcon(Lucide.keyRound, size: 18), label: words)]),
+            SizedBox(height: page.tokens.space(4)),
+            AdminSignIn(
+              key: key,
+              ask: ask,
+              onDone: () async {
+                Navigator.of(page).pop();
+                signedIn();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+
+/// Keeps a field to [most] UTF-16 code units, which is how the Marketplace counts, never cutting a character in two.
+/// Flutter's own limit counts what shows as one character, so 990 letters and six emoji passed a field of 1,000 and
+/// were refused (review, 2026-11-20). While a word is being composed it is left whole, as Flutter leaves it.
+class MarketLengthLimit extends TextInputFormatter {
+  const MarketLengthLimit(this.most);
+  final int most;
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.text.length <= most || newValue.composing.isValid) return newValue;
+    // Full already, and more typed: as it was.
+    if (oldValue.text.length == most && oldValue.selection.isCollapsed) return oldValue;
+    final last = newValue.text.codeUnitAt(most - 1);
+    final text = newValue.text.substring(0, last >= 0xD800 && last <= 0xDBFF ? most - 1 : most);
+    final at = newValue.selection.extentOffset;
+    return TextEditingValue(text: text, selection: TextSelection.collapsed(offset: at < 0 || at > text.length ? text.length : at));
+  }
+}
+
 /// "Couldn't reach the Marketplace" with a way to try again, where a screen's first read failed.
 class MarketUnreachable extends StatelessWidget {
   const MarketUnreachable({super.key, required this.onRetry, this.words = marketUnreachableWords});
@@ -164,7 +211,7 @@ class _MarketTextAreaState extends State<MarketTextArea> {
               maxLines: widget.maxLines,
               keyboardType: TextInputType.multiline,
               textCapitalization: TextCapitalization.sentences,
-              inputFormatters: [LengthLimitingTextInputFormatter(widget.most)],
+              inputFormatters: [LengthLimitingTextInputFormatter(widget.most), MarketLengthLimit(widget.most)],
               readOnly: widget.readOnly,
               onChanged: widget.onChanged,
             ),

@@ -664,6 +664,43 @@ void main() {
     expect(_key('plugins-detail-shot-$b'), findsNothing);
   });
 
+  testWidgets('updated from its page, How it looks shows the new version\'s screenshots; none to be had says so', (tester) async {
+    // The strip fetched its pictures once, when it was made, and kept the old version's: Update left a heading over
+    // nothing until the page was opened again (review, 2026-11-20).
+    await ready();
+    final a = sha256Hex(billsIcon);
+    // A second picture's bytes: what they draw doesn't matter here, only that they are another's.
+    final other = brokenPng();
+    final b = sha256Hex(other);
+    relay.shots[a] = billsIcon;
+    relay.shots[b] = other;
+    await addStore(installed, billsPack(shots: [a]));
+    await listed(tester, [billsPack(version: '1.1.0', shots: [b], whatsNew: 'New pictures.')]);
+    await page(tester, marketPluginsScreen(open: 'xbills'));
+    await settle(tester);
+    await tester.ensureVisible(_key('plugins-detail-shots'));
+    await settle(tester);
+    expect(_key('plugins-detail-shot-$a'), findsOneWidget);
+    await tester.ensureVisible(_key('plugins-update-xbills'));
+    await settle(tester);
+    await tester.tap(_key('plugins-update-xbills'));
+    await settle(tester);
+    expect(installed.storeOf('bills')!.version, '1.1.0');
+    expect(_key('plugins-detail-whatsnew'), findsOneWidget);
+    await tester.ensureVisible(_key('plugins-detail-shots'));
+    await settle(tester);
+    expect(_key('plugins-detail-shot-$b'), findsOneWidget, reason: 'the new version\'s, fetched on the same page');
+    expect(_key('plugins-detail-shot-$a'), findsNothing);
+    expect(_key('plugins-detail-shots-none'), findsNothing);
+    // A version whose pictures can't be had at all: said, not a blank under the heading.
+    await listed(tester, [billsPack(id: 'mycards', name: 'Cards', shots: ['c' * 64])]);
+    await page(tester, marketPluginsScreen(open: 'xmycards'));
+    await settle(tester);
+    await tester.ensureVisible(_key('plugins-detail-shots'));
+    await settle(tester);
+    expect(find.descendant(of: _key('plugins-detail-shots'), matching: find.text('Its pictures couldn\'t be loaded.')), findsOneWidget);
+  });
+
   testWidgets('a plugin in development switched on the first time asks first, saying nobody reviewed it', (tester) async {
     await ready();
     state.setFlag('dev_mode', true);
@@ -699,6 +736,15 @@ void main() {
     await tester.ensureVisible(find.text('It\'s spam'));
     await settle(tester);
     await tester.tap(find.text('It\'s spam'));
+    await settle(tester);
+    // Words the relay would refuse (an emoji made of several holds an invisible joiner) are said here, and nothing is
+    // sent: the relay answered them with "Something in that isn't right." alone (review, 2026-11-20).
+    await tester.enterText(find.descendant(of: _key('market-report-words'), matching: find.byType(EditableText)), 'It hides my bank texts 🤷\u200D♂️');
+    await tester.tap(_key('market-report-send'));
+    await settle(tester);
+    expect(find.textContaining('Your words: Emoji made of several'), findsOneWidget);
+    expect(relay.asked.where((r) => r.url.path == '/market/report'), isEmpty);
+    await tester.pump(const Duration(seconds: 6));
     await settle(tester);
     await tester.enterText(find.descendant(of: _key('market-report-words'), matching: find.byType(EditableText)), 'Every bill is a scam.');
     await tester.tap(_key('market-report-send'));

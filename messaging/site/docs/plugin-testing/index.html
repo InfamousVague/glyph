@@ -137,7 +137,7 @@ adb reverse tcp:8080 tcp:8080    # then load http://127.0.0.1:8080/yours.ghostpl
   <tr><td><code>unknown_setting</code>, <code>unknown_tag</code>, <code>unknown_section</code>, <code>unknown_action</code></td><td>A name for something the plugin doesn't have, or has of another kind. In a tag rule, a tag no earlier rule gives.</td></tr>
   <tr><td><code>section_condition</code></td><td><code>section</code> in a condition that isn't a button's.</td></tr>
   <tr><td><code>from_with_incoming</code></td><td><code>from</code> anywhere in a plugin with an incoming rule.</td></tr>
-  <tr><td><code>bad_link_when</code></td><td>A <code>link</code> button's condition uses <code>from</code>.</td></tr>
+  <tr><td><code>bad_link_when</code></td><td><code>from</code> anywhere in a plugin with a <code>link</code> button: in a tag rule's, a section's or a button's condition.</td></tr>
   <tr><td><code>needs_permission</code>, <code>permission_unused</code></td><td>A rule uses a permission the plugin doesn't list, or it lists one nothing uses.</td></tr>
   <tr><td><code>link_not_declared</code></td><td>A <code>link</code> button's address isn't the plugin's one link.</td></tr>
   <tr><td><code>incoming_needs_toggle</code></td><td>An incoming rule's setting isn't a switch that starts off.</td></tr>
@@ -150,6 +150,7 @@ adb reverse tcp:8080 tcp:8080    # then load http://127.0.0.1:8080/yours.ghostpl
   <tr><td><code>too_many_phrases</code>, <code>too_many_anchorless</code></td><td>Over 200 phrases, or over 8 without an anchor, in the plugin; or over 1,600 phrases in all of this device's plugins.</td></tr>
   <tr><td><code>phrase_bad_text</code>, <code>phrase_bad_token</code>, <code>phrase_tokens_touch</code>, <code>phrase_token_touches_word</code>, <code>phrase_words_edge</code>, <code>phrase_url_followed</code>, <code>phrase_too_many_tokens</code>, <code>phrase_too_short</code></td><td>A phrase breaks <a href="/docs/plugin-phrases/#rules">one of its rules</a>.</td></tr>
   <tr><td><code>empty_pack</code></td><td>No tag rule and no section.</td></tr>
+  <tr><td><code>too_many_issues</code></td><td>A hundred problems or more: the first 99 are listed, and this one says how many more. Fix those and check it again.</td></tr>
   <tr><td><code>not_canonical</code></td><td>Only from the Marketplace: the file wasn't sent the way the app sends it.</td></tr>
 </table>
 <p>Loading can be refused for reasons outside the file too: <code>too_many_packs</code> (sixteen plugins on the device already), <code>id_installed</code> (the Marketplace's copy of that id is here), <code>id_changed</code> (a reload with another id), <code>bad_link</code> and <code>fetch_failed</code> (a link that isn't allowed, or didn't answer), and <code>dev_mode_off</code>.</p>
@@ -166,7 +167,7 @@ printf '{"pack": %s}' "$(cat bills.ghostplugin)" | curl -s http://localhost:8765
 printf '{"dryRun": true, "pack": %s}' "$(cat bills.ghostplugin)" | curl -s http://localhost:8765/api/plugins.devInstall \
   -H 'Authorization: Bearer &lt;token&gt;' --data-binary @-
 
-# What the phone's plugins make of a text
+# What the phone's plugins that are on make of a text
 curl -s http://localhost:8765/api/filters.classify -H 'Authorization: Bearer &lt;token&gt;' \
   -d '{"text": "Your bill is ready. Amount due: $45.20 by 3 Dec."}'
 
@@ -175,7 +176,8 @@ curl -s http://localhost:8765/api/plugins.devRemove -H 'Authorization: Bearer &l
 <ul>
   <li><code>plugins.devInstall</code> answers <code>{"ok": true, "id": "bills", "plugin": "xbills", "on": false, "issues": []}</code> inside the API's own <code>result</code>. A plugin with problems isn't an error: it answers <code>"ok": false</code> with every one in <code>issues</code>.</li>
   <li>It loads switched off. <code>"on": true</code> switches it on only where you've agreed on the phone to everything it can do already; otherwise it answers <code>"on": false</code> and <code>"needs": "consent on the phone"</code>. The phone says whenever a plugin was loaded from the API, so nobody with your token can load one unseen.</li>
-  <li><code>filters.classify</code> gives the tags under their names in the app (<code>xbills.bill</code>: <code>$45.20</code>) and the section it would go to: <code>xbills0bills</code>, or another plugin's where a built-in plugin takes it first.</li>
+  <li><code>filters.classify</code> asks only the plugins that are on. A plugin first loaded from the API is off until you've agreed on the phone to what it can do: switch it on once in <span class="ui-path">Settings › Developer › Plugins in development</span>. After that a load with <code>"on": true</code> switches it on too. Until then <code>filters.classify</code> shows only the built-in plugins' tags.</li>
+  <li>Once it's on, <code>filters.classify</code> gives the tags under their names in the app (<code>xbills.bill</code>: <code>$45.20</code>) and the section it would go to: <code>xbills0bills</code>, or another plugin's where a built-in plugin takes it first (with Kinds of text on, the example bill goes to its <code>reminders</code>).</li>
   <li><code>plugins.list</code> says each plugin's <code>source</code> (<code>builtIn</code>, <code>reviewed</code> or <code>dev</code>) and <code>version</code>.</li>
   <li>With Developer mode off they answer "Turn on developer mode first: tap Settings › About › Version twelve times."</li>
 </ul>
@@ -186,7 +188,7 @@ curl -s http://localhost:8765/api/plugins.devRemove -H 'Authorization: Bearer &l
   <li>A text from someone in your contacts does nothing, nor does a group, or your own message.</li>
   <li>A conversation you started that's had no answer yet isn't seen until something comes back.</li>
   <li>A text with a sign-in code in it is tagged, and nothing more.</li>
-  <li><b>Try it</b> and <code>filters.classify</code> always count as a stranger's text, so they're the quickest way to test.</li>
+  <li><b>Try it</b> (on or off) and <code>filters.classify</code> (once it's on) always count as a stranger's text, so they're the quickest way to test.</li>
 </ul>
 
 <h2 id="next">Testing the next version of a listed plugin</h2>

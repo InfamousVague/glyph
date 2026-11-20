@@ -108,10 +108,11 @@ class DevPack {
     return consentLines(pack).any((line) => !agreed.contains(line));
   }
 
-  /// What the person agrees to for [pack], a line each as text: its privacy card's lines, then what it adds.
-  static List<String> consentLines(PluginPack pack) => [
-        for (final r in packReaches(pack)) r.hint == null ? r.label : '${r.label}: ${r.hint}',
-        ...packAdds(pack),
+  /// What the person agrees to for [pack], a line each as text: its privacy card's lines, then what it adds, as they
+  /// read on [here] (this device where null; the review screen asks for a phone's, where a pack does the most).
+  static List<String> consentLines(PluginPack pack, {String? here}) => [
+        for (final r in packReaches(pack, here: here)) r.hint == null ? r.label : '${r.label}: ${r.hint}',
+        ...packAdds(pack, here: here),
       ];
 }
 
@@ -405,29 +406,90 @@ class InstalledPlugins extends ChangeNotifier {
 
   Future<void> _readRevoked() async {
     final saved = _readJson('${root.path}/revoked.json');
+    _readFailed();
     final (revs, rets) = shipped;
-    await _take([...revs, if (saved is Map && saved['revoked'] is List) ...saved['revoked'] as List], [...rets, if (saved is Map && saved['retired'] is List) ...saved['retired'] as List]);
+    _merge(await _check([...revs, if (saved is Map && saved['revoked'] is List) ...saved['revoked'] as List], [...rets, if (saved is Map && saved['retired'] is List) ...saved['retired'] as List]));
   }
 
-  /// Every revocation and retirement of [revs] and [rets] not already held, verified: those that hold are kept.
-  Future<void> _take(List<Object?> revs, List<Object?> rets) async {
-    final fresh = <PackRevocation>[];
+  /// The marks ([_markOf]) of withdrawals and retirements signed, or said to be signed, by a pinned key whose check
+  /// failed: a signature that doesn't verify never will. A relay broken into could hand every device thousands of them
+  /// at every refresh, each a P-256 check in pure Dart (review, 2026-11-20); one that failed here once isn't checked
+  /// again. Kept in unverified.json, the newest [_failedKept].
+  final _failed = <String>{};
+  static const _failedKept = 20000;
+  bool _failedRead = false;
+
+  /// How many signatures [_check] has handed over to be checked: a test counts them.
+  @visibleForTesting
+  int signaturesChecked = 0;
+
+  static String _markOf(String kind, Map<String, Object?> json) => sha256Hex(utf8.encode('$kind\n${canonicalJson(json)}'));
+
+  void _readFailed() {
+    if (_failedRead) return;
+    _failedRead = true;
+    final saved = _readJson('${root.path}/unverified.json');
+    final marks = saved is Map ? saved['marks'] : null;
+    if (marks is List) _failed.addAll([for (final m in marks) if (m is String && m.length == 64) m]);
+  }
+
+  void _saveFailed() {
+    while (_failed.length > _failedKept) {
+      _failed.remove(_failed.first);
+    }
+    try {
+      _write('${root.path}/unverified.json', utf8.encode(jsonEncode({'v': 1, 'marks': [..._failed]})));
+    } catch (_) {}
+  }
+
+  /// The revocations and retirements of [revs] and [rets] this device doesn't hold yet that verify (on an isolate of
+  /// their own in the app). Neither in nor holding up the installer's queue, which Add, Update, Remove and every load
+  /// in development wait in: only the merge is the queue's ([_merge]). Only a pinned key's are checked at all (any
+  /// other fails at once, as verifyRevocation would have it), each once however often it is sent, and never one that
+  /// failed before.
+  Future<(List<PackRevocation>, List<PackRetirement>)> _check(List<Object?> revs, List<Object?> rets) async {
+    final keys = reviewKeys;
+    final seen = <String>{};
+    final fresh = <PackRevocation>[], retirements = <PackRetirement>[];
+    final freshMarks = <String>[], retirementMarks = <String>[];
     for (final r in revs) {
       final rev = _revocationFrom(r);
-      if (rev != null && !_revocations.containsKey('${rev.plugin} ${rev.sha256}') && !fresh.any((f) => f.plugin == rev.plugin && f.sha256 == rev.sha256 && f.sig == rev.sig)) fresh.add(rev);
+      if (rev == null || !keys.contains(rev.key) || _revocations.containsKey('${rev.plugin} ${rev.sha256}')) continue;
+      final mark = _markOf('revoke', rev.toJson());
+      if (_failed.contains(mark) || !seen.add(mark)) continue;
+      fresh.add(rev);
+      freshMarks.add(mark);
     }
-    final keys = reviewKeys;
-    // Only a pinned key's retirement means anything here.
-    final retirements = <PackRetirement>[
-      for (final r in rets) ?_retirementFrom(r),
-    ].where((r) => keys.contains(r.key) && !_retired.containsKey(r.key)).toList();
-    if (fresh.isEmpty && retirements.isEmpty) return;
+    for (final r in rets) {
+      final ret = _retirementFrom(r);
+      // Only a pinned key's retirement means anything here.
+      if (ret == null || !keys.contains(ret.key) || _retired.containsKey(ret.key)) continue;
+      final mark = _markOf('retire', ret.toJson());
+      if (_failed.contains(mark) || !seen.add(mark)) continue;
+      retirements.add(ret);
+      retirementMarks.add(mark);
+    }
+    if (fresh.isEmpty && retirements.isEmpty) return (const <PackRevocation>[], const <PackRetirement>[]);
+    signaturesChecked += fresh.length + retirements.length;
     final (okRevs, okRets) = await _verified(keys, fresh, retirements);
+    var failed = false;
     for (var i = 0; i < fresh.length; i++) {
-      if (okRevs[i]) _revocations.putIfAbsent('${fresh[i].plugin} ${fresh[i].sha256}', () => fresh[i]);
+      if (!okRevs[i]) failed = _failed.add(freshMarks[i]) || failed;
     }
     for (var i = 0; i < retirements.length; i++) {
-      if (okRets[i]) _retired.putIfAbsent(retirements[i].key, () => retirements[i]);
+      if (!okRets[i]) failed = _failed.add(retirementMarks[i]) || failed;
+    }
+    if (failed) _saveFailed();
+    return ([for (var i = 0; i < fresh.length; i++) if (okRevs[i]) fresh[i]], [for (var i = 0; i < retirements.length; i++) if (okRets[i]) retirements[i]]);
+  }
+
+  /// What [_check] found to hold, kept: a withdrawal by plugin and package, a retirement by key, the first of each.
+  void _merge((List<PackRevocation>, List<PackRetirement>) held) {
+    for (final r in held.$1) {
+      _revocations.putIfAbsent('${r.plugin} ${r.sha256}', () => r);
+    }
+    for (final r in held.$2) {
+      _retired.putIfAbsent(r.key, () => r);
     }
   }
 
@@ -763,6 +825,7 @@ class InstalledPlugins extends ChangeNotifier {
       return PackOutcome.failed('id_taken', 'Another plugin here already has its name in the app (${pack.registryId}).');
     }
     if (had != null && had.version != pack.version) _delete(_storeDir(pack.id, had.version));
+    _newJobsOff(pack, had?.pack);
     if (on) _reg.setOn(plugin, AppStore(app), true);
     _raiseFloor(pack.id, pack.version, sha256);
     if (!keepPause) _setPaused(pack.registryId, null);
@@ -815,6 +878,30 @@ class InstalledPlugins extends ChangeNotifier {
 
   /// The switches [pack]'s incoming rules wait for.
   static Set<String> _incomingOf(PluginPack? pack) => {for (final r in pack?.rules.incoming ?? const <PackIncoming>[]) r.setting};
+
+  /// What each switch [pack]'s incoming rules wait for does once it is on: a section's key and a verb, a space between,
+  /// for each section it marks read or silences.
+  static Map<String, Set<String>> _jobsOf(PluginPack? pack) {
+    final out = <String, Set<String>>{};
+    for (final r in pack?.rules.incoming ?? const <PackIncoming>[]) {
+      (out[r.setting] ??= {}).addAll([for (final v in r.verbs) '${r.section} $v']);
+    }
+    return out;
+  }
+
+  /// Writes '' to every switch an incoming rule of [pack] waits for whose job is new since [before], the copy it takes
+  /// the place of (null for one new here, or one that couldn't be read: then every one). A switch on in the copy
+  /// before for something else (a setting a tag rule reads), or for marking one kind read, kept its 'on' under the
+  /// same key: the new copy marked texts read or took their notifications away the moment it was in, under sheets
+  /// that said "once you switch it on" (review, 2026-11-20). So a switch is only ever on for what it was switched on
+  /// for.
+  void _newJobsOff(PluginPack pack, PluginPack? before) {
+    final had = _jobsOf(before);
+    for (final MapEntry(key: setting, value: jobs) in _jobsOf(pack).entries) {
+      final was = had[setting] ?? const <String>{};
+      if (!jobs.every(was.contains)) _put('plugin_${pack.registryId}_$setting', '');
+    }
+  }
 
   /// The version folders store/<[packId]>/ holds.
   List<String> _versionsOf(String packId) {
@@ -911,6 +998,8 @@ class InstalledPlugins extends ChangeNotifier {
     final wasRunning = had?.running ?? false;
     final why = wasRunning ? _reg.replace(plugin) : _reg.install(plugin);
     if (why != null) return PackOutcome.failed('id_installed', 'Another plugin here already has its name in the app (${pack.registryId}).');
+    // Against the copy that ran (or would have), whose switches the person may have set.
+    _newJobsOff(pack, had?.plugin?.pack ?? had?.pack);
     final d = had ?? _Dev(id: id, source: source, loadedAt: now);
     d
       ..source = source
@@ -1102,34 +1191,38 @@ class InstalledPlugins extends ChangeNotifier {
 
   // --- withdrawals ------------------------------------------------------------------------------------------------
 
-  /// GET /market/revoked's body: how many installed packs it newly withdrew.
-  Future<int> takeRevocations(Object? json) => _serial(() async {
-        if (json is! Map) return 0;
-        final revs = json['revoked'] is List ? (json['revoked'] as List).take(5000).toList() : const <Object?>[];
-        final rets = json['retired'] is List ? (json['retired'] as List).take(100).toList() : const <Object?>[];
-        await _take(revs, rets);
-        _saveRevoked();
-        var withdrew = 0;
-        final retired = retiredKeys;
-        for (final s in _store.values) {
-          final revoked = _revocationOf(s.id, s.sha256);
-          final untrusted = s.approval != null && retired.contains(s.approval!.key);
-          if (revoked == null && !untrusted) continue;
-          s
-            ..revoked = revoked
-            ..problem = revoked != null ? 'revoked' : 'untrusted_key';
-          if (!s.running) continue;
-          // Off, its files kept, so its page can say what happened and offer Remove.
-          _reg.uninstall(registryIdOf(s.id));
-          s.running = false;
-          withdrew++;
-          final name = s.pack?.name ?? '${s.listing['name'] ?? s.id}';
-          _later(() => _notice(PackNotice('withdrawn', s.id, '$name was withdrawn from the Marketplace and is off.')));
-        }
-        _writeIndexes();
-        _later();
-        return withdrew;
-      });
+  /// GET /market/revoked's body: how many installed packs it newly withdrew. Its entries are checked before the queue,
+  /// so a long list of them never holds up an install or a removal (review, 2026-11-20).
+  Future<int> takeRevocations(Object? json) async {
+    if (json is! Map) return 0;
+    final revs = json['revoked'] is List ? (json['revoked'] as List).take(5000).toList() : const <Object?>[];
+    final rets = json['retired'] is List ? (json['retired'] as List).take(100).toList() : const <Object?>[];
+    final held = await _check(revs, rets);
+    return _serial(() async {
+      _merge(held);
+      _saveRevoked();
+      var withdrew = 0;
+      final retired = retiredKeys;
+      for (final s in _store.values) {
+        final revoked = _revocationOf(s.id, s.sha256);
+        final untrusted = s.approval != null && retired.contains(s.approval!.key);
+        if (revoked == null && !untrusted) continue;
+        s
+          ..revoked = revoked
+          ..problem = revoked != null ? 'revoked' : 'untrusted_key';
+        if (!s.running) continue;
+        // Off, its files kept, so its page can say what happened and offer Remove.
+        _reg.uninstall(registryIdOf(s.id));
+        s.running = false;
+        withdrew++;
+        final name = s.pack?.name ?? '${s.listing['name'] ?? s.id}';
+        _later(() => _notice(PackNotice('withdrawn', s.id, '$name was withdrawn from the Marketplace and is off.')));
+      }
+      _writeIndexes();
+      _later();
+      return withdrew;
+    });
+  }
 
   void _saveRevoked() {
     try {

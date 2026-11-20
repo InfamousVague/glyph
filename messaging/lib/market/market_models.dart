@@ -10,7 +10,7 @@ library;
 import 'dart:convert';
 import 'dart:typed_data';
 
-import '../plugins/pack/pack.dart' show PackApproval, PackRetirement, PackRevocation;
+import '../plugins/pack/pack.dart' show PackApproval, PackRetirement, PackRevocation, packTextOk;
 
 String _text(Object? v, [String or = '']) => v is String ? v : or;
 String? _maybe(Object? v) => v is String ? v : null;
@@ -18,6 +18,36 @@ int _int(Object? v, [int or = 0]) => v is int ? v : (v is num ? v.toInt() : or);
 int? _maybeInt(Object? v) => v is int ? v : (v is num ? v.toInt() : null);
 List<String> _texts(Object? v) => v is List ? [for (final x in v) if (x is String) x] : const [];
 List<Map> _maps(Object? v) => v is List ? [for (final x in v) if (x is Map) x] : const [];
+
+// --- words the Marketplace holds to a plugin's rule -----------------------------------------------------------------
+
+/// How long, in UTF-16 code units, the Marketplace takes each of the words a person types for it (SPEC C.5, C.7): a
+/// submission's notes, a report's words, a reviewer's note on a decision, and the note a listing or a block takes.
+abstract final class MarketMost {
+  static const int notes = 1000, report = 1000, decisionNote = 2000, listingNote = 500;
+}
+
+/// What the person typed as the Marketplace takes it (a submission's notes, a report's words, a reviewer's note): its
+/// line ends one kind, as a Windows paste's \r\n are not, and its ends trimmed.
+String marketWords(String typed) => typed.replaceAll('\r\n', '\n').replaceAll('\r', '\n').trim();
+
+/// Why [words] (as [marketWords] makes them) can't be sent where the Marketplace holds them to [most] UTF-16 code units
+/// and to a plugin's own rule for words (A.4, line breaks allowed), or null where they can. The relay answers any slip
+/// with "Something in that isn't right." and names no field, and an emoji made of several, joined by an invisible
+/// U+200D, is one of them: so it is said here, before anything is sent (review, 2026-11-20).
+String? marketWordsProblem(String words, int most) {
+  if (words.length > most) return 'That\'s ${words.length} characters, and at most $most go: an emoji counts as two or more.';
+  if (!packTextOk(words, newlines: true)) return 'Emoji made of several (like 👩\u200D💻), tabs and invisible characters can\'t be sent: take them out.';
+  return null;
+}
+
+/// [words] cut to [most] code units where they are longer, never through a character, and with no space left at the
+/// end: the note a listing or a block takes from the reviewer's longer one.
+String marketCut(String words, int most) {
+  if (words.length <= most) return words;
+  final last = words.codeUnitAt(most - 1);
+  return words.substring(0, last >= 0xD800 && last <= 0xDBFF ? most - 1 : most).trimRight();
+}
 
 /// What the Marketplace is (route 1): its version, the format it takes, whether it is open, its limits and words.
 class MarketInfo {

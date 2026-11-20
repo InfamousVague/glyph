@@ -548,6 +548,37 @@ void main() {
       }
     });
 
+    test('on a computer the phone is asked too, and a pack sorts nothing a code waits in: nor anything before it answers', () async {
+      // The look for a waiting code ran only where incoming rules do, so on a paired computer a pack took a code's
+      // conversation into its tab by the words that came after it, while the phone kept it in Messages (review,
+      // 2026-11-20).
+      final was = Sms.calls;
+      Sms.calls = _Computer();
+      addTearDown(() => Sms.calls = was);
+      MessageFacts.contactsReadable = true;
+      addTearDown(MessageFacts.forgetContactsReadable);
+      for (final waiting in [false, true]) {
+        final effects = FakeEffects();
+        if (waiting) effects.codes.add(7);
+        final list = ListPlugins(changed: () {}, open: (_) {}, refresh: () async {}, registry: PluginRegistry([PackPlugin(bills, source: PluginSource.reviewed, now: _still)]), effects: effects);
+        addTearDown(list.dispose);
+        final app = AppState()
+          ..set('plugin_xbills', 'on')
+          ..set('plugin_xbills_autoread', 'on');
+        list.bind(app);
+        final bill = Conversation.from({'id': 7, 'date': 1000, 'people': [{'address': '72975'}], 'snippet': sample('s01'), 'heard': sample('s01'), 'unread': true});
+        list.take([bill]);
+        expect(list.sort([bill]).at[7], isNull, reason: 'held in Messages while the phone is asked');
+        for (var i = 0; i < 20 && effects.asked.isEmpty; i++) {
+          await pumpEventQueue();
+        }
+        await pumpEventQueue();
+        expect(effects.asked, [7], reason: 'waiting: $waiting');
+        expect(effects.did, isEmpty, reason: 'a computer marks nothing read: the phone runs the incoming rules');
+        expect(list.sort([bill]).at[7]?.id, waiting ? isNull : 'xbills0bills', reason: 'waiting: $waiting');
+      }
+    });
+
     test('a built-in is never held back by a waiting code, and nobody asks for one where no pack acts', () async {
       final effects = FakeEffects()..codes.add(7);
       final list = ListPlugins(changed: () {}, open: (_) {}, refresh: () async {}, registry: PluginRegistry([const _Hush()]), effects: effects);
@@ -768,6 +799,23 @@ void main() {
       second();
       expect(plugin.paused, isTrue);
       expect(trouble, ['paused']);
+    });
+
+    test('a pack quick on each text, asked about thousands at once, is never paused for that', () {
+      // The list asks every pack about every conversation it holds whenever a switch, a setting or the plugins change:
+      // a pack taking some 40 µs a text was charged 120 ms for 3,000 conversations in one second, a strike at each
+      // change and a pause after five (review, 2026-11-20). Six such changes, ninety seconds apart.
+      final clock = Clock(const Duration(microseconds: 40));
+      final (registry, plugin, store, trouble) = timed(clock);
+      final t = textOf(sample('s01'));
+      for (var change = 0; change < 6; change++) {
+        clock.jump(const Duration(seconds: 90));
+        for (var i = 0; i < 3000; i++) {
+          registry.classify(t, store);
+        }
+      }
+      expect(plugin.paused, isFalse);
+      expect(trouble, isEmpty);
     });
 
     test('unpause clears it, and a pack made paused starts paused', () {

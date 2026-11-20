@@ -26,6 +26,10 @@ abstract final class PackLimits {
   static const int labels = 4, links = 1;
 }
 
+/// The most issues one check keeps, the last of them saying how many more there were: the app's own number
+/// (lib/plugins/pack/manifest.dart), so the two say the same of a package with too many problems to list.
+const int packIssuesMost = 100;
+
 final RegExp packIdPattern = RegExp(r'^[a-z][a-z0-9]{2,23}$');
 final RegExp packVersionPattern = RegExp(r'^(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})$');
 final RegExp packUsernamePattern = RegExp(r'^[a-z0-9][a-z0-9._]{2,19}$');
@@ -352,10 +356,22 @@ bool developerOk(String name) => packUsernamePattern.hasMatch(name) && !name.con
 /// filled in.
 ({List<PackIssue> issues, PackTop? top}) checkPackTop(Object? pack, {bool needIcon = true, bool needSupport = true}) {
   final issues = <PackIssue>[];
-  void add(String code, String path, String message) => issues.add(PackIssue(code, path, message));
+  // At most [packIssuesMost] kept, the last saying how many more, as the app's check keeps them (manifest.dart): a
+  // 256 KiB package of 87,000 empty permissions was 87,000 issues, a 14 MB answer and 116 ms of the hub's one isolate
+  // for any stranger's key, before its owner was even asked (review, 2026-11-20).
+  var more = 0;
+  void add(String code, String path, String message) {
+    if (issues.length >= packIssuesMost - 1) {
+      more++;
+      return;
+    }
+    issues.add(PackIssue(code, path, message));
+  }
+
+  List<PackIssue> kept() => [...issues, if (more > 0) PackIssue('too_many_issues', '', 'And $more more ${more == 1 ? 'problem' : 'problems'} like these: fix the ones above and check it again.')];
   if (pack is! Map) {
     add('not_object', '', 'The file is ${pack is List ? 'a list' : 'a single value'}, not a JSON object.');
-    return (issues: issues, top: null);
+    return (issues: kept(), top: null);
   }
   for (final k in pack.keys) {
     if (!packFields.contains(k)) add('unknown_field', '$k', '"$k" isn\'t a field of ghost-plugin/1.');
@@ -403,7 +419,8 @@ bool developerOk(String name) => packUsernamePattern.hasMatch(name) && !name.con
     final seen = <String>{};
     final out = <String>[];
     var ok = v.length >= least && v.length <= most;
-    for (var i = 0; i < v.length; i++) {
+    // Only as many as there may be are looked at, as the app's check reads a list past its cap.
+    for (var i = 0; i < v.length && i < most; i++) {
       final e = v[i];
       final code = bad(i, e);
       if (code.isNotEmpty) {
@@ -456,8 +473,8 @@ bool developerOk(String name) => packUsernamePattern.hasMatch(name) && !name.con
     add('bad_label', 'labels[$i]', 'labels[$i]: one of ${packLabels.join(', ')}.');
     return 'bad_label';
   });
-  // No count of its own: seven words, each once, is the most there can be, and more is a duplicate.
-  final permissions = list('permissions', needed: true, most: 1 << 20, bad: (i, v) {
+  // Seven words, each once, is the most there can be: more is too_many, as the app's check says.
+  final permissions = list('permissions', needed: true, most: packPermissions.length, bad: (i, v) {
     if (v is String && packPermissions.contains(v)) return '';
     add('bad_permission', 'permissions[$i]', 'permissions[$i]: one of ${packPermissions.join(', ')}.');
     return 'bad_permission';
@@ -501,7 +518,7 @@ bool developerOk(String name) => packUsernamePattern.hasMatch(name) && !name.con
   } else if (pack['rules'] is! Map) {
     add('wrong_type', 'rules', 'rules: should be an object.');
   }
-  if (issues.isNotEmpty) return (issues: issues, top: null);
+  if (issues.isNotEmpty) return (issues: kept(), top: null);
   return (
     issues: issues,
     top: PackTop(

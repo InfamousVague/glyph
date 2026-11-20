@@ -507,6 +507,149 @@ void main() {
     expect(relay.store.decided.where((d) => d['route'] == 'revoke'), isEmpty);
   });
 
+  testWidgets('its screenshots and its "By @" are its package\'s own: a relay that names others holds Approve back', (tester) async {
+    // An approval covers the package's own screenshots and developer, which every user's page draws; the screen drew the
+    // relay's list and name, so a relay broken into could have pictures nobody saw approved, under another name (review,
+    // 2026-11-20).
+    final shot = billsIcon;
+    final honest = relay.store.put(bills(change: (j) => j['shots'] = [sha256Hex(shot)]), status: 'submitted', shots: [shot]);
+    await show(tester, ReviewItemScreen(honest, api: api, ask: ask));
+    expect(hint(tester, 'market-review-approve'), isNot(contains('loading')));
+    expect(pressable(tester, 'market-review-approve'), isFalse, reason: 'not before its screenshots are seen');
+    expect(find.text('Its screenshots are still loading.'), findsOneWidget);
+    await until(tester, () => find.descendant(of: _key('market-review-shot-0'), matching: find.byType(RawImage)).evaluate().isNotEmpty);
+    expect(_key('market-review-listing-mismatch'), findsNothing);
+    expect(pressable(tester, 'market-review-approve'), isTrue);
+    // The package names one picture and one developer, the relay's row others, and it serves its own at route 12.
+    final other = brokenPng();
+    final lying = relay.store.put(bills(id: 'mycards', change: (j) {
+      j['shots'] = [sha256Hex(shot)];
+      j['developer'] = 'chasealerts';
+    }), status: 'submitted', shots: [other]);
+    relay.store.submissions[lying]!['developer'] = 'maya';
+    await show(tester, ReviewItemScreen(lying, api: api, ask: ask));
+    await until(tester, () => find.descendant(of: _key('market-review-shot-0'), matching: find.text('Not the picture its file names')).evaluate().isNotEmpty);
+    expect(_key('market-review-listing-mismatch'), findsOneWidget);
+    expect(find.descendant(of: _key('market-review-head'), matching: find.textContaining('@chasealerts')), findsOneWidget, reason: 'the "By @" its page will say');
+    expect(pressable(tester, 'market-review-approve'), isFalse);
+    expect(find.text('The store\'s listing isn\'t the one this package names. Don\'t approve it.'), findsWidgets);
+    // A picture it names that can't be shown here can't be checked here either.
+    final interlaced = Uint8List.fromList(billsIcon)..[28] = 1;
+    final hidden = relay.store.put(bills(id: 'mytickets', change: (j) => j['shots'] = [sha256Hex(interlaced)]), status: 'submitted', shots: [interlaced]);
+    await show(tester, ReviewItemScreen(hidden, api: api, ask: ask));
+    await until(tester, () => find.text('Can\'t show this picture here').evaluate().isNotEmpty);
+    expect(pressable(tester, 'market-review-approve'), isFalse);
+    expect(find.text('A screenshot can\'t be shown on this device, so it can\'t be checked: ask for changes.'), findsOneWidget);
+  });
+
+  testWidgets('reviewed on a computer, what it can do and what is new are as on a phone, where it does the most', (tester) async {
+    // A computer's words leave out silencing and marking read as texts come, which every phone runs: an update that
+    // added silencing showed nothing new there (review, 2026-11-20).
+    relay.store.put(bills(), status: 'approved');
+    final sid = relay.store.put(bills(version: '1.1.0', change: (j) {
+      j['permissions'] = [...(j['permissions'] as List), 'mute'];
+      ((((j['rules'] as Map)['incoming'] as List)[0]) as Map)['do'] = ['markread', 'mute'];
+    }), status: 'submitted');
+    Sms.calls = _Followed();
+    expect(packHere(), 'computer');
+    await show(tester, ReviewItemScreen(sid, api: api, ask: ask));
+    expect(find.descendant(of: _key('market-review-what'), matching: find.text('As on a phone, where it does the most.')), findsOneWidget);
+    expect(_key('market-review-new'), findsOneWidget);
+    expect(find.descendant(of: _key('market-review-what'), matching: find.text('Can silence notifications')), findsNWidgets(2), reason: 'what it can do, and new in this version');
+    expect(find.descendant(of: _key('market-review-what'), matching: find.text('Can silence Receipts texts as they come, once you switch it on')), findsNWidgets(2));
+  });
+
+  testWidgets('Withdraw this version only where this build pins this device\'s key: no app would take one by another', (tester) async {
+    // The store took a withdrawal by a key no build pins, and every device dropped it: the plugin ran on everywhere
+    // (review, 2026-11-20). A retired key's still count.
+    final sid = relay.store.put(bills(), status: 'approved');
+    await ready(keys: [reviewKey]);
+    await show(tester, ReviewItemScreen(sid, api: api, ask: ask));
+    expect(pressable(tester, 'market-review-revoke'), isFalse);
+    expect(hint(tester, 'market-review-revoke'), 'This build doesn\'t trust this device\'s key: no app would take its withdrawal.');
+    await retire(await ready(), admin);
+    await show(tester, ReviewItemScreen(sid, api: api, ask: ask));
+    expect(pressable(tester, 'market-review-revoke'), isTrue, reason: 'retired, its withdrawals still count');
+  });
+
+  testWidgets('a note the Marketplace would refuse is said here and nothing is sent; a listing\'s note is cut whole', (tester) async {
+    // The relay holds review notes to a plugin's own rule for words and answered a slip with "Something in that isn't
+    // right." alone; and the 500 a listing takes was cut through a space or half an emoji, which it refuses too
+    // (review, 2026-11-20).
+    final waiting = relay.store.put(bills(), status: 'in_review');
+    await show(tester, ReviewItemScreen(waiting, api: api, ask: ask));
+    Future<void> note(String words) async {
+      await tester.enterText(find.descendant(of: _key('market-review-note'), matching: find.byType(EditableText)), words);
+      await settle(tester);
+    }
+
+    await note('Lovely 🤦\u200D♀️');
+    await tester.tap(_key('market-review-changes'));
+    await settle(tester);
+    expect(find.textContaining('The note: Emoji made of several'), findsOneWidget);
+    expect(relay.store.decided, isEmpty);
+    await tester.pump(const Duration(seconds: 6));
+    await settle(tester);
+    await note('Say which kind it adds.\r\nThanks!');
+    await tester.tap(_key('market-review-changes'));
+    await settle(tester);
+    expect(relay.store.decided.single['note'], 'Say which kind it adds.\nThanks!');
+    // A listing's note: the first 500 of the note, ending in no space and no half of an emoji.
+    relay.store.unlistedBy = 'admin';
+    final listed = relay.store.put(bills(id: 'mycards'), status: 'approved');
+    await show(tester, ReviewItemScreen(listed, api: api, ask: ask));
+    for (final (words, sent) in [('${'a' * 499} and more', 'a' * 499), ('${'a' * 499}😀 and more', 'a' * 499)]) {
+      await note(words);
+      await tester.tap(_key(relay.store.plugins['mycards']!['listing'] == 'listed' ? 'market-review-unlist' : 'market-review-relist'));
+      await settle(tester);
+      await tester.tap(find.text(relay.store.plugins['mycards']!['listing'] == 'listed' ? 'Unlist' : 'List again').last);
+      await settle(tester);
+      expect(relay.store.decided.last['note'], sent);
+    }
+  });
+
+  testWidgets('on a phone, a sign-in a decision needs is on a page whose fields the keyboard leaves in sight', (tester) async {
+    // A sheet rising from the foot of the screen sat under the keyboard once a field was pressed: its fields and Sign
+    // in all hidden, for every approval half an hour after signing in (review, 2026-11-20).
+    final sid = relay.store.put(bills(), status: 'in_review');
+    await show(tester, ReviewItemScreen(sid, api: api, ask: ask));
+    relay.store.decideRefusals.add((status: 403, body: {'ok': false, 'error': 'not_admin', 'message': 'Sign in on Settings › Admin again to do that.'}));
+    await tester.enterText(find.descendant(of: _key('market-review-note'), matching: find.byType(EditableText)), 'Say which kind it adds.');
+    await tester.tap(_key('market-review-changes'));
+    await settle(tester);
+    expect(_key('market-review-signin-sheet'), findsOneWidget);
+    // A phone's screen, 412 by 892, and the keyboard up over 320 of its points.
+    tester.view.physicalSize = const Size(412, 892) * tester.view.devicePixelRatio;
+    tester.view.viewInsets = FakeViewPadding(bottom: 320 * tester.view.devicePixelRatio);
+    await settle(tester);
+    await tester.tap(find.descendant(of: _key('admin-user'), matching: find.byType(EditableText)));
+    await settle(tester);
+    for (final k in ['admin-user', 'admin-pass', 'admin-sign-in']) {
+      expect(tester.getRect(find.descendant(of: _key('market-review-signin-sheet'), matching: _key(k))).bottom, lessThanOrEqualTo(892 - 320), reason: k);
+    }
+    await signIn(tester, within: _key('market-review-signin-sheet'));
+    await settle(tester);
+    expect(relay.store.decided.map((d) => d['refused'] ?? d['decision']), ['not_admin', 'changes']);
+    expect(_key('market-review-signin-sheet'), findsNothing, reason: 'its page gone once signed in');
+  });
+
+  testWidgets('a version of a plugin its developer took off is approved off the Marketplace, and the screen says so', (tester) async {
+    // The relay keeps the developer's choice whatever the version's list says (C.6): the hint said "and listed" and the
+    // toast "Approved and listed" while the developer was told to list it (review, 2026-11-20).
+    final first = relay.store.put(bills(), status: 'approved');
+    relay.store.plugins['mybills']!
+      ..['listing'] = 'unlisted'
+      ..['by'] = 'owner';
+    relay.store.submissions[first]!['listing'] = 'unlisted';
+    final sid = relay.store.put(bills(version: '1.1.0'), status: 'submitted');
+    await show(tester, ReviewItemScreen(sid, api: api, ask: ask));
+    expect(hint(tester, 'market-review-approve'), 'Signed here with this device\'s key, and listed, unless its developer took it off the Marketplace.');
+    await tester.tap(_key('market-review-approve'));
+    await settle(tester);
+    expect(find.text('Approved: it stays off the Marketplace until its developer lists it'), findsOneWidget);
+    expect(find.text('Approved and listed'), findsNothing);
+  });
+
   test('the line diff: Myers\' shortest edit, and giving up past its bound', () {
     expect(lineDiff(['a', 'b', 'c'], ['a', 'x', 'c']), ['  a', '- b', '+ x', '  c']);
     expect(lineDiff(['a', 'b'], ['a', 'b', 'c']), ['  a', '  b', '+ c']);

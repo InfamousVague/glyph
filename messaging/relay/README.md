@@ -122,7 +122,11 @@ closes it), `MAX_PACKAGE`, `MAX_SHOT`, `MAX_SHOTS`, `MAX_BODY` (held to Caddy's 
 `OPEN_TOTAL`, `OPEN_UNVERIFIED`, `NAME_AGE_DAYS`, `PLUGINS_PER_DEVELOPER`, `MAX_PLUGINS`, `SIGNED_AN_HOUR`,
 `SIGNED_PER_ADDRESS`, `VERIFY_A_SECOND`, `BODIES_IN_FLIGHT`, `READS_PER_MINUTE`, `REPORTS_A_DAY`, `NEED_VERIFIED` (1
 takes plugins only from developers with a verified number, as it should be once it opens) and `REVIEW_KEYS` (the keys
-whose approvals it takes; empty, the signed-in admin's own). Its rate counters are in memory and go with a restart.
+whose approvals and withdrawals it takes; empty, the signed-in admin's own). Its rate counters are in memory and go
+with a restart. A body over 64 KiB holds one of `BODIES_IN_FLIGHT` slots while it is read: one at a time from one
+address and from one key, and it must bring 64 KiB (or the rest of it) every 10 seconds, so a body trickled a byte at a
+time can't keep a slot. A package's check keeps its first hundred problems and says how many more, so a stranger's
+package of thousands costs an answer of a few KB.
 
 **The sweep**, daily, the first an hour after a start: a rejected, withdrawn or replaced submission closed over 30 days
 ago loses its package and screenshots, unless an approved version or another kept submission uses them (its record and

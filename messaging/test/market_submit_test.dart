@@ -88,12 +88,12 @@ void main() {
   Future<String?> icon(Uint8List bytes) async => base64Encode(bytes);
   Future<Uint8List?> shot(Uint8List bytes) async => bytes;
 
-  Future<void> form(WidgetTester tester, {MarketApi? with_, String? hub, PluginPack? start, String? startVersion, Future<Uint8List?> Function()? pick}) async {
+  Future<void> form(WidgetTester tester, {MarketApi? with_, String? hub, PluginPack? start, String? startVersion, String? startFor, Future<Uint8List?> Function()? pick}) async {
     await ready();
     // A form of its own each time: its state (the api it signs with) is made once.
     await tester.pumpWidget(const SizedBox());
     final sheet = await loadSheet(tester);
-    await pumpScreen(tester, sheet, SubmitPluginScreen(api: with_ ?? api, market: market, iconOf: icon, shotOf: shot, pickPicture: pick ?? () async => billsIcon, pastePicture: () async => billsIcon, hub: hub, start: start, startVersion: startVersion), state, size: _tall);
+    await pumpScreen(tester, sheet, SubmitPluginScreen(api: with_ ?? api, market: market, iconOf: icon, shotOf: shot, pickPicture: pick ?? () async => billsIcon, pastePicture: () async => billsIcon, hub: hub, start: start, startVersion: startVersion, startFor: startFor), state, size: _tall);
   }
 
   Future<void> paste(WidgetTester tester, Uint8List file) async {
@@ -459,6 +459,62 @@ void main() {
     expect(_key('market-mine-marked'), findsOneWidget);
     expect(market.draftOf('mybills'), isNull);
     expect(market.submitting, isNull);
+  });
+
+  testWidgets('notes the Marketplace would refuse are said under their name and hold Send back; line ends are made one kind', (tester) async {
+    // The relay holds the notes to a plugin's own rule for words and answered an emoji made of several with
+    // "Something in that isn't right." alone, naming no field; a description pasted from Windows held \r, which the
+    // format refuses unseen (review, 2026-11-20).
+    await named(tester, 'maya');
+    await form(tester);
+    await paste(tester, packFile(billsJson()));
+    await agree(tester);
+    expect(sendable(tester), isTrue);
+    await type(tester, 'market-submit-notes', 'Tested on my Pixel 👩\u200D💻');
+    expect(find.descendant(of: _key('market-submit-problems'), matching: find.textContaining('Notes: Emoji made of several')), findsOneWidget);
+    expect(sendable(tester), isFalse);
+    await type(tester, 'market-submit-notes', 'Tested on my Pixel.\r\nThanks!');
+    expect(_key('market-submit-problems'), findsNothing);
+    await type(tester, 'market-submit-description', 'Bills in a tab.\r\nThe amount on the row.');
+    expect(_key('market-submit-problems'), findsNothing, reason: 'its line ends are made one kind before it is checked');
+    expect(sendable(tester), isTrue);
+    await tester.tap(_key('market-submit-send'));
+    await settle(tester);
+    final sent = relay.asked.where((r) => r.method == 'POST' && r.url.path == '/market/submissions' && !(jsonDecode(utf8.decode(r.body)) as Map).containsKey('check')).single;
+    final body = (jsonDecode(utf8.decode(sent.body)) as Map).cast<String, Object?>();
+    expect(body['notes'], 'Tested on my Pixel.\nThanks!');
+    expect((jsonDecode(utf8.decode(base64Decode(body['package'] as String))) as Map)['description'], 'Bills in a tab.\nThe amount on the row.');
+  });
+
+  testWidgets('a plugin its developer took off the Marketplace: the form says a new version stays off, and its switch can\'t say otherwise', (tester) async {
+    // The relay approves its next version unlisted whatever its list says (C.6): the switch promised "It goes in the
+    // Marketplace as soon as it's approved" (review, 2026-11-20).
+    await named(tester, 'maya');
+    relay.store.put(packFile(billsJson()), status: 'approved');
+    relay.store.plugins['mybills']!
+      ..['listing'] = 'unlisted'
+      ..['by'] = 'owner';
+    await form(tester);
+    await paste(tester, packFile(billsJson(), (j) => j['version'] = '1.1.0'));
+    expect(find.descendant(of: _key('market-submit-listing'), matching: find.text('You took it off the Marketplace: approved, it stays off until you list it again in My submissions.')), findsOneWidget);
+    final list = tester.widget<GlacierSwitch>(_key('market-submit-list'));
+    expect([list.checked, list.disabled], [false, true]);
+  });
+
+  testWidgets('"Submit it" on a plugin in development whose copy doesn\'t load says so, never starting with another plugin', (tester) async {
+    // The form fell back to the plugin it held last, and the developer who pressed Submit on Bills got Parcels (review,
+    // 2026-11-20).
+    await named(tester, 'maya');
+    state.setFlag('dev_mode', true);
+    final here = await ready();
+    await addDev(here, billsPack(id: 'myparcels', name: 'Parcels mine'));
+    await form(tester, start: here.devOf('myparcels')!.pack);
+    expect(find.descendant(of: _key('market-submit-loaded'), matching: find.textContaining('myparcels')), findsOneWidget);
+    expect((await here.loadDev(packFile(billsJson(), (j) => j['hue'] = 'chartreuse'), const DevSource('paste'))).code, 'invalid');
+    await form(tester, start: here.devOf('mybills')?.pack, startFor: 'mybills');
+    expect(find.descendant(of: _key('market-submit-loaded'), matching: find.text('It couldn\'t be loaded:')), findsOneWidget);
+    expect(find.descendant(of: _key('market-submit-loaded'), matching: find.textContaining('bad_hue at hue')), findsOneWidget);
+    expect(find.textContaining('myparcels'), findsNothing, reason: 'not the plugin the form held before');
   });
 
   testWidgets('a picture of the samples: the rows of the sample texts it sorts, drawn off the screen, a plain PNG', (tester) async {

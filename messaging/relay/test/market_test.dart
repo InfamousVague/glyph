@@ -105,7 +105,7 @@ void main() {
   bool Function(List<int> key, List<int> message, List<int> sig)? fake;
   final maya = Sender(1), sam = Sender(2), matt = Sender(3), ada = Sender(4), theo = Sender(5);
 
-  Future<void> boot({MarketConfig config = const MarketConfig(), Feedback? feedback, Files? files, Duration? bodyPause}) async {
+  Future<void> boot({MarketConfig config = const MarketConfig(), Feedback? feedback, Files? files, Duration? bodyPause, Duration? bodyRateEvery}) async {
     market = Market(
       dir: Directory('${dir.path}/market'),
       config: config,
@@ -123,6 +123,7 @@ void main() {
       },
       now: () => now,
       bodyPause: bodyPause,
+      bodyRateEvery: bodyRateEvery,
     );
     relay = Relay(market: market, feedback: feedback, files: files);
     port = await relay.start(port: 0);
@@ -303,7 +304,8 @@ void main() {
       };
       const length = 100000;
       final sha = shaOf(List.filled(length, 0x20));
-      String head(int i) => headOf('POST', '/market/submissions', {...fakeSigned(fakeKey('large $i'), now.millisecondsSinceEpoch), Files.bodyShaHeader: sha, Files.bodyLengthHeader: '$length'}, length);
+      // Each from an address and a key of its own: one of each holds one large body at a time.
+      String head(int i) => headOf('POST', '/market/submissions', {...fakeSigned(fakeKey('large $i'), now.millisecondsSinceEpoch), Files.bodyShaHeader: sha, Files.bodyLengthHeader: '$length', 'x-forwarded-for': '198.51.100.${40 + i}'}, length);
       final held = <Socket>[];
       try {
         for (var i = 0; i < 3; i++) {
@@ -323,6 +325,57 @@ void main() {
           s.destroy();
         }
       }
+    });
+
+    test('one address and one key hold one large body at a time; another\'s is read meanwhile', () async {
+      // One key at one address held all three slots by trickling three bodies, a byte every 20 s, and opening three more
+      // each minute, within every budget: nobody could send a screenshot (review, 2026-11-20).
+      final heard = <Completer<void>>[for (var i = 0; i < 4; i++) Completer<void>()];
+      var checks = 0;
+      fake = (key, message, sig) {
+        if (checks < heard.length) heard[checks].complete();
+        checks++;
+        return true;
+      };
+      const length = 100000;
+      final body = List.filled(length, 0x20);
+      final sha = shaOf(body);
+      final trickler = fakeKey('trickler');
+      // Connection: close, so a body that is read has its answer end with its connection.
+      String head(List<int> key, String address, int at) => headOf('POST', '/market/submissions', {...fakeSigned(key, at), Files.bodyShaHeader: sha, Files.bodyLengthHeader: '$length', 'x-forwarded-for': address, 'connection': 'close'}, length);
+      final held = await Socket.connect('127.0.0.1', port);
+      try {
+        held.write(head(trickler, '203.0.113.7', now.millisecondsSinceEpoch));
+        held.add(List.filled(10, 0x20));
+        await held.flush();
+        await heard[0].future;
+        expect(statusOf(await raw(head(fakeKey('second'), '203.0.113.7', now.millisecondsSinceEpoch + 1), body: List.filled(10, 0x20))), 429, reason: 'its address has one being read');
+        expect(statusOf(await raw(head(trickler, '203.0.113.8', now.millisecondsSinceEpoch + 2), body: List.filled(10, 0x20))), 429, reason: 'its key has one being read');
+        // Another key at another address: read whole, and only then refused, for what it is.
+        final other = await raw(head(fakeKey('developer'), '198.51.100.77', now.millisecondsSinceEpoch + 3), body: body);
+        expect(statusOf(other), 400);
+        expect(other, contains('"bad_json"'), reason: 'its body was read: it holds no JSON');
+      } finally {
+        held.destroy();
+      }
+    });
+
+    test('a large body that falls behind is ended, and its slot taken by another', () async {
+      await relay.stop();
+      await boot(bodyRateEvery: const Duration(milliseconds: 300));
+      fake = (key, message, sig) => true;
+      const length = 100000;
+      final body = List.filled(length, 0x20);
+      final sha = shaOf(body);
+      String head(Object n, String address, int at) => headOf('POST', '/market/submissions', {...fakeSigned(fakeKey(n), at), Files.bodyShaHeader: sha, Files.bodyLengthHeader: '$length', 'x-forwarded-for': address, 'connection': 'close'}, length);
+      // Three trickles, a few bytes and no more, well within the pause between pieces: each is ended once it falls behind
+      // the rate a slot is held to, long before its minute.
+      final watch = Stopwatch()..start();
+      final ended = await Future.wait([for (var i = 0; i < 3; i++) raw(head('trickle $i', '203.0.113.${20 + i}', now.millisecondsSinceEpoch + i), body: List.filled(10, 0x20))]);
+      expect([for (final a in ended) statusOf(a)], [400, 400, 400]);
+      expect(watch.elapsed, lessThan(const Duration(seconds: 20)), reason: 'not its whole minute');
+      final next = await raw(head('developer', '198.51.100.78', now.millisecondsSinceEpoch + 9), body: body);
+      expect(next, contains('"bad_json"'), reason: 'the slots are free again: read whole');
     });
 
     test('after 20,001 good requests from many addresses the next still gets in, and a recent one sent again still does not', () async {
@@ -581,13 +634,36 @@ void main() {
           final got = await decide(waiting['sid'] as String, {'decision': 'approve', 'approval': approval(matt, 'mybills', '1.2.0', waiting['sha256'] as String)});
           expect(got.status, 200, reason: '$got');
         };
-        expect(await code(submit(maya, packOf(version: version, changes: changes), address: '10.0.0.3')), (409, 'version_not_newer'), reason: version);
+        final picture = shotPng(40 + decided);
+        final refusedPackage = packOf(version: version, changes: changes, shots: [shaOf(picture)]);
+        expect(await code(submit(maya, refusedPackage, shots: [shotOf(picture)], address: '10.0.0.3')), (409, 'version_not_newer'), reason: version);
         market.debugAfterWrites = null;
         expect(decided, 1);
+        // What it wrote goes with it: no submission names it, so no sweep would ever have found it (review, 2026-11-20).
+        expect(File('${dir.path}/market/packages/${shaOf(refusedPackage)}').existsSync(), isFalse, reason: version);
+        expect(File('${dir.path}/market/shots/${shaOf(picture)}').existsSync(), isFalse, reason: version);
         expect([for (final e in (await call('GET', '/market/catalog')).json['plugins'] as List) (e['id'], e['version'])], [('mybills', '1.2.0')]);
         final mine = (await call('GET', '/market/mine', as: maya)).json['submissions'] as List;
         expect([for (final s in mine) if (s['status'] == 'submitted' || s['status'] == 'in_review') s['version']], isEmpty, reason: 'nothing older left to approve');
+        // And the day's five are two sent and three to come: the refused one isn't counted.
+        expect([for (var v = 3; v <= 6; v++) (await submit(maya, packOf(version: '1.$v.0'), address: '10.0.2.$v')).status], [201, 201, 201, 429]);
       }
+    });
+
+    test('a package of some 87,000 empty permissions from a key with no username is answered in a few KB', () async {
+      // Any fresh key reached the structural checks, before its owner was asked, and had 87,308 issues built and sent
+      // back: 14 MB, and 116 ms of the hub's one isolate a request (review, 2026-11-20).
+      final stranger = Sender(40);
+      final j = (jsonDecode(utf8.decode(packOf())) as Map).cast<String, Object?>()..['permissions'] = <String>[];
+      // As many as fit in the largest package: each "" and its comma is three bytes.
+      j['permissions'] = List.filled((262144 - canonicalBytes(j).length) ~/ 3, '');
+      final package = canonicalBytes(j);
+      expect(package.length, lessThanOrEqualTo(262144));
+      expect((j['permissions'] as List).length, greaterThan(86000));
+      final got = await call('POST', '/market/submissions', as: stranger, json: {'package': base64Encode(package), 'check': true});
+      expect((got.status, got.error), (400, 'invalid_package'));
+      expect([for (final i in got.json['issues'] as List) i['code']], ['too_many', ...List.filled(packPermissions.length, 'bad_permission')]);
+      expect(got.bytes.length, lessThan(8 * 1024));
     });
 
     test('a check stores nothing and counts nothing, and asks for no icon or help link yet', () async {
@@ -721,6 +797,30 @@ void main() {
       final sid = ((await submit(maya, package)).json['submission'] as Map)['sid'] as String;
       expect(await code(decide(sid, {'decision': 'approve', 'approval': approval(matt, 'mybills', '1.0.0', shaOf(package))})), (400, 'bad_approval'));
       expect((await decide(sid, {'decision': 'approve', 'approval': approval(ada, 'mybills', '1.0.0', shaOf(package))}, by: ada)).status, 200);
+    });
+
+    test('where the store names its review keys, a withdrawal by any other key is refused; a review key\'s is kept beside another\'s', () async {
+      // Every app drops a withdrawal by a key its build doesn't pin: the store took one by another signed-in admin,
+      // unlisted the plugin, answered 410 for it, and then kept that one as the withdrawal of the version, so the review
+      // key's own was answered 200 and never kept (review, 2026-11-20).
+      await relay.stop();
+      await boot(config: MarketConfig(reviewKeys: [matt.keyB64]));
+      await approved(maya, packOf());
+      final sha = shaOf(packOf());
+      adminAt[ada.id] = now;
+      expect(await code(call('POST', '/market/plugins/mybills/revoke', as: ada, json: revocation(ada, 'mybills', sha, 'Broken'))), (400, 'bad_approval'));
+      expect((await call('GET', '/market/catalog')).json['plugins'], hasLength(1), reason: 'still listed');
+      expect((await call('GET', '/market/packages/$sha')).status, 200);
+      // With no review keys named, any admin's is taken, and a review key's own of the same version is kept beside it.
+      await fresh(const MarketConfig());
+      await approved(maya, packOf());
+      adminAt[ada.id] = now;
+      final first = revocation(ada, 'mybills', sha, 'Broken');
+      expect((await call('POST', '/market/plugins/mybills/revoke', as: ada, json: first)).json['revoked'], first);
+      final review = revocation(matt, 'mybills', sha, 'It marked bank texts read.');
+      expect((await call('POST', '/market/plugins/mybills/revoke', as: matt, json: review)).json['revoked'], review);
+      expect([for (final r in (await call('GET', '/market/revoked')).json['revoked'] as List) r['key']], [ada.keyB64, matt.keyB64]);
+      expect((await call('POST', '/market/plugins/mybills/revoke', as: matt, json: revocation(matt, 'mybills', sha, 'Again.'))).json['revoked'], review, reason: 'kept once a key');
     });
 
     test('approving an update may withdraw the version before it in the same step', () async {

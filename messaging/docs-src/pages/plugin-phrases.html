@@ -74,7 +74,7 @@
 <p>A phrase can't run away, but a plugin of 200 phrases on a busy phone could still be slow, so the app times every plugin from the Marketplace or in development as it reads each text:</p>
 <ul>
   <li>A text that takes it 20 milliseconds or more is read again at once; if that takes as long, it's a strike. So a slow plugin is caught, and a phone that was only busy for a moment isn't held against it.</li>
-  <li>More than 100 milliseconds of reading in any one second is a strike too.</li>
+  <li>More than 100 milliseconds of reading in any one second is a strike too, where its texts took it a millisecond or more each on average. The app reads every conversation again whenever a switch or a setting changes, and a plugin that's quick on each text isn't held against that.</li>
   <li>The first text after it starts never counts: that's when its phrases are made ready.</li>
   <li>Five strikes in ten minutes pause it. It does nothing while paused, its page says <b>Paused: it was slowing the app down.</b> with <b>Turn it back on</b>, and the pause is kept, across restarts, until then or a new version.</li>
 </ul>

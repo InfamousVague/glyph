@@ -199,11 +199,12 @@ class MarketConfig {
 ///   body is read; signature checks are budgeted per address and in all; few large bodies are read at once; the catalog
 ///   and the withdrawals are answered from memory. Submissions are taken one at a time.
 class Market {
-  Market({required this.dir, this.config = const MarketConfig(), required this.ownsName, required this.whoOf, required this.adminSignedIn, required this.claimedOn, this.usernameOf, bool Function(List<int> key, List<int> message, List<int> signature)? verify, DateTime Function()? now, this.verbose = false, Duration? bodyPause, Duration? bodyWhole, Random? random})
+  Market({required this.dir, this.config = const MarketConfig(), required this.ownsName, required this.whoOf, required this.adminSignedIn, required this.claimedOn, this.usernameOf, bool Function(List<int> key, List<int> message, List<int> signature)? verify, DateTime Function()? now, this.verbose = false, Duration? bodyPause, Duration? bodyWhole, Duration? bodyRateEvery, Random? random})
       : _verify = verify ?? P256.verify,
         _now = now ?? DateTime.now,
         _bodyPause = bodyPause ?? const Duration(seconds: 30),
         _bodyWhole = bodyWhole ?? const Duration(seconds: 60),
+        _bodyRateEvery = bodyRateEvery ?? const Duration(seconds: 10),
         _random = random ?? Random.secure(),
         _store = MarketStore(dir, now: now);
 
@@ -233,6 +234,12 @@ class Market {
   /// at a time would otherwise hold a connection, and a slot of [MarketConfig.bodiesInFlight], for ever. Caddy's own
   /// read_body timeout is for every site on the box, so this is the relay's to end. (Shorter in the tests.)
   final Duration _bodyPause, _bodyWhole;
+
+  /// A body over [largeBody] holds one of the few slots while it is read, so it must keep coming: at least [largeBody]
+  /// bytes (or the rest of it) in every [_bodyRateEvery] from when its slot is taken. A byte every 20 s kept within the
+  /// pause and held a slot for its whole minute; three such, every slot, and nobody could send a screenshot (review,
+  /// 2026-11-20). Any real upload of a submission sends that in a fraction of the time. (Shorter in the tests.)
+  final Duration _bodyRateEvery;
   final Random _random;
   final MarketStore _store;
 
@@ -334,6 +341,10 @@ class Market {
   final _reportsUnknown = _Recent(const Duration(days: 1));
   int _verifySecond = -1, _verifiedThisSecond = 0;
   int _inFlight = 0, _inFlightBytes = 0;
+
+  /// The addresses and keys with a large body being read: one each at a time. A key and an address cost a stranger
+  /// nothing, and one of each held all three slots by trickling (review, 2026-11-20).
+  final Set<String> _largeFrom = {}, _largeBy = {};
   int _verifications = 0;
 
   /// Route 8 one request at a time (and the sweep, which deletes what a submission might keep): two first submissions
@@ -622,10 +633,14 @@ class Market {
     if (!_signedByAddress.take(address, config.signedPerAddress, now)) throw const _Refused('rate_limited');
     if (!_mayVerify(now)) throw const _Refused('busy');
     final large = length > largeBody;
+    final keyB64 = base64Encode(key);
     if (large) {
+      if (_largeFrom.contains(address) || _largeBy.contains(keyB64)) throw const _Refused('rate_limited');
       if (_inFlight >= config.bodiesInFlight || _inFlightBytes + length > config.bodiesInFlight * config.maxBody) throw const _Refused('busy');
       _inFlight++;
       _inFlightBytes += length;
+      _largeFrom.add(address);
+      _largeBy.add(keyB64);
     }
     try {
       _verifications++;
@@ -636,12 +651,14 @@ class Market {
         _replays.remove(_replays.keys.first);
       }
       if (!_signedByKey.take(id, config.signedAnHour, now)) throw const _Refused('rate_limited');
-      final body = await _readBody(r, length, sha: bodySha);
-      return _Asker(id: id, key: base64Encode(key), body: body, address: address);
+      final body = await _readBody(r, length, sha: bodySha, steady: large);
+      return _Asker(id: id, key: keyB64, body: body, address: address);
     } finally {
       if (large) {
         _inFlight--;
         _inFlightBytes -= length;
+        _largeFrom.remove(address);
+        _largeBy.remove(keyB64);
       }
     }
   }
@@ -664,13 +681,14 @@ class Market {
   }
 
   /// The body, [length] bytes, into a BytesBuilder (never a List<int>, at 8 bytes a byte), hashed as it comes: whole
-  /// within [_bodyWhole] of its first byte with no pause over [_bodyPause], and, with [sha], hashing to it.
-  Future<Uint8List> _readBody(HttpRequest r, int length, {String? sha}) async {
+  /// within [_bodyWhole] of its first byte with no pause over [_bodyPause], [steady] (a large body, holding a slot)
+  /// at least [largeBody] bytes or the rest of it every [_bodyRateEvery], and, with [sha], hashing to it.
+  Future<Uint8List> _readBody(HttpRequest r, int length, {String? sha, bool steady = false}) async {
     _bodyTaken[r] = true;
     final out = BytesBuilder(copy: false);
     final hash = Sha256();
     final done = Completer<bool>();
-    Timer? pause, whole;
+    Timer? pause, whole, rate;
     void end(bool ok) {
       if (!done.isCompleted) done.complete(ok);
     }
@@ -681,6 +699,13 @@ class Market {
     }
 
     waiting();
+    if (steady) {
+      var mark = 0;
+      rate = Timer.periodic(_bodyRateEvery, (_) {
+        if (out.length - mark < min(largeBody, length - mark)) return end(false);
+        mark = out.length;
+      });
+    }
     final sub = r.listen(
       (piece) {
         whole ??= Timer(_bodyWhole, () => end(false));
@@ -696,6 +721,7 @@ class Market {
     final ok = await done.future;
     pause?.cancel();
     whole?.cancel();
+    rate?.cancel();
     if (!ok || out.length != length) {
       unawaited(sub.cancel().then((_) {}, onError: (Object _) {}));
       r.response.persistentConnection = false;
@@ -1010,6 +1036,24 @@ class Market {
     final p = plugin ?? (_store.plugins[top.id] = MarketPlugin(id: top.id, owner: a.id, developer: top.developer, createdAt: at, updatedAt: at));
     _subsBySomeone.add(someone, at);
     _subsByAddress.add(a.address, at);
+    // What this request writes that wasn't on disk before, deleted again with the day's counts given back where it is
+    // refused after its writes: kept, no submission named them, so no sweep ever found them, they counted against the
+    // store's room for good, and the developer lost one of the day's submissions to a request that was refused
+    // (review, 2026-11-20). Route 8 is one at a time, so nothing else has taken them up meanwhile.
+    final created = <(String, String)>{
+      if (!_store.has('packages', sha)) ('packages', sha),
+      for (final x in taken)
+        if (x.bytes != null && !_store.has('shots', x.sha256)) ('shots', x.sha256),
+    };
+    Future<void> undo() async {
+      _subsBySomeone.drop(someone, at);
+      _subsByAddress.drop(a.address, at);
+      for (final (kind, name) in created) {
+        await _store.deleteBlob(kind, name);
+      }
+      if (made && !_store.submissions.values.any((s) => s.plugin == top.id)) _store.plugins.remove(top.id);
+    }
+
     try {
       await _store.writeBlob('packages', sha, package);
       for (final x in taken) {
@@ -1017,14 +1061,17 @@ class Market {
       }
       await debugAfterWrites?.call();
     } catch (_) {
-      if (made && !_store.submissions.values.any((s) => s.plugin == top.id)) _store.plugins.remove(top.id);
+      await undo();
       rethrow;
     }
     // Asked again after the waits: route 16 isn't one at a time with route 8, so the waiting version may have been
     // approved meanwhile. Taken then, an older version would be left waiting under a newer current one, and approving
     // it would list the older (review, 2026-11-20).
     final approvedMeanwhile = p.current;
-    if (approvedMeanwhile != null && compareVersions(top.version, approvedMeanwhile.version) <= 0) throw const _Refused('version_not_newer');
+    if (approvedMeanwhile != null && compareVersions(top.version, approvedMeanwhile.version) <= 0) {
+      await undo();
+      throw const _Refused('version_not_newer');
+    }
     for (final old in [for (final s in _store.submissions.values) if (s.plugin == top.id && s.open) s]) {
       _close(old, 'superseded', 'developer', 'Replaced by ${top.version}.');
       _store.audit(a.id, 'supersede', plugin: top.id, sid: old.sid);
@@ -1274,21 +1321,26 @@ class Market {
   }
 
   /// Why [x] can't withdraw a version of [p], asked by the holder of [key]: not_found where its package isn't one of
-  /// [p]'s approved versions.
+  /// [p]'s approved versions. Where the store names its review keys, only theirs: every app drops a withdrawal by a key
+  /// its build doesn't pin, so another admin's switched nothing off while the store unlisted the plugin, answered 410
+  /// for it and kept that one as its withdrawal (review, 2026-11-20). A retired key's still count, as in the app.
   String? _revocationProblem(Map<String, Object?>? x, MarketPlugin p, String key) {
     if (x == null || x['plugin'] != p.id) return 'bad_approval';
     if (!p.versions.any((v) => v.sha256 == x['sha256'])) return 'not_found';
     final why = x['why'] as String;
     if (x['key'] != key || why.isEmpty || why.length > whyMost || !packTextOk(why)) return 'bad_approval';
+    if (config.reviewKeys.isNotEmpty && !config.reviewKeys.contains(key)) return 'bad_approval';
     if (!_signedBy(key, revocationWords(p.id, x['sha256'] as String, x['at'] as int, why), x['sig'] as String)) return 'bad_approval';
     return null;
   }
 
-  /// Withdraws one approved package of [p], kept once by its SHA-256: its submission says so, the catalog drops it
-  /// where it was the current version (unlisted, by review), and its package answers 410 from now on.
+  /// Withdraws one approved package of [p], kept once by its SHA-256 and the key that signed it: its submission says so,
+  /// the catalog drops it where it was the current version (unlisted, by review), and its package answers 410 from now
+  /// on. Kept once a key, not once a package: a withdrawal by a key some build doesn't pin, kept first, left the pinned
+  /// key's own withdrawal of the same version answered 200 and never kept (review, 2026-11-20).
   Map<String, Object?> _withdrawVersion(MarketPlugin p, Map<String, Object?> x, String by) {
     final sha = x['sha256'] as String;
-    final had = _store.revoked.where((e) => e['sha256'] == sha).firstOrNull;
+    final had = _store.revoked.where((e) => e['sha256'] == sha && e['key'] == x['key']).firstOrNull;
     if (had != null) return had;
     _store.revoked.add(x);
     String? sid;
@@ -1649,6 +1701,14 @@ class _Recent {
     while (_times.length > most) {
       _times.remove(_times.keys.first);
     }
+  }
+
+  /// Takes back one count of [name] made at [at]: a request refused after it was counted.
+  void drop(String name, int at) {
+    final list = _times[name];
+    if (list == null) return;
+    list.remove(at);
+    if (list.isEmpty) _times.remove(name);
   }
 
   /// Whether [name] may have one more of [limit] within the window: counted where it may.

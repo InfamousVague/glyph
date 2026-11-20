@@ -137,8 +137,13 @@ class ListPlugins {
   /// once something new has come, not every time the plugins' switches have everything classified again.
   final _codeLooked = <int, (int, String)>{};
 
-  /// [c]'s facts as the plugins judge it: [facts] with a waiting code marked where there is one.
-  MessageFacts _judged(Conversation c, MessageFacts facts) => c.unread && _codeWaiting.contains(c.id) ? facts.withCodeWaiting() : facts;
+  /// The conversations the phone is being asked about now, by what they were then: until it answers, a plugin from
+  /// another developer judges each as if a code waited in it, so none is sorted into its tab and back out a moment
+  /// later, the code in it the while (review, 2026-11-20).
+  final _codeAsking = <int, (int, String)>{};
+
+  /// [c]'s facts as the plugins judge it: [facts] with a waiting code marked where there is one, or might be.
+  MessageFacts _judged(Conversation c, MessageFacts facts) => c.unread && (_codeWaiting.contains(c.id) || _codeAsking.containsKey(c.id)) ? facts.withCodeWaiting() : facts;
 
   void dispose() {
     _gone = true;
@@ -429,38 +434,58 @@ class ListPlugins {
   Future<void> _queue = Future<void>.value();
 
   /// A conversation has been classified. Where it is unread, its newest message has just come (or came while the app
-  /// was closed): the plugins' rules are asked what to do with it. On a computer the phone decides.
+  /// was closed): the plugins' rules are asked what to do with it. On a computer the phone runs them; it is still asked
+  /// whether a code waits there before a plugin from another developer sorts the conversation (review, 2026-11-20: a
+  /// computer sorted a code's conversation into a pack's tab by the words that came after it, the phone not).
   void _arrived(MessageFacts facts, TagSet tags) {
     final store = _store;
-    if (!facts.unread || store == null || Sms.remote) return;
-    final asked = registry.incoming(facts, tags, store);
+    if (!facts.unread || store == null) return;
+    final remote = Sms.remote;
+    final asked = remote ? const <BoundIncoming>[] : registry.incoming(facts, tags, store);
     // Where a plugin from another developer would sort it or act on it, the phone is asked first whether a code waits
     // unread under these words, which they never show it.
     final section = registry.sectionOf(facts, tags, store);
     final others = asked.any((b) => b.plugin.source != PluginSource.builtIn) || (section != null && section.plugin.source != PluginSource.builtIn);
     if (asked.isEmpty && !others) return;
+    if (others) {
+      final seen = (facts.date?.millisecondsSinceEpoch ?? 0, facts.text);
+      if (_codeLooked[facts.thread] != seen && _codeAsking[facts.thread] != seen) {
+        _codeAsking[facts.thread] = seen;
+        _codeVersion++;
+      }
+    }
     // After the frame that is being built, one conversation at a time.
     _queue = _queue.then((_) async {
       if (others) await _lookForCode(facts);
-      await _apply(facts, tags, asked, store);
+      if (!remote) await _apply(facts, tags, asked, store);
     }).catchError((_) {});
   }
 
   Future<void> _lookForCode(MessageFacts facts) async {
     final thread = facts.thread;
     final seen = (facts.date?.millisecondsSinceEpoch ?? 0, facts.text);
-    if (_gone || _codeLooked[thread] == seen) return;
+    if (_gone) return;
+    if (_codeLooked[thread] == seen) return _answered(thread, seen, changed: false);
     _codeLooked[thread] = seen;
     bool waiting;
     try {
       waiting = await effects.codeWaiting(thread);
     } catch (_) {
-      // Not known is taken as waiting: a plugin from another developer leaves it alone until it is read.
+      // Not known is taken as waiting: a plugin from another developer leaves it alone until it is read, or until the
+      // phone is asked again and answers (a computer's link to it was down).
       waiting = true;
+      if (_codeLooked[thread] == seen) _codeLooked.remove(thread);
     }
-    if (waiting ? !_codeWaiting.add(thread) : !_codeWaiting.remove(thread)) return;
+    _answered(thread, seen, changed: waiting ? _codeWaiting.add(thread) : _codeWaiting.remove(thread));
+  }
+
+  /// The phone has answered for [thread] as it was ([seen]): no longer being asked, and drawn again where the answer
+  /// changed how the plugins judge it.
+  void _answered(int thread, (int, String) seen, {required bool changed}) {
+    final asking = _codeAsking[thread] == seen && _codeAsking.remove(thread) != null;
+    if (!changed && !asking) return;
     _codeVersion++;
-    if (!_gone) changed();
+    if (!_gone) this.changed();
   }
 
   Future<void> _apply(MessageFacts facts, TagSet tags, List<BoundIncoming> asked, PluginStore store) async {

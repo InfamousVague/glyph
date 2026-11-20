@@ -169,8 +169,9 @@ Future<Uint8List?> _readShared(String source) async {
   }
 }
 
-/// Runs [load] and says how it went: loaded; loaded and waiting to be agreed to; how many problems it has, on its row;
-/// or, for words that aren't a plugin at all (no row, nothing written), a sheet of what is wrong with them.
+/// Runs [load] and says how it went: loaded, and waiting to be agreed to where it is, with how many warnings it has;
+/// a broken copy kept with how many problems it has, on its row; or, for words that aren't a plugin at all (no row,
+/// nothing written), a sheet of what is wrong with them.
 Future<void> loadDevPlugin(BuildContext context, Future<PackOutcome> Function() load) async {
   final here = InstalledPlugins.instance;
   // Each copy as it stood, to tell a copy kept with its problems (a good id) from words that made no row at all.
@@ -185,9 +186,13 @@ Future<void> loadDevPlugin(BuildContext context, Future<PackOutcome> Function() 
   final problems = out.issues.length;
   final words = '$problems ${problems == 1 ? 'problem' : 'problems'}: see its row';
   if (out.ok) {
+    // A copy that loads has warnings at most (a link button always has opens_links): it is loaded, and the consent's
+    // line is said whatever it warns of. "1 problem: see its row" was all the docs' own Parcels was told (review,
+    // 2026-11-20).
     final name = out.plugin?.name ?? 'The plugin';
-    if (problems > 0) return toast(context, words);
-    toast(context, out.needsConsent ? '$name loaded. Switch it on to agree to what it can do now.' : '$name loaded', tone: GlacierToastTone.success);
+    final warnings = out.issues.where((i) => !i.isError).length;
+    final loaded = out.needsConsent ? '$name loaded. Switch it on to agree to what it can do now.' : '$name loaded';
+    toast(context, warnings == 0 ? loaded : '$loaded ${warnings == 1 ? 'One warning' : '$warnings warnings'}: see its row.', tone: GlacierToastTone.success);
     return;
   }
   final kept = here.dev.any((d) => before[d.id] == null || before[d.id] != d.loadedAt);
@@ -290,8 +295,10 @@ class DevPluginScreen extends StatelessWidget {
                         SettingRow(key: ValueKey('dev-plugin-reload-$packId'), icon: icon(Lucide.refreshCw), label: 'Reload', hint: Text(d.source.kind == 'link' ? 'Fetches it again from ${d.source.url}.' : 'Reads the file again.'), onPress: () => unawaited(loadDevPlugin(context, () => here.reloadDev(packId)))),
                       if (shell != null)
                         SettingRow(key: ValueKey('dev-plugin-open-$packId'), icon: icon(Lucide.store), label: 'Open in the Marketplace', onPress: () => shell.marketplace(plugin: registryIdOf(packId))),
+                      // Its newest copy is what would be sent: one that doesn't load can't be, and the form opened on
+                      // it held another plugin (review, 2026-11-20).
                       if (shell != null && !marketOnIphone)
-                        SettingRow(key: ValueKey('dev-plugin-submit-$packId'), icon: icon(Lucide.send), label: 'Submit it to the Marketplace', onPress: () => shell.marketplace(section: 'submit', arg: packId)),
+                        SettingRow(key: ValueKey('dev-plugin-submit-$packId'), icon: icon(Lucide.send), label: 'Submit it to the Marketplace', hint: d.pack == null ? const Text('Put its problems right first.') : null, disabled: d.pack == null, onPress: d.pack == null ? null : () => shell.marketplace(section: 'submit', arg: packId)),
                       SettingRow(
                         key: ValueKey('dev-plugin-remove-$packId'),
                         icon: icon(Lucide.trash2),

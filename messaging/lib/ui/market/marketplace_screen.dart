@@ -103,8 +103,11 @@ List<MarketSection> marketSectionsNow(AppState app, {String? current}) => [for (
       if (waiting > 0) return (text: '$waiting waiting for review', danger: false);
       return (text: 'None yet', danger: false);
     case 'dev':
-      final n = InstalledPlugins.instance.dev.length;
-      return (text: '$n loaded', danger: false);
+      // As its page lists them: those that run, and those whose copy doesn't (review, 2026-11-20: the row said
+      // "1 loaded" over a page that said "Nothing loaded yet.").
+      final dev = InstalledPlugins.instance.dev;
+      final off = dev.where((d) => !d.running).length;
+      return (text: [if (dev.length > off || off == 0) '${dev.length - off} loaded', if (off > 0) '$off not loading'].join(' · '), danger: false);
     case 'review':
       final n = m.reviewWaiting;
       return (text: n == null ? 'What waits for review' : '$n waiting', danger: false);
@@ -302,8 +305,9 @@ class _MarketSectionScreenState extends State<MarketSectionScreen> {
           'added' => marketPluginsScreen(title: 'Added', shelf: 'added', head: false),
           'updates' => const MarketUpdatesPage(),
           'dev' => marketPluginsScreen(title: 'In development', shelf: 'dev', head: false, lead: _devManage(context, shell)),
-          // A dev pack's "Submit it" names its pack: the form starts with it (SPEC D.8).
-          'submit' => SubmitPluginScreen(start: widget.arg == null ? null : InstalledPlugins.instance.devOf(widget.arg!)?.pack),
+          // A dev pack's "Submit it" names its pack: the form starts with it (SPEC D.8), or says what stops it where its
+          // newest copy doesn't load, never another plugin the form held before.
+          'submit' => SubmitPluginScreen(start: widget.arg == null ? null : InstalledPlugins.instance.devOf(widget.arg!)?.pack, startFor: widget.arg),
           // The submission just sent, marked (SPEC D.9).
           'mine' => MySubmissionsScreen(highlight: widget.arg),
           'review' => const ReviewQueueScreen(),

@@ -39,7 +39,8 @@ abstract final class PackLimits {
   static const int headerActions = 1, menuActions = 3;
   static const int packs = 16, phrasesInAll = 1600;                     // on one device, store and dev packs together
   static const Duration slow = Duration(milliseconds: 20);              // a classification this long, twice running, is a strike
-  static const Duration slowInASecond = Duration(milliseconds: 100);    // this much classifying within one second is a strike
+  static const Duration slowInASecond = Duration(milliseconds: 100);    // this much classifying within one second is a strike,
+  static const Duration slowOnAverage = Duration(milliseconds: 1);      // where its runs took this long each on average
   static const int strikes = 5;                                         // this many within [strikeWindow] pause the pack
   static const Duration strikeWindow = Duration(minutes: 10);
 }

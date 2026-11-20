@@ -14,6 +14,7 @@ library;
 
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -541,15 +542,39 @@ class _Shots extends StatefulWidget {
 class _ShotsState extends State<_Shots> {
   final Map<String, Uint8List> _got = {};
 
+  /// Each hash asked for, and whether its answer came (a picture or not).
+  final Map<String, bool> _asked = {};
+
   @override
   void initState() {
     super.initState();
-    for (final sha in widget.shots) {
-      widget.shotOf(sha).then((bytes) {
-        if (!mounted || bytes == null || sha256Hex(bytes) != sha) return;
-        setState(() => _got[sha] = bytes);
-      }).catchError((Object _) {});
+    widget.shots.forEach(_fetch);
+  }
+
+  /// A new version on the same page (Update, from the page): its pictures are fetched, and the old ones' let go. The
+  /// strip was made once and kept the old version's fetches, so "How it looks" stood empty under its heading until the
+  /// page was opened again (review, 2026-11-20).
+  @override
+  void didUpdateWidget(_Shots old) {
+    super.didUpdateWidget(old);
+    if (listEquals(old.shots, widget.shots)) return;
+    final now = widget.shots.toSet();
+    _got.removeWhere((sha, _) => !now.contains(sha));
+    _asked.removeWhere((sha, _) => !now.contains(sha));
+    widget.shots.forEach(_fetch);
+  }
+
+  void _fetch(String sha) {
+    if (_asked.containsKey(sha)) return;
+    _asked[sha] = false;
+    void done() {
+      if (mounted && _asked.containsKey(sha)) setState(() => _asked[sha] = true);
     }
+
+    widget.shotOf(sha).then((bytes) {
+      if (mounted && bytes != null && sha256Hex(bytes) == sha && widget.shots.contains(sha)) _got[sha] = bytes;
+      done();
+    }).catchError((Object _) => done());
   }
 
   @override
@@ -557,7 +582,13 @@ class _ShotsState extends State<_Shots> {
     final t = context.tokens;
     final shown = [for (final sha in widget.shots) if (_got[sha] != null) (sha, _got[sha]!)];
     final height = t.lenOf('16rem');
-    if (shown.isEmpty) return SizedBox(height: t.space(1));
+    if (shown.isEmpty) {
+      // Every one asked for came back with nothing to show (offline, or the store no longer serves them): said, not a
+      // blank under the heading.
+      final answered = widget.shots.isNotEmpty && widget.shots.every((sha) => _asked[sha] == true);
+      if (!answered) return SizedBox(height: t.space(1));
+      return Text('Its pictures couldn\'t be loaded.', key: const ValueKey('plugins-detail-shots-none'), style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')));
+    }
     return SizedBox(
       height: height,
       child: ListView.separated(

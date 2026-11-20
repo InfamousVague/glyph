@@ -1,9 +1,10 @@
 import 'dart:io';
 
+import 'package:flutter/gestures.dart' show kSecondaryButton;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
-import 'package:ghost_messaging/kit/settings_kit.dart' show SettingsFindableMark;
+import 'package:ghost_messaging/kit/settings_kit.dart' show SettingRow, SettingsFindableMark;
 import 'package:ghost_messaging/looks.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides;
 import 'package:ghost_messaging/market/market_api.dart';
@@ -11,6 +12,7 @@ import 'package:ghost_messaging/market/market_state.dart';
 import 'package:ghost_messaging/me/me.dart';
 import 'package:ghost_messaging/plugins/pack/pack.dart';
 import 'package:ghost_messaging/plugins/registry.dart';
+import 'package:ghost_messaging/plugins/ui.dart' show SectionTabs;
 import 'package:ghost_messaging/ui/conversations.dart';
 import 'package:ghost_messaging/ui/market/marketplace_screen.dart';
 import 'package:ghost_messaging/ui/nav_bar.dart';
@@ -350,6 +352,97 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     final lit = [for (final e in find.byKey(SettingsFindableMark.lightKey).evaluate()) SettingsFindableMark.isLit(e.widget)];
     expect(lit, contains(true), reason: 'the row the search found is lit');
+  });
+
+  testWidgets('a hit in a plugin\'s own section opens that plugin, whichever other plugin shares its words', (tester) async {
+    // Kinds of text comes before Spam filter and shares "Signal and Telegram" with it: a hit in Spam filter's own
+    // section opened Kinds of text's page, and with Kinds off a page that didn't even draw the setting (review,
+    // 2026-11-20).
+    for (final kinds in ['on', 'off']) {
+      state.set('plugin_kinds', kinds);
+      await frame(tester);
+      await tester.tap(_key('rail-settings'));
+      await settle(tester);
+      await tester.enterText(find.byType(EditableText).first, 'signal and telegram');
+      await settle(tester);
+      final hits = [for (final e in find.byType(SettingsSectionRow).evaluate()) (e.widget as SettingsSectionRow).summary];
+      expect(hits, contains('Spam filter'), reason: 'Kinds $kinds');
+      if (kinds == 'on') expect(hits, contains('Kinds of text'));
+      await tester.tap(find.byWidgetPredicate((w) => w is SettingsSectionRow && w.label == 'Signal and Telegram' && w.summary == 'Spam filter'));
+      await settle(tester);
+      await settle(tester);
+      expect(shell().marketOpen, isTrue, reason: 'Kinds $kinds');
+      expect(_key('plugins-detail-spam'), findsOneWidget, reason: 'Kinds $kinds');
+      expect(_key('plugins-detail-kinds'), findsNothing, reason: 'Kinds $kinds');
+      shell().go('messages');
+      await settle(tester);
+    }
+  });
+
+  testWidgets('In development lists a plugin whose copy doesn\'t load, with its problems, as its row counts it', (tester) async {
+    // The row said "1 loaded" over a page that said "Nothing loaded yet." (review, 2026-11-20).
+    state.setFlag('dev_mode', true);
+    final here = await ready();
+    expect((await here.loadDev(packFile(billsJson(), (j) => j['hue'] = 'chartreuse'), const DevSource('paste'))).code, 'invalid');
+    await frame(tester, size: _wide);
+    shell().marketplace(section: 'dev');
+    await settle(tester);
+    expect(find.descendant(of: _key('market-row-dev'), matching: find.text('1 not loading')), findsOneWidget);
+    expect(_key('plugins-nothing'), findsNothing);
+    expect(find.descendant(of: _key('plugins-dev-broken-mybills'), matching: find.text('1 problem')), findsOneWidget);
+    await tester.tap(_key('plugins-dev-broken-mybills'));
+    await settle(tester);
+    expect(_key('dev-plugin-screen-mybills'), findsOneWidget);
+    // Its own screen can't send it for review until it loads: the form opened on it held another plugin.
+    final submit = tester.widget<SettingRow>(_key('dev-plugin-submit-mybills'));
+    expect([submit.disabled, submit.onPress], [true, null]);
+    expect((submit.hint as Text).data, 'Put its problems right first.');
+    // One that loads beside it: counted and listed apart.
+    await addDev(here, billsPack(id: 'mytickets', name: 'Tickets mine'));
+    shell().marketplace(section: 'added');
+    await settle(tester);
+    shell().marketplace(section: 'dev');
+    await settle(tester);
+    expect(find.descendant(of: _key('market-row-dev'), matching: find.text('1 loaded · 1 not loading')), findsOneWidget);
+    expect(_key('plugins-shelf-dev'), findsOneWidget);
+    expect(_key('plugins-dev-broken-mybills'), findsOneWidget);
+  });
+
+  testWidgets('a tab\'s menu names the plugin that made it, and opens its page, on a phone and beside the list', (tester) async {
+    // A puzzling new tab leads back to its plugin (D.6), by a long press or the other button: nothing held the line
+    // (review, 2026-11-20).
+    final bill = packSamples.firstWhere((s) => s.id == 's01').text;
+    ListPhone([
+      {...ListPhone.conversation(3, '72975', bill, unread: true), 'heard': bill},
+    ]).install();
+    // Kinds of text's Payment reminders would take the bill first.
+    state.set('plugin_kinds', 'off');
+    await addStore(await ready(), billsPack());
+    Finder tab(String label) {
+      Finder by(bool Function(Widget w) test) => find.descendant(of: find.byType(SectionTabs), matching: find.byWidgetPredicate(test));
+      final exact = by((w) => (w is Semantics && w.properties.label == label) || (w is Text && w.data == label));
+      return exact.evaluate().isNotEmpty ? exact.last : by((w) => w is Semantics && (w.properties.label ?? '').startsWith('$label, ')).last;
+    }
+
+    for (final (size, wide) in [(_phone, false), (_wide, true)]) {
+      await frame(tester, size: size);
+      for (final (label, about, page) in [('Bills', 'About Bills', 'plugins-detail-xbills'), ('Codes', 'About Codes', 'plugins-detail-codes')]) {
+        // The tab's label wraps its press beside the list, which the hit test doesn't name: the menu that opens says it
+        // was this tab's.
+        wide ? await tester.tap(tab(label), buttons: kSecondaryButton, warnIfMissed: false) : await tester.longPress(tab(label));
+        await settle(tester);
+        expect(find.text(about), findsOneWidget, reason: '$label, ${wide ? 'wide' : 'a phone'}');
+        await tester.tap(find.text(about));
+        await settle(tester);
+        await settle(tester);
+        expect(shell().marketOpen, isTrue);
+        expect(shell().marketSection.value, 'discover');
+        expect(_key(page), findsOneWidget, reason: '$label, ${wide ? 'wide' : 'a phone'}');
+        shell().go('messages');
+        await settle(tester);
+        await settle(tester);
+      }
+    }
   });
 
   testWidgets('beside Settings the first section is Me, now that Plugins is the Marketplace\'s', (tester) async {
