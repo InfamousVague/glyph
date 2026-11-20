@@ -29,7 +29,7 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart';
 import '../sms.dart';
-import 'circles/circle_picture.dart' show circlePictureOf;
+import '../me/picture_make.dart';
 import 'common.dart';
 import 'inbox_ui.dart' show SignalLinkScreen, TelegramSignInScreen, inboxMark;
 import 'me.dart' show NetworkMark;
@@ -49,8 +49,8 @@ class SignUpProfile {
   final String status;
   final String bio;
 
-  /// The picture as a profile keeps it (Me.picture: made square and small), or null.
-  final String? picture;
+  /// The picture as a profile keeps it (Me.setPicture), or null.
+  final ProfilePicture? picture;
 
   bool get isEmpty => name.isEmpty && username.isEmpty && status.isEmpty && picture == null;
 }
@@ -95,7 +95,7 @@ Future<Uint8List?> _fetch(String url) async {
 }
 
 /// A picture, from a file on this device or an address, as a profile keeps it; null where there is none to be had.
-Future<String?> profilePictureFrom({String? path, String? url}) async {
+Future<ProfilePicture?> profilePictureFrom({String? path, String? url}) async {
   Uint8List? bytes;
   try {
     if (path != null && path.isNotEmpty && File(path).existsSync()) bytes = await File(path).readAsBytes();
@@ -103,7 +103,7 @@ Future<String?> profilePictureFrom({String? path, String? url}) async {
   if (bytes == null && url != null && url.isNotEmpty) bytes = await fetchPicture(url);
   if (bytes == null || bytes.isEmpty) return null;
   try {
-    return await circlePictureOf(bytes);
+    return await profilePictureOf(bytes);
   } catch (_) {
     return null;
   }
@@ -244,7 +244,7 @@ class SignUpFilled extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final p = profile;
-    final face = ProfileFace(name: p.name.isNotEmpty ? p.name : p.username, picture: p.picture, size: t.lenOf('3rem'));
+    final face = ProfileFace(name: p.name.isNotEmpty ? p.name : p.username, picture: p.picture?.sharp, size: t.lenOf('3rem'));
     return PaneSection(
       key: const ValueKey('sign-up-filled'),
       children: [

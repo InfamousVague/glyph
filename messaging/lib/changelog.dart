@@ -23,6 +23,9 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.10.4', '2026-11-20', [
+    'Profile pictures are sharp: a picture you choose is kept 256 pixels across, not 72. Choose yours again to send friends the sharp one.',
+  ]),
   ReleaseNotes('0.10.3', '2026-11-20', [
     'Messages: Mark all read, Share feedback and the Messages and Codes toggle scroll away with your conversations, so the search stays at the top and the list has more room.',
     'Messages: Clean up is one of those rows now, not a button over the search, so the bar above the search is gone.',

@@ -291,13 +291,19 @@ class Buddies extends ChangeNotifier {
   /// passes over them.
   Map<String, Object> _profile() {
     final me = Me.instance;
-    return {'u': _port.username ?? '', 'n': _port.displayName, 'b': _port.bio, if (me.picture.isNotEmpty) 'p': me.picture, 'st': me.status, 'l': me.shareLinks ? me.links : const <String, String>{}};
+    // `p`, the small picture, for builds from before 0.10.4; `pp`, the sharp one shown, for the rest.
+    final sharp = me.pictureSharp;
+    return {'u': _port.username ?? '', 'n': _port.displayName, 'b': _port.bio, if (me.picture.isNotEmpty) 'p': me.picture, if (sharp != me.picture) 'pp': sharp, 'st': me.status, 'l': me.shareLinks ? me.links : const <String, String>{}};
   }
 
   /// A picture and status said in [body], where it says them: null for each it does not (a build from before).
+  @visibleForTesting
+  static ({String? picture, String? status, Map<String, String>? links}) saidOf(Map body) => _said(body);
+
   static ({String? picture, String? status, Map<String, String>? links}) _said(Map body) {
-    final p = body['p'];
-    return (picture: p is String && p.length <= ProfilePictures.most ? p : (body.containsKey('st') ? '' : null), status: body['st'] is String ? body['st'] as String : null, links: Buddy._linksOf(body['l']));
+    final pp = body['pp'], p = body['p'];
+    final picture = pp is String && pp.isNotEmpty && pp.length <= ProfilePictures.most ? pp : p;
+    return (picture: picture is String && picture.length <= ProfilePictures.most ? picture : (body.containsKey('st') ? '' : null), status: body['st'] is String ? body['st'] as String : null, links: Buddy._linksOf(body['l']));
   }
 
   /// Who [username] is, as the add-friend drawer shows it while it is typed: nobody, this install itself, or someone

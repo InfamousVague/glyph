@@ -13,6 +13,7 @@ import 'package:glacier/glacier.dart';
 
 import '../../circles/circles.dart';
 import '../../files/files_store.dart';
+import '../../me/picture_make.dart';
 import '../../voice/hangout.dart' show OutgoingFile;
 import '../../sms.dart';
 import '../common.dart';
@@ -28,6 +29,22 @@ Future<String?> pickCirclePicture(BuildContext context) async {
     final small = await circlePictureOf(bytes);
     if (small == null && context.mounted) toast(context, 'Couldn\'t use that picture.', tone: GlacierToastTone.danger);
     return small;
+  } catch (e) {
+    if (context.mounted) toast(context, 'Couldn\'t use that picture: $e', tone: GlacierToastTone.danger);
+    return null;
+  }
+}
+
+/// Asks for a picture and gives it back as a profile picture (lib/me/picture_make.dart); null where none was chosen
+/// or it couldn't be read (said in a toast).
+Future<ProfilePicture?> pickProfilePicture(BuildContext context) async {
+  try {
+    final picked = await Sms.instance.pickImages();
+    if (picked.isEmpty) return null;
+    final path = await Sms.instance.cacheCopy(picked.first);
+    final made = await profilePictureOf(await File(path).readAsBytes());
+    if (made == null && context.mounted) toast(context, 'Couldn\'t use that picture.', tone: GlacierToastTone.danger);
+    return made;
   } catch (e) {
     if (context.mounted) toast(context, 'Couldn\'t use that picture: $e', tone: GlacierToastTone.danger);
     return null;
