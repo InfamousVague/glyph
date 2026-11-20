@@ -23,13 +23,17 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.10.2', '2026-11-20', [
+    'Texts are optional on a phone: Skip this step in the walkthrough, and Ghost works with friends, circles, Telegram and Signal. Turn texts on any time in Settings › Texts.',
+    'Circles: a circle\'s picture fills its round in the rail, with only the halo round the open one.',
+  ]),
   ReleaseNotes('0.10.1', '2026-11-20', [
     'Circles: give a circle an invite word, so gogho.st/c/bookclub opens it in place of the long link. Set it in its Settings › Invites.',
     'Messages: edit your own messages in spaces and circles, from any of your devices. Edited ones say so.',
     'Profiles: a card like Discord\'s, with a banner in their colour, their badges in a tray and by name, and their status as a bubble.',
     'Badges: choose the one shown beside your name, in your souls. It sits level with the name now.',
     'Messages: Mark all read and Share feedback are a list of rows under the search.',
-    'Record call: while recording, each person\'s track shows as it records.',
+    'Recording a call: a pill you can move anywhere, opening into each voice\'s track and waveform as it records, like a video editor\'s timeline.',
   ]),
   ReleaseNotes('0.10.0', '2026-11-20', [
     'On a Mac or Windows the app opens on a small splash that checks for updates first, brings one down and restarts into it, then loads the app.',

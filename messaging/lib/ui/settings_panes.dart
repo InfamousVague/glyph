@@ -6,6 +6,7 @@ import 'whats_new.dart' show showWhatsNew;
 import '../api/remote.dart';
 import '../api/server.dart';
 import 'admin_page.dart' show adminOffered, adminPane;
+import 'setup.dart' show TextsStep;
 import 'api_pane.dart';
 import '../inbox/inbox.dart';
 import 'blocking.dart';
@@ -236,6 +237,19 @@ List<SettingsSection> _ownSections() => [
   ),
   // No "Your number" here: the phone's own number is Me › Number's, verified there and told to Android's side
   // (Matt, 2026-11-19: "remove the duplicate "your number" setting it's already handled under me").
+  // Settings › Texts, while texts are off: passed by in the walkthrough (Matt, 2026-11-20: "rework the onboarding on
+  // mobile so that SMS is not required and you can 'skip this step'"), turned on here when wanted.
+  SettingsSection(
+    id: 'texts',
+    where: SettingsWhere.phone,
+    label: 'Texts',
+    icon: _icon(Lucide.messageSquare),
+    hue: 'green',
+    group: 'phone',
+    when: (m) => Sms.textsOff && !Sms.remote && !Sms.standalone,
+    summary: (m) => 'Off',
+    page: _texts,
+  ),
   SettingsSection(
     id: 'android',
     // The phone's own.
@@ -351,7 +365,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.10.1';
+const appVersion = '0.10.2';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -854,6 +868,29 @@ List<Widget> _blocked(BuildContext context, SettingsModel m) => const [BlockedLi
 // --- Android ----------------------------------------------------------------------------------------------------------
 
 String _thousands(int n) => n.toString().replaceAllMapped(RegExp(r'(?<=\d)(?=(\d{3})+$)'), (_) => ',');
+
+/// Texts off: what Ghost does without them, and the same step as the walkthrough's to turn them on.
+List<Widget> _texts(BuildContext context, SettingsModel m) => [
+      PaneSection(
+        title: 'Texts are off',
+        description: const Text('Ghost works without your texts: friends, circles, Telegram and Signal. Turn texts on to read and send your texts here too, as your texting app or beside Google Messages.'),
+        children: [
+          SettingRowBox(
+            child: Padding(
+              padding: EdgeInsets.all(context.tokens.space(3)),
+              child: TextsStep(
+                hue: context.tokens.color('app-accent'),
+                onDone: () {
+                  Sms.textsOff = false;
+                  toast(context, 'Texts are on');
+                  m.refresh();
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    ];
 
 List<Widget> _android(BuildContext context, SettingsModel m) {
   final s = m.status;

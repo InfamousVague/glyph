@@ -56,6 +56,7 @@ void main() {
     final feedback = Feedback(
       config: on ? const FeedbackConfig(notionToken: 'ntn_test', dataSource: '41e2ecf7-f3ac-81dd-9d59-000b22859842') : const FeedbackConfig(),
       ownsName: (id, name) => id == maya.id && name == 'maya',
+      accountOf: (id) => id == maya.id ? '0x00000000000000000000000000000000000000aa' : null,
       notion: (method, url, headers, body) async {
         calls.add((method, url, headers, body));
         if (url.path == '/v1/file_uploads') return (200, jsonEncode({'id': 'up${calls.length}', 'status': 'pending'}));
@@ -106,6 +107,10 @@ void main() {
     expect(p['Screenshots']['files'], [{'type': 'file_upload', 'file_upload': {'id': 'up1'}, 'name': 'call.png'}]);
     final blocks = page['children'] as List;
     expect(blocks.where((b) => b['type'] == 'paragraph'), hasLength(2));
+    // Who sent it, by what stays theirs as the name changes (Matt, 2026-11-20: "tie users names to their accounts ... so
+    // that we can give out bug bounties properly"): her id, which the admin page gives souls to, and her account.
+    expect(blocks.first['type'], 'callout');
+    expect(blocks.first['callout']['rich_text'][0]['text']['content'], 'Reporter: @maya · Ghost id ${maya.id} · account 0x00000000000000000000000000000000000000aa');
     expect(blocks.last, {'object': 'block', 'type': 'image', 'image': {'type': 'file_upload', 'file_upload': {'id': 'up1'}}});
   });
 
@@ -117,6 +122,8 @@ void main() {
     expect(p['Type'], {'select': {'name': 'Feature idea'}});
     expect((await send({'type': 'praise', 'text': 'Love it'}, by: sam)).$1, 200);
     expect(((jsonDecode(utf8.decode(calls.last.$4)) as Map)['properties'] as Map).containsKey('Username'), isFalse);
+    // No name given: nobody named in the page either.
+    expect(((jsonDecode(utf8.decode(calls.last.$4)) as Map)['children'] as List).where((b) => b['type'] == 'callout'), isEmpty);
   });
 
   test('unsigned, stale, replayed or empty reports are refused; so many an hour; off until it is set up; Notion\'s refusal said plainly', () async {

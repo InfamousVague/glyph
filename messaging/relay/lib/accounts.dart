@@ -407,6 +407,8 @@ class Accounts {
   /// The account of the install holding [name], as (address, record).
   (String, Map<String, Object?>)? _ofName(String name) {
     final holder = handles?.holderOf(name);
+    // Signed back in by the username: its holder named on the admin page from now on.
+    if (holder != null) handles?.learnName(name);
     final address = holder == null ? null : _byId[holder];
     final a = address == null ? null : _accounts[address];
     return a == null ? null : (address!, a);

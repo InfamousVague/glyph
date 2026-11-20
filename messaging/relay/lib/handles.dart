@@ -121,6 +121,43 @@ class Handles {
   /// one that install holds.
   final Map<String, String> _shown = {};
 
+  /// The usernames each install held before its present one, newest last, at most [wasKept] (Matt, 2026-11-20: "add the
+  /// ability to tie users names to their accounts when they sign back in later or reconnect to the app so that we can give
+  /// out bug bounties properly"): a ticket filed under a name since given up still finds its person.
+  final Map<String, List<String>> _was = {};
+  static const wasKept = 10;
+
+  /// The Ghost account an install's identity belongs to (relay/lib/accounts.dart, Accounts.accountOf), for the admin page:
+  /// the same person across a reinstall or another device, where they signed back in to it. Set by bin/relay.dart.
+  String? Function(String id)? accountOf;
+
+  /// [name] said in words (a lookup, a sign-in by username, a hello): where it is a username held here, the admin page
+  /// can show it from now on. The directory itself keeps only its hash.
+  void learnName(String name) {
+    if (!goodName(name)) return;
+    final k = nameKey(name);
+    if (_names[k] == null || _shown[k] == tidyName(name)) return;
+    _shown[k] = tidyName(name);
+    _changed();
+  }
+
+  /// For a test: [id]'s username as though it were claimed on an app that never said it.
+  void forgetShownForTest(String id) {
+    final k = _nameOf[id];
+    if (k != null) _shown.remove(k);
+  }
+
+  /// Keeps [k]'s shown name as one [id] held before.
+  void _remember(String id, String? k) {
+    final name = k == null ? null : _shown[k];
+    if (name == null) return;
+    final list = _was[id] ??= [];
+    list
+      ..remove(name)
+      ..add(name);
+    if (list.length > wasKept) list.removeAt(0);
+  }
+
   /// Souls by install, and its special badges (ids from [specialBadges]).
   final Map<String, int> _souls = {};
   final Map<String, List<String>> _special = {};
@@ -216,6 +253,8 @@ class Handles {
         'souls': soulsOf(id),
         'special': specialOf(id),
         'here': _here.containsKey(id),
+        'account': ?accountOf?.call(id),
+        if (_was[id]?.isNotEmpty ?? false) 'was': _was[id],
       });
     }
     out.sort((a, b) => '${b['at'] ?? ''}'.compareTo('${a['at'] ?? ''}'));
@@ -359,6 +398,7 @@ class Handles {
         (all['names'] as Map? ?? const {}).forEach((k, v) => _names[k as String] = (v as Map).cast<String, String>());
         (all['kept'] as Map? ?? const {}).forEach((id, blob) => _kept[id as String] = blob as String);
         (all['shown'] as Map? ?? const {}).forEach((k, name) => _shown[k as String] = name as String);
+        (all['was'] as Map? ?? const {}).forEach((id, names) => _was[id as String] = [for (final n in names as List) '$n']);
         (all['souls'] as Map? ?? const {}).forEach((id, n) => _souls[id as String] = (n as num).toInt());
         (all['special'] as Map? ?? const {}).forEach((id, list) => _special[id as String] = (list as List).cast<String>().toList());
         (all['showcase'] as Map? ?? const {}).forEach((id, b) => _showcase[id as String] = b as String);
@@ -402,6 +442,7 @@ class Handles {
         'names': _names,
         'kept': _kept,
         'shown': _shown,
+        'was': _was,
         'souls': _souls,
         'special': _special,
         'showcase': _showcase,
@@ -537,13 +578,17 @@ class Handles {
           if (before != null && before != k) _names.remove(before);
           _names[k] = {'id': id, 'key': key, 'at': _now().toUtc().toIso8601String().substring(0, 10)};
           _nameOf[id] = k;
-          if (before != null && before != k) _shown.remove(before);
+          if (before != null && before != k) {
+            _remember(id, before);
+            _shown.remove(before);
+          }
           _shown[k] = tidyName(name);
           _changed();
           tell({'dir': 'claim', 'name': tidyName(name), 'ok': true, 'k': k});
         case 'release':
           final k = _nameOf.remove(id);
           if (k != null) {
+            _remember(id, k);
             _names.remove(k);
             _shown.remove(k);
           }
@@ -559,6 +604,9 @@ class Handles {
           list.add(now);
           final found = _names[nameKey(name)];
           if (found == null) return tell({'dir': 'whois', 'name': tidyName(name), 'none': true});
+          // Looked up in words: the admin page can name its holder from now on, an install on an older app that never
+          // says its own name too.
+          learnName(name);
           tell({'dir': 'whois', 'name': tidyName(name), 'id': found['id'], 'key': found['key']});
         case 'badges':
           // Which of these verified a phone number by a texted code: the verified-number badge beside people in spaces

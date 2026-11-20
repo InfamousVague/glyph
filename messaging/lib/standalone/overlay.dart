@@ -146,16 +146,17 @@ abstract class UsernameOverlay implements SmsCalls {
 
       // The list: the phone's, with these.
       case 'conversations':
-        return [...?(await inner.invokeMethod<List>('conversations', a)), for (final t in chats.sorted()) chats.conversation(t)];
+        // Texts off (Sms.textsOff): Android's list is not asked for; these alone.
+        return [if (!Sms.textsOff) ...?(await inner.invokeMethod<List>('conversations', a)), for (final t in chats.sorted()) chats.conversation(t)];
       case 'conversationsPage':
-        final page = Map<String, Object?>.from((await inner.invokeMethod<Map>('conversationsPage', a)) ?? const {});
+        final page = Sms.textsOff ? <String, Object?>{'items': const [], 'next': null} : Map<String, Object?>.from((await inner.invokeMethod<Map>('conversationsPage', a)) ?? const {});
         // On the first lot: they are few, and the list sorts them in by date.
         if (((a['offset'] as num?)?.toInt() ?? 0) == 0) {
           page['items'] = [...((page['items'] as List?) ?? const []), for (final t in chats.sorted(archived: a['archived'] == true)) chats.conversation(t)];
         }
         return page;
       case 'archivedCount':
-        return (((await inner.invokeMethod('archivedCount', a)) as num?)?.toInt() ?? 0) + chats.sorted(archived: true).length;
+        return (Sms.textsOff ? 0 : (((await inner.invokeMethod('archivedCount', a)) as num?)?.toInt() ?? 0)) + chats.sorted(archived: true).length;
 
       // A conversation kept here.
       case 'conversation' when ours:
@@ -198,6 +199,8 @@ abstract class UsernameOverlay implements SmsCalls {
           _save();
           return t.id;
         }
+        // A number, with texts off: said why, not Android's refusal.
+        if (Sms.textsOff) throw StateError(textsOffWords);
         return _pass;
       case 'send':
         final addresses = ((a['addresses'] as List?) ?? const []).map((x) => '$x').toList();
@@ -205,11 +208,15 @@ abstract class UsernameOverlay implements SmsCalls {
           if (addresses.length != 1) throw StateError('A friend by username can only be written to on their own yet');
           return chats.send(addresses.first, '${a['body'] ?? ''}');
         }
+        if (Sms.textsOff) throw StateError(textsOffWords);
         return _pass;
     }
     return _pass;
   }
 }
+
+/// What is said where a text to a number is asked for with texts off (Sms.textsOff).
+const textsOffWords = 'Texts are off. Turn them on in Settings › Texts to text a number.';
 
 /// Sets the phone up to keep its friends by username in Dart, before anything is drawn.
 Future<void> overlaySetup({File? file}) async {
