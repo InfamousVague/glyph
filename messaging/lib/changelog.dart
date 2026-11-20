@@ -26,6 +26,8 @@ const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.9.36', '2026-11-20', [
     'Share feedback: report a bug, suggest a feature or tell us anything, with up to three screenshots. Include your username to be in line for bug bounties. On a Mac it\'s in the window\'s top bar, elsewhere beside the search in Messages.',
     'On a Mac the window has its own top bar in the app\'s colours, a little taller, that you drag the window by.',
+    'Codes: the tab shows only where codes can come from, your texts or a linked network like Telegram.',
+    'Messages: the bar over the search goes when it has nothing in it. Mark all read shows while something is unread, and the cleaner while there\'s something to clean.',
   ]),
   ReleaseNotes('0.9.35', '2026-11-20', [
     'An emoji picker of Ghost\'s own, from the smiley button in any chat: search by name, pick a skin tone, and your recent ones come first. It stays open while you pick a few.',
