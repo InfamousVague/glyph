@@ -561,7 +561,7 @@ class AccountHelper extends InboxNetwork {
     if (_state != InboxState.ready) return;
     for (final (i, path) in paths.indexed) {
       final ext = path.split('.').last.toLowerCase();
-      final mime = const {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp', 'heic': 'image/heic', 'mp4': 'video/mp4', 'mov': 'video/quicktime', 'm4a': 'audio/mp4', 'ogg': 'audio/ogg', 'pdf': 'application/pdf'}[ext] ??
+      final mime = const {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp', 'heic': 'image/heic', 'mp4': 'video/mp4', 'mov': 'video/quicktime', 'm4a': 'audio/mp4', 'mp3': 'audio/mpeg', 'ogg': 'audio/ogg', 'pdf': 'application/pdf'}[ext] ??
           'application/octet-stream';
       final text = i == paths.length - 1 ? caption : '';
       try {

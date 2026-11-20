@@ -46,10 +46,24 @@ class RtcMedia implements VoiceMedia {
   void _apply(String id, MediaStream stream) {
     for (final t in stream.getAudioTracks()) {
       t.enabled = !_deaf && !_silenced.contains(id);
-      // Each person's own volume times the output volume (Settings › Voice and video), boosted to twice at most.
-      final v = ((_volume[id] ?? 1.0) * settings.outputVolume / 100).clamp(0.0, 4.0);
+      // Each person's own volume times the output volume (Settings › Voice and video), boosted to twice at most, and
+      // times the auto leveler's gain for them where it is on (leveler.dart).
+      final v = ((_volume[id] ?? 1.0) * settings.outputVolume / 100 * (_leveled[id] ?? 1.0)).clamp(0.0, 6.0);
       unawaited(Helper.setVolume(v, t).catchError((_) {}));
     }
+  }
+
+  /// The auto leveler's gain for each person (leveler.dart): 1 is as they arrive.
+  final Map<String, double> _leveled = {};
+
+  void setLevelGain(String id, double gain) {
+    if (gain == 1) {
+      if (_leveled.remove(id) == null) return;
+    } else {
+      _leveled[id] = gain.clamp(0.25, 3.5);
+    }
+    final s = remote.value[id];
+    if (s != null) _apply(id, s);
   }
 
   @override
