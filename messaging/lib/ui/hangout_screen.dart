@@ -613,8 +613,34 @@ class _HangoutChatState extends State<HangoutChat> {
   ChatUploads get _uploads => widget.uploads ?? FilesStore.instance;
   bool get _mayAttach => spaceMayAttach(widget.room, circles: widget.circles);
 
+  /// The message whose words are in the box to be changed, or null (Matt, 2026-11-20: "I'd like to be able to edit
+  /// messages sent in circles from any computer or phone connected to the account that sent it").
+  HangoutMessage? _editing;
+
+  void _startEdit(HangoutMessage m) {
+    if (!widget.room.canEdit(m)) return;
+    setState(() {
+      _editing = m;
+      _picked.clear();
+    });
+    _text.load(m.text, m.mentions);
+    _focus.requestFocus();
+  }
+
+  void _stopEditing() {
+    setState(() => _editing = null);
+    _text.clear();
+  }
+
   void _send() {
     final room = widget.room;
+    final editing = _editing;
+    if (editing != null) {
+      // Saved; unchanged words just stop the editing.
+      room.edit(editing, _text.text, mentions: _text.mentions);
+      _stopEditing();
+      return;
+    }
     if (_slowLeft > Duration.zero) return;
     if (_picked.isNotEmpty) {
       if (!_mayAttach) {
@@ -692,6 +718,11 @@ class _HangoutChatState extends State<HangoutChat> {
   }
 
   KeyEventResult _mentionKeys(FocusNode node, KeyEvent e) {
+    // Escape stops editing a message, its words given back.
+    if (_editing != null && _query == null && e is KeyDownEvent && e.logicalKey == LogicalKeyboardKey.escape) {
+      _stopEditing();
+      return KeyEventResult.handled;
+    }
     if (_query == null) return _enterKey(e);
     return mentionKey(
           e,
@@ -877,6 +908,7 @@ class _HangoutChatState extends State<HangoutChat> {
   void _menu(HangoutMessage m) {
     HapticFeedback.mediumImpact();
     showChoices(context, choices: [
+      if (widget.room.canEdit(m)) Choice('Edit', Lucide.penLine, () => _startEdit(m)),
       if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
       ...translateChoices(context, spaceFacts(m, mine: m.from == widget.room.me)),
       if (widget.room.canDelete(m)) Choice('Delete for everyone', Lucide.trash2, () => setState(() => _poofing.add(m.id)), danger: true),
@@ -988,7 +1020,7 @@ class _HangoutChatState extends State<HangoutChat> {
                   if (m.sticker != null) SpaceSticker(name: m.sticker!, side: 120),
                   if (m.files.isNotEmpty) SpaceChatFiles(channel: room.channel, message: m, maxWidth: 280, ground: c.paper, ink: c.ink, rim: Border.all(color: c.shadow)),
                 ],
-                status: lastOfRun ? clock(DateTime.fromMillisecondsSinceEpoch(m.at)) : null,
+                status: lastOfRun || m.edited != null ? [if (lastOfRun) clock(DateTime.fromMillisecondsSinceEpoch(m.at)), if (m.edited != null) 'edited'].join(' · ') : null,
                 onLongPress: (_) => _menu(m),
               )),
             );
@@ -1084,7 +1116,7 @@ class _HangoutChatState extends State<HangoutChat> {
                           _poofing.remove(m.id);
                           room.delete(m);
                         },
-                        child: _Message(key: ValueKey(m.id), room: room, message: m, first: first, last: last, mineBg: mineBg, mineInk: mineInk, flat: flat, onDelete: () => setState(() => _poofing.add(m.id)), onMention: _mentionPressed, onPerson: _openPerson),
+                        child: _Message(key: ValueKey(m.id), room: room, message: m, first: first, last: last, mineBg: mineBg, mineInk: mineInk, flat: flat, onDelete: () => setState(() => _poofing.add(m.id)), onEdit: () => _startEdit(m), onMention: _mentionPressed, onPerson: _openPerson),
                       );
                       if (!newDay) return message;
                       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1122,12 +1154,29 @@ class _HangoutChatState extends State<HangoutChat> {
                       final buttons = composerButtons(
                         t,
                         hasSomething: _text.text.isNotEmpty || _picked.isNotEmpty,
-                        onAttach: _plusAction(attach && FilePlatform.canPick && _picked.length < HangoutMessage.mostFiles, polls: !waiting),
-                        onSticker: _picked.isEmpty && !waiting ? _sticker : null,
-                        onRecord: attach && !Sms.remote && _picked.isEmpty && !waiting ? _record : null,
-                        onSend: (_text.text.trim().isEmpty && _picked.isEmpty) || waiting ? null : _send,
+                        onAttach: _editing != null ? null : _plusAction(attach && FilePlatform.canPick && _picked.length < HangoutMessage.mostFiles, polls: !waiting),
+                        onSticker: _picked.isEmpty && !waiting && _editing == null ? _sticker : null,
+                        onRecord: attach && !Sms.remote && _picked.isEmpty && !waiting && _editing == null ? _record : null,
+                        // An edit is saved whenever, slow mode or not: it is no new message.
+                        onSend: _editing != null
+                            ? (_text.text.trim().isEmpty && _editing!.files.isEmpty ? null : _send)
+                            : (_text.text.trim().isEmpty && _picked.isEmpty) || waiting
+                                ? null
+                                : _send,
                         emoji: Sms.remote,
                         onEmoji: _emoji,
+                        // Saving an edit: a tick, as a text being edited has (lib/ui/thread.dart).
+                        send: _editing == null
+                            ? null
+                            : IconTap(
+                                key: const ValueKey('composer-send'),
+                                icon: Lucide.check,
+                                label: 'Save edit',
+                                filled: true,
+                                size: 16,
+                                box: t.lenOf('2.25rem'),
+                                onPressed: _text.text.trim().isEmpty && _editing!.files.isEmpty ? null : _send,
+                              ),
                       );
                       _text.style = mentionStyle(t);
                       return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1135,7 +1184,8 @@ class _HangoutChatState extends State<HangoutChat> {
                         // and circles with the @user prefix").
                         if (_query != null && _found.isNotEmpty)
                           MentionSuggestions(people: _found, chosen: _chosen, onPick: _pickMention, inkOf: (p) => spaceNameInk(t, widget.room, p.id)),
-                        if (slow > 0) _SlowModeLine(seconds: slow, left: left),
+                        if (_editing != null) _EditingBar(words: _editing!.text, onClose: _stopEditing),
+                        if (slow > 0 && _editing == null) _SlowModeLine(seconds: slow, left: left),
                         if (_picked.isNotEmpty) SpacePickedStrip(files: _picked, onRemove: (p) => setState(() => _picked.remove(p))),
                         ComposerBox(
                           typing: _typing,
@@ -1151,6 +1201,33 @@ class _HangoutChatState extends State<HangoutChat> {
           ),
         ]);
       },
+    );
+  }
+}
+
+/// Over the box while a message's words are being changed: what is being edited, and the way to stop.
+class _EditingBar extends StatelessWidget {
+  const _EditingBar({required this.words, required this.onClose});
+  final String words;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Padding(
+      key: const ValueKey('space-editing'),
+      padding: EdgeInsets.only(bottom: t.space(2)),
+      child: Row(children: [
+        AppIcon(Lucide.penLine, size: 16, color: t.color('app-accent')),
+        SizedBox(width: t.space(2)),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text('Editing message', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent'))),
+            if (words.isNotEmpty) Text(words, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+          ]),
+        ),
+        IconTap(key: const ValueKey('space-editing-stop'), icon: Lucide.x, label: 'Stop editing', size: 18, onPressed: onClose),
+      ]),
     );
   }
 }
@@ -1328,7 +1405,7 @@ MessageFacts? spaceFacts(HangoutMessage m, {required bool mine}) =>
     mine || m.text.trim().isEmpty ? null : MessageFacts(thread: -1, senders: [m.from], text: m.text, contact: false, outgoing: false, date: DateTime.fromMillisecondsSinceEpoch(m.at), id: 'space:${m.id}', network: 'space');
 
 class _Message extends StatelessWidget {
-  const _Message({super.key, required this.room, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onDelete, this.flat = false, this.onMention, this.onPerson});
+  const _Message({super.key, required this.room, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onDelete, this.onEdit, this.flat = false, this.onMention, this.onPerson});
   final HangoutRoom room;
   final HangoutMessage message;
 
@@ -1345,6 +1422,9 @@ class _Message extends StatelessWidget {
 
   /// Deletes it, with its puff.
   final VoidCallback? onDelete;
+
+  /// Its words put in the box to change, where it is this person's (HangoutRoom.canEdit).
+  final VoidCallback? onEdit;
 
   /// A mention in it pressed.
   final ValueChanged<Mention>? onMention;
@@ -1383,6 +1463,7 @@ class _Message extends StatelessWidget {
     void menu() {
       HapticFeedback.mediumImpact();
       showChoices(context, choices: [
+        if (room.canEdit(m) && onEdit != null) Choice('Edit', Lucide.penLine, () => onEdit!.call()),
         if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
         ...translateChoices(context, spaceFacts(m, mine: mine)),
         if (room.canDelete(m)) Choice('Delete for everyone', Lucide.trash2, () => onDelete?.call(), danger: true),
@@ -1481,6 +1562,11 @@ extension on _Message {
         shown?.bubble ?? message.text,
         ink: ink,
         style: style,
+        // Changed by its writer since (Matt, 2026-11-20: "I'd like to be able to edit messages sent in circles").
+        after: [
+          if (message.edited != null)
+            TextSpan(text: '  (edited)', style: style.copyWith(fontSize: (style.fontSize ?? 14) * 0.78, color: ink.withValues(alpha: 0.55), fontWeight: FontWeight.w400)),
+        ],
         mentions: shown == null ? message.mentions : const [],
         mentionStyle: mentionStyle(t, on: message.from == room.me && !flat ? ink : null),
         onMention: onMention,

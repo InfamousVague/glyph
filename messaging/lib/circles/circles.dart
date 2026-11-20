@@ -29,6 +29,7 @@ import '../net/packet.dart';
 import '../net/switchboard.dart';
 import '../sms.dart';
 import '../voice/channels.dart';
+import '../voice/hangout.dart' show HangoutRoom;
 import '../voice/voice.dart';
 import 'circle.dart';
 import 'invite_word.dart';
@@ -153,6 +154,8 @@ class Circles extends ChangeNotifier {
     if (_app != null) return;
     _app = app;
     _load(app);
+    // Who a message's writer is now, for an edit to be theirs from any of their devices (lib/voice/hangout.dart).
+    HangoutRoom.sameAs = sameAs;
     Net.instance.listen(_received);
     Voice.instance.addListener(_follow);
     _changed(keep: false);
