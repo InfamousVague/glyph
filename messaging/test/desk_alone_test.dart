@@ -51,8 +51,8 @@ void main() {
     dir.deleteSync(recursive: true);
   });
 
-  Future<({_Link link, DeskStore store, int Function() restarts})> open(WidgetTester tester, {String? username}) async {
-    tester.view.physicalSize = const Size(1100 * 2.0, 740 * 2.0);
+  Future<({_Link link, DeskStore store, int Function() restarts})> open(WidgetTester tester, {String? username, Size size = const Size(1100, 740)}) async {
+    tester.view.physicalSize = size * 2.0;
     tester.view.devicePixelRatio = 2.0;
     addTearDown(tester.view.reset);
     final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
@@ -72,6 +72,14 @@ void main() {
     await settle(tester);
     return (link: link, store: store, restarts: () => restarts);
   }
+
+  // The window is small for signing up or in (lib/desktop/window_size.dart; Matt, 2026-11-20: "make the sign up / sign
+  // in window smaller"): the welcome fits it, 480 by 720, with nothing cut off.
+  testWidgets('the welcome fits the small window it is shown in', (tester) async {
+    await open(tester, size: const Size(480, 720));
+    expect(find.byType(StandaloneWelcome), findsOneWidget);
+    expect(tester.takeException(), isNull, reason: 'nothing overflows');
+  });
 
   testWidgets('first a username, said in a computer\'s words', (tester) async {
     await open(tester);
