@@ -23,6 +23,18 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.10.5', '2026-11-20', [
+    'Game activity: a new plugin that shows friends and the spaces you\'re in which game you\'re playing on your Mac or Windows computer, and for how long. Add it from the Marketplace; it\'s off until you do, and you choose who is told.',
+    'Recording a call: every track has a real meter now, with its peaks, its average and a lamp that lights if a voice clips.',
+    'Recording a call: a mixer. Press Mixer in the recording to set how loud each voice is in the mix, or mute or solo one, while it records. Each person\'s own track stays as it was recorded.',
+    'Recording a call: mark a moment with the flag, and find it again in Recordings.',
+    'Signing up is a username and a password. The recovery words\' check can be skipped and done later.',
+    'On an Android phone the walkthrough is the texts step, then your username and password.',
+    'Circles: owners and admins can kick someone, or ban them so an invite won\'t let them back.',
+    'Schedule a message: press and hold Send, or right-click it, to choose when it goes.',
+    'Calls: push to talk, and keyboard commands you can set in Settings › Keyboard shortcuts.',
+    'On a computer, photos and videos that weren\'t coming through now do, and you can paste a picture into any message field on a Mac.',
+  ]),
   ReleaseNotes('0.10.4', '2026-11-20', [
     'Marketplace: plugins have a place of their own now, a storefront on the rail and the dock between Archive and Settings. Settings no longer lists them, and searching Settings for a plugin opens it there.',
     'Plugins from other developers: browse, add and remove reviewed plugins in the Marketplace. Each one says what it can do before you add it, and it only ever sees texts from numbers not in your contacts, on this device.',
