@@ -15,6 +15,8 @@ import 'companies.dart';
 import '../sounds.dart';
 import 'company_marks.g.dart';
 import 'plugin.dart';
+import '../inbox/inbox.dart';
+import '../sms.dart';
 
 // A word of its own: "pin" is in "shipping", "shopping" and "opinion", and "code" in "barcode".
 final RegExp _codeWord = RegExp(r'(?<![A-Za-z0-9_])(?:(?:code|passcode|password|pin|otp|one[- ]time|2fa|login|log in|sign in|security)(?![A-Za-z0-9_])|verif)', caseSensitive: false);
@@ -94,8 +96,11 @@ class CodesPlugin extends GhostPlugin {
           id: section,
           label: 'Codes',
           icon: Lucide.keyRound,
-          // There from the start, before any code has come.
+          // There from the start, before any code has come, while something here can bring one (Matt, 2026-11-19:
+          // "only show codes if sms messages or other sources for codes are enabled"): texts (a phone, or a computer
+          // paired with one), or a linked network whose service chats send sign-in codes (Telegram and the rest).
           always: true,
+          alwaysWhen: codeSourcesOn,
           // One number, not a contact: a friend's "the door code is 4417" is a conversation, not a code.
           takes: (facts, tags, prefs) => tags.has(tag) && !facts.contact && !facts.group,
           row: (facts, tags, prefs) {
@@ -161,3 +166,7 @@ class CodesPlugin extends GhostPlugin {
         ),
       ];
 }
+
+/// Whether anything here can bring a sign-in code: texts (not an iPhone or a computer standing alone), or a network
+/// linked and running (lib/inbox).
+bool codeSourcesOn() => !Sms.standalone || Inbox.instance.ready.isNotEmpty;

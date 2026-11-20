@@ -64,7 +64,7 @@ class Sorted {
   final int others;
 
   /// Whether [section] is one to show: it has a conversation, or its tab is there always.
-  bool has(String? section) => section != null && (counts.containsKey(section) || sections.any((s) => s.id == section && s.section.always));
+  bool has(String? section) => section != null && (counts.containsKey(section) || sections.any((s) => s.id == section && s.section.alwaysNow));
 }
 
 class ListPlugins {
@@ -191,7 +191,7 @@ class ListPlugins {
       }
     }
     _chatAt = chatAt;
-    return _sorted = Sorted(at, [for (final s in sections) if (counts.containsKey(s.id) || s.section.always) s], counts, unread, others: others, unreadCounts: unreadCounts);
+    return _sorted = Sorted(at, [for (final s in sections) if (counts.containsKey(s.id) || s.section.alwaysNow) s], counts, unread, others: others, unreadCounts: unreadCounts);
   }
 
   /// The section a chat on another network was sorted into ([sort]); null for none.
@@ -306,7 +306,7 @@ class ListPlugins {
     final store = _store;
     final tabs = store == null
         ? [for (final t in s.sections) if (!t.section.filter) t]
-        : [for (final t in registry.sections(store)) if (!t.section.filter && (t.section.always || s.sections.any((x) => x.id == t.id))) t];
+        : [for (final t in registry.sections(store)) if (!t.section.filter && (t.section.alwaysNow || s.sections.any((x) => x.id == t.id))) t];
     if (tabs.isEmpty && extra.isEmpty) return null;
     return SectionTabs(sections: tabs, counts: s.unreadCounts, unread: s.unread, chosen: chosen, onPick: onPick, onMenu: onMenu, extra: extra);
   }
