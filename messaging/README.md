@@ -30,6 +30,22 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Reactions in spaces and circles** (0.10.6, not released; Matt, 2026-11-20: "add reactions after done to spaces and
+  circles"). Press and hold (or right-click) a message in a space's or a circle's chat: the reaction row from texts
+  (`reactionChoices`, `ReactionPickRow`) sits over its menu. A space's bubbles wear them as stickers, as texts do
+  (`ReactionStickers`); a circle channel's lines have pills under them, each emoji with how many gave it, yours ringed,
+  pressed to put yours on or take it off, and a + for another (`ReactionChips`). Each person's each emoji on a message
+  is on or off with when it was said, the newest word winning (`lib/voice/space_reactions.dart`), so it ends the same
+  on every device whatever order the words come in; one person's phone and computer count once. Said in the room as
+  `react`, kept by the hub for devices that were away, and handed over with the history (`reacts`); kept on the device
+  beside the polls' votes.
+  - **In read-only spaces everyone may react**: only posting is the admins'. The relay takes reactions as a packet
+    kind of their own (`toRoomReaction`, 4: kept, to everyone, at most 512 bytes), which a reader in a read-only room
+    may send, and passes them on with that first byte, so the apps take nothing but a reaction from one: the hub still
+    refuses a reader's words and an app still drops them. A relay from before (until this one is deployed) doesn't say
+    `react` in its hello; the apps then send reactions as ordinary kept packets, which work everywhere but a read-only
+    space, where that relay refuses a reader's.
+  - Tests: space_reactions_test (pictures `test/shots/space-reactions-*`), relay read_only_rooms_test.
 - **Welcome messages, a welcome space and read-only spaces** (0.10.6, not released; Matt, 2026-11-20: "add - Welcome
   messages for new members and allow setting a "welcome" channel as well as read only channels for system messages
   and admin / moderation announcements"). Circle settings › Welcome, for whoever may change the circle

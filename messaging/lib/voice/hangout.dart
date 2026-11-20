@@ -19,9 +19,11 @@ import 'voice.dart';
 import '../me/me.dart' show Me;
 import '../me/pictures.dart';
 import 'plugin_note.dart';
+import 'space_reactions.dart';
 import 'polls.dart';
 
 export 'plugin_note.dart';
+export 'space_reactions.dart';
 export 'polls.dart';
 
 /// A hangout's chat, and its roles kept and enforced (Matt, 2026-11-15: "Implement a permissions system similar to
@@ -83,6 +85,7 @@ class HangoutRoom extends ChangeNotifier {
     messages = this.store.messages(channel.chatRoom);
     _loadAbout();
     _loadVotes();
+    _loadReactions();
   }
 
   static const keep = 300;
@@ -148,6 +151,8 @@ class HangoutRoom extends ChangeNotifier {
     final at = _inRoom = hubRoom;
     _subs.add(route.packets.where((p) => p.room == at).listen((p) => _heard(p.from, p.bytes)));
     _subs.add(route.events.where((e) => e.room == at).listen(_event));
+    // Reactions as packets of their own (relay/lib/hub.dart toRoomReaction): nothing else is taken from one.
+    if (route is ReactionRoute) _subs.add((route as ReactionRoute).reactionPackets.where((p) => p.room == at).listen((p) => _heardReaction(p.from, p.bytes)));
     final List<String> there;
     try {
       final ro = _readOnly;
@@ -317,6 +322,72 @@ class HangoutRoom extends ChangeNotifier {
     if (had != null && had.at >= v.at) return false;
     of[voter] = v;
     return true;
+  }
+
+  // --- reactions (Matt, 2026-11-20: "add reactions after done to spaces and circles"; space_reactions.dart) ---------
+
+  /// Who put which emoji on which message here.
+  final reactions = SpaceReactions();
+
+  /// Whether this device may react here: whoever may be in the chat, in a read-only space too (only posting is held
+  /// back there); not someone put out.
+  bool get mayReact => putOut == null && roster.can(me, Perm.chat);
+
+  /// [m]'s reactions as drawn, this person's (on any of their devices) marked.
+  List<ReactionTally> reactionsOn(HangoutMessage m) => reactions.of(m.id, me, same: samePerson);
+
+  /// Puts [emoji] on [m], or takes it off where this person has it there; false where this device may not react.
+  bool react(HangoutMessage m, String emoji) {
+    if (!mayReact || !messages.any((x) => x.id == m.id)) return false;
+    final on = !reactionsOn(m).any((r) => r.emoji == emoji && r.mine);
+    final at = DateTime.now().millisecondsSinceEpoch;
+    if (!reactions.take(m.id, me, emoji, on: on, at: at)) return false;
+    final what = {'t': 'react', 'id': m.id, 'e': emoji, 'on': on, 'at': at};
+    final r = route;
+    if (opened && r is ReactionRoute && (r as ReactionRoute).takesReactions) {
+      try {
+        (r as ReactionRoute).sendReaction(_inRoom ?? hubRoom, NetCrypto.seal(channel.key, utf8.encode(jsonEncode(what))));
+      } catch (_) {}
+    } else {
+      // A relay from before keeps it as any kept packet (and in a read-only room refuses it from a reader).
+      _say(what, keep: true);
+    }
+    _keepReactions();
+    notifyListeners();
+    return true;
+  }
+
+  /// A packet that came as a reaction: taken only as one.
+  void _heardReaction(String from, Uint8List bytes) {
+    final clear = NetCrypto.open(channel.key, bytes);
+    if (clear == null) return;
+    try {
+      final m = (jsonDecode(utf8.decode(clear)) as Map).cast<String, dynamic>();
+      if (m['t'] == 'react') _takeReaction(from, m);
+    } catch (_) {}
+  }
+
+  void _takeReaction(String from, Map<String, dynamic> m) {
+    final id = m['id'], e = m['e'], at = m['at'];
+    if (id is! String || e is! String || at is! int || roster.banned.contains(from) || (shut?.call(from) ?? false) || !roster.can(from, Perm.chat)) return;
+    if (reactions.take(id, from, e, on: m['on'] == true, at: at)) {
+      _keepReactions();
+      notifyListeners();
+    }
+  }
+
+  void _keepReactions() {
+    final s = store;
+    // Kept with the polls' votes, under a key of their own.
+    if (s is HangoutVotesStore) (s as HangoutVotesStore).keepVotes('${channel.chatRoom}:r', jsonEncode(reactions.toJson()));
+  }
+
+  void _loadReactions() {
+    final s = store;
+    if (s is! HangoutVotesStore) return;
+    try {
+      reactions.takeAll(jsonDecode((s as HangoutVotesStore).votesOf('${channel.chatRoom}:r') ?? '{}'));
+    } catch (_) {}
   }
 
   void _heardVote(String from, Map<String, dynamic> m) {
@@ -932,6 +1003,13 @@ class HangoutRoom extends ChangeNotifier {
         if (_posts(from)) _heardVote(from, m);
       case 'votes':
         _heardVotes(m['v']);
+      case 'react':
+        _takeReaction(from, m);
+      case 'reacts':
+        if (reactions.takeAll(m['r'], may: (id) => roster.can(id, Perm.chat) && !roster.banned.contains(id) && !(shut?.call(id) ?? false))) {
+          _keepReactions();
+          notifyListeners();
+        }
       case 'edit':
         // Only its writer's own word, from any of their devices: an edit from anyone else is no edit.
         final id = '${m['id']}', text = m['x'], at = m['ed'];
@@ -960,6 +1038,9 @@ class HangoutRoom extends ChangeNotifier {
           // Every vote in the polls it has, after them: an older build has no case for `votes` and passes over it.
           final votes = _votesOf(messages);
           if (votes.isNotEmpty) _say({'t': 'votes', 'to': from, 'v': votes});
+          // And the reactions on what it has: an older build has no case for `reacts` and passes over it.
+          final reacts = reactions.toJson({for (final x in messages) x.id});
+          if (reacts.isNotEmpty) _say({'t': 'reacts', 'to': from, 'r': reacts});
         }
         if (roster.sig != null && (m['v'] is! int || roster.version > (m['v'] as int))) _say({'t': 'roster', 'to': from, 'r': roster.toJson()});
         // The description the same way, after the roster that trusts its writer. An older build's sync? has no `av`

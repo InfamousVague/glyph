@@ -28,6 +28,8 @@ import '../app_state.dart';
 import '../backgrounds.dart';
 import '../sms.dart' show Person;
 import 'circles/circle_face.dart' show SpaceKindBadge, TitleBarMark, spaceKindIcon;
+import '../reactions.dart' show reactionChoices;
+import 'reaction_stickers.dart' show ReactionChips, ReactionPickRow, ReactionStickers;
 import 'circles/circle_welcome.dart' show CircleSystemLine, CircleWelcomeCard, ReadOnlyAdminLine, ReadOnlyFoot;
 import 'circles/new_circle.dart' show circleHueInk;
 import 'circles/members_drawer.dart' show showMembersDrawer;
@@ -1531,9 +1533,21 @@ class _Message extends StatelessWidget {
     final faceGap = mine ? 0.0 : faceSize + t.space(2);
     // Pressed and held: copy it, or delete it at once with a puff (Matt, 2026-11-15: "Don't ask for confirmation when
     // deleting a message and show a poof animation when one is deleted").
+    // Reactions (Matt, 2026-11-20: "add reactions after done to spaces and circles"): the row over the menu, as in a
+    // conversation of texts; in a read-only space too, where only posting is the admins'.
+    final reacted = room.reactionsOn(m);
+    void react(String emoji) {
+      HapticFeedback.selectionClick();
+      room.react(m, emoji);
+    }
+
     void menu() {
       HapticFeedback.mediumImpact();
-      showChoices(context, choices: [
+      final mineSet = {for (final r in reacted) if (r.mine) r.emoji};
+      showChoices(context, header: room.mayReact ? ReactionPickRow(emojis: reactionChoices, mine: mineSet, onPick: (emoji) {
+        Navigator.of(context, rootNavigator: true).pop();
+        react(emoji);
+      }) : null, choices: [
         if (room.canEdit(m) && onEdit != null) Choice('Edit', Lucide.penLine, () => onEdit!.call()),
         if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
         ...translateChoices(context, spaceFacts(m, mine: mine)),
@@ -1541,7 +1555,7 @@ class _Message extends StatelessWidget {
       ]);
     }
 
-    if (flat) return _flat(context, shown, menu);
+    if (flat) return _flat(context, shown, menu, reacted, react);
     final maxWidth = MediaQuery.sizeOf(context).width * 0.72;
     final bubble = ConstrainedBox(
       constraints: BoxConstraints(maxWidth: maxWidth),
@@ -1588,6 +1602,8 @@ class _Message extends StatelessWidget {
     } else {
       body = words;
     }
+    // Stuck on the bubble as stickers, as in a conversation of texts (lib/ui/reaction_stickers.dart).
+    final stuck = reacted.isEmpty ? body : ReactionStickers(key: ValueKey('reactions-${m.id}'), bubble: body, seed: m.id, kinds: [for (final r in reacted) (emoji: r.emoji, count: r.count)], onTap: menu);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -1613,7 +1629,7 @@ class _Message extends StatelessWidget {
               SizedBox(width: t.space(2)),
             ],
             // The words as they came, dimmed, in a card over a translated bubble.
-            Flexible(child: body),
+            Flexible(child: stuck),
           ]),
           if (last)
             Padding(
@@ -1645,7 +1661,7 @@ extension on _Message {
 
   /// The message as a channel's line ([flat]): the face in a gutter by a run's first message, the name in its role's
   /// colour and the time beside it, and the words, files or sticker under them on the page.
-  Widget _flat(BuildContext context, ShownView? shown, VoidCallback menu) {
+  Widget _flat(BuildContext context, ShownView? shown, VoidCallback menu, List<ReactionTally> reacted, ValueChanged<String> react) {
     final t = context.tokens;
     final m = message;
     final mine = m.from == room.me;
@@ -1706,6 +1722,14 @@ extension on _Message {
                   ]),
                 ),
               Align(alignment: Alignment.centerLeft, child: ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: body)),
+              // Its reactions as pills under it, as Discord and Slack show them: pressed, yours goes on or off.
+              if (reacted.isNotEmpty)
+                ReactionChips(
+                  key: ValueKey('reactions-${m.id}'),
+                  kinds: [for (final r in reacted) (emoji: r.emoji, count: r.count, mine: r.mine)],
+                  onToggle: room.mayReact ? react : null,
+                  onAdd: room.mayReact ? menu : null,
+                ),
             ]),
           ),
         ]),

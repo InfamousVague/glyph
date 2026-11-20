@@ -186,4 +186,28 @@ void main() {
     expect(hub.keptIn(room), 1);
     expect(hub.keptIn('ro:$room'), 0);
   });
+
+  test('anyone in a read-only room may react: kept, to everyone, passed on as a reaction; a big one is dropped', () async {
+    final owner = _Install(), member = _Install(), other = _Install();
+    final room = roomOf(owner);
+    for (final i in [owner, member, other]) {
+      await i.connect(url);
+      i.ws.add(jsonEncode({'join': room, 'token': _token, 'ro': anchor(owner)}));
+      await _settle();
+    }
+    say(member, room, Hub.toRoomReaction, [3, 3, 3]);
+    say(member, room, Hub.toRoomReaction, List.filled(Hub.maxReaction + 1, 6));
+    await _settle();
+    expect(hub.keptIn('ro:$room'), 1);
+    for (final i in [owner, other]) {
+      expect(i.frames.length, 1);
+      expect(i.frames.single[0], Hub.toRoomReaction, reason: 'passed on as a reaction, for the app to take as nothing else');
+      expect(i.frames.single.sublist(17, 33), _unhex(member.id));
+    }
+    final later = _Install();
+    await later.connect(url);
+    later.ws.add(jsonEncode({'join': room, 'token': _token, 'ro': anchor(owner)}));
+    await _settle();
+    expect(later.frames.single[0], Hub.toRoomReaction, reason: 'kept for whoever comes later');
+  });
 }
