@@ -29,6 +29,10 @@ abstract interface class PluginEffects {
   Future<void> markRead(int thread);
   Future<void> mute(int thread, bool muted);
   Future<void> deleteThread(int thread);
+
+  /// Takes away the notification Android has shown for [thread], and nothing else: a plugin from another developer's
+  /// mute, one text at a time, never the conversation's lasting one (lib/plugins/pack).
+  Future<void> cancelNotification(int thread);
 }
 
 class SmsEffects implements PluginEffects {
@@ -42,6 +46,9 @@ class SmsEffects implements PluginEffects {
 
   @override
   Future<void> deleteThread(int thread) => Sms.instance.deleteThreads([thread]);
+
+  @override
+  Future<void> cancelNotification(int thread) => Sms.instance.cancelNotification(thread);
 }
 
 /// The conversations that are not archived, by section: which section each one is in, the sections that have any
@@ -70,7 +77,7 @@ class Sorted {
 class ListPlugins {
   ListPlugins({required this.changed, required this.open, required this.refresh, PluginRegistry? registry, this.effects = const SmsEffects()}) : registry = registry ?? PluginRegistry.instance {
     tags = TagStore(this.registry, onTagged: _arrived)..addListener(changed);
-    this.registry.onError ??= (plugin, error) => Sms.instance.devLog('plugin', '${plugin.id}: ${'$error'.split('\n').first}');
+    this.registry.onError ??= logPluginError;
   }
 
   /// TagSet worked out between frames have changed which section some conversation is in: the list is drawn again.
@@ -349,7 +356,7 @@ class ListPlugins {
     if (store == null) return const [];
     return [
       for (final b in registry.actions(Slots.conversationMenu, _place(c), store))
-        Choice(b.action.label, b.action.icon, () => b.action.run(_Host(this, b.plugin, context)), danger: b.action.danger),
+        Choice(b.action.label, b.action.icon, () => runPluginAction(registry, b.plugin, b.action, _Host(this, b.plugin, context)), danger: b.action.danger),
     ];
   }
 
@@ -366,7 +373,7 @@ class ListPlugins {
           // Quiet in the page's faint ink, except on Dial-Up's title bar, where that grey read 2.5:1 on navy and
           // looked disabled: there the bar's own ink, which the button reads inside the band.
           color: b.action.quiet && !isBevelChrome(context.tokens) ? context.tokens.color('app-ink-4') : null,
-          onPressed: () => b.action.run(_Host(this, b.plugin, context)),
+          onPressed: () => runPluginAction(registry, b.plugin, b.action, _Host(this, b.plugin, context)),
         ),
     ];
   }
@@ -405,6 +412,13 @@ class ListPlugins {
           await effects.markRead(facts.thread);
           reread = true;
         case MuteNotification():
+          // A plugin from another developer silences one text at a time: the notification Android has shown for it is
+          // taken away, and nothing else. Never the conversation's lasting mute, which Android obeys while the app is
+          // closed, nor a plugins_muted entry, so the next text notifies unless it too is one the pack silences.
+          if (b.plugin.source != PluginSource.builtIn) {
+            await effects.cancelNotification(facts.thread);
+            break;
+          }
           if (facts.muted || _muted(store).any((m) => m.$1 == facts.thread)) break;
           await effects.mute(facts.thread, true);
           final section = registry.sectionOf(facts, tags, store)?.id ?? Filing.main;

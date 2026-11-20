@@ -7,12 +7,15 @@ library;
 import 'package:flutter/widgets.dart';
 
 import '../app_state.dart';
+import '../sms.dart';
 import 'actions.dart';
 import 'codes.dart';
 import 'cleaner.dart';
 import 'embeds.dart';
 import 'kinds.dart';
 import 'live_captions.dart';
+import 'pack/format.dart' show packMayAct;
+import 'pack/pack_plugin.dart' show PackPlugin;
 import 'quiet.dart';
 import 'record_call.dart';
 import 'scribe.dart';
@@ -209,7 +212,12 @@ class BoundText {
   final PluginPrefs prefs;
 }
 
-class PluginRegistry {
+/// It tells its listeners when a plugin is installed, replaced or uninstalled while the app runs: the packs from the
+/// Marketplace and in development (lib/plugins/pack; Matt, 2026-11-20: "I would like users to be able to develop and
+/// submit their own plugins to our plugin marketplace"), which come and go after the app has started.
+class PluginRegistry with ChangeNotifier {
+  /// Validates [plugins] and throws for a bad id or two of one name: the built-ins' and a test's, which are wrong in
+  /// the code. A plugin that comes later goes through [install], which never throws.
   PluginRegistry(Iterable<GhostPlugin> plugins, {this.onError}) : _entries = [for (final p in plugins) _Entry(p)] {
     final ids = <String>{};
     final sections = <String>{};
@@ -223,15 +231,119 @@ class PluginRegistry {
     }
   }
 
-  /// The app's own: the plugins it ships with. A test puts its own here.
-  static PluginRegistry instance = PluginRegistry(shippedPlugins);
+  /// The app's own: the plugins it ships with. A test puts its own here; the app never puts another here once it has
+  /// started (screens and the API hold this one), and adds packs to it with [install]. Its errors go to the Developer
+  /// log from the start, not only once a list of conversations exists to say where they go.
+  static PluginRegistry instance = PluginRegistry(shippedPlugins, onError: logPluginError);
+
+  /// The ids and section ids of the plugins the app ships with: never replaced or uninstalled, and never a pack's
+  /// (a pack's start with x: lib/plugins/pack/format.dart).
+  static final Set<String> shippedIds = {for (final p in shippedPlugins) p.id};
+  static final Set<String> shippedSectionIds = {for (final p in shippedPlugins) for (final s in p.sections) s.id};
 
   static final _name = RegExp(r'^[a-z0-9]+$');
+
+  // A plugin that comes later is held to more than the constructor's rule: an id no longer than a PluginChatNote may
+  // name (32), and no section called 'other', whose filter choice would be the list's own filter_other.
+  static final _installedName = RegExp(r'^[a-z0-9]{1,32}$');
+  static final _installedSection = RegExp(r'^[a-z0-9]{1,48}$');
 
   final List<_Entry> _entries;
 
   /// Told when a plugin throws while being asked something: which one, and what it threw.
   void Function(GhostPlugin plugin, Object error)? onError;
+
+  final List<void Function(GhostPlugin plugin, Object error)> _errorListeners = [];
+
+  /// Also told what [onError] is told, after it: what keeps a pack's own errors (lib/plugins/pack/installed.dart).
+  void addErrorListener(void Function(GhostPlugin plugin, Object error) listener) => _errorListeners.add(listener);
+  void removeErrorListener(void Function(GhostPlugin plugin, Object error) listener) => _errorListeners.remove(listener);
+
+  /// Says what [plugin] threw to [onError] and to each listener, each on its own: one that throws itself stops none
+  /// of the others, nor whatever was asking the plugin.
+  void _tell(GhostPlugin plugin, Object error) {
+    try {
+      onError?.call(plugin, error);
+    } catch (_) {}
+    for (final listener in List.of(_errorListeners)) {
+      try {
+        listener(plugin, error);
+      } catch (_) {}
+    }
+  }
+
+  int _version = 0;
+
+  /// Goes up on every install, replace and uninstall.
+  int get version => _version;
+
+  /// Adds [plugin] after every plugin here now, and tells listeners. Never throws: null when it is in, else why not:
+  /// 'bad_id' (not ^[a-z0-9]{1,32}$), 'id_taken', 'bad_section' (not ^[a-z0-9]{1,48}$, or 'other'),
+  /// 'section_taken', 'threw' (a getter threw while its lists were read).
+  String? install(GhostPlugin plugin) {
+    final String id;
+    final _Entry entry;
+    try {
+      id = plugin.id;
+      entry = _Entry(plugin);
+    } catch (_) {
+      return 'threw';
+    }
+    if (!_installedName.hasMatch(id)) return 'bad_id';
+    if (_entries.any((e) => e.plugin.id == id)) return 'id_taken';
+    final refused = _sectionsRefused(entry, besides: null);
+    if (refused != null) return refused;
+    _entries.add(entry);
+    _changed();
+    return null;
+  }
+
+  /// Puts [plugin] where the plugin with its id is (an update), keeping its place and so its sections' precedence.
+  /// Never throws: null when done; 'missing', 'built_in' (a shipped id), or install's codes for its sections.
+  String? replace(GhostPlugin plugin) {
+    final String id;
+    final _Entry entry;
+    try {
+      id = plugin.id;
+      entry = _Entry(plugin);
+    } catch (_) {
+      return 'threw';
+    }
+    if (shippedIds.contains(id)) return 'built_in';
+    final at = _entries.indexWhere((e) => e.plugin.id == id);
+    if (at < 0) return 'missing';
+    final refused = _sectionsRefused(entry, besides: _entries[at]);
+    if (refused != null) return refused;
+    _entries[at] = entry;
+    _changed();
+    return null;
+  }
+
+  /// Takes the plugin [id] out and tells listeners; false for a shipped plugin or an id not here.
+  bool uninstall(String id) {
+    if (shippedIds.contains(id)) return false;
+    final at = _entries.indexWhere((e) => e.plugin.id == id);
+    if (at < 0) return false;
+    _entries.removeAt(at);
+    _changed();
+    return true;
+  }
+
+  /// Why [entry]'s sections can't be among the others here ([besides] is the entry it takes the place of), or null.
+  String? _sectionsRefused(_Entry entry, {required _Entry? besides}) {
+    final taken = {for (final e in _entries) if (!identical(e, besides)) for (final s in e.sections) s.id};
+    final own = <String>{};
+    for (final s in entry.sections) {
+      if (!_installedSection.hasMatch(s.id) || s.id == 'other') return 'bad_section';
+      if (taken.contains(s.id) || !own.add(s.id)) return 'section_taken';
+    }
+    return null;
+  }
+
+  void _changed() {
+    _version++;
+    notifyListeners();
+  }
 
   List<GhostPlugin> get plugins => [for (final e in _entries) e.plugin];
 
@@ -293,7 +405,9 @@ class PluginRegistry {
   /// Which plugins are on, as a mark that changes only when one is switched. What the classifiers said of a
   /// conversation holds until it does: they are given none of the person's other choices.
   /// A tuned classifier is told its plugin's choices ([TunedClassifier]): any of them changing is a change here too.
-  String switches(PluginStore store) => '${[for (final e in _entries) isOn(e.plugin, store) ? '1' : '0'].join()}:${store.read(tunedKey) ?? ''}';
+  /// It starts with [version]: a pack replaced by its update (or a reload in development) keeps its place and its
+  /// switch, so without it every conversation would keep the old copy's tags.
+  String switches(PluginStore store) => '$version:${[for (final e in _entries) isOn(e.plugin, store) ? '1' : '0'].join()}:${store.read(tunedKey) ?? ''}';
 
   /// What the text rules' answers are worked out from: which of their plugins are on, and those plugins' own choices.
   /// Not [PluginStore.stamp], which goes up for every plugin's every choice (a conversation filed, Spam's strictness,
@@ -324,7 +438,7 @@ class PluginRegistry {
     try {
       return ask();
     } catch (error) {
-      onError?.call(plugin, error);
+      _tell(plugin, error);
       return otherwise;
     }
   }
@@ -384,7 +498,15 @@ class PluginRegistry {
     if (filed != null) {
       if (filed == Filing.main) return null;
       for (final s in sections) {
-        if (s.id == filed) return s;
+        if (s.id != filed) continue;
+        // Filed into a plugin from another developer's section, it stays only while that plugin may act on the
+        // conversation (lib/plugins/pack/format.dart packMayAct) and isn't paused: one press of its move can never keep
+        // a bank's codes, or a contact's texts, in its tab. Passed over, the sections decide as if it weren't filed;
+        // the filing is kept, and holds again if the facts change back.
+        if (s.plugin.source == PluginSource.builtIn) return s;
+        final plugin = s.plugin;
+        if (packMayAct(facts) && !(plugin is PackPlugin && plugin.paused)) return s;
+        break;
       }
     }
     return _taker(facts, tags, store, sections);
@@ -451,8 +573,9 @@ class PluginRegistry {
             for (final rule in e.text) BoundText(e.plugin, rule, prefsOf(e.plugin, store)),
       ];
 
-  /// Tells [onError] that [plugin] threw while being asked something away from the registry (a text rule's future).
-  void failed(GhostPlugin plugin, Object error) => onError?.call(plugin, error);
+  /// Tells [onError], and each error listener, that [plugin] threw while being asked something away from the registry
+  /// (a text rule's future, a button's run).
+  void failed(GhostPlugin plugin, Object error) => _tell(plugin, error);
 
   // --- (d) messages that have just come -----------------------------------------------------------------------------
 
@@ -474,5 +597,19 @@ class PluginRegistry {
       }
     }
     return out;
+  }
+}
+
+/// The app's own registry's onError: a line in the Developer log, as the list has always written one (Sms.devLog
+/// swallows its own failures).
+void logPluginError(GhostPlugin plugin, Object error) => Sms.instance.devLog('plugin', '${plugin.id}: ${'$error'.split('\n').first}');
+
+/// Runs [action] with [host], telling [registry] (onError and every error listener) what it throws: a plugin's button
+/// never breaks the screen it is on.
+Future<void> runPluginAction(PluginRegistry registry, GhostPlugin plugin, PluginAction action, PluginHost host) async {
+  try {
+    await action.run(host);
+  } catch (error) {
+    registry.failed(plugin, error);
   }
 }

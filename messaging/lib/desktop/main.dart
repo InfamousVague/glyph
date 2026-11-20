@@ -39,6 +39,7 @@ import '../files/files_store.dart';
 import 'gm_web.dart';
 import 'updates.dart';
 import '../people.dart';
+import '../plugins/pack/pack.dart' show InstalledPlugins;
 import 'own_calls.dart';
 import '../friends/buddies.dart';
 import '../me/me.dart';
@@ -160,6 +161,11 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // The updates looked for at the splash, told to the phone's screens too, so its banner and its words are the
   // computer's (remote.dart).
   if (macUpdates != null) calls.attachUpdates(macUpdates);
+  // Plugins from the Marketplace and in development (lib/plugins/pack; Matt, 2026-11-20: "I would like users to be able
+  // to develop and submit their own plugins to our plugin marketplace"), read while the splash shows, from a plugins
+  // folder beside everything else this computer keeps: GHOST_DESK_DIR's when it is set, as the store's is.
+  InstalledPlugins.instance = InstalledPlugins(root: Directory('${store.dir.path}${Platform.pathSeparator}plugins'));
+  await InstalledPlugins.instance.load(state, appVersion: appVersion);
   // Loaded: the window its own size again, and the app in it.
   await leaveSplashWindow();
   runApp(DesktopApp(sheet: sheet, state: state, link: link, calls: calls, store: store, envPeers: envPeers, updates: macUpdates, accents: accents));
