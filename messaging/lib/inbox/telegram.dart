@@ -1111,11 +1111,22 @@ class Telegram extends InboxNetwork {
   @override
   bool get canSendFiles => true;
 
+  /// A message's file asked for, to come down by itself (a picture as it is drawn). Asked again if it has not come
+  /// [_askAgain] later (Matt, 2026-11-20: "some photos and videos are not coming through"): it was asked once a run, so
+  /// one that failed (the network gone a moment) never came until the app was opened again.
   @override
   void wantFile(int fileId) {
-    if (_files.containsKey(fileId) || !_filesAsked.add(fileId)) return;
+    if (_files.containsKey(fileId)) return;
+    final now = DateTime.now();
+    final asked = _filesAskedAt[fileId];
+    if (asked != null && now.difference(asked) < _askAgain) return;
+    _filesAskedAt[fileId] = now;
+    _filesAsked.add(fileId);
     _td?.send({'@type': 'downloadFile', 'file_id': fileId, 'priority': 16, 'offset': 0, 'limit': 0, 'synchronous': false});
   }
+
+  final Map<int, DateTime> _filesAskedAt = {};
+  static const _askAgain = Duration(seconds: 20);
 
   @override
   Future<String?> fileOf(int fileId) async {

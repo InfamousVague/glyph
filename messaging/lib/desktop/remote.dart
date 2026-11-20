@@ -902,12 +902,33 @@ class LinkCalls implements SmsCalls, CapableCalls {
     }
   }
 
+  /// A picture's or video's bytes from the phone, a piece at a time (Matt, 2026-11-20: "some photos and videos are not
+  /// coming through"): two at once at most ([_partsAtOnce]), the rest waiting their turn, since every piece asked of a
+  /// phone that answers on two threads waited behind all the others and a conversation of pictures ran past the 20
+  /// seconds a request is given; and a piece the link drops or is slow with is asked again twice before the picture is
+  /// given up.
   Future<Uint8List?> _part(int id) async {
+    while (_partsGoing >= _partsAtOnce) {
+      final turn = Completer<void>();
+      _partsWaiting.add(turn);
+      await turn.future;
+    }
+    _partsGoing++;
     try {
       final whole = BytesBuilder(copy: false);
       var total = -1;
       while (total < 0 || whole.length < total) {
-        final piece = await link.request('part', {'id': id, 'offset': whole.length});
+        Object? piece;
+        for (var tries = 0;; tries++) {
+          try {
+            piece = await link.request('part', {'id': id, 'offset': whole.length}, const Duration(seconds: 40));
+            break;
+          } on LinkDown {
+            return null;
+          } catch (_) {
+            if (tries >= 2) return null;
+          }
+        }
         if (piece is! Map) return null;
         total = (piece['total'] as num).toInt();
         final data = base64.decode(piece['data'] as String);
@@ -917,8 +938,15 @@ class LinkCalls implements SmsCalls, CapableCalls {
       return whole.takeBytes();
     } catch (_) {
       return null;
+    } finally {
+      _partsGoing--;
+      if (_partsWaiting.isNotEmpty) _partsWaiting.removeAt(0).complete();
     }
   }
+
+  static const _partsAtOnce = 2;
+  int _partsGoing = 0;
+  final List<Completer<void>> _partsWaiting = [];
 
   static String _digits(String address) {
     final d = address.replaceAll(RegExp(r'[^0-9]'), '');

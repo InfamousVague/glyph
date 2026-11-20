@@ -43,7 +43,9 @@ class DeskSessionTest {
         override fun me(what: Map<String, Any?>): Any? { asked.add(what); return mapOf("dir" to "text", "handle" to what["handle"]) }
         override fun buddies(what: Map<String, Any?>): Any? { asked.add(what); return mapOf("list" to emptyList<Any>()) }
         override fun handover(what: Map<String, Any?>): Any? { asked.add(what); return emptyMap<String, Any?>() }
-        override fun part(id: Long): ByteArray? = if (id == 5L) picture else null
+        var video = ByteArray(2000000) { (it % 241).toByte() }
+        var partReads = 0
+        override fun part(id: Long): ByteArray? = when (id) { 5L -> picture; 7L -> video; else -> null }?.also { partReads++ }
         override fun send(addresses: List<String>, body: String): Long { sentTexts += addresses to body; return 7L }
         override fun markRead(thread: Long) { read += thread }
         override fun setFlag(name: String, thread: Long, on: Boolean) {}
@@ -428,6 +430,29 @@ class DeskSessionTest {
         assertEquals("See you at 7", mac.ask("conversation", JSONObject().put("thread", 7)).getJSONObject("r").getString("snippet"))
         assertTrue(mac.ask("conversation", JSONObject().put("thread", 1)).isNull("r"))
         assertEquals(0, mac.ask("archivedCount").getInt("r"))
+    }
+
+    // Matt, 2026-11-20: "some photos and videos are not coming through". A computer fetches every picture a
+    // conversation shows together: the phone kept one, so each piece of two fetched together read its whole file
+    // again, and the computer gave up waiting.
+    @Test
+    fun twoPicturesFetchedTogetherAreEachReadOnce() {
+        val (host, mac) = paired()
+        mac.hello(); mac.ready()
+        val wholes = mapOf(5 to java.io.ByteArrayOutputStream(), 7 to java.io.ByteArrayOutputStream())
+        val totals = mutableMapOf(5 to -1, 7 to -1)
+        while (totals.any { (id, t) -> t < 0 || wholes[id]!!.size() < t }) {
+            for (id in listOf(5, 7)) {
+                val t = totals[id]!!
+                if (t >= 0 && wholes[id]!!.size() >= t) continue
+                val r = mac.ask("part", JSONObject().put("id", id).put("offset", wholes[id]!!.size())).getJSONObject("r")
+                totals[id] = r.getInt("total")
+                wholes[id]!!.write(Base64.getDecoder().decode(r.getString("data")))
+            }
+        }
+        assertArrayEquals(host.phone.picture, wholes[5]!!.toByteArray())
+        assertArrayEquals(host.phone.video, wholes[7]!!.toByteArray())
+        assertEquals(2, host.phone.partReads)
     }
 
     @Test

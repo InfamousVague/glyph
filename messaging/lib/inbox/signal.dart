@@ -728,10 +728,25 @@ class Signal extends InboxNetwork {
   @override
   void wantFile(int fileId) => unawaited(fileOf(fileId));
 
+  /// Files being brought down now, by id: asked for again while one is coming (a picture asks each time it is drawn),
+  /// the one download is waited for.
+  final Map<int, Future<String?>> _fetching = {};
+
+  /// A file's path once it is here (Matt, 2026-11-20: "some photos and videos are not coming through"). Each picture
+  /// asked for its file every time it was drawn, so several downloads of one file ran at once into one path, and a file
+  /// half written already counted as here: the picture stayed broken. Now one download a file, into a file of its own
+  /// that takes the file's name only once whole; and one smaller than Signal says it is (left by that) is fetched again.
   @override
   Future<String?> fileOf(int fileId) async {
     final known = _files[fileId];
     if (known != null) return known;
+    // A block, not an arrow: remove's value is this very future, which whenComplete would wait for, forever.
+    return _fetching[fileId] ??= _fetch(fileId).whenComplete(() {
+      _fetching.remove(fileId);
+    });
+  }
+
+  Future<String?> _fetch(int fileId) async {
     final a = _pointers[fileId];
     if (a == null) return null;
     // One of this account's own, kept on this device as it was sent.
@@ -743,15 +758,27 @@ class Signal extends InboxNetwork {
     if (pointer is! Map || pointer['key'] == null) return null;
     final ext = '${a['name'] ?? ''}'.contains('.') ? '.${'${a['name']}'.split('.').last}' : '';
     final path = '$_dir/files/$fileId$ext';
-    if (File(path).existsSync()) return _files[fileId] = path;
+    final size = (a['size'] as num?)?.toInt() ?? 0;
+    final have = File(path);
+    if (have.existsSync()) {
+      if (size <= 0 || have.lengthSync() >= size) return _files[fileId] = path;
+      try {
+        have.deleteSync();
+      } catch (_) {}
+    }
+    final coming = '$path.part';
     try {
       await Directory('$_dir/files').create(recursive: true);
-      await _ask('download', {'pointer': a['pointer'], 'path': path});
+      await _ask('download', {'pointer': a['pointer'], 'path': coming});
+      await File(coming).rename(path);
       _files[fileId] = path;
       notifyListeners();
       return path;
     } catch (e) {
       _error = '$e';
+      try {
+        File(coming).deleteSync();
+      } catch (_) {}
       return null;
     }
   }
