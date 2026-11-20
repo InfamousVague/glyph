@@ -59,6 +59,7 @@ import 'inbox_signin_teams.dart';
 import 'inbox_signin_google_chat.dart';
 import 'inbox_signin_whatsapp.dart' show WhatsAppLinkScreen;
 import 'inbox_signin_matrix.dart';
+import 'paste_images.dart';
 
 /// The screens of the inbox of other networks (lib/inbox): a chat's row in the list, the chat itself, signing in, and
 /// the sections of Settings for each network.
@@ -240,6 +241,16 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
       await _n.sendFiles(widget.chatId, [file.path]);
     } catch (e) {
       if (mounted) toast(context, 'Couldn\'t send the sticker: $e', tone: GlacierToastTone.danger);
+    }
+  }
+
+  /// A picture pasted into the field (PasteImages), kept as one added with + is.
+  Future<void> _pasted(String path) async {
+    try {
+      final kept = await Sms.instance.cacheCopy(path);
+      if (mounted && _files.length < 10) setState(() => _files.add(kept));
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t add that picture: $e', tone: GlacierToastTone.danger);
     }
   }
 
@@ -554,7 +565,14 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                           child: Stack(children: [
                             if (_text.text.isEmpty)
                               IgnorePointer(child: Text('Message on ${_n.name}', style: style.copyWith(color: t.color('app-ink-3')), strutStyle: strut, textHeightBehavior: composerLeading)),
-                            EditableText(
+                            // A picture pasted on a computer goes with the message, as one added with + does
+                            // (lib/ui/paste_images.dart; Matt, 2026-11-20: "pasting a screenshot into the compose bar
+                            // isn't adding attachements").
+                            PasteImages(
+                              focusNode: _focus,
+                              enabled: files && _files.length < 10,
+                              onImage: _pasted,
+                              child: EditableText(
                               key: _field,
                               controller: _text,
                               focusNode: _focus,
@@ -570,7 +588,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                               onSubmitted: (_) => _send(),
                               onEditingComplete: enterSends ? () {} : null,
                               textCapitalization: TextCapitalization.sentences,
-                            ),
+                            )),
                           ]),
                         ),
                       ),

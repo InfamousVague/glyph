@@ -53,6 +53,7 @@ import 'dialup/bevel.dart' show DialupColors, isDialup;
 import 'message_line.dart';
 import 'jump_to_latest.dart';
 import 'translated_card.dart';
+import 'paste_images.dart';
 
 /// One conversation: its messages oldest at the top, newest by the composer.
 class ThreadScreen extends StatefulWidget {
@@ -584,18 +585,6 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (mounted) setState(() => _sending = false);
       _load();
     }
-  }
-
-  /// A picture on the computer's clipboard (a screenshot, an image copied, an image file copied) is added as one
-  /// chosen with the picker would be; with none, the words on it are pasted as they always were.
-  Future<void> _paste() async {
-    final picture = _attachments.length < 5 ? await MacPlatform.pasteImage() : null;
-    if (!mounted) return;
-    if (picture != null) {
-      setState(() => _attachments.add(picture));
-      return;
-    }
-    _field.currentState?.pasteText(SelectionChangedCause.keyboard);
   }
 
   Future<void> _attach() async {
@@ -1432,14 +1421,13 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                         if (_text.text.isEmpty)
                           IgnorePointer(child: Text(_isGhost ? 'Message' : isMms ? 'Picture message' : (sealed ? 'Encrypted message' : 'Text message'), style: composerText.copyWith(color: t.color('app-ink-3')), strutStyle: composerStrut, textHeightBehavior: _evenLeading)),
                         // On a computer the paste keys bring in a picture on the clipboard first, then words as ever
-                        // (Matt, 2026-11-16: "add the ability to paste images into the chatbar on desktop"). Nearer the
-                        // field than the app's own text shortcuts, so these are the ones used.
-                        Shortcuts(
-                          shortcuts: Sms.remote
-                              ? {SingleActivator(LogicalKeyboardKey.keyV, meta: Platform.isMacOS, control: !Platform.isMacOS): const _PasteIntent()}
-                              : const <ShortcutActivator, Intent>{},
-                          child: Actions(
-                            actions: {_PasteIntent: CallbackAction<_PasteIntent>(onInvoke: (_) => _paste())},
+                        // (Matt, 2026-11-16: "add the ability to paste images into the chatbar on desktop"; on the Mac
+                        // the window catches ⌘V ahead of its Edit menu: lib/ui/paste_images.dart).
+                        PasteImages(
+                          focusNode: _focus,
+                          enabled: Sms.remote && _attachments.length < 5,
+                          onImage: (path) => setState(() => _attachments.add(path)),
+                          child: KeyedSubtree(
                             child: EditableText(
                           key: _field,
                           controller: _text,
@@ -2279,7 +2267,4 @@ class _NotSent implements Exception {
   String toString() => why;
 }
 
-/// The paste keys in the message field on a computer (_ThreadScreenState._paste).
-class _PasteIntent extends Intent {
-  const _PasteIntent();
-}
+

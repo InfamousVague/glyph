@@ -62,6 +62,7 @@ import '../me/pictures.dart';
 import 'mention_field.dart';
 import 'poll_card.dart';
 import 'verified_badge.dart';
+import 'paste_images.dart';
 import 'thread.dart' show LinkedText;
 
 /// A hangout: its chat, who is in it, and its call (Matt, 2026-11-15: "add a chat to hangouts so the whole group can
@@ -1192,7 +1193,13 @@ class _HangoutChatState extends State<HangoutChat> {
                           plus: buttons.plus,
                           ends: buttons.ends,
                           below: buttons.below,
-                          field: ComposerField(controller: _text, focusNode: _focus, hint: 'Message ${room.channel.name}', onSubmitted: _send, enterSends: AppState.of(context).enterSends),
+                          // A picture pasted on a computer goes with the message (lib/ui/paste_images.dart).
+                          field: PasteImages(
+                            focusNode: _focus,
+                            enabled: attach && _editing == null && _picked.length < HangoutMessage.mostFiles,
+                            onImage: (path) => setState(() => _picked.add((path: path, owned: false))),
+                            child: ComposerField(controller: _text, focusNode: _focus, hint: 'Message ${room.channel.name}', onSubmitted: _send, enterSends: AppState.of(context).enterSends),
+                          ),
                         ),
                       ]);
                     })
