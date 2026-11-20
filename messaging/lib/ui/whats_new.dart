@@ -66,6 +66,7 @@ LucideIcon noteIcon(String note) {
 }
 
 final List<(List<String>, LucideIcon)> _noteIcons = [
+  (['developer mode'], Lucide.braces),
   // The docs at gogho.st/docs (Matt, 2026-11-19: "Spend time creating a /docs/ page on ghost messaging").
   (['help and docs', 'gogho.st/docs'], Lucide.bookOpen),
   (['signed', 'publisher'], Lucide.shieldCheck),
