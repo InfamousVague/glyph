@@ -4,6 +4,8 @@
 /// Developer log, so a bad plugin costs its own part and not the list.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../app_state.dart';
@@ -16,6 +18,7 @@ import 'embeds.dart';
 import 'game_activity.dart';
 import 'kinds.dart';
 import 'live_captions.dart';
+import 'networks.dart';
 import 'pack/format.dart' show packMayAct;
 import 'pack/pack_plugin.dart' show PackPlugin;
 import 'quiet.dart';
@@ -36,7 +39,7 @@ import 'watch_together.dart';
 // Kinds before Spam: a text that is plainly political or a debt collector is that, whatever else it shows; the kinds
 // that are shown (deliveries, reminders) leave a text that looks like spam to Spam.
 // Translate last: it adds to a conversation and takes nothing from the list, and is off until it is added.
-const List<GhostPlugin> shippedPlugins = [CodesPlugin(), KindsPlugin(), SpamPlugin(), EmbedsPlugin(), ActionsPlugin(), RepliesPlugin(), QuietPlugin(), StrangersPlugin(), CleanerPlugin(), TranslatePlugin(), RecordCallPlugin(), ScribePlugin(), LiveCaptionsPlugin(), WatchTogetherPlugin(), SoundboardPlugin(), AutoLevelerPlugin(), VoiceChangerPlugin(), GameActivityPlugin()];
+const List<GhostPlugin> shippedPlugins = [CodesPlugin(), KindsPlugin(), SpamPlugin(), EmbedsPlugin(), ActionsPlugin(), RepliesPlugin(), QuietPlugin(), StrangersPlugin(), CleanerPlugin(), TranslatePlugin(), RecordCallPlugin(), ScribePlugin(), LiveCaptionsPlugin(), WatchTogetherPlugin(), SoundboardPlugin(), AutoLevelerPlugin(), VoiceChangerPlugin(), GameActivityPlugin(), ...networkPlugins];
 
 /// The person's choices as the plugins' side reads and writes them: the app's own ([AppStore]), or a map in a test.
 abstract interface class PluginStore {
@@ -360,11 +363,19 @@ class PluginRegistry with ChangeNotifier {
   static String switchKey(GhostPlugin plugin) => 'plugin_${plugin.id}';
 
   bool isOn(GhostPlugin plugin, PluginStore store) {
+    if (plugin is OwnSwitch) return (plugin as OwnSwitch).on;
     final value = store.read(switchKey(plugin));
     return value == null ? plugin.onByDefault : value == 'on';
   }
 
-  void setOn(GhostPlugin plugin, PluginStore store, bool on) => store.write(switchKey(plugin), on ? 'on' : 'off');
+  void setOn(GhostPlugin plugin, PluginStore store, bool on) {
+    if (plugin is OwnSwitch) {
+      // Its own switch, which says so itself once it has moved (Inbox.notifyChange).
+      unawaited((plugin as OwnSwitch).turn(on));
+      return;
+    }
+    store.write(switchKey(plugin), on ? 'on' : 'off');
+  }
 
   /// Whether [plugin] is on where [circleOn] says what a circle has said of it: in a circle's space a plugin a circle
   /// may hold ([PluginScope.circle]) is on as the circle says (null: the circle has said nothing, so off), whatever this
