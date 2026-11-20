@@ -183,12 +183,13 @@ void main() {
         expect(r.top - banner.top, greaterThanOrEqualTo(8), reason: '$what clear of the banner\'s top');
         expect(r.left - banner.left, greaterThanOrEqualTo(8), reason: '$what clear of the banner\'s left');
       }
-      // The arrow's whole round mark, which shows on hover and press, inside the banner with room (Matt, 2026-11-19: "when
-      // hovering the back arrow the hover state goes over the left edge of the banner").
-      expect(back.left - banner.left, greaterThanOrEqualTo(8), reason: 'the back arrow\'s hover mark clear of the banner\'s left');
-      expect(back.top, greaterThanOrEqualTo(banner.top), reason: 'and of its top');
-      expect(back.bottom, lessThanOrEqualTo(banner.bottom), reason: 'and of its foot');
-      expect(back.center.dy, closeTo(face.center.dy, 1), reason: 'the arrow level with the face');
+      // The arrow's whole round mark, which shows on hover and press, inside the banner (Matt, 2026-11-19: "when hovering
+      // the back arrow the hover state goes over the left edge of the banner"), and almost flush with its top-left corner
+      // ("remove the extra padding on the left of the back arrow and some from the top as well so it sits almost flush
+      // when hovered with the border of the background image").
+      expect(back.left - banner.left, inInclusiveRange(1, 4), reason: 'the back arrow\'s hover mark just inside the banner\'s left');
+      expect(back.top - banner.top, inInclusiveRange(1, 4), reason: 'and just inside its top');
+      expect(back.bottom, lessThanOrEqualTo(banner.bottom), reason: 'and inside its foot');
       // The picture drawn, for the eye.
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
       await tester.pump();
