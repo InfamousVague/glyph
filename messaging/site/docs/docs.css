@@ -281,6 +281,10 @@ h1 { font-size: clamp(1.8rem, 1.5rem + 1.2vw, 2.4rem); line-height: 1.15; letter
 }
 .m-row.tap, .m-item.tap, .m-convo.tap, .m-spacerow.tap { outline-offset: -2px; border-radius: .8rem; }
 .m-row.tap::before, .m-item.tap::before, .m-convo.tap::before, .m-spacerow.tap::before { right: .4rem; top: .4rem; }
+/* A row in a card: the card cuts its corners round (overflow: hidden), so the ring goes 4px in, its corners the card's
+   less those 4px, and is never cut off (Matt, 2026-11-19: "highlighted elements border highlight gets clipped"). */
+.m-card > .tap, .m-card .m-row.tap, .m-card .m-convo.tap, .m-card .m-spacerow.tap { outline-offset: -4px; border-radius: 1.1rem; }
+.m-card > .tap::before, .m-card .m-row.tap::before, .m-card .m-convo.tap::before, .m-card .m-spacerow.tap::before { right: .6rem; top: .6rem; }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tap) 55%, transparent); } 70% { box-shadow: 0 0 0 .6rem transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
 @media (prefers-reduced-motion: reduce) { .tap::before { animation: none; } }
 
