@@ -33,6 +33,9 @@ import '../../kit/semantic_colors.dart';
 import '../../kit/settings_kit.dart';
 import '../../kit/settings_type.dart';
 import '../../plugins/plugin.dart' show PluginScope;
+import '../../plugins/soundboard.dart' show SoundboardPlugin;
+import '../../voice/soundboard.dart' show circleSounds, boardCircleMost;
+import '../soundboard_screen.dart';
 import '../../plugins/registry.dart' show PluginRegistry;
 import '../../plugins/record_call.dart' show RecordCallPlugin;
 import '../../files/files_model.dart' show SpaceFile;
@@ -453,6 +456,23 @@ class _SectionBody extends StatelessWidget {
       if (list.any((p) => p.id == 'recordcall')) ...[
         SizedBox(height: context.tokens.space(5)),
         _recordingsTo(context, c, edit),
+      ],
+      // Soundboard's own sounds for the circle (Matt, 2026-11-20: "build a soundboards plugin for circles").
+      if (list.any((p) => p.id == SoundboardPlugin.pluginId)) ...[
+        SizedBox(height: context.tokens.space(5)),
+        PaneSection(
+          title: 'Soundboard',
+          description: Text(edit ? 'Sounds of ${c.name}\'s own, beside the app\'s, for everyone in a call here.' : 'Sounds of ${c.name}\'s own, beside the app\'s. Whoever has Change the circle adds them.'),
+          children: [
+            SettingRow(
+              key: const ValueKey('circle-soundboard'),
+              icon: AppIcon(Lucide.megaphone, size: 18),
+              label: edit ? 'Its sounds' : 'Hear its sounds',
+              value: Text('${circleSounds(c).length} of $boardCircleMost'),
+              onPress: () => push(context, (_) => SoundboardScreen(circle: c)),
+            ),
+          ],
+        ),
       ],
     ];
   }

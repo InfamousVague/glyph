@@ -5,6 +5,8 @@
 /// whether their voice may be in it; until they say yes it is not.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -25,13 +27,59 @@ import 'common.dart';
 import 'video_screen.dart';
 
 /// The red line over a call that is being recorded: who records, whose voices are in it, and this device's answer.
-class RecordingBanner extends StatelessWidget {
+class RecordingBanner extends StatefulWidget {
   const RecordingBanner({super.key});
 
   static const red = Color(0xFFDD3A30);
 
   /// Whether there is anything to show for [s].
   static bool shows(VoiceSession s) => s.recording != null || s.recordingsByOthers.isNotEmpty || CallRecorder.instance.finishing;
+
+  @override
+  State<RecordingBanner> createState() => _RecordingBannerState();
+
+  static Future<void> _stop(BuildContext context) async {
+    final r = await CallRecorder.instance.stop();
+    if (!context.mounted) return;
+    if (r == null) {
+      toast(context, 'The recording couldn\'t be saved');
+      return;
+    }
+    toast(context, 'Recording saved', action: GlacierToastAction(label: 'Open', onPress: () => push(context, (_) => const RecordingsScreen())));
+  }
+}
+
+class _RecordingBannerState extends State<RecordingBanner> {
+  static const red = RecordingBanner.red;
+
+  /// The time said moves on each second while this device records (nothing else says a second has passed).
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    CallRecorder.instance.addListener(_changed);
+    _changed();
+  }
+
+  @override
+  void dispose() {
+    CallRecorder.instance.removeListener(_changed);
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  void _changed() {
+    final on = CallRecorder.instance.since != null;
+    if (on) {
+      _tick ??= Timer.periodic(const Duration(seconds: 1), (_) => mounted ? setState(() {}) : null);
+    } else {
+      _tick?.cancel();
+      _tick = null;
+    }
+  }
+
+  void _stop(BuildContext context) => RecordingBanner._stop(context);
 
   @override
   Widget build(BuildContext context) {
@@ -96,15 +144,6 @@ class RecordingBanner extends StatelessWidget {
     );
   }
 
-  static Future<void> _stop(BuildContext context) async {
-    final r = await CallRecorder.instance.stop();
-    if (!context.mounted) return;
-    if (r == null) {
-      toast(context, 'The recording couldn\'t be saved');
-      return;
-    }
-    toast(context, 'Recording saved', action: GlacierToastAction(label: 'Open', onPress: () => push(context, (_) => const RecordingsScreen())));
-  }
 }
 
 String _clock(Duration d) {

@@ -40,7 +40,11 @@ part 'recording_mixer.dart';
 const _mixKey = '*mix';
 
 class RecordingFloat extends StatefulWidget {
-  const RecordingFloat({super.key, this.recorder});
+  const RecordingFloat({super.key, this.recorder, this.navigator});
+
+  /// The app's navigator, for the page a saved recording opens: this is drawn over every page (the call's own among
+  /// them), so there is none above it. Null where there is one above (a test).
+  final GlobalKey<NavigatorState>? navigator;
 
   /// The recorder followed; the app's own where null (a test gives one standing as it wants).
   final CallRecorder? recorder;
@@ -120,7 +124,7 @@ class _RecordingFloatState extends State<RecordingFloat> {
             right: t.space(3) + pad.right,
             bottom: t.space(3) + pad.bottom,
             height: math.max(height, t.lenOf('17rem')),
-            child: RecordingTimeline(recorder: rec, onClose: () => setState(() => _open = false)),
+            child: RecordingTimeline(recorder: rec, navigator: widget.navigator, onClose: () => setState(() => _open = false)),
           ),
         ]);
       }
@@ -215,7 +219,10 @@ class _RecDotState extends State<_RecDot> with SingleTickerProviderStateMixin {
 
 /// The open panel: a video editor's timeline of the recording.
 class RecordingTimeline extends StatefulWidget {
-  const RecordingTimeline({super.key, required this.recorder, required this.onClose});
+  const RecordingTimeline({super.key, required this.recorder, required this.onClose, this.navigator});
+
+  /// See RecordingFloat.navigator.
+  final GlobalKey<NavigatorState>? navigator;
   final CallRecorder recorder;
   final VoidCallback onClose;
 
@@ -265,7 +272,10 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
     if (r == null) {
       toast(context, 'The recording couldn\'t be saved');
     } else {
-      toast(context, widget.recorder.savedTo ?? 'Recording saved', action: GlacierToastAction(label: 'Open', onPress: () => push(context, (_) => const RecordingsScreen())));
+      toast(context, widget.recorder.savedTo ?? 'Recording saved', action: GlacierToastAction(label: 'Open', onPress: () {
+            final nav = widget.navigator?.currentState ?? Navigator.maybeOf(context);
+            if (nav != null) pushOn(nav, nav.context, (_) => const RecordingsScreen());
+          }));
     }
   }
 

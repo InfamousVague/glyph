@@ -1,7 +1,7 @@
 name: ghost_messaging
 description: "Ghost Messaging: an SMS and MMS app for Android, drawn with Glacier (Ghost.md's UI kit)."
 publish_to: 'none'
-version: 0.10.7+118
+version: 0.10.8+119
 
 environment:
   sdk: ^3.11.0
@@ -62,6 +62,8 @@ flutter:
     - assets/art/
     # The interface sounds, made by tool/ui_sounds.py (lib/sounds.dart).
     - assets/sounds/
+    # The Soundboard plugin's own sounds (tool/soundboard_sounds.py; lib/voice/soundboard.dart).
+    - assets/soundboard/
     # Every emoji with its names, keywords and skin tones, for the app's own picker (lib/emoji_data.dart; emojibase,
     # MIT, assets/emoji/LICENSE-emojibase).
     - assets/emoji/emoji.tsv

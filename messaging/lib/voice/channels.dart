@@ -22,6 +22,7 @@ import 'captions.dart';
 import 'hangout.dart';
 import 'mention_alerts.dart';
 import 'roles.dart';
+import 'soundboard.dart';
 import 'watch_together.dart';
 import 'rtc.dart';
 import 'voice.dart';
@@ -910,6 +911,8 @@ class Voice extends ChangeNotifier {
       CallCaptions.instance.follow();
       // And what the call watches together (watch_together.dart).
       WatchTogether.instance.follow();
+      // And its soundboard (soundboard.dart).
+      Soundboard.instance.follow();
     } catch (e) {
       await leave();
       rethrow;
@@ -942,6 +945,7 @@ class Voice extends ChangeNotifier {
     session = null;
     CallCaptions.instance.follow();
     WatchTogether.instance.follow();
+    Soundboard.instance.follow();
     Sounds.instance.stopLoop(UiSound.ringOut);
     media = null;
     if (s != null) unawaited(Sms.instance.callEnded());
