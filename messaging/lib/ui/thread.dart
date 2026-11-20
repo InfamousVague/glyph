@@ -32,6 +32,7 @@ import '../standalone/chats.dart' show UsernameChats;
 import '../stickers.dart';
 import 'chat_settings.dart';
 import 'common.dart';
+import 'emoji_picker.dart';
 import 'mention_field.dart' show mentionStyle;
 import 'profile_card.dart';
 import 'composer_box.dart';
@@ -1478,10 +1479,10 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               onRecord: Sms.can('sendVoice') && reach && !_sending && _attachments.isEmpty ? _record : null,
               onSend: canSend ? _send : null,
               emoji: Sms.remote,
-              onEmoji: () {
-                _focus.requestFocus();
-                _field.currentState?.requestKeyboard();
-                Sms.instance.emojiPanel().catchError((_) {});
+              // The app's own picker (lib/ui/emoji_picker.dart), into the box where the cursor is.
+              onEmoji: () async {
+                await showEmojiPicker(context, onPick: (e) => insertEmoji(_text, e));
+                if (mounted) _focus.requestFocus();
               },
               send: editing ? IconTap(key: const ValueKey('composer-send'), icon: Lucide.check, label: 'Save edit', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _saveEdit : null) : null,
             );

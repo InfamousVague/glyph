@@ -1,0 +1,50 @@
+<p>A chat-and-voice space has a call that's always open, like a voice channel: hop in, talk, hop out. Sound goes straight between the people in it, sealed end to end, at high quality.</p>
+
+<h2 id="join">Join a call</h2>
+<p>Open a chat-and-voice space and tap <b>Join voice</b>. Who's already in it shows above. On a phone, a space with people talking opens straight on its call.</p>
+<m-screen title="Lounge" back actions="shield-check">
+  <m-row-raw><span class="m-avatar" data-hue="rose">MC</span><span class="m-avatar" data-hue="blue">JO</span><span class="m-txt"><b>Maya and Jo</b><small>In voice</small></span></m-row-raw>
+  <m-btn kind="primary" icon="headphones" tap>Join voice</m-btn>
+</m-screen>
+
+<h2 id="controls">In the call</h2>
+<m-screen title="Lounge" caption="The call's controls.">
+  <m-row-raw><span class="m-avatar" data-hue="rose">MC</span><span class="m-avatar" data-hue="blue">JO</span><span class="m-avatar" data-hue="green">YOU</span></m-row-raw>
+  <m-row-raw><m-btn kind="secondary" icon="mic">Mute</m-btn><m-btn kind="secondary" icon="headphones">Deafen</m-btn><m-btn kind="secondary" icon="video"></m-btn><m-btn kind="danger" icon="phone-off">Leave</m-btn></m-row-raw>
+</m-screen>
+<table>
+  <tr><th>Control</th><th>Does</th></tr>
+  <tr><td>Mute</td><td>Stops your microphone.</td></tr>
+  <tr><td>Deafen</td><td>Hear nobody, and say nothing. <b>Hear again</b> undoes it.</td></tr>
+  <tr><td>Camera</td><td>Turns your video on or off.</td></tr>
+  <tr><td>Leave</td><td>Leaves the call. The space and its chat stay.</td></tr>
+</table>
+<p>While you're in a call and look at something else, a small bubble of faces floats on top; tap it to go back.</p>
+
+<h2 id="people">Each person's volume</h2>
+<p>Press and hold someone in the call:</p>
+<m-screen>
+  <m-menu title="Jo">
+    <m-item icon="volume-x" hint="Only you stop hearing them" tap>Mute for me</m-item>
+    <m-item icon="volume-2" hint="0 to 200%">Volume for Jo</m-item>
+    <m-item icon="user-plus">Add as a friend</m-item>
+    <m-item icon="copy">Copy name</m-item>
+  </m-menu>
+</m-screen>
+<p>A moderator also sees <b>Mute for everyone</b>, and can put someone out of the space if their role allows it.</p>
+
+<h2 id="sound">Sound settings</h2>
+<p><ui>Settings › Voice and video</ui> has your microphone and speaker, the sound's quality, stereo, music mode (for playing an instrument), and noise removal (RNNoise or DeepFilterNet), which cleans background noise off your voice before it's sent. The call's menu has <b>Voice settings…</b> too.</p>
+
+<h2 id="guests">Guests from a browser</h2>
+<p>Someone without the app can join a space's call from a browser. Copy the space's link from its menu (<b>Invite people</b>) and send it. They open it, choose their microphone and camera, and tap <b>Join</b> as a guest, or sign up with a username kept in that browser.</p>
+<m-screen title="gogho.st/join" wide caption="The browser page a space's link opens.">
+  <m-p>Join Lounge</m-p>
+  <m-field label="Your name" value="Riley"/>
+  <m-row-raw><m-btn kind="secondary" icon="mic">Microphone</m-btn><m-btn kind="secondary" icon="video">Camera</m-btn></m-row-raw>
+  <m-btn kind="primary" tap>Join</m-btn>
+</m-screen>
+<note kind="info" title="Strict networks"><p>Calls go directly between people. On some workplace or school networks that block this, a browser guest (or the app) may not connect.</p></note>
+
+<h2 id="extras">With plugins</h2>
+<p>Add <a href="/docs/record-call/">Record call</a>, <a href="/docs/live-captions/">Live captions</a> or <a href="/docs/watch-together/">Watch together</a> for more in calls. They show in the call's menu, and Record call puts its button in the space's header.</p>

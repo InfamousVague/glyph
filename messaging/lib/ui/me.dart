@@ -190,7 +190,7 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
     if (Sms.followsPhone)
       SettingsCallout(child: Text(me.ready ? 'Accounts are linked on your phone. Your number can be verified from here: the code is texted to your phone.' : me.phoneSaid ?? 'Asking your phone…'))
     else if (!me.ready)
-      SettingsCallout(child: Text(me.reachable ? 'Asking the relay server…' : 'Linking an account needs the relay server, which isn\'t connected right now (Settings › Network).')),
+      SettingsCallout(child: Text(me.reachable ? 'Asking the relay server…' : 'Linking an account needs the relay server, which isn\'t connected right now (Settings › Routes).')),
     PaneSection(
       title: 'Linked accounts',
       description: const Text('Show that an account is yours. Friends who asked to hear about that account are then told you\'re on Ghost Messaging, if you turn that on below.'),
@@ -434,7 +434,7 @@ class _NumberScreenState extends State<NumberScreen> {
                         : SettingRow(
                             icon: _icon(Lucide.messageSquare),
                             label: 'Text me a code',
-                            hint: Text(Me.instance.ready ? 'Verifying a number by text isn\'t set up on the relay server yet.' : 'This needs the relay server, which isn\'t connected right now (Settings › Network).'),
+                            hint: Text(Me.instance.ready ? 'Verifying a number by text isn\'t set up on the relay server yet.' : 'This needs the relay server, which isn\'t connected right now (Settings › Routes).'),
                             disabled: true,
                           ),
                 ],

@@ -35,6 +35,7 @@ import '../plugins/plugin.dart' show MessageFacts;
 import '../plugins/registry.dart' show AppStore, PluginRegistry;
 import 'common.dart';
 import 'picture_overlay.dart';
+import 'emoji_picker.dart';
 import 'mention_field.dart' show mentionStyle;
 import 'profile_card.dart';
 import 'composer_box.dart';
@@ -515,10 +516,10 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                   onRecord: voice && _files.isEmpty ? _record : null,
                   onSend: canSend ? _send : null,
                   emoji: Sms.remote,
-                  onEmoji: () {
-                    _focus.requestFocus();
-                    _keys();
-                    Sms.instance.emojiPanel().catchError((_) {});
+                  // The app's own picker (lib/ui/emoji_picker.dart), into the box where the cursor is.
+                  onEmoji: () async {
+                    await showEmojiPicker(context, onPick: (e) => insertEmoji(_text, e));
+                    if (mounted) _focus.requestFocus();
                   },
                 );
                 return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [

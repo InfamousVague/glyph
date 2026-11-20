@@ -277,6 +277,15 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
+  void _openBlocked() {
+    final shell = AppShell.maybeOf(context);
+    if (shell != null) {
+      shell.show(BlockedScreen(onBack: shell.contacts), showing: 'contacts');
+    } else {
+      push<void>(context, (_) => const BlockedScreen());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
@@ -294,6 +303,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
             Expanded(child: GlacierSearchField(placeholder: 'Search contacts', size: GlacierFieldSize.md, onValueChange: _typed)),
             // On a computer too, through its phone (Matt, 2026-11-18: "I don't see the ability to add friends on desktop").
             ...[SizedBox(width: t.space(2)), const AddFriendButton()],
+            // Blocked, to the right of Add (Matt, 2026-11-19: "move blocked to the right of the add friend button
+            // instead of making it it's whole own rown"): everyone blocked, numbers and Telegram and Signal people
+            // alike (lib/ui/blocking.dart).
+            SizedBox(width: t.space(2)),
+            _RoundButton(key: const ValueKey('contacts-blocked'), icon: Lucide.ban, label: 'Blocked', onPressed: _openBlocked),
           ]),
         ),
         // A filter for each linked network with contacts, beside All, Friends and Phone; none until a network is linked
@@ -308,23 +322,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
             return shown ? _filters(t, networks) : const SizedBox.shrink();
           },
         ),
-        // Everyone blocked, numbers and Telegram and Signal people alike (lib/ui/blocking.dart; Matt, 2026-11-17: "Also
-        // add a block list to our address book pages"). Under All alone: the blocked are not friends, nor anyone on one
-        // network, so under a filter it would head a list it is not part of.
-        if (_query.isEmpty && _filter == 'all')
-          _ActionRow(
-            icon: Lucide.ban,
-            label: 'Blocked',
-            hint: 'Numbers, and people on Telegram and Signal',
-            onPressed: () {
-              final shell = AppShell.maybeOf(context);
-              if (shell != null) {
-                shell.show(BlockedScreen(onBack: shell.contacts), showing: 'contacts');
-              } else {
-                push<void>(context, (_) => const BlockedScreen());
-              }
-            },
-          ),
         // New group is not here: it is under the + of the list (Matt, 2026-11-17: "remove the new group from the
         // contacts page since it's already under the plus button").
         Expanded(
@@ -445,40 +442,25 @@ class _Row {
 }
 
 
-/// A line at the head of the contacts that opens something of its own (Blocked): a round icon, its name, a line under.
-class _ActionRow extends StatelessWidget {
-  const _ActionRow({required this.icon, required this.label, required this.hint, required this.onPressed});
+class _RoundButton extends StatelessWidget {
+  const _RoundButton({super.key, required this.icon, required this.label, required this.onPressed});
   final LucideIcon icon;
   final String label;
-  final String hint;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final size = t.lenOf('2.5rem');
     return GlacierPressable(
       onPressed: onPressed,
       semanticLabel: label,
-      builder: (context, state) => ColoredBox(
-        color: state.pressed || state.hovered ? t.color('app-paper-2') : const Color(0x00000000),
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(2) + 2),
-          child: Row(children: [
-            Container(
-              width: t.lenOf('2.5rem'),
-              height: t.lenOf('2.5rem'),
-              decoration: BoxDecoration(shape: BoxShape.circle, color: t.color('app-paper-3')),
-              child: Center(child: AppIcon(icon, size: 18, color: t.color('app-ink'))),
-            ),
-            SizedBox(width: t.space(3)),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(label, style: pageText(t, t.fontSize('md'), weight: 'medium')),
-                Text(hint, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
-              ]),
-            ),
-          ]),
-        ),
+      builder: (context, state) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2')),
+        alignment: Alignment.center,
+        child: AppIcon(icon, size: 18, color: t.color('app-ink')),
       ),
     );
   }

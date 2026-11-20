@@ -322,6 +322,7 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
     };
     return GhostPage(
       title: 'Pair a computer',
+      actions: [docsButton('pairing')],
       body: ListView(
         padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,

@@ -25,7 +25,7 @@ export function answer({ sub, guildId, canManage }, { codes, store }) {
   if ((sub === 'link' || sub === 'unlink') && !canManage) return 'Only members who can Manage Server can do that.';
   if (sub === 'link') {
     const code = codes.issue(guildId);
-    return `Your code is ${code}. In Ghost Messaging open Spaces › Add a Discord server and enter it. It works once, for 10 minutes.`;
+    return `Your code is ${code}. In Ghost Messaging tap New › Add a Discord server and enter it. It works once, for 10 minutes.`;
   }
   if (sub === 'unlink') {
     const n = store.revokeGuild(guildId);

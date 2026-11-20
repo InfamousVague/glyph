@@ -1,0 +1,53 @@
+<p>Ghost Messaging has an API: every part of the app, from your conversations to its screens, as methods you can call from a script or another program. It's off until you turn it on, and only someone with your token or connection string can use it.</p>
+
+<h2 id="on">Turn it on</h2>
+<steps>
+<step title="Developer mode">
+<p>On your phone: <ui>Settings › Developer</ui>, switch on <b>Developer mode</b>. A new section appears: <ui>Settings › API</ui>.</p>
+</step>
+<step title="Choose how to reach it">
+<m-screen title="API" back>
+  <m-section title="On this phone">
+    <m-row label="Serve the API" hint="Over HTTP, with a token" switch="on" tap/>
+    <m-row label="Allow from Wi-Fi" hint="Served on the phone's address on your network too" switch="off"/>
+    <m-row icon="copy" hue="slate" label="Copy the token" chev/>
+  </m-section>
+  <m-section title="From anywhere">
+    <m-row label="Through the relay" switch="off"/>
+    <m-row icon="copy" hue="slate" label="Copy the connection string" chev/>
+  </m-section>
+</m-screen>
+<ul>
+  <li><b>Serve the API</b>: over HTTP on the phone. From a computer by USB: <code>adb forward tcp:8765 tcp:8765</code>, then call <code>http://localhost:8765</code>. <b>Allow from Wi-Fi</b> serves it on your network too.</li>
+  <li><b>Through the relay</b>: from anywhere. The connection string (<code>ghostapi1:…</code>) holds the key every call is sealed with; the relay passes calls along without being able to read them. Keep it as you would a password.</li>
+</ul>
+</step>
+</steps>
+
+<h2 id="call">Call a method</h2>
+<p>Over HTTP, <code>POST /api/&lt;method&gt;</code> with the parameters as a JSON body and your token:</p>
+<pre><code>curl -s http://localhost:8765/api/conversations.list \
+  -H 'Authorization: Bearer &lt;token&gt;' \
+  -d '{"limit": 5}'</code></pre>
+<p>Or with the command-line client in the app's repository (<code>tool/ghost-api.mjs</code>):</p>
+<pre><code>node tool/ghost-api.mjs --token &lt;token&gt; app.info
+node tool/ghost-api.mjs --remote ghostapi1:&lt;secret&gt; networks.chats '{"network": "telegram"}'</code></pre>
+<p>With no method it lists them all; <code>--doc &lt;method&gt;</code> shows one's documentation.</p>
+
+<h2 id="methods">The methods</h2>
+<p><ui>Settings › API › Methods</ui> documents each one, with what it takes and answers and a place to try it. Those marked ⚠ change or remove something, and ask before running there.</p>
+<table>
+  <tr><th>Group</th><th>Methods</th></tr>
+  <tr><td>app</td><td><code>info</code>, <code>log</code>, <code>update</code></td></tr>
+  <tr><td>conversations</td><td><code>list</code>, <code>get</code>, <code>messages</code>, <code>threadFor</code>, <code>markRead</code>, <code>archive</code>, <code>rename</code>, <code>draft</code>, <code>delete</code></td></tr>
+  <tr><td>messages</td><td><code>send</code>, <code>delete</code></td></tr>
+  <tr><td>contacts, presence</td><td><code>contacts.get</code>, <code>presence.get</code></td></tr>
+  <tr><td>plugins, filters</td><td><code>plugins.list</code>, <code>plugins.set</code>, <code>plugins.pref</code>, <code>filters.classify</code></td></tr>
+  <tr><td>networks</td><td><code>list</code>, <code>chats</code>, <code>messages</code>, <code>send</code>, <code>reply</code>, <code>react</code>, <code>markRead</code>, <code>group</code>, <code>changeGroup</code></td></tr>
+  <tr><td>friends, net</td><td><code>friends.list</code>, <code>net.status</code></td></tr>
+  <tr><td>ui</td><td><code>openConversation</code>, <code>openChat</code>, <code>openSettings</code>, <code>compose</code>, <code>home</code>, <code>toast</code></td></tr>
+</table>
+<p><b>Recent calls</b> on the API page shows the last calls made, from where and how long they took. <b>Make a new token</b> or <b>Make a new connection string</b> shuts out whoever had the old one.</p>
+
+<h2 id="source">The source</h2>
+<p>Ghost Messaging is open source (AGPL-3.0): <a href="https://github.com/InfamousVague/ghost-messaging">github.com/InfamousVague/ghost-messaging</a>.</p>

@@ -8,3 +8,8 @@
 | `OpenMoji.ttf` | OpenMoji (COLRv0) | github.com/hfg-gmuend/openmoji, `font/OpenMoji-color-glyf_colr_0` | CC BY-SA 4.0 (`OPENMOJI_LICENSE.txt`): "All emojis designed by OpenMoji – the open-source emoji and icon project." |
 
 "This phone's" is no file: the emoji Android itself draws (Samsung's on a Galaxy, Noto on a Pixel).
+
+## emoji.tsv (the emoji picker's list)
+
+Every emoji's name, keywords, skin tones and shortcodes, from emojibase-data (MIT, Copyright (c) 2017-2019 Miles
+Johnson): LICENSE-emojibase beside it. Made for Ghost Keyboard's emoji plugin and used here by lib/emoji_data.dart.

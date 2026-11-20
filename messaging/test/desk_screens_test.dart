@@ -334,7 +334,7 @@ void main() {
       for (final label in ['Your phone', 'Me', 'Appearance', 'Chat background', 'Emoji', 'Effects', 'Messages', 'Plugins', 'Encryption', 'Blocked', 'Archived', 'Kept on this Mac', 'About']) {
         expect(find.text(label), findsWidgets, reason: '$label is a section of a computer\'s Settings');
       }
-      for (final label in ['Your number', 'Android', 'Notifications', 'Receipts', 'Computers', 'Ghost Keyboard', 'Network', 'Developer']) {
+      for (final label in ['Your number', 'Android', 'Notifications', 'Receipts', 'Computers', 'Ghost Keyboard', 'Routes', 'Developer']) {
         expect(find.text(label), findsNothing, reason: '$label is the phone\'s alone');
       }
       // The phone's section beside the list: the phone, how the two connect, and unpairing.
