@@ -28,6 +28,7 @@ const List<ReleaseNotes> changelog = [
     'Icons: every icon is Phosphor\'s now, in duotone, in the app and the docs.',
     'Share feedback is in the rail now, just above Settings, on a phone.',
     'Friends: a friend request that didn\'t arrive is sent again until it\'s answered.',
+    'Souls: the flame is a soul\'s ghostly white-green now.',
   ]),
   ReleaseNotes('0.9.37', '2026-11-20', [
     'Souls: points with a flame beside Share feedback, a thank-you for reporting bugs. They can\'t be spent yet. Tap them to see yours and your badges.',
