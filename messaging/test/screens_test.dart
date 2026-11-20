@@ -809,7 +809,7 @@ void main() {
       await _shoot(tester, sheet, const SettingsScreen(), '5-settings', dark: dark);
       await tester.enterText(find.byType(EditableText).first, 'read');
       await _shootAgain(tester, '5-settings-search', dark: dark);
-      for (final id in ['appearance', 'encryption', 'notifications', 'effects', 'keyboard', 'android', 'updates', 'computers', 'developer']) {
+      for (final id in ['appearance', 'encryption', 'notifications', 'effects', 'keyboard', 'shortcuts', 'android', 'updates', 'computers', 'developer']) {
         await _shoot(tester, sheet, SettingsSectionScreen(id), '5-settings-$id', dark: dark);
       }
       // Settings › Me and Friends joining: the number verified by a code texted to it, two accounts linked, X's
@@ -2085,6 +2085,28 @@ void main() {
         expect(ring(id), findsOneWidget, reason: 'the pill has $id');
       }
       expect(shown(), 'messages');
+      // The keyboard's commands go where they say, from anywhere in the frame (lib/keys.dart; Matt, 2026-11-20: "add
+      // push to talk and full keyboard commands with a keyboard shortcuts setting in settings").
+      if (!dark) {
+        final primary = Platform.isMacOS ? LogicalKeyboardKey.metaLeft : LogicalKeyboardKey.controlLeft;
+        Future<void> keys(LogicalKeyboardKey key) async {
+          await tester.sendKeyDownEvent(primary);
+          await tester.sendKeyEvent(key);
+          await tester.sendKeyUpEvent(primary);
+          await _settle(tester);
+        }
+
+        await keys(LogicalKeyboardKey.digit2);
+        expect(shown(), 'contacts');
+        await keys(LogicalKeyboardKey.digit3);
+        expect(shown(), 'archive');
+        await keys(LogicalKeyboardKey.digit1);
+        expect(shown(), 'messages');
+        await keys(LogicalKeyboardKey.slash);
+        expect(find.text('Push to talk'), findsWidgets, reason: 'the shortcuts page itself');
+        await keys(LogicalKeyboardKey.digit1);
+        expect(shown(), 'messages');
+      }
       expect(tester.widget<NavPill>(find.byType(NavPill)).items.firstWhere((i) => i.id == 'archive').count, 1);
       expect(icon('New'), findsNothing, reason: 'the header holds nothing the pill does');
       expect(tester.getTopRight(find.byType(ConversationsScreen)).dx, side);

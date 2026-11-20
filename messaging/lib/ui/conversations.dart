@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../keys.dart';
 import '../app_state.dart';
 import '../art/app_icon.dart';
 import '../art/ghost_icons.dart';
@@ -1353,6 +1354,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                 padding: EdgeInsets.fromLTRB(t.space(2), dialup ? t.space(2) : 0, t.space(2), t.space(2)),
                 child: Builder(builder: (context) {
                   final field = GlacierSearchField(
+                    // Where the Search command puts the cursor (lib/keys.dart): the conversations' own, not the archive's.
+                    focusNode: widget.archived ? null : Keys.searchFocus,
                     placeholder: widget.archived ? 'Search archived' : 'Search messages',
                     size: GlacierFieldSize.md,
                     onValueChange: (v) => setState(() => _query = v),

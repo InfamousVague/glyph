@@ -426,9 +426,10 @@ class VoiceSession extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setMuted(bool on) {
+  /// [quiet]: no sound for it, as push to talk's own pressing and letting go are (lib/keys.dart).
+  void setMuted(bool on, {bool quiet = false}) {
     if (!on && locked) return;
-    if (on != muted) Sounds.instance.play(on ? UiSound.mute : UiSound.unmute);
+    if (on != muted && !quiet) Sounds.instance.play(on ? UiSound.mute : UiSound.unmute);
     muted = on;
     media.muted = on || deafened;
     _sayState();

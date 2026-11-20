@@ -45,6 +45,7 @@ import 'encryption.dart';
 import 'me.dart';
 import 'network.dart';
 import 'settings.dart';
+import 'settings_shortcuts.dart';
 import 'nav_style.dart';
 import 'space_designs/space_design.dart';
 import '../summaries.dart';
@@ -142,6 +143,15 @@ List<SettingsSection> _ownSections() => [
     group: 'look',
     summary: (m) => m.app.effects ? 'On · ${ScreenEffect.values.length} effects' : 'Off',
     page: _effects,
+  ),
+  SettingsSection(
+    id: 'shortcuts',
+    label: 'Keyboard shortcuts',
+    icon: _icon(LucideMore.keyboard),
+    hue: 'slate',
+    group: 'look',
+    summary: shortcutsSummary,
+    page: shortcutsPane,
   ),
   SettingsSection(
     id: 'sounds',

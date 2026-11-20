@@ -41,6 +41,7 @@ import 'voice/mention_alerts.dart';
 import 'voice/discord.dart';
 import 'voice/space_groups.dart';
 import 'sounds.dart';
+import 'keys.dart';
 import 'sms.dart';
 import 'ui/circles/circle_invite_card.dart' show openCircleLink;
 import 'ui/common.dart' show toast;
@@ -296,6 +297,8 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       final app = AppState.of(context);
       // The interface sounds (lib/sounds.dart) read the person's choices from here.
       Sounds.instance.start(app);
+      // The keyboard's commands and push to talk (lib/keys.dart).
+      Keys.instance.start(app);
       // The app's own network, friends, groups, voice and circles, and friends by username (lib/people.dart).
       startPeople(app);
       // Files spaces' files (lib/files/files_store.dart): what was going up when the app closed goes on, and files
