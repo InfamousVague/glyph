@@ -24,6 +24,7 @@ class ReleaseNotes {
 
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.9.37', '2026-11-20', [
+    'Developer mode: tap Version in Settings › About twelve times to turn it on, on the phone or a computer. Settings › Developer stays hidden until then.',
     'Souls: points with a flame beside Share feedback, a thank-you for reporting bugs. They can\'t be spent yet. Tap them to see yours and your badges.',
     'Badges: some people have a badge or two beside their name, like Bug hunter or Alpha tester.',
     'Circles: a circle\'s picture fills its round in the rail, with no edge of colour round it.',
