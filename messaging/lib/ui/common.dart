@@ -820,9 +820,13 @@ String dayHeading(DateTime d, [DateTime? now]) {
 
 /// Opens a page from the right, as Ghost Keyboard's settings pages do. Under Dial-Up it simply appears, as the era's
 /// windows did.
-Future<T?> push<T>(BuildContext context, WidgetBuilder builder) {
+Future<T?> push<T>(BuildContext context, WidgetBuilder builder) => pushOn<T>(Navigator.of(context), context, builder);
+
+/// [push], on [navigator]: for what is drawn over the app's pages and so has no navigator above it (the recording's
+/// pill, lib/ui/recording_float.dart). [context] is only asked for the look.
+Future<T?> pushOn<T>(NavigatorState navigator, BuildContext context, WidgetBuilder builder) {
   final still = isBevelChrome(context.tokens);
-  return Navigator.of(context).push<T>(
+  return navigator.push<T>(
       PageRouteBuilder<T>(
         transitionDuration: still ? Duration.zero : const Duration(milliseconds: 260),
         reverseTransitionDuration: still ? Duration.zero : const Duration(milliseconds: 220),
