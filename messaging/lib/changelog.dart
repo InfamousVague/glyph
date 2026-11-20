@@ -23,8 +23,13 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
-  ReleaseNotes('0.9.37', '2026-11-20', [
+  ReleaseNotes('0.9.38', '2026-11-20', [
     'Developer mode: tap Version in Settings › About twelve times to turn it on, on the phone or a computer. Settings › Developer stays hidden until then.',
+    'Icons: every icon is Phosphor\'s now, in duotone, in the app and the docs.',
+    'Share feedback is in the rail now, just above Settings, on a phone.',
+    'Friends: a friend request that didn\'t arrive is sent again until it\'s answered.',
+  ]),
+  ReleaseNotes('0.9.37', '2026-11-20', [
     'Souls: points with a flame beside Share feedback, a thank-you for reporting bugs. They can\'t be spent yet. Tap them to see yours and your badges.',
     'Badges: some people have a badge or two beside their name, like Bug hunter or Alpha tester.',
     'Circles: a circle\'s picture fills its round in the rail, with no edge of colour round it.',
