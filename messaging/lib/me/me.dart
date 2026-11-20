@@ -301,7 +301,8 @@ class Me extends ChangeNotifier {
     _hubNow = hub;
     _needHub = needHub;
     _read();
-    if (_inUse) _needHub?.call(true);
+    // Woken before it started (the first page, lib/standalone/welcome.dart, drawn the moment the walkthrough ends).
+    if (_inUse || _woken) _needHub?.call(true);
     routes.addListener(_attach);
     _attach();
     notifyListeners();

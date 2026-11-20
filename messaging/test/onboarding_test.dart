@@ -54,59 +54,51 @@ void main() {
     }
   }
 
-  testWidgets('each page says its words, the voice stops between pages, and switched off it stays off', (tester) async {
+  testWidgets('the texts page says its words, and switched off the voice stays off', (tester) async {
     final app = await open(tester);
-    expect(played, ['assets/onboarding/welcome.mp3']);
-    await tester.tap(find.byKey(const ValueKey('guide-next')));
-    await settle(tester);
-    expect(played.sublist(1), ['stop', 'assets/onboarding/texts.mp3']);
+    expect(played, ['assets/onboarding/texts.mp3']);
     played.clear();
     await tester.tap(find.byKey(const ValueKey('guide-voice')));
     await settle(tester);
     expect(played, ['stop']);
     expect(app.flag('guide_voice'), isFalse, reason: 'kept, as Ghost.md keeps its own');
     expect(find.text('Voice off'), findsOneWidget);
-    played.clear();
-    await tester.tap(find.byKey(const ValueKey('guide-next')));
-    await settle(tester);
-    expect(played, ['stop'], reason: 'nothing said with the voice off');
-    await tester.tap(find.byKey(const ValueKey('guide-voice')));
-    await settle(tester);
-    expect(played.last, 'assets/onboarding/together.mp3', reason: 'switched back on, the page is said');
   });
 
-  testWidgets('before Ghost can send texts there is no Skip and Next stops at the texts page', (tester) async {
+  // Matt, 2026-11-20: "rework the onboarding flow to be very simple and just ask for a username and password"; "Yes,
+  // replace it": the texts step alone, then the username and password (lib/main.dart).
+  testWidgets('the walkthrough is the texts step alone', (tester) async {
+    await open(tester);
+    expect(guidePages.map((p) => p.$1), ['texts']);
+    expect(find.text('Start with your texts'), findsOneWidget);
+    expect(find.text('Everyone, in one place'), findsNothing);
+    expect(find.text('Continue'), findsOneWidget);
+  });
+
+  testWidgets('before Ghost can send texts there is no Skip and Continue waits', (tester) async {
     status = {'isDefault': false, 'contacts': false, 'notifications': false, 'phone': true};
     addTearDown(() => status = {'isDefault': true, 'contacts': true, 'notifications': true, 'phone': true});
-    await open(tester);
+    var done = 0;
+    await open(tester, onDone: () => done++);
     expect(find.byKey(const ValueKey('guide-skip')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('guide-next')));
     await settle(tester);
-    await tester.tap(find.byKey(const ValueKey('guide-next')));
-    await settle(tester);
+    expect(done, 0);
     expect(find.text('Start with your texts'), findsOneWidget);
-    expect(find.text('Texts and chats, side by side'), findsNothing);
   });
 
   // Matt, 2026-11-20: "rework the onboarding on mobile so that SMS is not required and you can 'skip this step'".
-  testWidgets('texts can be skipped: Skip this step goes on, and the walkthrough can be finished without them', (tester) async {
+  testWidgets('texts can be skipped: Skip this step finishes, and the account is asked for next', (tester) async {
     status = {'isDefault': false, 'contacts': false, 'notifications': false, 'phone': true};
     addTearDown(() => status = {'isDefault': true, 'contacts': true, 'notifications': true, 'phone': true});
     var done = 0;
     final app = await open(tester, onDone: () => done++);
-    await tester.tap(find.byKey(const ValueKey('guide-next')));
-    await settle(tester);
-    expect(find.text('Start with your texts'), findsOneWidget);
-    // Under the step's own buttons, scrolled to as a person would.
     await tester.scrollUntilVisible(find.byKey(const ValueKey('guide-skip-texts')), 120, scrollable: find.descendant(of: find.byType(PageView), matching: find.byType(Scrollable)).last);
     await tester.tap(find.byKey(const ValueKey('guide-skip-texts')));
     await settle(tester);
     expect(app.flag(textsSkippedKey, fallback: false), isTrue);
-    expect(find.text('Texts and chats, side by side'), findsOneWidget, reason: 'on to the next page');
-    expect(find.byKey(const ValueKey('guide-skip')), findsOneWidget, reason: 'nothing left that must be done');
-    await tester.tap(find.byKey(const ValueKey('guide-skip')));
-    await settle(tester);
     expect(done, 1);
+    expect(app.flag(accountDueKey, fallback: false), isTrue, reason: 'a new install is asked for a username and password next');
   });
 
   testWidgets('Skip finishes it, says so, and stops the voice', (tester) async {

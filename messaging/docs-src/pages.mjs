@@ -7,7 +7,7 @@ export const sections = [
       { slug: 'index', icon: 'ghost', title: 'Welcome', summary: 'What Ghost Messaging is, and where to start.' },
       { slug: 'alpha', icon: 'flask-conical', title: 'Join the alpha', summary: 'Try Ghost Messaging before it launches: what to install, and how to join the testers\' circle.' },
       { slug: 'install', icon: 'download', title: 'Install the app', summary: 'Get Ghost Messaging on an Android phone, a Mac or a Windows PC.' },
-      { slug: 'first-run', icon: 'rocket', title: 'The first time you open it', summary: 'The welcome, texting with Ghost or beside Google Messages, and picking a look.' },
+      { slug: 'first-run', icon: 'rocket', title: 'The first time you open it', summary: 'A username and a password, your recovery words, and on Android your texts.' },
       { slug: 'account', icon: 'key-round', title: 'Your account', summary: 'Create an account, keep your recovery words safe, and sign in on another device.' },
       { slug: 'how-accounts-work', icon: 'badge-check', title: 'How your account works', summary: 'Recovery words, your password, the account address, and being the same you on every device.' },
       { slug: 'profile', icon: 'circle-user', title: 'Your profile and number', summary: 'Your name, picture, status and username, and verifying your phone number.' },
