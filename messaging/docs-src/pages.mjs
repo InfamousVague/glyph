@@ -34,6 +34,7 @@ export const sections = [
       { slug: 'live-captions', icon: 'type', title: 'Live captions', summary: 'See what everyone in a call says, as they say it.' },
       { slug: 'watch-together', icon: 'film', title: 'Watch together', summary: 'Play a video or song for everyone in a call, in step.' },
       { slug: 'soundboard', icon: 'megaphone', title: 'Soundboard', summary: 'Pads in a call that play a sound for everyone in it.' },
+      { slug: 'voice-changer', icon: 'audio-lines', title: 'Voice changer', summary: 'Send voice messages in another voice, said the way you said them.' },
       { slug: 'translate', icon: 'languages', title: 'Translate', summary: 'Read texts in other languages, translated on your phone.' },
       { slug: 'codes', icon: 'key-round', title: 'Codes', summary: 'Sign-in codes in a tab of their own, a tap to copy.' },
       { slug: 'spam', icon: 'ban', title: 'Spam filter', summary: 'Texts that look like spam, kept out of your way.' },

@@ -638,7 +638,10 @@ class Matrix extends InboxNetwork {
     if (_state != InboxState.ready) return;
     for (final (i, path) in paths.indexed) {
       final ext = path.split('.').last.toLowerCase();
-      final mime = voice || ext == 'm4a'
+      // A voice message changed by Voice changer is an MP3 (lib/voice/voice_changer.dart), and says so.
+      final mime = ext == 'mp3'
+          ? 'audio/mpeg'
+          : voice || ext == 'm4a'
           ? 'audio/mp4'
           : const {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp', 'heic': 'image/heic', 'mp4': 'video/mp4', 'mov': 'video/quicktime', 'pdf': 'application/pdf'}[ext] ??
               'application/octet-stream';
