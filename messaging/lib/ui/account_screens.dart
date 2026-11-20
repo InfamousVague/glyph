@@ -251,12 +251,16 @@ enum CreateStep { password, words, confirm, working, done }
 /// Making an account: a password, the words to write down, the words confirmed (tapped in order, or three of them
 /// typed), then the backup sealed and kept, and the address shown.
 class CreateAccountScreen extends StatefulWidget {
-  const CreateAccountScreen({super.key, this.step = CreateStep.password, this.draft, this.typed = false});
+  const CreateAccountScreen({super.key, this.step = CreateStep.password, this.draft, this.typed = false, this.made = false});
 
   /// Where it starts, and with which words: for the pictures (test/account_shots.dart).
   final CreateStep step;
   final AccountDraft? draft;
   final bool typed;
+
+  /// The account is made already, from the first page's username and password (lib/standalone/welcome.dart): its
+  /// words shown and checked, and the screen closed after.
+  final bool made;
 
   @override
   State<CreateAccountScreen> createState() => _CreateAccountScreenState();
@@ -311,8 +315,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     });
   }
 
-  Future<void> _make() async {
-    if (!_confirmed) return setState(() => _problem = _typed ? 'Those aren\'t the words in those places. Look at what you wrote down.' : 'Tap all twelve in order.');
+  /// The check passed by (Matt, 2026-11-20: "add a button to skip verifying the seed phrase"): the words can be seen
+  /// again any time in Settings › Me, after the password.
+  void _skipCheck() => widget.made ? Navigator.of(context).pop() : _make(checked: false);
+
+  Future<void> _make({bool checked = true}) async {
+    if (widget.made) return Navigator.of(context).pop();
+    if (checked && !_confirmed) return setState(() => _problem = _typed ? 'Those aren\'t the words in those places. Look at what you wrote down.' : 'Tap all twelve in order.');
     setState(() {
       _problem = null;
       _step = CreateStep.working;
@@ -397,9 +406,16 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               }),
             ),
             SettingRow(icon: _icon(Lucide.rotateCcw), label: 'See the words again', onPress: () => setState(() => _step = CreateStep.words)),
+            SettingRow(
+              key: const ValueKey('skip-word-check'),
+              icon: _icon(Lucide.chevronRight),
+              label: 'Skip this check',
+              hint: const Text('See your words again any time in Settings › Me'),
+              onPress: _skipCheck,
+            ),
           ]),
           _gap(context, 8),
-          PairButton(label: 'Create my account', icon: Lucide.check, onPressed: _confirmed ? _make : null),
+          PairButton(label: widget.made ? 'Done' : 'Create my account', icon: Lucide.check, onPressed: _confirmed ? _make : null),
         ]);
       case CreateStep.working:
         return _AccountPage(title: 'Create an account', children: [
