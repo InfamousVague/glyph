@@ -84,6 +84,13 @@ class MarketState extends ChangeNotifier {
   List<ListingPlugin> get listings => List.unmodifiable(_listings);
   List<ListingPlugin> _listings = const [];
 
+  /// Listings put in place without a refresh: a test drawing a screen, whose fakes can't wait for one.
+  @visibleForTesting
+  set debugListings(List<ListingPlugin> listings) {
+    _listings = listings;
+    _say();
+  }
+
   /// How many packages are still being fetched or checked.
   int checking = 0;
 
@@ -432,6 +439,28 @@ class MarketState extends ChangeNotifier {
         total -= size;
       }
     } catch (_) {}
+  }
+
+  // --- screenshots -----------------------------------------------------------------------------------------------------
+
+  final Map<String, Uint8List> _shots = {};
+
+  /// A listed plugin's screenshot by its SHA-256 (route 6), only where its bytes are that one, a few kept for the page
+  /// that asks again; null where it can't be had.
+  Future<Uint8List?> shotOf(String sha256) async {
+    final had = _shots.remove(sha256);
+    if (had != null) return _shots[sha256] = had;
+    try {
+      final bytes = await api.shot(sha256);
+      if (sha256Hex(bytes) != sha256) return null;
+      _shots[sha256] = bytes;
+      while (_shots.length > 24) {
+        _shots.remove(_shots.keys.first);
+      }
+      return bytes;
+    } catch (_) {
+      return null;
+    }
   }
 
   // --- adding and updating ------------------------------------------------------------------------------------------

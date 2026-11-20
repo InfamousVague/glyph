@@ -4,15 +4,21 @@
 /// featured plugins, and then every plugin on a card: those added, and those to discover. A plugin's own page says
 /// what it does, what it reads and keeps, has Add or Remove, and once it is added its settings.
 ///
-/// It is Settings › Plugins (lib/plugins/settings.dart), a screen of its own: on a phone a plugin's page opens over
-/// it, and with room (a Fold open, a computer's window) it stands beside the shelves, whose cards go two to four
-/// across. Adding a plugin is the registry's switch, as Settings' switches were.
+/// It is the Marketplace's Discover, Added and In development since plugins left Settings (lib/ui/market/; Matt,
+/// 2026-11-20: "Move plugins out of settings into a marketplace button on the navigation rail with a marketplace
+/// icon"), a screen of its own: on a phone a plugin's page opens over it, and with room (a Fold open, a computer's
+/// window) it stands beside the shelves, whose cards go two to four across. Beside the app's own plugins it lists
+/// those from other developers: the store packs on this device (those that don't run too, with why), the plugins in
+/// development while developer mode is on, and the listings the Marketplace has checked (lib/market/market_state.dart).
+/// Adding a built-in is the registry's switch; adding a listing asks first (lib/ui/market/market_flows.dart).
 library;
 
 import '../split_handle.dart';
+import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:math' as math;
 
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -21,11 +27,16 @@ import '../../art/app_icon.dart' show LucideIcon;
 import '../../art/lucide.g.dart';
 import '../../kit/settings_kit.dart';
 import '../../kit/settings_type.dart';
+import '../../market/listing_plugin.dart';
+import '../../market/market_state.dart';
+import '../../plugins/pack/pack.dart' show InstalledPlugins, packAddressIssue, packIdOf, packLabels;
 import '../../plugins/plugin.dart';
 import '../../plugins/registry.dart';
 import '../../sms.dart';
 import '../common.dart';
 import '../dialup/bevel.dart';
+import '../market/dev_plugins.dart' show DevPluginScreen;
+import '../market/market_flows.dart';
 import '../settings.dart' show SettingsSeek, settingsMatch;
 import 'market_parts.dart';
 import 'plugin_cards.dart';
@@ -42,7 +53,7 @@ const double pluginsWide = 720;
 String pluginsHere() => Sms.remote ? (Platform.isIOS ? 'iPhone' : 'computer') : 'phone';
 
 /// What plugins are, in a line: the band's.
-String pluginsLine() => 'Extras for your messages, each on this ${pluginsHere()} alone. Adding one is a switch.';
+String pluginsLine() => 'Extras for your messages, built in or from other developers, each on this ${pluginsHere()} alone.';
 
 /// What a shelf chip stands for: every plugin (null), those added, or one shelf.
 const String _added = 'added';
@@ -50,8 +61,15 @@ const String _added = 'added';
 /// The chip for the plugins meant for circles.
 const String _circles = 'circles';
 
+/// The chips for plugins from other developers (store packs and listings) and for those in development.
+const String _store = 'store';
+const String _dev = 'dev';
+
+/// No plugins from other developers at all here: an iPhone (SPEC G.5), where InstalledPlugins never allows store packs.
+bool get marketOnIphone => !InstalledPlugins.instance.storeAllowed;
+
 class PluginsPage extends StatefulWidget {
-  const PluginsPage({super.key, this.registry, this.open, this.settingsOf, this.summaryOf});
+  const PluginsPage({super.key, this.registry, this.open, this.settingsOf, this.summaryOf, this.title = 'Plugins', this.market, this.shelf, this.head = true, this.lead});
 
   /// The plugins: the app's own where not given.
   final PluginRegistry? registry;
@@ -65,6 +83,22 @@ class PluginsPage extends StatefulWidget {
   /// What a plugin's settings come to, in a line, for its page once it is added.
   final String? Function(BuildContext context, GhostPlugin plugin)? summaryOf;
 
+  /// The page's name on its bar: Discover, Added, In development in the Marketplace.
+  final String title;
+
+  /// The Marketplace: its checked listings are on the shelves, and what it says of the catalog under the chips. Null
+  /// lists the device's own plugins alone (a test of the shelves).
+  final MarketState? market;
+
+  /// The chip chosen at first: null for All, 'added', 'circles', 'store', 'dev', or a shelf's name.
+  final String? shelf;
+
+  /// The band, the search and the chips. Without them (Added, In development) the page is that shelf alone.
+  final bool head;
+
+  /// Something above the shelves: In development's way to Settings › Developer.
+  final Widget? lead;
+
   @override
   State<PluginsPage> createState() => _PluginsPageState();
 }
@@ -72,7 +106,7 @@ class PluginsPage extends StatefulWidget {
 class _PluginsPageState extends State<PluginsPage> {
   String _query = '';
 
-  /// The chip chosen: null for All, [_added], or a [PluginShelf]'s name.
+  /// The chip chosen: null for All, [_added], [_circles], [_store], [_dev], or a [PluginShelf]'s name.
   String? _shelf;
 
   /// The plugin whose page stands beside the shelves, with room.
@@ -89,7 +123,23 @@ class _PluginsPageState extends State<PluginsPage> {
   void initState() {
     super.initState();
     _open = widget.open;
+    _shelf = widget.shelf;
   }
+
+  /// Every plugin the shelves have: the registry's (built-ins, the store packs that run, the dev packs while developer
+  /// mode is on), then each store pack that doesn't run, then the checked listings for plugins not on this device (or
+  /// a copy on it by another developer, which is offered as a new plugin).
+  List<GhostPlugin> _every() => marketPlugins(_registry, widget.market);
+
+  /// The plugin [id] among all three kinds, a listing only where asked for one or none else has the id.
+  GhostPlugin? _find(String? id, {bool listing = false}) {
+    if (id == null) return null;
+    final all = _every().where((p) => p.id == id).toList();
+    return (listing ? all.whereType<ListingPlugin>().firstOrNull : null) ?? all.where((p) => p is! ListingPlugin).firstOrNull ?? all.firstOrNull;
+  }
+
+  /// Listings and stuck packs are never asked of the registry: a leftover switch must not make a listing read as added.
+  bool _isOn(GhostPlugin p, PluginStore store) => p is ListingPlugin || p is StuckPackPlugin ? false : _registry.isOn(p, store);
 
   @override
   void didChangeDependencies() {
@@ -100,8 +150,9 @@ class _PluginsPageState extends State<PluginsPage> {
     final seek = SettingsSeek.of(context);
     if (seek == null) return;
     final folded = seek.toLowerCase();
-    final plugin = _registry.plugins.where((p) => p.name.toLowerCase() == folded || (p.settingsPage?.label ?? '').toLowerCase() == folded).firstOrNull ??
-        _registry.plugins.where((p) => _registry.settingsOf(p).any((s) => s.label.toLowerCase() == folded)).firstOrNull;
+    final every = _every();
+    final plugin = every.where((p) => p.name.toLowerCase() == folded || (p.settingsPage?.label ?? '').toLowerCase() == folded).firstOrNull ??
+        every.where((p) => _registry.settingsOf(p).any((s) => s.label.toLowerCase() == folded)).firstOrNull;
     if (plugin == null) return;
     // Opened as [PluginsPage.open] is: beside the shelves with room, over them on a phone (the first layout).
     _open = plugin.id;
@@ -121,14 +172,58 @@ class _PluginsPageState extends State<PluginsPage> {
   /// The first layout has been: what was open from the start has been put where it goes.
   bool _placed = false;
 
-  void _set(GhostPlugin plugin, bool on) => _registry.setOn(plugin, AppStore(AppState.of(context)), on);
+  /// Adds [p]: a built-in or a store pack that is off is its switch; a listing asks first; a dev pack asks the first
+  /// time, and whenever it can do something new since it was agreed to.
+  void _add(GhostPlugin p) {
+    final store = AppStore(AppState.of(context));
+    if (p is ListingPlugin) return unawaited(addListing(context, p, market: widget.market));
+    if (p.source == PluginSource.dev) return unawaited(switchOnDev(context, p, _registry, store));
+    _registry.setOn(p, store, true);
+  }
+
+  /// Add on a card, or null where it can't be pressed: a stuck pack, or a listing this device can't take.
+  VoidCallback? _addOf(GhostPlugin p) {
+    if (p is StuckPackPlugin) return null;
+    if (p is ListingPlugin && listingWhyNot(p) != null) return null;
+    return () => _add(p);
+  }
+
+  /// [p]'s switch from its page: a store pack's Remove asks and deletes it, a dev pack's Remove only switches it off
+  /// (deleting it is Settings › Developer's), a built-in's is its switch.
+  void _switch(GhostPlugin p, bool on) {
+    final store = AppStore(AppState.of(context));
+    if (on) return _add(p);
+    if (p is StuckPackPlugin || p.source == PluginSource.reviewed) return unawaited(removeStorePack(context, p));
+    _registry.setOn(p, store, false);
+  }
 
   void _openPlugin(GhostPlugin plugin) {
     if (_wide) return setState(() => _open = _open == plugin.id ? null : plugin.id);
     _push(plugin);
   }
 
-  void _push(GhostPlugin plugin) => push<void>(context, (context) => PluginDetailPage(title: plugin.name, body: (context) => _detail(context, plugin, close: false)));
+  /// Its page over the shelves, looking the plugin up again on every build: a pack replaced by a new copy (an update,
+  /// a reload) shows the new one, and the registry finds its settings.
+  void _push(GhostPlugin plugin) {
+    final listing = plugin is ListingPlugin;
+    push<void>(context, (context) => ListenableBuilder(
+          listenable: Listenable.merge([_registry, InstalledPlugins.instance, ?widget.market]),
+          builder: (context, _) {
+            final now = _find(plugin.id, listing: listing) ?? plugin;
+            return PluginDetailPage(title: now.name, body: (context) => _detail(context, now, close: false));
+          },
+        ));
+  }
+
+  /// A tag pressed on a plugin's page: the shelves search for it, the page beside them or over them put away.
+  void _searchFor(String label, BuildContext from) {
+    if (!_wide) Navigator.of(from).maybePop();
+    setState(() {
+      _query = label;
+      _shelf = null;
+      _open = null;
+    });
+  }
 
   Widget _detail(BuildContext context, GhostPlugin plugin, {required bool close}) => pluginDetailOf(
         context,
@@ -139,21 +234,30 @@ class _PluginsPageState extends State<PluginsPage> {
         onClose: close ? () => setState(() => _open = null) : null,
         finder: _finder,
         seek: _seek,
+        market: widget.market,
+        onSwitch: (on) => _switch(plugin, on),
+        onAdd: _addOf(plugin),
+        onLabel: (label) => _searchFor(label, context),
       );
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: Listenable.merge([_registry, InstalledPlugins.instance, ?widget.market]),
+        builder: (context, _) => _build(context),
+      );
+
+  Widget _build(BuildContext context) {
     final t = context.tokens;
     final store = AppStore(AppState.of(context));
     return GhostPage(
-      title: 'Plugins',
+      title: widget.title,
       body: LayoutBuilder(
         builder: (context, box) {
           _wide = box.maxWidth >= pluginsWide;
           // A plugin open from the start (or found by a search) on a phone: its page over the shelves, once they are
           // drawn. Decided here, where the width is known.
           if (!_wide && !_placed && _open != null) {
-            final plugin = _registry.plugins.where((p) => p.id == _open).firstOrNull;
+            final plugin = _find(_open);
             _open = null;
             if (plugin != null) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -162,7 +266,7 @@ class _PluginsPageState extends State<PluginsPage> {
             }
           }
           _placed = true;
-          final open = _wide && _open != null ? _registry.plugins.where((p) => p.id == _open).firstOrNull : null;
+          final open = _wide && _open != null ? _find(_open) : null;
           final foot = t.space(8) + MediaQuery.paddingOf(context).bottom;
           final shelves = ListView(
             key: const ValueKey('plugins-scroll'),
@@ -172,7 +276,7 @@ class _PluginsPageState extends State<PluginsPage> {
               Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1180),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _page(context, t, store, wide: _wide, narrowed: open != null)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [if (widget.lead != null) widget.lead!, ..._page(context, t, store, wide: _wide, narrowed: open != null)]),
                 ),
               ),
             ],
@@ -229,36 +333,70 @@ class _PluginsPageState extends State<PluginsPage> {
   /// The plugin's page's width as dragged (PaneWidth 'plugins'); null for its width as made.
   double? _paneWidth;
 
-  /// Everything on the shelves' side: the band, the search, the chips and what the chosen shelf holds.
+  /// What the Marketplace says of plugins from other developers, in a line under the chips while All or From
+  /// developers is chosen: why none show, or that some are still being checked. On an iPhone, that there are none.
+  Widget? _catalogLine(Tokens t) {
+    final m = widget.market;
+    if (m == null || !widget.head || (_shelf != null && _shelf != _store)) return null;
+    final quiet = pageText(t, t.fontSize('sm'), height: 1.4, color: t.color('app-ink-2'));
+    Widget line(String words, Key key, {Widget? then}) => Padding(
+          key: key,
+          padding: EdgeInsets.only(top: t.space(3)),
+          child: Row(children: [Expanded(child: Text(words, style: quiet)), if (then != null) ...[SizedBox(width: t.space(2)), then]]),
+        );
+    if (marketOnIphone) return line('Plugins from other developers aren\'t on iPhone.', const ValueKey('market-ios'));
+    final problem = m.problem;
+    if (problem != null) {
+      return switch (problem.code) {
+        'unreachable' => line('Plugins from other developers couldn\'t be loaded.', const ValueKey('market-catalog-problem'), then: MarketButton(label: 'Try again', look: MarketButtonLook.ring, onPress: () => unawaited(m.refresh(force: true)))),
+        'off' => line('The Marketplace isn\'t open just now.', const ValueKey('market-catalog-problem')),
+        _ => line('This version of Ghost Messaging can\'t check plugins from other developers. Update it to see them.', const ValueKey('market-catalog-problem')),
+      };
+    }
+    if (m.checking > 0) return line('Checking ${m.checking} ${m.checking == 1 ? 'plugin' : 'plugins'} from other developers…', const ValueKey('market-catalog-checking'));
+    return null;
+  }
+
+  /// Everything on the shelves' side: the band, the search and the chips and what the chosen shelf holds; or, without
+  /// [PluginsPage.head], the one shelf alone.
   List<Widget> _page(BuildContext context, Tokens t, PluginStore store, {required bool wide, required bool narrowed}) {
-    final all = _registry.plugins;
-    final featured = [for (final id in featuredPlugins) ...all.where((p) => p.id == id)];
-    final added = [for (final p in all) if (_registry.isOn(p, store)) p];
-    final shelves = [for (final s in PluginShelf.values) if (all.any((p) => p.shelf == s)) s];
+    final every = _every();
+    final builtIn = _registry.plugins;
+    final featured = [for (final id in featuredPlugins) ...builtIn.where((p) => p.id == id && p.source == PluginSource.builtIn)];
+    final added = [for (final p in every) if (_isOn(p, store)) p];
+    final stuck = [for (final p in every) if (p is StuckPackPlugin) p];
+    final fromDevelopers = [for (final p in every) if (p.source == PluginSource.reviewed) p];
+    final inDevelopment = [for (final p in every) if (p.source == PluginSource.dev) p];
+    final shelves = [for (final s in PluginShelf.values) if (every.any((p) => p.shelf == s)) s];
     final shelf = _shelf;
     final query = _query.trim();
     final searching = query.isNotEmpty;
+    final m = widget.market;
     // Meant for circles (a circle's owner or admins turn them on for everyone in it) or for this device alone: shown
     // apart (Matt, 2026-11-19: "Label plugins meant for circles in a separate section from the ones that are global").
+    // A pack is never for circles (v1 is the device only).
     bool forCircles(GhostPlugin p) => p.scopes.contains(PluginScope.circle);
-    final circled = [for (final p in all) if (forCircles(p)) p];
+    final circled = [for (final p in builtIn) if (forCircles(p)) p];
     bool chosen(GhostPlugin p) => switch (shelf) {
           null => true,
-          _added => _registry.isOn(p, store),
+          _added => _isOn(p, store) || p is StuckPackPlugin,
           _circles => forCircles(p),
+          _store => p.source == PluginSource.reviewed,
+          _dev => p.source == PluginSource.dev,
           final name => p.shelf.name == name,
         };
-    final found = [for (final p in all) if (chosen(p) && (!searching || _matches(p, query))) p];
+    final found = [for (final p in every) if (chosen(p) && (!searching || _matches(p, query))) p];
     final gap = t.space(6);
 
     Widget cards(List<GhostPlugin> plugins) {
       PluginCard card(GhostPlugin p) => PluginCard(
             plugin: p,
-            added: _registry.isOn(p, store),
-            onAdd: () => _set(p, true),
+            added: _isOn(p, store),
+            onAdd: _addOf(p),
             onOpen: () => _openPlugin(p),
             wide: wide,
             selected: _open == p.id && wide,
+            adding: p is ListingPlugin && (m?.adding(p.pack.id) ?? false),
           );
       if (!wide) {
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -291,36 +429,59 @@ class _PluginsPageState extends State<PluginsPage> {
           ]),
         );
 
+    Widget nothing(String words, {bool every = true}) => Padding(
+          key: const ValueKey('plugins-nothing'),
+          padding: EdgeInsets.only(top: gap),
+          child: Column(children: [
+            Text(words, textAlign: TextAlign.center, style: pageText(t, t.fontSize('md'), color: t.color('app-ink-2'))),
+            if (every) ...[
+              SizedBox(height: t.space(3)),
+              MarketButton(
+                label: 'Show every plugin',
+                look: MarketButtonLook.ring,
+                onPress: () => setState(() {
+                  _query = '';
+                  _shelf = null;
+                }),
+              ),
+            ],
+          ]),
+        );
+
+    // Added and In development, alone (the Marketplace's own rows): that shelf and nothing else, never "Show every
+    // plugin", which is Discover's.
+    if (!widget.head) {
+      if (shelf == _dev) {
+        if (inDevelopment.isEmpty) return [nothing('Nothing loaded yet. Load one in Settings › Developer › Plugins in development.', every: false)];
+        return [shelfOf('In development', inDevelopment, meta: '${inDevelopment.length}', key: const ValueKey('plugins-shelf-dev'))];
+      }
+      final on = [for (final p in added) if (!forCircles(p)) p];
+      if (on.isEmpty && stuck.isEmpty) return [nothing('Nothing added yet.', every: false)];
+      return [
+        if (on.isNotEmpty) shelfOf('Added', on, meta: '${on.length}', key: const ValueKey('plugins-shelf-added')),
+        if (stuck.isNotEmpty) shelfOf('Not running', stuck, meta: '${stuck.length}', key: const ValueKey('plugins-shelf-stuck')),
+      ];
+    }
+
+    final line = _catalogLine(t);
     final parts = <Widget>[
-      PluginsBand(plugins: [...featured, ...all.where((p) => !featured.contains(p))], added: added.length, line: pluginsLine(), wide: wide),
+      PluginsBand(plugins: [...featured, ...every.where((p) => !featured.contains(p))], added: added.length, line: pluginsLine(), wide: wide),
       SizedBox(height: t.space(4)),
-      GlacierSearchField(key: const ValueKey('plugins-search'), value: _query, placeholder: 'Search plugins', size: GlacierFieldSize.md, onValueChange: (v) => setState(() => _query = v)),
+      GlacierSearchField(key: const ValueKey('plugins-search'), value: _query, placeholder: m == null ? 'Search plugins' : 'Search the Marketplace', size: GlacierFieldSize.md, onValueChange: (v) => setState(() => _query = v)),
       SizedBox(height: t.space(3)),
       _chips(t, [
         MarketChip(key: const ValueKey('plugins-chip-all'), label: 'All', chosen: shelf == null, onPress: () => setState(() => _shelf = null)),
         MarketChip(key: const ValueKey('plugins-chip-added'), label: 'Added', count: added.length, chosen: shelf == _added, onPress: () => setState(() => _shelf = _added)),
         if (circled.isNotEmpty) MarketChip(key: const ValueKey('plugins-chip-circles'), label: 'For circles', chosen: shelf == _circles, onPress: () => setState(() => _shelf = _circles)),
+        if (fromDevelopers.isNotEmpty) MarketChip(key: const ValueKey('plugins-chip-store'), label: 'From developers', count: fromDevelopers.length, chosen: shelf == _store, onPress: () => setState(() => _shelf = _store)),
+        if (inDevelopment.isNotEmpty) MarketChip(key: const ValueKey('plugins-chip-dev'), label: 'In development', count: inDevelopment.length, chosen: shelf == _dev, onPress: () => setState(() => _shelf = _dev)),
         for (final s in shelves) MarketChip(key: ValueKey('plugins-chip-${s.name}'), label: s.label, chosen: shelf == s.name, onPress: () => setState(() => _shelf = s.name)),
       ], wide: wide),
+      ?line,
     ];
 
     if (found.isEmpty) {
-      parts.add(Padding(
-        key: const ValueKey('plugins-nothing'),
-        padding: EdgeInsets.only(top: gap),
-        child: Column(children: [
-          Text(searching ? 'Nothing called “$query”.' : (shelf == _added ? 'No plugin is added yet.' : 'No plugin here yet.'), textAlign: TextAlign.center, style: pageText(t, t.fontSize('md'), color: t.color('app-ink-2'))),
-          SizedBox(height: t.space(3)),
-          MarketButton(
-            label: 'Show every plugin',
-            look: MarketButtonLook.ring,
-            onPress: () => setState(() {
-              _query = '';
-              _shelf = null;
-            }),
-          ),
-        ]),
-      ));
+      parts.add(nothing(searching ? 'Nothing called “$query”.' : (shelf == _added ? 'No plugin is added yet.' : 'No plugin here yet.')));
       return parts;
     }
 
@@ -332,7 +493,7 @@ class _PluginsPageState extends State<PluginsPage> {
     if (shelf == null) {
       if (featured.isNotEmpty) {
         final featuredCards = [
-          for (final p in featured) FeaturedPluginCard(plugin: p, added: _registry.isOn(p, store), onAdd: () => _set(p, true), onOpen: () => _openPlugin(p)),
+          for (final p in featured) FeaturedPluginCard(plugin: p, added: _registry.isOn(p, store), onAdd: () => _add(p), onOpen: () => _openPlugin(p)),
         ];
         // Tall enough for a pitch of three or four lines under the name, whole.
         final height = t.lenOf(isBevelChrome(t) ? '13rem' : '14.5rem');
@@ -355,11 +516,13 @@ class _PluginsPageState extends State<PluginsPage> {
           ]),
         ));
       }
-      final mine = [for (final p in added) if (!forCircles(p)) p];
-      final global = [for (final p in all) if (!forCircles(p)) p];
-      final discover = [for (final p in global) if (!_registry.isOn(p, store)) p];
-      if (mine.isNotEmpty) parts.add(shelfOf('Added', mine, meta: '${mine.length} of ${global.length}', key: const ValueKey('plugins-shelf-added')));
-      if (discover.isNotEmpty) parts.add(shelfOf('Discover', discover, meta: '${discover.length}', key: const ValueKey('plugins-shelf-discover')));
+      // What is on this device, packs among them, and those that don't run after them with why; then what isn't,
+      // listings among them ("More to add" in the Marketplace, where Discover is the whole page's name).
+      final mine = [for (final p in added) if (!forCircles(p)) p, ...stuck];
+      final global = [for (final p in every) if (!forCircles(p)) p];
+      final discover = [for (final p in global) if (!_isOn(p, store) && p is! StuckPackPlugin) p];
+      if (mine.isNotEmpty) parts.add(shelfOf('Added', mine, meta: '${mine.length - stuck.length} of ${global.length}', key: const ValueKey('plugins-shelf-added')));
+      if (discover.isNotEmpty) parts.add(shelfOf(m == null ? 'Discover' : 'More to add', discover, meta: '${discover.length}', key: const ValueKey('plugins-shelf-discover')));
       if (circled.isNotEmpty) parts.add(circleShelf(circled));
       return parts;
     }
@@ -368,7 +531,13 @@ class _PluginsPageState extends State<PluginsPage> {
       parts.add(circleShelf(found));
       return parts;
     }
-    final title = shelf == _added ? 'Added' : PluginShelf.values.byName(shelf).label;
+    // The two shelves of plugins from other developers are named here: they are no PluginShelf of the app's.
+    final title = switch (shelf) {
+      _added => 'Added',
+      _store => 'From developers',
+      _dev => 'In development',
+      _ => PluginShelf.values.byName(shelf).label,
+    };
     parts.add(shelfOf(title, found, meta: '${found.length}', key: ValueKey('plugins-shelf-$shelf')));
     return parts;
   }
@@ -387,12 +556,33 @@ class _PluginsPageState extends State<PluginsPage> {
     );
   }
 
-  /// Whether [plugin] answers the search: its name, its lines, its shelf or what it adds.
-  bool _matches(GhostPlugin plugin, String query) => settingsMatch(query, [plugin.name, plugin.tagline, plugin.description, plugin.shelf.label, ...plugin.adds, plugin.settingsPage?.label ?? ''].join(' '));
+  /// Whether [plugin] answers the search: its name, its lines, its shelf, what it adds, who made it and its tags.
+  bool _matches(GhostPlugin plugin, String query) => pluginMatches(plugin, query);
 }
 
+/// Every plugin the Marketplace has: [registry]'s (built-ins, the store packs that run, the dev packs while developer
+/// mode is on), then each store pack that doesn't run, then [market]'s checked listings for plugins not on this device
+/// (or for one whose copy here is by another developer, which is offered as a new plugin). None from other developers
+/// on an iPhone.
+List<GhostPlugin> marketPlugins(PluginRegistry registry, MarketState? market) {
+  final here = InstalledPlugins.instance;
+  return [
+    ...registry.plugins,
+    for (final p in here.store)
+      if (!p.running) StuckPackPlugin(p),
+    if (market != null && here.storeAllowed)
+      for (final l in market.listings)
+        if (here.devOf(l.pack.id) == null && (here.storeOf(l.pack.id) == null || identical(market.developerChanged(l.pack.id), l))) l,
+  ];
+}
+
+/// Whether [plugin] answers [query]: its name, its lines, its shelf, what it adds, who made it and its tags by the
+/// names they are shown by. The Marketplace's own search reads the same.
+bool pluginMatches(GhostPlugin plugin, String query) => settingsMatch(query, [plugin.name, plugin.tagline, plugin.description, plugin.shelf.label, ...plugin.adds, plugin.settingsPage?.label ?? '', plugin.developer ?? '', for (final l in plugin.labels) packLabels[l] ?? l].join(' '));
+
 /// A plugin's page as the Plugins page and a plugin's own screen draw it: Add or Remove, and once it is added its
-/// settings and what they come to.
+/// settings and what they come to. A plugin from another developer's page has its [PackPage] made here: where it came
+/// from, Update, Reload, its problems, Report, and why a stuck one doesn't run.
 Widget pluginDetailOf(
   BuildContext context,
   PluginRegistry registry,
@@ -402,22 +592,85 @@ Widget pluginDetailOf(
   VoidCallback? onClose,
   SettingsFinder? finder,
   String? seek,
+  MarketState? market,
+  ValueChanged<bool>? onSwitch,
+  VoidCallback? onAdd,
+  ValueChanged<String>? onLabel,
 }) {
   final store = AppStore(AppState.of(context));
-  final added = registry.isOn(plugin, store);
+  final listing = plugin is ListingPlugin;
+  final stuck = plugin is StuckPackPlugin;
+  final added = listing || stuck ? false : registry.isOn(plugin, store);
+  final page = plugin.source == PluginSource.builtIn ? null : _packPage(context, registry, plugin, market: market, onAdd: onAdd, onLabel: onLabel);
   return PluginDetail(
     key: ValueKey('plugins-page-${plugin.id}'),
     plugin: plugin,
     added: added,
     here: pluginsHere(),
-    onSwitch: (on) => registry.setOn(plugin, store, on),
+    onSwitch: onSwitch ?? (on) => registry.setOn(plugin, store, on),
     summary: added ? summaryOf?.call(context, plugin) : null,
     settings: added ? (settingsOf?.call(context, plugin) ?? const []) : const [],
     hasSettings: registry.settingsOf(plugin).isNotEmpty || plugin.settingsPage != null,
     onClose: onClose,
     finder: finder,
     seek: seek,
+    pack: page,
   );
+}
+
+PackPage _packPage(BuildContext context, PluginRegistry registry, GhostPlugin plugin, {MarketState? market, VoidCallback? onAdd, ValueChanged<String>? onLabel}) {
+  final here = InstalledPlugins.instance;
+  final m = market ?? MarketState.instance;
+  final id = packIdOf(plugin.id);
+  final pack = packOf(plugin);
+  final kind = switch (plugin) {
+    ListingPlugin() => PackKind.listing,
+    StuckPackPlugin() => PackKind.stuck,
+    _ when plugin.source == PluginSource.dev => PackKind.dev,
+    _ => PackKind.store,
+  };
+  final installed = id == null ? null : here.storeOf(id);
+  final dev = id == null ? null : here.devOf(id);
+  final update = kind == PackKind.store || kind == PackKind.stuck ? m.updates.where((u) => u.installed.id == id).firstOrNull : null;
+  final support = pack?.support;
+  final problems = dev == null ? 0 : dev.issues.length + dev.errors.length;
+  return PackPage(
+    kind: kind,
+    pack: pack,
+    onAdd: kind == PackKind.listing ? onAdd : null,
+    whyNot: plugin is ListingPlugin ? listingWhyNot(plugin) : null,
+    adding: plugin is ListingPlugin && m.adding(plugin.pack.id),
+    updateTo: update?.listing.version,
+    onUpdate: update == null ? null : () => unawaited(updateStorePack(context, update.listing, market: m)),
+    onReload: dev != null && dev.source.reloadable ? () => unawaited(_reload(context, dev.id)) : null,
+    problems: problems,
+    onProblems: dev == null ? null : () => unawaited(push<void>(context, (_) => DevPluginScreen(packId: dev.id))),
+    onReport: kind == PackKind.listing || kind == PackKind.store ? () => unawaited(reportPlugin(context, plugin, market: m)) : null,
+    stuck: plugin is StuckPackPlugin ? stuckWords(plugin.problem, why: installed?.revoked?.why, here: pluginsHere()) : null,
+    paused: kind == PackKind.store && installed?.problem == 'paused',
+    onUnpause: id == null ? null : () => here.unpause(id),
+    nohere: marketNoTexts,
+    takenFrom: plugin is ListingPlugin ? here.storeOf(plugin.pack.id)?.pack?.developer : null,
+    shotOf: kind == PackKind.listing || kind == PackKind.store ? m.shotOf : null,
+    onLabel: onLabel,
+    onSupport: support == null ? null : () => unawaited(_help(context, support)),
+  );
+}
+
+Future<void> _reload(BuildContext context, String packId) async {
+  final out = await InstalledPlugins.instance.reloadDev(packId);
+  if (!context.mounted) return;
+  toast(context, out.ok ? (out.needsConsent ? '${out.plugin!.name} reloaded. Switch it on to agree to what it can do now.' : '${out.plugin!.name} reloaded') : out.message, tone: out.ok ? GlacierToastTone.neutral : GlacierToastTone.danger);
+}
+
+/// A pack's help: an https address opened in the browser, an email address copied (the app opens no mail of its own).
+Future<void> _help(BuildContext context, String support) async {
+  if (support.contains('@') && !support.contains('://')) {
+    await Clipboard.setData(ClipboardData(text: support));
+    if (context.mounted) toast(context, 'Address copied');
+    return;
+  }
+  if (packAddressIssue(support) == null) await Sms.instance.openLink(support);
 }
 
 /// A plugin's own section of Settings (`plugin-<id>`, opened by a link or a search): its page from the Plugins page,
@@ -465,27 +718,30 @@ class _PluginScreenState extends State<PluginScreen> {
       );
 }
 
-/// Settings' way to the Plugins page, where its row was: the band, short, with a few of the plugins' tiles on it and
-/// how many are added. Ringed in the ink while the page stands beside Settings' list.
+/// The Marketplace's band, where Settings' list had its way to the Plugins page: the band, short, with a few of the
+/// plugins' tiles on it and how many are added. Ringed in the ink while its page stands beside the list.
 class PluginsEntry extends StatelessWidget {
-  const PluginsEntry({super.key, required this.registry, required this.onOpen, this.selected = false});
+  const PluginsEntry({super.key, required this.registry, required this.onOpen, this.selected = false, this.extra = const []});
 
   final PluginRegistry registry;
   final VoidCallback onOpen;
   final bool selected;
 
+  /// Plugins from other developers counted and drawn after the registry's: the stuck packs and the listings.
+  final List<GhostPlugin> extra;
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final store = AppStore(AppState.of(context));
-    final all = registry.plugins;
-    final featured = [for (final id in featuredPlugins) ...all.where((p) => p.id == id)];
-    final added = all.where((p) => registry.isOn(p, store)).length;
+    final all = [...registry.plugins, ...extra];
+    final featured = [for (final id in featuredPlugins) ...all.where((p) => p.id == id && p.source == PluginSource.builtIn)];
+    final added = registry.plugins.where((p) => registry.isOn(p, store)).length;
     final radius = isBevelChrome(t) ? 0.0 : t.radius('lg') * 1.2;
     return GlacierPressable(
       key: const ValueKey('plugins-entry'),
       onPressed: onOpen,
-      semanticLabel: 'Plugins, $added of ${all.length} added',
+      semanticLabel: 'Marketplace, $added of ${all.length} added',
       selected: selected,
       builder: (context, state) => GlacierFocusRing(
         visible: state.focused,

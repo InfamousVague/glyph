@@ -9,6 +9,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/ui/plugins_page/plugins_page.dart' show PluginsPage;
+import 'package:ghost_messaging/ui/market/marketplace_screen.dart' show MarketplaceScreen;
+import 'package:ghost_messaging/plugins/settings.dart' show marketPluginsScreen;
 import 'package:ghost_messaging/ui/split_handle.dart';
 import 'package:ghost_messaging/net/packet.dart';
 import 'package:ghost_messaging/friends/buddies.dart';
@@ -1097,24 +1099,29 @@ void main() {
       expect(find.text('Copied 771204'), findsOneWidget);
       await tester.pump(const Duration(seconds: 6));
       await _settle(tester);
-      // Settings › Plugins: the Plugins page since 2026-11-17 (Matt: "redo how the plugins look with their own
-      // dedicated plugins page with a marketplace like look how ghostmd has"), a card for each plugin (Codes and the
-      // Spam filter featured too), and a plugin's settings on its own page.
-      await _shoot(tester, sheet, const SettingsSectionScreen('plugins'), '12-plugins-settings', dark: dark);
+      // The Marketplace, where plugins are since 2026-11-20 (Matt: "Move plugins out of settings into a marketplace
+      // button on the navigation rail with a marketplace icon"): its list on a phone, the band leading to Discover and
+      // its sections under it; and Discover, the Plugins page of 2026-11-17 (Matt: "redo how the plugins look with
+      // their own dedicated plugins page with a marketplace like look how ghostmd has"), a card for each plugin (Codes
+      // and the Spam filter featured too), and a plugin's settings on its own page.
+      await _shoot(tester, sheet, const MarketplaceScreen(), '12-plugins-marketplace', dark: dark);
+      expect(find.byKey(const ValueKey('plugins-entry')), findsOneWidget, reason: 'the band, on a phone\'s list');
+      expect(find.byKey(const ValueKey('market-row-discover')), findsOneWidget);
+      expect(find.byKey(const ValueKey('market-row-added')), findsOneWidget);
+      await _shoot(tester, sheet, marketPluginsScreen(), '12-plugins-settings', dark: dark);
       expect(find.text('Codes'), findsWidgets);
       expect(find.text('Spam filter'), findsWidgets);
-      expect(find.text('Kinds of text'), findsOneWidget);
       expect(find.text('Mark as read when copied'), findsNothing);
       await _shoot(tester, sheet, const SettingsSectionScreen('plugin-codes'), '12-plugins-settings-codes', dark: dark);
       expect(find.text('Mark as read when copied'), findsOneWidget);
-      // Settings' list: the Plugins page's band where the plugins' rows were (2026-11-17); a plugin's own section is
-      // opened from its page there, or by its id, and is no longer a row of the list.
+      // Settings' list: no band and no Plugins row since the Marketplace has them; a plugin's own section is opened from
+      // its page there, or by its id, and is not a row of the list.
       await _shoot(tester, sheet, const SettingsScreen(), '12-plugins-settings-list', dark: dark);
-      expect(find.byKey(const ValueKey('plugins-entry')), findsOneWidget);
+      expect(find.byKey(const ValueKey('plugins-entry')), findsNothing);
       expect(find.text('Spam filter'), findsNothing);
       expect(find.text('Kinds of text'), findsNothing);
       await _shoot(tester, sheet, const SettingsScreen(), '12-plugins-settings-list-off', dark: dark, prefs: const {'plugin_spam': 'off'});
-      expect(find.byKey(const ValueKey('plugins-entry')), findsOneWidget);
+      expect(find.byKey(const ValueKey('plugins-entry')), findsNothing);
       // A plugin's page, from the Plugins page since 2026-11-17: off, it offers to add it, and its settings wait
       // until it is added (in place of the switch at the top it had from 2026-11-14).
       await _shoot(tester, sheet, const SettingsSectionScreen('plugin-spam'), '12-plugins-settings-off', dark: dark, prefs: const {'plugin_spam': 'off'});
@@ -2226,11 +2233,10 @@ void main() {
       expect(find.byType(SettingsScreen), findsOneWidget);
       expect(tester.getRect(find.byType(SettingsScreen)).right, closeTo(side, 1), reason: 'Settings\' list is the list\'s column');
       expect(seen(find.text('Dad')), findsNothing, reason: 'the conversations have given way to Settings\' sections');
-      // The first section is Plugins since 2026-11-17 (Matt: "move plugins to the very top of settings list"): its page,
-      // the Plugins page, open beside them.
-      expect(find.byType(PluginsPage), findsOneWidget, reason: 'the first section is open beside them');
-      expect(tester.getRect(find.byType(PluginsPage)).left, greaterThanOrEqualTo(side));
-      expect(tester.state<AppShellState>(find.byType(AppShell)).settingsSection.value, 'plugins');
+      // The first section is Me since plugins left Settings for the Marketplace (Matt, 2026-11-20: "Move plugins out of
+      // settings into a marketplace button on the navigation rail"): its page open beside them, and no Plugins page.
+      expect(find.byType(PluginsPage), findsNothing, reason: 'the Marketplace has the plugins');
+      expect(tester.state<AppShellState>(find.byType(AppShell)).settingsSection.value, 'me');
       // Beside its page too, Settings has a back arrow by its big title (Matt, 2026-11-18: "add a back arrow to the settings
       // page"), which takes it away (AppShellState.closeSettings).
       expect(seen(icon('Back')), findsOneWidget);
@@ -2300,9 +2306,12 @@ void main() {
       await _settle(tester);
       await _shootAgain(tester, '11-frame-wide-settings-menu', dark: dark);
       expect(find.byType(SettingsScreen), findsNothing, reason: 'the menu is over the conversations: Settings is not open yet');
-      for (final label in ['Me', 'Appearance', 'Emoji', 'Messages', 'Notifications', 'Plugins', 'Encryption', 'Blocked', 'Android', 'About']) {
+      for (final label in ['Me', 'Appearance', 'Emoji', 'Messages', 'Notifications', 'Encryption', 'Blocked', 'Android', 'About']) {
         expect(inMenu(label), findsOneWidget, reason: '$label is a section to jump to');
       }
+      // Plugins are the Marketplace ring's since 2026-11-20, not a section of Settings' menu.
+      expect(inMenu('Plugins'), findsNothing);
+      expect(inMenu('Marketplace'), findsNothing);
       // Its groups are named, in the kit's small capitals.
       for (final group in ['YOU', 'LOOK', 'CONVERSATIONS', 'PRIVACY', 'THIS PHONE', 'APP']) {
         expect(find.descendant(of: find.byType(GlacierMenuLabel), matching: find.text(group)), findsOneWidget, reason: group);

@@ -27,7 +27,11 @@ import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
 import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner;
 import 'package:ghost_messaging/plugins/plugin.dart' show DeviceLanguage, DeviceTranslation, TextHost;
 import 'package:ghost_messaging/plugins/registry.dart' show PluginRegistry;
-import 'package:ghost_messaging/plugins/settings.dart' show pluginsScreen;
+import 'package:ghost_messaging/market/listing_plugin.dart';
+import 'package:ghost_messaging/market/market_state.dart';
+import 'package:ghost_messaging/plugins/pack/pack.dart' show InstalledPlugins;
+import 'package:ghost_messaging/plugins/settings.dart' show marketPluginsScreen, pluginsScreen;
+import 'package:ghost_messaging/ui/market/marketplace_screen.dart' show MarketplaceScreen;
 import 'package:ghost_messaging/plugins/shown_store.dart' show ShownStore;
 import 'package:ghost_messaging/plugins/ui.dart' show SectionTabs;
 import 'package:ghost_messaging/sms.dart' show Person, Sms;
@@ -60,6 +64,7 @@ import 'circle_sample.dart';
 import 'files_shots.dart';
 import 'files_share_in_shots.dart';
 import 'support/fake_friends.dart';
+import 'support/market_fakes.dart';
 import 'support/fake_video.dart';
 
 /// The looks (lib/looks.dart; Matt, 2026-11-16: "spend some time making a few themes for ghost, base one of them
@@ -480,7 +485,14 @@ final themeScreens = <ThemeScreen>[
   // marketplace like look how ghostmd has"): Settings' list with its band leading there, the page on a phone, a
   // plugin's page over it, and on a computer's window with a plugin's page beside the shelves.
   ThemeScreen('settings', () => const SettingsScreen(), size: const Size(412, 2100)),
-  ThemeScreen('plugins', () => const SettingsSectionScreen('plugins')),
+  // The Marketplace since 2026-11-20 (Matt: "Move plugins out of settings into a marketplace button on the navigation
+  // rail with a marketplace icon"): its list on a phone, with the band, and its Discover.
+  ThemeScreen('marketplace', () => const MarketplaceScreen()),
+  ThemeScreen('plugins', () => marketPluginsScreen()),
+  // A plugin in development's page and a listing's: whether it was reviewed is said in every look, Dial-Up's lines and
+  // bevelled label among them, so an unreviewed pack's page never looks like a reviewed one's.
+  ThemeScreen('plugin-detail-dev', () => marketPluginsScreen(open: 'xbills'), before: _devPack, after: _packsGone),
+  ThemeScreen('plugin-detail-listing', () => marketPluginsScreen(open: 'xbills'), before: _listing, after: _packsGone),
   // Translate's page, as it is before it is added (its picture of a translated text, Add) and once it is (its
   // settings, beside the shelves on a computer); and the Spam filter's, a plugin with a shelf tag and a summary.
   ThemeScreen('plugin-detail', () => pluginsScreen(null, 'translate'), before: _translating, after: _translated),
@@ -731,6 +743,37 @@ void _translateOn(AppState state) => state.set('plugin_translate', 'on');
 /// as they were, and its bar read "Telegram" over "Telegram" without it.
 final _priyaTg = InboxChat(network: 'telegram', id: '12', title: 'Priya Natarajan', date: _now.subtract(const Duration(minutes: 1)), snippet: 'Text 40');
 final _camille = InboxChat(network: 'telegram', id: '11', title: 'Camille Laurent', date: _now.subtract(const Duration(minutes: 4)), snippet: 'Yes, where?');
+
+InstalledPlugins? _installedBefore;
+MarketState? _marketBefore;
+
+// A screen's `after` runs when the whole look's test ends (addTearDown), so each of these first puts back what the one
+// before it changed: the dev pack must be gone before the listing is drawn.
+
+/// A pack loaded in development, running: its own page shows it unreviewed.
+void _devPack() {
+  _packsGone();
+  _installedBefore = InstalledPlugins.instance;
+  InstalledPlugins.instance = FakeInstalled(root: Directory.systemTemp, checks: FakeChecks())..putDev(billsPack(icon: billsIcon));
+}
+
+/// An approved plugin the Marketplace has checked, not on this device.
+void _listing() {
+  _packsGone();
+  _marketBefore = MarketState.instance;
+  final m = MarketState(installed: InstalledPlugins.instance, cache: Directory.systemTemp);
+  final pack = billsPack(icon: billsIcon, whatsNew: 'Receipts are a kind of their own.');
+  m.debugListings = [ListingPlugin(entryOf(pack), pack, m)];
+  MarketState.instance = m;
+}
+
+void _packsGone() {
+  PluginRegistry.instance.uninstall('xbills');
+  if (_installedBefore != null) InstalledPlugins.instance = _installedBefore!;
+  if (_marketBefore != null) MarketState.instance = _marketBefore!;
+  _installedBefore = null;
+  _marketBefore = null;
+}
 
 void _translating() {
   _hostBefore ??= PluginRegistry.textHost;

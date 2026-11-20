@@ -395,8 +395,9 @@ void main() {
     expect(find.text('Paged tickets'), findsOneWidget);
     expect(find.byType(GlacierSwitch), findsOneWidget);
     expect(find.text('Mark tickets as read'), findsNothing);
-    // Its settings are on its page in Plugins now (lib/ui/plugins_page; Matt, 2026-11-17: "their own dedicated plugins page").
-    expect(find.textContaining('settings are on its page in Plugins'), findsOneWidget);
+    // Its settings are on its page in the Marketplace now (lib/ui/plugins_page; Matt, 2026-11-17: "their own dedicated
+    // plugins page"; 2026-11-20: "Move plugins out of settings into a marketplace button on the navigation rail").
+    expect(find.textContaining('settings are on its page in the Marketplace'), findsOneWidget);
 
     // Switched off from the top of its own page: its settings go, its switch stays to turn it back on, and its row
     // says Off.

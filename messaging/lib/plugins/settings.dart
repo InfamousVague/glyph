@@ -1,8 +1,8 @@
-/// Settings › Plugins. Since 2026-11-17 it is the Plugins page (lib/ui/plugins_page/; Matt: "redo how the plugins look
-/// with their own dedicated plugins page with a marketplace like look how ghostmd has"), each plugin's settings on its
-/// page there. The section keeps its list of the kit's cards and rows ([pluginsPane]), every plugin with its switch,
+/// Settings › Plugins, which is the Marketplace since 2026-11-20 (lib/ui/market/; Matt: "Move plugins out of settings
+/// into a marketplace button on the navigation rail with a marketplace icon"), each plugin's settings on its page there.
+/// The section stays, unlisted, with its list of the kit's cards and rows ([pluginsPane]), every plugin with its switch,
 /// and each plugin keeps its own section ([pluginPages]), so Settings' search still finds a plugin, and a plugin's
-/// setting, by name.
+/// setting, by name, and a hit opens the Marketplace at it (lib/ui/settings.dart).
 library;
 
 import 'dart:io' show Platform;
@@ -16,6 +16,7 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../kit/settings_kit.dart';
 import '../sms.dart';
+import '../market/market_state.dart';
 import '../ui/settings.dart';
 import '../ui/plugins_page/plugins_page.dart';
 import 'plugin.dart';
@@ -26,13 +27,18 @@ import 'registry.dart';
 /// (the Plugins page leads to its settings) but a link or a search still opens.
 List<SettingsSection> pluginsSettings() => PluginRegistry.instance.isEmpty ? const [] : [pluginsSection(), ...pluginPages()];
 
-/// Settings › Plugins, for the app's own plugins or, in a test, for [registry]'s.
+/// Settings › Plugins, for the app's own plugins or, in a test, for [registry]'s. No longer a row of Settings' list, a
+/// band on it, a ring's menu entry, or the first section beside it: the Marketplace is all of those now (Matt,
+/// 2026-11-20: "Move plugins out of settings into a marketplace button on the navigation rail with a marketplace
+/// icon"). Its [page] stays what Settings' search reads (every plugin's switch row by name, and the cards of those that
+/// are on, packs included), and a hit there opens the Marketplace at that plugin.
 SettingsSection pluginsSection([PluginRegistry? registry]) => SettingsSection(
       id: 'plugins',
-      label: 'Plugins',
-      icon: const AppIcon(Lucide.puzzle, size: 18),
+      label: 'Marketplace',
+      icon: const AppIcon(Lucide.store, size: 18),
       hue: 'rose',
       group: 'plugins',
+      listed: false,
       summary: (m) {
         final r = registry ?? PluginRegistry.instance;
         final store = AppStore(m.app);
@@ -40,19 +46,32 @@ SettingsSection pluginsSection([PluginRegistry? registry]) => SettingsSection(
         return on.isEmpty ? 'None on' : on.join(' · ');
       },
       page: (context, m) => pluginsPane(context, m.app, registry ?? PluginRegistry.instance),
-      // The page itself is the Plugins page (Matt, 2026-11-17: "redo how the plugins look with their own dedicated
-      // plugins page with a marketplace like look how ghostmd has"); [page] stays what Settings' search reads, every
-      // plugin by name, and a hit opens the Plugins page at it. Its row in Settings' list is the band, short.
-      screen: (context, m) => pluginsScreen(registry),
-      entry: (context, m, open, selected) => PluginsEntry(registry: registry ?? PluginRegistry.instance, onOpen: open, selected: selected),
     );
 
 /// The Plugins page for the app's own plugins or [registry]'s, each one's settings on its page once it is added: the
-/// cards its own section in Settings has ([pluginPages]).
+/// cards its own section in Settings has ([pluginPages]). The tests' shelves: the Marketplace's are [marketPluginsScreen].
 Widget pluginsScreen([PluginRegistry? registry, String? open]) {
   final r = registry ?? PluginRegistry.instance;
   return PluginsPage(registry: r, open: open, settingsOf: (context, p) => _ownOf(context, p, r), summaryOf: (context, p) => _summaryOf(context, p, r));
 }
+
+/// The Marketplace's shelves (Discover, Added, In development): the app's plugins with those from other developers, the
+/// checked listings among them, so a plugin's own settings still show on its page once it is added. [shelf] is the chip
+/// chosen at first; [head] false is that shelf alone, with no band, search or chips; [lead] stands above it.
+Widget marketPluginsScreen({String title = 'Discover', String? shelf, String? open, bool head = true, Widget? lead}) => PluginsPage(
+      registry: PluginRegistry.instance,
+      title: title,
+      shelf: shelf,
+      open: open,
+      head: head,
+      lead: lead,
+      market: MarketState.instance,
+      settingsOf: (context, p) => _ownOf(context, p, PluginRegistry.instance),
+      summaryOf: (context, p) => _summaryOf(context, p, PluginRegistry.instance),
+    );
+
+/// [plugin]'s own settings as the kit's cards, as its page draws them once it is on: a dev pack's own screen too.
+List<Widget> pluginOwnSettings(BuildContext context, GhostPlugin plugin, [PluginRegistry? registry]) => _ownOf(context, plugin, registry ?? PluginRegistry.instance);
 
 /// One plugin's page from the Plugins page on a screen of its own: its section of Settings ([pluginPages]).
 Widget pluginScreen(GhostPlugin plugin, [PluginRegistry? registry]) {
@@ -118,7 +137,7 @@ List<Widget> pluginsPane(BuildContext context, AppState app, PluginRegistry regi
     PaneSection(
       title: 'Plugins',
       description: Text('Extra things the app can do with your messages. Each one works on this ${Sms.remote ? (Platform.isIOS ? 'iPhone' : 'computer') : 'phone'} alone, and does nothing while it is off.'),
-      footer: registry.plugins.any((p) => p.settingsPage != null) ? const Text('Each plugin\'s settings are on its page in Plugins.') : null,
+      footer: registry.plugins.any((p) => p.settingsPage != null) ? const Text('Each plugin\'s settings are on its page in the Marketplace.') : null,
       children: [
         for (final p in registry.plugins)
           SettingRow(

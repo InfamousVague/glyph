@@ -8,9 +8,11 @@ library;
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show Uint8List;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../app_state.dart';
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../circles/circles.dart';
@@ -18,6 +20,7 @@ import '../../files/file_platform.dart';
 import '../../files/files_store.dart';
 import '../../kit/settings_kit.dart';
 import '../../kit/settings_type.dart';
+import '../../plugins/pack/pack.dart' show InstalledPlugins, packExtension;
 import '../../sms.dart';
 import '../../voice/channels.dart';
 import '../../voice/voice.dart';
@@ -25,6 +28,7 @@ import '../circles/circle_face.dart';
 import '../circles/circle_screen.dart' show openCircleSpace;
 import '../common.dart';
 import '../dialup/bevel.dart';
+import '../market/dev_plugins.dart' show loadSharedPlugin;
 import '../shell.dart';
 import 'file_badge.dart';
 import 'files_screen.dart';
@@ -252,7 +256,24 @@ class FilesShareIn {
     }
     final context = _navigator?.currentContext;
     if (files.isEmpty || context == null || !context.mounted) return;
+    // A plugin being made, shared from a computer or a file manager (Matt, 2026-11-20: "a developer setting for users
+    // to be able to manually upload plugins for development testing"): loaded in development, not put in a Files space.
+    if (Platform.isAndroid) files = await takePlugins(context, files);
+    if (files.isEmpty || !context.mounted) return;
     await offer(context, files, keep: FilePlatform.keep, owned: true);
+  }
+
+  /// Of [files] shared in, each .ghostplugin is loaded in development where developer mode is on (with its toast), and
+  /// the rest are what is left to offer a Files space. [read] gives a file's bytes (a test's); where developer mode is
+  /// off, or this build has no plugins in development, every file is left.
+  static Future<List<IncomingFile>> takePlugins(BuildContext context, List<IncomingFile> files, {Future<Uint8List?> Function(String source)? read}) async {
+    final plugins = [for (final f in files) if (f.name.toLowerCase().endsWith(packExtension)) f];
+    if (plugins.isEmpty || !InstalledPlugins.instance.devAllowed || !AppState.of(context).flag('dev_mode', fallback: false)) return files;
+    for (final f in plugins) {
+      if (!context.mounted) break;
+      await loadSharedPlugin(context, f.source, f.name, read: read);
+    }
+    return [for (final f in files) if (!plugins.contains(f)) f];
   }
 
   // --- a Mac: dropped on the window --------------------------------------------------------------------------------

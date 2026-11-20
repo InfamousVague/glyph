@@ -15,6 +15,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextCapita
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../app_state.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../kit/semantic_colors.dart';
@@ -28,7 +29,10 @@ import 'plugins_page/plugin_art.dart' show PluginHues;
 import 'special_badges.dart';
 
 /// Whether the admin page is offered: developer mode on, and this is Matt's account.
-bool adminOffered(SettingsModel m) => m.app.flag('dev_mode', fallback: false) && adminNames.contains(Me.instance.username);
+bool adminOffered(SettingsModel m) => adminOfferedFor(m.app);
+
+/// The same from the app's choices alone: the Marketplace's Review queue is offered by it, with no Settings round it.
+bool adminOfferedFor(AppState app) => app.flag('dev_mode', fallback: false) && adminNames.contains(Me.instance.username);
 
 /// The Ghost usernames the admin page is offered to (the relay's GHOST_ADMIN_NAMES says who it answers).
 const adminNames = {'matt'};

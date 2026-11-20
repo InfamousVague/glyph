@@ -67,6 +67,8 @@ LucideIcon noteIcon(String note) {
 
 final List<(List<String>, LucideIcon)> _noteIcons = [
   (['splash'], LucideMore.rocket),
+  // The Marketplace and plugins from other developers (Matt, 2026-11-20): before developer mode, which loads them too.
+  (['marketplace', 'make your own'], Lucide.store),
   (['developer mode'], Lucide.braces),
   (['icons', 'phosphor'], Lucide.shapes),
   (['souls', 'flame'], Lucide.flame),
