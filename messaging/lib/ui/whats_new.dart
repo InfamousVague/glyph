@@ -72,6 +72,8 @@ final List<(List<String>, LucideIcon)> _noteIcons = [
   (['verified'], LucideMore.badgeCheck),
   (['slow mode'], Lucide.hourglass),
   (['poll'], LucideMore.chartColumn),
+  (['feedback', 'bug bount'], LucideMore.messageSquareWarning),
+  (['top bar'], Lucide.laptop),
   (['record'], Lucide.circleDot),
   (['scribe', 'written out', 'transcri'], Lucide.scrollText),
   (['caption'], Lucide.text),

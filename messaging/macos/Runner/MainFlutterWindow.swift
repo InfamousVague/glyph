@@ -3,7 +3,9 @@ import FlutterMacOS
 
 class MainFlutterWindow: NSWindow, NSDraggingDestination {
   /// The app's own top bar, with the three buttons folded down into it; off for now (see awakeFromNib).
-  static let ownTopBar = false
+  /// The app draws the top of the window: its title strip (lib/desktop/ui/desk_title_bar.dart; Matt, 2026-11-19: "we can
+  /// roll a custom titlebar if we need to that's a bit thicker to fit the content").
+  static let ownTopBar = true
   private var desk: DeskChannels?
   /// Files dropped on the window (lib/files/file_platform.dart): taken only while a Files space is on the screen, which
   /// says so with "target"; then "over" as files are dragged over the window and "dropped" with their paths.

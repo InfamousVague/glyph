@@ -90,7 +90,7 @@ ${DOMAIN} {
 	# page or a delete at once). Neither runs while a body is still coming, so a slow phone's 8 MB piece is not cut
 	# off. A body that stops coming is the relay's to end (files.dart's bodyPause, 30 s without a byte): Caddy's own
 	# read_body timeout is for every site on this box, not one route, so it is not set here.
-	@files path /files /files/*
+	@files path /files /files/* /feedback
 	handle @files {
 		request_body {
 			max_size 10MB
@@ -142,7 +142,7 @@ ${OLD} {
 	handle @relay {
 		reverse_proxy 127.0.0.1:18787
 	}
-	@files path /files /files/*
+	@files path /files /files/* /feedback
 	handle @files {
 		request_body {
 			max_size 10MB

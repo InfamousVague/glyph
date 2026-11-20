@@ -46,6 +46,8 @@ import 'inbox_ui.dart';
 import '../inbox/inbox.dart';
 import '../friends/groups.dart';
 import 'thread.dart';
+import 'feedback_screen.dart' show FeedbackButton;
+import 'window_chrome.dart' show MacChrome;
 import '../kit/semantic_colors.dart';
 
 /// Home: every conversation, the newest first, with a search over names, numbers and the last message.
@@ -1299,7 +1301,17 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                     size: GlacierFieldSize.md,
                     onValueChange: (v) => setState(() => _query = v),
                   );
-                  return dialup ? DialupWell(child: field) : field;
+                  final search = dialup ? DialupWell(child: field) : field;
+                  // On the Mac it is in the window's title strip instead (lib/desktop/ui/desk_title_bar.dart).
+                  if (widget.archived || MacChrome.stripEnabled) return search;
+                  // Share feedback beside the search, at the top of the list on a phone and beside a pane, there
+                  // whether or not the page has a bar over it (Matt, 2026-11-19: "add a "share feedback" button
+                  // hovering in the topbar of the app"; the bar goes when it has nothing in it: "remove the extra space
+                  // above the searchbar too").
+                  return Row(children: [
+                    Expanded(child: search),
+                    Padding(padding: EdgeInsets.only(left: t.space(2)), child: const FeedbackButton()),
+                  ]);
                 }),
               ),
               // What the frame keeps under the search: on a computer, how the phone is connected.
