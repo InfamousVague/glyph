@@ -9,9 +9,11 @@ import 'package:flutter/foundation.dart';
 import 'picture_make.dart';
 import 'pictures.dart';
 
+import '../account/account_crypto.dart' show AccountCrypto;
 import '../app_state.dart';
 import '../invites/invite_seal.dart' show WaitingInvite;
 import '../invites/text_invites.dart';
+import '../inbox/curl_sync.dart';
 import '../kept_lists.dart';
 import '../net/carrier.dart';
 import '../net/crypto.dart';
@@ -356,6 +358,9 @@ class Me extends ChangeNotifier {
         // Ghost's own lists of what was deleted or archived where the network could not, kept on the account: read
         // back and joined with this device's (lib/kept_lists.dart).
         unawaited(KeptLists.instance.pull().catchError((_) => false));
+        // Cookies a Chrome extension captured on another device: read back and sign in any service not already on
+        // here (lib/inbox/curl_sync.dart).
+        unawaited(CurlSync.instance.pull());
         // The server is the word on what is linked there; the phone is the word on which handle each is.
         final there = {for (final l in (m['links'] as List? ?? const [])) (l as Map)['p'] as String: l['k'] as String?};
         links.removeWhere((p, h) => there[p] != handleKey(p, h));
@@ -564,6 +569,44 @@ class Me extends ChangeNotifier {
     final key = _keptKey;
     if (key == null) return null;
     final m = await _ask({'dir': 'kept'}, 'kept');
+    final blob = m['blob'];
+    if (blob is! String || blob.isEmpty) return null;
+    final clear = NetCrypto.open(key, base64Decode(blob));
+    return clear == null ? null : (jsonDecode(utf8.decode(clear)) as Map).cast<String, Object?>();
+  }
+
+  Uint8List? _curlKeyCache;
+
+  /// The key the synced cURL entries are sealed with (lib/inbox/curl_sync.dart): HKDF of the account's BIP-39 seed,
+  /// so every device of the account — and the Chrome extension (messaging/extension) — arrive at the same key, and
+  /// the relay at none. Keyed on the seed rather than kept_key because the seed is the same on every account device
+  /// (kept_key lands in the backup only once a kept list has been written). Null where no account words are here
+  /// (so nothing to sync), or the relay isn't reachable.
+  Future<Uint8List?> _curlKey() async {
+    if (_hub == null) return null;
+    if (_curlKeyCache != null) return _curlKeyCache;
+    final typed = await Sms.instance.secretRead('account_words');
+    if (typed == null || typed.trim().isEmpty) return null;
+    final words = AccountCrypto.tidyWords(typed);
+    if (!AccountCrypto.validWords(words)) return null;
+    return _curlKeyCache = AccountCrypto.hkdf(AccountCrypto.seedOf(words), 'ghost-account v1', 'ghost curl v1');
+  }
+
+  /// Forgets the cached cURL key (on sign-out, when the account's words change).
+  void forgetCurlKey() => _curlKeyCache = null;
+
+  /// Keeps [what] (the synced cURL entries) on the relay for the account, sealed.
+  Future<void> curlKeep(Map<String, Object?> what) async {
+    final key = await _curlKey();
+    if (key == null) throw MeError('The relay server can\'t be reached right now.');
+    await _ask({'dir': 'curl-keep', 'blob': base64Encode(NetCrypto.seal(key, utf8.encode(jsonEncode(what))))}, 'curl-keep');
+  }
+
+  /// The synced cURL entries the account keeps on the relay, opened; null where none or it can't be opened.
+  Future<Map<String, Object?>?> curlKept() async {
+    final key = await _curlKey();
+    if (key == null) return null;
+    final m = await _ask({'dir': 'curl-kept'}, 'curl-kept');
     final blob = m['blob'];
     if (blob is! String || blob.isEmpty) return null;
     final clear = NetCrypto.open(key, base64Decode(blob));
