@@ -2,6 +2,7 @@ import 'video_frame.dart';
 import '../circles/circles.dart' show Circles, CirclePerm;
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math' as math;
@@ -9,7 +10,8 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:pointycastle/export.dart' show SHA256Digest;
+import 'package:crypto/crypto.dart' as crypto;
+import 'package:ffi/ffi.dart' as pkg_ffi;
 
 import '../desktop/store.dart' show DeskStore;
 import '../inbox/kept_writer.dart';
@@ -759,7 +761,16 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
         t.status = 'Getting it ready';
         notifyListeners();
         final path = t.path!;
-        t.sha = await _shaAside(path);
+        // The whole file is read once for its checksum before any of it goes: said in hundredths, so a big one is
+        // seen to be moving.
+        var said = -1;
+        t.sha = await _shaAside(path, told: t.size < 64 << 20 ? null : (read) {
+          final pct = t.size <= 0 ? 0 : (read * 100 ~/ t.size).clamp(0, 99);
+          if (pct == said) return;
+          said = pct;
+          t.status = 'Getting it ready · $pct%';
+          notifyListeners();
+        });
         t.fileKey ??= NetCrypto.randomBytes(32);
         t.prefix ??= NetCrypto.randomBytes(8);
         // Its small picture, for everyone's list and grid: a picture's own (a GIF's first frame), or a video's frame from
@@ -1294,7 +1305,7 @@ Future<void> markFromInternet(String path) async {
   } catch (_) {}
 }
 
-Future<String> _shaAside(String path) => Isolate.run(() => shaOfFile(path));
+Future<String> _shaAside(String path, {void Function(int read)? told}) => shaOfFileAside(path, told: told);
 Future<Uint8List> _sealAside(SealRun run) => Isolate.run(() => FileSeal.sealRun(run));
 
 /// [run] sealed on as many isolates as there are cores to spare (up to four), each a share of its chunks: AES on one
@@ -1321,22 +1332,147 @@ Future<Uint8List?> _openAside(OpenRun run) => Isolate.run(() => FileSeal.openRun
 Future<List<LoggedOp>> _checkAside(List<LoggedOp> log, String space) => Isolate.run(() => checkAll(log, space));
 
 /// The SHA-256 of the file at [path], in hex, read a megabyte at a time: run on another isolate.
-String shaOfFile(String path) {
-  final digest = SHA256Digest();
+String shaOfFile(String path, {void Function(int read)? told, @visibleForTesting bool plain = false}) {
+  // [plain]: the Dart reader even where the device has its own, for a test of it on a Mac.
+  final hash = (plain ? null : _AppleSha.open()) ?? _DartSha();
   final raf = File(path).openSync();
   try {
-    final buf = Uint8List(1 << 20);
+    final buf = Uint8List(4 << 20);
+    var read = 0;
     while (true) {
       final n = raf.readIntoSync(buf);
       if (n <= 0) break;
-      digest.update(buf, 0, n);
+      hash.add(buf, n);
+      read += n;
+      told?.call(read);
     }
+    return NetCrypto.hex(hash.end());
   } finally {
     raf.closeSync();
+    hash.close();
   }
-  final out = Uint8List(32);
-  digest.doFinal(out, 0);
-  return NetCrypto.hex(out);
+}
+
+/// [shaOfFile] off the screen's thread, saying how far it has read as it goes ([told], a few times a second at most).
+/// A big file takes minutes even at its fastest (Matt, 2026-11-21, of a 26 GB file: "it's taking a long time to
+/// 'getting file ready'"), so it has to be able to say where it is.
+Future<String> shaOfFileAside(String path, {void Function(int read)? told}) async {
+  if (told == null) return Isolate.run(() => shaOfFile(path));
+  final port = ReceivePort();
+  final done = Completer<String>();
+  port.listen((m) {
+    if (m is int) {
+      told(m);
+    } else if (m is String) {
+      done.complete(m);
+    } else if (!done.isCompleted) {
+      done.completeError(m is List && m.isNotEmpty ? FileSystemException('${m.first}', path) : FileSystemException('The file could not be read.', path));
+    }
+  });
+  try {
+    await Isolate.spawn(_shaTelling, (path, port.sendPort), onError: port.sendPort, errorsAreFatal: true);
+    return await done.future;
+  } finally {
+    port.close();
+  }
+}
+
+void _shaTelling((String, SendPort) job) {
+  final (path, port) = job;
+  final clock = Stopwatch()..start();
+  var last = 0;
+  final sha = shaOfFile(path, told: (read) {
+    if (clock.elapsedMilliseconds - last < 250) return;
+    last = clock.elapsedMilliseconds;
+    port.send(read);
+  });
+  Isolate.exit(port, sha);
+}
+
+/// SHA-256 a piece at a time. The plain Dart one (package:crypto) reads about 100 MB a second, five times what
+/// pointycastle's did (19 MB/s: twenty minutes and more for a 26 GB file); a Mac's and an iPhone's own, on the
+/// processor's SHA instructions, reads faster than the disk gives it.
+abstract class _Sha {
+  void add(Uint8List bytes, int length);
+  Uint8List end();
+  void close() {}
+}
+
+class _DartSha implements _Sha {
+  _DartSha() {
+    _in = crypto.sha256.startChunkedConversion(_out);
+  }
+  final _DigestSink _out = _DigestSink();
+  late final ByteConversionSink _in;
+
+  @override
+  void add(Uint8List bytes, int length) => _in.addSlice(bytes, 0, length, false);
+  @override
+  Uint8List end() {
+    _in.close();
+    return Uint8List.fromList(_out.value!.bytes);
+  }
+
+  @override
+  void close() {}
+}
+
+class _DigestSink implements Sink<crypto.Digest> {
+  crypto.Digest? value;
+  @override
+  void add(crypto.Digest data) => value = data;
+  @override
+  void close() {}
+}
+
+/// CommonCrypto's, which every Mac and iPhone has (libSystem): CC_SHA256_Init, _Update, _Final.
+class _AppleSha implements _Sha {
+  _AppleSha._(this._update, this._final, this._ctx, this._buf);
+
+  static const _room = 4 << 20;
+
+  static _AppleSha? open() {
+    if (!Platform.isMacOS && !Platform.isIOS) return null;
+    try {
+      final lib = ffi.DynamicLibrary.process();
+      final init = lib.lookupFunction<ffi.Int32 Function(ffi.Pointer<ffi.Void>), int Function(ffi.Pointer<ffi.Void>)>('CC_SHA256_Init');
+      final update = lib.lookupFunction<ffi.Int32 Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, ffi.Uint32), int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, int)>('CC_SHA256_Update');
+      final end = lib.lookupFunction<ffi.Int32 Function(ffi.Pointer<ffi.Uint8>, ffi.Pointer<ffi.Void>), int Function(ffi.Pointer<ffi.Uint8>, ffi.Pointer<ffi.Void>)>('CC_SHA256_Final');
+      // CC_SHA256_CTX is 104 bytes; more than enough is asked for.
+      final ctx = pkg_ffi.calloc<ffi.Uint8>(256).cast<ffi.Void>();
+      final buf = pkg_ffi.malloc<ffi.Uint8>(_room);
+      init(ctx);
+      return _AppleSha._(update, end, ctx, buf);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  final int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, int) _update;
+  final int Function(ffi.Pointer<ffi.Uint8>, ffi.Pointer<ffi.Void>) _final;
+  final ffi.Pointer<ffi.Void> _ctx;
+  final ffi.Pointer<ffi.Uint8> _buf;
+
+  @override
+  void add(Uint8List bytes, int length) {
+    for (var at = 0; at < length; at += _room) {
+      final n = math.min(_room, length - at);
+      _buf.asTypedList(n).setRange(0, n, bytes, at);
+      _update(_ctx, _buf, n);
+    }
+  }
+
+  @override
+  Uint8List end() {
+    _final(_buf, _ctx);
+    return Uint8List.fromList(_buf.asTypedList(32));
+  }
+
+  @override
+  void close() {
+    pkg_ffi.calloc.free(_ctx);
+    pkg_ffi.malloc.free(_buf);
+  }
 }
 
 /// What the roster of a space's chat room says of its files (lib/voice/roles.dart): adding needs Add files; renaming,
