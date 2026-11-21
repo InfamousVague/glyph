@@ -31,7 +31,7 @@ const List<ReleaseNotes> changelog = [
     'Test your microphone and speaker in Settings › Voice and video: a live level bar, and Hear yourself through the speaker you chose.',
     'In a call, each face shows when someone is still connecting, reconnecting, on a slow connection, or can\'t connect.',
     'Reply to a message in circle and space chats: press and hold it, then Reply.',
-    'After signing up, your 12 recovery words can wait: choose Later, and a reminder stays in your conversations until you see them.',
+    'Sign up: your 12 recovery words can wait. Choose Later, and a reminder stays in your conversations until you see them.',
   ]),
   ReleaseNotes('0.12.2', '2026-11-21', [
     'Messenger, Instagram and LinkedIn: sign in once, on every device. A new browser extension captures your sign-in for each from a browser you\'re already signed in to and syncs it, sealed, to your Ghost account; your other devices then sign in on their own, so you no longer copy a login onto each one. The relay only ever holds it sealed and cannot read it.',
