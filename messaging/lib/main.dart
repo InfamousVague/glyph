@@ -21,6 +21,7 @@ import 'me/me.dart';
 import 'accent.dart';
 import 'summaries.dart';
 import 'app_state.dart';
+import 'inbox/curl_sync.dart';
 import 'kept_lists.dart';
 import 'looks.dart';
 import 'backgrounds.dart';
@@ -111,6 +112,7 @@ Future<void> main() async {
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   final state = AppState();
   KeptLists.instance.app = state;
+  CurlSync.instance.app = state;
   // The stylesheets, the person's choices and the wallpaper's colours (for a chat background and bubbles that follow
   // the phone) are asked for together: none waits on another.
   final loaded = await Future.wait<Object?>([
