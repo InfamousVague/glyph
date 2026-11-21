@@ -224,7 +224,7 @@ void main() {
     expect(c.liveActive, isTrue);
     final back = await c.convertPhrase(LiveChanger.wav(sound(500), 16000));
     expect(back.length, 4800);
-    expect(asked.last, 'POST /v1/speech-to-speech/21m00Tcm4TlvDq8ikWAM?output_format=pcm_24000');
+    expect(asked.last, 'POST /v1/voice-changer/21m00Tcm4TlvDq8ikWAM?output_format=pcm_24000');
     expect(body, contains('filename="phrase.wav"'));
     expect(body, contains('eleven_multilingual_sts_v2'));
     expect(VoiceChanger.forTest(folder: dir.path, base: Uri.parse('http://127.0.0.1:${server.port}'), isOn: () => true).live, isTrue, reason: 'kept');
