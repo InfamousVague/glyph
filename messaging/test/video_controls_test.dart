@@ -148,6 +148,41 @@ void main() {
     await close(tester);
   });
 
+  // Matt, 2026-11-21: "add the ability to full screen videos played from files".
+  testWidgets('a phone has full screen too: the bars hidden, turned the way the picture is, and back leaves it first', (tester) async {
+    final said = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'SystemChrome.setEnabledSystemUIMode') said.add('mode ${call.arguments}');
+      if (call.method == 'SystemChrome.setEnabledSystemUIOverlays') said.add('bars ${call.arguments}');
+      if (call.method == 'SystemChrome.setPreferredOrientations') said.add('turn ${call.arguments}');
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+    await open(tester, const VideoScreen(path: '/tmp/clip.mp4', title: 'Holiday', desk: false), size: const Size(412, 892));
+    engine.value = engine.value.copyWith(aspect: 16 / 9);
+    await tester.pump();
+    await tester.tap(find.bySemanticsLabel('Full screen'));
+    await tester.pump();
+    expect(said, ['mode SystemUiMode.immersiveSticky', 'turn [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]']);
+    expect(find.bySemanticsLabel('Leave full screen'), findsOneWidget);
+    expect(fullscreen, isEmpty, reason: 'not the computer\'s window');
+    // The back gesture: out of full screen, still on the video.
+    said.clear();
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(said.where((w) => w.startsWith('mode') || w.startsWith('bars')), isNotEmpty, reason: 'the bars back');
+    expect(said.last, 'turn []');
+    expect(find.text('Holiday'), findsOneWidget);
+    expect(find.bySemanticsLabel('Full screen'), findsOneWidget);
+    // A tall video stays upright.
+    engine.value = engine.value.copyWith(aspect: 9 / 16);
+    said.clear();
+    await tester.tap(find.bySemanticsLabel('Full screen'));
+    await tester.pump();
+    expect(said.last, 'turn [DeviceOrientation.portraitUp]');
+    await close(tester);
+  });
+
   testWidgets('a file that can\'t be played says so, and offers another app', (tester) async {
     engine = FakeVideoEngine(fails: true);
     await open(tester, const VideoScreen(path: '/tmp/clip.mkv', title: 'Maya Chen', desk: true));
