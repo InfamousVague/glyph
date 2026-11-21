@@ -91,6 +91,15 @@ class RtcMedia implements VoiceMedia, FallbackMedia {
 
   @override
   final ValueNotifier<Map<String, double>> levels = ValueNotifier(const {});
+
+  /// How this device's connection to each person stands, by their id ([PeerLink]): drawn on their face and row.
+  final ValueNotifier<Map<String, PeerLink>> links = ValueNotifier(const {});
+
+  void _link(String id, PeerLink? to) {
+    final now = links.value;
+    if (now[id] == to) return;
+    links.value = to == null ? ({...now}..remove(id)) : {...now, id: to};
+  }
   Timer? _levelTimer;
 
   /// A connection that holds the microphone and never connects: what this device's own level is read from, alone in a
@@ -135,6 +144,11 @@ class RtcMedia implements VoiceMedia, FallbackMedia {
 
   bool _reading = false;
 
+  /// Connected, or poor where a word takes longer than [poorAfter] there and back.
+  static const poorAfter = 0.4;
+  @visibleForTesting
+  static PeerLink linkFor(double roundTrip) => roundTrip > poorAfter ? PeerLink.poor : PeerLink.connected;
+
   Future<void> _readLevelsOnce() async {
     final next = <String, double>{};
     final meter = _meter;
@@ -174,11 +188,18 @@ class RtcMedia implements VoiceMedia, FallbackMedia {
       if (made == null) continue;
       try {
         final pc = await made;
+        double? rtt;
         for (final r in await pc.getStats()) {
           final v = r.values;
+          // How long a word takes there and back, on the way in use (GMFB-4): over 400 ms a call is hard to talk on.
+          if (r.type == 'candidate-pair' && (v['nominated'] == true || v['state'] == 'succeeded') && v['currentRoundTripTime'] is num) {
+            rtt = math.max(rtt ?? 0, (v['currentRoundTripTime'] as num).toDouble());
+          }
           if (r.type == 'inbound-rtp' && v['kind'] == 'audio' && v['audioLevel'] is num) next[e.key] = (v['audioLevel'] as num).toDouble();
           if (r.type == 'media-source' && v['kind'] == 'audio' && v['audioLevel'] is num && !next.containsKey('me')) next['me'] = (v['audioLevel'] as num).toDouble();
         }
+        final link = links.value[e.key];
+        if (rtt != null && (link == PeerLink.connected || link == PeerLink.poor)) _link(e.key, linkFor(rtt));
       } catch (_) {}
     }
     final was = levels.value;
@@ -389,6 +410,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia {
     _levelTimer?.cancel();
     _levelTimer = null;
     levels.value = const {};
+    links.value = const {};
     await _meter?.close();
     _meter = null;
     await _meterSink?.close();
@@ -470,6 +492,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia {
     final had = _peers[id];
     if (had != null) return had;
     final made = _peers[id] = _RtcPeer(this, id, onCandidate, onFailed: onFailed, relayOnly: relayOnly);
+    _link(id, PeerLink.connecting);
     _retune();
     return made;
   }
@@ -487,6 +510,8 @@ class RtcMedia implements VoiceMedia, FallbackMedia {
   void _gone(String id) {
     if (_peers.remove(id) != null) _retune();
     remote.value = {...remote.value}..remove(id);
+    // A failure is left showing until a new try begins ([peerWith]); anything else goes with the connection.
+    if (links.value[id] != PeerLink.failed) _link(id, null);
   }
 }
 
@@ -528,6 +553,7 @@ class _RtcPeer implements VoicePeer {
   void _fail() {
     if (_failedSaid || _connected) return;
     _failedSaid = true;
+    if (identical(media._peers[id], this)) media._link(id, PeerLink.failed);
     _connectTimer?.cancel();
     onFailed();
   }
@@ -571,6 +597,16 @@ class _RtcPeer implements VoicePeer {
       if (s == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
         _connected = true;
         _connectTimer?.cancel();
+      }
+      if (identical(media._peers[id], this)) {
+        final link = switch (s) {
+          RTCPeerConnectionState.RTCPeerConnectionStateConnected => PeerLink.connected,
+          RTCPeerConnectionState.RTCPeerConnectionStateDisconnected => PeerLink.reconnecting,
+          RTCPeerConnectionState.RTCPeerConnectionStateFailed => PeerLink.failed,
+          RTCPeerConnectionState.RTCPeerConnectionStateNew || RTCPeerConnectionState.RTCPeerConnectionStateConnecting => PeerLink.connecting,
+          _ => null,
+        };
+        if (link != null) media._link(id, link);
       }
       final failed = s == RTCPeerConnectionState.RTCPeerConnectionStateFailed;
       if ((failed || s == RTCPeerConnectionState.RTCPeerConnectionStateClosed) && identical(media._peers[id], this)) {
@@ -701,4 +737,33 @@ class _RtcPeer implements VoicePeer {
     if (made != null) await (await made).close();
     await stream?.dispose();
   }
+}
+
+
+/// How this device's connection to someone in a call stands (GMFB-4, @kevin: "show when users are connected to the
+/// call so they and others know if they are having audio issues or if they are just not connected to the call").
+enum PeerLink {
+  /// Still finding a way through.
+  connecting,
+
+  /// Through, and sound goes both ways.
+  connected,
+
+  /// Through, but slow: what is said takes long to arrive, or breaks up.
+  poor,
+
+  /// Was through, and lost the way: WebRTC is trying again.
+  reconnecting,
+
+  /// No way through.
+  failed;
+
+  /// In a few words, for a person's row; null where nothing need be said.
+  String? get words => switch (this) {
+        PeerLink.connecting => 'Connecting…',
+        PeerLink.connected => null,
+        PeerLink.poor => 'Poor connection',
+        PeerLink.reconnecting => 'Reconnecting…',
+        PeerLink.failed => 'Can\'t connect',
+      };
 }

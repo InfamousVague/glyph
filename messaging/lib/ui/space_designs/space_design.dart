@@ -327,7 +327,12 @@ class SpaceFace extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ValueListenableBuilder<Map<String, double>>(
         valueListenable: call.levels,
-        builder: (context, now, _) => RippleAvatar(name: person.me ? (person.name.isEmpty ? 'You' : person.name) : person.name, level: person.muted ? 0 : (now[person.id] ?? 0), muted: person.muted, size: size, ringed: ringed),
+        // With how this device's connection to them stands, where it isn't simply through (GMFB-4).
+        builder: (context, now, _) => LinkBadge(
+          id: person.id,
+          size: size,
+          child: RippleAvatar(name: person.me ? (person.name.isEmpty ? 'You' : person.name) : person.name, level: person.muted ? 0 : (now[person.id] ?? 0), muted: person.muted, size: size, ringed: ringed),
+        ),
       );
 }
 
