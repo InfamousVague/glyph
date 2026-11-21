@@ -33,6 +33,7 @@ import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
 import '../kit/settings_type.dart';
 import '../voice/recorder.dart';
+import '../voice/recording_playback.dart';
 import '../voice/channels.dart' show Voice;
 import 'common.dart';
 import 'plugins_page/plugin_art.dart' show PluginHues;
@@ -60,6 +61,88 @@ Future<void> showRecordingMixer(BuildContext context, {CallRecorder? recorder}) 
       child: child,
     ),
   ));
+}
+
+/// A recording kept on this device opened in the timeline and the mixer, to play and mix again (Matt, 2026-11-21: "I'd
+/// like to be able to open recordings saved from calls in the multi track view with the mixer"): the same drawer as
+/// while recording, filling the window, with a play button and a playhead in place of Stop and the live end.
+Future<void> showRecordingPlayback(BuildContext context, Recording recording) {
+  final nav = Navigator.of(context, rootNavigator: true);
+  return nav.push(PageRouteBuilder<void>(
+    opaque: true,
+    transitionDuration: const Duration(milliseconds: 260),
+    reverseTransitionDuration: const Duration(milliseconds: 200),
+    pageBuilder: (context, _, _) => RecordingPlaybackDrawer(recording: recording),
+    transitionsBuilder: (context, a, _, child) => SlideTransition(
+      position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic)),
+      child: child,
+    ),
+  ));
+}
+
+/// The drawer [showRecordingPlayback] opens: the recording's voices decoded (with how far), then its timeline.
+class RecordingPlaybackDrawer extends StatefulWidget {
+  const RecordingPlaybackDrawer({super.key, required this.recording, this.playback});
+  final Recording recording;
+
+  /// Given already open, for a test or a picture.
+  final RecordingPlayback? playback;
+
+  @override
+  State<RecordingPlaybackDrawer> createState() => _RecordingPlaybackDrawerState();
+}
+
+class _RecordingPlaybackDrawerState extends State<RecordingPlaybackDrawer> {
+  late final RecordingPlayback _p = widget.playback ?? (RecordingPlayback(widget.recording)..open());
+
+  @override
+  void dispose() {
+    if (widget.playback == null) _p.dispose();
+    super.dispose();
+  }
+
+  void _close() {
+    unawaited(_p.pause());
+    final nav = Navigator.of(context);
+    if (nav.canPop()) nav.pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return ColoredBox(
+      key: const ValueKey('recording-playback'),
+      color: _Studio.panel,
+      child: SafeArea(
+        child: ListenableBuilder(
+          listenable: _p,
+          builder: (context, _) {
+            if (_p.ready) return RecordingTimeline(recorder: _p, fullScreen: true, onClose: _close);
+            return Stack(children: [
+              Center(
+                child: Padding(
+                  padding: EdgeInsets.all(t.space(6)),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Text(
+                      _p.error ?? 'Opening each voice… ${((_p.opening ?? 0) * 100).round()}%',
+                      key: const ValueKey('recording-playback-status'),
+                      textAlign: TextAlign.center,
+                      style: pageText(t, t.fontSize('sm'), color: _Studio.ink2),
+                    ),
+                    if (_p.error == null) ...[
+                      SizedBox(height: t.space(3)),
+                      SizedBox(width: t.lenOf('12rem'), child: GlacierProgressBar(value: (_p.opening ?? 0) * 100, ariaLabel: 'Opening each voice')),
+                    ],
+                  ]),
+                ),
+              ),
+              Positioned(top: t.space(2), right: t.space(2), child: _ToolButton(key: const ValueKey('recording-collapse'), icon: Lucide.chevronDown, label: 'Close the mixer', onPressed: _close)),
+            ]);
+          },
+        ),
+      ),
+    );
+  }
 }
 
 /// The drawer [showRecordingMixer] opens: the timeline and the mixer, the whole window.
@@ -151,7 +234,9 @@ class RecordingTimeline extends StatefulWidget {
 
   /// The app's own navigator, for the page a saved recording opens.
   final NavigatorState? navigator;
-  final CallRecorder recorder;
+
+  /// The recording being made, or one kept on this device opened again ([RecordingPlayback]).
+  final RecordingDesk recorder;
   final VoidCallback onClose;
 
   /// Filling the window (the mixer's drawer): no rounded edge, no shadow.
@@ -178,7 +263,11 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
   final List<double> _mixLevels = [];
   int _mixRevision = -1;
 
-  List<double> _mixed(CallRecorder rec) {
+  /// Where the view starts, in seconds, for a recording played: it follows the playhead while it plays.
+  double _viewStart = 0;
+  bool _saving = false;
+
+  List<double> _mixed(RecordingDesk rec) {
     final levels = rec.meter.levels;
     final n = _stepsOf(levels);
     if (rec.mix.revision != _mixRevision || n < _mixLevels.length) {
@@ -188,7 +277,9 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
     for (var i = _mixLevels.length; i < n; i++) {
       var sum = 0.0;
       for (final e in levels.entries) {
-        if (i < e.value.length) sum += e.value[i] * rec.mix.gainAt(e.key, i * RecordingMeter.step);
+        // Played again, the mix is the faders as they stand now over the whole recording (what Save mix makes);
+        // while recording, each step as the faders stood then.
+        if (i < e.value.length) sum += e.value[i] * (rec is RecordingPlayback ? rec.mix.gain(e.key) : rec.mix.gainAt(e.key, i * RecordingMeter.step));
       }
       _mixLevels.add(math.min(1.0, sum));
     }
@@ -200,14 +291,29 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
     setState(() => _stopping = true);
     // Taken now: by the time it is saved the drawer may be closing.
     final nav = widget.navigator ?? Navigator.maybeOf(context, rootNavigator: true);
-    final r = await widget.recorder.stop();
+    final live = widget.recorder as CallRecorder;
+    final r = await live.stop();
     if (!mounted) return;
     if (r == null) {
       toast(context, 'The recording couldn\'t be saved');
     } else {
-      toast(context, widget.recorder.savedTo ?? 'Recording saved', action: GlacierToastAction(label: 'Open', onPress: () {
+      toast(context, live.savedTo ?? 'Recording saved', action: GlacierToastAction(label: 'Open', onPress: () {
             if (nav != null && nav.mounted) pushOn(nav, nav.context, (_) => const RecordingsScreen());
           }));
+    }
+  }
+
+  /// Saves the mix as it stands as a new recording beside the one opened.
+  Future<void> _saveMix(RecordingPlayback p) async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await p.save();
+      if (mounted) toast(context, 'Saved as a new recording, mixed as it is now');
+    } catch (e) {
+      if (mounted) toast(context, 'The mix couldn\'t be saved ($e)');
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -215,6 +321,8 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final rec = widget.recorder;
+    final live = rec is CallRecorder ? rec : null;
+    final played = rec is RecordingPlayback ? rec : null;
     final small = pageText(t, t.fontSize('xs'), weight: 'semibold', color: _Studio.ink2);
     return Container(
       key: const ValueKey('recording-timeline'),
@@ -230,8 +338,8 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
       child: ListenableBuilder(
         listenable: Listenable.merge([rec, rec.meter, rec.mix]),
         builder: (context, _) {
-          final since = rec.since;
-          final elapsed = since == null ? Duration.zero : DateTime.now().difference(since);
+          final since = live?.since;
+          final elapsed = played != null ? Duration(microseconds: (played.at * 1e6).round()) : (since == null ? Duration.zero : DateTime.now().difference(since));
           final tracks = [
             (key: _mixKey, name: 'Everyone', live: true),
             ...rec.tracks,
@@ -239,7 +347,7 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
           final levels = {...rec.meter.levels, _mixKey: _mixed(rec)};
           final app = AppState.maybeOf(context);
           final mixer = _mixer ??= app?.choice(_viewPref, 'timeline') == 'mixer';
-          final space = Voice.instance.session?.channel.name ?? '';
+          final space = played != null ? played.recording.space : (Voice.instance.session?.channel.name ?? '');
           return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             // The header: the time as a timecode, what is recorded, the zoom, Live, Stop and the way out of the mixer.
             Container(
@@ -249,9 +357,18 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
                 // On a phone the header keeps what it must: the time, the zoom, Stop and the way back.
                 final narrow = head.maxWidth < t.lenOf('34rem');
                 return Row(children: [
-                const _RecDot(),
-                SizedBox(width: t.space(2)),
-                if (!narrow) ...[
+                if (played != null)
+                  _ToolButton(
+                    key: const ValueKey('recording-play'),
+                    icon: played.playing ? Lucide.pause : Lucide.play,
+                    label: played.playing ? 'Pause' : 'Play',
+                    onPressed: () => unawaited(played.toggle()),
+                  )
+                else ...[
+                  const _RecDot(),
+                  SizedBox(width: t.space(2)),
+                ],
+                if (!narrow && played == null) ...[
                   Text('REC', style: pageText(t, t.fontSize('xs'), weight: 'bold', color: _Studio.rec, tracking: 1)),
                   SizedBox(width: t.space(3)),
                 ],
@@ -265,19 +382,20 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
                     style: pageText(t, t.fontSize('sm'), color: _Studio.ink2),
                   ),
                 ),
-                _ToolButton(
-                  key: const ValueKey('recording-mark'),
-                  icon: Lucide.flag,
-                  label: 'Mark this moment',
-                  onPressed: () {
-                    final at = rec.mark();
-                    if (at != null) toast(context, 'Marked ${_rulerTime(at.floor())}');
-                  },
-                ),
+                if (live != null)
+                  _ToolButton(
+                    key: const ValueKey('recording-mark'),
+                    icon: Lucide.flag,
+                    label: 'Mark this moment',
+                    onPressed: () {
+                      final at = live.mark();
+                      if (at != null) toast(context, 'Marked ${_rulerTime(at.floor())}');
+                    },
+                  ),
                 if (!mixer) ...[
                   _ToolButton(icon: Lucide.zoomOut, label: 'Zoom out', onPressed: () => setState(() => _perSecond = math.max(4, _perSecond / 1.5))),
                   _ToolButton(icon: Lucide.zoomIn, label: 'Zoom in', onPressed: () => setState(() => _perSecond = math.min(160, _perSecond * 1.5))),
-                  if (_back > 0) _ToolButton(icon: Lucide.chevronRight, label: 'Live', text: narrow ? null : 'Live', onPressed: () => setState(() => _back = 0)),
+                  if (_back > 0 && live != null) _ToolButton(icon: Lucide.chevronRight, label: 'Live', text: narrow ? null : 'Live', onPressed: () => setState(() => _back = 0)),
                 ],
                 // The panel's other face: the mixer's faders, or the timeline's lanes.
                 _ToolButton(
@@ -291,6 +409,18 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
                   }),
                 ),
                 SizedBox(width: t.space(1)),
+                if (played != null)
+                  GlacierPressable(
+                    key: const ValueKey('recording-save-mix'),
+                    onPressed: _saving ? null : () => unawaited(_saveMix(played)),
+                    semanticLabel: 'Save this mix as a new recording',
+                    builder: (context, state) => Container(
+                      padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1) + 2),
+                      decoration: BoxDecoration(color: state.pressed ? const Color(0xFF5BC283) : _Studio.wave, borderRadius: BorderRadius.circular(999)),
+                      child: Text(_saving ? 'Saving…' : (narrow ? 'Save' : 'Save mix'), style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: _Studio.panel)),
+                    ),
+                  )
+                else
                 GlacierPressable(
                   key: const ValueKey('recording-stop'),
                   onPressed: _stopping ? null : () => unawaited(_stop()),
@@ -351,13 +481,28 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
                       // The timeline: dragged sideways to look back, Live to follow the end again.
                       Expanded(
                         child: LayoutBuilder(builder: (context, lanes) {
-                          final total = _stepsOf(levels) / RecordingMeter.perSecond;
+                          final total = played?.seconds ?? _stepsOf(levels) / RecordingMeter.perSecond;
                           final shown = lanes.maxWidth / _perSecond;
                           final maxBack = math.max(0.0, total - shown);
                           final back = _back.clamp(0.0, maxBack);
-                          final start = math.max(0.0, total - shown - back);
+                          var start = math.max(0.0, total - shown - back);
+                          if (played != null) {
+                            // Played: the view stays where it is put, and turns the page when the playhead reaches its end.
+                            final head = played.at;
+                            if (played.playing && (head < _viewStart || head > _viewStart + shown * 0.92)) _viewStart = math.max(0.0, head - shown * 0.1);
+                            _viewStart = _viewStart.clamp(0.0, maxBack);
+                            start = _viewStart;
+                          }
                           return GestureDetector(
-                            onHorizontalDragUpdate: (d) => setState(() => _back = (_back + d.delta.dx / _perSecond).clamp(0.0, maxBack)),
+                            onHorizontalDragUpdate: (d) => setState(() {
+                              if (played != null) {
+                                _viewStart = (_viewStart - d.delta.dx / _perSecond).clamp(0.0, maxBack);
+                              } else {
+                                _back = (_back + d.delta.dx / _perSecond).clamp(0.0, maxBack);
+                              }
+                            }),
+                            // Played: pressed anywhere, the playhead goes there.
+                            onTapUp: played == null ? null : (d) => unawaited(played.seek(start + d.localPosition.dx / _perSecond)),
                             child: CustomPaint(
                               key: const ValueKey('recording-lanes'),
                               size: Size(lanes.maxWidth, rulerH + laneH * rows),
@@ -369,7 +514,7 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
                                 markers: rec.markers,
                                 start: start,
                                 perSecond: _perSecond,
-                                total: total,
+                                total: played?.at ?? total,
                                 rulerH: rulerH,
                                 laneH: laneH,
                                 label: pageText(t, 10, weight: 'semibold', color: _Studio.ink2, mono: true),
@@ -398,7 +543,7 @@ class _TrackHeader extends StatelessWidget {
   final String name;
   final bool live;
   final Color colour;
-  final CallRecorder recorder;
+  final RecordingDesk recorder;
   final String trackKey;
   final double height;
 

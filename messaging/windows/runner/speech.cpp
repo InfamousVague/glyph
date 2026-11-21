@@ -374,6 +374,30 @@ void RegisterSpeech(flutter::BinaryMessenger* messenger) {
     const std::string& m = call.method_name();
     if (m == "available") {
       result->Success(flutter::EncodableValue(Available(Str(args, "language"))));
+    } else if (m == "decode") {
+      // One track of a recording as plain 16-bit sound, written to a file, for the recording opened in the mixer
+      // (lib/voice/recording_playback.dart): its rate and channels as the recording has them (48 kHz mono as made).
+      std::string path = Str(args, "path"), out = Str(args, "out");
+      int track = Int(args, "track");
+      std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>> held(result.release());
+      std::thread([path, out, track, held] {
+        HRESULT co = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+        HRESULT mf = MFStartup(MF_VERSION);
+        UINT32 rate = 0, channels = 0;
+        std::string error = SUCCEEDED(mf) ? Decode(path, track, Wide(out), &rate, &channels) : std::string("Media Foundation isn't available");
+        if (SUCCEEDED(mf)) MFShutdown();
+        if (SUCCEEDED(co)) CoUninitialize();
+        RunOnMain([held, error, rate, channels] {
+          if (!error.empty()) {
+            held->Error("decode", error);
+            return;
+          }
+          flutter::EncodableMap got;
+          got[flutter::EncodableValue("rate")] = flutter::EncodableValue(static_cast<int32_t>(rate));
+          got[flutter::EncodableValue("channels")] = flutter::EncodableValue(static_cast<int32_t>(channels));
+          held->Success(flutter::EncodableValue(got));
+        });
+      }).detach();
     } else if (m == "transcribe") {
       std::string path = Str(args, "path"), language = Str(args, "language");
       int track = Int(args, "track");

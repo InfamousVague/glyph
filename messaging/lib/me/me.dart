@@ -373,10 +373,19 @@ class Me extends ChangeNotifier {
       case 'souls':
         _takeSouls(m);
         final got = m['got'];
-        if (got is int && got != 0) gifts.value = SoulsGift(got, '${m['why'] ?? ''}'.trim());
+        final id = m['gift'] is String ? m['gift'] as String : null;
+        if (got is int && got != 0) _gave([SoulsGift(got, '${m['why'] ?? ''}'.trim(), id: id)]);
         final badge = m['badge'];
-        if (badge is String && badge.isNotEmpty) gifts.value = SoulsGift(0, '', badge: badge);
+        if (badge is String && badge.isNotEmpty) _gave([SoulsGift(0, '', badge: badge, id: id)]);
         _waiting.remove('souls:')?.complete(m);
+      case 'souls-gifts':
+        // Given while this app was away (or shown nowhere yet): said at every hello until shown (relay/lib/handles.dart).
+        _takeSouls(m);
+        _gave([
+          for (final g in (m['list'] as List? ?? const []))
+            if (g is Map && g['g'] is String && (g['souls'] is int && g['souls'] != 0 || g['badge'] is String))
+              SoulsGift(g['souls'] is int ? g['souls'] as int : 0, '${g['why'] ?? ''}'.trim(), badge: g['badge'] as String?, id: g['g'] as String, away: true),
+        ]);
       case 'admin':
       case 'admin-users':
       case 'admin-give':
@@ -840,8 +849,28 @@ class Me extends ChangeNotifier {
     await _ask({'dir': 'showcase', 'badge': badge}, 'souls');
   }
 
-  /// Souls or a badge just given, for the app to say so (lib/ui/souls.dart).
-  final gifts = ValueNotifier<SoulsGift?>(null);
+  /// Souls or badges given and not yet shown, oldest first, for the app to say so (lib/ui/souls.dart), which takes them
+  /// ([takeGifts]) and so tells the relay they were shown.
+  final gifts = ValueNotifier<List<SoulsGift>>(const []);
+
+  void _gave(List<SoulsGift> more) {
+    final have = {for (final g in gifts.value) ?g.id};
+    final fresh = [for (final g in more) if (g.id == null || !have.contains(g.id)) g];
+    if (fresh.isEmpty) return;
+    gifts.value = [...gifts.value, ...fresh];
+  }
+
+  /// The gifts not yet shown, taken to be shown: the relay keeps them no longer (Matt, 2026-11-21: "notify a user when
+  /// they have recieved souls wiht a description for why ... next time they connect to the app (or immediatly if
+  /// they're connected in real time)").
+  List<SoulsGift> takeGifts() {
+    final all = gifts.value;
+    if (all.isEmpty) return const [];
+    gifts.value = const [];
+    final ids = [for (final g in all) ?g.id];
+    if (ids.isNotEmpty) _hub?.sayHandles({'dir': 'souls-seen', 'ids': ids});
+    return all;
+  }
 
   void _takeSouls(Map<String, dynamic> m) {
     final n = m['n'] ?? m['souls'];
@@ -913,10 +942,16 @@ class Me extends ChangeNotifier {
 /// Souls given (or taken, below 0) with why, or a special badge given.
 @immutable
 class SoulsGift {
-  const SoulsGift(this.souls, this.why, {this.badge});
+  const SoulsGift(this.souls, this.why, {this.badge, this.id, this.away = false});
   final int souls;
   final String why;
   final String? badge;
+
+  /// The relay's id for it, to say it was shown; null from a relay before 2026-11-21.
+  final String? id;
+
+  /// Given while the app was away, and said as it connected.
+  final bool away;
 }
 
 extension on String {

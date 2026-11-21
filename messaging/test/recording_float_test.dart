@@ -13,6 +13,7 @@ import 'package:ghost_messaging/ui/recording_ui.dart' show RecordingBanner;
 import 'package:ghost_messaging/voice/channels.dart';
 import 'package:ghost_messaging/voice/voice.dart';
 import 'package:ghost_messaging/voice/recorder.dart';
+import 'package:ghost_messaging/voice/recording_playback.dart';
 
 import 'support/list_harness.dart';
 
@@ -242,6 +243,97 @@ void main() {
         await tester.pumpWidget(const SizedBox());
       });
     }
+  }
+
+  test('a saved recording\'s track decoded at another rate or in stereo becomes 48 kHz mono; its waveform and level read from it', () {
+    final dir = Directory.systemTemp.createTempSync('ghost-playback');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    // A second of stereo at 24 kHz: left at 0.5, right at 0.25.
+    final raw = ByteData(24000 * 2 * 2);
+    for (var i = 0; i < 24000; i++) {
+      raw.setInt16(i * 4, 16384, Endian.little);
+      raw.setInt16(i * 4 + 2, 8192, Endian.little);
+    }
+    File('${dir.path}/t.raw').writeAsBytesSync(raw.buffer.asUint8List());
+    toMono48k('${dir.path}/t.raw', '${dir.path}/t.pcm', fromRate: 24000, channels: 2);
+    final pcm = File('${dir.path}/t.pcm').readAsBytesSync();
+    expect(pcm.length, 48000 * 2, reason: 'a second at 48 kHz, one channel');
+    expect(ByteData.sublistView(pcm).getInt16(1000 * 2, Endian.little), 12288, reason: 'the channels averaged');
+    // As made (48 kHz mono): a copy.
+    toMono48k('${dir.path}/t.pcm', '${dir.path}/same.pcm', fromRate: 48000, channels: 1);
+    expect(File('${dir.path}/same.pcm').readAsBytesSync(), pcm);
+    final wave = waveform('${dir.path}/t.pcm');
+    expect(wave, hasLength(10));
+    expect(wave.first, closeTo(0.375, 0.001));
+    final f = File('${dir.path}/t.pcm').openSync();
+    addTearDown(f.closeSync);
+    expect(levelAt(f, 24000).peak, closeTo(0.375, 0.001));
+    expect(levelAt(f, 24000).rms, closeTo(0.375, 0.001));
+    expect(levelAt(f, 96000), (peak: 0.0, rms: 0.0), reason: 'past its end');
+    // A WAV for its player: the header says 48 kHz mono 16-bit and how much follows.
+    wrapWav('${dir.path}/t.pcm', '${dir.path}/t.wav');
+    final wav = ByteData.sublistView(File('${dir.path}/t.wav').readAsBytesSync());
+    expect(String.fromCharCodes(File('${dir.path}/t.wav').readAsBytesSync().sublist(0, 4)), 'RIFF');
+    expect(wav.getUint32(24, Endian.little), 48000);
+    expect(wav.getUint16(22, Endian.little), 1);
+    expect(wav.getUint32(40, Endian.little), 48000 * 2);
+    expect(wav.lengthInBytes, 44 + 48000 * 2);
+  });
+
+  test('a recording mixed again in the mixer is kept with the one it came from', () {
+    final r = Recording(id: 'rec2', path: '/x.mp4', space: 'general', at: DateTime(2026, 11, 21), seconds: 60, people: const ['Matt', 'Maya'], mixedFrom: 'rec1');
+    final back = Recording.fromJson(r.toJson())!;
+    expect(back.mixedFrom, 'rec1');
+    expect(Recording.fromJson({...r.toJson()}..remove('from'))!.mixedFrom, isNull);
+  });
+
+  for (final (size, at) in [('phone', const Size(412, 892)), ('wide', const Size(1100, 760))]) {
+    testWidgets('a saved recording opens in the timeline and the mixer, to play and mix again ($size)', (tester) async {
+      // Matt, 2026-11-21: "I'd like to be able to open recordings saved from calls in the multi track view with the mixer".
+      final r = Recording(id: 'rec-saved', path: '/none.mp4', space: 'general', at: DateTime(2026, 11, 21, 14, 5), seconds: 47, people: const ['Matt', 'Maya Chen', 'Theo'], markers: const [21.5]);
+      final p = RecordingPlayback.standing(r, levels: {
+        'v1': _speech(470, seed: 1),
+        'v2': _speech(470, seed: 2, from: 40),
+        'v3': _speech(470, seed: 3, quiet: true),
+      }, atSecond: 12.4, now: {'v1': (peak: 0.5, rms: 0.25), 'v2': (peak: 0.3, rms: 0.12), 'v3': (peak: 0.05, rms: 0.02)});
+      addTearDown(p.dispose);
+      final sheet = await loadSheet(tester);
+      await pumpScreen(tester, sheet, RecordingPlaybackDrawer(recording: r, playback: p), AppState()..set('theme', 'dark'), size: at);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byKey(const ValueKey('recording-timeline')), findsOneWidget);
+      for (final k in ['*mix', 'v1', 'v2', 'v3']) {
+        expect(find.byKey(ValueKey('recording-track-$k')), findsOneWidget, reason: k);
+      }
+      // Played, not recorded: Play and Save mix in place of the red dot and Stop; nothing to mark.
+      expect(find.byKey(const ValueKey('recording-play')), findsOneWidget);
+      expect(find.byKey(const ValueKey('recording-save-mix')), findsOneWidget);
+      expect(find.byKey(const ValueKey('recording-stop')), findsNothing);
+      expect(find.byKey(const ValueKey('recording-mark')), findsNothing);
+      expect(tester.widget<Text>(find.byKey(const ValueKey('recording-timecode'))).data, contains('12'), reason: 'the time is the playhead\'s');
+      // Pressed on the lanes: the playhead goes there.
+      final lanes = find.byKey(const ValueKey('recording-lanes'));
+      await tester.tapAt(tester.getTopLeft(lanes) + const Offset(48, 60));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(p.at, closeTo(2, 0.2), reason: 'two seconds in at 24 points a second');
+      // Maya muted in the mix.
+      await tester.tap(find.byKey(const ValueKey('recording-lane-mute-v2')));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(p.mix.gain('v2'), 0);
+      await _keep(tester, 'saved-$size-timeline');
+      // The mixer: a fader per voice moves that voice in what is heard.
+      await tester.tap(find.byKey(const ValueKey('recording-view')));
+      await tester.pump(const Duration(milliseconds: 200));
+      final fader = find.byKey(const ValueKey('recording-fader-v1'));
+      expect(fader, findsOneWidget);
+      await tester.drag(fader, const Offset(0, 60));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(p.mix.fader('v1'), lessThan(1));
+      await _keep(tester, 'saved-$size-mixer');
+      await tester.tap(find.byKey(const ValueKey('recording-view')));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
   }
 
   testWidgets('the drawer closes by itself a moment after the recording ends', (tester) async {

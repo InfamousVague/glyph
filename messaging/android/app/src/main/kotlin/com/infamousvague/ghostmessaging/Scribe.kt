@@ -32,6 +32,9 @@ import kotlin.concurrent.thread
  */
 object Scribe {
     private const val RATE = 16000
+
+    /** The rate a recording is made at, and opened in the mixer at. */
+    private const val MIX_RATE = 48000
     private val main = Handler(Looper.getMainLooper())
 
     fun available(context: Context): Boolean =
@@ -41,6 +44,27 @@ object Scribe {
         MethodChannel(messenger, "ghost/scribe").setMethodCallHandler { call, result ->
             when (call.method) {
                 "available" -> result.success(available(context))
+                // One track of a recording as 48 kHz mono 16-bit samples, written to a file, for the recording opened
+                // in the mixer (lib/voice/recording_playback.dart).
+                "decode" -> {
+                    val path = call.argument<String>("path")!!
+                    val track = call.argument<Int>("track") ?: 0
+                    val out = call.argument<String>("out")!!
+                    thread(name = "ghost-decode") {
+                        try {
+                            val pcm = decode(path, track, MIX_RATE)
+                            val bytes = ByteArray(pcm.size * 2)
+                            for (i in pcm.indices) {
+                                bytes[i * 2] = (pcm[i].toInt() and 0xff).toByte()
+                                bytes[i * 2 + 1] = (pcm[i].toInt() shr 8).toByte()
+                            }
+                            FileOutputStream(out).use { it.write(bytes) }
+                            main.post { result.success(mapOf("rate" to MIX_RATE, "channels" to 1, "samples" to pcm.size)) }
+                        } catch (e: Throwable) {
+                            main.post { result.error("decode", e.message, null) }
+                        }
+                    }
+                }
                 "transcribe" -> {
                     val path = call.argument<String>("path")!!
                     val track = call.argument<Int>("track") ?: 0
@@ -72,8 +96,8 @@ object Scribe {
         return out
     }
 
-    /** [track] of [path] as 16 kHz mono 16-bit samples. */
-    private fun decode(path: String, track: Int): ShortArray {
+    /** [track] of [path] as mono 16-bit samples at [toRate] (16 kHz for speech). */
+    private fun decode(path: String, track: Int, toRate: Int = RATE): ShortArray {
         val ex = MediaExtractor()
         ex.setDataSource(path)
         ex.selectTrack(track)
@@ -120,10 +144,10 @@ object Scribe {
         ex.release()
         val all = raw.toByteArray()
         val frames = all.size / 2 / channels.coerceAtLeast(1)
-        val n = (frames.toLong() * RATE / rate).toInt()
+        val n = (frames.toLong() * toRate / rate).toInt()
         val out = ShortArray(n)
         for (i in 0 until n) {
-            val at = (i.toLong() * rate / RATE).toInt().coerceAtMost(frames - 1)
+            val at = (i.toLong() * rate / toRate).toInt().coerceAtMost(frames - 1)
             var v = 0
             for (c in 0 until channels) {
                 val k = (at * channels + c) * 2

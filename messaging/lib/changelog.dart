@@ -23,8 +23,14 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.1', '2026-11-21', [
+    'Souls: when you\'re given souls or a badge, you\'re told why ("Bug bounty", say). Straight away if the app is open; if it isn\'t, a card shows what you were given and why the next time you open it.',
+  ]),
   ReleaseNotes('0.12.0', '2026-11-21', [
     'Videos from Files spaces can go full screen on your phone too: press the full-screen button and the bars hide and the phone turns to fit the video (upright for a tall one). Back, or the button again, leaves full screen.',
+  ]),
+  ReleaseNotes('0.11.8', '2026-11-21', [
+    'Record call: open a saved recording in the mixer. In Recordings, tap one and choose Open in the mixer: every voice is a track with its waveform, meter, mute, solo and fader, as during the call. Play it to hear the mix as you set it, tap the tracks to jump around, and Save mix to keep it as a new recording beside the first.',
   ]),
   ReleaseNotes('0.11.7', '2026-11-21', [
     'Record call: everyone\'s voice is recorded again, not just yours. Since calls can start through the relay and then reconnect, a person\'s sound could move to a new connection part way, and the recording kept listening to the old one.',
