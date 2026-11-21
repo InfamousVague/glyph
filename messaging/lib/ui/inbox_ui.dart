@@ -7,6 +7,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeed
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../voice/voice_changer.dart';
 import '../app_state.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
@@ -289,7 +290,10 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
   Future<void> _sendVoice() async {
     setState(() => _recording = null);
     try {
-      final path = await Sms.instance.finishVoice();
+      // In another voice, where Voice changer is on (lib/voice/voice_changer.dart): never as it was, should that fail.
+      final changing = VoiceChanger.instance.active;
+      if (changing && mounted) toast(context, 'Changing your voice…');
+      final path = await VoiceChanger.instance.forSending(await Sms.instance.finishVoice());
       await _n.sendFiles(widget.chatId, [path], voice: true);
     } catch (e) {
       if (mounted) toast(context, 'Couldn\'t send the voice message: ${voiceProblem(e)}', tone: GlacierToastTone.danger);
@@ -520,7 +524,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                 final canSend = (_text.text.trim().isNotEmpty || _files.isNotEmpty) && !_sendingFiles;
                 final voice = files && !Sms.remote;
                 if (_recording != null) {
-                  return VoiceRecorder(limit: _recording!, onDiscard: _discardVoice, onSend: _sendVoice);
+                  return VoiceRecorder(limit: _recording!, onDiscard: _discardVoice, onSend: _sendVoice, note: VoiceChanger.instance.note);
                 }
                 // The same buttons in the same places as every other conversation (lib/ui/composer_box.dart), each
                 // greyed out where this network can't do it.
@@ -976,7 +980,11 @@ class _SignalLinkScreenState extends State<SignalLinkScreen> {
   }
 
   Future<void> _elsewhere() async {
-    if (!_room.open) await _room.openRoom(onCame: () => _showCode());
+    if (!_room.open && !await _room.openRoom(onCame: () => _showCode())) {
+      // Nothing would reach the page (GMFB-15): say so rather than share a link that draws nothing.
+      if (mounted) toast(context, 'Ghost\'s relay can\'t be reached right now, so the code can\'t go to another screen. Check Settings › Network.', tone: GlacierToastTone.danger);
+      return;
+    }
     _showCode();
     final link = _room.link;
     if (link != null && mounted) await Sms.instance.shareText('Link Signal to Ghost', link);
@@ -1387,7 +1395,7 @@ List<Widget> _pane(BuildContext context, InboxNetwork n) => [
     ];
 
 /// Switches a plugin network off: signs out first where it is signed in, asked for.
-Future<void> _turnOff(BuildContext context, InboxNetwork n) async {
+Future<void> turnOffNetwork(BuildContext context, InboxNetwork n) async {
   if (n.state != InboxState.ready && n.state != InboxState.signingIn) {
     await Inbox.instance.disable(n);
     return;
@@ -1421,7 +1429,7 @@ List<Widget> _paneBody(BuildContext context, InboxNetwork n) {
             key: const ValueKey('plugin-switch'),
             icon: _icon(Lucide.puzzle),
             label: 'Use ${n.name}',
-            control: GlacierSwitch(checked: n.enabled, ariaLabel: 'Use ${n.name}', onCheckedChange: (want) => want ? Inbox.instance.enable(n) : _turnOff(context, n)),
+            control: GlacierSwitch(checked: n.enabled, ariaLabel: 'Use ${n.name}', onCheckedChange: (want) => want ? Inbox.instance.enable(n) : turnOffNetwork(context, n)),
           ),
         ],
       ),
@@ -1458,6 +1466,25 @@ List<Widget> _paneBody(BuildContext context, InboxNetwork n) {
     ),
   ];
 }
+
+/// A network's card on its plugin's page in the Marketplace (lib/plugins/networks.dart): where it stands, and the way
+/// to its own page in Settings › Connections to sign in or out.
+Widget networkPluginCard(BuildContext context, InboxNetwork n) => ListenableBuilder(
+      listenable: Listenable.merge([Inbox.instance.switches, n]),
+      builder: (context, _) => PaneSection(
+        title: 'Connection',
+        children: [
+          SettingRow(
+            key: ValueKey('plugin-connection-${n.id}'),
+            icon: inboxMark(n),
+            label: switch (n.state) { InboxState.ready => n.account ?? 'Signed in', InboxState.signingIn => 'Carry on signing in', InboxState.unavailable => 'Not in this build', InboxState.signedOut => 'Sign in to ${n.name}' },
+            hint: Text(n.state == InboxState.unavailable ? (n.error ?? '${n.name} isn\'t set up in this build of the app.') : _summary(n)),
+            disabled: n.state == InboxState.unavailable,
+            onPress: n.state == InboxState.unavailable ? null : () => push<void>(context, (_) => SettingsSectionScreen('inbox-${n.id}')),
+          ),
+        ],
+      ),
+    );
 
 /// Puts the networks' sections into Settings, and redraws it as they change.
 void addInboxSettings() => SettingsSources.add(inboxSettingsSections, watch: [Inbox.instance.switches, ...Inbox.instance.networks]);

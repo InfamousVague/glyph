@@ -264,8 +264,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
             _selected.addAll(page.items.map((c) => c.id));
           }
         });
-        // The number on the pill's Archive follows what is taken back out here.
+        // The Archive ring's menu says how many are here; its number, how many of them are unread (GMFB-14).
         _shell?.archived.value = page.items.length;
+        _shell?.archivedUnread.value = page.items.where((c) => c.unread).length;
         return;
       }
       Sms.instance.archivedCount().then((n) {
@@ -273,6 +274,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         setState(() => _archived = n);
         _shell?.archived.value = n;
       }).catchError((_) {});
+      unawaited(_shell?.countArchivedUnread());
       final seen = <int>{};
       int? at = 0;
       while (at != null) {

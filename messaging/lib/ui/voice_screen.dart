@@ -13,6 +13,7 @@ import '../friends/buddies.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../voice/channels.dart';
+import '../voice/leveler.dart';
 import '../voice/voice.dart';
 import '../sms.dart';
 import 'common.dart';
@@ -153,10 +154,11 @@ class CallPanel extends StatelessWidget {
     final v = Voice.instance;
     final media = v.media;
     final levels = media?.levels ?? session.media.levels;
+    // The levels are listened to by each face alone (GMFB-6): the whole panel, video tiles and all, rebuilt at every
+    // reading while anyone spoke.
     return ListenableBuilder(
-      listenable: Listenable.merge([session, levels, ?media?.remote, ?media?.localVideo, ?v.hangoutFor(session.channel)]),
+      listenable: Listenable.merge([session, ?media?.remote, ?media?.localVideo, ?v.hangoutFor(session.channel)]),
       builder: (context, _) {
-        final loud = levels.value;
         final people = <({String id, String name, bool guest, bool muted, MediaStream? video, bool me})>[
           (id: 'me', name: 'You', guest: false, muted: session.muted || session.deafened, video: media?.localVideo.value, me: true),
           for (final m in session.members.values)
@@ -171,7 +173,7 @@ class CallPanel extends StatelessWidget {
               final across = withVideo.length == 1 ? 1 : (box.maxWidth / 240).floor().clamp(2, 4);
               final w = (box.maxWidth - t.space(2) * (across - 1)) / across;
               return Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [
-                for (final p in withVideo) SizedBox(width: w, height: w * 0.75, child: _Tile(name: p.guest ? '${p.name} (guest)' : p.name, muted: p.muted, stream: p.video, mirror: p.me)),
+                for (final p in withVideo) SizedBox(key: ValueKey('video-${p.id}'), width: w, height: w * 0.75, child: _Tile(name: p.guest ? '${p.name} (guest)' : p.name, muted: p.muted, stream: p.video, mirror: p.me)),
               ]);
             }),
             SizedBox(height: t.space(3)),
@@ -191,7 +193,10 @@ class CallPanel extends StatelessWidget {
                     padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(2), t.space(2)),
                     child: Row(children: [
                       // A little larger on a computer (Matt, 2026-11-15: "make the voice chat avatars a little larger on desktop").
-                      RippleAvatar(name: p.me ? (session.name.isEmpty ? 'You' : session.name) : p.name, level: loud[p.id] ?? 0, muted: p.muted, size: Sms.computer ? 52 : 40),
+                      ValueListenableBuilder<Map<String, double>>(
+                        valueListenable: levels,
+                        builder: (context, loud, _) => RippleAvatar(name: p.me ? (session.name.isEmpty ? 'You' : session.name) : p.name, level: loud[p.id] ?? 0, muted: p.muted, size: Sms.computer ? 52 : 40),
+                      ),
                       SizedBox(width: t.space(3)),
                       Expanded(
                         child: Text.rich(
@@ -357,7 +362,9 @@ class _Tile extends StatelessWidget {
       child: ColoredBox(
         color: t.color('app-paper-3'),
         child: Stack(fit: StackFit.expand, children: [
-          if (stream != null) StreamView(stream: stream!, mirror: mirror),
+          // One renderer per stream (GMFB-5): when the tiles shift, as they do when someone turns video off, a renderer
+          // never carries on drawing whoever stood in that place before.
+          if (stream != null) StreamView(key: ObjectKey(stream), stream: stream!, mirror: mirror),
           Positioned(
             left: t.space(2),
             bottom: t.space(2),
@@ -887,6 +894,21 @@ class _PersonSheet extends StatelessWidget {
                                 SizedBox(width: t.space(3)),
                                 SizedBox(width: 44, child: Text('${(v.volumeOf(id) * 100).round()}%', textAlign: TextAlign.end, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink')))),
                               ]),
+                            ),
+                            // What the auto leveler is doing to them, while it is on (lib/voice/leveler.dart).
+                            ListenableBuilder(
+                              listenable: AutoLeveler.instance,
+                              builder: (context, _) {
+                                final lv = AutoLeveler.instance;
+                                if (!lv.active) return const SizedBox.shrink();
+                                final db = lv.dbOf(id);
+                                final words = db.abs() < 0.5 ? 'Auto leveler: as they are' : 'Auto leveler: ${db > 0 ? 'up' : 'down'} ${db.abs().toStringAsFixed(0)} dB';
+                                return Padding(
+                                  key: const ValueKey('leveler-line'),
+                                  padding: EdgeInsets.only(left: 18 + t.space(3), bottom: t.space(2)),
+                                  child: Text(words, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+                                );
+                              },
                             ),
                             if (m!.username != null && friend?.state != 'yes')
                               SettingRow(

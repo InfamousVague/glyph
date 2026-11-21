@@ -10,6 +10,10 @@
 /// as the file's first track is. The timeline follows the live end; dragged back, it stays where it is until Live.
 /// Stop and the way back to the pill are in the panel's header.
 ///
+/// No longer a pill (Matt, 2026-11-20: "make the recording plugin banner have a button for "mixer" and have it open a
+/// drawer full screen with the audio tracks and whatnot instead of the floating pill"): the recording's banner over the
+/// call has Mixer, which opens this panel as a drawer filling the window ([showRecordingMixer]).
+///
 /// Reworked the same day (Matt: "show audio tracks being recorded in real time with meters and whatnot as well as
 /// voice level changing and more"): every track has a real meter (recording_mixer.dart) and mute and solo; the panel
 /// has a second face, the mixer, with a fader per voice for how loud it is in the mix; the mix's lane is what the
@@ -29,6 +33,7 @@ import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
 import '../kit/settings_type.dart';
 import '../voice/recorder.dart';
+import '../voice/recording_playback.dart';
 import '../voice/channels.dart' show Voice;
 import 'common.dart';
 import 'plugins_page/plugin_art.dart' show PluginHues;
@@ -39,155 +44,165 @@ part 'recording_mixer.dart';
 /// The key 'Everyone' is drawn under: the mix of every track, as the file's first track is.
 const _mixKey = '*mix';
 
-class RecordingFloat extends StatefulWidget {
-  const RecordingFloat({super.key, this.recorder});
-
-  /// The recorder followed; the app's own where null (a test gives one standing as it wants).
-  final CallRecorder? recorder;
-
-  @override
-  State<RecordingFloat> createState() => _RecordingFloatState();
+/// The recording's mixer as a drawer over the whole app, opened from the recording's banner over the call (Matt,
+/// 2026-11-20: "make the recording plugin banner have a button for "mixer" and have it open a drawer full screen with
+/// the audio tracks and whatnot instead of the floating pill"). It slides up over everything and fills the window; its
+/// own button closes it, and it closes by itself a moment after the recording ends (long enough for the toast that the
+/// recording was saved to show over the app).
+Future<void> showRecordingMixer(BuildContext context, {CallRecorder? recorder}) {
+  final nav = Navigator.of(context, rootNavigator: true);
+  return nav.push(PageRouteBuilder<void>(
+    opaque: true,
+    transitionDuration: const Duration(milliseconds: 260),
+    reverseTransitionDuration: const Duration(milliseconds: 200),
+    pageBuilder: (context, _, _) => RecordingMixerDrawer(recorder: recorder ?? CallRecorder.instance, navigator: nav),
+    transitionsBuilder: (context, a, _, child) => SlideTransition(
+      position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic)),
+      child: child,
+    ),
+  ));
 }
 
-class _RecordingFloatState extends State<RecordingFloat> {
-  CallRecorder get _rec => widget.recorder ?? CallRecorder.instance;
+/// A recording kept on this device opened in the timeline and the mixer, to play and mix again (Matt, 2026-11-21: "I'd
+/// like to be able to open recordings saved from calls in the multi track view with the mixer"): the same drawer as
+/// while recording, filling the window, with a play button and a playhead in place of Stop and the live end.
+Future<void> showRecordingPlayback(BuildContext context, Recording recording) {
+  final nav = Navigator.of(context, rootNavigator: true);
+  return nav.push(PageRouteBuilder<void>(
+    opaque: true,
+    transitionDuration: const Duration(milliseconds: 260),
+    reverseTransitionDuration: const Duration(milliseconds: 200),
+    pageBuilder: (context, _, _) => RecordingPlaybackDrawer(recording: recording),
+    transitionsBuilder: (context, a, _, child) => SlideTransition(
+      position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic)),
+      child: child,
+    ),
+  ));
+}
 
-  bool _open = false;
+/// The drawer [showRecordingPlayback] opens: the recording's voices decoded (with how far), then its timeline.
+class RecordingPlaybackDrawer extends StatefulWidget {
+  const RecordingPlaybackDrawer({super.key, required this.recording, this.playback});
+  final Recording recording;
 
-  /// Where the pill is, as a fraction of the room it can move in; kept between runs.
-  Offset? _at;
-  static const _pref = 'rec_float_at';
+  /// Given already open, for a test or a picture.
+  final RecordingPlayback? playback;
 
-  Timer? _clock;
+  @override
+  State<RecordingPlaybackDrawer> createState() => _RecordingPlaybackDrawerState();
+}
+
+class _RecordingPlaybackDrawerState extends State<RecordingPlaybackDrawer> {
+  late final RecordingPlayback _p = widget.playback ?? (RecordingPlayback(widget.recording)..open());
+
+  @override
+  void dispose() {
+    if (widget.playback == null) _p.dispose();
+    super.dispose();
+  }
+
+  void _close() {
+    unawaited(_p.pause());
+    final nav = Navigator.of(context);
+    if (nav.canPop()) nav.pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return ColoredBox(
+      key: const ValueKey('recording-playback'),
+      color: _Studio.panel,
+      child: SafeArea(
+        child: ListenableBuilder(
+          listenable: _p,
+          builder: (context, _) {
+            if (_p.ready) return RecordingTimeline(recorder: _p, fullScreen: true, onClose: _close);
+            return Stack(children: [
+              Center(
+                child: Padding(
+                  padding: EdgeInsets.all(t.space(6)),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Text(
+                      _p.error ?? 'Opening each voice… ${((_p.opening ?? 0) * 100).round()}%',
+                      key: const ValueKey('recording-playback-status'),
+                      textAlign: TextAlign.center,
+                      style: pageText(t, t.fontSize('sm'), color: _Studio.ink2),
+                    ),
+                    if (_p.error == null) ...[
+                      SizedBox(height: t.space(3)),
+                      SizedBox(width: t.lenOf('12rem'), child: GlacierProgressBar(value: (_p.opening ?? 0) * 100, ariaLabel: 'Opening each voice')),
+                    ],
+                  ]),
+                ),
+              ),
+              Positioned(top: t.space(2), right: t.space(2), child: _ToolButton(key: const ValueKey('recording-collapse'), icon: Lucide.chevronDown, label: 'Close the mixer', onPressed: _close)),
+            ]);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// The drawer [showRecordingMixer] opens: the timeline and the mixer, the whole window.
+class RecordingMixerDrawer extends StatefulWidget {
+  const RecordingMixerDrawer({super.key, required this.recorder, this.navigator});
+  final CallRecorder recorder;
+
+  /// The app's own navigator, for the page a saved recording opens once this is closed.
+  final NavigatorState? navigator;
+
+  @override
+  State<RecordingMixerDrawer> createState() => _RecordingMixerDrawerState();
+}
+
+class _RecordingMixerDrawerState extends State<RecordingMixerDrawer> {
+  Timer? _clock, _closing;
 
   @override
   void initState() {
     super.initState();
-    _rec.addListener(_changed);
-    _changed();
+    widget.recorder.addListener(_changed);
+    // Opened with nothing recorded on this device (another's recording, or it ended as it opened): closed again.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _changed());
+    // The time moves on even when nobody speaks.
+    _clock = Timer.periodic(const Duration(seconds: 1), (_) => mounted ? setState(() {}) : null);
   }
 
   @override
   void dispose() {
-    _rec.removeListener(_changed);
+    widget.recorder.removeListener(_changed);
     _clock?.cancel();
+    _closing?.cancel();
     super.dispose();
   }
 
   void _changed() {
-    final on = _rec.recording != null;
-    // The time moves on even when nobody speaks.
-    if (on && _clock == null) _clock = Timer.periodic(const Duration(seconds: 1), (_) => mounted ? setState(() {}) : null);
-    if (!on) {
-      _clock?.cancel();
-      _clock = null;
+    final r = widget.recorder;
+    // Ended, from here or anywhere (the call left, someone else's Stop): closed a moment later.
+    if (r.recording == null && !r.finishing) {
+      _closing ??= Timer(const Duration(milliseconds: 900), _close);
     }
     if (mounted) setState(() {});
   }
 
-  Offset _kept(AppState? app) {
-    final at = _at;
-    if (at != null) return at;
-    final said = app?.choice(_pref, '') ?? '';
-    final parts = said.split(',');
-    if (parts.length == 2) {
-      final x = double.tryParse(parts[0]), y = double.tryParse(parts[1]);
-      if (x != null && y != null) return _at = Offset(x.clamp(0, 1), y.clamp(0, 1));
-    }
-    // At the right, above where the navigation sits.
-    return _at = const Offset(1, 0.8);
+  void _close() {
+    if (!mounted) return;
+    final nav = Navigator.of(context);
+    if (nav.canPop()) nav.pop();
   }
 
   @override
-  Widget build(BuildContext context) {
-    final rec = _rec;
-    if (rec.recording == null) {
-      _open = false;
-      return const SizedBox.shrink();
-    }
-    final t = context.tokens;
-    final app = AppState.maybeOf(context);
-    final pad = MediaQuery.paddingOf(context);
-    return LayoutBuilder(builder: (context, box) {
-      if (_open) {
-        final wide = box.maxWidth > t.lenOf('48rem');
-        // As tall as its tracks want (a header, the ruler, a lane each and the mix's), up to a share of the window.
-        final wants = t.lenOf('3.25rem') + t.lenOf('1.6rem') + (rec.tracks.length + 1) * t.lenOf('3.75rem') + 2;
-        final height = math.min(wants, math.min(box.maxHeight * (wide ? 0.5 : 0.62), t.lenOf('30rem')));
-        return Stack(children: [
-          Positioned(
-            left: t.space(3) + pad.left,
-            right: t.space(3) + pad.right,
-            bottom: t.space(3) + pad.bottom,
-            height: math.max(height, t.lenOf('17rem')),
-            child: RecordingTimeline(recorder: rec, onClose: () => setState(() => _open = false)),
-          ),
-        ]);
-      }
-      final pillW = t.lenOf('10.5rem'), pillH = t.lenOf('2.75rem');
-      final roomW = math.max(0.0, box.maxWidth - pillW - t.space(3) * 2 - pad.horizontal);
-      final roomH = math.max(0.0, box.maxHeight - pillH - t.space(3) * 2 - pad.vertical);
-      final at = _kept(app);
-      return Stack(children: [
-        Positioned(
-          left: pad.left + t.space(3) + at.dx * roomW,
-          top: pad.top + t.space(3) + at.dy * roomH,
-          width: pillW,
-          height: pillH,
-          child: GestureDetector(
-            key: const ValueKey('recording-float'),
-            onPanUpdate: (d) => setState(() {
-              final now = _kept(app);
-              _at = Offset(
-                roomW == 0 ? now.dx : (now.dx + d.delta.dx / roomW).clamp(0.0, 1.0),
-                roomH == 0 ? now.dy : (now.dy + d.delta.dy / roomH).clamp(0.0, 1.0),
-              );
-            }),
-            onPanEnd: (_) {
-              final now = _at;
-              if (now != null) app?.set(_pref, '${now.dx.toStringAsFixed(3)},${now.dy.toStringAsFixed(3)}');
-            },
-            onTap: () => setState(() => _open = true),
-            child: _Pill(recorder: rec),
-          ),
+  Widget build(BuildContext context) => ColoredBox(
+        key: const ValueKey('recording-drawer'),
+        color: _Studio.panel,
+        child: SafeArea(
+          child: widget.recorder.recording == null && !widget.recorder.finishing && widget.recorder.since == null
+              ? const SizedBox.expand()
+              : RecordingTimeline(recorder: widget.recorder, navigator: widget.navigator, fullScreen: true, onClose: _close),
         ),
-      ]);
-    });
-  }
-}
-
-/// The pill: a red dot, the time, and a level of everyone.
-class _Pill extends StatelessWidget {
-  const _Pill({required this.recorder});
-  final CallRecorder recorder;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final since = recorder.since;
-    final elapsed = since == null ? Duration.zero : DateTime.now().difference(since);
-    return Semantics(
-      button: true,
-      label: 'Recording, ${_spoken(elapsed)}. Open the recording',
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: t.space(3)),
-        decoration: BoxDecoration(
-          color: _Studio.panel,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: _Studio.edge),
-          boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 18, offset: Offset(0, 6))],
-        ),
-        child: Row(children: [
-          const _RecDot(),
-          SizedBox(width: t.space(2)),
-          Flexible(child: Text(_short(elapsed), maxLines: 1, overflow: TextOverflow.clip, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: _Studio.ink, mono: true))),
-          const Spacer(),
-          // Everyone mixed, now.
-          SizedBox(width: 44, child: LevelMeter(listenable: Listenable.merge([recorder.meter, recorder.mix]), read: () => _mixNow(recorder), vertical: false, thickness: 6, clipped: recorder.meter.clipped.isNotEmpty)),
-        ]),
-      ),
-    );
-  }
+      );
 }
 
 /// The red dot, breathing.
@@ -215,9 +230,17 @@ class _RecDotState extends State<_RecDot> with SingleTickerProviderStateMixin {
 
 /// The open panel: a video editor's timeline of the recording.
 class RecordingTimeline extends StatefulWidget {
-  const RecordingTimeline({super.key, required this.recorder, required this.onClose});
-  final CallRecorder recorder;
+  const RecordingTimeline({super.key, required this.recorder, required this.onClose, this.navigator, this.fullScreen = false});
+
+  /// The app's own navigator, for the page a saved recording opens.
+  final NavigatorState? navigator;
+
+  /// The recording being made, or one kept on this device opened again ([RecordingPlayback]).
+  final RecordingDesk recorder;
   final VoidCallback onClose;
+
+  /// Filling the window (the mixer's drawer): no rounded edge, no shadow.
+  final bool fullScreen;
 
   @override
   State<RecordingTimeline> createState() => _RecordingTimelineState();
@@ -240,7 +263,11 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
   final List<double> _mixLevels = [];
   int _mixRevision = -1;
 
-  List<double> _mixed(CallRecorder rec) {
+  /// Where the view starts, in seconds, for a recording played: it follows the playhead while it plays.
+  double _viewStart = 0;
+  bool _saving = false;
+
+  List<double> _mixed(RecordingDesk rec) {
     final levels = rec.meter.levels;
     final n = _stepsOf(levels);
     if (rec.mix.revision != _mixRevision || n < _mixLevels.length) {
@@ -250,7 +277,9 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
     for (var i = _mixLevels.length; i < n; i++) {
       var sum = 0.0;
       for (final e in levels.entries) {
-        if (i < e.value.length) sum += e.value[i] * rec.mix.gainAt(e.key, i * RecordingMeter.step);
+        // Played again, the mix is the faders as they stand now over the whole recording (what Save mix makes);
+        // while recording, each step as the faders stood then.
+        if (i < e.value.length) sum += e.value[i] * (rec is RecordingPlayback ? rec.mix.gain(e.key) : rec.mix.gainAt(e.key, i * RecordingMeter.step));
       }
       _mixLevels.add(math.min(1.0, sum));
     }
@@ -260,12 +289,31 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
   Future<void> _stop() async {
     if (_stopping) return;
     setState(() => _stopping = true);
-    final r = await widget.recorder.stop();
+    // Taken now: by the time it is saved the drawer may be closing.
+    final nav = widget.navigator ?? Navigator.maybeOf(context, rootNavigator: true);
+    final live = widget.recorder as CallRecorder;
+    final r = await live.stop();
     if (!mounted) return;
     if (r == null) {
       toast(context, 'The recording couldn\'t be saved');
     } else {
-      toast(context, widget.recorder.savedTo ?? 'Recording saved', action: GlacierToastAction(label: 'Open', onPress: () => push(context, (_) => const RecordingsScreen())));
+      toast(context, live.savedTo ?? 'Recording saved', action: GlacierToastAction(label: 'Open', onPress: () {
+            if (nav != null && nav.mounted) pushOn(nav, nav.context, (_) => const RecordingsScreen());
+          }));
+    }
+  }
+
+  /// Saves the mix as it stands as a new recording beside the one opened.
+  Future<void> _saveMix(RecordingPlayback p) async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await p.save();
+      if (mounted) toast(context, 'Saved as a new recording, mixed as it is now');
+    } catch (e) {
+      if (mounted) toast(context, 'The mix couldn\'t be saved ($e)');
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -273,21 +321,25 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final rec = widget.recorder;
+    final live = rec is CallRecorder ? rec : null;
+    final played = rec is RecordingPlayback ? rec : null;
     final small = pageText(t, t.fontSize('xs'), weight: 'semibold', color: _Studio.ink2);
     return Container(
       key: const ValueKey('recording-timeline'),
-      decoration: BoxDecoration(
-        color: _Studio.panel,
-        borderRadius: BorderRadius.circular(t.radius('xl')),
-        border: Border.all(color: _Studio.edge),
-        boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 28, offset: Offset(0, 10))],
-      ),
+      decoration: widget.fullScreen
+          ? const BoxDecoration(color: _Studio.panel)
+          : BoxDecoration(
+              color: _Studio.panel,
+              borderRadius: BorderRadius.circular(t.radius('xl')),
+              border: Border.all(color: _Studio.edge),
+              boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 28, offset: Offset(0, 10))],
+            ),
       clipBehavior: Clip.antiAlias,
       child: ListenableBuilder(
         listenable: Listenable.merge([rec, rec.meter, rec.mix]),
         builder: (context, _) {
-          final since = rec.since;
-          final elapsed = since == null ? Duration.zero : DateTime.now().difference(since);
+          final since = live?.since;
+          final elapsed = played != null ? Duration(microseconds: (played.at * 1e6).round()) : (since == null ? Duration.zero : DateTime.now().difference(since));
           final tracks = [
             (key: _mixKey, name: 'Everyone', live: true),
             ...rec.tracks,
@@ -295,9 +347,9 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
           final levels = {...rec.meter.levels, _mixKey: _mixed(rec)};
           final app = AppState.maybeOf(context);
           final mixer = _mixer ??= app?.choice(_viewPref, 'timeline') == 'mixer';
-          final space = Voice.instance.session?.channel.name ?? '';
+          final space = played != null ? played.recording.space : (Voice.instance.session?.channel.name ?? '');
           return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            // The header: the time as a timecode, what is recorded, the zoom, Live, Stop and the way back to the pill.
+            // The header: the time as a timecode, what is recorded, the zoom, Live, Stop and the way out of the mixer.
             Container(
               padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(2), t.space(2)),
               color: _Studio.bar,
@@ -305,9 +357,18 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
                 // On a phone the header keeps what it must: the time, the zoom, Stop and the way back.
                 final narrow = head.maxWidth < t.lenOf('34rem');
                 return Row(children: [
-                const _RecDot(),
-                SizedBox(width: t.space(2)),
-                if (!narrow) ...[
+                if (played != null)
+                  _ToolButton(
+                    key: const ValueKey('recording-play'),
+                    icon: played.playing ? Lucide.pause : Lucide.play,
+                    label: played.playing ? 'Pause' : 'Play',
+                    onPressed: () => unawaited(played.toggle()),
+                  )
+                else ...[
+                  const _RecDot(),
+                  SizedBox(width: t.space(2)),
+                ],
+                if (!narrow && played == null) ...[
                   Text('REC', style: pageText(t, t.fontSize('xs'), weight: 'bold', color: _Studio.rec, tracking: 1)),
                   SizedBox(width: t.space(3)),
                 ],
@@ -321,19 +382,20 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
                     style: pageText(t, t.fontSize('sm'), color: _Studio.ink2),
                   ),
                 ),
-                _ToolButton(
-                  key: const ValueKey('recording-mark'),
-                  icon: Lucide.flag,
-                  label: 'Mark this moment',
-                  onPressed: () {
-                    final at = rec.mark();
-                    if (at != null) toast(context, 'Marked ${_rulerTime(at.floor())}');
-                  },
-                ),
+                if (live != null)
+                  _ToolButton(
+                    key: const ValueKey('recording-mark'),
+                    icon: Lucide.flag,
+                    label: 'Mark this moment',
+                    onPressed: () {
+                      final at = live.mark();
+                      if (at != null) toast(context, 'Marked ${_rulerTime(at.floor())}');
+                    },
+                  ),
                 if (!mixer) ...[
                   _ToolButton(icon: Lucide.zoomOut, label: 'Zoom out', onPressed: () => setState(() => _perSecond = math.max(4, _perSecond / 1.5))),
                   _ToolButton(icon: Lucide.zoomIn, label: 'Zoom in', onPressed: () => setState(() => _perSecond = math.min(160, _perSecond * 1.5))),
-                  if (_back > 0) _ToolButton(icon: Lucide.chevronRight, label: 'Live', text: narrow ? null : 'Live', onPressed: () => setState(() => _back = 0)),
+                  if (_back > 0 && live != null) _ToolButton(icon: Lucide.chevronRight, label: 'Live', text: narrow ? null : 'Live', onPressed: () => setState(() => _back = 0)),
                 ],
                 // The panel's other face: the mixer's faders, or the timeline's lanes.
                 _ToolButton(
@@ -347,6 +409,18 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
                   }),
                 ),
                 SizedBox(width: t.space(1)),
+                if (played != null)
+                  GlacierPressable(
+                    key: const ValueKey('recording-save-mix'),
+                    onPressed: _saving ? null : () => unawaited(_saveMix(played)),
+                    semanticLabel: 'Save this mix as a new recording',
+                    builder: (context, state) => Container(
+                      padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1) + 2),
+                      decoration: BoxDecoration(color: state.pressed ? const Color(0xFF5BC283) : _Studio.wave, borderRadius: BorderRadius.circular(999)),
+                      child: Text(_saving ? 'Saving…' : (narrow ? 'Save' : 'Save mix'), style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: _Studio.panel)),
+                    ),
+                  )
+                else
                 GlacierPressable(
                   key: const ValueKey('recording-stop'),
                   onPressed: _stopping ? null : () => unawaited(_stop()),
@@ -361,7 +435,7 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
                     ]),
                   ),
                 ),
-                _ToolButton(key: const ValueKey('recording-collapse'), icon: Lucide.chevronDown, label: 'Make it small', onPressed: widget.onClose),
+                _ToolButton(key: const ValueKey('recording-collapse'), icon: Lucide.chevronDown, label: 'Close the mixer', onPressed: widget.onClose),
               ]);
               }),
             ),
@@ -407,13 +481,28 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
                       // The timeline: dragged sideways to look back, Live to follow the end again.
                       Expanded(
                         child: LayoutBuilder(builder: (context, lanes) {
-                          final total = _stepsOf(levels) / RecordingMeter.perSecond;
+                          final total = played?.seconds ?? _stepsOf(levels) / RecordingMeter.perSecond;
                           final shown = lanes.maxWidth / _perSecond;
                           final maxBack = math.max(0.0, total - shown);
                           final back = _back.clamp(0.0, maxBack);
-                          final start = math.max(0.0, total - shown - back);
+                          var start = math.max(0.0, total - shown - back);
+                          if (played != null) {
+                            // Played: the view stays where it is put, and turns the page when the playhead reaches its end.
+                            final head = played.at;
+                            if (played.playing && (head < _viewStart || head > _viewStart + shown * 0.92)) _viewStart = math.max(0.0, head - shown * 0.1);
+                            _viewStart = _viewStart.clamp(0.0, maxBack);
+                            start = _viewStart;
+                          }
                           return GestureDetector(
-                            onHorizontalDragUpdate: (d) => setState(() => _back = (_back + d.delta.dx / _perSecond).clamp(0.0, maxBack)),
+                            onHorizontalDragUpdate: (d) => setState(() {
+                              if (played != null) {
+                                _viewStart = (_viewStart - d.delta.dx / _perSecond).clamp(0.0, maxBack);
+                              } else {
+                                _back = (_back + d.delta.dx / _perSecond).clamp(0.0, maxBack);
+                              }
+                            }),
+                            // Played: pressed anywhere, the playhead goes there.
+                            onTapUp: played == null ? null : (d) => unawaited(played.seek(start + d.localPosition.dx / _perSecond)),
                             child: CustomPaint(
                               key: const ValueKey('recording-lanes'),
                               size: Size(lanes.maxWidth, rulerH + laneH * rows),
@@ -425,7 +514,7 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
                                 markers: rec.markers,
                                 start: start,
                                 perSecond: _perSecond,
-                                total: total,
+                                total: played?.at ?? total,
                                 rulerH: rulerH,
                                 laneH: laneH,
                                 label: pageText(t, 10, weight: 'semibold', color: _Studio.ink2, mono: true),
@@ -454,7 +543,7 @@ class _TrackHeader extends StatelessWidget {
   final String name;
   final bool live;
   final Color colour;
-  final CallRecorder recorder;
+  final RecordingDesk recorder;
   final String trackKey;
   final double height;
 
@@ -730,4 +819,3 @@ String _short(Duration d) {
   return d.inHours > 0 ? '${d.inHours}:${two(d.inMinutes % 60)}:${two(d.inSeconds % 60)}' : '${two(d.inMinutes)}:${two(d.inSeconds % 60)}';
 }
 
-String _spoken(Duration d) => d.inMinutes > 0 ? '${d.inMinutes} minutes ${d.inSeconds % 60} seconds' : '${d.inSeconds} seconds';

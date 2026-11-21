@@ -1,7 +1,7 @@
 name: ghost_messaging
 description: "Ghost Messaging: an SMS and MMS app for Android, drawn with Glacier (Ghost.md's UI kit)."
 publish_to: 'none'
-version: 0.10.8+119
+version: 0.12.2+130
 
 environment:
   sdk: ^3.11.0
@@ -13,6 +13,8 @@ dependencies:
   glacier:
     path: packages/glacier
   pointycastle: ^4.0.0
+  # SHA-256 of a whole file, five times pointycastle's speed (lib/files/files_store.dart).
+  crypto: ^3.0.6
   image: ^4.13.1
   qr: ^4.0.1
   # Voice and video channels and group calls (lib/voice; Matt, 2026-11-14: "jump in audio chats like discord has

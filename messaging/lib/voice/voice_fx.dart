@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'ducking.dart';
 import 'voice_settings.dart';
 
 /// The microphone's own processing, done natively inside WebRTC's capture path (Matt, 2026-11-15: "build in like krisp
@@ -25,6 +26,8 @@ class VoiceFx {
     try {
       final said = await _channel.invokeListMethod<String>('modes') ?? const [];
       available = {for (final s in said) ?NoiseMode.named(s)};
+      liveSupported = said.contains('live');
+      effectsSupported = said.contains('effects');
     } on MissingPluginException {
       available = const {};
     } on PlatformException {
@@ -35,9 +38,62 @@ class VoiceFx {
   }
 
   @visibleForTesting
-  static void reset([Set<NoiseMode> to = const {}]) {
+  static void reset([Set<NoiseMode> to = const {}, bool live = false, bool effects = false]) {
     available = to;
-    _asked = to.isNotEmpty;
+    liveSupported = live;
+    effectsSupported = effects;
+    _asked = to.isNotEmpty || live;
+  }
+
+  // --- live voice changing (lib/voice/live_changer.dart) -------------------------------------------------------------
+
+  /// The native half can change a call's voice live: keep what is said and play back what it is fed.
+  static bool liveSupported = false;
+
+  /// The native half makes voice effects as it goes (native/voicefx voicefx_effect).
+  static bool effectsSupported = false;
+
+  /// A voice effect on what goes into the call, made on this device as it is said: one of [VoiceEffect]'s names,
+  /// or 'none'.
+  static Future<bool> effect(String name) async {
+    try {
+      return await _channel.invokeMethod<bool>('effect', {'name': name}) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// While [on], what the microphone says is kept for [take] and only what is [feed]-ed goes into the call.
+  static Future<bool> live(bool on) async {
+    try {
+      return await _channel.invokeMethod<bool>('live', {'on': on}) ?? false;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  /// What was said since last asked: 16-bit little-endian mono at 16 kHz.
+  static Future<Uint8List> take({int most = 32000}) async {
+    try {
+      return await _channel.invokeMethod<Uint8List>('take', {'most': most}) ?? Uint8List(0);
+    } on MissingPluginException {
+      return Uint8List(0);
+    } on PlatformException {
+      return Uint8List(0);
+    }
+  }
+
+  /// The changed voice to play into the call, 16-bit little-endian mono at [rate]; how much is then queued, in ms.
+  static Future<int> feed(Uint8List pcm, int rate) async {
+    try {
+      return await _channel.invokeMethod<int>('feed', {'pcm': pcm, 'rate': rate}) ?? 0;
+    } on MissingPluginException {
+      return 0;
+    } on PlatformException {
+      return 0;
+    }
   }
 
   /// Sets what is done to the microphone: [mode] (only RNNoise and DeepFilterNet are native; others are none here)
@@ -57,5 +113,7 @@ class VoiceFx {
   static Future<void> apply(VoiceSettings s) async {
     final modes = await VoiceFx.modes();
     await configure(mode: s.noiseOn(modes), gain: s.inputVolume / 100);
+    // Whether Windows lowers other sounds in the call, said with the rest before the microphone opens and after.
+    await Ducking.apply(duckOthers: s.duckOthers);
   }
 }

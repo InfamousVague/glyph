@@ -199,7 +199,8 @@ if (existsSync(waSource)) {
 // lib/inbox/account_helper.dart; Matt, 2026-11-20: "Let's do the feasible ones but skip X and google voice"), each
 // carried where it is in the checkout with its source's address, beside the others and signed with the rest below.
 const accountHelpers = [];
-for (const name of ['messenger', 'instagram', 'linkedin']) {
+// LinkedIn's is no longer carried (Matt, 2026-11-21: "remove the plugin"; lib/inbox/inbox.dart).
+for (const name of ['messenger', 'instagram']) {
   const source = join(ROOT, `sidecar/${name}/SOURCE_URL`);
   if (!existsSync(source)) continue;
   say(`> Building the ${name} helper`);

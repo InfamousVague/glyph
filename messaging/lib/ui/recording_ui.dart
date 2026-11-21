@@ -5,6 +5,8 @@
 /// whether their voice may be in it; until they say yes it is not.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -22,16 +24,63 @@ import '../voice/recorder.dart';
 import '../voice/scribe.dart';
 import '../voice/voice.dart';
 import 'common.dart';
+import 'recording_float.dart' show showRecordingMixer, showRecordingPlayback;
 import 'video_screen.dart';
 
 /// The red line over a call that is being recorded: who records, whose voices are in it, and this device's answer.
-class RecordingBanner extends StatelessWidget {
+class RecordingBanner extends StatefulWidget {
   const RecordingBanner({super.key});
 
   static const red = Color(0xFFDD3A30);
 
   /// Whether there is anything to show for [s].
   static bool shows(VoiceSession s) => s.recording != null || s.recordingsByOthers.isNotEmpty || CallRecorder.instance.finishing;
+
+  @override
+  State<RecordingBanner> createState() => _RecordingBannerState();
+
+  static Future<void> _stop(BuildContext context) async {
+    final r = await CallRecorder.instance.stop();
+    if (!context.mounted) return;
+    if (r == null) {
+      toast(context, 'The recording couldn\'t be saved');
+      return;
+    }
+    toast(context, 'Recording saved', action: GlacierToastAction(label: 'Open', onPress: () => push(context, (_) => const RecordingsScreen())));
+  }
+}
+
+class _RecordingBannerState extends State<RecordingBanner> {
+  static const red = RecordingBanner.red;
+
+  /// The time said moves on each second while this device records (nothing else says a second has passed).
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    CallRecorder.instance.addListener(_changed);
+    _changed();
+  }
+
+  @override
+  void dispose() {
+    CallRecorder.instance.removeListener(_changed);
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  void _changed() {
+    final on = CallRecorder.instance.since != null;
+    if (on) {
+      _tick ??= Timer.periodic(const Duration(seconds: 1), (_) => mounted ? setState(() {}) : null);
+    } else {
+      _tick?.cancel();
+      _tick = null;
+    }
+  }
+
+  void _stop(BuildContext context) => RecordingBanner._stop(context);
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +126,12 @@ class RecordingBanner extends StatelessWidget {
           final clock = since == null ? '' : ' · ${_clock(DateTime.now().difference(since))}';
           final names = rec.recordedNames;
           final others = names.length <= 1 ? 'only your voice so far' : names.skip(1).join(', ');
-          lines.add(line('Recording$clock · $others', [pill('Stop', () => _stop(context), solid: true, icon: Lucide.square)], key: 'recording-mine'));
+          // Mixer opens the tracks, their meters and faders full screen (Matt, 2026-11-20: "make the recording plugin
+          // banner have a button for "mixer" and have it open a drawer full screen with the audio tracks and whatnot").
+          lines.add(line('Recording$clock · $others', [
+            pill('Mixer', () => unawaited(showRecordingMixer(context)), icon: Lucide.slidersHorizontal),
+            pill('Stop', () => _stop(context), solid: true, icon: Lucide.square),
+          ], key: 'recording-mine'));
         } else if (rec.finishing) {
           lines.add(line('Saving the recording…', const [], key: 'recording-saving'));
         }
@@ -96,15 +150,6 @@ class RecordingBanner extends StatelessWidget {
     );
   }
 
-  static Future<void> _stop(BuildContext context) async {
-    final r = await CallRecorder.instance.stop();
-    if (!context.mounted) return;
-    if (r == null) {
-      toast(context, 'The recording couldn\'t be saved');
-      return;
-    }
-    toast(context, 'Recording saved', action: GlacierToastAction(label: 'Open', onPress: () => push(context, (_) => const RecordingsScreen())));
-  }
 }
 
 String _clock(Duration d) {
@@ -140,7 +185,7 @@ class RecordingsScreen extends StatelessWidget {
                       SettingRow(
                         key: ValueKey('recording-${r.id}'),
                         icon: AppIcon(Lucide.audioLines, size: 18),
-                        label: '${r.space.isEmpty ? 'A call' : r.space} · ${_date(r.at)}',
+                        label: '${r.space.isEmpty ? 'A call' : r.space} · ${_date(r.at)}${r.mixedFrom == null ? '' : ' · mixed again'}',
                         hint: Text('${_clock(Duration(seconds: r.seconds))} · ${r.people.join(', ')}${r.markers.isEmpty ? '' : ' · marked at ${r.markers.map((m) => _clock(Duration(seconds: m.floor()))).join(', ')}'}${_wordsNote(r)}'),
                         onPress: () => _actions(context, r),
                       ),
@@ -170,6 +215,8 @@ class RecordingsScreen extends StatelessWidget {
     final room = space == null ? null : Voice.instance.hangoutFor(space);
     showChoices(context, title: r.space.isEmpty ? 'Recording' : r.space, choices: [
       Choice('Play', Lucide.play, () => push(context, (_) => VideoScreen(path: r.path, title: r.space.isEmpty ? 'Recording' : r.space))),
+      // Every voice a track of the timeline and a strip of the mixer, to play and mix again (lib/voice/recording_playback.dart).
+      if (r.people.isNotEmpty) Choice('Open in the mixer', Lucide.slidersHorizontal, () => unawaited(showRecordingPlayback(context, r))),
       // Scribe's (lib/plugins/scribe.dart): the words, where it is on for this recording.
       if (CallScribe.instance.of(r) != null)
         Choice('Read the words', Lucide.scrollText, () => push(context, (_) => TranscriptScreen(recording: r)))

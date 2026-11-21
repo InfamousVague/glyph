@@ -49,7 +49,7 @@ String _gainWords(double gain) {
 
 /// Everyone mixed, now: the faders' gains on each voice, the powers added (voices that are not one another's echo add
 /// as power does) and the peaks added, held to full scale.
-({double peak, double rms}) _mixNow(CallRecorder rec) {
+({double peak, double rms}) _mixNow(RecordingDesk rec) {
   var peak = 0.0, power = 0.0;
   for (final tr in rec.tracks) {
     if (!tr.live) continue;
@@ -63,7 +63,7 @@ String _gainWords(double gain) {
 }
 
 /// A voice now as its strip shows it: after its fader where [post], silent where it is not being taken.
-({double peak, double rms}) _trackNow(CallRecorder rec, String key, {required bool live, bool post = true}) {
+({double peak, double rms}) _trackNow(RecordingDesk rec, String key, {required bool live, bool post = true}) {
   if (key == _mixKey) return _mixNow(rec);
   final n = rec.meter.now[key];
   if (!live || n == null) return (peak: 0, rms: 0);
@@ -373,7 +373,7 @@ const _muteLit = Color(0xFFFF9F0A), _soloLit = Color(0xFFFFD60A);
 /// The mixer: a strip for the mix, then one per voice.
 class MixerView extends StatelessWidget {
   const MixerView({super.key, required this.recorder, required this.tracks});
-  final CallRecorder recorder;
+  final RecordingDesk recorder;
   final List<({String key, String name, bool live})> tracks;
 
   @override
@@ -399,7 +399,7 @@ class MixerView extends StatelessWidget {
 
 class _Strip extends StatelessWidget {
   const _Strip({super.key, required this.recorder, required this.track, required this.label, required this.width});
-  final CallRecorder recorder;
+  final RecordingDesk recorder;
   final ({String key, String name, bool live}) track;
   final String label;
   final double width;

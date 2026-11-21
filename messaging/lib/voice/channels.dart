@@ -22,6 +22,8 @@ import 'captions.dart';
 import 'hangout.dart';
 import 'mention_alerts.dart';
 import 'roles.dart';
+import 'leveler.dart';
+import 'live_changer.dart';
 import 'soundboard.dart';
 import 'watch_together.dart';
 import 'rtc.dart';
@@ -867,7 +869,9 @@ class Voice extends ChangeNotifier {
       _ringIn(false);
     }
     final settings = _app == null ? const VoiceSettings() : VoiceSettings.of(_app!);
-    final m = media = RtcMedia(settings: settings);
+    // The relay's TURN server, as the hub handed it out with the last room joined: a call falls back on it where the
+    // two devices can't reach each other directly (relay/lib/turn.dart).
+    final m = media = RtcMedia(settings: settings, relay: route is HubVoiceRoute ? () => route.hub.callRelay : null);
     for (final e in _volumes.entries) {
       m.setPeerVolume(e.key, e.value);
     }
@@ -913,6 +917,10 @@ class Voice extends ChangeNotifier {
       WatchTogether.instance.follow();
       // And its soundboard (soundboard.dart).
       Soundboard.instance.follow();
+      // And the auto leveler (leveler.dart).
+      AutoLeveler.instance.follow();
+      // And the voice changer, live, where it is on (live_changer.dart).
+      unawaited(LiveChanger.instance.follow());
     } catch (e) {
       await leave();
       rethrow;
@@ -948,6 +956,8 @@ class Voice extends ChangeNotifier {
     Soundboard.instance.follow();
     Sounds.instance.stopLoop(UiSound.ringOut);
     media = null;
+    AutoLeveler.instance.follow();
+    unawaited(LiveChanger.instance.follow());
     if (s != null) unawaited(Sms.instance.callEnded());
     if (s != null) {
       s.removeListener(notifyListeners);

@@ -217,6 +217,8 @@ class GhostMessagingApp extends StatelessWidget {
             typography: ghostTypography(state.emoji),
             child: HapticsProvider(
               enabled: true,
+              // A call being recorded shows in its banner over the call, whose Mixer opens the tracks full screen
+              // (lib/ui/recording_float.dart); nothing floats over the pages.
               child: InkOverrides(child: _SystemBars(child: GlacierToastProvider(child: child!))),
             ),
           ),

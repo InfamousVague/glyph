@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
@@ -751,6 +752,9 @@ class Inbox {
   // Messenger, Instagram and LinkedIn through account helpers (Matt, 2026-11-20: "Let's do the feasible ones but skip
   // X and google voice"; lib/inbox/account_helper.dart, sidecar/ACCOUNT_HELPERS.md): each signed in with a browser's
   // session after a warning, "Not in this build" where its helper is not carried.
+  // LinkedIn was a third and is gone (Matt, 2026-11-21: "linked in keeps automatically signing our sessions out remove
+  // the plugin"): LinkedIn ended the browser's session whenever the helper used it. Its sign-in is deleted from the
+  // device as the networks start ([start]); its source stays in sidecar/linkedin, carried by no build.
   static Inbox get instance => _instance ??= Inbox._([
         Telegram(),
         Bluesky(soon: true),
@@ -762,7 +766,6 @@ class Inbox {
         GoogleChat(),
         AccountHelper(messengerService),
         AccountHelper(instagramService),
-        AccountHelper(linkedInService),
       ]);
 
   /// Stand-ins for a test of a screen; null puts the app's own back.
@@ -809,32 +812,36 @@ class Inbox {
 
   Listenable get changes => Listenable.merge(networks);
 
+  /// Starts every network that is to start. Each has its choices from the first moment and starts on its own: a
+  /// network slow to start (no connection, a helper that doesn't answer) once held up every one after it, and until
+  /// its turn came a later one had no choices to read its switch from — so it showed as switched off, in Settings and
+  /// in the Marketplace, and couldn't be switched on.
   Future<void> start(AppState app) async {
     for (final n in networks) {
-      if (n.soon) continue;
-      n.listStore = app;
-      // Plugins (everything but Telegram and Signal) are off until switched on. 'off' never starts; 'on' starts; an
-      // unset switch is an install from before plugins existed, started once to find a session it was already signed
-      // in to — kept on where there was one, settled off where there wasn't.
-      if (!n.official) {
-        final pref = app.choice('inbox_on_${n.id}', '');
-        if (pref == 'off') continue;
-        if (pref != 'on') {
-          try {
-            await n.start(app);
-          } catch (e) {
-            debugPrint('inbox: ${n.id} did not start: \$e');
-          }
-          app.set('inbox_on_${n.id}', (n.state == InboxState.ready || n.state == InboxState.signingIn) ? 'on' : 'off');
-          continue;
-        }
-      }
-      try {
-        await n.start(app);
-      } catch (e) {
-        debugPrint('inbox: ${n.id} did not start: \$e');
-      }
+      if (!n.soon) n.listStore = app;
     }
+    // LinkedIn is no longer a network here: what it kept on this device (the sign-in, its chats) goes.
+    if (identical(this, _instance) && app.choice('inbox_on_linkedin', '').isNotEmpty) {
+      app.set('inbox_on_linkedin', '');
+      unawaited(AccountHelper.forget(linkedInService));
+    }
+    await Future.wait([for (final n in networks) if (!n.soon) _startOne(n, app)]);
+  }
+
+  Future<void> _startOne(InboxNetwork n, AppState app) async {
+    final key = 'inbox_on_${n.id}';
+    // Plugins (everything but Telegram and Signal) are off until switched on. 'off' never starts; 'on' starts; an
+    // unset switch is an install from before plugins existed, started once to find a session it was already signed
+    // in to — kept on where there was one, settled off where there wasn't.
+    final unset = !n.official && app.choice(key, '') != 'on';
+    if (unset && app.choice(key, '') == 'off') return;
+    try {
+      await n.start(app);
+    } catch (e) {
+      debugPrint('inbox: ${n.id} did not start: $e');
+    }
+    // Only where it is still unset: switched on by hand while this was starting, it stays on.
+    if (unset && app.choice(key, '').isEmpty) app.set(key, (n.state == InboxState.ready || n.state == InboxState.signingIn) ? 'on' : 'off');
   }
 
   /// Switches a plugin network on and starts it, so it can be signed in to.
@@ -855,7 +862,11 @@ class Inbox {
     notifyChange();
   }
 
-  void notifyChange() => _change.value++;
+  void notifyChange() {
+    _change.value++;
+    // The Marketplace draws these switches too (lib/plugins/networks.dart): a word in the plugins' choices redraws it.
+    networks.map((n) => n.listStore).nonNulls.firstOrNull?.set('plugins_switched', '${DateTime.now().microsecondsSinceEpoch}');
+  }
   final ValueNotifier<int> _change = ValueNotifier(0);
   ValueListenable<int> get switches => _change;
 

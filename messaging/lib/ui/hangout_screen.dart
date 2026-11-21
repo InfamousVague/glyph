@@ -19,6 +19,7 @@ import '../voice/hangout.dart';
 import '../voice/mention_alerts.dart';
 import '../voice/roles.dart';
 import '../voice/voice.dart';
+import '../voice/voice_changer.dart';
 import 'common.dart';
 import 'emoji_picker.dart';
 import 'plugin_note_card.dart';
@@ -875,7 +876,10 @@ class _HangoutChatState extends State<HangoutChat> {
   Future<void> _sendVoice() async {
     setState(() => _recording = null);
     try {
-      final path = await Sms.instance.finishVoice();
+      // In another voice, where Voice changer is on (lib/voice/voice_changer.dart): never as it was, should that fail.
+      final changing = VoiceChanger.instance.active;
+      if (changing && mounted) toast(context, 'Changing your voice…');
+      final path = await VoiceChanger.instance.forSending(await Sms.instance.finishVoice());
       if (widget.room.sendFiles([(path: path, owned: true)], _uploads, voice: true) == null && mounted) toast(context, 'Couldn\'t send the voice message.', tone: GlacierToastTone.danger);
     } catch (e) {
       if (mounted) toast(context, 'Couldn\'t send the voice message: ${voiceProblem(e)}', tone: GlacierToastTone.danger);
@@ -1178,7 +1182,7 @@ class _HangoutChatState extends State<HangoutChat> {
               padding: composerFootPadding(t, bottom: MediaQuery.viewInsetsOf(context).bottom > 0 ? MediaQuery.viewInsetsOf(context).bottom : widget.bottom + MediaQuery.paddingOf(context).bottom),
               child: mayWrite
                   ? Builder(builder: (context) {
-                      if (_recording != null) return VoiceRecorder(limit: _recording!, onDiscard: _discardVoice, onSend: _sendVoice);
+                      if (_recording != null) return VoiceRecorder(limit: _recording!, onDiscard: _discardVoice, onSend: _sendVoice, note: VoiceChanger.instance.note);
                       // The same buttons in the same places as every other conversation (lib/ui/composer_box.dart): files,
                       // stickers and, on the phone itself, voice messages, as in other chats (Matt, 2026-11-18). Files
                       // only where the circle's roles let this person share them (spaceMayAttach).

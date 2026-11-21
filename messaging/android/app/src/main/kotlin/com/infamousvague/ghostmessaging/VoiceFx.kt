@@ -29,8 +29,24 @@ object VoiceFx : AudioProcessingAdapter.ExternalAudioFrameProcessing {
                 when (call.method) {
                     "modes" -> {
                         val bits = nativeModes(handle)
-                        result.success(listOfNotNull(if (bits and (1 shl 1) != 0) "rnnoise" else null, if (bits and (1 shl 2) != 0) "deepfilter" else null))
+                        result.success(listOfNotNull(if (bits and (1 shl 1) != 0) "rnnoise" else null, if (bits and (1 shl 2) != 0) "deepfilter" else null, "live", "effects"))
                     }
+                    // Live voice changing (lib/voice/live_changer.dart): what was said, taken; the changed voice, fed.
+                    // A voice effect made here as it is said (lib/voice/live_changer.dart, native/voicefx voicefx_effect).
+                    "effect" -> {
+                        nativeEffect(handle, call.argument<String>("name") ?: "none")
+                        result.success(attach())
+                    }
+                    "live" -> {
+                        nativeLive(handle, call.argument<Boolean>("on") == true)
+                        result.success(attach())
+                    }
+                    "take" -> result.success(nativeTake(handle, call.argument<Int>("most") ?: 32000))
+                    "feed" -> {
+                        nativeFeed(handle, call.argument<ByteArray>("pcm") ?: ByteArray(0), call.argument<Int>("rate") ?: 24000)
+                        result.success(nativeQueued(handle))
+                    }
+                    "queued" -> result.success(nativeQueued(handle))
                     "configure" -> {
                         val mode = when (call.argument<String>("mode")) { "rnnoise" -> 1; "deepfilter" -> 2; else -> 0 }
                         val gain = (call.argument<Double>("gain") ?: 1.0).toFloat()
@@ -76,4 +92,9 @@ object VoiceFx : AudioProcessingAdapter.ExternalAudioFrameProcessing {
     private external fun nativeModes(fx: Long): Int
     private external fun nativeConfigure(fx: Long, mode: Int, gain: Float)
     private external fun nativeProcess(fx: Long, buffer: ByteBuffer, frames: Int, rate: Int)
+    private external fun nativeEffect(fx: Long, name: String)
+    private external fun nativeLive(fx: Long, on: Boolean)
+    private external fun nativeTake(fx: Long, most: Int): ByteArray
+    private external fun nativeFeed(fx: Long, pcm: ByteArray, rate: Int)
+    private external fun nativeQueued(fx: Long): Int
 }

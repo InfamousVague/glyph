@@ -16,8 +16,8 @@ import 'voice_settings.dart';
 /// microphone as it is (echo cancellation stays on: without it a speaker feeds back into the call), and sent as Opus
 /// at 510 kb/s. Each connection carries one sound and one picture both ways from its start; turning video on or off
 /// puts the camera's picture in or takes it out, with nothing to work out again between the two.
-class RtcMedia implements VoiceMedia {
-  RtcMedia({this.iceServers = defaultIce, this.settings = const VoiceSettings()});
+class RtcMedia implements VoiceMedia, FallbackMedia {
+  RtcMedia({this.relay, this.settings = const VoiceSettings()});
 
   /// The devices, Opus and processing, and the picture's quality, as Settings › Voice has them.
   VoiceSettings settings;
@@ -27,7 +27,18 @@ class RtcMedia implements VoiceMedia {
       'urls': ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
     },
   ];
-  final List<Map<String, Object>> iceServers;
+
+  /// The relay's TURN server for calls as the hub last handed it out with a room joined (relay/lib/turn.dart,
+  /// HubCarrier.callRelay), asked for as each connection is made; null or none: direct only.
+  final Map<String, Object>? Function()? relay;
+
+  /// Where a connection looks for a way through: the public STUN servers, and the relay where there is one. WebRTC
+  /// tries them all at once and takes the best that works, so a call goes direct wherever it can and through the
+  /// relay only where it can't.
+  List<Map<String, Object>> get iceServers => [...defaultIce, ?relay?.call()];
+
+  @override
+  bool get hasRelay => relay?.call() != null;
 
   MediaStream? _mic;
   MediaStream? _cam;
@@ -35,7 +46,8 @@ class RtcMedia implements VoiceMedia {
   /// This device's camera while video is on, for its own tile.
   final ValueNotifier<MediaStream?> localVideo = ValueNotifier(null);
 
-  /// What each other member sends, by their id.
+  /// Each other member's picture, by their id: a stream made on this device holding the video track their connection
+  /// receives, for their tile ([_RtcPeer._took]).
   final ValueNotifier<Map<String, MediaStream>> remote = ValueNotifier(const {});
   final Map<String, _RtcPeer> _peers = {};
   bool _deaf = false;
@@ -43,27 +55,38 @@ class RtcMedia implements VoiceMedia {
   final Set<String> _silenced = {};
 
   /// Each one's sound as this device plays it: silenced (deafened, or that one muted here) or at their volume.
-  void _apply(String id, MediaStream stream) {
-    for (final t in stream.getAudioTracks()) {
+  void _apply(String id) {
+    for (final t in _peers[id]?._sounds ?? const <MediaStreamTrack>[]) {
       t.enabled = !_deaf && !_silenced.contains(id);
-      // Each person's own volume times the output volume (Settings › Voice and video), boosted to twice at most.
-      final v = ((_volume[id] ?? 1.0) * settings.outputVolume / 100).clamp(0.0, 4.0);
+      // Each person's own volume times the output volume (Settings › Voice and video), boosted to twice at most, and
+      // times the auto leveler's gain for them where it is on (leveler.dart).
+      final v = ((_volume[id] ?? 1.0) * settings.outputVolume / 100 * (_leveled[id] ?? 1.0)).clamp(0.0, 6.0);
       unawaited(Helper.setVolume(v, t).catchError((_) {}));
     }
+  }
+
+  /// The auto leveler's gain for each person (leveler.dart): 1 is as they arrive.
+  final Map<String, double> _leveled = {};
+
+  void setLevelGain(String id, double gain) {
+    if (gain == 1) {
+      if (_leveled.remove(id) == null) return;
+    } else {
+      _leveled[id] = gain.clamp(0.25, 3.5);
+    }
+    _apply(id);
   }
 
   @override
   void setPeerVolume(String id, double volume) {
     _volume[id] = volume.clamp(0.0, 2.0);
-    final s = remote.value[id];
-    if (s != null) _apply(id, s);
+    _apply(id);
   }
 
   @override
   void setPeerMuted(String id, bool muted) {
     muted ? _silenced.add(id) : _silenced.remove(id);
-    final s = remote.value[id];
-    if (s != null) _apply(id, s);
+    _apply(id);
   }
 
   @override
@@ -99,6 +122,20 @@ class RtcMedia implements VoiceMedia {
   /// Reads how loud each sound is, several times a second (WebRTC's audioLevel: the incoming sound's at each
   /// connection, the microphone's at its media source), eased so a face does not flicker between words.
   Future<void> _readLevels() async {
+    // One reading at a time: when the app is busy (an upload sealing beside the call), readings that overlapped piled
+    // up getStats on the platform channel and made it busier still (GMFB-6).
+    if (_reading) return;
+    _reading = true;
+    try {
+      await _readLevelsOnce();
+    } finally {
+      _reading = false;
+    }
+  }
+
+  bool _reading = false;
+
+  Future<void> _readLevelsOnce() async {
     final next = <String, double>{};
     final meter = _meter;
     if (meter != null) {
@@ -132,7 +169,7 @@ class RtcMedia implements VoiceMedia {
     }
     // Muted, this device is not talking, whatever the microphone still hears.
     if (_mic?.getAudioTracks().any((t) => t.enabled) == false) next['me'] = 0;
-    for (final e in _peers.entries) {
+    for (final e in _peers.entries.toList()) {
       final made = e.value._pc;
       if (made == null) continue;
       try {
@@ -145,7 +182,11 @@ class RtcMedia implements VoiceMedia {
       } catch (_) {}
     }
     final was = levels.value;
-    levels.value = {for (final k in {...was.keys, ...next.keys}) k: _ease(was[k] ?? 0, next[k] ?? 0)};
+    final eased = {for (final k in {...was.keys, ...next.keys}) k: _ease(was[k] ?? 0, next[k] ?? 0)};
+    // Told only when a face would move: a new map each reading had every listener rebuild seven times a second while
+    // nobody spoke (GMFB-6).
+    final moved = eased.length != was.length || eased.entries.any((e) => ((was[e.key] ?? -1) - e.value).abs() > 0.01);
+    if (moved) levels.value = eased;
   }
 
   bool _opening = false;
@@ -247,8 +288,19 @@ class RtcMedia implements VoiceMedia {
   @visibleForTesting
   static Future<List<MediaDeviceInfo>> Function()? enumerate;
 
+  /// Windows' WebRTC (flutter_webrtc's common/cpp) takes the microphone from `optional: [{sourceId}]` and reads
+  /// `deviceId` as the speaker; the Mac's and the phones' take `deviceId` as the microphone. Asked as `deviceId` on
+  /// Windows, every choice of microphone was the system's first (Matt, 2026-11-21: "the device picker is not working
+  /// in windows").
+  static bool get _sourceIds => !kIsWeb && (Platform.isWindows || Platform.isLinux);
+
   Map<String, Object> get _audioAsked => {
-        if (settings.input.isNotEmpty) 'deviceId': settings.input,
+        if (settings.input.isNotEmpty && !_sourceIds) 'deviceId': settings.input,
+        if (settings.input.isNotEmpty && _sourceIds)
+          'optional': [
+            {'sourceId': settings.input},
+          ],
+        if (settings.output.isNotEmpty && _sourceIds) 'deviceId': settings.output,
         'echoCancellation': settings.useEcho,
         // WebRTC's own only where it is the one used: RNNoise and DeepFilterNet run after capture (VoiceFx).
         'noiseSuppression': settings.noiseOn(VoiceFx.available) == NoiseMode.webrtc,
@@ -272,6 +324,11 @@ class RtcMedia implements VoiceMedia {
   /// Takes sound from another microphone, in the call as it goes: the new one's track in every connection's place.
   Future<void> setInput(String deviceId) async {
     settings = settings.copyWith(input: deviceId);
+    // The computers' audio device modules hold one microphone for every track: chosen there too, in case a new
+    // track's constraint is not read.
+    if (deviceId.isNotEmpty && !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux)) {
+      await Helper.selectAudioInput(deviceId).catchError((_) {});
+    }
     final old = _mic;
     if (old == null) return;
     final fresh = await navigator.mediaDevices.getUserMedia({'audio': _audioAsked, 'video': false});
@@ -356,18 +413,14 @@ class RtcMedia implements VoiceMedia {
   @override
   set deafened(bool on) {
     _deaf = on;
-    for (final e in remote.value.entries) {
-      _apply(e.key, e.value);
-    }
+    _peers.keys.forEach(_apply);
   }
 
   /// Settings changed while in the call: how loud others are and the microphone's processing at once; the rest
   /// from the next call.
   Future<void> applyLive(VoiceSettings fresh) async {
     settings = fresh.copyWith(input: settings.input, output: settings.output);
-    for (final e in remote.value.entries) {
-      _apply(e.key, e.value);
-    }
+    _peers.keys.forEach(_apply);
     await VoiceFx.apply(settings);
   }
 
@@ -388,6 +441,9 @@ class RtcMedia implements VoiceMedia {
       for (final p in _peers.values) {
         await p.showCamera(null);
       }
+      // Let the screen drop its renderer of this camera before the camera goes (GMFB-5: a renderer still holding a
+      // disposed stream kept its last frame, on the Mac, in whichever tile it had moved to).
+      await Future<void>.delayed(const Duration(milliseconds: 120));
       for (final t in cam.getTracks()) {
         await t.stop();
       }
@@ -400,10 +456,13 @@ class RtcMedia implements VoiceMedia {
   }
 
   @override
-  VoicePeer peer(String id, {required void Function(Map<String, dynamic> candidate) onCandidate}) {
+  VoicePeer peer(String id, {required void Function(Map<String, dynamic> candidate) onCandidate}) => peerWith(id, onCandidate: onCandidate, onFailed: () {});
+
+  @override
+  VoicePeer peerWith(String id, {required void Function(Map<String, dynamic> candidate) onCandidate, required void Function() onFailed, bool relayOnly = false}) {
     final had = _peers[id];
     if (had != null) return had;
-    final made = _peers[id] = _RtcPeer(this, id, onCandidate);
+    final made = _peers[id] = _RtcPeer(this, id, onCandidate, onFailed: onFailed, relayOnly: relayOnly);
     _retune();
     return made;
   }
@@ -416,10 +475,7 @@ class RtcMedia implements VoiceMedia {
     }
   }
 
-  void _heard(String id, MediaStream stream) {
-    _apply(id, stream);
-    remote.value = {...remote.value, id: stream};
-  }
+  void _heard(String id, MediaStream view) => remote.value = {...remote.value, id: view};
 
   void _gone(String id) {
     if (_peers.remove(id) != null) _retune();
@@ -428,36 +484,93 @@ class RtcMedia implements VoiceMedia {
 }
 
 class _RtcPeer implements VoicePeer {
-  _RtcPeer(this.media, this.id, this.onCandidate);
+  _RtcPeer(this.media, this.id, this.onCandidate, {required this.onFailed, this.relayOnly = false});
   final RtcMedia media;
   final String id;
   final void Function(Map<String, dynamic> candidate) onCandidate;
+
+  /// No way through was found (VoiceSession starts over through the relay alone).
+  final void Function() onFailed;
+
+  /// Through the relay's TURN server alone: the second try, after a connection that tried every path failed.
+  final bool relayOnly;
   Future<RTCPeerConnection>? _pc;
   final List<RTCIceCandidate> _early = [];
   bool _described = false;
-  MediaStream? _stream;
+
+  /// The sound tracks this connection receives ([RtcMedia._apply] sets their volume).
+  final List<MediaStreamTrack> _sounds = [];
+
+  /// A stream made on this device holding the picture this connection receives, which their tile draws. The track
+  /// is put in one made here, never in the stream it arrived with: flutter_webrtc adds tracks only to streams made on
+  /// the device (Android, the Mac and Windows all answer "stream is null" for a received one), and the picture
+  /// arrives in no stream at all (its sender names none), so it was added to the sound's received stream, refused,
+  /// and no tile ever drew another member's camera (Matt, 2026-11-21: "Video is not working on both ends it only
+  /// shows our local video").
+  MediaStream? _view;
+
+  /// Received tracks are taken one at a time: two at once each made a stream of their own.
+  Future<void> _taking = Future.value();
+
+  /// Not connected this long after the descriptions are set: no way through ([onFailed]), as WebRTC itself can take
+  /// half a minute or more to say, or never does on some networks.
+  static const connectWithin = Duration(seconds: 15);
+  Timer? _connectTimer;
+  bool _connected = false, _failedSaid = false;
+
+  void _fail() {
+    if (_failedSaid || _connected) return;
+    _failedSaid = true;
+    _connectTimer?.cancel();
+    onFailed();
+  }
+
+  void _watchConnect() {
+    if (_connected || _connectTimer != null) return;
+    _connectTimer = Timer(connectWithin, _fail);
+  }
+
+  Future<void> _took(RTCTrackEvent e) async {
+    final track = e.track;
+    if (track.kind == 'audio') {
+      if (!_sounds.any((t) => t.id == track.id)) _sounds.add(track);
+      if (identical(media._peers[id], this)) media._apply(id);
+      return;
+    }
+    if (track.kind != 'video') return;
+    var view = _view;
+    if (view != null && view.getVideoTracks().any((t) => t.id == track.id)) return;
+    if (view != null) {
+      for (final t in view.getVideoTracks().toList()) {
+        await view.removeTrack(t).catchError((_) {});
+      }
+    } else {
+      view = _view = await createLocalMediaStream('ghost-view-$id-${identityHashCode(this)}');
+    }
+    await view.addTrack(track);
+    // Not for a connection made in this one's place since (the same person in from another device).
+    if (identical(media._peers[id], this) && identical(_view, view)) media._heard(id, view);
+  }
 
   Future<RTCPeerConnection> get pc => _pc ??= _make();
 
   Future<RTCPeerConnection> _make() async {
-    final pc = await createPeerConnection({'iceServers': media.iceServers, 'sdpSemantics': 'unified-plan'});
+    final pc = await createPeerConnection({'iceServers': media.iceServers, 'sdpSemantics': 'unified-plan', if (relayOnly) 'iceTransportPolicy': 'relay'});
     pc.onIceCandidate = (c) {
       if (c.candidate != null) onCandidate({'candidate': c.candidate, 'sdpMid': c.sdpMid, 'sdpMLineIndex': c.sdpMLineIndex});
     };
-    pc.onTrack = (e) async {
-      var stream = e.streams.isNotEmpty ? e.streams.first : _stream;
-      if (stream == null) {
-        stream = await createLocalMediaStream('from-$id');
-        await stream.addTrack(e.track);
-      } else if (!stream.getTracks().any((t) => t.id == e.track.id)) {
-        await stream.addTrack(e.track);
-      }
-      _stream = stream;
-      // Not for a connection made in this one's place since (the same person in from another device).
-      if (identical(media._peers[id], this)) media._heard(id, stream);
-    };
+    pc.onTrack = (e) => _taking = _taking.then((_) => _took(e)).catchError((Object err) => debugPrint('rtc: track from $id not shown: $err'));
     pc.onConnectionState = (s) {
-      if ((s == RTCPeerConnectionState.RTCPeerConnectionStateFailed || s == RTCPeerConnectionState.RTCPeerConnectionStateClosed) && identical(media._peers[id], this)) media._gone(id);
+      if (s == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+        _connected = true;
+        _connectTimer?.cancel();
+      }
+      final failed = s == RTCPeerConnectionState.RTCPeerConnectionStateFailed;
+      if ((failed || s == RTCPeerConnectionState.RTCPeerConnectionStateClosed) && identical(media._peers[id], this)) {
+        // Said before it is let go of, so the side that offered can start over (VoiceSession._failed).
+        if (failed) _fail();
+        media._gone(id);
+      }
     };
     return pc;
   }
@@ -547,6 +660,7 @@ class _RtcPeer implements VoicePeer {
 
   Future<void> _settled(RTCPeerConnection c) async {
     _described = true;
+    _watchConnect();
     for (final cand in _early) {
       // One that was another connection's (sent before it was let go) is no reason to fail this one.
       try {
@@ -568,10 +682,12 @@ class _RtcPeer implements VoicePeer {
 
   @override
   Future<void> close() async {
+    _connectTimer?.cancel();
+    _failedSaid = true;
     final made = _pc;
     _pc = null;
-    final stream = _stream;
-    _stream = null;
+    final stream = _view;
+    _view = null;
     // Let go of at once, before the closing is waited for: a connection to the same id made meanwhile (their offer from
     // another device, right behind 'moved') is a new one, and this one's end must not take it away.
     if (identical(media._peers[id], this)) media._gone(id);

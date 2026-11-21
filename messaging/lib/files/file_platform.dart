@@ -21,7 +21,7 @@ typedef PickedFile = ({String path, bool owned});
 ///   (`shareFile`); and files shared from other apps (`sharedFiles` and the `sharedFiles` event).
 /// - Mac (macos/Runner/DeskChannels.swift, MainFlutterWindow.swift): the Open and Save panels for any file, the share
 ///   menu, and files dragged onto the window while a Files space is showing.
-/// - Windows: its picture panel for choosing (all it has today), and a save into Downloads.
+/// - Windows (windows/runner/clipboard.cpp): its Open dialog for any file or pictures, and a save into Downloads.
 class FilePlatform {
   FilePlatform._();
 
@@ -57,7 +57,7 @@ class FilePlatform {
     try {
       return [for (final p in (await _system.invokeMethod<List>('pickFiles', {'most': most})) ?? const []) '$p'];
     } on MissingPluginException {
-      // A desktop build without the any-file panel (Windows today): its picture panel.
+      // A desktop build without the any-file panel: its picture panel.
       return MacPlatform.pickPictures(most: most);
     } catch (_) {
       return const [];

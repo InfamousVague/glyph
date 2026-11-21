@@ -30,6 +30,73 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **A saved recording opens in the mixer** (0.11.8, not released; Matt, 2026-11-21: "I'd like to be able to open
+  recordings saved from calls in the multi track view with the mixer"). Recordings › a recording › Open in the mixer:
+  lib/voice/recording_playback.dart decodes each person's track to 48 kHz mono on the device (ghost/scribe `decode`,
+  beside Scribe's own decoders: android Scribe.kt, macos/ios Scribe.swift, windows/runner/speech.cpp), kept under
+  recordings/opened/<id>, and the timeline and mixer draw from it through RecordingDesk, which CallRecorder also is. A
+  player per voice (media_kit; video_player on the iPhone, which can't go past 0 dB) plays them together, the others
+  kept within 50 ms of the first; the meters are read from the samples at the playhead. Save mix makes a new recording
+  (CallRecorder.makeMp4, `from` in recordings.json): everyone mixed as the faders stand, each voice as it was.
+  integration_test/recording_playback_test.dart on an emulator: opened in 0.6 s, each voice's loudness as made,
+  played 2.5 s in step, and the saved mix right with one voice muted and another halved.
+- **Calls: the other side's video, relay first, Windows' microphone** (0.11.6; Matt, 2026-11-21: "Video
+  is not working on both ends it only shows our local video also the audio device selector doesn't seem to be working,
+  connecting over the relay also doesn't seem to be working or the device picker is not working in windows", then
+  "Try to negotiate over the relay first"). A received picture arrives in no stream (its sender names none) and was
+  added to the sound's received stream, which flutter_webrtc refuses natively ("stream is null" on Android, the Mac
+  and Windows) while its Dart list says it took it: every remote tile drew nothing. Received tracks now go into a
+  stream made on the device (`_RtcPeer._took`, one at a time), sounds kept apart for their volume
+  (integration_test/call_video_test.dart: two calls on one device draw each other at 960x540). The hub's TURN
+  server is tried first, alone (`r`), and every path second (`a`), by the side that offered; 15 s without
+  connecting counts as failed. Windows' WebRTC takes the microphone from `optional: [{sourceId}]` and reads
+  `deviceId` as the speaker, so it was always the first microphone.
+- **Unfinished uploads are listed, and can be removed to free their room** (0.11.5, not released; Matt, 2026-11-21:
+  "I need a way to see partially uploaded files, the oddysey uploaded partially but then disconnected when I
+  restarted the app it stopped uploading but kept the space reserved"). The relay's space info names each blob not
+  finished yet (`parts`: id, who started it, size, how much is there, when it last moved; relay/lib/files.dart
+  `_info`), and FilesStore.unfinished lists those no transfer on this device holds: another device's, one sent from a
+  space's chat (never on the queue on disk), or one from before a reinstall. The Files screen shows each as
+  "Unfinished upload" with its bar and Remove for whoever started it, the owner, or a role that may remove it
+  (removeUnfinished: DELETE on the blob, the roster shown where needed). An upload the queue does pick up shows what
+  the relay has at once and says "Checking it before going on · n%" while a big file is hashed again before more of
+  it goes (minutes for a film), where before it sat at nothing and looked stopped.
+- **Calls fall back on the relay where no direct way through is found** (0.11.4, not released; Matt, 2026-11-21:
+  "Sometimes calls are not negotiating in voice chats and I can't connect to another person, if p2p fails please
+  connect over voice through the relay"). Calls had public STUN servers only, so two devices behind strict routers
+  (mobile networks, office and hotel Wi-Fi) never connected, and a failed connection was dropped for good. The hub
+  now hands whoever joins a room a day's username and password for a TURN server (coturn) beside it
+  (relay/lib/turn.dart: coturn's use-auth-secret credentials, `GHOST_TURN_SECRET` and `GHOST_TURN_URLS` in the
+  relay's environment; HubCarrier.callRelay). Each connection tries direct and relayed paths at once and takes the
+  best; where one still fails, the side that offered starts over once through the relay alone, its offer marked
+  `r` (VoiceSession._failed, FallbackMedia in lib/voice/voice.dart; RtcMedia; site/join/voice.js the same). What
+  the relay passes is WebRTC's own DTLS-SRTP, keyed between the devices. Off until coturn runs on the box and the
+  relay has the secret; with neither, calls are as before.
+- **The voice changer, live in space calls** (0.11.1; Matt, 2026-11-20: "I'd like the voice changer to
+  work in spaces calles in real time", and ElevenLabs chosen over effects on the device, with its delay). ElevenLabs
+  changes whole recordings, so a call goes a phrase at a time: the microphone engine's live mode (native/voicefx,
+  `voicefx_live`, `voicefx_take`, `voicefx_feed`, in the capture hook on the phone, Mac and Windows) keeps what is said
+  at 16 kHz instead of sending it and plays into the call only what it is fed; `LiveChanger` (lib/voice/live_changer.dart)
+  takes it every 100 ms, `PhraseCutter` cuts it at pauses of 550 ms (4 s at most, 250 ms of lead-in, nothing under
+  250 ms of speech), each phrase goes as WAV to `VoiceChanger.convertPhrase` (`/v1/voice-changer/<voice>`,
+  `output_format=pcm_24000`) and the PCM back is fed in; behind by more than three phrases, the oldest is dropped.
+  Nothing is sent while muted; refused, nothing of the voice goes out and `LiveChangerLine` over the call says why,
+  with My own voice. Settings › Voice changer › Change my voice in calls, live (off by default). Not heard in a real
+  call yet. Tests: live_changer_test, native/voicefx/test/run.sh.
+- **The recording's mixer is a full-screen drawer from the banner, not a floating pill** (0.11.1;
+  Matt, 2026-11-20: "make the recording plugin banner have a button for "mixer" and have it open a drawer full screen
+  with the audio tracks and whatnot instead of the floating pill"). The recording line over the call
+  (`RecordingBanner`) has Mixer beside Stop; `showRecordingMixer` opens `RecordingMixerDrawer`, the same timeline and
+  mixer (`RecordingTimeline`, `fullScreen`) filling the window, sliding up. Its arrow closes it, and it closes itself a
+  moment after the recording ends, so the saved toast shows over the app. `RecordingFloat` and its pill are gone from
+  both apps' frames. Tests: recording_float_test.
+- **Auto leveler, a plugin that brings everyone in a call to the same loudness** (0.10.8, not released; Matt,
+  2026-11-20: "build the auto leveler plugin that levels everyone's voice levels"). `lib/voice/leveler.dart`
+  (`LevelerCore`, `AutoLeveler`) and `lib/plugins/auto_leveler.dart` (id `autoleveler`, device or circle). It reads
+  how loud each person arrives from WebRTC's own audio level, which is measured before this device's volume, learns
+  each voice's speaking level over a few seconds, and turns them toward -22 dB, at most about 9 dB either way. The gain
+  multiplies each person's own volume and the output volume in `RtcMedia._apply`; nothing is sent. A person's sheet in
+  a call says what it is doing to them. Not heard in a real call yet. Tests: auto_leveler_test.
 - **Stickers in Telegram, Signal, WhatsApp and Matrix chats stand on their own** (0.10.7, not released; Matt,
   2026-11-20: "stickers in telegram chat and others render inside chat bubbles instead of transparent backgrounds when
   sent and when recieved"). A sticker is its own kind of picture (`InboxMedia` kind `sticker`), drawn at most 9rem a
@@ -167,6 +234,20 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     copy hands the link to the running one by WM_COPYDATA) take, on "ghost_desktop/links" (`lib/desktop/links.dart`).
     A link opened while the app is still being set up is held and opened once it is.
   - Tests: circle_joins_test.
+- **Voice changer, a plugin: voice messages in another voice, by ElevenLabs** (0.10.8, not released; Matt, 2026-11-20:
+  "I want it to have the same vocal queues as the speaker not just transcribe and re speak what they say"; "build it as
+  a plugin"). `lib/voice/voice_changer.dart` sends a finished recording to ElevenLabs' Voice Changer
+  (`POST /v1/voice-changer/{voice}`, `eleven_multilingual_sts_v2`, back as `mp3_44100_64`), which is speech to speech:
+  the delivery is kept, the voice swapped. The person's own key and a voice from their own account's list
+  (`GET /v2/voices`), kept in one 0600 file (`voicechanger/elevenlabs.json`), never among the app's choices and never
+  shown again. Hooked where a space's chat and a network's chat finish a voice message (`VoiceChanger.forSending`); a
+  recording that could not be changed is never sent as it was. Signal, WhatsApp, Matrix and the account helpers say an
+  MP3 is one. Pages: `lib/ui/voice_changer_ui.dart`; plugin `voicechanger` (`lib/plugins/voice_changer.dart`), device
+  only, with a section of its own in Settings.
+  - Tests: voice_changer_test, against a server standing in for ElevenLabs (pictures voice-changer-*).
+  - Not yet: tried with a real ElevenLabs key (the paths and fields are from their reference, read 2026-11-20). Not
+    in ordinary texts (the phone sends those itself, `voiceSend`), not in calls (ElevenLabs wants the whole recording),
+    and only where voice messages are recorded: an Android phone.
 - **Soundboard, a plugin for calls and whole circles** (0.10.8, not released; Matt, 2026-11-20: "build a soundboards
   plugin for circles"). Pads in a call (`lib/ui/soundboard_screen.dart`, from the call's menu and the space's header)
   that play a short sound on every device in it (`lib/voice/soundboard.dart`, `lib/plugins/soundboard.dart`). No sound

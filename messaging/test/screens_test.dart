@@ -2113,7 +2113,8 @@ void main() {
         await keys(LogicalKeyboardKey.digit1);
         expect(shown(), 'messages');
       }
-      expect(tester.widget<NavPill>(find.byType(NavPill)).items.firstWhere((i) => i.id == 'archive').count, 1);
+      // The one archived conversation is read, so the Archive ring has no number (GMFB-14: it counts the unread).
+      expect(tester.widget<NavPill>(find.byType(NavPill)).items.firstWhere((i) => i.id == 'archive').count, 0);
       expect(icon('New'), findsNothing, reason: 'the header holds nothing the pill does');
       expect(tester.getTopRight(find.byType(ConversationsScreen)).dx, side);
       // A conversation opens beside the list, which stays, with no way back drawn: there is nowhere to go back to.

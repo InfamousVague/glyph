@@ -9,6 +9,7 @@ import 'handles.dart';
 import 'invites.dart';
 import 'invite_words.dart';
 import 'pushes.dart';
+import 'turn.dart';
 import 'p256.dart';
 import 'sha256.dart';
 
@@ -52,11 +53,14 @@ import 'sha256.dart';
 /// - **What it does not carry:** a call's sound and picture. Those go between the phones directly (or through a
 ///   media relay); the hub carries only what sets a call up.
 class Hub {
-  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words})
+  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words, this.turn = const TurnConfig()})
       : _now = now ?? DateTime.now,
         _random = random ?? Random.secure();
 
   final bool verbose;
+
+  /// The media relay calls fall back on (turn.dart): a username and password for it go with every room joined.
+  final TurnConfig turn;
   final DateTime Function() _now;
   final Random _random;
 
@@ -678,7 +682,7 @@ class Hub {
     if (!devices.any((d) => identical(d, e))) devices.add(e);
     e.rooms.add(at);
     if (ro != null) _takeGrants(room, ro);
-    _tell(e.ws, {'room': name, 'ok': true, 'members': others, if (room.owner != null) 'ro': room.writers.contains(e.id) ? 'writer' : 'reader'});
+    _tell(e.ws, {'room': name, 'ok': true, 'members': others, if (room.owner != null) 'ro': room.writers.contains(e.id) ? 'writer' : 'reader', 'ice': ?turn.serverFor(e.id, _now())});
     // What the room kept, for one who knows its token: written while this device was away.
     final kept = _kept[at];
     if (kept != null && kept.hash == hash) {

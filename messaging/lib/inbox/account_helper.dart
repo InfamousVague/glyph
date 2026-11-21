@@ -170,6 +170,16 @@ class AccountHelper extends InboxNetwork {
   /// The cookies are with the service, being checked.
   bool get signingIn => _busy;
 
+  static String _dirOf(HelperService s) => Platform.isAndroid ? '${Directory.systemTemp.parent.path}/files/${s.id}' : '${DeskStore.defaultDir().path}/${s.id}';
+
+  /// Deletes what a service no longer offered kept on this device: its helper's session and the chats kept here.
+  static Future<void> forget(HelperService s, {String? folder}) async {
+    try {
+      final dir = Directory(folder ?? _dirOf(s));
+      if (await dir.exists()) await dir.delete(recursive: true);
+    } catch (_) {}
+  }
+
   String get _dir => folder ?? (Platform.isAndroid ? '${Directory.systemTemp.parent.path}/files/${service.id}' : '${DeskStore.defaultDir().path}/${service.id}');
   File get _file => File('$_dir/chats.json');
 
@@ -561,7 +571,7 @@ class AccountHelper extends InboxNetwork {
     if (_state != InboxState.ready) return;
     for (final (i, path) in paths.indexed) {
       final ext = path.split('.').last.toLowerCase();
-      final mime = const {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp', 'heic': 'image/heic', 'mp4': 'video/mp4', 'mov': 'video/quicktime', 'm4a': 'audio/mp4', 'ogg': 'audio/ogg', 'pdf': 'application/pdf'}[ext] ??
+      final mime = const {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp', 'heic': 'image/heic', 'mp4': 'video/mp4', 'mov': 'video/quicktime', 'm4a': 'audio/mp4', 'mp3': 'audio/mpeg', 'ogg': 'audio/ogg', 'pdf': 'application/pdf'}[ext] ??
           'application/octet-stream';
       final text = i == paths.length - 1 ? caption : '';
       try {

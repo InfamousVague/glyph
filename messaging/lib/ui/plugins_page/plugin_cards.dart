@@ -148,7 +148,7 @@ class PluginCard extends StatelessWidget {
     final head = t.lenOf('5rem');
     final from = pluginSourceLine(context, plugin);
     final tags = pluginLabelTags(context, plugin);
-    final symbol = AppIcon(plugin.icon, size: head * 0.42, strokeWidth: 2, color: c.on, wash: false);
+    final symbol = pluginSymbol(plugin, head * 0.42, c.on);
     return MarketCard(
       key: ValueKey('plugins-card-${plugin.id}'),
       onPress: onOpen,
