@@ -98,6 +98,10 @@ class _Taking {
   /// The members tapped now.
   final Set<String> tapped = {};
 
+  /// The track each is tapped on: a connection started over (through the relay, or again directly) brings their
+  /// sound on a new one, which is tapped in its place.
+  final Map<String, String> trackOf = {};
+
   /// The moments marked, in seconds from the start.
   final List<double> markers = [];
 }
@@ -509,6 +513,8 @@ class CallRecorder extends ChangeNotifier {
     return c.stream;
   }
 
+  Timer? _again;
+
   /// Taps whoever has said yes and whose sound has come; lets go of whoever has said no or gone; says this device's mute.
   Future<void> _follow(VoiceSession s) async {
     final t = _now;
@@ -522,22 +528,37 @@ class CallRecorder extends ChangeNotifier {
     for (final m in s.members.values) {
       final yes = m.agreed.contains(t.id) && !m.declined.contains(t.id);
       final track = remote[m.id]?.getAudioTracks().firstOrNull;
-      if (yes && track?.id != null && !t.tapped.contains(m.id)) {
+      // Tapped where they said yes and their sound has come, and again whenever it comes on another track (Matt,
+      // 2026-11-21: "recording is only recording my audio and not everyones audio tracks": since calls start through
+      // the relay and may start over, a voice's first track can end while the call goes on). The native half keeps
+      // writing the same file.
+      if (yes && track?.id != null && (!t.tapped.contains(m.id) || t.trackOf[m.id] != track!.id)) {
+        final id = track!.id!;
         t.tapped.add(m.id);
+        t.trackOf[m.id] = id;
         t.names[m.id] = Voice.instance.nameOf(m.id);
         try {
-          await _channel.invokeMethod('add', {'key': m.id, 'track': track!.id, 'path': '${t.dir}/${_safe(m.id)}.pcm'});
+          final ok = await _channel.invokeMethod<bool>('add', {'key': m.id, 'track': id, 'path': '${t.dir}/${_safe(m.id)}.pcm'});
+          // Not found yet (the track is announced before the native side holds it): tried again in a second.
+          if (ok == false) {
+            t.trackOf.remove(m.id);
+            _again?.cancel();
+            _again = Timer(const Duration(seconds: 1), () => unawaited(_follow(s)));
+          }
         } catch (_) {
           t.tapped.remove(m.id);
+          t.trackOf.remove(m.id);
         }
       } else if (!yes && t.tapped.contains(m.id)) {
         t.tapped.remove(m.id);
+        t.trackOf.remove(m.id);
         unawaited(_channel.invokeMethod('remove', {'key': m.id}).catchError((_) {}));
       }
       if (yes) t.names[m.id] = Voice.instance.nameOf(m.id);
     }
     for (final gone in t.tapped.where((k) => !s.members.containsKey(k)).toList()) {
       t.tapped.remove(gone);
+      t.trackOf.remove(gone);
       unawaited(_channel.invokeMethod('remove', {'key': gone}).catchError((_) {}));
     }
     notifyListeners();

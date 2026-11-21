@@ -30,7 +30,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
-- **Calls: the other side's video, relay first, Windows' microphone** (0.11.5, not released; Matt, 2026-11-21: "Video
+- **Calls: the other side's video, relay first, Windows' microphone** (0.11.6; Matt, 2026-11-21: "Video
   is not working on both ends it only shows our local video also the audio device selector doesn't seem to be working,
   connecting over the relay also doesn't seem to be working or the device picker is not working in windows", then
   "Try to negotiate over the relay first"). A received picture arrives in no stream (its sender names none) and was
