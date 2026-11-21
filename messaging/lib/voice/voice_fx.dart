@@ -26,6 +26,7 @@ class VoiceFx {
       final said = await _channel.invokeListMethod<String>('modes') ?? const [];
       available = {for (final s in said) ?NoiseMode.named(s)};
       liveSupported = said.contains('live');
+      effectsSupported = said.contains('effects');
     } on MissingPluginException {
       available = const {};
     } on PlatformException {
@@ -36,9 +37,10 @@ class VoiceFx {
   }
 
   @visibleForTesting
-  static void reset([Set<NoiseMode> to = const {}, bool live = false]) {
+  static void reset([Set<NoiseMode> to = const {}, bool live = false, bool effects = false]) {
     available = to;
     liveSupported = live;
+    effectsSupported = effects;
     _asked = to.isNotEmpty || live;
   }
 
@@ -46,6 +48,19 @@ class VoiceFx {
 
   /// The native half can change a call's voice live: keep what is said and play back what it is fed.
   static bool liveSupported = false;
+
+  /// The native half makes voice effects as it goes (native/voicefx voicefx_effect).
+  static bool effectsSupported = false;
+
+  /// A voice effect on what goes into the call, made on this device as it is said: one of [VoiceEffect]'s names,
+  /// or 'none'.
+  static Future<bool> effect(String name) async {
+    try {
+      return await _channel.invokeMethod<bool>('effect', {'name': name}) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// While [on], what the microphone says is kept for [take] and only what is [feed]-ed goes into the call.
   static Future<bool> live(bool on) async {

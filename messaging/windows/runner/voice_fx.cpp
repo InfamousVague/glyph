@@ -5,6 +5,7 @@
 // (FlutterWebRTCPluginSharedInstance), and its audio_processing() is libwebrtc's RTCAudioProcessing, whose
 // CustomProcessing gets each 10 ms block: floats on the 16-bit scale, as on Android and the Mac.
 #include "voice_fx.h"
+#include "call_recorder.h"
 
 #include <flutter/method_channel.h>
 #include <flutter/standard_method_codec.h>
@@ -34,6 +35,8 @@ class Processor : public libwebrtc::RTCAudioProcessing::CustomProcessing {
 
   void Process(int num_bands, int num_frames, int buffer_size, float* buffer) override {
     voicefx_process(fx_, buffer, num_frames, num_frames * 100);
+    // A call being recorded takes this device's voice as it is sent (call_recorder.cpp).
+    CallRecorderMic(buffer, num_frames, num_frames * 100);
   }
 
   void Reset(int new_rate) override {}
@@ -79,6 +82,7 @@ void RegisterVoiceFx(flutter::BinaryMessenger* messenger) {
       if (bits & (1 << VOICEFX_RNNOISE)) modes.push_back(flutter::EncodableValue("rnnoise"));
       if (bits & (1 << VOICEFX_DEEPFILTER)) modes.push_back(flutter::EncodableValue("deepfilter"));
       modes.push_back(flutter::EncodableValue("live"));
+      modes.push_back(flutter::EncodableValue("effects"));
       result->Success(flutter::EncodableValue(modes));
       return;
     }
@@ -96,6 +100,15 @@ void RegisterVoiceFx(flutter::BinaryMessenger* messenger) {
       if (const auto* l = std::get_if<int64_t>(v)) return static_cast<int>(*l);
       return fallback;
     };
+    // A voice effect made here as it is said (lib/voice/live_changer.dart, native/voicefx voicefx_effect).
+    if (call.method_name() == "effect") {
+      const auto* v = arg("name");
+      const auto* name = v ? std::get_if<std::string>(v) : nullptr;
+      const std::string n = name ? *name : std::string();
+      voicefx_effect(g_processor->fx(), voicefx_effect_id(n.c_str()));
+      result->Success(flutter::EncodableValue(Attach()));
+      return;
+    }
     if (call.method_name() == "live") {
       const auto* on = arg("on");
       const auto* b = on ? std::get_if<bool>(on) : nullptr;

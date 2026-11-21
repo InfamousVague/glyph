@@ -31,11 +31,17 @@ final class VoiceFx: NSObject, ExternalAudioProcessingDelegate {
         var modes: [String] = []
         if bits & (1 << 1) != 0 { modes.append("rnnoise") }
         if bits & (1 << 2) != 0 { modes.append("deepfilter") }
+        modes.append("effects")
         result(modes)
       case "configure":
         let args = call.arguments as? [String: Any] ?? [:]
         let mode: Int32 = switch args["mode"] as? String { case "rnnoise": 1; case "deepfilter": 2; default: 0 }
         voicefx_configure(self.fx, mode, Float(args["gain"] as? Double ?? 1))
+        result(self.attach())
+      // A voice effect made here as it is said (lib/voice/live_changer.dart, native/voicefx voicefx_effect).
+      case "effect":
+        let args = call.arguments as? [String: Any] ?? [:]
+        voicefx_effect(self.fx, voicefx_effect_id(args["name"] as? String ?? "none"))
         result(self.attach())
       default:
         result(FlutterMethodNotImplemented)

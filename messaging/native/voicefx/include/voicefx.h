@@ -60,6 +60,28 @@ VOICEFX_EXPORT void voicefx_feed(VoiceFx *fx, const int16_t *pcm, int n, int rat
 /* How much of the changed voice is still to be played, in milliseconds. */
 VOICEFX_EXPORT int voicefx_queued_ms(VoiceFx *fx);
 
+/* A voice effect made here, as it is said, in a call (Matt, 2026-11-21: "Add support (by default) for the voice
+ * changer to use on the fly voice changing the elevenlabs is very slow and not real time"): about 43 ms behind,
+ * nothing leaves the device. Applied after the noise suppression and the gain; not while voicefx_live is on. */
+enum {
+  VOICEFX_EFFECT_NONE = 0,
+  VOICEFX_EFFECT_DEEPER = 1,    /* a little lower and bigger */
+  VOICEFX_EFFECT_HIGHER = 2,    /* a little higher and lighter */
+  VOICEFX_EFFECT_CHIPMUNK = 3,  /* the cartoon: pitch and formants far up together */
+  VOICEFX_EFFECT_MONSTER = 4,   /* far lower and bigger, and rough */
+  VOICEFX_EFFECT_ROBOT = 5,     /* one flat pitch */
+  VOICEFX_EFFECT_RADIO = 6,     /* a walkie-talkie: narrow and a little driven */
+  VOICEFX_EFFECT_FEMININE = 7,  /* a woman's pitch and formants from a man's voice */
+  VOICEFX_EFFECT_MASCULINE = 8, /* a man's from a woman's */
+  VOICEFX_EFFECT_CHILD = 9,     /* a child's: high, and a small throat */
+  VOICEFX_EFFECT_OLDER = 10,    /* a little lower, wavering and rough */
+  VOICEFX_EFFECT_COUNT = 11
+};
+VOICEFX_EXPORT void voicefx_effect(VoiceFx *fx, int effect);
+
+/* The effect named [name] ("feminine", "robot", ...: lib/voice/voice_changer.dart's VoiceEffect), NONE for any other. */
+VOICEFX_EXPORT int voicefx_effect_id(const char *name);
+
 #ifdef __cplusplus
 }
 #endif

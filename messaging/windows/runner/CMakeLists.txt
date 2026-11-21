@@ -12,6 +12,9 @@ add_executable(${BINARY_NAME} WIN32
   "utils.cpp"
   "win32_window.cpp"
   "voice_fx.cpp"
+  "call_recorder.cpp"
+  "speech.cpp"
+  "main_thread.cpp"
   "sounds.cpp"
   "clipboard.cpp"
   "links.cpp"
@@ -42,6 +45,11 @@ target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
 # PlaySound, for the interface sounds (sounds.cpp).
 target_link_libraries(${BINARY_NAME} PRIVATE "winmm.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
+# Recording a call (call_recorder.cpp): Media Foundation's AAC encoder and file writer, and libwebrtc itself, whose
+# track kind comes back as its own string type (flutter_webrtc links it privately, so the app links it too).
+# Live captions and Scribe (speech.cpp): SAPI's recogniser, Media Foundation to read a recording's track.
+target_link_libraries(${BINARY_NAME} PRIVATE "mfplat.lib" "mfreadwrite.lib" "mfuuid.lib" "sapi.lib" "shlwapi.lib" "ole32.lib")
+target_link_libraries(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/flutter/ephemeral/.plugin_symlinks/flutter_webrtc/third_party/libwebrtc/lib/libwebrtc.dll.lib")
 
 # voicefx (native/voicefx): RNNoise and the microphone's gain, for calls (voice_fx.cpp), built as C into the app.
 set(VOICEFX "${CMAKE_SOURCE_DIR}/../native/voicefx")

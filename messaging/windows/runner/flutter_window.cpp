@@ -1,6 +1,8 @@
 #include "flutter_window.h"
 
 #include "voice_fx.h"
+#include "call_recorder.h"
+#include "speech.h"
 #include "sounds.h"
 #include "clipboard.h"
 #include "links.h"
@@ -34,6 +36,9 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   // The microphone's processing in calls (voice_fx.cpp), after flutter_webrtc is registered.
   RegisterVoiceFx(flutter_controller_->engine()->messenger());
+  // Recording a call (call_recorder.cpp), and live captions and Scribe (speech.cpp).
+  RegisterCallRecorder(flutter_controller_->engine()->messenger());
+  RegisterSpeech(flutter_controller_->engine()->messenger());
   // The interface sounds (sounds.cpp).
   RegisterSounds(flutter_controller_->engine()->messenger());
   // A picture on the clipboard, for the message field (clipboard.cpp).

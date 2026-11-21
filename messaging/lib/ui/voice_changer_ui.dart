@@ -82,12 +82,56 @@ class VoiceChangerLiveRow extends _Row {
   Widget row(BuildContext context, VoiceChanger c) => SettingRow(
         key: const ValueKey('changer-live'),
         icon: _icon(Lucide.audioLines),
-        label: 'Change my voice in calls, live',
-        hint: Text(!c.ready
-            ? 'Once there is a key and a voice.'
-            : 'In space calls, each thing you say goes to ElevenLabs and is heard in the voice you chose, a second or two after you say it. '
-                'Your own voice is never heard. It costs what your ElevenLabs plan charges per minute.'),
-        control: GlacierSwitch(checked: c.ready && !c.paused && c.live, disabled: !c.ready || c.paused, ariaLabel: 'Change my voice in calls, live', onCheckedChange: c.setLive),
+        label: 'Change my voice in calls',
+        hint: Text(c.way == CallVoiceWay.device
+            ? 'In space calls everyone hears you as ${c.effect.label.toLowerCase()} as you speak. It\'s made on this device: free, and nothing is sent anywhere.'
+            : !c.ready
+                ? 'Once there is an ElevenLabs key and a voice.'
+                : 'In space calls, each thing you say goes to ElevenLabs and is heard in the voice you chose, a second or two after you say it. '
+                    'Your own voice is never heard. It costs what your ElevenLabs plan charges per minute.'),
+        control: GlacierSwitch(
+          checked: c.callReady && c.live && !(c.way == CallVoiceWay.elevenlabs && c.paused),
+          disabled: !c.callReady || (c.way == CallVoiceWay.elevenlabs && c.paused),
+          ariaLabel: 'Change my voice in calls',
+          onCheckedChange: c.setLive,
+        ),
+      );
+}
+
+/// How a call's voice is changed (Matt, 2026-11-21: "Add support (by default) for the voice changer to use on the fly
+/// voice changing the elevenlabs is very slow and not real time"): on this device, the default, or by ElevenLabs.
+class VoiceChangerCallWayRow extends _Row {
+  const VoiceChangerCallWayRow({super.key});
+
+  @override
+  Widget row(BuildContext context, VoiceChanger c) => SettingRow(
+        key: const ValueKey('changer-way'),
+        icon: _icon(Lucide.gauge),
+        label: 'How calls are changed',
+        hint: Text(c.way == CallVoiceWay.device ? 'Instantly, on this device.' : 'By ElevenLabs: a realistic voice, a second or two behind.'),
+        value: Text(c.way == CallVoiceWay.device ? 'On this device' : 'ElevenLabs'),
+        onPress: () => showChoices(context, title: 'How should your voice be changed in calls?', choices: [
+          Choice('On this device', Lucide.smartphone, () => c.setWay(CallVoiceWay.device), hint: 'Instant and free. An effect: deeper, higher, robot and more.'),
+          Choice('By ElevenLabs', Lucide.audioLines, () => c.setWay(CallVoiceWay.elevenlabs), hint: 'Sounds like a real person, but heard a second or two after you speak. Needs your ElevenLabs key.'),
+        ]),
+      );
+}
+
+/// The effect a call's voice has when it is changed on this device.
+class VoiceChangerEffectRow extends _Row {
+  const VoiceChangerEffectRow({super.key});
+
+  @override
+  Widget row(BuildContext context, VoiceChanger c) => SettingRow(
+        key: const ValueKey('changer-effect'),
+        icon: _icon(Lucide.wandSparkles),
+        label: 'Voice in calls',
+        hint: Text(c.effect.about),
+        value: Text(c.effect.label),
+        disabledReason: c.way == CallVoiceWay.device ? null : 'Calls are changed by ElevenLabs',
+        onPress: () => showChoices(context, title: 'Your voice in calls', choices: [
+          for (final e in VoiceEffect.values) Choice(e.label, e == c.effect ? Lucide.check : Lucide.audioLines, () => c.setEffect(e), hint: e.about),
+        ]),
       );
 }
 
@@ -292,9 +336,12 @@ class LiveChangerLine extends StatelessWidget {
         final name = VoiceChanger.instance.voice?.name ?? 'another voice';
         final trouble = live.problem;
         final behind = live.behind.inMilliseconds;
-        final words = trouble != null
-            ? 'Your voice isn\'t going out: $trouble'
-            : 'You sound like $name${behind > 0 ? ' · about ${(behind / 1000).toStringAsFixed(1)} s behind' : ''}';
+        final effect = live.effect;
+        final words = effect != null
+            ? 'Everyone hears your voice as ${effect.label.toLowerCase()}'
+            : trouble != null
+                ? 'Your voice isn\'t going out: $trouble'
+                : 'You sound like $name${behind > 0 ? ' · about ${(behind / 1000).toStringAsFixed(1)} s behind' : ''}';
         return Container(
           key: const ValueKey('live-changer'),
           margin: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1)),
