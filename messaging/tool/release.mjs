@@ -32,7 +32,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -192,7 +192,10 @@ if (existsSync(join(ROOT, 'sidecar/whatsapp/SOURCE_URL'))) {
 }
 // The account helpers for the phone (sidecar/messenger, sidecar/instagram, sidecar/linkedin;
 // lib/inbox/account_helper.dart), into jniLibs.
-for (const name of ['messenger', 'instagram', 'linkedin']) {
+// A LinkedIn helper built into jniLibs before it was removed is packed by no build.
+rmSync(join(ROOT, 'android/app/src/main/jniLibs/arm64-v8a/liblinkedinsidecar.so'), { force: true });
+// LinkedIn's is no longer carried (Matt, 2026-11-21: "remove the plugin"; lib/inbox/inbox.dart).
+for (const name of ['messenger', 'instagram']) {
   if (!existsSync(join(ROOT, `sidecar/${name}/SOURCE_URL`))) continue;
   say(`> Building the ${name} helper for the phone`);
   run('sh', [join(ROOT, 'tool/build-accountsidecar.sh'), name, 'android', '--ship'], { cwd: ROOT });

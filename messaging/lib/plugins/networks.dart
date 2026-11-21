@@ -1,6 +1,6 @@
 /// The other networks as plugins in the Marketplace (Matt, 2026-11-20: "I don't see instagram and others listed as
 /// plugins in the marketplace"; "i want all of them to be in the marketplace"): WhatsApp, Matrix, Microsoft Teams,
-/// Google Chat, Messenger, Instagram and LinkedIn, each a card with Add.
+/// Google Chat, Messenger and Instagram, each a card with Add. (LinkedIn was one until 2026-11-21: lib/inbox/inbox.dart.)
 ///
 /// Its switch is the network's own (lib/inbox/inbox.dart, `inbox_on_<id>`), the one Settings › Connections shows: added
 /// here it is on there, and the other way round. Adding one starts it so it can be signed in to; removing it signs out.
@@ -82,5 +82,4 @@ const List<NetworkPlugin> networkPlugins = [
   NetworkPlugin('googlechat', 'Google Chat', hue: 'mint'),
   NetworkPlugin('messenger', 'Messenger', hue: 'blue', caution: _unofficial),
   NetworkPlugin('instagram', 'Instagram', hue: 'magenta', caution: _unofficial),
-  NetworkPlugin('linkedin', 'LinkedIn', hue: 'cyan', caution: _unofficial),
 ];

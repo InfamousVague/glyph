@@ -71,7 +71,9 @@ void main() {
   // be in the marketplace" (lib/plugins/networks.dart).
   test('every network that is a plugin is a plugin in the Marketplace, on its own shelf, off until added', () {
     final ids = [for (final p in shippedPlugins.whereType<NetworkPlugin>()) p.network];
-    expect(ids, ['whatsapp', 'matrix', 'teams', 'googlechat', 'messenger', 'instagram', 'linkedin']);
+    expect(ids, ['whatsapp', 'matrix', 'teams', 'googlechat', 'messenger', 'instagram']);
+    // Matt, 2026-11-21: "linked in keeps automatically signing our sessions out remove the plugin".
+    expect(Inbox.instance.named('linkedin'), isNull);
     // Each names a network the app has, that is a plugin there and is offered.
     for (final p in networkPlugins) {
       final n = Inbox.instance.named(p.network);
@@ -178,7 +180,7 @@ void main() {
   test('a network slow to start holds up no other, and a switch pressed meanwhile is kept', () async {
     final slow = Completer<void>();
     final tg = _Net('telegram', officialOverride: true, held: slow);
-    final ig = _Net('instagram'), li = _Net('linkedin', held: slow);
+    final ig = _Net('instagram'), li = _Net('messenger', held: slow);
     Inbox.instance = Inbox.of([tg, ig, li]);
     final app = AppState()..set('inbox_on_instagram', 'on');
     final started = Inbox.instance.start(app);
@@ -188,15 +190,15 @@ void main() {
     expect(ig.starts, 1);
     final registry = PluginRegistry(shippedPlugins);
     expect(registry.isOn(networkPlugins.firstWhere((p) => p.network == 'instagram'), AppStore(app)), isTrue);
-    // LinkedIn is being looked at for the first time (unset), and is added while that is going on: it stays on.
-    final linkedin = networkPlugins.firstWhere((p) => p.network == 'linkedin');
-    registry.setOn(linkedin, AppStore(app), true);
+    // Messenger is being looked at for the first time (unset), and is added while that is going on: it stays on.
+    final messenger = networkPlugins.firstWhere((p) => p.network == 'messenger');
+    registry.setOn(messenger, AppStore(app), true);
     await pumpEventQueue();
     expect(li.enabled, isTrue);
     slow.complete();
     await started;
-    expect(app.choice('inbox_on_linkedin', ''), 'on', reason: 'the first look settles off only what is still unset');
-    expect(registry.isOn(linkedin, AppStore(app)), isTrue);
+    expect(app.choice('inbox_on_messenger', ''), 'on', reason: 'the first look settles off only what is still unset');
+    expect(registry.isOn(messenger, AppStore(app)), isTrue);
   });
 
   test('official and plugins are told apart', () {

@@ -78,6 +78,15 @@ void main() {
       expect(cookiesMissing({'sessionid': 's'}, const ['sessionid', 'csrftoken']), ['csrftoken']);
     });
 
+    // Matt, 2026-11-21: "linked in keeps automatically signing our sessions out remove the plugin": what it kept goes.
+    test('a service no longer offered is forgotten: its folder, with the sign-in in it, is deleted', () async {
+      final dir = Directory.systemTemp.createTempSync('gone');
+      File('${dir.path}/session.json').writeAsStringSync('{}');
+      await AccountHelper.forget(linkedInService, folder: dir.path);
+      expect(dir.existsSync(), isFalse);
+      await AccountHelper.forget(linkedInService, folder: dir.path); // and nothing there is no trouble
+    });
+
     test('LinkedIn: every cookie of the site, and JSESSIONID without its quotes', () {
       final got = cookiesIn("curl 'https://www.linkedin.com/voyager/api/x' -H 'cookie: bcookie=\"v=2&abc\"; li_at=AQED; JSESSIONID=\"ajax:123\"; lang=v=2'");
       expect(got['li_at'], 'AQED');
@@ -310,7 +319,7 @@ void main() {
         expect(s.warning, contains('${s.name} doesn\'t support or allow other apps'));
         expect(s.needed, isNotEmpty);
       }
-      expect(Inbox.instance.networks.map((n) => n.id), containsAll(['messenger', 'instagram', 'linkedin']));
+      expect(Inbox.instance.networks.map((n) => n.id), containsAll(['messenger', 'instagram']));
       Inbox.instance = null;
     });
   });
