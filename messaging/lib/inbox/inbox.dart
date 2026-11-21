@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
@@ -751,6 +752,9 @@ class Inbox {
   // Messenger, Instagram and LinkedIn through account helpers (Matt, 2026-11-20: "Let's do the feasible ones but skip
   // X and google voice"; lib/inbox/account_helper.dart, sidecar/ACCOUNT_HELPERS.md): each signed in with a browser's
   // session after a warning, "Not in this build" where its helper is not carried.
+  // LinkedIn was a third and is gone (Matt, 2026-11-21: "linked in keeps automatically signing our sessions out remove
+  // the plugin"): LinkedIn ended the browser's session whenever the helper used it. Its sign-in is deleted from the
+  // device as the networks start ([start]); its source stays in sidecar/linkedin, carried by no build.
   static Inbox get instance => _instance ??= Inbox._([
         Telegram(),
         Bluesky(soon: true),
@@ -762,7 +766,6 @@ class Inbox {
         GoogleChat(),
         AccountHelper(messengerService),
         AccountHelper(instagramService),
-        AccountHelper(linkedInService),
       ]);
 
   /// Stand-ins for a test of a screen; null puts the app's own back.
@@ -816,6 +819,11 @@ class Inbox {
   Future<void> start(AppState app) async {
     for (final n in networks) {
       if (!n.soon) n.listStore = app;
+    }
+    // LinkedIn is no longer a network here: what it kept on this device (the sign-in, its chats) goes.
+    if (identical(this, _instance) && app.choice('inbox_on_linkedin', '').isNotEmpty) {
+      app.set('inbox_on_linkedin', '');
+      unawaited(AccountHelper.forget(linkedInService));
     }
     await Future.wait([for (final n in networks) if (!n.soon) _startOne(n, app)]);
   }

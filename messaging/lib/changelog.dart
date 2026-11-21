@@ -23,6 +23,9 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.11.3', '2026-11-21', [
+    'LinkedIn is no longer a network here: LinkedIn kept signing people out of their own browsers when Ghost used the sign-in. It is gone from the Marketplace and from Settings › Connections, and its saved sign-in and chats are deleted from this device the next time the app starts.',
+  ]),
   ReleaseNotes('0.11.2', '2026-11-21', [
     'Networks: one you added (Instagram, LinkedIn and the others) no longer shows as removed after the app starts again while another network is slow to start. Each network now starts on its own.',
   ]),
