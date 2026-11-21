@@ -91,9 +91,10 @@ class CallScribe extends ChangeNotifier {
   bool? _available;
 
   /// Whether this device can write out words: a phone with on-device speech recognition (Android 13 and up), a Mac or
-  /// an iPhone whose speech recognition runs on the device.
+  /// an iPhone whose speech recognition runs on the device, or Windows with a speech language installed
+  /// (windows/runner/speech.cpp).
   Future<bool> available() async {
-    if (kIsWeb || !(Platform.isAndroid || Platform.isMacOS || Platform.isIOS)) return false;
+    if (kIsWeb || !(Platform.isAndroid || Platform.isMacOS || Platform.isIOS || Platform.isWindows)) return false;
     try {
       return _available ??= await _channel.invokeMethod<bool>('available') ?? false;
     } catch (_) {

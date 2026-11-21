@@ -5,6 +5,7 @@
 // (FlutterWebRTCPluginSharedInstance), and its audio_processing() is libwebrtc's RTCAudioProcessing, whose
 // CustomProcessing gets each 10 ms block: floats on the 16-bit scale, as on Android and the Mac.
 #include "voice_fx.h"
+#include "call_recorder.h"
 
 #include <flutter/method_channel.h>
 #include <flutter/standard_method_codec.h>
@@ -34,6 +35,8 @@ class Processor : public libwebrtc::RTCAudioProcessing::CustomProcessing {
 
   void Process(int num_bands, int num_frames, int buffer_size, float* buffer) override {
     voicefx_process(fx_, buffer, num_frames, num_frames * 100);
+    // A call being recorded takes this device's voice as it is sent (call_recorder.cpp).
+    CallRecorderMic(buffer, num_frames, num_frames * 100);
   }
 
   void Reset(int new_rate) override {}

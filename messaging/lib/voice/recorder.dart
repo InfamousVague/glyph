@@ -3,7 +3,7 @@
 /// itself), then one track per person, each named for them.
 ///
 /// **Whose voice.** A call is a mesh, so each other person's sound already comes to this device on its own; the native
-/// half (android CallRecorder.kt, macos and ios CallRecorder.swift) taps it after WebRTC has decoded it, before this
+/// half (android CallRecorder.kt, macos and ios CallRecorder.swift, windows/runner/call_recorder.cpp) taps it after WebRTC has decoded it, before this
 /// device's volume for them. Only someone whose own device said yes to this recording is tapped ('ry' in their state,
 /// VoiceSession): an older build, the browser page or the Discord bridge can't say yes and is never recorded. This
 /// device's own voice is in it as sent (after the noise removal), silence while muted.
@@ -32,6 +32,7 @@ import '../desktop/store.dart' show DeskStore;
 import 'channels.dart';
 import '../plugins/record_call.dart' show RecordCallPlugin;
 import '../plugins/scribe.dart' show ScribePlugin;
+import 'mp4_merge.dart';
 import 'mp4_names.dart';
 import 'plugin_note.dart';
 import 'scribe.dart';
@@ -341,9 +342,9 @@ class CallRecorder extends ChangeNotifier {
 
   static const _channel = MethodChannel('ghost/recorder');
 
-  /// Whether this platform records calls: a phone and a Mac or iPhone; not Windows yet (its WebRTC library's sink for
-  /// another person's sound is not checked), nor a browser.
-  static bool get supported => !kIsWeb && (Platform.isAndroid || Platform.isMacOS || Platform.isIOS);
+  /// Whether this platform records calls: a phone, a Mac or iPhone, and Windows (windows/runner/call_recorder.cpp;
+  /// Matt, 2026-11-21: "my friend is not able to see plugins added for recording calls on his pc"); not a browser.
+  static bool get supported => !kIsWeb && (Platform.isAndroid || Platform.isMacOS || Platform.isIOS || Platform.isWindows);
 
   _Taking? _now;
 
@@ -571,10 +572,21 @@ class CallRecorder extends ChangeNotifier {
       final moved = [for (final k in keys) this.mix.points(k)];
       await Isolate.run(() => mixPcm(paths, mix, gains: moved));
       final out = '${folder().path}/${t.id}.mp4';
-      await _channel.invokeMethod('mux', {
-        'out': out,
-        'inputs': [mix, ...paths],
-      });
+      if (!kIsWeb && Platform.isWindows) {
+        // Windows makes each voice an AAC file of its own; they are put together here (lib/voice/mp4_merge.dart).
+        final parts = <String>[];
+        for (final (i, p) in [mix, ...paths].indexed) {
+          final part = '${t.dir}/track$i.m4a';
+          await _channel.invokeMethod('encode', {'in': p, 'out': part});
+          parts.add(part);
+        }
+        await Mp4Merge.merge(parts, out);
+      } else {
+        await _channel.invokeMethod('mux', {
+          'out': out,
+          'inputs': [mix, ...paths],
+        });
+      }
       final names = ['Everyone', for (final k in keys) t.names[k]!];
       await Mp4Names.apply(out, names);
       seconds = (counts.values.fold<int>(0, (a, b) => a > b ? a : b) / 48000).round();
