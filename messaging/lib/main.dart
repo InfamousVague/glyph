@@ -25,6 +25,7 @@ import 'inbox/curl_sync.dart';
 import 'kept_lists.dart';
 import 'looks.dart';
 import 'backgrounds.dart';
+import 'bubble.dart';
 import 'desktop/main.dart';
 import 'desktop/store.dart' show DeskStore;
 import 'standalone/overlay.dart';
@@ -140,6 +141,11 @@ Future<void> main() async {
   runApp(GhostMessagingApp(sheet: sheet, state: state, accents: accents));
 }
 
+/// A conversation's bubble on the side of the screen (android BubbleActivity.kt; GMFB-8): an engine of its own, started
+/// here with the conversation's thread, showing that conversation and nothing around it (lib/bubble.dart).
+@pragma('vm:entry-point')
+Future<void> bubbleMain(List<String> args) => runBubble(args);
+
 final _navigator = GlobalKey<NavigatorState>();
 
 /// With `adb shell setprop log.tag.GhostPerf VERBOSE` set before the app starts, how long frames take is written to
@@ -189,9 +195,13 @@ GlacierTypography _typography(String emoji) {
 }
 
 class GhostMessagingApp extends StatelessWidget {
-  const GhostMessagingApp({super.key, required this.sheet, required this.state, this.accents});
+  const GhostMessagingApp({super.key, required this.sheet, required this.state, this.accents, this.home});
   final TokenSheet sheet;
   final AppState state;
+
+  /// What the app shows: the walkthrough, then the conversations ([_Home]), where not given. A conversation's bubble
+  /// gives its one conversation (lib/bubble.dart), in the same look and choices.
+  final Widget? home;
 
   /// The stylesheets with the bubble colour chosen everywhere as the accent (lib/accent.dart); [sheet] alone where
   /// not given.
@@ -223,7 +233,7 @@ class GhostMessagingApp extends StatelessWidget {
               child: InkOverrides(child: _SystemBars(child: GlacierToastProvider(child: child!))),
             ),
           ),
-          home: const _Home(),
+          home: home ?? const _Home(),
         ),
       ),
     );

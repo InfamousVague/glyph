@@ -59,10 +59,13 @@ import 'paste_images.dart';
 
 /// One conversation: its messages oldest at the top, newest by the composer.
 class ThreadScreen extends StatefulWidget {
-  const ThreadScreen({super.key, required this.thread, required this.people, this.draft});
+  const ThreadScreen({super.key, required this.thread, required this.people, this.draft, this.onExpand});
   final int thread;
   final List<Person> people;
   final String? draft;
+
+  /// In a conversation's bubble (lib/bubble.dart): the header's way into the whole app, on this conversation.
+  final VoidCallback? onExpand;
 
   @override
   State<ThreadScreen> createState() => _ThreadScreenState();
@@ -930,6 +933,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           ),
           IconTap(icon: LucideMore.phoneCall, label: 'Call the group', onPressed: _callGroup),
         ],
+        // A bubble's way into the whole app (GMFB-8: "message bubbles that just sit on the side of the screen").
+        if (widget.onExpand != null) IconTap(icon: Lucide.maximize, label: 'Open in Ghost Messaging', onPressed: widget.onExpand),
         // Each conversation's own settings: its background, your bubbles in it, its encryption, mute and pin.
         // On a computer too (Matt, 2026-11-14: "There needs to be chat settings on desktop as well"): what a computer
         // can change of a conversation, and what it can only show (lib/ui/chat_settings.dart).
