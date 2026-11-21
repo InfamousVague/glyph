@@ -160,6 +160,28 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    // Matt, 2026-11-21: "I need a way to see partially uploaded files, the oddysey uploaded partially but then
+    // disconnected when I restarted the app it stopped uploading but kept the space reserved".
+    testWidgets('unfinished uploads show how far they got, and only one this device may let go has Remove', (tester) async {
+      final sheet = await loadSheet(tester);
+      final at = DateTime.now().subtract(const Duration(hours: 3));
+      store.put(space, [file(1, 'b.png', 300, 3)], info: FilesInfo(used: 26000000300, quota: 50000000000, parts: [
+        FilesPart(id: 'a' * 32, by: me.id, size: 26000000000, have: 12300000000, at: at),
+        FilesPart(id: 'b' * 32, by: 'someone-else', size: 4000000000, have: 1000000000, at: at),
+      ]));
+      await pumpScreen(tester, sheet, FilesSpaceScreen(channel: space, store: store), AppState());
+      expect(find.text('Unfinished upload'), findsNWidgets(2));
+      expect(find.textContaining('of 26'), findsOneWidget);
+      expect(find.textContaining('stopped 3 hours ago · yours'), findsOneWidget);
+      expect(find.byKey(ValueKey('remove-part-${'a' * 32}')), findsOneWidget);
+      expect(find.byKey(ValueKey('remove-part-${'b' * 32}')), findsNothing, reason: 'not theirs to remove: not the owner, not who started it');
+      await tester.tap(find.byKey(ValueKey('remove-part-${'a' * 32}')));
+      await settle(tester);
+      expect(find.text('Remove it'), findsOneWidget);
+      expect(find.textContaining('It can\'t go on from here'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('on a wide window the files are in columns under a header', (tester) async {
       final sheet = await loadSheet(tester);
       await pumpScreen(tester, sheet, FilesSpaceScreen(channel: space, store: store), AppState(), size: const Size(1280, 800));
