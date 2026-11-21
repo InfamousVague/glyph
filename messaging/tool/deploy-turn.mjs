@@ -18,8 +18,8 @@
  *   - installs coturn from Ubuntu's own packages, where it isn't yet;
  *   - writes /etc/turnserver.conf: UDP and TCP on 3478, TLS on 5349 with gogho.st's certificate, relayed ports
  *     49160-49400 (40000-40100 are another service's), the hub's REST-style passwords only (use-auth-secret), and
- *     never relaying to the box itself or any private or Tailscale address, so a TURN password can't be used to
- *     reach the box's own services;
+ *     never relaying to loopback or any private or Tailscale address, and no TCP relaying, so a TURN password can't
+ *     be used to reach the box's own services;
  *   - copies Caddy's certificate for gogho.st where coturn can read it, and does so again each day by a timer,
  *     restarting coturn only when the certificate changed (Caddy renews it about every two months; a restart drops
  *     the calls going through the relay at that moment, which connect again);
@@ -36,6 +36,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DOMAIN = 'gogho.st';
 const MIN_PORT = 49160;
 const MAX_PORT = 49400;
+// The box's public address (149.248.47.151 on enp1s0f0, 2026-11-21): what coturn listens and relays on.
+const PUBLIC_IP = '149.248.47.151';
 const args = process.argv.slice(2);
 const printOnly = args.includes('--print');
 const fail = (message) => {
@@ -124,7 +126,15 @@ no-tlsv1_1
 no-cli
 no-multicast-peers
 no-rfc5780
-# Never a way into the box or anything private beside it.
+# On the box's public address only (not Tailscale's), and relaying to it too: when both people in a call relay through
+# here, each one's relayed address is this box's, so it must be a peer this server may send to (blocking it broke every
+# relay-to-relay call, found 2026-11-21 by the first test). What that reaches is UDP on the public address, where only
+# the relayed ports, Caddy's QUIC and Tailscale listen, all public anyway; TCP relaying is off (WebRTC never asks for it),
+# so services the firewall keeps in can't be reached through a TURN password. Keep any new UDP service off 0.0.0.0.
+listening-ip=${PUBLIC_IP}
+relay-ip=${PUBLIC_IP}
+no-tcp-relay
+# Never a way to loopback or anything private beside the box.
 denied-peer-ip=0.0.0.0-0.255.255.255
 denied-peer-ip=10.0.0.0-10.255.255.255
 denied-peer-ip=100.64.0.0-100.127.255.255
@@ -132,7 +142,6 @@ denied-peer-ip=127.0.0.0-127.255.255.255
 denied-peer-ip=169.254.0.0-169.254.255.255
 denied-peer-ip=172.16.0.0-172.31.255.255
 denied-peer-ip=192.168.0.0-192.168.255.255
-denied-peer-ip=149.248.47.151
 denied-peer-ip=::1
 denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
 denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff
