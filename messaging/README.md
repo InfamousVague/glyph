@@ -30,6 +30,16 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Unfinished uploads are listed, and can be removed to free their room** (0.11.5, not released; Matt, 2026-11-21:
+  "I need a way to see partially uploaded files, the oddysey uploaded partially but then disconnected when I
+  restarted the app it stopped uploading but kept the space reserved"). The relay's space info names each blob not
+  finished yet (`parts`: id, who started it, size, how much is there, when it last moved; relay/lib/files.dart
+  `_info`), and FilesStore.unfinished lists those no transfer on this device holds: another device's, one sent from a
+  space's chat (never on the queue on disk), or one from before a reinstall. The Files screen shows each as
+  "Unfinished upload" with its bar and Remove for whoever started it, the owner, or a role that may remove it
+  (removeUnfinished: DELETE on the blob, the roster shown where needed). An upload the queue does pick up shows what
+  the relay has at once and says "Checking it before going on · n%" while a big file is hashed again before more of
+  it goes (minutes for a film), where before it sat at nothing and looked stopped.
 - **Calls fall back on the relay where no direct way through is found** (0.11.4, not released; Matt, 2026-11-21:
   "Sometimes calls are not negotiating in voice chats and I can't connect to another person, if p2p fails please
   connect over voice through the relay"). Calls had public STUN servers only, so two devices behind strict routers
