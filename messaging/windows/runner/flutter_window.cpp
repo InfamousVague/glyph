@@ -5,6 +5,7 @@
 #include "speech.h"
 #include "sounds.h"
 #include "clipboard.h"
+#include "ducking.h"
 #include "links.h"
 #include "splash.h"
 
@@ -41,6 +42,8 @@ bool FlutterWindow::OnCreate() {
   RegisterSpeech(flutter_controller_->engine()->messenger());
   // The interface sounds (sounds.cpp).
   RegisterSounds(flutter_controller_->engine()->messenger());
+  // Other sounds left as loud as they are in a call, unless chosen otherwise (ducking.cpp).
+  RegisterDucking(flutter_controller_->engine()->messenger());
   // A picture on the clipboard, for the message field (clipboard.cpp).
   RegisterClipboard(flutter_controller_->engine()->messenger());
   // Circles' invite links opened into the app (links.cpp).

@@ -22,6 +22,7 @@ class VoiceSettings {
     this.inputVolume = 100,
     this.outputVolume = 100,
     this.video = 1080,
+    this.duckOthers = false,
   });
 
   /// The microphone's and the speaker's device ids; empty for the system's own.
@@ -46,6 +47,10 @@ class VoiceSettings {
   /// The tallest picture sent: 2160 (4K), 1080, 720 or 480.
   final int video;
 
+  /// On Windows: whether Windows may lower every other sound on the computer during a call, as it does to talking
+  /// apps unless they say not to. Off unless switched on (Matt, 2026-11-21; lib/voice/ducking.dart).
+  final bool duckOthers;
+
   static const kbpsChoices = [510, 256, 128, 64, 32];
   static const videoChoices = [2160, 1080, 720, 480];
   static const maxVolume = 200;
@@ -63,6 +68,7 @@ class VoiceSettings {
         inputVolume: (int.tryParse(app.choice('voice_in_volume', '100')) ?? 100).clamp(0, maxVolume),
         outputVolume: (int.tryParse(app.choice('voice_out_volume', '100')) ?? 100).clamp(0, maxVolume),
         video: int.tryParse(app.choice('voice_video', '1080')) ?? 1080,
+        duckOthers: app.flag('voice_duck_others', fallback: false),
       );
 
   VoiceSettings copyWith({String? input, String? output, int? inputVolume, int? outputVolume}) => VoiceSettings(
@@ -77,6 +83,7 @@ class VoiceSettings {
         inputVolume: inputVolume ?? this.inputVolume,
         outputVolume: outputVolume ?? this.outputVolume,
         video: video,
+        duckOthers: duckOthers,
       );
 
   // What is used, Music mode taken into account.

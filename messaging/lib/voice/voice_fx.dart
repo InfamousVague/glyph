@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'ducking.dart';
 import 'voice_settings.dart';
 
 /// The microphone's own processing, done natively inside WebRTC's capture path (Matt, 2026-11-15: "build in like krisp
@@ -112,5 +113,7 @@ class VoiceFx {
   static Future<void> apply(VoiceSettings s) async {
     final modes = await VoiceFx.modes();
     await configure(mode: s.noiseOn(modes), gain: s.inputVolume / 100);
+    // Whether Windows lowers other sounds in the call, said with the rest before the microphone opens and after.
+    await Ducking.apply(duckOthers: s.duckOthers);
   }
 }

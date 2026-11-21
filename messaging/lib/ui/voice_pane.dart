@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaDeviceInfo;
 import 'package:glacier/glacier.dart';
@@ -13,6 +15,7 @@ import '../kit/settings_type.dart';
 import '../voice/channels.dart';
 import '../voice/rtc.dart';
 import '../voice/voice_fx.dart';
+import '../voice/ducking.dart';
 import '../voice/voice_settings.dart';
 import 'voice_screen.dart' show VolumeSlider;
 import 'common.dart';
@@ -144,6 +147,20 @@ class _VoicePaneState extends State<VoicePane> {
           SettingRow(icon: icon(LucideMore.headphones), label: 'Stereo', hint: const Text('Two channels; off sends one.'), disabled: v.music, control: GlacierSwitch(checked: v.sendStereo, disabled: v.music, onCheckedChange: (on) => flag('voice_stereo', on), ariaLabel: 'Stereo')),
           SettingRow(icon: icon(Lucide.volume2), label: 'Echo cancellation', hint: const Text('Keeps your speaker out of your microphone. Off for headphones only.'), disabled: v.music, control: GlacierSwitch(checked: v.useEcho, disabled: v.music, onCheckedChange: (on) => flag('voice_echo', on), ariaLabel: 'Echo cancellation')),
           SettingRow(icon: icon(Lucide.slidersHorizontal), label: 'Automatic gain', hint: const Text('Evens out how loud you are. Off keeps your own level.'), disabled: v.music, control: GlacierSwitch(checked: v.useGain, disabled: v.music, onCheckedChange: (on) => flag('voice_gain', on), ariaLabel: 'Automatic gain')),
+          if (!kIsWeb && Platform.isWindows)
+            SettingRow(
+              icon: icon(LucideMore.volumeX),
+              label: 'Lower other sounds in calls',
+              hint: const Text('Windows turns everything else on the computer down while you talk. Off keeps music, games and videos as loud as they were.'),
+              control: GlacierSwitch(
+                checked: v.duckOthers,
+                onCheckedChange: (on) {
+                  flag('voice_duck_others', on);
+                  unawaited(Ducking.apply(duckOthers: on));
+                },
+                ariaLabel: 'Lower other sounds in calls',
+              ),
+            ),
         ],
       ),
       gap,

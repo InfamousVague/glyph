@@ -29,6 +29,16 @@ void main() {
     expect(VoiceSettings.of(app).noise, NoiseMode.deepfilter);
   });
 
+  test('Windows is told to leave other sounds alone in calls unless the person switches the lowering on', () {
+    final app = AppState();
+    expect(VoiceSettings.of(app).duckOthers, isFalse);
+    app.setFlag('voice_duck_others', true);
+    final v = VoiceSettings.of(app);
+    expect(v.duckOthers, isTrue);
+    // Kept through a change of devices in the call.
+    expect(v.copyWith(input: 'usb').duckOthers, isTrue);
+  });
+
   test('volumes are held to 0–200%', () {
     final app = AppState()
       ..set('voice_in_volume', '350')
