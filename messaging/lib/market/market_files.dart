@@ -20,11 +20,13 @@ import '../plugins/pack/pack.dart' show PackLimits, cleanPng, pngProblem;
 import '../sms.dart';
 
 /// A plugin file as chosen: its name, its bytes (at most a package's limit and one more, so a larger one is said to be
-/// too large rather than cut), and its path where it can be read again (a Mac's; Android's picked copies are not kept).
+/// too large rather than cut), and its path where it can be read again (a computer's; Android's picked copies are not
+/// kept).
 typedef PickedPlugin = ({String name, Uint8List bytes, String? path});
 
-/// Where a plugin file can be chosen: Android's picker and a Mac's Open panel.
-bool get canPickPluginFile => Platform.isAndroid || Platform.isMacOS;
+/// Where a plugin file can be chosen: Android's picker, a Mac's Open panel and Windows' Open dialog (GMFB-7: Windows
+/// had none, so a downloaded plugin file could not be loaded there).
+bool get canPickPluginFile => Platform.isAndroid || Platform.isMacOS || Platform.isWindows;
 
 /// A .ghostplugin chosen with the device's own picker; null where none was.
 Future<PickedPlugin?> pickPluginFile() async {
@@ -44,7 +46,7 @@ Future<PickedPlugin?> pickPluginFile() async {
       }
     }
   }
-  if (Platform.isMacOS) {
+  if (Platform.isMacOS || Platform.isWindows) {
     final paths = await FilePlatform.pickPaths(most: 1);
     if (paths.isEmpty) return null;
     final path = paths.first;
