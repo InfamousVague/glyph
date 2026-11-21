@@ -1,8 +1,8 @@
 {
   "name": "ghost-messaging-keys",
   "private": true,
-  "version": "0.1.0",
-  "description": "Ghost Messaging's key sync: a browser extension that captures the sign-in cookies for Messenger, Instagram and LinkedIn and syncs them, sealed, across every device signed into your Ghost account.",
+  "version": "0.1.1",
+  "description": "Ghost Messaging's key sync: a browser extension that captures the sign-in cookies for Messenger and Instagram and syncs them, sealed, across every device signed into your Ghost account.",
   "type": "module",
   "scripts": {
     "build": "node build.mjs",

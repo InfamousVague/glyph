@@ -5,7 +5,8 @@
 //
 // `needed` are the cookies a service cannot sign in without: the extension treats a site as "signed in and ready to
 // sync" once all of them are present. The app re-filters what it keeps per service (cookiesOf), so capturing the
-// whole site's cookies is fine — LinkedIn in fact wants them all.
+// whole site's cookies is fine. LinkedIn was here and is gone, as from the app (Matt, 2026-11-21: "linked in keeps
+// automatically signing our sessions out remove the plugin"): LinkedIn ended the session whenever it was used elsewhere.
 
 export interface Service {
   /** The network id in the app ("messenger"), which the synced entry is filed under. */
@@ -33,13 +34,6 @@ export const SERVICES: Service[] = [
     domains: ['.instagram.com'],
     needed: ['sessionid', 'csrftoken', 'ds_user_id'],
     signInUrl: 'https://www.instagram.com/direct/inbox/',
-  },
-  {
-    id: 'linkedin',
-    name: 'LinkedIn',
-    domains: ['.linkedin.com'],
-    needed: ['li_at', 'JSESSIONID'],
-    signInUrl: 'https://www.linkedin.com/messaging/',
   },
 ];
 
