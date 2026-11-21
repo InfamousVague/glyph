@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent;
 import 'package:ghost_messaging/ui/recording_float.dart';
 import 'package:ghost_messaging/ui/recording_ui.dart' show RecordingBanner;
+import 'package:ghost_messaging/ui/space_designs/space_design.dart' show CallBanners;
 import 'package:ghost_messaging/voice/channels.dart';
 import 'package:ghost_messaging/voice/voice.dart';
 import 'package:ghost_messaging/voice/recorder.dart';
@@ -378,6 +379,39 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.byKey(const ValueKey('recording-drawer')), findsNothing);
+  });
+  // GMFB-16 (@kevin, Android 0.11.5: "Audio recording banner covers ui elements in a way that makes them unusable and
+  // cannot be moved").
+  testWidgets('the lines over a call move when dragged, and fold to a chip that unfolds them', (tester) async {
+    final v = Voice.instance;
+    v.session = VoiceSession(channel: VoiceChannel.make('Lounge'), route: _NoRoute(), media: _NoMedia(), name: 'Matt')..recording = 'rec-1';
+    CallBanners.moved = null;
+    CallBanners.folded = false;
+    addTearDown(() {
+      v.session = null;
+      CallBanners.moved = null;
+      CallBanners.folded = false;
+    });
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, const Stack(children: [SizedBox.expand(), CallBanners(top: 110, children: [RecordingBanner()])]), AppState());
+    final line = find.byKey(const ValueKey('recording-mine'));
+    final before = tester.getTopLeft(line).dy;
+    await tester.drag(find.byKey(const ValueKey('call-banners-grip')), const Offset(0, 300));
+    await tester.pump();
+    expect(tester.getTopLeft(line).dy, closeTo(before + 300, 30), reason: 'dragged down, out of the way');
+
+    await tester.tap(find.byKey(const ValueKey('call-banners-grip')));
+    await tester.pump();
+    expect(line, findsNothing, reason: 'folded away');
+    expect(find.byKey(const ValueKey('call-banners-folded')), findsOneWidget);
+    final chip = tester.getRect(find.byKey(const ValueKey('call-banners-folded')));
+    expect(chip.width, lessThan(80), reason: 'a small chip at the side, not a line across the call');
+
+    await tester.tap(find.byKey(const ValueKey('call-banners-folded')));
+    await tester.pump();
+    expect(line, findsOneWidget, reason: 'unfolded again, where it was left');
+    expect(tester.getTopLeft(line).dy, closeTo(before + 300, 30));
+    expect(tester.takeException(), isNull);
   });
 }
 
