@@ -30,7 +30,7 @@ import 'files_model.dart';
 
 export 'file_kinds.dart';
 export 'file_stream.dart' show FileStream, StreamedMedia;
-export 'files_api.dart' show FilesError, FilesInfo;
+export 'files_api.dart' show FilesError, FilesInfo, FilesPart;
 export 'files_model.dart';
 
 /// A Files space's files on this device (Matt, 2026-11-17: "add full functionality for filesharing in a space when the
@@ -659,6 +659,55 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     return true;
   }
 
+  // --- unfinished uploads ------------------------------------------------------------------------------------------
+
+  /// Uploads to [c] the relay holds part of that nothing on this device is sending or can pick up (Matt, 2026-11-21:
+  /// "I need a way to see partially uploaded files, the oddysey uploaded partially but then disconnected when I
+  /// restarted the app it stopped uploading but kept the space reserved"): another device's, one this device's queue
+  /// lost (a file sent from a space's chat is never kept on the queue), or one from before an app was reinstalled. Each
+  /// holds its room until it is removed or the relay lets it go, a day after its last piece. One this device's queue
+  /// still has shows as its transfer instead, which goes on by itself or with Try again.
+  List<FilesPart> unfinished(VoiceChannel c) {
+    final held = {for (final t in transfers) if (t.blob != null && t.space.seed == c.seed) t.blob};
+    return [for (final p in of(c).info?.parts ?? const <FilesPart>[]) if (!held.contains(p.id)) p];
+  }
+
+  /// [p] as a file in the list would be, for the space's rules (who may remove it).
+  SpaceFile _asFile(FilesPart p) => SpaceFile(id: p.id, name: '', size: p.size, mime: '', sha: '', key: Uint8List(32), prefix: Uint8List(8), by: p.by, byName: '', at: p.at.millisecondsSinceEpoch);
+
+  /// Whether this device may let [p] go: whoever started it, the space's owner, or someone whose role may remove it.
+  bool canRemoveUnfinished(VoiceChannel c, FilesPart p) => canChange(c, _asFile(p));
+
+  /// Who started [p], as the space's list names them ("you" for this install), or null where it doesn't.
+  String? unfinishedBy(VoiceChannel c, FilesPart p) {
+    if (p.by == _me()) return 'you';
+    for (final f in of(c).files.values) {
+      if (f.by == p.by && f.byName.isNotEmpty) return f.byName;
+    }
+    return null;
+  }
+
+  /// Lets [p] go on the relay, freeing its room, as [delete] does a file's blob (the roster shown where it isn't this
+  /// device's or the owner's). Whether the relay let it go.
+  Future<bool> removeUnfinished(VoiceChannel c, FilesPart p) async {
+    if (!canRemoveUnfinished(c, p)) return false;
+    final api = _api(c);
+    if (api == null) return false;
+    final me = _me();
+    final roster = me == p.by || me == _ownerId(c) ? null : _trusted(c);
+    try {
+      await api.deleteBlob(p.id, roster: roster == null ? null : _proof(roster));
+    } on FilesError catch (e) {
+      // Already gone (finished elsewhere, or let go by the relay meanwhile): what was wanted.
+      if (e.status != HttpStatus.notFound) return false;
+    } catch (_) {
+      return false;
+    }
+    await of(c).refresh();
+    notifyListeners();
+    return true;
+  }
+
   // --- going up ------------------------------------------------------------------------------------------------------
 
   /// Adds files at [paths] (on this device) to [c], in [folder]. [owned] marks copies the app made (a phone's picks),
@@ -806,7 +855,27 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
       // chunks still to go are sealed under the same key and nonces as before, so they must be the same words. A file
       // changed in place keeps its length and, on some disks, its time; only its hash tells. Changed, it is not sent on
       // (sealing other words under a nonce already used would give the key away).
-      Future<bool> unchanged() async => t.owned || await _shaAside(t.path!) == t.sha;
+      // A big file's check takes minutes (a film: tens of gigabytes), so it says how far it has got, and the bar shows
+      // what the relay already has, rather than the upload looking stopped after the app opens again.
+      Future<bool> unchanged() async {
+        if (t.owned) return true;
+        var said = -1;
+        final sha = await _shaAside(t.path!, told: t.size < 64 << 20 ? null : (read) {
+          final pct = t.size <= 0 ? 0 : (read * 100 ~/ t.size).clamp(0, 99);
+          if (pct == said) return;
+          said = pct;
+          t.status = 'Checking it before going on · $pct%';
+          notifyListeners();
+        });
+        t.status = null;
+        return sha == t.sha;
+      }
+
+      if (have > 0) {
+        t.done = math.min(t.size, (have / sealed * t.size).round());
+        if (t.size >= 64 << 20) t.status = 'Checking it before going on';
+        notifyListeners();
+      }
       if (have > 0 && !await unchanged()) {
         t._fail('The file changed while it was going up. Add it again.', retryable: false);
         await _settle(t);

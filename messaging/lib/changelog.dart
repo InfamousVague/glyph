@@ -24,6 +24,7 @@ class ReleaseNotes {
 
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.11.5', '2026-11-21', [
+    'Files spaces: an upload that stopped part way and can\'t carry on now shows at the top of the space as Unfinished upload, with how much got there and who started it. It held the space\'s room without a word before; now whoever started it or the space\'s owner can remove it to free that room. An upload that does carry on after the app opens again shows how far it had got, and says it is checking the file before going on rather than looking stopped.',
     'Voice changer in calls is instant now: your voice is changed on your own device as you speak, with no delay and nothing sent anywhere. Pick Feminine, Masculine, Deeper, Higher, Child, Older, Monster, Chipmunk, Robot or Radio in the plugin\'s settings: each moves your pitch and the size of your voice separately, so it sounds like a real person of that kind rather than a sped-up recording. ElevenLabs is still there under How calls are changed, for a realistic voice a second or two behind.',
     'Windows: Record call, Live captions and Scribe now work on Windows. Captions and Scribe need Windows\' speech recognition for your language (Settings › Time & language › Speech).',
   ]),

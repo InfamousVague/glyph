@@ -160,6 +160,13 @@ void main() {
     await relay.stop();
     await boot();
     expect((await call('GET', '/files/$space/blobs/$id/state')).json, {'have': 40000, 'size': 100000, 'done': false});
+    // Listed as unfinished in the space's info, with who started it and how far it got; gone from the list once done.
+    final parts = (await call('GET', '/files/$space')).json['parts'] as List;
+    expect(parts, hasLength(1));
+    expect(parts.single, containsPair('id', id));
+    expect(parts.single, containsPair('by', maya.id));
+    expect(parts.single, containsPair('z', 100000));
+    expect(parts.single, containsPair('h', 40000));
     expect((await call('PUT', '/files/$space/blobs/$id?offset=40000', as: maya, body: data.sublist(40000))).json['have'], 100000);
     // More than it was said to be is refused.
     expect((await call('POST', '/files/$space/blobs/$id/done', as: maya)).json['done'], true);
@@ -174,6 +181,7 @@ void main() {
     expect(tail.bytes, data.sublist(99990));
     expect((await call('GET', '/files/$space/blobs/$id', headers: {'range': 'bytes=200000-'})).status, HttpStatus.requestedRangeNotSatisfiable);
     expect((await call('GET', '/files/$space')).json['files'], 1);
+    expect((await call('GET', '/files/$space')).json['parts'], isEmpty);
   });
 
   test('a piece past the size said, or a bad signature, is cut back off', () async {

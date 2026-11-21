@@ -71,6 +71,10 @@ void _going() {
   _store.putTransfer(Transfer.shown(space: _space, name: 'Band rehearsal.mp4', size: 84000000, done: 34000000));
   _store.putTransfer(Transfer.shown(space: _space, name: 'slides final final.key', size: 9000000, state: TransferState.waiting, error: 'Waiting for the connection'));
   _store.putTransfer(Transfer.shown(space: _space, name: 'raw footage.zip', size: 4000000000, state: TransferState.failed, error: 'Too big: files can be up to 2.1 GB each.', retryable: false));
+  // An upload left part way that nothing here can pick up (FilesStore.unfinished): Sam's, three hours quiet.
+  _store.put(_space, _files, folders: {'Trip', 'Work'}, info: FilesInfo(used: _files.fold(0, (n, f) => n + f.size) + 26000000000, quota: 50000000000, maxFile: 30000000000, parts: [
+    FilesPart(id: 'f' * 32, by: 'idSam', size: 26000000000, have: 12300000000, at: DateTime.now().subtract(const Duration(hours: 3))),
+  ]));
 }
 
 void _stopGoing() {
