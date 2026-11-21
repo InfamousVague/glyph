@@ -980,7 +980,11 @@ class _SignalLinkScreenState extends State<SignalLinkScreen> {
   }
 
   Future<void> _elsewhere() async {
-    if (!_room.open) await _room.openRoom(onCame: () => _showCode());
+    if (!_room.open && !await _room.openRoom(onCame: () => _showCode())) {
+      // Nothing would reach the page (GMFB-15): say so rather than share a link that draws nothing.
+      if (mounted) toast(context, 'Ghost\'s relay can\'t be reached right now, so the code can\'t go to another screen. Check Settings › Network.', tone: GlacierToastTone.danger);
+      return;
+    }
     _showCode();
     final link = _room.link;
     if (link != null && mounted) await Sms.instance.shareText('Link Signal to Ghost', link);
