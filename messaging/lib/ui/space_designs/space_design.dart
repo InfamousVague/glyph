@@ -343,7 +343,8 @@ class SpaceVideo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stream = person.stream;
-    if (stream != null) return StreamView(stream: stream, mirror: person.me);
+    // One renderer per stream (GMFB-5; voice_screen.dart's _Tile says why).
+    if (stream != null) return StreamView(key: ObjectKey(stream), stream: stream, mirror: person.me);
     return fallback ?? ColoredBox(color: const Color(0xFF1C1C1F), child: Center(child: SpaceFace(call: call, person: person, size: faceSize)));
   }
 }

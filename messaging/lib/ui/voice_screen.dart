@@ -172,7 +172,7 @@ class CallPanel extends StatelessWidget {
               final across = withVideo.length == 1 ? 1 : (box.maxWidth / 240).floor().clamp(2, 4);
               final w = (box.maxWidth - t.space(2) * (across - 1)) / across;
               return Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [
-                for (final p in withVideo) SizedBox(width: w, height: w * 0.75, child: _Tile(name: p.guest ? '${p.name} (guest)' : p.name, muted: p.muted, stream: p.video, mirror: p.me)),
+                for (final p in withVideo) SizedBox(key: ValueKey('video-${p.id}'), width: w, height: w * 0.75, child: _Tile(name: p.guest ? '${p.name} (guest)' : p.name, muted: p.muted, stream: p.video, mirror: p.me)),
               ]);
             }),
             SizedBox(height: t.space(3)),
@@ -358,7 +358,9 @@ class _Tile extends StatelessWidget {
       child: ColoredBox(
         color: t.color('app-paper-3'),
         child: Stack(fit: StackFit.expand, children: [
-          if (stream != null) StreamView(stream: stream!, mirror: mirror),
+          // One renderer per stream (GMFB-5): when the tiles shift, as they do when someone turns video off, a renderer
+          // never carries on drawing whoever stood in that place before.
+          if (stream != null) StreamView(key: ObjectKey(stream), stream: stream!, mirror: mirror),
           Positioned(
             left: t.space(2),
             bottom: t.space(2),
