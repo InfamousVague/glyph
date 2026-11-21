@@ -30,6 +30,16 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **A saved recording opens in the mixer** (0.11.8, not released; Matt, 2026-11-21: "I'd like to be able to open
+  recordings saved from calls in the multi track view with the mixer"). Recordings › a recording › Open in the mixer:
+  lib/voice/recording_playback.dart decodes each person's track to 48 kHz mono on the device (ghost/scribe `decode`,
+  beside Scribe's own decoders: android Scribe.kt, macos/ios Scribe.swift, windows/runner/speech.cpp), kept under
+  recordings/opened/<id>, and the timeline and mixer draw from it through RecordingDesk, which CallRecorder also is. A
+  player per voice (media_kit; video_player on the iPhone, which can't go past 0 dB) plays them together, the others
+  kept within 50 ms of the first; the meters are read from the samples at the playhead. Save mix makes a new recording
+  (CallRecorder.makeMp4, `from` in recordings.json): everyone mixed as the faders stand, each voice as it was.
+  integration_test/recording_playback_test.dart on an emulator: opened in 0.6 s, each voice's loudness as made,
+  played 2.5 s in step, and the saved mix right with one voice muted and another halved.
 - **Calls: the other side's video, relay first, Windows' microphone** (0.11.6; Matt, 2026-11-21: "Video
   is not working on both ends it only shows our local video also the audio device selector doesn't seem to be working,
   connecting over the relay also doesn't seem to be working or the device picker is not working in windows", then

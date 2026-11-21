@@ -24,7 +24,7 @@ import '../voice/recorder.dart';
 import '../voice/scribe.dart';
 import '../voice/voice.dart';
 import 'common.dart';
-import 'recording_float.dart' show showRecordingMixer;
+import 'recording_float.dart' show showRecordingMixer, showRecordingPlayback;
 import 'video_screen.dart';
 
 /// The red line over a call that is being recorded: who records, whose voices are in it, and this device's answer.
@@ -185,7 +185,7 @@ class RecordingsScreen extends StatelessWidget {
                       SettingRow(
                         key: ValueKey('recording-${r.id}'),
                         icon: AppIcon(Lucide.audioLines, size: 18),
-                        label: '${r.space.isEmpty ? 'A call' : r.space} · ${_date(r.at)}',
+                        label: '${r.space.isEmpty ? 'A call' : r.space} · ${_date(r.at)}${r.mixedFrom == null ? '' : ' · mixed again'}',
                         hint: Text('${_clock(Duration(seconds: r.seconds))} · ${r.people.join(', ')}${r.markers.isEmpty ? '' : ' · marked at ${r.markers.map((m) => _clock(Duration(seconds: m.floor()))).join(', ')}'}${_wordsNote(r)}'),
                         onPress: () => _actions(context, r),
                       ),
@@ -215,6 +215,8 @@ class RecordingsScreen extends StatelessWidget {
     final room = space == null ? null : Voice.instance.hangoutFor(space);
     showChoices(context, title: r.space.isEmpty ? 'Recording' : r.space, choices: [
       Choice('Play', Lucide.play, () => push(context, (_) => VideoScreen(path: r.path, title: r.space.isEmpty ? 'Recording' : r.space))),
+      // Every voice a track of the timeline and a strip of the mixer, to play and mix again (lib/voice/recording_playback.dart).
+      if (r.people.isNotEmpty) Choice('Open in the mixer', Lucide.slidersHorizontal, () => unawaited(showRecordingPlayback(context, r))),
       // Scribe's (lib/plugins/scribe.dart): the words, where it is on for this recording.
       if (CallScribe.instance.of(r) != null)
         Choice('Read the words', Lucide.scrollText, () => push(context, (_) => TranscriptScreen(recording: r)))
