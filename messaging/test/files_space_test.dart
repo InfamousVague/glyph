@@ -1,6 +1,7 @@
 // A Files space end to end (Matt, 2026-11-17: "add full functionality for filesharing in a space when the space is
 // designated a Files Space"): the app's files store against the relay's own files service, on this machine.
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
@@ -66,6 +67,13 @@ Uint8List bytesOf(int n, int seed) {
 }
 
 void main() {
+
+  test('a file as big as the relay takes (a 26 GB film) is believed and listed, as one of 4 GB and more was not', () {
+    final big = SpaceFile.fromJson({'id': 'f' * 32, 'n': 'The Odyssey.mkv', 'z': 26054267438 - 16 * 99389, 'k': base64Encode(List.filled(32, 7)), 'p': base64Encode(List.filled(8, 1)), 'd': 'Movies', 'at': 1}, by: 'x');
+    expect(big, isNotNull);
+    expect(big!.folder, 'Movies');
+    expect(SpaceFile.maxSize, greaterThan(50000000000));
+  });
   group('sealing a file', () {
     final key = NetCrypto.randomBytes(32), prefix = NetCrypto.randomBytes(8);
     const id = '00112233445566778899aabbccddeeff';
