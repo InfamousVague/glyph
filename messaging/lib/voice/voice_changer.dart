@@ -3,9 +3,7 @@
 /// transcribe and re speak what they say"; "build it as a plugin"). The plugin is lib/plugins/voice_changer.dart; its
 /// pages are lib/ui/voice_changer_ui.dart.
 ///
-/// ElevenLabs' Voice Changer (POST /v1/speech-to-speech/{voice}; it was asked for at /v1/voice-changer/, which
-/// ElevenLabs has no such address for, until 2026-11-21: Matt, "it doesn't seem like my voice changer is working in a
-/// space voice chat") is speech to speech: it keeps how the recording was said
+/// ElevenLabs' Voice Changer (POST /v1/voice-changer/{voice}, as its reference gives it on 2026-11-21) is speech to speech: it keeps how the recording was said
 /// (its timing, rise and fall, feeling, a laugh or a whisper) and gives it back in the voice chosen. It wants the whole
 /// recording before it starts, so this is for voice messages, which are whole before they are sent; a live call would
 /// run a sentence behind.
@@ -398,7 +396,7 @@ class VoiceChanger extends ChangeNotifier {
         ..add(utf8.encode('--$boundary\r\nContent-Disposition: form-data; name="audio"; filename="$name"\r\nContent-Type: application/octet-stream\r\n\r\n'))
         ..add(bytes)
         ..add(utf8.encode('\r\n--$boundary--\r\n'));
-      final req = await client.postUrl(base.replace(path: '/v1/speech-to-speech/${v.id}', queryParameters: {'output_format': format}));
+      final req = await client.postUrl(base.replace(path: '/v1/voice-changer/${v.id}', queryParameters: {'output_format': format}));
       req.headers
         ..set('xi-api-key', _key)
         ..set(HttpHeaders.contentTypeHeader, 'multipart/form-data; boundary=$boundary');
@@ -449,7 +447,7 @@ class VoiceChanger extends ChangeNotifier {
         ..add(utf8.encode('--$boundary\r\nContent-Disposition: form-data; name="audio"; filename="phrase.wav"\r\nContent-Type: audio/wav\r\n\r\n'))
         ..add(wav)
         ..add(utf8.encode('\r\n--$boundary--\r\n'));
-      final req = await client.postUrl(base.replace(path: '/v1/speech-to-speech/${v.id}', queryParameters: {'output_format': 'pcm_$liveRate'}));
+      final req = await client.postUrl(base.replace(path: '/v1/voice-changer/${v.id}', queryParameters: {'output_format': 'pcm_$liveRate'}));
       req.headers
         ..set('xi-api-key', _key)
         ..set(HttpHeaders.contentTypeHeader, 'multipart/form-data; boundary=$boundary');

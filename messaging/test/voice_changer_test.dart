@@ -49,7 +49,7 @@ class _Eleven {
         res.write(jsonEncode({'detail': refusal}));
       } else if (req.uri.path == '/v2/voices') {
         res.write(jsonEncode({'voices': voices, 'has_more': false}));
-      } else if (req.uri.path.startsWith('/v1/speech-to-speech/')) {
+      } else if (req.uri.path.startsWith('/v1/voice-changer/')) {
         body = latin1.decode(bytes);
         upload = bytes;
         res.headers.contentType = ContentType('audio', 'mpeg');
@@ -111,7 +111,7 @@ void main() {
     expect(out, '${dir.path}/voice-20261120-101500-changed.mp3');
     expect(File(out).lengthSync(), 4000);
     expect(rec.existsSync(), isFalse, reason: 'the recording in the person\'s own voice is let go');
-    expect(eleven.asked, ['POST /v1/speech-to-speech/21m00Tcm4TlvDq8ikWAM?output_format=mp3_44100_64']);
+    expect(eleven.asked, ['POST /v1/voice-changer/21m00Tcm4TlvDq8ikWAM?output_format=mp3_44100_64']);
     expect(eleven.keys.last, 'sk_good_key_1234');
     expect(eleven.body, contains('name="model_id"\r\n\r\neleven_multilingual_sts_v2'));
     expect(eleven.body, contains('name="remove_background_noise"\r\n\r\ntrue'));
