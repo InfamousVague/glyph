@@ -10,6 +10,8 @@
 // - "encode": one voice's file as AAC in an .m4a, by Media Foundation's sink writer. The app puts the voices'
 //   files together into one MP4 itself (lib/voice/mp4_merge.dart), so nothing here relies on Media Foundation
 //   writing several sound tracks into one file.
+// _wfopen: the standard library's plain file opening, as voicefx does (_CRT_SECURE_NO_WARNINGS).
+#define _CRT_SECURE_NO_WARNINGS
 #include "call_recorder.h"
 
 #include <flutter/method_channel.h>

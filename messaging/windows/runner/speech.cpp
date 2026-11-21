@@ -11,6 +11,8 @@
 //
 // Where this Windows has no recogniser for dictation (some editions, or a language not installed), "available" says
 // false and the plugins say so, as on a phone without on-device recognition.
+// _wfopen: the standard library's plain file opening, as voicefx does (_CRT_SECURE_NO_WARNINGS).
+#define _CRT_SECURE_NO_WARNINGS
 #include "speech.h"
 
 #include <flutter/method_channel.h>
@@ -134,7 +136,7 @@ struct Dictation {
 
 std::string PhraseOf(ISpRecoResult* result) {
   wchar_t* text = nullptr;
-  if (FAILED(result->GetText(SP_GETWHOLEPHRASE, SP_GETWHOLEPHRASE, TRUE, &text, nullptr)) || !text) return std::string();
+  if (FAILED(result->GetText(static_cast<ULONG>(SP_GETWHOLEPHRASE), static_cast<ULONG>(SP_GETWHOLEPHRASE), TRUE, &text, nullptr)) || !text) return std::string();
   std::string out = Narrow(text);
   CoTaskMemFree(text);
   return out;
