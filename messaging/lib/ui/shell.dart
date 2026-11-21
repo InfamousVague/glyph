@@ -248,8 +248,25 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// The section of Settings whose page is in the pane, or null: the row Settings' list marks.
   final settingsSection = ValueNotifier<String?>(null);
 
-  /// How many conversations are archived, as the list last counted them: the number on the pill's Archive.
+  /// How many conversations are archived, as the list last counted them: said in the Archive ring's menu.
   final archived = ValueNotifier<int>(0);
+
+  /// How many archived texts are unread, as the list last counted them ([countArchivedUnread]). The number on the
+  /// Archive ring is these and the networks' archived chats that are unread ([_archiveBadge]): the count of what is
+  /// in the archive never fell when it was read (GMFB-14, @kevin: "I have notifications showing on my archive but I
+  /// have read all of the messages in the archive to try to clear it and nothing happens").
+  final archivedUnread = ValueNotifier<int>(0);
+
+  /// Counts the archived texts that are unread again; the list does as it loads, and so does marking them read.
+  Future<void> countArchivedUnread() async {
+    try {
+      final page = await Sms.instance.conversationsPage(archived: true);
+      archivedUnread.value = page.items.where((c) => c.unread).length;
+    } catch (_) {}
+  }
+
+  /// The number on the Archive ring: archived conversations with something unread, texts and networks' alike.
+  int get _archiveBadge => archivedUnread.value + Inbox.instance.ready.fold<int>(0, (n, net) => n + net.archivedChats.where((c) => c.unread > 0).length);
 
   bool _wide = false;
 
@@ -437,6 +454,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     _small.dispose();
     closed.dispose();
     archived.dispose();
+    archivedUnread.dispose();
     settingsSection.dispose();
     marketSection.dispose();
     super.dispose();
@@ -923,11 +941,11 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
 
   /// The rail (NavStyle.rail): Home, the circles, the app's places at its foot.
   Widget _rail() => ValueListenableBuilder<int>(
-        valueListenable: archived,
-        builder: (context, count, _) => ListenableBuilder(
-          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance, MarketState.instance, InstalledPlugins.instance]),
+        valueListenable: archivedUnread,
+        builder: (context, _, _) => ListenableBuilder(
+          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance, MarketState.instance, InstalledPlugins.instance, Inbox.instance.changes]),
           builder: (context, _) {
-            final rings = _appRings(count);
+            final rings = _appRings(_archiveBadge);
             return NavRail(
               circles: Circles.instance.all,
               openCircle: circleOpen ? _circleSeed : null,
@@ -1020,8 +1038,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
       }
     }
     if (!mounted) return;
-    // The lists read their conversations again.
+    // The lists read their conversations again, and the Archive ring counts what is still unread.
     closed.value++;
+    unawaited(countArchivedUnread());
     final n = unread.length + chats.length - failed;
     toast(
       context,
@@ -1044,9 +1063,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// The way round: a new chat, the messages, the contacts, the archive with how many are in it, Settings with how
   /// many watched for have joined (Settings › Friends joining).
   Widget _pill({required bool upright}) => ValueListenableBuilder<int>(
-        valueListenable: archived,
-        builder: (context, count, _) => ListenableBuilder(
-          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance, MarketState.instance, InstalledPlugins.instance]),
+        valueListenable: archivedUnread,
+        builder: (context, _, _) => ListenableBuilder(
+          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance, MarketState.instance, InstalledPlugins.instance, Inbox.instance.changes]),
           builder: (context, _) {
             // A circle in the list's place: its own dock, Home first (lib/ui/circles/circle_dock.dart).
             // Not where every page has the same navigation (NavStyle.unified): the app's own rings stay.
@@ -1065,7 +1084,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
             upright: upright,
             active: _activeRing,
             onSelect: _dockGo,
-            items: _appRings(count),
+            items: _appRings(_archiveBadge),
           );
           },
         ),
