@@ -19,6 +19,7 @@ import 'package:ghost_messaging/voice/voice.dart';
 ///
 ///     flutter test tool/net/updates_bot.dart --dart-define=DO=whoami
 ///     flutter test tool/net/updates_bot.dart --dart-define=DO=join --dart-define=LINK='https://gogho.st/join/#c.…'
+///     flutter test tool/net/updates_bot.dart --dart-define=DO=check   (whether SPACE is read-only and the bot an admin)
 ///     flutter test tool/net/updates_bot.dart --dart-define=DO=post --dart-define=SPACE=Updates --dart-define=TEXT_FILE=/path/words.txt
 ///
 /// Its key and the circle it is in are kept in ~/.config/mattssoftware/ghost-updates-bot.json, readable by this Mac's
@@ -107,9 +108,9 @@ void main() {
         stdout.writeln('ghost-updates-bot: joined "${circle.manifest.name}" (${circle.spaces.length} spaces: ${circle.spaces.map((s) => s.name).join(', ')})');
         return;
       }
-      if (doing == 'post') {
+      if (doing == 'post' || doing == 'check') {
         final words = textFile.isEmpty ? '' : File(textFile).readAsStringSync().trim();
-        if (words.isEmpty) fail('TEXT_FILE says nothing');
+        if (words.isEmpty && doing == 'post') fail('TEXT_FILE says nothing');
         final from = Circle.fromLink(saved['link'] as String? ?? '');
         if (from == null) fail('not in a circle yet: DO=join first');
         final (circle, room) = await _circle(route, from);
@@ -119,6 +120,9 @@ void main() {
         final ro = readOnlyRoomOf(circle.manifest, space);
         final isAdmin = circle.manifest.adminGrants.containsKey(keys.id) || circle.manifest.owner == NetCrypto.hex(keys.public);
         stdout.writeln('ghost-updates-bot: "${space.name}" is ${ro == null ? 'not read-only' : 'read-only'}; this bot is ${isAdmin ? 'an admin' : 'NOT an admin'}');
+        if (doing == 'check') return;
+        // A read-only space takes the owner's and admins' words alone: anything else the relay drops without a word.
+        if (ro != null && !isAdmin) fail('not an admin of ${circle.manifest.name} yet, so "${space.name}" would drop it');
         final chat = HangoutRoom(channel: circle.channelOf(space), route: route, name: botName, signer: KeysSigner(keys), store: MemoryHangoutStore());
         await chat.setReadOnly(ro);
         await chat.open();
