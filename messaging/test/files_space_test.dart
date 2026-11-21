@@ -404,6 +404,56 @@ void main() {
       expect(File('${dir.path}/Maya/queue.json').readAsStringSync(), '[]');
     });
 
+    // Matt, 2026-11-21: "I need a way to see partially uploaded files, the oddysey uploaded partially but then
+    // disconnected when I restarted the app it stopped uploading but kept the space reserved".
+    test('an upload left part way that no device can pick up is listed with how far it got, and removing it frees its room', () async {
+      final data = bytesOf(3 * 1000 * 1000, 4);
+      final sams = FilesStore.forTest(base: base, signer: sam, data: Directory('${dir.path}/Sam'), piece: 1);
+      stores.add(sams);
+      sams.upload(space, [fileOf('odyssey.mkv', data).path]);
+      await until(() => sams.transfers.isNotEmpty && sams.transfers.first.blob != null && sams.transfers.first.done > FileSeal.chunk);
+      final blob = sams.transfers.first.blob!;
+      await sams.clear();
+      // Its queue lost (a file sent from a chat is never on it; an app reinstalled loses it): nothing will pick it up.
+      File('${dir.path}/Sam/queue.json').deleteSync();
+      final a = device(maya, 'Maya'), b = device(sam, 'Sam');
+      await a.open(space);
+      await b.open(space);
+      final held = a.of(space).info!.used;
+      expect(held, greaterThanOrEqualTo(FileSeal.sealedSize(data.length)), reason: 'its room is held');
+      final part = a.unfinished(space).single;
+      expect(part.id, blob);
+      expect(part.by, sam.id);
+      expect(part.size, FileSeal.sealedSize(data.length));
+      expect(part.have, greaterThan(FileSeal.chunk));
+      expect(part.have, lessThan(part.size));
+      expect(b.unfinishedBy(space, b.unfinished(space).single), 'you');
+      expect(a.unfinishedBy(space, part), isNull, reason: 'Sam has listed nothing yet, so the list has no name for them');
+      // Whoever started it and the space's owner may let it go; the owner does.
+      expect(b.canRemoveUnfinished(space, part), isTrue);
+      expect(a.canRemoveUnfinished(space, part), isTrue);
+      expect(await a.removeUnfinished(space, part), isTrue);
+      expect(a.unfinished(space), isEmpty);
+      expect(a.of(space).info!.used, lessThan(held - FileSeal.sealedSize(data.length) + 1), reason: 'its room is free');
+      await b.of(space).refresh();
+      expect(b.unfinished(space), isEmpty);
+    });
+
+    test('an upload this device is still sending is its transfer, not an unfinished one', () async {
+      final data = bytesOf(3 * 1000 * 1000, 5);
+      final a = FilesStore.forTest(base: base, signer: maya, data: Directory('${dir.path}/Maya'), piece: 1);
+      stores.add(a);
+      a.upload(space, [fileOf('slow.bin', data).path]);
+      await until(() => a.transfers.isNotEmpty && a.transfers.first.blob != null && a.transfers.first.done > FileSeal.chunk);
+      await a.of(space).refresh();
+      expect(a.of(space).info!.parts, hasLength(1), reason: 'the relay lists it');
+      expect(a.unfinished(space), isEmpty, reason: 'this device is sending it');
+      // Let it finish before the relay stops, or the send in flight is cut off under the test.
+      await until(() => a.of(space).files.isNotEmpty, reason: '${a.transfers.firstOrNull?.error}');
+      await a.of(space).refresh();
+      expect(a.of(space).info!.parts, isEmpty, reason: 'finished: no longer listed');
+    });
+
     test('rename, folders, move and delete reach the other device; only the uploader or owner may', () async {
       final a = device(maya, 'Maya'), b = device(sam, 'Sam');
       await b.open(space);

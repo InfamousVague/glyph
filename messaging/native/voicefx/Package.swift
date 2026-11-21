@@ -12,14 +12,15 @@ var targets: [Target] = [
         name: "VoiceFxC",
         dependencies: deepFilter ? ["VoiceFxDeepFilter"] : [],
         path: ".",
-        exclude: ["test", "README.md", "rnnoise/COPYING", "deepfilter"],
-        sources: ["voicefx.c", "rnnoise/src"],
+        exclude: ["test", "README.md", "rnnoise/COPYING", "deepfilter", "signalsmith/LICENSE-stretch.txt", "signalsmith/LICENSE-linear.txt", "signalsmith/README.md"],
+        sources: ["voicefx.c", "stretch.cpp", "rnnoise/src"],
         publicHeadersPath: "include",
         cSettings: [
             .headerSearchPath("rnnoise/include"),
             .headerSearchPath("rnnoise/src"),
             .unsafeFlags(["-O2"]),
         ] + (deepFilter ? [.define("VOICEFX_WITH_DEEPFILTER")] : []),
+        cxxSettings: [.headerSearchPath("."), .unsafeFlags(["-O2"])],
         linkerSettings: deepFilter ? [.linkedFramework("Security"), .linkedFramework("CoreFoundation")] : []
     )
 ]
@@ -31,5 +32,6 @@ let package = Package(
     name: "VoiceFx",
     platforms: [.macOS("10.15"), .iOS("16.0")],
     products: [.library(name: "VoiceFxC", targets: ["VoiceFxC"])],
-    targets: targets
+    targets: targets,
+    cxxLanguageStandard: .cxx14
 )

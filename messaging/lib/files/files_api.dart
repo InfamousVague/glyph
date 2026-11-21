@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show immutable;
+
 import '../net/crypto.dart';
 import '../net/hub_carrier.dart' show NetSigner;
 
@@ -181,8 +183,29 @@ class FilesApi {
 }
 
 /// What the relay says of a space: how much it holds and may hold, the largest file, and the log's last number.
+/// An upload the relay holds part of and is not finished (relay/lib/files.dart `_info`'s `parts`): its blob's id, the
+/// install that started it, its sealed size, how much is there, and when it last moved. Its room is held until it is
+/// finished, removed, or let go by the relay a day after its last piece.
+@immutable
+class FilesPart {
+  const FilesPart({required this.id, required this.by, required this.size, required this.have, required this.at});
+  final String id, by;
+  final int size, have;
+  final DateTime at;
+
+  static FilesPart? from(Object? j) {
+    if (j is! Map || j['id'] is! String || j['by'] is! String || j['z'] is! num) return null;
+    return FilesPart(id: j['id'] as String, by: j['by'] as String, size: (j['z'] as num).toInt(), have: (j['h'] as num?)?.toInt() ?? 0, at: DateTime.fromMillisecondsSinceEpoch((j['at'] as num?)?.toInt() ?? 0));
+  }
+
+  Map<String, Object?> toJson() => {'id': id, 'by': by, 'z': size, 'h': have, 'at': at.millisecondsSinceEpoch};
+}
+
 class FilesInfo {
-  const FilesInfo({this.seq = 0, this.used = 0, this.quota = 0, this.maxFile = 0, this.files = 0, this.owner = '', this.rv = 0, this.cas = false});
+  const FilesInfo({this.seq = 0, this.used = 0, this.quota = 0, this.maxFile = 0, this.files = 0, this.owner = '', this.rv = 0, this.cas = false, this.parts = const []});
+
+  /// Uploads not finished on the relay (a relay from before 2026-11-21 says none).
+  final List<FilesPart> parts;
   final int seq, used, quota, maxFile, files;
   final String owner;
 
@@ -201,6 +224,7 @@ class FilesInfo {
         owner: m['owner'] is String ? m['owner'] as String : '',
         rv: (m['rv'] as num?)?.toInt() ?? 0,
         cas: m['cas'] == 1,
+        parts: [for (final p in (m['parts'] is List ? m['parts'] as List : const [])) ?FilesPart.from(p)],
       );
-  Map<String, Object?> toJson() => {'seq': seq, 'used': used, 'quota': quota, 'maxFile': maxFile, 'files': files};
+  Map<String, Object?> toJson() => {'seq': seq, 'used': used, 'quota': quota, 'maxFile': maxFile, 'files': files, if (parts.isNotEmpty) 'parts': [for (final p in parts) p.toJson()]};
 }
