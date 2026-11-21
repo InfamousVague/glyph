@@ -39,6 +39,12 @@
         <p class="who"><span id="who"></span></p>
         <ul id="services"></ul>
         <button id="syncall" class="go">Capture &amp; sync all</button>
+        <div id="google" class="svc google">
+          <div class="svc-top"><span class="svc-name">Google Messages (RCS)</span><span id="google-badge" class="badge off">Not set up</span></div>
+          <p class="hint">Signs in to Google in a private window and hands that sign-in to your devices, so setting up Google Messages in Ghost is one tap there (and the emoji on your phone). Nothing is read from this browser's own Google sign-in.</p>
+          <p id="google-incognito" class="hint warn" hidden>First, in chrome://extensions › Ghost Messaging keys › Details, turn on <b>Allow in Incognito</b>.</p>
+          <div class="svc-row"><button id="google-setup">Set up Google Messages</button><button id="google-forget" hidden>Stop syncing</button></div>
+        </div>
       </section>
 
       <p id="message" class="message" hidden></p>

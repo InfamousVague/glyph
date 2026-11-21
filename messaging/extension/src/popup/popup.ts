@@ -11,6 +11,7 @@ interface ServiceStatus {
 }
 interface Status {
   signedIn: boolean;
+  google?: { synced: boolean; syncedAt: number | null; open: boolean; incognito: boolean };
   address: string | null;
   username: string | null;
   services: ServiceStatus[];
@@ -69,6 +70,16 @@ function render(s: Status): void {
     li.innerHTML = `<div class="svc-top"><span class="svc-name">${svc.name}</span>${badge}</div><div class="svc-row">${actions}</div>`;
     list.appendChild(li);
   }
+  // Google Messages, set up in a private window (GMFB-10).
+  const g = s.google;
+  if (g) {
+    const badge = $('google-badge');
+    badge.textContent = g.synced ? `Synced · ${when(g.syncedAt)}` : g.open ? 'Waiting for sign-in' : 'Not set up';
+    badge.className = `badge${g.synced ? ' ok' : g.open ? '' : ' off'}`;
+    $('google-incognito').hidden = g.incognito;
+    ($('google-setup') as HTMLButtonElement).textContent = g.synced ? 'Set up again' : 'Set up Google Messages';
+    ($('google-forget') as HTMLButtonElement).hidden = !g.synced;
+  }
   list.querySelectorAll<HTMLButtonElement>('[data-sync]').forEach((b) =>
     b.addEventListener('click', () => act(() => send({ type: 'sync', serviceId: b.dataset.sync }), 'Synced.')),
   );
@@ -121,6 +132,8 @@ $('form-words').addEventListener('submit', (e) => {
 });
 
 $('syncall').addEventListener('click', () => act(() => send({ type: 'sync' }), 'Captured and synced.'));
+$('google-setup').addEventListener('click', () => act(() => send({ type: 'googleSetup' })));
+$('google-forget').addEventListener('click', () => act(() => send({ type: 'forget', serviceId: 'gmessages' }), 'Stopped syncing Google Messages.'));
 $('signout').addEventListener('click', () => act(() => send({ type: 'signOut' })));
 
-act(() => send({ type: 'status' }));
+act(() => send({ type: 'status-note' }));

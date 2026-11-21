@@ -54,6 +54,23 @@ class CurlSync {
     }
   }
 
+  /// The synced cookies of [serviceId] as the extension last kept them, and when; null where there are none. Google
+  /// Messages' ('gmessages', GMFB-10) are read here rather than applied: pairing makes Google ask for an emoji on the
+  /// phone, so it is started by the person, from Google Messages' setup (lib/gm/google_signin_flow.dart).
+  Future<({Map<String, String> cookies, int at})?> entryOf(String serviceId) async {
+    try {
+      final kept = await Me.instance.curlKept();
+      if (kept == null || kept['v'] != _version) return null;
+      final entry = (kept['entries'] as Map? ?? const {})[serviceId];
+      if (entry is! Map) return null;
+      final cookies = (entry['cookies'] as Map?)?.cast<String, Object?>();
+      if (cookies == null || cookies.isEmpty) return null;
+      return (cookies: {for (final c in cookies.entries) c.key: '${c.value}'}, at: (entry['at'] as num?)?.toInt() ?? 0);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _apply(AppState app, String serviceId, Map<String, String> cookies, int at) async {
     final n = Inbox.instance.named(serviceId);
     if (n is! AccountHelper) return; // only cookie-login helpers can take cURL entries

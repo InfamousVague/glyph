@@ -5,7 +5,7 @@
 import { GhostAccount, NeedsCode, type CaptureEntry } from './ghost/account.ts';
 import { capture } from './ghost/cookies.ts';
 import { Keeper } from './ghost/keeper.ts';
-import { SERVICES, serviceById } from './ghost/services.ts';
+import { GOOGLE, GOOGLE_KEEP, SERVICES, serviceById } from './ghost/services.ts';
 
 type Reply = Record<string, unknown>;
 
@@ -35,7 +35,8 @@ async function status(): Promise<Reply> {
       return { id: s.id, name: s.name, signInUrl: s.signInUrl, ready: cap.ready, missing: cap.missing, synced: !!synced[s.id], syncedAt: synced[s.id]?.at ?? null };
     }),
   );
-  return { signedIn: !!acct, address: acct?.address ?? null, username: acct?.username ?? null, services };
+  const google = { synced: !!synced[GOOGLE.id], syncedAt: synced[GOOGLE.id]?.at ?? null, open: google_ !== null, incognito: await chrome.extension.isAllowedIncognitoAccess() };
+  return { signedIn: !!acct, address: acct?.address ?? null, username: acct?.username ?? null, services, google };
 }
 
 /** Captures the ready services (or just `only`) and syncs them. Returns the updated status. */
@@ -107,6 +108,60 @@ chrome.cookies.onChanged.addListener((info) => {
   timer = setTimeout(() => void autoSync(), 4000);
 });
 
+// --- Google Messages, in a private window (GMFB-10) ------------------------------------------------------------------
+
+/** The private window opened to sign in to Google, and its cookie store: what the Google capture reads, and only it. */
+let google_: { windowId: number; storeId: string } | null = null;
+let googleTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Opens Google's sign-in in a private window; its cookies are captured once it's signed in ([googleCapture]). */
+async function googleSetup(): Promise<Reply> {
+  const acct = await current();
+  if (!acct) return { error: 'Sign in to your Ghost account first.' };
+  if (!(await chrome.extension.isAllowedIncognitoAccess())) {
+    return { ...(await status()), error: 'Chrome needs to let the extension into private windows first: open chrome://extensions, choose Details on Ghost Messaging keys, and turn on Allow in Incognito. Then try again.' };
+  }
+  const win = await chrome.windows.create({ url: GOOGLE.signInUrl, incognito: true, focused: true });
+  if (!win) return { ...(await status()), error: 'The private window could not be opened.' };
+  const tabId = win.tabs?.[0]?.id;
+  const stores = await chrome.cookies.getAllCookieStores();
+  const store = stores.find((st) => tabId !== undefined && st.tabIds.includes(tabId)) ?? stores.find((st) => st.id !== '0');
+  if (win.id === undefined || !store) return { ...(await status()), error: 'The private window could not be opened.' };
+  google_ = { windowId: win.id, storeId: store.id };
+  return { ...(await status()), note: 'Sign in to the Google account your Google Messages uses, in the private window. It closes by itself once Ghost has the sign-in.' };
+}
+
+/** Once the private window is signed in to Google: its sign-in sealed and synced, and the window closed, so that
+ * sign-in is left alone (a private window's ends when it closes, and nothing changes it after). */
+async function googleCapture(): Promise<void> {
+  const g = google_;
+  const acct = await current();
+  if (!g || !acct) return;
+  const cap = await capture(GOOGLE, g.storeId);
+  if (!cap.ready) return;
+  const cookies: Record<string, string> = {};
+  for (const name of GOOGLE_KEEP) if (cap.cookies[name]) cookies[name] = cap.cookies[name];
+  try {
+    await acct.sync({ [GOOGLE.id]: { cookies, at: Date.now(), from: FROM } });
+    google_ = null;
+    await chrome.windows.remove(g.windowId).catch(() => undefined);
+    await chrome.storage.local.set({ 'google-note': 'Google Messages is ready to set up in Ghost: open Settings › Google Messages on a device and choose "Use the Google sign-in from your browser".' });
+  } catch {
+    // Offline: the next cookie change in the window tries again.
+  }
+}
+
+chrome.cookies.onChanged.addListener((info) => {
+  const g = google_;
+  if (!g || info.cookie.storeId !== g.storeId || !info.cookie.domain.replace(/^\./, '').endsWith('google.com')) return;
+  clearTimeout(googleTimer);
+  googleTimer = setTimeout(() => void googleCapture(), 2500);
+});
+
+chrome.windows.onRemoved.addListener((id) => {
+  if (google_?.windowId === id) google_ = null;
+});
+
 // --- messages from the popup ----------------------------------------------------------------------------------------
 
 chrome.runtime.onMessage.addListener((msg: { type: string; [k: string]: unknown }, _sender, sendResponse) => {
@@ -144,6 +199,13 @@ chrome.runtime.onMessage.addListener((msg: { type: string; [k: string]: unknown 
         return { signedIn: false };
       case 'sync':
         return captureAndSync(msg.serviceId as string | undefined);
+      case 'googleSetup':
+        return googleSetup();
+      case 'status-note': {
+        const note = (await chrome.storage.local.get('google-note'))['google-note'] as string | undefined;
+        if (note) await chrome.storage.local.remove('google-note');
+        return { ...(await status()), note };
+      }
       case 'forget': {
         const acct = await current();
         if (acct && serviceById(msg.serviceId as string)) {

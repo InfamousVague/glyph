@@ -37,4 +37,24 @@ export const SERVICES: Service[] = [
   },
 ];
 
-export const serviceById = (id: string): Service | undefined => SERVICES.find((s) => s.id === id);
+/**
+ * Google Messages (RCS), set up by Google account (GMFB-10, @kevin: "Getting rcs is annoying due to the workaround we
+ * are using so maybe making a chrome extension to automate is a better solution"). The app's own Google sign-in asks
+ * for a private window, signing in to Google, "Copy as cURL" and a paste (messaging/lib/gm/google_signin.dart); this
+ * does the window and the copy. Kept out of [SERVICES] on purpose: it is never read from the browser's own profile
+ * (Google keeps changing that sign-in, and a pairing made from it stops working), only from the private window the
+ * popup opens for it, which is closed once captured so the sign-in stays as it was. The names are the app's
+ * googleCookieNames; the address is its googleSignInUrl.
+ */
+export const GOOGLE: Service = {
+  id: 'gmessages',
+  name: 'Google Messages (RCS)',
+  domains: ['.google.com'],
+  needed: ['SID', 'HSID', 'SSID', 'OSID', 'APISID', 'SAPISID'],
+  signInUrl: 'https://accounts.google.com/AccountChooser?continue=https://messages.google.com/web/config',
+};
+
+/** The cookies of [GOOGLE] the app takes; the rest of google.com's are left out of what is synced. */
+export const GOOGLE_KEEP = ['SID', 'HSID', 'SSID', 'OSID', 'APISID', 'SAPISID', '__Secure-1PSIDTS'];
+
+export const serviceById = (id: string): Service | undefined => (id === GOOGLE.id ? GOOGLE : SERVICES.find((s) => s.id === id));

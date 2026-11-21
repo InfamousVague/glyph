@@ -12,12 +12,12 @@ export interface Capture {
 }
 
 /** Every cookie set for a service's domains, name -> value. Later domains win a name clash (none is expected). */
-export async function readCookies(service: Service): Promise<Record<string, string>> {
+export async function readCookies(service: Service, storeId?: string): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   for (const domain of service.domains) {
     let got: chrome.cookies.Cookie[] = [];
     try {
-      got = await chrome.cookies.getAll({ domain });
+      got = await chrome.cookies.getAll(storeId ? { domain, storeId } : { domain });
     } catch {
       got = [];
     }
@@ -26,9 +26,9 @@ export async function readCookies(service: Service): Promise<Record<string, stri
   return out;
 }
 
-/** What a capture of `service` holds now. */
-export async function capture(service: Service): Promise<Capture> {
-  const cookies = await readCookies(service);
+/** What a capture of `service` holds now; from the cookie store [storeId] (a private window's) where given. */
+export async function capture(service: Service, storeId?: string): Promise<Capture> {
+  const cookies = await readCookies(service, storeId);
   const missing = service.needed.filter((n) => !(n in cookies) || cookies[n] === '');
   return { cookies, ready: missing.length === 0, missing };
 }

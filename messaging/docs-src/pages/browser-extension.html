@@ -1,6 +1,6 @@
 <p>Messenger and Instagram have no way in for other apps, so Ghost signs in to them with your browser's own sign-in. The <b>Ghost Messaging keys</b> extension does that part for you: sign in to Messenger or Instagram as you always do, in Chrome, and every device signed in to your Ghost account is signed in too. No copying anything from one device to the next.</p>
 
-<p><b><a href="/ghost-messaging-keys.zip" download>Download the extension</a></b> (for Chrome and browsers built on it; version 0.1.1, 43 KB)</p>
+<p><b><a href="/ghost-messaging-keys.zip" download>Download the extension</a></b> (for Chrome and browsers built on it; version 0.1.2, 45 KB)</p>
 
 <h2 id="install">Add it to Chrome</h2>
 <p>It isn't in the Chrome Web Store yet, so Chrome adds it from the folder you download. Edge, Brave and other browsers built on Chrome take it the same way.</p>
@@ -23,9 +23,24 @@
 <p>Sign in to <b>Messenger</b> (messenger.com or facebook.com) or <b>Instagram</b> in that browser. A few seconds later the extension seals that sign-in and hands it to Ghost's relay. Each of your devices picks it up, switches on that plugin (<ui>Settings › Connections › Plugins</ui>) and signs in. When the sites refresh your sign-in, it's sent again by itself.</p>
 <p>To stop, sign out of the extension or remove it from Chrome. Your devices keep the sign-ins they already have until you sign out of those plugins in Ghost.</p>
 
+<h2 id="google-messages">Google Messages (RCS)</h2>
+<p>Setting up Google Messages by Google account normally means a private window, signing in to Google, and copying a request out of the browser's developer tools. The extension does those for you:</p>
+<steps>
+<step title="Let it into private windows">
+<p>In <code>chrome://extensions</code>, open <ui>Details</ui> on Ghost Messaging keys and turn on <ui>Allow in Incognito</ui>. It only ever opens its own private window, for this.</p>
+</step>
+<step title="Set up Google Messages">
+<p>In the extension, choose <ui>Set up Google Messages</ui>. A private window opens on Google's sign-in: sign in with the Google account your Google Messages uses. The window closes by itself once Ghost has the sign-in, which keeps it as it was.</p>
+</step>
+<step title="Pair in Ghost">
+<p>On the device you want it on, open Google Messages' setup (<ui>Settings › Google Messages</ui>) and choose <ui>Use the Google sign-in from your browser</ui>. Google Messages on your phone asks you to tap an emoji: tap the one Ghost shows. That last tap is Google's, and can't be skipped.</p>
+</step>
+</steps>
+<p>The extension never reads this browser's own Google sign-in: only the private window's, which nothing else uses.</p>
+
 <h2 id="privacy">What it can and can't see</h2>
 <ul>
-<li>It reads only the sign-in cookies of Messenger and Instagram: nothing from other sites, and nothing from the pages themselves.</li>
+<li>It reads only the sign-in cookies of Messenger and Instagram, and Google's from the private window it opens when you set up Google Messages: nothing from other sites, and nothing from the pages themselves.</li>
 <li>What it sends is <b>sealed</b> with a key made from your account's recovery words. Ghost's relay keeps one sealed copy for your account and can't open it.</li>
 <li>Your password and recovery words are used the moment you type them and never kept. Unless you tick <ui>Stay signed in</ui>, the extension forgets your account when the browser closes.</li>
 <li>These are your own sign-ins to those services, used the way their websites use them. They don't allow other apps officially, and may sign you out or limit your account.</li>
