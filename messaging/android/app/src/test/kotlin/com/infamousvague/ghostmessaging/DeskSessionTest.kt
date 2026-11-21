@@ -62,6 +62,7 @@ class DeskSessionTest {
         val files = ArrayList<DeskFile>()
         override fun deleteMessage(kind: String, id: Long) { did += "deleteMessage $kind $id" }
         override fun voice(what: Map<String, Any?>): Any? = null
+        override fun rcs(what: Map<String, Any?>): Any? = null
         override fun telegram(what: Map<String, Any?>): Any? = null
         override fun deleteThreads(threads: List<Long>): Int { did += "deleteThreads $threads"; return threads.size }
         override fun editMessage(kind: String, id: Long, body: String) { did += "editMessage $kind $id $body" }

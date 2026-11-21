@@ -106,7 +106,7 @@ ${DOMAIN} {
 	# (60 s for the whole of one, 30 s without a byte), for the same reason. 10MiB, not 10MB: Caddy reads MB as 1,000,000 bytes, and
 	# the relay holds Files' pieces and the market's bodies to 10 << 20 = 10,485,760 bytes, which a body between the two
 	# passed there and was cut here (review, 2026-11-20).
-	@files path /files /files/* /feedback /market /market/*
+	@files path /files /files/* /feedback /bounty /market /market/*
 	handle @files {
 		request_body {
 			max_size 10MiB
@@ -170,7 +170,7 @@ ${OLD} {
 		reverse_proxy 127.0.0.1:18787
 	}
 	# Files, feedback and the Marketplace (relay/lib/market.dart), as above; a body that stops coming is the market's to end.
-	@files path /files /files/* /feedback /market /market/*
+	@files path /files /files/* /feedback /bounty /market /market/*
 	handle @files {
 		request_body {
 			max_size 10MiB

@@ -43,6 +43,7 @@ import 'gm_web.dart';
 import 'updates.dart';
 import '../people.dart';
 import '../plugins/pack/pack.dart' show InstalledPlugins;
+import '../plugins/plugin_sync.dart' show PluginSync;
 import 'own_calls.dart';
 import '../friends/buddies.dart';
 import '../me/me.dart';
@@ -179,6 +180,9 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // folder beside everything else this computer keeps: GHOST_DESK_DIR's when it is set, as the store's is.
   InstalledPlugins.instance = InstalledPlugins(root: Directory('${store.dir.path}${Platform.pathSeparator}plugins'));
   await InstalledPlugins.instance.load(state, appVersion: appVersion);
+  // Which plugins are on, synced across the Ghost account's devices (GMFB-9: lib/plugins/plugin_sync.dart): the
+  // person's switches heard from here on; the account's list is met once the relay is reached.
+  PluginSync.instance.start(state);
   // Loaded: the window its own size again, and the app in it; on its own with no username yet, the small window for
   // signing up or in (lib/desktop/window_size.dart; Matt, 2026-11-20: "make the sign up / sign in window smaller").
   await leaveSplashWindow(compact: alone && state.choice('me_username', '').isEmpty);

@@ -97,6 +97,14 @@ class Handles {
   final Map<String, String> _kept = {};
   static const maxKept = 256 * 1024;
 
+  /// The third-party sign-in cookies ("cURL entries") a Chrome extension captures and the app's devices sign in with
+  /// (Matt, 2026-11-21: "make a chrome plugin ... getting all the curl keys ... sync the cURL entries across all
+  /// devices so we don't need to login to things like instagram on every device"). Sealed with a key only the
+  /// account's devices have (derived from the backup's kept_key); this server can't read it. One blob per identity,
+  /// so all of an account's devices share the one slot, [maxCurl] at most.
+  final Map<String, String> _curl = {};
+  static const maxCurl = 128 * 1024;
+
   /// The public key each connected install proved itself with (hub.dart), for the username it claims.
   final Map<String, String> _keys = {};
 
@@ -208,6 +216,16 @@ class Handles {
   static const soulsAtOnce = 100000;
 
   int soulsOf(String id) => _souls[id] ?? 0;
+
+  /// A bounty's souls, given by the bounty key (bounty.dart) as the admin page gives them: added, kept, logged with why
+  /// (`by: bounty`), and told to them where they are connected. Their total after.
+  int giveBounty(String to, int n, String why) {
+    _souls[to] = soulsOf(to) + n;
+    _grant(to, {'souls': n, 'why': why.length > 200 ? why.substring(0, 200) : why, 'by': 'bounty'});
+    _changed();
+    _here[to]?.call(_soulsMessage(to, got: n, why: why));
+    return soulsOf(to);
+  }
   List<String> specialOf(String id) => List.unmodifiable(_special[id] ?? const <String>[]);
 
   /// Whether [user] and [pass] are the admin's, as [HandlesConfig.adminHash] keeps the password: `salt:hash`, the
@@ -465,6 +483,7 @@ class Handles {
         (all['pending'] as Map? ?? const {}).forEach((id, keys) => _pending[id as String] = (keys as List).cast<String>().toList());
         (all['names'] as Map? ?? const {}).forEach((k, v) => _names[k as String] = (v as Map).cast<String, String>());
         (all['kept'] as Map? ?? const {}).forEach((id, blob) => _kept[id as String] = blob as String);
+        (all['curl'] as Map? ?? const {}).forEach((id, blob) => _curl[id as String] = blob as String);
         (all['shown'] as Map? ?? const {}).forEach((k, name) => _shown[k as String] = name as String);
         (all['was'] as Map? ?? const {}).forEach((id, names) => _was[id as String] = [for (final n in names as List) '$n']);
         (all['souls'] as Map? ?? const {}).forEach((id, n) => _souls[id as String] = (n as num).toInt());
@@ -510,6 +529,7 @@ class Handles {
         'pending': _pending,
         'names': _names,
         'kept': _kept,
+        'curl': _curl,
         'shown': _shown,
         'was': _was,
         'souls': _souls,
@@ -641,6 +661,18 @@ class Handles {
           tell({'dir': 'keep', 'ok': true});
         case 'kept':
           tell({'dir': 'kept', 'blob': _kept[id]});
+        case 'curl-keep':
+          final blob = said['blob'];
+          if (blob is! String || blob.length > maxCurl) return err('That is more than can be kept.');
+          if (blob.isEmpty) {
+            _curl.remove(id);
+          } else {
+            _curl[id] = blob;
+          }
+          _changed();
+          tell({'dir': 'curl-keep', 'ok': true});
+        case 'curl-kept':
+          tell({'dir': 'curl-kept', 'blob': _curl[id]});
         case 'name':
           // Whether this install has a username here; the app keeps the words, this server only their hash.
           final mine = _nameOf[id];

@@ -21,9 +21,11 @@ import 'me/me.dart';
 import 'accent.dart';
 import 'summaries.dart';
 import 'app_state.dart';
+import 'inbox/curl_sync.dart';
 import 'kept_lists.dart';
 import 'looks.dart';
 import 'backgrounds.dart';
+import 'bubble.dart';
 import 'desktop/main.dart';
 import 'desktop/store.dart' show DeskStore;
 import 'standalone/overlay.dart';
@@ -36,12 +38,14 @@ import 'net/net.dart';
 import 'people.dart';
 import 'plugins/pack/pack.dart' show InstalledPlugins;
 import 'plugins/plugin.dart' show MessageFacts;
+import 'plugins/plugin_sync.dart' show PluginSync;
 import 'voice/channels.dart';
 import 'voice/mention_alerts.dart';
 import 'voice/discord.dart';
 import 'voice/space_groups.dart';
 import 'sounds.dart';
 import 'keys.dart';
+import 'gm/rcs_share.dart';
 import 'sms.dart';
 import 'ui/circles/circle_invite_card.dart' show openCircleLink;
 import 'ui/common.dart' show toast;
@@ -111,6 +115,7 @@ Future<void> main() async {
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   final state = AppState();
   KeptLists.instance.app = state;
+  CurlSync.instance.app = state;
   // The stylesheets, the person's choices and the wallpaper's colours (for a chat background and bubbles that follow
   // the phone) are asked for together: none waits on another.
   final loaded = await Future.wait<Object?>([
@@ -129,6 +134,9 @@ Future<void> main() async {
   // to develop and submit their own plugins to our plugin marketplace"): read from this phone's folder and each checked
   // again before any screen or the API asks the registry. At most three seconds; a slower disk finishes after.
   await InstalledPlugins.instance.load(state, appVersion: appVersion);
+  // Which plugins are on, synced across the Ghost account's devices (GMFB-9: lib/plugins/plugin_sync.dart): the
+  // person's switches heard from here on; the account's list is met once the relay is reached.
+  PluginSync.instance.start(state);
   // The app's API (lib/api), each way in started where Settings › API has it on (Matt, 2026-11-17: "build an entire API
   // that we can use to interact with every aspect of the app").
   Api.instance.registerAll(appMethods(state));
@@ -136,6 +144,11 @@ Future<void> main() async {
   unawaited(ApiRemote.instance.apply(state));
   runApp(GhostMessagingApp(sheet: sheet, state: state, accents: accents));
 }
+
+/// A conversation's bubble on the side of the screen (android BubbleActivity.kt; GMFB-8): an engine of its own, started
+/// here with the conversation's thread, showing that conversation and nothing around it (lib/bubble.dart).
+@pragma('vm:entry-point')
+Future<void> bubbleMain(List<String> args) => runBubble(args);
 
 final _navigator = GlobalKey<NavigatorState>();
 
@@ -186,9 +199,13 @@ GlacierTypography _typography(String emoji) {
 }
 
 class GhostMessagingApp extends StatelessWidget {
-  const GhostMessagingApp({super.key, required this.sheet, required this.state, this.accents});
+  const GhostMessagingApp({super.key, required this.sheet, required this.state, this.accents, this.home});
   final TokenSheet sheet;
   final AppState state;
+
+  /// What the app shows: the walkthrough, then the conversations ([_Home]), where not given. A conversation's bubble
+  /// gives its one conversation (lib/bubble.dart), in the same look and choices.
+  final Widget? home;
 
   /// The stylesheets with the bubble colour chosen everywhere as the accent (lib/accent.dart); [sheet] alone where
   /// not given.
@@ -220,7 +237,7 @@ class GhostMessagingApp extends StatelessWidget {
               child: InkOverrides(child: _SystemBars(child: GlacierToastProvider(child: child!))),
             ),
           ),
-          home: const _Home(),
+          home: home ?? const _Home(),
         ),
       ),
     );
@@ -360,6 +377,8 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       Sms.answer('handover', answerHandover);
       // A paired computer's voice channels are the phone's (lib/voice/channels.dart).
       Sms.answer('voice', Voice.instance.answerDesk);
+      // And how RCS stands here, for a paired computer to say so (lib/gm/rcs_share.dart, GMFB-11).
+      Sms.answer('rcs', (_) => RcsShare.answer(app));
       // And its Telegram approves a paired computer's sign-in (lib/inbox/telegram.dart).
       Sms.answer('telegram', (args) async {
         final tg = Inbox.instance.named('telegram');

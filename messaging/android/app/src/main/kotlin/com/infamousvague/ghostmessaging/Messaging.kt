@@ -26,16 +26,22 @@ object Bus {
 
     /** The choices the screen reads (the "ui" preferences) were changed from this side: a background that arrived. */
     @Volatile var prefsListener: (() -> Unit)? = null
+    /**
+     * Conversations' bubbles (BubbleActivity, GMFB-8), each an engine of its own beside the app's: told the same as
+     * [listener] and [prefsListener], which stay the app's.
+     */
+    val others = java.util.concurrent.CopyOnWriteArrayList<(Long) -> Unit>()
+    val prefsOthers = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
     private val main = Handler(Looper.getMainLooper())
     fun changed(thread: Long) {
-        main.post { listener?.invoke(thread) }
+        main.post { listener?.invoke(thread); for (o in others) o(thread) }
         // And the computers paired with this phone that are connected now (Desk.kt).
         Desk.changed(thread)
     }
 
     /** For the phone's own screen alone: something a paired computer did that it need not be told back. */
-    fun changedOnPhone(thread: Long) { main.post { listener?.invoke(thread) } }
-    fun prefsChanged() { main.post { prefsListener?.invoke() } }
+    fun changedOnPhone(thread: Long) { main.post { listener?.invoke(thread); for (o in others) o(thread) } }
+    fun prefsChanged() { main.post { prefsListener?.invoke(); for (o in prefsOthers) o() } }
 }
 
 /** Mutable where the system adds its result extras to the intent it sends back (Android 12 asks that it be said). */

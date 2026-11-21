@@ -333,7 +333,7 @@ class GmChannel {
 }
 
 class SmsStatus {
-  const SmsStatus({required this.isDefault, required this.contacts, required this.notifications, required this.phone, this.gmInstalled = false, this.bridge = false, this.sms = false, this.gmDefault = false});
+  const SmsStatus({required this.isDefault, required this.contacts, required this.notifications, required this.phone, this.gmInstalled = false, this.bridge = false, this.sms = false, this.gmDefault = false, this.bubbles});
   final bool isDefault;
   final bool contacts;
   final bool notifications;
@@ -347,6 +347,10 @@ class SmsStatus {
 
   /// Google Messages is the default SMS app now (RCS works only there).
   final bool gmDefault;
+
+  /// Android's own setting for the app's conversation bubbles (android Bubbles.kt, GMFB-8): 'all', 'selected' (the
+  /// conversations the person chose), 'none', or null where the phone has none (before Android 11, or a computer).
+  final String? bubbles;
 
   /// Ghost beside Google Messages, not the default: its RCS chats come through its notifications.
   bool get beside => !isDefault && bridge && sms;
@@ -363,6 +367,7 @@ class SmsStatus {
         bridge: m['bridge'] == true,
         sms: m['sms'] == true,
         gmDefault: m['gmDefault'] == true,
+        bubbles: m['bubbles'] is String ? m['bubbles'] as String : null,
       );
 }
 
@@ -1088,6 +1093,13 @@ class Sms {
   Future<List<Person>> blockedNumbers() async => [for (final m in (await _calls.invokeMethod<List>('blockedNumbers')) ?? const []) Person.from(m as Map)];
   Future<void> notificationSettings() => _calls.invokeMethod('notificationSettings');
 
+  /// Android's own page for the app's bubbles, which decides which conversations may bubble (Settings ›
+  /// Notifications › Bubbles; android Bubbles.kt).
+  Future<void> bubbleSettings() => _calls.invokeMethod('bubbleSettings');
+
+  /// From a conversation's bubble (lib/bubble.dart): the whole app, opened on [thread].
+  Future<void> openInApp(int thread) => _calls.invokeMethod('openInApp', {'thread': thread});
+
   /// Opens the calendar's new event with [title] at [begin] filled in (lib/plugins/actions.dart); false where the
   /// phone has no calendar to take it, or on a computer.
   Future<bool> addEvent({required String title, required DateTime begin, bool allDay = false, String notes = ''}) async {
@@ -1410,6 +1422,9 @@ class Sms {
   /// telegram.dart answerComputer; android DartAsk "telegram").
   Future<Map<String, dynamic>> telegram(Map<String, Object?> what) async =>
       Map<String, dynamic>.from((await _calls.invokeMethod<Map>('telegram', {'what': what})) ?? const {});
+
+  /// On a computer: how RCS stands on its phone (lib/gm/rcs_share.dart; android DartAsk "rcs").
+  Future<Map<Object?, Object?>> rcsOfPhone() async => (await _calls.invokeMethod<Map>('rcs', {'what': const <String, Object?>{}})) ?? const {};
 
   Future<Map<String, dynamic>> voiceSync(Map<String, Object?> what) async =>
       Map<String, dynamic>.from((await _calls.invokeMethod<Map>('voice', {'what': what})) ?? const {});

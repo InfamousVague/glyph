@@ -229,6 +229,7 @@ interface DeskPhone {
     // app should get all featues its missing from mobile"): what those screens do on the phone.
     fun deleteMessage(kind: String, id: Long)
     fun voice(what: Map<String, Any?>): Any?
+    fun rcs(what: Map<String, Any?>): Any?
     fun telegram(what: Map<String, Any?>): Any?
     fun deleteThreads(threads: List<Long>): Int
     fun editMessage(kind: String, id: Long, body: String)
@@ -344,6 +345,8 @@ class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = Syst
         "handover" -> phone.handover(plain(a.getJSONObject("what")))
         // Voice channels, the phone's and the computer's kept in step (lib/voice/channels.dart): answered by Dart.
         "voice" -> phone.voice(plain(a.getJSONObject("what")))
+        // How RCS stands on the phone, for its computer to say so (GMFB-11, lib/gm/rcs_share.dart): answered by Dart.
+        "rcs" -> phone.rcs(plain(a.optJSONObject("what") ?: org.json.JSONObject()))
         // The phone's Telegram signs its computer in (lib/inbox/telegram.dart): answered by Dart.
         "telegram" -> phone.telegram(plain(a.getJSONObject("what")))
         // A text in another language, translated on the phone for the computer (Translate.kt).
@@ -515,7 +518,7 @@ class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = Syst
             "threadName", "deleteMessage", "deleteThread", "deleteThreads", "editMessage", "resendMms", "setBlocked", "blockedNumbers",
             "e2eOffer", "e2eOff", "e2eVerify", "e2ePlainSeen", "e2eList", "mmsStatus", "voiceLimit",
             "put", "drop", "sendPictures", "sendVoice", "sendSticker", "ownNumber", "me", "voice", "telegram",
-            "translate", "buddies", "handover",
+            "translate", "buddies", "handover", "rcs",
         )
     }
 }

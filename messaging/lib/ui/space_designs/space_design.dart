@@ -327,7 +327,12 @@ class SpaceFace extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ValueListenableBuilder<Map<String, double>>(
         valueListenable: call.levels,
-        builder: (context, now, _) => RippleAvatar(name: person.me ? (person.name.isEmpty ? 'You' : person.name) : person.name, level: person.muted ? 0 : (now[person.id] ?? 0), muted: person.muted, size: size, ringed: ringed),
+        // With how this device's connection to them stands, where it isn't simply through (GMFB-4).
+        builder: (context, now, _) => LinkBadge(
+          id: person.id,
+          size: size,
+          child: RippleAvatar(name: person.me ? (person.name.isEmpty ? 'You' : person.name) : person.name, level: person.muted ? 0 : (now[person.id] ?? 0), muted: person.muted, size: size, ringed: ringed),
+        ),
       );
 }
 
@@ -343,7 +348,8 @@ class SpaceVideo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stream = person.stream;
-    if (stream != null) return StreamView(stream: stream, mirror: person.me);
+    // One renderer per stream (GMFB-5; voice_screen.dart's _Tile says why).
+    if (stream != null) return StreamView(key: ObjectKey(stream), stream: stream, mirror: person.me);
     return fallback ?? ColoredBox(color: const Color(0xFF1C1C1F), child: Center(child: SpaceFace(call: call, person: person, size: faceSize)));
   }
 }
@@ -504,15 +510,7 @@ class _SpaceCallPageState extends State<SpaceCallPage> {
         // A recording is told to everyone, whatever plugins are on (lib/ui/recording_ui.dart).
         final banners = [if (session != null && RecordingBanner.shows(session)) const RecordingBanner(), ...CallPlugins.banners(context)];
         if (banners.isEmpty) return page;
-        return Stack(children: [
-          page,
-          Positioned(
-            left: 0,
-            right: 0,
-            top: MediaQuery.paddingOf(context).top + 62,
-            child: Column(mainAxisSize: MainAxisSize.min, children: banners),
-          ),
-        ]);
+        return Stack(children: [page, CallBanners(top: MediaQuery.paddingOf(context).top + 62, children: banners)]);
       },
     );
   }
@@ -594,5 +592,91 @@ class MergedLevels implements ValueListenable<Map<String, double>> {
   void removeListener(VoidCallback listener) {
     a.removeListener(listener);
     b.removeListener(listener);
+  }
+}
+
+
+/// The lines over a call (the recording's, the plugins'), where they can be moved and folded (GMFB-16, @kevin, Android
+/// 0.11.5: "Audio recording banner covers ui elements in a way that makes them unusable and cannot be moved"): they
+/// stood over the call's header, its menu and the first people with no way out of the way. Drag them up or down the
+/// screen; the grip folds them to a small red chip at the side, which unfolds them again. Where they were left is
+/// kept while the app runs.
+class CallBanners extends StatefulWidget {
+  const CallBanners({super.key, required this.top, required this.children});
+
+  /// Where they start, from the top of the screen.
+  final double top;
+  final List<Widget> children;
+
+  /// Where they were moved to, and whether they are folded: for every call page while the app runs.
+  @visibleForTesting
+  static double? moved;
+  @visibleForTesting
+  static bool folded = false;
+
+  @override
+  State<CallBanners> createState() => _CallBannersState();
+}
+
+class _CallBannersState extends State<CallBanners> {
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return LayoutBuilder(builder: (context, box) {
+      final pad = MediaQuery.paddingOf(context);
+      final most = (box.maxHeight - pad.bottom - 72).clamp(pad.top, double.infinity);
+      final top = (CallBanners.moved ?? widget.top).clamp(pad.top, most);
+      void drag(DragUpdateDetails d) => setState(() => CallBanners.moved = (top + d.delta.dy).clamp(pad.top, most));
+      if (CallBanners.folded) {
+        return Stack(children: [
+          Positioned(
+            right: t.space(3),
+            top: top,
+            child: GestureDetector(
+              key: const ValueKey('call-banners-folded'),
+              onVerticalDragUpdate: drag,
+              child: GlacierPressable(
+                onPressed: () => setState(() => CallBanners.folded = false),
+                semanticLabel: 'Show the lines over this call',
+                builder: (context, state) => Container(
+                  padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+                  decoration: BoxDecoration(color: RecordingBanner.red.withValues(alpha: state.pressed ? 0.8 : 1), borderRadius: BorderRadius.circular(999), boxShadow: t.shadowOf('0 4px 14px rgba(0,0,0,0.25)')),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const AppIcon(Lucide.circleDot, size: 14, strokeWidth: 2.4, color: Color(0xFFFFFFFF)),
+                    SizedBox(width: t.space(1)),
+                    const AppIcon(Lucide.chevronDown, size: 14, strokeWidth: 2.4, color: Color(0xFFFFFFFF)),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        ]);
+      }
+      return Stack(children: [
+        Positioned(
+          left: 0,
+          right: 0,
+          top: top,
+          child: GestureDetector(
+            key: const ValueKey('call-banners'),
+            behavior: HitTestBehavior.deferToChild,
+            onVerticalDragUpdate: drag,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              ...widget.children,
+              // The grip: drag it (or any of the lines) to move them, press it to fold them away.
+              GlacierPressable(
+                onPressed: () => setState(() => CallBanners.folded = true),
+                semanticLabel: 'Fold the lines over this call',
+                builder: (context, state) => Container(
+                  key: const ValueKey('call-banners-grip'),
+                  padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(1)),
+                  child: Container(width: 36, height: 5, decoration: BoxDecoration(color: RecordingBanner.red.withValues(alpha: state.pressed ? 1 : 0.7), borderRadius: BorderRadius.circular(3))),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ]);
+    });
   }
 }

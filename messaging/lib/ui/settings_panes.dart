@@ -376,7 +376,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.12.2';
+const appVersion = '0.12.3';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -700,6 +700,27 @@ List<Widget> _receipts(BuildContext context, SettingsModel m) {
 
 // --- Notifications ----------------------------------------------------------------------------------------------------
 
+/// Settings › Notifications › Bubbles' switch (android Bubbles.PREF): on unless switched off.
+const bubblesKey = 'notif_bubbles';
+
+/// Android's own bubble setting for the app ([SmsStatus.bubbles]), in a word or two.
+String bubbleSettingWords(String? system) => switch (system) {
+      'all' => 'All conversations',
+      'selected' => 'Chosen conversations',
+      'none' => 'Off',
+      _ => '',
+    };
+
+/// What Android's bubble setting means for Ghost's bubbles, under its row.
+String bubbleSettingHint(String? system, {required bool on}) {
+  if (!on) return 'Ghost\'s bubbles are switched off above. This is Android\'s page for them, where it decides which conversations may bubble.';
+  return switch (system) {
+    'all' => 'Every conversation can bubble. Tap to change it on Android\'s page.',
+    'none' => 'Android has bubbles off for Ghost, so none show. Tap to turn them on.',
+    _ => 'Only the conversations you choose bubble: press a notification\'s bubble button. Tap to let every one bubble.',
+  };
+}
+
 List<Widget> _notifications(BuildContext context, SettingsModel m) {
   final app = m.app;
   final s = m.status;
@@ -756,6 +777,30 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
         ),
       ],
     ),
+    // Conversation bubbles (android Bubbles.kt, GMFB-8, from @kevin: "It would be nice to have message bubbles that just
+    // sit on the side of the screen like google messages and facebook messenger"; Matt asked for it to be built). On
+    // Android 11 and later, where the phone has them; Android's own setting decides which conversations may bubble.
+    if (s?.bubbles != null)
+      PaneSection(
+        title: 'Bubbles',
+        footer: const Text('A conversation\'s notification has a bubble button: press it to keep that conversation on the side of the screen. Drag a bubble to the X to put it away.'),
+        children: [
+          SettingRow(
+            icon: _icon(LucideMore.messageCircle),
+            label: 'Conversation bubbles',
+            hint: const Text('A conversation can sit on the side of the screen as a bubble and open over whatever you\'re doing.'),
+            control: GlacierSwitch(checked: app.flag(bubblesKey), onCheckedChange: (v) => app.setFlag(bubblesKey, v), ariaLabel: 'Conversation bubbles'),
+          ),
+          SettingRow(
+            icon: _icon(Lucide.settings),
+            label: 'Android\'s bubble setting',
+            hint: Text(bubbleSettingHint(s!.bubbles, on: app.flag(bubblesKey))),
+            value: Text(bubbleSettingWords(s.bubbles)),
+            // Asked again as the app comes back from Android's page (SettingsScreen.didChangeAppLifecycleState).
+            onPress: () => Sms.instance.bubbleSettings(),
+          ),
+        ],
+      ),
     // Beside Google Messages (android GmBridge.kt; Matt, 2026-11-15: "I can turn off notifications from google messages
     // or hide them and proxy everything through ghost").
     if (m.status?.beside ?? false)

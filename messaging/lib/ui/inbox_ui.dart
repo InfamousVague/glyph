@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'blocking.dart';
 import 'dart:io';
 
@@ -66,6 +67,7 @@ import 'paste_images.dart';
 import 'schedule_ui.dart';
 import '../scheduled.dart' show ScheduleTarget;
 import '../kit/picture_decode.dart';
+import '../plugins/plugin_sync.dart';
 
 /// The screens of the inbox of other networks (lib/inbox): a chat's row in the list, the chat itself, signing in, and
 /// the sections of Settings for each network.
@@ -980,7 +982,11 @@ class _SignalLinkScreenState extends State<SignalLinkScreen> {
   }
 
   Future<void> _elsewhere() async {
-    if (!_room.open) await _room.openRoom(onCame: () => _showCode());
+    if (!_room.open && !await _room.openRoom(onCame: () => _showCode())) {
+      // Nothing would reach the page (GMFB-15): say so rather than share a link that draws nothing.
+      if (mounted) toast(context, 'Ghost\'s relay can\'t be reached right now, so the code can\'t go to another screen. Check Settings › Network.', tone: GlacierToastTone.danger);
+      return;
+    }
     _showCode();
     final link = _room.link;
     if (link != null && mounted) await Sms.instance.shareText('Link Signal to Ghost', link);
@@ -1393,12 +1399,15 @@ List<Widget> _pane(BuildContext context, InboxNetwork n) => [
 /// Switches a plugin network off: signs out first where it is signed in, asked for.
 Future<void> turnOffNetwork(BuildContext context, InboxNetwork n) async {
   if (n.state != InboxState.ready && n.state != InboxState.signingIn) {
+    // Off on the account's other devices too (GMFB-9; one signed in there stays signed in: lib/plugins/plugin_sync.dart).
+    PluginSync.instance.switched('net${n.id}', false);
     await Inbox.instance.disable(n);
     return;
   }
   await showChoices(context, title: 'Turn off ${n.name}?', choices: [
     Choice('Turn off and sign out', Lucide.logOut, () {
       ScrollMemory.forgetAll('inbox:${n.id}:');
+      PluginSync.instance.switched('net${n.id}', false);
       Inbox.instance.disable(n);
     }, danger: true, hint: 'You can switch it on and sign in again any time.'),
   ]);
@@ -1425,7 +1434,12 @@ List<Widget> _paneBody(BuildContext context, InboxNetwork n) {
             key: const ValueKey('plugin-switch'),
             icon: _icon(Lucide.puzzle),
             label: 'Use ${n.name}',
-            control: GlacierSwitch(checked: n.enabled, ariaLabel: 'Use ${n.name}', onCheckedChange: (want) => want ? Inbox.instance.enable(n) : turnOffNetwork(context, n)),
+            control: GlacierSwitch(checked: n.enabled, ariaLabel: 'Use ${n.name}', onCheckedChange: (want) {
+              if (!want) return unawaited(turnOffNetwork(context, n));
+              // On on the account's other devices too, where it offers its sign-in (GMFB-9: lib/plugins/plugin_sync.dart).
+              PluginSync.instance.switched('net${n.id}', true);
+              unawaited(Inbox.instance.enable(n));
+            }),
           ),
         ],
       ),

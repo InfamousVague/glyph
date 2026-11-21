@@ -82,6 +82,7 @@ export const sections = [
     pages: [
       { slug: 'computers', icon: 'laptop', title: 'Mac, Windows and Linux apps', summary: 'Ghost Messaging on a computer, with or without your phone.' },
       { slug: 'pairing', icon: 'qr-code', title: 'Pair a computer with your phone', summary: 'Your texts on your computer: scan, match the six digits, and keep it connected.' },
+      { slug: 'browser-extension', icon: 'puzzle', title: 'The browser extension', summary: 'Sign in to Messenger and Instagram once, in your browser, and every device of yours is signed in too.' },
     ],
   },
   {

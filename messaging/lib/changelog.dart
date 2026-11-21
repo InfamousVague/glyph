@@ -23,6 +23,15 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.2', '2026-11-21', [
+    'Messenger, Instagram and LinkedIn: sign in once, on every device. A new browser extension captures your sign-in for each from a browser you\'re already signed in to and syncs it, sealed, to your Ghost account; your other devices then sign in on their own, so you no longer copy a login onto each one. The relay only ever holds it sealed and cannot read it.',
+    'Calls: turning your video off no longer leaves your last frame frozen in your tile on the other side.',
+    'Calls: the lines over a call — the recording\'s, a plugin\'s — can be dragged out of the way and folded down to a chip.',
+    'Files: a large upload no longer makes the app stutter during a call.',
+    'Windows: you can pick files again — a plugin to load, and files and pictures anywhere the app asks for one.',
+    'The Archive ring counts only unread archived conversations now, so reading them clears it.',
+    'Signal: the code you share to another screen shows properly, or says why it can\'t, instead of a blank bar.',
+  ]),
   ReleaseNotes('0.12.1', '2026-11-21', [
     'Record call: open a saved recording in the mixer. In Recordings, tap one and choose Open in the mixer: every voice is a track with its waveform, meter, mute, solo and fader, as during the call. Play it to hear the mix as you set it, tap the tracks to jump around, and Save mix to keep it as a new recording beside the first.',
     'Souls: when you\'re given souls or a badge, you\'re told why ("Bug bounty", say). Straight away if the app is open; if it isn\'t, a card shows what you were given and why the next time you open it.',

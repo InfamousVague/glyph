@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="popup.css" />
+    <title>Ghost Messaging keys</title>
+  </head>
+  <body>
+    <main id="app" aria-live="polite">
+      <header>
+        <h1>Ghost keys</h1>
+        <button id="signout" class="link" hidden>Sign out</button>
+      </header>
+
+      <section id="signedout" hidden>
+        <p class="lead">Sign in to your Ghost account. Your service logins then sync, sealed, to every device on it.</p>
+        <div class="tabs" role="tablist">
+          <button id="tab-password" class="tab on" role="tab">Username</button>
+          <button id="tab-words" class="tab" role="tab">Recovery words</button>
+        </div>
+
+        <form id="form-password" class="form">
+          <label>Username<input id="username" autocomplete="username" autocapitalize="none" spellcheck="false" /></label>
+          <label>Password<input id="password" type="password" autocomplete="current-password" /></label>
+          <label id="code-row" hidden>Code texted to you<input id="code" inputmode="numeric" autocomplete="one-time-code" /></label>
+          <label class="check"><input id="stay-p" type="checkbox" /> Stay signed in on this computer</label>
+          <button type="submit" class="go">Sign in</button>
+        </form>
+
+        <form id="form-words" class="form" hidden>
+          <label>Your 12 recovery words<textarea id="words" rows="3" autocapitalize="none" spellcheck="false" placeholder="word one two three …"></textarea></label>
+          <label class="check"><input id="stay-w" type="checkbox" /> Stay signed in on this computer</label>
+          <button type="submit" class="go">Sign in</button>
+        </form>
+      </section>
+
+      <section id="signedin" hidden>
+        <p class="who"><span id="who"></span></p>
+        <ul id="services"></ul>
+        <button id="syncall" class="go">Capture &amp; sync all</button>
+        <div id="google" class="svc google">
+          <div class="svc-top"><span class="svc-name">Google Messages (RCS)</span><span id="google-badge" class="badge off">Not set up</span></div>
+          <p class="hint">Signs in to Google in a private window and hands that sign-in to your devices, so setting up Google Messages in Ghost is one tap there (and the emoji on your phone). Nothing is read from this browser's own Google sign-in.</p>
+          <p id="google-incognito" class="hint warn" hidden>First, in chrome://extensions › Ghost Messaging keys › Details, turn on <b>Allow in Incognito</b>.</p>
+          <div class="svc-row"><button id="google-setup">Set up Google Messages</button><button id="google-forget" hidden>Stop syncing</button></div>
+        </div>
+      </section>
+
+      <p id="message" class="message" hidden></p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

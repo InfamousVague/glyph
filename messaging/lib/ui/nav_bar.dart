@@ -33,7 +33,7 @@ class NavItem {
   /// and what it is read aloud by.
   final String? short;
 
-  /// A number worn on the ring's corner (how many are archived); nothing for none.
+  /// A number worn on the ring's corner (on Archive, how many archived conversations are unread); nothing for none.
   final int count;
 }
 

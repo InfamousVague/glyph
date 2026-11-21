@@ -1382,7 +1382,10 @@ Future<Uint8List> _sealAside(SealRun run) => Isolate.run(() => FileSeal.sealRun(
 Future<Uint8List> _sealParallel(SealRun run) async {
   final n = FileSeal.chunks(run.size, chunkSize: run.chunkSize);
   final count = (run.plain.length + run.chunkSize - 1) ~/ run.chunkSize;
-  final ways = math.min(math.min(4, math.max(1, Platform.numberOfProcessors - 1)), count);
+  // In a call, two at most: the call's sound and pictures need the cores more than an upload needs to be quick
+  // (GMFB-6, @matt: "The app is super laggy when in a voice call and uploading a video to the files").
+  final most = Voice.instance.session != null ? 2 : 4;
+  final ways = math.min(math.min(most, math.max(1, Platform.numberOfProcessors - 1)), count);
   if (ways <= 1 || run.first + count > n) return _sealAside(run);
   final per = (count + ways - 1) ~/ ways;
   final parts = <Future<Uint8List>>[];

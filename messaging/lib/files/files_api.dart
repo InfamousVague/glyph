@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter/foundation.dart' show immutable;
 
-import '../net/crypto.dart';
 import '../net/hub_carrier.dart' show NetSigner;
 
 /// Why the files server said no: its words, and what it answered (a 409 says where an upload has got to in [have]).
@@ -46,6 +47,15 @@ class FilesApi {
     return u.replace(scheme: u.scheme == 'ws' ? 'http' : (u.scheme == 'wss' ? 'https' : u.scheme), pathSegments: [...segments, 'files'], query: null, fragment: null);
   }
 
+  /// The hex SHA-256 of a body to sign. A blob's piece is 4 MB: hashed on the UI's isolate with pointycastle that was
+  /// some 200 ms each, the app frozen for the whole of an upload (GMFB-6, @matt: "The app is super laggy when in a
+  /// voice call and uploading a video to the files"). A large body is hashed on another isolate, with package:crypto.
+  static Future<String> bodySha(List<int> body) async {
+    if (body.length < 256 * 1024) return crypto.sha256.convert(body).toString();
+    final bytes = body is Uint8List ? body : Uint8List.fromList(body);
+    return Isolate.run(() => crypto.sha256.convert(bytes).toString());
+  }
+
   String _path(String rest) => '${base.path.endsWith('/') ? base.path.substring(0, base.path.length - 1) : base.path}/$space$rest';
 
   Future<HttpClientRequest> _open(String method, String rest, {List<int>? signBody, bool sayHash = false}) async {
@@ -55,7 +65,7 @@ class FilesApi {
     if (signBody != null) {
       // Signed over what the relay sees: the method, the path with its query, the time and the body's hash.
       final time = DateTime.now().millisecondsSinceEpoch;
-      final sha = NetCrypto.hex(NetCrypto.sha256(signBody));
+      final sha = await bodySha(signBody);
       final words = 'ghost-files v1\n$method\n$path\n$time\n$sha';
       final sig = await signer.sign(utf8.encode(words));
       req.headers

@@ -135,6 +135,47 @@ void main() {
     await h.said(id, {'dir': 'check', 'p': network, 'handle': handle});
   }
 
+  // Matt, 2026-11-21: "make a chrome plugin ... sync the cURL entries across all devices". The Chrome extension
+  // (messaging/extension) seals the captured cookies and keeps them here; every device of the account reads them.
+  test('curl entries: kept per identity, read back, replaced, cleared, and kept across a restart', () async {
+    // Nothing kept yet.
+    await h.said(alice, {'dir': 'curl-kept'});
+    expect(last(alice, 'curl-kept'), {'dir': 'curl-kept', 'blob': null});
+
+    await h.said(alice, {'dir': 'curl-keep', 'blob': 'sealed-one'});
+    expect(last(alice, 'curl-keep'), containsPair('ok', true));
+    await h.said(alice, {'dir': 'curl-kept'});
+    expect(last(alice, 'curl-kept'), {'dir': 'curl-kept', 'blob': 'sealed-one'});
+
+    // Another device on the same identity reads the same slot.
+    expect(h.accountOf, isNull); // (unset in this test; the slot is keyed purely by the hub id)
+    // Replaced by a later write.
+    await h.said(alice, {'dir': 'curl-keep', 'blob': 'sealed-two'});
+    await h.said(alice, {'dir': 'curl-kept'});
+    expect(last(alice, 'curl-kept'), {'dir': 'curl-kept', 'blob': 'sealed-two'});
+
+    // Bob's is his own.
+    await h.said(bob, {'dir': 'curl-kept'});
+    expect(last(bob, 'curl-kept'), {'dir': 'curl-kept', 'blob': null});
+
+    // Too big is refused.
+    await h.said(alice, {'dir': 'curl-keep', 'blob': 'x' * (Handles.maxCurl + 1)});
+    expect(last(alice, 'err'), containsPair('about', 'curl-keep'));
+
+    // An empty blob clears it.
+    await h.said(alice, {'dir': 'curl-keep', 'blob': ''});
+    await h.said(alice, {'dir': 'curl-kept'});
+    expect(last(alice, 'curl-kept'), {'dir': 'curl-kept', 'blob': null});
+
+    // Kept across a restart.
+    await h.said(alice, {'dir': 'curl-keep', 'blob': 'sealed-three'});
+    h.save();
+    final again = Handles(dataDir: dir, config: config, fetch: net.fetch)..load();
+    come(again, alice);
+    await again.said(alice, {'dir': 'curl-kept'});
+    expect(last(alice, 'curl-kept'), {'dir': 'curl-kept', 'blob': 'sealed-three'});
+  });
+
   // Matt, 2026-11-14: "create a profile and username under "me" to register a username and add friends on the
   // platform".
   test('usernames: claimed once, found by anyone, kept only as hashes, and given up', () async {

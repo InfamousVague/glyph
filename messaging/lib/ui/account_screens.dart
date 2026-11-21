@@ -13,6 +13,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../account/account.dart';
+import '../app_state.dart';
 import '../account/account_crypto.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
@@ -320,7 +321,11 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   void _skipCheck() => widget.made ? Navigator.of(context).pop() : _make(checked: false);
 
   Future<void> _make({bool checked = true}) async {
-    if (widget.made) return Navigator.of(context).pop();
+    if (widget.made) {
+      // Seen and checked: nothing to remind of (GMFB-3).
+      AppState.of(context).setFlag(wordsLater, false);
+      return Navigator.of(context).pop();
+    }
     if (checked && !_confirmed) return setState(() => _problem = _typed ? 'Those aren\'t the words in those places. Look at what you wrote down.' : 'Tap all twelve in order.');
     setState(() {
       _problem = null;
@@ -369,6 +374,22 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
           SettingsCallout(icon: _icon(Lucide.shieldCheck), child: const Text('Never type them into a website or tell them to anyone. Ghost Messaging will never ask for them except here, to sign in.')),
           _gap(context, 8),
           PairButton(label: 'I\'ve written them down', icon: Lucide.arrowRight, onPressed: () => setState(() => _step = CreateStep.confirm)),
+          // Just made at sign-up (GMFB-3, @kevin: "We need to find a way to reduce friction when onboarding new users. I
+          // find the seed phrase to be a frustrating hurdle"): the account is made and sealed with the password already,
+          // so the words can wait. The conversations list reminds until they are seen (Settings › Me shows them).
+          if (widget.made) ...[
+            _gap(context, 2),
+            PairButton(
+              key: const ValueKey('words-later'),
+              label: 'Later',
+              icon: Lucide.clock,
+              quiet: true,
+              onPressed: () {
+                AppState.of(context).setFlag(wordsLater, true);
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
         ]);
       case CreateStep.confirm:
         return _AccountPage(title: 'Check your words', children: [
@@ -706,7 +727,11 @@ class _ShowWordsScreenState extends State<ShowWordsScreen> {
     });
     try {
       final words = await Account.instance.revealWords(_password.text);
-      if (mounted) setState(() => _words = words);
+      if (mounted) {
+        setState(() => _words = words);
+        // Seen: the list's reminder goes (GMFB-3).
+        AppState.of(context).setFlag(wordsLater, false);
+      }
     } catch (e) {
       if (mounted) setState(() => _problem = e is AccountError ? e.message : 'That did not work.');
     } finally {
@@ -861,3 +886,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
     ]);
   }
 }
+
+
+/// The pref that says the recovery words were put off at sign-up ("Later"), so the conversations list reminds of them
+/// until they are seen in Settings › Me (GMFB-3).
+const wordsLater = 'words_later';
