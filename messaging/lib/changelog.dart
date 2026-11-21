@@ -25,6 +25,7 @@ class ReleaseNotes {
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.11.4', '2026-11-21', [
     'Calls: when you and someone else can\'t reach each other directly, on a mobile network or a strict workplace, school or hotel network, the call now goes through Ghost\'s relay by itself instead of never connecting. It stays encrypted between you: the relay can\'t hear or see it.',
+    'Files spaces: "Getting it ready" is far quicker for a big file, and shows a percentage. Checking a 26 GB file took over twenty minutes; it now takes seconds on a Mac or iPhone and about four minutes on Android and Windows. Checking a download is quicker the same way.',
   ]),
   ReleaseNotes('0.11.3', '2026-11-21', [
     'LinkedIn is no longer a network here: LinkedIn kept signing people out of their own browsers when Ghost used the sign-in. It is gone from the Marketplace and from Settings › Connections, and its saved sign-in and chats are deleted from this device the next time the app starts.',
