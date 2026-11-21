@@ -30,6 +30,27 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Calls: the other side's video, relay first, Windows' microphone** (0.11.5, not released; Matt, 2026-11-21: "Video
+  is not working on both ends it only shows our local video also the audio device selector doesn't seem to be working,
+  connecting over the relay also doesn't seem to be working or the device picker is not working in windows", then
+  "Try to negotiate over the relay first"). A received picture arrives in no stream (its sender names none) and was
+  added to the sound's received stream, which flutter_webrtc refuses natively ("stream is null" on Android, the Mac
+  and Windows) while its Dart list says it took it: every remote tile drew nothing. Received tracks now go into a
+  stream made on the device (`_RtcPeer._took`, one at a time), sounds kept apart for their volume
+  (integration_test/call_video_test.dart: two calls on one device draw each other at 960x540). The hub's TURN
+  server is tried first, alone (`r`), and every path second (`a`), by the side that offered; 15 s without
+  connecting counts as failed. Windows' WebRTC takes the microphone from `optional: [{sourceId}]` and reads
+  `deviceId` as the speaker, so it was always the first microphone.
+- **Unfinished uploads are listed, and can be removed to free their room** (0.11.5, not released; Matt, 2026-11-21:
+  "I need a way to see partially uploaded files, the oddysey uploaded partially but then disconnected when I
+  restarted the app it stopped uploading but kept the space reserved"). The relay's space info names each blob not
+  finished yet (`parts`: id, who started it, size, how much is there, when it last moved; relay/lib/files.dart
+  `_info`), and FilesStore.unfinished lists those no transfer on this device holds: another device's, one sent from a
+  space's chat (never on the queue on disk), or one from before a reinstall. The Files screen shows each as
+  "Unfinished upload" with its bar and Remove for whoever started it, the owner, or a role that may remove it
+  (removeUnfinished: DELETE on the blob, the roster shown where needed). An upload the queue does pick up shows what
+  the relay has at once and says "Checking it before going on · n%" while a big file is hashed again before more of
+  it goes (minutes for a film), where before it sat at nothing and looked stopped.
 - **Calls fall back on the relay where no direct way through is found** (0.11.4, not released; Matt, 2026-11-21:
   "Sometimes calls are not negotiating in voice chats and I can't connect to another person, if p2p fails please
   connect over voice through the relay"). Calls had public STUN servers only, so two devices behind strict routers

@@ -502,9 +502,9 @@ void main() {
     await me.leave();
   });
 
-  test('a connection that finds no way through starts over once through the relay alone, by the side that offered', () async {
+  test('a call starts through the relay alone, and where that fails the side that offered starts over trying every path', () async {
     // Matt, 2026-11-21: "Sometimes calls are not negotiating in voice chats and I can't connect to another person, if
-    // p2p fails please connect over voice through the relay".
+    // p2p fails please connect over voice through the relay", then "Try to negotiate over the relay first".
     final hub = _Hub();
     final c = VoiceChannel.make('Lounge');
     final mayaMedia = _Fallback(), samMedia = _Fallback();
@@ -513,8 +513,8 @@ void main() {
     await maya.join();
     await sam.join();
     await _settle();
-    expect(samMedia.log, containsAllInOrder(['made maya-id', 'offer to maya-id', 'took answer from maya-id (stereo)']), reason: 'Sam came in, so Sam offers');
-    expect(mayaMedia.log, containsAllInOrder(['made sam-id', 'answer sam-id (510k)']));
+    expect(samMedia.log, containsAllInOrder(['made maya-id (relay only)', 'offer to maya-id', 'took answer from maya-id (stereo)']), reason: 'Sam came in, so Sam offers, through the relay');
+    expect(mayaMedia.log, containsAllInOrder(['made sam-id (relay only)', 'answer sam-id (510k)']), reason: 'Maya answers through the relay too');
 
     // Maya's side failing waits: Sam offered, so Sam starts over.
     mayaMedia.log.clear();
@@ -526,10 +526,11 @@ void main() {
 
     samMedia.fail['maya-id']!();
     await _settle();
-    expect(samMedia.log, containsAllInOrder(['closed maya-id', 'made maya-id (relay only)', 'offer to maya-id']));
-    expect(mayaMedia.log, containsAllInOrder(['closed sam-id', 'made sam-id (relay only)', 'answer sam-id (510k)']), reason: 'Maya lets go of the failed one and answers through the relay too');
-    expect(samMedia.relayOnlyOf['maya-id'], isTrue);
-    expect(mayaMedia.relayOnlyOf['sam-id'], isTrue);
+    expect(samMedia.log, containsAllInOrder(['closed maya-id', 'made maya-id', 'offer to maya-id']));
+    expect(samMedia.log, isNot(contains('made maya-id (relay only)')));
+    expect(mayaMedia.log, containsAllInOrder(['closed sam-id', 'made sam-id', 'answer sam-id (510k)']), reason: 'Maya lets go of the failed one and answers on every path too');
+    expect(samMedia.relayOnlyOf['maya-id'], isFalse);
+    expect(mayaMedia.relayOnlyOf['sam-id'], isFalse);
 
     // Once only: a second failure is left as it is.
     samMedia.log.clear();
@@ -537,15 +538,31 @@ void main() {
     await _settle();
     expect(samMedia.log, isEmpty);
 
-    // Sam leaves and comes back: a fresh try, and a fresh fallback.
+    // Sam leaves and comes back: through the relay again, and a fresh fallback.
     await sam.leave();
     await _settle();
     samMedia.log.clear();
     await sam.join();
     await _settle();
+    expect(samMedia.log, contains('made maya-id (relay only)'));
+    samMedia.log.clear();
     samMedia.fail['maya-id']!();
     await _settle();
-    expect(samMedia.log, contains('made maya-id (relay only)'));
+    expect(samMedia.log, contains('made maya-id'));
+    await maya.leave();
+    await sam.leave();
+  });
+
+  test('the side that answers goes through the relay where the offer says so, whatever it was handed itself', () async {
+    final hub = _Hub();
+    final c = VoiceChannel.make('Lounge');
+    final mayaMedia = _Fallback(hasRelay: false), samMedia = _Fallback();
+    final maya = VoiceSession(channel: c, route: _Route(hub, 'maya-id'), media: mayaMedia, name: 'Maya');
+    final sam = VoiceSession(channel: c, route: _Route(hub, 'sam-id'), media: samMedia, name: 'Sam');
+    await maya.join();
+    await sam.join();
+    await _settle();
+    expect(mayaMedia.relayOnlyOf['sam-id'], isTrue);
     await maya.leave();
     await sam.leave();
   });

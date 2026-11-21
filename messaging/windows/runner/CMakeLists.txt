@@ -55,8 +55,10 @@ target_link_libraries(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/flutter/epheme
 # voicefx (native/voicefx): RNNoise and the microphone's gain, for calls (voice_fx.cpp), built as C into the app.
 set(VOICEFX "${CMAKE_SOURCE_DIR}/../native/voicefx")
 file(GLOB VOICEFX_RNNOISE "${VOICEFX}/rnnoise/src/*.c")
-add_library(voicefx STATIC "${VOICEFX}/voicefx.c" ${VOICEFX_RNNOISE})
-target_include_directories(voicefx PUBLIC "${VOICEFX}/include" PRIVATE "${VOICEFX}/rnnoise/include" "${VOICEFX}/rnnoise/src")
+add_library(voicefx STATIC "${VOICEFX}/voicefx.c" "${VOICEFX}/stretch.cpp" ${VOICEFX_RNNOISE})
+target_include_directories(voicefx PUBLIC "${VOICEFX}/include" PRIVATE "${VOICEFX}" "${VOICEFX}/rnnoise/include" "${VOICEFX}/rnnoise/src")
+# Signalsmith Stretch (stretch.cpp) is C++.
+set_source_files_properties("${VOICEFX}/stretch.cpp" PROPERTIES COMPILE_OPTIONS "/std:c++17;/EHsc")
 target_compile_definitions(voicefx PRIVATE _USE_MATH_DEFINES _CRT_SECURE_NO_WARNINGS)
 target_link_libraries(${BINARY_NAME} PRIVATE voicefx)
 # DeepFilterNet, where the build made it (the workflow's "Build DeepFilterNet"): Rust's static library and what Rust's

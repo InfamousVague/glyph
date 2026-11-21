@@ -21,6 +21,7 @@
 #endif
 
 #include "rnnoise.h"
+#include "stretch.h"
 
 #ifdef VOICEFX_WITH_DEEPFILTER
 /* libDF's C API (DeepFilterNet, MIT/Apache-2.0), linked in where built (native/voicefx/deepfilter). */
@@ -69,6 +70,8 @@ struct VoiceFx {
   int jumped;
   double wobble;        /* an older voice's waver, 0 to 1 */
   float bq[2][4];       /* the radio's two filters' state: x1, x2, y1, y2 */
+  VfxStretch *stretch;  /* Signalsmith Stretch, for the voices (stretch.cpp) */
+  float sin_[BLOCK], sout[BLOCK];
 };
 
 #define RING16 (16000 * 20) /* twenty seconds of what was said, waiting to be taken */
@@ -80,6 +83,8 @@ VoiceFx *voicefx_create(void) {
   vfx_store(&fx->mode, VOICEFX_OFF);
   vfx_store(&fx->gain, 1.0f);
   fx->rnnoise = rnnoise_create(NULL);
+  /* A 48 ms window, a new one every 12 ms: as short as a low voice allows, so the voice is 48 ms behind. */
+  fx->stretch = vfx_stretch_create(48000, 2304, 576);
   fx->heard = calloc(RING16, sizeof(int16_t));
   fx->give = calloc(RING48, sizeof(float));
   if (!fx->heard || !fx->give) {
@@ -94,6 +99,7 @@ VoiceFx *voicefx_create(void) {
 
 void voicefx_destroy(VoiceFx *fx) {
   if (!fx) return;
+  vfx_stretch_destroy(fx->stretch);
   if (fx->rnnoise) rnnoise_destroy(fx->rnnoise);
   free(fx->heard);
   free(fx->give);
@@ -389,6 +395,7 @@ static void effect(VoiceFx *fx, int which, float *s, int n) {
     fx->jumped = 0;
     fx->wobble = 0;
     fx->effectWas = which;
+    vfx_stretch_reset(fx->stretch);
   }
   if (which == VOICEFX_EFFECT_RADIO) {
     pass(s, n, fx->bq[0], 400, 1);
@@ -396,7 +403,23 @@ static void effect(VoiceFx *fx, int which, float *s, int n) {
     drive(s, n, 3.0f);
     return;
   }
-  reshape(fx, which, s, n);
+  Shape sh = shape_of(which);
+  /* The robot's one flat pitch is PSOLA's alone; every other voice is Signalsmith Stretch's, where it was made. */
+  if (sh.hz > 0 || !fx->stretch) {
+    reshape(fx, which, s, n);
+    return;
+  }
+  float pitch = sh.pitch;
+  if (sh.vibrato > 0) {
+    pitch *= 1.0f + sh.vibrato * (float)sin(2 * PI * fx->wobble);
+    fx->wobble += (double)n * 5.5 / 48000.0;
+    fx->wobble -= floor(fx->wobble);
+  }
+  vfx_stretch_shape(fx->stretch, pitch, sh.formant);
+  for (int i = 0; i < n; i++) fx->sin_[i] = s[i] / 32768.0f;
+  vfx_stretch_process(fx->stretch, fx->sin_, fx->sout, n);
+  for (int i = 0; i < n; i++) s[i] = limit(fx->sout[i] * 32768.0f);
+  if (sh.drive > 0) drive(s, n, sh.drive);
 }
 
 /* Over full scale, rounded off rather than clipped: the top tenth of the range is bent toward its end. */
