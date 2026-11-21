@@ -30,7 +30,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
-- **The voice changer, live in space calls** (0.10.8, not released; Matt, 2026-11-20: "I'd like the voice changer to
+- **The voice changer, live in space calls** (0.11.1; Matt, 2026-11-20: "I'd like the voice changer to
   work in spaces calles in real time", and ElevenLabs chosen over effects on the device, with its delay). ElevenLabs
   changes whole recordings, so a call goes a phrase at a time: the microphone engine's live mode (native/voicefx,
   `voicefx_live`, `voicefx_take`, `voicefx_feed`, in the capture hook on the phone, Mac and Windows) keeps what is said
@@ -41,7 +41,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   Nothing is sent while muted; refused, nothing of the voice goes out and `LiveChangerLine` over the call says why,
   with My own voice. Settings › Voice changer › Change my voice in calls, live (off by default). Not heard in a real
   call yet. Tests: live_changer_test, native/voicefx/test/run.sh.
-- **The recording's mixer is a full-screen drawer from the banner, not a floating pill** (0.10.8, not released;
+- **The recording's mixer is a full-screen drawer from the banner, not a floating pill** (0.11.1;
   Matt, 2026-11-20: "make the recording plugin banner have a button for "mixer" and have it open a drawer full screen
   with the audio tracks and whatnot instead of the floating pill"). The recording line over the call
   (`RecordingBanner`) has Mixer beside Stop; `showRecordingMixer` opens `RecordingMixerDrawer`, the same timeline and
