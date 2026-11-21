@@ -269,16 +269,23 @@ class RtcMedia implements VoiceMedia, FallbackMedia {
   Future<void> _silenceSink() async {
     final sink = _meterSink;
     if (sink == null) return;
+    // The audio test alone, never a call: the copy played back through the speaker chosen ([hearMyself]).
+    final hear = hearMyself && _peers.isEmpty;
     try {
       for (final r in await sink.getReceivers()) {
         final track = r.track;
         // Only the partner's own copy, by the ids given it: never the microphone.
         if (track == null || track.kind != 'audio' || !(track.id ?? '').startsWith(meterPrefix)) continue;
-        if (track.enabled) track.enabled = false;
-        await Helper.setVolume(0, track).catchError((_) {});
+        if (track.enabled != hear) track.enabled = hear;
+        await Helper.setVolume(hear ? 1 : 0, track).catchError((_) {});
       }
     } catch (_) {}
   }
+
+  /// Settings' audio test (GMFB-2, @kevin: "When testing voice calls it is difficult to diagnose issues without an in
+  /// app audio device test"): the microphone played back through the speaker chosen, so both are heard as a call
+  /// would use them. Only ever while nobody else is connected; a call's sink stays silent whatever this says.
+  bool hearMyself = false;
 
   static double _ease(double from, double to) => to > from ? from + (to - from) * 0.6 : from + (to - from) * 0.25;
 
