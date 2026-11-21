@@ -19,6 +19,7 @@ import '../net/carrier.dart';
 import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
 import '../plugins/codes.dart' show signInCode;
+import '../plugins/plugin_sync.dart';
 import '../sms.dart' show Sms;
 
 /// A network an account can be linked on (Matt, 2026-11-14: "allow linking popular social like telegram, discord, x,
@@ -361,6 +362,9 @@ class Me extends ChangeNotifier {
         // Cookies a Chrome extension captured on another device: read back and sign in any service not already on
         // here (lib/inbox/curl_sync.dart).
         unawaited(CurlSync.instance.pull());
+        // Which plugins are on across the account's devices (GMFB-9, lib/plugins/plugin_sync.dart): read back, joined
+        // with this device's, applied here, and this device's changes kept for the others.
+        unawaited(PluginSync.instance.sync());
         // The server is the word on what is linked there; the phone is the word on which handle each is.
         final there = {for (final l in (m['links'] as List? ?? const [])) (l as Map)['p'] as String: l['k'] as String?};
         links.removeWhere((p, h) => there[p] != handleKey(p, h));
@@ -589,8 +593,16 @@ class Me extends ChangeNotifier {
     if (typed == null || typed.trim().isEmpty) return null;
     final words = AccountCrypto.tidyWords(typed);
     if (!AccountCrypto.validWords(words)) return null;
-    return _curlKeyCache = AccountCrypto.hkdf(AccountCrypto.seedOf(words), 'ghost-account v1', 'ghost curl v1');
+    return _curlKeyCache = curlKeyOf(words);
   }
+
+  /// The account blob's key for the account words [words] (tidied and valid): the one [_curlKey] keeps, on its own for
+  /// a test of what is sealed with it (test/plugin_sync_test.dart).
+  static Uint8List curlKeyOf(List<String> words) => AccountCrypto.hkdf(AccountCrypto.seedOf(words), 'ghost-account v1', 'ghost curl v1');
+
+  /// Whether this device has the account's blob key and the relay to keep it on: a Ghost account is signed in to here.
+  /// Plugin sync (lib/plugins/plugin_sync.dart) does nothing without it.
+  Future<bool> curlReady() async => await _curlKey() != null;
 
   /// Forgets the cached cURL key (on sign-out, when the account's words change).
   void forgetCurlKey() => _curlKeyCache = null;
@@ -603,14 +615,26 @@ class Me extends ChangeNotifier {
   }
 
   /// The synced cURL entries the account keeps on the relay, opened; null where none or it can't be opened.
-  Future<Map<String, Object?>?> curlKept() async {
+  ///
+  /// [strict] throws (a MeError) where a blob is kept but can't be opened, rather than answering null: a reader that
+  /// writes the blob back (plugin sync, which keeps its list beside the cURL entries) must not take an unreadable blob
+  /// for an empty one and write over what it couldn't read.
+  Future<Map<String, Object?>?> curlKept({bool strict = false}) async {
     final key = await _curlKey();
-    if (key == null) return null;
+    if (key == null) {
+      if (strict) throw MeError('No Ghost account on this device.');
+      return null;
+    }
     final m = await _ask({'dir': 'curl-kept'}, 'curl-kept');
     final blob = m['blob'];
     if (blob is! String || blob.isEmpty) return null;
-    final clear = NetCrypto.open(key, base64Decode(blob));
-    return clear == null ? null : (jsonDecode(utf8.decode(clear)) as Map).cast<String, Object?>();
+    Map<String, Object?>? opened;
+    try {
+      final clear = NetCrypto.open(key, base64Decode(blob));
+      if (clear != null) opened = (jsonDecode(utf8.decode(clear)) as Map).cast<String, Object?>();
+    } catch (_) {}
+    if (opened == null && strict) throw MeError('What the account keeps couldn\'t be opened.');
+    return opened;
   }
 
   // --- a username (Matt, 2026-11-14: "create a profile and username under "me" to register a username and add

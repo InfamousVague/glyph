@@ -114,16 +114,31 @@ export class GhostAccount {
 
   /** Reads the account's synced cURL entries off the relay (opened); {} when none or unreadable. */
   private async read(hub: Hub): Promise<Record<string, CaptureEntry>> {
+    const obj = await this.readWhole(hub);
+    return obj.v === CURL_VERSION && obj.entries && typeof obj.entries === 'object' ? (obj.entries as Record<string, CaptureEntry>) : {};
+  }
+
+  /**
+   * The account's whole blob, opened; {} when none or unreadable. The app keeps more in it than the cURL entries (the
+   * synced plugin list under `plugins`, messaging/lib/plugins/plugin_sync.dart, GMFB-9), so a write keeps the rest.
+   */
+  private async readWhole(hub: Hub): Promise<Record<string, unknown>> {
     const kept = await hub.ask('curl-kept');
     if (typeof kept.blob !== 'string' || !kept.blob) return {};
     const clear = await netOpen(unhex(this.curlKey), unb64(kept.blob));
     if (!clear) return {};
     try {
       const obj = JSON.parse(new TextDecoder().decode(clear));
-      return obj && obj.v === CURL_VERSION && obj.entries && typeof obj.entries === 'object' ? (obj.entries as Record<string, CaptureEntry>) : {};
+      return obj && typeof obj === 'object' ? (obj as Record<string, unknown>) : {};
     } catch {
       return {};
     }
+  }
+
+  /** Keeps `entries` as the blob's cURL entries, whatever else the blob holds left as it was. */
+  private async write(hub: Hub, whole: Record<string, unknown>, entries: Record<string, CaptureEntry>): Promise<void> {
+    const sealed = await netSeal(unhex(this.curlKey), utf8(JSON.stringify({ ...whole, v: CURL_VERSION, entries })));
+    await hub.ask('curl-keep', { blob: b64(sealed) });
   }
 
   /**
@@ -135,9 +150,10 @@ export class GhostAccount {
   async sync(entries: Record<string, CaptureEntry>): Promise<Record<string, CaptureEntry>> {
     const hub = await Hub.connect(unhex(this.identity), DEVICE, this.hubUrl);
     try {
-      const all = { ...(await this.read(hub)), ...entries };
-      const sealed = await netSeal(unhex(this.curlKey), utf8(JSON.stringify({ v: CURL_VERSION, entries: all })));
-      await hub.ask('curl-keep', { blob: b64(sealed) });
+      const whole = await this.readWhole(hub);
+      const had = whole.v === CURL_VERSION && whole.entries && typeof whole.entries === 'object' ? (whole.entries as Record<string, CaptureEntry>) : {};
+      const all = { ...had, ...entries };
+      await this.write(hub, whole, all);
       return all;
     } finally {
       hub.close();
@@ -158,10 +174,10 @@ export class GhostAccount {
   async forget(serviceId: string): Promise<Record<string, CaptureEntry>> {
     const hub = await Hub.connect(unhex(this.identity), DEVICE, this.hubUrl);
     try {
-      const all = await this.read(hub);
+      const whole = await this.readWhole(hub);
+      const all = whole.v === CURL_VERSION && whole.entries && typeof whole.entries === 'object' ? { ...(whole.entries as Record<string, CaptureEntry>) } : {};
       delete all[serviceId];
-        const sealed = await netSeal(unhex(this.curlKey), utf8(JSON.stringify({ v: CURL_VERSION, entries: all })));
-      await hub.ask('curl-keep', { blob: b64(sealed) });
+      await this.write(hub, whole, all);
       return all;
     } finally {
       hub.close();

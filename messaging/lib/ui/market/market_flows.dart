@@ -34,6 +34,7 @@ import '../plugins_page/market_parts.dart' show MarketButton, MarketButtonLook;
 import '../plugins_page/plugin_art.dart';
 import '../plugins_page/plugins_page.dart' show pluginsHere;
 import 'market_forms.dart' show MarketLengthLimit;
+import '../../plugins/plugin_sync.dart';
 
 /// A computer on its own, with no phone's texts: a plugin from another developer has nothing here to sort.
 bool get marketNoTexts => Sms.standalone && !Platform.isAndroid && !Platform.isIOS;
@@ -165,6 +166,8 @@ Future<void> removeStorePack(BuildContext context, GhostPlugin plugin) async {
   ), choices: [
     Choice('Remove ${plugin.name}', Lucide.trash2, () async {
       final out = await InstalledPlugins.instance.removeStore(id);
+      // Off on the account's other devices (GMFB-9): switched off there, not deleted (lib/plugins/plugin_sync.dart).
+      if (out.ok) PluginSync.instance.switched(plugin.id, false);
       if (!context.mounted) return;
       toast(context, out.ok ? '${plugin.name} removed' : out.message, tone: out.ok ? GlacierToastTone.neutral : GlacierToastTone.danger);
     }, danger: true),

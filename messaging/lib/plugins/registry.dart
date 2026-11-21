@@ -368,7 +368,14 @@ class PluginRegistry with ChangeNotifier {
     return value == null ? plugin.onByDefault : value == 'on';
   }
 
+  /// Told of every switch moved through [setOn]: the person's (a switch, Add, Remove, the app's API), and a pack added
+  /// switched on. Plugin sync listens (lib/plugins/plugin_sync.dart, GMFB-9) and tells its own moves from the person's.
+  static void Function(GhostPlugin plugin, bool on)? switched;
+
   void setOn(GhostPlugin plugin, PluginStore store, bool on) {
+    try {
+      switched?.call(plugin, on);
+    } catch (_) {}
     if (plugin is OwnSwitch) {
       // Its own switch, which says so itself once it has moved (Inbox.notifyChange).
       unawaited((plugin as OwnSwitch).turn(on));
