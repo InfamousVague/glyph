@@ -193,13 +193,18 @@ class CallPanel extends StatelessWidget {
                     padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(2), t.space(2)),
                     child: Row(children: [
                       // A little larger on a computer (Matt, 2026-11-15: "make the voice chat avatars a little larger on desktop").
-                      ValueListenableBuilder<Map<String, double>>(
-                        valueListenable: levels,
-                        builder: (context, loud, _) => RippleAvatar(name: p.me ? (session.name.isEmpty ? 'You' : session.name) : p.name, level: loud[p.id] ?? 0, muted: p.muted, size: Sms.computer ? 52 : 40),
+                      LinkBadge(
+                        id: p.id,
+                        size: Sms.computer ? 52 : 40,
+                        child: ValueListenableBuilder<Map<String, double>>(
+                          valueListenable: levels,
+                          builder: (context, loud, _) => RippleAvatar(name: p.me ? (session.name.isEmpty ? 'You' : session.name) : p.name, level: loud[p.id] ?? 0, muted: p.muted, size: Sms.computer ? 52 : 40),
+                        ),
                       ),
                       SizedBox(width: t.space(3)),
                       Expanded(
-                        child: Text.rich(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                          Text.rich(
                           TextSpan(children: [
                             TextSpan(
                               text: p.name,
@@ -212,6 +217,9 @@ class CallPanel extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink')),
                         ),
+                          // How this device's connection to them stands, where it isn't simply through (GMFB-4).
+                          LinkWords(id: p.id),
+                        ]),
                       ),
                       if (p.video != null) Padding(padding: EdgeInsets.only(right: t.space(2)), child: AppIcon(Lucide.video, size: 16, color: t.color('app-ink-3'))),
                       if (p.muted) Padding(padding: EdgeInsets.only(right: t.space(3)), child: AppIcon(LucideMore.micOff, size: 16, wash: false, color: t.danger)),
@@ -1161,6 +1169,77 @@ class SpaceLiveBar extends StatelessWidget {
             ),
           ),
         );
+      },
+    );
+  }
+}
+
+
+/// How this device's connection to someone in a call stands, on their face (GMFB-4, @kevin: "show when users are
+/// connected to the call so they and others know if they are having audio issues or if they are just not connected to
+/// the call"): nothing while all is well; amber while connecting, reconnecting or slow; red where there is no way
+/// through. Read aloud with the face.
+class LinkBadge extends StatelessWidget {
+  const LinkBadge({super.key, required this.id, required this.child, this.size = 40});
+
+  /// Their id in the call (not `me`: this device has no connection to itself).
+  final String id;
+  final Widget child;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = Voice.instance.media;
+    if (media == null || id == 'me') return child;
+    return ValueListenableBuilder<Map<String, PeerLink>>(
+      valueListenable: media.links,
+      builder: (context, links, _) {
+        final link = links[id];
+        final words = link?.words;
+        if (link == null || words == null) return child;
+        final t = context.tokens;
+        final colour = link == PeerLink.failed ? t.danger : t.colorOf('#e08a1e');
+        final dot = (size * 0.36).clamp(12.0, 20.0);
+        return Semantics(
+          label: words,
+          child: Stack(clipBehavior: Clip.none, children: [
+            child,
+            Positioned(
+              left: -2,
+              bottom: -2,
+              child: Container(
+                key: ValueKey('link-$id-${link.name}'),
+                width: dot,
+                height: dot,
+                decoration: BoxDecoration(color: colour, shape: BoxShape.circle, border: Border.all(color: t.color('app-paper'), width: 2)),
+                alignment: Alignment.center,
+                child: AppIcon(link == PeerLink.failed ? LucideMore.wifiOff : (link == PeerLink.poor ? Lucide.wifi : Lucide.loaderCircle), size: dot * 0.55, strokeWidth: 2.6, wash: false, color: const Color(0xFFFFFFFF)),
+              ),
+            ),
+          ]),
+        );
+      },
+    );
+  }
+}
+
+/// What a person's row says of their connection, under their name; nothing while all is well (GMFB-4).
+class LinkWords extends StatelessWidget {
+  const LinkWords({super.key, required this.id});
+  final String id;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = Voice.instance.media;
+    if (media == null || id == 'me') return const SizedBox.shrink();
+    return ValueListenableBuilder<Map<String, PeerLink>>(
+      valueListenable: media.links,
+      builder: (context, links, _) {
+        final link = links[id];
+        final words = link?.words;
+        if (link == null || words == null) return const SizedBox.shrink();
+        final t = context.tokens;
+        return Text(words, key: ValueKey('link-words-$id'), style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: link == PeerLink.failed ? t.danger : t.colorOf('#e08a1e')));
       },
     );
   }

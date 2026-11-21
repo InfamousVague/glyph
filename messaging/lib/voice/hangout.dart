@@ -236,7 +236,7 @@ class HangoutRoom extends ChangeNotifier {
   // --- chat --------------------------------------------------------------------------------------------------------
 
   /// Writes [text] to the hangout; false where this device may not.
-  bool send(String text, {List<Mention> mentions = const []}) => sendWith(text: text, mentions: mentions);
+  bool send(String text, {List<Mention> mentions = const [], SpaceReply? reply}) => sendWith(text: text, mentions: mentions, reply: reply);
 
   /// Whether this device may write here at all: the roster's Send messages, and not put out. Files and stickers are
   /// part of writing (Matt, 2026-11-18): whoever may write may send them (in a circle its roles say more:
@@ -250,7 +250,8 @@ class HangoutRoom extends ChangeNotifier {
   /// there is nothing to send. [id]: the one an [OutgoingMessage] was shown under.
   /// [mentions]: who is meant by an "@Name" in [text], counted in [text] as given (lib/mentions.dart).
   /// [note]: a plugin's, for it to draw as a card over [text] (lib/voice/plugin_note.dart); only with words alone.
-  bool sendWith({String text = '', List<SpaceFile> files = const [], String? sticker, bool voice = false, String? id, List<Mention> mentions = const [], PluginChatNote? note}) {
+  /// [reply]: the message this answers (GMFB-13), shown over it as a quote.
+  bool sendWith({String text = '', List<SpaceFile> files = const [], String? sticker, bool voice = false, String? id, List<Mention> mentions = const [], PluginChatNote? note, SpaceReply? reply}) {
     var words = text.trim();
     if (sticker != null && !HangoutMessage.stickerPattern.hasMatch(sticker)) return false;
     final extra = files.isNotEmpty || sticker != null;
@@ -269,6 +270,7 @@ class HangoutRoom extends ChangeNotifier {
       // Counted in the words as sent: trimmed, and cut short where too long (a mention past the cut goes).
       mentions: Mention.checked(Mention.trimmed(mentions, text), words),
       note: extra ? null : note,
+      reply: reply,
     ));
     _add([m]);
     _say({'t': 'msg', ...m.toJson()}, keep: true);
@@ -487,7 +489,7 @@ class HangoutRoom extends ChangeNotifier {
 
   /// Sends [picked] (files on this device) up, sealed, with [text], and the message once they are all there; null where
   /// this device may not write here or nothing could be read. [voice]: the one file is a voice message.
-  OutgoingMessage? sendFiles(List<({String path, bool owned})> picked, ChatUploads uploads, {String text = '', bool voice = false, List<Mention> mentions = const []}) {
+  OutgoingMessage? sendFiles(List<({String path, bool owned})> picked, ChatUploads uploads, {String text = '', bool voice = false, List<Mention> mentions = const [], SpaceReply? reply}) {
     if (!mayWrite) return null;
     final files = <OutgoingFile>[];
     for (final p in picked.take(HangoutMessage.mostFiles)) {
@@ -504,7 +506,7 @@ class HangoutRoom extends ChangeNotifier {
     if (files.isEmpty) return null;
     var words = text.trim();
     if (words.length > HangoutMessage.mostWordsWith) words = words.substring(0, HangoutMessage.mostWordsWith);
-    final o = OutgoingMessage(id: NetCrypto.hex(NetCrypto.randomBytes(8)), text: words, files: files, at: DateTime.now().millisecondsSinceEpoch, voice: voice && files.length == 1, mentions: Mention.trimmed(mentions, text));
+    final o = OutgoingMessage(id: NetCrypto.hex(NetCrypto.randomBytes(8)), text: words, files: files, at: DateTime.now().millisecondsSinceEpoch, voice: voice && files.length == 1, mentions: Mention.trimmed(mentions, text), reply: reply);
     outgoing.add(o);
     notifyListeners();
     unawaited(_push(o, uploads));
@@ -550,7 +552,7 @@ class HangoutRoom extends ChangeNotifier {
           }(),
     ]);
     if (!outgoing.contains(o) || o.files.any((f) => f.file == null)) return;
-    if (sendWith(id: o.id, text: o.text, files: [for (final f in o.files) f.file!], voice: o.voice, mentions: o.mentions)) {
+    if (sendWith(id: o.id, text: o.text, files: [for (final f in o.files) f.file!], voice: o.voice, mentions: o.mentions, reply: o.reply)) {
       outgoing.remove(o);
     } else {
       o.error = putOut ?? 'Your role can\'t send messages here.';
@@ -1110,7 +1112,7 @@ class HangoutPerson {
 /// (lib/files/files_store.dart, [ChatUploads]), but never written in its list: only the message knows of them.
 @immutable
 class HangoutMessage {
-  const HangoutMessage({required this.id, required this.from, required this.name, required this.text, required this.at, this.files = const [], this.sticker, this.voice = false, this.mentions = const [], this.poll, this.note, this.edited});
+  const HangoutMessage({required this.id, required this.from, required this.name, required this.text, required this.at, this.files = const [], this.sticker, this.voice = false, this.mentions = const [], this.poll, this.note, this.edited, this.reply});
   final String id;
 
   /// Who wrote it (their id on the hub, as the hub said), and the name they wrote it under.
@@ -1145,6 +1147,10 @@ class HangoutMessage {
   /// When its writer last changed its words (ms), or null where never (`ed`; Matt, 2026-11-20: "I'd like to be able to
   /// edit messages sent in circles from any computer or phone connected to the account that sent it").
   final int? edited;
+
+  /// The message it answers, as it was when answered (`rp`; GMFB-13, @jerbo: "Please add a reply feature for messages
+  /// sent in group chats so I can specifically call out an individual"): a build from before shows the words alone.
+  final SpaceReply? reply;
 
   /// Whether it may be edited at all: words, or files with words; not a poll, a sticker or a plugin's note.
   bool get editable => poll == null && sticker == null && note == null && !voice;
@@ -1193,6 +1199,7 @@ class HangoutMessage {
         poll: poll,
         note: note,
         edited: edited ?? this.edited,
+        reply: reply,
       );
 
   Map<String, Object> toJson() => {
@@ -1209,6 +1216,7 @@ class HangoutMessage {
         if (poll != null) 'pl': poll!.toJson(),
         if (note != null) 'pn': note!.toJson(),
         'ed': ?edited,
+        if (reply != null) 'rp': reply!.toJson(),
       };
 
   /// From what [from] said: its id, words and time; null where it is not a message. A message whose files and sticker
@@ -1249,6 +1257,7 @@ class HangoutMessage {
       // A plugin's note is words with a card over them: never with files, a sticker or a poll.
       note: extras ? null : PluginChatNote.fromJson(j['pn']),
       edited: j['ed'] is int ? j['ed'] as int : null,
+      reply: SpaceReply.fromJson(j['rp']),
     );
   }
 
@@ -1288,8 +1297,11 @@ class OutgoingFile {
 /// A message with files, shown in the chat while they go up (Matt, 2026-11-18): sent once all of them are there, kept
 /// with a try again where one fails. Only on this device, and only while the app is open.
 class OutgoingMessage {
-  OutgoingMessage({required this.id, required this.text, required this.files, required this.at, this.voice = false, this.mentions = const []});
+  OutgoingMessage({required this.id, required this.text, required this.files, required this.at, this.voice = false, this.mentions = const [], this.reply});
   final String id;
+
+  /// The message it answers, where it does (GMFB-13).
+  final SpaceReply? reply;
   final String text;
 
   /// Who [text] mentions, counted in [text].
@@ -1416,4 +1428,41 @@ class MemoryHangoutStore implements HangoutStore, HangoutAboutStore, HangoutVote
   Roster? roster(String room) => _rosters[room];
   @override
   void keepRoster(String room, Roster roster) => _rosters[room] = roster;
+}
+
+
+/// The message a space's message answers (GMFB-13), as it was when answered: its id, who wrote it and the start of its
+/// words, so the quote shows even where the message itself has gone or was never loaded here.
+@immutable
+class SpaceReply {
+  const SpaceReply({required this.id, required this.from, required this.name, required this.text});
+  final String id;
+  final String from;
+  final String name;
+
+  /// At most [most] characters of its words (or what it was, where it had none: "Sticker", "Photo").
+  final String text;
+
+  static const most = 140;
+
+  /// The quote of [m].
+  factory SpaceReply.of(HangoutMessage m) {
+    final words = m.summary.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return SpaceReply(id: m.id, from: m.from, name: m.name, text: words.length > most ? '${words.substring(0, most - 1)}…' : words);
+  }
+
+  Map<String, Object> toJson() => {'id': id, 'f': from, 'n': name, 'x': text};
+
+  static SpaceReply? fromJson(Object? j) {
+    if (j is! Map || j['id'] is! String || j['x'] is! String) return null;
+    final text = (j['x'] as String).trim();
+    final id = j['id'] as String;
+    if (id.isEmpty || id.length > 64) return null;
+    return SpaceReply(
+      id: id,
+      from: j['f'] is String ? j['f'] as String : '',
+      name: j['n'] is String ? bareName(j['n'] as String) : '',
+      text: text.length > most ? '${text.substring(0, most - 1)}…' : text,
+    );
+  }
 }

@@ -11,6 +11,7 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
 import '../kit/settings_kit.dart';
+import '../kit/semantic_colors.dart';
 import '../kit/settings_type.dart';
 import '../voice/channels.dart';
 import '../voice/rtc.dart';
@@ -104,6 +105,8 @@ class _VoicePaneState extends State<VoicePane> {
           SettingRow(icon: icon(LucideMore.headphones), label: 'Speaker or headset', value: Text(_name(_outputs, v.output)), onPress: () => _pick('Speaker or headset', _outputs, v.output, voice.useOutput)),
         ],
       ),
+      gap,
+      const AudioTest(),
       gap,
       PaneSection(
         title: 'Volume',
@@ -214,6 +217,138 @@ class _Level extends StatelessWidget {
           child: Text('$value%', textAlign: TextAlign.right, style: pageText(t, t.fontSize('sm'), weight: value > 100 ? 'bold' : 'regular', color: value > 100 ? t.colorOf('#e08a1e') : t.color('app-ink-3'))),
         ),
       ]),
+    );
+  }
+}
+
+
+/// Settings' audio test (GMFB-2, @kevin: "When testing voice calls it is difficult to diagnose issues without an in app
+/// audio device test"): the microphone chosen, opened as a call opens it, with how loud it hears you; and, with
+/// headphones, yourself played back through the speaker chosen. Not while in a call: the call has the microphone.
+class AudioTest extends StatefulWidget {
+  const AudioTest({super.key});
+
+  /// What the test is run with: the call's own media, alone ([RtcMedia] measures its microphone through its meter when
+  /// nobody else is connected). A test gives its own.
+  @visibleForTesting
+  static RtcMedia Function(VoiceSettings settings)? make;
+
+  @override
+  State<AudioTest> createState() => _AudioTestState();
+}
+
+class _AudioTestState extends State<AudioTest> {
+  RtcMedia? _media;
+  bool _starting = false, _hear = false;
+  String? _problem;
+
+  Future<void> _start() async {
+    if (_media != null || _starting) return;
+    setState(() {
+      _starting = true;
+      _problem = null;
+    });
+    final settings = VoiceSettings.of(AppState.of(context));
+    final media = (AudioTest.make ?? (s) => RtcMedia(settings: s))(settings);
+    try {
+      await media.start();
+      media.hearMyself = _hear;
+      if (!mounted) return unawaited(media.stop());
+      setState(() => _media = media);
+    } catch (e) {
+      unawaited(media.stop());
+      if (mounted) setState(() => _problem = 'The microphone couldn\'t be opened: $e');
+    } finally {
+      if (mounted) setState(() => _starting = false);
+    }
+  }
+
+  Future<void> _stop() async {
+    final media = _media;
+    _media = null;
+    if (mounted) setState(() {});
+    await media?.stop();
+  }
+
+  @override
+  void dispose() {
+    unawaited(_media?.stop());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final inCall = Voice.instance.session != null;
+    final media = _media;
+    Widget icon(LucideIcon i) => AppIcon(i, size: 18);
+    return PaneSection(
+      title: 'Test',
+      description: Text(inCall
+          ? 'Leave the call to test your microphone and speaker here.'
+          : 'Talk, and the bar moves with your voice as a call hears it. With headphones on, hear yourself through the speaker chosen.'),
+      footer: _problem == null ? null : Text(_problem!, style: TextStyle(color: t.danger)),
+      children: [
+        SettingRow(
+          key: const ValueKey('audio-test'),
+          icon: icon(Lucide.mic),
+          label: media == null ? 'Test your microphone' : 'Stop the test',
+          disabled: inCall || _starting,
+          onPress: media == null ? _start : _stop,
+        ),
+        if (media != null) ...[
+          SettingRowBox(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(3)),
+              child: ValueListenableBuilder<Map<String, double>>(
+                valueListenable: media.levels,
+                builder: (context, loud, _) => _Meter(level: (loud['me'] ?? 0).clamp(0.0, 1.0)),
+              ),
+            ),
+          ),
+          SettingRow(
+            icon: icon(LucideMore.headphones),
+            label: 'Hear yourself',
+            hint: const Text('Your microphone through the speaker chosen. Use headphones, or the speaker feeds back into the microphone.'),
+            control: GlacierSwitch(
+              checked: _hear,
+              ariaLabel: 'Hear yourself',
+              onCheckedChange: (on) {
+                setState(() => _hear = on);
+                media.hearMyself = on;
+              },
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// How loud the microphone is, as a bar: green while it hears you speak, red near the top.
+class _Meter extends StatelessWidget {
+  const _Meter({required this.level});
+  final double level;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final colour = level > 0.85 ? t.danger : (level > 0.04 ? t.colorOf('#2fb35a') : t.color('app-ink-4'));
+    return Semantics(
+      label: 'Microphone level',
+      value: '${(level * 100).round()}%',
+      child: LayoutBuilder(
+        builder: (context, box) => Stack(children: [
+          Container(height: 10, decoration: BoxDecoration(color: t.color('app-paper-3'), borderRadius: BorderRadius.circular(5))),
+          AnimatedContainer(
+            key: const ValueKey('audio-test-level'),
+            duration: const Duration(milliseconds: 120),
+            width: box.maxWidth * level,
+            height: 10,
+            decoration: BoxDecoration(color: colour, borderRadius: BorderRadius.circular(5)),
+          ),
+        ]),
+      ),
     );
   }
 }

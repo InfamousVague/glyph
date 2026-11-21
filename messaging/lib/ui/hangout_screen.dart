@@ -624,10 +624,25 @@ class _HangoutChatState extends State<HangoutChat> {
   /// messages sent in circles from any computer or phone connected to the account that sent it").
   HangoutMessage? _editing;
 
+  /// The message the next one answers, shown over the box (GMFB-13), or null.
+  SpaceReply? _replying;
+
+  void _startReply(HangoutMessage m) {
+    if (!widget.room.mayWrite) return;
+    setState(() {
+      _replying = SpaceReply.of(m);
+      _editing = null;
+    });
+    _focus.requestFocus();
+  }
+
+  void _stopReplying() => setState(() => _replying = null);
+
   void _startEdit(HangoutMessage m) {
     if (!widget.room.canEdit(m)) return;
     setState(() {
       _editing = m;
+      _replying = null;
       _picked.clear();
     });
     _text.load(m.text, m.mentions);
@@ -654,13 +669,19 @@ class _HangoutChatState extends State<HangoutChat> {
         toast(context, 'Your role here can\'t send files.', tone: GlacierToastTone.danger);
         return;
       }
-      if (room.sendFiles(List.of(_picked), _uploads, text: _text.text, mentions: _text.mentions) != null) {
-        setState(_picked.clear);
+      if (room.sendFiles(List.of(_picked), _uploads, text: _text.text, mentions: _text.mentions, reply: _replying) != null) {
+        setState(() {
+          _picked.clear();
+          _replying = null;
+        });
         _text.clear();
       }
       return;
     }
-    if (room.send(_text.text, mentions: _text.mentions)) _text.clear();
+    if (room.send(_text.text, mentions: _text.mentions, reply: _replying)) {
+      _text.clear();
+      if (_replying != null) setState(() => _replying = null);
+    }
   }
 
   // --- mentions (Matt, 2026-11-19: "Add mentions support to spaces and circles with the @user prefix") ------------
@@ -918,6 +939,7 @@ class _HangoutChatState extends State<HangoutChat> {
   void _menu(HangoutMessage m) {
     HapticFeedback.mediumImpact();
     showChoices(context, choices: [
+      if (widget.room.mayWrite) Choice('Reply', LucideMore.reply, () => _startReply(m)),
       if (widget.room.canEdit(m)) Choice('Edit', Lucide.penLine, () => _startEdit(m)),
       if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
       ...translateChoices(context, spaceFacts(m, mine: m.from == widget.room.me)),
@@ -1157,7 +1179,7 @@ class _HangoutChatState extends State<HangoutChat> {
                           _poofing.remove(m.id);
                           room.delete(m);
                         },
-                        child: _Message(key: ValueKey(m.id), room: room, message: m, first: first, last: last, mineBg: mineBg, mineInk: mineInk, flat: flat, onDelete: () => setState(() => _poofing.add(m.id)), onEdit: () => _startEdit(m), onMention: _mentionPressed, onPerson: _openPerson),
+                        child: _Message(key: ValueKey(m.id), room: room, message: m, first: first, last: last, mineBg: mineBg, mineInk: mineInk, flat: flat, onDelete: () => setState(() => _poofing.add(m.id)), onEdit: () => _startEdit(m), onReply: () => _startReply(m), onMention: _mentionPressed, onPerson: _openPerson),
                       );
                       if (!newDay) return message;
                       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1237,6 +1259,7 @@ class _HangoutChatState extends State<HangoutChat> {
                         if (_query != null && _found.isNotEmpty)
                           MentionSuggestions(people: _found, chosen: _chosen, onPick: _pickMention, inkOf: (p) => spaceNameInk(t, widget.room, p.id)),
                         if (_editing != null) _EditingBar(words: _editing!.text, onClose: _stopEditing),
+                        if (_replying != null && _editing == null) _ReplyBar(reply: _replying!, me: widget.room.me, onClose: _stopReplying),
                         if (slow > 0 && _editing == null) _SlowModeLine(seconds: slow, left: left),
                         if (readOnly && _editing == null) const ReadOnlyAdminLine(),
                         if (_picked.isNotEmpty) SpacePickedStrip(files: _picked, onRemove: (p) => setState(() => _picked.remove(p))),
@@ -1283,6 +1306,63 @@ bool _sameDay(int a, int b) {
 }
 
 /// Over the box while a message's words are being changed: what is being edited, and the way to stop.
+/// Over the box while answering a message (GMFB-13): who wrote it and its start, and a way to stop.
+class _ReplyBar extends StatelessWidget {
+  const _ReplyBar({required this.reply, required this.me, required this.onClose});
+  final SpaceReply reply;
+  final String me;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final who = reply.from == me ? 'yourself' : (reply.name.isEmpty ? Voice.instance.nameOf(reply.from) : reply.name);
+    return Padding(
+      key: const ValueKey('space-replying'),
+      padding: EdgeInsets.only(bottom: t.space(2)),
+      child: Row(children: [
+        AppIcon(LucideMore.reply, size: 16, color: t.color('app-accent')),
+        SizedBox(width: t.space(2)),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text('Replying to $who', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent'))),
+            if (reply.text.isNotEmpty) Text(reply.text, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+          ]),
+        ),
+        IconTap(key: const ValueKey('space-replying-stop'), icon: Lucide.x, label: 'Stop replying', size: 18, onPressed: onClose),
+      ]),
+    );
+  }
+}
+
+/// The message a message answers, quoted at its head (GMFB-13): a bar in the accent, the writer, and the start of their
+/// words.
+class SpaceQuote extends StatelessWidget {
+  const SpaceQuote({super.key, required this.reply, required this.me, required this.ink});
+  final SpaceReply reply;
+  final String me;
+  final Color ink;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final who = reply.from == me ? 'You' : (reply.name.isEmpty ? Voice.instance.nameOf(reply.from) : reply.name);
+    return Container(
+      key: ValueKey('space-quote-${reply.id}'),
+      padding: EdgeInsets.fromLTRB(t.space(2), 2, t.space(2), 2),
+      decoration: BoxDecoration(
+        color: ink.withValues(alpha: 0.07),
+        border: Border(left: BorderSide(color: t.color('app-accent'), width: 3)),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Text(who, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent'))),
+        if (reply.text.isNotEmpty) Text(reply.text, maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: ink.withValues(alpha: 0.75))),
+      ]),
+    );
+  }
+}
+
 class _EditingBar extends StatelessWidget {
   const _EditingBar({required this.words, required this.onClose});
   final String words;
@@ -1482,7 +1562,7 @@ MessageFacts? spaceFacts(HangoutMessage m, {required bool mine}) =>
     mine || m.text.trim().isEmpty ? null : MessageFacts(thread: -1, senders: [m.from], text: m.text, contact: false, outgoing: false, date: DateTime.fromMillisecondsSinceEpoch(m.at), id: 'space:${m.id}', network: 'space');
 
 class _Message extends StatelessWidget {
-  const _Message({super.key, required this.room, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onDelete, this.onEdit, this.flat = false, this.onMention, this.onPerson});
+  const _Message({super.key, required this.room, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onDelete, this.onEdit, this.onReply, this.flat = false, this.onMention, this.onPerson});
   final HangoutRoom room;
   final HangoutMessage message;
 
@@ -1502,6 +1582,9 @@ class _Message extends StatelessWidget {
 
   /// Its words put in the box to change, where it is this person's (HangoutRoom.canEdit).
   final VoidCallback? onEdit;
+
+  /// Answered: the next message quotes it (GMFB-13).
+  final VoidCallback? onReply;
 
   /// A mention in it pressed.
   final ValueChanged<Mention>? onMention;
@@ -1552,6 +1635,7 @@ class _Message extends StatelessWidget {
         Navigator.of(context, rootNavigator: true).pop();
         react(emoji);
       }) : null, choices: [
+        if (room.mayWrite && onReply != null) Choice('Reply', LucideMore.reply, () => onReply!.call()),
         if (room.canEdit(m) && onEdit != null) Choice('Edit', Lucide.penLine, () => onEdit!.call()),
         if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
         ...translateChoices(context, spaceFacts(m, mine: mine)),
@@ -1575,7 +1659,13 @@ class _Message extends StatelessWidget {
             bottomRight: mine && !last ? tight : round,
           ),
         ),
-        child: _words(t, shown, pageText(t, t.fontSize('md'), color: mine ? mineInk : t.color('app-ink'), height: 1.3), mine ? mineInk : t.color('app-ink')),
+        child: m.reply == null
+            ? _words(t, shown, pageText(t, t.fontSize('md'), color: mine ? mineInk : t.color('app-ink'), height: 1.3), mine ? mineInk : t.color('app-ink'))
+            : Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                SpaceQuote(reply: m.reply!, me: room.me, ink: mine ? mineInk : t.color('app-ink')),
+                SizedBox(height: t.space(1)),
+                _words(t, shown, pageText(t, t.fontSize('md'), color: mine ? mineInk : t.color('app-ink'), height: 1.3), mine ? mineInk : t.color('app-ink')),
+              ]),
       ),
     );
     // A sticker on the page with no bubble; files over the words, the words' bubble only where there are any (Matt,
@@ -1686,6 +1776,7 @@ extension on _Message {
       body = SpaceSticker(name: m.sticker!, side: math.min(t.lenOf('8rem'), maxWidth));
     } else {
       body = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        if (m.reply != null) Padding(padding: EdgeInsets.only(bottom: t.space(1)), child: SpaceQuote(reply: m.reply!, me: room.me, ink: ink)),
         if (m.files.isNotEmpty) ...[
           SpaceChatFiles(channel: room.channel, message: m, mine: false, maxWidth: maxWidth, ground: theirBubble(t, onBackground: false), ink: ink, rim: theirRim(t)),
           if (m.text.isNotEmpty) SizedBox(height: t.space(1)),
