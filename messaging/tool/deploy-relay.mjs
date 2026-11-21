@@ -98,6 +98,8 @@ const KNOWN = {
   GHOST_FILES_PART_HOURS: /^[0-9]{1,4}$/,
   GHOST_FILES_SPACES_PER_ADDRESS: /^[0-9]{1,5}$/,
   GHOST_FILES_PROMISED_PER_ADDRESS: /^[0-9]{1,13}$/,
+  // Bounties in souls without the admin page (relay/lib/bounty.dart): the bounty key's public half, 33 bytes in hex.
+  GHOST_BOUNTY_KEY: /^0[23][0-9a-fA-F]{64}$/,
   // The app's Share feedback, filed in Notion (relay/lib/feedback.dart): the integration's secret and the board's data source.
   GHOST_NOTION_TOKEN: /^(ntn_|secret_)[A-Za-z0-9]{20,80}$/,
   GHOST_NOTION_FEEDBACK: /^[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}$/,

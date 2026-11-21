@@ -216,6 +216,16 @@ class Handles {
   static const soulsAtOnce = 100000;
 
   int soulsOf(String id) => _souls[id] ?? 0;
+
+  /// A bounty's souls, given by the bounty key (bounty.dart) as the admin page gives them: added, kept, logged with why
+  /// (`by: bounty`), and told to them where they are connected. Their total after.
+  int giveBounty(String to, int n, String why) {
+    _souls[to] = soulsOf(to) + n;
+    _grant(to, {'souls': n, 'why': why.length > 200 ? why.substring(0, 200) : why, 'by': 'bounty'});
+    _changed();
+    _here[to]?.call(_soulsMessage(to, got: n, why: why));
+    return soulsOf(to);
+  }
   List<String> specialOf(String id) => List.unmodifiable(_special[id] ?? const <String>[]);
 
   /// Whether [user] and [pass] are the admin's, as [HandlesConfig.adminHash] keeps the password: `salt:hash`, the
