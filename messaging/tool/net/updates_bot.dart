@@ -19,6 +19,7 @@ import 'package:ghost_messaging/voice/voice.dart';
 ///
 ///     flutter test tool/net/updates_bot.dart --dart-define=DO=whoami
 ///     flutter test tool/net/updates_bot.dart --dart-define=DO=join --dart-define=LINK='https://gogho.st/join/#c.…'
+///     flutter test tool/net/updates_bot.dart --dart-define=DO=read    (the last few messages in SPACE, as the relay keeps them)
 ///     flutter test tool/net/updates_bot.dart --dart-define=DO=check   (whether SPACE is read-only and the bot an admin)
 ///     flutter test tool/net/updates_bot.dart --dart-define=DO=post --dart-define=SPACE=Updates --dart-define=TEXT_FILE=/path/words.txt
 ///
@@ -111,7 +112,7 @@ void main() {
         stdout.writeln('ghost-updates-bot: joined "${circle.manifest.name}" (${circle.spaces.length} spaces: ${circle.spaces.map((s) => s.name).join(', ')})');
         return;
       }
-      if (doing == 'post' || doing == 'check') {
+      if (doing == 'post' || doing == 'check' || doing == 'read') {
         final words = textFile.isEmpty ? '' : File(textFile).readAsStringSync().trim();
         if (words.isEmpty && doing == 'post') fail('TEXT_FILE says nothing');
         final from = Circle.fromLink(saved['link'] as String? ?? '');
@@ -125,6 +126,18 @@ void main() {
         stdout.writeln('ghost-updates-bot: "${space.name}" is ${ro == null ? 'not read-only' : 'read-only'}; this bot is ${isAdmin ? 'an admin' : 'NOT an admin'}');
         stdout.writeln('ghost-updates-bot: its roles here: ${circle.manifest.rolesOf(keys.id).map((r) => r.name).join(', ')}${circle.manifest.removed.contains(keys.id) ? ' (removed from the circle)' : ''}');
         if (doing == 'check') return;
+        if (doing == 'read') {
+          final look = HangoutRoom(channel: circle.channelOf(space), route: route, name: botName, signer: KeysSigner(keys), store: MemoryHangoutStore());
+          await look.setReadOnly(ro);
+          await look.open();
+          await Future<void>.delayed(const Duration(seconds: 6));
+          for (final m in look.messages.reversed.take(5).toList().reversed) {
+            stdout.writeln('ghost-updates-bot: read [${DateTime.fromMillisecondsSinceEpoch(m.at).toUtc().toIso8601String()}] ${m.name}: ${m.text.split('\n').first}');
+          }
+          stdout.writeln('ghost-updates-bot: ${look.messages.length} messages in "${space.name}"');
+          await look.close();
+          return;
+        }
         // A read-only space takes the owner's and admins' words alone: anything else the relay drops without a word.
         if (ro != null && !isAdmin) fail('not an admin of ${circle.manifest.name} yet, so "${space.name}" would drop it');
         final chat = HangoutRoom(channel: circle.channelOf(space), route: route, name: botName, signer: KeysSigner(keys), store: MemoryHangoutStore());
