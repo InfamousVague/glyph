@@ -269,12 +269,36 @@ void main() {
     await a.said(alice, {'dir': 'admin-log'});
     expect((last(alice, 'admin-log')!['grants'] as List).length, 3);
 
+    // Matt, 2026-11-21: "notify a user when they have recieved souls wiht a description for why like "bug bounty" etc
+    // it should notify them next time they connect to the app (or immediatly if they're connected in real time)".
+    // Said live with an id; kept until the app says it showed them.
+    expect(last(bob, 'souls')!['gift'], isA<String>(), reason: 'souls taken back are said too, once');
+    // Carol is away: given 40 souls for a bug bounty, and a badge.
+    await a.said(alice, {'dir': 'admin-give', 'to': carol, 'souls': 40, 'why': 'Bug bounty'});
+    await a.said(alice, {'dir': 'admin-badge', 'to': carol, 'badge': 'bughunter', 'on': true});
+
     // Kept across a restart; signed in only while connected.
     a.save();
     final again = Handles(dataDir: dir, config: adminConfig, fetch: net.fetch)..load();
     come(again, bob);
     await again.said(bob, {'dir': 'hello'});
     expect(last(bob, 'hello'), containsPair('special', ['bughunter']));
+    // Bob's gifts came while he was connected, but his app never said it showed them: said again.
+    expect([for (final g in last(bob, 'souls-gifts')!['list'] as List) (g as Map)['souls'] ?? g['badge']], [25, 'bughunter', -100]);
+    // Carol connects: told what came while she was away, with why, until her app says it showed them.
+    come(again, carol);
+    await again.said(carol, {'dir': 'hello'});
+    final away = last(carol, 'souls-gifts')!;
+    expect(away['n'], 40);
+    final list = (away['list'] as List).cast<Map>();
+    expect([for (final g in list) (g['souls'], g['why'], g['badge'])], [(40, 'Bug bounty', null), (null, null, 'bughunter')]);
+    await again.said(carol, {'dir': 'souls-seen', 'ids': [list.first['g']]});
+    await again.said(carol, {'dir': 'hello'});
+    expect([for (final g in last(carol, 'souls-gifts')!['list'] as List) (g as Map)['badge']], ['bughunter']);
+    await again.said(carol, {'dir': 'souls-seen', 'ids': [list.last['g']]});
+    final before = heard[carol]!.length;
+    await again.said(carol, {'dir': 'hello'});
+    expect(heard[carol]!.skip(before).where((m) => m['dir'] == 'souls-gifts'), isEmpty, reason: 'nothing left to say');
     come(again, alice);
     await again.said(alice, {'dir': 'admin-users'});
     expect(last(alice, 'admin-users'), containsPair('ok', false), reason: 'a new connection signs in again');

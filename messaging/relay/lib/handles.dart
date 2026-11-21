@@ -175,6 +175,14 @@ class Handles {
     return [for (final b in specialBadges) if (have.contains(b)) b].firstOrNull ?? have.first;
   }
 
+  /// Souls and badges given that the person's app has not yet said it showed them, by install, oldest first, at most
+  /// [unseenKept] each: {g (an id), at, souls or badge, why} (Matt, 2026-11-21: "notify a user when they have recieved
+  /// souls wiht a description for why like "bug bounty" etc it should notify them next time they connect to the app
+  /// (or immediatly if they're connected in real time)"). Said with the gift where they are connected, and again at
+  /// every hello until the app says `souls-seen`.
+  final Map<String, List<Map<String, Object?>>> _unseen = {};
+  static const unseenKept = 50;
+
   /// What the admin gave, newest last, at most [grantsKept]: {at, to, souls or badge, why}.
   final List<Map<String, Object?>> _grants = [];
   static const grantsKept = 2000;
@@ -260,7 +268,7 @@ class Handles {
     return k == null ? null : _shown[k];
   }
 
-  Map<String, Object?> _soulsMessage(String id, {int? got, String? why, String? badge}) => {
+  Map<String, Object?> _soulsMessage(String id, {int? got, String? why, String? badge, String? gift}) => {
         'dir': 'souls',
         'n': soulsOf(id),
         'special': specialOf(id),
@@ -268,7 +276,26 @@ class Handles {
         'got': ?got,
         'why': ?why,
         'badge': ?badge,
+        'gift': ?gift,
       };
+
+  /// Keeps a gift for [id] until their app has shown it; its id.
+  String _keepUnseen(String id, Map<String, Object?> what) {
+    final g = hexOf([for (var i = 0; i < 8; i++) _random.nextInt(256)]);
+    final list = _unseen[id] ??= [];
+    list.add({'g': g, 'at': _now().toUtc().toIso8601String(), ...what});
+    while (list.length > unseenKept) {
+      list.removeAt(0);
+    }
+    return g;
+  }
+
+  /// The gifts [id]'s app has not shown, as said at hello; null for none.
+  Map<String, Object?>? _unseenMessage(String id) {
+    final list = _unseen[id];
+    if (list == null || list.isEmpty) return null;
+    return {'dir': 'souls-gifts', 'list': list, 'n': soulsOf(id), 'special': specialOf(id)};
+  }
 
   void _grant(String id, Map<String, Object?> what) {
     _grants.add({'at': _now().toUtc().toIso8601String(), 'to': id, ...what});
@@ -444,6 +471,7 @@ class Handles {
         (all['special'] as Map? ?? const {}).forEach((id, list) => _special[id as String] = (list as List).cast<String>().toList());
         (all['showcase'] as Map? ?? const {}).forEach((id, b) => _showcase[id as String] = b as String);
         _grants.addAll([for (final g in (all['grants'] as List? ?? const [])) (g as Map).cast<String, Object?>()]);
+        (all['unseen'] as Map? ?? const {}).forEach((id, list) => _unseen[id as String] = [for (final g in list as List) (g as Map).cast<String, Object?>()]);
       }
     } catch (_) {
       // A file that cannot be read is started again from nothing rather than stopping the relay.
@@ -488,6 +516,7 @@ class Handles {
         'special': _special,
         'showcase': _showcase,
         'grants': _grants,
+        'unseen': _unseen,
       }));
       tmp.renameSync(file.path);
     } catch (_) {}
@@ -589,6 +618,9 @@ class Handles {
             _shown[held] = tidyName(mine);
             _changed();
           }
+          // Souls and badges given while away, said until the app has shown them.
+          final away = _unseenMessage(id);
+          if (away != null) tell(away);
           for (final done in _done.remove(id) ?? const <Map<String, String>>[]) {
             tell({'dir': 'linked', ...done});
           }
@@ -692,6 +724,15 @@ class Handles {
           });
         case 'souls?':
           tell(_soulsMessage(id));
+        case 'souls-seen':
+          // The gifts the app has shown: kept no longer.
+          final ids = said['ids'];
+          final list = _unseen[id];
+          if (ids is List && list != null) {
+            list.removeWhere((g) => ids.contains(g['g']));
+            if (list.isEmpty) _unseen.remove(id);
+            _changed();
+          }
         case 'showcase':
           // The badge to show beside one's name: one of one's own, or '' for one's highest.
           final b = said['badge'];
@@ -731,9 +772,11 @@ class Handles {
               if (to is! String || to.isEmpty || n is! int || n == 0 || n.abs() > soulsAtOnce) return tell({'dir': 'admin-give', 'ok': false, 'err': 'Give between 1 and $soulsAtOnce souls, or take as many.'});
               final now = soulsOf(to) + n;
               _souls[to] = now < 0 ? 0 : now;
-              _grant(to, {'souls': n, 'why': why.length > 200 ? why.substring(0, 200) : why});
+              final short = why.length > 200 ? why.substring(0, 200) : why;
+              _grant(to, {'souls': n, 'why': short});
+              final gift = _keepUnseen(to, {'souls': n, 'why': short});
               _changed();
-              _here[to]?.call(_soulsMessage(to, got: n, why: why));
+              _here[to]?.call(_soulsMessage(to, got: n, why: short, gift: gift));
               tell({'dir': 'admin-give', 'ok': true, 'to': to, 'n': soulsOf(to)});
             case 'admin-badge':
               final to = said['to'], badge = said['badge'], on = said['on'] == true;
@@ -743,8 +786,9 @@ class Handles {
               if (!on) list.remove(badge);
               if (list.isEmpty) _special.remove(to);
               _grant(to, {'badge': badge, 'on': on});
+              final gift = on ? _keepUnseen(to, {'badge': badge}) : null;
               _changed();
-              _here[to]?.call(_soulsMessage(to, badge: on ? badge : null));
+              _here[to]?.call(_soulsMessage(to, badge: on ? badge : null, gift: gift));
               tell({'dir': 'admin-badge', 'ok': true, 'to': to, 'special': specialOf(to)});
           }
         case 'link':
