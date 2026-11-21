@@ -25,6 +25,7 @@ import '../plugins/ui.dart' show FilterButton, MarkAllRead, PluginRow;
 import '../reactions.dart';
 import '../sms.dart';
 import '../summaries.dart';
+import 'account_screens.dart' show ShowWordsScreen, wordsLater;
 import 'common.dart';
 import 'voice_screen.dart';
 import 'hangout_screen.dart';
@@ -1077,6 +1078,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final gutter = t.space(4);
     // Texts from people who use RCS may still be going to the app this one replaced: said until it is dismissed.
     final notice = !widget.archived && _query.isEmpty && !_selecting && _section == null && _arriving.rcsLikely && !_beside && app.flag('rcs_notice');
+    // The recovery words put off at sign-up (GMFB-3): a reminder until they are seen in Settings › Me.
+    final wordsDue = !widget.archived && _query.isEmpty && !_selecting && _section == null && app.flag(wordsLater, fallback: false);
     // The conversation open in the pane, and whether that is beside the list: its row is marked for it there.
     final open = AppShell.threadOf(context);
     final beside = AppShell.wideOf(context) ? open : null;
@@ -1163,7 +1166,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         ),
       ]);
     } else {
-      final extras = (lead != null ? 1 : 0) + (notice ? 1 : 0);
+      final extras = (lead != null ? 1 : 0) + (notice ? 1 : 0) + (wordsDue ? 1 : 0);
       // In the frame the way to the archive is the pill's ring, with its number.
       final tail = !framed && !widget.archived && archivedCount > 0 && _query.isEmpty && !_selecting && _section == null;
       // What the filter hides, said at the list's foot with the way to see it: nothing is lost quietly.
@@ -1176,6 +1179,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           if (lead != null && i == 0) return lead;
           if (notice && i == (lead != null ? 1 : 0)) {
             return _RcsNotice(app: _arriving.app, onFix: () => _settings('android'), onDismiss: () => app.setFlag('rcs_notice', false));
+          }
+          if (wordsDue && i == (lead != null ? 1 : 0) + (notice ? 1 : 0)) {
+            return _WordsNotice(onShow: () => push(context, (_) => const ShowWordsScreen()), onDismiss: () => app.setFlag(wordsLater, false));
           }
           final at = i - extras;
           if (at < rows.length && rows[at] is InboxChat) {
@@ -1483,6 +1489,44 @@ class _RefreshableListState extends State<RefreshableList> {
 
 /// Over the list until it is dismissed, where the app this one replaced keeps RCS chats: why some people's texts may
 /// not be arriving, and the way to what to do about it (Settings › Android).
+/// The recovery words, put off at sign-up, still to be written down (GMFB-3): the way to them, or put away.
+class _WordsNotice extends StatelessWidget {
+  const _WordsNotice({required this.onShow, required this.onDismiss});
+  final VoidCallback onShow;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Padding(
+      key: const ValueKey('words-notice'),
+      padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(2)),
+      child: Container(
+        padding: EdgeInsets.fromLTRB(t.space(3), t.space(3), t.space(1), t.space(3)),
+        decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.radius('lg')), border: Border.all(color: t.color('app-rule'))),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(padding: const EdgeInsets.only(top: 2), child: AppIcon(Lucide.keyRound, size: 18, color: t.color('app-ink-2'))),
+          SizedBox(width: t.space(3)),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text('Write down your recovery words', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink'))),
+              SizedBox(height: t.lenOf('0.15rem')),
+              Text('Your username and password sign you in on another device. The 12 words are for when the password is lost.', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.4)),
+              SizedBox(height: t.space(2)),
+              GlacierPressable(
+                onPressed: onShow,
+                semanticLabel: 'Show my recovery words',
+                builder: (context, state) => Text('Show them', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color(state.pressed ? 'app-ink-3' : 'app-ink')).copyWith(decoration: TextDecoration.underline)),
+              ),
+            ]),
+          ),
+          IconTap(icon: Lucide.x, label: 'Dismiss', size: 16, box: t.lenOf('2.25rem'), onPressed: onDismiss),
+        ]),
+      ),
+    );
+  }
+}
+
 class _RcsNotice extends StatelessWidget {
   const _RcsNotice({required this.app, required this.onFix, required this.onDismiss});
   final String app;
