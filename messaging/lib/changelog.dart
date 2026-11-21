@@ -23,8 +23,13 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
-  ReleaseNotes('0.11.6', '2026-11-21', [
+  ReleaseNotes('0.12.0', '2026-11-21', [
+    'Videos from Files spaces can go full screen on your phone too: press the full-screen button and the bars hide and the phone turns to fit the video (upright for a tall one). Back, or the button again, leaves full screen.',
+  ]),
+  ReleaseNotes('0.11.7', '2026-11-21', [
     'Record call: everyone\'s voice is recorded again, not just yours. Since calls can start through the relay and then reconnect, a person\'s sound could move to a new connection part way, and the recording kept listening to the old one.',
+  ]),
+  ReleaseNotes('0.11.6', '2026-11-21', [
     'Files spaces: files over 4 GB show in the space again. A big film or backup could finish uploading and still not appear in the list.',
     'Calls: video now shows on both ends. Until now each side saw only their own camera, never the other person\'s. Calls also connect through Ghost\'s relay first, which gets through almost any network, and only try a direct path if the relay can\'t be reached; a call that hasn\'t connected after 15 seconds tries the other way by itself.',
     'Windows: the microphone you pick in a call or in Settings › Voice and video is the one used. Windows used the first microphone it found, whatever you chose.',
