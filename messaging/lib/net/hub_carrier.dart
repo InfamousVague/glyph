@@ -150,6 +150,10 @@ class HubCarrier implements Carrier {
   final Map<String, String> _looked = {};
   final _looks = StreamController<({String room, List<String> members})>.broadcast();
 
+  /// The relay's TURN server for calls, with a username and password good for a day, as the hub handed it out with the
+  /// last room joined (relay/lib/turn.dart): an RTCIceServer entry. Null where the hub has none (or is from before).
+  Map<String, Object>? callRelay;
+
   /// Who is in each room this install looks at ([look]), as the hub last said.
   final Map<String, List<String>> looking = {};
 
@@ -318,6 +322,7 @@ class HubCarrier implements Carrier {
         final c = _joining.remove(room);
         if (m['ok'] == true) {
           final members = (m['members'] as List? ?? const []).cast<String>();
+          if (m['ice'] is Map) callRelay = (m['ice'] as Map).cast<String, Object>();
           c?.complete(members);
           _rooms.add(RoomEvent(room, members: members));
         } else {

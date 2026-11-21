@@ -222,6 +222,20 @@ abstract class VoicePeer {
   Future<void> close();
 }
 
+/// Media whose connections say when they fail, and can be made to go through the relay alone (lib/voice/rtc.dart).
+///
+/// Matt, 2026-11-21: "Sometimes calls are not negotiating in voice chats and I can't connect to another person, if p2p
+/// fails please connect over voice through the relay". A connection tries every path at once (direct, and through the
+/// relay's TURN server where the hub handed one out: relay/lib/turn.dart) and takes the best that works. Where none did
+/// ([onFailed]), the side that offered starts over once with [relayOnly] (VoiceSession._failed): a fresh connection
+/// that uses the relay alone, which connects wherever the relay itself can be reached.
+abstract class FallbackMedia implements VoiceMedia {
+  VoicePeer peerWith(String id, {required void Function(Map<String, dynamic> candidate) onCandidate, required void Function() onFailed, bool relayOnly = false});
+
+  /// Whether a relay for calls was handed out (no point starting over through it otherwise).
+  bool get hasRelay;
+}
+
 /// This device's microphone and camera, and the connections to the others (lib/voice/rtc.dart).
 abstract class VoiceMedia {
   /// How loud each one is now, 0 to 1: `me` for this device's microphone, and each other member by id. What the
@@ -453,6 +467,8 @@ class VoiceSession extends ChangeNotifier {
       await p.close();
     }
     _peers.clear();
+    _offered.clear();
+    _retried.clear();
     members.clear();
     await media.stop();
     notifyListeners();
@@ -499,6 +515,8 @@ class VoiceSession extends ChangeNotifier {
       _sayState();
     } else if (e.went != null) {
       final was = members.remove(e.went) != null;
+      _offered.remove(e.went);
+      _retried.remove(e.went);
       unawaited(_peers.remove(e.went)?.close());
       // The last of the others gone: the call is over, said so; anyone else going is someone leaving.
       if (was) Sounds.instance.play(members.isEmpty ? UiSound.callEnded : UiSound.someoneLeft);
@@ -506,11 +524,37 @@ class VoiceSession extends ChangeNotifier {
     notifyListeners();
   }
 
-  VoicePeer _peerFor(String id) => _peers[id] ??= media.peer(id, onCandidate: (c) => _say({'t': 'ice', 'to': id, 'c': c}));
+  VoicePeer _peerFor(String id, {bool relayOnly = false}) {
+    final had = _peers[id];
+    if (had != null) return had;
+    void cand(Map<String, dynamic> c) => _say({'t': 'ice', 'to': id, 'c': c});
+    final m = media;
+    late final VoicePeer made;
+    made = m is FallbackMedia ? m.peerWith(id, onCandidate: cand, onFailed: () => _failed(id, made), relayOnly: relayOnly) : media.peer(id, onCandidate: cand);
+    return _peers[id] = made;
+  }
 
-  Future<void> _offer(String id) async {
-    final sdp = await _peerFor(id).makeOffer();
-    _say({'t': 'offer', 'to': id, 'sdp': highestOpus(sdp, kbps: kbps, stereo: stereo), 'j': _join});
+  /// Those this device offered to, and those it has started over with through the relay alone ([_failed]).
+  final Set<String> _offered = {}, _retried = {};
+
+  /// The connection to [id] found no way through ([FallbackMedia]). The side that offered starts over once, through the
+  /// relay alone, with an offer marked `r` so the other side lets go of its failed connection first; the other side
+  /// waits for it. A second failure is left as it is: they show in the call without sound, as before.
+  void _failed(String id, VoicePeer which) {
+    if (!joined || !identical(_peers[id], which)) return;
+    if (!_offered.contains(id) || _retried.contains(id) || !members.containsKey(id)) return;
+    final m = media;
+    if (m is! FallbackMedia || !m.hasRelay) return;
+    _retried.add(id);
+    _peers.remove(id);
+    unawaited(which.close());
+    unawaited(_offer(id, relayOnly: true));
+  }
+
+  Future<void> _offer(String id, {bool relayOnly = false}) async {
+    _offered.add(id);
+    final sdp = await _peerFor(id, relayOnly: relayOnly).makeOffer();
+    _say({'t': 'offer', 'to': id, 'sdp': highestOpus(sdp, kbps: kbps, stereo: stereo), 'j': _join, if (relayOnly) 'r': 1});
   }
 
   void _sayState() => _say({
@@ -589,8 +633,13 @@ class VoiceSession extends ChangeNotifier {
         // one goes first, whether or not 'moved' got here (an older build says none).
         final j = m['j'];
         if (_peers.containsKey(from) && j != null && _offerJoin[from] != j) await _peers.remove(from)?.close();
+        // Started over through the relay alone after no way through was found (_failed): the failed connection goes.
+        final again = m['r'] == 1;
+        // They offered: this side answers, and waits for them to start over if it fails.
+        if (!again) _offered.remove(from);
+        if (again) await _peers.remove(from)?.close();
         _offerJoin[from] = j;
-        final answer = await _peerFor(from).takeOffer('${m['sdp']}');
+        final answer = await _peerFor(from, relayOnly: again).takeOffer('${m['sdp']}');
         _say({'t': 'answer', 'to': from, 'sdp': highestOpus(answer, kbps: kbps, stereo: stereo), 'j': ?j});
         // Said again for the newcomer, who may have joined after it was said.
         _sayState();

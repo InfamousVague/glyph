@@ -131,6 +131,12 @@ const KNOWN = {
   GHOST_MARKET_REPORTS_A_DAY: /^[0-9]{1,6}$/,
   GHOST_MARKET_NEED_VERIFIED: /^[01]$/,
   GHOST_MARKET_REVIEW_KEYS: /^[A-Za-z0-9+\/]{44}(,[A-Za-z0-9+\/]{44})*$/,
+  // The media relay calls fall back on (relay/lib/turn.dart; Matt, 2026-11-21: "if p2p fails please connect over voice
+  // through the relay"): coturn's static-auth-secret, where it is (turn: and turns: addresses, commas between), and how
+  // long a username and password handed out work for, in seconds.
+  GHOST_TURN_SECRET: /^[A-Za-z0-9_-]{32,128}$/,
+  GHOST_TURN_URLS: /^turns?:[A-Za-z0-9.-]+(:[0-9]{1,5})?(\?transport=(udp|tcp))?(,turns?:[A-Za-z0-9.-]+(:[0-9]{1,5})?(\?transport=(udp|tcp))?)*$/,
+  GHOST_TURN_TTL: /^[0-9]{3,7}$/,
 };
 const SHAPES = {
   GHOST_TWILIO_SID: 'AC or SK and 32 more characters',
@@ -139,9 +145,11 @@ const SHAPES = {
   GHOST_NOTION_TOKEN: 'ntn_ and the rest, from the integration\'s page',
   GHOST_NOTION_FEEDBACK: 'the board\'s data source id, a UUID',
   GHOST_MARKET_REVIEW_KEYS: 'base64 public keys of 44 characters, commas between',
+  GHOST_TURN_SECRET: '32 to 128 letters, digits, - or _',
+  GHOST_TURN_URLS: 'turn:host:3478?transport=udp and the like, commas between',
 };
 // Kept together or not at all: with one of them missing the relay has that way of linking off, and says nothing.
-const TOGETHER = [['GHOST_TWILIO_SID', 'GHOST_TWILIO_TOKEN', 'GHOST_TWILIO_VERIFY'], ['GHOST_DISCORD_ID', 'GHOST_DISCORD_SECRET'], ['GHOST_TELEGRAM_BOT', 'GHOST_TELEGRAM_TOKEN'], ['GHOST_NOTION_TOKEN', 'GHOST_NOTION_FEEDBACK']];
+const TOGETHER = [['GHOST_TWILIO_SID', 'GHOST_TWILIO_TOKEN', 'GHOST_TWILIO_VERIFY'], ['GHOST_DISCORD_ID', 'GHOST_DISCORD_SECRET'], ['GHOST_TELEGRAM_BOT', 'GHOST_TELEGRAM_TOKEN'], ['GHOST_NOTION_TOKEN', 'GHOST_NOTION_FEEDBACK'], ['GHOST_TURN_SECRET', 'GHOST_TURN_URLS']];
 
 /** The file's values as the box's file will hold them, and their names. No value is ever part of a message. */
 function readEnvFile(file) {
@@ -158,7 +166,7 @@ function readEnvFile(file) {
     // Copied with quotes round it, or a curly pair an editor made of them.
     value = value.replace(/^["'\u201c\u2018](.*)["'\u201d\u2019]$/, '$1').trim();
     if (!value) continue;
-    if (!/^[A-Za-z0-9+_.,:\/@-]+$/.test(value)) fail(`${file}: the value of ${name} has a space, a quote or another mark a value does not have.`);
+    if (!/^[A-Za-z0-9+_.,:\/@?=-]+$/.test(value)) fail(`${file}: the value of ${name} has a space, a quote or another mark a value does not have.`);
     if (KNOWN[name] && !KNOWN[name].test(value)) fail(`${file}: the value of ${name} does not look right${SHAPES[name] ? ` (it is ${SHAPES[name]})` : ''}. Nothing was sent.`);
     if (values.has(name)) fail(`${file}: ${name} is there twice.`);
     values.set(name, value);

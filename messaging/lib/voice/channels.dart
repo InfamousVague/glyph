@@ -869,7 +869,9 @@ class Voice extends ChangeNotifier {
       _ringIn(false);
     }
     final settings = _app == null ? const VoiceSettings() : VoiceSettings.of(_app!);
-    final m = media = RtcMedia(settings: settings);
+    // The relay's TURN server, as the hub handed it out with the last room joined: a call falls back on it where the
+    // two devices can't reach each other directly (relay/lib/turn.dart).
+    final m = media = RtcMedia(settings: settings, relay: route is HubVoiceRoute ? () => route.hub.callRelay : null);
     for (final e in _volumes.entries) {
       m.setPeerVolume(e.key, e.value);
     }

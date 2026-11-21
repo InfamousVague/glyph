@@ -149,6 +149,9 @@ export class Hangout {
     this.seedHex = seed;
     this.onChange = onChange;
     this.members = new Map(); // id -> { name, muted, video, guest, stream }
+    this.offered = new Set(); // those this browser offered to
+    this.retried = new Set(); // those it started over with through the relay alone
+    this.relay = null;
     this.peers = new Map();
     this.early = new Map();
     this.here = [];
@@ -186,6 +189,8 @@ export class Hangout {
     if (Array.isArray(m.look)) { this.here = m.look; return this.change(); }
     if ('ok' in m) {
       if (!m.ok) { this.refused = m.err ?? 'refused'; return this.change(); }
+      // The relay's TURN server for calls (relay/lib/turn.dart): where two can't reach each other directly.
+      if (m.ice && typeof m.ice === 'object') this.relay = m.ice;
       this.joined = true;
       for (const id of m.members) this.members.set(id, this.members.get(id) ?? { name: '' });
       this.sayMe();
@@ -197,6 +202,8 @@ export class Hangout {
       setTimeout(() => this.retune(), 1500);
     } else if (m.went) {
       this.members.delete(m.went);
+      this.offered.delete(m.went);
+      this.retried.delete(m.went);
       this.peers.get(m.went)?.close();
       this.peers.delete(m.went);
       this.retune();
@@ -227,7 +234,11 @@ export class Hangout {
       this.members.set(from, { ...had, name: String(m.n ?? ''), muted: !!m.m, video: !!m.v, guest: !!m.g });
       this.change();
     } else if (m.t === 'offer') {
-      const pc = this.pc(from);
+      // Started over through the relay alone after no way through was found (lib/voice/voice.dart _failed).
+      const again = m.r === 1;
+      if (again) { this.peers.get(from)?.close(); this.peers.delete(from); this.early.delete(from); }
+      else this.offered.delete(from);
+      const pc = this.pc(from, again);
       await pc.setRemoteDescription({ type: 'offer', sdp: m.sdp });
       await this.flush(from);
       for (const t of pc.getTransceivers()) {
@@ -259,10 +270,14 @@ export class Hangout {
     this.early.delete(from);
   }
 
-  pc(id) {
+  // Every path at once (direct, and the relay where the hub handed one out), the best that works taken; [relayOnly]: the
+  // relay alone, the second try after none was found (Matt, 2026-11-21: "if p2p fails please connect over voice through
+  // the relay").
+  pc(id, relayOnly = false) {
     let pc = this.peers.get(id);
     if (pc) return pc;
-    pc = new RTCPeerConnection({ iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }] });
+    const iceServers = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }, ...(this.relay ? [this.relay] : [])];
+    pc = new RTCPeerConnection({ iceServers, ...(relayOnly ? { iceTransportPolicy: 'relay' } : {}) });
     pc.onicecandidate = (e) => { if (e.candidate) this.say({ t: 'ice', to: id, c: { candidate: e.candidate.candidate, sdpMid: e.candidate.sdpMid, sdpMLineIndex: e.candidate.sdpMLineIndex } }); };
     pc.ontrack = (e) => {
       const m = this.members.get(id) ?? { name: '' };
@@ -271,13 +286,24 @@ export class Hangout {
       this.members.set(id, { ...m, stream });
       this.change();
     };
-    pc.onconnectionstatechange = () => this.change();
+    pc.onconnectionstatechange = () => {
+      // No way through: the side that offered starts over once, through the relay alone.
+      if (pc.connectionState === 'failed' && this.peers.get(id) === pc && this.offered.has(id) && !this.retried.has(id) && this.relay && this.members.has(id)) {
+        this.retried.add(id);
+        pc.close();
+        this.peers.delete(id);
+        this.early.delete(id);
+        this.offer(id, true);
+      }
+      this.change();
+    };
     this.peers.set(id, pc);
     return pc;
   }
 
-  async offer(id) {
-    const pc = this.pc(id);
+  async offer(id, relayOnly = false) {
+    this.offered.add(id);
+    const pc = this.pc(id, relayOnly);
     const vf = videoFor(this.members.size);
     pc.addTransceiver(this.mic.getAudioTracks()[0], { direction: 'sendrecv', streams: [this.mic] });
     const v = pc.addTransceiver('video', { direction: 'sendrecv', sendEncodings: [{ maxBitrate: vf.bitrate, maxFramerate: 30, scaleResolutionDownBy: vf.scale }] });
@@ -286,7 +312,7 @@ export class Hangout {
     const sdp = highestOpus(offer.sdp);
     await pc.setLocalDescription({ type: 'offer', sdp });
     await this.highest(pc);
-    this.say({ t: 'offer', to: id, sdp });
+    this.say({ t: 'offer', to: id, sdp, ...(relayOnly ? { r: 1 } : {}) });
   }
 
   async highest(pc) {
@@ -334,6 +360,8 @@ export class Hangout {
     this.hub.say({ leave: this.room });
     for (const pc of this.peers.values()) pc.close();
     this.peers.clear();
+    this.offered.clear();
+    this.retried.clear();
     for (const s of [this.mic, this.cam]) for (const t of s?.getTracks() ?? []) t.stop();
     this.mic = this.cam = null;
     for (const m of this.members.values()) delete m.stream;
