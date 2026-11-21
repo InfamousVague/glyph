@@ -105,8 +105,7 @@ void RegisterVoiceFx(flutter::BinaryMessenger* messenger) {
       const auto* v = arg("name");
       const auto* name = v ? std::get_if<std::string>(v) : nullptr;
       const std::string n = name ? *name : std::string();
-      int which = n == "deeper" ? 1 : n == "higher" ? 2 : n == "chipmunk" ? 3 : n == "monster" ? 4 : n == "robot" ? 5 : n == "radio" ? 6 : 0;
-      voicefx_effect(g_processor->fx(), which);
+      voicefx_effect(g_processor->fx(), voicefx_effect_id(n.c_str()));
       result->Success(flutter::EncodableValue(Attach()));
       return;
     }

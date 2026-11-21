@@ -73,12 +73,20 @@ class ChangerVoice {
 /// A voice made on this device as it is said, for calls (native/voicefx voicefx_effect; Matt, 2026-11-21: "Add support
 /// (by default) for the voice changer to use on the fly voice changing the elevenlabs is very slow and not real time"):
 /// about a fiftieth of a second behind, free, and nothing leaves the device.
+///
+/// Each moves the voice's pitch and its formants (how big the throat and mouth sound) apart, as a real voice of that
+/// kind differs (Matt, 2026-11-21: "work on making them sound more realistic and do feminine masculine and things like
+/// that"); the names are native/voicefx's (voicefx_effect_id).
 enum VoiceEffect {
-  deeper('Deeper', 'Lower, as if older or bigger'),
-  higher('Higher', 'Lighter and younger'),
-  chipmunk('Chipmunk', 'Squeaky, much higher'),
-  monster('Monster', 'Very low and rough'),
-  robot('Robot', 'Metallic and buzzing'),
+  feminine('Feminine', 'A woman\'s pitch and voice'),
+  masculine('Masculine', 'A man\'s pitch and voice'),
+  deeper('Deeper', 'Your voice, a little lower and fuller'),
+  higher('Higher', 'Your voice, a little higher and lighter'),
+  child('Child', 'High, with a small voice'),
+  older('Older', 'A little lower, with a waver'),
+  monster('Monster', 'Huge, very low and rough'),
+  chipmunk('Chipmunk', 'The cartoon: squeaky and fast-sounding'),
+  robot('Robot', 'One flat, mechanical pitch'),
   radio('Radio', 'Thin, like a walkie-talkie');
 
   const VoiceEffect(this.label, this.about);
