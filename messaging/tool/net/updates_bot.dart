@@ -80,6 +80,9 @@ Future<(Circle, CircleRoom)> _circle(HubVoiceRoute route, Circle from) async {
   );
   await room.open();
   await got.future.timeout(const Duration(seconds: 12), onTimeout: () {});
+  // Every device with a newer one may answer, the lowest id first: listen a while longer and keep the newest.
+  await Future<void>.delayed(const Duration(seconds: 5));
+  stdout.writeln('ghost-updates-bot: circle at version ${circle.manifest.version}, admin list ${circle.manifest.grantsVersion} (${circle.manifest.adminGrants.length} admins)');
   return (circle, room);
 }
 
@@ -120,6 +123,7 @@ void main() {
         final ro = readOnlyRoomOf(circle.manifest, space);
         final isAdmin = circle.manifest.adminGrants.containsKey(keys.id) || circle.manifest.owner == NetCrypto.hex(keys.public);
         stdout.writeln('ghost-updates-bot: "${space.name}" is ${ro == null ? 'not read-only' : 'read-only'}; this bot is ${isAdmin ? 'an admin' : 'NOT an admin'}');
+        stdout.writeln('ghost-updates-bot: its roles here: ${circle.manifest.rolesOf(keys.id).map((r) => r.name).join(', ')}${circle.manifest.removed.contains(keys.id) ? ' (removed from the circle)' : ''}');
         if (doing == 'check') return;
         // A read-only space takes the owner's and admins' words alone: anything else the relay drops without a word.
         if (ro != null && !isAdmin) fail('not an admin of ${circle.manifest.name} yet, so "${space.name}" would drop it');
