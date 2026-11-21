@@ -33,6 +33,9 @@ extern void df_free(DFState *st);
 
 #define BLOCK 480 /* 10 ms at 48 kHz: RNNoise's frame, and DeepFilterNet's hop. */
 #define MOST 1920 /* The longest block taken: 10 ms at 192 kHz. */
+#define SHIFT 4096 /* The pitch shifter's line: a power of two, more than its window. */
+#define WINDOW 1920 /* Its window, 40 ms at 48 kHz: half of it is how far behind the voice is. */
+#define COMB 512
 
 struct VoiceFx {
   VFX_ATOMIC int mode;
@@ -52,6 +55,16 @@ struct VoiceFx {
   float *give;    /* RING48 samples at 48 kHz */
   VFX_ATOMIC long giveIn, giveOut;
   float down[BLOCK];
+  /* The voice effect (voicefx_effect), and what it keeps from block to block, touched only on WebRTC's thread. */
+  VFX_ATOMIC int effect;
+  int effectWas;
+  float shift[SHIFT];   /* the pitch shifter's delay line, at 48 kHz */
+  int shiftAt;
+  double shiftPhase;
+  float comb[COMB];     /* the robot's ringing echo */
+  int combAt;
+  double ring;          /* the robot's carrier, 0 to 1 */
+  float bq[2][4];       /* the radio's two filters' state: x1, x2, y1, y2 */
 };
 
 #define RING16 (16000 * 20) /* twenty seconds of what was said, waiting to be taken */
@@ -140,6 +153,107 @@ static void resample(const float *in, int n, float *out, int m) {
   }
 }
 
+static float limit(float x);
+
+/* --- voice effects ------------------------------------------------------------------------------------------------ */
+
+/* The pitch moved by [ratio] (2 an octave up, 0.5 one down), as a tape read faster or slower: two taps on a delay line
+ * a half window apart, each faded in and out as it sweeps, so the jump where a tap wraps is never heard. */
+static void pitch_shift(VoiceFx *fx, float *s, int n, double ratio) {
+  const double step = (1.0 - ratio) / WINDOW;
+  for (int i = 0; i < n; i++) {
+    fx->shift[fx->shiftAt & (SHIFT - 1)] = s[i];
+    double out = 0;
+    for (int tap = 0; tap < 2; tap++) {
+      double p = fx->shiftPhase + tap * 0.5;
+      p -= floor(p);
+      double delay = 1.0 + p * WINDOW;
+      double at = (double)fx->shiftAt - delay;
+      long a = (long)floor(at);
+      float f = (float)(at - (double)a);
+      float x = fx->shift[a & (SHIFT - 1)] * (1 - f) + fx->shift[(a + 1) & (SHIFT - 1)] * f;
+      double gain = 0.5 - 0.5 * cos(2.0 * 3.14159265358979 * p);
+      out += x * gain;
+    }
+    s[i] = (float)out;
+    fx->shiftAt++;
+    fx->shiftPhase += step;
+    fx->shiftPhase -= floor(fx->shiftPhase);
+  }
+}
+
+/* A second-order filter (RBJ's cookbook) on [s], its state in [z]. */
+static void biquad(float *s, int n, float *z, double b0, double b1, double b2, double a1, double a2) {
+  for (int i = 0; i < n; i++) {
+    double x = s[i];
+    double y = b0 * x + b1 * z[0] + b2 * z[1] - a1 * z[2] - a2 * z[3];
+    z[1] = z[0];
+    z[0] = (float)x;
+    z[3] = z[2];
+    z[2] = (float)y;
+    s[i] = (float)y;
+  }
+}
+
+static void pass(float *s, int n, float *z, double hz, int high) {
+  const double w = 2.0 * 3.14159265358979 * hz / 48000.0, q = 0.8;
+  const double c = cos(w), alpha = sin(w) / (2 * q), a0 = 1 + alpha;
+  if (high) {
+    biquad(s, n, z, (1 + c) / 2 / a0, -(1 + c) / a0, (1 + c) / 2 / a0, -2 * c / a0, (1 - alpha) / a0);
+  } else {
+    biquad(s, n, z, (1 - c) / 2 / a0, (1 - c) / a0, (1 - c) / 2 / a0, -2 * c / a0, (1 - alpha) / a0);
+  }
+}
+
+/* Driven: soft saturation on the 16-bit scale, [drive] times into it. */
+static void drive(float *s, int n, float amount) {
+  for (int i = 0; i < n; i++) {
+    float x = s[i] / 32768.0f * amount;
+    s[i] = 32768.0f * 0.85f * (x / (1.0f + fabsf(x)));
+  }
+}
+
+static void effect(VoiceFx *fx, int which, float *s, int n) {
+  if (which != fx->effectWas) {
+    /* A new effect starts from quiet: nothing of the last one's lines is heard. */
+    memset(fx->shift, 0, sizeof fx->shift);
+    memset(fx->comb, 0, sizeof fx->comb);
+    memset(fx->bq, 0, sizeof fx->bq);
+    fx->shiftPhase = 0;
+    fx->ring = 0;
+    fx->effectWas = which;
+  }
+  switch (which) {
+    case VOICEFX_EFFECT_DEEPER: pitch_shift(fx, s, n, 0.79); break;
+    case VOICEFX_EFFECT_HIGHER: pitch_shift(fx, s, n, 1.33); break;
+    case VOICEFX_EFFECT_CHIPMUNK: pitch_shift(fx, s, n, 1.85); break;
+    case VOICEFX_EFFECT_MONSTER:
+      pitch_shift(fx, s, n, 0.6);
+      drive(s, n, 2.2f);
+      break;
+    case VOICEFX_EFFECT_ROBOT:
+      for (int i = 0; i < n; i++) {
+        /* Ring modulated at 55 Hz, half and half with the voice, then a 7 ms echo that rings. */
+        float carrier = (float)sin(2.0 * 3.14159265358979 * fx->ring);
+        fx->ring += 55.0 / 48000.0;
+        fx->ring -= floor(fx->ring);
+        float x = s[i] * (0.45f + 0.55f * carrier);
+        int back = (fx->combAt - 336) & (COMB - 1);
+        float y = x + fx->comb[back] * 0.55f;
+        fx->comb[fx->combAt & (COMB - 1)] = y;
+        fx->combAt++;
+        s[i] = limit(y * 0.8f);
+      }
+      break;
+    case VOICEFX_EFFECT_RADIO:
+      pass(s, n, fx->bq[0], 400, 1);
+      pass(s, n, fx->bq[1], 2800, 0);
+      drive(s, n, 3.0f);
+      break;
+    default: break;
+  }
+}
+
 /* Over full scale, rounded off rather than clipped: the top tenth of the range is bent toward its end. */
 static float limit(float x) {
   const float top = 32767.0f, knee = 29490.0f; /* 90% */
@@ -175,6 +289,14 @@ void voicefx_process(VoiceFx *fx, float *samples, int frames, int rate) {
 #endif
   if (gain != 1.0f) {
     for (int i = 0; i < frames; i++) samples[i] = limit(samples[i] * gain);
+  }
+  int which = vfx_load(&fx->effect);
+  if (which > 0 && which < VOICEFX_EFFECT_COUNT && tenMs && !vfx_load(&fx->live)) {
+    resample(samples, frames, fx->at48, BLOCK);
+    effect(fx, which, fx->at48, BLOCK);
+    resample(fx->at48, BLOCK, samples, frames);
+  } else if (which != fx->effectWas) {
+    fx->effectWas = -1; /* begun afresh when it is next on */
   }
   if (vfx_load(&fx->live) && tenMs) {
     /* What was said, cleaned and at its loudness, kept at 16 kHz for the app (every third sample of 48 kHz, after a
@@ -240,4 +362,10 @@ void voicefx_feed(VoiceFx *fx, const int16_t *pcm, int n, int rate) {
 int voicefx_queued_ms(VoiceFx *fx) {
   if (!fx) return 0;
   return (int)((vfx_load(&fx->giveIn) - vfx_load(&fx->giveOut)) / 48);
+}
+
+void voicefx_effect(VoiceFx *fx, int effect) {
+  if (!fx) return;
+  if (effect < 0 || effect >= VOICEFX_EFFECT_COUNT) effect = VOICEFX_EFFECT_NONE;
+  vfx_store(&fx->effect, effect);
 }

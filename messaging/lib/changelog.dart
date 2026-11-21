@@ -23,6 +23,11 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.11.5', '2026-11-21', [
+    'Voice changer in calls is instant now: your voice is changed on your own device as you speak, with no delay and nothing sent anywhere. Pick Deeper, Higher, Chipmunk, Monster, Robot or Radio in the plugin\'s settings. ElevenLabs is still there under How calls are changed, for a realistic voice a second or two behind.',
+    'Voice changer: ElevenLabs works. Every request had gone to the wrong address, so neither voice messages nor calls were ever changed.',
+    'Windows: Record call, Live captions and Scribe now work on Windows. Captions and Scribe need Windows\' speech recognition for your language (Settings › Time & language › Speech).',
+  ]),
   ReleaseNotes('0.11.4', '2026-11-21', [
     'Calls: when you and someone else can\'t reach each other directly, on a mobile network or a strict workplace, school or hotel network, the call now goes through Ghost\'s relay by itself instead of never connecting. It stays encrypted between you: the relay can\'t hear or see it.',
     'Files spaces: "Getting it ready" is far quicker for a big file, and shows a percentage. Checking a 26 GB file took over twenty minutes; it now takes seconds on a Mac or iPhone and about four minutes on Android and Windows. Checking a download is quicker the same way.',

@@ -26,7 +26,7 @@ class VoiceChangerPlugin extends GhostPlugin {
   String get name => 'Voice changer';
 
   @override
-  String get description => 'Send a voice message in another voice. It keeps how you said it: your timing, your tone, a laugh or a whisper.';
+  String get description => 'Sound like someone else in calls, instantly: deeper, higher, a robot and more, made on your device. And send voice messages in a realistic voice with ElevenLabs.';
 
   @override
   LucideIcon get icon => Lucide.audioLines;
@@ -52,7 +52,7 @@ class VoiceChangerPlugin extends GhostPlugin {
   @override
   PluginSettingsPage? get settingsPage => PluginSettingsPage(
         hue: 'indigo',
-        intro: 'Voice messages you send in spaces and chats, in another voice, by ElevenLabs.',
+        intro: 'Your voice in calls, changed on this device as you speak; and voice messages in another voice, by ElevenLabs.',
         summary: (prefs) {
           final c = VoiceChanger.instance;
           if (!c.hasKey) return 'Add your ElevenLabs key';
@@ -74,6 +74,6 @@ class VoiceChangerPlugin extends GhostPlugin {
   List<SlotFill> get slots => [
         // Over the call while one's voice is changed live in it.
         Slots.callBanner.fill((context, place, prefs) => const [LiveChangerLine()]),
-        Slots.settings.fill((context, place, prefs) => const [VoiceChangerKeyRow(), VoiceChangerVoiceRow(), VoiceChangerOnRow(), VoiceChangerLiveRow(), VoiceChangerCleanRow(), VoiceChangerForgetRow()]),
+        Slots.settings.fill((context, place, prefs) => const [VoiceChangerLiveRow(), VoiceChangerCallWayRow(), VoiceChangerEffectRow(), VoiceChangerKeyRow(), VoiceChangerVoiceRow(), VoiceChangerOnRow(), VoiceChangerCleanRow(), VoiceChangerForgetRow()]),
       ];
 }

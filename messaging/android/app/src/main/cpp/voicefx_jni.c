@@ -23,6 +23,7 @@ JNIEXPORT void JNICALL FN(nativeProcess)(JNIEnv *env, jobject self, jlong fx, jo
   voicefx_process((VoiceFx *)(intptr_t)fx, samples, frames, rate);
 }
 
+JNIEXPORT void JNICALL FN(nativeEffect)(JNIEnv *env, jobject self, jlong fx, jint effect) { voicefx_effect((VoiceFx *)(intptr_t)fx, (int)effect); }
 JNIEXPORT void JNICALL FN(nativeLive)(JNIEnv *env, jobject self, jlong fx, jboolean on) { voicefx_live((VoiceFx *)(intptr_t)fx, on ? 1 : 0); }
 
 /* What was said since last asked: 16-bit little-endian samples at 16 kHz, as bytes. */

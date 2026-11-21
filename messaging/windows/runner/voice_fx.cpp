@@ -82,6 +82,7 @@ void RegisterVoiceFx(flutter::BinaryMessenger* messenger) {
       if (bits & (1 << VOICEFX_RNNOISE)) modes.push_back(flutter::EncodableValue("rnnoise"));
       if (bits & (1 << VOICEFX_DEEPFILTER)) modes.push_back(flutter::EncodableValue("deepfilter"));
       modes.push_back(flutter::EncodableValue("live"));
+      modes.push_back(flutter::EncodableValue("effects"));
       result->Success(flutter::EncodableValue(modes));
       return;
     }
@@ -99,6 +100,16 @@ void RegisterVoiceFx(flutter::BinaryMessenger* messenger) {
       if (const auto* l = std::get_if<int64_t>(v)) return static_cast<int>(*l);
       return fallback;
     };
+    // A voice effect made here as it is said (lib/voice/live_changer.dart, native/voicefx voicefx_effect).
+    if (call.method_name() == "effect") {
+      const auto* v = arg("name");
+      const auto* name = v ? std::get_if<std::string>(v) : nullptr;
+      const std::string n = name ? *name : std::string();
+      int which = n == "deeper" ? 1 : n == "higher" ? 2 : n == "chipmunk" ? 3 : n == "monster" ? 4 : n == "robot" ? 5 : n == "radio" ? 6 : 0;
+      voicefx_effect(g_processor->fx(), which);
+      result->Success(flutter::EncodableValue(Attach()));
+      return;
+    }
     if (call.method_name() == "live") {
       const auto* on = arg("on");
       const auto* b = on ? std::get_if<bool>(on) : nullptr;

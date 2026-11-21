@@ -60,6 +60,21 @@ VOICEFX_EXPORT void voicefx_feed(VoiceFx *fx, const int16_t *pcm, int n, int rat
 /* How much of the changed voice is still to be played, in milliseconds. */
 VOICEFX_EXPORT int voicefx_queued_ms(VoiceFx *fx);
 
+/* A voice effect made here, as it is said, in a call (Matt, 2026-11-21: "Add support (by default) for the voice
+ * changer to use on the fly voice changing the elevenlabs is very slow and not real time"): about 20 ms behind,
+ * nothing leaves the device. Applied after the noise suppression and the gain; not while voicefx_live is on. */
+enum {
+  VOICEFX_EFFECT_NONE = 0,
+  VOICEFX_EFFECT_DEEPER = 1,   /* lower, about four semitones */
+  VOICEFX_EFFECT_HIGHER = 2,   /* higher, about five semitones */
+  VOICEFX_EFFECT_CHIPMUNK = 3, /* an octave and more up */
+  VOICEFX_EFFECT_MONSTER = 4,  /* far lower, and rough */
+  VOICEFX_EFFECT_ROBOT = 5,    /* metallic: ring modulated, with a short ringing echo */
+  VOICEFX_EFFECT_RADIO = 6,    /* a walkie-talkie: narrow and a little driven */
+  VOICEFX_EFFECT_COUNT = 7
+};
+VOICEFX_EXPORT void voicefx_effect(VoiceFx *fx, int effect);
+
 #ifdef __cplusplus
 }
 #endif

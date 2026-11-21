@@ -29,9 +29,15 @@ object VoiceFx : AudioProcessingAdapter.ExternalAudioFrameProcessing {
                 when (call.method) {
                     "modes" -> {
                         val bits = nativeModes(handle)
-                        result.success(listOfNotNull(if (bits and (1 shl 1) != 0) "rnnoise" else null, if (bits and (1 shl 2) != 0) "deepfilter" else null, "live"))
+                        result.success(listOfNotNull(if (bits and (1 shl 1) != 0) "rnnoise" else null, if (bits and (1 shl 2) != 0) "deepfilter" else null, "live", "effects"))
                     }
                     // Live voice changing (lib/voice/live_changer.dart): what was said, taken; the changed voice, fed.
+                    // A voice effect made here as it is said (lib/voice/live_changer.dart, native/voicefx voicefx_effect).
+                    "effect" -> {
+                        val which = when (call.argument<String>("name")) { "deeper" -> 1; "higher" -> 2; "chipmunk" -> 3; "monster" -> 4; "robot" -> 5; "radio" -> 6; else -> 0 }
+                        nativeEffect(handle, which)
+                        result.success(attach())
+                    }
                     "live" -> {
                         nativeLive(handle, call.argument<Boolean>("on") == true)
                         result.success(attach())
@@ -87,6 +93,7 @@ object VoiceFx : AudioProcessingAdapter.ExternalAudioFrameProcessing {
     private external fun nativeModes(fx: Long): Int
     private external fun nativeConfigure(fx: Long, mode: Int, gain: Float)
     private external fun nativeProcess(fx: Long, buffer: ByteBuffer, frames: Int, rate: Int)
+    private external fun nativeEffect(fx: Long, effect: Int)
     private external fun nativeLive(fx: Long, on: Boolean)
     private external fun nativeTake(fx: Long, most: Int): ByteArray
     private external fun nativeFeed(fx: Long, pcm: ByteArray, rate: Int)

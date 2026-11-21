@@ -9,9 +9,14 @@ import 'voice_changer.dart';
 import 'voice_fx.dart';
 
 /// The voice changer live in a space's call (Matt, 2026-11-20: "I'd like the voice changer to work in spaces calles in
-/// real time", and ElevenLabs chosen over effects made on the device, with its delay).
+/// real time").
 ///
-/// ElevenLabs changes a voice from a whole recording, not as it streams, so a call's voice goes a phrase at a time:
+/// **On this device, by default** (Matt, 2026-11-21: "Add support (by default) for the voice changer to use on the fly
+/// voice changing the elevenlabs is very slow and not real time"): a [VoiceEffect] made by the microphone engine as
+/// the voice goes into the call (native/voicefx voicefx_effect), about a fiftieth of a second behind, free, and
+/// nothing leaves the device.
+///
+/// **By ElevenLabs**, where chosen: ElevenLabs changes a voice from a whole recording, not as it streams, so a call's voice goes a phrase at a time:
 /// the microphone engine (native/voicefx, voicefx_live) keeps what is said instead of sending it; [PhraseCutter] cuts
 /// it at the pauses (or at [PhraseCutter.longest]); each phrase goes to ElevenLabs (VoiceChanger.convertPhrase) and
 /// what comes back is fed into the call in its place. Others hear each phrase a moment after it is said; between
@@ -21,9 +26,11 @@ import 'voice_fx.dart';
 /// silent from this device (the voice is never let through unchanged) and the line over the call says why, with a way
 /// back to one's own voice.
 class LiveChanger extends ChangeNotifier {
-  LiveChanger({this.take = VoiceFx.take, this.feed = VoiceFx.feed, this.setLive = VoiceFx.live, Future<Uint8List> Function(Uint8List wav)? convert, bool Function()? shouldRun, bool Function()? muted})
+  LiveChanger({this.take = VoiceFx.take, this.feed = VoiceFx.feed, this.setLive = VoiceFx.live, this.setEffect = VoiceFx.effect, Future<Uint8List> Function(Uint8List wav)? convert, bool Function()? shouldRun, bool Function()? muted, CallVoiceWay Function()? way, VoiceEffect Function()? effect})
       : _convert = convert ?? VoiceChanger.instance.convertPhrase,
         _shouldRun = shouldRun ?? _wanted,
+        _way = way ?? (() => VoiceChanger.instance.way),
+        _effectNow = effect ?? (() => VoiceChanger.instance.effect),
         _muted = muted ?? (() => Voice.instance.session?.muted ?? true);
 
   /// The one for the app: it follows the settings too, so turning live off (or the plugin, or a pause) in a call
@@ -35,11 +42,19 @@ class LiveChanger extends ChangeNotifier {
   final Future<Uint8List> Function({int most}) take;
   final Future<int> Function(Uint8List pcm, int rate) feed;
   final Future<bool> Function(bool on) setLive;
+
+  /// The effect made on this device ('none' for none): VoiceFx.effect.
+  final Future<bool> Function(String name) setEffect;
+  final CallVoiceWay Function() _way;
+  final VoiceEffect Function() _effectNow;
   final Future<Uint8List> Function(Uint8List wav) _convert;
   final bool Function() _shouldRun;
   final bool Function() _muted;
 
-  static bool _wanted() => Voice.instance.session != null && VoiceChanger.instance.liveActive && VoiceFx.liveSupported;
+  static bool _wanted() {
+    if (Voice.instance.session == null || !VoiceChanger.instance.liveActive) return false;
+    return VoiceChanger.instance.way == CallVoiceWay.device ? VoiceFx.effectsSupported : VoiceFx.liveSupported;
+  }
 
   final PhraseCutter _cutter = PhraseCutter();
   final List<Uint8List> _waiting = [];
@@ -48,6 +63,12 @@ class LiveChanger extends ChangeNotifier {
 
   /// Running in the call now.
   bool get on => _on;
+
+  /// How it is running: an effect made here, or ElevenLabs; and which effect. Null while off.
+  CallVoiceWay? get running => _on ? _running : null;
+  CallVoiceWay _running = CallVoiceWay.device;
+  VoiceEffect? get effect => _on && _running == CallVoiceWay.device ? _effect : null;
+  VoiceEffect? _effect;
 
   /// A phrase is with ElevenLabs.
   bool get changing => _sending;
@@ -61,16 +82,34 @@ class LiveChanger extends ChangeNotifier {
   Duration _behind = Duration.zero;
 
   /// Follows the call there is and the settings (called as a call is joined and left, and as the settings change).
+  ///
+  /// An effect made here (the default) is the native half's alone: switched on, and nothing else to do. ElevenLabs
+  /// is the phrase loop below.
   Future<void> follow() async {
     final want = _shouldRun();
-    if (want == _on) return;
+    final way = _way();
+    final effect = _effectNow();
+    if (want == _on && (!want || (way == _running && (way != CallVoiceWay.device || effect == _effect)))) return;
     _on = want;
+    _running = way;
+    _effect = want && way == CallVoiceWay.device ? effect : null;
     _cutter.reset();
     _waiting.clear();
     _problem = null;
-    await setLive(want);
+    _behind = Duration.zero;
+    final phrases = want && way == CallVoiceWay.elevenlabs;
+    await setEffect(_effect?.name ?? 'none');
+    await setLive(phrases);
     _tick?.cancel();
-    _tick = want ? Timer.periodic(const Duration(milliseconds: 100), (_) => unawaited(_read())) : null;
+    // ElevenLabs reads what was said ten times a second; an effect only looks each second that it should still be
+    // on (the plugin removed, the call left).
+    _tick = !want
+        ? null
+        : phrases
+            ? Timer.periodic(const Duration(milliseconds: 100), (_) => unawaited(_read()))
+            : Timer.periodic(const Duration(seconds: 1), (_) {
+                if (!_shouldRun()) unawaited(follow());
+              });
     notifyListeners();
   }
 
@@ -79,7 +118,7 @@ class LiveChanger extends ChangeNotifier {
   Future<void> readOnce() => _read();
 
   Future<void> _read() async {
-    if (!_on) return;
+    if (!_on || _running != CallVoiceWay.elevenlabs) return;
     if (!_shouldRun()) {
       await follow();
       return;

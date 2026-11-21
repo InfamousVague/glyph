@@ -32,7 +32,14 @@ final class VoiceFx: NSObject, ExternalAudioProcessingDelegate {
         if bits & (1 << 1) != 0 { modes.append("rnnoise") }
         if bits & (1 << 2) != 0 { modes.append("deepfilter") }
         modes.append("live")
+        modes.append("effects")
         result(modes)
+      // A voice effect made here as it is said (lib/voice/live_changer.dart, native/voicefx voicefx_effect).
+      case "effect":
+        let args = call.arguments as? [String: Any] ?? [:]
+        let which: Int32 = switch args["name"] as? String { case "deeper": 1; case "higher": 2; case "chipmunk": 3; case "monster": 4; case "robot": 5; case "radio": 6; default: 0 }
+        voicefx_effect(self.fx, which)
+        result(self.attach())
       // Live voice changing (lib/voice/live_changer.dart): what was said, taken; the changed voice, fed.
       case "live":
         let args = call.arguments as? [String: Any] ?? [:]
