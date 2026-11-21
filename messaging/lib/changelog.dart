@@ -23,6 +23,15 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.2', '2026-11-21', [
+    'Messenger, Instagram and LinkedIn: sign in once, on every device. A new browser extension captures your sign-in for each from a browser you\'re already signed in to and syncs it, sealed, to your Ghost account; your other devices then sign in on their own, so you no longer copy a login onto each one. The relay only ever holds it sealed and cannot read it.',
+    'Calls: turning your video off no longer leaves your last frame frozen in your tile on the other side.',
+    'Calls: the lines over a call — the recording\'s, a plugin\'s — can be dragged out of the way and folded down to a chip.',
+    'Files: a large upload no longer makes the app stutter during a call.',
+    'Windows: you can pick files again — a plugin to load, and files and pictures anywhere the app asks for one.',
+    'The Archive ring counts only unread archived conversations now, so reading them clears it.',
+    'Signal: the code you share to another screen shows properly, or says why it can\'t, instead of a blank bar.',
+  ]),
   ReleaseNotes('0.12.1', '2026-11-21', [
     'Record call: open a saved recording in the mixer. In Recordings, tap one and choose Open in the mixer: every voice is a track with its waveform, meter, mute, solo and fader, as during the call. Play it to hear the mix as you set it, tap the tracks to jump around, and Save mix to keep it as a new recording beside the first.',
     'Souls: when you\'re given souls or a badge, you\'re told why ("Bug bounty", say). Straight away if the app is open; if it isn\'t, a card shows what you were given and why the next time you open it.',
@@ -64,7 +73,6 @@ const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.10.8', '2026-11-20', [
     'Auto leveler: a new plugin that brings everyone in a call to about the same loudness on your device. Quiet voices come up and loud ones come down, a few seconds after each person starts talking, never more than about 9 dB either way. Nothing is sent and nobody else hears a difference. Add it from the Marketplace, or turn it on for a whole circle; press and hold someone in a call to see what it is doing to them.',
     'Soundboard: a new plugin that puts pads in a call. Press one and everyone in the call hears it: an air horn, applause, a sad trombone and nine more. A circle\'s owner and admins can add sounds of the circle\'s own. Add it from the Marketplace, or turn it on for a whole circle in its Settings › Plugins; you choose how loud it is for you, or to hear none of it.',
-    'Messenger, Instagram and LinkedIn: sign in once, on every device. A new browser extension captures your sign-in for each from a browser you\'re already signed in to and syncs it, sealed, to your Ghost account; your other devices then sign in on their own, so you no longer copy a login onto each one. The relay only ever holds it sealed and cannot read it.',
     'Voice changer: a new plugin that sends your voice messages in another voice, keeping how you said them: your timing, your tone, a laugh or a whisper. It uses your own ElevenLabs account, so each recording goes to ElevenLabs to be changed; if one can\'t be changed it isn\'t sent. In spaces and in chats on other networks, on an Android phone. Add it from the Marketplace, then paste your key and choose a voice in Settings › Voice changer.',
     'Recording a call: the recording\'s pill, with its tracks, meters and mixer, now shows over the call itself (the call\'s page was covering it), and the red line over the call counts the time.',
   ]),
