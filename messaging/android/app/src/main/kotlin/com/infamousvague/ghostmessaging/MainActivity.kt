@@ -21,7 +21,7 @@ import java.util.concurrent.Executors
  * permissions) and `ghost_messaging/events` (a conversation changed; a notification or another app asked for one).
  * Every provider call runs on one background thread, in order.
  */
-class MainActivity : FlutterActivity() {
+open class MainActivity : FlutterActivity() {
     companion object {
         @Volatile var openThread: Long = -1
         @Volatile var inFront = false
@@ -41,6 +41,13 @@ class MainActivity : FlutterActivity() {
         private const val MIC_REQUEST = 45
         private const val SAVE_REQUEST = 46
     }
+
+    /**
+     * This screen is a conversation's bubble (BubbleActivity, GMFB-8): an engine of its own that shows one
+     * conversation, beside the app's. It answers the same calls, but leaves the app's own engine its events, its
+     * open conversation and its place in front, and starts none of the app's background work.
+     */
+    protected open val bubble: Boolean = false
 
     private val io = Executors.newSingleThreadExecutor()
 
@@ -64,9 +71,15 @@ class MainActivity : FlutterActivity() {
         override fun onChange(selfChange: Boolean) { if (::store.isInitialized) { store.contactsChanged(); Desk.contactsChanged(); Bus.changed(-1) } }
     }
     private val main = Handler(Looper.getMainLooper())
+    /** A bubble's own end of `ghost_messaging/events`: the app's engine keeps [sharedEvents]. */
+    private var bubbleEvents: EventChannel.EventSink? = null
     private var events: EventChannel.EventSink?
-        get() = sharedEvents
-        set(v) { sharedEvents = v }
+        get() = if (bubble) bubbleEvents else sharedEvents
+        set(v) { if (bubble) bubbleEvents = v else sharedEvents = v }
+
+    /** A bubble's ears on what changed (Bus.others), taken away with its engine. */
+    private var bubbleChanged: ((Long) -> Unit)? = null
+    private var bubblePrefs: (() -> Unit)? = null
     private var pendingOpen: Map<String, Any?>? = null
     private var updateListener: ((Updater.State) -> Unit)? = null
     private var roleResult: MethodChannel.Result? = null
@@ -90,7 +103,7 @@ class MainActivity : FlutterActivity() {
      * closes the screen (swiped away from Recents), for as long as NetworksService keeps the process. A screen opened
      * again takes up the running app where it was.
      */
-    override fun provideFlutterEngine(context: android.content.Context): FlutterEngine {
+    override fun provideFlutterEngine(context: android.content.Context): FlutterEngine? {
         FlutterEngineCache.getInstance().get(ENGINE)?.let { return it }
         return FlutterEngine(context.applicationContext).also {
             it.dartExecutor.executeDartEntrypoint(DartExecutor.DartEntrypoint.createDefault())
@@ -104,6 +117,7 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         store = Store(applicationContext)
         try { contentResolver.registerContentObserver(android.provider.ContactsContract.Contacts.CONTENT_URI, true, contactsWatcher) } catch (_: Exception) {}
+        if (bubble) return configureBubble(flutterEngine)
         // Over an engine already running (the screen closed and opened again, by a notification): Dart has asked for
         // its first open request long ago, so what this screen was opened for is told as an event.
         val asked = openRequest(intent, fresh = true)
@@ -149,6 +163,46 @@ class MainActivity : FlutterActivity() {
         val calls = MethodChannel(messenger, "ghost_messaging/sms")
         // What a paired computer asks that only Dart knows (DartAsk.kt) goes down the same channel.
         DartAsk.channel = calls
+        handleCalls(calls)
+    }
+
+    /**
+     * A conversation's bubble (BubbleActivity): the same calls as the app's screen, and of the events only what
+     * changed and the choices changing, through ears of its own (Bus.others) so the app's engine keeps hearing them.
+     * Nothing a computer, a call or the app's open request needs: those stay the app's.
+     */
+    private fun configureBubble(flutterEngine: FlutterEngine) {
+        val messenger = flutterEngine.dartExecutor.binaryMessenger
+        EventChannel(messenger, "ghost_messaging/events").setStreamHandler(object : EventChannel.StreamHandler {
+            override fun onListen(arguments: Any?, sink: EventChannel.EventSink) {
+                events = sink
+                bubbleChanged?.let { Bus.others.remove(it) }
+                bubblePrefs?.let { Bus.prefsOthers.remove(it) }
+                val changed: (Long) -> Unit = { thread -> events?.success(mapOf("type" to "changed", "thread" to thread)) }
+                val prefs: () -> Unit = { events?.success(mapOf("type" to "prefs")) }
+                Bus.others.add(changed)
+                Bus.prefsOthers.add(prefs)
+                bubbleChanged = changed
+                bubblePrefs = prefs
+            }
+            override fun onCancel(arguments: Any?) { events = null; dropBubbleEars() }
+        })
+        // The interface sounds (Sounds.kt, lib/sounds.dart): a message sent from the bubble sounds as it does in the app.
+        Sounds.register(this, messenger)
+        handleCalls(MethodChannel(messenger, "ghost_messaging/sms"))
+    }
+
+    private fun dropBubbleEars() {
+        bubbleChanged?.let { Bus.others.remove(it) }
+        bubblePrefs?.let { Bus.prefsOthers.remove(it) }
+        bubbleChanged = null
+        bubblePrefs = null
+    }
+
+    /** The conversation a bubble shows, from the intent it was opened with (Bubbles.metadata); -1 where none. */
+    protected val bubbleThread: Long get() = intent?.getLongExtra(Notifier.EXTRA_THREAD, -1) ?: -1
+
+    private fun handleCalls(calls: MethodChannel) {
         calls.setMethodCallHandler { call, result ->
             // How long each call takes is written to Android's log when asked for
             // (`adb shell setprop log.tag.GhostPerf VERBOSE`): the call's name and its milliseconds, never what it carried.
@@ -253,10 +307,11 @@ class MainActivity : FlutterActivity() {
                     Notifier.chat(applicationContext, call.argument<Number>("thread")!!.toLong(), call.argument<String>("who") ?: "", call.argument<String>("body") ?: "")
                     null
                 }
-                "cancelChat" -> bg { Notifier.cancel(applicationContext, call.argument<Number>("thread")!!.toLong()); null }
+                "cancelChat" -> bg { Notifier.seen(applicationContext, call.argument<Number>("thread")!!.toLong()); null }
                 "markRead" -> bg {
                     val t = call.argument<Number>("thread")!!.toLong()
-                    store.markRead(t); Notifier.cancel(applicationContext, t); null
+                    // Read, its notification goes; a bubble of it stays on the side of the screen (Notifier.seen).
+                    store.markRead(t); Notifier.seen(applicationContext, t); null
                 }
                 "deleteThread" -> bg { val t = call.argument<Number>("thread")!!.toLong(); store.deleteThread(t); Notifier.cancel(applicationContext, t); null }
                 "deleteMessage" -> bg { store.deleteMessage(call.argument<String>("kind")!!, call.argument<Number>("id")!!.toLong()); null }
@@ -394,6 +449,32 @@ class MainActivity : FlutterActivity() {
                     }
                     result.success(null)
                 }
+                // Settings › Notifications › Bubbles (GMFB-8): Android's own page for the app's bubbles, where it decides
+                // which conversations may bubble; the app's notification page before Android 11.
+                "bubbleSettings" -> {
+                    try {
+                        startActivity(
+                            if (android.os.Build.VERSION.SDK_INT >= 30) Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_BUBBLE_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
+                            else Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName),
+                        )
+                    } catch (_: Exception) {
+                        try { startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)) } catch (_: Exception) {}
+                    }
+                    result.success(null)
+                }
+                // A bubble's "Open in Ghost Messaging": the whole app, on the same conversation, as its notification
+                // opens it. The bubble folds away as the app comes up.
+                "openInApp" -> {
+                    val t = call.argument<Number>("thread")?.toLong() ?: -1
+                    try {
+                        startActivity(Intent(applicationContext, MainActivity::class.java).apply {
+                            action = Intent.ACTION_VIEW
+                            if (t >= 0) putExtra(Notifier.EXTRA_THREAD, t)
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        })
+                    } catch (_: Exception) {}
+                    result.success(null)
+                }
                 "notificationSettings" -> {
                     try {
                         startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName))
@@ -451,9 +532,15 @@ class MainActivity : FlutterActivity() {
                 // What files shared in are, read before any is copied, so the "Add … to" sheet can name them (Matt,
                 // 2026-11-17: "Finish the missing pieces that went unfinished"): copying waits for a space to be chosen.
                 "describeFiles" -> bg { describeFiles(call.argument<List<String>>("uris") ?: emptyList()) }
-                "setOpenThread" -> {
+                // A bubble's conversation is its own (Bubbles.showing, kept as it comes and goes from the screen): the
+                // app's open conversation and the keyboard's colour stay the app's.
+                "setOpenThread" -> if (bubble) {
+                    val t = call.argument<Number>("thread")?.toLong() ?: -1
+                    if (t >= 0) io.execute { Notifier.seen(applicationContext, t) }
+                    result.success(null)
+                } else {
                     openThread = call.argument<Number>("thread")?.toLong() ?: -1
-                    if (openThread >= 0) Notifier.cancel(applicationContext, openThread)
+                    if (openThread >= 0) { val t = openThread; io.execute { Notifier.seen(applicationContext, t) } }
                     // Ghost Keyboard wears the open conversation's colour (AccentSync.now).
                     AccentSync.nowChanged(this)
                     result.success(null)
@@ -590,6 +677,9 @@ class MainActivity : FlutterActivity() {
 
     override fun onResume() {
         super.onResume()
+        // A bubble on the screen: its conversation's messages come in quietly (Notifier.incoming). The app's place in
+        // front, and what it does as it comes forward, are the app's.
+        if (bubble) { if (bubbleThread >= 0) Bubbles.showing.add(bubbleThread); return }
         inFront = true
         // Ghost Keyboard's colour, if chosen there since, and watched while in front (AccentSync.kt).
         io.execute { AccentSync.pull(this) }
@@ -624,12 +714,20 @@ class MainActivity : FlutterActivity() {
     override fun onDestroy() {
         // The engine goes on without the screen (provideFlutterEngine): what a computer asks of Dart still reaches it.
         try { contentResolver.unregisterContentObserver(contactsWatcher) } catch (_: Exception) {}
+        if (bubble) dropBubbleEars()
         super.onDestroy()
     }
     private var accentWatch: android.database.ContentObserver? = null
 
     override fun onPause() {
         super.onPause()
+        if (bubble) {
+            Bubbles.showing.remove(bubbleThread)
+            // A voice message being recorded in the bubble is thrown away as it folds, as the app's is as it leaves.
+            if (Voice.recording) { Voice.cancel(); events?.success(mapOf("type" to "voiceStopped")) }
+            Voice.pause()
+            return
+        }
         inFront = false
         AccentSync.unwatch(this, accentWatch)
         accentWatch = null
@@ -650,6 +748,8 @@ class MainActivity : FlutterActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        // Each bubble is a screen of its own (documentLaunchMode="always"), opened on its one conversation.
+        if (bubble) return
         setIntent(intent)
         sharedFiles(intent)?.let { uris ->
             if (events != null) events?.success(mapOf("type" to "sharedFiles", "uris" to uris)) else pendingShared = uris
@@ -817,6 +917,8 @@ class MainActivity : FlutterActivity() {
             "bridge" to GmBridge.hasAccess(this),
             "gmDefault" to GmBridge.isGmDefault(this),
             "sms" to (granted(Manifest.permission.READ_SMS) && granted(Manifest.permission.SEND_SMS)),
+            // Android's own bubble setting for the app (Bubbles.systemState): all, selected, none, or null before 11.
+            "bubbles" to Bubbles.systemState(this),
         )
     }
 

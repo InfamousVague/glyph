@@ -57,6 +57,9 @@ object Notifier {
             nm.createNotificationChannel(NotificationChannel(id, "Messages", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "New text messages"
                 enableVibration(true)
+                // A conversation's notification may sit on the side of the screen as a bubble (Bubbles.kt), where
+                // Android's own setting for the app and the conversation lets it.
+                setAllowBubbles(true)
                 val take = id.substringAfterLast('-')
                 if (take == "off") {
                     setSound(null, null)
@@ -158,9 +161,13 @@ object Notifier {
         }
         val store = Store(context)
         if (store.isMuted(thread)) return true
+        // Open in its bubble (Bubbles.kt): the notification is brought up to date for the bubble, kept out of the shade
+        // and without its alert, and the message sound says it came, as with the conversation open in the app.
+        val inBubble = thread in Bubbles.showing
+        if (inBubble) Sounds.messageIn(context)
         val people = store.threadPeople(thread)
         val unread = store.messages(thread, 8).filter { !(it["outgoing"] as Boolean) && !(it["read"] as Boolean) }.reversed()
-        if (unread.isEmpty()) { cancel(context, thread); return false }
+        if (unread.isEmpty()) { seen(context, thread); return false }
         val ui = context.getSharedPreferences("ui", Context.MODE_PRIVATE)
         val previews = ui.getString("notif_preview", "on") != "off"
         // A group only the bridge has (its people named only as they write): still a group, under the name Google
@@ -212,6 +219,7 @@ object Notifier {
         // Quiet hours (lib/plugins/quiet.dart): from ten at night to seven in the morning a text from someone who is not a
         // contact, or from anyone where the person chose so, arrives without a sound; a contact's urgent words still do.
         val quiet = quietNow(context, ui, people.all { store.contact(it["address"] as String)["name"] == null }, unread.last()["body"] as String)
+        val avatar = if (group) face(context, title, null) else face(context, title, people.firstOrNull()?.let { store.contact(it["address"] as String)["photo"] as String? })
         val builder = Notification.Builder(context, if (quiet) quietChannel(context) else channel(context))
             .setSmallIcon(R.drawable.ic_stat_ghost)
             .setStyle(style)
@@ -223,7 +231,11 @@ object Notifier {
             .setShortcutId(shortcut(context, thread, title, people.map { p ->
                 val a = p["address"] as String
                 senders[a] ?: Person.Builder().setName((p["name"] as String?) ?: a).setKey(a).build()
-            }, if (group) face(context, title, null) else face(context, title, people.firstOrNull()?.let { store.contact(it["address"] as String)["photo"] as String? })))
+            }, avatar))
+            // The conversation as a bubble on the side of the screen (GMFB-8; Bubbles.kt), where Settings ›
+            // Notifications › Bubbles is on and Android lets this conversation bubble.
+            .setBubbleMetadata(Bubbles.metadata(context, thread, avatar, quiet = inBubble))
+            .setOnlyAlertOnce(inBubble)
         if (code != null) {
             builder.addAction(Notification.Action.Builder(
                 Icon.createWithResource(context, android.R.drawable.ic_menu_save), "Copy $code",
@@ -245,6 +257,7 @@ object Notifier {
         if (nm.getNotificationChannel(CHANNEL_QUIET) == null) {
             nm.createNotificationChannel(NotificationChannel(CHANNEL_QUIET, "Quiet hours", NotificationManager.IMPORTANCE_LOW).apply {
                 description = "Texts that arrive in quiet hours (Settings › Quiet hours): shown, without a sound."
+                setAllowBubbles(true)
             })
         }
         return CHANNEL_QUIET
@@ -360,6 +373,15 @@ object Notifier {
     }
 
     /**
+     * [thread] was read: its notification goes (as [cancel]), except where it is showing as a bubble, which stays on
+     * the side of the screen until the person puts it away, its notification only taken out of the shade
+     * (Bubbles.quieten). A conversation deleted is [cancel]led, bubble and all.
+     */
+    fun seen(context: Context, thread: Long) {
+        if (!Bubbles.quieten(context, thread)) cancel(context, thread)
+    }
+
+    /**
      * Encryption is on with the person in [thread], and a text of theirs came without it (E2e.arrived; Matt,
      * 2026-11-14: "detect if a user is sending us unencrypted messages and let us know so we can disable it").
      * Opens the conversation, which says the same over its message field with a way to turn encryption off.
@@ -432,18 +454,18 @@ class NotificationActionReceiver : BroadcastReceiver() {
                     if (people.isNotEmpty()) Sender.send(context, people, text)
                 }
                 store.markRead(thread)
-                Notifier.cancel(context, thread)
+                Notifier.seen(context, thread)
             }
             READ -> {
                 store.markRead(thread)
-                Notifier.cancel(context, thread)
+                Notifier.seen(context, thread)
             }
             COPY -> {
                 val code = intent.getStringExtra("code") ?: return
                 val clip = context.getSystemService(android.content.ClipboardManager::class.java)
                 clip.setPrimaryClip(android.content.ClipData.newPlainText("Code", code))
                 store.markRead(thread)
-                Notifier.cancel(context, thread)
+                Notifier.seen(context, thread)
             }
         }
         Bus.changed(thread)

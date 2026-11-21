@@ -200,6 +200,25 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:theme="@android:style/Theme.Black.NoTitleBar" />
 
+        <!-- A conversation's bubble on the side of the screen (BubbleActivity.kt, Bubbles.kt; GMFB-8): Android shows it
+             embedded in the bubble, resized to it, a document of its own for each conversation's bubble. Opened only by
+             the bubble's intent from a notification, so not exported. -->
+        <activity
+            android:name=".BubbleActivity"
+            android:exported="false"
+            android:allowEmbedded="true"
+            android:resizeableActivity="true"
+            android:documentLaunchMode="always"
+            android:theme="@style/NormalTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+        </activity>
+
         <!-- Scanning the QR code a computer shows to pair with (ScanActivity.kt). -->
         <activity
             android:name=".ScanActivity"
