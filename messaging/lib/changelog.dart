@@ -27,7 +27,7 @@ const List<ReleaseNotes> changelog = [
     'Chat bubbles on Android: a conversation can float on the side of your screen, like Google Messages and Messenger. Turn them on or off in Settings › Notifications.',
     'Plugins sync across your devices: turn one on, or add one from the Marketplace, and your other devices on the same Ghost account follow. Network plugins switch on and offer their sign-in; your sign-ins never leave a device. Settings › Plugins has the switch.',
     'Google Messages in a tap: the browser extension can now sign in to Google for you, in a private window of its own, and Ghost pairs with it from Google Messages\' setup. No copying from the browser\'s developer tools. You still tap Google\'s emoji on your phone.',
-    'A computer paired with your phone now shows when RCS already comes through the phone, rather than asking you to set it up again.',
+    'RCS messages on a computer: one paired with your phone now shows when RCS already comes through the phone, rather than asking you to set it up again.',
     'Test your microphone and speaker in Settings › Voice and video: a live level bar, and Hear yourself through the speaker you chose.',
     'In a call, each face shows when someone is still connecting, reconnecting, on a slow connection, or can\'t connect.',
     'Reply to a message in circle and space chats: press and hold it, then Reply.',
