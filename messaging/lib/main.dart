@@ -43,6 +43,7 @@ import 'voice/discord.dart';
 import 'voice/space_groups.dart';
 import 'sounds.dart';
 import 'keys.dart';
+import 'gm/rcs_share.dart';
 import 'sms.dart';
 import 'ui/circles/circle_invite_card.dart' show openCircleLink;
 import 'ui/common.dart' show toast;
@@ -362,6 +363,8 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       Sms.answer('handover', answerHandover);
       // A paired computer's voice channels are the phone's (lib/voice/channels.dart).
       Sms.answer('voice', Voice.instance.answerDesk);
+      // And how RCS stands here, for a paired computer to say so (lib/gm/rcs_share.dart, GMFB-11).
+      Sms.answer('rcs', (_) => RcsShare.answer(app));
       // And its Telegram approves a paired computer's sign-in (lib/inbox/telegram.dart).
       Sms.answer('telegram', (args) async {
         final tg = Inbox.instance.named('telegram');

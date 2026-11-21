@@ -1411,6 +1411,9 @@ class Sms {
   Future<Map<String, dynamic>> telegram(Map<String, Object?> what) async =>
       Map<String, dynamic>.from((await _calls.invokeMethod<Map>('telegram', {'what': what})) ?? const {});
 
+  /// On a computer: how RCS stands on its phone (lib/gm/rcs_share.dart; android DartAsk "rcs").
+  Future<Map<Object?, Object?>> rcsOfPhone() async => (await _calls.invokeMethod<Map>('rcs', {'what': const <String, Object?>{}})) ?? const {};
+
   Future<Map<String, dynamic>> voiceSync(Map<String, Object?> what) async =>
       Map<String, dynamic>.from((await _calls.invokeMethod<Map>('voice', {'what': what})) ?? const {});
 
