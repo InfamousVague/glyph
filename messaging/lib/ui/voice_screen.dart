@@ -154,10 +154,11 @@ class CallPanel extends StatelessWidget {
     final v = Voice.instance;
     final media = v.media;
     final levels = media?.levels ?? session.media.levels;
+    // The levels are listened to by each face alone (GMFB-6): the whole panel, video tiles and all, rebuilt at every
+    // reading while anyone spoke.
     return ListenableBuilder(
-      listenable: Listenable.merge([session, levels, ?media?.remote, ?media?.localVideo, ?v.hangoutFor(session.channel)]),
+      listenable: Listenable.merge([session, ?media?.remote, ?media?.localVideo, ?v.hangoutFor(session.channel)]),
       builder: (context, _) {
-        final loud = levels.value;
         final people = <({String id, String name, bool guest, bool muted, MediaStream? video, bool me})>[
           (id: 'me', name: 'You', guest: false, muted: session.muted || session.deafened, video: media?.localVideo.value, me: true),
           for (final m in session.members.values)
@@ -192,7 +193,10 @@ class CallPanel extends StatelessWidget {
                     padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(2), t.space(2)),
                     child: Row(children: [
                       // A little larger on a computer (Matt, 2026-11-15: "make the voice chat avatars a little larger on desktop").
-                      RippleAvatar(name: p.me ? (session.name.isEmpty ? 'You' : session.name) : p.name, level: loud[p.id] ?? 0, muted: p.muted, size: Sms.computer ? 52 : 40),
+                      ValueListenableBuilder<Map<String, double>>(
+                        valueListenable: levels,
+                        builder: (context, loud, _) => RippleAvatar(name: p.me ? (session.name.isEmpty ? 'You' : session.name) : p.name, level: loud[p.id] ?? 0, muted: p.muted, size: Sms.computer ? 52 : 40),
+                      ),
                       SizedBox(width: t.space(3)),
                       Expanded(
                         child: Text.rich(
