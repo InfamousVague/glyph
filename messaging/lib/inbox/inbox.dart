@@ -809,32 +809,31 @@ class Inbox {
 
   Listenable get changes => Listenable.merge(networks);
 
+  /// Starts every network that is to start. Each has its choices from the first moment and starts on its own: a
+  /// network slow to start (no connection, a helper that doesn't answer) once held up every one after it, and until
+  /// its turn came a later one had no choices to read its switch from — so it showed as switched off, in Settings and
+  /// in the Marketplace, and couldn't be switched on.
   Future<void> start(AppState app) async {
     for (final n in networks) {
-      if (n.soon) continue;
-      n.listStore = app;
-      // Plugins (everything but Telegram and Signal) are off until switched on. 'off' never starts; 'on' starts; an
-      // unset switch is an install from before plugins existed, started once to find a session it was already signed
-      // in to — kept on where there was one, settled off where there wasn't.
-      if (!n.official) {
-        final pref = app.choice('inbox_on_${n.id}', '');
-        if (pref == 'off') continue;
-        if (pref != 'on') {
-          try {
-            await n.start(app);
-          } catch (e) {
-            debugPrint('inbox: ${n.id} did not start: \$e');
-          }
-          app.set('inbox_on_${n.id}', (n.state == InboxState.ready || n.state == InboxState.signingIn) ? 'on' : 'off');
-          continue;
-        }
-      }
-      try {
-        await n.start(app);
-      } catch (e) {
-        debugPrint('inbox: ${n.id} did not start: \$e');
-      }
+      if (!n.soon) n.listStore = app;
     }
+    await Future.wait([for (final n in networks) if (!n.soon) _startOne(n, app)]);
+  }
+
+  Future<void> _startOne(InboxNetwork n, AppState app) async {
+    final key = 'inbox_on_${n.id}';
+    // Plugins (everything but Telegram and Signal) are off until switched on. 'off' never starts; 'on' starts; an
+    // unset switch is an install from before plugins existed, started once to find a session it was already signed
+    // in to — kept on where there was one, settled off where there wasn't.
+    final unset = !n.official && app.choice(key, '') != 'on';
+    if (unset && app.choice(key, '') == 'off') return;
+    try {
+      await n.start(app);
+    } catch (e) {
+      debugPrint('inbox: ${n.id} did not start: $e');
+    }
+    // Only where it is still unset: switched on by hand while this was starting, it stays on.
+    if (unset && app.choice(key, '').isEmpty) app.set(key, (n.state == InboxState.ready || n.state == InboxState.signingIn) ? 'on' : 'off');
   }
 
   /// Switches a plugin network on and starts it, so it can be signed in to.
