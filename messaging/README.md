@@ -30,6 +30,17 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Calls fall back on the relay where no direct way through is found** (0.11.4, not released; Matt, 2026-11-21:
+  "Sometimes calls are not negotiating in voice chats and I can't connect to another person, if p2p fails please
+  connect over voice through the relay"). Calls had public STUN servers only, so two devices behind strict routers
+  (mobile networks, office and hotel Wi-Fi) never connected, and a failed connection was dropped for good. The hub
+  now hands whoever joins a room a day's username and password for a TURN server (coturn) beside it
+  (relay/lib/turn.dart: coturn's use-auth-secret credentials, `GHOST_TURN_SECRET` and `GHOST_TURN_URLS` in the
+  relay's environment; HubCarrier.callRelay). Each connection tries direct and relayed paths at once and takes the
+  best; where one still fails, the side that offered starts over once through the relay alone, its offer marked
+  `r` (VoiceSession._failed, FallbackMedia in lib/voice/voice.dart; RtcMedia; site/join/voice.js the same). What
+  the relay passes is WebRTC's own DTLS-SRTP, keyed between the devices. Off until coturn runs on the box and the
+  relay has the secret; with neither, calls are as before.
 - **The voice changer, live in space calls** (0.11.1; Matt, 2026-11-20: "I'd like the voice changer to
   work in spaces calles in real time", and ElevenLabs chosen over effects on the device, with its delay). ElevenLabs
   changes whole recordings, so a call goes a phrase at a time: the microphone engine's live mode (native/voicefx,

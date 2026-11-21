@@ -11,6 +11,7 @@ import 'package:ghost_relay/invites.dart';
 import 'package:ghost_relay/invite_words.dart';
 import 'package:ghost_relay/market.dart';
 import 'package:ghost_relay/relay.dart';
+import 'package:ghost_relay/turn.dart';
 
 /// `dart run bin/relay.dart [--host 127.0.0.1] [--port 8787] [--data relay-data] [--verbose]`
 ///
@@ -71,9 +72,12 @@ Future<void> _main(List<String> args) async {
   // what it keeps under the data folder, its limits from the environment (GHOST_MARKET_*), and who is who from the
   // handles: a username's owner and when it was claimed, the number or account behind a key, and the admin's sign-in.
   final market = Market(dir: Directory('${data.path}/market'), config: MarketConfig.fromEnvironment(Platform.environment), ownsName: handles.ownsName, whoOf: handles.whoOf, adminSignedIn: handles.adminSignedIn, claimedOn: handles.claimedOn, usernameOf: handles.usernameOf, verbose: verbose);
-  final relay = Relay(dataDir: data, verbose: verbose, hub: Hub(verbose: verbose, handles: handles, pushes: pushes, invites: invites, accounts: accounts, words: words), files: files, feedback: feedback, market: market);
+  // The media relay calls fall back on where two devices can't reach each other (turn.dart): coturn's shared secret
+  // and where it is (GHOST_TURN_SECRET, GHOST_TURN_URLS); without them calls are direct only.
+  final turn = TurnConfig.fromEnvironment(Platform.environment);
+  final relay = Relay(dataDir: data, verbose: verbose, hub: Hub(verbose: verbose, handles: handles, pushes: pushes, invites: invites, accounts: accounts, words: words, turn: turn), files: files, feedback: feedback, market: market);
   final got = await relay.start(host: host, port: port);
-  stdout.writeln('Ghost Messaging relay listening on ws://$host:$got (${relay.channelCount} pairings kept; ${handles.linked} handles linked; ${files.spaces} Files spaces; ${market.listed} plugins listed; sign-ins: ${handles.ways.entries.where((e) => e.value == 'signin').map((e) => e.key).join(', ').padRight(1, '-')})');
+  stdout.writeln('Ghost Messaging relay listening on ws://$host:$got (${relay.channelCount} pairings kept; ${handles.linked} handles linked; ${files.spaces} Files spaces; ${market.listed} plugins listed; call relay: ${turn.on ? turn.urls.join(' ') : 'off'}; sign-ins: ${handles.ways.entries.where((e) => e.value == 'signin').map((e) => e.key).join(', ').padRight(1, '-')})');
   for (final signal in [ProcessSignal.sigint, ProcessSignal.sigterm]) {
     signal.watch().listen((_) async {
       await relay.stop();

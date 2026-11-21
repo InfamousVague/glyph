@@ -16,8 +16,8 @@ import 'voice_settings.dart';
 /// microphone as it is (echo cancellation stays on: without it a speaker feeds back into the call), and sent as Opus
 /// at 510 kb/s. Each connection carries one sound and one picture both ways from its start; turning video on or off
 /// puts the camera's picture in or takes it out, with nothing to work out again between the two.
-class RtcMedia implements VoiceMedia {
-  RtcMedia({this.iceServers = defaultIce, this.settings = const VoiceSettings()});
+class RtcMedia implements VoiceMedia, FallbackMedia {
+  RtcMedia({this.relay, this.settings = const VoiceSettings()});
 
   /// The devices, Opus and processing, and the picture's quality, as Settings › Voice has them.
   VoiceSettings settings;
@@ -27,7 +27,18 @@ class RtcMedia implements VoiceMedia {
       'urls': ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
     },
   ];
-  final List<Map<String, Object>> iceServers;
+
+  /// The relay's TURN server for calls as the hub last handed it out with a room joined (relay/lib/turn.dart,
+  /// HubCarrier.callRelay), asked for as each connection is made; null or none: direct only.
+  final Map<String, Object>? Function()? relay;
+
+  /// Where a connection looks for a way through: the public STUN servers, and the relay where there is one. WebRTC
+  /// tries them all at once and takes the best that works, so a call goes direct wherever it can and through the
+  /// relay only where it can't.
+  List<Map<String, Object>> get iceServers => [...defaultIce, ?relay?.call()];
+
+  @override
+  bool get hasRelay => relay?.call() != null;
 
   MediaStream? _mic;
   MediaStream? _cam;
@@ -414,10 +425,13 @@ class RtcMedia implements VoiceMedia {
   }
 
   @override
-  VoicePeer peer(String id, {required void Function(Map<String, dynamic> candidate) onCandidate}) {
+  VoicePeer peer(String id, {required void Function(Map<String, dynamic> candidate) onCandidate}) => peerWith(id, onCandidate: onCandidate, onFailed: () {});
+
+  @override
+  VoicePeer peerWith(String id, {required void Function(Map<String, dynamic> candidate) onCandidate, required void Function() onFailed, bool relayOnly = false}) {
     final had = _peers[id];
     if (had != null) return had;
-    final made = _peers[id] = _RtcPeer(this, id, onCandidate);
+    final made = _peers[id] = _RtcPeer(this, id, onCandidate, onFailed: onFailed, relayOnly: relayOnly);
     _retune();
     return made;
   }
@@ -442,10 +456,16 @@ class RtcMedia implements VoiceMedia {
 }
 
 class _RtcPeer implements VoicePeer {
-  _RtcPeer(this.media, this.id, this.onCandidate);
+  _RtcPeer(this.media, this.id, this.onCandidate, {required this.onFailed, this.relayOnly = false});
   final RtcMedia media;
   final String id;
   final void Function(Map<String, dynamic> candidate) onCandidate;
+
+  /// No way through was found (VoiceSession starts over through the relay alone).
+  final void Function() onFailed;
+
+  /// Through the relay's TURN server alone: the second try, after a connection that tried every path failed.
+  final bool relayOnly;
   Future<RTCPeerConnection>? _pc;
   final List<RTCIceCandidate> _early = [];
   bool _described = false;
@@ -454,7 +474,7 @@ class _RtcPeer implements VoicePeer {
   Future<RTCPeerConnection> get pc => _pc ??= _make();
 
   Future<RTCPeerConnection> _make() async {
-    final pc = await createPeerConnection({'iceServers': media.iceServers, 'sdpSemantics': 'unified-plan'});
+    final pc = await createPeerConnection({'iceServers': media.iceServers, 'sdpSemantics': 'unified-plan', if (relayOnly) 'iceTransportPolicy': 'relay'});
     pc.onIceCandidate = (c) {
       if (c.candidate != null) onCandidate({'candidate': c.candidate, 'sdpMid': c.sdpMid, 'sdpMLineIndex': c.sdpMLineIndex});
     };
@@ -471,7 +491,11 @@ class _RtcPeer implements VoicePeer {
       if (identical(media._peers[id], this)) media._heard(id, stream);
     };
     pc.onConnectionState = (s) {
-      if ((s == RTCPeerConnectionState.RTCPeerConnectionStateFailed || s == RTCPeerConnectionState.RTCPeerConnectionStateClosed) && identical(media._peers[id], this)) media._gone(id);
+      final failed = s == RTCPeerConnectionState.RTCPeerConnectionStateFailed;
+      if ((failed || s == RTCPeerConnectionState.RTCPeerConnectionStateClosed) && identical(media._peers[id], this)) {
+        media._gone(id);
+        if (failed) onFailed();
+      }
     };
     return pc;
   }
