@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
@@ -9,13 +11,16 @@ import 'package:ghost_messaging/plugins/registry.dart';
 /// Telegram and Signal are official; the rest are plugins, off until switched on (Matt, 2026-11-20: "only keep telegram
 /// and signal as the official services ... Setup all these other services as plugins"). lib/inbox/inbox.dart.
 class _Net extends InboxNetwork {
-  _Net(this.id, {this.officialOverride = false, this.linkedOnStart = false});
+  _Net(this.id, {this.officialOverride = false, this.linkedOnStart = false, this.held});
   @override
   final String id;
   final bool officialOverride;
 
   /// What a saved session would do: on the one-time discovery start, a network already signed in comes up ready.
   final bool linkedOnStart;
+
+  /// A network slow to start: its start ends when this does.
+  final Completer<void>? held;
 
   int starts = 0;
   int signOuts = 0;
@@ -46,6 +51,7 @@ class _Net extends InboxNetwork {
   @override
   Future<void> start(AppState app) async {
     starts++;
+    await held?.future;
     if (linkedOnStart) _state = InboxState.ready;
   }
 
@@ -164,6 +170,33 @@ void main() {
     await Inbox.instance.disable(wa);
     expect(wa.signOuts, 1, reason: 'signed out on the way off');
     expect(app.choice('inbox_on_whatsapp', ''), 'off');
+  });
+
+  // Matt, 2026-11-21: "I keep getting recently added plugins dissapearing on my phone, I'll add instagram and linkedin
+  // and then it will disapear after some time". Networks started one after another, and one had no choices to read
+  // its switch from until its turn came: behind a network slow to start, the last ones showed as off.
+  test('a network slow to start holds up no other, and a switch pressed meanwhile is kept', () async {
+    final slow = Completer<void>();
+    final tg = _Net('telegram', officialOverride: true, held: slow);
+    final ig = _Net('instagram'), li = _Net('linkedin', held: slow);
+    Inbox.instance = Inbox.of([tg, ig, li]);
+    final app = AppState()..set('inbox_on_instagram', 'on');
+    final started = Inbox.instance.start(app);
+    await pumpEventQueue();
+    // Telegram hasn't started yet; Instagram, added before, is on and started all the same.
+    expect(ig.enabled, isTrue);
+    expect(ig.starts, 1);
+    final registry = PluginRegistry(shippedPlugins);
+    expect(registry.isOn(networkPlugins.firstWhere((p) => p.network == 'instagram'), AppStore(app)), isTrue);
+    // LinkedIn is being looked at for the first time (unset), and is added while that is going on: it stays on.
+    final linkedin = networkPlugins.firstWhere((p) => p.network == 'linkedin');
+    registry.setOn(linkedin, AppStore(app), true);
+    await pumpEventQueue();
+    expect(li.enabled, isTrue);
+    slow.complete();
+    await started;
+    expect(app.choice('inbox_on_linkedin', ''), 'on', reason: 'the first look settles off only what is still unset');
+    expect(registry.isOn(linkedin, AppStore(app)), isTrue);
   });
 
   test('official and plugins are told apart', () {
