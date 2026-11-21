@@ -30,6 +30,17 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Calls: the other side's video, relay first, Windows' microphone** (0.11.5, not released; Matt, 2026-11-21: "Video
+  is not working on both ends it only shows our local video also the audio device selector doesn't seem to be working,
+  connecting over the relay also doesn't seem to be working or the device picker is not working in windows", then
+  "Try to negotiate over the relay first"). A received picture arrives in no stream (its sender names none) and was
+  added to the sound's received stream, which flutter_webrtc refuses natively ("stream is null" on Android, the Mac
+  and Windows) while its Dart list says it took it: every remote tile drew nothing. Received tracks now go into a
+  stream made on the device (`_RtcPeer._took`, one at a time), sounds kept apart for their volume
+  (integration_test/call_video_test.dart: two calls on one device draw each other at 960x540). The hub's TURN
+  server is tried first, alone (`r`), and every path second (`a`), by the side that offered; 15 s without
+  connecting counts as failed. Windows' WebRTC takes the microphone from `optional: [{sourceId}]` and reads
+  `deviceId` as the speaker, so it was always the first microphone.
 - **Calls fall back on the relay where no direct way through is found** (0.11.4, not released; Matt, 2026-11-21:
   "Sometimes calls are not negotiating in voice chats and I can't connect to another person, if p2p fails please
   connect over voice through the relay"). Calls had public STUN servers only, so two devices behind strict routers
