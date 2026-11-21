@@ -45,6 +45,7 @@ import '../shell.dart' show AppShell;
 import 'market_parts.dart';
 import 'plugin_cards.dart';
 import 'plugin_detail.dart';
+import 'plugin_sync_row.dart';
 import 'plugins_band.dart';
 
 /// The plugins featured at the head of the page, in this order, those the app has.
@@ -553,11 +554,14 @@ class _PluginsPageState extends State<PluginsPage> {
       // Matt asked (2026-11-19: "Label plugins meant for circles in a separate section from the ones that are global").
       final on = [for (final p in added) if (!forCircles(p)) p];
       final onCircles = [for (final p in added) if (forCircles(p)) p];
-      if (on.isEmpty && onCircles.isEmpty && stuck.isEmpty) return [nothing('Nothing added yet.', every: false)];
+      // Under what is added, whether it is synced to the account's other devices (GMFB-9: lib/plugins/plugin_sync.dart).
+      final sync = Padding(padding: EdgeInsets.only(top: gap), child: pluginSyncSection(context, AppState.of(context)));
+      if (on.isEmpty && onCircles.isEmpty && stuck.isEmpty) return [nothing('Nothing added yet.', every: false), sync];
       return [
         if (on.isNotEmpty) shelfOf('Added', on, meta: '${on.length}', key: const ValueKey('plugins-shelf-added')),
         if (onCircles.isNotEmpty) shelfOf('For circles', onCircles, meta: '${onCircles.length}', icon: Lucide.circleDot, key: const ValueKey('plugins-shelf-added-circles')),
         if (stuck.isNotEmpty) shelfOf('Not running', stuck, meta: '${stuck.length}', key: const ValueKey('plugins-shelf-stuck')),
+        sync,
       ];
     }
 

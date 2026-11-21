@@ -37,6 +37,7 @@ import 'net/net.dart';
 import 'people.dart';
 import 'plugins/pack/pack.dart' show InstalledPlugins;
 import 'plugins/plugin.dart' show MessageFacts;
+import 'plugins/plugin_sync.dart' show PluginSync;
 import 'voice/channels.dart';
 import 'voice/mention_alerts.dart';
 import 'voice/discord.dart';
@@ -131,6 +132,9 @@ Future<void> main() async {
   // to develop and submit their own plugins to our plugin marketplace"): read from this phone's folder and each checked
   // again before any screen or the API asks the registry. At most three seconds; a slower disk finishes after.
   await InstalledPlugins.instance.load(state, appVersion: appVersion);
+  // Which plugins are on, synced across the Ghost account's devices (GMFB-9: lib/plugins/plugin_sync.dart): the
+  // person's switches heard from here on; the account's list is met once the relay is reached.
+  PluginSync.instance.start(state);
   // The app's API (lib/api), each way in started where Settings › API has it on (Matt, 2026-11-17: "build an entire API
   // that we can use to interact with every aspect of the app").
   Api.instance.registerAll(appMethods(state));
