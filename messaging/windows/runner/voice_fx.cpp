@@ -13,6 +13,8 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <vector>
+#include <cstring>
 
 #include "flutter_webrtc.h"
 #include "flutter_webrtc/flutter_web_r_t_c_plugin.h"
@@ -76,19 +78,65 @@ void RegisterVoiceFx(flutter::BinaryMessenger* messenger) {
       flutter::EncodableList modes;
       if (bits & (1 << VOICEFX_RNNOISE)) modes.push_back(flutter::EncodableValue("rnnoise"));
       if (bits & (1 << VOICEFX_DEEPFILTER)) modes.push_back(flutter::EncodableValue("deepfilter"));
+      modes.push_back(flutter::EncodableValue("live"));
       result->Success(flutter::EncodableValue(modes));
+      return;
+    }
+    // Live voice changing (lib/voice/live_changer.dart): what was said, taken; the changed voice, fed.
+    const auto* args = std::get_if<flutter::EncodableMap>(call.arguments());
+    auto arg = [&](const char* name) -> const flutter::EncodableValue* {
+      if (!args) return nullptr;
+      auto it = args->find(flutter::EncodableValue(name));
+      return it == args->end() ? nullptr : &it->second;
+    };
+    auto number = [&](const char* name, int fallback) {
+      const auto* v = arg(name);
+      if (!v) return fallback;
+      if (const auto* i = std::get_if<int32_t>(v)) return static_cast<int>(*i);
+      if (const auto* l = std::get_if<int64_t>(v)) return static_cast<int>(*l);
+      return fallback;
+    };
+    if (call.method_name() == "live") {
+      const auto* on = arg("on");
+      const auto* b = on ? std::get_if<bool>(on) : nullptr;
+      voicefx_live(g_processor->fx(), b && *b ? 1 : 0);
+      result->Success(flutter::EncodableValue(Attach()));
+      return;
+    }
+    if (call.method_name() == "take") {
+      int most = number("most", 32000);
+      if (most < 1) most = 1;
+      std::vector<int16_t> buf(static_cast<size_t>(most));
+      int n = voicefx_take(g_processor->fx(), buf.data(), most);
+      const auto* bytes = reinterpret_cast<const uint8_t*>(buf.data());
+      result->Success(flutter::EncodableValue(std::vector<uint8_t>(bytes, bytes + n * 2)));
+      return;
+    }
+    if (call.method_name() == "feed") {
+      const auto* pcm = arg("pcm");
+      const auto* data = pcm ? std::get_if<std::vector<uint8_t>>(pcm) : nullptr;
+      if (data && data->size() >= 2) {
+        std::vector<int16_t> samples(data->size() / 2);
+        memcpy(samples.data(), data->data(), samples.size() * 2);
+        voicefx_feed(g_processor->fx(), samples.data(), static_cast<int>(samples.size()), number("rate", 24000));
+      }
+      result->Success(flutter::EncodableValue(voicefx_queued_ms(g_processor->fx())));
+      return;
+    }
+    if (call.method_name() == "queued") {
+      result->Success(flutter::EncodableValue(voicefx_queued_ms(g_processor->fx())));
       return;
     }
     if (call.method_name() == "configure") {
       int mode = VOICEFX_OFF;
       double gain = 1.0;
-      if (const auto* args = std::get_if<flutter::EncodableMap>(call.arguments())) {
-        auto m = args->find(flutter::EncodableValue("mode"));
-        if (m != args->end()) {
+      if (const auto* given = std::get_if<flutter::EncodableMap>(call.arguments())) {
+        auto m = given->find(flutter::EncodableValue("mode"));
+        if (m != given->end()) {
           if (const auto* name = std::get_if<std::string>(&m->second)) mode = *name == "rnnoise" ? VOICEFX_RNNOISE : *name == "deepfilter" ? VOICEFX_DEEPFILTER : VOICEFX_OFF;
         }
-        auto g = args->find(flutter::EncodableValue("gain"));
-        if (g != args->end()) {
+        auto g = given->find(flutter::EncodableValue("gain"));
+        if (g != given->end()) {
           if (const auto* v = std::get_if<double>(&g->second)) gain = *v;
         }
       }

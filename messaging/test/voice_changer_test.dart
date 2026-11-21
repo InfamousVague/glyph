@@ -212,7 +212,7 @@ void main() {
           body: SettingsPaneScope(
             finder: SettingsFinder(),
             child: ListView(padding: const EdgeInsets.all(16), children: const [
-              PaneSection(children: [VoiceChangerKeyRow(), VoiceChangerVoiceRow(), VoiceChangerOnRow(), VoiceChangerCleanRow(), VoiceChangerForgetRow()]),
+              PaneSection(children: [VoiceChangerKeyRow(), VoiceChangerVoiceRow(), VoiceChangerOnRow(), VoiceChangerLiveRow(), VoiceChangerCleanRow(), VoiceChangerForgetRow()]),
             ]),
           ),
         );

@@ -72,6 +72,8 @@ class VoiceChangerPlugin extends GhostPlugin {
 
   @override
   List<SlotFill> get slots => [
-        Slots.settings.fill((context, place, prefs) => const [VoiceChangerKeyRow(), VoiceChangerVoiceRow(), VoiceChangerOnRow(), VoiceChangerCleanRow(), VoiceChangerForgetRow()]),
+        // Over the call while one's voice is changed live in it.
+        Slots.callBanner.fill((context, place, prefs) => const [LiveChangerLine()]),
+        Slots.settings.fill((context, place, prefs) => const [VoiceChangerKeyRow(), VoiceChangerVoiceRow(), VoiceChangerOnRow(), VoiceChangerLiveRow(), VoiceChangerCleanRow(), VoiceChangerForgetRow()]),
       ];
 }
