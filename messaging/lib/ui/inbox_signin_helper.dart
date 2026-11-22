@@ -12,7 +12,15 @@ import '../inbox/inbox.dart';
 import '../kit/semantic_colors.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
+import '../sms.dart';
 import 'common.dart';
+
+/// Where to get the browser extension that signs these services in across every device automatically.
+const _extensionPage = 'https://gogho.st/docs/browser-extension/';
+
+/// The services the Ghost keys extension (messaging/extension) captures — the ones it's worth suggesting on this
+/// screen. Google Messages has its own guide; LinkedIn is no longer in the extension.
+const _extensionServices = {'messenger', 'instagram'};
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 
@@ -159,10 +167,35 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
           ),
         );
 
+    Widget extensionSuggestion() => Container(
+          margin: EdgeInsets.only(bottom: t.space(4)),
+          padding: EdgeInsets.all(t.space(4)),
+          decoration: BoxDecoration(
+            color: t.color('app-paper-2'),
+            borderRadius: BorderRadius.circular(t.radius('lg')),
+            border: Border.all(color: t.color('app-ink'), width: 1.5),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              AppIcon(Lucide.puzzle, size: 20, color: t.color('app-ink')),
+              SizedBox(width: t.space(2)),
+              Expanded(child: Text('Easier: the Ghost keys extension', style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink')))),
+            ]),
+            SizedBox(height: t.space(2)),
+            Text(
+              'Add our browser extension (Chrome and Edge) and ${_s.name} links itself: sign in once in your browser and every device on your Ghost account is signed in too — no copying a request. The steps below still work if you\'d rather not.',
+              style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.45),
+            ),
+            SizedBox(height: t.space(3)),
+            button('Get the extension', () => Sms.instance.openLink(_extensionPage), filled: true, key: const ValueKey('helper-extension')),
+          ]),
+        );
+
     final pasting = _opened || _pasted.text.isNotEmpty;
     final busy = _n.signingIn;
     final error = _n.state == InboxState.ready ? null : _n.error;
     return [
+      if (_extensionServices.contains(_s.id)) extensionSuggestion(),
       if (!_computer)
         text('This needs a computer\'s browser (its developer tools). Do steps 1 and 2 on a computer, then get the copied text to this phone (a note or an email to yourself) and paste it in step 3. Or sign in to ${_s.name} from Ghost on the computer itself.'),
       card(1, 'Sign in to ${_s.name} in a private window', [
