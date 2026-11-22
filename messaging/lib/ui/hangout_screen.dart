@@ -247,7 +247,18 @@ class _HangoutScreenState extends State<HangoutScreen> {
         // controls just make it appear like the bottom of all the compose windows look").
         final bottom = pill + (s != null && (wide || _tab != 'chat') ? NavPill.clearance(t) : 0);
         // Before the relay is reached there is no room yet: say so, rather than a bare title over nothing.
-        final chat = room == null ? _NoRoomYet(name: widget.channel.name) : HangoutChat(room: room, bottom: bottom);
+        final chat = room == null
+            ? _NoRoomYet(name: widget.channel.name)
+            : room.waitingForKey
+                // The circle's key changed and this device hasn't got the new one yet (GMFB-26): what is written waits.
+                ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(1)),
+                      child: Text('Waiting for the circle\'s new key. What you write goes once it arrives.', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+                    ),
+                    Expanded(child: HangoutChat(room: room, bottom: bottom)),
+                  ])
+                : HangoutChat(room: room, bottom: bottom);
         // A texting or Files space has no call: no Join, no one "in voice", just its chat (SpaceKind).
         if (s == null && !widget.channel.hasVoice) {
           return _page(room, actions: actions, body: chat);

@@ -425,6 +425,9 @@ class Account extends ChangeNotifier {
     try {
       await Net.instance.board?.fs?.wipe();
     } catch (_) {}
+    try {
+      await Circles.instance.keys?.wipe();
+    } catch (_) {}
     notifyListeners();
   }
 

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import '../net/crypto.dart';
@@ -61,6 +62,29 @@ class CircleKeys {
   final Map<String, Map<String, Uint8List>> _keys = {};
   Future<void> _writing = Future.value();
 
+  /// When this device last said its inbox in each circle's room to be kept by the relay (ms): once a day at most, else
+  /// live, so its 300 kept packets aren't filled with inboxes (review finding 8).
+  final Map<String, int> _keptInbox = {};
+
+  /// The manifest each circle stands at here (set by Circles): a header is believed only while its signer may still
+  /// change the circle, checked again each time it is used (finding 6). None, in a test of the keys alone: all believed.
+  CircleManifest? Function(String seed)? manifestOf;
+
+  /// Told the seed of a circle whose newest key this device lacks and needs (a space's packet it couldn't open), so its
+  /// room asks for it.
+  void Function(String seed)? onMissing;
+
+  /// The seed of each circle a key was taken for: what waited for it (posts, packets) goes on.
+  final _taken = StreamController<String>.broadcast();
+  Stream<String> get taken => _taken.stream;
+
+  /// How far past the newest epoch held a header may be and still be taken (finding 6): enough for a device away
+  /// through a few changes, not a number that runs the counter out.
+  static const epochWindow = 4;
+
+  /// The highest epoch there may be: the header's field is 32 bits.
+  static const epochMost = 0xffff0000;
+
   static const secretsName = 'circle_keys';
   static final _magic = utf8.encode('GE1');
   static const _head = 3 + 4 + 4;
@@ -85,6 +109,9 @@ class CircleKeys {
         _epochs[seed] = [for (final h in (v['h'] as List? ?? const [])) ?CircleEpoch.fromJson(h)];
         _keys[seed] = {for (final k in ((v['k'] as Map?) ?? const {}).entries) if (k.value is String && (k.value as String).length == 64) '${k.key}': NetCrypto.unhex(k.value as String)};
       }
+      for (final e in ((j['ik'] as Map?) ?? const {}).entries) {
+        if (e.value is int) _keptInbox['${e.key}'] = e.value as int;
+      }
     }
     final made = inbox == null;
     _inbox = inbox ?? NetKeys.generate();
@@ -103,6 +130,7 @@ class CircleKeys {
             'k': {for (final k in (_keys[seed] ?? const <String, Uint8List>{}).entries) k.key: NetCrypto.hex(k.value)},
           },
       },
+      'ik': _keptInbox,
     });
     return _writing = _writing.catchError((_) {}).then((_) => _secrets.write(secretsName, text));
   }
@@ -112,11 +140,18 @@ class CircleKeys {
 
   // --- where a circle stands ------------------------------------------------------------------------------------------
 
+  /// The headers of [seed]'s circle still believed: signed by someone who may change it now.
+  Iterable<CircleEpoch> _trusted(String seed) {
+    final m = manifestOf?.call(seed);
+    final all = _epochs[seed] ?? const <CircleEpoch>[];
+    return manifestOf == null ? all : (m == null ? const <CircleEpoch>[] : all.where((h) => h.trusted(m)));
+  }
+
   /// The newest epoch of [seed]'s circle this device holds the key of; null for none (the seed's own keys).
   CircleEpoch? current(String seed) {
     final held = _keys[seed] ?? const {};
     CircleEpoch? best;
-    for (final h in _epochs[seed] ?? const <CircleEpoch>[]) {
+    for (final h in _trusted(seed)) {
       if (!held.containsKey(h.name)) continue;
       if (best == null || h.epoch > best.epoch || (h.epoch == best.epoch && h.commit.compareTo(best.commit) < 0)) best = h;
     }
@@ -126,7 +161,7 @@ class CircleKeys {
   /// The newest epoch of [seed]'s circle heard of, held or not.
   CircleEpoch? newest(String seed) {
     CircleEpoch? best;
-    for (final h in _epochs[seed] ?? const <CircleEpoch>[]) {
+    for (final h in _trusted(seed)) {
       if (best == null || h.epoch > best.epoch || (h.epoch == best.epoch && h.commit.compareTo(best.commit) < 0)) best = h;
     }
     return best;
@@ -140,10 +175,43 @@ class CircleKeys {
     return c == null || n.epoch > c.epoch;
   }
 
+  /// Whether two believed headers name the newest epoch of [seed]'s circle with different keys: two admins changed it
+  /// at once (finding 7). The owner or an admin changes it again.
+  bool split(String seed) {
+    final n = newest(seed);
+    if (n == null) return false;
+    return _trusted(seed).any((h) => h.epoch == n.epoch && h.commit != n.commit);
+  }
+
+  /// Whether this device should say its inbox in [seed]'s circle's room to be kept: not in the last day.
+  bool keepInboxNow(String seed) {
+    final last = _keptInbox[seed];
+    return last == null || DateTime.now().millisecondsSinceEpoch - last > const Duration(days: 1).inMilliseconds;
+  }
+
+  /// This device said its inbox in [seed]'s circle's room to be kept, now.
+  void keptInbox(String seed) {
+    _keptInbox[seed] = DateTime.now().millisecondsSinceEpoch;
+    unawaited(_save());
+  }
+
+  /// A packet of [seed]'s circle came under a key this device lacks: its room asks.
+  void missing(String seed) => onMissing?.call(seed);
+
   /// Forgets [seed]'s circle: left.
   Future<void> forget(String seed) async {
-    if (_epochs.remove(seed) == null && _keys.remove(seed) == null) return;
-    _keys.remove(seed);
+    final had = _epochs.remove(seed) != null;
+    if (_keys.remove(seed) == null && !had && _keptInbox.remove(seed) == null) return;
+    _keptInbox.remove(seed);
+    await _save();
+  }
+
+  /// Forgets every circle's keys and makes a new inbox: signing out.
+  Future<void> wipe() async {
+    _epochs.clear();
+    _keys.clear();
+    _keptInbox.clear();
+    _inbox = NetKeys.generate();
     await _save();
   }
 
@@ -183,13 +251,15 @@ class CircleKeys {
   Future<List<Map<String, Object?>>?> rotate(Circle c, NetSigner signer, Iterable<CircleInbox> to) async {
     if (!c.manifest.canSign(signer.id)) return null;
     final epoch = (newest(c.seed)?.epoch ?? 0) + 1;
+    if (epoch > epochMost) return null;
     final key = NetCrypto.randomBytes(32);
     final unsigned = CircleEpoch(seed: c.seed, epoch: epoch, commit: commitOf(c.seed, epoch, key), by: signer.id, byKey: NetCrypto.hex(signer.publicKey), at: DateTime.now().millisecondsSinceEpoch, sig: '');
     final header = unsigned.withSig(NetCrypto.hex(await signer.sign(unsigned.signed)));
     (_epochs[c.seed] ??= []).add(header);
     (_keys[c.seed] ??= {})[header.name] = key;
     unawaited(_save());
-    final boxes = [for (final i in to) if (!(i.id == signer.id && i.device == device)) ?_box(c, header, key, i)];
+    // Each box is an EC key made and multiplied: built on an isolate of their own, off the screens' (finding 9).
+    final boxes = await _boxesAway(c.key, c.seed, header, key, [for (final i in to) if (!(i.id == signer.id && i.device == device)) i]);
     final out = <Map<String, Object?>>[];
     for (var i = 0; i == 0 || i < boxes.length; i += boxesPerMessage) {
       out.add({'t': i == 0 ? 'rk' : 'kb', 'h': header.toJson(), 'x': boxes.sublist(i, i + boxesPerMessage > boxes.length ? boxes.length : i + boxesPerMessage)});
@@ -199,21 +269,40 @@ class CircleKeys {
 
   /// The newest key held for [c], boxed for [to] alone, with its signed header: an answer to `k?`. Null where none.
   Map<String, Object?>? handOn(Circle c, CircleInbox to) {
-    final h = current(c.seed);
-    final key = h == null ? null : _keys[c.seed]?[h.name];
-    final box = h == null || key == null ? null : _box(c, h, key, to);
-    if (h == null || box == null) return null;
-    return {'t': 'kb', 'h': h.toJson(), 'x': [box]};
+    final all = handOnSince(c, to, (current(c.seed)?.epoch ?? 1) - 1);
+    return all.isEmpty ? null : all.last;
+  }
+
+  /// Every key held for [c] after epoch [since] (the asker's newest), oldest first, each boxed for [to] with its signed
+  /// header: so a device away through several changes reads what was said in each (finding 4).
+  List<Map<String, Object?>> handOnSince(Circle c, CircleInbox to, int since) {
+    final held = _keys[c.seed] ?? const {};
+    final out = <Map<String, Object?>>[];
+    final list = _trusted(c.seed).where((h) => h.epoch > since && held.containsKey(h.name)).toList()..sort((a, b) => a.epoch.compareTo(b.epoch));
+    for (final h in list) {
+      final box = _box(c.key, c.seed, h, held[h.name]!, to);
+      if (box != null) out.add({'t': 'kb', 'h': h.toJson(), 'x': [box]});
+    }
+    return out;
   }
 
   static List<int> _boxInfo(String seed, CircleEpoch h, String id, String device) => utf8.encode('ghost-circle box v1|$seed|${h.epoch}|${h.commit}|$id|$device');
 
-  Map<String, Object?>? _box(Circle c, CircleEpoch h, Uint8List key, CircleInbox to) {
+  static Map<String, Object?>? _box(Uint8List circleKey, String seed, CircleEpoch h, Uint8List key, CircleInbox to) {
     final once = NetKeys.generate();
     final shared = NetCrypto.agree(once, to.key);
     if (shared == null) return null;
-    final k = NetCrypto.hkdf(salt: c.key, ikm: shared, info: _boxInfo(c.seed, h, to.id, to.device));
+    final k = NetCrypto.hkdf(salt: circleKey, ikm: shared, info: _boxInfo(seed, h, to.id, to.device));
     return {'i': to.id, 'd': to.device, 'o': NetCrypto.hex(once.public), 's': base64Encode(NetCrypto.seal(k, key))};
+  }
+
+  /// Whether boxes are built on an isolate of their own.
+  static bool offThread = true;
+
+  static Future<List<Map<String, Object?>>> _boxesAway(Uint8List circleKey, String seed, CircleEpoch h, Uint8List key, List<CircleInbox> to) async {
+    List<Map<String, Object?>> make() => [for (final i in to) ?_box(circleKey, seed, h, key, i)];
+    if (!offThread || to.length < 2) return make();
+    return Isolate.run(make);
   }
 
   /// Takes an `rk` or `kb` heard in [c]'s room by this device's identity [me]: the header where the owner or an admin
@@ -221,6 +310,8 @@ class CircleKeys {
   bool take(Circle c, String me, Map said) {
     final h = CircleEpoch.fromJson(said['h']);
     if (h == null || h.seed != c.seed || !h.trusted(c.manifest)) return false;
+    // No further than a few epochs past the newest held (finding 6).
+    if (h.epoch > (current(c.seed)?.epoch ?? 0) + epochWindow) return false;
     final known = _epochs[c.seed] ??= [];
     var changed = false;
     if (!known.any((x) => x.name == h.name && x.commit == h.commit)) {
@@ -245,6 +336,7 @@ class CircleKeys {
       }
     }
     if (changed) unawaited(_save());
+    if (took) _taken.add(c.seed);
     return took;
   }
 
@@ -256,7 +348,10 @@ class CircleKeys {
 
   /// [clear] sealed for [seed]'s circle with the newest key held, from [base] (the seed's own key for this room) and
   /// [purpose] ('circle' its room, 'space' a space's chat); the old way, with [base] alone, where no epoch is held.
-  Uint8List seal(String seed, List<int> base, String purpose, List<int> clear) {
+  /// Null where a newer epoch is known than this device holds: nothing is sealed under a key someone put out may hold
+  /// (finding 3). The caller keeps it until the key comes ([taken]).
+  Uint8List? seal(String seed, List<int> base, String purpose, List<int> clear) {
+    if (lacking(seed)) return null;
     final h = current(seed);
     final epochKey = h == null ? null : _keys[seed]?[h.name];
     if (h == null || epochKey == null) return NetCrypto.seal(base, clear);
@@ -335,7 +430,7 @@ class CircleEpoch {
   static CircleEpoch? fromJson(Object? j) {
     if (j is! Map) return null;
     final s = j['s'], e = j['e'], c = j['c'], by = j['by'], k = j['k'], at = j['at'], sig = j['sig'];
-    if (s is! String || e is! int || e < 1 || e > 0xffffffff || c is! String || !RegExp(r'^[0-9a-f]{64}$').hasMatch(c) || by is! String || k is! String || at is! int || sig is! String || sig.length != 128) return null;
+    if (s is! String || e is! int || e < 1 || e > CircleKeys.epochMost || c is! String || !RegExp(r'^[0-9a-f]{64}$').hasMatch(c) || by is! String || k is! String || at is! int || sig is! String || sig.length != 128) return null;
     return CircleEpoch(seed: s, epoch: e, commit: c, by: by, byKey: k, at: at, sig: sig);
   }
 }

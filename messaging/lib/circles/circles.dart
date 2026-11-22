@@ -115,8 +115,8 @@ class Circles extends ChangeNotifier {
   factory Circles.forTest({NetSigner? signer, VoiceRoute? route, AppState? app}) {
     final c = Circles._()
       ..signerOverride = signer
-      .._route = route
-      ..keys = CircleKeys.fresh();
+      .._route = route;
+    c._wireKeys(CircleKeys.fresh());
     if (app != null) {
       c._app = app;
       c._load(app);
@@ -158,6 +158,14 @@ class Circles extends ChangeNotifier {
   /// where that store can't be read: every circle is then sealed with its seed's keys, as before.
   CircleKeys? keys;
 
+  /// Makes [k] this device's keys, believing a header only while its signer may change the circle as it stands here,
+  /// and asking in a circle's room for the key a space of it couldn't open with.
+  CircleKeys _wireKeys(CircleKeys k) {
+    k.manifestOf = (seed) => bySeed(seed)?.manifest;
+    k.onMissing = (seed) => unawaited(_rooms[seed]?.askKey());
+    return keys = k;
+  }
+
   bool removed(String seed) => _gone.contains(seed);
 
   Future<void> start(AppState app) async {
@@ -167,7 +175,7 @@ class Circles extends ChangeNotifier {
     try {
       final k = CircleKeys(secrets: _CircleSecrets(), device: HubCarrier.device);
       await k.load();
-      keys = CircleKeys.app = k;
+      CircleKeys.app = _wireKeys(k);
     } catch (_) {}
     // Who a message's writer is now, for an edit to be theirs from any of their devices (lib/voice/hangout.dart).
     HangoutRoom.sameAs = sameAs;
@@ -186,6 +194,9 @@ class Circles extends ChangeNotifier {
         _seen['${e.key}'] = {for (final p in ((e.value as Map?) ?? const {}).entries) '${p.key}': '${p.value}'};
       }
       _was.addAll((jsonDecode(app.choice('circles_was', '{}')) as Map).map((k, v) => MapEntry('$k', '$v')));
+      for (final e in (jsonDecode(app.choice('circles_last_join', '{}')) as Map).entries) {
+        _lastJoin['${e.key}'] = {for (final p in ((e.value as Map?) ?? const {}).entries) if (p.value is int) '${p.key}': p.value as int};
+      }
     } catch (_) {}
     try {
       _joinedAt.addAll((jsonDecode(app.choice('circles_joined_at', '{}')) as Map).map((k, v) => MapEntry('$k', v is int ? v : 0)));
@@ -1011,7 +1022,8 @@ class Circles extends ChangeNotifier {
     return came > kicked;
   }
 
-  /// When each member last said they came into each circle (ms), by seed then id: in memory, for [mayHaveKey].
+  /// When each member last said they came into each circle (ms), by seed then id (`circles_last_join`), for
+  /// [mayHaveKey]: kept, so someone kicked who came back is still let have the key after a restart (finding 5).
   final Map<String, Map<String, int>> _lastJoin = {};
 
   /// When this device came into the circle with [seed] (ms since the epoch); 0 where it was before this was kept.
@@ -1234,6 +1246,7 @@ class Circles extends ChangeNotifier {
         signerOf: () => signer,
         mayHaveKey: (id) => mayHaveKey(c.seed, id),
         onOut: () => _bannedFrom(c.seed),
+        onSplit: () => unawaited(rotateKey(bySeed(c.seed) ?? c)),
       );
       unawaited(room.open().catchError((_) {}));
       if (_announce.contains(c.seed)) unawaited(_sayJoined(room));
@@ -1289,7 +1302,13 @@ class Circles extends ChangeNotifier {
     if (c == null) return;
     final id = sameAs(from);
     final last = _lastJoin.putIfAbsent(seed, () => {});
-    if (at > (last[id] ?? 0)) last[id] = at;
+    if (at > (last[id] ?? 0)) {
+      last[id] = at;
+      while (last.length > _joinsKept) {
+        last.remove(last.keys.first);
+      }
+      _app?.keep('circles_last_join', jsonEncode(_lastJoin));
+    }
     final mine = {Voice.instance.me, if (signer != null) signer!.id};
     if (mine.contains(from) || mine.contains(id) || c.manifest.removed.contains(id) || c.manifest.removed.contains(from)) return;
     final heard = _joins.putIfAbsent(seed, () => {});
@@ -1338,6 +1357,7 @@ class Circles extends ChangeNotifier {
     invites = [];
     _joinedAt.clear();
     _joins.clear();
+    _lastJoin.clear();
     _announce.clear();
     _notes.clear();
     Voice.instance.setCircled(const []);
@@ -1360,7 +1380,27 @@ class Circles extends ChangeNotifier {
 ///   one that has it as `sync?` is. These four are sealed with the seed's key, since they are what a device without the
 ///   newest key must read; everything else is sealed with the newest key held ([CircleKeys.seal]).
 class CircleRoom {
-  CircleRoom({required this.circle, required this.route, required this.onManifest, this.onWas, this.onJoined, this.keys, this.signerOf, this.mayHaveKey, this.onOut});
+  CircleRoom({required this.circle, required this.route, required this.onManifest, this.onWas, this.onJoined, this.keys, this.signerOf, this.mayHaveKey, this.onOut, this.onSplit});
+
+  /// Told that two admins changed the circle's key at once (two believed headers for its newest epoch): the owner or
+  /// an admin changes it again (review finding 7).
+  final void Function()? onSplit;
+
+  /// What this device would have said and couldn't, for want of the circle's newest key: said once it comes (finding 3).
+  final List<({Map<String, Object?> what, bool keep})> _waiting = [];
+
+  /// Packets heard under a key this device lacks: opened again once it comes (finding 4). The newest [mostUnread].
+  final List<({String from, Uint8List bytes})> _unread = [];
+  static const mostUnread = 200;
+
+  /// Whether this device is waiting for the circle's newest key before it can say anything here.
+  final ValueNotifier<bool> waitingForKey = ValueNotifier(false);
+
+  /// When each id last asked for the key (`k?`): answered at most every ten seconds (finding 10).
+  final Map<String, DateTime> _askedBy = {};
+
+  /// The most inboxes kept for one id (finding 10).
+  static const mostInboxes = 8;
 
   /// Told the owner or an admin said this device's identity is banned (`out`): what it is sent where it asks for the
   /// circle while banned, since the manifest that says so is sealed under a key it no longer gets.
@@ -1414,6 +1454,8 @@ class CircleRoom {
   Future<void> open() async {
     if (opened) return;
     opened = true;
+    final k = keys;
+    if (k != null) _subs.add(k.taken.where((seed) => seed == circle.seed).listen((_) => _keyCame()));
     final room = circle.room;
     _subs.add(route.packets.where((p) => p.room == room).listen((p) => _heard(p.from, p.bytes)));
     _subs.add(route.events.where((e) => e.room == room).listen(_event));
@@ -1437,9 +1479,32 @@ class CircleRoom {
     final k = keys, s = signer;
     if (k == null || s == null || s.id != me) return;
     try {
-      _sayPlain(await k.inboxSaid(circle.seed, s), keep: true);
+      // Kept by the relay once a day at most (its room keeps 300 packets); live otherwise, for whoever is here.
+      final keep = k.keepInboxNow(circle.seed);
+      _sayPlain(await k.inboxSaid(circle.seed, s), keep: keep);
+      if (keep) k.keptInbox(circle.seed);
       if (k.lacking(circle.seed)) await _askKey();
     } catch (_) {}
+  }
+
+  /// Asks for the newest key: a space of this circle heard something it couldn't open.
+  Future<void> askKey() => _askKey();
+
+  /// A key came: what waited goes, and what couldn't be read is read.
+  void _keyCame() {
+    final k = keys;
+    if (k == null || k.lacking(circle.seed)) return;
+    final said = [..._waiting];
+    _waiting.clear();
+    waitingForKey.value = false;
+    for (final w in said) {
+      _say(w.what, keep: w.keep);
+    }
+    final unread = [..._unread];
+    _unread.clear();
+    for (final u in unread) {
+      _heard(u.from, u.bytes);
+    }
   }
 
   /// Asks for the circle's newest key, with this device's inbox; at most every half a minute.
@@ -1450,7 +1515,7 @@ class CircleRoom {
     if (_askedKey != null && now.difference(_askedKey!) < const Duration(seconds: 30)) return;
     _askedKey = now;
     try {
-      _sayPlain({'t': 'k?', 'ik': await k.inboxSaid(circle.seed, s)});
+      _sayPlain({'t': 'k?', 'ke': k.current(circle.seed)?.epoch ?? 0, 'ik': await k.inboxSaid(circle.seed, s)});
     } catch (_) {}
   }
 
@@ -1498,7 +1563,17 @@ class CircleRoom {
   /// [keep]: a change to the circle is kept by the hub for whoever comes in later. Sealed with the newest key held.
   void _say(Map<String, Object?> what, {bool keep = false}) {
     final clear = utf8.encode(jsonEncode(what));
-    _send(keys?.seal(circle.seed, circle.key, 'circle', clear) ?? NetCrypto.seal(circle.key, clear), keep: keep);
+    final k = keys;
+    if (k == null) return _send(NetCrypto.seal(circle.key, clear), keep: keep);
+    final sealed = k.seal(circle.seed, circle.key, 'circle', clear);
+    if (sealed == null) {
+      // A newer key is known than this device holds: kept until it comes, never sealed under the older one.
+      _waiting.add((what: what, keep: keep));
+      waitingForKey.value = true;
+      unawaited(_askKey());
+      return;
+    }
+    _send(sealed, keep: keep);
   }
 
   /// Says [what], sealed with the seed's key alone: what a device without the newest key must read (an inbox, a new key
@@ -1517,6 +1592,17 @@ class CircleRoom {
         r.send(circle.room, sealed);
       }
     } catch (_) {}
+  }
+
+  /// Keeps [i] among the inboxes, at most [mostInboxes] for one id (the oldest go).
+  void _keepInbox(CircleInbox i) {
+    final name = '${i.id}:${i.device}';
+    inboxes.remove(name);
+    inboxes[name] = i;
+    final theirs = [for (final e in inboxes.entries) if (e.value.id == i.id) e.key];
+    for (final n in theirs.take((theirs.length - mostInboxes).clamp(0, theirs.length))) {
+      inboxes.remove(n);
+    }
   }
 
   void _event(RoomEvent e) {
@@ -1544,8 +1630,12 @@ class CircleRoom {
     final o = keys?.open(circle.seed, circle.key, 'circle', bytes) ?? (clear: NetCrypto.open(circle.key, bytes), unknown: false);
     final clear = o.clear;
     if (clear == null) {
-      // Sealed under a key this device hasn't got: asked for.
-      if (o.unknown) unawaited(_askKey());
+      // Sealed under a key this device hasn't got: kept, to be read once it comes, and asked for.
+      if (o.unknown) {
+        _unread.add((from: from, bytes: bytes));
+        if (_unread.length > mostUnread) _unread.removeAt(0);
+        unawaited(_askKey());
+      }
       return;
     }
     Map<String, dynamic> m;
@@ -1565,7 +1655,7 @@ class CircleRoom {
         } catch (_) {}
       case 'ik':
         final i = CircleKeys.inboxOf(circle.seed, from, m);
-        if (i != null) inboxes['${i.id}:${i.device}'] = i;
+        if (i != null) _keepInbox(i);
       case 'rk' || 'kb':
         final k = keys;
         if (k == null) return;
@@ -1583,20 +1673,36 @@ class CircleRoom {
         }
         k.take(circle, me, m);
         if (k.lacking(circle.seed)) unawaited(_askKey());
+        // Two admins changed it at once: changed again, by the first of those here who may (finding 7).
+        if (k.split(circle.seed) && signer != null && circle.manifest.canSign(me)) {
+          final n = k.newest(circle.seed)!.epoch;
+          final signers = [me, ...present.where((id) => id != me && circle.manifest.canSign(id))]..sort();
+          _answering['split:$n'] ??= Timer(step * signers.indexOf(me).clamp(0, 12), () {
+            _answering.remove('split:$n');
+            if (k.split(circle.seed) && k.newest(circle.seed)!.epoch == n) onSplit?.call();
+          });
+        }
       case 'k?':
         final k = keys;
         final i = CircleKeys.inboxOf(circle.seed, from, m['ik']);
         if (k == null || i == null) return;
-        inboxes['${i.id}:${i.device}'] = i;
+        // At most every ten seconds from each id.
+        final asked = _askedBy[from];
+        if (asked != null && DateTime.now().difference(asked) < const Duration(seconds: 10)) return;
+        _askedBy[from] = DateTime.now();
+        _keepInbox(i);
         if (k.current(circle.seed) == null || !(mayHaveKey?.call(from) ?? !circle.manifest.removed.contains(from))) return;
+        final since = m['ke'] is int ? m['ke'] as int : 0;
         // As `sync?` is answered: the lowest id here first, the rest a step later unless they hear it answered.
         final ids = [me, ...present.where((id) => id != from && id != me)]..sort();
         final name = 'k:${i.id}:${i.device}';
         _answering.remove(name)?.cancel();
         _answering[name] = Timer(step * ids.indexOf(me).clamp(0, 12), () {
           _answering.remove(name);
-          final a = k.handOn(circle, i);
-          if (a != null) _sayPlain(a);
+          // Every epoch after the asker's newest, oldest first.
+          for (final a in k.handOnSince(circle, i, since)) {
+            _sayPlain(a);
+          }
         });
       case 'sync?':
         // Banned and asking (come back by the link): told so, signed, since the manifest that says so is sealed under a

@@ -106,16 +106,50 @@ class HangoutRoom extends ChangeNotifier {
   set circleKeys(CircleKeys? k) => _circleKeys = k;
   CircleKeys? _circleKeys;
 
-  /// [clear] sealed for this space: under the circle's newest key held, for a circle's space.
-  Uint8List _seal(List<int> clear) {
+  /// [clear] sealed for this space: under the circle's newest key held, for a circle's space. Null where a newer key
+  /// of the circle is known than this device holds: never sealed under an older one, which someone put out may hold
+  /// (GMFB-26 review, finding 3); the caller keeps it until the key comes.
+  Uint8List? _seal(List<int> clear) {
     final circle = channel.circle, k = circleKeys;
     return circle == null || k == null ? NetCrypto.seal(channel.key, clear) : k.seal(circle, channel.key, 'space', clear);
   }
 
-  /// [bytes] opened for this space: under an epoch of the circle's key, or the seed's key.
-  Uint8List? _open(Uint8List bytes) {
+  /// [bytes] opened for this space: under an epoch of the circle's key, or the seed's key. One under a key this device
+  /// lacks is kept, opened again when the key comes, and the key asked for (finding 4).
+  Uint8List? _open(Uint8List bytes, String from, {bool reaction = false}) {
     final circle = channel.circle, k = circleKeys;
-    return circle == null || k == null ? NetCrypto.open(channel.key, bytes) : k.open(circle, channel.key, 'space', bytes).clear;
+    if (circle == null || k == null) return NetCrypto.open(channel.key, bytes);
+    final o = k.open(circle, channel.key, 'space', bytes);
+    if (o.clear == null && o.unknown) {
+      _unread.add((from: from, bytes: bytes, reaction: reaction));
+      if (_unread.length > 200) _unread.removeAt(0);
+      k.missing(circle);
+    }
+    return o.clear;
+  }
+
+  /// What came under a key this device lacks, and what it would have said: both wait for the key.
+  final List<({String from, Uint8List bytes, bool reaction})> _unread = [];
+  final List<({Map<String, Object?> what, bool keep})> _unsaid = [];
+
+  /// Whether what is said here waits for the circle's new key: the screen says so.
+  bool get waitingForKey => _unsaid.isNotEmpty || (channel.circle != null && (circleKeys?.lacking(channel.circle!) ?? false));
+
+  /// The circle's key came: what waited is said, and what couldn't be read is read.
+  void _keyCame() {
+    final circle = channel.circle, k = circleKeys;
+    if (circle == null || k == null || k.lacking(circle)) return;
+    final said = [..._unsaid];
+    _unsaid.clear();
+    for (final w in said) {
+      _say(w.what, keep: w.keep);
+    }
+    final unread = [..._unread];
+    _unread.clear();
+    for (final u in unread) {
+      u.reaction ? _heardReaction(u.from, u.bytes) : _heard(u.from, u.bytes);
+    }
+    notifyListeners();
   }
   String name;
   String? username;
@@ -169,6 +203,8 @@ class HangoutRoom extends ChangeNotifier {
     opened = true;
     putOut = roster.banned.contains(me) ? 'You were banned from this space.' : null;
     final at = _inRoom = hubRoom;
+    final circle = channel.circle, keys = circleKeys;
+    if (circle != null && keys != null) _subs.add(keys.taken.where((s) => s == circle).listen((_) => _keyCame()));
     _subs.add(route.packets.where((p) => p.room == at).listen((p) => _heard(p.from, p.bytes)));
     _subs.add(route.events.where((e) => e.room == at).listen(_event));
     // Reactions as packets of their own (relay/lib/hub.dart toRoomReaction): nothing else is taken from one.
@@ -392,9 +428,10 @@ class HangoutRoom extends ChangeNotifier {
     if (!reactions.take(m.id, me, emoji, on: on, at: at)) return false;
     final what = {'t': 'react', 'id': m.id, 'e': emoji, 'on': on, 'at': at};
     final r = route;
-    if (opened && r is ReactionRoute && (r as ReactionRoute).takesReactions) {
+    final sealed = opened && r is ReactionRoute && (r as ReactionRoute).takesReactions ? _seal(utf8.encode(jsonEncode(what))) : null;
+    if (sealed != null) {
       try {
-        (r as ReactionRoute).sendReaction(_inRoom ?? hubRoom, _seal(utf8.encode(jsonEncode(what))));
+        (r as ReactionRoute).sendReaction(_inRoom ?? hubRoom, sealed);
       } catch (_) {}
     } else {
       // A relay from before keeps it as any kept packet (and in a read-only room refuses it from a reader).
@@ -407,7 +444,7 @@ class HangoutRoom extends ChangeNotifier {
 
   /// A packet that came as a reaction: taken only as one.
   void _heardReaction(String from, Uint8List bytes) {
-    final clear = _open(bytes);
+    final clear = _open(bytes, from, reaction: true);
     if (clear == null) return;
     try {
       final m = (jsonDecode(utf8.decode(clear)) as Map).cast<String, dynamic>();
@@ -999,6 +1036,13 @@ class HangoutRoom extends ChangeNotifier {
     if (!opened) return;
     try {
       final sealed = _seal(utf8.encode(jsonEncode(what)));
+      if (sealed == null) {
+        _unsaid.add((what: what, keep: keep));
+        final circle = channel.circle;
+        if (circle != null) circleKeys?.missing(circle);
+        notifyListeners();
+        return;
+      }
       final r = route;
       if (keep && r is HubVoiceRoute) {
         r.sendKept(_inRoom ?? hubRoom, sealed);
@@ -1016,7 +1060,7 @@ class HangoutRoom extends ChangeNotifier {
   }
 
   void _heard(String from, Uint8List bytes) {
-    final clear = _open(bytes);
+    final clear = _open(bytes, from);
     if (clear == null) return;
     Map<String, dynamic> m;
     try {
