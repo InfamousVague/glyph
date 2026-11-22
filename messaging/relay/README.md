@@ -14,6 +14,11 @@ dart compile exe bin/relay.dart -o ghost-relay # one file to run on a server
 
 Use the `dart` that comes with Flutter (`$(dirname $(which flutter))/dart`) where another is first on the path.
 
+**Running your own** (GMFB-25): [../docs/SELF_HOSTING.md](../docs/SELF_HOSTING.md). A Dockerfile here, and in
+`deploy/` a Compose file with Caddy, a systemd unit, Caddy and nginx configs, a coturn config, and `relay.env.example`
+listing every variable the relay reads (none is required). Relays don't talk to each other: people reach each other
+through a relay only when both use the same one.
+
 ## The hub
 
 The same program also serves **the hub** at any address ending `/hub`: where two people's apps find each other
@@ -148,5 +153,6 @@ The live check reads what anyone may, asks as a throwaway key for its own submis
 nothing. Shipping the market is `node tool/deploy-relay.mjs`, and its route `node tool/deploy-site.mjs --caddy`: each
 on Matt's word.
 
-Elsewhere: listen on 127.0.0.1 and let the web server that holds the certificate pass `/relay/*` and `/hub` to it.
-In Caddy: `handle /relay/* { reverse_proxy 127.0.0.1:8787 }`. It needs no other setup.
+Elsewhere: listen on 127.0.0.1 and let the web server that holds the certificate pass the site to it (every path:
+`/hub`, `/relay/*`, `/files`, `/word`, `/link`, `/market`), with WebSockets and a 10 MiB body allowed. It needs no
+other setup; [../docs/SELF_HOSTING.md](../docs/SELF_HOSTING.md) has the samples.
