@@ -23,6 +23,9 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.12', '2026-11-22', [
+    'Stages in spaces: whoever manages a space can make its call a stage, where newcomers listen until brought up to speak. Listeners raise a hand to ask, the menu counts listeners and hands, and a stage holds far more people than an ordinary call.',
+  ]),
   ReleaseNotes('0.12.11', '2026-11-22', [
     'Show me as: in Profile, choose Online, Away, Busy or Invisible. Friends see a green dot, an amber moon for Away or a red mark for Busy on your picture; Invisible shows you as offline while you keep chatting.',
     'Your add-me link: Profile has a gogho.st/add link and QR code of your own. Anyone who opens it or scans it is asked whether to send you a friend request.',
