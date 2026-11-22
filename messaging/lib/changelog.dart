@@ -24,7 +24,8 @@ class ReleaseNotes {
 
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.12.5', '2026-11-21', [
-    'Browser extension sign-ins reach your other devices: they\'re picked up whenever you come back to the app, and each network plugin\'s sign-in page offers Use the sign-in from your browser.',
+    'Sign in once, signed in everywhere: a network plugin you sign in to on one device, in the app or with the browser extension, signs in on every device on your Ghost account, the Mac and Windows apps included. Each sign-in page also offers Use the sign-in from your browser.',
+    'Plugins you turn on or off reach your other devices within a couple of minutes, even a computer that stays open.',
     'Network plugins on Windows: Messenger, Instagram, Discord, X and Slack now work in the Windows app too.',
   ]),
   ReleaseNotes('0.12.4', '2026-11-21', [
