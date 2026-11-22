@@ -33,6 +33,10 @@ import 'sha256.dart';
 ///   `{"away": id, "is": bool, "at": ms}`, a going is `{"went": id, "at": ms}` (when they were last using it), and
 ///   the answer to `watch` carries `away` (those here but away) and `seen` (when each not here was last there). Kept
 ///   in memory only, for at most [maxSeen] names: a restart forgets when anyone was last seen.
+///   Since GMFB-34 a person may also choose how they are shown (`{"mode": "online" | "busy" | "invisible"}`, said by
+///   any of their devices, held while one is here): busy is told as `{"busy": id, "is": bool}` and listed in the
+///   answer to `watch` (`busy`); invisible is shown to watchers as gone (a `went`, no `came`, not in `here`, and when
+///   they were last seen is not moved on while they are). An app from before passes over `busy` and never says a mode.
 /// - **Looking at a room** without joining it (`look`, with its token): told who is in it, now and as that changes. A
 ///   voice channel's list, showing who is connected before you jump in.
 /// - **Rooms** (a voice room, a group): named by 32 hex digits with a token of 64, both made by its members from a
@@ -169,6 +173,35 @@ class Hub {
   bool _isHere(String id) => _here[id]?.isNotEmpty ?? false;
 
   /// Away, under a name with several devices here, is every one of them away.
+  /// [id] chose how they are shown (GMFB-34): told to whoever watches them, once a change.
+  void _setMode(String id, String said) {
+    final mode = said == 'busy' || said == 'invisible' ? said : '';
+    final was = _mode[id] ?? '';
+    if (mode == was || !_isHere(id)) return;
+    if (mode.isEmpty) {
+      _mode.remove(id);
+    } else {
+      _mode[id] = mode;
+    }
+    final watchers = _watching[id] ?? const <_End>{};
+    final at = _now().millisecondsSinceEpoch;
+    if (mode == 'invisible') {
+      // Gone, to watchers, as of now; last seen not moved on while hidden.
+      _keepSeen(id, at);
+      for (final w in watchers) {
+        _tell(w.ws, {'went': id, 'at': at});
+      }
+      return;
+    }
+    for (final w in watchers) {
+      if (was == 'invisible') {
+        _tell(w.ws, {'came': id});
+        if (_awaySince.containsKey(id)) _tell(w.ws, {'away': id, 'is': true, 'at': _awaySince[id]});
+      }
+      if ((was == 'busy') != (mode == 'busy')) _tell(w.ws, {'busy': id, 'is': mode == 'busy'});
+    }
+  }
+
   bool _allAway(String id) => (_here[id] ?? const <_End>[]).every((e) => e.away);
   final Map<String, List<_Held>> _mail = {};
   final Map<String, _Room> _rooms = {};
@@ -179,6 +212,12 @@ class Hub {
 
   /// Those here with the app put away, and since when.
   final Map<String, int> _awaySince = {};
+
+  /// How each person here chose to be shown, where not plainly: 'busy' or 'invisible' (GMFB-34).
+  final Map<String, String> _mode = {};
+
+  /// Here and not hiding: what watchers are told.
+  bool _shown(String id) => _isHere(id) && _mode[id] != 'invisible';
 
   void _keepSeen(String id, int at) {
     _seen.remove(id);
@@ -378,8 +417,11 @@ class Hub {
         return;
       }
       _here.remove(e.id);
+      // Invisible, they were gone to watchers already, and their last seen was not moved on.
+      final hidden = _mode.remove(e.id) == 'invisible';
       // Last seen: when they put the app away, where they had, else now.
       final at = _awaySince.remove(e.id) ?? _now().millisecondsSinceEpoch;
+      if (hidden) return;
       _keepSeen(e.id, at);
       for (final w in _watching[e.id] ?? const <_End>{}) {
         _tell(w.ws, {'went': e.id, 'at': at});
@@ -443,9 +485,13 @@ class Hub {
         for (final h in fresh) {
           ws.add(h.frame);
         }
-        if (first) {
+        // A mode said with the hello holds from the first moment: someone invisible never shows as come.
+        final asked = hello?['mode'];
+        if (first && asked is String && (asked == 'busy' || asked == 'invisible')) _mode[made.id] = asked;
+        if (first && _shown(made.id)) {
           for (final w in _watching[made.id] ?? const <_End>{}) {
             _tell(w.ws, {'came': made.id});
+            if (_mode[made.id] == 'busy') _tell(w.ws, {'busy': made.id, 'is': true});
           }
         }
         _say('${made.id.substring(0, 6)} came${fresh.isEmpty ? '' : ', ${fresh.length} held'}');
@@ -503,10 +549,13 @@ class Hub {
           (_watching[id] ??= {}).add(e);
         }
         _tell(ws, {
-          'here': [for (final id in ids) if (_isHere(id)) id],
-          'away': [for (final id in ids) if (_isHere(id) && _awaySince.containsKey(id)) id],
-          'seen': {for (final id in ids) if (!_isHere(id) && _seen.containsKey(id)) id: _seen[id]},
+          'here': [for (final id in ids) if (_shown(id)) id],
+          'away': [for (final id in ids) if (_shown(id) && _awaySince.containsKey(id)) id],
+          'busy': [for (final id in ids) if (_shown(id) && _mode[id] == 'busy') id],
+          'seen': {for (final id in ids) if (!_shown(id) && _seen.containsKey(id)) id: _seen[id]},
         });
+      } else if (said['mode'] is String) {
+        _setMode(e.id, said['mode'] as String);
       } else if (said['away'] is bool) {
         // The app put away, or back in use: told to whoever watches them, once a change.
         e.away = said['away'] as bool;
@@ -518,6 +567,7 @@ class Hub {
         } else {
           _awaySince.remove(e.id);
         }
+        if (!_shown(e.id)) return;
         for (final w in _watching[e.id] ?? const <_End>{}) {
           _tell(w.ws, {'away': e.id, 'is': away, 'at': at});
         }

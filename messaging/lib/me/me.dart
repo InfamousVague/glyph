@@ -19,6 +19,7 @@ import '../kept_lists.dart';
 import '../net/carrier.dart';
 import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
+import '../net/net.dart';
 import '../plugins/codes.dart' show signInCode;
 import '../plugins/plugin_sync.dart';
 import '../sms.dart' show Sms;
@@ -302,6 +303,8 @@ class Me extends ChangeNotifier {
   /// start where anything has ever been said to it, and from the moment Settings › Me is opened.
   Future<void> start(MeStore app, Listenable routes, HubCarrier? Function() hub, {void Function(bool yes)? needHub}) async {
     _app = app;
+    // How this person chose to be shown, from the first hello on (GMFB-34).
+    Net.instance.setMode(presenceMode);
     _hubNow = hub;
     _needHub = needHub;
     _read();
@@ -707,6 +710,23 @@ class Me extends ChangeNotifier {
   bool get shareLinks => _app?.flag('me_share_links', fallback: false) ?? false;
   void setShareLinks(bool on) {
     _app?.setFlag('me_share_links', on);
+    notifyListeners();
+  }
+
+  /// How this person chose to be shown to friends and contacts (GMFB-34): 'online', 'away', 'busy' or 'invisible'.
+  /// Online shows them as they are (away when the app is put away); Away always away; Busy a red mark, for everyone
+  /// watching; Invisible as gone, though they can still write and be written to. Told to the hub (Net.setMode).
+  String get presenceMode {
+    final m = _app?.choice('me_presence', 'online') ?? 'online';
+    return presenceModes.contains(m) ? m : 'online';
+  }
+
+  static const presenceModes = ['online', 'away', 'busy', 'invisible'];
+
+  void setPresenceMode(String mode) {
+    if (!presenceModes.contains(mode)) return;
+    _app?.set('me_presence', mode);
+    Net.instance.setMode(mode);
     notifyListeners();
   }
 

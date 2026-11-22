@@ -11,6 +11,8 @@ import 'package:ghost_messaging/net/packet.dart' show Envelope;
 import 'package:ghost_messaging/ui/common.dart' show GhostPage;
 import 'package:ghost_messaging/ui/cosmetics_picker.dart';
 import 'package:ghost_messaging/ui/hangout_screen.dart';
+import 'package:ghost_messaging/ui/profile.dart';
+import 'package:ghost_messaging/net/net.dart';
 
 import 'support/space_call_harness.dart';
 
@@ -112,6 +114,27 @@ void main() {
           expect(find.byKey(ValueKey(key)), findsOneWidget, reason: key);
         }
         await h.again(tester, 'cosmetics-card-open', dark: dark);
+        await tester.pump(const Duration(seconds: 1));
+      });
+    }
+
+    for (final dark in [false, true]) {
+      testWidgets('Profile has Show me as and Look; choosing Busy keeps it and tells the hub (${dark ? 'dark' : 'light'})', (tester) async {
+        final h = await SpaceHarness.load(tester);
+        final store = MemoryMeStore()
+          ..set('me_username', 'matt')
+          ..set('me_display', 'Matt')
+          ..set('me_cosmetics', jsonEncode(const Cosmetics(decoration: 'frost-crystals', banner: 'deep-space', name: 'shimmer').toJson()));
+        await tester.runAsync(() => Me.instance.start(store, ValueNotifier(0), () => null));
+        addTearDown(() => tester.runAsync(() => Me.instance.start(MemoryMeStore(), ValueNotifier(0), () => null)));
+        await h.shoot(tester, const ProfileScreen(), 'profile-look', dark: dark, size: const Size(412, 1900));
+        expect(find.byKey(const ValueKey('look-preview')), findsOneWidget);
+        expect(find.byKey(const ValueKey('decoration-frost-crystals')), findsWidgets);
+        await tester.tap(find.byKey(const ValueKey('presence-mode-busy')));
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(Me.instance.presenceMode, 'busy');
+        expect(store.kept['me_presence'], 'busy');
+        Net.instance.setMode('online');
         await tester.pump(const Duration(seconds: 1));
       });
     }

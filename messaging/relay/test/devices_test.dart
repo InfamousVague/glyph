@@ -38,7 +38,7 @@ class _Install {
         key = other.key,
         id = other.id;
 
-  Future<Map> connect(String url, {bool peek = false, String? device}) async {
+  Future<Map> connect(String url, {bool peek = false, String? device, String? mode}) async {
     final socket = await WebSocket.connect(url);
     if (!peek) ws = socket;
     socket.done.then((_) => closed = true);
@@ -59,7 +59,7 @@ class _Install {
     });
     final nonce = _unhex((await first.future)['hello'] as String);
     final sig = P256.sign(scalar, [...utf8.encode(Hub.greeting), ...nonce], _bytes(32));
-    socket.add(jsonEncode({'id': id, 'key': base64Encode(key), 'sig': base64Encode(sig), if (peek) 'peek': true, 'device': ?device}));
+    socket.add(jsonEncode({'id': id, 'key': base64Encode(key), 'sig': base64Encode(sig), if (peek) 'peek': true, 'device': ?device, 'mode': ?mode}));
     return hello.future.timeout(const Duration(seconds: 5));
   }
 
@@ -136,6 +136,54 @@ void main() {
     await desk.ws.close();
     await _settle();
     expect(heard.where((m) => m['went'] == phone.id).length, 1);
+  });
+
+  // GMFB-34: a person chooses Online, Away, Busy or Invisible. Busy is told to watchers; invisible is gone to them, and
+  // someone who comes in invisible never shows as come at all.
+  test('busy is told to watchers, invisible looks gone, and coming in invisible shows nothing', () async {
+    final watcher = _Install(), maya = _Install(), sam = _Install();
+    await watcher.connect(url);
+    final heard = <Map>[];
+    watcher.said.stream.listen(heard.add);
+    watcher.ws.add(jsonEncode({'watch': [maya.id, sam.id]}));
+    await _settle();
+    await maya.connect(url, device: 'phone');
+    await _settle();
+    expect(heard.where((m) => m['came'] == maya.id), hasLength(1));
+    maya.ws.add(jsonEncode({'mode': 'busy'}));
+    await _settle();
+    expect(heard.lastWhere((m) => m['busy'] == maya.id)['is'], isTrue);
+    // A new watcher is told in the answer to watch.
+    final late = _Install();
+    await late.connect(url);
+    final answer = late.said.stream.first;
+    late.ws.add(jsonEncode({'watch': [maya.id]}));
+    final a = await answer.timeout(const Duration(seconds: 5));
+    expect(a['here'], [maya.id]);
+    expect(a['busy'], [maya.id]);
+    maya.ws.add(jsonEncode({'mode': 'invisible'}));
+    await _settle();
+    expect(heard.where((m) => m['went'] == maya.id), hasLength(1), reason: 'gone, to watchers');
+    final later = _Install();
+    await later.connect(url);
+    final hidden = later.said.stream.first;
+    later.ws.add(jsonEncode({'watch': [maya.id]}));
+    expect((await hidden.timeout(const Duration(seconds: 5)))['here'], isEmpty, reason: 'not here, to anyone asking');
+    maya.ws.add(jsonEncode({'away': true}));
+    await _settle();
+    expect(heard.where((m) => m['away'] == maya.id), isEmpty, reason: 'nothing about someone invisible');
+    maya.ws.add(jsonEncode({'mode': 'online'}));
+    await _settle();
+    expect(heard.where((m) => m['came'] == maya.id), hasLength(2), reason: 'back');
+    expect(heard.where((m) => m['busy'] == maya.id && m['is'] == true), hasLength(1), reason: 'back as online, not busy: busy was not said again');
+    await maya.ws.close();
+    // Coming in invisible: no came at all; going, no went either.
+    await sam.connect(url, device: 'phone', mode: 'invisible');
+    await _settle();
+    expect(heard.where((m) => m['came'] == sam.id), isEmpty);
+    await sam.ws.close();
+    await _settle();
+    expect(heard.where((m) => m['went'] == sam.id), isEmpty);
   });
 
   // Matt, 2026-11-18: his phone stopped seeing a circle's messages and members once his computer, the same identity,

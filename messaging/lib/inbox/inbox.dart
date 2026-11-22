@@ -425,11 +425,15 @@ const disappearingTimers = <(int, String)>[(0, 'Off'), (30, '30 seconds'), (300,
 /// avatar is shown"). Telegram says so; Signal keeps no such thing.
 @immutable
 class InboxPresence {
-  const InboxPresence({required this.network, this.online = false, this.lastSeen, this.rough});
+  const InboxPresence({required this.network, this.online = false, this.lastSeen, this.rough, this.away = false, this.busy = false});
 
   /// What the network calls itself: "Telegram".
   final String network;
   final bool online;
+
+  /// Here but away (the app put away, or they chose Away), and here but Busy (GMFB-34): Ghost Messaging's own.
+  final bool away;
+  final bool busy;
 
   /// When they were last on, where the network says.
   final DateTime? lastSeen;
@@ -439,7 +443,9 @@ class InboxPresence {
 
   /// "online", "last seen 5 min ago", "last seen recently"; null where nothing is known.
   String? words({DateTime? now}) {
+    if (busy) return 'busy';
     if (online) return 'online';
+    if (away) return 'away';
     final seen = lastSeen;
     if (seen != null) {
       final ago = (now ?? DateTime.now()).difference(seen);
