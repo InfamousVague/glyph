@@ -23,6 +23,7 @@ import '../recording_ui.dart';
 import '../ripple_avatar.dart';
 import '../settings.dart';
 import '../shell.dart';
+import '../screen_share.dart';
 import '../space_invite.dart';
 import '../voice_screen.dart';
 import 'call_plugins.dart';
@@ -97,6 +98,7 @@ class SpacePerson {
     this.muted = false,
     this.guest = false,
     this.video = false,
+    this.screen = false,
     this.stream,
     this.role,
     this.owner = false,
@@ -114,6 +116,9 @@ class SpacePerson {
   /// Video turned on; [stream] is its picture once it arrives (null until then, and always in a test).
   final bool video;
   final MediaStream? stream;
+
+  /// What [stream] shows is their shared screen (GMFB-27): drawn whole, never cropped or mirrored.
+  final bool screen;
 
   /// Their role in the space, where it has roles (null for a group's channel).
   final Role? role;
@@ -149,6 +154,8 @@ class SpaceCall {
     this.video = false,
     this.micLocked = false,
     this.videoLocked = false,
+    this.screen = false,
+    this.onScreen,
     this.since,
     this.onMute,
     this.onDeafen,
@@ -184,8 +191,9 @@ class SpaceCall {
         name: s.name.isEmpty ? 'You' : s.name,
         me: true,
         muted: s.muted || s.deafened,
-        video: s.video,
-        stream: media?.localVideo.value,
+        video: s.video || s.screen,
+        screen: media?.localScreen.value != null,
+        stream: media?.localScreen.value ?? media?.localVideo.value,
         role: roleOf(meId),
         owner: roster?.isOwner(meId) ?? false,
       ),
@@ -198,6 +206,7 @@ class SpaceCall {
           muted: m.muted || (room != null && !room.heard(m.id)),
           guest: m.guest,
           video: m.video,
+          screen: m.screen,
           stream: m.video ? media?.remote.value[m.id] : null,
           role: roleOf(m.id),
           owner: roster?.isOwner(m.id) ?? false,
@@ -211,7 +220,7 @@ class SpaceCall {
       channel: s.channel,
       people: people,
       levels: s.discordPeople.isEmpty ? (media?.levels ?? s.media.levels) : MergedLevels(media?.levels ?? s.media.levels, s.discordLevels),
-      changes: Listenable.merge([v, s, ?room, ?media?.remote, ?media?.localVideo, CallRecorder.instance]),
+      changes: Listenable.merge([v, s, ?room, ?media?.remote, ?media?.localVideo, ?media?.localScreen, CallRecorder.instance]),
       bridged: s.channel.discord != null,
       room: room,
       muted: s.muted,
@@ -219,6 +228,8 @@ class SpaceCall {
       video: s.video,
       micLocked: s.locked,
       videoLocked: s.videoLocked,
+      screen: s.screen,
+      onScreen: s.canShareScreen ? (context) => unawaited(toggleScreenShare(context, s)) : null,
       since: s.since,
       onMute: () => s.setMuted(!s.muted),
       onDeafen: () => s.setDeafened(!s.deafened),
@@ -233,7 +244,11 @@ class SpaceCall {
       onInvite: mayInvite(s.channel, room) ? (context) => showSpaceInvite(context, s.channel) : null,
       onDevices: (context) => push(context, (_) => const SettingsSectionScreen('voice')),
       chatBuilder: room == null ? null : ({double bottom = 0}) => HangoutChat(room: room, bottom: bottom),
-      extras: CallPlugins.extras(),
+      // Sharing the screen, first in every design's menu (GMFB-27), where this device can.
+      extras: [
+        if (s.canShareScreen) SpaceExtra(label: screenShareLabel(s), icon: LucideMore.screenShare, builtIn: true, run: (context) => unawaited(toggleScreenShare(context, s))),
+        ...CallPlugins.extras(),
+      ],
     );
   }
 
@@ -254,6 +269,10 @@ class SpaceCall {
   final HangoutRoom? room;
 
   final bool muted, deafened, video;
+
+  /// This device is sharing its screen (GMFB-27); [onScreen] starts or stops it, null where this device can't.
+  final bool screen;
+  final void Function(BuildContext context)? onScreen;
 
   /// This device may not unmute (muted for everyone, or its role may not speak), or turn video on.
   final bool micLocked, videoLocked;
@@ -350,7 +369,10 @@ class SpaceVideo extends StatelessWidget {
   Widget build(BuildContext context) {
     final stream = person.stream;
     // One renderer per stream (GMFB-5; voice_screen.dart's _Tile says why).
-    if (stream != null) return StreamView(key: ObjectKey(stream), stream: stream, mirror: person.me);
+    if (stream != null) {
+      final view = StreamView(key: ObjectKey(stream), stream: stream, mirror: person.me && !person.screen, contain: person.screen);
+      return person.screen ? ColoredBox(color: const Color(0xFF000000), child: view) : view;
+    }
     return fallback ?? ColoredBox(color: const Color(0xFF1C1C1F), child: Center(child: SpaceFace(call: call, person: person, size: faceSize)));
   }
 }
@@ -451,6 +473,10 @@ class SpaceCallPage extends StatefulWidget {
 
 class _SpaceCallPageState extends State<SpaceCallPage> {
   VoiceChannel? _held;
+
+  /// Whose shared screen was put away with Back to call (GMFB-27): theirs stays a line over the call, with View,
+  /// until they share again or someone else does.
+  String? _putAway;
   Timer? _tick;
 
   @override
@@ -508,10 +534,19 @@ class _SpaceCallPageState extends State<SpaceCallPage> {
         final page = KeyedSubtree(key: ValueKey('space-design-${widget.design.name}'), child: widget.design.page(now));
         // What the plugins put over the call, whatever its design (Slots.callBanner): a line everyone must see.
         final session = Voice.instance.session;
+        // Someone else's shared screen, large over the call until put away (GMFB-27).
+        final sharer = session == null ? null : sharerIn(session);
+        if (sharer == null && _putAway != null) _putAway = null;
+        final staged = sharer != null && sharer.id != _putAway;
         // A recording is told to everyone, whatever plugins are on (lib/ui/recording_ui.dart).
-        final banners = [if (session != null && RecordingBanner.shows(session)) const RecordingBanner(), ...CallPlugins.banners(context)];
-        if (banners.isEmpty) return page;
-        return Stack(children: [page, CallBanners(top: MediaQuery.paddingOf(context).top + 62, children: banners)]);
+        final banners = [
+          if (session != null && RecordingBanner.shows(session)) const RecordingBanner(),
+          if (session != null && ScreenShareBanner.shows(session, viewing: staged)) ScreenShareBanner(session: session, onView: () => setState(() => _putAway = null)),
+          ...CallPlugins.banners(context),
+        ];
+        final stage = staged ? Positioned.fill(child: ScreenStage(name: sharer.name, stream: sharer.stream, onBack: () => setState(() => _putAway = sharer.id))) : null;
+        if (banners.isEmpty && stage == null) return page;
+        return Stack(children: [page, ?stage, if (banners.isNotEmpty) CallBanners(top: MediaQuery.paddingOf(context).top + 62, children: banners)]);
       },
     );
   }

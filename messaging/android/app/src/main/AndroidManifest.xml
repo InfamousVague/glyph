@@ -15,6 +15,8 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.READ_PHONE_NUMBERS" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- A friend's call shown full screen on a locked phone, as a phone's call is (IncomingCall.kt, GMFB-28). -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <!-- The app's own updates, from gogho.st (Updater.kt): the one place it opens a connection to. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- So a failed look for an update can say the phone is offline, where it otherwise blames the site. -->
@@ -37,6 +39,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <!-- Sharing the screen in a call (GMFB-27): Android 14 asks for a media projection service while it is captured. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -122,6 +126,9 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
+
+        <!-- Decline on a friend's call's notification (IncomingCall.kt, GMFB-28). -->
+        <receiver android:name=".IncomingCall$DeclineReceiver" android:exported="false" />
 
         <!-- Required of a default SMS app: incoming SMS, delivered to the default app alone. -->
         <receiver
@@ -231,7 +238,7 @@
         <service
             android:name=".CallService"
             android:exported="false"
-            android:foregroundServiceType="microphone|mediaPlayback|camera" />
+            android:foregroundServiceType="microphone|mediaPlayback|camera|mediaProjection" />
 
         <service
             android:name=".DeskService"

@@ -216,6 +216,9 @@ class StandaloneCalls implements SmsCalls {
       case 'netTextDrop':
         chats.dropRow((a['id'] as num).toInt());
         return null;
+      case 'callNote':
+        chats.callNote('${a['address']}', '${a['body']}', (a['at'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch, out: a['out'] == true);
+        return null;
       case 'netTextIn':
         chats.textIn('${a['address']}', '${a['body']}', (a['at'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch);
         return null;

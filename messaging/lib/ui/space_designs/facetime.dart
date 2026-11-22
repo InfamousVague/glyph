@@ -649,7 +649,7 @@ class _Capsule extends StatelessWidget {
       radius: 36,
       padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
       child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        for (final w in [b.chat, b.mute, b.video, b.deafen, b.invite]) slot(w),
+        for (final w in [b.chat, b.mute, b.video, ?b.screen, b.deafen, b.invite]) slot(w),
         Container(width: 1, height: 40, margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), color: _white.withValues(alpha: 0.18)),
         for (final w in [b.devices, b.settings, b.minimize]) slot(w),
         const SizedBox(width: 8),
@@ -682,6 +682,10 @@ class _PhoneControls extends StatelessWidget {
         const SizedBox(height: 10),
         // Scaled down rather than clipped on the narrowest phones.
         FittedBox(fit: BoxFit.scaleDown, child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (call.onScreen != null) ...[
+            _GlassPill(icon: LucideMore.screenShare, label: call.screen ? 'Stop sharing' : 'Share screen', small: true, onPressed: call.videoLocked && !call.screen ? null : () => call.onScreen!(context)),
+            const SizedBox(width: 8),
+          ],
           _GlassPill(icon: LucideMore.headphones, label: SpaceWords.devices, small: true, onPressed: call.onDevices == null ? null : () => call.onDevices!(context)),
           const SizedBox(width: 8),
           _GlassPill(icon: Lucide.settings, label: SpaceWords.settings, small: true, onPressed: call.onSettings == null ? null : () => call.onSettings!(context)),
@@ -705,9 +709,14 @@ class _Buttons {
         devices = SpaceButton(icon: LucideMore.headphones, label: SpaceWords.devices, onPressed: call.onDevices == null ? null : () => call.onDevices!(context), dark: true, size: size),
         settings = SpaceButton(icon: Lucide.settings, label: SpaceWords.settings, onPressed: call.onSettings == null ? null : () => call.onSettings!(context), dark: true, size: size),
         minimize = SpaceButton(icon: Lucide.chevronDown, label: SpaceWords.minimize, onPressed: call.onMinimize, dark: true, size: size),
-        end = SpaceButton(icon: LucideMore.phoneOff, label: SpaceWords.leave, onPressed: call.onLeave, danger: true, dark: true, size: size);
+        end = SpaceButton(icon: LucideMore.phoneOff, label: SpaceWords.leave, onPressed: call.onLeave, danger: true, dark: true, size: size),
+        // SharePlay's screen sharing, where this device can (GMFB-27).
+        screen = call.onScreen == null
+            ? null
+            : SpaceButton(icon: LucideMore.screenShare, label: call.screen ? 'Stop sharing' : 'Share screen', onPressed: call.videoLocked && !call.screen ? null : () => call.onScreen!(context), on: call.screen, dark: true, size: size);
 
   final Widget chat, mute, video, deafen, invite, devices, settings, minimize, end;
+  final Widget? screen;
 }
 
 /// The chat, as a frosted sheet from the foot (phone) or a frosted panel at the side (computer), in the app's theme.

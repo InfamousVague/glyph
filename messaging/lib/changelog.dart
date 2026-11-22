@@ -23,6 +23,10 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.9', '2026-11-22', [
+    'Share your screen in a call: on a Mac, Windows or Linux pick a whole screen or one window; on Android the phone asks. Everyone else sees it large and whole, with Back to call to put it away and View to bring it back.',
+    'Calls: call a friend directly. A friend\'s chat has Voice call and Video call; their phone, Mac and PC ring with Answer and Decline, full screen on a locked Android phone. Missed, declined and unanswered calls are noted in the chat.',
+  ]),
   ReleaseNotes('0.12.8', '2026-11-22', [
     'Messages with friends by username reach every device on your Ghost account: what you send from your phone shows on your Mac and PC too, and what they send reaches all of them, even a device that was closed.',
     'Emoji shortcodes: type :joy: and it becomes 😂; start typing :jo and matching emoji show over the box, to pick with the arrow keys and Enter, or a tap.',
