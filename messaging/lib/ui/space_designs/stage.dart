@@ -163,6 +163,11 @@ class _Header extends StatelessWidget {
         Expanded(child: Align(alignment: Alignment.centerLeft, child: _Pill(look: look, icon: Lucide.chevronDown, label: SpaceWords.minimize, onPressed: call.onMinimize))),
         SizedBox(width: t.space(2)),
         if (camera) ...[_Camera(call: call, look: look, size: 38), SizedBox(width: t.space(1))],
+        // Sharing the screen to the stage, where this device can (GMFB-27).
+        if (call.onScreen != null) ...[
+          _Round(look: look, icon: LucideMore.screenShare, label: call.screen ? 'Stop sharing' : 'Screen', on: call.screen, onPressed: call.videoLocked && !call.screen ? null : () => call.onScreen!(context), size: 38),
+          SizedBox(width: t.space(1)),
+        ],
         _Round(look: look, icon: SpaceWords.deafenIcon(call), label: SpaceWords.deafen(call), on: call.deafened, onPressed: call.onDeafen, size: 38),
         SizedBox(width: t.space(1)),
         _Round(look: look, icon: Lucide.slidersHorizontal, label: SpaceWords.devices, onPressed: call.onDevices == null ? null : () => call.onDevices!(context), size: 38),

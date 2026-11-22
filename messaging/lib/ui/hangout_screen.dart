@@ -375,7 +375,7 @@ class _HangoutStageState extends State<HangoutStage> {
     final room = _room ?? v.hangoutFor(widget.channel);
     final media = v.media;
     return ListenableBuilder(
-      listenable: Listenable.merge([v, ?room, ?media?.remote, ?media?.localVideo, ?v.session]),
+      listenable: Listenable.merge([v, ?room, ?media?.remote, ?media?.localVideo, ?media?.localScreen, ?v.session]),
       builder: (context, _) {
         final s = v.session?.channel.room == widget.channel.room ? v.session : null;
         final chat = room == null ? const SizedBox.shrink() : HangoutChat(room: room);

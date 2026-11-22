@@ -737,10 +737,11 @@ class Sms {
   final leaveCall = StreamController<void>.broadcast();
 
   /// A call in a space began or ended: on the phone, its service keeps it going with the screen locked.
-  Future<void> callStarted(String name, {bool video = false}) async {
+  /// [screen]: the screen is being shared (GMFB-27), which Android 14 asks a service of its own kind for.
+  Future<void> callStarted(String name, {bool video = false, bool screen = false}) async {
     if (remote) return;
     try {
-      await _calls.invokeMethod('callStarted', {'name': name, 'video': video});
+      await _calls.invokeMethod('callStarted', {'name': name, 'video': video, 'screen': screen});
     } catch (_) {}
   }
 

@@ -852,6 +852,7 @@ class Voice extends ChangeNotifier {
     if (s.locked && !s.muted) s.setMuted(true);
     s.videoLocked = !room.can(Perm.video);
     if (s.videoLocked && s.video) unawaited(s.setVideo(false));
+    if (s.videoLocked && s.screen) unawaited(s.setScreen(false));
   }
 
   /// Hops into [c], leaving any other first.
@@ -872,6 +873,9 @@ class Voice extends ChangeNotifier {
     // The relay's TURN server, as the hub handed it out with the last room joined: a call falls back on it where the
     // two devices can't reach each other directly (relay/lib/turn.dart).
     final m = media = RtcMedia(settings: settings, relay: route is HubVoiceRoute ? () => route.hub.callRelay : null);
+    // Sharing the screen on the phone: the call's service takes on the media projection kind between the person
+    // agreeing and the capture starting, as Android 14 asks (android CallService.kt; GMFB-27).
+    m.screenService = (sharing) => Sms.instance.callStarted(c.name, video: session?.video ?? false, screen: sharing);
     for (final e in _volumes.entries) {
       m.setPeerVolume(e.key, e.value);
     }

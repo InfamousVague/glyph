@@ -495,7 +495,7 @@ open class MainActivity : FlutterActivity() {
                 // libsignalsidecar.so): its path where it is there.
                 "helperPath" -> result.success(java.io.File(applicationInfo.nativeLibraryDir, "lib${call.argument<String>("name")}.so").takeIf { it.exists() }?.path)
                 // A call in a space (CallService.kt): going on with the phone locked, until it ends.
-                "callStarted" -> { CallService.start(this, call.argument<String>("name") ?: "", call.argument<Boolean>("video") ?: false); result.success(null) }
+                "callStarted" -> { CallService.start(this, call.argument<String>("name") ?: "", call.argument<Boolean>("video") ?: false, call.argument<Boolean>("screen") ?: false); result.success(null) }
                 "callEnded" -> { CallService.stop(this); result.success(null) }
                 // Signal and Telegram (lib/inbox/alerts.dart): a new message's notification, taken away once read, and
                 // the service that keeps them connected while there are any signed in.

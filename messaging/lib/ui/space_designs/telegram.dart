@@ -293,7 +293,7 @@ class _Menu extends StatelessWidget {
         _MenuRow(icon: LucideMore.headphones, label: SpaceWords.devices, hint: 'Microphone, camera and speaker', onPressed: run(call.onDevices)),
         _MenuRow(icon: Lucide.settings, label: SpaceWords.settings, hint: 'Roles and permissions', onPressed: run(call.onSettings)),
         // What the plugins that are on in this call offer (Slots.callControls).
-        for (final x in call.extras) _MenuRow(icon: x.icon, label: x.label, hint: 'A plugin', danger: x.danger, onPressed: run(x.run)),
+        for (final x in call.extras) _MenuRow(icon: x.icon, label: x.label, hint: x.builtIn ? 'A screen or a window, to everyone here' : 'A plugin', danger: x.danger, onPressed: run(x.run)),
         Container(height: 1, margin: EdgeInsets.symmetric(vertical: t.space(1)), color: t.color('app-rule')),
         _MenuRow(
           icon: LucideMore.phoneOff,

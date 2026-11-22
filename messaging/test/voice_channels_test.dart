@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/voice/channels.dart';
+import 'package:ghost_messaging/voice/rtc.dart';
 import 'package:ghost_messaging/voice/voice.dart';
 import 'package:ghost_messaging/voice/watch_together.dart';
 import 'package:ghost_messaging/files/files_model.dart';
@@ -119,6 +121,34 @@ class _Peer implements VoicePeer {
   Future<void> addCandidate(Map<String, dynamic> candidate) async => media.log.add('candidate from $id');
   @override
   Future<void> close() async => media.log.add('closed $id');
+}
+
+/// Media that can share a screen (ScreenMedia), saying what it was asked; [refuse] stands for the person saying no to
+/// the system's question.
+class _Screens extends _Media implements ScreenMedia {
+  bool refuse = false;
+  String? sharing;
+  void Function()? ended;
+  @override
+  bool get screenSupported => true;
+  @override
+  Future<List<ScreenSource>> screenSources() async => const [ScreenSource(id: 'screen:0', name: 'Entire screen', window: false)];
+  @override
+  Future<bool> setScreen(bool on, {String? source, void Function()? onEnded}) async {
+    if (on && refuse) return false;
+    sharing = on ? (source ?? 'phone') : null;
+    ended = onEnded;
+    return true;
+  }
+
+  @override
+  final ValueNotifier<MediaStream?> localScreen = ValueNotifier(null);
+
+  /// The system stopped it (its own Stop sharing, the window closed).
+  void systemStop() {
+    sharing = null;
+    ended?.call();
+  }
 }
 
 /// Media whose connections can fail, and be made through the relay alone (FallbackMedia).
@@ -582,5 +612,69 @@ void main() {
     expect(samMedia.log, isEmpty);
     await maya.leave();
     await sam.leave();
+  });
+
+  test('sharing a screen (GMFB-27): said to the others as a screen and as video, stopped by Stop or by the system', () async {
+    final hub = _Hub();
+    final c = VoiceChannel.make('Hangout');
+    final mayaMedia = _Screens();
+    final maya = VoiceSession(channel: c, route: _Route(hub, 'maya-id'), media: mayaMedia, name: 'Maya');
+    final sam = VoiceSession(channel: c, route: _Route(hub, 'sam-id'), media: _Media(), name: 'Sam');
+    await maya.join();
+    await sam.join();
+    await _settle();
+    expect(maya.canShareScreen, isTrue);
+    expect(sam.canShareScreen, isFalse, reason: 'media that cannot capture a screen');
+    expect(await sam.setScreen(true), isFalse);
+
+    expect(await maya.setScreen(true, source: 'screen:0'), isTrue);
+    await _settle();
+    expect(mayaMedia.sharing, 'screen:0');
+    expect(maya.screen, isTrue);
+    // Video is said too, so a build that knows nothing of sharing still shows the picture.
+    expect(sam.members['maya-id']!.screen, isTrue);
+    expect(sam.members['maya-id']!.video, isTrue);
+
+    // Stopped with Stop: back to no picture, as her camera was off.
+    await maya.setScreen(false);
+    await _settle();
+    expect(mayaMedia.sharing, isNull);
+    expect(sam.members['maya-id']!.screen, isFalse);
+    expect(sam.members['maya-id']!.video, isFalse);
+
+    // With her camera on, the camera is what is said once the screen stops.
+    await maya.setVideo(true);
+    await maya.setScreen(true, source: 'screen:0');
+    await _settle();
+    expect(sam.members['maya-id']!.screen, isTrue);
+    // Stopped by the system (its own Stop sharing, the window closed).
+    mayaMedia.systemStop();
+    await _settle();
+    expect(maya.screen, isFalse);
+    expect(sam.members['maya-id']!.screen, isFalse);
+    expect(sam.members['maya-id']!.video, isTrue, reason: 'her camera is still on');
+
+    // The person said no to the system's question: nothing is said.
+    mayaMedia.refuse = true;
+    expect(await maya.setScreen(true), isFalse);
+    await _settle();
+    expect(maya.screen, isFalse);
+    expect(sam.members['maya-id']!.screen, isFalse);
+
+    // A role that may not show video may not share either.
+    mayaMedia.refuse = false;
+    maya.videoLocked = true;
+    expect(await maya.setScreen(true, source: 'screen:0'), isFalse);
+    expect(mayaMedia.sharing, isNull);
+    await maya.leave();
+    await sam.leave();
+  });
+
+  test('a shared screen keeps its words sharp: at least 2.5 Mb/s, and 1080 lines at most', () {
+    expect(RtcMedia.screenBitrate(1500000), 2500000);
+    expect(RtcMedia.screenBitrate(12000000), 12000000);
+    expect(RtcMedia.screenScale(null), 1.0);
+    expect(RtcMedia.screenScale(900), 1.0, reason: 'never scaled up');
+    expect(RtcMedia.screenScale(2160), 2.0);
   });
 }

@@ -16,7 +16,7 @@ import 'voice_settings.dart';
 /// microphone as it is (echo cancellation stays on: without it a speaker feeds back into the call), and sent as Opus
 /// at 510 kb/s. Each connection carries one sound and one picture both ways from its start; turning video on or off
 /// puts the camera's picture in or takes it out, with nothing to work out again between the two.
-class RtcMedia implements VoiceMedia, FallbackMedia {
+class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
   RtcMedia({this.relay, this.settings = const VoiceSettings(), this.light = false});
 
   /// Settings' microphone test, made light where the native half can say how loud the microphone is (the Mac's,
@@ -52,6 +52,19 @@ class RtcMedia implements VoiceMedia, FallbackMedia {
 
   MediaStream? _mic;
   MediaStream? _cam;
+
+  /// The screen or window this device is sharing (GMFB-27): sent in the camera's place while there is one.
+  MediaStream? _screen;
+
+  @override
+  final ValueNotifier<MediaStream?> localScreen = ValueNotifier(null);
+
+  /// Said before a phone's screen is captured and after it stops: the call's service takes on, or drops, the media
+  /// projection kind Android 14 asks for (lib/voice/channels.dart).
+  Future<void> Function(bool sharing)? screenService;
+
+  /// How tall the shared screen is, where WebRTC says: it is sent at 1080 lines at most.
+  double? _screenHeight;
 
   /// This device's camera while video is on, for its own tile.
   final ValueNotifier<MediaStream?> localVideo = ValueNotifier(null);
@@ -446,7 +459,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia {
     }
     _peers.clear();
     remote.value = const {};
-    for (final s in [_mic, _cam]) {
+    for (final s in [_mic, _cam, _screen]) {
       for (final t in s?.getTracks() ?? const <MediaStreamTrack>[]) {
         await t.stop();
       }
@@ -455,6 +468,10 @@ class RtcMedia implements VoiceMedia, FallbackMedia {
     _mic = null;
     _cam = null;
     localVideo.value = null;
+    if (_screen != null && !kIsWeb && Platform.isAndroid) unawaited(screenService?.call(false));
+    _screen = null;
+    _screenHeight = null;
+    localScreen.value = null;
   }
 
   @override
@@ -480,6 +497,121 @@ class RtcMedia implements VoiceMedia, FallbackMedia {
 
   MediaStreamTrack? get _camTrack => _cam?.getVideoTracks().firstOrNull;
 
+  /// What this device's picture is now: the screen while it is shared, else the camera while it is on.
+  MediaStreamTrack? get _picture => _screen?.getVideoTracks().firstOrNull ?? _camTrack;
+
+  /// Shown the screen of whoever shares it, sent at 1080 lines at most, holding its sharpness over its frame rate:
+  /// words on a screen matter more than smooth movement.
+  bool get sharing => _screen != null;
+
+  /// A shared screen's bitrate: what the camera would get with this many in the call, but never under 2.5 Mb/s, as
+  /// small words blur first.
+  @visibleForTesting
+  static int screenBitrate(int camera) => math.max(camera, 2500000);
+
+  /// How much a shared screen [height] lines tall is scaled down: to 1080 lines at most, never up.
+  @visibleForTesting
+  static double screenScale(double? height) => height == null || height <= 1080 ? 1.0 : height / 1080;
+
+  @override
+  bool get screenSupported => !kIsWeb && (Platform.isAndroid || Platform.isMacOS || Platform.isWindows || Platform.isLinux);
+
+  @override
+  Future<List<ScreenSource>> screenSources() async {
+    if (kIsWeb || Platform.isAndroid || Platform.isIOS) return const [];
+    // The Mac asks for Screen Recording once (System Settings › Privacy); without it every picture is blank.
+    if (Platform.isMacOS) await Helper.requestCapturePermission().catchError((_) => false);
+    try {
+      final found = await desktopCapturer.getSources(types: [SourceType.Screen, SourceType.Window], thumbnailSize: ThumbnailSize(320, 200));
+      return [
+        for (final s in found)
+          ScreenSource(id: s.id, name: s.name.isEmpty ? (s.type == SourceType.Screen ? 'Screen' : 'Window') : s.name, window: s.type == SourceType.Window, thumbnail: s.thumbnail),
+      ];
+    } catch (e) {
+      debugPrint('rtc: no screens to share: $e');
+      return const [];
+    }
+  }
+
+  @override
+  Future<bool> setScreen(bool on, {String? source, void Function()? onEnded}) async {
+    if (!on) {
+      await _stopScreen();
+      return true;
+    }
+    if (!screenSupported) return false;
+    MediaStream stream;
+    try {
+      if (Platform.isAndroid) {
+        // The system's question first, then the service, then the capture (CallService.kt says why).
+        final yes = await Helper.requestCapturePermission();
+        if (!yes) return false;
+        await screenService?.call(true);
+        stream = await navigator.mediaDevices.getDisplayMedia({'video': true, 'audio': false});
+      } else {
+        if (source == null) return false;
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          'video': {
+            'deviceId': {'exact': source},
+            'mandatory': {'frameRate': 30.0},
+          },
+          'audio': false,
+        });
+      }
+    } catch (e) {
+      debugPrint('rtc: the screen was not shared: $e');
+      if (Platform.isAndroid) await screenService?.call(false);
+      return false;
+    }
+    final track = stream.getVideoTracks().firstOrNull;
+    if (track == null) {
+      await stream.dispose();
+      if (Platform.isAndroid) await screenService?.call(false);
+      return false;
+    }
+    // Another share in this one's place: the old one goes.
+    final old = _screen;
+    _screen = stream;
+    localScreen.value = stream;
+    _screenHeight = null;
+    try {
+      final h = track.getSettings()['height'];
+      if (h is num && h > 0) _screenHeight = h.toDouble();
+    } catch (_) {}
+    track.onEnded = () {
+      if (!identical(_screen, stream)) return;
+      unawaited(_stopScreen().then((_) => onEnded?.call()));
+    };
+    for (final p in _peers.values) {
+      await p.showCamera(_picture);
+    }
+    if (old != null) await _dispose(old);
+    return true;
+  }
+
+  Future<void> _stopScreen() async {
+    final was = _screen;
+    if (was == null) return;
+    _screen = null;
+    _screenHeight = null;
+    localScreen.value = null;
+    // The camera back in its place where video is on; else no picture.
+    for (final p in _peers.values) {
+      await p.showCamera(_picture);
+    }
+    // As with the camera: the renderer lets go first (GMFB-5).
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    await _dispose(was);
+    if (!kIsWeb && Platform.isAndroid) await screenService?.call(false);
+  }
+
+  static Future<void> _dispose(MediaStream s) async {
+    for (final t in s.getTracks()) {
+      await t.stop();
+    }
+    await s.dispose();
+  }
+
   @override
   Future<void> setVideo(bool on) async {
     if (on && _cam == null) {
@@ -492,8 +624,9 @@ class RtcMedia implements VoiceMedia, FallbackMedia {
       final cam = _cam!;
       _cam = null;
       localVideo.value = null;
+      // The shared screen stays where there is one.
       for (final p in _peers.values) {
-        await p.showCamera(null);
+        await p.showCamera(_picture);
       }
       // Let the screen drop its renderer of this camera before the camera goes (GMFB-5: a renderer still holding a
       // disposed stream kept its last frame, on the Mac, in whichever tile it had moved to).
@@ -505,7 +638,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia {
       return;
     }
     for (final p in _peers.values) {
-      await p.showCamera(_camTrack);
+      await p.showCamera(_picture);
     }
   }
 
@@ -651,7 +784,7 @@ class _RtcPeer implements VoicePeer {
       kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
       init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendRecv, sendEncodings: [RTCRtpEncoding(maxBitrate: media.settings.sendTo(media._peers.length, videoFor(media._peers.length)).bitrate, maxFramerate: 30, scaleResolutionDownBy: media.settings.sendTo(media._peers.length, videoFor(media._peers.length)).scale)]),
     );
-    if (media._camTrack != null) await showCamera(media._camTrack);
+    if (media._picture != null) await showCamera(media._picture);
   }
 
   /// The side that answers takes the offer's sound and picture, and puts its own in them.
@@ -662,7 +795,7 @@ class _RtcPeer implements VoicePeer {
         await t.sender.replaceTrack(media._mic!.getAudioTracks().first);
         await t.setDirection(TransceiverDirection.SendRecv);
       } else if (kind == 'video') {
-        await t.sender.replaceTrack(media._camTrack);
+        await t.sender.replaceTrack(media._picture);
         await t.setDirection(TransceiverDirection.SendRecv);
       }
     }
@@ -676,11 +809,13 @@ class _RtcPeer implements VoicePeer {
       final p = s.parameters;
       final encodings = p.encodings;
       if (encodings == null || encodings.isEmpty) continue;
+      final screen = kind == 'video' && media.sharing;
       for (final e in encodings) {
-        e.maxBitrate = kind == 'audio' ? media.audioBitrate : v.bitrate;
-        if (kind == 'video') e.scaleResolutionDownBy = v.scale;
+        e.maxBitrate = kind == 'audio' ? media.audioBitrate : (screen ? RtcMedia.screenBitrate(v.bitrate) : v.bitrate);
+        if (kind == 'video') e.scaleResolutionDownBy = screen ? RtcMedia.screenScale(media._screenHeight) : v.scale;
       }
-      if (kind == 'video') p.degradationPreference = RTCDegradationPreference.BALANCED;
+      // A shared screen keeps its sharpness and gives up frames when the way is narrow; a camera balances the two.
+      if (kind == 'video') p.degradationPreference = screen ? RTCDegradationPreference.MAINTAIN_RESOLUTION : RTCDegradationPreference.BALANCED;
       try {
         await s.setParameters(p);
       } catch (_) {}
