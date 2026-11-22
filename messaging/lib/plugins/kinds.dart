@@ -436,7 +436,7 @@ class KindsPlugin extends GhostPlugin {
     SettingOption('strict', 'Strict', 'Any one sign, sure or lesser. Sorts the most; a text now and then lands in a kind it is not.'),
   ];
 
-  static int _weakNeeded(PluginPrefs prefs) => switch (prefs.get('level')) {
+  static int weakNeededOf(PluginPrefs prefs) => switch (prefs.get('level')) {
         'relaxed' => 0,
         'strict' => 1,
         _ => 2,
@@ -448,7 +448,7 @@ class KindsPlugin extends GhostPlugin {
           if (facts.contact || facts.outgoing == true || facts.text.trim().isEmpty) return const [];
           if (facts.group && !prefs.flag('groups')) return const [];
           if (isNetworkChat(facts) && !prefs.flag('networks')) return const [];
-          final weakNeeded = _weakNeeded(prefs);
+          final weakNeeded = weakNeededOf(prefs);
           final spamFirst = prefs.flag('spam_first');
           bool? looksSpam;
           for (final k in kinds) {
