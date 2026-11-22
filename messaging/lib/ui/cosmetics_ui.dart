@@ -42,8 +42,9 @@ class DressedFace extends StatelessWidget {
         }
         if (d != null) {
           final side = size * 512 / 360;
-          around = art.has(d)
-              ? Image.asset(d.asset, width: side, height: side, key: ValueKey('decoration-${d.id}'))
+          final file = art.artOf(d, moving: !MediaQuery.disableAnimationsOf(context));
+          around = file != null
+              ? Image.asset(file, width: side, height: side, gaplessPlayback: true, key: ValueKey('decoration-${d.id}'))
               : _DecorationStandIn(key: ValueKey('decoration-${d.id}'), piece: d, size: size);
         }
         return SizedBox.square(
@@ -317,7 +318,8 @@ class _ProfileEffectLayerState extends State<ProfileEffectLayer> with SingleTick
       child: ListenableBuilder(
         listenable: CosmeticArt.instance,
         builder: (context, _) {
-          if (CosmeticArt.instance.has(piece)) return Image.asset(piece.asset, fit: BoxFit.cover, key: ValueKey('effect-${piece.id}'));
+          final file = CosmeticArt.instance.artOf(piece, moving: !MediaQuery.disableAnimationsOf(context));
+          if (file != null) return Image.asset(file, fit: BoxFit.cover, gaplessPlayback: true, key: ValueKey('effect-${piece.id}'));
           return AnimatedBuilder(
             key: ValueKey('effect-${piece.id}'),
             animation: _drift,

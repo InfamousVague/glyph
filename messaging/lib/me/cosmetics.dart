@@ -113,8 +113,10 @@ class Cosmetic {
   /// For a name effect: how it is drawn.
   final NameStyle style;
 
-  /// Where its art is, in the app's assets.
+  /// Where its art is, in the app's assets: a still, and (for a piece that moves) an animated WebP beside it, which is
+  /// drawn in its place where it is there and motion is not switched off.
   String get asset => 'assets/cosmetics/${kind.folder}/$id.png';
+  String get animated => 'assets/cosmetics/${kind.folder}/$id.webp';
 
   /// Whether it is drawn from code alone, needing no art.
   bool get coded => kind == CosmeticKind.name && style != NameStyle.texture;
@@ -130,6 +132,9 @@ class CosmeticCatalog {
   static const _magenta = Color(0xFFFF3DCB), _sand = Color(0xFFE2C79A), _blue = Color(0xFF3D8BFF), _smoke = Color(0xFF8D96A3);
 
   static const all = <Cosmetic>[
+    // The Ghost pack (Matt, 2026-11-22: "Let's work on just nailing one good profile decoration pack focused around
+    // the ghosts"): the app's own ghosts, animated, from ~/Desktop/ghost-pack-lovart-prompts.md.
+    Cosmetic(CosmeticKind.decoration, 'ghost-ring', 'Ghost Ring', Color(0xFFE8F4FF), second: _ice),
     // Avatar decorations: around the picture, spilling a little past it.
     Cosmetic(CosmeticKind.decoration, 'wisp-halo', 'Wisp halo', _ice),
     Cosmetic(CosmeticKind.decoration, 'candle-ring', 'Candle ring', _amber),
@@ -175,7 +180,8 @@ class CosmeticCatalog {
     Cosmetic(CosmeticKind.name, 'shimmer', 'Shimmer', Color(0xFFC9D2DE), second: Color(0xFFFFFFFF), style: NameStyle.shimmer),
     Cosmetic(CosmeticKind.name, 'spectral-glow', 'Spectral glow', Color(0xFFE8F4FF), second: Color(0xFF7FD3FF), style: NameStyle.glow),
     Cosmetic(CosmeticKind.name, 'rainbow', 'Rainbow', Color(0xFFFF4D4D), second: Color(0xFF4D7BFF), style: NameStyle.rainbow),
-    // Profile effects: over the whole card, from its edges.
+    // Profile effects: over the whole card, from its edges. The Ghost pack's first.
+    Cosmetic(CosmeticKind.effect, 'haunted', 'Haunted', Color(0xFFFFFFFF), second: _ice),
     Cosmetic(CosmeticKind.effect, 'falling-ghosts', 'Falling ghosts', Color(0xFFFFFFFF)),
     Cosmetic(CosmeticKind.effect, 'embers', 'Embers', Color(0xFFFF7A1A), second: Color(0xFFFFD23F)),
     Cosmetic(CosmeticKind.effect, 'snowfall', 'Snowfall', Color(0xFFEFF6FF)),
@@ -203,11 +209,12 @@ class CosmeticArt extends ChangeNotifier {
   Set<String>? _assets;
   bool _asked = false;
 
-  /// Whether [c]'s art is here; false until the list is read (asked for then), and for a piece drawn from code.
+  /// Whether [c]'s art is here (its still or its animation); false until the list is read (asked for then), and for a
+  /// piece drawn from code.
   bool has(Cosmetic c) {
     if (c.coded) return false;
     final known = _assets;
-    if (known != null) return known.contains(c.asset);
+    if (known != null) return known.contains(c.asset) || known.contains(c.animated);
     if (!_asked) {
       _asked = true;
       AssetManifest.loadFromAssetBundle(rootBundle).then((m) {
@@ -218,6 +225,15 @@ class CosmeticArt extends ChangeNotifier {
       });
     }
     return false;
+  }
+
+  /// The file to draw for [c]: its animation where there is one and [moving] (motion not switched off), else its still,
+  /// else the animation's first frame (Flutter draws a WebP still where it may not move). Null where neither is here.
+  String? artOf(Cosmetic c, {required bool moving}) {
+    final known = _assets ?? const <String>{};
+    final still = known.contains(c.asset), anim = known.contains(c.animated);
+    if (anim && (moving || !still)) return c.animated;
+    return still ? c.asset : null;
   }
 
   @visibleForTesting
