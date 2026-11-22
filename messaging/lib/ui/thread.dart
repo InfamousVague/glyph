@@ -590,7 +590,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         return;
       }
       if (limit == null) {
-        toast(context, 'Allow the microphone for Ghost Messaging in Android\'s settings to record a voice message.', tone: GlacierToastTone.danger);
+        toast(context, micRefusedWords(), tone: GlacierToastTone.danger);
         return;
       }
       HapticFeedback.lightImpact();
@@ -1598,7 +1598,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               hasSomething: _text.text.isNotEmpty || _attachments.isNotEmpty || editing,
               onAttach: Sms.can('sendPictures') && !_isGhost && !_byName && !editing && _attachments.length < 5 ? _attach : null,
               onSticker: Sms.can('sendSticker') && reach && !_sending && _attachments.isEmpty ? _sticker : null,
-              onRecord: Sms.can('sendVoice') && reach && !_sending && _attachments.isEmpty ? _record : null,
+              onRecord: Sms.can('sendVoice') && Sms.canRecordVoice && reach && !_sending && _attachments.isEmpty ? _record : null,
               onSend: canSend ? _send : null,
               emoji: Sms.remote,
               // The app's own picker (lib/ui/emoji_picker.dart), into the box where the cursor is.

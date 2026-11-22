@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import '../desktop/desk_voice.dart';
 import '../desktop/platform.dart';
 import '../friends/buddies.dart';
 import '../net/crypto.dart';
@@ -321,6 +322,17 @@ class StandaloneCalls implements SmsCalls {
       case 'voiceLength':
         final bytes = a['bytes'];
         return bytes is Uint8List ? await MacPlatform.voiceLength(bytes) : 0;
+      // A voice message from this device's own microphone, for a network's chat, a space or a friend (GMFB-32): no
+      // texts here, so always a file, never a carrier's limit (lib/desktop/desk_voice.dart).
+      case 'voiceStart':
+        return DeskVoice.start();
+      case 'voiceLevel':
+        return DeskVoice.level();
+      case 'voiceCancel':
+        await DeskVoice.cancel();
+        return null;
+      case 'voiceFinish':
+        return DeskVoice.finish();
     }
     // Everything else is the Android phone's alone (texts, MMS, the default app, its updates): nothing here.
     return null;

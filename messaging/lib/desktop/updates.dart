@@ -37,6 +37,11 @@ const windowsFeed = 'https://gogho.st/windows.json';
 /// .github/workflows/messaging-windows.yml); 0 for a build made any other way, which never updates itself.
 const windowsBuild = int.fromEnvironment('GHOST_BUILD');
 
+/// Where an installed Linux app reads of a newer one: tool/release-linux.mjs's linux.json (GMFB-32, from the Uplink gap
+/// review: "Linux auto-update"). It describes the .deb at its top and the folder's .tar.gz under `tar`; which one this
+/// copy takes is [LinuxUpdateHost.part]'s to say. The workflow builds with the same `GHOST_BUILD` as Windows'.
+const linuxFeed = 'https://gogho.st/linux.json';
+
 /// A release, as its description gives it.
 class MacRelease {
   const MacRelease({required this.version, required this.build, required this.sha256, required this.bytes, required this.url});
@@ -53,8 +58,9 @@ class MacRelease {
   static const largest = 500 << 20;
 
   /// Reads a description read from [feed]; null where it is not one: a field missing or of the wrong kind, a size
-  /// no app is, or a zip somewhere other than beside the description.
-  static MacRelease? parse(String text, Uri feed) {
+  /// no app is, or a zip somewhere other than beside the description. With [part] the file is the one described under
+  /// that key (linux.json's `tar`: `{url, bytes, sha256}`), the version still the description's own.
+  static MacRelease? parse(String text, Uri feed, {String? part}) {
     final Object? said;
     try {
       said = jsonDecode(text);
@@ -62,7 +68,9 @@ class MacRelease {
       return null;
     }
     if (said is! Map) return null;
-    final version = said['version'], build = said['versionCode'], sha256 = said['sha256'], bytes = said['bytes'], url = said['url'];
+    final file = part == null ? said : said[part];
+    if (file is! Map) return null;
+    final version = said['version'], build = said['versionCode'], sha256 = file['sha256'], bytes = file['bytes'], url = file['url'];
     if (version is! String || !RegExp(r'^\d+(\.\d+){1,3}$').hasMatch(version)) return null;
     if (build is! int || build <= 0) return null;
     if (sha256 is! String || !RegExp(r'^[0-9a-fA-F]{64}$').hasMatch(sha256)) return null;
@@ -166,7 +174,7 @@ enum MacUpdatePhase {
 
 /// Looks for a newer Mac app, brings it down and has it put in place (the header).
 class MacUpdates extends ChangeNotifier {
-  MacUpdates({Uri? feed, UpdateHost? host, HttpClient Function()? client, this.every = const Duration(hours: 6), this.restartWhenReady = false})
+  MacUpdates({Uri? feed, UpdateHost? host, HttpClient Function()? client, this.every = const Duration(hours: 6), this.restartWhenReady = false, this.part})
       : feed = feed ?? Uri.parse(macFeed),
         _host = host ?? const ChannelUpdateHost(),
         _client = client ?? HttpClient.new;
@@ -177,6 +185,7 @@ class MacUpdates extends ChangeNotifier {
       : feed = Uri.parse(macFeed),
         every = const Duration(hours: 6),
         restartWhenReady = false,
+        part = null,
         _host = host ?? const ChannelUpdateHost(),
         _client = HttpClient.new {
     _installed = installed;
@@ -191,16 +200,37 @@ class MacUpdates extends ChangeNotifier {
   bool _standing = false;
 
   /// The updater for this run of the app: where `GHOST_DESK_UPDATES` says to look, or nowhere for `off`.
-  /// On Windows it reads [windowsFeed] and runs the installer it brings ([WindowsUpdateHost]).
-  static MacUpdates? fromEnvironment(Map<String, String> env, {bool windows = false}) {
+  /// On Windows it reads [windowsFeed] and runs the installer it brings ([WindowsUpdateHost]); on Linux [linuxFeed],
+  /// the folder swapped in or the .deb's command given ([LinuxUpdateHost]). [linuxHost] stands in for a test.
+  static MacUpdates? fromEnvironment(Map<String, String> env, {bool windows = false, bool linux = false, LinuxUpdateHost? linuxHost}) {
     final said = (env['GHOST_DESK_UPDATES'] ?? '').trim();
     if (said == 'off') return null;
     final given = said.isEmpty ? null : Uri.tryParse(said);
-    final feed = given != null && given.hasScheme && given.host.isNotEmpty ? given : (windows ? Uri.parse(windowsFeed) : null);
-    return MacUpdates(feed: feed, host: windows ? WindowsUpdateHost(env: env) : null, restartWhenReady: env['GHOST_DESK_UPDATE_RESTART'] == 'now');
+    final feed = given != null && given.hasScheme && given.host.isNotEmpty
+        ? given
+        : windows
+            ? Uri.parse(windowsFeed)
+            : linux
+                ? Uri.parse(linuxFeed)
+                : null;
+    final lin = linux ? (linuxHost ?? LinuxUpdateHost(env: env)) : null;
+    return MacUpdates(
+      feed: feed,
+      host: windows ? WindowsUpdateHost(env: env) : lin,
+      restartWhenReady: env['GHOST_DESK_UPDATE_RESTART'] == 'now',
+      part: lin?.part,
+    );
   }
 
   final Uri feed;
+
+  /// Which file of the description this copy takes, where it describes more than one (linux.json's `tar`); null for
+  /// the one at its top.
+  final String? part;
+
+  /// The command that installs the update this copy brought down and can't put in place itself (a .deb, which
+  /// needs root), for Settings to offer to copy; null otherwise.
+  String? get installCommand => _phase == MacUpdatePhase.manual && _host is LinuxUpdateHost ? _host.command : null;
   final Duration every;
 
   /// Restart into an update as soon as it is in place, with nobody asked (`GHOST_DESK_UPDATE_RESTART=now`).
@@ -326,7 +356,7 @@ class MacUpdates extends ChangeNotifier {
         bytes.addAll(chunk);
         if (bytes.length > 64 * 1024) throw const UpdateProblem('The release\'s description is too long to be one');
       }
-      final found = MacRelease.parse(utf8.decode(bytes, allowMalformed: true), feed);
+      final found = MacRelease.parse(utf8.decode(bytes, allowMalformed: true), feed, part: part);
       if (found == null) throw const UpdateProblem('The release\'s description could not be read');
       return found;
     } finally {
@@ -441,15 +471,7 @@ class WindowsUpdateHost implements UpdateHost {
   Future<String> install(String path, {required String sha256, required int bytes}) async {
     final file = File(path);
     if (!file.existsSync() || file.lengthSync() != bytes) return 'The installer is not the size the release says';
-    final digest = SHA256Digest();
-    final out = Uint8List(digest.digestSize);
-    await for (final chunk in file.openRead()) {
-      final b = chunk is Uint8List ? chunk : Uint8List.fromList(chunk);
-      digest.update(b, 0, b.length);
-    }
-    digest.doFinal(out, 0);
-    final hex = out.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-    if (hex != sha256.toLowerCase()) {
+    if (await fileSha256(file) != sha256.toLowerCase()) {
       try {
         file.deleteSync();
       } catch (_) {}
@@ -467,6 +489,211 @@ class WindowsUpdateHost implements UpdateHost {
       await launch(path);
     } catch (e) {
       return 'The installer would not start ($e)';
+    }
+    quit();
+    return 'restarting';
+  }
+}
+
+/// A file's SHA-256, in lower-case hex, read a piece at a time.
+Future<String> fileSha256(File file) async {
+  final digest = SHA256Digest();
+  final out = Uint8List(digest.digestSize);
+  await for (final chunk in file.openRead()) {
+    final b = chunk is Uint8List ? chunk : Uint8List.fromList(chunk);
+    digest.update(b, 0, b.length);
+  }
+  digest.doFinal(out, 0);
+  return out.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+}
+
+/// How this Linux copy was put on the computer, which decides how it updates (GMFB-32).
+enum LinuxInstall {
+  /// From the .deb: the app's folder is /opt/ghost-messaging, root's. It can't replace itself; the new .deb is brought
+  /// down and checked, and the person is given the one command that installs it.
+  deb,
+
+  /// From the .tar.gz, unpacked where the person chose: the folder is theirs, so the new one is unpacked beside it
+  /// and swapped in on Restart to update.
+  folder,
+
+  /// The .tar.gz unpacked somewhere this person can't write: the new one is pointed to, not put in place.
+  readOnly,
+}
+
+/// Linux's half, in Dart alone (GMFB-32, from the Uplink gap review: "Linux auto-update"). The packages are not
+/// signed, so what makes one believed is as on Windows: it came over HTTPS from gogho.st, beside a description from the
+/// same server, and matches that description's size and SHA-256.
+///
+/// - **A folder** ([LinuxInstall.folder], the .tar.gz): the archive is unpacked beside the app's folder
+///   (`.ghost-messaging-update`), checked to hold the app, and on Restart to update the running folder is moved aside
+///   (`<folder>.old`, removed at the next start), the new one moved into its place and started, and this copy quits.
+/// - **The .deb** ([LinuxInstall.deb]): brought down into `~/.cache/ghost-messaging/updates`, checked, and given to
+///   the person as `sudo apt install <path>` ([command]): installing a package is root's, and nothing here asks for a
+///   password.
+///
+/// Only a copy made with a build number ([windowsBuild], the same `GHOST_BUILD` define) looks for updates: one run from
+/// a build folder never does.
+class LinuxUpdateHost implements UpdateHost {
+  LinuxUpdateHost({Map<String, String>? env, String? exe, int? build, String? version, LinuxInstall? install, this.launch = _launch, this.quit = _quit, this.unpack = _unpack})
+      : _env = env ?? Platform.environment,
+        _exe = exe ?? Platform.resolvedExecutable,
+        _build = build ?? windowsBuild,
+        _version = version ?? const String.fromEnvironment('GHOST_VERSION') {
+    kind = install ?? _kindOf(_exe);
+  }
+  final Map<String, String> _env;
+  final String _exe;
+  final int _build;
+  final String _version;
+
+  /// How this copy was installed (from where it runs, unless a test says).
+  late final LinuxInstall kind;
+
+  /// Starts the app at the path, detached.
+  final Future<void> Function(String exe) launch;
+  final void Function() quit;
+
+  /// Unpacks the .tar.gz at [archive] into [into]: null, or why it couldn't.
+  final Future<String?> Function(String archive, String into) unpack;
+
+  /// Where the .deb installs the app.
+  static const debFolder = '/opt/ghost-messaging';
+
+  /// The folder the archive holds the app in (the workflow's `--transform 's,^bundle,ghost-messaging,'`), and its
+  /// program.
+  static const archiveFolder = 'ghost-messaging';
+  static const program = 'ghost-messaging';
+
+  /// The file of linux.json this copy takes: the folder's archive, or the .deb at the top.
+  String? get part => kind == LinuxInstall.deb ? null : 'tar';
+
+  /// For the .deb, once it is here and checked: the command that installs it.
+  String? command;
+
+  String? _staged;
+
+  String get _folder => File(_exe).parent.path;
+
+  static LinuxInstall _kindOf(String exe) {
+    if (exe.startsWith('$debFolder/')) return LinuxInstall.deb;
+    final folder = File(exe).parent;
+    try {
+      // Writable here and beside it: a file made and removed in the folder that holds the app's.
+      final probe = File('${folder.parent.path}/.ghost-messaging-write-test-$pid');
+      probe.writeAsStringSync('');
+      probe.deleteSync();
+      return LinuxInstall.folder;
+    } catch (_) {
+      return LinuxInstall.readOnly;
+    }
+  }
+
+  static Future<void> _launch(String exe) async {
+    await Process.start(exe, const [], mode: ProcessStartMode.detached, workingDirectory: File(exe).parent.path);
+  }
+
+  static void _quit() => exit(0);
+
+  static Future<String?> _unpack(String archive, String into) async {
+    final r = await Process.run('tar', ['-xzf', archive, '-C', into]);
+    return r.exitCode == 0 ? null : 'The update could not be unpacked (${'${r.stderr}'.trim()})';
+  }
+
+  /// `sudo apt install` for a .deb at [path], quoted for a shell.
+  static String aptCommand(String path) => 'sudo apt install ${_quoted(path)}';
+
+  static String _quoted(String s) => RegExp(r'^[A-Za-z0-9_./-]+$').hasMatch(s) ? s : "'${s.replaceAll("'", "'\\''")}'";
+
+  String get _cache {
+    final xdg = _env['XDG_CACHE_HOME'];
+    final base = xdg != null && xdg.isNotEmpty ? xdg : '${_env['HOME'] ?? Directory.systemTemp.path}/.cache';
+    return '$base/ghost-messaging/updates';
+  }
+
+  @override
+  Future<InstalledMac?> installed() async {
+    if (_build <= 0) return null;
+    // What the last swap moved aside: this copy runs from the new folder now.
+    if (kind == LinuxInstall.folder) {
+      try {
+        final old = Directory('$_folder.old');
+        if (old.existsSync()) old.deleteSync(recursive: true);
+      } catch (_) {}
+    }
+    return InstalledMac(version: _version, build: _build, dir: _cache);
+  }
+
+  @override
+  Future<String> install(String path, {required String sha256, required int bytes}) async {
+    final file = File(path);
+    if (!file.existsSync() || file.lengthSync() != bytes) return 'The download is not the size the release says';
+    if (await fileSha256(file) != sha256.toLowerCase()) {
+      try {
+        file.deleteSync();
+      } catch (_) {}
+      return 'The download is not the one the release describes';
+    }
+    switch (kind) {
+      case LinuxInstall.deb:
+        command = aptCommand(path);
+        return 'manual: It came from the .deb, which only an administrator can replace. To install it, run $command in a terminal, then open Ghost Messaging again.';
+      case LinuxInstall.readOnly:
+        return 'manual: Its folder ($_folder) isn\'t yours to change. Download the new one from gogho.st and unpack it where you can write.';
+      case LinuxInstall.folder:
+        final stage = Directory('${File(_folder).parent.path}/.ghost-messaging-update');
+        try {
+          if (stage.existsSync()) stage.deleteSync(recursive: true);
+          stage.createSync(recursive: true);
+        } catch (e) {
+          return 'There is no room beside the app to unpack the update ($e)';
+        }
+        final why = await unpack(path, stage.path);
+        if (why != null) return why;
+        final app = '${stage.path}/$archiveFolder';
+        if (!File('$app/$program').existsSync()) {
+          try {
+            stage.deleteSync(recursive: true);
+          } catch (_) {}
+          return 'The update does not hold Ghost Messaging';
+        }
+        try {
+          file.deleteSync();
+        } catch (_) {}
+        _staged = app;
+        return 'ready';
+    }
+  }
+
+  @override
+  Future<String> restart() async {
+    final staged = _staged;
+    if (staged == null || !Directory(staged).existsSync()) return 'The update is gone; it is fetched again later';
+    final here = _folder;
+    final aside = '$here.old';
+    try {
+      if (Directory(aside).existsSync()) Directory(aside).deleteSync(recursive: true);
+      Directory(here).renameSync(aside);
+    } catch (e) {
+      return 'The app\'s folder could not be moved aside ($e)';
+    }
+    try {
+      Directory(staged).renameSync(here);
+    } catch (e) {
+      // Put back as it was: the copy running now goes on from its own folder.
+      try {
+        Directory(aside).renameSync(here);
+      } catch (_) {}
+      return 'The new version could not be put in place ($e)';
+    }
+    try {
+      Directory(File(staged).parent.path).deleteSync(recursive: true);
+    } catch (_) {}
+    _staged = null;
+    try {
+      await launch('$here/$program');
+    } catch (e) {
+      return 'The new version is in place but would not start ($e). Open Ghost Messaging again.';
     }
     quit();
     return 'restarting';

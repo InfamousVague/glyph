@@ -129,8 +129,9 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   runApp(_SplashApp(sheet: accents.of(state), state: state, step: step));
   // The app's own updates, looked for before anything else, as Discord does: a version found is brought down and
   // restarted into from the splash. Offline, or with nothing new, the app opens as it is and goes on looking every few
-  // hours. A Mac swaps in the Mac's zip; Windows runs the new installer from gogho.st, silently.
-  final macUpdates = updates && (Platform.isMacOS || Platform.isWindows) ? MacUpdates.fromEnvironment(env, windows: Platform.isWindows) : null;
+  // hours. A Mac swaps in the Mac's zip; Windows runs the new installer from gogho.st, silently; Linux swaps in the
+  // folder's new archive, or for the .deb says the command that installs it (GMFB-32).
+  final macUpdates = updates && (Platform.isMacOS || Platform.isWindows || Platform.isLinux) ? MacUpdates.fromEnvironment(env, windows: Platform.isWindows, linux: Platform.isLinux) : null;
   if (macUpdates != null) await checkAtLaunch(macUpdates, step);
   step.value = (words: 'Starting Ghost Messaging', progress: null);
   // Google Messages on this computer (gm_web.dart): its helper started where this copy carries it, and what changes
