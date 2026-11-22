@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/services.dart' show FontLoader;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
@@ -244,6 +245,66 @@ void main() {
         await tester.pumpWidget(const SizedBox());
       });
     }
+  }
+
+  // The pictures on gogho.st/docs/record-call (Matt, 2026-11-22: "include screenshots of the mixer and timeline from the
+  // record call with many participants as an example"): a call of eight on a computer, in both themes, kept in
+  // build/themes/recording/docs-*.png, made into site/shots/record-*.webp. The drawer is drawn dark in either theme.
+  for (final dark in [true]) {
+    testWidgets('the docs\' pictures: the timeline and the mixer of a call of eight (${dark ? 'dark' : 'light'})', (tester) async {
+      await tester.runAsync(_fonts);
+      const people = {
+        'me': 'Matt', 'a1b2c3d4': 'Maya Chen', 'e5f6a7b8': 'Theo', 'c9d0e1f2': 'Sam Ortiz',
+        'b3c4d5e6': 'Priya', 'f7a8b9c0': 'Jonah Reyes', 'd1e2f3a4': 'Lena', 'a5b6c7d8': 'Kofi Mensah',
+      };
+      final rec = CallRecorder.standing(
+        names: people,
+        since: DateTime.now().subtract(const Duration(minutes: 3, seconds: 12)),
+        markers: [38.0, 121.5],
+      );
+      final ids = people.keys.toList();
+      rec.meter.seed({
+        for (var i = 0; i < ids.length; i++)
+          ids[i]: _speech(1920, seed: 11 + i, from: i == 5 ? 260 : (i == 7 ? 90 : 0), quiet: i == 2 || i == 6),
+      }, live: {
+        'me': (peak: 0.58, rms: 0.29),
+        'a1b2c3d4': (peak: 0.41, rms: 0.2),
+        'e5f6a7b8': (peak: 0.12, rms: 0.05),
+        'c9d0e1f2': (peak: 0.72, rms: 0.37),
+        'b3c4d5e6': (peak: 0.05, rms: 0.02),
+        'f7a8b9c0': (peak: 0.33, rms: 0.15),
+        'd1e2f3a4': (peak: 0.27, rms: 0.12),
+        'a5b6c7d8': (peak: 0.49, rms: 0.24),
+      });
+      // A mix being set: Sam brought down, Theo and Lena up, Kofi muted.
+      rec.mix.setFader('c9d0e1f2', 0.6, 48000 * 60);
+      rec.mix.setFader('e5f6a7b8', 0.88, 48000 * 70);
+      rec.mix.setFader('d1e2f3a4', 0.82, 48000 * 80);
+      rec.mix.setMuted('a5b6c7d8', true, 48000 * 150);
+      final sheet = await loadSheet(tester);
+      await pumpScreen(
+        tester,
+        sheet,
+        Builder(builder: (context) => GestureDetector(key: const ValueKey('open-mixer'), behavior: HitTestBehavior.opaque, onTap: () => showRecordingMixer(context, recorder: rec), child: const SizedBox.expand())),
+        AppState()..set('theme', dark ? 'dark' : 'light'),
+        size: const Size(1280, 624),
+      );
+      await tester.tap(find.byKey(const ValueKey('open-mixer')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      for (final k in ids) {
+        expect(find.byKey(ValueKey('recording-track-$k')), findsOneWidget, reason: k);
+      }
+      await _keep(tester, 'docs-timeline-${dark ? 'dark' : 'light'}');
+      await tester.tap(find.byKey(const ValueKey('recording-view')));
+      await tester.pump(const Duration(milliseconds: 200));
+      for (final k in ids) {
+        expect(find.byKey(ValueKey('recording-strip-$k')), findsOneWidget, reason: k);
+      }
+      await _keep(tester, 'docs-mixer-${dark ? 'dark' : 'light'}');
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
   }
 
   test('a saved recording\'s track decoded at another rate or in stereo becomes 48 kHz mono; its waveform and level read from it', () {
@@ -524,4 +585,16 @@ Future<void> _keep(WidgetTester tester, String name) async {
     file.parent.createSync(recursive: true);
     file.writeAsBytesSync(png!.buffer.asUint8List());
   });
+}
+
+/// The app's fonts (as test/themes_test.dart loads them), so the docs' pictures show words.
+Future<void> _fonts() async {
+  Future<void> family(String name, String file) async {
+    final loader = FontLoader(name)..addFont(File(file).readAsBytes().then((b) => ByteData.view(Uint8List.fromList(b).buffer)));
+    await loader.load();
+  }
+
+  await family('Inter Variable', 'assets/fonts/InterVariable-latin.ttf');
+  await family('JetBrains Mono Variable', 'assets/fonts/JetBrainsMonoVariable-latin.ttf');
+  await family('Arimo', 'assets/fonts/ArimoVariable.ttf');
 }
