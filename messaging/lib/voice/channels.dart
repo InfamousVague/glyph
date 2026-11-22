@@ -890,6 +890,9 @@ class Voice extends ChangeNotifier {
     }
     s.locked = !room.heard(room.me);
     if (s.locked && !s.muted) s.setMuted(true);
+    // Brought up to speak on a stage: the hand goes down. And the connections the stage now wants (GMFB-29).
+    if (!s.locked && s.hand) s.raiseHand(false);
+    s.relink();
     s.videoLocked = !room.can(Perm.video);
     if (s.videoLocked && s.video) unawaited(s.setVideo(false));
     if (s.videoLocked && s.screen) unawaited(s.setScreen(false));
@@ -945,6 +948,8 @@ class Voice extends ChangeNotifier {
         throw StateError(room.putOut!);
       }
       s.refuse = (id) => room.roster.banned.contains(id) || Circles.instance.putOutOf(c, id);
+      // On a stage two listeners make no connection (GMFB-29).
+      s.listens = (id) => room.listens(id == s.route.me ? room.me : id);
       room.sayMe(inVoice: true);
     }
     _saw(c.room);

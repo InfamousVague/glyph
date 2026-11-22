@@ -619,6 +619,43 @@ void main() {
       await o.setNewcomer(Role.member);
       expect(await o.deleteRole('dj'), isTrue);
     });
+
+    // GMFB-29, from the Uplink gap review: "A stage/stream mode: some people speak, many listen, with a listener count".
+    test('a stage: newcomers listen, someone brought up speaks, and ending it lets everyone speak again', () async {
+      final o = owner.room(channel), a = ann.room(channel), b = bob.room(channel);
+      await o.open();
+      await a.open();
+      await b.open();
+      await _settle();
+      expect(o.stage, isFalse);
+      expect(await a.setStage(true), isFalse, reason: 'only whoever manages the space');
+
+      expect(await o.setStage(true), isTrue);
+      await _settle();
+      for (final r in [o, a, b]) {
+        expect(r.stage, isTrue);
+        expect(r.listens(ann.id), isTrue);
+        expect(r.listens(bob.id), isTrue);
+        expect(r.listens(owner.id), isFalse, reason: 'the owner speaks');
+      }
+      expect(a.heard(ann.id), isFalse, reason: 'a listener is not heard');
+      expect(a.can(Perm.chat), isTrue, reason: 'a listener may still write in the chat');
+
+      expect(await o.setSpeaker(ann.id, true), isTrue);
+      await _settle();
+      expect(b.listens(ann.id), isFalse);
+      expect(b.heard(ann.id), isTrue);
+      expect(await o.setSpeaker(ann.id, false), isTrue);
+      await _settle();
+      expect(b.listens(ann.id), isTrue, reason: 'back to the audience');
+
+      expect(await o.setStage(false), isTrue);
+      await _settle();
+      expect(b.stage, isFalse);
+      expect(b.listens(ann.id), isFalse);
+      expect(b.heard(ann.id), isTrue, reason: 'everyone who was listening is a member again');
+      expect(b.roster.roleOf(ann.id).id, Role.member);
+    });
   });
 
   // Matt, 2026-11-19: "add Polls as a default feature".

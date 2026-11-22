@@ -77,6 +77,11 @@ class Role {
 
   static const admin = 'admin', moderator = 'moderator', member = 'member';
 
+  /// A stage's audience (GMFB-29): may write in the chat and listen, not speak or show video. Made as a stage is
+  /// opened ([HangoutRoom.setStage]), and below a member.
+  static const listener = 'listener';
+  static const listenerRole = Role(id: listener, name: 'Listener', perms: {Perm.chat}, rank: 5);
+
   /// The colours offered on a role's page: Discord's own role colours.
   static const palette = ['#1abc9c', '#2ecc71', '#3498db', '#9b59b6', '#e91e63', '#f1c40f', '#e67e22', '#e74c3c', '#95a5a6', '#607d8b'];
 

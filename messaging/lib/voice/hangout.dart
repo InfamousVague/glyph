@@ -805,6 +805,28 @@ class HangoutRoom extends ChangeNotifier {
     return _publish(roster.next(roles: roles, assigned: assigned));
   }
 
+  // --- a stage (GMFB-29, from the Uplink gap review: "A stage/stream mode: some people speak, many listen, with a
+  // listener count") ---------------------------------------------------------------------------------------------
+
+  /// Whether the space is a stage: whoever comes in listens, and speaks only once someone who manages it lets them.
+  bool get stage => roster.newcomer == Role.listener;
+
+  /// Makes the space a stage, or an ordinary space again. On: a Listener role (chat, no voice or video) is what
+  /// newcomers get, and whoever has no other role listens. Off: everyone who was listening is a member again.
+  Future<bool> setStage(bool on) async {
+    if (!canManage || on == stage) return false;
+    final roles = roster.roleById(Role.listener) == null ? [...roster.ranked, Role.listenerRole] : roster.ranked;
+    if (on) return _publish(roster.next(roles: roles, newcomer: Role.listener));
+    final assigned = {for (final e in roster.assigned.entries) if (e.value != Role.listener) e.key: e.value};
+    return _publish(roster.next(roles: roles, newcomer: Role.member, assigned: assigned));
+  }
+
+  /// Whether [id] listens on this stage rather than speaks: may neither speak nor show video.
+  bool listens(String id) => stage && !roster.can(id, Perm.speak) && !roster.can(id, Perm.video);
+
+  /// Brings [id] up to speak (a member) or back to the audience (a listener), as someone who manages the stage.
+  Future<bool> setSpeaker(String id, bool on) => setRole(id, on ? Role.member : Role.listener);
+
   /// The role people have until given another.
   Future<bool> setNewcomer(String roleId) async {
     if (!canManage || roleId == Role.admin || roster.roleById(roleId) == null) return false;
