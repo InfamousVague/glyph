@@ -23,6 +23,7 @@ class AppState extends ChangeNotifier {
         ..clear()
         ..addAll(next);
       pluginsStamp++;
+      choicesChanged?.call(this);
       notifyListeners();
     } catch (_) {}
   }
@@ -42,8 +43,13 @@ class AppState extends ChangeNotifier {
     _prefs[key] = value;
     if (key.startsWith('plugin')) pluginsStamp++;
     Sms.instance.setPref(key, value);
+    if (key.startsWith('plugin') || key.startsWith('filter_')) choicesChanged?.call(this);
     notifyListeners();
   }
+
+  /// Told when a plugin's choice, a filter choice or a filing changes, or the choices are read again: the rules that
+  /// hush a hidden kind's notifications are written again from them (lib/plugins/notify_hush.dart, GMFB-18).
+  static void Function(AppState app)? choicesChanged;
 
   /// Something kept here that no screen draws from these choices: a store's own bookkeeping (when a space was last
   /// seen, a space's messages), whose owner tells its own listeners. Kept as [set] keeps, and nothing is drawn again

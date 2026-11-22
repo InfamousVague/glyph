@@ -17,7 +17,17 @@ import 'voice_settings.dart';
 /// at 510 kb/s. Each connection carries one sound and one picture both ways from its start; turning video on or off
 /// puts the camera's picture in or takes it out, with nothing to work out again between the two.
 class RtcMedia implements VoiceMedia, FallbackMedia {
-  RtcMedia({this.relay, this.settings = const VoiceSettings()});
+  RtcMedia({this.relay, this.settings = const VoiceSettings(), this.light = false});
+
+  /// Settings' microphone test, made light where the native half can say how loud the microphone is (the Mac's,
+  /// VoiceFx.level): the microphone is started by itself, off the main thread, and no meter is made, unless the test
+  /// is to be heard (GMFB-20, Matt, Mac 0.12.5: "it's laggy and shows the pinwheel when starting a microphone test in
+  /// settings"). The meter is two connections to each other, and on the Mac flutter_webrtc makes, negotiates and
+  /// closes them on the main thread, each step waiting while WebRTC starts or stops the sound device.
+  final bool light;
+
+  /// The microphone recording by itself ([light]), with no connection sending it.
+  bool _local = false;
 
   /// The devices, Opus and processing, and the picture's quality, as Settings › Voice has them.
   VoiceSettings settings;
@@ -162,8 +172,10 @@ class RtcMedia implements VoiceMedia, FallbackMedia {
         }
       } catch (_) {}
     }
-    // The meter while alone, not with others (_openMeter, _closeMeter).
-    if (_peers.isEmpty && _meter == null && !_opening) {
+    // A light test with nothing to be heard: the native half says how loud the microphone is ([light]).
+    if (_local && meter == null) next['me'] = await VoiceFx.level();
+    // The meter while alone, not with others (_openMeter, _closeMeter); a light test has one only to be heard.
+    if (_peers.isEmpty && _meter == null && !_opening && (!_local || hearMyself)) {
       unawaited(_openMeter());
     } else if (_peers.isNotEmpty && _meter != null) {
       unawaited(_closeMeter());
@@ -400,8 +412,17 @@ class RtcMedia implements VoiceMedia, FallbackMedia {
     } else if (!kIsWeb && Platform.isAndroid) {
       await Helper.setSpeakerphoneOn(true);
     }
+    // A light test: the microphone by itself, measured by the native half ([light]).
+    if (light && _peers.isEmpty && VoiceFx.levelSupported) {
+      try {
+        await NativeAudioManagement.startLocalRecording();
+        _local = true;
+      } catch (_) {
+        _local = false;
+      }
+    }
     // Alone, the microphone is measured through the meter (_openMeter); with others, through their connections.
-    if (_peers.isEmpty) await _openMeter();
+    if (_peers.isEmpty && !_local) await _openMeter();
     _levelTimer ??= Timer.periodic(const Duration(milliseconds: 150), (_) => _readLevels());
   }
 
@@ -409,6 +430,10 @@ class RtcMedia implements VoiceMedia, FallbackMedia {
   Future<void> stop() async {
     _levelTimer?.cancel();
     _levelTimer = null;
+    if (_local) {
+      _local = false;
+      await NativeAudioManagement.stopLocalRecording().catchError((_) {});
+    }
     levels.value = const {};
     links.value = const {};
     await _meter?.close();

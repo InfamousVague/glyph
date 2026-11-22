@@ -28,6 +28,7 @@ class VoiceFx {
       available = {for (final s in said) ?NoiseMode.named(s)};
       liveSupported = said.contains('live');
       effectsSupported = said.contains('effects');
+      levelSupported = said.contains('level');
     } on MissingPluginException {
       available = const {};
     } on PlatformException {
@@ -38,10 +39,11 @@ class VoiceFx {
   }
 
   @visibleForTesting
-  static void reset([Set<NoiseMode> to = const {}, bool live = false, bool effects = false]) {
+  static void reset([Set<NoiseMode> to = const {}, bool live = false, bool effects = false, bool level = false]) {
     available = to;
     liveSupported = live;
     effectsSupported = effects;
+    levelSupported = level;
     _asked = to.isNotEmpty || live;
   }
 
@@ -52,6 +54,19 @@ class VoiceFx {
 
   /// The native half makes voice effects as it goes (native/voicefx voicefx_effect).
   static bool effectsSupported = false;
+
+  /// The native half can say how loud the microphone is ([level]): the Mac's.
+  static bool levelSupported = false;
+
+  /// How loud the microphone has been since last asked, 0 to 1 (the loudest sample, after the processing): for the
+  /// microphone test (GMFB-20).
+  static Future<double> level() async {
+    try {
+      return (await _channel.invokeMethod<double>('level') ?? 0).clamp(0.0, 1.0);
+    } catch (_) {
+      return 0;
+    }
+  }
 
   /// A voice effect on what goes into the call, made on this device as it is said: one of [VoiceEffect]'s names,
   /// or 'none'.
