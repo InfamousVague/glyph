@@ -1423,6 +1423,7 @@ class CircleRoom {
   /// The inboxes heard in the room, by `id:device`: who a new key is sealed to.
   final Map<String, CircleInbox> inboxes = {};
   DateTime? _askedKey;
+  int _askedFor = 0;
 
   /// The circle as it stands here: changed by its manager as its manifest changes.
   Circle circle;
@@ -1505,15 +1506,30 @@ class CircleRoom {
     for (final u in unread) {
       _heard(u.from, u.bytes);
     }
+    // Those who asked while this device was behind too, and haven't been answered since.
+    final asked = [..._askedOf.values];
+    _askedOf.clear();
+    for (final a in asked) {
+      if (!(mayHaveKey?.call(a.inbox.id) ?? !circle.manifest.removed.contains(a.inbox.id))) continue;
+      for (final m in k.handOnSince(circle, a.inbox, a.since)) {
+        _sayPlain(m);
+      }
+    }
   }
+
+  /// Who asked for the key while this device lacked it too, by `id:device`, with the newest epoch they held.
+  final Map<String, ({CircleInbox inbox, int since})> _askedOf = {};
 
   /// Asks for the circle's newest key, with this device's inbox; at most every half a minute.
   Future<void> _askKey() async {
     final k = keys, s = signer;
     if (k == null || s == null || s.id != me) return;
     final now = DateTime.now();
-    if (_askedKey != null && now.difference(_askedKey!) < const Duration(seconds: 30)) return;
+    // At most every half minute for the same newest epoch; at once for a newer one.
+    final want = k.newest(circle.seed)?.epoch ?? 0;
+    if (_askedKey != null && want <= _askedFor && now.difference(_askedKey!) < const Duration(seconds: 30)) return;
     _askedKey = now;
+    _askedFor = want;
     try {
       _sayPlain({'t': 'k?', 'ke': k.current(circle.seed)?.epoch ?? 0, 'ik': await k.inboxSaid(circle.seed, s)});
     } catch (_) {}
@@ -1663,7 +1679,12 @@ class CircleRoom {
         // on the word of someone who may hold the key, so nobody else can hush the answers.
         final fromHolder = mayHaveKey?.call(from) ?? !circle.manifest.removed.contains(from);
         for (final b in (fromHolder && m['x'] is List ? m['x'] as List : const [])) {
-          if (b is Map) _answering.remove('k:${b['i']}:${b['d']}')?.cancel();
+          if (b is Map) {
+            _answering.remove('k:${b['i']}:${b['d']}')?.cancel();
+            // Answered with the newest key: no need to answer them later.
+            final e = m['h'] is Map ? (m['h'] as Map)['e'] : null;
+            if (e is int && e >= (k.newest(circle.seed)?.epoch ?? 0)) _askedOf.remove('${b['i']}:${b['d']}');
+          }
         }
         final said = CircleEpoch.fromJson(m['h']);
         if (fromHolder && said != null && said.trusted(circle.manifest)) {
@@ -1691,8 +1712,16 @@ class CircleRoom {
         if (asked != null && DateTime.now().difference(asked) < const Duration(seconds: 10)) return;
         _askedBy[from] = DateTime.now();
         _keepInbox(i);
-        if (k.current(circle.seed) == null || !(mayHaveKey?.call(from) ?? !circle.manifest.removed.contains(from))) return;
+        if (!(mayHaveKey?.call(from) ?? !circle.manifest.removed.contains(from))) return;
         final since = m['ke'] is int ? m['ke'] as int : 0;
+        // Behind too: answered once this device has the key (it may come before anyone else answers).
+        if (k.current(circle.seed) == null || k.lacking(circle.seed)) {
+          _askedOf['${i.id}:${i.device}'] = (inbox: i, since: since);
+          while (_askedOf.length > 50) {
+            _askedOf.remove(_askedOf.keys.first);
+          }
+          return;
+        }
         // As `sync?` is answered: the lowest id here first, the rest a step later unless they hear it answered.
         final ids = [me, ...present.where((id) => id != from && id != me)]..sort();
         final name = 'k:${i.id}:${i.device}';

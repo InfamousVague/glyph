@@ -465,7 +465,7 @@ void main() {
       final theirs = Circles.forTest(signer: KeysSigner(admin), route: _Route(hub, admin.id));
       closing.add(theirs.clear);
       theirs.join(_copy(mine.bySeed(c.seed)!));
-      await _until(() => (theirs.bySeed(c.seed)?.manifest.canSign(admin.id) ?? false) && mine.roomOf(c)!.inboxes.length == 3 && theirs.roomOf(c)!.inboxes.length >= 2);
+      await _until(() => (theirs.bySeed(c.seed)?.manifest.canSign(admin.id) ?? false) && mine.roomOf(c)!.inboxes.length == 3);
       await Future.wait([mine.rotateKey(mine.bySeed(c.seed)!), theirs.rotateKey(theirs.bySeed(c.seed)!)]);
       await _until(() => (mine.keys!.newest(c.seed)?.epoch ?? 0) >= 2 && !mine.keys!.split(c.seed) && (hers.keys!.current(c.seed)?.epoch ?? 0) >= 2);
       expect(mine.keys!.newest(c.seed)!.epoch, 2);
