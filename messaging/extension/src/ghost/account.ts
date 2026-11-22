@@ -87,9 +87,11 @@ export class GhostAccount {
 
   /** In with a username + password (account.dart signInWithPassword): connect under a throwaway identity, stretch the
    *  password with the relay's settings, fetch and open the password-sealed backup. */
-  static async signInWithPassword(username: string, password: string, opts: { number?: string; code?: string } = {}, hubUrl: string = HUB_URL): Promise<GhostAccount> {
+  static async signInWithPassword(username: string, password: string, opts: { number?: string; code?: string; identity?: Uint8Array } = {}, hubUrl: string = HUB_URL): Promise<GhostAccount> {
     const name = tidyHandle(username);
-    const hub = await Hub.connect(randomIdentity(), DEVICE, hubUrl);
+    // A texted code is the relay's for the identity that asked for it (relay/lib/handles.dart checkCode): the same one
+    // signs in with it ([textCode]).
+    const hub = await Hub.connect(opts.identity ?? randomIdentity(), DEVICE, hubUrl);
     try {
       const found = await hub.ask('acct-find', { name });
       if (found.none === true) throw new Error('No account has that username.');
@@ -107,6 +109,17 @@ export class GhostAccount {
       if (!backup) throw new Error('That password isn’t right.');
       const seed = await seedOf(backup.words);
       return new GhostAccount(address, backup.username || name, backup.identity, hex(curlKeyOf(seed)), hubUrl);
+    } finally {
+      hub.close();
+    }
+  }
+
+  /** Texts a code to the number verified on [username]'s account (account.dart textCode); [number] has to be it. Asked
+   *  under [identity], which [signInWithPassword] then signs in with: the relay keeps a code for whoever asked. */
+  static async textCode(username: string, number: string, identity: Uint8Array, hubUrl: string = HUB_URL): Promise<void> {
+    const hub = await Hub.connect(identity, DEVICE, hubUrl);
+    try {
+      await hub.ask('acct-text', { name: tidyHandle(username), number });
     } finally {
       hub.close();
     }

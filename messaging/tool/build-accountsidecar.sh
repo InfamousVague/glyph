@@ -10,10 +10,10 @@
 # by /etc/resolv.conf, which Android does not have, and nothing would connect.
 #
 # `android --ship` puts the phone's into android/.../jniLibs, which packs it into the APK; without it, build/.
-# Usage: tool/build-accountsidecar.sh <messenger|instagram|linkedin> [mac|linux|windows|android] [--ship]
+# Usage: tool/build-accountsidecar.sh <messenger|instagram|linkedin|discord|twitter|slack> [mac|linux|windows|android] [--ship]
 set -e
 name=${1:-}
-case "$name" in messenger|instagram|linkedin) ;; *) echo "usage: tool/build-accountsidecar.sh <messenger|instagram|linkedin> [mac|linux|windows|android] [--ship]" >&2; exit 2 ;; esac
+case "$name" in messenger|instagram|linkedin|discord|twitter|slack) ;; *) echo "usage: tool/build-accountsidecar.sh <messenger|instagram|linkedin|discord|twitter|slack> [mac|linux|windows|android] [--ship]" >&2; exit 2 ;; esac
 want=${2:-mac}
 root=$(cd "$(dirname "$0")/.." && pwd)
 src="$root/sidecar/$name"

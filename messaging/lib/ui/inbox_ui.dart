@@ -1339,7 +1339,7 @@ List<SettingsSection> inboxSettingsSections() => [
           id: 'inbox-${n.id}',
           label: n.name,
           icon: inboxMark(n),
-          hue: switch (n.id) { 'telegram' => 'cyan', 'mastodon' => 'purple', 'signal' => 'indigo', 'teams' => 'magenta', 'whatsapp' => 'green', 'matrix' => 'graphite', 'googlechat' => 'mint', 'instagram' => 'rose', 'messenger' => 'blue', 'linkedin' => 'indigo', _ => 'blue' },
+          hue: switch (n.id) { 'telegram' => 'cyan', 'mastodon' => 'purple', 'signal' => 'indigo', 'teams' => 'magenta', 'whatsapp' => 'green', 'matrix' => 'graphite', 'googlechat' => 'mint', 'instagram' => 'rose', 'messenger' => 'blue', 'linkedin' => 'indigo', 'discord' => 'indigo', 'twitter' => 'graphite', 'slack' => 'purple', _ => 'blue' },
           group: 'me',
           listed: false,
           summary: (_) => _summary(n),

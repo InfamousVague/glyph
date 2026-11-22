@@ -56,3 +56,19 @@ Map<String, String> cookiesIn(String pasted, {Set<String> names = const {}}) {
 
 /// Those of [needed] that [cookies] lacks, for saying what to copy again.
 List<String> cookiesMissing(Map<String, String> cookies, Iterable<String> needed) => [for (final n in needed) if (!cookies.containsKey(n)) n];
+
+/// The session token in what was pasted, for a service that signs in with one beside its cookies (Discord, Slack;
+/// lib/inbox/account_helper.dart): Slack's xoxc- token wherever it is (a form field, a multipart part, the address),
+/// else a copied request's authorization header (Discord's is the token itself), else a token pasted alone.
+String? tokenIn(String pasted) {
+  final text = pasted.trim();
+  final slack = RegExp(r'xoxc-[A-Za-z0-9-]+').firstMatch(text);
+  if (slack != null) return slack.group(0);
+  final unescaped = text.replaceAll('^"', '"');
+  final header = RegExp(r"""-H\s+['"][Aa]uthorization:\s*([^'"\s]+)['"]""").firstMatch(unescaped) ??
+      RegExp(r'^[Aa]uthorization:\s*(\S+)\s*$', multiLine: true).firstMatch(unescaped);
+  if (header != null) return header.group(1);
+  // A token alone: one long word with no spaces, cookies or quotes in it.
+  if (RegExp(r'^[A-Za-z0-9._-]{50,}$').hasMatch(text)) return text;
+  return null;
+}

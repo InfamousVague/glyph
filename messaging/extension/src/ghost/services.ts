@@ -18,6 +18,13 @@ export interface Service {
   needed: string[];
   /** Where the person signs in, opened from the popup. */
   signInUrl: string;
+  /**
+   * Where a service that signs in with a token beside its cookies (Discord, Slack) sends it: the extension reads it from
+   * the site's own requests to these addresses (webRequest, never the page) and keeps it as the pseudo-cookie `token`,
+   * which the app's helper takes (messaging/lib/inbox/account_helper.dart). `header`: an Authorization header's value
+   * (Discord's is the token itself); `body`: a form field called `token` (Slack's xoxc- token).
+   */
+  token?: { urls: string[]; from: 'header' | 'body' };
 }
 
 export const SERVICES: Service[] = [
@@ -34,6 +41,30 @@ export const SERVICES: Service[] = [
     domains: ['.instagram.com'],
     needed: ['sessionid', 'csrftoken', 'ds_user_id'],
     signInUrl: 'https://www.instagram.com/direct/inbox/',
+  },
+  // Discord, X and Slack (Matt, 2026-11-21: "Implement the discord one Twitter and slack").
+  {
+    id: 'discord',
+    name: 'Discord',
+    domains: ['.discord.com'],
+    needed: ['token'],
+    signInUrl: 'https://discord.com/channels/@me',
+    token: { urls: ['https://discord.com/api/*'], from: 'header' },
+  },
+  {
+    id: 'twitter',
+    name: 'X',
+    domains: ['.x.com'],
+    needed: ['auth_token', 'ct0'],
+    signInUrl: 'https://x.com/messages',
+  },
+  {
+    id: 'slack',
+    name: 'Slack',
+    domains: ['.slack.com'],
+    needed: ['d', 'token'],
+    signInUrl: 'https://app.slack.com/client',
+    token: { urls: ['https://*.slack.com/api/*'], from: 'body' },
   },
 ];
 

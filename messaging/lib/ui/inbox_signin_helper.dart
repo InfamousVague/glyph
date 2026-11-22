@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextCapitalization;
@@ -8,6 +9,7 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../desktop/private_browser.dart';
 import '../inbox/account_helper.dart';
+import '../inbox/curl_sync.dart';
 import '../inbox/inbox.dart';
 import '../kit/semantic_colors.dart';
 import '../kit/settings_kit.dart';
@@ -20,7 +22,7 @@ const _extensionPage = 'https://gogho.st/docs/browser-extension/';
 
 /// The services the Ghost keys extension (messaging/extension) captures — the ones it's worth suggesting on this
 /// screen. Google Messages has its own guide; LinkedIn is no longer in the extension.
-const _extensionServices = {'messenger', 'instagram'};
+const _extensionServices = {'messenger', 'instagram', 'discord', 'twitter', 'slack'};
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 
@@ -43,6 +45,21 @@ class HelperSignInScreen extends StatefulWidget {
 
 class _HelperSignInScreenState extends State<HelperSignInScreen> {
   final _pasted = TextEditingController();
+  final _passcode = TextEditingController();
+
+  /// The cookies the browser extension synced for this service, where there are any: X's need the passcode typed
+  /// here before they sign in (CurlSync leaves them), so the screen offers them.
+  Map<String, String>? _synced;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_s.passcode) {
+      CurlSync.instance.entryOf(_s.id).then((e) {
+        if (mounted && e != null) setState(() => _synced = e.cookies);
+      }).catchError((_) {});
+    }
+  }
 
   /// The warning agreed to: only then are the steps shown.
   bool _agreed = false;
@@ -55,6 +72,7 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
   @override
   void dispose() {
     _pasted.dispose();
+    _passcode.dispose();
     super.dispose();
   }
 
@@ -69,11 +87,13 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
     }
   }
 
-  Future<void> _signIn() async {
+  Future<void> _signIn({bool synced = false}) async {
     if (_n.signingIn) return;
-    final ok = await _n.signIn(_pasted.text);
+    final what = synced && _synced != null ? jsonEncode(_synced) : _pasted.text;
+    final ok = await _n.signIn(what, passcode: _s.passcode ? _passcode.text : null);
     if (!mounted || !ok) return;
     _pasted.clear();
+    _passcode.clear();
     toast(context, 'Signed in to ${_s.name}${_n.account == null ? '' : ' as ${_n.account}'}');
     Navigator.of(context).maybePop();
   }
@@ -137,7 +157,10 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
               margin: EdgeInsets.only(right: t.space(3)),
               decoration: BoxDecoration(shape: BoxShape.circle, color: current ? t.color('app-ink') : t.color('app-paper-3')),
               alignment: Alignment.center,
-              child: Text('$n', style: pageText(t, t.fontSize('xs'), weight: 'bold', color: current ? t.color('app-paper') : t.color('app-ink-3'))),
+              // 0: the extension's way, before the numbered steps.
+              child: n == 0
+                  ? AppIcon(Lucide.puzzle, size: 13, color: current ? t.color('app-paper') : t.color('app-ink-3'))
+                  : Text('$n', style: pageText(t, t.fontSize('xs'), weight: 'bold', color: current ? t.color('app-paper') : t.color('app-ink-3'))),
             ),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -194,8 +217,38 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
     final pasting = _opened || _pasted.text.isNotEmpty;
     final busy = _n.signingIn;
     final error = _n.state == InboxState.ready ? null : _n.error;
+    final codeOk = !_s.passcode || RegExp(r'^[0-9]{4}$').hasMatch(_passcode.text.trim());
+    Widget passcodeField() => Padding(
+          padding: EdgeInsets.only(bottom: t.space(3)),
+          child: GlacierInput(
+            key: const ValueKey('helper-passcode'),
+            controller: _passcode,
+            placeholder: '${_s.name} Chat passcode (4 digits)',
+            ariaLabel: 'Your ${_s.name} Chat passcode',
+            type: GlacierInputType.password,
+            inputMode: TextInputType.number,
+            autoCorrect: false,
+            size: GlacierFieldSize.md,
+            onChange: (_) => setState(() {}),
+          ),
+        );
+    Widget errorRow() => Padding(
+          padding: EdgeInsets.only(top: t.space(3)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Padding(padding: EdgeInsets.only(right: t.space(2), top: 2), child: AppIcon(Lucide.triangleAlert, size: 16, color: t.danger)),
+            Expanded(child: Text(error!, style: pageText(t, t.fontSize('sm'), color: t.danger, height: 1.4))),
+          ]),
+        );
     return [
-      if (_extensionServices.contains(_s.id)) extensionSuggestion(),
+      // X with the extension's synced cookies: only the passcode is left to give.
+      if (_synced != null)
+        card(0, 'Use the sign-in from your browser', [
+          text('The browser extension has synced your ${_s.name} sign-in. Enter your ${_s.name} Chat passcode to finish: ${_s.name} uses it to open your encrypted chats, and Ghost doesn\'t keep it.'),
+          passcodeField(),
+          button(busy ? 'Asking ${_s.name}…' : 'Sign in', busy || !codeOk ? null : () => _signIn(synced: true), filled: true, key: const ValueKey('helper-synced-sign-in')),
+          if (error != null) errorRow(),
+        ], current: true),
+      if (_extensionServices.contains(_s.id) && _synced == null) extensionSuggestion(),
       if (!_computer)
         text('This needs a computer\'s browser (its developer tools). Do steps 1 and 2 on a computer, then get the copied text to this phone (a note or an email to yourself) and paste it in step 3. Or sign in to ${_s.name} from Ghost on the computer itself.'),
       card(1, 'Sign in to ${_s.name} in a private window', [
@@ -229,19 +282,13 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
           onSubmitted: (_) => _signIn(),
         ),
         SizedBox(height: t.space(3)),
+        if (_s.passcode) passcodeField(),
         Row(children: [
-          button(busy ? 'Asking ${_s.name}…' : 'Sign in', busy || _pasted.text.trim().isEmpty ? null : _signIn, filled: true, key: const ValueKey('helper-sign-in')),
+          button(busy ? 'Asking ${_s.name}…' : 'Sign in', busy || _pasted.text.trim().isEmpty || !codeOk ? null : _signIn, filled: true, key: const ValueKey('helper-sign-in')),
           SizedBox(width: t.space(3)),
           Expanded(child: Text('Then close the private window. Don\'t sign out in it: that would sign Ghost out too.', style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3')))),
         ]),
-        if (error != null)
-          Padding(
-            padding: EdgeInsets.only(top: t.space(3)),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Padding(padding: EdgeInsets.only(right: t.space(2), top: 2), child: AppIcon(Lucide.triangleAlert, size: 16, color: t.danger)),
-              Expanded(child: Text(error, style: pageText(t, t.fontSize('sm'), color: t.danger, height: 1.4))),
-            ]),
-          ),
+        if (error != null && _synced == null) errorRow(),
       ], current: _pasted.text.isNotEmpty),
       SizedBox(height: t.space(2)),
       SettingsFootnote(child: Text('${_s.warning} What you paste is your sign-in: Ghost gives it to the ${_s.name} helper on this device and nowhere else. Your messages go between this device and ${_s.name} only, never through Ghost\'s servers.')),

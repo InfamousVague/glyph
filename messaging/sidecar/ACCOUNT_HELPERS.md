@@ -25,7 +25,7 @@ Every request has `id` (a number the app picks) and `op`. No other field of a re
 | op | fields | result |
 | --- | --- | --- |
 | `status` | | `{"linked": bool, "connected": bool, "me": "<own id>", "name": "<shown name>", "handle": "<username or empty>"}` |
-| `sign_in` | `cookies` (an object, cookie name → value) | `{"me", "name", "handle"}` once the service has taken them (also a `linked` event); an error in words where it has not (a cookie missing: say which; the service asks for a check: say to finish it in the browser and copy again) |
+| `sign_in` | `cookies` (an object, cookie name → value; Discord's and Slack's session token rides in it as `token`), and for X `passcode` (the 4-digit X Chat passcode, never kept) | `{"me", "name", "handle"}` once the service has taken them (also a `linked` event); an error in words where it has not (a cookie missing: say which; the service asks for a check: say to finish it in the browser and copy again) |
 | `unlink` | | `null`: signed out here and everything kept forgotten (the browser's own session is not signed out) |
 | `chats` | | `[<chat>]`: the chats the service lists first (about the newest 20), each as a `chat` event gives it |
 | `history` | `chat`, optional `before` (a message id: older than it) with `before_ts` (that message's time, ms: for a service that pages by time) | `{"messages": [<message>], "more": bool}`: oldest first; also kept nowhere by the helper |

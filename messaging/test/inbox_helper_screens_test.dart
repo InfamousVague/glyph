@@ -67,6 +67,8 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('helper-agree')));
       await h.again(tester, 'helper-steps', dark: dark);
       expect(find.text('Sign in to Instagram in a private window'), findsOneWidget);
+      // The extension's card comes first now: the paste box is further down the list.
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('helper-pasted')), 200, scrollable: find.byType(Scrollable).first);
       expect(find.byKey(const ValueKey('helper-pasted')), findsOneWidget);
       expect(helper.asked.where((r) => r['op'] == 'sign_in'), isEmpty);
 

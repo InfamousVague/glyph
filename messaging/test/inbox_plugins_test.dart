@@ -71,7 +71,7 @@ void main() {
   // be in the marketplace" (lib/plugins/networks.dart).
   test('every network that is a plugin is a plugin in the Marketplace, on its own shelf, off until added', () {
     final ids = [for (final p in shippedPlugins.whereType<NetworkPlugin>()) p.network];
-    expect(ids, ['whatsapp', 'matrix', 'teams', 'googlechat', 'messenger', 'instagram']);
+    expect(ids, ['whatsapp', 'matrix', 'teams', 'googlechat', 'messenger', 'instagram', 'discord', 'twitter', 'slack']);
     // Matt, 2026-11-21: "linked in keeps automatically signing our sessions out remove the plugin".
     expect(Inbox.instance.named('linkedin'), isNull);
     // Each names a network the app has, that is a plugin there and is offered.

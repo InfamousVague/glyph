@@ -80,7 +80,7 @@ class NetworkMark extends StatelessWidget {
   /// Marks that are a disc with the mark cut out of it.
   static const _discs = {'telegram'};
 
-  static const _companyOf = {'messenger': 'messenger.com', 'instagram': 'instagram.com', 'linkedin': 'linkedin.com'};
+  static const _companyOf = {'messenger': 'messenger.com', 'instagram': 'instagram.com', 'linkedin': 'linkedin.com', 'discord': 'discord.com', 'twitter': 'x.com', 'slack': 'slack.com'};
 
   static const _brand = {
     'messenger': Color(0xFF0866FF),
@@ -88,6 +88,7 @@ class NetworkMark extends StatelessWidget {
     'linkedin': Color(0xFF0A66C2),
     'signal': Color(0xFF3A76F0),
     'discord': Color(0xFF5865F2),
+    'slack': Color(0xFF4A154B),
     'telegram': Color(0xFF26A5E4),
     'bluesky': Color(0xFF1185FE),
     'mastodon': Color(0xFF6364FF),

@@ -31,9 +31,9 @@
     <h1>The browser extension</h1>
     <p class="lede">Sign in to your chat networks once, in your browser, and every device of yours is signed in too.</p>
     <p>Some chat networks have no way in for other apps, so Ghost signs in to them with your browser's own sign-in. The <b>Ghost Messaging keys</b> extension does that part for you: sign in to them as you always do, in Chrome, and every device signed in to your Ghost account is signed in too. No copying anything from one device to the next.</p>
-<p>Today that's <b>Messenger</b>, <b>Instagram</b> and <b>Google Messages</b> (RCS). Networks that sign in this way are added to the extension as Ghost gains them.</p>
+<p>Today that's <b>Messenger</b>, <b>Instagram</b>, <b>Discord</b>, <b>X</b>, <b>Slack</b> and <b>Google Messages</b> (RCS). Networks that sign in this way are added to the extension as Ghost gains them.</p>
 
-<p><b><a href="/ghost-messaging-keys.zip" download>Download the extension</a></b> (for Chrome and browsers built on it; version 0.1.3, 45 KB)</p>
+<p><b><a href="/ghost-messaging-keys.zip" download>Download the extension</a></b> (for Chrome and browsers built on it; version 0.2.0, 46 KB)</p>
 
 <h2 id="install">Add it to Chrome</h2>
 <p>It isn't in the Chrome Web Store yet, so Chrome adds it from the folder you download. Edge, Brave and other browsers built on Chrome take it the same way.</p>
@@ -53,7 +53,7 @@
 </ol>
 
 <h2 id="use">Using it</h2>
-<p>Sign in to a network in that browser: <b>Messenger</b> (messenger.com or facebook.com) or <b>Instagram</b>, for now. Google Messages is set up apart, <a href="#google-messages">below</a>. A few seconds later the extension seals that sign-in and hands it to Ghost's relay. Each of your devices picks it up, switches on that plugin (<span class="ui-path">Settings › Connections › Plugins</span>) and signs in. When the sites refresh your sign-in, it's sent again by itself.</p>
+<p>Sign in to a network in that browser: <b>Messenger</b> (messenger.com or facebook.com), <b>Instagram</b>, <b>Discord</b>, <b>X</b> or <b>Slack</b>. Discord and Slack need a page of theirs opened once after you sign in, so the extension sees the sign-in they send with each request. Google Messages is set up apart, <a href="#google-messages">below</a>. A few seconds later the extension seals that sign-in and hands it to Ghost's relay. Each of your devices picks it up, switches on that plugin (<span class="ui-path">Settings › Connections › Plugins</span>) and signs in. When the sites refresh your sign-in, it's sent again by itself.</p>
 <p>To stop, sign out of the extension or remove it from Chrome. Your devices keep the sign-ins they already have until you sign out of those plugins in Ghost.</p>
 
 <h2 id="google-messages">Google Messages (RCS)</h2>
@@ -73,7 +73,7 @@
 
 <h2 id="privacy">What it can and can't see</h2>
 <ul>
-<li>It reads only the sign-in cookies of Messenger and Instagram, and Google's from the private window it opens when you set up Google Messages: nothing from other sites, and nothing from the pages themselves.</li>
+<li>It reads only the sign-in cookies of Messenger, Instagram, Discord, X and Slack, the sign-in that Discord and Slack send with their own requests (Discord's authorization header, Slack's token), and Google's cookies from the private window it opens when you set up Google Messages: nothing from other sites, and nothing from the pages themselves.</li>
 <li>What it sends is <b>sealed</b> with a key made from your account's recovery words. Ghost's relay keeps one sealed copy for your account and can't open it.</li>
 <li>Your password and recovery words are used the moment you type them and never kept. Unless you tick <span class="ui-path">Stay signed in</span>, the extension forgets your account when the browser closes.</li>
 <li>These are your own sign-ins to those services, used the way their websites use them. They don't allow other apps officially, and may sign you out or limit your account.</li>

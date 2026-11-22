@@ -3,11 +3,22 @@
 // this also re-syncs on its own a few seconds after a service's cookies change, so a fresh sign-in in the browser
 // reaches the other devices without another click.
 import { GhostAccount, NeedsCode, type CaptureEntry } from './ghost/account.ts';
-import { capture } from './ghost/cookies.ts';
+import { capture, heldTokens } from './ghost/cookies.ts';
+import { hex, randomIdentity, unhex } from './ghost/crypto.ts';
 import { Keeper } from './ghost/keeper.ts';
 import { GOOGLE, GOOGLE_KEEP, SERVICES, serviceById } from './ghost/services.ts';
 
 type Reply = Record<string, unknown>;
+
+/** The identity a password sign-in asks for a texted code under and then signs in with (the relay keeps a code for
+ *  whoever asked: GhostAccount.textCode). Kept for the browser session, so a worker restart between the two keeps it. */
+async function signInIdentity(): Promise<Uint8Array> {
+  const held = (await chrome.storage.session.get('signin-identity'))['signin-identity'] as string | undefined;
+  if (held) return unhex(held);
+  const fresh = randomIdentity();
+  await chrome.storage.session.set({ 'signin-identity': hex(fresh) });
+  return fresh;
+}
 
 /** The signed-in account, loaded lazily from the keeper. null = signed out. */
 let account: GhostAccount | null = null;
@@ -108,6 +119,46 @@ chrome.cookies.onChanged.addListener((info) => {
   timer = setTimeout(() => void autoSync(), 4000);
 });
 
+// --- tokens: Discord's and Slack's, from their own requests ---------------------------------------------------------
+// Only the Authorization header of discord.com/api requests and the `token` field of slack.com/api requests are read:
+// nothing else of a request, and no page. Kept by service id; a new one (signed in again, another workspace) replaces it.
+
+async function keepToken(id: string, token: string): Promise<void> {
+  const held = await heldTokens();
+  if (held[id] === token) return;
+  await chrome.storage.local.set({ tokens: { ...held, [id]: token } });
+  clearTimeout(timer);
+  timer = setTimeout(() => void autoSync(), 4000);
+}
+
+for (const s of SERVICES) {
+  const t = s.token;
+  if (!t) continue;
+  if (t.from === 'header') {
+    chrome.webRequest.onBeforeSendHeaders.addListener(
+      (d) => {
+        const value = d.requestHeaders?.find((h) => h.name.toLowerCase() === 'authorization')?.value?.trim();
+        // A user token is one word; "Bearer …" and "Bot …" are an app's, not the person's.
+        if (value && !value.includes(' ') && value.length > 30) void keepToken(s.id, value);
+        return undefined;
+      },
+      { urls: t.urls },
+      ['requestHeaders', 'extraHeaders'],
+    );
+  } else {
+    chrome.webRequest.onBeforeRequest.addListener(
+      (d) => {
+        const field = d.requestBody?.formData?.token?.[0];
+        const value = (typeof field === 'string' ? field : undefined) ?? new URL(d.url).searchParams.get('token') ?? undefined;
+        if (value && /^xox[cp]-/.test(value)) void keepToken(s.id, value);
+        return undefined;
+      },
+      { urls: t.urls },
+      ['requestBody'],
+    );
+  }
+}
+
 // --- Google Messages, in a private window (GMFB-10) ------------------------------------------------------------------
 
 /** The private window opened to sign in to Google, and its cookie store: what the Google capture reads, and only it. */
@@ -180,9 +231,22 @@ chrome.runtime.onMessage.addListener((msg: { type: string; [k: string]: unknown 
           return { error: (e as Error).message };
         }
       }
+      case 'textCode': {
+        try {
+          await GhostAccount.textCode(msg.username as string, msg.number as string, await signInIdentity());
+          return { ...(await status()), note: 'Code sent. It lasts ten minutes.' };
+        } catch (e) {
+          return { ...(await status()), error: (e as Error).message, needsCode: true };
+        }
+      }
       case 'signInPassword': {
         try {
-          const acct = await GhostAccount.signInWithPassword(msg.username as string, msg.password as string, { number: msg.number as string | undefined, code: msg.code as string | undefined });
+          const acct = await GhostAccount.signInWithPassword(msg.username as string, msg.password as string, {
+            number: msg.number as string | undefined,
+            code: msg.code as string | undefined,
+            identity: msg.code ? await signInIdentity() : undefined,
+          });
+          await chrome.storage.session.remove('signin-identity');
           await Keeper.save({ ...acct.session, stay: !!msg.stay });
           account = acct;
           loaded = true;
