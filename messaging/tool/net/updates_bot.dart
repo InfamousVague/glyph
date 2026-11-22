@@ -24,6 +24,7 @@ import 'package:ghost_messaging/voice/voice.dart';
 ///     flutter test tool/net/updates_bot.dart --dart-define=DO=check   (whether SPACE is read-only and the bot an admin)
 ///     flutter test tool/net/updates_bot.dart --dart-define=DO=post --dart-define=SPACE=Updates --dart-define=TEXT_FILE=/path/words.txt
 ///     flutter test tool/net/updates_bot.dart --dart-define=DO=edit --dart-define=MATCH='Round two' --dart-define=TEXT_FILE=/path/words.txt
+///     flutter test tool/net/updates_bot.dart --dart-define=DO=delete --dart-define=MATCH='Round two'   (its newest that begins so)
 ///
 /// `edit` changes the bot's own newest message in SPACE whose words begin with MATCH (Matt, 2026-11-21: "Edit or re post
 /// your messages to credit each person with an @mention"). WHO='kevin=<ghost id>,jerbo=<ghost id>' makes each "@kevin"
@@ -132,10 +133,10 @@ void main() {
         stdout.writeln('ghost-updates-bot: joined "${circle.manifest.name}" (${circle.spaces.length} spaces: ${circle.spaces.map((s) => s.name).join(', ')})');
         return;
       }
-      if (doing == 'post' || doing == 'check' || doing == 'read' || doing == 'edit') {
+      if (doing == 'post' || doing == 'check' || doing == 'read' || doing == 'edit' || doing == 'delete') {
         final words = textFile.isEmpty ? '' : File(textFile).readAsStringSync().trim();
         if (words.isEmpty && (doing == 'post' || doing == 'edit')) fail('TEXT_FILE says nothing');
-        if (doing == 'edit' && match.isEmpty) fail('MATCH names nothing to edit');
+        if ((doing == 'edit' || doing == 'delete') && match.isEmpty) fail('MATCH names nothing to $doing');
         final from = Circle.fromLink(saved['link'] as String? ?? '');
         if (from == null) fail('not in a circle yet: DO=join first');
         final (circle, room) = await _circle(route, from);
@@ -165,6 +166,21 @@ void main() {
         await chat.setReadOnly(ro);
         await chat.open();
         await Future<void>.delayed(const Duration(seconds: 1));
+        if (doing == 'delete') {
+          // The newest of its messages that begins MATCH goes: a post sent twice by mistake (2026-11-22, the screen
+          // sharing post went up twice).
+          HangoutMessage? mine;
+          for (var i = 0; i < 40 && mine == null; i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 500));
+            mine = chat.messages.reversed.where((m) => m.from == chat.me && m.text.startsWith(match)).firstOrNull;
+          }
+          if (mine == null) fail('no message of this bot\'s in "${space.name}" begins "$match" (${chat.messages.length} held)');
+          chat.delete(mine);
+          await Future<void>.delayed(const Duration(seconds: 2));
+          await chat.close();
+          stdout.writeln('ghost-updates-bot: deleted "${mine.text.split('\n').first}" of ${DateTime.fromMillisecondsSinceEpoch(mine.at).toUtc().toIso8601String()}');
+          return;
+        }
         if (doing == 'edit') {
           // Its history comes from whoever is in the room, and from what the hub kept: give it a while.
           HangoutMessage? mine;
