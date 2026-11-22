@@ -126,6 +126,17 @@ void main() {
       return (n, helper);
     }
 
+    test('a sign-in pasted here is shared for the account\'s other devices; one that came synced is not shared again', () async {
+      final shared = <String, Map<String, String>>{};
+      AccountHelper.onShare = (id, cookies) => shared[id] = cookies;
+      addTearDown(() => AccountHelper.onShare = null);
+      final (n, helper) = await started();
+      expect(await n.signIn('{"sessionid": "s", "csrftoken": "c", "ds_user_id": "9"}', share: false), isTrue);
+      expect(shared, isEmpty);
+      expect(await n.signIn("curl 'https://www.instagram.com/' -H 'cookie: sessionid=s2; csrftoken=c2; ds_user_id=9'"), isTrue);
+      expect(shared['instagram'], {'sessionid': 's2', 'csrftoken': 'c2', 'ds_user_id': '9'});
+    });
+
     test('X: no sign-in without its 4-digit X Chat passcode; with it, the passcode goes to the helper beside the cookies', () async {
       final (n, helper) = await started(service: xService);
       const curl = "curl 'https://x.com/i/api/1.1/dm/inbox_initial_state.json' -H 'cookie: auth_token=abc; ct0=def; twid=u%3D1'";

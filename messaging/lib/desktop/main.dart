@@ -35,6 +35,7 @@ import 'store.dart';
 import 'ui/shell.dart';
 import '../ui/update_banner.dart';
 import 'ui/wizard.dart';
+import '../inbox/curl_sync.dart';
 import '../inbox/inbox.dart';
 import '../ui/inbox_ui.dart';
 import '../circles/circles.dart';
@@ -183,6 +184,9 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // Which plugins are on, synced across the Ghost account's devices (GMFB-9: lib/plugins/plugin_sync.dart): the
   // person's switches heard from here on; the account's list is met once the relay is reached.
   PluginSync.instance.start(state);
+  // Sign-ins synced across the account (the browser extension's, and those made on another device): never set up on a
+  // computer before, so none reached one (Matt, 2026-11-21: "the curl should automatically be applied to all devices").
+  CurlSync.instance.app = state;
   // Loaded: the window its own size again, and the app in it; on its own with no username yet, the small window for
   // signing up or in (lib/desktop/window_size.dart; Matt, 2026-11-20: "make the sign up / sign in window smaller").
   await leaveSplashWindow(compact: alone && state.choice('me_username', '').isEmpty);

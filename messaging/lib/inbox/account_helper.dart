@@ -302,7 +302,12 @@ class AccountHelper extends InboxNetwork {
 
   /// Signs in with what was pasted (a copied request, a Cookie header, or the pairs): only after the person has
   /// agreed to the warning (lib/ui/inbox_signin_helper.dart). False, with [error] saying why, where it did not.
-  Future<bool> signIn(String pasted, {String? passcode}) async {
+  /// Told of a sign-in made on this device by what was pasted (not one that came synced), so every device on the Ghost
+  /// account is signed in too (CurlSync.share; Matt, 2026-11-21: "if i login to discord or something the curl should
+  /// automatically be applied to all devices using the same ghost messaging account"). Null in a test.
+  static void Function(String serviceId, Map<String, String> cookies)? onShare;
+
+  Future<bool> signIn(String pasted, {String? passcode, bool share = true}) async {
     if (_link == null) return false;
     final cookies = cookiesOf(pasted);
     final missing = cookiesMissing(cookies, service.needed);
@@ -327,6 +332,7 @@ class AccountHelper extends InboxNetwork {
       final s = (await _ask('sign_in', {'cookies': cookies, if (service.passcode) 'passcode': code}) as Map?) ?? const {};
       _busy = false;
       if (_state != InboxState.ready) _signedIn(s);
+      if (share) onShare?.call(service.id, cookies);
       return true;
     } catch (e) {
       _busy = false;

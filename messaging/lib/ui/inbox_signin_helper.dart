@@ -93,7 +93,7 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
   Future<void> _signIn({bool synced = false}) async {
     if (_n.signingIn) return;
     final what = synced && _synced != null ? jsonEncode(_synced) : _pasted.text;
-    final ok = await _n.signIn(what, passcode: _s.passcode ? _passcode.text : null);
+    final ok = await _n.signIn(what, passcode: _s.passcode ? _passcode.text : null, share: !synced);
     if (!mounted || !ok) return;
     _pasted.clear();
     _passcode.clear();

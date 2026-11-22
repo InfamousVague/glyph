@@ -255,6 +255,10 @@ class PluginSync {
     attachHooks();
     MarketState.instance.addListener(_marketChanged);
     WidgetsBinding.instance.addObserver(_Front(this));
+    // And every two minutes while the app runs: a computer's window stays open, never "brought to the front", and
+    // another device's switch reached it only at the next start (Matt, 2026-11-21: "Plugins should sync across
+    // devices also").
+    Timer.periodic(const Duration(minutes: 2), (_) => unawaited(sync()));
   }
 
   /// Hears the person's switches: the registry's, where every plugin's switch goes (a test calls it with its own host).
