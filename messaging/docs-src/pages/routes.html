@@ -13,6 +13,31 @@
 <h2 id="relay">The relay server</h2>
 <p>Ghost's relay server (at gogho.st) passes sealed packets between apps: friends, circles, spaces and calls' setup. It can't read them; it sees only which installs are talking, as any server would. It's also where your username, your sealed account backup and a circle's sealed files are kept.</p>
 
+<h2 id="own-relay">Your own relay server</h2>
+<p>Anyone can run the relay on a server of their own and use it in place of ours. Under <ui>Settings › Routes › Relay server</ui>, type its address (<code>relay.example.com</code> is enough) and press <b>Check it and use it</b>. Nothing changes unless a Ghost Messaging relay answers there; when one does, the app tells you what moving means and switches only when you say so. The section always shows which relay is in use, and <b>Go back to Ghost Messaging's relay</b> switches back in one press.</p>
+
+<m-screen title="Routes" back caption="Settings › Routes on a relay of your own.">
+  <m-section title="Relay server" foot="Relays don't connect to each other. On your own relay you reach only people using the same relay.">
+    <m-row icon="globe" hue="blue" label="Your own relay: relay.example.com" hint="In use · connected"/>
+    <m-row icon="undo-2" hue="blue" label="Go back to Ghost Messaging's relay" hint="gogho.st, where everyone else is." chev tap/>
+    <m-field label="Another relay server's address" placeholder="relay.example.com"/>
+    <m-row icon="check" hue="green" label="Check it and use it" hint="Nothing changes unless a Ghost Messaging relay answers there." chev/>
+  </m-section>
+</m-screen>
+
+<note kind="warn" title="Relays are islands">
+<p>Relays don't talk to each other. On your own relay you reach, through the relay, only people whose app uses the same one; people on ours can't reach you there.</p>
+<ul>
+<li><b>Kept on each relay apart:</b> usernames, your account and its backup, friends' sealed messages, circles' and spaces' rooms, invite words, Files spaces, and who's online.</li>
+<li><b>Add-me links</b> look the name up on the relay you use, so on yours they may find someone else, or nobody. The app warns you before it sends a request.</li>
+<li><b>Still works with anyone:</b> texts (SMS), including encrypted ones. The Marketplace always comes from gogho.st.</li>
+<li><b>Off unless you set them up yourself:</b> calls through a TURN server, verifying numbers by text, linking Discord, X or Telegram. Closed iPhones can't be woken by your relay.</li>
+</ul>
+<p>So it suits a group that moves together: everyone sets the same address.</p>
+</note>
+
+<p>How to run one (Docker, or systemd behind Caddy or nginx, with coturn for calls) is in the repository: <a href="https://github.com/InfamousVague/ghost-messaging/blob/main/docs/SELF_HOSTING.md">docs/SELF_HOSTING.md</a>, with sample files in <code>relay/deploy/</code>.</p>
+
 <h2 id="texts">SMS as a route</h2>
 <p>When the relay can't be reached, a message to a friend can go as a data text over the phone network instead: still sealed, needing no internet, and reaching a phone whose app is closed. Each one counts as a text on your plan, so only small messages go this way.</p>
 
