@@ -9,6 +9,7 @@ import '../kit/settings_kit.dart';
 import '../inbox/inbox.dart' show InboxPresence;
 import '../me/me.dart';
 import 'circles/circle_picture.dart' show pickProfilePicture;
+import 'add_me.dart';
 import 'common.dart';
 import 'cosmetics_picker.dart';
 import 'profile_card.dart' show ProfileFace;
@@ -209,6 +210,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
               if (me.username != null) ...[
+                SizedBox(height: t.space(6)),
+                // A link and QR code that open a friend request to you (GMFB-34).
+                AddMeSection(username: me.username!),
                 SizedBox(height: t.space(6)),
                 PaneSection(children: [
                   SettingRow(

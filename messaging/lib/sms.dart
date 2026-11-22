@@ -499,7 +499,7 @@ class UpdateState {
 
 /// What a notification or another app asked to open.
 class OpenRequest {
-  const OpenRequest({this.thread, this.addresses = const [], this.body, this.computers = false, this.pairing, this.inbox, this.circle});
+  const OpenRequest({this.thread, this.addresses = const [], this.body, this.computers = false, this.pairing, this.inbox, this.circle, this.add});
   final int? thread;
 
   /// A chat on Signal or Telegram (`network:chat`), from its notification (lib/inbox/alerts.dart).
@@ -516,6 +516,10 @@ class OpenRequest {
   /// A circle's invite link was opened (https://gogho.st/join/#c.…): its invite, to Join or put off
   /// (lib/ui/circles/circle_invite_card.dart).
   final String? circle;
+
+  /// Someone's add-me link was opened (https://gogho.st/add/maya; lib/friends/add_link.dart): asked whether to send
+  /// them a friend request.
+  final String? add;
   factory OpenRequest.from(Map m) => OpenRequest(
         thread: (m['thread'] as num?)?.toInt(),
         addresses: [for (final a in (m['addresses'] as List? ?? const [])) a as String],
@@ -524,6 +528,7 @@ class OpenRequest {
         pairing: m['pair'] as String?,
         inbox: m['inbox'] as String?,
         circle: m['circle'] as String?,
+        add: m['add'] as String?,
       );
 }
 

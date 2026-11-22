@@ -51,6 +51,7 @@ import 'sms.dart';
 import 'ui/circles/circle_invite_card.dart' show openCircleLink;
 import 'ui/common.dart' show toast;
 import 'ui/dialup/dialup.dart' show RetroSegment, isBevelChrome;
+import 'ui/add_me.dart' show askToAdd;
 import 'ui/computers.dart';
 import 'ui/files_space/share_in.dart';
 import 'onboarding/onboarding.dart';
@@ -448,6 +449,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       // A link cut short or bent says so, rather than opening a new message with the link in it (Matt, 2026-11-17:
       // "Finish the missing pieces that went unfinished").
       if (!openCircleLink(shell, req.circle!) && shell.mounted) toast(shell.context, 'That circle link isn\'t complete. Ask for it again.');
+    } else if (req.add != null) {
+      // Someone's add-me link (GMFB-34): asked first, then the friend request (lib/friends/add_link.dart).
+      askToAdd(shell.context, req.add!);
     } else if (req.pairing != null) {
       // A computer's pairing link, opened by the camera: the pairing page, which asks first.
       shell.show(PairComputerScreen(offered: req.pairing));
