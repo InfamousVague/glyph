@@ -1058,7 +1058,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         // the filtering a bit more this message got through"); a search finds it.
         ? [
             for (final c in inbox.chats)
-              if ((_query.isEmpty || c.title.toLowerCase().contains(_query.toLowerCase()) || c.snippet.toLowerCase().contains(_query.toLowerCase())) &&
+              // Held by the Human check (lib/inbox/human_check.dart, GMFB-23): in its "held" row, not here.
+              if (!inbox.heldIds.contains(c.id) &&
+                  (_query.isEmpty || c.title.toLowerCase().contains(_query.toLowerCase()) || c.snippet.toLowerCase().contains(_query.toLowerCase())) &&
                   !_plugins.hidesChat('${c.network}:${c.id}', searching: _query.isNotEmpty) &&
                   (_spamHost == null || _query.isNotEmpty || (Inbox.instance.named(c.network)?.localList('notspam').contains(c.id) ?? false) || scamOf(c) == null))
                 c,

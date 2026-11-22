@@ -25,6 +25,10 @@ class Telegram extends InboxNetwork {
   @override
   bool get official => true;
 
+  // A private chat Telegram does not mark as a stranger's is a contact's: is_contact, or no "Report spam" bar.
+  @override
+  bool get marksStrangers => true;
+
   Telegram({this.transport, this.apiId = const int.fromEnvironment('TELEGRAM_API_ID'), this.apiHash = const String.fromEnvironment('TELEGRAM_API_HASH'), this.folder});
 
   /// A stand-in for TDLib, in tests. Null: TDLib itself, once [start] finds it.

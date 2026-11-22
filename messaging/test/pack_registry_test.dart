@@ -223,6 +223,7 @@ void main() {
       'translate': ['language'],
       'replies': ['replies'],
       'strangers': ['safety'],
+      'humancheck': ['safety', 'filters'],
       'cleaner': ['sorting'],
     });
     expect(PluginRegistry.shippedIds, {for (final p in shippedPlugins) p.id});
