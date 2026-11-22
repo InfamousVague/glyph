@@ -38,6 +38,7 @@ import '../plugins/registry.dart' show AppStore, PluginRegistry;
 import 'common.dart';
 import 'picture_overlay.dart';
 import 'emoji_picker.dart';
+import 'emoji_suggestions.dart';
 import 'mention_field.dart' show mentionStyle;
 import 'profile_card.dart';
 import 'composer_box.dart';
@@ -204,10 +205,15 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
     _scroll.addListener(_nearTop);
     // The composer lays itself out by whether there are words (lib/ui/composer_box.dart).
     _text.addListener(_typed);
+    _shortcodes = EmojiShortcodeSuggester(_text, app: () => mounted ? AppState.maybeOf(context) : null);
     WidgetsBinding.instance.addObserver(this);
   }
 
-  final _focus = FocusNode();
+  /// The emoji a ":jo" being written finds, over the box, and a whole ":joy:" put in as 😂 (lib/ui/emoji_suggestions.dart;
+  /// GMFB-22, Matt, Mac 0.12.6: "typing :joy: or something should expand the emoji to the joy emoji and auto suggest
+  /// with a popup"). Its list has the keys first while it is open, so Enter there picks rather than sends.
+  late final EmojiShortcodeSuggester _shortcodes;
+  late final _focus = FocusNode(onKeyEvent: (node, e) => _shortcodes.key(e) ?? KeyEventResult.ignored);
   final _field = GlobalKey<EditableTextState>();
   Offset? _fieldDown;
 
@@ -386,6 +392,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
     _n.watching = null;
     if (InboxAlerts.showing == '${_n.id}:${widget.chatId}') InboxAlerts.showing = null;
     _text.removeListener(_typed);
+    _shortcodes.dispose();
     _text.dispose();
     _focus.dispose();
     _scroll.dispose();
@@ -563,6 +570,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                       text: _replying!.text.isNotEmpty ? _replying!.text : (_replying!.media.isNotEmpty ? 'A picture or file' : ''),
                       onClose: () => setState(() => _replying = null),
                     ),
+                  EmojiSuggestions(suggester: _shortcodes),
                   if (_files.isNotEmpty) _FilesStrip(files: _files, onRemove: (f) => setState(() => _files.remove(f))),
                   ScheduledStrip(to: schedule),
                   ComposerBox(
