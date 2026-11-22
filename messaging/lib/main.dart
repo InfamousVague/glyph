@@ -296,6 +296,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     Net.instance.resume(_left == null ? Duration.zero : DateTime.now().difference(_left!));
     _left = null;
     _check();
+    // A sign-in the browser extension synced while the app was away (Matt, 2026-11-21: "i hit sync but im not signed
+    // into discord on my phone"): read on the relay's hello alone, a connection that stayed up never saw it.
+    unawaited(CurlSync.instance.pull());
     // The wallpaper may have changed while the app was away: what is drawn from its palette is drawn again.
     PhonePalette.load().then((changed) {
       if (changed && mounted) AppState.of(context).changed();

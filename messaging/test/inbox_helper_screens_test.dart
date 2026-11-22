@@ -136,4 +136,22 @@ void main() {
       expect(find.text('Sign in'), findsNothing);
     }
   });
+
+  testWidgets('a sign-in the extension synced is offered first: one press signs Discord in with its token', (tester) async {
+    final h = await SpaceHarness.load(tester);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async => null);
+    final helper = _Helper();
+    final n = AccountHelper(discordService, link: () async => helper, folder: '${dir.path}/discord');
+    await tester.runAsync(() => n.start(AppState()));
+    await h.shoot(tester, HelperSignInScreen(network: n, synced: () async => (cookies: {'token': 'synced-token'}, at: 1)), 'helper-synced');
+    await tester.tap(find.byKey(const ValueKey('helper-agree')));
+    await tester.pumpAndSettle();
+    expect(find.text('Use the sign-in from your browser'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('helper-synced-sign-in')));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await tester.pump();
+    final asked = helper.asked.lastWhere((r) => r['op'] == 'sign_in');
+    expect((asked['cookies'] as Map)['token'], 'synced-token');
+    await tester.pump(const Duration(seconds: 7)); // the "Signed in" toast goes
+  });
 }

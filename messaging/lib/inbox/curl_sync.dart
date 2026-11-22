@@ -90,7 +90,12 @@ class CurlSync {
 
     // Not started yet (a plugin switched off, or never started): switch it on so its helper runs, then sign in.
     if (n.state == InboxState.unavailable) await Inbox.instance.enable(n);
-    if (n.state != InboxState.signedOut) return; // helper not in this build, or still coming up
+    // A helper just started takes a moment to say it is up: wait for it, rather than give up on this entry until the
+    // next pull (the reason a synced Discord never signed in on a phone, 2026-11-21).
+    for (var i = 0; i < 40 && n.state == InboxState.unavailable; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+    if (n.state != InboxState.signedOut) return; // helper not in this build
 
     final ok = await n.signIn(jsonEncode(cookies));
     if (ok) app.set(appliedKey, '$at');

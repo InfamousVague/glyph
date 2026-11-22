@@ -32,8 +32,11 @@ Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 /// (lib/gm/google_signin_flow.dart): sign in to the service in a private window of a browser, copy a request from its
 /// developer tools as cURL, paste it here. The helper signs in with those cookies (sidecar/ACCOUNT_HELPERS.md).
 class HelperSignInScreen extends StatefulWidget {
-  const HelperSignInScreen({super.key, required this.network, this.onOpenPrivate});
+  const HelperSignInScreen({super.key, required this.network, this.onOpenPrivate, this.synced});
   final AccountHelper network;
+
+  /// The extension's synced sign-in for this service; CurlSync's where not given (a test gives its own).
+  final Future<({Map<String, String> cookies, int at})?> Function()? synced;
 
   /// Opens the sign-in page in a private window of a browser on this computer; false where none could be. Null: this
   /// device's own way (a computer's browsers; nothing on a phone).
@@ -47,15 +50,15 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
   final _pasted = TextEditingController();
   final _passcode = TextEditingController();
 
-  /// The cookies the browser extension synced for this service, where there are any: X's need the passcode typed
-  /// here before they sign in (CurlSync leaves them), so the screen offers them.
+  /// The sign-in the browser extension synced for this service, where there is one: offered first, so a device that
+  /// has not picked it up yet (or X, which needs the passcode typed here; CurlSync leaves it) signs in with one press.
   Map<String, String>? _synced;
 
   @override
   void initState() {
     super.initState();
-    if (_s.passcode) {
-      CurlSync.instance.entryOf(_s.id).then((e) {
+    if (_extensionServices.contains(_s.id)) {
+      (widget.synced ?? () => CurlSync.instance.entryOf(_s.id))().then((e) {
         if (mounted && e != null) setState(() => _synced = e.cookies);
       }).catchError((_) {});
     }
@@ -240,11 +243,13 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
           ]),
         );
     return [
-      // X with the extension's synced cookies: only the passcode is left to give.
+      // The extension's synced sign-in: one press (X: and its passcode).
       if (_synced != null)
         card(0, 'Use the sign-in from your browser', [
-          text('The browser extension has synced your ${_s.name} sign-in. Enter your ${_s.name} Chat passcode to finish: ${_s.name} uses it to open your encrypted chats, and Ghost doesn\'t keep it.'),
-          passcodeField(),
+          text(_s.passcode
+              ? 'The browser extension has synced your ${_s.name} sign-in. Enter your ${_s.name} Chat passcode to finish: ${_s.name} uses it to open your encrypted chats, and Ghost doesn\'t keep it.'
+              : 'The browser extension has synced your ${_s.name} sign-in from your browser. Sign in with it here.'),
+          if (_s.passcode) passcodeField(),
           button(busy ? 'Asking ${_s.name}…' : 'Sign in', busy || !codeOk ? null : () => _signIn(synced: true), filled: true, key: const ValueKey('helper-synced-sign-in')),
           if (error != null) errorRow(),
         ], current: true),
