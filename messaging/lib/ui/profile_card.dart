@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../app_state.dart';
 import '../art/app_icon.dart';
 import '../games/game_activity.dart';
 import '../art/lucide.g.dart';
@@ -21,6 +22,7 @@ import '../sms.dart';
 import '../standalone/chats.dart' show UsernameChats;
 import '../voice/hangout.dart';
 import 'common.dart';
+import 'emoji_suggestions.dart';
 import 'inbox_ui.dart' show openInboxChat, inboxMark;
 import 'profile.dart';
 import 'shell.dart';
@@ -221,17 +223,24 @@ class _ProfileCardState extends State<_ProfileCard> {
   String? _picture;
   bool _looking = true;
   final _dm = TextEditingController();
-  final _dmFocus = FocusNode();
+
+  /// The emoji a ":jo" being written finds, over the box, and a whole ":joy:" put in as 😂 (lib/ui/emoji_suggestions.dart;
+  /// GMFB-22, Matt, Mac 0.12.6: "typing :joy: or something should expand the emoji to the joy emoji and auto suggest
+  /// with a popup"). Its list has the keys first while it is open, so Enter there picks rather than sends.
+  late final EmojiShortcodeSuggester _shortcodes;
+  late final _dmFocus = FocusNode(onKeyEvent: (node, e) => _shortcodes.key(e) ?? KeyEventResult.ignored);
   bool _sending = false;
 
   @override
   void initState() {
     super.initState();
+    _shortcodes = EmojiShortcodeSuggester(_dm, app: () => mounted ? AppState.maybeOf(context) : null);
     unawaited(_look());
   }
 
   @override
   void dispose() {
+    _shortcodes.dispose();
     _dm.dispose();
     _dmFocus.dispose();
     super.dispose();
@@ -414,6 +423,7 @@ class _ProfileCardState extends State<_ProfileCard> {
             ),
           if (g != null && g.friend && !g.me) ...[
             SizedBox(height: t.space(3)),
+            EmojiSuggestions(suggester: _shortcodes),
             // The box every conversation writes in, Send inside it at its end (Matt, 2026-11-19: "move the send message
             // button inside the input like we have on the rest of the app as well within that drawer").
             ListenableBuilder(

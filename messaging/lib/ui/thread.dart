@@ -33,6 +33,7 @@ import '../stickers.dart';
 import 'chat_settings.dart';
 import 'common.dart';
 import 'emoji_picker.dart';
+import 'emoji_suggestions.dart';
 import 'mention_field.dart' show mentionStyle;
 import 'profile_card.dart';
 import 'composer_box.dart';
@@ -77,7 +78,12 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   final Map<String, Person> _senders = {};
   StreamSubscription<int>? _changes;
   late final TextEditingController _text = TextEditingController(text: widget.draft ?? '');
-  final _focus = FocusNode();
+
+  /// The emoji a ":jo" being written finds, over the box, and a whole ":joy:" put in as 😂 (lib/ui/emoji_suggestions.dart;
+  /// GMFB-22, Matt, Mac 0.12.6: "typing :joy: or something should expand the emoji to the joy emoji and auto suggest
+  /// with a popup"). Its list has the keys first while it is open, so Enter there picks rather than sends.
+  late final EmojiShortcodeSuggester _shortcodes;
+  late final _focus = FocusNode(onKeyEvent: (node, e) => _shortcodes.key(e) ?? KeyEventResult.ignored);
 
   /// What the plugins put in a conversation (lib/plugins/conversation.dart): buttons in the header and the
   /// composer's row, lines in a message's menu, a card under a message, replies over the composer (Matt, 2026-11-14:
@@ -216,6 +222,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     // Friends (lib/friends/friends.dart): a request that came or was answered, or a relay server found to answer.
     Friends.instance.addListener(_friendsChanged);
     Groups.instance.addListener(_groupsChanged);
+    _shortcodes = EmojiShortcodeSuggester(_text, app: () => mounted ? AppState.maybeOf(context) : null);
     _text.addListener(() {
       // The composer draws itself again as the words change (it listens to them): the messages above are not
       // redrawn for a keystroke.
@@ -247,6 +254,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     // The spot itself was kept by the arrow (JumpToLatest) as it went; how many messages it took to get there goes with it.
     ScrollMemory.hold(_spot, _limit);
     _scroll.dispose();
+    _shortcodes.dispose();
     _text.dispose();
     _focus.dispose();
     super.dispose();
@@ -1523,6 +1531,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               onSendMenu: editing ? null : _sendMenu,
             );
             return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              EmojiSuggestions(suggester: _shortcodes),
               if (!editing) ScheduledStrip(to: _scheduleTarget),
               ComposerBox(field: field, typing: typing, plus: buttons.plus, ends: buttons.ends, below: buttons.below),
             ]);
