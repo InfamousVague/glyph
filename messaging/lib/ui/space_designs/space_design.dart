@@ -2,6 +2,7 @@ export 'call_plugins.dart' show SpaceExtra;
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 import 'package:glacier/glacier.dart';
@@ -619,16 +620,35 @@ class CallBanners extends StatefulWidget {
 }
 
 class _CallBannersState extends State<CallBanners> {
+  /// Whether any of the lines draws anything. A plugin's line is listed while the plugin is on (the soundboard's, the
+  /// voice changer's) and is empty until it has something to say, as the recording's is once it has stopped: with
+  /// nothing drawn, neither the grip nor the folded chip shows (Matt, 2026-11-22: "the recording pill gets stuck on
+  /// the screen even when not recording").
+  bool _drawn = false;
+
+  void _measured(double height) {
+    final drawn = height > 0.5;
+    if (drawn == _drawn) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _drawn != drawn) setState(() => _drawn = drawn);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final lines = _HeightOf(onHeight: _measured, child: Column(mainAxisSize: MainAxisSize.min, children: widget.children));
     return LayoutBuilder(builder: (context, box) {
       final pad = MediaQuery.paddingOf(context);
       final most = (box.maxHeight - pad.bottom - 72).clamp(pad.top, double.infinity);
       final top = (CallBanners.moved ?? widget.top).clamp(pad.top, most);
       void drag(DragUpdateDetails d) => setState(() => CallBanners.moved = (top + d.delta.dy).clamp(pad.top, most));
+      if (!_drawn) return Offstage(child: lines);
       if (CallBanners.folded) {
         return Stack(children: [
+          // Still laid out, unseen, so that the chip goes when the lines have nothing more to say. Positioned, as an
+          // unpositioned child would size the stack to it (nothing) and leave the chip outside where it can be pressed.
+          Positioned(left: 0, right: 0, top: top, child: Offstage(child: lines)),
           Positioned(
             right: t.space(3),
             top: top,
@@ -662,7 +682,7 @@ class _CallBannersState extends State<CallBanners> {
             behavior: HitTestBehavior.deferToChild,
             onVerticalDragUpdate: drag,
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              ...widget.children,
+              lines,
               // The grip: drag it (or any of the lines) to move them, press it to fold them away.
               GlacierPressable(
                 onPressed: () => setState(() => CallBanners.folded = true),
@@ -678,5 +698,28 @@ class _CallBannersState extends State<CallBanners> {
         ),
       ]);
     });
+  }
+}
+
+/// Tells [onHeight] the height its child was laid out to, after each layout.
+class _HeightOf extends SingleChildRenderObjectWidget {
+  const _HeightOf({required this.onHeight, required super.child});
+  final void Function(double height) onHeight;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderHeightOf(onHeight);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderHeightOf renderObject) => renderObject.onHeight = onHeight;
+}
+
+class _RenderHeightOf extends RenderProxyBox {
+  _RenderHeightOf(this.onHeight);
+  void Function(double height) onHeight;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    onHeight(size.height);
   }
 }

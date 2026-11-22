@@ -413,6 +413,46 @@ void main() {
     expect(tester.getTopLeft(line).dy, closeTo(before + 300, 30));
     expect(tester.takeException(), isNull);
   });
+  // Matt, 2026-11-22: "the recording pill gets stuck on the screen even when not recording". A plugin's line (the
+  // soundboard's, the voice changer's) is listed while the plugin is on and draws nothing until it has something to
+  // say; the grip and the folded chip stayed over the call after the recording had stopped.
+  testWidgets('with nothing drawn in the lines over a call, neither the grip nor the chip shows', (tester) async {
+    final v = Voice.instance;
+    final s = VoiceSession(channel: VoiceChannel.make('Lounge'), route: _NoRoute(), media: _NoMedia(), name: 'Matt')..recording = 'rec-1';
+    v.session = s;
+    CallBanners.moved = null;
+    CallBanners.folded = false;
+    addTearDown(() {
+      v.session = null;
+      CallBanners.moved = null;
+      CallBanners.folded = false;
+    });
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, const Stack(children: [SizedBox.expand(), CallBanners(top: 110, children: [RecordingBanner(), SizedBox.shrink()])]), AppState());
+    await tester.pump();
+    expect(find.byKey(const ValueKey('call-banners-grip')), findsOneWidget, reason: 'recording: the line and its grip');
+
+    s.recording = null;
+    s.notifyListeners();
+    await tester.pump();
+    await tester.pump();
+    expect(find.byKey(const ValueKey('recording-mine')), findsNothing);
+    expect(find.byKey(const ValueKey('call-banners-grip')), findsNothing, reason: 'stopped: no grip left over the call');
+
+    s.recording = 'rec-2';
+    s.notifyListeners();
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('call-banners-grip')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('call-banners-folded')), findsOneWidget);
+    s.recording = null;
+    s.notifyListeners();
+    await tester.pump();
+    await tester.pump();
+    expect(find.byKey(const ValueKey('call-banners-folded')), findsNothing, reason: 'stopped while folded: the chip goes too');
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _NoRoute implements VoiceRoute {
