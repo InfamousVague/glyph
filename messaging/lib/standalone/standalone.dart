@@ -209,7 +209,7 @@ class StandaloneCalls implements SmsCalls {
 
       // What friends write, kept here ([Friends] by the routes).
       case 'netTextOut':
-        return chats.textOut('${a['address']}', '${a['body']}');
+        return chats.textOut('${a['address']}', '${a['body']}', at: (a['at'] as num?)?.toInt());
       case 'netTextState':
         chats.textState((a['id'] as num).toInt(), '${a['state']}');
         return null;

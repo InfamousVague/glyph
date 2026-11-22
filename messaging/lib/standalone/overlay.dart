@@ -109,7 +109,7 @@ abstract class UsernameOverlay implements SmsCalls {
 
       // What friends write.
       case 'netTextOut' when _isName(a['address']):
-        return chats.textOut(a['address'] as String, '${a['body']}');
+        return chats.textOut(a['address'] as String, '${a['body']}', at: (a['at'] as num?)?.toInt());
       case 'netTextIn' when _isName(a['address']):
         final address = a['address'] as String, body = '${a['body']}';
         chats.textIn(address, body, (a['at'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch);

@@ -227,7 +227,9 @@ class Switchboard {
 
   void _arrived(Arrived a) {
     final parsed = Packet.parse(a.bytes);
-    if (parsed == null || parsed.from == me) return;
+    // From this install's own name: only another device of the same account (a copy, GMFB-21), sealed with the
+    // account's key; anything else from it is this install's own come back.
+    if (parsed == null || (parsed.from == me && peers.byId(me)?.key == null)) return;
     final whole = _joiner.add(parsed);
     if (whole == null) return;
     final peer = peers.byId(whole.from);

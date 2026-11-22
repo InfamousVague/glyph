@@ -36,6 +36,9 @@ class FakePort implements FriendsPort {
   void bump() => _changed.value++;
 
   final sent = <Sent>[];
+
+  /// When each row kept from a copy was written (GMFB-21).
+  final keptAt = <int, int>{};
   final held = <Envelope>[];
   final rows = <int, ({String address, String words, String state})>{};
   final dropped = <int>[];
@@ -55,6 +58,22 @@ class FakePort implements FriendsPort {
 
   @override
   bool get internet => up;
+
+  /// What was sent to this account's other devices (GMFB-21), and the other device of this account where there is one.
+  final mineSent = <Envelope>[];
+  FakePort? twin;
+
+  @override
+  Future<Delivery> sendMine(Envelope envelope) async {
+    mineSent.add(envelope);
+    final t = twin;
+    if (t == null) return Delivery(envelope.id, tried: const ['no account here']);
+    t._in.add(Received(Peer(id: 'mine', key: Uint8List(32)), envelope, 'hub'));
+    return Delivery(envelope.id, via: 'hub', handed: Handed.passed);
+  }
+
+  @override
+  bool isMine(Peer peer) => peer.id == 'mine';
 
   @override
   Future<Delivery> send(Peer peer, Envelope envelope, {bool metered = false, bool sealed = true, Set<String>? only}) async {
@@ -113,9 +132,10 @@ class FakePort implements FriendsPort {
   }
 
   @override
-  Future<int> storeOut(String address, String words) async {
+  Future<int> storeOut(String address, String words, {int? at}) async {
     final id = rows.length + 1;
     rows[id] = (address: address, words: words, state: 'sending');
+    if (at != null) keptAt[id] = at;
     return id;
   }
 

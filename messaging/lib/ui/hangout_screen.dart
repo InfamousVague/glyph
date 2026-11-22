@@ -22,6 +22,7 @@ import '../voice/voice.dart';
 import '../voice/voice_changer.dart';
 import 'common.dart';
 import 'emoji_picker.dart';
+import 'emoji_suggestions.dart';
 import 'plugin_note_card.dart';
 import 'profile_card.dart';
 import '../app_state.dart';
@@ -500,6 +501,11 @@ class _HangoutChatState extends State<HangoutChat> {
   final _text = MentionController();
   late final _focus = FocusNode(onKeyEvent: _mentionKeys);
 
+  /// The emoji a ":jo" being written finds, over the box, and a whole ":joy:" put in as 😂 (lib/ui/emoji_suggestions.dart;
+  /// GMFB-22, Matt, Mac 0.12.6: "typing :joy: or something should expand the emoji to the joy emoji and auto suggest
+  /// with a popup").
+  late final EmojiShortcodeSuggester _shortcodes;
+
   /// The "@…" being written and the people it finds, while the list over the composer is open; which of them is
   /// chosen for Enter; and the query Escape closed it on, which keeps it closed until the query changes.
   MentionQuery? _query;
@@ -593,6 +599,7 @@ class _HangoutChatState extends State<HangoutChat> {
     super.initState();
     widget.room.addListener(_roomChanged);
     _roomChanged(first: true);
+    _shortcodes = EmojiShortcodeSuggester(_text, app: () => mounted ? AppState.maybeOf(context) : null);
     // The composer lays itself out by whether there are words (lib/ui/composer_box.dart).
     _text.addListener(() {
       final typing = _text.text.isNotEmpty;
@@ -606,6 +613,7 @@ class _HangoutChatState extends State<HangoutChat> {
     if (MentionAlerts.showing == widget.room.channel.seed) MentionAlerts.showing = null;
     widget.room.removeListener(_roomChanged);
     _slowTimer?.cancel();
+    _shortcodes.dispose();
     _text.dispose();
     _focus.dispose();
     _scroll.dispose();
@@ -747,11 +755,12 @@ class _HangoutChatState extends State<HangoutChat> {
 
   KeyEventResult _mentionKeys(FocusNode node, KeyEvent e) {
     // Escape stops editing a message, its words given back.
-    if (_editing != null && _query == null && e is KeyDownEvent && e.logicalKey == LogicalKeyboardKey.escape) {
+    if (_editing != null && _query == null && !_shortcodes.open && e is KeyDownEvent && e.logicalKey == LogicalKeyboardKey.escape) {
       _stopEditing();
       return KeyEventResult.handled;
     }
-    if (_query == null) return _enterKey(e);
+    // The emoji list over the box has the keys while it is open: Enter there picks, it does not send.
+    if (_query == null) return _shortcodes.key(e) ?? _enterKey(e);
     return mentionKey(
           e,
           count: _found.length,
@@ -1258,6 +1267,7 @@ class _HangoutChatState extends State<HangoutChat> {
                         // and circles with the @user prefix").
                         if (_query != null && _found.isNotEmpty)
                           MentionSuggestions(people: _found, chosen: _chosen, onPick: _pickMention, inkOf: (p) => spaceNameInk(t, widget.room, p.id)),
+                        EmojiSuggestions(suggester: _shortcodes),
                         if (_editing != null) _EditingBar(words: _editing!.text, onClose: _stopEditing),
                         if (_replying != null && _editing == null) _ReplyBar(reply: _replying!, me: widget.room.me, onClose: _stopReplying),
                         if (slow > 0 && _editing == null) _SlowModeLine(seconds: slow, left: left),

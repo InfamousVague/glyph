@@ -294,4 +294,47 @@ void main() {
     expect(annsPhone.unanswered, 0);
     expect(app.choice('friends_out', '[]'), '[]');
   });
+
+  // GMFB-21 (Matt, Windows 0.12.5: "I sent a DM on my phone and it didn't sync the chat history across my mac and PC").
+  test('a friend by username: what one device sends or is sent reaches the account\'s other devices, once', () async {
+    final phone = FakePort('@ann'), mac = FakePort('@ann'), friend = FakePort('@ben');
+    phone.other = friend;
+    mac.other = friend;
+    friend.other = phone;
+    phone.twin = mac;
+    mac.twin = phone;
+    phone.stand('@ben', friend: 'yes');
+    mac.stand('@ben', friend: 'yes');
+    friend.stand('@ann', friend: 'yes');
+    final onPhone = Friends(phone), onMac = Friends(mac), bens = Friends(friend);
+    annsPhone = onPhone;
+    bensPhone = bens;
+    addTearDown(onMac.shutdown);
+    await onPhone.start();
+    await onMac.start();
+    await bens.start();
+    await settle();
+
+    expect(await onPhone.sendText('@ben', 'Dinner at 8?'), isTrue);
+    await until(() => mac.rows.isNotEmpty);
+    expect(friend.came.single.words, 'Dinner at 8?');
+    expect(mac.rows.values.single, (address: '@ben', words: 'Dinner at 8?', state: 'sent'), reason: 'kept on the Mac as sent by Ann');
+    expect(mac.keptAt.values.single, isNonZero, reason: 'in its place by when it was written');
+    await settle();
+    expect(phone.rows.length, 1, reason: 'the Mac passes it on, and the phone knows it already');
+
+    expect(await bens.sendText('@ann', 'Sure!'), isTrue);
+    await until(() => mac.came.isNotEmpty);
+    expect(phone.came.single.words, 'Sure!');
+    expect(mac.came.single, (address: '@ben', words: 'Sure!'), reason: 'what reached the phone reaches the Mac');
+    await settle();
+    expect(phone.came.length, 1, reason: 'once');
+
+    // A phone-number friend's messages are the phone's own: no copies.
+    final before = phone.mineSent.length;
+    phone.stand(ben, friend: 'yes');
+    await onPhone.sendText(ben, 'hello');
+    await settle();
+    expect(phone.mineSent.length, before);
+  });
 }
