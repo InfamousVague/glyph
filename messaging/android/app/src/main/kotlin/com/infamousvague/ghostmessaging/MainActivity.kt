@@ -95,6 +95,21 @@ open class MainActivity : FlutterActivity() {
      * addresses, held until Dart asks for them when it was not yet listening.
      */
     private var pendingShared: List<String>? = null
+
+    /** Answer pressed on a friend's call (IncomingCall.kt, GMFB-28) before Dart was listening: told as it listens. */
+    private var pendingRing: String? = null
+
+    /** A friend's call's notification pressed (IncomingCall.kt, GMFB-28): over the lock screen while it rings, and
+     *  Answer said to Dart. */
+    private fun ringIntent(intent: Intent?) {
+        val what = intent?.getStringExtra(IncomingCall.EXTRA) ?: return
+        intent.removeExtra(IncomingCall.EXTRA)
+        IncomingCall.overLock(this, true)
+        if (what != "answer") return
+        IncomingCall.end(this)
+        val sink = sharedEvents
+        if (sink != null) main.post { sink.success(mapOf("type" to "ringAction", "do" to "answer")) } else pendingRing = "answer"
+    }
     private lateinit var store: Store
 
     /**
@@ -120,6 +135,7 @@ open class MainActivity : FlutterActivity() {
         if (bubble) return configureBubble(flutterEngine)
         // Over an engine already running (the screen closed and opened again, by a notification): Dart has asked for
         // its first open request long ago, so what this screen was opened for is told as an event.
+        ringIntent(intent)
         val asked = openRequest(intent, fresh = true)
         if (sharedEvents != null && asked != null) main.post { sharedEvents?.success(mapOf("type" to "open") + asked) } else pendingOpen = asked
         sharedFiles(intent)?.let { uris -> if (sharedEvents != null) main.post { sharedEvents?.success(mapOf("type" to "sharedFiles", "uris" to uris)) } else pendingShared = uris }
@@ -134,6 +150,8 @@ open class MainActivity : FlutterActivity() {
                 Bus.listener = { thread -> events?.success(mapOf("type" to "changed", "thread" to thread)) }
                 Bus.prefsListener = { events?.success(mapOf("type" to "prefs")) }
                 CallService.onLeave = { runOnUiThread { events?.success(mapOf("type" to "leaveCall")) } }
+                IncomingCall.onAction = { what -> main.post { events?.success(mapOf("type" to "ringAction", "do" to what)) } }
+                pendingRing?.let { what -> pendingRing = null; main.post { events?.success(mapOf("type" to "ringAction", "do" to what)) } }
                 Desk.listener = { events?.success(mapOf("type" to "desk")) }
                 Voice.listener = { state -> main.post { events?.success(state) } }
                 // A data text for the app's routes (NetSms.kt): to Dart, which opens it.
@@ -497,6 +515,10 @@ open class MainActivity : FlutterActivity() {
                 // A call in a space (CallService.kt): going on with the phone locked, until it ends.
                 "callStarted" -> { CallService.start(this, call.argument<String>("name") ?: "", call.argument<Boolean>("video") ?: false, call.argument<Boolean>("screen") ?: false); result.success(null) }
                 "callEnded" -> { CallService.stop(this); result.success(null) }
+                // A friend calling (lib/voice/friend_calls.dart, GMFB-28): the app's own card says it while it is in
+                // front; otherwise a call's notification, full screen on a locked phone.
+                "ringIncoming" -> { if (!inFront) IncomingCall.show(this, call.argument<String>("from") ?: "", call.argument<Boolean>("video") ?: false); result.success(null) }
+                "ringEnded" -> { IncomingCall.end(this); IncomingCall.overLock(this, false); result.success(null) }
                 // Signal and Telegram (lib/inbox/alerts.dart): a new message's notification, taken away once read, and
                 // the service that keeps them connected while there are any signed in.
                 "notifyInbox" -> bg {
@@ -751,6 +773,7 @@ open class MainActivity : FlutterActivity() {
         // Each bubble is a screen of its own (documentLaunchMode="always"), opened on its one conversation.
         if (bubble) return
         setIntent(intent)
+        ringIntent(intent)
         sharedFiles(intent)?.let { uris ->
             if (events != null) events?.success(mapOf("type" to "sharedFiles", "uris" to uris)) else pendingShared = uris
             return

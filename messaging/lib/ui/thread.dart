@@ -43,6 +43,8 @@ import 'shell.dart';
 import 'voice_screen.dart';
 import '../voice/voice.dart';
 import '../voice/channels.dart';
+import '../voice/friend_calls.dart';
+import '../friends/buddies.dart';
 import 'encryption.dart';
 import 'message_popover.dart';
 import 'sticker_picker.dart';
@@ -867,6 +869,37 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   }
 
   /// Rings everyone in the group, and hops into its channel.
+  /// The friend by username this conversation is with, where they can be called: one person, a friend.
+  Buddy? get _callable {
+    if (_group || _people.length != 1 || !_people.first.address.startsWith('@')) return null;
+    final name = _people.first.address.substring(1).toLowerCase();
+    return Buddies.instance.all.where((b) => b.state == 'yes' && b.username.toLowerCase() == name).firstOrNull;
+  }
+
+  Future<void> _callFriend({required bool video}) async {
+    final b = _callable;
+    if (b == null) return;
+    bool rang;
+    try {
+      rang = await FriendCalls.instance.call(b, video: video);
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t call: $e', tone: GlacierToastTone.danger);
+      return;
+    }
+    if (!mounted) return;
+    if (!rang) {
+      toast(context, '${b.shown} can\'t be reached right now');
+      if (Voice.instance.session != null && FriendCalls.isCall(Voice.instance.session!.channel)) unawaited(Voice.instance.leave());
+      return;
+    }
+    final shell = AppShell.maybeOf(context);
+    if (shell != null) {
+      shell.go('voice');
+    } else {
+      push(context, (_) => const VoiceScreen());
+    }
+  }
+
   Future<void> _callGroup() async {
     final g = _ghost;
     if (g == null) return;
@@ -927,6 +960,12 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         // A phone call needs a number: a friend by username (`@name`, lib/standalone) has none.
         if (!remote && !_group && _people.isNotEmpty && !_people.first.address.startsWith('@'))
           IconTap(icon: Lucide.phone, label: 'Call', onPressed: () => const MethodChannel('ghost_messaging/sms').invokeMethod('dial', {'address': _people.first.address})),
+        // A friend by username rung with a voice or a video call, as a phone would (GMFB-28, from the Uplink gap review:
+        // "Ring one friend with a voice or video call, the way you would a phone, without making a space first").
+        if (_callable != null) ...[
+          IconTap(key: const ValueKey('call-friend'), icon: LucideMore.phoneCall, label: 'Voice call', onPressed: () => _callFriend(video: false)),
+          IconTap(key: const ValueKey('video-call-friend'), icon: Lucide.video, label: 'Video call', onPressed: () => _callFriend(video: true)),
+        ],
         // A group of friends' voice and video channel, open to hop in and out of, and calling the whole group into it
         // (Matt, 2026-11-14: "allow for group chat video and voice calls to hop in the voice and video channel at any
         // time with the option to call the group"; lib/voice).
@@ -1058,8 +1097,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         final who = m.outgoing ? 'You' : (_senders[m.address]?.label ?? (_people.length == 1 ? _people.first.label : (m.address.isEmpty ? 'They' : m.address)));
         items.add(_Notice(
           // A line about a group of friends itself ("Ann added Dan") is its own words.
-          icon: m.notice == 'group' ? Lucide.users : (m.notice == 'key' ? Lucide.keyRound : Lucide.image),
-          text: m.notice == 'group' ? m.body : (m.notice == 'key' ? (m.outgoing ? 'You sent your encryption key' : '$who sent an encryption key') : '$who changed the chat background'),
+          icon: m.notice == 'call' ? LucideMore.phoneCall : (m.notice == 'group' ? Lucide.users : (m.notice == 'key' ? Lucide.keyRound : Lucide.image)),
+          text: m.notice == 'group' || m.notice == 'call' ? m.body : (m.notice == 'key' ? (m.outgoing ? 'You sent your encryption key' : '$who sent an encryption key') : '$who changed the chat background'),
           busy: busy,
           onLongPress: () => _messageMenu(m),
         ));
@@ -1152,7 +1191,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (_isLine(m)) {
         final who = nameOf(m);
         items.add(HostLine(
-          m.notice == 'group' ? m.body : (m.notice == 'key' ? (m.outgoing ? 'You sent your encryption key.' : '$who sent an encryption key.') : '$who changed the chat background.'),
+          m.notice == 'group' || m.notice == 'call' ? m.body : (m.notice == 'key' ? (m.outgoing ? 'You sent your encryption key.' : '$who sent an encryption key.') : '$who changed the chat background.'),
           onLongPress: () => _messageMenu(m),
         ));
         if (older == null || !_sameDay(older.date, m.date)) items.add(HostLine.day(m.date));
@@ -1265,7 +1304,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
 
 
   /// Drawn as a line in the conversation, not a bubble: a text that carried a key or a chat background.
-  static bool _isLine(Message m) => m.notice == 'key' || m.notice == 'background' || m.notice == 'group';
+  static bool _isLine(Message m) => m.notice == 'key' || m.notice == 'background' || m.notice == 'group' || m.notice == 'call';
 
   static const _evenLeading = TextHeightBehavior(leadingDistribution: TextLeadingDistribution.even);
 

@@ -736,6 +736,9 @@ class Sms {
   /// The call notification's Leave was pressed (android CallService.kt).
   final leaveCall = StreamController<void>.broadcast();
 
+  /// Answer or Decline pressed on a friend's call's notification (android IncomingCall.kt, GMFB-28): "answer", "decline".
+  final ringAction = StreamController<String>.broadcast();
+
   /// A call in a space began or ended: on the phone, its service keeps it going with the screen locked.
   /// [screen]: the screen is being shared (GMFB-27), which Android 14 asks a service of its own kind for.
   Future<void> callStarted(String name, {bool video = false, bool screen = false}) async {
@@ -751,6 +754,27 @@ class Sms {
       await _calls.invokeMethod('callEnded');
     } catch (_) {}
   }
+
+  /// A friend calling (lib/voice/friend_calls.dart, GMFB-28): on the phone, a call's notification, full screen while
+  /// the phone is locked or the app is out of sight, until [ringEnded].
+  Future<void> ringIncoming(String from, {bool video = false}) async {
+    if (remote || !Platform.isAndroid) return;
+    try {
+      await _calls.invokeMethod('ringIncoming', {'from': from, 'video': video});
+    } catch (_) {}
+  }
+
+  Future<void> ringEnded() async {
+    if (remote || !Platform.isAndroid) return;
+    try {
+      await _calls.invokeMethod('ringEnded');
+    } catch (_) {}
+  }
+
+  /// A line in the conversation with a friend by username ([address], `@name`) about a call: missed, declined, no
+  /// answer (GMFB-28). [out]: a call this side made.
+  Future<void> callNote(String address, String words, int at, {required bool out}) =>
+      _calls.invokeMethod('callNote', {'address': address, 'body': words, 'at': at, 'out': out});
 
   /// A new message on Signal or Telegram (lib/inbox/alerts.dart): a notification that opens the chat.
   Future<void> notifyInbox(String key, {required String network, required String title, required String body, bool group = false}) async {
@@ -805,6 +829,7 @@ class Sms {
       if (m['type'] == 'update') updates.add(UpdateState.from(m));
       if (m['type'] == 'prefs') prefsChanged.add(null);
       if (m['type'] == 'leaveCall') leaveCall.add(null);
+      if (m['type'] == 'ringAction' && m['do'] is String) ringAction.add(m['do'] as String);
       if (m['type'] == 'desk') computersChanged.add(null);
       if (m['type'] == 'voice') voice.add(VoicePlayback.from(m));
       if (m['type'] == 'voiceFull') voiceFull.add(null);

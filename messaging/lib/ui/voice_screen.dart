@@ -576,30 +576,41 @@ class RingCard extends StatelessWidget {
                   child: Padding(
                     padding: EdgeInsets.all(t.space(3)),
                     child: Row(children: [
-                      AppIcon(r.invite ? Lucide.userPlus : LucideMore.phoneCall, size: 22, wash: false, color: t.color('app-paper')),
+                      AppIcon(r.invite ? Lucide.userPlus : (r.video ? Lucide.video : LucideMore.phoneCall), size: 22, wash: false, color: t.color('app-paper')),
                       SizedBox(width: t.space(3)),
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                          Text(r.invite ? '${r.from} invited you to ${r.channel.name}' : r.channel.name, maxLines: r.invite ? 2 : 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'bold', color: t.color('app-paper'))),
+                          Text(r.invite ? '${r.from} invited you to ${r.channel.name}' : (r.call != null ? r.from : r.channel.name), maxLines: r.invite ? 2 : 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'bold', color: t.color('app-paper'))),
                           // A waiting invite is not in the spaces until Join (Voice.offers): anyone who knows a number could leave one.
-                          Text(r.offer ? 'Join to add it to your spaces' : (r.invite ? 'Now in your spaces' : '${r.from} is calling the group'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-paper'))),
+                          // A friend calling this device alone (GMFB-28): a phone's words.
+                          Text(r.call != null ? (r.video ? 'Video call' : 'Voice call') : (r.offer ? 'Join to add it to your spaces' : (r.invite ? 'Now in your spaces' : '${r.from} is calling the group')), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-paper'))),
                         ]),
                       ),
-                      IconTap(icon: Lucide.x, label: 'Not now', color: t.color('app-paper'), onPressed: v.dismissRing),
+                      IconTap(key: const ValueKey('ring-decline'), icon: Lucide.x, label: r.call != null ? 'Decline' : 'Not now', color: t.color('app-paper'), onPressed: v.dismissRing),
                       SizedBox(width: t.space(1)),
                       GlacierPressable(
                         onPressed: () async {
                           try {
-                            await (r.offer ? v.acceptOffer(r) : v.join(r.channel));
+                            await (r.offer ? v.acceptOffer(r) : v.join(r.channel, video: r.video));
+                            // A friend's call answered: to the call (GMFB-28).
+                            if (r.call != null && context.mounted) {
+                              final shell = AppShell.maybeOf(context);
+                              if (shell != null) {
+                                shell.go('voice');
+                              } else {
+                                unawaited(push(context, (_) => const VoiceScreen()));
+                              }
+                            }
                           } catch (e) {
                             if (context.mounted) toast(context, 'Couldn\'t join: $e', tone: GlacierToastTone.danger);
                           }
                         },
-                        semanticLabel: 'Join',
+                        semanticLabel: r.call != null ? 'Answer' : 'Join',
                         builder: (context, state) => Container(
                           padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(2)),
                           decoration: BoxDecoration(color: t.online, borderRadius: BorderRadius.circular(t.radius('full'))),
-                          child: Text('Join', style: pageText(t, t.fontSize('sm'), weight: 'bold', color: const Color(0xFFFFFFFF))),
+                          key: const ValueKey('ring-answer'),
+                          child: Text(r.call != null ? 'Answer' : 'Join', style: pageText(t, t.fontSize('sm'), weight: 'bold', color: const Color(0xFFFFFFFF))),
                         ),
                       ),
                     ]),

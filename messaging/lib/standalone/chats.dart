@@ -164,7 +164,7 @@ class UsernameChats {
     final rows = limit > 0 && t.rows.length > limit ? t.rows.sublist(t.rows.length - limit) : t.rows;
     return [
       for (final r in rows.reversed)
-        {'id': r.id, 'kind': 'sms', 'address': t.address, 'body': r.body, 'date': r.at, 'outgoing': r.out, 'state': r.state, 'encrypted': true, 'via': 'net'},
+        {'id': r.id, 'kind': 'sms', 'address': t.address, 'body': r.body, 'date': r.at, 'outgoing': r.out, 'state': r.state, 'encrypted': true, 'via': 'net', 'notice': ?r.notice},
     ];
   }
 
@@ -195,6 +195,14 @@ class UsernameChats {
     final t = _threadOfRow(id);
     if (t == null) return;
     t.rows.removeWhere((r) => r.id == id);
+    _changed(t.id);
+  }
+
+  /// A line about a call with [address] (GMFB-28: a missed call, a declined one, no answer). A missed call is unread.
+  void callNote(String address, String body, int at, {required bool out}) {
+    final t = threadWith(address);
+    t.rows.add(ChatRow(id: _nextRow++, body: body, at: at, out: out, state: out ? 'sent' : 'received', notice: 'call'));
+    if (!out && t.id != open) t.unread = true;
     _changed(t.id);
   }
 
@@ -319,14 +327,18 @@ class ChatThread {
 }
 
 class ChatRow {
-  ChatRow({required this.id, required this.body, required this.at, required this.out, required this.state});
+  ChatRow({required this.id, required this.body, required this.at, required this.out, required this.state, this.notice});
   final int id;
   final String body;
   final int at;
   final bool out;
   String state;
 
-  Map<String, Object?> toJson() => {'i': id, 'b': body, 't': at, 'o': out, 's': state};
+  /// A line about the conversation rather than a message: `call` for a call's (GMFB-28).
+  final String? notice;
 
-  factory ChatRow.fromJson(Map j) => ChatRow(id: (j['i'] as num).toInt(), body: '${j['b']}', at: (j['t'] as num).toInt(), out: j['o'] == true, state: '${j['s']}');
+  Map<String, Object?> toJson() => {'i': id, 'b': body, 't': at, 'o': out, 's': state, 'n': ?notice};
+
+  factory ChatRow.fromJson(Map j) =>
+      ChatRow(id: (j['i'] as num).toInt(), body: '${j['b']}', at: (j['t'] as num).toInt(), out: j['o'] == true, state: '${j['s']}', notice: j['n'] as String?);
 }
