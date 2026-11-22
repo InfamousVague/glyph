@@ -38,8 +38,9 @@ class Presence {
   static InboxPresence? of(String address) {
     final id = ghostIdOf(address);
     final g = id == null ? null : Net.instance.presenceOfId(id);
-    final ghost = g == null ? null : InboxPresence(network: 'Ghost Messaging', online: g.online, lastSeen: g.lastSeen);
-    if (ghost != null && ghost.online) return ghost;
+    final ghost = g == null ? null : InboxPresence(network: 'Ghost Messaging', online: g.online, lastSeen: g.lastSeen, away: g.away, busy: g.busy);
+    // Busy or away on Ghost is how they chose to be shown: it wins over being online elsewhere.
+    if (ghost != null && (ghost.online || ghost.busy || ghost.away)) return ghost;
     final other = Inbox.instance.presenceOfAddress(address);
     if (other != null && other.online) return other;
     if (ghost == null) return other;

@@ -71,8 +71,18 @@ class Net extends ChangeNotifier implements PeerBook {
   HubCarrier _presenceOf(HubCarrier hub) {
     hub.presence.addListener(_presenceChanged);
     hub.awayNow = _away;
+    hub.mode = _mode;
     if (_alsoWatch.isNotEmpty) hub.watch(_alsoWatch);
     return hub;
+  }
+
+  String _mode = 'online';
+
+  /// How this person chose to be shown (GMFB-34; Me.presenceMode): Online, Away, Busy or Invisible, told to the hub
+  /// now and with every sign-in after.
+  void setMode(String mode) {
+    _mode = mode;
+    _hub?.mode = mode;
   }
 
   /// This app put away or in use (main.dart, as it goes to the background and comes back): friends see it (Matt,
@@ -90,14 +100,16 @@ class Net extends ChangeNotifier implements PeerBook {
 
   /// Whether someone on our own system, by their install's name, is using the app now, or when they last were; null
   /// where the hub has said nothing of them.
-  ({bool online, DateTime? lastSeen})? presenceOfId(String id) {
+  ({bool online, DateTime? lastSeen, bool away, bool busy})? presenceOfId(String id) {
     final hub = _hub;
     if (hub == null) return null;
     final here = hub.here.value.contains(id);
     final away = hub.away.value.contains(id);
+    final busy = here && hub.busy.value.contains(id);
     final seen = hub.seen[id];
     if (!here && seen == null) return null;
-    return (online: here && !away, lastSeen: here && !away ? null : seen);
+    // Busy shows as busy whether the app is in use or put away; away only where here.
+    return (online: here && !away, lastSeen: here && !away ? null : seen, away: here && away && !busy, busy: busy);
   }
 
   /// How the relay server may wake this app while it is closed (an iPhone's push token; [HubCarrier.push]): kept here

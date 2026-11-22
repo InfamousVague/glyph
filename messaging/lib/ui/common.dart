@@ -9,6 +9,7 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
+import '../inbox/inbox.dart' show InboxPresence;
 import '../presence.dart';
 import '../sms.dart';
 import '../kit/semantic_colors.dart';
@@ -670,23 +671,11 @@ class Avatar extends StatelessWidget {
       listenable: Presence.changes,
       builder: (context, _) {
         final p = Presence.of(address);
-        if (p == null || !p.online) return face;
+        if (p == null || !(p.online || p.busy || p.away)) return face;
         final dot = (size * 0.3).clamp(8.0, 16.0);
-        final t = context.tokens;
         return Stack(clipBehavior: Clip.none, children: [
           face,
-          Positioned(
-            top: size * 0.02,
-            right: size * 0.02,
-            child: Semantics(
-              label: 'Online on ${p.network}',
-              child: Container(
-                width: dot,
-                height: dot,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFF34C759), border: Border.all(color: t.color('glacier-bg'), width: (dot * 0.18).clamp(1.5, 2.5))),
-              ),
-            ),
-          ),
+          Positioned(top: size * 0.02, right: size * 0.02, child: PresenceDot(presence: p, size: dot)),
         ]);
       },
     );
@@ -1020,3 +1009,41 @@ void openDocs([String page = '']) => Sms.instance.openLink('https://gogho.st/doc
 
 /// The "?" in a screen's header that opens its page in the docs ([openDocs]).
 Widget docsButton(String page, {String label = 'Help with this'}) => IconTap(icon: Lucide.info, label: label, onPressed: () => openDocs(page));
+
+
+/// The mark on a face for how someone is (GMFB-34): green online, a red disc with a bar for Busy, an amber moon for
+/// Away, each ringed in the page's colour.
+class PresenceDot extends StatelessWidget {
+  const PresenceDot({super.key, required this.presence, required this.size});
+  final InboxPresence presence;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final p = presence;
+    final ring = t.color('glacier-bg');
+    final edge = (size * 0.18).clamp(1.5, 2.5);
+    final (colour, label) = p.busy
+        ? (const Color(0xFFED4245), 'Busy')
+        : p.online
+            ? (const Color(0xFF34C759), 'Online on ${p.network}')
+            : (const Color(0xFFF0B232), 'Away');
+    return Semantics(
+      label: label,
+      child: Container(
+        key: ValueKey('presence-${p.busy ? 'busy' : p.online ? 'online' : 'away'}'),
+        width: size,
+        height: size,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: colour, border: Border.all(color: ring, width: edge)),
+        child: p.busy
+            ? Center(child: Container(width: size * 0.42, height: (size * 0.14).clamp(1.5, 3.0), decoration: BoxDecoration(color: ring, borderRadius: BorderRadius.circular(2))))
+            : (!p.online
+                // A crescent: the disc with a bite of the page's colour out of its top right.
+                ? Align(alignment: const Alignment(0.7, -0.7), child: Container(width: size * 0.5, height: size * 0.5, decoration: BoxDecoration(shape: BoxShape.circle, color: ring)))
+                : null),
+      ),
+    );
+  }
+}

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'composer_box.dart' show ComposerBox, ComposerField;
+import 'cosmetics_ui.dart';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -14,6 +15,7 @@ import '../art/lucide_more.dart';
 import '../friends/buddies.dart';
 import '../inbox/inbox.dart';
 import '../kit/settings_type.dart';
+import '../me/cosmetics.dart';
 import '../me/me.dart';
 import '../mentions.dart';
 import '../me/pictures.dart';
@@ -82,7 +84,7 @@ Future<void> showProfile(BuildContext context, ProfileSubject who, {List<Choice>
 /// What is known here of someone on Ghost: a friend's own profile, else what they said in the space, else their
 /// username alone.
 class _Ghost {
-  _Ghost({required this.id, required this.username, required this.name, this.buddy, this.status = '', this.pictureHash = '', this.me = false, this.game});
+  _Ghost({required this.id, required this.username, required this.name, this.buddy, this.status = '', this.pictureHash = '', this.me = false, this.game, this.cosmetics = Cosmetics.none});
   final String id;
   final String username;
   final String name;
@@ -94,6 +96,9 @@ class _Ghost {
   /// What they are playing, where they said so lately (lib/games/game_activity.dart): to this person as a friend, or
   /// to the space this was opened from.
   final GameActivity? game;
+
+  /// What their profile wears (lib/me/cosmetics.dart): their own as a friend said, or as their greeting in the space did.
+  final Cosmetics cosmetics;
 
   bool get friend => buddy?.state == 'yes';
 }
@@ -114,6 +119,7 @@ _Ghost _ghostOf(ProfileSubject who) {
     pictureHash: here?.pictureHash ?? '',
     me: me,
     game: me ? GameActivities.instance.mine : (GameActivities.instance.of(buddy?.id ?? who.id) ?? here?.game),
+    cosmetics: me ? Me.instance.cosmetics : (buddy != null && !buddy.cosmetics.isEmpty ? buddy.cosmetics : (here?.cosmetics ?? Cosmetics.none)),
   );
 }
 
@@ -302,6 +308,8 @@ class _ProfileCardState extends State<_ProfileCard> {
     // profile popup to be more like discords"): a banner in their colour, the face over its lower edge in a ring of the
     // card's own colour, their badges' marks in a small tray to its right, the name large, then a panel of what is
     // known of them, About me, Badges by name, Where (this circle) and their links, and the field to write to them.
+    // What their profile wears (GMFB-34): only someone on Ghost has any.
+    final dress = g?.cosmetics ?? Cosmetics.none;
     final face = t.lenOf('5rem');
     final ringW = t.lenOf('0.375rem');
     final bannerH = t.lenOf('5.5rem');
@@ -342,7 +350,7 @@ class _ProfileCardState extends State<_ProfileCard> {
           ]),
         ),
     ];
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+    final body = Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       // The banner, with the face over its lower edge and the badges' tray under it at the right.
       SizedBox(
         height: bannerH + face / 2 + ringW,
@@ -353,7 +361,11 @@ class _ProfileCardState extends State<_ProfileCard> {
             right: 0,
             top: 0,
             height: bannerH,
-            child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hues.start, hues.end]))),
+            // Their chosen banner (GMFB-34), else a band in their colour.
+            child: CosmeticBanner(
+              id: dress.banner,
+              fallback: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hues.start, hues.end]))),
+            ),
           ),
           Positioned(
             left: t.space(4) - ringW,
@@ -362,7 +374,7 @@ class _ProfileCardState extends State<_ProfileCard> {
               key: const ValueKey('profile-face'),
               padding: EdgeInsets.all(ringW),
               decoration: BoxDecoration(color: card, shape: BoxShape.circle),
-              child: ProfileFace(name: name, picture: _picture, file: n?.avatar, size: face),
+              child: DressedFace(size: face, cosmetics: dress, face: ProfileFace(name: name, picture: _picture, file: n?.avatar, size: face)),
             ),
           ),
           if (known)
@@ -379,7 +391,7 @@ class _ProfileCardState extends State<_ProfileCard> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
           Row(children: [
             Flexible(
-              child: Text(name.isEmpty ? 'Someone' : name, key: const ValueKey('profile-name'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xl'), weight: 'bold', color: t.color('app-ink'))),
+              child: NameEffectText(name.isEmpty ? 'Someone' : name, key: const ValueKey('profile-name'), id: dress.name, style: pageText(t, t.fontSize('xl'), weight: 'bold', color: t.color('app-ink'))),
             ),
             // The verified-number mark beside the name, as Discord's verified badge is (Matt, 2026-11-19); the special
             // badges are in the tray and the panel, not here twice.
@@ -452,6 +464,9 @@ class _ProfileCardState extends State<_ProfileCard> {
         ]),
       ),
     ]);
+    // Their profile effect drifting over the whole card, never in the way of a touch.
+    if (dress.effect.isEmpty) return body;
+    return Stack(children: [body, Positioned.fill(child: ProfileEffectLayer(key: const ValueKey('profile-effect'), id: dress.effect))]);
   }
 }
 

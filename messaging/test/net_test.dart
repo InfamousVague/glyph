@@ -427,6 +427,40 @@ void main() {
       await hubA.stop();
     });
 
+    // GMFB-34: Online, Away, Busy or Invisible, chosen by the person.
+    test('a chosen mode: away holds while in use, busy shows to watchers, invisible looks gone and comes in unseen', () async {
+      final a = NetKeys.generate(), b = NetKeys.generate();
+      final hubA = HubCarrier(url: url, signer: KeysSigner(a)), hubB = HubCarrier(url: url, signer: KeysSigner(b));
+      await up(hubA);
+      hubA.watch([b.id]);
+      await up(hubB);
+      await _tick(60);
+      hubB.mode = 'away';
+      await _tick(60);
+      expect(hubA.away.value, {b.id}, reason: 'away though the app is in use');
+      hubB.mode = 'busy';
+      await _tick(60);
+      expect(hubA.away.value, isEmpty);
+      expect(hubA.busy.value, {b.id});
+      hubB.mode = 'invisible';
+      await _tick(60);
+      expect(hubA.here.value, isEmpty, reason: 'looks gone');
+      expect(hubA.busy.value, isEmpty);
+      hubB.mode = 'online';
+      await _tick(60);
+      expect(hubA.here.value, {b.id});
+      expect(hubA.away.value, isEmpty);
+      expect(hubA.busy.value, isEmpty);
+      await hubB.stop();
+      // Signing in invisible: never seen to come.
+      final hubB2 = HubCarrier(url: url, signer: KeysSigner(b))..mode = 'invisible';
+      await up(hubB2);
+      await _tick(60);
+      expect(hubA.here.value, isEmpty);
+      await hubB2.stop();
+      await hubA.stop();
+    });
+
     test('two installs find each other by name, and what one sends the other gets, sealed all the way', () async {
           final a = NetKeys.generate(), b = NetKeys.generate();
           final key = NetCrypto.netKey(NetCrypto.conversationKey(a, b.public)!);

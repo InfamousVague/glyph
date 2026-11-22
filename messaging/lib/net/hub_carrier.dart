@@ -121,6 +121,9 @@ class HubCarrier implements Carrier {
   /// Of those [here], the ones with the app put away (relay/lib/hub.dart's `away`).
   final ValueNotifier<Set<String>> away = ValueNotifier(const {});
 
+  /// Of those [here], the ones who chose Busy (relay/lib/hub.dart's `busy`; GMFB-34).
+  final ValueNotifier<Set<String>> busy = ValueNotifier(const {});
+
   /// When each of those asked about was last using the app, where the hub knows (`went`, `seen`, `away`).
   final Map<String, DateTime> seen = {};
 
@@ -134,9 +137,28 @@ class HubCarrier implements Carrier {
   bool get awayNow => _awayNow;
   set awayNow(bool value) {
     if (value == _awayNow) return;
+    final was = _awaySaid;
     _awayNow = value;
-    if (_ready) _ws?.add(jsonEncode({'away': value}));
+    if (_ready && _awaySaid != was) _ws?.add(jsonEncode({'away': _awaySaid}));
   }
+
+  /// How this person chose to be shown (GMFB-34): 'online', 'away', 'busy' or 'invisible'. Away is said as the app put
+  /// away, whatever it is doing; busy and invisible are the hub's own (`mode`), said with every hello too, so someone
+  /// invisible never shows as come.
+  String get mode => _mode;
+  String _mode = 'online';
+  set mode(String value) {
+    final m = const {'online', 'away', 'busy', 'invisible'}.contains(value) ? value : 'online';
+    if (m == _mode) return;
+    final wasAway = _awaySaid;
+    _mode = m;
+    if (!_ready) return;
+    _ws?.add(jsonEncode({'mode': _hubMode}));
+    if (_awaySaid != wasAway) _ws?.add(jsonEncode({'away': _awaySaid}));
+  }
+
+  bool get _awaySaid => _awayNow || _mode == 'away';
+  String get _hubMode => _mode == 'busy' || _mode == 'invisible' ? _mode : 'online';
 
   WebSocket? _ws;
   bool _wanted = false;
@@ -217,9 +239,10 @@ class HubCarrier implements Carrier {
       _rooms.add(RoomEvent(room, closed: true));
     }
     // Lost: nobody is known to be here until the hub says again.
-    if (here.value.isNotEmpty || away.value.isNotEmpty) {
+    if (here.value.isNotEmpty || away.value.isNotEmpty || busy.value.isNotEmpty) {
       here.value = const {};
       away.value = const {};
+      busy.value = const {};
       presence.value++;
     }
   }
@@ -284,7 +307,7 @@ class HubCarrier implements Carrier {
       // The hub's number, signed: only the holder of this install's key connects under its name.
       final sig = await signer.sign([...utf8.encode(greeting), ...NetCrypto.unhex(m['hello'] as String)]);
       if (!identical(_ws, ws)) return;
-      ws.add(jsonEncode({'id': signer.id, 'key': base64Encode(signer.publicKey), 'sig': base64Encode(sig), if (device.isNotEmpty) 'device': device}));
+      ws.add(jsonEncode({'id': signer.id, 'key': base64Encode(signer.publicKey), 'sig': base64Encode(sig), if (device.isNotEmpty) 'device': device, if (_hubMode != 'online') 'mode': _hubMode}));
     } else if (m.containsKey('ok') && !_ready) {
       if (m['ok'] != true) {
         _drop('refused');
@@ -296,7 +319,7 @@ class HubCarrier implements Carrier {
       problem = null;
       state.value = CarrierState.up;
       if (_watched.isNotEmpty) ws.add(jsonEncode({'watch': _watched.toList()}));
-      if (_awayNow) ws.add(jsonEncode({'away': true}));
+      if (_awaySaid) ws.add(jsonEncode({'away': true}));
       if (_push != null) ws.add(jsonEncode({'push': _push}));
       for (final e in _joined.entries) {
         ws.add(jsonEncode({'join': e.key, 'token': e.value, 'ro': ?_readOnly[e.key]}));
@@ -341,6 +364,7 @@ class HubCarrier implements Carrier {
       final now = (m['here'] as List).cast<String>();
       here.value = {...here.value, ...now};
       away.value = {...away.value.where((id) => !now.contains(id)), ...((m['away'] as List?) ?? const []).cast<String>()};
+      busy.value = {...busy.value.where((id) => !now.contains(id)), ...((m['busy'] as List?) ?? const []).cast<String>()};
       (m['seen'] as Map?)?.forEach((id, at) {
         if (at is num) seen['$id'] = DateTime.fromMillisecondsSinceEpoch(at.toInt());
       });
@@ -348,11 +372,13 @@ class HubCarrier implements Carrier {
     } else if (m['came'] is String) {
       here.value = {...here.value, m['came'] as String};
       away.value = {...away.value}..remove(m['came']);
+      busy.value = {...busy.value}..remove(m['came']);
       presence.value++;
     } else if (m['went'] is String) {
       final id = m['went'] as String;
       here.value = {...here.value}..remove(id);
       away.value = {...away.value}..remove(id);
+      busy.value = {...busy.value}..remove(id);
       seen[id] = m['at'] is num ? DateTime.fromMillisecondsSinceEpoch((m['at'] as num).toInt()) : DateTime.now();
       presence.value++;
     } else if (m['away'] is String) {
@@ -364,6 +390,11 @@ class HubCarrier implements Carrier {
       } else {
         away.value = {...away.value}..remove(id);
       }
+      presence.value++;
+    } else if (m['busy'] is String) {
+      // Someone watched chose Busy, or stopped (GMFB-34).
+      final id = m['busy'] as String;
+      busy.value = m['is'] == true ? {...busy.value, id} : ({...busy.value}..remove(id));
       presence.value++;
     }
   }
