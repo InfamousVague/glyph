@@ -23,9 +23,11 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
-  ReleaseNotes('0.12.10', '2026-11-22', [
+  ReleaseNotes('0.12.11', '2026-11-22', [
     'Show me as: in Profile, choose Online, Away, Busy or Invisible. Friends see a green dot, an amber moon for Away or a red mark for Busy on your picture; Invisible shows you as offline while you keep chatting.',
     'Your add-me link: Profile has a gogho.st/add link and QR code of your own. Anyone who opens it or scans it is asked whether to send you a friend request.',
+  ]),
+  ReleaseNotes('0.12.10', '2026-11-22', [
     'Dress your profile: in Profile › Look, choose an avatar decoration, a border for your picture, a banner, an effect on your name and an effect over your whole profile card. Friends and people in your spaces see them when they open your profile.',
     'Calls: call a friend directly. A friend\'s chat has Voice call and Video call; their phone, Mac and PC ring with Answer and Decline, full screen on a locked Android phone. Missed, declined and unanswered calls are noted in the chat.',
   ]),
