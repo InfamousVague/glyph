@@ -23,6 +23,11 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.7', '2026-11-22', [
+    'Messages and circles show how many are unread: a count on the Messages icon, and on each circle in place of its dot (red where you are mentioned).',
+    'Notifications: a text the filter hides (a kind you have switched off in Messages, such as political texts or sales, or Spam) no longer notifies, even when the app is closed. It still arrives.',
+    'Calls on the Mac: testing your microphone in Settings › Voice and video starts and stops without the spinning wait.',
+  ]),
   ReleaseNotes('0.12.6', '2026-11-22', [
     'Calls: the red handle over a call no longer stays on screen after a recording stops, or when the soundboard or voice changer has nothing to show.',
   ]),
