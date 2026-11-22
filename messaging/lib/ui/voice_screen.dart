@@ -26,6 +26,7 @@ import 'hangout_screen.dart';
 import 'space_groups_ui.dart';
 import 'space_designs/space_design.dart';
 import 'space_invite.dart';
+import 'screen_share.dart';
 import '../kit/semantic_colors.dart';
 import '../backgrounds.dart' show strongFill;
 
@@ -157,12 +158,13 @@ class CallPanel extends StatelessWidget {
     // The levels are listened to by each face alone (GMFB-6): the whole panel, video tiles and all, rebuilt at every
     // reading while anyone spoke.
     return ListenableBuilder(
-      listenable: Listenable.merge([session, ?media?.remote, ?media?.localVideo, ?v.hangoutFor(session.channel)]),
+      listenable: Listenable.merge([session, ?media?.remote, ?media?.localVideo, ?media?.localScreen, ?v.hangoutFor(session.channel)]),
       builder: (context, _) {
-        final people = <({String id, String name, bool guest, bool muted, MediaStream? video, bool me})>[
-          (id: 'me', name: 'You', guest: false, muted: session.muted || session.deafened, video: media?.localVideo.value, me: true),
+        // A shared screen in the camera's place (GMFB-27), this device's own included.
+        final people = <({String id, String name, bool guest, bool muted, MediaStream? video, bool me, bool screen})>[
+          (id: 'me', name: 'You', guest: false, muted: session.muted || session.deafened, video: media?.localScreen.value ?? media?.localVideo.value, me: true, screen: media?.localScreen.value != null),
           for (final m in session.members.values)
-            (id: m.id, name: v.nameOf(m.id), guest: m.guest, muted: m.muted, video: m.video ? media?.remote.value[m.id] : null, me: false),
+            (id: m.id, name: v.nameOf(m.id), guest: m.guest, muted: m.muted, video: m.video ? media?.remote.value[m.id] : null, me: false, screen: m.screen),
         ];
         final withVideo = [for (final p in people) if (p.video != null) p];
         // A hangout's: each person's role beside their name, where it is not the one everyone starts with.
@@ -173,7 +175,7 @@ class CallPanel extends StatelessWidget {
               final across = withVideo.length == 1 ? 1 : (box.maxWidth / 240).floor().clamp(2, 4);
               final w = (box.maxWidth - t.space(2) * (across - 1)) / across;
               return Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [
-                for (final p in withVideo) SizedBox(key: ValueKey('video-${p.id}'), width: w, height: w * 0.75, child: _Tile(name: p.guest ? '${p.name} (guest)' : p.name, muted: p.muted, stream: p.video, mirror: p.me)),
+                for (final p in withVideo) SizedBox(key: ValueKey('video-${p.id}'), width: w, height: w * 0.75, child: _Tile(name: p.guest ? '${p.name} (guest)' : p.name, muted: p.muted, stream: p.video, mirror: p.me && !p.screen, screen: p.screen)),
               ]);
             }),
             SizedBox(height: t.space(3)),
@@ -242,7 +244,7 @@ class CallVideos extends StatelessWidget {
   /// Whether anyone in [session] has video on now, this device included.
   static bool any(VoiceSession session) {
     final media = Voice.instance.media;
-    if (media?.localVideo.value != null) return true;
+    if (media?.localVideo.value != null || media?.localScreen.value != null) return true;
     return session.members.values.any((m) => m.video && media?.remote.value[m.id] != null);
   }
 
@@ -252,14 +254,29 @@ class CallVideos extends StatelessWidget {
     final v = Voice.instance;
     final media = v.media;
     return ListenableBuilder(
-      listenable: Listenable.merge([session, ?media?.remote, ?media?.localVideo]),
+      listenable: Listenable.merge([session, ?media?.remote, ?media?.localVideo, ?media?.localScreen]),
       builder: (context, _) {
-        final tiles = <({String name, MediaStream stream, bool muted, bool me})>[
-          if (media?.localVideo.value case final mine?) (name: 'You', stream: mine, muted: session.muted || session.deafened, me: true),
+        final mine = media?.localScreen.value ?? media?.localVideo.value;
+        final all = <({String name, MediaStream stream, bool muted, bool me, bool screen})>[
+          if (mine != null) (name: 'You', stream: mine, muted: session.muted || session.deafened, me: true, screen: media?.localScreen.value != null),
           for (final m in session.members.values)
-            if (m.video && media?.remote.value[m.id] != null) (name: m.guest ? '${v.nameOf(m.id)} (guest)' : v.nameOf(m.id), stream: media!.remote.value[m.id]!, muted: m.muted, me: false),
+            if (m.video && media?.remote.value[m.id] != null) (name: m.guest ? '${v.nameOf(m.id)} (guest)' : v.nameOf(m.id), stream: media!.remote.value[m.id]!, muted: m.muted, me: false, screen: m.screen),
         ];
-        if (tiles.isEmpty) return const SizedBox.shrink();
+        if (all.isEmpty) return const SizedBox.shrink();
+        // Someone else's shared screen takes the space, the rest in a strip under it (GMFB-27).
+        final shared = [for (final x in all) if (x.screen && !x.me) x].firstOrNull;
+        final tiles = shared == null ? all : [for (final x in all) if (!identical(x, shared)) x];
+        Widget tile(({String name, MediaStream stream, bool muted, bool me, bool screen}) x) =>
+            _Tile(name: x.screen ? '${x.name}\'s screen' : x.name, muted: x.muted, stream: x.stream, mirror: x.me && !x.screen, screen: x.screen);
+        if (shared != null) {
+          return Column(children: [
+            Expanded(flex: 3, child: tile(shared)),
+            if (tiles.isNotEmpty) ...[
+              SizedBox(height: t.space(2)),
+              Expanded(child: Row(spacing: t.space(2), children: [for (final x in tiles.take(4)) Expanded(child: tile(x))])),
+            ],
+          ]);
+        }
         final across = tiles.length == 1 ? 1 : (tiles.length <= 4 ? 2 : 3);
         final rows = (tiles.length / across).ceil();
         final gap = t.space(2);
@@ -272,7 +289,7 @@ class CallVideos extends StatelessWidget {
                   if (c > 0) SizedBox(width: gap),
                   Expanded(
                     child: r * across + c < tiles.length
-                        ? _Tile(name: tiles[r * across + c].name, muted: tiles[r * across + c].muted, stream: tiles[r * across + c].stream, mirror: tiles[r * across + c].me)
+                        ? tile(tiles[r * across + c])
                         : const SizedBox.shrink(),
                   ),
                 ],
@@ -345,6 +362,7 @@ class CallDock extends StatelessWidget {
                 kind: 'audiooutput',
               ),
               button(session.video ? Lucide.video : LucideMore.videoOff, session.video ? 'Turn video off' : 'Turn video on', () => session.setVideo(!session.video), on: session.video),
+              if (session.canShareScreen) button(LucideMore.screenShare, screenShareLabel(session), () => unawaited(toggleScreenShare(context, session)), on: session.screen),
               button(LucideMore.phoneOff, 'Leave', () => Voice.instance.leave(), danger: true),
             ]),
           ),
@@ -356,11 +374,14 @@ class CallDock extends StatelessWidget {
 }
 
 class _Tile extends StatelessWidget {
-  const _Tile({required this.name, required this.muted, this.stream, this.mirror = false});
+  const _Tile({required this.name, required this.muted, this.stream, this.mirror = false, this.screen = false});
   final String name;
   final bool muted;
   final MediaStream? stream;
   final bool mirror;
+
+  /// A shared screen: drawn whole on black.
+  final bool screen;
 
   @override
   Widget build(BuildContext context) {
@@ -368,11 +389,11 @@ class _Tile extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(t.radius('lg')),
       child: ColoredBox(
-        color: t.color('app-paper-3'),
+        color: screen ? const Color(0xFF000000) : t.color('app-paper-3'),
         child: Stack(fit: StackFit.expand, children: [
           // One renderer per stream (GMFB-5): when the tiles shift, as they do when someone turns video off, a renderer
           // never carries on drawing whoever stood in that place before.
-          if (stream != null) StreamView(key: ObjectKey(stream), stream: stream!, mirror: mirror),
+          if (stream != null) StreamView(key: ObjectKey(stream), stream: stream!, mirror: mirror, contain: screen),
           Positioned(
             left: t.space(2),
             bottom: t.space(2),
@@ -390,9 +411,12 @@ class _Tile extends StatelessWidget {
 
 /// A picture from a call.
 class StreamView extends StatefulWidget {
-  const StreamView({super.key, required this.stream, this.mirror = false});
+  const StreamView({super.key, required this.stream, this.mirror = false, this.contain = false});
   final MediaStream stream;
   final bool mirror;
+
+  /// Drawn whole inside its space rather than filling it: a shared screen (GMFB-27), whose edges matter.
+  final bool contain;
 
   @override
   State<StreamView> createState() => _StreamViewState();
@@ -425,7 +449,7 @@ class _StreamViewState extends State<StreamView> {
   }
 
   @override
-  Widget build(BuildContext context) => _ready ? RTCVideoView(_renderer, mirror: widget.mirror, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover) : const SizedBox.shrink();
+  Widget build(BuildContext context) => _ready ? RTCVideoView(_renderer, mirror: widget.mirror, objectFit: widget.contain ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover) : const SizedBox.shrink();
 }
 
 /// A new channel: its name, and the friends it is shared with.

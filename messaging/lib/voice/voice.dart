@@ -3,6 +3,7 @@ import '../names.dart';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 
 import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
@@ -238,6 +239,38 @@ abstract class FallbackMedia implements VoiceMedia {
   bool get hasRelay;
 }
 
+/// Media that can share this device's screen in a call (GMFB-27; lib/voice/rtc.dart). Apart from [VoiceMedia] so the
+/// stand-ins in tests need not.
+abstract class ScreenMedia {
+  /// This device can capture its screen: a computer, or Android.
+  bool get screenSupported;
+
+  /// What can be shared on a computer: each screen and window, with a picture of it. Empty on a phone, where the
+  /// system asks what to share itself.
+  Future<List<ScreenSource>> screenSources();
+
+  /// Starts sharing [source] (a screen or window from [screenSources]; the system's choice on a phone), or stops.
+  /// [onEnded] is told if it stops from outside the app. False when nothing was started.
+  Future<bool> setScreen(bool on, {String? source, void Function()? onEnded});
+
+  /// The screen this device is sending while it shares, for its own preview.
+  ValueListenable<MediaStream?> get localScreen;
+}
+
+/// A screen or window that can be shared, as a computer lists them.
+@immutable
+class ScreenSource {
+  const ScreenSource({required this.id, required this.name, required this.window, this.thumbnail});
+  final String id;
+  final String name;
+
+  /// A window, not a whole screen.
+  final bool window;
+
+  /// A JPEG of it, where the system gave one.
+  final Uint8List? thumbnail;
+}
+
 /// This device's microphone and camera, and the connections to the others (lib/voice/rtc.dart).
 abstract class VoiceMedia {
   /// How loud each one is now, 0 to 1: `me` for this device's microphone, and each other member by id. What the
@@ -274,7 +307,7 @@ class DiscordPerson {
 /// Someone in the call, as they said they are.
 @immutable
 class VoiceMember {
-  const VoiceMember(this.id, {this.name = '', this.muted = false, this.video = false, this.guest = false, this.username, this.notices = false, this.recording, this.agreed = const {}, this.declined = const {}, this.captions = false});
+  const VoiceMember(this.id, {this.name = '', this.muted = false, this.video = false, this.screen = false, this.guest = false, this.username, this.notices = false, this.recording, this.agreed = const {}, this.declined = const {}, this.captions = false});
   final String id;
   final String name;
 
@@ -296,13 +329,17 @@ class VoiceMember {
   final bool muted;
   final bool video;
 
+  /// What their picture shows is their screen, not their camera ('s' in their 'me', GMFB-27): drawn whole and large,
+  /// never cropped or mirrored. [video] is said too while they share, so an older build still shows the picture.
+  final bool screen;
+
   /// Joined from a browser by the link, with no username: a guest.
   final bool guest;
-  VoiceMember copyWith({String? name, bool? muted, bool? video, bool? guest, String? username}) =>
-      VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video, guest: guest ?? this.guest, username: username ?? this.username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions);
+  VoiceMember copyWith({String? name, bool? muted, bool? video, bool? screen, bool? guest, String? username}) =>
+      VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video, screen: screen ?? this.screen, guest: guest ?? this.guest, username: username ?? this.username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions);
 
   VoiceMember withRecording({required bool notices, String? recording, Set<String> agreed = const {}, Set<String> declined = const {}, bool captions = false}) =>
-      VoiceMember(id, name: name, muted: muted, video: video, guest: guest, username: username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions);
+      VoiceMember(id, name: name, muted: muted, video: video, screen: screen, guest: guest, username: username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions);
 }
 
 /// Being in one channel: joined on the hub, a connection to each member, and what each says of themselves.
@@ -345,6 +382,9 @@ class VoiceSession extends ChangeNotifier {
   final Map<String, VoicePeer> _peers = {};
   final List<StreamSubscription<Object?>> _subs = [];
   bool muted = false, deafened = false, video = false, joined = false;
+
+  /// This device is sharing its screen (GMFB-27): the picture it sends is the screen, in the camera's place.
+  bool screen = false;
 
   /// When this device came into the call.
   DateTime? since;
@@ -504,6 +544,31 @@ class VoiceSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Whether this device can share its screen at all: a computer or Android, with media that can capture one.
+  bool get canShareScreen => media is ScreenMedia && (media as ScreenMedia).screenSupported;
+
+  /// Shares this device's screen, or the window [source] on a computer (ScreenMedia.screenSources), or stops. Sent in
+  /// the camera's place, so turning it on or off asks nothing of the connections; the camera comes back when it
+  /// stops, if video is on. Held by the same rule as video (a role that may not show video may not share). False when
+  /// it did not start: the person said no to the system's question, or there is nothing to capture.
+  Future<bool> setScreen(bool on, {String? source}) async {
+    final m = media is ScreenMedia ? media as ScreenMedia : null;
+    if (m == null) return false;
+    if (on && videoLocked) return false;
+    if (!on && !screen) return true;
+    final started = await m.setScreen(on, source: source, onEnded: () {
+      // Stopped from outside the app (the system's own Stop sharing, the window closed).
+      if (!screen) return;
+      screen = false;
+      _sayState();
+      notifyListeners();
+    });
+    screen = on && started;
+    _sayState();
+    notifyListeners();
+    return started;
+  }
+
   void _event(RoomEvent e) {
     // Another device of this identity is not someone else in the call.
     if (e.came == route.me || e.went == route.me) return;
@@ -577,7 +642,9 @@ class VoiceSession extends ChangeNotifier {
         't': 'me',
         'n': name,
         'm': muted || deafened,
-        'v': video,
+        // Video is said while the screen is shared, so a build that knows nothing of sharing shows the picture.
+        'v': video || screen,
+        if (screen) 's': 1,
         if (username != null) 'u': username,
         'rs': 1,
         if (recording != null) 'r': recording,
@@ -634,7 +701,7 @@ class VoiceSession extends ChangeNotifier {
         final had = members[from] ?? VoiceMember(from);
         Set<String> ids(Object? l) => {for (final x in (l is List ? l : const [])) if (x is String) x};
         members[from] = had
-            .copyWith(name: bareName('${m['n'] ?? ''}'), muted: m['m'] == true, video: m['v'] == true, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null)
+            .copyWith(name: bareName('${m['n'] ?? ''}'), muted: m['m'] == true, video: m['v'] == true, screen: m['s'] == 1, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null)
             .withRecording(notices: m['rs'] == 1, recording: m['r'] is String ? m['r'] as String : null, agreed: ids(m['ry']), declined: ids(m['rn']), captions: m['cw'] == 1);
         notifyListeners();
       case 'wt':

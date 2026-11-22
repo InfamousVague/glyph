@@ -10,16 +10,29 @@
 <h2 id="controls">In the call</h2>
 <m-screen title="Lounge" caption="The call's controls.">
   <m-row-raw><span class="m-avatar" data-hue="rose">MC</span><span class="m-avatar" data-hue="blue">JO</span><span class="m-avatar" data-hue="green">YOU</span></m-row-raw>
-  <m-row-raw><m-btn kind="secondary" icon="mic">Mute</m-btn><m-btn kind="secondary" icon="headphones">Deafen</m-btn><m-btn kind="secondary" icon="video"></m-btn><m-btn kind="danger" icon="phone-off">Leave</m-btn></m-row-raw>
+  <m-row-raw><m-btn kind="secondary" icon="mic">Mute</m-btn><m-btn kind="secondary" icon="headphones">Deafen</m-btn><m-btn kind="secondary" icon="video"></m-btn><m-btn kind="secondary" icon="screen-share"></m-btn><m-btn kind="danger" icon="phone-off">Leave</m-btn></m-row-raw>
 </m-screen>
 <table>
   <tr><th>Control</th><th>Does</th></tr>
   <tr><td>Mute</td><td>Stops your microphone.</td></tr>
   <tr><td>Deafen</td><td>Hear nobody, and say nothing. <b>Hear again</b> undoes it.</td></tr>
   <tr><td>Camera</td><td>Turns your video on or off.</td></tr>
+  <tr><td>Share screen</td><td>Shows everyone your screen, or one window. See <a href="#screen">Share your screen</a>.</td></tr>
   <tr><td>Leave</td><td>Leaves the call. The space and its chat stay.</td></tr>
 </table>
 <p>While you're in a call and look at something else, a small bubble of faces floats on top; tap it to go back.</p>
+
+<h2 id="screen">Share your screen</h2>
+<p>Press <b>Share screen</b> in the call. In some call designs it's in the call's menu instead. It works on Mac, Windows, Linux and Android.</p>
+<ul>
+  <li><b>On a computer</b>, pick a whole screen or one window. On a Mac, the first time, allow Ghost Messaging in <ui>System Settings › Privacy &amp; Security › Screen Recording</ui>, then try again.</li>
+  <li><b>On Android</b>, the phone asks before it shares, and you can choose one app or the whole screen. A notification says <b>Sharing your screen</b> while it's on.</li>
+</ul>
+<m-screen title="Lounge" caption="Someone's screen, large.">
+  <m-row-raw><m-btn kind="secondary" icon="screen-share">Maya Chen's screen</m-btn><m-btn kind="primary">Back to call</m-btn></m-row-raw>
+</m-screen>
+<p>Everyone else sees your screen large and whole, never cropped. <b>Back to call</b> puts it away, and a line over the call says who is sharing, with <b>View</b> to bring it back. While you share, a line says <b>You're sharing your screen</b>, with <b>Stop</b>.</p>
+<p>Your screen goes out in place of your camera: while you share, others see your screen, not your camera, and your camera is back when you stop. Sound from your computer isn't shared yet. If your role in a space can't show video, it can't share a screen either. Like the rest of the call, it goes encrypted between you: the relay can't see it.</p>
 
 <h2 id="people">Each person's volume</h2>
 <p>Press and hold someone in the call:</p>
