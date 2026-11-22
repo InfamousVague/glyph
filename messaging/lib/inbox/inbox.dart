@@ -497,12 +497,26 @@ abstract class InboxNetwork extends ChangeNotifier {
   /// conversations asks several times a build, and a network's [chats] may itself be made anew each time
   /// (docs/performance-audit.md, finding 2).
   List<InboxChat> get shownChats {
-    final key = '$stamp|${_raw('archived')}|${_raw('deleted')}|${_raw('blocked')}';
+    final held = heldIds;
+    final key = '$stamp|${_raw('archived')}|${_raw('deleted')}|${_raw('blocked')}|${identityHashCode(held)}';
     if (key == _shownKey && _shown != null) return _shown!;
-    final gone = {...localList('archived'), ...localList('deleted'), ...localList('blocked')};
+    final gone = {...localList('archived'), ...localList('deleted'), ...localList('blocked'), ...held};
     _shownKey = key;
     return _shown = gone.isEmpty ? chats : [for (final c in chats) if (!gone.contains(c.id)) c];
   }
+
+  /// What holds chats back from the list, its counts and its notifications, from outside the network: the Human check
+  /// plugin (lib/inbox/human_check.dart; GMFB-23, Matt, Mac 0.12.6: "have new messages from that platform stay hidden
+  /// from notificatoins and my messages until they solve a small challenge"). Asked with a network, it answers the ids
+  /// held there, the same set until that changes. Null where nothing holds any.
+  static Set<String> Function(InboxNetwork n)? holding;
+
+  /// The ids of this network's chats held back now ([holding]).
+  Set<String> get heldIds => holding?.call(this) ?? const {};
+
+  /// Whether the network says by [InboxChat.stranger] who is not a contact, so a chat it does not mark is a contact's
+  /// (Telegram's own word). Elsewhere [InboxChat.stranger] says nothing either way.
+  bool get marksStrangers => false;
 
   String? _shownKey, _archivedKey;
   List<InboxChat>? _shown, _archivedList;
@@ -729,7 +743,10 @@ abstract class InboxNetwork extends ChangeNotifier {
   Future<InboxProfile?> ownProfile() async => null;
 
   /// Unread chats.
-  int get unreadChats => chats.where((c) => c.unread > 0).length;
+  int get unreadChats {
+    final held = heldIds;
+    return chats.where((c) => c.unread > 0 && !held.contains(c.id)).length;
+  }
 }
 
 /// The networks, as the app holds them.
