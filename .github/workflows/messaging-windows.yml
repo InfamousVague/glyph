@@ -83,6 +83,24 @@ jobs:
           Copy-Item sidecar\gmessages\LICENSE build\windows\x64\runner\Release\gmsidecar-LICENSE.txt
           Copy-Item sidecar\gmessages\SOURCE_URL build\windows\x64\runner\Release\gmsidecar-SOURCE.txt
 
+      # The account helpers (messaging/sidecar/<name>, AGPL-3.0; lib/inbox/account_helper.dart): Messenger, Instagram,
+      # Discord, X and Slack, each beside the app as <name>-sidecar.exe where the app looks for it, so in the installer
+      # and signed with the rest (Matt, 2026-11-21: "the windows app says coming soon"). Go alone, no cgo.
+      - name: Build the account helpers
+        shell: pwsh
+        run: |
+          $out = (Resolve-Path build\windows\x64\runner\Release).Path
+          $env:CGO_ENABLED = '0'
+          foreach ($name in @('messenger', 'instagram', 'discord', 'twitter', 'slack')) {
+            if (-not (Test-Path "sidecar\$name\SOURCE_URL")) { continue }
+            Push-Location "sidecar\$name"
+            go build -trimpath -ldflags=-s -o "$out\$name-sidecar.exe" .
+            if ($LASTEXITCODE -ne 0) { throw "the $name helper did not build" }
+            Pop-Location
+            Copy-Item "sidecar\$name\LICENSE" "$out\$name-sidecar-LICENSE.txt"
+            Copy-Item "sidecar\$name\SOURCE_URL" "$out\$name-sidecar-SOURCE.txt"
+          }
+
       # Signing, where the account is set up: the app's own files first (the exe, its DLLs, the sidecars), then the
       # installer and its uninstaller as Inno Setup writes them (windows/installer.iss, windows/sign.ps1).
       - name: Sign in to Azure (OIDC)
