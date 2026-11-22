@@ -37,7 +37,7 @@ for (const target of targets.length ? targets : ['chrome']) {
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   await build({
-    entryPoints: { background: 'src/background.ts', popup: 'src/popup/popup.ts' },
+    entryPoints: { background: 'src/background.ts', popup: 'src/popup/popup.tsx' },
     absWorkingDir: here,
     outdir: dir,
     bundle: true,
@@ -45,11 +45,19 @@ for (const target of targets.length ? targets : ['chrome']) {
     target: target === 'chrome' ? 'chrome120' : 'firefox128',
     minify: false, // readable, so a store reviewer reads what runs
     legalComments: 'inline',
-    define: { __GHOST_HUB__: JSON.stringify(hub) },
+    define: { __GHOST_HUB__: JSON.stringify(hub), 'process.env.NODE_ENV': '"production"' },
+    jsx: 'automatic',
     logLevel: 'warning',
   });
   writeFileSync(join(dir, 'popup.html'), readFileSync(join(here, 'src/popup/popup.html')));
   writeFileSync(join(dir, 'popup.css'), readFileSync(join(here, 'src/popup/popup.css')));
+  // The Glacier kit, as the app draws with it (vendor/@glacier: the tokens, and the components' compiled styles, whose
+  // class names match the JS bundled into popup.js). 
+  writeFileSync(join(dir, 'tokens.css'), readFileSync(join(here, 'vendor/@glacier/tokens/tokens.css')));
+  writeFileSync(join(dir, 'glacier.css'), readFileSync(join(here, 'vendor/@glacier/react/dist/styles.css')));
+  // The app's own ink palette over the kit's tokens (messaging/assets/css/ink.css, which the app lays over them too):
+  // paper and ink, so the popup is the app's colours, not the kit's default blue.
+  writeFileSync(join(dir, 'ink.css'), readFileSync(join(here, '../assets/css/ink.css')));
   if (existsSync(join(here, 'icons'))) cpSync(join(here, 'icons'), join(dir, 'icons'), { recursive: true });
   writeFileSync(join(dir, 'manifest.json'), `${JSON.stringify(manifest(target, { version }), null, 2)}\n`);
   console.log(`build: ${dir} (${target}, ${hub})`);
