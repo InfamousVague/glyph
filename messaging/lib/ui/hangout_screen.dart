@@ -52,6 +52,8 @@ import 'recording_ui.dart' show RecordingBanner;
 import 'space_designs/call_plugins.dart' show CallPlugins;
 import '../voice/recorder.dart' show CallRecorder;
 import 'space_invite.dart';
+import 'space_thread.dart';
+import 'export_ui.dart';
 import 'voice_screen.dart';
 import 'jump_to_latest.dart';
 import 'space_chat_files.dart';
@@ -522,7 +524,7 @@ class _HangoutChatState extends State<HangoutChat> {
   late final ScrollController _scroll = ScrollMemory.controllerFor(() => _spot);
 
   /// What others wrote, newest first, for the arrow to count while the person reads back.
-  Iterable<Object> _incoming(HangoutRoom room) => room.messages.reversed.where((m) => m.from != room.me).map((m) => m.id);
+  Iterable<Object> _incoming(HangoutRoom room) => room.timeline.reversed.where((m) => m.from != room.me).map((m) => m.id);
   bool _typing = false;
 
   /// Messages going in a puff, deleted once it has gone off (lib/ui/poof.dart).
@@ -949,6 +951,7 @@ class _HangoutChatState extends State<HangoutChat> {
     HapticFeedback.mediumImpact();
     showChoices(context, choices: [
       if (widget.room.mayWrite) Choice('Reply', LucideMore.reply, () => _startReply(m)),
+      if (m.thread == null) Choice('Reply in thread', Lucide.messageSquare, () => openThread(context, widget.room, m)),
       if (widget.room.canEdit(m)) Choice('Edit', Lucide.penLine, () => _startEdit(m)),
       if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
       ...translateChoices(context, spaceFacts(m, mine: m.from == widget.room.me)),
@@ -975,7 +978,7 @@ class _HangoutChatState extends State<HangoutChat> {
     final c = DialupColors.of(context.tokens);
     final people = _people(room);
     final entries = <({int at, HangoutMessage? m, ({int at, String id, bool came})? e})>[
-      for (final m in room.messages) (at: m.at, m: m, e: null),
+      for (final m in room.timeline) (at: m.at, m: m, e: null),
       for (final e in _comings) (at: e.at, m: null, e: e),
     ]..sort((a, b) => a.at.compareTo(b.at));
     final list = entries.reversed.toList();
@@ -1106,8 +1109,10 @@ class _HangoutChatState extends State<HangoutChat> {
         // among its messages (Matt, 2026-11-20; lib/circles/welcome.dart): newest first, as the list runs.
         final welcome = circle != null && circle.manifest.welcomeSpace == room.channel.seed;
         final system = circle != null && circle.manifest.systemSpace == room.channel.seed;
+        // A thread's replies are in its page, not here (GMFB-36).
+        final threads = room.threads;
         final list = <Object>[
-          ...room.messages,
+          ...room.timeline,
           if (system) ...circles.systemNotesIn(circle),
         ];
         if (system) list.sort((a, b) => _atOf(a).compareTo(_atOf(b)));
@@ -1190,13 +1195,21 @@ class _HangoutChatState extends State<HangoutChat> {
                         },
                         child: _Message(key: ValueKey(m.id), room: room, message: m, first: first, last: last, mineBg: mineBg, mineInk: mineInk, flat: flat, onDelete: () => setState(() => _poofing.add(m.id)), onEdit: () => _startEdit(m), onReply: () => _startReply(m), onMention: _mentionPressed, onPerson: _openPerson),
                       );
-                      if (!newDay) return message;
+                      // Its thread's line under it, where it has one (GMFB-36): on the left under the words.
+                      final thread = threads[m.id];
+                      final shown = thread == null
+                          ? message
+                          : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                              message,
+                              ThreadLine(count: thread.count, last: thread.last, indent: t.lenOf('1.75rem') + t.space(2) + t.space(3), onOpen: () => openThread(context, room, m)),
+                            ]);
+                      if (!newDay) return shown;
                       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                         Padding(
                           padding: EdgeInsets.only(top: t.space(4), bottom: t.space(1)),
                           child: Text(dayHeading(at), textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
                         ),
-                        message,
+                        shown,
                       ]);
                     },
                   ),
@@ -1646,6 +1659,7 @@ class _Message extends StatelessWidget {
         react(emoji);
       }) : null, choices: [
         if (room.mayWrite && onReply != null) Choice('Reply', LucideMore.reply, () => onReply!.call()),
+        if (m.thread == null) Choice('Reply in thread', Lucide.messageSquare, () => openThread(context, room, m)),
         if (room.canEdit(m) && onEdit != null) Choice('Edit', Lucide.penLine, () => onEdit!.call()),
         if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
         ...translateChoices(context, spaceFacts(m, mine: mine)),
@@ -2115,6 +2129,8 @@ class RolesScreen extends StatelessWidget {
               if (settings) ...[
                 _hued('blue', PaneSection(title: 'Space', children: [
                   if (room.can(Perm.invite) && _circleInvites(c)) SettingRow(icon: AppIcon(Lucide.userPlus, size: 18), label: 'Invite people', hint: const Text('Friends in the app, anyone by a text, or the link.'), onPress: () => showSpaceInvite(context, c)),
+                  // Export (GMFB-36): the chat and its threads as a Markdown file.
+                  SettingRow(icon: AppIcon(Lucide.download, size: 18), label: 'Export chat', hint: const Text('Every message here, threads too, as a Markdown file.'), onPress: () => exportSpace(context, room)),
                   SettingRow(icon: AppIcon(Lucide.users, size: 18), label: 'Owner', value: Text(r.isOwner(room.me) ? 'You' : (r.hasOwner ? _nameOf(room, r.ownerId) : 'None'))),
                   // What the space is for, under its name in the header; the owner and admins write it (Matt, 2026-11-17).
                   SettingRow(
@@ -2480,6 +2496,7 @@ void showHangoutMenu(BuildContext context, VoiceChannel channel, {VoidCallback? 
   showChoices(context, title: channel.name, choices: [
     if (onOpen != null) Choice('Open', LucideMore.messageCircle, onOpen),
     Choice('Settings and permissions', Lucide.shieldCheck, () => push(context, (_) => HangoutSettingsScreen(channel: channel))),
+    if (room != null) Choice('Export chat', Lucide.download, () => exportSpace(context, room)),
     if ((room == null || room.can(Perm.invite)) && _circleInvites(channel)) Choice('Invite people', Lucide.userPlus, () => showSpaceInvite(context, channel)),
     Choice('Delete space', Lucide.trash2, () => confirmDeleteHangout(context, channel), danger: true),
   ]);

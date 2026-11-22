@@ -1,4 +1,5 @@
 import 'blocking.dart';
+import '../snooze.dart';
 import 'dart:async';
 
 import 'package:flutter/services.dart' show PlatformException;
@@ -170,6 +171,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // A summary made comes into its row; who is in a voice channel comes into its.
     Summaries.instance.addListener(_summed);
     Voice.instance.addListener(_summed);
+    Snoozed.instance.addListener(_summed);
     Circles.instance.addListener(_summed);
     ConversationsScreen.wantTab.addListener(_wanted);
     _wanted();
@@ -210,6 +212,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   void dispose() {
     Summaries.instance.removeListener(_summed);
     Voice.instance.removeListener(_summed);
+    Snoozed.instance.removeListener(_summed);
     Circles.instance.removeListener(_summed);
     ConversationsScreen.wantTab.removeListener(_wanted);
     _inbox.removeListener(_summed);
@@ -389,6 +392,42 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     ]
       ..sort((a, b) => b.$1.compareTo(a.$1));
     return [for (final m in pinned) m.$2, for (final m in merged) m.$2];
+  }
+
+  /// Snoozed conversations out of the list until their time, and those back from a snooze at its top until opened
+  /// (GMFB-36). A search finds a snoozed one, and the archive is as it was.
+  List<Object> _snoozing(List<Object> rows) {
+    final z = Snoozed.instance;
+    if (widget.archived || (z.count == 0 && !rows.any((r) => r is Conversation && z.woken(Snoozed.text(r.id))))) return rows;
+    final searching = _query.isNotEmpty;
+    final woken = <Object>[], rest = <Object>[];
+    for (final r in rows) {
+      final key = r is Conversation ? Snoozed.text(r.id) : null;
+      if (key != null && z.hides(key) && !searching) continue;
+      (key != null && z.woken(key) ? woken : rest).add(r);
+    }
+    return [...woken, ...rest];
+  }
+
+  String? _snoozedUntil(Conversation c) {
+    final u = Snoozed.instance.until(Snoozed.text(c.id));
+    return u == null ? null : 'Until ${dayHeading(u)} ${clock(u)}';
+  }
+
+  Future<void> _snooze(Conversation c) async {
+    final key = Snoozed.text(c.id);
+    if (Snoozed.instance.hides(key)) {
+      Snoozed.instance.unsnooze(key);
+      toast(context, 'Back in Messages');
+      return;
+    }
+    await showChoices(context, title: 'Snooze ${c.title}: it leaves Messages and comes back at the top, with a notification.', choices: [
+      for (final o in Snoozed.choices(DateTime.now()))
+        Choice(o.label, Lucide.clock, () {
+          Snoozed.instance.snooze(key, o.at, title: c.title);
+          toast(context, 'Snoozed until ${dayHeading(o.at)} ${clock(o.at)}', action: GlacierToastAction(label: 'Undo', onPress: () => Snoozed.instance.unsnooze(key)));
+        }),
+    ]);
   }
 
   /// When [v] last had anything happen: now while anyone is in its call, else its newest message or its call's last.
@@ -868,6 +907,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   }
 
   Future<void> _open(Conversation c) async {
+    Snoozed.instance.opened(Snoozed.text(c.id));
     final shell = _shell;
     if (shell != null) {
       shell.openThread(c.id, c.people);
@@ -895,6 +935,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       // Plugins: their own lines for this conversation ("Not spam").
       if (!widget.archived) ..._plugins.menu(context, c),
       Choice(c.pinned ? 'Unpin' : 'Pin to top', c.pinned ? Lucide.pinOff : Lucide.pin, () => _pin(c)),
+      // Snooze (GMFB-36): out of Messages until a time, then back at the top.
+      if (!widget.archived)
+        Choice(Snoozed.instance.hides(Snoozed.text(c.id)) ? 'Unsnooze' : 'Snooze…', Lucide.clock, () => unawaited(_snooze(c)),
+            hint: _snoozedUntil(c)),
       Choice(c.muted ? 'Unmute' : 'Mute notifications', c.muted ? Lucide.bell : GhostIcons.bellOff, () async {
         await Sms.instance.threadFlag('muted', c.id, !c.muted);
         await _load();
@@ -1071,7 +1115,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
             : [
                 // Circle invites waiting, at the top of Messages where the rail has taken the Circles tab's place.
                 if (railed && _section == null && _query.isEmpty && !widget.archived && !_selecting) ...circleInviteRows(context, Circles.instance.invites),
-                ..._mixed(shown),
+                ..._snoozing(_mixed(shown)),
               ];
     // Android's own count, where it has answered: the ones held are not all of them until the read ends.
     final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length) + Inbox.instance.ready.fold<int>(0, (n, net) => n + net.archivedChats.length);

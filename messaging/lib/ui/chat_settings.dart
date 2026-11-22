@@ -17,6 +17,7 @@ import '../sms.dart';
 import 'background_picker.dart';
 import 'common.dart';
 import 'encryption.dart';
+import 'export_ui.dart';
 
 /// One conversation's own settings, from the cog at its top (Matt, 2026-11-13: "we should have chat backgrounds be on
 /// a per chat setting, each chat should get it's own settings cog"): who is in it, its background and the colour of
@@ -326,6 +327,13 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                       await _load();
                       if (context.mounted) toast(context, to ? 'Archived' : 'Moved back to Messages');
                     },
+                  ),
+                  // Export (GMFB-36): the whole conversation as a Markdown file.
+                  SettingRow(
+                    icon: const AppIcon(Lucide.download, size: 18),
+                    label: 'Export conversation',
+                    hint: const Text('Every message as a Markdown file, to keep or open in another app.'),
+                    onPress: () => exportTexts(context, thread, c?.title ?? widget.people.map((p) => p.label).join(', '), widget.people),
                   ),
                 ]),
               ],

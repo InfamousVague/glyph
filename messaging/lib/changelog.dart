@@ -30,6 +30,9 @@ const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.12.10', '2026-11-22', [
     'Dress your profile: in Profile › Look, choose an avatar decoration, a border for your picture, a banner, an effect on your name and an effect over your whole profile card. Friends and people in your spaces see them when they open your profile.',
     'Calls: call a friend directly. A friend\'s chat has Voice call and Video call; their phone, Mac and PC ring with Answer and Decline, full screen on a locked Android phone. Missed, declined and unanswered calls are noted in the chat.',
+    'Threads in spaces and circles: long-press a message and choose Reply in thread to talk about it on its own page. A line under the message shows how many replies and who wrote last.',
+    'Snooze a conversation: long-press it in Messages and choose Snooze…. It leaves the list until the time you pick, then comes back at the top with a notification.',
+    'Export a conversation: a conversation\'s settings, or a space\'s, can save every message as a Markdown file.',
   ]),
   ReleaseNotes('0.12.9', '2026-11-22', [
     'Share your screen in a call: on a Mac, Windows or Linux pick a whole screen or one window; on Android the phone asks. Everyone else sees it large and whole, with Back to call to put it away and View to bring it back.',
