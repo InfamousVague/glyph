@@ -9,6 +9,7 @@ import '../kit/settings_kit.dart';
 import '../me/me.dart';
 import 'circles/circle_picture.dart' show pickProfilePicture;
 import 'common.dart';
+import 'cosmetics_picker.dart';
 import 'profile_card.dart' show ProfileFace;
 import 'sign_up_from.dart';
 import '../kit/semantic_colors.dart';
@@ -157,6 +158,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   if (me.picture.isNotEmpty) SettingRow(icon: AppIcon(Lucide.trash2, size: 18), label: 'Remove your picture', onPress: _removePicture),
                 ],
               ),
+              SizedBox(height: t.space(6)),
+              // What the profile wears (GMFB-34): decoration, border, banner, name effect, profile effect.
+              const CosmeticsSection(),
               SizedBox(height: t.space(6)),
               PaneSection(
                 title: 'What friends see',

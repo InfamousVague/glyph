@@ -6,6 +6,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import 'cosmetics.dart';
 import 'picture_make.dart';
 import 'pictures.dart';
 
@@ -706,6 +707,23 @@ class Me extends ChangeNotifier {
   bool get shareLinks => _app?.flag('me_share_links', fallback: false) ?? false;
   void setShareLinks(bool on) {
     _app?.setFlag('me_share_links', on);
+    notifyListeners();
+  }
+
+  /// What this person's profile wears (lib/me/cosmetics.dart; GMFB-34): its decoration, border, banner, name effect
+  /// and profile effect, sent to friends with the profile and to spaces with a greeting.
+  Cosmetics get cosmetics {
+    final kept = _app?.choice('me_cosmetics', '') ?? '';
+    if (kept.isEmpty) return Cosmetics.none;
+    try {
+      return Cosmetics.fromJson(jsonDecode(kept)) ?? Cosmetics.none;
+    } catch (_) {
+      return Cosmetics.none;
+    }
+  }
+
+  void setCosmetics(Cosmetics c) {
+    _app?.set('me_cosmetics', c.isEmpty ? '' : jsonEncode(c.toJson()));
     notifyListeners();
   }
 

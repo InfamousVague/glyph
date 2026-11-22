@@ -1,3 +1,4 @@
+import '../me/cosmetics.dart';
 import 'dart:async';
 import '../games/game_activity.dart';
 import '../names.dart';
@@ -199,7 +200,7 @@ class HangoutRoom extends ChangeNotifier {
   /// nobody and saw those here without their names until they spoke.
   void _hi({bool ask = false}) {
     final me = Me.instance;
-    _say({'t': 'hi', 'n': name, if (username != null) 'u': username, 'a': _inVoice, if (ask) 'q': true, if (me.status.isNotEmpty) 'st': me.status, if (me.picture.isNotEmpty) 'ph': ProfilePictures.hashOf(me.picture), if (GamePresence.instance.forSpaces != null) 'ga': GamePresence.instance.forSpaces!.toJson()});
+    _say({'t': 'hi', 'n': name, if (username != null) 'u': username, 'a': _inVoice, if (ask) 'q': true, if (me.status.isNotEmpty) 'st': me.status, if (me.picture.isNotEmpty) 'ph': ProfilePictures.hashOf(me.picture), if (GamePresence.instance.forSpaces != null) 'ga': GamePresence.instance.forSpaces!.toJson(), if (!me.cosmetics.isEmpty) 'cx': me.cosmetics.toJson()});
   }
 
   final Map<String, Completer<String?>> _askedPictures = {};
@@ -979,7 +980,9 @@ class HangoutRoom extends ChangeNotifier {
             status: m['st'] is String ? String.fromCharCodes((m['st'] as String).runes.take(Me.statusMost)) : '',
             pictureHash: m['ph'] is String ? m['ph'] as String : '',
             // What they are playing, as their greeting says now (lib/games/game_activity.dart): none said, none.
-            game: GameActivity.fromJson(m['ga']));
+            game: GameActivity.fromJson(m['ga']),
+            // What their profile wears (lib/me/cosmetics.dart): ids alone, drawn from the art this build has.
+            cosmetics: Cosmetics.fromJson(m['cx']) ?? Cosmetics.none);
         if (m['u'] is String && (m['u'] as String).isNotEmpty) usernames[from] = m['u'] as String;
         notifyListeners();
         // Come in asking who is here (a person's second device, whom the relay announces to nobody): told, once.
@@ -1081,7 +1084,7 @@ class HangoutRoom extends ChangeNotifier {
 /// Someone in a hangout's chat room, as they said they are.
 @immutable
 class HangoutPerson {
-  const HangoutPerson(this.id, {this.name = '', this.username, this.inVoice = false, this.guest = false, this.status = '', this.pictureHash = '', this.game});
+  const HangoutPerson(this.id, {this.name = '', this.username, this.inVoice = false, this.guest = false, this.status = '', this.pictureHash = '', this.game, this.cosmetics = Cosmetics.none});
   final String id;
   final String name;
   final String? username;
@@ -1093,6 +1096,9 @@ class HangoutPerson {
 
   /// What they said they are playing, when they last greeted the room; null for nothing.
   final GameActivity? game;
+
+  /// What their profile wears, as their greeting said.
+  final Cosmetics cosmetics;
   final bool inVoice;
   final bool guest;
 }

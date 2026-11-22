@@ -66,6 +66,13 @@ flutter:
     - assets/sounds/
     # The Soundboard plugin's own sounds (tool/soundboard_sounds.py; lib/voice/soundboard.dart).
     - assets/soundboard/
+    # Profile cosmetics (GMFB-34; lib/me/cosmetics.dart): Lovart's art, from ~/Desktop/ghost-profile-cosmetics-prompts.md,
+    # one file per piece by its id. A piece without its file is drawn as a stand-in (lib/ui/cosmetics_ui.dart).
+    - assets/cosmetics/decorations/
+    - assets/cosmetics/borders/
+    - assets/cosmetics/banners/
+    - assets/cosmetics/names/
+    - assets/cosmetics/effects/
     # Every emoji with its names, keywords and skin tones, for the app's own picker (lib/emoji_data.dart; emojibase,
     # MIT, assets/emoji/LICENSE-emojibase).
     - assets/emoji/emoji.tsv
