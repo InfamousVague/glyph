@@ -88,7 +88,7 @@ export const sections = [
   {
     title: 'Privacy and settings',
     pages: [
-      { slug: 'privacy', icon: 'eye', title: 'Privacy and safety', summary: 'What is sealed, what the server sees, blocking, and signing out.' },
+      { slug: 'privacy', icon: 'eye', title: 'Privacy and safety', summary: 'What is sealed, what the server sees, blocking, reporting, and signing out.' },
       { slug: 'settings', icon: 'settings', title: 'Settings, at a glance', summary: 'Every section of Settings, and what it holds.' },
       { slug: 'routes', icon: 'globe', title: 'Routes', summary: 'How messages travel between Ghost apps: the relay, texts, and testing them.' },
       { slug: 'coming-soon', icon: 'clock', title: 'Coming soon', summary: 'What is built but not out yet.', soon: true },

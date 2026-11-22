@@ -47,8 +47,11 @@ import '../voice/voice.dart';
 import '../voice/channels.dart';
 import '../voice/friend_calls.dart';
 import '../friends/buddies.dart';
+import '../me/me.dart' show Me;
 import 'encryption.dart';
 import 'message_popover.dart';
+import 'report_sheet.dart';
+import '../safety/abuse_report.dart' show ReportedMessage, withContext;
 import 'sticker_picker.dart';
 import 'video.dart';
 import 'voice.dart';
@@ -798,6 +801,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (effectFor(m.body) != null) Choice('Play effect', Lucide.sparkles, () => _effects.currentState?.play(effectFor(m.body)!, text: sentWith(m.body).text)),
       // The plugins' own lines (remind me about this, and the like).
       if (m.notice == null) ..._plugins.message(context, m),
+      // Report (GMFB-40): someone else's message, in a chat by username or a group of friends.
+      if (_reportable && !m.outgoing && m.notice == null) Choice('Report', Lucide.flag, () => _report(m)),
       if (Sms.can('deleteMessage'))
         // At once, nothing asked (Matt, 2026-11-15: "Don't ask for confirmation when deleting a message and show a poof
         // animation when one is deleted"): the bubble goes in a puff (Poof), then the message is deleted (_gone).
@@ -828,6 +833,37 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       onEffect: (effect) => _reactWith(m, effect),
       choices: choices,
     );
+  }
+
+  /// Whether a message here can be reported (GMFB-40): a chat by username, or a group of friends, both on Ghost. Texts
+  /// and the other networks have their own ways to report.
+  bool get _reportable => _byName || _isGhost;
+
+  /// Who wrote [m], by address: the person of a chat with one, else the address the message carries.
+  String _fromOf(Message m) => m.address.isNotEmpty ? m.address : (_people.length == 1 ? _people.first.address : '');
+
+  /// The report sheet for [m], with what was said round it, oldest first.
+  void _report(Message m) {
+    final shown = _folded.messages.reversed.where((x) => x.kind != 'pending' && x.notice == null).toList();
+    final index = shown.indexWhere((x) => x.key == m.key);
+    String nameOf(Message x) => x.outgoing ? 'You' : (_senders[x.address]?.label ?? (_people.length == 1 ? _people.first.label : (x.address.isEmpty ? 'They' : x.address)));
+    final list = [
+      for (final x in shown) ReportedMessage(from: x.outgoing ? (Me.instance.username == null ? 'me' : '@${Me.instance.username}') : _fromOf(x), name: nameOf(x), at: x.date.millisecondsSinceEpoch, text: x.body, mine: x.outgoing),
+    ];
+    final from = _fromOf(m);
+    final username = from.startsWith('@') ? from.substring(1).toLowerCase() : '';
+    final buddy = username.isEmpty ? null : Buddies.instance.all.where((b) => b.username.toLowerCase() == username).firstOrNull;
+    unawaited(showReportSheet(
+      context,
+      ReportTarget(
+        id: buddy?.id ?? '',
+        username: username,
+        name: nameOf(m),
+        place: 'chat',
+        placeName: _name ?? _ghost?.name ?? (_people.length == 1 ? _people.first.label : ''),
+        messages: index < 0 ? [ReportedMessage(from: from, name: nameOf(m), at: m.date.millisecondsSinceEpoch, text: m.body, reported: true)] : withContext(list, index),
+      ),
+    ));
   }
 
   Future<void> _retry(Message m, {String? body}) async {

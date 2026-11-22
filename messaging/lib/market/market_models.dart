@@ -437,12 +437,14 @@ class ReviewQueue {
   const ReviewQueue({this.open = const [], this.recent = const [], this.counts = const {}});
   final List<ReviewRow> open, recent;
 
-  /// 'submitted', 'in_review', 'changes_requested' and 'reports' (those not yet done).
+  /// 'submitted', 'in_review', 'changes_requested', 'reports' and 'abuse' (reports of people, GMFB-40), those not yet
+  /// done.
   final Map<String, int> counts;
 
   /// Waiting on the reviewer: sent, or being reviewed. Changes asked for wait on the developer.
   int get waiting => (counts['submitted'] ?? 0) + (counts['in_review'] ?? 0);
   int get reports => counts['reports'] ?? 0;
+  int get abuse => counts['abuse'] ?? 0;
 
   factory ReviewQueue.fromJson(Map j) => ReviewQueue(
         open: [for (final r in _maps(j['open'])) ReviewRow.fromJson(r)],
@@ -556,4 +558,21 @@ class ReportView {
 
   /// The reason in the words the report sheet offered.
   String get reasonWords => ReportReason.values.where((r) => r.wire == reason).firstOrNull?.label ?? reason;
+}
+
+/// A report of a person or a message as the relay keeps it (GMFB-40): sealed to the review keys, opened on the
+/// reviewer's device (lib/safety/abuse_report.dart openReport).
+class SealedReportRow {
+  const SealedReportRow({required this.rid, required this.sealed, required this.at, this.done = false, this.doneAt});
+  final String rid;
+  final String sealed;
+  final int at;
+  final bool done;
+  final int? doneAt;
+
+  static SealedReportRow? fromJson(Map j) {
+    final rid = j['rid'], sealed = j['sealed'], at = j['at'];
+    if (rid is! String || sealed is! String || at is! int) return null;
+    return SealedReportRow(rid: rid, sealed: sealed, at: at, done: j['done'] == true, doneAt: j['doneAt'] is int ? j['doneAt'] as int : null);
+  }
 }

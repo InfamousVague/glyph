@@ -121,6 +121,56 @@ void main() {
     expect(b.all, isEmpty);
   });
 
+  // GMFB-40: "Reporting a person also offers to block them".
+  test('a blocked person is no longer a friend, their requests are dropped, and asking them again takes the block away', () async {
+    final world = _World();
+    final maya = _Port(world, 'maya'), sam = _Port(world, 'sam'), theo = _Port(world, 'theo');
+    final a = Buddies(maya), b = Buddies(sam), c = Buddies(theo);
+    await a.start();
+    await b.start();
+    await c.start();
+    await a.add('sam');
+    await _settle();
+    await b.accept(b.requests.single);
+    await _settle();
+    expect(a.friends.single.username, 'sam');
+
+    // Maya blocks Sam, her friend: Sam is told, as a removal tells him; she keeps him as blocked, with no friends.
+    await a.block(sam.keys.id, username: 'sam');
+    await _settle();
+    expect(a.friends, isEmpty);
+    expect(a.blocked.single.username, 'sam');
+    expect(a.isBlocked(sam.keys.id), isTrue);
+    expect(b.all, isEmpty, reason: 'Sam was told they are no longer friends');
+    // Kept with the list, as 'blocked', which the phone gives no sealing key.
+    expect(jsonDecode(maya.list), [allOf(containsPair('s', 'blocked'), containsPair('i', sam.keys.id))]);
+
+    // Sam asks again: nothing reaches Maya.
+    await b.add('maya');
+    await _settle();
+    expect(a.requests, isEmpty);
+    expect(a.blocked.single.state, 'blocked');
+
+    // Someone met in a space, never a friend, blocked by id alone; their request goes nowhere either.
+    await a.block(theo.keys.id, username: 'theo');
+    await c.add('maya');
+    await _settle();
+    expect(a.requests, isEmpty);
+    expect(a.blocked.map((x) => x.username).toSet(), {'sam', 'theo'});
+
+    // Unblocked: forgotten, and Theo's next request is a request.
+    await a.unblock(a.blocked.firstWhere((x) => x.username == 'theo'));
+    expect(a.isBlocked(theo.keys.id), isFalse);
+    await c.askAgain();
+    await _settle();
+    expect(a.requests.single.username, 'theo');
+
+    // Maya asks Sam to be friends again: the block is gone, and he is asked.
+    final asked = await a.add('sam');
+    expect(asked.state, 'asked');
+    expect(a.isBlocked(sam.keys.id), isFalse);
+  });
+
   // Matt, 2026-11-20: "what about game presence sensing like discord has?" (lib/games/game_activity.dart).
   test('a friend is told what you are playing, and that you stopped; someone who is not a friend is told nothing', () async {
     final world = _World();
