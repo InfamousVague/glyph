@@ -307,9 +307,12 @@ class DiscordPerson {
 /// Someone in the call, as they said they are.
 @immutable
 class VoiceMember {
-  const VoiceMember(this.id, {this.name = '', this.muted = false, this.video = false, this.screen = false, this.guest = false, this.username, this.notices = false, this.recording, this.agreed = const {}, this.declined = const {}, this.captions = false});
+  const VoiceMember(this.id, {this.name = '', this.muted = false, this.video = false, this.screen = false, this.guest = false, this.username, this.notices = false, this.recording, this.agreed = const {}, this.declined = const {}, this.captions = false, this.hand = false});
   final String id;
   final String name;
+
+  /// Listening on a stage, they raised their hand to speak ('h' in their 'me', GMFB-29).
+  final bool hand;
 
   /// Their app shows that a call is being recorded and asks before their voice is in it ('rs' in their 'me'). One that
   /// doesn't (an older build, the browser page, the Discord bridge) is never recorded: it can't have agreed.
@@ -335,11 +338,11 @@ class VoiceMember {
 
   /// Joined from a browser by the link, with no username: a guest.
   final bool guest;
-  VoiceMember copyWith({String? name, bool? muted, bool? video, bool? screen, bool? guest, String? username}) =>
-      VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video, screen: screen ?? this.screen, guest: guest ?? this.guest, username: username ?? this.username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions);
+  VoiceMember copyWith({String? name, bool? muted, bool? video, bool? screen, bool? guest, String? username, bool? hand}) =>
+      VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video, screen: screen ?? this.screen, guest: guest ?? this.guest, username: username ?? this.username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions, hand: hand ?? this.hand);
 
   VoiceMember withRecording({required bool notices, String? recording, Set<String> agreed = const {}, Set<String> declined = const {}, bool captions = false}) =>
-      VoiceMember(id, name: name, muted: muted, video: video, screen: screen, guest: guest, username: username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions);
+      VoiceMember(id, name: name, muted: muted, video: video, screen: screen, guest: guest, username: username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions, hand: hand);
 }
 
 /// Being in one channel: joined on the hub, a connection to each member, and what each says of themselves.
@@ -376,6 +379,44 @@ class VoiceSession extends ChangeNotifier {
 
   /// Who is not answered at all (a hangout's banned: lib/voice/hangout.dart).
   bool Function(String id)? refuse;
+
+  /// Whether [id] (or this device, as [me]) listens on a stage (GMFB-29: HangoutRoom.listens): two who both listen
+  /// have nothing to send each other, so they make no connection, and a stage holds many more listeners than a call
+  /// where everyone connects to everyone. Null: everyone connects, as in any call.
+  bool Function(String id)? listens;
+
+  /// This device's hand raised, listening on a stage ([raiseHand]).
+  bool hand = false;
+
+  /// Raises or lowers this device's hand: said to everyone in the call, for whoever manages the stage.
+  void raiseHand(bool on) {
+    if (hand == on) return;
+    hand = on;
+    _sayState();
+    notifyListeners();
+  }
+
+  /// Whether this device and [id] connect: unless both listen on a stage.
+  bool _links(String id) {
+    final l = listens;
+    return l == null || !(l(route.me) && l(id));
+  }
+
+  /// The stage changed (someone brought up to speak, or sent back to listen): connections that are now wanted are made
+  /// (the lower id offers, so two never offer each other at once), and those between two who both listen let go.
+  void relink() {
+    if (!joined) return;
+    for (final id in members.keys.toList()) {
+      if (!_links(id)) {
+        if (_peers.containsKey(id)) {
+          _offered.remove(id);
+          unawaited(_peers.remove(id)?.close());
+        }
+      } else if (!_peers.containsKey(id) && route.me.compareTo(id) < 0) {
+        unawaited(_offer(id));
+      }
+    }
+  }
 
   /// This device may not unmute (muted for everyone, or its role may not speak), or turn on video.
   bool locked = false, videoLocked = false;
@@ -492,7 +533,8 @@ class VoiceSession extends ChangeNotifier {
     }
     _sayState();
     for (final id in members.keys.toList()) {
-      unawaited(_offer(id));
+      // On a stage, two who both listen make no connection (GMFB-29).
+      if (_links(id)) unawaited(_offer(id));
     }
     notifyListeners();
   }
@@ -651,6 +693,7 @@ class VoiceSession extends ChangeNotifier {
         if (agreed.isNotEmpty) 'ry': [...agreed],
         if (declined.isNotEmpty) 'rn': [...declined],
         if (wantsCaptions) 'cw': 1,
+        if (hand) 'h': 1,
       });
 
   void _say(Map<String, Object?> what) {
@@ -701,7 +744,7 @@ class VoiceSession extends ChangeNotifier {
         final had = members[from] ?? VoiceMember(from);
         Set<String> ids(Object? l) => {for (final x in (l is List ? l : const [])) if (x is String) x};
         members[from] = had
-            .copyWith(name: bareName('${m['n'] ?? ''}'), muted: m['m'] == true, video: m['v'] == true, screen: m['s'] == 1, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null)
+            .copyWith(name: bareName('${m['n'] ?? ''}'), muted: m['m'] == true, video: m['v'] == true, screen: m['s'] == 1, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null, hand: m['h'] == 1)
             .withRecording(notices: m['rs'] == 1, recording: m['r'] is String ? m['r'] as String : null, agreed: ids(m['ry']), declined: ids(m['rn']), captions: m['cw'] == 1);
         notifyListeners();
       case 'wt':

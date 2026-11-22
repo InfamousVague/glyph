@@ -171,6 +171,31 @@ class SpaceCall {
     this.extras = const [],
   });
 
+  /// A stage's items in the call's menu (GMFB-29, from the Uplink gap review: "A stage/stream mode: some people speak,
+  /// many listen, with a listener count"): Raise hand for a listener, and, for whoever manages the space, making it a
+  /// stage or ending one, with how many are listening.
+  static List<SpaceExtra> stageExtras(VoiceSession s, HangoutRoom? room) {
+    if (room == null || !s.channel.hasVoice) return const [];
+    final listening = [if (room.listens(room.me)) room.me, for (final id in s.members.keys) if (room.listens(id)) id].length;
+    final hands = s.members.values.where((m) => m.hand).length;
+    return [
+      if (room.stage && s.locked)
+        SpaceExtra(label: s.hand ? 'Lower your hand' : 'Raise your hand', icon: LucideMore.hand, builtIn: true, run: (_) => s.raiseHand(!s.hand)),
+      if (room.canManage)
+        SpaceExtra(
+          label: room.stage ? 'End the stage · $listening listening${hands > 0 ? ' · $hands ✋' : ''}' : 'Make it a stage',
+          icon: Lucide.megaphone,
+          builtIn: true,
+          run: (context) async {
+            final ok = await room.setStage(!room.stage);
+            if (context.mounted) {
+              toast(context, !ok ? 'The stage couldn\'t be changed' : (room.stage ? 'It\'s a stage: newcomers listen until you bring them up to speak' : 'Everyone can speak again'));
+            }
+          },
+        ),
+    ];
+  }
+
   /// Whether this device may invite people into [channel]'s call: never a group's (its members' alone, and it has no
   /// [room]), and in a space with roles only where this device's role may invite.
   static bool mayInvite(VoiceChannel channel, HangoutRoom? room) => channel.group == null && (room == null || room.can(Perm.invite));
@@ -202,7 +227,8 @@ class SpaceCall {
         if (m.id != s.bridgeId)
         SpacePerson(
           id: m.id,
-          name: v.nameOf(m.id),
+          // A hand raised to speak on a stage, before the name, so every design shows it (GMFB-29).
+          name: m.hand ? '✋ ${v.nameOf(m.id)}' : v.nameOf(m.id),
           muted: m.muted || (room != null && !room.heard(m.id)),
           guest: m.guest,
           video: m.video,
@@ -247,6 +273,7 @@ class SpaceCall {
       // Sharing the screen, first in every design's menu (GMFB-27), where this device can.
       extras: [
         if (s.canShareScreen) SpaceExtra(label: screenShareLabel(s), icon: LucideMore.screenShare, builtIn: true, run: (context) => unawaited(toggleScreenShare(context, s))),
+        ...stageExtras(s, room),
         ...CallPlugins.extras(),
       ],
     );

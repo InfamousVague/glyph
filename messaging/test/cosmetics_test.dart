@@ -79,14 +79,30 @@ void main() {
       expect(Buddy(username: 'maya', id: _maya, key: 'k').toJson().containsKey('cx'), isFalse, reason: 'nothing worn, nothing kept');
     });
 
-    test('the catalog has the forty pieces asked of Lovart, each with its file name, and the app\'s own name effects', () {
-      expect(CosmeticCatalog.all.where((c) => !c.coded), hasLength(40));
+    test('the catalog has the forty pieces asked of Lovart and the Ghost pack, each with its file name, and the app\'s own name effects', () {
+      expect(CosmeticCatalog.all.where((c) => !c.coded), hasLength(42));
       expect({for (final k in CosmeticKind.values) k: CosmeticCatalog.of(k).where((c) => !c.coded).length},
-          {CosmeticKind.decoration: 12, CosmeticKind.border: 8, CosmeticKind.banner: 10, CosmeticKind.name: 6, CosmeticKind.effect: 4});
+          {CosmeticKind.decoration: 13, CosmeticKind.border: 8, CosmeticKind.banner: 10, CosmeticKind.name: 6, CosmeticKind.effect: 5});
+      expect(CosmeticCatalog.of(CosmeticKind.decoration).first.id, 'ghost-ring', reason: 'the Ghost pack first');
+      expect(CosmeticCatalog.of(CosmeticKind.effect).first.id, 'haunted');
       expect(CosmeticCatalog.find(CosmeticKind.decoration, 'wisp-halo')!.asset, 'assets/cosmetics/decorations/wisp-halo.png');
       expect(CosmeticCatalog.all.where((c) => c.coded).map((c) => c.id), containsAll(['shimmer', 'rainbow', 'spectral-glow']));
       expect(CosmeticCatalog.all.map((c) => '${c.kind}/${c.id}').toSet(), hasLength(CosmeticCatalog.all.length), reason: 'no id twice in a kind');
     });
+  });
+
+  test('a piece that moves is drawn from its animation, and from its still where motion is off', () {
+    final ring = CosmeticCatalog.find(CosmeticKind.decoration, 'ghost-ring')!;
+    final art = CosmeticArt.instance;
+    art.reset({ring.asset, ring.animated});
+    expect(art.artOf(ring, moving: true), 'assets/cosmetics/decorations/ghost-ring.webp');
+    expect(art.artOf(ring, moving: false), 'assets/cosmetics/decorations/ghost-ring.png');
+    art.reset({ring.animated});
+    expect(art.artOf(ring, moving: false), ring.animated, reason: 'no still: the animation, which Flutter draws still');
+    art.reset(const {});
+    expect(art.artOf(ring, moving: true), isNull, reason: 'neither: its stand-in');
+    expect(art.has(ring), isFalse);
+    art.reset();
   });
 
   group('on screen', () {

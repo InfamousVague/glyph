@@ -953,6 +953,22 @@ class _PersonSheet extends StatelessWidget {
                                 );
                               },
                             ),
+                            // On a stage, whoever manages it brings people up to speak and sends them back to listen
+                            // (GMFB-29).
+                            Builder(builder: (context) {
+                              final room = v.hangoutFor(session.channel);
+                              if (room == null || !room.stage || !room.canManage || !room.roster.outranks(room.me, id)) return const SizedBox.shrink();
+                              final listening = room.listens(id);
+                              return SettingRow(
+                                key: const ValueKey('stage-speaker'),
+                                icon: AppIcon(listening ? Lucide.megaphone : LucideMore.headphones, size: 18),
+                                label: listening ? (m!.hand ? 'Bring up to speak (hand raised)' : 'Bring up to speak') : 'Move to the audience',
+                                onPress: () async {
+                                  final ok = await room.setSpeaker(id, listening);
+                                  if (context.mounted && !ok) toast(context, 'That couldn\'t be changed');
+                                },
+                              );
+                            }),
                             if (m!.username != null && friend?.state != 'yes')
                               SettingRow(
                                 icon: AppIcon(Lucide.userPlus, size: 18),
