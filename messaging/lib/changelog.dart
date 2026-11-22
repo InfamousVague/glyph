@@ -23,6 +23,10 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.5', '2026-11-21', [
+    'Browser extension sign-ins reach your other devices: they\'re picked up whenever you come back to the app, and each network plugin\'s sign-in page offers Use the sign-in from your browser.',
+    'Network plugins on Windows: Messenger, Instagram, Discord, X and Slack now work in the Windows app too.',
+  ]),
   ReleaseNotes('0.12.4', '2026-11-21', [
     'Discord, X and Slack plugins in the Marketplace: your Discord direct messages and group chats, your X direct messages and a Slack workspace, read and answered in Messages. They sign in with your browser\'s session; the browser extension does it for every device. None of them allows other apps, so you agree to a warning first.',
     'X\'s messages are end-to-end encrypted: Ghost asks once for your 4-digit X Chat passcode to open them, and doesn\'t keep it.',
