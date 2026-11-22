@@ -91,11 +91,43 @@ class ConversationsScreen extends StatefulWidget {
   /// app: lib/ui/circles/circle_invite_card.dart): the list shows it, and sets this back to null.
   static final wantTab = ValueNotifier<String?>(null);
 
+  /// The main list on the screen, for the keyboard's commands to ask of (GMFB-41, lib/keys.dart): its conversations
+  /// in the order shown, all of them, opening one, and Mark all as read. Null while there is none; never the
+  /// Archived page.
+  static ConversationList? live;
+
   @override
   State<ConversationsScreen> createState() => _ConversationsScreenState();
 }
 
-class _ConversationsScreenState extends State<ConversationsScreen> {
+/// What the keyboard's commands ask of the main list (ConversationsScreen.live): the texts and Ghost's own
+/// conversations, which have a thread; another network's chats are not among them.
+abstract class ConversationList {
+  /// The tab shown, in the order it is drawn, whatever is typed in its search.
+  List<Conversation> get order;
+
+  /// Every conversation not archived, of every tab.
+  List<Conversation> get every;
+
+  void openConversation(Conversation c);
+
+  /// Every unread conversation in the tab shown marked read.
+  Future<void> markShownRead();
+}
+
+class _ConversationsScreenState extends State<ConversationsScreen> implements ConversationList {
+  @override
+  List<Conversation> get order => _shown;
+
+  @override
+  List<Conversation> get every => [for (final c in _all ?? const <Conversation>[]) if (!c.archived) c];
+
+  @override
+  void openConversation(Conversation c) => unawaited(_open(c));
+
+  @override
+  Future<void> markShownRead() => _markAllRead(_section);
+
   List<Conversation>? _all;
   String _query = '';
   StreamSubscription<int>? _changes;
@@ -166,6 +198,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   @override
   void initState() {
     super.initState();
+    if (!widget.archived) ConversationsScreen.live = this;
     // What was open in the pane has closed, or given way to something else: read again, as on coming back to the
     // list from a page.
     _shell = AppShell.maybeOf(context)?..closed.addListener(_back);
@@ -211,6 +244,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   @override
   void dispose() {
+    if (identical(ConversationsScreen.live, this)) ConversationsScreen.live = null;
     Summaries.instance.removeListener(_summed);
     Voice.instance.removeListener(_summed);
     Snoozed.instance.removeListener(_summed);

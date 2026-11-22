@@ -87,6 +87,14 @@ flutter:
     - family: Arimo
       fonts:
         - asset: assets/fonts/ArimoVariable.ttf
+    # The Readable font, for anyone who finds letters hard to tell apart (Settings › Appearance; GMFB-41): Atkinson
+    # Hyperlegible Next, drawn by the Braille Institute so that no two letters look alike, under the OFL
+    # (assets/fonts/OFL-Atkinson.txt). Latin, variable in weight, with its italic: 170 KB.
+    - family: Atkinson Hyperlegible Next Variable
+      fonts:
+        - asset: assets/fonts/AtkinsonHyperlegibleNextVariable-latin.ttf
+        - asset: assets/fonts/AtkinsonHyperlegibleNextVariable-latin-Italic.ttf
+          style: italic
     # The emoji sets the person chooses between (lib/emoji_sets.dart, assets/emoji/LICENSES.md).
     - family: Ghost Emoji Noto
       fonts:

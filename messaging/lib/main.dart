@@ -203,7 +203,7 @@ GlacierTypography _typography(String emoji) {
   final family = emojiSet(emoji).family;
   return GlacierTypography(
     features: const [FontFeature('cv11'), FontFeature('ss01')],
-    fallbacks: family == null ? const {} : {'Inter Variable': [family], 'JetBrains Mono Variable': [family], 'Arimo': [family]},
+    fallbacks: family == null ? const {} : {'Inter Variable': [family], 'JetBrains Mono Variable': [family], 'Arimo': [family], 'Atkinson Hyperlegible Next Variable': [family]},
   );
 }
 

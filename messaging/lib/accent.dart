@@ -4,6 +4,7 @@ import 'package:glacier/glacier.dart';
 
 import 'app_state.dart';
 import 'backgrounds.dart';
+import 'custom_theme.dart';
 import 'kit/settings_css.dart';
 import 'looks.dart';
 
@@ -57,7 +58,11 @@ class AccentSheets {
   /// The sheet for the bubble colour chosen everywhere in [app].
   TokenSheet of(AppState app) {
     final pages = pagesOf(app.look);
-    final css = accentCss(app.bubble, lightPage: pages.light, darkPage: pages.dark);
+    // A look of the person's own (lib/custom_theme.dart): its rules laid over the stylesheets as a bubble colour's are,
+    // under that colour's, which outranks them.
+    final custom = CustomTheme.used(app)?.css;
+    final accent = accentCss(app.bubble, lightPage: pages.light, darkPage: pages.dark);
+    final css = custom == null && accent == null ? null : '${custom ?? ''}${accent ?? ''}';
     if (css == null) return base;
     if (css != _css) {
       _css = css;
