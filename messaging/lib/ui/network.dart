@@ -4,8 +4,10 @@ import 'package:glacier/glacier.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../kit/settings_kit.dart';
+import '../kit/settings_type.dart';
 import '../net/carrier.dart';
 import '../net/net.dart';
+import '../net/relay_choice.dart';
 import 'common.dart';
 import 'compose.dart';
 import 'settings.dart';
@@ -106,9 +108,27 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
     if (board != null && net.hub != null)
       PaneSection(
         title: 'Relay server',
-        footer: const Text('Ours is used where this is empty. It sees which phones talk and when, never what they say. Anyone can run their own and put its address here; both phones need not use the same one for SMS or the local network, only for this route.'),
+        description: const Text('It sees which installs talk and when, never what they say. You can run your own and use it here instead of ours.'),
+        footer: const Text(relayLimitsWords),
         children: [
-          SettingRowBox(child: _HubField(net: net)),
+          SettingRow(
+            key: const ValueKey('relay-in-use'),
+            icon: icon(Lucide.globe),
+            label: relayInUseWords(net.hubUrl),
+            hint: Text('In use · ${_hubLine(net)}'),
+          ),
+          if (!net.onDefaultHub)
+            SettingRow(
+              key: const ValueKey('relay-use-default'),
+              icon: icon(Lucide.undo2),
+              label: 'Go back to Ghost Messaging\'s relay',
+              hint: const Text('gogho.st, where everyone else is.'),
+              onPress: () async {
+                await net.useRelay('');
+                if (context.mounted) toast(context, 'Using Ghost Messaging\'s relay again');
+              },
+            ),
+          SettingRowBox(child: RelayAddressField(net: net)),
         ],
       ),
     PaneSection(
@@ -176,43 +196,121 @@ extension on String {
   String ifEmpty(String other) => isEmpty ? other : this;
 }
 
-/// The relay server's address, typed.
-class _HubField extends StatefulWidget {
-  const _HubField({required this.net});
-  final Net net;
+/// What a relay of one's own does and doesn't reach, in Settings › Routes (GMFB-25; docs/SELF_HOSTING.md).
+const relayLimitsWords =
+    'Relays don\'t connect to each other. On your own relay you reach only people using the same relay: friends, usernames, your account backup, circles, spaces and invite words are kept on each relay apart, and people on Ghost Messaging\'s relay can\'t reach you through it. Texts (SMS) still reach anyone. The Marketplace always comes from gogho.st. How to run one: gogho.st/docs/routes.';
 
-  @override
-  State<_HubField> createState() => _HubFieldState();
+/// How the relay's route stands, in a few words.
+String _hubLine(Net net) {
+  final hub = net.hub;
+  if (hub == null) return 'not set up';
+  if (net.board?.off.contains('hub') ?? false) return 'switched off above';
+  return switch (hub.state.value) {
+    CarrierState.up => 'connected',
+    CarrierState.connecting => 'connecting…',
+    CarrierState.down => hub.problem ?? 'not reachable now',
+    CarrierState.off => 'connects when something needs it',
+  };
 }
 
-class _HubFieldState extends State<_HubField> {
-  late final _address = TextEditingController(text: widget.net.hubUrl == Net.defaultHub ? '' : widget.net.hubUrl);
+/// Another relay's address, typed, checked and only then used (GMFB-25): a Ghost Messaging relay has to answer at it
+/// ([Net.useRelay]), and the person is told what moving there means before anything changes.
+class RelayAddressField extends StatefulWidget {
+  const RelayAddressField({super.key, required this.net, this.connect});
+  final Net net;
+
+  /// A test's stand-in for opening the WebSocket.
+  final RelayConnect? connect;
+
+  @override
+  State<RelayAddressField> createState() => _RelayAddressFieldState();
+}
+
+class _RelayAddressFieldState extends State<RelayAddressField> {
+  late final _address = TextEditingController(text: _inUse);
+  bool _checking = false;
+  String? _problem;
+
+  /// The address the field shows for the relay in use: empty for ours.
+  String get _inUse => widget.net.onDefaultHub ? '' : widget.net.hubUrl;
+  late String _shown = _inUse;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.net.addListener(_moved);
+  }
+
+  /// The relay changed elsewhere (Go back to Ghost Messaging's relay): the field follows, unless something else was
+  /// typed in it meanwhile.
+  void _moved() {
+    final now = _inUse;
+    if (now == _shown) return;
+    if (_address.text.trim() == _shown) _address.text = now;
+    _shown = now;
+  }
 
   @override
   void dispose() {
+    widget.net.removeListener(_moved);
     _address.dispose();
     super.dispose();
   }
 
-  Future<void> _save() async {
-    final typed = _address.text.trim();
-    if ((typed.isEmpty ? Net.defaultHub : typed) == widget.net.hubUrl) return;
-    if (typed.isNotEmpty && !typed.startsWith('wss://') && !typed.startsWith('ws://')) {
-      toast(context, 'A relay server\'s address starts with wss://', tone: GlacierToastTone.danger);
-      return;
-    }
-    await widget.net.setHub(typed);
-    if (mounted) toast(context, typed.isEmpty ? 'Using ours' : 'Using $typed');
+  Future<bool> _confirm(String url) async {
+    var yes = false;
+    await showChoices(
+      context,
+      title: 'Use ${relayInUseWords(url).replaceFirst('Your own relay: ', '')}?',
+      header: const Text(relayLimitsWords),
+      choices: [Choice('Use this relay', Lucide.check, () => yes = true, hint: 'It answered as a Ghost Messaging relay.')],
+    );
+    return yes;
+  }
+
+  Future<void> _use() async {
+    if (_checking) return;
+    setState(() {
+      _checking = true;
+      _problem = null;
+    });
+    final r = await widget.net.useRelay(_address.text, connect: widget.connect, confirm: _confirm);
+    if (!mounted) return;
+    setState(() {
+      _checking = false;
+      _problem = r.problem;
+    });
+    if (r.problem != null || r.declined) return;
+    _address.text = _shown = _inUse;
+    toast(context, widget.net.onDefaultHub ? 'Using Ghost Messaging\'s relay' : 'Using ${relayInUseWords(widget.net.hubUrl)}');
   }
 
   @override
-  Widget build(BuildContext context) => GlacierInput(
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      GlacierInput(
+        key: const ValueKey('relay-address'),
         controller: _address,
-        placeholder: Net.defaultHub,
-        ariaLabel: 'Relay server address',
+        placeholder: 'relay.example.com',
+        ariaLabel: 'Another relay server\'s address',
         inputMode: TextInputType.url,
         size: GlacierFieldSize.md,
-        onSubmitted: (_) => _save(),
-        onBlur: _save,
-      );
+        onSubmitted: (_) => _use(),
+      ),
+      if (_problem != null)
+        Padding(
+          padding: EdgeInsets.only(top: t.space(2)),
+          child: Text(_problem!, key: const ValueKey('relay-problem'), style: pageText(t, t.fontSize('sm'), color: t.color('app-danger'))),
+        ),
+      SizedBox(height: t.space(2)),
+      SettingRow(
+        key: const ValueKey('relay-check-and-use'),
+        icon: _checking ? const GhostSpinner(size: 18) : const AppIcon(Lucide.check, size: 18),
+        label: _checking ? 'Checking it answers…' : 'Check it and use it',
+        hint: const Text('Nothing changes unless a Ghost Messaging relay answers there.'),
+        onPress: _checking ? null : _use,
+      ),
+    ]);
+  }
 }
