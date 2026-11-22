@@ -23,6 +23,11 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.8', '2026-11-22', [
+    'Messages with friends by username reach every device on your Ghost account: what you send from your phone shows on your Mac and PC too, and what they send reaches all of them, even a device that was closed.',
+    'Emoji shortcodes: type :joy: and it becomes 😂; start typing :jo and matching emoji show over the box, to pick with the arrow keys and Enter, or a tap.',
+    'New plugin, Human check: on the networks you choose, someone new is held out of Messages and notifications until they answer a small question your app sends them, which weeds out bots and spam. You can let anyone in or block them from the Held list.',
+  ]),
   ReleaseNotes('0.12.7', '2026-11-22', [
     'Messages and circles show how many are unread: a count on the Messages icon, and on each circle in place of its dot (red where you are mentioned).',
     'Notifications: a text the filter hides (a kind you have switched off in Messages, such as political texts or sales, or Spam) no longer notifies, even when the app is closed. It still arrives.',
