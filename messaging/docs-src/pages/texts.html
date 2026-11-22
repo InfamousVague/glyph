@@ -4,7 +4,8 @@
 <ul>
   <li><b>Swipe</b> a conversation left to archive it; keep swiping to delete. Swipe right to pin it to the top.</li>
   <li><b>Long-press</b> one for pin, mute, block, delete and more, or to choose several.</li>
-  <li><b>Search</b> at the top finds names, numbers and words.</li>
+  <li><b>Search</b> at the top finds names, numbers and words, snoozed conversations too.</li>
+  <li><b>Snooze</b>: long-press a conversation and choose <b>Snooze…</b>. See <a href="#snooze">Snooze a conversation</a>.</li>
   <li><b>Mark all read</b> (the round button by the title) covers spaces, Telegram and Signal too.</li>
 </ul>
 <m-screen title="Messages" actions="check-check,plus">
@@ -41,6 +42,22 @@
   <li><b>Effects</b>: send it with a screen effect (confetti, hearts and 18 more), seen by anyone using Ghost.</li>
 </ul>
 
+<h2 id="snooze">Snooze a conversation</h2>
+<p>Long-press a conversation in Messages and choose <b>Snooze…</b>, then for how long: an hour, three hours, this evening, tomorrow morning, or next Monday.</p>
+<m-screen>
+  <m-menu title="Snooze Maya Chen">
+    <m-item icon="clock">For an hour</m-item>
+    <m-item icon="clock">For 3 hours</m-item>
+    <m-item icon="clock" tap>Until tomorrow (9 AM)</m-item>
+    <m-item icon="clock">Until next week (Monday, 9 AM)</m-item>
+  </m-menu>
+</m-screen>
+<p>It leaves Messages until then. Its messages still arrive, and search still finds it. When the time comes it's back at the top with a notification, and it stays at the top until you open it. Long-press it and choose <b>Unsnooze</b> to bring it back early. Snoozes are kept on the device you set them on, and the app needs to be running for one to end on time; if it was closed, the conversation comes back when the app next opens.</p>
+
+<h2 id="export">Export a conversation</h2>
+<p>In a conversation's settings, <b>Export conversation</b> saves every message as a Markdown file (<code>.md</code>), which any notes app or text editor opens. It has the conversation's name, a heading for each day, and each message with who sent it, when, and any pictures or files named under it. The pictures and files themselves aren't in it. On a phone you choose where to save it; on a Mac a save panel opens; on Windows and Linux it goes to Downloads.</p>
+<p>A space's chat exports the same way: <b>Export chat</b> in the space's settings, or long-press the space in Messages. Its threads come too.</p>
+
 <h2 id="settings">A conversation's settings</h2>
 <p>Tap the cog, or the conversation's name at the top:</p>
 <m-screen title="Maya Chen" back>
@@ -50,6 +67,7 @@
     <m-row icon="image" hue="purple" label="Chat background" chev/>
     <m-row icon="palette" hue="rose" label="Your bubbles here" chev/>
     <m-row icon="lock" hue="green" label="Encryption" chev/>
+    <m-row icon="download" hue="blue" label="Export conversation" chev/>
   </m-section>
 </m-screen>
 <p>A group text also has <b>Group name</b>, <b>Add people</b> and <b>Leave group</b>. A chat background syncs to the others if they use Ghost too.</p>

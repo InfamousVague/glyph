@@ -237,7 +237,25 @@ class HangoutRoom extends ChangeNotifier {
   // --- chat --------------------------------------------------------------------------------------------------------
 
   /// Writes [text] to the hangout; false where this device may not.
-  bool send(String text, {List<Mention> mentions = const [], SpaceReply? reply}) => sendWith(text: text, mentions: mentions, reply: reply);
+  bool send(String text, {List<Mention> mentions = const [], SpaceReply? reply, String? thread}) => sendWith(text: text, mentions: mentions, reply: reply, thread: thread);
+
+  /// The chat itself: every message but those in a thread (GMFB-36).
+  List<HangoutMessage> get timeline => [for (final m in messages) if (m.thread == null) m];
+
+  /// The messages in [root]'s thread, oldest first.
+  List<HangoutMessage> threadOf(String root) => [for (final m in messages) if (m.thread == root) m];
+
+  /// How many are in each thread, by the message it hangs from, and the newest of each: for the line under it.
+  Map<String, ({int count, HangoutMessage last})> get threads {
+    final out = <String, ({int count, HangoutMessage last})>{};
+    for (final m in messages) {
+      final root = m.thread;
+      if (root == null) continue;
+      final had = out[root];
+      out[root] = (count: (had?.count ?? 0) + 1, last: m);
+    }
+    return out;
+  }
 
   /// Whether this device may write here at all: the roster's Send messages, and not put out. Files and stickers are
   /// part of writing (Matt, 2026-11-18): whoever may write may send them (in a circle its roles say more:
@@ -252,7 +270,8 @@ class HangoutRoom extends ChangeNotifier {
   /// [mentions]: who is meant by an "@Name" in [text], counted in [text] as given (lib/mentions.dart).
   /// [note]: a plugin's, for it to draw as a card over [text] (lib/voice/plugin_note.dart); only with words alone.
   /// [reply]: the message this answers (GMFB-13), shown over it as a quote.
-  bool sendWith({String text = '', List<SpaceFile> files = const [], String? sticker, bool voice = false, String? id, List<Mention> mentions = const [], PluginChatNote? note, SpaceReply? reply}) {
+  /// [thread]: the message whose thread this goes in (GMFB-36); it quotes that message where nothing else is answered.
+  bool sendWith({String text = '', List<SpaceFile> files = const [], String? sticker, bool voice = false, String? id, List<Mention> mentions = const [], PluginChatNote? note, SpaceReply? reply, String? thread}) {
     var words = text.trim();
     if (sticker != null && !HangoutMessage.stickerPattern.hasMatch(sticker)) return false;
     final extra = files.isNotEmpty || sticker != null;
@@ -271,11 +290,18 @@ class HangoutRoom extends ChangeNotifier {
       // Counted in the words as sent: trimmed, and cut short where too long (a mention past the cut goes).
       mentions: Mention.checked(Mention.trimmed(mentions, text), words),
       note: extra ? null : note,
-      reply: reply,
+      reply: reply ?? (thread == null ? null : _quoteOf(thread)),
+      thread: thread,
     ));
     _add([m]);
     _say({'t': 'msg', ...m.toJson()}, keep: true);
     return true;
+  }
+
+  /// The quote of the message [id], where it is held here.
+  SpaceReply? _quoteOf(String id) {
+    final m = messages.where((x) => x.id == id).firstOrNull;
+    return m == null ? null : SpaceReply.of(m);
   }
 
   // --- polls (Matt, 2026-11-19: "add Polls as a default feature"; lib/voice/polls.dart) --------------------------------
@@ -1118,7 +1144,7 @@ class HangoutPerson {
 /// (lib/files/files_store.dart, [ChatUploads]), but never written in its list: only the message knows of them.
 @immutable
 class HangoutMessage {
-  const HangoutMessage({required this.id, required this.from, required this.name, required this.text, required this.at, this.files = const [], this.sticker, this.voice = false, this.mentions = const [], this.poll, this.note, this.edited, this.reply});
+  const HangoutMessage({required this.id, required this.from, required this.name, required this.text, required this.at, this.files = const [], this.sticker, this.voice = false, this.mentions = const [], this.poll, this.note, this.edited, this.reply, this.thread});
   final String id;
 
   /// Who wrote it (their id on the hub, as the hub said), and the name they wrote it under.
@@ -1157,6 +1183,11 @@ class HangoutMessage {
   /// The message it answers, as it was when answered (`rp`; GMFB-13, @jerbo: "Please add a reply feature for messages
   /// sent in group chats so I can specifically call out an individual"): a build from before shows the words alone.
   final SpaceReply? reply;
+
+  /// The message whose thread this is in, by its id (`th`; GMFB-36, from the Uplink gap review: threads were promised
+  /// in Uplink #1434): shown in that thread's panel, not in the chat. It quotes that message too ([reply]), so a build
+  /// from before shows it in the chat as a reply to it.
+  final String? thread;
 
   /// Whether it may be edited at all: words, or files with words; not a poll, a sticker or a plugin's note.
   bool get editable => poll == null && sticker == null && note == null && !voice;
@@ -1206,6 +1237,7 @@ class HangoutMessage {
         note: note,
         edited: edited ?? this.edited,
         reply: reply,
+        thread: thread,
       );
 
   Map<String, Object> toJson() => {
@@ -1223,6 +1255,7 @@ class HangoutMessage {
         if (note != null) 'pn': note!.toJson(),
         'ed': ?edited,
         if (reply != null) 'rp': reply!.toJson(),
+        'th': ?thread,
       };
 
   /// From what [from] said: its id, words and time; null where it is not a message. A message whose files and sticker
@@ -1264,6 +1297,7 @@ class HangoutMessage {
       note: extras ? null : PluginChatNote.fromJson(j['pn']),
       edited: j['ed'] is int ? j['ed'] as int : null,
       reply: SpaceReply.fromJson(j['rp']),
+      thread: j['th'] is String && (j['th'] as String).isNotEmpty && (j['th'] as String).length <= 64 && j['th'] != j['id'] ? j['th'] as String : null,
     );
   }
 

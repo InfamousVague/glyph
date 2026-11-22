@@ -97,6 +97,8 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="ghostmsg" android:host="join" />
+                <!-- Someone's add-me link, from the page's Open in Ghost Messaging (site/add; GMFB-34). -->
+                <data android:scheme="ghostmsg" android:host="add" />
             </intent-filter>
             <!-- A circle's invite link (https://gogho.st/join/#c.…): the circle's invite in the app. Verified as an App
                  Link (Matt, 2026-11-17: invites texted to contacts should open the app straight away once it is set
@@ -110,6 +112,8 @@
                 <data android:scheme="https" android:host="gogho.st" android:pathPrefix="/join" />
                 <!-- A circle's invite word (https://gogho.st/c/bookclub; lib/circles/invite_word.dart). -->
                 <data android:scheme="https" android:host="gogho.st" android:pathPrefix="/c/" />
+                <!-- Someone's add-me link (https://gogho.st/add/maya; lib/friends/add_link.dart, GMFB-34). -->
+                <data android:scheme="https" android:host="gogho.st" android:pathPrefix="/add/" />
             </intent-filter>
             <!-- Shared text from other apps. -->
             <intent-filter>

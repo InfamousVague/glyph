@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'account/account.dart';
 import 'app_state.dart';
+import 'snooze.dart';
+import 'sms.dart' show Sms;
 import 'circles/circles.dart';
 import 'friends/buddies.dart';
 import 'friends/friends.dart';
@@ -28,6 +32,8 @@ void startOwnFriends(AppState app) {
   Account.instance.start(AppMeStore(app));
   // Messages scheduled from Send (lib/scheduled.dart): sent as their times come, and any that came while closed.
   Scheduled.instance.start(app);
+  // Conversations snoozed from Messages (lib/snooze.dart): back at the top as their times come, with a notification.
+  startSnoozed(app);
   _hearBuddies();
 }
 
@@ -54,6 +60,8 @@ void startPeople(AppState app) {
   Account.instance.start(AppMeStore(app));
   // Messages scheduled from Send (lib/scheduled.dart): sent as their times come, and any that came while closed.
   Scheduled.instance.start(app);
+  // Conversations snoozed from Messages (lib/snooze.dart): back at the top as their times come, with a notification.
+  startSnoozed(app);
   // Friends by username (lib/friends/buddies.dart): heard over the hub, so it is dialled while any are kept, and from
   // the moment there is a username of your own, so a first friend request reaches you (Matt, 2026-11-16: "We need a
   // way to add friends on the network by username on the contacts page and see friend requests").
@@ -68,4 +76,10 @@ void startPeople(AppState app) {
     Buddies.instance.addListener(hearBuddies);
     Me.instance.addListener(hearBuddies);
   });
+}
+
+/// Snoozes (lib/snooze.dart), each said when it ends: a notification on the phone that opens the app.
+void startSnoozed(AppState app) {
+  Snoozed.woke = (key, title) => unawaited(Sms.instance.notifyInbox('snooze:$key', network: 'Snoozed', title: title.isEmpty ? 'A conversation' : title, body: 'Back from snooze'));
+  Snoozed.instance.start(app);
 }

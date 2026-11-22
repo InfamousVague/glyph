@@ -85,6 +85,14 @@ ${DOMAIN} {
 	handle @relay {
 		reverse_proxy 127.0.0.1:18787
 	}
+	# Someone's add-me link (gogho.st/add/maya; GMFB-34, site/add/index.html): one page for every username.
+	@add path_regexp add ^/add/@?[A-Za-z0-9._]+/?$
+	handle @add {
+		root * ${SITE}
+		header Cache-Control "no-cache"
+		rewrite * /add/index.html
+		file_server
+	}
 	# A circle's invite word (gogho.st/c/bookclub; relay/lib/invite_words.dart, site/c/index.html): one page for every
 	# word, which asks the relay's /word/<hash> above for the circle's sealed link and opens it.
 	@word path_regexp word ^/c/[A-Za-z0-9-]+/?$

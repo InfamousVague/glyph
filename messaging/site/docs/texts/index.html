@@ -36,7 +36,8 @@
 <ul>
   <li><b>Swipe</b> a conversation left to archive it; keep swiping to delete. Swipe right to pin it to the top.</li>
   <li><b>Long-press</b> one for pin, mute, block, delete and more, or to choose several.</li>
-  <li><b>Search</b> at the top finds names, numbers and words.</li>
+  <li><b>Search</b> at the top finds names, numbers and words, snoozed conversations too.</li>
+  <li><b>Snooze</b>: long-press a conversation and choose <b>Snooze…</b>. See <a href="#snooze">Snooze a conversation</a>.</li>
   <li><b>Mark all read</b> (the round button by the title) covers spaces, Telegram and Signal too.</li>
 </ul>
 <figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-title">Messages</span><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#check-check"/></svg></span><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#plus"/></svg></span></div><div class="m-body">
@@ -73,6 +74,22 @@
   <li><b>Effects</b>: send it with a screen effect (confetti, hearts and 18 more), seen by anyone using Ghost.</li>
 </ul>
 
+<h2 id="snooze">Snooze a conversation</h2>
+<p>Long-press a conversation in Messages and choose <b>Snooze…</b>, then for how long: an hour, three hours, this evening, tomorrow morning, or next Monday.</p>
+<figure class="mock"><div class="m-screen"><div class="m-body">
+  <div class="m-menu"><div class="m-menu-title">Snooze Maya Chen</div>
+    <div class="m-item"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#clock"/></svg><span>For an hour</span></div>
+    <div class="m-item"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#clock"/></svg><span>For 3 hours</span></div>
+    <div class="m-item tap"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#clock"/></svg><span>Until tomorrow (9 AM)</span></div>
+    <div class="m-item"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#clock"/></svg><span>Until next week (Monday, 9 AM)</span></div>
+  </div>
+</div></div></figure>
+<p>It leaves Messages until then. Its messages still arrive, and search still finds it. When the time comes it's back at the top with a notification, and it stays at the top until you open it. Long-press it and choose <b>Unsnooze</b> to bring it back early. Snoozes are kept on the device you set them on, and the app needs to be running for one to end on time; if it was closed, the conversation comes back when the app next opens.</p>
+
+<h2 id="export">Export a conversation</h2>
+<p>In a conversation's settings, <b>Export conversation</b> saves every message as a Markdown file (<code>.md</code>), which any notes app or text editor opens. It has the conversation's name, a heading for each day, and each message with who sent it, when, and any pictures or files named under it. The pictures and files themselves aren't in it. On a phone you choose where to save it; on a Mac a save panel opens; on Windows and Linux it goes to Downloads.</p>
+<p>A space's chat exports the same way: <b>Export chat</b> in the space's settings, or long-press the space in Messages. Its threads come too.</p>
+
 <h2 id="settings">A conversation's settings</h2>
 <p>Tap the cog, or the conversation's name at the top:</p>
 <figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Maya Chen</span></div><div class="m-body">
@@ -82,6 +99,7 @@
     <div class="m-row"><span class="m-ico" data-hue="purple"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#image"/></svg></span><span class="m-txt"><b>Chat background</b></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
     <div class="m-row"><span class="m-ico" data-hue="rose"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#palette"/></svg></span><span class="m-txt"><b>Your bubbles here</b></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
     <div class="m-row"><span class="m-ico" data-hue="green"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#lock"/></svg></span><span class="m-txt"><b>Encryption</b></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="blue"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#download"/></svg></span><span class="m-txt"><b>Export conversation</b></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
   </div></div>
 </div></div></figure>
 <p>A group text also has <b>Group name</b>, <b>Add people</b> and <b>Leave group</b>. A chat background syncs to the others if they use Ghost too.</p>
@@ -92,7 +110,7 @@
     <nav class="prevnext"><a class="prev" href="/docs/plugin-guidelines/"><small>Previous</small>Marketplace guidelines</a><a class="next" href="/docs/google-messages/"><small>Next</small>Beside Google Messages</a></nav>
     <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
   </main>
-  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#list">The conversations list</a><a href="#send">Sending</a><a href="#ticks">Ticks</a><a href="#hold">Press and hold a message</a><a href="#settings">A conversation's settings</a><a href="#look">Looks, stickers and effects</a></nav>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#list">The conversations list</a><a href="#send">Sending</a><a href="#ticks">Ticks</a><a href="#hold">Press and hold a message</a><a href="#snooze">Snooze a conversation</a><a href="#export">Export a conversation</a><a href="#settings">A conversation's settings</a><a href="#look">Looks, stickers and effects</a></nav>
 </div>
 <script src="/docs/docs.js" defer></script>
 </body>
