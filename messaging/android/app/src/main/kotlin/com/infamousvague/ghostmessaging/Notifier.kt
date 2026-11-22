@@ -196,6 +196,8 @@ object Notifier {
                 "undecryptable" -> body = "Encrypted message"
                 "background" -> body = "Changed the chat background"
             }
+            // Formatting markers are drawn in the app, not said here (GMFB-35).
+            if (m["notice"] == null) body = MarkdownPlain.strip(body)
             if (!previews && m["notice"] == null) body = "New message"
             @Suppress("UNCHECKED_CAST") val parts = m["parts"] as List<Map<String, Any?>>? ?: emptyList()
             if (body.isBlank()) body = if (parts.any { (it["type"] as String).startsWith("image/") }) "📷 Picture" else "Attachment"
@@ -323,7 +325,7 @@ object Notifier {
         val previews = context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("notif_preview", "on") != "off"
         val sender = Person.Builder().setName(who).setKey(who).build()
         val style = Notification.MessagingStyle(Person.Builder().setName("You").build())
-            .addMessage(Notification.MessagingStyle.Message(if (previews) body else "New message", System.currentTimeMillis(), sender))
+            .addMessage(Notification.MessagingStyle.Message(if (previews) MarkdownPlain.strip(body) else "New message", System.currentTimeMillis(), sender))
         val n = Notification.Builder(context, channel(context))
             .setSmallIcon(R.drawable.ic_stat_ghost)
             .setStyle(style)
@@ -349,7 +351,7 @@ object Notifier {
         val previews = context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("notif_preview", "on") != "off"
         val who = Person.Builder().setName(title).setKey(key).build()
         val style = Notification.MessagingStyle(Person.Builder().setName("You").build())
-            .addMessage(Notification.MessagingStyle.Message(if (previews) body.ifBlank { "New message" } else "New message", System.currentTimeMillis(), who))
+            .addMessage(Notification.MessagingStyle.Message(if (previews) MarkdownPlain.strip(body).ifBlank { "New message" } else "New message", System.currentTimeMillis(), who))
         if (group) style.setConversationTitle(title).setGroupConversation(true)
         val open = PendingIntent.getActivity(context, key.hashCode(), Intent(context, MainActivity::class.java).apply {
             action = Intent.ACTION_VIEW

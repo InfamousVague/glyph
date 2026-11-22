@@ -2,8 +2,8 @@
 /// links in the desktop app"). Until then a link was underlined and nothing more, on the phone as on a computer.
 ///
 /// A link is `http://…`, `https://…` or `www.…` up to the next space. What usually follows a link in a sentence and
-/// is not part of it is left off its end: a full stop, a comma, a closing bracket with no opening one inside. Only
-/// web addresses are opened: nothing in a text can start another app or run anything.
+/// is not part of it is left off its end: a full stop, a comma, a closing bracket with no opening one inside, a
+/// formatting marker (GMFB-35). Only web addresses are opened: nothing in a text can start another app or run anything.
 class MessageLink {
   const MessageLink(this.start, this.end, this.address);
 
@@ -15,7 +15,8 @@ class MessageLink {
   final String address;
 
   static final _pattern = RegExp(r'(https?://[^\s]+|www\.[^\s]+)', caseSensitive: false);
-  static const _trailing = '.,;:!?\'"';
+  // And the formatting markers a link may be written inside (lib/message_format.dart): "**https://x.com**".
+  static const _trailing = '.,;:!?\'"*_~|`';
 
   static List<MessageLink> find(String text) {
     final found = <MessageLink>[];
