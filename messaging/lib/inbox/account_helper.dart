@@ -34,7 +34,12 @@ class HelperService {
     this.optional = const [],
     required this.copyFrom,
     this.also = '',
+    this.passcode = false,
   });
+
+  /// Its sign-in asks for a passcode beside the cookies: X's, which opens the keys of its encrypted chats (X Chat;
+  /// sidecar/twitter/README.md). Never kept: the helper keeps the keys it opens.
+  final bool passcode;
 
   /// The network's id in the app ("messenger"), and its name as people know it.
   final String id;
@@ -102,6 +107,48 @@ const linkedInService = HelperService(
   // The helper takes every cookie of the site it is given: LinkedIn checks more than the two that sign it in.
   optional: [],
   copyFrom: 'any request to www.linkedin.com/voyager',
+);
+
+/// Discord, X and Slack (Matt, 2026-11-21: "Implement the discord one Twitter and slack"): helpers on mautrix-discord's
+/// discordgo, mautrix-twitter's twittermeow and mautrix-slack's Slack client (sidecar/discord, sidecar/twitter,
+/// sidecar/slack). Discord's and Slack's sign-in is a token, not only cookies: it rides in the cookies as `token`, read
+/// from a pasted request by [tokenIn] (Discord's authorization header, Slack's xoxc- token) or synced by the extension.
+const discordService = HelperService(
+  id: 'discord',
+  name: 'Discord',
+  helper: 'discord',
+  library: 'mautrix-discord (discordgo)',
+  signInUrl: 'https://discord.com/channels/@me',
+  cookieSite: 'discord.com',
+  needed: ['token'],
+  copyFrom: 'any request to discord.com/api (the one with an authorization header)',
+  also: 'Discord\'s terms forbid automating a user account, and Discord can disable an account it finds doing so.',
+);
+const xService = HelperService(
+  id: 'twitter',
+  name: 'X',
+  helper: 'twitter',
+  library: 'mautrix-twitter',
+  signInUrl: 'https://x.com/messages',
+  cookieSite: 'x.com',
+  needed: ['auth_token', 'ct0'],
+  // The helper takes every cookie of the site it is given.
+  optional: [],
+  copyFrom: 'any request to x.com/i/api',
+  passcode: true,
+  also: 'X\'s messages are end-to-end encrypted (X Chat): Ghost asks for your 4-digit X Chat passcode once, to open their keys. X locks X Chat after a few wrong passcodes.',
+);
+const slackService = HelperService(
+  id: 'slack',
+  name: 'Slack',
+  helper: 'slack',
+  library: 'mautrix-slack',
+  signInUrl: 'https://app.slack.com/client',
+  cookieSite: 'slack.com',
+  needed: ['d', 'token'],
+  optional: [],
+  copyFrom: 'any request to your workspace\'s slack.com/api (one with a token in it)',
+  also: 'One workspace is signed in at a time, and its admins may sign the session out.',
 );
 
 /// A network reached by an account helper: Messenger, Instagram or LinkedIn. The helper (sidecar/messenger,
@@ -243,15 +290,28 @@ class AccountHelper extends InboxNetwork {
 
   /// The cookies in what was pasted that this service's helper takes: the needed and the optional ones, or every
   /// cookie where the service names no optional ones (LinkedIn's helper is given the whole site's).
-  Map<String, String> cookiesOf(String pasted) =>
-      cookiesIn(pasted, names: service.optional.isEmpty ? const {} : {...service.needed, ...service.optional});
+  Map<String, String> cookiesOf(String pasted) {
+    final cookies = cookiesIn(pasted, names: service.optional.isEmpty ? const {} : {...service.needed, ...service.optional});
+    // Discord's and Slack's token is not a cookie: it is in the request itself (or in the synced entry, already there).
+    if (service.needed.contains('token') && !cookies.containsKey('token')) {
+      final token = tokenIn(pasted);
+      if (token != null) cookies['token'] = token;
+    }
+    return cookies;
+  }
 
   /// Signs in with what was pasted (a copied request, a Cookie header, or the pairs): only after the person has
   /// agreed to the warning (lib/ui/inbox_signin_helper.dart). False, with [error] saying why, where it did not.
-  Future<bool> signIn(String pasted) async {
+  Future<bool> signIn(String pasted, {String? passcode}) async {
     if (_link == null) return false;
     final cookies = cookiesOf(pasted);
     final missing = cookiesMissing(cookies, service.needed);
+    final code = passcode?.trim() ?? '';
+    if (service.passcode && !RegExp(r'^[0-9]{4}$').hasMatch(code)) {
+      _error = 'Enter your 4-digit ${service.name} Chat passcode, the one ${service.name} asks for on its messages page.';
+      notifyListeners();
+      return false;
+    }
     if (missing.isNotEmpty) {
       _error = cookies.isEmpty
           ? 'No ${service.name} cookies in that. Copy ${service.copyFrom} as cURL, and paste all of it.'
@@ -264,7 +324,7 @@ class AccountHelper extends InboxNetwork {
     _state = InboxState.signingIn;
     notifyListeners();
     try {
-      final s = (await _ask('sign_in', {'cookies': cookies}) as Map?) ?? const {};
+      final s = (await _ask('sign_in', {'cookies': cookies, if (service.passcode) 'passcode': code}) as Map?) ?? const {};
       _busy = false;
       if (_state != InboxState.ready) _signedIn(s);
       return true;

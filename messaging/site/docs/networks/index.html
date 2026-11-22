@@ -34,7 +34,7 @@
 
 <h2 id="official-and-plugins">Official networks and plugins</h2>
 <p><b>Telegram</b> and <b>Signal</b> are Ghost's official networks: they're there from the start, under <span class="ui-path">Settings › Connections</span>, ready to sign in to. (Your texts, through Google Messages, are separate and on by default.)</p>
-<p>The others — WhatsApp, Matrix, Microsoft Teams, Google Chat, Messenger and Instagram — are <b>plugins</b>. They're off until you switch them on, and while off they don't run or show any chats. Open one under <span class="ui-path">Connections › Plugins</span> and turn on <b>Use <i>network</i></b> to connect it; turn it off and it's signed out and left alone. Plugins aren't official Ghost connections: each signs in the way that network's own website or app does, and some don't allow other apps at all, so you agree to a warning first. If you'd already connected one, it stays on when you update.</p>
+<p>The others — WhatsApp, Matrix, Microsoft Teams, Google Chat, Messenger, Instagram, Discord, X and Slack — are <b>plugins</b>. They're off until you switch them on, and while off they don't run or show any chats. Open one under <span class="ui-path">Connections › Plugins</span> and turn on <b>Use <i>network</i></b> to connect it; turn it off and it's signed out and left alone. Plugins aren't official Ghost connections: each signs in the way that network's own website or app does, and some don't allow other apps at all, so you agree to a warning first. If you'd already connected one, it stays on when you update.</p>
 
 <figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Connections</span></div><div class="m-body">
   <div class="m-section"><div class="m-section-title">Connected</div><div class="m-card"><div class="m-row tap"><span class="m-ico" data-hue="cyan"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#send"/></svg></span><span class="m-txt"><b>Telegram</b><small>Signed in as @you</small></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div></div></div>
@@ -97,10 +97,14 @@
 <h2 id="unlink">Unlinking</h2>
 <p>Open the network in <span class="ui-path">Settings › Connections</span> and sign out or unlink. Its chats leave Ghost; nothing is deleted from the network itself.</p>
 
+<h2 id="discord-x-slack">Discord, X and Slack</h2>
+<p>These three sign in with your browser's session, as Messenger and Instagram do: the <a href="/docs/browser-extension/">browser extension</a> does it for every device, or paste a request copied from the site's developer tools. <b>Discord</b> brings your direct messages and group chats (this is apart from linking a server's voice channels, which uses Ghost's bot). <b>X</b> brings your direct messages; they're end-to-end encrypted, so Ghost asks once for your 4-digit X Chat passcode (the one x.com/messages asks for) and doesn't keep it. <b>Slack</b> brings one workspace's channels and direct messages.</p>
+<p>None of them allows other apps. Discord's terms forbid automating a user account and Discord can disable an account that does; X may lock or limit an account; a Slack workspace's admins may sign the session out.</p>
+
     <nav class="prevnext"><a class="prev" href="/docs/friends/"><small>Previous</small>Friends</a><a class="next" href="/docs/encryption/"><small>Next</small>Encrypted texts</a></nav>
     <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
   </main>
-  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#official-and-plugins">Official networks and plugins</a><a href="#telegram">Telegram</a><a href="#signal">Signal</a><a href="#whatsapp">WhatsApp</a><a href="#matrix">Matrix</a><a href="#others">Coming soon</a><a href="#unlink">Unlinking</a></nav>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#official-and-plugins">Official networks and plugins</a><a href="#telegram">Telegram</a><a href="#signal">Signal</a><a href="#whatsapp">WhatsApp</a><a href="#matrix">Matrix</a><a href="#others">Coming soon</a><a href="#unlink">Unlinking</a><a href="#discord-x-slack">Discord, X and Slack</a></nav>
 </div>
 <script src="/docs/docs.js" defer></script>
 </body>

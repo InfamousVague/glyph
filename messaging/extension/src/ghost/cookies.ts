@@ -26,9 +26,23 @@ export async function readCookies(service: Service, storeId?: string): Promise<R
   return out;
 }
 
+/** The tokens seen in the services' own requests (background.ts, webRequest), by service id. */
+export async function heldTokens(): Promise<Record<string, string>> {
+  try {
+    return ((await chrome.storage.local.get('tokens'))['tokens'] as Record<string, string>) ?? {};
+  } catch {
+    return {};
+  }
+}
+
 /** What a capture of `service` holds now; from the cookie store [storeId] (a private window's) where given. */
 export async function capture(service: Service, storeId?: string): Promise<Capture> {
   const cookies = await readCookies(service, storeId);
+  // Discord's and Slack's token, seen in their own requests, rides with the cookies as `token`.
+  if (service.token && !storeId) {
+    const token = (await heldTokens())[service.id];
+    if (token) cookies.token = token;
+  }
   const missing = service.needed.filter((n) => !(n in cookies) || cookies[n] === '');
   return { cookies, ready: missing.length === 0, missing };
 }

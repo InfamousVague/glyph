@@ -17,8 +17,9 @@ export function manifest(target: 'chrome' | 'firefox', opts: { version: string }
     name: 'Ghost Messaging — keys',
     version: opts.version,
     description:
-      'Signs every device on your Ghost account in to your chat networks (Messenger, Instagram, Google Messages and more as Ghost adds them) from your browser, sealed, so you sign in once, not on every device.',
-    permissions: ['cookies', 'storage'],
+      'Signs every device on your Ghost account in to your chat networks (Messenger, Instagram, Discord, X, Slack, Google Messages and more as Ghost adds them) from your browser, sealed, so you sign in once, not on every device.',
+    // webRequest: Discord's and Slack's sign-in token is in their own requests, not a cookie (ghost/services.ts `token`).
+    permissions: ['cookies', 'storage', 'webRequest'],
     host_permissions: cookieHosts(),
     action: { default_title: 'Ghost Messaging keys', default_popup: 'popup.html' },
     icons: { 16: 'icons/16.png', 48: 'icons/48.png', 128: 'icons/128.png' },

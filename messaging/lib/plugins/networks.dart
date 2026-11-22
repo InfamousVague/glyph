@@ -82,4 +82,7 @@ const List<NetworkPlugin> networkPlugins = [
   NetworkPlugin('googlechat', 'Google Chat', hue: 'mint'),
   NetworkPlugin('messenger', 'Messenger', hue: 'blue', caution: _unofficial),
   NetworkPlugin('instagram', 'Instagram', hue: 'magenta', caution: _unofficial),
+  NetworkPlugin('discord', 'Discord', hue: 'indigo', caution: _unofficial),
+  NetworkPlugin('twitter', 'X', hue: 'graphite', caution: _unofficial),
+  NetworkPlugin('slack', 'Slack', hue: 'purple', caution: _unofficial),
 ];

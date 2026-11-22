@@ -114,13 +114,23 @@ $('form-password').addEventListener('submit', (e) => {
   const username = ($('username') as HTMLInputElement).value.trim();
   const password = ($('password') as HTMLInputElement).value;
   const code = ($('code') as HTMLInputElement).value.trim() || undefined;
+  const number = ($('number') as HTMLInputElement).value.trim() || undefined;
   const stay = ($('stay-p') as HTMLInputElement).checked;
   if (!username || !password) return say('Enter your username and password.', 'bad');
   act(async () => {
-    const s = await send({ type: 'signInPassword', username, password, code, stay });
-    if (s.needsCode) $('code-row').hidden = false;
+    const s = await send({ type: 'signInPassword', username, password, code, number, stay });
+    if (s.needsCode) $('code-rows').hidden = false;
     return s;
   });
+});
+
+// The texted code (an account with a verified number): asked for here, to that number.
+$('text-code').addEventListener('click', () => {
+  const username = ($('username') as HTMLInputElement).value.trim();
+  const number = ($('number') as HTMLInputElement).value.trim();
+  if (!username) return say('Enter your username first.', 'bad');
+  if (!number) return say('Enter the phone number on your account, with its country code.', 'bad');
+  act(() => send({ type: 'textCode', username, number }));
 });
 
 $('form-words').addEventListener('submit', (e) => {

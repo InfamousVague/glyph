@@ -96,6 +96,27 @@ void main() {
     });
   });
 
+  group('a token pasted (Discord, Slack)', () {
+    test('Discord: the authorization header of a copied request, bash or cmd, or the token alone', () {
+      const t = 'not_a_real_token_just_a_test_value_of_more_than_fifty_letters';
+      expect(tokenIn("curl 'https://discord.com/api/v9/users/@me' -H 'accept: */*' -H 'authorization: $t' -H 'cookie: locale=en'"), t);
+      expect(tokenIn('curl ^"https://discord.com/api/v9/x^" -H ^"Authorization: $t^"'), t);
+      expect(tokenIn(t), t);
+      expect(tokenIn("curl 'https://discord.com/api/v9/x' -H 'cookie: locale=en'"), isNull);
+    });
+    test('Slack: the xoxc- token wherever the request carries it, with the d cookie beside it', () {
+      final curl = "curl 'https://acme.slack.com/api/conversations.history' -H 'cookie: d=xoxd-abc%2F1; d-s=17' --data-raw \$'------x\\r\\nContent-Disposition: form-data; name=\"token\"\\r\\n\\r\\nxoxc-111-222-333-abcdef\\r\\n'";
+      expect(tokenIn(curl), 'xoxc-111-222-333-abcdef');
+      expect(tokenIn('token=xoxc-9-8-7-ff&channel=C1'), 'xoxc-9-8-7-ff');
+      final slack = AccountHelper(slackService, link: () async => null);
+      expect(slack.cookiesOf(curl), {'d': 'xoxd-abc%2F1', 'd-s': '17', 'token': 'xoxc-111-222-333-abcdef'});
+    });
+    test('a synced entry already holds the token', () {
+      final discord = AccountHelper(discordService, link: () async => null);
+      expect(discord.cookiesOf('{"token": "abc"}'), {'token': 'abc'});
+    });
+  });
+
   group('a network through its helper', () {
     Future<(AccountHelper, FakeHelper)> started({bool linked = false, HelperService service = instagramService}) async {
       final helper = FakeHelper()..linked = linked;
@@ -104,6 +125,20 @@ void main() {
       await settle();
       return (n, helper);
     }
+
+    test('X: no sign-in without its 4-digit X Chat passcode; with it, the passcode goes to the helper beside the cookies', () async {
+      final (n, helper) = await started(service: xService);
+      const curl = "curl 'https://x.com/i/api/1.1/dm/inbox_initial_state.json' -H 'cookie: auth_token=abc; ct0=def; twid=u%3D1'";
+      expect(await n.signIn(curl), isFalse);
+      expect(n.error, contains('passcode'));
+      expect(await n.signIn(curl, passcode: '12a4'), isFalse);
+      expect(helper.ops, isNot(contains('sign_in')), reason: 'nothing asked of X without a passcode');
+      await n.signIn(curl, passcode: '1234');
+      await settle();
+      final asked = helper.asked.lastWhere((r) => r['op'] == 'sign_in');
+      expect(asked['passcode'], '1234');
+      expect((asked['cookies'] as Map)['auth_token'], 'abc');
+    });
 
     test('without its helper it is not in this build', () async {
       final n = AccountHelper(messengerService, link: () async => null, folder: dir.path);

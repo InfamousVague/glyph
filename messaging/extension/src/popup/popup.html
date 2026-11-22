@@ -23,7 +23,12 @@
         <form id="form-password" class="form">
           <label>Username<input id="username" autocomplete="username" autocapitalize="none" spellcheck="false" /></label>
           <label>Password<input id="password" type="password" autocomplete="current-password" /></label>
-          <label id="code-row" hidden>Code texted to you<input id="code" inputmode="numeric" autocomplete="one-time-code" /></label>
+          <div id="code-rows" hidden>
+            <p class="hint">This account has a verified phone number: Ghost texts it a code before it lets you in.</p>
+            <label>That phone number<input id="number" type="tel" autocomplete="tel" placeholder="+1 555 010 0199" /></label>
+            <button type="button" id="text-code">Text me a code</button>
+            <label>Code texted to you<input id="code" inputmode="numeric" autocomplete="one-time-code" /></label>
+          </div>
           <label class="check"><input id="stay-p" type="checkbox" /> Stay signed in on this computer</label>
           <button type="submit" class="go">Sign in</button>
         </form>

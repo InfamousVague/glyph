@@ -1,6 +1,6 @@
 # Ghost Messaging — keys
 
-A browser extension that captures the sign-in cookies ("cURL entries") for every chat network the app signs in to with browser cookies — today **Messenger, Instagram and Google Messages** (LinkedIn was dropped with the app's LinkedIn plugin, 2026-11-21; a new one is a line in `src/ghost/services.ts`) — and syncs them, **sealed**, across every device signed into your Ghost account. Sign in to Instagram once, in your browser, and all your devices sign in too — no copying a cURL command onto each one.
+A browser extension that captures the sign-in cookies ("cURL entries") for every chat network the app signs in to with browser cookies — today **Messenger, Instagram, Discord, X, Slack and Google Messages** (Discord's and Slack's token read from their own requests with webRequest) (LinkedIn was dropped with the app's LinkedIn plugin, 2026-11-21; a new one is a line in `src/ghost/services.ts`) — and syncs them, **sealed**, across every device signed into your Ghost account. Sign in to Instagram once, in your browser, and all your devices sign in too — no copying a cURL command onto each one.
 
 It replaces the manual flow in the app (open the site in a private window, copy a request as cURL, paste it into Ghost) with: sign in normally in your browser, and the extension does the rest.
 

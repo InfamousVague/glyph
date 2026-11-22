@@ -766,6 +766,9 @@ class Inbox {
         GoogleChat(),
         AccountHelper(messengerService),
         AccountHelper(instagramService),
+        AccountHelper(discordService),
+        AccountHelper(xService),
+        AccountHelper(slackService),
       ]);
 
   /// Stand-ins for a test of a screen; null puts the app's own back.

@@ -74,6 +74,8 @@ class CurlSync {
   Future<void> _apply(AppState app, String serviceId, Map<String, String> cookies, int at) async {
     final n = Inbox.instance.named(serviceId);
     if (n is! AccountHelper) return; // only cookie-login helpers can take cURL entries
+    // X also needs its passcode, which only the person can give: its sign-in screen offers the synced cookies.
+    if (n.service.passcode) return;
     final appliedKey = 'curl_applied_$serviceId';
     final already = int.tryParse(app.choice(appliedKey, '0')) ?? 0;
 

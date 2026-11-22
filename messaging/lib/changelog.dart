@@ -23,6 +23,11 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.4', '2026-11-21', [
+    'Discord, X and Slack plugins in the Marketplace: your Discord direct messages and group chats, your X direct messages and a Slack workspace, read and answered in Messages. They sign in with your browser\'s session; the browser extension does it for every device. None of them allows other apps, so you agree to a warning first.',
+    'X\'s messages are end-to-end encrypted: Ghost asks once for your 4-digit X Chat passcode to open them, and doesn\'t keep it.',
+    'Browser extension: an account with a verified phone number can sign in. Enter the number, choose Text me a code, then type the code.',
+  ]),
   ReleaseNotes('0.12.3', '2026-11-21', [
     'Chat bubbles on Android: a conversation can float on the side of your screen, like Google Messages and Messenger. Turn them on or off in Settings › Notifications.',
     'Plugins sync across your devices: turn one on, or add one from the Marketplace, and your other devices on the same Ghost account follow. Network plugins switch on and offer their sign-in; your sign-ins never leave a device. Settings › Plugins has the switch.',
