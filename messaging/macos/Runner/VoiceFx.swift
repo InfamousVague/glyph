@@ -1,5 +1,7 @@
 import FlutterMacOS
+import Accelerate
 import Foundation
+import os
 import VoiceFxC
 import WebRTC
 import flutter_webrtc
@@ -13,6 +15,14 @@ final class VoiceFx: NSObject, ExternalAudioProcessingDelegate {
   private let fx = voicefx_create()
   private var attached = false
   private var channel: FlutterMethodChannel?
+  /// The loudest sample since "level" was last asked, on the 0 to 1 scale, and what guards it (WebRTC's audio thread
+  /// writes it, the main thread reads it).
+  private var peak: Float = 0
+  private let peakLock: os_unfair_lock_t = {
+    let l = os_unfair_lock_t.allocate(capacity: 1)
+    l.initialize(to: os_unfair_lock())
+    return l
+  }()
 
   private override init() {
     super.init()
@@ -33,6 +43,7 @@ final class VoiceFx: NSObject, ExternalAudioProcessingDelegate {
         if bits & (1 << 2) != 0 { modes.append("deepfilter") }
         modes.append("live")
         modes.append("effects")
+        modes.append("level")
         result(modes)
       // A voice effect made here as it is said (lib/voice/live_changer.dart, native/voicefx voicefx_effect).
       case "effect":
@@ -61,6 +72,13 @@ final class VoiceFx: NSObject, ExternalAudioProcessingDelegate {
         result(Int(voicefx_queued_ms(self.fx)))
       case "queued":
         result(Int(voicefx_queued_ms(self.fx)))
+      case "level":
+        // The loudest the microphone has been since last asked, 0 to 1 (GMFB-20: the microphone test, with no meter).
+        os_unfair_lock_lock(self.peakLock)
+        let p = self.peak
+        self.peak = 0
+        os_unfair_lock_unlock(self.peakLock)
+        result(Double(min(1, p)))
       case "configure":
         let args = call.arguments as? [String: Any] ?? [:]
         let mode: Int32 = switch args["mode"] as? String { case "rnnoise": 1; case "deepfilter": 2; default: 0 }
@@ -89,6 +107,11 @@ final class VoiceFx: NSObject, ExternalAudioProcessingDelegate {
     // The first channel is cleaned; any other is given the same, so a stereo microphone stays one voice.
     let first = audioBuffer.rawBuffer(forChannel: 0)
     voicefx_process(fx, first, Int32(frames), Int32(frames * 100))
+    var loudest: Float = 0
+    vDSP_maxmgv(first, 1, &loudest, vDSP_Length(frames))
+    os_unfair_lock_lock(peakLock)
+    peak = max(peak, loudest / 32768)
+    os_unfair_lock_unlock(peakLock)
     // The voice as it is sent, for a recording of the call being made here (CallRecorder.swift).
     CallRecorder.shared.mic(first, frames: frames, rate: frames * 100)
     // And for the call's captions, where they are on (LiveCaptions.swift).

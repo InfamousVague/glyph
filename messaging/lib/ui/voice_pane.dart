@@ -249,7 +249,7 @@ class _AudioTestState extends State<AudioTest> {
       _problem = null;
     });
     final settings = VoiceSettings.of(AppState.of(context));
-    final media = (AudioTest.make ?? (s) => RtcMedia(settings: s))(settings);
+    final media = (AudioTest.make ?? (s) => RtcMedia(settings: s, light: true))(settings);
     try {
       await media.start();
       media.hearMyself = _hear;
