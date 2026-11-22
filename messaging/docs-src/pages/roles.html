@@ -65,6 +65,6 @@
 
 <h2 id="remove">Removing someone</h2>
 <p>The owner or an admin can remove someone: tap them in the members list, then <b>Remove</b>. Their app leaves the circle, and nobody in it hears them again.</p>
-<note kind="warn" title="Removing someone doesn't change the circle's key">
-<p>Removing someone stops their app joining the circle. But a circle's messages are sealed with a key everyone in it has, and that key doesn't change when someone leaves, so an old or altered app that kept the key could still read what's said. For anything they mustn't read, make a new circle and invite the people who should be in it.</p>
+<note kind="tip" title="Removing or kicking someone changes the circle's key">
+<p>When someone is removed or kicked, the circle gets a new key, which goes to everyone else and not to them. What's said afterwards can't be read by them, even with an altered app. They can still see that people are talking, though not what's said. If they still have the link, they can come back in under a new account, and everyone sees them join. Files spaces and voice-space call setup still use the circle's original keys. See <a href="/docs/privacy/#circles">Privacy</a>.</p>
 </note>

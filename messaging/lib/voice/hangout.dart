@@ -15,6 +15,7 @@ import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
 import 'channels.dart' show AppHangoutStore;
 import '../circles/welcome.dart' show ReadOnlyRoom;
+import '../circles/circle_keys.dart';
 import 'roles.dart';
 import 'voice.dart';
 import '../me/me.dart' show Me;
@@ -98,6 +99,24 @@ class HangoutRoom extends ChangeNotifier {
 
   /// What this install signs rosters with; null where it can't (it then changes nothing).
   final NetSigner? signer;
+
+  /// The circle keys a circle's space is sealed with (GMFB-26, lib/circles/circle_keys.dart): the app's own unless a
+  /// test gives its own. A space of no circle, or none here, is sealed with its seed's key alone, as before.
+  CircleKeys? get circleKeys => _circleKeys ?? CircleKeys.app;
+  set circleKeys(CircleKeys? k) => _circleKeys = k;
+  CircleKeys? _circleKeys;
+
+  /// [clear] sealed for this space: under the circle's newest key held, for a circle's space.
+  Uint8List _seal(List<int> clear) {
+    final circle = channel.circle, k = circleKeys;
+    return circle == null || k == null ? NetCrypto.seal(channel.key, clear) : k.seal(circle, channel.key, 'space', clear);
+  }
+
+  /// [bytes] opened for this space: under an epoch of the circle's key, or the seed's key.
+  Uint8List? _open(Uint8List bytes) {
+    final circle = channel.circle, k = circleKeys;
+    return circle == null || k == null ? NetCrypto.open(channel.key, bytes) : k.open(circle, channel.key, 'space', bytes).clear;
+  }
   String name;
   String? username;
 
@@ -375,7 +394,7 @@ class HangoutRoom extends ChangeNotifier {
     final r = route;
     if (opened && r is ReactionRoute && (r as ReactionRoute).takesReactions) {
       try {
-        (r as ReactionRoute).sendReaction(_inRoom ?? hubRoom, NetCrypto.seal(channel.key, utf8.encode(jsonEncode(what))));
+        (r as ReactionRoute).sendReaction(_inRoom ?? hubRoom, _seal(utf8.encode(jsonEncode(what))));
       } catch (_) {}
     } else {
       // A relay from before keeps it as any kept packet (and in a read-only room refuses it from a reader).
@@ -388,7 +407,7 @@ class HangoutRoom extends ChangeNotifier {
 
   /// A packet that came as a reaction: taken only as one.
   void _heardReaction(String from, Uint8List bytes) {
-    final clear = NetCrypto.open(channel.key, bytes);
+    final clear = _open(bytes);
     if (clear == null) return;
     try {
       final m = (jsonDecode(utf8.decode(clear)) as Map).cast<String, dynamic>();
@@ -979,7 +998,7 @@ class HangoutRoom extends ChangeNotifier {
   void _say(Map<String, Object?> what, {bool keep = false}) {
     if (!opened) return;
     try {
-      final sealed = NetCrypto.seal(channel.key, utf8.encode(jsonEncode(what)));
+      final sealed = _seal(utf8.encode(jsonEncode(what)));
       final r = route;
       if (keep && r is HubVoiceRoute) {
         r.sendKept(_inRoom ?? hubRoom, sealed);
@@ -997,7 +1016,7 @@ class HangoutRoom extends ChangeNotifier {
   }
 
   void _heard(String from, Uint8List bytes) {
-    final clear = NetCrypto.open(channel.key, bytes);
+    final clear = _open(bytes);
     if (clear == null) return;
     Map<String, dynamic> m;
     try {
