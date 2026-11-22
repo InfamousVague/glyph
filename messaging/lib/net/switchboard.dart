@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import 'carrier.dart';
 import 'crypto.dart';
+import 'forward_secrecy.dart';
 import 'packet.dart';
 
 /// What became of something sent.
@@ -63,12 +64,35 @@ abstract class PeerBook {
 ///
 /// **Arriving.** A packet is put back together if it came in pieces, opened, told apart from copies that came
 /// another way, answered, and passed on ([received]).
+///
+/// **Forward secrecy** (GMFB-26, lib/net/forward_secrecy.dart). With [fs] given, everything sealed carries this
+/// device's prekey, and what goes to someone whose devices offered theirs is sealed under a one-off key for those
+/// devices; to anyone else (a build from before, or someone not heard from in a week) it goes sealed the old way. A
+/// route that carries only small packets (a data text) takes the old sealing, without the prekey. A packet sealed for
+/// forward secrecy that this device can't open (sealed before its sender heard of it, or under a prekey it deleted)
+/// is answered with this device's prekey (`fsk`), so the sender's next try (Friends sends again until answered)
+/// reaches it.
 class Switchboard {
-  Switchboard({required this.me, required this.peers, List<Carrier> carriers = const [], List<String>? order, DateTime Function()? now})
+  Switchboard({required this.me, required this.peers, List<Carrier> carriers = const [], List<String>? order, DateTime Function()? now, this.fs})
       : order = order ?? ['lan', 'p2p', 'hub', 'sms'],
+        _now = now ?? DateTime.now,
         _joiner = PartJoiner(now: now) {
     carriers.forEach(add);
   }
+
+  /// This device's forward secrecy; null where it has none (a build or a test without it): everything is sealed the
+  /// old way then, as before.
+  final ForwardSecrecy? fs;
+  final DateTime Function() _now;
+
+  /// What a device that couldn't open a forward-secret packet answers with: nothing but its prekey (Envelope.fs).
+  static const fsAsk = 'fsk';
+
+  /// When each peer was last answered so ([fsAsk]), so a burst of packets is answered once.
+  final Map<String, DateTime> _fsAsked = {};
+
+  /// A route whose packets are at most this long carries the old sealing, with no prekey: a data text holds 133 bytes.
+  static const smallRoute = 512;
 
   /// This install's name.
   final String me;
@@ -167,9 +191,12 @@ class Switchboard {
               c.state.value == CarrierState.up &&
               (metered || !c.traits.metered) &&
               c.reaches(peer) &&
-              (size <= c.traits.maxPacket || (c.traits.maxParts > 1 && size - Packet.head <= (c.traits.maxPacket - Packet.partHead) * c.traits.maxParts)))
+              _fits(c, size))
             c,
       ];
+
+  /// Whether a packet of [size] bytes can go by [c], whole or in pieces.
+  static bool _fits(Carrier c, int size) => size <= c.traits.maxPacket || (c.traits.maxParts > 1 && size - Packet.head <= (c.traits.maxPacket - Packet.partHead) * c.traits.maxParts);
 
   /// Sends [envelope] to [peer] by the first route that will take it.
   ///
@@ -179,13 +206,38 @@ class Switchboard {
   Future<Delivery> send(Peer peer, Envelope envelope, {bool metered = false, bool urgent = false, bool sealed = true, Set<String>? only}) async {
     final key = peer.key;
     if (sealed && key == null) return Delivery(envelope.id, tried: const ['no key is held for them, and it was to be sealed']);
-    final clear = envelope.encode();
-    final packet = Packet.wrap(from: me, sealed: sealed, payload: sealed ? NetCrypto.seal(key!, clear) : clear);
+    // The packet for routes that carry big ones: with this device's prekey, and sealed for forward secrecy where the
+    // other end's devices have offered theirs. The one for small routes: sealed the old way, nothing added.
+    Uint8List? big, small;
+    final fs = sealed ? this.fs : null;
+    if (fs != null && fs.loaded) {
+      if (fs.due) {
+        try {
+          await fs.refresh();
+        } catch (_) {}
+      }
+      final bundle = fs.bundle;
+      final clear = (bundle == null ? envelope : envelope.withFs(bundle.toJson())).encode();
+      final targets = fs.targets(peer.id);
+      big = targets.isEmpty
+          ? Packet.wrap(from: me, sealed: true, payload: NetCrypto.seal(key!, clear))
+          : Packet.wrap(from: me, sealed: true, fs: true, payload: ForwardSecrecy.seal(from: me, to: peer.id, pairKey: key!, clear: clear, targets: targets));
+    }
+    Uint8List packetFor(Carrier c) {
+      if (big != null && c.traits.maxPacket > smallRoute) return big;
+      final clear = envelope.encode();
+      return small ??= Packet.wrap(from: me, sealed: sealed, payload: sealed ? NetCrypto.seal(key!, clear) : clear);
+    }
+
     final tried = <String>[];
     Delivery? kept;
-    final candidates = routes(peer, size: packet.length, metered: metered, only: only);
+    final candidates = [
+      for (final c in routes(peer, metered: metered, only: only))
+        if (_fits(c, packetFor(c).length)) c,
+    ];
     if (candidates.isEmpty) tried.add('no route reaches them now');
     for (final c in candidates) {
+      final packet = packetFor(c);
       final pieces = Packet.split(packet, c.traits.maxPacket, maxParts: c.traits.maxParts);
       if (pieces == null) {
         tried.add('${c.id}: too long');
@@ -234,15 +286,36 @@ class Switchboard {
     if (whole == null) return;
     final peer = peers.byId(whole.from);
     final Uint8List? clear;
+    var replay = false;
     if (whole.sealed) {
       if (peer?.key == null) return;
-      clear = NetCrypto.open(peer!.key!, whole.payload);
+      if (whole.fs) {
+        final fs = this.fs;
+        if (fs == null || !fs.loaded) return;
+        final o = fs.open(from: whole.from, to: me, pairKey: peer!.key!, payload: whole.payload);
+        switch (o.result) {
+          case FsResult.opened:
+            break;
+          case FsResult.replay:
+            replay = true;
+          case FsResult.notForThisDevice || FsResult.noPrekey:
+            _askForKeys(peer, a.carrier);
+            return;
+          case FsResult.bad:
+            return;
+        }
+        clear = o.clear;
+      } else {
+        clear = NetCrypto.open(peer!.key!, whole.payload);
+      }
     } else {
       clear = whole.payload;
     }
     if (clear == null) return;
     final envelope = Envelope.decode(clear);
     if (envelope == null) return;
+    // A prekey offered by one of their devices, in what only they could have sealed.
+    if (whole.sealed && envelope.fs != null) fs?.heard(peer!.id, envelope.fs);
     if (peer == null || peer.key == null) {
       // Nothing is taken on trust from a name no key is held for, but a greeting, which the app looks at.
       if (envelope.kind == 'hello' && _fresh('${whole.from}:${envelope.id}')) _strangers.add((from: whole.from, envelope: envelope, via: a.carrier, address: a.address));
@@ -250,6 +323,8 @@ class Switchboard {
     }
     // From someone a key is held for, only what was sealed with it: anything else could be anyone's.
     if (!whole.sealed) return;
+    // Only a prekey, taken above.
+    if (envelope.kind == fsAsk) return;
     if (envelope.kind == 'ack') {
       final id = envelope.body['i'];
       if (id is String) {
@@ -262,8 +337,20 @@ class Switchboard {
     if (envelope.ack) {
       unawaited(send(peer, Envelope(kind: 'ack', body: {'i': envelope.id}, ack: false), only: {a.carrier}).catchError((_) => Delivery(envelope.id)));
     }
+    // Opened before (ForwardSecrecy remembers it across restarts): answered, not passed on again.
+    if (replay) return;
     if (!_fresh('${peer.id}:${envelope.id}')) return;
     _received.add(Received(peer, envelope, a.carrier));
+  }
+
+  /// Answers [peer] with this device's prekey, at most every ten minutes: they sealed something this device can't open.
+  void _askForKeys(Peer peer, String via) {
+    if (fs?.bundle == null) return;
+    final now = _now();
+    final last = _fsAsked[peer.id];
+    if (last != null && now.difference(last) < const Duration(minutes: 10)) return;
+    _fsAsked[peer.id] = now;
+    unawaited(send(peer, Envelope(kind: fsAsk, ack: false), only: {via}).catchError((_) => const Delivery('')));
   }
 
   /// Whether this name has not been seen before; the last two thousand are remembered.

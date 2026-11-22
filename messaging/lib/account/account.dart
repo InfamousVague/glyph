@@ -421,6 +421,10 @@ class Account extends ChangeNotifier {
     await port.secretKeep(_pwKey, '');
     // Out of the account, this install is no longer whoever it was before signing in either (Voice.carryOver).
     await port.secretKeep(Voice.wasKey, '');
+    // And this device's forward-secrecy prekeys and what it knew of others' (GMFB-26): nothing of the account left.
+    try {
+      await Net.instance.board?.fs?.wipe();
+    } catch (_) {}
     notifyListeners();
   }
 

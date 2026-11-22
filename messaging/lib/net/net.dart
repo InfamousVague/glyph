@@ -7,6 +7,7 @@ import '../me/me.dart' show Me;
 import '../sms.dart';
 import 'carrier.dart';
 import 'crypto.dart';
+import 'forward_secrecy.dart';
 import 'hub_carrier.dart';
 import 'packet.dart';
 import 'sms_carrier.dart';
@@ -186,7 +187,15 @@ class Net extends ChangeNotifier implements PeerBook {
         final sms = _sms = SmsCarrier(_PhoneSms());
         routes = [hub, sms];
       }
-      final board = _board = Switchboard(me: me.id, peers: this, carriers: routes);
+      // This device's forward secrecy (GMFB-26): its prekeys in the secret store beside the account's words, never in
+      // the account's backup. Where that store can't be read, none: everything is sealed the old way, as before.
+      ForwardSecrecy? fs;
+      try {
+        final made = ForwardSecrecy(device: device, secrets: _SecretFsStore(), plain: _ChoiceFsStore(app));
+        await made.load();
+        fs = made;
+      } catch (_) {}
+      final board = _board = Switchboard(me: me.id, peers: this, carriers: routes, fs: fs);
       board.off.addAll(app.choice('net_off', '').split(',').where((s) => s.isNotEmpty));
       board.changed.addListener(notifyListeners);
       _subs.add(board.received.listen(_received));
@@ -359,6 +368,24 @@ class Net extends ChangeNotifier implements PeerBook {
     );
     return (delivery: d, took: took);
   }
+}
+
+/// Where this device's prekeys are kept: the Keychain, Android's vault, as the account's words are (Sms.secretKeep).
+class _SecretFsStore implements FsStore {
+  @override
+  Future<String?> read(String name) => Sms.instance.secretRead(name);
+  @override
+  Future<void> write(String name, String value) => Sms.instance.secretKeep(name, value);
+}
+
+/// Where what others offered, and the packets seen, are kept: with the app's choices, drawing nothing again.
+class _ChoiceFsStore implements FsStore {
+  _ChoiceFsStore(this.app);
+  final AppState app;
+  @override
+  Future<String?> read(String name) async => app.choice(name, '');
+  @override
+  Future<void> write(String name, String value) async => app.keep(name, value);
 }
 
 class _PhoneSigner implements NetSigner {
