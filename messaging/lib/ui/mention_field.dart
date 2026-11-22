@@ -5,6 +5,7 @@ import 'package:glacier/glacier.dart';
 import '../kit/settings_type.dart';
 import '../mentions.dart';
 import 'dialup/bevel.dart' show isBevelChrome;
+import 'markdown_field.dart';
 import 'ripple_avatar.dart';
 
 /// Writing mentions in a space's chat (Matt, 2026-11-19: "Add mentions support to spaces and circles with the @user
@@ -28,7 +29,7 @@ TextStyle mentionStyle(Tokens t, {Color? on}) {
 
 /// The composer's words, and who the "@Name"s in them mean: kept where they are as the words around them are edited,
 /// a mention typed into is plain words again, and a backspace into one takes all of it (MentionEdit).
-class MentionController extends TextEditingController {
+class MentionController extends MarkdownController {
   MentionController({super.text});
 
   List<Mention> _mentions = const [];
@@ -111,24 +112,12 @@ class MentionController extends TextEditingController {
     pick(q, p);
   }
 
+  // Drawn by MarkdownController, with the formatting markers dimmed (GMFB-35).
   @override
-  TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
-    final shown = this.style;
-    // While a word is being composed on a phone's keyboard its underline is drawn by the field as it would be.
-    if (shown == null || _mentions.isEmpty || (withComposing && value.isComposingRangeValid)) {
-      return super.buildTextSpan(context: context, style: style, withComposing: withComposing);
-    }
-    final words = text;
-    final spans = <InlineSpan>[];
-    var at = 0;
-    for (final m in Mention.checked(_mentions, words)) {
-      if (m.start > at) spans.add(TextSpan(text: words.substring(at, m.start)));
-      spans.add(TextSpan(text: words.substring(m.start, m.end), style: shown));
-      at = m.end;
-    }
-    if (at < words.length) spans.add(TextSpan(text: words.substring(at)));
-    return TextSpan(style: style, children: spans);
-  }
+  List<Mention> get drawnMentions => _mentions;
+
+  @override
+  TextStyle? get mentionLook => style;
 }
 
 /// The people an "@…" finds, in a list over the composer: their face, their name in their role's colour, and their
