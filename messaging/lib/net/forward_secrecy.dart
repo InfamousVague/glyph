@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'crypto.dart';
@@ -74,6 +75,15 @@ class ForwardSecrecy {
   static const secretsName = 'fs_prekeys';
   static const peersName = 'fs_peers';
   static const seenName = 'fs_seen';
+  static const oldName = 'fs_old';
+
+  /// How long a packet sealed the old way without a prekey (a build from before, or a device whose forward secrecy
+  /// couldn't load) from an id is taken to mean that id has such a device: everything to it is sealed the old way
+  /// too, so that device can read it (GMFB-26 review, finding 2).
+  static const oldDeviceFor = Duration(days: 7);
+
+  /// Whether sealing and opening run on an isolate of their own, off the one that draws the screens (finding 9).
+  static bool offThread = true;
 
   static final _wrapInfo = utf8.encode('ghost fs v1 wrap');
   static final _wrapAad = Uint8List.fromList(utf8.encode('ghost fs v1 key'));
@@ -85,14 +95,30 @@ class ForwardSecrecy {
 
   /// One-off keys of packets opened (a tag of each), by the prekey they came under: dropped with it.
   final LinkedHashMap<String, String> _seen = LinkedHashMap();
+
+  /// When a packet sealed the old way, with no prekey in it, last came from each id (ms).
+  final Map<String, int> _old = {};
   bool _loaded = false;
   Future<void>? _refreshing;
   Timer? _seenTimer;
 
   bool get loaded => _loaded;
 
-  /// Reads what is kept. Throws where the secret store can't be read: the caller then goes on without forward secrecy
-  /// rather than make keys it can't keep.
+  /// [load], answering whether it worked instead of throwing: the app tries again until it does (an iPhone's Keychain
+  /// can't be read before its first unlock).
+  Future<bool> tryLoad() async {
+    if (_loaded) return true;
+    try {
+      await load();
+      return true;
+    } catch (_) {
+      _loaded = false;
+      return false;
+    }
+  }
+
+  /// Reads what is kept. Throws where the secret store can't be read: nothing is sealed for forward secrecy until it
+  /// can be, rather than make keys it can't keep.
   Future<void> load() async {
     final kept = await _secrets.read(secretsName);
     _mine.clear();
@@ -123,6 +149,12 @@ class ForwardSecrecy {
         if (x is List && x.length == 2 && x[0] is String && x[1] is String) _seen[x[0] as String] = x[1] as String;
       }
     } catch (_) {}
+    _old.clear();
+    try {
+      for (final e in (jsonDecode(await _plain.read(oldName) ?? '{}') as Map).entries) {
+        if (e.value is int) _old['${e.key}'] = e.value as int;
+      }
+    } catch (_) {}
     _loaded = true;
     await refresh();
   }
@@ -140,25 +172,30 @@ class ForwardSecrecy {
   Future<void> _refresh() async {
     if (!_loaded) return;
     final now = _now().millisecondsSinceEpoch;
-    var changed = false;
     final gone = _mine.where((p) => now - p.made >= keepFor.inMilliseconds).toList();
-    if (gone.isNotEmpty) {
-      _mine.removeWhere(gone.contains);
-      final ids = {for (final p in gone) p.id};
-      _seen.removeWhere((_, prekey) => ids.contains(prekey));
-      _saveSeenSoon();
-      changed = true;
-    }
-    final newest = _newest;
+    final next = [for (final p in _mine) if (!gone.contains(p)) p];
+    var changed = gone.isNotEmpty;
+    final newest = next.isEmpty ? null : next.reduce((a, b) => b.made > a.made ? b : a);
     if (newest == null || now - newest.made >= rotateEvery.inMilliseconds || newest.made > now + const Duration(days: 1).inMilliseconds) {
       String id;
       do {
         id = NetCrypto.hex(NetCrypto.randomBytes(4));
-      } while (_mine.any((p) => p.id == id));
-      _mine.add(_Prekey(id, NetKeys.generate(), now));
+      } while (next.any((p) => p.id == id));
+      next.add(_Prekey(id, NetKeys.generate(), now));
       changed = true;
     }
-    if (changed) await _secrets.write(secretsName, jsonEncode([for (final p in _mine) p.toJson()]));
+    if (!changed) return;
+    // Kept first: a prekey is never offered, nor an old one forgotten here, until the secret store has the new list. If
+    // the write fails, nothing changes (and an expired prekey is still not used: [open] checks its age).
+    await _secrets.write(secretsName, jsonEncode([for (final p in next) p.toJson()]));
+    _mine
+      ..clear()
+      ..addAll(next);
+    if (gone.isNotEmpty) {
+      final ids = {for (final p in gone) p.id};
+      _seen.removeWhere((_, prekey) => ids.contains(prekey));
+      _saveSeenSoon();
+    }
   }
 
   _Prekey? get _newest => _mine.isEmpty ? null : _mine.reduce((a, b) => b.made > a.made ? b : a);
@@ -200,6 +237,26 @@ class ForwardSecrecy {
 
   /// Whether any device of [peer] has offered a prekey this build may seal to now.
   bool canSealTo(String peer) => targets(peer).isNotEmpty;
+
+  /// Notes that a packet sealed the old way with no prekey in it came from [peer] by a route that carries prekeys: they
+  /// have a device without forward secrecy.
+  void sawOld(String peer) {
+    final now = _now().millisecondsSinceEpoch;
+    final had = _old[peer];
+    _old[peer] = now;
+    // Written at most once an hour per id: it is a matter of days.
+    if (had == null || now - had > const Duration(hours: 1).inMilliseconds) unawaited(_plain.write(oldName, jsonEncode(_old)));
+  }
+
+  /// Whether what goes to [peer] must be sealed the old way, so every device of theirs can read it: one of their
+  /// devices sent without forward secrecy within [oldDeviceFor], or one has gone quiet past [useFor] (its prekey may
+  /// be sealed to no longer) without yet being forgotten at [keepFor]. Never silently leaving a device out (finding 1).
+  bool needsOld(String peer) {
+    final now = _now().millisecondsSinceEpoch;
+    final old = _old[peer];
+    if (old != null && now - old < oldDeviceFor.inMilliseconds) return true;
+    return (_peers[peer] ?? const <String, FsBundle>{}).values.any((b) => b.device != device && now - b.made >= useFor.inMilliseconds && now - b.made < keepFor.inMilliseconds);
+  }
 
   /// The devices of [peer] a packet to them is sealed for: each one's newest prekey that is younger than [useFor].
   List<FsBundle> targets(String peer) {
@@ -243,13 +300,39 @@ class ForwardSecrecy {
     return Uint8List.fromList([...header, ...nonce, ...body]);
   }
 
+  /// [seal], on an isolate of its own where [offThread]: a packet for several devices is several EC multiplications.
+  static Future<Uint8List> sealAway({required String from, required String to, required List<int> pairKey, required List<int> clear, required List<FsBundle> targets}) {
+    if (!offThread) return Future.value(seal(from: from, to: to, pairKey: pairKey, clear: clear, targets: targets));
+    final key = Uint8List.fromList(pairKey), bytes = Uint8List.fromList(clear), list = List<FsBundle>.of(targets);
+    return Isolate.run(() => seal(from: from, to: to, pairKey: key, clear: bytes, targets: list));
+  }
+
+  /// [open], with its EC multiplication on an isolate of its own where [offThread].
+  Future<FsOpened> openAway({required String from, required String to, required List<int> pairKey, required List<int> payload}) async {
+    final found = _find(payload);
+    if (found.result != null) return FsOpened(found.result!);
+    final bytes = Uint8List.fromList(payload);
+    final args = (scalar: found.prekey!.keys.scalar, device: device, from: from, to: to, key: Uint8List.fromList(pairKey), payload: bytes, at: found.at!, head: found.headLength!);
+    final clear = offThread ? await _unwrapAway(args) : _unwrap(args.scalar, args.device, from, to, args.key, bytes, args.at, args.head);
+    return _finish(clear, found.prekey!, bytes);
+  }
+
+  /// [_unwrap] on an isolate of its own: static, so the closure holds nothing but [a].
+  static Future<Uint8List?> _unwrapAway(({Uint8List scalar, String device, String from, String to, Uint8List key, Uint8List payload, int at, int head}) a) =>
+      Isolate.run(() => _unwrap(a.scalar, a.device, a.from, a.to, a.key, a.payload, a.at, a.head));
+
   /// Opens [payload], sealed from [from] to [to] under the pair's key [pairKey], with this device's prekeys.
   FsOpened open({required String from, required String to, required List<int> pairKey, required List<int> payload}) {
-    if (payload.length < 1 + 33 + 28) return const FsOpened(FsResult.bad);
+    final found = _find(payload);
+    if (found.result != null) return FsOpened(found.result!);
+    return _finish(_unwrap(found.prekey!.keys.scalar, device, from, to, pairKey, payload, found.at!, found.headLength!), found.prekey!, payload);
+  }
+
+  ({FsResult? result, _Prekey? prekey, int? at, int? headLength}) _find(List<int> payload) {
+    if (payload.length < 1 + 33 + 28) return (result: FsResult.bad, prekey: null, at: null, headLength: null);
     final n = payload[0];
     final headLength = 1 + 33 + n * _entry;
-    if (n == 0 || payload.length < headLength + 28) return const FsOpened(FsResult.bad);
-    final onceKey = payload.sublist(1, 34);
+    if (n == 0 || payload.length < headLength + 28) return (result: FsResult.bad, prekey: null, at: null, headLength: null);
     final mine = NetCrypto.unhex(device);
     int? at;
     for (var i = 0; i < n; i++) {
@@ -259,26 +342,34 @@ class ForwardSecrecy {
         break;
       }
     }
-    if (at == null) return const FsOpened(FsResult.notForThisDevice);
+    if (at == null) return (result: FsResult.notForThisDevice, prekey: null, at: null, headLength: null);
     final prekeyName = NetCrypto.hex(payload.sublist(at + 16, at + 20));
     final now = _now().millisecondsSinceEpoch;
     final prekey = _mine.where((p) => p.id == prekeyName && now - p.made < keepFor.inMilliseconds).firstOrNull;
-    if (prekey == null) return const FsOpened(FsResult.noPrekey);
-    final shared = NetCrypto.agree(prekey.keys, onceKey);
-    if (shared == null) return const FsOpened(FsResult.bad);
+    if (prekey == null) return (result: FsResult.noPrekey, prekey: null, at: null, headLength: null);
+    return (result: null, prekey: prekey, at: at, headLength: headLength);
+  }
+
+  static Uint8List? _unwrap(Uint8List scalar, String device, String from, String to, List<int> pairKey, List<int> payload, int at, int headLength) {
+    final onceKey = payload.sublist(1, 34);
+    final shared = NetCrypto.agree(NetKeys.fromScalar(scalar), onceKey);
+    if (shared == null) return null;
+    final mine = NetCrypto.unhex(device);
     final fromB = NetCrypto.unhex(from), toB = NetCrypto.unhex(to);
     final k = NetCrypto.hkdf(salt: pairKey, ikm: shared, info: [..._wrapInfo, ...fromB, ...toB, ...mine, ...payload.sublist(at + 16, at + 20), ...onceKey]);
-    Uint8List? clear;
     try {
       final content = FastGcm(k).open(Uint8List.fromList(payload.sublist(at + 20, at + 32)), _wrapAad, Uint8List.fromList(payload.sublist(at + 32, at + _entry)));
-      if (content != null && content.length == 32) {
-        final header = payload.sublist(0, headLength);
-        clear = FastGcm(content).open(Uint8List.fromList(payload.sublist(headLength, headLength + 12)), Uint8List.fromList([..._bodyAad, ...fromB, ...toB, ...header]), Uint8List.fromList(payload.sublist(headLength + 12)));
-      }
+      if (content == null || content.length != 32) return null;
+      final header = payload.sublist(0, headLength);
+      return FastGcm(content).open(Uint8List.fromList(payload.sublist(headLength, headLength + 12)), Uint8List.fromList([..._bodyAad, ...fromB, ...toB, ...header]), Uint8List.fromList(payload.sublist(headLength + 12)));
     } catch (_) {
-      clear = null;
+      return null;
     }
+  }
+
+  FsOpened _finish(Uint8List? clear, _Prekey prekey, List<int> payload) {
     if (clear == null) return const FsOpened(FsResult.bad);
+    final onceKey = payload.sublist(1, 34);
     // Seen before: the same one-off key, so the same packet, come again (a replay, or a second route's copy).
     final tag = NetCrypto.hex(NetCrypto.sha256(onceKey).sublist(0, 8));
     if (_seen.containsKey(tag)) return FsOpened(FsResult.replay, clear: clear);
@@ -315,11 +406,13 @@ class ForwardSecrecy {
     _mine.clear();
     _peers.clear();
     _seen.clear();
+    _old.clear();
     _seenTimer?.cancel();
     _seenTimer = null;
     await _secrets.write(secretsName, '');
     await _plain.write(peersName, '');
     await _plain.write(seenName, '');
+    await _plain.write(oldName, '');
   }
 }
 

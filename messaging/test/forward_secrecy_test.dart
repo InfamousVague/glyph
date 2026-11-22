@@ -24,10 +24,11 @@ class Clock {
 
 /// One device's forward secrecy with its own stores, as the app keeps them.
 class Dev {
-  Dev(this.clock, {String? device}) : device = device ?? _device();
+  Dev(this.clock, {String? device, MemoryFsStore? secrets}) : device = device ?? _device(), secrets = secrets ?? MemoryFsStore();
   final Clock clock;
   final String device;
-  final secrets = MemoryFsStore(), plain = MemoryFsStore();
+  final MemoryFsStore secrets;
+  final plain = MemoryFsStore();
   late ForwardSecrecy fs = ForwardSecrecy(device: device, secrets: secrets, plain: plain, now: clock.now);
 
   /// The app started again: a new ForwardSecrecy reading the same stores.
@@ -36,6 +37,22 @@ class Dev {
     fs = ForwardSecrecy(device: device, secrets: secrets, plain: plain, now: clock.now);
     await fs.load();
     return fs;
+  }
+}
+
+/// A secret store that can be made to fail, as an iPhone's Keychain does before its first unlock.
+class FlakyStore extends MemoryFsStore {
+  bool failReads = false, failWrites = false;
+  @override
+  Future<String?> read(String name) async {
+    if (failReads) throw StateError('locked');
+    return super.read(name);
+  }
+
+  @override
+  Future<void> write(String name, String value) async {
+    if (failWrites) throw StateError('locked');
+    return super.write(name, value);
   }
 }
 
@@ -129,7 +146,7 @@ class Account {
 /// One device of an account on the bus: its switchboard, its forward secrecy (or none: a build from before), and
 /// what reached it.
 class Phone {
-  Phone(this.account, this.bus, this.clock, {bool fs = true, List<Carrier> extra = const []}) : dev = Dev(clock) {
+  Phone(this.account, this.bus, this.clock, {bool fs = true, List<Carrier> extra = const [], MemoryFsStore? secrets}) : dev = Dev(clock, secrets: secrets) {
     hub = BusCarrier(bus, account.id);
     book.all[account.id] = Peer(id: account.id, key: account.mineKey);
     _fs = fs;
@@ -147,7 +164,7 @@ class Phone {
   final got = <Received>[];
 
   Future<Phone> up() async {
-    if (_fs) await dev.fs.load();
+    if (_fs) await dev.fs.tryLoad();
     board = Switchboard(me: account.id, peers: book, carriers: [hub, ..._extra], now: clock.now, fs: _fs ? dev.fs : null);
     board.received.listen(got.add);
     await board.start();
@@ -179,6 +196,9 @@ bool _isFs(Uint8List packet) => Packet.parse(packet)!.fs;
 Future<void> _tick([int ms = 40]) => Future<void>.delayed(Duration(milliseconds: ms));
 
 void main() {
+  // Sealing and opening off the screens' isolate is held to in one test below; the rest run inline, for speed.
+  ForwardSecrecy.offThread = false;
+
   group('the sealing', () {
     late Clock clock;
     late Dev a, b1, b2;
@@ -342,7 +362,9 @@ void main() {
       await _tick();
       expect(b.words, ['hi bob', 'now forward secret']);
       expect(a.words, ['and back']);
-      expect(bus.carried.skip(before).every(_isFs), isTrue, reason: 'the acks too');
+      final kinds = [for (final p in bus.carried.skip(before)) (fs: _isFs(p), ack: !_isFs(p))];
+      expect(kinds.where((k) => k.fs).length, 2, reason: 'the two texts');
+      expect(kinds.where((k) => !k.fs).length, 2, reason: 'the two answers go the old way: nothing in them to keep');
     });
 
     test('an old build on one side: everything goes the old way, both ways, and nothing is lost', () async {
@@ -496,16 +518,14 @@ void main() {
       await _tick();
       await phoneB.hub.stop();
       final windowsB = await phone(bob, [alice]);
+      // Sealed for the phone alone; the new device can't open it, answers with its prekey, and the switchboard sends it
+      // again at once, sealed for it too: answered within the same wait.
       final first = await a.say(bob, 'are you there', id: 'aaaaaaaaaaaaaaaa');
       await _tick();
-      expect(first.acked, isFalse, reason: 'sealed for the phone alone, the new device can\'t open it, so it says nothing has arrived');
-      expect(windowsB.words, isEmpty);
       expect(a.dev.fs.targets(bob.id).map((t) => t.device), contains(windowsB.dev.device), reason: 'its prekey came back');
-      // Friends sends again what has had no answer, with the same id.
-      final again = await a.say(bob, 'are you there', id: 'aaaaaaaaaaaaaaaa');
-      await _tick();
-      expect(again.acked, isTrue);
+      expect(first.acked, isTrue);
       expect(windowsB.words, ['are you there']);
+      expect(a.board.unanswered, 0);
     });
 
     test('copies to the account\'s own devices (GMFB-21) are forward secret too, once the devices have heard of each other', () async {
@@ -532,6 +552,138 @@ void main() {
       await _tick();
       expect(oldMac.got.map((r) => r.envelope.body['t']), ['one', 'two']);
       expect(bus.carried.any(_isFs), isFalse);
+    });
+    test('a call ringing (not sent again by Friends) reaches a device the sender had not heard of, the only one online', () async {
+      final a = await phone(alice, [bob]);
+      final phoneB = await phone(bob, [alice]);
+      await phoneB.say(alice, 'p');
+      await _tick();
+      await phoneB.hub.stop();
+      final macB = await phone(bob, [alice]);
+      final d = await a.board.send(a.peerOf(bob), Envelope(kind: 'voice', body: {'t': 'call', 'i': 'c1'}), urgent: true);
+      await _tick(80);
+      expect(macB.got.where((r) => r.envelope.kind == 'voice').length, 1, reason: 'sent again by the switchboard, sealed for the mac too');
+      expect(d.sent, isTrue);
+      expect(a.board.unanswered, 0);
+    });
+
+    test('a device that can\'t open a packet passes it on, still sealed, to its own account: the sleeping phone opens it later', () async {
+      final a = await phone(alice, [bob]);
+      final phoneB = await phone(bob, [alice]);
+      await phoneB.say(alice, 'p');
+      await _tick();
+      await phoneB.hub.stop();
+      final macB = await phone(bob, [alice]);
+      // Nothing is sent again here: only the passing on can bring it to the phone.
+      a.hub.lose = false;
+      await a.board.send(a.peerOf(bob), Envelope(kind: 'group', body: {'g': 'x', 'do': 'text', 't': 'for the group'}, ack: false));
+      await _tick(80);
+      expect(macB.got.where((r) => r.envelope.kind == 'group'), isEmpty, reason: 'not sealed for the mac, and not answered, so not sent again');
+      expect(bus.held[bob.id], isNotEmpty, reason: 'passed on to Bob\'s own name, held for his phone');
+      await phoneB.hub.start();
+      await _tick(80);
+      expect(phoneB.got.where((r) => r.envelope.kind == 'group').single.envelope.body['t'], 'for the group');
+    });
+
+    test('an old build on the account: once it is heard from, what goes to the account is sealed the old way so it can read it', () async {
+      final a = await phone(alice, [bob]);
+      final phoneB = await phone(bob, [alice]), oldTablet = await phone(bob, [alice], fs: false);
+      await phoneB.say(alice, 'from the phone');
+      await _tick();
+      expect(a.dev.fs.canSealTo(bob.id), isTrue);
+      await oldTablet.say(alice, 'from the tablet');
+      await _tick();
+      expect(a.dev.fs.needsOld(bob.id), isTrue);
+      final before = bus.carried.length;
+      await a.say(bob, 'to everyone of bob\'s');
+      await _tick();
+      expect(_isFs(bus.carried[before]), isFalse);
+      expect(oldTablet.words, contains('to everyone of bob\'s'));
+      expect(phoneB.words, contains('to everyone of bob\'s'));
+      // And the phone's copies to its own devices, once the tablet has sent one of its own.
+      await oldTablet.board.send(oldTablet.mine, Envelope(kind: 'mine', body: {'t': 'tablet copy'}));
+      await _tick();
+      final mark = bus.carried.length;
+      await phoneB.board.send(phoneB.mine, Envelope(kind: 'mine', body: {'t': 'phone copy'}));
+      await _tick();
+      expect(_isFs(bus.carried[mark]), isFalse);
+      expect(oldTablet.got.map((r) => r.envelope.body['t']), contains('phone copy'));
+      // A week without hearing it: forward secret again.
+      clock.pass(ForwardSecrecy.oldDeviceFor + const Duration(hours: 1));
+      await phoneB.say(alice, 'refresh');
+      await _tick();
+      expect(a.dev.fs.needsOld(bob.id), isFalse);
+    });
+
+    test('a device of theirs gone quiet past a week is not left out: the old way, until it is forgotten', () async {
+      final a = await phone(alice, [bob]);
+      final phoneB = await phone(bob, [alice]), macB = await phone(bob, [alice]);
+      await phoneB.say(alice, 'p');
+      await macB.say(alice, 'm');
+      await _tick();
+      await macB.hub.stop();
+      clock.pass(ForwardSecrecy.useFor + const Duration(hours: 1));
+      await phoneB.dev.fs.refresh();
+      await phoneB.say(alice, 'still here');
+      await _tick();
+      expect(a.dev.fs.targets(bob.id).map((t) => t.device), [phoneB.dev.device]);
+      expect(a.dev.fs.needsOld(bob.id), isTrue, reason: 'the mac\'s prekey is stale, not yet forgotten');
+      final before = bus.carried.length;
+      await a.say(bob, 'for the mac too');
+      expect(_isFs(bus.carried[before]), isFalse);
+      clock.pass(ForwardSecrecy.keepFor);
+      await phoneB.dev.fs.refresh();
+      await phoneB.say(alice, 'and still');
+      await _tick();
+      expect(a.dev.fs.needsOld(bob.id), isFalse, reason: 'past keepFor the mac is forgotten');
+    });
+
+    test('forward secrecy that can\'t load yet: nothing it can\'t open is answered or lost, and it loads when it can', () async {
+      final a = await phone(alice, [bob]);
+      final phoneB = await phone(bob, [alice]);
+      await phoneB.say(alice, 'p');
+      await a.say(bob, 'warm');
+      await _tick();
+      final locked = FlakyStore()..failReads = true;
+      final ipad = await Phone(bob, bus, clock, secrets: locked).up();
+      ipad.befriend(alice);
+      expect(ipad.dev.fs.loaded, isFalse);
+      await phoneB.hub.stop();
+      await a.board.send(a.peerOf(bob), Envelope(kind: 'voice', body: {'t': 'call'}, ack: false));
+      await _tick(80);
+      expect(ipad.got, isEmpty);
+      expect(bus.held[bob.id], isNotEmpty, reason: 'passed on for the phone');
+      locked.failReads = false;
+      expect(await ipad.dev.fs.tryLoad(), isTrue);
+      expect(ipad.dev.fs.bundle, isNotNull);
+    });
+
+    test('a new prekey is never offered before the secret store has it', () async {
+      final store = FlakyStore();
+      final d = Dev(clock, secrets: store);
+      await d.fs.load();
+      final first = d.fs.bundle!.prekey;
+      store.failWrites = true;
+      clock.pass(const Duration(days: 2));
+      await expectLater(d.fs.refresh(), throwsA(isA<StateError>()));
+      expect(d.fs.bundle!.prekey, first, reason: 'the one that could not be kept is not offered');
+      store.failWrites = false;
+      await d.fs.refresh();
+      expect(d.fs.bundle!.prekey, isNot(first));
+      expect(store.kept[ForwardSecrecy.secretsName], contains(d.fs.bundle!.prekey));
+    });
+
+    test('sealing and opening on an isolate of their own give the same bytes back', () async {
+      ForwardSecrecy.offThread = true;
+      addTearDown(() => ForwardSecrecy.offThread = false);
+      final b = Dev(clock);
+      await b.fs.load();
+      final key = NetCrypto.randomBytes(32), from = _device(), to = _device();
+      final sealed = await ForwardSecrecy.sealAway(from: from, to: to, pairKey: key, clear: utf8.encode('away'), targets: [b.fs.bundle!]);
+      final o = await b.fs.openAway(from: from, to: to, pairKey: key, payload: sealed);
+      expect(o.result, FsResult.opened);
+      expect(utf8.decode(o.clear!), 'away');
+      expect((await b.fs.openAway(from: from, to: to, pairKey: key, payload: sealed)).result, FsResult.replay);
     });
   });
 }
