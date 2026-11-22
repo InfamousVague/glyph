@@ -17,7 +17,9 @@ import '../voice/channels.dart';
 import '../voice/hangout.dart';
 import 'common.dart';
 import 'composer_box.dart';
+import 'mention_field.dart' show mentionStyle;
 import 'ripple_avatar.dart';
+import 'thread.dart' show LinkedText;
 
 /// Opens [root]'s thread in [room].
 Future<void> openThread(BuildContext context, HangoutRoom room, HangoutMessage root) => push(context, (_) => SpaceThreadScreen(room: room, root: root));
@@ -196,7 +198,11 @@ class _ThreadMessage extends StatelessWidget {
                 Text('${dayHeading(at)} ${clock(at)}${m.edited != null ? ' · edited' : ''}', style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
               ]),
               SizedBox(height: t.space(1) / 2),
-              Text(m.text.isEmpty ? m.what : m.text, style: pageText(t, t.fontSize(big ? 'md' : 'sm'), color: t.color('app-ink'), height: 1.4)),
+              // Formatted as in the space's chat (GMFB-35).
+              if (m.text.isEmpty)
+                Text(m.what, style: pageText(t, t.fontSize(big ? 'md' : 'sm'), color: t.color('app-ink'), height: 1.4))
+              else
+                LinkedText(m.text, ink: t.color('app-ink'), style: pageText(t, t.fontSize(big ? 'md' : 'sm'), color: t.color('app-ink'), height: 1.4), mentions: m.mentions, mentionStyle: mentionStyle(t)),
             ]),
           ),
         ]),

@@ -24,6 +24,7 @@ import '../sms.dart';
 import '../standalone/chats.dart' show UsernameChats;
 import '../voice/hangout.dart';
 import 'common.dart';
+import 'report_sheet.dart' show ReportTarget, showReportSheet;
 import 'emoji_suggestions.dart';
 import 'inbox_ui.dart' show openInboxChat, inboxMark;
 import 'profile.dart';
@@ -152,6 +153,9 @@ List<Choice> _actions(BuildContext context, ProfileSubject who, _Ghost? g) {
       Choice('Add @${ghost.username} as a friend', Lucide.userPlus, () => unawaited(_addFriend(context, ghost.username)), hint: 'You can write to them once they say yes'),
     if (ghost.buddy?.state == 'invited') Choice('Accept friend request', Lucide.userCheck, () => unawaited(Buddies.instance.accept(ghost.buddy!))),
     if (ghost.username.isNotEmpty) Choice('Copy @${ghost.username}', Lucide.copy, () => _copy(context, '@${ghost.username}')),
+    // Report (GMFB-40): the person, from their card, with Block offered on the sheet.
+    if (ghost.id.isNotEmpty || ghost.username.isNotEmpty)
+      Choice('Report ${ghost.username.isNotEmpty ? '@${ghost.username}' : ghost.name}', Lucide.flag, () => unawaited(showReportSheet(context, ReportTarget(id: ghost.id, username: ghost.username, name: ghost.name, place: who.room != null ? 'space' : 'profile', placeName: who.room?.channel.name ?? '')))),
   ];
 }
 

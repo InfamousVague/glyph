@@ -24,6 +24,7 @@ import '../friends/groups.dart';
 import '../edits.dart';
 import '../kit/settings_type.dart';
 import '../links.dart';
+import '../message_format.dart';
 import '../plugins/conversation.dart';
 import '../plugins/plugin.dart' show MessageFacts;
 import '../reactions.dart';
@@ -34,6 +35,7 @@ import 'chat_settings.dart';
 import 'common.dart';
 import 'emoji_picker.dart';
 import 'emoji_suggestions.dart';
+import 'markdown_field.dart';
 import 'mention_field.dart' show mentionStyle;
 import 'profile_card.dart';
 import 'composer_box.dart';
@@ -45,8 +47,11 @@ import '../voice/voice.dart';
 import '../voice/channels.dart';
 import '../voice/friend_calls.dart';
 import '../friends/buddies.dart';
+import '../me/me.dart' show Me;
 import 'encryption.dart';
 import 'message_popover.dart';
+import 'report_sheet.dart';
+import '../safety/abuse_report.dart' show ReportedMessage, withContext;
 import 'sticker_picker.dart';
 import 'video.dart';
 import 'voice.dart';
@@ -79,7 +84,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   late List<Person> _people = widget.people;
   final Map<String, Person> _senders = {};
   StreamSubscription<int>? _changes;
-  late final TextEditingController _text = TextEditingController(text: widget.draft ?? '');
+  // Its formatting markers dimmed as they are typed to a friend or a group of them; a text shows them as written
+  // (GMFB-35, lib/ui/markdown_field.dart).
+  late final MarkdownController _text = MarkdownController(text: widget.draft ?? '')..dims = () => _isGhost || _byName;
 
   /// The emoji a ":jo" being written finds, over the box, and a whole ":joy:" put in as 😂 (lib/ui/emoji_suggestions.dart;
   /// GMFB-22, Matt, Mac 0.12.6: "typing :joy: or something should expand the emoji to the joy emoji and auto suggest
@@ -794,6 +801,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (effectFor(m.body) != null) Choice('Play effect', Lucide.sparkles, () => _effects.currentState?.play(effectFor(m.body)!, text: sentWith(m.body).text)),
       // The plugins' own lines (remind me about this, and the like).
       if (m.notice == null) ..._plugins.message(context, m),
+      // Report (GMFB-40): someone else's message, in a chat by username or a group of friends.
+      if (_reportable && !m.outgoing && m.notice == null) Choice('Report', Lucide.flag, () => _report(m)),
       if (Sms.can('deleteMessage'))
         // At once, nothing asked (Matt, 2026-11-15: "Don't ask for confirmation when deleting a message and show a poof
         // animation when one is deleted"): the bubble goes in a puff (Poof), then the message is deleted (_gone).
@@ -824,6 +833,37 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       onEffect: (effect) => _reactWith(m, effect),
       choices: choices,
     );
+  }
+
+  /// Whether a message here can be reported (GMFB-40): a chat by username, or a group of friends, both on Ghost. Texts
+  /// and the other networks have their own ways to report.
+  bool get _reportable => _byName || _isGhost;
+
+  /// Who wrote [m], by address: the person of a chat with one, else the address the message carries.
+  String _fromOf(Message m) => m.address.isNotEmpty ? m.address : (_people.length == 1 ? _people.first.address : '');
+
+  /// The report sheet for [m], with what was said round it, oldest first.
+  void _report(Message m) {
+    final shown = _folded.messages.reversed.where((x) => x.kind != 'pending' && x.notice == null).toList();
+    final index = shown.indexWhere((x) => x.key == m.key);
+    String nameOf(Message x) => x.outgoing ? 'You' : (_senders[x.address]?.label ?? (_people.length == 1 ? _people.first.label : (x.address.isEmpty ? 'They' : x.address)));
+    final list = [
+      for (final x in shown) ReportedMessage(from: x.outgoing ? (Me.instance.username == null ? 'me' : '@${Me.instance.username}') : _fromOf(x), name: nameOf(x), at: x.date.millisecondsSinceEpoch, text: x.body, mine: x.outgoing),
+    ];
+    final from = _fromOf(m);
+    final username = from.startsWith('@') ? from.substring(1).toLowerCase() : '';
+    final buddy = username.isEmpty ? null : Buddies.instance.all.where((b) => b.username.toLowerCase() == username).firstOrNull;
+    unawaited(showReportSheet(
+      context,
+      ReportTarget(
+        id: buddy?.id ?? '',
+        username: username,
+        name: nameOf(m),
+        place: 'chat',
+        placeName: _name ?? _ghost?.name ?? (_people.length == 1 ? _people.first.label : ''),
+        messages: index < 0 ? [ReportedMessage(from: from, name: nameOf(m), at: m.date.millisecondsSinceEpoch, text: m.body, reported: true)] : withContext(list, index),
+      ),
+    ));
   }
 
   Future<void> _retry(Message m, {String? body}) async {
@@ -1587,15 +1627,32 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
 
   Widget _contextMenu(BuildContext context, EditableTextState state) {
     final t = context.tokens;
-    final items = state.contextMenuButtonItems;
+    // Words chosen to a friend: made bold, italic or code from here too (GMFB-35), the markers put round them.
+    final chosen = _text.selection;
+    final format = chosen.isValid && !chosen.isCollapsed && (_text.dims?.call() ?? true);
+    ContextMenuButtonItem wrap(String label, String marker) => ContextMenuButtonItem(
+          label: label,
+          onPressed: () {
+            _text.wrapSelection(marker);
+            state.hideToolbar();
+          },
+        );
+    final items = [
+      ...state.contextMenuButtonItems,
+      if (format) ...[wrap('Bold', '**'), wrap('Italic', '*'), wrap('Code', '`')],
+    ];
+    final width = MediaQuery.sizeOf(context).width;
+    final left = (state.contextMenuAnchors.primaryAnchor.dx - 120).clamp(8.0, math.max(8.0, width - 248)).toDouble();
     return Stack(children: [
       Positioned(
-        left: (state.contextMenuAnchors.primaryAnchor.dx - 120).clamp(8.0, MediaQuery.sizeOf(context).width - 248),
+        left: left,
         top: (state.contextMenuAnchors.primaryAnchor.dy - 56).clamp(8.0, double.infinity),
         child: Container(
+          constraints: BoxConstraints(maxWidth: math.max(0.0, width - left - 8)),
           padding: EdgeInsets.all(t.space(1)),
           decoration: BoxDecoration(color: t.color('app-ink'), borderRadius: BorderRadius.circular(t.radius('md'))),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
+          // More than fit across (with Bold, Italic and Code on a phone) scroll sideways.
+          child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(mainAxisSize: MainAxisSize.min, children: [
             for (final item in items)
               GlacierPressable(
                 onPressed: item.onPressed,
@@ -1604,7 +1661,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                   child: Text(_label(item.type, item.label), style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-paper'))),
                 ),
               ),
-          ]),
+          ])),
         ),
       ),
     ]);
@@ -2244,6 +2301,10 @@ class _ReactionRow extends StatelessWidget {
 
 /// A message's words with its links underlined, and a press on one opening it in the browser (lib/links.dart).
 /// A long press is still the message's own, wherever it lands.
+///
+/// And drawn with the formatting written into them (GMFB-35, lib/message_format.dart): bold, italic, strike, code and
+/// blocks of it, quotes behind a bar, and spoilers as a block of ink until pressed. The markers are not drawn; links
+/// and mentions work inside formatting as outside it, and nothing in code is a link.
 class LinkedText extends StatefulWidget {
   const LinkedText(this.text, {super.key, required this.ink, required this.style, this.before = const [], this.after = const [], this.mentions = const [], this.mentionStyle, this.onMention});
   final String text;
@@ -2270,6 +2331,11 @@ class _LinkedTextState extends State<LinkedText> {
   final List<TapGestureRecognizer> _taps = [];
   List<Mention> _mentions = const [];
   final List<TapGestureRecognizer> _mentionTaps = [];
+  MessageFormat _format = MessageFormat.parse('');
+  final List<TapGestureRecognizer> _spoilerTaps = [];
+
+  /// The spoilers pressed open.
+  final Set<int> _revealed = {};
 
   @override
   void initState() {
@@ -2284,22 +2350,25 @@ class _LinkedTextState extends State<LinkedText> {
   }
 
   void _read() {
-    for (final t in _taps) {
+    for (final t in [..._taps, ..._mentionTaps, ..._spoilerTaps]) {
       t.dispose();
     }
     _taps.clear();
-    for (final t in _mentionTaps) {
-      t.dispose();
-    }
     _mentionTaps.clear();
+    _spoilerTaps.clear();
+    _revealed.clear();
     _mentions = Mention.checked(widget.mentions, widget.text);
     bool inMention(MessageLink l) => _mentions.any((m) => l.start < m.end && l.end > m.start);
     _links = [for (final l in MessageLink.find(widget.text)) if (!inMention(l)) l];
+    _format = MessageFormat.parse(widget.text, keep: [for (final m in _mentions) (m.start, m.end)], links: [for (final l in _links) (l.start, l.end)]);
     for (final link in _links) {
       _taps.add(TapGestureRecognizer()..onTap = () => _open(link.address));
     }
     for (final m in _mentions) {
       _mentionTaps.add(TapGestureRecognizer()..onTap = () => widget.onMention?.call(m));
+    }
+    for (var i = 0; i < _format.spoilers; i++) {
+      _spoilerTaps.add(TapGestureRecognizer()..onTap = () => setState(() => _revealed.add(i)));
     }
   }
 
@@ -2313,46 +2382,100 @@ class _LinkedTextState extends State<LinkedText> {
 
   @override
   void dispose() {
-    for (final t in [..._taps, ..._mentionTaps]) {
+    for (final t in [..._taps, ..._mentionTaps, ..._spoilerTaps]) {
       t.dispose();
     }
     super.dispose();
   }
 
+  /// How a formatted stretch looks, over the words' own style.
+  TextStyle? _look(FormatRun r) {
+    if (r.flags == 0) return null;
+    final ink = widget.ink;
+    final size = widget.style.fontSize ?? 14;
+    final lines = <TextDecoration>[
+      if (r.has(Fmt.strike)) TextDecoration.lineThrough,
+      if (r.has(Fmt.link)) TextDecoration.underline,
+    ];
+    return TextStyle(
+      fontWeight: r.has(Fmt.bold) ? FontWeight.w700 : null,
+      fontStyle: r.has(Fmt.italic) ? FontStyle.italic : null,
+      decoration: lines.isEmpty ? null : TextDecoration.combine(lines),
+      decorationColor: lines.isEmpty ? null : ink,
+      color: r.has(Fmt.quote) ? ink.withValues(alpha: 0.72) : null,
+      fontFamily: r.has(Fmt.code) ? 'JetBrains Mono Variable' : null,
+      fontSize: r.has(Fmt.code) ? size * 0.9 : null,
+      backgroundColor: r.has(Fmt.code) ? ink.withValues(alpha: 0.1) : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final text = widget.text;
+    final ink = widget.ink;
     final spans = <InlineSpan>[...widget.before];
-    var at = 0;
     // Links and mentions in the order they come in the words (none over another: a link in a mention was left out).
     final marks = <(int, int, bool, int)>[
       for (var i = 0; i < _links.length; i++) (_links[i].start, _links[i].end, false, i),
       for (var i = 0; i < _mentions.length; i++) (_mentions[i].start, _mentions[i].end, true, i),
     ]..sort((a, b) => a.$1.compareTo(b.$1));
-    for (final (start, end, mention, i) in marks) {
-      if (start > at) spans.add(TextSpan(text: text.substring(at, start)));
-      final words = text.substring(start, end);
-      if (mention) {
+    // Cut where a formatted stretch, a link or a mention begins or ends; each piece drawn as all three say.
+    final cuts = <int>{0, text.length, for (final r in _format.runs) ...[r.start, r.end], for (final m in marks) ...[m.$1, m.$2]}.toList()..sort();
+    var ri = 0, mi = 0;
+    for (var c = 0; c + 1 < cuts.length; c++) {
+      final a = cuts[c], b = cuts[c + 1];
+      if (b <= a) continue;
+      while (ri < _format.runs.length && _format.runs[ri].end <= a) {
+        ri++;
+      }
+      while (mi < marks.length && marks[mi].$2 <= a) {
+        mi++;
+      }
+      final r = ri < _format.runs.length ? _format.runs[ri] : FormatRun(a, b, 0);
+      if (r.marker) continue;
+      if (r.bar) {
+        // A quote's "> " as a bar at the line's start.
+        if (a == r.start) spans.add(TextSpan(text: '\u258D ', style: TextStyle(color: ink.withValues(alpha: 0.45), fontWeight: FontWeight.w700, fontStyle: FontStyle.normal)));
+        continue;
+      }
+      final words = text.substring(a, b);
+      final mark = mi < marks.length && marks[mi].$1 <= a && marks[mi].$2 >= b ? marks[mi] : null;
+      final hidden = r.spoiler >= 0 && !_revealed.contains(r.spoiler);
+      var style = _look(r);
+      if (r.spoiler >= 0) {
+        // Ink on ink until pressed; then a faint wash says it was one.
+        style = (style ?? const TextStyle()).merge(hidden ? TextStyle(color: ink, backgroundColor: ink, decorationColor: ink) : TextStyle(backgroundColor: ink.withValues(alpha: 0.1)));
+      }
+      if (hidden) {
+        spans.add(TextSpan(text: words, style: style, recognizer: _spoilerTaps[r.spoiler], mouseCursor: SystemMouseCursors.click, semanticsLabel: 'Spoiler, tap to reveal'));
+        continue;
+      }
+      // Nothing in code is a link.
+      final code = r.has(Fmt.code);
+      if (mark != null && mark.$3) {
+        final m = _mentions[mark.$4];
         final press = widget.onMention != null;
         spans.add(TextSpan(
           text: words,
-          style: widget.mentionStyle ?? const TextStyle(fontWeight: FontWeight.w600),
-          recognizer: press ? _mentionTaps[i] : null,
+          style: (style ?? const TextStyle()).merge(widget.mentionStyle ?? const TextStyle(fontWeight: FontWeight.w600)),
+          recognizer: press ? _mentionTaps[mark.$4] : null,
           mouseCursor: press ? SystemMouseCursors.click : null,
-          semanticsLabel: 'Mention: ${words.substring(1)}',
+          semanticsLabel: a == m.start && b == m.end ? 'Mention: ${words.substring(1)}' : null,
         ));
-      } else {
+      } else if ((mark != null && !code) || r.link >= 0) {
+        // A link as written, or the words of a [words](address) one.
+        final i = r.link >= 0 ? r.link : mark!.$4;
         spans.add(TextSpan(
           text: words,
-          style: TextStyle(decoration: TextDecoration.underline, decorationColor: widget.ink),
+          style: (style ?? const TextStyle()).merge(TextStyle(decoration: TextDecoration.underline, decorationColor: ink)),
           recognizer: _taps[i],
           mouseCursor: SystemMouseCursors.click,
-          semanticsLabel: 'Link: $words',
+          semanticsLabel: r.link >= 0 ? 'Link: $words, ${_links[i].address}' : 'Link: $words',
         ));
+      } else {
+        spans.add(TextSpan(text: words, style: style));
       }
-      at = end;
     }
-    if (at < text.length) spans.add(TextSpan(text: text.substring(at)));
     spans.addAll(widget.after);
     return Text.rich(TextSpan(children: spans), style: widget.style);
   }

@@ -25,6 +25,7 @@ import 'emoji_picker.dart';
 import 'emoji_suggestions.dart';
 import 'plugin_note_card.dart';
 import 'profile_card.dart';
+import 'report_sheet.dart' show reportSpaceMessage;
 import '../app_state.dart';
 import '../backgrounds.dart';
 import '../sms.dart' show Person;
@@ -955,6 +956,8 @@ class _HangoutChatState extends State<HangoutChat> {
       if (widget.room.canEdit(m)) Choice('Edit', Lucide.penLine, () => _startEdit(m)),
       if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
       ...translateChoices(context, spaceFacts(m, mine: m.from == widget.room.me)),
+      // Report (GMFB-40): someone else's message.
+      if (m.from != widget.room.me) Choice('Report', Lucide.flag, () => reportSpaceMessage(context, widget.room, m)),
       if (widget.room.canDelete(m)) Choice('Delete for everyone', Lucide.trash2, () => setState(() => _poofing.add(m.id)), danger: true),
     ]);
   }
@@ -1663,6 +1666,8 @@ class _Message extends StatelessWidget {
         if (room.canEdit(m) && onEdit != null) Choice('Edit', Lucide.penLine, () => onEdit!.call()),
         if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
         ...translateChoices(context, spaceFacts(m, mine: mine)),
+        // Report (GMFB-40): someone else's message.
+        if (!mine) Choice('Report', Lucide.flag, () => reportSpaceMessage(context, room, m)),
         if (room.canDelete(m)) Choice('Delete for everyone', Lucide.trash2, () => onDelete?.call(), danger: true),
       ]);
     }
