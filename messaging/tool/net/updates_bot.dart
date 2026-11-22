@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/circles/circle.dart';
 import 'package:ghost_messaging/circles/circles.dart' show CircleRoom;
 import 'package:ghost_messaging/circles/welcome.dart' show readOnlyRoomOf;
+import 'package:ghost_messaging/mentions.dart';
 import 'package:ghost_messaging/net/carrier.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart';
@@ -22,6 +23,11 @@ import 'package:ghost_messaging/voice/voice.dart';
 ///     flutter test tool/net/updates_bot.dart --dart-define=DO=read    (the last few messages in SPACE, as the relay keeps them)
 ///     flutter test tool/net/updates_bot.dart --dart-define=DO=check   (whether SPACE is read-only and the bot an admin)
 ///     flutter test tool/net/updates_bot.dart --dart-define=DO=post --dart-define=SPACE=Updates --dart-define=TEXT_FILE=/path/words.txt
+///     flutter test tool/net/updates_bot.dart --dart-define=DO=edit --dart-define=MATCH='Round two' --dart-define=TEXT_FILE=/path/words.txt
+///
+/// `edit` changes the bot's own newest message in SPACE whose words begin with MATCH (Matt, 2026-11-21: "Edit or re post
+/// your messages to credit each person with an @mention"). WHO='kevin=<ghost id>,jerbo=<ghost id>' makes each "@kevin"
+/// in the words a mention of that id, in a post or an edit; an edit changes the words but notifies nobody.
 ///
 /// Its key and the circle it is in are kept in ~/.config/mattssoftware/ghost-updates-bot.json, readable by this Mac's
 /// user alone, never in the repository (which is public). `join` comes into the circle from an invite link and says it
@@ -31,6 +37,8 @@ const doing = String.fromEnvironment('DO', defaultValue: 'whoami');
 const link = String.fromEnvironment('LINK');
 const spaceName = String.fromEnvironment('SPACE', defaultValue: 'Updates');
 const textFile = String.fromEnvironment('TEXT_FILE');
+const match = String.fromEnvironment('MATCH');
+const who = String.fromEnvironment('WHO');
 const hub = String.fromEnvironment('HUB', defaultValue: 'wss://gogho.st/hub');
 const botName = 'Ghost Bugfixes';
 
@@ -42,6 +50,18 @@ void _write(Map<String, dynamic> m) {
   _saved.parent.createSync(recursive: true);
   _saved.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(m));
   Process.runSync('chmod', ['600', _saved.path]);
+}
+
+/// Each "@name" in [words] whose name WHO gives an id for, as a mention of that id.
+List<Mention> _mentions(String words) {
+  final ids = {
+    for (final pair in who.split(',').where((x) => x.contains('=')))
+      pair.split('=').first.trim().replaceFirst('@', '').toLowerCase(): pair.split('=').last.trim(),
+  };
+  return [
+    for (final m in RegExp(r'@([A-Za-z0-9_.]+)').allMatches(words))
+      if (ids[m.group(1)!.toLowerCase()] case final id?) Mention(m.start, m.end - m.start, id),
+  ];
 }
 
 NetKeys _keys() {
@@ -112,9 +132,10 @@ void main() {
         stdout.writeln('ghost-updates-bot: joined "${circle.manifest.name}" (${circle.spaces.length} spaces: ${circle.spaces.map((s) => s.name).join(', ')})');
         return;
       }
-      if (doing == 'post' || doing == 'check' || doing == 'read') {
+      if (doing == 'post' || doing == 'check' || doing == 'read' || doing == 'edit') {
         final words = textFile.isEmpty ? '' : File(textFile).readAsStringSync().trim();
-        if (words.isEmpty && doing == 'post') fail('TEXT_FILE says nothing');
+        if (words.isEmpty && (doing == 'post' || doing == 'edit')) fail('TEXT_FILE says nothing');
+        if (doing == 'edit' && match.isEmpty) fail('MATCH names nothing to edit');
         final from = Circle.fromLink(saved['link'] as String? ?? '');
         if (from == null) fail('not in a circle yet: DO=join first');
         final (circle, room) = await _circle(route, from);
@@ -144,7 +165,22 @@ void main() {
         await chat.setReadOnly(ro);
         await chat.open();
         await Future<void>.delayed(const Duration(seconds: 1));
-        final ok = chat.send(words);
+        if (doing == 'edit') {
+          // Its history comes from whoever is in the room, and from what the hub kept: give it a while.
+          HangoutMessage? mine;
+          for (var i = 0; i < 40 && mine == null; i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 500));
+            mine = chat.messages.reversed.where((m) => m.from == chat.me && m.text.startsWith(match)).firstOrNull;
+          }
+          if (mine == null) fail('no message of this bot\'s in "${space.name}" begins "$match" (${chat.messages.length} held)');
+          final edited = chat.edit(mine, words, mentions: _mentions(words));
+          await Future<void>.delayed(const Duration(seconds: 2));
+          await chat.close();
+          expect(edited, isTrue, reason: 'the room would not take the edit (nothing changed, or this identity may not)');
+          stdout.writeln('ghost-updates-bot: edited "${mine.text.split('\n').first}" (${_mentions(words).length} mentions)');
+          return;
+        }
+        final ok = chat.send(words, mentions: _mentions(words));
         await Future<void>.delayed(const Duration(seconds: 2));
         await chat.close();
         expect(ok, isTrue, reason: 'the room would not take it here (may this identity write in "${space.name}"?)');

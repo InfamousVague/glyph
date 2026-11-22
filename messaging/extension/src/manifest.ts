@@ -17,7 +17,7 @@ export function manifest(target: 'chrome' | 'firefox', opts: { version: string }
     name: 'Ghost Messaging — keys',
     version: opts.version,
     description:
-      'Captures your Messenger and Instagram sign-in cookies (and, when you set it up, your Google Messages sign-in) and syncs them, sealed, across every device signed into your Ghost account — so you sign in once, not on every device.',
+      'Signs every device on your Ghost account in to your chat networks (Messenger, Instagram, Google Messages and more as Ghost adds them) from your browser, sealed, so you sign in once, not on every device.',
     permissions: ['cookies', 'storage'],
     host_permissions: cookieHosts(),
     action: { default_title: 'Ghost Messaging keys', default_popup: 'popup.html' },
