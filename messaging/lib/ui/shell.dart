@@ -36,6 +36,7 @@ import 'hangout_screen.dart';
 import 'space_designs/space_design.dart';
 import 'space_groups_ui.dart';
 import '../voice/channels.dart';
+import '../voice/friend_calls.dart';
 import '../voice/voice.dart' show VoiceChannel;
 import 'compose.dart';
 import 'dialup/dialup.dart';
@@ -306,6 +307,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     // The keyboard's commands and push to talk, heard on every page (lib/keys.dart).
     HardwareKeyboard.instance.addHandler(_key);
     Voice.instance.addListener(_voiceChanged);
+    FriendCalls.instance.ended.addListener(_callEnded);
+    _ringActions = Sms.instance.ringAction.stream.listen(_ringAction);
     Circles.instance.removedFrom.addListener(_removed);
     _joins = Circles.instance.joined.listen(_someoneJoined);
     Circles.instance.addListener(_landIfReady);
@@ -445,8 +448,34 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     toast(context, 'You joined ${c.name}');
   }
 
+  StreamSubscription<String>? _ringActions;
+
+  /// Answer or Decline on a friend's call's notification (android IncomingCall.kt, GMFB-28).
+  Future<void> _ringAction(String what) async {
+    final v = Voice.instance;
+    final r = v.ringing;
+    if (r == null || r.call == null) return;
+    if (what == 'decline') return v.dismissRing();
+    try {
+      await v.join(r.channel, video: r.video);
+      if (mounted) go('voice');
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t answer: $e', tone: GlacierToastTone.danger);
+    }
+  }
+
+  /// A call to a friend that ended unanswered (GMFB-28): said, as a phone says it.
+  void _callEnded() {
+    final why = FriendCalls.instance.ended.value;
+    if (why == null || !mounted) return;
+    FriendCalls.instance.ended.value = null;
+    toast(context, why);
+  }
+
   @override
   void dispose() {
+    FriendCalls.instance.ended.removeListener(_callEnded);
+    _ringActions?.cancel();
     HardwareKeyboard.instance.removeHandler(_key);
     if (identical(live, this)) live = null;
     Voice.instance.removeListener(_voiceChanged);
