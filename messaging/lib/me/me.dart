@@ -604,6 +604,24 @@ class Me extends ChangeNotifier {
   /// Plugin sync (lib/plugins/plugin_sync.dart) does nothing without it.
   Future<bool> curlReady() async => await _curlKey() != null;
 
+  /// The key this account's devices seal the copies of their conversations to each other with (GMFB-21; Friends
+  /// copyKind): from the account's words, as the blob's is, so every device signed in to the account has it and
+  /// nobody else does. Null where no account is signed in to here.
+  Future<Uint8List?> mineKey() async {
+    try {
+      final typed = await Sms.instance.secretRead('account_words');
+      if (typed == null || typed.trim().isEmpty) return null;
+      final words = AccountCrypto.tidyWords(typed);
+      if (!AccountCrypto.validWords(words)) return null;
+      return mineKeyOf(words);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// [mineKey] for the account words [words], for a test.
+  static Uint8List mineKeyOf(List<String> words) => AccountCrypto.hkdf(AccountCrypto.seedOf(words), 'ghost-account v1', 'ghost mine v1');
+
   /// Forgets the cached cURL key (on sign-out, when the account's words change).
   void forgetCurlKey() => _curlKeyCache = null;
 

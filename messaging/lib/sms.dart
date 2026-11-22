@@ -911,7 +911,7 @@ class Sms {
   Future<void> friendSet(String address, String state) => _calls.invokeMethod('friendSet', {'address': address, 'state': state});
 
   /// Keeps [body], on its way to [address] by the routes, with the phone's messages; its row, for [netTextState].
-  Future<int> netTextOut(String address, String body) async => ((await _calls.invokeMethod('netTextOut', {'address': address, 'body': body})) as num).toInt();
+  Future<int> netTextOut(String address, String body, {int? at}) async => ((await _calls.invokeMethod('netTextOut', {'address': address, 'body': body, 'at': ?at})) as num).toInt();
 
   /// What became of a row from [netTextOut]: 'sent', 'delivered' or 'failed'.
   Future<void> netTextState(int id, String state) => _calls.invokeMethod('netTextState', {'id': id, 'state': state});

@@ -36,7 +36,15 @@ abstract class FriendsPort {
 
   /// A friend's words kept with the phone's messages (android Friends.kt): going, what became of them, taken back,
   /// and come.
-  Future<int> storeOut(String address, String words);
+  Future<int> storeOut(String address, String words, {int? at});
+
+  /// Sends [envelope] to this account's other devices (the same identity, here under other connections): sealed with
+  /// the account's own key, so only they open it. A delivery with nothing sent where there is no account here
+  /// (GMFB-21).
+  Future<Delivery> sendMine(Envelope envelope);
+
+  /// Whether [peer] is this account's own other devices: what [sendMine] reaches, and what it comes from.
+  bool isMine(Peer peer);
   Future<void> rowState(int id, String state);
   Future<void> dropRow(int id);
   Future<void> storeIn(String address, String words, int at);
@@ -275,6 +283,8 @@ class Friends extends ChangeNotifier {
   // --- what comes -----------------------------------------------------------------------------------------------------
 
   Future<void> _received(Received r) async {
+    // A copy from another device of this account (GMFB-21).
+    if (r.envelope.kind == copyKind && r.sealed && _port.isMine(r.peer)) return _mine(r.envelope);
     final address = r.peer.address;
     if (address == null || !r.sealed) return;
     final kind = r.envelope.kind;
@@ -341,6 +351,49 @@ class Friends extends ChangeNotifier {
       await _say(address, 'end');
     }
     await _port.storeIn(address, words, e.at);
+    // And for this account's other devices: one closed when it came, or whose copy the relay gave to another.
+    unawaited(_copy(address, e.id, words, e.at, out: false));
+  }
+
+  // --- this account's other devices -------------------------------------------------------------------------------------
+
+  /// What a copy of a conversation with a friend by username is sent as, to this account's other devices (GMFB-21,
+  /// Matt, Windows 0.12.5: "I sent a DM on my phone and it didn't sync the chat history across my mac and PC"). Each
+  /// device kept only what it sent and what reached it: the relay hands a friend's message to the devices that are
+  /// connected, and one kept for them to whichever comes first, and nothing that one device sent reached the others.
+  ///
+  /// So every message to or from a friend by username is sent on to the account's own name, sealed with the account's
+  /// key; the relay gives it to every other device of the account that is connected and keeps it for those that are
+  /// not. A device that takes a copy it hasn't seen keeps it and passes it on once, so one that was closed hears of it
+  /// from whichever device got the copy the relay kept. The message's own name tells copies of one message apart.
+  static const copyKind = 'mine';
+
+  /// Sends a message with [address] (to them where [out], from them otherwise) to this account's other devices. Only
+  /// friends by username: a phone-number friend's messages are the phone's, and its computer shows the phone's.
+  Future<void> _copy(String address, String id, String words, int at, {required bool out}) async {
+    if (!address.startsWith('@')) return;
+    try {
+      await _port.sendMine(Envelope(kind: copyKind, body: {'a': address, 't': words, 'i': id, 'at': at, 'o': out}));
+    } catch (_) {}
+  }
+
+  /// A copy from another device of this account: kept with the conversation, once, and passed on.
+  Future<void> _mine(Envelope e) async {
+    final b = e.body;
+    final address = b['a'], words = b['t'], id = b['i'], at = b['at'];
+    if (address is! String || !address.startsWith('@') || words is! String || words.isEmpty || id is! String || at is! num) return;
+    if (_seen.contains(id)) return;
+    _seen.add(id);
+    if (_seen.length > keepSeen) _seen.removeRange(0, _seen.length - keepSeen);
+    _app?.set('friends_in', _seen.join(','));
+    final out = b['o'] == true;
+    if (out) {
+      final row = await _port.storeOut(address, words, at: at.toInt());
+      await _port.rowState(row, 'sent');
+    } else {
+      await _port.storeIn(address, words, at.toInt());
+    }
+    unawaited(_copy(address, id, words, at.toInt(), out: out));
   }
 
   void _acked(String id) {
@@ -432,10 +485,14 @@ class Friends extends ChangeNotifier {
     }
     if (d.acked) {
       await _port.rowState(row, 'delivered');
+      _seen.add(envelope.id);
+      unawaited(_copy(address, envelope.id, words, envelope.at, out: true));
       return true;
     }
     await _port.rowState(row, 'sent');
     _rows[envelope.id] = row;
+    _seen.add(envelope.id);
+    unawaited(_copy(address, envelope.id, words, envelope.at, out: true));
     // Handed on but not yet answered: it may have gone down a connection that had just died, so it goes again until
     // the friend's app says it has it.
     final first = DateTime.fromMillisecondsSinceEpoch(envelope.at);
@@ -521,7 +578,18 @@ class _AppPort implements FriendsPort {
   Future<void> offerKeys(String address) => Sms.instance.e2eOffer(address);
 
   @override
-  Future<int> storeOut(String address, String words) => Sms.instance.netTextOut(address, words);
+  Future<int> storeOut(String address, String words, {int? at}) => Sms.instance.netTextOut(address, words, at: at);
+
+  @override
+  Future<Delivery> sendMine(Envelope envelope) async {
+    final board = Net.instance.board;
+    final me = await Net.instance.mine();
+    if (board == null || me == null) return Delivery(envelope.id, tried: const ['no account here to send to']);
+    return board.send(me, envelope, only: const {'hub'});
+  }
+
+  @override
+  bool isMine(Peer peer) => peer.id == Net.instance.id && peer.key != null;
 
   @override
   Future<void> rowState(int id, String state) => Sms.instance.netTextState(id, state);

@@ -169,10 +169,16 @@ class UsernameChats {
   }
 
   /// What friends write, kept here as [Friends] sends and receives it.
-  int textOut(String address, String body) {
+  /// [at] where it was written elsewhere (a copy from another device of the account, GMFB-21): put in its place.
+  int textOut(String address, String body, {int? at}) {
     final t = threadWith(address);
-    final row = ChatRow(id: _nextRow++, body: body, at: DateTime.now().millisecondsSinceEpoch, out: true, state: 'sending');
-    t.rows.add(row);
+    final row = ChatRow(id: _nextRow++, body: body, at: at ?? DateTime.now().millisecondsSinceEpoch, out: true, state: 'sending');
+    final before = at == null ? -1 : t.rows.indexWhere((r) => r.at > at);
+    if (before < 0) {
+      t.rows.add(row);
+    } else {
+      t.rows.insert(before, row);
+    }
     t.draft = null;
     _changed(t.id);
     return row.id;
@@ -194,7 +200,14 @@ class UsernameChats {
 
   void textIn(String address, String body, int at) {
     final t = threadWith(address);
-    t.rows.add(ChatRow(id: _nextRow++, body: body, at: at, out: false, state: 'received'));
+    // In its place by when it was written: a copy from another device of the account may come late (GMFB-21).
+    final row = ChatRow(id: _nextRow++, body: body, at: at, out: false, state: 'received');
+    final before = t.rows.indexWhere((r) => r.at > at);
+    if (before < 0) {
+      t.rows.add(row);
+    } else {
+      t.rows.insert(before, row);
+    }
     if (t.id != open) t.unread = true;
     _changed(t.id);
   }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../app_state.dart';
+import '../me/me.dart' show Me;
 import '../sms.dart';
 import 'carrier.dart';
 import 'crypto.dart';
@@ -114,7 +115,20 @@ class Net extends ChangeNotifier implements PeerBook {
   }
 
   @override
-  Peer? byId(String id) => _peers[id];
+  Peer? byId(String id) => id == this.id && _mineKey != null ? Peer(id: id, key: _mineKey) : _peers[id];
+
+  /// The key this account's devices seal copies to each other with (GMFB-21; Friends.copyKind), once read.
+  Uint8List? _mineKey;
+
+  /// This account's own other devices, as one peer: this install's name and the account's key. Null where no Ghost
+  /// account is signed in to here (or the routes aren't set up).
+  Future<Peer?> mine() async {
+    final me = id;
+    if (me == null) return null;
+    _mineKey ??= await Me.instance.mineKey();
+    final key = _mineKey;
+    return key == null ? null : Peer(id: me, key: key);
+  }
   @override
   Peer? byAddress(String address) {
     final want = _digits(address);
