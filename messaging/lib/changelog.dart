@@ -23,6 +23,9 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.6', '2026-11-22', [
+    'Calls: the red handle over a call no longer stays on screen after a recording stops, or when the soundboard or voice changer has nothing to show.',
+  ]),
   ReleaseNotes('0.12.5', '2026-11-21', [
     'Sign in once, signed in everywhere: a network plugin you sign in to on one device, in the app or with the browser extension, signs in on every device on your Ghost account, the Mac and Windows apps included. Each sign-in page also offers Use the sign-in from your browser.',
     'Plugins you turn on or off reach your other devices within a couple of minutes, even a computer that stays open.',
