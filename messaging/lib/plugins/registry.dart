@@ -156,6 +156,10 @@ class Filing {
   /// The section [thread] is filed in, [main] for the main list, or null where it was never filed.
   String? of(int thread) => _by[thread];
 
+  /// Every conversation filed by hand, and where: for the phone's side, which hushes the notifications of a conversation
+  /// filed in a kind the filter hides (lib/plugins/notify_hush.dart).
+  Map<int, String> get all => Map.unmodifiable(_by);
+
   Filing _with(int thread, String? section) {
     final by = {..._by};
     section == null ? by.remove(thread) : by[thread] = section;

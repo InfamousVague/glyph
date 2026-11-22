@@ -36,6 +36,7 @@ import 'emoji_sets.dart';
 import 'kit/settings_css.dart';
 import 'net/net.dart';
 import 'people.dart';
+import 'plugins/notify_hush.dart' show NotifyHush;
 import 'plugins/pack/pack.dart' show InstalledPlugins;
 import 'plugins/plugin.dart' show MessageFacts;
 import 'plugins/plugin_sync.dart' show PluginSync;
@@ -137,6 +138,10 @@ Future<void> main() async {
   // Which plugins are on, synced across the Ghost account's devices (GMFB-9: lib/plugins/plugin_sync.dart): the
   // person's switches heard from here on; the account's list is met once the relay is reached.
   PluginSync.instance.start(state);
+  // What the phone's side needs to keep a hidden kind's texts from notifying with the app closed (GMFB-18, Matt, Android
+  // 0.12.3: "If we dont have a specific kind of message enabled like political messages we shouldn't get notified via
+  // sms for those messages"): written now, and again as the choices it comes from change.
+  NotifyHush.start(state);
   // The app's API (lib/api), each way in started where Settings › API has it on (Matt, 2026-11-17: "build an entire API
   // that we can use to interact with every aspect of the app").
   Api.instance.registerAll(appMethods(state));
