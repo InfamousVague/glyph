@@ -257,6 +257,12 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// have read all of the messages in the archive to try to clear it and nothing happens").
   final archivedUnread = ValueNotifier<int>(0);
 
+  /// How many conversations in Messages are unread, as the list last counted them: the number on the Messages ring
+  /// (GMFB-17, Matt, Android 0.12.3: "When messages have unreads the message bubble icon in the sidebar should show the
+  /// count in a unread badge same with circles"). Texts, network chats and spaces' chats alike, as the list's own Mark
+  /// all as read counts them, and only those Messages shows (a hidden kind's are not counted).
+  final messagesUnread = ValueNotifier<int>(0);
+
   /// Counts the archived texts that are unread again; the list does as it loads, and so does marking them read.
   Future<void> countArchivedUnread() async {
     try {
@@ -455,6 +461,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     closed.dispose();
     archived.dispose();
     archivedUnread.dispose();
+    messagesUnread.dispose();
     settingsSection.dispose();
     marketSection.dispose();
     super.dispose();
@@ -926,7 +933,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         // A plain plus that says New: it starts a chat, a group or a space (Matt, 2026-11-17: "change the new chat
         // button to be a generic plus button and change the tooltip to simply say \"new\"").
         const NavItem(id: 'new', icon: Lucide.plus, label: 'New'),
-        const NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
+        NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages', count: messagesUnread.value),
         // Contacts with how many friend requests wait for an answer there (lib/ui/username_friends.dart).
         NavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts', count: Sms.paired ? 0 : Buddies.instance.requests.length),
         NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: archivedCount, menu: _archiveRows),
@@ -943,13 +950,13 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   Widget _rail() => ValueListenableBuilder<int>(
         valueListenable: archivedUnread,
         builder: (context, _, _) => ListenableBuilder(
-          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance, MarketState.instance, InstalledPlugins.instance, Inbox.instance.changes]),
+          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance, MarketState.instance, InstalledPlugins.instance, Inbox.instance.changes, messagesUnread]),
           builder: (context, _) {
             final rings = _appRings(_archiveBadge);
             return NavRail(
               circles: Circles.instance.all,
               openCircle: circleOpen ? _circleSeed : null,
-              home: const NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
+              home: rings.firstWhere((r) => r.id == 'messages'),
               items: [for (final r in rings) if (r.id != 'messages') r],
               active: _activeRing,
               onSelect: _dockGo,
@@ -1065,7 +1072,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   Widget _pill({required bool upright}) => ValueListenableBuilder<int>(
         valueListenable: archivedUnread,
         builder: (context, _, _) => ListenableBuilder(
-          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance, MarketState.instance, InstalledPlugins.instance, Inbox.instance.changes]),
+          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance, MarketState.instance, InstalledPlugins.instance, Inbox.instance.changes, messagesUnread]),
           builder: (context, _) {
             // A circle in the list's place: its own dock, Home first (lib/ui/circles/circle_dock.dart).
             // Not where every page has the same navigation (NavStyle.unified): the app's own rings stay.

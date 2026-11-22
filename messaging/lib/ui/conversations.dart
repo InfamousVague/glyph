@@ -1096,6 +1096,16 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final card = dialup ? (inset: EdgeInsets.zero, radius: 0.0) : (inset: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')), radius: t.lenOf('1rem'));
 
     final unreadHere = _unreadTexts(_section).length + _unreadChats(_section).length + _unreadSpaces(_section).length;
+    // The Messages ring's number (GMFB-17): what is unread in Messages itself, whichever tab is open here.
+    if (!widget.archived && _all != null) {
+      final inMessages = _unreadTexts(null).length + _unreadChats(null).length + _unreadSpaces(null).length;
+      final shell = _shell;
+      if (shell != null && shell.messagesUnread.value != inMessages) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) shell.messagesUnread.value = inMessages;
+        });
+      }
+    }
     // Mark all read, Share feedback and the tabs' toggle scroll away with the list, the search staying (Matt, 2026-11-20:
     // "scroll the share feedback mark all as read and the segmented toggle when scrolling down"): the list's first row.
     // Dial-Up's list is a well sunk into the window, so there they stay over it.
