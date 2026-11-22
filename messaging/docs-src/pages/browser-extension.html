@@ -1,7 +1,7 @@
 <p>Some chat networks have no way in for other apps, so Ghost signs in to them with your browser's own sign-in. The <b>Ghost Messaging keys</b> extension does that part for you: sign in to them as you always do, in Chrome, and every device signed in to your Ghost account is signed in too. No copying anything from one device to the next.</p>
 <p>Today that's <b>Messenger</b>, <b>Instagram</b>, <b>Discord</b>, <b>X</b>, <b>Slack</b> and <b>Google Messages</b> (RCS). Networks that sign in this way are added to the extension as Ghost gains them.</p>
 
-<p><b><a href="/ghost-messaging-keys.zip" download>Download the extension</a></b> (for Chrome and browsers built on it; version 0.2.0, 46 KB)</p>
+<p><b><a href="/ghost-messaging-keys.zip" download>Download the extension</a></b> (for Chrome and browsers built on it; version 0.2.1)</p>
 
 <h2 id="install">Add it to Chrome</h2>
 <p>It isn't in the Chrome Web Store yet, so Chrome adds it from the folder you download. Edge, Brave and other browsers built on Chrome take it the same way.</p>
@@ -16,7 +16,7 @@
 <p>Click <ui>Load unpacked</ui> and choose the folder you unzipped. <b>Ghost Messaging keys</b> appears in the list; pin it from the puzzle piece in the toolbar so it's at hand.</p>
 </step>
 <step title="Sign in to your Ghost account">
-<p>Click the extension and sign in with your username and password, or your recovery words, as you would on a new device. That's what lets it seal your sign-ins so only your devices can open them.</p>
+<p>Click the extension and sign in with your Ghost username and password. If your account has a verified phone number, choose <ui>Text me a code</ui> and type the code it sends. That's what lets it seal your sign-ins so only your devices can open them.</p>
 </step>
 </steps>
 
@@ -43,6 +43,6 @@
 <ul>
 <li>It reads only the sign-in cookies of Messenger, Instagram, Discord, X and Slack, the sign-in that Discord and Slack send with their own requests (Discord's authorization header, Slack's token), and Google's cookies from the private window it opens when you set up Google Messages: nothing from other sites, and nothing from the pages themselves.</li>
 <li>What it sends is <b>sealed</b> with a key made from your account's recovery words. Ghost's relay keeps one sealed copy for your account and can't open it.</li>
-<li>Your password and recovery words are used the moment you type them and never kept. Unless you tick <ui>Stay signed in</ui>, the extension forgets your account when the browser closes.</li>
+<li>Your password is used the moment you type it and never kept. Unless you tick <ui>Stay signed in</ui>, the extension forgets your account when the browser closes.</li>
 <li>These are your own sign-ins to those services, used the way their websites use them. They don't allow other apps officially, and may sign you out or limit your account.</li>
 </ul>

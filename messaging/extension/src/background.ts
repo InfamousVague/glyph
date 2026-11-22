@@ -220,17 +220,6 @@ chrome.runtime.onMessage.addListener((msg: { type: string; [k: string]: unknown 
     switch (msg.type) {
       case 'status':
         return status();
-      case 'signInWords': {
-        try {
-          const acct = await GhostAccount.signInWithWords(msg.words as string[]);
-          await Keeper.save({ ...acct.session, stay: !!msg.stay });
-          account = acct;
-          loaded = true;
-          return captureAndSync();
-        } catch (e) {
-          return { error: (e as Error).message };
-        }
-      }
       case 'textCode': {
         try {
           await GhostAccount.textCode(msg.username as string, msg.number as string, await signInIdentity());
