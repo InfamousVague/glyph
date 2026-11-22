@@ -284,6 +284,15 @@ class Market {
   static const reportsKept = 200;
   static const reportReasons = {'misleading', 'harmful', 'spam', 'privacy', 'broken', 'other'};
 
+  /// Reports of people and messages (GMFB-40): the most of a sealed envelope's base64, the fewest bytes one can be, and
+  /// how many are kept (the oldest marked done going first, then the oldest). The app's own limits keep a report well
+  /// under the most (lib/safety/abuse_report.dart).
+  static const abuseSealedMost = 48000, abuseSealedLeast = 64, abuseKept = 150;
+
+  /// Reports of people one key may send an hour and a day, one address and one someone (the number or account a key
+  /// proved) a day; those with no verified number or linked account share [MarketConfig.reportsADay] a day in all.
+  static const abuseByKeyAnHour = 5, abuseByKeyADay = 15, abuseByAddressADay = 20, abuseBySomeoneADay = 15;
+
   /// Route 22's body: a retirement and nothing more.
   static const retireMost = 4096;
 
@@ -350,6 +359,11 @@ class Market {
   final _reportsByAddress = _Recent(const Duration(days: 1));
   final _reportsBySomeone = _Recent(const Duration(days: 1));
   final _reportsUnknown = _Recent(const Duration(days: 1));
+  final _abuseByKeyHour = _Recent(const Duration(hours: 1));
+  final _abuseByKey = _Recent(const Duration(days: 1));
+  final _abuseByAddress = _Recent(const Duration(days: 1));
+  final _abuseBySomeone = _Recent(const Duration(days: 1));
+  final _abuseUnknown = _Recent(const Duration(days: 1));
   int _verifySecond = -1, _verifiedThisSecond = 0;
   int _inFlight = 0, _inFlightBytes = 0;
 
@@ -501,6 +515,12 @@ class Market {
             return await _resolve(r, a, args!);
           case 21:
             return await _block(r, a, args!);
+          case 23:
+            return await _abuseReport(r, a);
+          case 24:
+            return await _abuseList(r, a);
+          case 25:
+            return await _abuseResolve(r, a, args!);
         }
       } finally {
         // A large body's slot is the route's until it is done with the body: route 8 waits its turn with the body read,
@@ -563,6 +583,10 @@ class Market {
         return (way({'POST': 21}), dev);
       case ['retire']:
         return (way({'POST': 22}), null);
+      case ['abuse']:
+        return (way({'POST': 23, 'GET': 24}), null);
+      case ['abuse', final rid] when _rid.hasMatch(rid):
+        return (way({'POST': 25}), rid);
     }
     return (null, null);
   }
@@ -947,6 +971,70 @@ class Market {
     return _answer(r, 200, {'ok': true});
   }
 
+  // --- reports of people and messages (GMFB-40) -----------------------------------------------------------------------
+
+  /// Route 23: a report of a person or a message, sealed in the app to the review keys so only the reviewer reads it
+  /// (lib/safety/abuse_report.dart): `{sealed: <base64>}` and nothing else. The relay can't read it and doesn't try;
+  /// it holds the sender to its limits and keeps the envelope, never who sent it.
+  Future<void> _abuseReport(HttpRequest r, _Asker a) async {
+    final j = _object(a.body);
+    final sealed = j['sealed'];
+    if (j.length != 1 || sealed is! String) throw const _Refused('bad_request');
+    if (sealed.length > abuseSealedMost) throw const _Refused('too_large');
+    final bytes = strictBase64(sealed);
+    if (bytes == null || bytes.length < abuseSealedLeast) throw const _Refused('bad_request');
+    final now = _ms();
+    final known = whoOf(a.id) != null;
+    final someone = _someone(a.id);
+    if (_abuseByKeyHour.count(a.id, now) >= abuseByKeyAnHour ||
+        _abuseByKey.count(a.id, now) >= abuseByKeyADay ||
+        _abuseByAddress.count(a.address, now) >= abuseByAddressADay ||
+        _abuseBySomeone.count(someone, now) >= abuseBySomeoneADay ||
+        (!known && _abuseUnknown.count('', now) >= config.reportsADay)) {
+      throw const _Refused('rate_limited');
+    }
+    _abuseByKeyHour.add(a.id, now);
+    _abuseByKey.add(a.id, now);
+    _abuseByAddress.add(a.address, now);
+    _abuseBySomeone.add(someone, now);
+    if (!known) _abuseUnknown.add('', now);
+    final rid = _newId(8, _store.abuse.containsKey);
+    _store.abuse[rid] = MarketAbuse(rid: rid, sealed: sealed, at: now);
+    // Past the most kept: the oldest marked done goes first, else the oldest.
+    while (_store.abuse.length > abuseKept) {
+      final going = _store.abuse.values.where((x) => x.done).firstOrNull ?? _store.abuse.values.first;
+      _store.abuse.remove(going.rid);
+    }
+    _store.changed();
+    _store.audit('reporter', 'abuse', note: rid);
+    return _answer(r, 201, {'ok': true, 'id': rid});
+  }
+
+  /// Route 24: the reports of people, newest first, for review to open with its own key.
+  Future<void> _abuseList(HttpRequest r, _Asker a) {
+    _admin(a);
+    return _answer(r, 200, {
+      'ok': true,
+      'reports': [for (final x in _store.abuse.values.toList().reversed) {'rid': x.rid, 'sealed': x.sealed, 'at': x.at, 'done': x.done, 'doneAt': x.doneAt}],
+    });
+  }
+
+  /// Route 25: a report of a person dealt with.
+  Future<void> _abuseResolve(HttpRequest r, _Asker a, String rid) {
+    _admin(a);
+    final j = _object(a.body);
+    if (j.length != 1 || j['done'] != true) throw const _Refused('bad_request');
+    final x = _store.abuse[rid];
+    if (x == null) throw const _Refused('not_found');
+    if (!x.done) {
+      x.done = true;
+      x.doneAt = _ms();
+      _store.changed();
+      _store.audit(a.id, 'abuse_done', note: rid);
+    }
+    return _answer(r, 200, {'ok': true});
+  }
+
   // --- submissions ----------------------------------------------------------------------------------------------------
 
   static bool _shotShaped(Object? e) => e is Map && ((e.length == 2 && e['mime'] is String && e['data'] is String) || (e.length == 1 && e['keep'] is String));
@@ -1311,7 +1399,7 @@ class Market {
       'ok': true,
       'open': [for (final s in open) _row(s)],
       'recent': [for (final s in decided.take(50)) _row(s)],
-      'counts': {'submitted': count('submitted'), 'in_review': count('in_review'), 'changes_requested': count('changes_requested'), 'reports': _store.reports.values.where((x) => !x.done).length},
+      'counts': {'submitted': count('submitted'), 'in_review': count('in_review'), 'changes_requested': count('changes_requested'), 'reports': _store.reports.values.where((x) => !x.done).length, 'abuse': _store.abuse.values.where((x) => !x.done).length},
     });
   }
 

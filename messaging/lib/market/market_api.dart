@@ -183,6 +183,26 @@ class MarketApi {
     return DeveloperView.fromJson(j['developer'] is Map ? j['developer'] as Map : const {});
   }
 
+  // --- reports of people and messages (routes 23 to 25; GMFB-40) ------------------------------------------------------
+
+  /// Route 23: a report of a person or a message, already sealed to the review keys (lib/safety/abuse_report.dart);
+  /// its id on the relay. Signed with [signer] where given, else this api's.
+  Future<String> reportPerson(String sealed, {NetSigner? signer}) async {
+    final j = await _json('POST', const ['abuse'], body: {'sealed': sealed}, signer: signer ?? this.signer, who: _reporting);
+    return _text(j['id']);
+  }
+
+  /// Route 24: the reports of people, newest first, sealed: the reviewer opens them with this device's own key.
+  Future<List<SealedReportRow>> sealedReports() async {
+    final j = await _json('GET', const ['abuse'], who: _reviewing, most: 16 * 1024 * 1024);
+    return [for (final r in (j['reports'] is List ? j['reports'] as List : const [])) if (r is Map) ?SealedReportRow.fromJson(r)];
+  }
+
+  /// Route 25: a report of a person dealt with.
+  Future<void> resolveSealedReport(String rid) async {
+    await _json('POST', ['abuse', _rid(rid)], body: const {'done': true}, who: _reviewing);
+  }
+
   // --- how a call is made --------------------------------------------------------------------------------------------
 
   static String get _submitting => 'Submitting needs your Ghost identity on this ${packHere()}. Become the same you as your phone in Settings › Me, or submit from your phone.';
@@ -204,7 +224,7 @@ class MarketApi {
   static SubmissionView _submission(Map j) => SubmissionView.fromJson(j['submission'] is Map ? j['submission'] as Map : const {});
 
   /// Asks and reads a JSON answer: `ok: true`, or the relay's refusal thrown as a [MarketError].
-  Future<Map> _json(String method, List<String> path, {Object? body, String? who, NetSigner? signer, Duration answer = const Duration(seconds: 20)}) async => _decode(await _ask(method, path, body: body, who: who, signer: signer, most: MarketReads.other, answer: answer));
+  Future<Map> _json(String method, List<String> path, {Object? body, String? who, NetSigner? signer, Duration answer = const Duration(seconds: 20), int most = MarketReads.other}) async => _decode(await _ask(method, path, body: body, who: who, signer: signer, most: most, answer: answer));
 
   /// Asks for a file: its bytes where the answer is 200, else the relay's refusal.
   Future<Uint8List> _bytes(String method, List<String> path, {required int most, String? who}) async {

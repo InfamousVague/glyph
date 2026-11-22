@@ -41,7 +41,9 @@ class Buddy {
   /// Their number (`phone`) and the accounts they linked (network to handle), where they chose to tell friends.
   final Map<String, String> links;
 
-  /// Where the two stand: `asked` (this phone asked them), `invited` (they asked this phone), `yes`.
+  /// Where the two stand: `asked` (this phone asked them), `invited` (they asked this phone), `yes`; or `blocked`
+  /// (GMFB-40): kept only so their friend requests and messages are dropped, never given a sealing key (android
+  /// Buddies.kt and Chats.peersOf take only the other three).
   final String state;
   final int at;
 
@@ -159,6 +161,40 @@ class Buddies extends ChangeNotifier {
   List<Buddy> get requests => [for (final b in all) if (b.state == 'invited') b];
   List<Buddy> get asked => [for (final b in all) if (b.state == 'asked') b];
 
+  /// Ghost people this phone blocked (GMFB-40: "Reporting a person also offers to block them").
+  List<Buddy> get blocked => [for (final b in all) if (b.state == 'blocked') b];
+
+  bool isBlocked(String id) => byId(id)?.state == 'blocked';
+
+  /// Blocks the Ghost person [id] ([username], [key] where known): no longer friends (they are told, as removing a
+  /// friend tells them), and their friend requests and messages are dropped here from now on. Asking them to be friends
+  /// again ([add]) takes the block away.
+  Future<void> block(String id, {String username = '', String key = ''}) async {
+    if (_remote) {
+      await _ask({'op': 'block', 'id': id, 'u': username, 'k': key});
+      return;
+    }
+    final had = byId(id);
+    if (had?.state == 'yes' || had?.state == 'asked') await _port.send(id, Envelope(kind: 'buddy', body: {'s': 'end'}));
+    if (had?.state == 'invited') await _port.send(id, Envelope(kind: 'buddy', body: {'s': 'no'}));
+    GameActivities.instance.heard(id, null);
+    final b = had == null
+        ? Buddy(username: tidyHandle(username), id: id, key: key, state: 'blocked', at: DateTime.now().millisecondsSinceEpoch)
+        : Buddy(username: had.username, id: id, key: had.key, name: had.name, state: 'blocked', at: DateTime.now().millisecondsSinceEpoch, picture: had.picture);
+    all = [for (final o in all) if (o.id != id) o, b];
+    await _save();
+  }
+
+  /// Takes the block on [b] away: they are forgotten here, as if never met.
+  Future<void> unblock(Buddy b) async {
+    if (_remote) {
+      await _ask({'op': 'unblock', 'id': b.id});
+      return;
+    }
+    all = [for (final o in all) if (o.id != b.id) o];
+    await _save();
+  }
+
   Buddy? byId(String id) {
     for (final b in all) {
       if (b.id == id) return b;
@@ -245,6 +281,10 @@ class Buddies extends ChangeNotifier {
         await decline(want());
       case 'remove':
         await remove(want());
+      case 'block':
+        await block('${what['id'] ?? ''}', username: '${what['u'] ?? ''}', key: '${what['k'] ?? ''}');
+      case 'unblock':
+        await unblock(want());
       case 'share':
         await shareProfile();
       case 'ga':
@@ -428,6 +468,8 @@ class Buddies extends ChangeNotifier {
       return;
     }
     final had = byId(from);
+    // Blocked: their friend requests go nowhere.
+    if (had?.state == 'blocked') return;
     final name = '${e.body['n'] ?? ''}', bio = '${e.body['b'] ?? ''}';
     final said = _said(e.body);
     if (had?.state == 'yes') {
@@ -449,7 +491,7 @@ class Buddies extends ChangeNotifier {
   void _sealed(String from, Envelope e) {
     if (e.kind != 'buddy') return;
     final had = byId(from);
-    if (had == null) return;
+    if (had == null || had.state == 'blocked') return;
     final name = e.body['n'] is String ? e.body['n'] as String : null, bio = e.body['b'] is String ? e.body['b'] as String : null;
     final said = _said(e.body);
     switch (e.body['s']) {

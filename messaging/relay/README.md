@@ -113,6 +113,8 @@ can withhold a plugin, never make one reviewed.
 | 19, 20 | `GET /market/reports`, `POST /market/reports/<rid>` | review | the reports, and marking one done |
 | 21 | `POST /market/developers/<id>/block` | review (30 minutes) | block or unblock a developer, unlisting their plugins with it |
 | 22 | `POST /market/retire` | anyone | a review key's own retirement, for a key that has signed something here |
+| 23 | `POST /market/abuse` | signed | a report of a person or a message (GMFB-40), `{sealed}`: sealed in the app to the review keys, unreadable here; 5 an hour and 15 a day a key, 20 a day an address, 15 a day a number or account, `REPORTS_A_DAY` for those with neither; the newest 150 kept, who sent them never |
+| 24, 25 | `GET /market/abuse`, `POST /market/abuse/<rid>` | review | the sealed reports of people, opened on the reviewer's device, and marking one done |
 
 Answers are JSON, `{"ok": true, …}` or `{"ok": false, "error": "<code>", "message": "<plain words>"}`; packages are
 `application/octet-stream` and screenshots `image/png`, and nothing uploaded is ever served as anything a browser

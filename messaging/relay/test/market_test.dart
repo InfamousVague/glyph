@@ -835,7 +835,7 @@ void main() {
       final q = (await call('GET', '/market/review', as: matt)).json;
       expect([for (final s in q['open'] as List) s['sid']], [sid]);
       expect([for (final s in q['recent'] as List) (s['sid'], s['status'])], [(asked, 'superseded'), (v1, 'approved')]);
-      expect(q['counts'], {'submitted': 1, 'in_review': 0, 'changes_requested': 0, 'reports': 0});
+      expect(q['counts'], {'submitted': 1, 'in_review': 0, 'changes_requested': 0, 'reports': 0, 'abuse': 0});
       final row = (q['open'] as List).single as Map;
       expect([row['developerId'], row['verified'], row['blocked'], row['isUpdate'], row['newPermissions'], row['again']], [maya.id, true, false, true, ['move'], true]);
       final first = (q['recent'] as List).last as Map;
