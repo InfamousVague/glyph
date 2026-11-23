@@ -186,7 +186,7 @@ class ListPlugins {
 
   /// A number for a chat on another network as the plugins know a conversation: never one of Android's (which are
   /// above nothing) nor the bridge's own (just below).
-  static int chatThread(String key) => -(1 << 40) - (key.hashCode & 0x3fffffff);
+  static int chatThread(String key) => -(0x10000000000) - (key.hashCode & 0x3fffffff);
 
   /// Sorts [all] into sections, and [chats] (Signal's and Telegram's, each its key, what it says of itself, whether it
   /// is unread) with them (Matt, 2026-11-16: "Filters should apply to all chats including telegram and signal make

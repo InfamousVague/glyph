@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/services.dart' show TextCapitalization;
 import 'package:flutter/widgets.dart';
@@ -220,7 +221,7 @@ class SoundNameScreen extends StatefulWidget {
 
   /// A clip's name from its file's: "wow-what.mp3" is "Wow what".
   static String nameOf(String path) {
-    var n = path.split(Platform.pathSeparator).last.split('/').last;
+    var n = path.split(PlatformInfo.pathSeparator).last.split('/').last;
     if (n.contains('.')) n = n.substring(0, n.lastIndexOf('.'));
     n = n.replaceAll(RegExp(r'[_\-]+'), ' ').trim();
     if (n.isEmpty) return 'Sound';

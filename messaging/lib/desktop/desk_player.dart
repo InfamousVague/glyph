@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:typed_data';
 
 import 'package:media_kit/media_kit.dart' as mk;
@@ -36,8 +37,8 @@ class DeskPlayer {
     if (bytes == null || bytes.isEmpty) return 'the sound isn\'t here';
     try {
       mk.MediaKit.ensureInitialized();
-      final dir = Directory('${Directory.systemTemp.path}${Platform.pathSeparator}ghost-voice-play')..createSync(recursive: true);
-      final file = File('${dir.path}${Platform.pathSeparator}part-$part.m4a');
+      final dir = Directory('${Directory.systemTemp.path}${PlatformInfo.pathSeparator}ghost-voice-play')..createSync(recursive: true);
+      final file = File('${dir.path}${PlatformInfo.pathSeparator}part-$part.m4a');
       await file.writeAsBytes(bytes, flush: true);
       final player = mk.Player();
       _player = player;

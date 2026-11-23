@@ -5,7 +5,7 @@
 /// setting, by name, and a hit opens the Marketplace at it (lib/ui/settings.dart).
 library;
 
-import 'dart:io' show Platform;
+import '../platform_info.dart';
 
 import 'package:flutter/services.dart' show TextCapitalization;
 import 'package:flutter/widgets.dart';
@@ -144,7 +144,7 @@ List<Widget> pluginsPane(BuildContext context, AppState app, PluginRegistry regi
   return [
     PaneSection(
       title: 'Plugins',
-      description: Text('Extra things the app can do with your messages. Each one works on this ${Sms.remote ? (Platform.isIOS ? 'iPhone' : 'computer') : 'phone'} alone, and does nothing while it is off.'),
+      description: Text('Extra things the app can do with your messages. Each one works on this ${Sms.remote ? (PlatformInfo.isIOS ? 'iPhone' : 'computer') : 'phone'} alone, and does nothing while it is off.'),
       footer: registry.plugins.any((p) => p.settingsPage != null) ? const Text('Each plugin\'s settings are on its page in the Marketplace.') : null,
       children: [
         for (final p in registry.plugins)

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
+import '../aside.dart';
 
 /// Keeps a network's chats in its file without holding up the screen (docs/performance-audit.md, finding 4).
 ///
@@ -58,7 +58,7 @@ class KeptWriter {
   }
 
   // A function of its own, so what is handed to the other isolate is the path and the data and nothing of this object.
-  static Future<void> _elsewhere(String path, Object? data) => Isolate.run(() => _put(path, data));
+  static Future<void> _elsewhere(String path, Object? data) => runAside(() => _put(path, data));
 
   static void _put(String path, Object? data) {
     final at = File(path);

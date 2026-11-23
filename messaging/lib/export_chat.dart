@@ -8,6 +8,7 @@
 library;
 
 import 'dart:io';
+import 'platform_info.dart';
 
 import 'voice/hangout.dart';
 
@@ -68,7 +69,7 @@ String exportName(String title, {DateTime? now}) {
 /// Writes [markdown] to a file of the app's own to hand to Save: its path.
 Future<String> writeExport(String markdown, String name) async {
   final dir = await Directory.systemTemp.createTemp('ghost-export');
-  final f = File('${dir.path}${Platform.pathSeparator}$name');
+  final f = File('${dir.path}${PlatformInfo.pathSeparator}$name');
   await f.writeAsString(markdown);
   return f.path;
 }

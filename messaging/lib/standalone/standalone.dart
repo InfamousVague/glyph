@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 
@@ -57,9 +58,9 @@ class StandaloneCalls implements SmsCalls {
   Future<bool> Function() restart = _restartHere;
 
   static Future<bool> _restartHere() async {
-    if (Platform.environment.containsKey('FLUTTER_TEST') || !Platform.isMacOS) return false;
+    if (PlatformInfo.environment.containsKey('FLUTTER_TEST') || !PlatformInfo.isMacOS) return false;
     // …/Ghost Messaging.app/Contents/MacOS/Ghost Messaging, three folders up.
-    final app = File(Platform.resolvedExecutable).parent.parent.parent.path;
+    final app = File(PlatformInfo.resolvedExecutable).parent.parent.parent.path;
     if (!app.endsWith('.app')) return false;
     await Process.start('/bin/sh', ['-c', 'sleep 1; /usr/bin/open -n "\$0"', app], mode: ProcessStartMode.detached);
     exit(0);
@@ -71,7 +72,7 @@ class StandaloneCalls implements SmsCalls {
   /// Where an iPhone keeps it: the app's Application Support folder, which iOS keeps and backs up. iOS gives a Flutter
   /// app no HOME, so the container is found from its tmp folder, which is in it.
   static Directory defaultDir() {
-    final home = Platform.environment['HOME'] ?? Directory.systemTemp.parent.path;
+    final home = PlatformInfo.environment['HOME'] ?? Directory.systemTemp.parent.path;
     return Directory('$home/Library/Application Support/Ghost Messaging');
   }
 

@@ -7,6 +7,7 @@ library;
 
 import 'dart:async';
 import 'dart:io';
+import '../../platform_info.dart';
 
 import 'package:flutter/foundation.dart' show Uint8List;
 import 'package:flutter/widgets.dart';
@@ -64,7 +65,7 @@ class IncomingFile {
     for (final p in paths) {
       final f = File(p);
       if (!f.existsSync()) continue;
-      final name = SpaceFile.cleanName(p.split(Platform.pathSeparator).last.split('/').last);
+      final name = SpaceFile.cleanName(p.split(PlatformInfo.pathSeparator).last.split('/').last);
       out.add(IncomingFile(source: p, name: name.isEmpty ? 'File' : name, size: f.lengthSync(), mime: FileKind.mimeOf(name)));
     }
     return out;
@@ -258,7 +259,7 @@ class FilesShareIn {
     if (files.isEmpty || context == null || !context.mounted) return;
     // A plugin being made, shared from a computer or a file manager (Matt, 2026-11-20: "a developer setting for users
     // to be able to manually upload plugins for development testing"): loaded in development, not put in a Files space.
-    if (Platform.isAndroid) files = await takePlugins(context, files);
+    if (PlatformInfo.isAndroid) files = await takePlugins(context, files);
     if (files.isEmpty || !context.mounted) return;
     await offer(context, files, keep: FilePlatform.keep, owned: true);
   }

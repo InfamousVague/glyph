@@ -36,7 +36,8 @@ abstract class UsernameOverlay implements SmsCalls {
     chats = UsernameChats(base: base, save: _save, buddies: () => _buddies);
   }
 
-  static const base = 1 << 40;
+  // 2^40, written out: `1 << 40` is 0 in a browser, where a shift keeps 32 bits (test/web_build_test.dart).
+  static const base = 0x10000000000;
 
   /// What the one built on this answers itself, before anything here; [pass] for what it leaves to this.
   Future<Object?> answerOwn(String method, Map a) async => pass;

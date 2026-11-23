@@ -6,7 +6,7 @@
 library;
 
 import 'dart:async';
-import 'dart:io' show Platform;
+import '../../platform_info.dart';
 
 import 'package:flutter/services.dart' show LengthLimitingTextInputFormatter, TextCapitalization, TextInputType;
 import 'package:flutter/widgets.dart';
@@ -37,7 +37,7 @@ import 'market_forms.dart' show MarketLengthLimit;
 import '../../plugins/plugin_sync.dart';
 
 /// A computer on its own, with no phone's texts: a plugin from another developer has nothing here to sort.
-bool get marketNoTexts => Sms.standalone && !Platform.isAndroid && !Platform.isIOS;
+bool get marketNoTexts => Sms.standalone && !PlatformInfo.isAndroid && !PlatformInfo.isIOS;
 
 /// The words a page says where a pack can't sort here.
 const String marketNoTextsWords = 'This plugin sorts texts, which this computer doesn\'t have.';

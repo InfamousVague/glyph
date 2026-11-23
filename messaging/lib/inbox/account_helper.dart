@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MethodChannel;
@@ -217,7 +218,7 @@ class AccountHelper extends InboxNetwork {
   /// The cookies are with the service, being checked.
   bool get signingIn => _busy;
 
-  static String _dirOf(HelperService s) => Platform.isAndroid ? '${Directory.systemTemp.parent.path}/files/${s.id}' : '${DeskStore.defaultDir().path}/${s.id}';
+  static String _dirOf(HelperService s) => PlatformInfo.isAndroid ? '${Directory.systemTemp.parent.path}/files/${s.id}' : '${DeskStore.defaultDir().path}/${s.id}';
 
   /// Deletes what a service no longer offered kept on this device: its helper's session and the chats kept here.
   static Future<void> forget(HelperService s, {String? folder}) async {
@@ -227,7 +228,7 @@ class AccountHelper extends InboxNetwork {
     } catch (_) {}
   }
 
-  String get _dir => folder ?? (Platform.isAndroid ? '${Directory.systemTemp.parent.path}/files/${service.id}' : '${DeskStore.defaultDir().path}/${service.id}');
+  String get _dir => folder ?? (PlatformInfo.isAndroid ? '${Directory.systemTemp.parent.path}/files/${service.id}' : '${DeskStore.defaultDir().path}/${service.id}');
   File get _file => File('$_dir/chats.json');
 
   @override
@@ -257,18 +258,18 @@ class AccountHelper extends InboxNetwork {
   Future<HelperLink?> _process() async {
     String? binary;
     final h = service.helper;
-    if (Platform.isAndroid) {
+    if (PlatformInfo.isAndroid) {
       try {
         binary = await const MethodChannel('ghost_messaging/sms').invokeMethod<String>('helperPath', {'name': '${h}sidecar'});
       } catch (_) {}
-    } else if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
-      final named = Platform.environment['GHOST_${h.toUpperCase()}SIDECAR'];
-      final exe = File(Platform.resolvedExecutable).parent.path;
-      final os = Platform.isWindows ? 'windows' : (Platform.isLinux ? 'linux' : 'mac');
-      final file = Platform.isWindows ? '$h-sidecar.exe' : '$h-sidecar';
+    } else if (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux) {
+      final named = PlatformInfo.environment['GHOST_${h.toUpperCase()}SIDECAR'];
+      final exe = File(PlatformInfo.resolvedExecutable).parent.path;
+      final os = PlatformInfo.isWindows ? 'windows' : (PlatformInfo.isLinux ? 'linux' : 'mac');
+      final file = PlatformInfo.isWindows ? '$h-sidecar.exe' : '$h-sidecar';
       for (final c in [
         ?named,
-        if (Platform.isWindows) '$exe\\$file' else if (Platform.isLinux) '$exe/$file' else '$exe/../Helpers/$file',
+        if (PlatformInfo.isWindows) '$exe\\$file' else if (PlatformInfo.isLinux) '$exe/$file' else '$exe/../Helpers/$file',
         '${Directory.current.path}/build/$h-sidecar/$os/$file',
       ]) {
         if (File(c).existsSync()) {
@@ -641,7 +642,7 @@ class AccountHelper extends InboxNetwork {
           'application/octet-stream';
       final text = i == paths.length - 1 ? caption : '';
       try {
-        final name = path.split(Platform.pathSeparator).last;
+        final name = path.split(PlatformInfo.pathSeparator).last;
         final r = (await _ask('send_media', {'to': chatId, 'path': path, 'mime': mime, 'name': name, 'text': text}) as Map?) ?? const {};
         final ts = (r['ts'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch;
         final mid = '${r['id'] ?? 'local-$ts-$i'}';

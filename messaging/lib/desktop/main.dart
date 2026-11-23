@@ -2,6 +2,7 @@ import 'links.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -73,7 +74,7 @@ Duration? deskResizeSettle = const Duration(milliseconds: 120);
 /// `GHOST_DESK_UPDATES=off` or [updates] is false, as it is for a test.
 Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool updates = true}) async {
   WidgetsFlutterBinding.ensureInitialized();
-  final env = Platform.environment;
+  final env = PlatformInfo.environment;
   final dir = folder ?? env['GHOST_DESK_DIR'];
   // The Keychain holds the key in a release build. A build signed to run on this Mac alone loses its Keychain
   // items' trust each time it is rebuilt, so those keep the key in the app's own folder.
@@ -85,7 +86,7 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
     name: await MacPlatform.computerName(),
     app: appVersion,
     // Bonjour is the Mac's and the iPhone's (DeskChannels.swift); on Windows the phone is found by its address or the relay.
-    finder: !(bonjour ?? (env['GHOST_DESK_BONJOUR'] != 'off' && (Platform.isMacOS || Platform.isIOS))) ? null : BonjourFinder(),
+    finder: !(bonjour ?? (env['GHOST_DESK_BONJOUR'] != 'off' && (PlatformInfo.isMacOS || PlatformInfo.isIOS))) ? null : BonjourFinder(),
     given: [...envPeers, ?Peer.parse(prefs['peer'] ?? '')],
   );
   final calls = LinkCalls(link, store);
@@ -131,7 +132,7 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // restarted into from the splash. Offline, or with nothing new, the app opens as it is and goes on looking every few
   // hours. A Mac swaps in the Mac's zip; Windows runs the new installer from gogho.st, silently; Linux swaps in the
   // folder's new archive, or for the .deb says the command that installs it (GMFB-32).
-  final macUpdates = updates && (Platform.isMacOS || Platform.isWindows || Platform.isLinux) ? MacUpdates.fromEnvironment(env, windows: Platform.isWindows, linux: Platform.isLinux) : null;
+  final macUpdates = updates && (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux) ? MacUpdates.fromEnvironment(env, windows: PlatformInfo.isWindows, linux: PlatformInfo.isLinux) : null;
   if (macUpdates != null) await checkAtLaunch(macUpdates, step);
   step.value = (words: 'Starting Ghost Messaging', progress: null);
   // Google Messages on this computer (gm_web.dart): its helper started where this copy carries it, and what changes
@@ -180,7 +181,7 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // Plugins from the Marketplace and in development (lib/plugins/pack; Matt, 2026-11-20: "I would like users to be able
   // to develop and submit their own plugins to our plugin marketplace"), read while the splash shows, from a plugins
   // folder beside everything else this computer keeps: GHOST_DESK_DIR's when it is set, as the store's is.
-  InstalledPlugins.instance = InstalledPlugins(root: Directory('${store.dir.path}${Platform.pathSeparator}plugins'));
+  InstalledPlugins.instance = InstalledPlugins(root: Directory('${store.dir.path}${PlatformInfo.pathSeparator}plugins'));
   await InstalledPlugins.instance.load(state, appVersion: appVersion);
   // Which plugins are on, synced across the Ghost account's devices (GMFB-9: lib/plugins/plugin_sync.dart): the
   // person's switches heard from here on; the account's list is met once the relay is reached.

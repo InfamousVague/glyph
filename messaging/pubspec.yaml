@@ -13,6 +13,9 @@ dependencies:
   glacier:
     path: packages/glacier
   pointycastle: ^4.0.0
+  # gzip for the account's backup in a browser, where dart:io's isn't (lib/account/gzip.dart). Already in every build,
+  # by way of `image`.
+  archive: ^4.7.1
   # SHA-256 of a whole file, five times pointycastle's speed (lib/files/files_store.dart).
   crypto: ^3.0.6
   image: ^4.13.1

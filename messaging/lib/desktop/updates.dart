@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -378,7 +379,7 @@ class MacUpdates extends ChangeNotifier {
     // Named as published, with the build before the extension: ghost-messaging-mac-500.zip, …-setup-36.exe.
     final name = release.url.pathSegments.isEmpty || release.url.pathSegments.last.isEmpty ? 'update' : release.url.pathSegments.last;
     final dot = name.lastIndexOf('.');
-    final file = File('${dir.path}${Platform.pathSeparator}${dot > 0 ? '${name.substring(0, dot)}-${release.build}${name.substring(dot)}' : '$name-${release.build}'}');
+    final file = File('${dir.path}${PlatformInfo.pathSeparator}${dot > 0 ? '${name.substring(0, dot)}-${release.build}${name.substring(dot)}' : '$name-${release.build}'}');
     final client = _client()..connectionTimeout = const Duration(seconds: 15);
     IOSink? out;
     try {
@@ -431,8 +432,8 @@ class MacUpdates extends ChangeNotifier {
 /// number ([windowsBuild]). Any other (a build run from its folder) is never looked for.
 class WindowsUpdateHost implements UpdateHost {
   WindowsUpdateHost({Map<String, String>? env, String? exe, int? build, String? version, this.launch = _launch, this.quit = _quit})
-      : _env = env ?? Platform.environment,
-        _exe = exe ?? Platform.resolvedExecutable,
+      : _env = env ?? PlatformInfo.environment,
+        _exe = exe ?? PlatformInfo.resolvedExecutable,
         _build = build ?? windowsBuild,
         _version = version ?? const String.fromEnvironment('GHOST_VERSION');
   final Map<String, String> _env;
@@ -536,8 +537,8 @@ enum LinuxInstall {
 /// a build folder never does.
 class LinuxUpdateHost implements UpdateHost {
   LinuxUpdateHost({Map<String, String>? env, String? exe, int? build, String? version, LinuxInstall? install, this.launch = _launch, this.quit = _quit, this.unpack = _unpack})
-      : _env = env ?? Platform.environment,
-        _exe = exe ?? Platform.resolvedExecutable,
+      : _env = env ?? PlatformInfo.environment,
+        _exe = exe ?? PlatformInfo.resolvedExecutable,
         _build = build ?? windowsBuild,
         _version = version ?? const String.fromEnvironment('GHOST_VERSION') {
     kind = install ?? _kindOf(_exe);
