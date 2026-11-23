@@ -409,4 +409,24 @@ void main() {
     results.add('stage race: ${ok ? '${t.toStringAsFixed(1)} s' : 'NEVER'}; b2-a1 ${members['b2']!.media.through('a1')}, c3-a1 ${members['c3']!.media.through('a1')}');
     expect(ok, isTrue);
   });
+
+  // From the last review: a crossed offer kept for a moment ([_keep]) is not answered once a stage has put both in the
+  // audience within that moment; two listeners make no connection.
+  test('a kept offer is not answered once the stage holds the two apart', () async {
+    var stage = false;
+    final a = make('a', Build.v19);
+    (a.session as dynamic).listens = (String _) => stage;
+    await a.join();
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    final b = make('b', Build.head);
+    (b.session as dynamic).listens = (String _) => stage;
+    await b.join();
+    // b keeps a's crossing offer; before it gives way (30 ms here) both become listeners on a stage.
+    await Future<void>.delayed(const Duration(milliseconds: 8));
+    stage = true;
+    (a.session as dynamic).relink();
+    (b.session as dynamic).relink();
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    expect(b.media.peers.containsKey('a'), isFalse, reason: 'no connection between two listeners');
+  });
 }

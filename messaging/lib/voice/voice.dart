@@ -499,6 +499,10 @@ class VoiceSession extends ChangeNotifier {
     for (final id in members.keys.toList()) {
       if (!_links(id)) {
         _withheld.add(id);
+        // Nothing waits between two who no longer connect: neither an offer of theirs kept nor an answer to this one's.
+        _dropKept(id);
+        _awaiting.remove(id);
+        _awaitingAgain.remove(id);
         if (_peers.containsKey(id)) {
           _offered.remove(id);
           unawaited(_peers.remove(id)?.close());
@@ -840,6 +844,9 @@ class VoiceSession extends ChangeNotifier {
   final Map<String, List<Map<String, dynamic>>> _keptIce = {};
   final Map<String, Timer> _keptUntil = {};
 
+  /// The most ways to connect held with a kept offer from one sender.
+  static const _keptIceMost = 64;
+
   void _dropKept(String id) {
     _kept.remove(id);
     _keptIce.remove(id);
@@ -861,7 +868,7 @@ class VoiceSession extends ChangeNotifier {
     final turn = (_said[from] ?? Future<void>.value()).then((_) async {
       final offer = _kept.remove(from);
       final ice = _keptIce.remove(from) ?? const [];
-      if (offer == null || !joined || _moving || !_awaiting.containsKey(from)) return;
+      if (offer == null || !joined || _moving || !_awaiting.containsKey(from) || !_links(from)) return;
       _awaiting.remove(from);
       _awaitingAgain.remove(from);
       await _peers.remove(from)?.close();
@@ -1151,7 +1158,8 @@ class VoiceSession extends ChangeNotifier {
         // Said after an offer kept for now ([_keep]): held with it.
         final held = _keptIce[from];
         if (held != null && m['c'] is Map) {
-          held.add(m);
+          // A handful is all a connection says; past [_keptIceMost] the rest is not kept.
+          if (held.length < _keptIceMost) held.add(m);
           return;
         }
         if (m['c'] is Map) await _peerFor(from).addCandidate((m['c'] as Map).cast<String, dynamic>());
