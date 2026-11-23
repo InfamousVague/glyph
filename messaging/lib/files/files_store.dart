@@ -1177,7 +1177,8 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
       if (t.owned) _deleteQuietly(t.path!);
     } else {
       final f = t.file;
-      if (f != null) _deleteQuietly(_partPath(f));
+      // A browser's part is in memory, let go as its download sees it was stopped.
+      if (f != null && !browser) _deleteQuietly(_partPath(f));
       t._done?.completeError(FilesError(-1, 'Stopped.'));
       _downloads.remove(t.file?.id);
     }
