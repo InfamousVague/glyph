@@ -523,20 +523,43 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
   // --- what it shows -----------------------------------------------------------------------------------------------
 
   /// Looks again every [lookEvery] while it runs: listeners are told when how many are connected, the link to the
-  /// public relay, or the address over Direct changed.
+  /// public relay, or the address over Direct changed; and every [addressesEvery], its addresses on the network.
   void _watch() {
     _look?.cancel();
     _look = _timer(lookEvery, () {
       _look = null;
       if (_hub == null) return;
+      _looks++;
+      if (_looks % (addressesEvery.inSeconds ~/ lookEvery.inSeconds) == 0) unawaited(_lookAtAddresses());
       _notifyIfChanged();
       _watch();
     });
   }
 
+  int _looks = 0;
+
+  /// How often its addresses on the network are looked at again while it runs: a computer moved to another network is
+  /// shown, and reached, at its address there.
+  static const addressesEvery = Duration(seconds: 30);
+
+  Future<void> _lookAtAddresses() async {
+    final hub = _hub, server = _server;
+    if (hub == null || server == null) return;
+    final found = await _addresses();
+    if (!identical(hub, _hub) || !identical(server, _server)) return;
+    final urls = [for (final a in found) lanHubUrl(a, server.port)];
+    if (listEquals(urls, _lanUrls)) return;
+    _lanUrls = urls;
+    // A sign-in bound to a new address is taken there; the old ones stay names of its, which nobody else is reached by.
+    for (final url in urls) {
+      hub.names.add(HubCarrier.hostOf(url));
+    }
+    _notifyIfChanged();
+  }
+
   void _notifyIfChanged() {
     final v = viaLink;
-    final now = (connections, v.kind, v.said, directUrl, _lanUrls.length);
+    final now = (connections, v.kind, v.said, directUrl, _lanUrls.join(' '));
     if (now == _shown) return;
     _shown = now;
     notifyListeners();

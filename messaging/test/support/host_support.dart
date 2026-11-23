@@ -24,7 +24,7 @@ class Kept {
 /// A host as the app makes one, but for what it keeps ([k]) and where: a folder of its own for the test ([folder]),
 /// made and deleted with it where none is given, as the app always has one (its key, and so its name, outlives a stop).
 /// The local network's door is shut unless [lan], and listens at [port] (0: any free one) on this machine alone.
-RelayHost makeHost(Kept k, {Directory? folder, bool phone = false, Timer Function(Duration, void Function())? timer, P2p? Function()? p2p, int port = 0, bool lan = false, String? via, FedDial? viaDial, Set<int> viaPorts = const {}, bool viaPlain = false}) {
+RelayHost makeHost(Kept k, {Directory? folder, bool phone = false, Timer Function(Duration, void Function())? timer, P2p? Function()? p2p, int port = 0, bool lan = false, String? via, FedDial? viaDial, Set<int> viaPorts = const {}, bool viaPlain = false, Future<List<String>> Function()? addresses}) {
   k.choices[RelayHost.portKey] = '$port';
   if (!lan) k.choices[RelayHost.lanKey] = 'off';
   final dir = folder ?? Directory.systemTemp.createTempSync('relay-host-');
@@ -42,6 +42,7 @@ RelayHost makeHost(Kept k, {Directory? folder, bool phone = false, Timer Functio
     viaDial: viaDial,
     viaPorts: viaPorts,
     viaPlain: viaPlain,
+    addresses: addresses,
     hubUrl: () => k.hubUrl,
     useRelay: (url) async {
       k.choices['net_hub'] = url;

@@ -110,6 +110,24 @@ void main() {
     });
   });
 
+  group('on the local network', () {
+    test('its addresses are looked at again every half minute: moved to another network, it is shown and reached at its address there', () async {
+      final clock = FakeClock();
+      var addresses = ['127.0.0.1'];
+      final host = makeHost(Kept(), lan: true, timer: clock.timer, addresses: () async => addresses);
+      addTearDown(host.shutdown);
+      await host.setOn(true);
+      final port = Uri.parse(host.lanUrls.single).port;
+      expect(host.lanUrls, ['ws://127.0.0.1:$port/hub']);
+      addresses = ['127.0.0.2'];
+      await clock.pass(const Duration(seconds: 28));
+      expect(host.lanUrls, ['ws://127.0.0.1:$port/hub'], reason: 'not yet');
+      await clock.pass(const Duration(seconds: 2));
+      await waitFor(() => host.lanUrls.first == 'ws://127.0.0.2:$port/hub', 'the new address was never shown');
+      expect(host.hub!.names, contains('127.0.0.2:$port'), reason: 'a sign-in bound to it is taken there');
+    });
+  });
+
   group('the public relay it stays linked to', () {
     test('gogho.st unless changed; changed, it starts again linked there, and its address names it; only a public relay\'s address is taken', () async {
       final k = Kept();
