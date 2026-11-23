@@ -445,7 +445,7 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
         SettingRow(key: const ValueKey('direct-problem'), icon: icon(Lucide.circleAlert), label: 'Direct isn\'t working on this device', hint: Text(net.directProblem!)),
       ]),
     // Checking the relay: what comparing over direct links found, and the name watch, which needs no direct route.
-    if (board != null) relayCheckSection(context, ledger: net.ledger, check: net.check, watch: NameWatch.instance, relay: net.hubUrl, directOn: net.p2p?.on ?? false, directOffered: net.directOffered, nameOf: _friendName),
+    if (board != null) relayCheckSection(context, ledger: net.ledger, check: net.check, watch: NameWatch.instance, relay: net.hubUrl, directOn: net.p2p?.on ?? false, directOffered: net.directOffered && net.directProblem == null, nameOf: _friendName),
     if (board != null && net.hub != null)
       PaneSection(
         title: 'Relay server',

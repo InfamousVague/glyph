@@ -180,6 +180,9 @@ void main() {
       for (final key in ['direct-known', 'direct-linked', 'direct-helpers-only']) {
         expect(find.byKey(ValueKey(key)), findsNothing, reason: key);
       }
+      // Checking the relay says there is no direct route here, not that Direct is off.
+      expect(find.textContaining('This device has no direct route'), findsOneWidget);
+      expect(find.textContaining('Direct is off'), findsNothing);
       // Switched off: nothing is tried, and nothing said of it.
       await _flip(tester, 'route-p2p', false);
       await _until(tester, () => !Net.instance.directOn);
