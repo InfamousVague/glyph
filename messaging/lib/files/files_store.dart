@@ -2,7 +2,6 @@ import 'video_frame.dart';
 import '../circles/circles.dart' show Circles, CirclePerm;
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ffi' as ffi;
 import 'dart:io';
 import '../platform_info.dart';
 import 'dart:isolate';
@@ -12,7 +11,6 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart' as crypto;
-import 'package:ffi/ffi.dart' as pkg_ffi;
 
 import '../desktop/store.dart' show DeskStore;
 import '../inbox/kept_writer.dart';
@@ -24,6 +22,7 @@ import '../voice/channels.dart';
 import '../voice/roles.dart';
 import '../voice/hangout.dart' show ChatUploads, OutgoingFile;
 import '../voice/voice.dart';
+import 'apple_sha.dart';
 import 'file_kinds.dart';
 import 'file_stream.dart';
 import 'files_api.dart';
@@ -1498,54 +1497,23 @@ class _DigestSink implements Sink<crypto.Digest> {
   void close() {}
 }
 
-/// CommonCrypto's, which every Mac and iPhone has (libSystem): CC_SHA256_Init, _Update, _Final.
+/// CommonCrypto's, which every Mac and iPhone has (libSystem): CC_SHA256_Init, _Update, _Final. They are reached
+/// through `dart:ffi`, which a browser's build can't name, so the calls themselves are in apple_sha.dart's two halves.
 class _AppleSha implements _Sha {
-  _AppleSha._(this._update, this._final, this._ctx, this._buf);
-
-  static const _room = 4 << 20;
+  _AppleSha._(this._own);
+  final AppleSha _own;
 
   static _AppleSha? open() {
-    if (!PlatformInfo.isMacOS && !PlatformInfo.isIOS) return null;
-    try {
-      final lib = ffi.DynamicLibrary.process();
-      final init = lib.lookupFunction<ffi.Int32 Function(ffi.Pointer<ffi.Void>), int Function(ffi.Pointer<ffi.Void>)>('CC_SHA256_Init');
-      final update = lib.lookupFunction<ffi.Int32 Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, ffi.Uint32), int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, int)>('CC_SHA256_Update');
-      final end = lib.lookupFunction<ffi.Int32 Function(ffi.Pointer<ffi.Uint8>, ffi.Pointer<ffi.Void>), int Function(ffi.Pointer<ffi.Uint8>, ffi.Pointer<ffi.Void>)>('CC_SHA256_Final');
-      // CC_SHA256_CTX is 104 bytes; more than enough is asked for.
-      final ctx = pkg_ffi.calloc<ffi.Uint8>(256).cast<ffi.Void>();
-      final buf = pkg_ffi.malloc<ffi.Uint8>(_room);
-      init(ctx);
-      return _AppleSha._(update, end, ctx, buf);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  final int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, int) _update;
-  final int Function(ffi.Pointer<ffi.Uint8>, ffi.Pointer<ffi.Void>) _final;
-  final ffi.Pointer<ffi.Void> _ctx;
-  final ffi.Pointer<ffi.Uint8> _buf;
-
-  @override
-  void add(Uint8List bytes, int length) {
-    for (var at = 0; at < length; at += _room) {
-      final n = math.min(_room, length - at);
-      _buf.asTypedList(n).setRange(0, n, bytes, at);
-      _update(_ctx, _buf, n);
-    }
+    final own = AppleSha.open();
+    return own == null ? null : _AppleSha._(own);
   }
 
   @override
-  Uint8List end() {
-    _final(_buf, _ctx);
-    return Uint8List.fromList(_buf.asTypedList(32));
-  }
-
+  void add(Uint8List bytes, int length) => _own.add(bytes, length);
   @override
-  void close() {
-    pkg_ffi.calloc.free(_ctx);
-    pkg_ffi.malloc.free(_buf);
-  }
+  Uint8List end() => _own.end();
+  @override
+  void close() => _own.close();
 }
 
 /// What the roster of a space's chat room says of its files (lib/voice/roles.dart): adding needs Add files; renaming,
