@@ -36,6 +36,13 @@ new: what is said about the floor is sealed with the space's key like everything
   and nobody is placed. In a circle it is a chat (`CircleSpace.fromJson`), never offered a call. Someone in the call
   who says no `os` stands in the middle (`Place.unsaid`).
 
+- **The walls** (`_FloorPainter._walls` in the view): the floor is a room seen from above and a little in front, its
+  walls glass in two colours (the kind's purple at the left running to cyan at the right): every face a see-through
+  wash, every edge a hard line at full strength, as the groups' circles are. The far wall shows its face (104 units
+  high, ruled into panels) under its top, the side walls their tops, and the near wall its top and its outer face,
+  fainter; the far wall's colour falls on the floor at its foot. They are drawn only, at the floor's own edge: nobody
+  walks into them, since the floor already ends there.
+
 ## Not built
 
 - **Who may change groups.** Anyone in the call may make, rename, move or remove one. Roles could hold it to whoever
