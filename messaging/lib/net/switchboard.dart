@@ -119,6 +119,17 @@ class Switchboard {
   /// What came, handled one after another ([add]).
   Future<void> _arrivals = Future.value();
 
+  /// The most arrivals from one route of live links (the direct route) that wait to be handled at once; one that comes
+  /// beyond is dropped and counted ([droppedArrivals]). What other people's devices send straight is never let hold
+  /// the relay's arrivals up behind more than that (second review, S12).
+  static const mostQueued = 128;
+  final Map<String, int> _queued = {};
+  int droppedArrivals = 0;
+
+  /// Holds what comes until [until] completes, as an open that takes long does: for a test of what waits meanwhile.
+  @visibleForTesting
+  void holdArrivals(Future<void> until) => _arrivals = _arrivals.then((_) => until);
+
   /// How many bytes this device has passed on to its own name in the current window ([passOnBytes] per [passOnWindow]):
   /// forged junk sealed for nobody can't be made to echo through the account (second review, A6).
   int _passedBytes = 0;
@@ -182,8 +193,25 @@ class Switchboard {
     remove(c.id);
     _carriers[c.id] = c;
     // One at a time, in the order they came (second review, A7): a ring, its cancel, an edit, never reordered by one
-    // taking longer to open than the next.
-    _subs[c.id] = c.arrived.listen((a) => _arrivals = _arrivals.then((_) => _arrived(a)).catchError((_) {}));
+    // taking longer to open than the next. From a route of live links, no more than [mostQueued] wait at once.
+    final bounded = c is LiveLinks;
+    _subs[c.id] = c.arrived.listen((a) {
+      if (bounded) {
+        final waiting = _queued[c.id] ?? 0;
+        if (waiting >= mostQueued) {
+          droppedArrivals++;
+          return;
+        }
+        _queued[c.id] = waiting + 1;
+      }
+      _arrivals = _arrivals.then((_) async {
+        try {
+          await _arrived(a);
+        } finally {
+          if (bounded) _queued[c.id] = (_queued[c.id] ?? 1) - 1;
+        }
+      }).catchError((_) {});
+    });
     c.state.addListener(_bump);
     _bump();
   }

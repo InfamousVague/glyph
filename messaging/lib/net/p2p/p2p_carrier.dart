@@ -65,6 +65,14 @@ class P2pCarrier implements Carrier, LiveLinks {
   /// instant (second review, S11).
   static const putAtLeast = Duration(seconds: 1);
 
+  /// What one stream may bring in a while, and one account's devices together: so many frames at once, and so many
+  /// more each second after. What comes beyond is dropped and counted ([dropped]), never passed on (second review,
+  /// S12): a packet that matters is sent again until it is answered.
+  static const lineBurst = 100, linePerSecond = 10, accountBurst = 150, accountPerSecond = 15;
+
+  /// How many frames were dropped for coming faster than [lineBurst] and [accountBurst] let them.
+  int dropped = 0;
+
   static final _words = utf8.encode('ghost-p2p link v2\n');
   static const _mark = 0, _nonceMark = 2, _proofMark = 3, _nonceLength = 16;
 
@@ -87,6 +95,10 @@ class P2pCarrier implements Carrier, LiveLinks {
 
   StreamSubscription<P2pStream>? _opened;
   final Map<String, _Node> _nodes = {};
+
+  /// What each account's devices may still bring now ([accountBurst]); none is kept of someone this device no longer
+  /// links with.
+  final Map<String, _Bucket> _buckets = {};
   bool _wanted = false;
 
   @override
@@ -242,6 +254,15 @@ class P2pCarrier implements Carrier, LiveLinks {
     if (line.closed) return;
     // Longer than a packet may be: refused, and whoever sends such is not listened to further.
     if (frame.length > maxPacket) return _close(node, line);
+    // Faster than a stream, or its account's devices together, may bring things: dropped, unread.
+    final account = line.account;
+    if (account != null) {
+      final now = p2p.nowMs;
+      if (!line.bucket.take(now) || !(_buckets[account] ??= _Bucket(accountBurst, accountPerSecond)).take(now)) {
+        dropped++;
+        return;
+      }
+    }
     if (line.account == null) {
       // The other end's nonce, then its proof; anything else, and the stream is closed.
       if (frame.length < 2 || frame[0] != _mark) return _close(node, line);
@@ -311,6 +332,9 @@ class P2pCarrier implements Carrier, LiveLinks {
       }
     }
   }
+
+  /// Nothing is kept of what accounts this device no longer links with may bring.
+  void forgetAccounts(bool Function(String account) keep) => _buckets.removeWhere((account, _) => !keep(account));
 
   /// No card is held for [nodeId] any more: nothing of it is kept here. (The node itself closes its streams.)
   void forget(String nodeId) {
@@ -539,6 +563,23 @@ class P2pCarrier implements Carrier, LiveLinks {
   }
 }
 
+/// So many things at once, and so many more each second after: what someone may bring in a while.
+class _Bucket {
+  _Bucket(this.most, this.perSecond) : _left = most.toDouble();
+  final int most, perSecond;
+  double _left;
+  int _at = 0;
+
+  /// Whether one more may come at [now], counted where it may.
+  bool take(int now) {
+    if (_at > 0 && now > _at) _left = (_left + (now - _at) * perSecond / 1000).clamp(0, most).toDouble();
+    _at = now;
+    if (_left < 1) return false;
+    _left -= 1;
+    return true;
+  }
+}
+
 /// What became of a frame put on a stream: taken; failed (the stream is gone); or slow, not taken in its time.
 enum _Put { took, failed, slow }
 
@@ -559,6 +600,9 @@ class _Line {
 
   /// Which of them it proved to be; null until its proof has come.
   String? account;
+
+  /// What it may still bring now ([P2pCarrier.lineBurst]).
+  final bucket = _Bucket(P2pCarrier.lineBurst, P2pCarrier.linePerSecond);
   StreamSubscription<Uint8List>? sub;
   Timer? timer;
   bool closed = false;

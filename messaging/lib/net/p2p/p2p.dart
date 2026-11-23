@@ -547,6 +547,7 @@ class P2p extends ChangeNotifier {
       counted.removeWhere((account, _) => account != me && !_friendsNow.containsKey(account));
     }
     _awaited.removeWhere((account, _) => account != me && !_friendsNow.containsKey(account));
+    carrier.forgetAccounts((account) => account == me || _friendsNow.containsKey(account));
     if (_dropRunOut()) changed = true;
     if (changed) _saveCards();
     _allow();

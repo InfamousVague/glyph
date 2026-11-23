@@ -1051,6 +1051,50 @@ void main() {
       expect([a.p2p.carrier.lines, a.p2p.carrier.linkedTo(b.account.id, b.p2p.nodeId!)], [1, true]);
     });
 
+    // The second review, S12: nothing limited the frames on a stream, and every one joined the switchboard's arrivals.
+    test('what one stream, and one account\'s devices together, can push in a while is limited: the rest is dropped and counted', () async {
+      final maya = w.account('maya'), sam = w.account('sam');
+      final a = w.install(maya, computer: true), b = w.install(sam, computer: true);
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      final handed = <Arrived>[];
+      a.p2p.carrier.arrived.listen(handed.add);
+      // Two devices of Sam's, by hand, each with a stream to Maya's device.
+      final ends = <HandEnd>[];
+      for (var i = 0; i < 2; i++) {
+        final raw = w.mesh.node();
+        await raw.start(P2pConfig(secret: NetCrypto.randomBytes(32)));
+        await b.board.send(b.to(maya), _said(w, _telling(a, await _cardOf(w, sam, node: raw.nodeId))), only: {'hub'});
+        await w.settle();
+        ends.add(HandEnd(await raw.open(a.p2p.nodeId!, P2pChannel.packets, hint: a.node.whereabouts.value), linkKey: b.p2p.linkKey(maya.id)!, account: sam.id, node: raw.nodeId!, them: maya.id));
+        await w.settle();
+        expect(ends.last.proved, isTrue);
+      }
+      Uint8List packet() => Packet.wrap(from: sam.id, sealed: true, payload: NetCrypto.randomBytes(40));
+      // One floods: no more than a stream's hundred go on at once.
+      for (var i = 0; i < 300; i++) {
+        await ends[0].add(packet());
+      }
+      await w.settle();
+      expect([handed.length, a.p2p.carrier.dropped], [P2pCarrier.lineBurst, 300 - P2pCarrier.lineBurst]);
+      // The other device of the same account: what is left of the account's hundred and fifty.
+      for (var i = 0; i < 300; i++) {
+        await ends[1].add(packet());
+      }
+      await w.settle();
+      expect(handed.length, P2pCarrier.accountBurst);
+      // Ten seconds on, a stream has its hundred again and the account a hundred and fifty: so many more go on.
+      await w.clock.pass(const Duration(seconds: 10));
+      final before = handed.length;
+      for (var i = 0; i < 300; i++) {
+        await ends[0].add(packet());
+      }
+      await w.settle();
+      expect(handed.length - before, P2pCarrier.lineBurst);
+      expect(ends.every((e) => !e.done), isTrue, reason: 'dropped, not closed on');
+    });
+
     test('no more than two streams are held with one device, and a stream on another channel is not this route\'s to touch', () async {
       final a = w.install(w.account('maya'), computer: true), b = w.install(w.account('sam'), computer: true);
       w.friends(a, b);
@@ -1325,6 +1369,33 @@ void main() {
       await pumpEventQueue();
       expect(hub.carried.where(passed).length, 2);
       expect(fs.wasPassed(NetCrypto.hex(NetCrypto.sha256(Packet.parse(second)!.payload).sublist(0, 8))), isTrue);
+      await board.stop();
+    });
+
+    test('no more than so many arrivals from the direct route wait to be opened at once: the rest are dropped and counted, and the relay\'s are never held up behind more', () async {
+      final me = NetKeys.generate(), sam = NetKeys.generate();
+      final pair = NetCrypto.netKey(NetCrypto.conversationKey(me, sam.public)!);
+      final hub = PlainCarrier('hub'), direct = _DeadLinks();
+      final board = Switchboard(me: me.id, peers: _Book({sam.id: Peer(id: sam.id, key: pair)}), carriers: [hub, direct]);
+      addTearDown(board.dispose);
+      await board.start();
+      final got = <Received>[];
+      board.received.listen(got.add);
+      Uint8List text(String t) => Packet.wrap(from: sam.id, sealed: true, payload: NetCrypto.seal(pair, Envelope(kind: 'text', body: {'t': t}, ack: false).encode()));
+      // Opening takes a while (a forward-secret packet is opened on an isolate of its own): what comes meanwhile waits.
+      final held = Completer<void>();
+      board.holdArrivals(held.future);
+      for (var i = 0; i < 300; i++) {
+        direct.take(text('straight $i'), from: sam.id);
+        await pumpEventQueue(times: 2);
+      }
+      hub.take(text('by the relay'), from: sam.id);
+      await pumpEventQueue();
+      expect(board.droppedArrivals, 300 - Switchboard.mostQueued);
+      held.complete();
+      await pumpEventQueue(times: 400);
+      expect(got.where((r) => r.via == 'p2p'), hasLength(Switchboard.mostQueued));
+      expect(got.last.envelope.body['t'], 'by the relay', reason: 'opened after no more than the ones let wait');
       await board.stop();
     });
   });
