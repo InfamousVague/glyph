@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'hub.dart';
+import 'ws_door.dart';
 
 /// Dialling another relay safely (federation.dart). The addresses this relay dials come from other people: a home
 /// record anyone can sign, a name someone typed after an "@", the address another relay says is its own. So before
@@ -140,27 +141,42 @@ class DialRefused implements Exception {
   String toString() => why;
 }
 
+/// The longest message a link carries, with a margin: a packet passed on (`[5]` or `[6]`, a hub's packet and 53 bytes)
+/// or 64 KB of words (federation.dart closes a link past either). One longer, from a hub this relay dialled, ends the
+/// connection before a byte of it is held (ws_door.dart); so does a first message (the hub's hello) of more than 16 KB.
+const linkMost = 128 << 10;
+
 /// A WebSocket to the hub at [url], made to [address] and nowhere else: the name in [url] is what TLS is asked for and
-/// the certificate checked against, and what the request says its host is, but it is never looked up. Every connection
-/// this makes goes to [address] on [url]'s port, so a redirect to another host goes nowhere.
-Future<HubSocket> connectPinned(Uri url, InternetAddress address, {Duration timeout = const Duration(seconds: 10)}) async {
+/// the certificate checked against (with [context]'s roots; the system's where null), and what the request says its
+/// host is, but it is never looked up. The handshake is made here (ws_door.dart), asking for no compression, and only a
+/// `101` is taken: a redirect anywhere is a refusal. Every message that comes in is held to [linkMost] before it is
+/// read. [timeout] is for all of it: connecting, TLS and the handshake.
+Future<HubSocket> connectPinned(Uri url, InternetAddress address, {Duration timeout = const Duration(seconds: 10), SecurityContext? context}) async {
   final secure = url.scheme == 'wss';
   final port = url.hasPort ? url.port : (secure ? 443 : 80);
-  final client = HttpClient()
-    ..connectionTimeout = timeout
-    ..findProxy = ((_) => 'DIRECT')
-    ..connectionFactory = (uri, proxyHost, proxyPort) async {
-      if (uri.host != url.host || uri.scheme != (secure ? 'https' : 'http')) throw SocketException('not followed elsewhere: ${uri.host}');
-      final task = await Socket.startConnect(address, port);
-      if (!secure) return task;
-      return ConnectionTask.fromSocket<Socket>(task.socket.then<Socket>((s) => SecureSocket.secure(s, host: url.host)), task.cancel);
-    };
+  Socket? made;
+  var late = false;
+  Future<WebSocket> connect() async {
+    Socket socket = await Socket.connect(address, port, timeout: timeout);
+    made = socket;
+    if (late) throw const WsRefused('too slow');
+    if (secure) {
+      socket = await SecureSocket.secure(socket, host: url.host, context: context);
+      made = socket;
+      if (late) throw const WsRefused('too slow');
+    }
+    return dialGuarded(socket, url, most: linkMost);
+  }
+
   try {
-    final ws = await WebSocket.connect('$url', customClient: client).timeout(timeout);
+    final ws = await connect().timeout(timeout);
     ws.pingInterval = const Duration(seconds: 30);
-    return WebSocketHubSocket(ws, onDone: () => client.close(force: true));
+    final socket = made;
+    return WebSocketHubSocket(ws, onDone: () => socket?.destroy());
   } catch (_) {
-    client.close(force: true);
+    // Given up on (or refused): whatever it had made by then is let go, now or as soon as it is made.
+    late = true;
+    made?.destroy();
     rethrow;
   }
 }

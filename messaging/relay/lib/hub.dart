@@ -13,6 +13,7 @@ import 'pushes.dart';
 import 'turn.dart';
 import 'p256.dart';
 import 'sha256.dart';
+import 'ws_door.dart';
 
 /// The hub: where two people's apps find each other through this server (Matt, 2026-11-14: "implement a full relay
 /// system for the app that's replacable and swappable so that for right now we can use our servers to negotiate
@@ -105,6 +106,11 @@ class Hub {
   int _held = 0;
 
   static const maxPacket = 64 * 1024;
+
+  /// The longest message the hub reads, in bytes: the longest an app says is a list of 5,000 keys watched or a kept
+  /// blob of 256 KB, and this has room to spare. One longer ends the connection before a byte of it is held, and so
+  /// does a first message (the hello) of more than 16 KB (ws_door.dart).
+  static const maxMessage = 1 << 20;
   static const mailboxFrames = 200;
   static const mailboxBytes = 1 << 20;
   static const holdFor = Duration(days: 7);
@@ -372,7 +378,10 @@ class Hub {
     try {
       // No compression: a message is held whole before its length is looked at, and a deflated one of a few hundred
       // kilobytes opens out to hundreds of megabytes (found in review, 2026-11-22). Sealed packets don't shrink anyway.
-      ws = await WebSocketTransformer.upgrade(request, compression: CompressionOptions.compressionOff);
+      // And a ceiling on a message's length in front of the parser, for one sent as it is (ws_door.dart).
+      final up = await upgradeGuarded(request, most: maxMessage);
+      if (up == null) return;
+      ws = up;
     } catch (_) {
       return;
     }

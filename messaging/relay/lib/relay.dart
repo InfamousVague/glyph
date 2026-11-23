@@ -8,6 +8,7 @@ import 'files.dart';
 import 'hub.dart';
 import 'market.dart';
 import 'sha256.dart';
+import 'ws_door.dart';
 
 /// Ghost Messaging's relay (docs/desktop.md): a WebSocket server a phone and the computer it is paired with both dial
 /// out to when they are on different networks. It passes what one sends to the other while both are connected, and
@@ -47,6 +48,10 @@ class Relay {
   final DateTime Function() _now;
 
   static const maxFrame = (1 << 20) + 64;
+
+  /// The longest message read at all: a frame past [maxFrame] closes the channel once it is read, and one past this
+  /// ends the connection before it is held (ws_door.dart).
+  static const maxMessage = maxFrame + (64 << 10);
   static const tempLife = Duration(minutes: 10);
   static const idleLife = Duration(days: 90);
   static const authWait = Duration(seconds: 10);
@@ -163,7 +168,10 @@ class Relay {
     final WebSocket ws;
     try {
       // No compression, as the hub (hub.dart, accept): a deflated message opens out before its length is looked at.
-      ws = await WebSocketTransformer.upgrade(request, compression: CompressionOptions.compressionOff);
+      // And no message longer than a frame this door takes, with a margin, is held at all (ws_door.dart).
+      final up = await upgradeGuarded(request, most: maxMessage);
+      if (up == null) return;
+      ws = up;
     } catch (_) {
       return;
     }
