@@ -10,6 +10,8 @@ import '../emoji_sets.dart';
 /// asset is.
 final Map<String, Future<void>> _fetching = {};
 
+/// Fetches the emoji font [family] and gives it to Flutter, once: asked for again while it is on its way, it is the
+/// same fetch. Nothing for a family the app has no font for.
 Future<void> loadEmojiFont(String family) => _fetching[family] ??= () async {
       final asset = emojiFontAssets[family];
       if (asset == null) return;

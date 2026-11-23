@@ -21,17 +21,21 @@ class SpaceGroup {
   Map<String, String> toJson() => {'id': id, 'n': name};
 }
 
+/// This device's groups of spaces: makes, renames, deletes and folds them, puts spaces in them, and saves each change.
 class SpaceGroups extends ChangeNotifier {
   SpaceGroups._();
   static final instance = SpaceGroups._();
 
   AppState? _app;
   List<SpaceGroup> _groups = const [];
+  /// Which group each space is in: a space's seed to its group's id.
   final Map<String, String> _of = {};
   final Set<String> _folded = {};
 
   List<SpaceGroup> get groups => _groups;
 
+  /// Loads what was kept in [app]'s choices; a space filed under a group that is gone is left in none. Only the first
+  /// call does anything.
   void start(AppState app) {
     if (_app != null) return;
     _app = app;
@@ -103,6 +107,7 @@ class SpaceGroups extends ChangeNotifier {
   /// Whether the group with [id] (one of these, or a Discord server's `discord:<guild>`) is folded away.
   bool folded(String id) => _folded.contains(id);
 
+  /// Folds the group with [id] away, or opens it again.
   void fold(String id, bool on) {
     on ? _folded.add(id) : _folded.remove(id);
     _keep();

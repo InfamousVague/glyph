@@ -48,8 +48,11 @@ class ApiMethod {
 
   /// Parameters to try it with.
   final Map<String, Object?>? example;
+
+  /// Does it: given the call's parameters, already checked against [params], gives its answer or throws.
   final Future<Object?> Function(Map<String, Object?> p) run;
 
+  /// The part of [name] before the dot: what the methods are grouped by.
   String get group => name.contains('.') ? name.substring(0, name.indexOf('.')) : name;
 
   Map<String, Object?> toJson() => {
@@ -91,6 +94,7 @@ class ApiCall {
   final String? error;
 }
 
+/// The registry: every method by its name, a call made with its parameters checked, and the log of the last calls.
 class Api {
   Api._() {
     // Its own two, always there, whatever else is registered.
@@ -107,6 +111,7 @@ class Api {
   /// The last calls, newest first: what Settings › API shows.
   final ValueNotifier<List<ApiCall>> calls = ValueNotifier(const []);
 
+  /// Adds a method. Two of one name is a mistake, caught by an assert.
   void register(ApiMethod m) {
     assert(!_methods.containsKey(m.name), 'two methods called ${m.name}');
     _methods[m.name] = m;
@@ -114,6 +119,7 @@ class Api {
 
   void registerAll(Iterable<ApiMethod> ms) => ms.forEach(register);
 
+  /// Every method, in order of name; and the one called [name].
   List<ApiMethod> get methods => _methods.values.toList()..sort((a, b) => a.name.compareTo(b.name));
   ApiMethod? method(String name) => _methods[name];
 

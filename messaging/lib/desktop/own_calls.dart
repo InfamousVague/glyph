@@ -31,11 +31,14 @@ class DeskOwnCalls extends UsernameOverlay implements CapableCalls, OwnNetworkCa
   /// Whether the identity is kept in the Keychain (a release build) or in the folder (a test, a build of one's own).
   final bool keychain;
 
+  /// The name the identity is kept under in the Keychain.
   static const _account = 'desk-own-identity';
 
+  /// The identity taken on from the phone, once read; and this computer's friends by username, as JSON.
   NetKeys? _keys;
   String _buddyJson = '[]';
 
+  /// The link to the phone, which answers everything this does not.
   LinkCalls get link => inner as LinkCalls;
 
   /// Opens the app again ('restartApp'): a new copy, as desk.dart does; false under a test, which sets its own.
@@ -56,6 +59,8 @@ class DeskOwnCalls extends UsernameOverlay implements CapableCalls, OwnNetworkCa
   @override
   Set<String> get caps => link.caps;
 
+  /// The files in [dir]: the friends' list, the identity where the Keychain does not hold it, a secret by its name
+  /// (cut down to lower-case letters, digits and _), and what the phone said of its account.
   File get _buddyFile => File('${dir.path}/buddies.json');
   File get _keyFile => File('${dir.path}/identity.key');
   File _secretFile(String name) => File('${dir.path}/secret-${name.replaceAll(RegExp(r'[^a-z0-9_]'), '')}.key');
@@ -77,6 +82,8 @@ class DeskOwnCalls extends UsernameOverlay implements CapableCalls, OwnNetworkCa
   /// What the phone said of its account in a handover ([handover]'s `account`), kept for [phoneAccount].
   void takePhoneAccount(Object? account) => keepPhoneAccount(dir, account);
 
+  /// The same without a [DeskOwnCalls] made yet: written into [dir], or deleted where the phone says it is in none.
+  /// Anything that is not the phone's answer leaves what was kept.
   static void keepPhoneAccount(Directory dir, Object? account) {
     try {
       final f = File('${dir.path}/phone_account.json');
@@ -162,6 +169,7 @@ class DeskOwnCalls extends UsernameOverlay implements CapableCalls, OwnNetworkCa
   /// This computer's list, for the phone to take in.
   String get buddyJson => _buddyJson;
 
+  /// Takes a new list of friends: held, written to its file, and the screens told the choices changed.
   void _keepBuddyJson(String json) {
     _buddyJson = json;
     keepBuddies(json);

@@ -72,6 +72,7 @@ String statusFrom(String status) {
 @visibleForTesting
 Future<Uint8List?> Function(String url) fetchPicture = _fetch;
 
+/// The bytes at [url], over https only; null where it can't be had, takes too long, or is over 8 MB.
 Future<Uint8List?> _fetch(String url) async {
   final u = Uri.tryParse(url);
   if (u == null || u.scheme != 'https') return null;
@@ -179,6 +180,7 @@ class _SignUpFromSectionState extends State<SignUpFromSection> {
   String? _busy;
   String? _problem;
 
+  /// Signs in to [source] and hands what its profile gave to the form; one at a time, a failure shown in its words.
   Future<void> _start(String source) async {
     if (_busy != null) return;
     setState(() {

@@ -35,11 +35,13 @@ object LiveCaptions {
     @Volatile private var muted = false
     private var language: String? = null
     private var recognizer: SpeechRecognizer? = null
+    /** The recognizer reads one end ([0]); [stream] writes the other. Blocks wait in [queue] for the [writer]. */
     private var pipe: Array<ParcelFileDescriptor>? = null
     @Volatile private var stream: FileOutputStream? = null
     private val queue = LinkedBlockingQueue<ByteArray>()
     private var writer: Thread? = null
 
+    /** The `ghost/captions` channel: available, start (in a language), stop and muted; `heard` goes back to Dart. */
     fun register(context: Context, messenger: BinaryMessenger) {
         this.context = context
         val ch = MethodChannel(messenger, "ghost/captions")
@@ -64,12 +66,14 @@ object LiveCaptions {
         }
     }
 
+    /** Turns captions on: false where the phone has no on-device recognition. */
     private fun start(): Boolean {
         val ctx = context ?: return false
         if (!Scribe.available(ctx)) return false
         if (on) return true
         on = true
         queue.clear()
+        // The pipe is written on a thread of its own: a write that waits must never hold WebRTC's audio thread.
         writer = thread(name = "ghost-captions") {
             while (on) {
                 val b = runCatching { queue.poll(200, java.util.concurrent.TimeUnit.MILLISECONDS) }.getOrNull() ?: continue
@@ -101,6 +105,7 @@ object LiveCaptions {
         main.post { listenNow() }
     }
 
+    /** On the main thread, as a recognizer must be made and used: a new pipe and a new recognizer reading it. */
     private fun listenNow() {
         val ctx = context ?: return
         if (!on) return
@@ -148,6 +153,7 @@ object LiveCaptions {
         })
     }
 
+    /** Tells Dart what was heard: [done] false for a line still being said, true once it has ended. */
     private fun say(words: String, done: Boolean) = main.post {
         channel?.invokeMethod("heard", mapOf("text" to words, "done" to done))
     }
@@ -161,6 +167,7 @@ object LiveCaptions {
         val n = (frames.toLong() * RATE / rate).toInt()
         val out = ByteArray(n * 2)
         val silent = muted
+        // Down to 16 kHz by taking the nearest earlier sample; silence while muted, so the session goes on.
         for (i in 0 until n) {
             val at = (i.toLong() * rate / RATE).toInt().coerceAtMost(frames - 1)
             val v = if (silent) 0 else b.getFloat(at * 4).coerceIn(-32768f, 32767f).toInt()

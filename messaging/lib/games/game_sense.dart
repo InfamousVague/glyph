@@ -76,6 +76,8 @@ typedef Running = String;
 /// What a Mac app says of itself: whether its category is a game's, and its name.
 typedef AppFacts = ({bool game, String name});
 
+/// Finds the game running on this Mac or Windows computer from the list of running programs: by a library's folder,
+/// a known program's name, the person's own list, or a Mac app's category. Nothing is read of what a program does.
 class GameSense {
   GameSense({this.runner = _run, this.windows, this.home});
 
@@ -91,6 +93,7 @@ class GameSense {
   /// Whether this device can look at all.
   static bool get supported => !kIsWeb && (PlatformInfo.isMacOS || PlatformInfo.isWindows);
 
+  /// The app's own runner: what the program wrote, '' where it failed; 12 seconds at most.
   static Future<String> _run(String program, List<String> args) async {
     final r = await Process.run(program, args, stdoutEncoding: utf8, stderrEncoding: utf8).timeout(const Duration(seconds: 12));
     return r.exitCode == 0 ? '${r.stdout}' : '';

@@ -23,6 +23,7 @@ pub const MAX_ADDRESS_LEN: usize = 64;
 /// The most streams one TAKEN or DONE names: the Dart side says them once for all it handled of one batch of events.
 pub const MAX_LISTED: usize = 4096;
 
+/// The first byte of each command.
 pub mod cmd {
     pub const START: u8 = 0x01;
     pub const STOP: u8 = 0x02;
@@ -37,6 +38,7 @@ pub mod cmd {
     pub const NETWORK_CHANGED: u8 = 0x0b;
 }
 
+/// The first byte of each event.
 pub mod ev {
     pub const UP: u8 = 0x01;
     pub const DOWN: u8 = 0x02;
@@ -62,6 +64,7 @@ pub struct Channels([u64; 4]);
 impl Channels {
     pub const NONE: Channels = Channels([0; 4]);
 
+    /// The set of the channels listed; one named twice is in it once.
     pub fn of(list: &[u8]) -> Self {
         let mut set = Self::NONE;
         for c in list {
@@ -88,6 +91,7 @@ impl std::fmt::Debug for Channels {
 /// What a node is started with (`P2pConfig`).
 #[derive(Clone, PartialEq, Eq)]
 pub struct Config {
+    /// The node key: its id is made from it.
     pub secret: [u8; 32],
     /// The link helpers, as the app wrote them (`https://…`).
     pub helpers: Vec<String>,
@@ -116,6 +120,7 @@ pub struct Hint {
     pub addresses: Vec<String>,
 }
 
+/// What the app asks of a node, as [`Command::decode`] reads it from the bytes handed to `ghost_p2p_command`.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Command {
     Start(Config),
@@ -156,14 +161,22 @@ pub enum Command {
     NetworkChanged,
 }
 
+/// Why a command's bytes were not read as a command.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Malformed {
+    /// No bytes at all.
     Empty,
+    /// A first byte that is no command's.
     Unknown(u8),
+    /// It ends before what it says it holds; or a list that names nothing.
     Short,
+    /// Bytes left over after the command.
     Trailing,
+    /// More helpers, addresses or streams than a command may name.
     TooMany,
+    /// A text or a frame longer than the most.
     TooLong,
+    /// Text that is not UTF-8.
     NotText,
 }
 
@@ -200,6 +213,7 @@ impl<'a> Reader<'a> {
         Ok(self.take(32)?.try_into().expect("thirty-two bytes"))
     }
 
+    /// `len` bytes as text, refused before any is taken where `len` is over `most`.
     fn text(&mut self, len: usize, most: usize) -> Result<String, Malformed> {
         if len > most {
             return Err(Malformed::TooLong);
@@ -219,17 +233,21 @@ impl<'a> Reader<'a> {
         Ok(n)
     }
 
+    /// A count in one byte, then that many channels.
     fn channels(&mut self) -> Result<Channels, Malformed> {
         let n = self.u8()? as usize;
         Ok(Channels::of(self.take(n)?))
     }
 
+    /// Refuses a command with anything after it.
     fn end(self) -> Result<(), Malformed> {
         if self.0.is_empty() { Ok(()) } else { Err(Malformed::Trailing) }
     }
 }
 
 impl Command {
+    /// Reads one whole command, or says what is wrong with it. A SEND's frame is not copied out: it is everything
+    /// after the stream, so only its length is checked here.
     pub fn decode(bytes: &[u8]) -> Result<Command, Malformed> {
         let mut r = Reader(bytes);
         let kind = r.u8().map_err(|_| Malformed::Empty)?;
@@ -447,6 +465,7 @@ impl Event {
                 let mut b = vec![ev::PATH];
                 b.extend_from_slice(&node);
                 b.push(kind as u8);
+                // A round trip not yet known is all ones, which no known one is ever written as.
                 b.extend_from_slice(&rtt_ms.map(|ms| ms.min(u32::MAX - 1)).unwrap_or(u32::MAX).to_be_bytes());
                 b
             }
@@ -476,6 +495,7 @@ pub fn hex(id: &[u8; 32]) -> String {
 mod tests {
     use super::*;
 
+    /// A START command's bytes, with a key of all sevens.
     fn start(helpers: &[&str], helpers_only: bool) -> Vec<u8> {
         let mut b = vec![cmd::START, helpers_only as u8];
         b.extend_from_slice(&[7u8; 32]);

@@ -59,6 +59,7 @@ const String settingsCss = '''
 }
 ''';
 
+/// The sheets the rules have been laid over already.
 final Expando<bool> _installed = Expando<bool>('settings.css');
 
 /// Lays [settingsCss] over [sheet], after every rule it already has, as the page loads settings.css after the app's

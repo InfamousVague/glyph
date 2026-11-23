@@ -26,6 +26,9 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
+// The helper's working parts: the session and its store, signing in, the sync that feeds the app's events, the rooms
+// as the app has them, and each request's doing. main.go holds the protocol; shape.go the shapes that need no network.
+
 // session is what signing in leaves: kept in session.json, readable by the person alone.
 type session struct {
 	Homeserver  string      `json:"homeserver"`
@@ -56,6 +59,9 @@ type roomInfo struct {
 	LastTS       int64          `json:"last_ts,omitempty"`
 }
 
+// mu guards everything in this block, the resuming pair and changed. sess, cli, helper and db are set together by
+// start and cleared together by stop: all nil when signed out. firstSync is true from a start until its first sync is
+// through: that one says "synced", not a "room" each.
 var (
 	mu       sync.Mutex
 	sess     *session
@@ -71,13 +77,16 @@ var (
 	firstSync   bool
 )
 
+// bg is a context that carries the helper's log, so mautrix writes to it.
 func bg() context.Context { return log.WithContext(context.Background()) }
 
+// Where each thing is kept under --dir.
 func sessionPath() string { return filepath.Join(dir, "session.json") }
 func dbPath() string      { return filepath.Join(dir, "matrix.db") }
 func roomsPath() string   { return filepath.Join(dir, "rooms.json") }
 func avatarDir() string   { return filepath.Join(dir, "avatars") }
 
+// readSession reads the kept session: nil with no error for a file that lacks a token, user or device.
 func readSession() (*session, error) {
 	b, err := os.ReadFile(sessionPath())
 	if err != nil {
@@ -93,6 +102,7 @@ func readSession() (*session, error) {
 	return &s, nil
 }
 
+// writeSession keeps [s], written beside the file and renamed into place so a crash never leaves half of it.
 func writeSession(s *session) error {
 	b, err := json.Marshal(s)
 	if err != nil {
@@ -105,6 +115,7 @@ func writeSession(s *session) error {
 	return os.Rename(tmp, sessionPath())
 }
 
+// loggedIn is whether a client is started, with its encryption.
 func loggedIn() bool {
 	mu.Lock()
 	defer mu.Unlock()
@@ -114,6 +125,7 @@ func loggedIn() bool {
 // openDB opens the store (end-to-end keys, the state of each room, the sync position) in SQLite: pure Go on the
 // computers (db_purego.go), mautrix's own driver on the phone (db_cgo.go).
 func openDB() (*dbutil.Database, error) {
+	// Made here first, so the file is the person's alone to read before SQLite writes any key into it.
 	if f, err := os.OpenFile(dbPath(), os.O_CREATE|os.O_RDWR, 0o600); err == nil {
 		_ = f.Close()
 	}
@@ -206,6 +218,7 @@ func start(c *mautrix.Client, s *session) error {
 		_ = raw.Close()
 		return err
 	}
+	// A new message this device has no key for still reaches the app, marked undecryptable.
 	h.DecryptErrorCallback = func(evt *event.Event, err error) {
 		if evt.Mautrix.EventSource&event.SourceTimeline == 0 {
 			return
@@ -240,6 +253,8 @@ func start(c *mautrix.Client, s *session) error {
 	return nil
 }
 
+// syncLoop syncs until [ctx] ends, starting again ten seconds after a failure; a token the server no longer knows
+// signs the device out instead.
 func syncLoop(ctx context.Context, c *mautrix.Client) {
 	for {
 		err := c.SyncWithContext(ctx)
@@ -274,6 +289,7 @@ func stop() {
 	cli, helper, db, sess = nil, nil, nil, nil
 }
 
+// shutdown keeps the rooms and stops, leaving the session and store for the next run.
 func shutdown() {
 	saveRooms()
 	mu.Lock()
@@ -297,6 +313,8 @@ func forget() {
 	_ = os.RemoveAll(avatarDir())
 }
 
+// loggedOut forgets everything and tells the app [why], unless [c] is no longer the client in use (the person has
+// signed in again since).
 func loggedOut(c *mautrix.Client, why string) {
 	mu.Lock()
 	same := cli == c
@@ -310,6 +328,7 @@ func loggedOut(c *mautrix.Client, why string) {
 
 var errNotSignedIn = errors.New("not signed in to Matrix")
 
+// client is the started client and its encryption, or errNotSignedIn. Takes mu itself: never call it with mu held.
 func client() (*mautrix.Client, *cryptohelper.CryptoHelper, error) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -337,6 +356,8 @@ func resolve(ctx context.Context, in string) (base string, parsed homeserverInpu
 	return "https://" + parsed.Server, parsed, nil
 }
 
+// loginWith signs in at [base] with [req] as a new device named "Ghost Messaging", keeps the session with a fresh
+// key for its store, starts syncing and answers the status.
 func loginWith(ctx context.Context, base string, req *mautrix.ReqLogin) (map[string]any, error) {
 	if loggedIn() {
 		return nil, errors.New("already signed in to Matrix: sign out first")
@@ -388,6 +409,8 @@ func loginWhy(err error) error {
 	return err
 }
 
+// loginPassword signs in with a user name and password. The server may be left out when the user is a whole
+// "@name:server" id, and the user when the homeserver field holds one.
 func loginPassword(ctx context.Context, r request) (map[string]any, error) {
 	field := r.Homeserver
 	if field == "" && strings.HasPrefix(r.User, "@") {
@@ -411,6 +434,8 @@ func loginPassword(ctx context.Context, r request) (map[string]any, error) {
 	})
 }
 
+// beginSSO answers the address to open in a browser for the server's own sign-in page, which comes back to
+// [r.Redirect] with a token for login_token. Refused where the server offers no browser sign-in.
 func beginSSO(ctx context.Context, r request) (map[string]any, error) {
 	if r.Redirect == "" {
 		return nil, errors.New("no redirect address")
@@ -436,6 +461,8 @@ func beginSSO(ctx context.Context, r request) (map[string]any, error) {
 	return map[string]any{"url": ssoURL(base, r.Redirect), "homeserver": base, "password": flows.HasFlow(mautrix.AuthTypePassword)}, nil
 }
 
+// loginToken finishes a browser sign-in with the token it came back with, on the server beginSSO was asked about
+// unless the request names one.
 func loginToken(ctx context.Context, r request) (map[string]any, error) {
 	mu.Lock()
 	base := pendingBase
@@ -453,6 +480,8 @@ func loginToken(ctx context.Context, r request) (map[string]any, error) {
 	return loginWith(ctx, base, &mautrix.ReqLogin{Type: mautrix.AuthTypeToken, Token: r.Token})
 }
 
+// status is who is signed in and whether the device is verified; signed out, whether a kept session is still
+// waiting for the network. The display name is asked of the server each time.
 func status(ctx context.Context) map[string]any {
 	mu.Lock()
 	c, s := cli, sess
@@ -507,6 +536,8 @@ func verifyRecoveryKey(ctx context.Context, key string) (map[string]any, error) 
 		_ = writeSession(sess)
 	}
 	mu.Unlock()
+	// The device is verified from here on. The key backup is a second, separate gain: failing to fetch it is told
+	// in "backup_error", not as a failed request.
 	result := map[string]any{"verified": true, "backup_version": nil}
 	raw, err := mach.SSSS.GetDecryptedAccountData(ctx, event.AccountDataMegolmBackupKey, ssssKey)
 	if err != nil {
@@ -534,8 +565,11 @@ type appSyncer struct {
 	*mautrix.DefaultSyncer
 }
 
+// changed is the rooms touched since the last sync was through. Guarded by mu.
 var changed = map[id.RoomID]bool{}
 
+// ProcessResponse runs mautrix's handling of a sync (which fills changed through the handlers below), keeps the rooms,
+// then says "synced" after the first sync of a start and a "room" for each changed room after every later one.
 func (s *appSyncer) ProcessResponse(ctx context.Context, res *mautrix.RespSync, since string) error {
 	err := s.DefaultSyncer.ProcessResponse(ctx, res, since)
 	mu.Lock()
@@ -561,6 +595,8 @@ func (s *appSyncer) ProcessResponse(ctx context.Context, res *mautrix.RespSync, 
 	return err
 }
 
+// stateOf reads a room's name, alias, picture and encryption out of [evts] into [info], and returns who invited the
+// person and whether as a direct chat, where an invite to them is among the events. Called with mu held.
 func stateOf(evts []*event.Event, info *roomInfo) (inviter id.UserID, inviteDirect bool) {
 	me := ownID()
 	for _, evt := range evts {
@@ -643,6 +679,7 @@ func onSync(ctx context.Context, res *mautrix.RespSync, since string) bool {
 	return true
 }
 
+// ownID is the signed-in person's id, empty when signed out. Takes no lock.
 func ownID() id.UserID {
 	if sess != nil {
 		return sess.UserID
@@ -682,6 +719,8 @@ func noteLast(room id.RoomID, m map[string]any) {
 	changed[room] = true
 }
 
+// onMessage tells the app of a message or sticker new in a room's timeline (state and other sources are passed
+// over). An edit is told too, but does not become the room's last message.
 func onMessage(ctx context.Context, evt *event.Event) {
 	if evt.Mautrix.EventSource&event.SourceTimeline == 0 {
 		return
@@ -696,6 +735,7 @@ func onMessage(ctx context.Context, evt *event.Event) {
 	emit("message", m)
 }
 
+// onReaction tells the app of a reaction new in a room's timeline.
 func onReaction(ctx context.Context, evt *event.Event) {
 	if evt.Mautrix.EventSource&event.SourceTimeline == 0 {
 		return
@@ -705,6 +745,7 @@ func onReaction(ctx context.Context, evt *event.Event) {
 	}
 }
 
+// onRedaction tells the app which event (a message, or a reaction taken back) was removed, and by whom.
 func onRedaction(ctx context.Context, evt *event.Event) {
 	if evt.Mautrix.EventSource&event.SourceTimeline == 0 {
 		return
@@ -736,6 +777,8 @@ func onReceipt(ctx context.Context, evt *event.Event) {
 	}
 }
 
+// onDirect takes the account's m.direct (person → rooms) whole, replacing what was kept, and marks each room in it
+// changed.
 func onDirect(ctx context.Context, evt *event.Event) {
 	c := evt.Content.AsDirectChats()
 	if c == nil {
@@ -754,6 +797,8 @@ func onDirect(ctx context.Context, evt *event.Event) {
 
 // --- rooms, as the app has them -------------------------------------------------------------------------------------
 
+// loadRooms reads rooms.json into rooms and direct: a restart syncs from where it left off, so what the first sync
+// said of each room would otherwise be lost.
 func loadRooms() {
 	b, err := os.ReadFile(roomsPath())
 	if err != nil {
@@ -776,6 +821,7 @@ func loadRooms() {
 	}
 }
 
+// saveRooms writes rooms and direct to rooms.json. Takes mu itself.
 func saveRooms() {
 	mu.Lock()
 	list := make([]*roomInfo, 0, len(rooms))
@@ -833,6 +879,7 @@ func roomJSON(rid id.RoomID) map[string]any {
 	if info == nil {
 		return nil
 	}
+	// An invite is not in m.direct yet: the inviter's word stands in for it.
 	if !isDirect && cp.Invite && cp.InviteDirect {
 		with, isDirect = cp.Inviter, true
 	}
@@ -854,6 +901,7 @@ func roomJSON(rid id.RoomID) map[string]any {
 	if !isDirect && cp.Name == "" && cp.Alias == "" && len(people) == 1 && cp.Joined <= 2 {
 		isDirect, with = true, people[0]
 	}
+	// A direct chat with no picture of its own wears the other person's.
 	avatarMXC := cp.AvatarMXC
 	if avatarMXC == "" && isDirect && with != "" && c != nil && c.StateStore != nil {
 		if m, err := c.StateStore.TryGetMember(bg(), rid, with); err == nil && m != nil {
@@ -887,6 +935,7 @@ func roomJSON(rid id.RoomID) map[string]any {
 	return out
 }
 
+// nullable is [s], or JSON's null for an empty one.
 func nullable(s string) any {
 	if s == "" {
 		return nil
@@ -894,6 +943,7 @@ func nullable(s string) any {
 	return s
 }
 
+// roomList is every room known, the one with the newest message first.
 func roomList() []map[string]any {
 	mu.Lock()
 	ids := make([]id.RoomID, 0, len(rooms))
@@ -911,11 +961,14 @@ func roomList() []map[string]any {
 	return list
 }
 
+// avatarFile is where the picture at [mxc] is kept: named by a hash of its address, so a changed picture is a new
+// file.
 func avatarFile(mxc string) string {
 	sum := sha256.Sum256([]byte(mxc))
 	return filepath.Join(avatarDir(), hex.EncodeToString(sum[:12])+".img")
 }
 
+// keptAvatar is the path of the picture at [mxc] when it has been fetched, else empty.
 func keptAvatar(mxc string) string {
 	p := avatarFile(mxc)
 	if _, err := os.Stat(p); err == nil {
@@ -924,6 +977,7 @@ func keptAvatar(mxc string) string {
 	return ""
 }
 
+// avatarsBusy lets one fetchAvatars run at a time: a second, asked for meanwhile, returns at once.
 var avatarsBusy sync.Mutex
 
 // fetchAvatars brings down a small picture of each room (or the other person, in a direct chat) not yet here, and
@@ -967,6 +1021,8 @@ func fetchAvatars() {
 
 // --- requests -------------------------------------------------------------------------------------------------------
 
+// do carries out one request and returns its result. A minute for most; nearly three for the ops that move files
+// or bring down the key backup.
 func do(r request) (any, error) {
 	limit := 60 * time.Second
 	if r.Op == "download" || r.Op == "send_media" || r.Op == "verify_recovery_key" {
@@ -974,6 +1030,7 @@ func do(r request) (any, error) {
 	}
 	ctx, cancel := context.WithTimeout(bg(), limit)
 	defer cancel()
+	// Each request and how long it took, in the developer log; not status, which the app asks often.
 	if r.Op != "status" {
 		began := time.Now()
 		log.Info().Str("op", r.Op).Int64("req", r.ID).Msg("asked")
@@ -1084,6 +1141,7 @@ func do(r request) (any, error) {
 	return nil, fmt.Errorf("unknown op %q", r.Op)
 }
 
+// markDirect adds [room] to the account's m.direct under [with], unless it is there already.
 func markDirect(c *mautrix.Client, room id.RoomID, with id.UserID) {
 	ctx, cancel := context.WithTimeout(bg(), 30*time.Second)
 	defer cancel()
@@ -1157,6 +1215,8 @@ func ensureMembers(ctx context.Context, c *mautrix.Client, rid id.RoomID) {
 	}
 }
 
+// send sends [r.Text] to a room, as a reply when [r.ReplyTo] names an event, and keeps it as the room's last message.
+// mautrix encrypts it where the room is encrypted.
 func send(ctx context.Context, r request) (map[string]any, error) {
 	c, _, err := client()
 	if err != nil {
@@ -1177,6 +1237,8 @@ func send(ctx context.Context, r request) (map[string]any, error) {
 	return map[string]any{"id": string(resp.EventID)}, nil
 }
 
+// sendMedia uploads the file at [r.Path] and sends it to a room, with [r.Text] as its caption. For an encrypted room
+// the file is encrypted here first, and its key travels in the message.
 func sendMedia(ctx context.Context, r request) (map[string]any, error) {
 	c, _, err := client()
 	if err != nil {
@@ -1250,6 +1312,7 @@ func download(ctx context.Context, r request) error {
 	if err != nil {
 		return err
 	}
+	// The server can only make a thumbnail of a file it can read: an encrypted one comes down whole.
 	var data []byte
 	if r.Thumb && file == nil {
 		resp, err := c.DownloadThumbnail(ctx, uri, 320, 320, mautrix.DownloadThumbnailExtra{Method: "scale"})

@@ -24,8 +24,10 @@ class ProfilePictures extends ChangeNotifier {
   /// What this person's own pictures are made at most: the one shown, and the stand-in for builds from before.
   static const sharpMost = 40000;
   static const smallMost = 14000;
+  // The sharp one's side in pixels, at its largest.
   static const sharpSide = 256;
 
+  // Each person's picture here, by their id, with the mark a greeting would name it by.
   final Map<String, ({String hash, String picture})> _by = {};
 
   /// A short mark of [picture]: what a greeting carries in its place. '' for none.

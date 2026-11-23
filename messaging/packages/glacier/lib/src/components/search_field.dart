@@ -281,6 +281,7 @@ class _ClearButton extends StatelessWidget {
   }
 }
 
+/// The magnifying glass at the field's start, and the cross on its clear button.
 enum _Glyph { search, clear }
 
 /// The two drawings SearchField.tsx carries inline, on their 16-unit grid: strokes of 1.5 in the current colour.

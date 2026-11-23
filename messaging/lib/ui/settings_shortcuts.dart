@@ -28,6 +28,7 @@ String shortcutsSummary(SettingsModel m) => !Sms.callsHere
         ? 'Push to talk on ${Keys.instance.of(KeyCommand.pushToTalk)?.label ?? 'no key'}'
         : 'Push to talk off';
 
+/// The pane's rows: the push to talk switch, every command under its group's heading, and "Put every shortcut back".
 List<Widget> shortcutsPane(BuildContext context, SettingsModel m) {
   final keys = Keys.instance;
   final groups = <String, List<KeyCommand>>{};
@@ -70,6 +71,8 @@ List<Widget> shortcutsPane(BuildContext context, SettingsModel m) {
   ];
 }
 
+/// One command and the keys it is on. Pressed, it offers to change the keys, take it off them, or put it back on
+/// its own.
 class _ShortcutRow extends StatelessWidget implements PaneRow {
   const _ShortcutRow({required this.command});
   final KeyCommand command;
@@ -93,6 +96,7 @@ class _ShortcutRow extends StatelessWidget implements PaneRow {
   }
 }
 
+/// A command's keys drawn as a small bordered cap; [faint] for "None".
 class _KeyCap extends StatelessWidget {
   const _KeyCap({required this.text, required this.t, this.faint = false});
   final String text;
@@ -141,6 +145,7 @@ class _KeyRecorderState extends State<KeyRecorder> {
     super.dispose();
   }
 
+  /// Every key pressed while the page is open: always answers true, so nothing else in the app acts on it.
   bool _key(KeyEvent e) {
     if (e is! KeyDownEvent) return true;
     final held = HardwareKeyboard.instance;
@@ -154,6 +159,7 @@ class _KeyRecorderState extends State<KeyRecorder> {
     return true;
   }
 
+  /// Puts the command on the keys pressed and says so, naming the command that had them before, if one did.
   void _save() {
     final b = _got;
     if (b == null || Keys.reservedFor(b) != null) return;

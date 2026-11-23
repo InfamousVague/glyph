@@ -11,7 +11,7 @@
 //	{"id":7,"op":"read","conv":"…","msg":"…"}       → {}
 //	{"id":8,"op":"media","media":"…","key":"<base64>","path":"…"} → {"path":"…"}
 //	{"id":9,"op":"unpair"}                          → {}
-//	{"id":11,"op":"send_media","conv":"…","path":"…","text":"…"} → {"tmp":"…"} (a picture or video, with words)
+//	{"id":11,"op":"send_media","conv":"…","path":"…","text":"…"} → {"media":"…","mime":"…"} (a picture or video, with words; the uploaded file's id and kind)
 //	{"id":12,"op":"pair_google","cookies":{"SID":"…",…}} → {} then events "emoji" (tap it in Google Messages on the
 //	                                                phone) and "paired", or "pair_failed": Google-account pairing, which
 //	                                                is what Google Messages offers now that QR pairing is gone.
@@ -51,6 +51,7 @@ import (
 	"go.mau.fi/mautrix-gmessages/pkg/libgm/gmproto"
 )
 
+// request is one line Ghost sends. Fields an op does not use are left empty.
 type request struct {
 	ID     int64  `json:"id"`
 	Op     string `json:"op"`
@@ -68,6 +69,11 @@ type request struct {
 	Cookies map[string]string `json:"cookies"`
 }
 
+// dir holds session.json; takeover is the --takeover flag. out is standard output, one JSON object a line; outLock
+// keeps lines whole when goroutines speak at once.
+//
+// mu guards the second group: the client and its session, the phone's SIMs, the conversations seen so far (by id, for
+// the SIM and participant a send needs) and the cancel of a pairing still under way.
 var (
 	dir      string
 	takeover bool
@@ -83,12 +89,14 @@ var (
 	pairing context.CancelFunc
 )
 
+// say writes one line, an answer or an event, to standard output.
 func say(v any) {
 	outLock.Lock()
 	defer outLock.Unlock()
 	_ = out.Encode(v)
 }
 
+// event says the unasked event [name], with [data] under "data" when there is any.
 func event(name string, data any) {
 	m := map[string]any{"ev": name}
 	if data != nil {
@@ -97,6 +105,8 @@ func event(name string, data any) {
 	say(m)
 }
 
+// main resumes a kept session, says "ready", then answers requests (each on a goroutine of its own) until standard
+// input closes.
 func main() {
 	flag.StringVar(&dir, "dir", "", "where the session is kept")
 	flag.BoolVar(&takeover, "takeover", false, "take the active session back when another takes it")
@@ -123,6 +133,7 @@ func main() {
 			mu.Unlock()
 		}
 	}()
+	// A request line may be long (a Google sign-in's cookies): up to 8 MB.
 	scan := bufio.NewScanner(os.Stdin)
 	scan.Buffer(make([]byte, 1<<20), 8<<20)
 	for scan.Scan() {
@@ -143,6 +154,7 @@ func main() {
 
 func sessionPath() string { return filepath.Join(dir, "session.json") }
 
+// loadSession reads the kept session, or nil when there is none or it cannot be read.
 func loadSession() *libgm.AuthData {
 	f, err := os.Open(sessionPath())
 	if err != nil {
@@ -156,6 +168,8 @@ func loadSession() *libgm.AuthData {
 	return &a
 }
 
+// saveSession keeps the session in a file only this user can read, written beside it and renamed into place so a
+// crash never leaves half a file. Called with mu held.
 func saveSession() {
 	if auth == nil {
 		return
@@ -184,6 +198,8 @@ func connect() {
 	}()
 }
 
+// onEvent takes what libgm hears from Google Messages: remembers SIMs and conversations, and passes messages,
+// conversations and the session's ups and downs on to Ghost as events.
 func onEvent(raw any) {
 	switch evt := raw.(type) {
 	case *events.ClientReady:
@@ -239,6 +255,7 @@ func onEvent(raw any) {
 	}
 }
 
+// unpaired forgets the session, in memory and on disk, and tells Ghost why.
 func unpaired(why string) {
 	mu.Lock()
 	if cli != nil {
@@ -251,6 +268,7 @@ func unpaired(why string) {
 	say(map[string]any{"ev": "unpaired", "why": why})
 }
 
+// handle does one request and says its answer: "ok" (an empty object when there is nothing to tell) or "error".
 func handle(r request) {
 	data, err := do(r)
 	if err != nil {
@@ -265,6 +283,7 @@ func handle(r request) {
 
 var errNotPaired = errors.New("not paired with Google Messages")
 
+// client is the paired, signed-in client, or errNotPaired. Takes mu itself: never call it with mu held.
 func client() (*libgm.Client, error) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -274,6 +293,7 @@ func client() (*libgm.Client, error) {
 	return cli, nil
 }
 
+// do carries out one request, with a minute to finish, and returns what its answer holds.
 func do(r request) (any, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -503,6 +523,7 @@ func sendInfo(ctx context.Context, c *libgm.Client, conv string, info []*gmproto
 			return nil, err
 		}
 	}
+	// An id of our own making, answered to Ghost: the sent message comes back as an event carrying it ("tmp").
 	tmp := fmt.Sprintf("tmp_%d", time.Now().UnixNano())
 	resp, err := c.SendMessage(ctx, &gmproto.SendMessageRequest{
 		ConversationID: conv,
@@ -662,6 +683,8 @@ func gaiaWhy(err error) string {
 	}
 }
 
+// conversation is a conversation as Ghost reads it: its people, last line and flags. "time" is in milliseconds
+// (Google Messages counts in microseconds).
 func conversation(c *gmproto.Conversation) map[string]any {
 	people := make([]map[string]any, 0, len(c.GetParticipants()))
 	for _, p := range c.GetParticipants() {
@@ -679,6 +702,8 @@ func conversation(c *gmproto.Conversation) map[string]any {
 	}
 }
 
+// message is a message as Ghost reads it: its words joined, each attachment with the id and key the "media" op
+// needs to fetch it, its reactions, and Google Messages' status in lower case. "time" is in milliseconds.
 func message(m *gmproto.Message) map[string]any {
 	var text []string
 	media := []map[string]any{}

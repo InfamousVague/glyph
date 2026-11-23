@@ -16,8 +16,12 @@ import 'dart:typed_data';
 /// every submission before it can be approved, so a pack the relay takes and the app refuses is simply never approved.
 /// The relay refuses nothing for a reason the app would not.
 
+/// The `format` a pack must say: the one version of the format there is.
 const String packFormat = 'ghost-plugin/1';
 
+/// The format's own sizes, the same numbers as the app's: a package's bytes and how deep its JSON may nest; the icon's
+/// base64 characters, bytes and pixels a side; a screenshot's pixels a side and how many; each field's characters; and
+/// how many labels and links.
 abstract final class PackLimits {
   static const int packageBytes = 262144, depth = 8;
   static const int iconChars = 48000, iconBytes = 36000, iconMin = 64, iconMax = 512;
@@ -30,6 +34,8 @@ abstract final class PackLimits {
 /// (lib/plugins/pack/manifest.dart), so the two say the same of a package with too many problems to list.
 const int packIssuesMost = 100;
 
+/// A plugin's id (3 to 24 lower-case letters and digits, a letter first), a version (three numbers, none with a
+/// leading nought or over five digits), and a username as Handles takes them.
 final RegExp packIdPattern = RegExp(r'^[a-z][a-z0-9]{2,23}$');
 final RegExp packVersionPattern = RegExp(r'^(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})$');
 final RegExp packUsernamePattern = RegExp(r'^[a-z0-9][a-z0-9._]{2,19}$');
@@ -50,6 +56,8 @@ const Set<String> examplePackIds = {'bills', 'parcels'};
 /// None of these anywhere in a developer's username: a plugin listed as by @ghostdev or @officialbills reads as the app's.
 const List<String> reservedDeveloperWords = ['ghost', 'gogho', 'official', 'verified', 'support'];
 
+/// What a pack may name: its colour, the labels it is found by, the shelf of the store it sits on, and what it asks
+/// to be allowed to do. GET /market hands these to the app.
 const List<String> packHues = ['amber', 'blue', 'coral', 'cyan', 'green', 'indigo', 'lime', 'magenta', 'mint', 'orange', 'purple', 'red', 'rose', 'slate', 'yellow', 'graphite'];
 const List<String> packLabels = ['bills', 'codes', 'deliveries', 'events', 'filters', 'health', 'language', 'money', 'quiet', 'replies', 'safety', 'school', 'shopping', 'sorting', 'travel', 'work'];
 const List<String> packShelves = ['organise', 'safety', 'messages', 'tools'];
@@ -83,8 +91,10 @@ int compareVersions(String a, String b) {
 /// [jsonDepthOk], so it recurses 8 deep at most.
 String canonicalJson(Object? value) => jsonEncode(_sorted(value));
 
+/// [canonicalJson] as UTF-8: the bytes a package is kept as, and whose SHA-256 an approval signs.
 Uint8List canonicalBytes(Object? value) => utf8.encode(canonicalJson(value));
 
+/// [v] built again with every object's keys in order, which is the order jsonEncode then writes them in.
 Object? _sorted(Object? v) {
   if (v is Map) {
     final keys = [for (final k in v.keys) k is String ? k : throw ArgumentError('A key that isn\'t text: $k')]..sort();
@@ -147,6 +157,7 @@ final RegExp _packBadChar = RegExp(r'[\p{Cf}\p{Co}\p{Zl}\p{Zp}\x00-\x09\x0B-\x1F
 /// leading or trailing whitespace, no unpaired surrogate, and a newline only where [newlines].
 bool packTextOk(String s, {bool newlines = false}) => s == s.trim() && !_packBadChar.hasMatch(s) && (newlines || !s.contains('\n')) && !_hasLoneSurrogate(s);
 
+/// Whether [s] holds half of a surrogate pair by itself, which is no character and can't be written as UTF-8.
 bool _hasLoneSurrogate(String s) {
   for (var i = 0; i < s.length; i++) {
     final c = s.codeUnitAt(i);
@@ -164,6 +175,7 @@ bool _hasLoneSurrogate(String s) {
 
 // --- addresses --------------------------------------------------------------------------------------------------------
 
+// One part of a host's name, its last part, an email address's shape, and any whitespace.
 final RegExp _hostLabel = RegExp(r'^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$');
 final RegExp _lastLabel = RegExp(r'^[a-z]{2,63}$');
 final RegExp _emailShape = RegExp(r'^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(\.[A-Za-z0-9-]{1,63}){1,4}$');
@@ -226,6 +238,7 @@ class PngInfo {
   final List<String> chunks;
 }
 
+// The eight bytes every PNG starts with.
 const List<int> _pngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
 /// Null where [bytes] isn't a PNG of whole chunks with IHDR (13 bytes) first and IEND last and nothing after it. CRCs
@@ -239,6 +252,7 @@ PngInfo? pngInfo(List<int> bytes) {
   final chunks = <String>[];
   var width = 0, height = 0, depth = 0, colour = 0, interlace = 0;
   var at = 8;
+  // A chunk is its data's length (4 bytes), its type (4), the data, and a CRC (4): 12 bytes and the data.
   while (at < bytes.length) {
     if (bytes.length - at < 12) return null;
     final length = u32(at);
@@ -323,6 +337,7 @@ class PackTop {
   /// The screenshots' SHA-256s its page shows, in order: what the submission's screenshots must hash to.
   final List<String> shots;
 
+  /// What a submission's record keeps of it (MarketSubmission.manifest): the words, never the icon or the rules.
   Map<String, Object?> get manifest => {
         'name': name,
         'tagline': tagline,
@@ -378,6 +393,9 @@ bool developerOk(String name) => packUsernamePattern.hasMatch(name) && !name.con
   }
   if (pack['format'] != packFormat) add('format_unknown', 'format', 'format: this version of Ghost Messaging reads "$packFormat".');
 
+  // Three readers of a field, each adding its own issues and returning null where the field won't do: text (any
+  // string), words (a string within its length and of allowed characters), and list (strings, each once, each passed
+  // by [bad], which adds the issue itself and returns '' for one that is fine).
   String? text(String key, {required bool needed}) {
     if (!pack.containsKey(key)) {
       if (needed) add('missing', key, '$key: needed.');

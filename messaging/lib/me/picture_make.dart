@@ -25,6 +25,8 @@ Future<ProfilePicture?> profilePictureOf(Uint8List bytes) async {
   return ProfilePicture(sharp: sharp, small: small ?? '');
 }
 
+/// The middle square of [bytes] as a base64 JPEG of at most [most] characters: the first of [sizes] (pixels a side,
+/// largest first) that fits at one of [qualities] (best first). Null where it can't be read or none fits.
 Future<String?> _square(Uint8List bytes, {required List<int> sizes, required List<int> qualities, required int most}) async {
   ui.Image? image;
   try {

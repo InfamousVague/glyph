@@ -61,6 +61,10 @@ export function present(paths, dir = fontsDir()) {
   return { have, missing };
 }
 
+/**
+ * Fetches each of [paths] that [dir] does not hold yet from fonts.gstatic.com, checks it is a font, and writes its
+ * SHA-256 beside the rest (every fifty, so a run cut short keeps what it has). How many were fetched, and their bytes.
+ */
 async function fetchAll(paths, dir) {
   mkdirSync(dir, { recursive: true });
   let sums = {};

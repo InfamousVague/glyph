@@ -49,6 +49,8 @@ class WebApp {
   static const fallbackPolicy =
       "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'none'; frame-src 'none'; object-src 'none'";
 
+  /// The page's `<meta http-equiv="Content-Security-Policy">`, and what was last read from it: `index.html`'s size and
+  /// time then, so it is read again only when the file is replaced.
   static final _meta = RegExp(r'''<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]+)"\s*/?>''', caseSensitive: false);
 
   ({int size, DateTime at, String policy})? _read;
@@ -86,6 +88,7 @@ class WebApp {
   /// Whether there is an app to serve: the folder is there and has its page.
   bool get there => File('${dir.path}/index.html').existsSync();
 
+  /// What kind each file is said to be (`Content-Type`), by its ending.
   static const _types = {
     'html': 'text/html; charset=utf-8',
     'js': 'text/javascript; charset=utf-8',

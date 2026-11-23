@@ -50,6 +50,8 @@ String networkSummary() {
 /// phones text each other, the app offers to exchange keys, and that is what makes them reachable by the routes.
 const inviteText = 'Join me on Ghost Messaging: calls and private chats straight between our phones. Get it at https://gogho.st';
 
+/// How one route stands, for under its name: [on] is the network's own switch, [off] the route's switched off, and
+/// [anyone] whether there is somebody to reach yet.
 String _routeLine(Carrier c, {required bool on, required bool anyone, required bool off}) {
   if (off || !on) return 'Off';
   if (!anyone) return 'Waiting until there is someone to reach';
@@ -79,6 +81,8 @@ String directLinkedWords(int linked) => switch (linked) {
       _ => 'Linked to $linked devices now',
     };
 
+/// The line under [directLinkedWords]: how many of the links are straight and how many go through a link helper; with
+/// none, when a link is made at all.
 String directLinkedHint(Iterable<P2pPathKind> links) {
   final straight = links.where((k) => k == P2pPathKind.direct).length, helped = links.where((k) => k == P2pPathKind.helper).length;
   if (links.isEmpty) return 'A link is made when the relay server can\'t carry something, and let go when nothing has been said on it for a while.';
@@ -183,6 +187,7 @@ String relayWrongWords(LedgerWrong w, String who) => switch (w.kind) {
 /// What the name watch does, in a line, and when it last asked.
 String nameWatchWords(int friends) => friends == 0 ? 'No friends added by username yet' : 'Asks the relay about ${friends == 1 ? '1 friend\'s username' : '$friends friends\' usernames'} each day';
 
+/// The line under [nameWatchWords]; [lastAsked] is 0 or less where nothing was asked yet.
 String nameWatchHint(int lastAsked, {required int now}) => lastAsked <= 0
     ? 'Each is asked at a time of its own through the day, and the answer held against the key you added.'
     : 'Last asked ${agoWords(lastAsked, now)}. Each answer is held against the key you added; nothing the relay says changes who your friends are.';
@@ -296,6 +301,7 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
   Widget icon(LucideIcon i) => AppIcon(i, size: 18);
   final anyone = net.people.isNotEmpty;
 
+  // Sends a test to one person (by the route [only], where named) and says how it went.
   Future<void> test(Peer p, {String? only}) async {
     final r = await net.test(p, only: only);
     if (!context.mounted) return;
@@ -555,6 +561,7 @@ class _RelayAddressFieldState extends State<RelayAddressField> {
     super.dispose();
   }
 
+  /// Asked once the relay at [url] has answered: what moving there means, and whether to go. True for yes.
   Future<bool> _confirm(String url) async {
     var yes = false;
     await showChoices(
@@ -566,6 +573,8 @@ class _RelayAddressFieldState extends State<RelayAddressField> {
     return yes;
   }
 
+  /// Checks the address typed and moves to it ([Net.useRelay]). A problem is shown under the field; declining at
+  /// [_confirm] changes nothing.
   Future<void> _use() async {
     if (_checking) return;
     setState(() {

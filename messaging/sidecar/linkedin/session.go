@@ -23,6 +23,7 @@ const (
 	cookieSession = linkedingo.LinkedInCookieJSESSIONID
 )
 
+// neededCookies are the ones a sign-in, and a saved session, is refused without.
 var neededCookies = []string{cookieSignIn, cookieSession}
 
 // cookieHeader checks that the cookies LinkedIn needs are there, saying in words which are not, and writes them as
@@ -95,6 +96,7 @@ type session struct {
 	Cookies *linkedingo.StringCookieJar `json:"cookies"`
 }
 
+// sessionPath is where the session is kept: session.json in the helper's folder.
 func sessionPath() string { return filepath.Join(dir, "session.json") }
 
 // saveSession writes the session for the person alone to read (0600), whole or not at all.
@@ -152,6 +154,7 @@ func rejected(err error) bool {
 	return errors.Is(err, linkedingo.ErrTokenInvalidated) || status == http.StatusUnauthorized || (status >= 300 && status < 400)
 }
 
+// What the app shows for the two things only the person can mend, each said in more than one place.
 const (
 	wordsSignedOut = "LinkedIn signed this session out. Sign in to linkedin.com in the browser and copy the cookies again."
 	wordsCheck     = "LinkedIn is asking for a check that it is you. Finish it at linkedin.com in the browser, then copy the cookies again."

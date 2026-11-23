@@ -109,6 +109,7 @@ class Net extends ChangeNotifier implements PeerBook {
   /// words are sent again on.
   final ValueNotifier<int> direct = ValueNotifier(0);
 
+  /// Heard from the direct network, the ledger and its check: [direct] goes up.
   void _directChanged() => direct.value++;
 
   // --- checking the relay (lib/net/ledger.dart; docs/OPEN_NETWORK.md, section 3) -------------------------------------
@@ -125,6 +126,7 @@ class Net extends ChangeNotifier implements PeerBook {
   /// (Friends' list: lib/friends/friends.dart); kept here, so a check made later is given them too.
   final List<Envelope? Function(String peer, String id)> _holders = [];
 
+  /// Adds one of them, once; the check running now is given it too.
   void addHolder(Envelope? Function(String peer, String id) holder) {
     if (_holders.contains(holder)) return;
     _holders.add(holder);
@@ -136,6 +138,7 @@ class Net extends ChangeNotifier implements PeerBook {
   List<Peer> get friends => [for (final p in _peers.values) if (_friendIds.contains(p.id)) p];
   Set<String> _friendIds = {};
 
+  /// The relay's route whose link helpers are listened for ([_followHelpers]).
   HubCarrier? _helpersOf;
 
   /// The relay named its link helpers as the app signed in to it ([HubCarrier.helpers]).
@@ -144,6 +147,7 @@ class Net extends ChangeNotifier implements PeerBook {
     if (hub != null) _p2p?.setHelpers(hub.helpers.value);
   }
 
+  /// Listens for the link helpers [hub] names, in place of the route listened to before.
   void _followHelpers(HubCarrier? hub) {
     _helpersOf?.helpers.removeListener(_helpersSaid);
     _helpersOf = hub;
@@ -170,15 +174,20 @@ class Net extends ChangeNotifier implements PeerBook {
 
   /// Goes up whenever anyone's presence on the hub changes (HubCarrier.presence).
   final ValueNotifier<int> presence = ValueNotifier(0);
+
+  // Whether the app is put away, and the names watched beside the phone's own people: told to each hub route as it
+  // is made.
   bool _away = false;
   final Set<String> _alsoWatch = {};
 
+  /// Who the relay says is connected changed.
   void _presenceChanged() {
     presence.value++;
     // Whoever came is told this device's card now, where they had not been while away.
     _p2p?.presenceChanged();
   }
 
+  /// [hub], set up for presence: listened to, told whether the app is away, and asked about the extra names.
   HubCarrier _presenceOf(HubCarrier hub) {
     hub.presence.addListener(_presenceChanged);
     hub.awayNow = _away;
@@ -265,6 +274,7 @@ class Net extends ChangeNotifier implements PeerBook {
   // "@friend". The first address that matched sent a friend's words to that member. Who an address is, is the record
   // for it to say (Friends.idOf, by the id its key makes), and the routes are asked by that id ([byId]).
 
+  /// Notes something the routes did, for Settings › Network; the newest thirty are kept.
   void _note(String words, {String? via}) {
     recent.insert(0, NetEvent(words, via: via));
     if (recent.length > 30) recent.removeLast();
@@ -401,6 +411,7 @@ class Net extends ChangeNotifier implements PeerBook {
     }
   }
 
+  /// Why the direct route is not there, in words to show (Settings › Routes).
   static String _couldNot(Object e) => 'The direct route could not be started on this device ($e). The other routes work as before.';
 
   /// Where the ledger is kept: files of its own, out of any backup (kept_files.dart; the review, D6); under a test,
@@ -409,6 +420,8 @@ class Net extends ChangeNotifier implements PeerBook {
   static FsStore? Function() ledgerStore = defaultLedgerStore;
   static FsStore? defaultLedgerStore() => PlatformInfo.environment.containsKey('FLUTTER_TEST') ? MemoryFsStore() : ledgerFiles();
 
+  /// Sets up the ledger and its check over [board] and [p2p], where there is somewhere to keep it: the board writes
+  /// what goes and comes in it, and the check compares it over direct links.
   void _startLedger(Switchboard board, P2p p2p, String me, String device) {
     try {
       final store = ledgerStore();
@@ -456,6 +469,7 @@ class Net extends ChangeNotifier implements PeerBook {
     });
   }
 
+  /// Reads from the phone who the routes reach, each with their name as the contacts have it.
   Future<void> _readPeers() async {
     final list = await Sms.instance.netPeers();
     final found = <String, Peer>{};
@@ -593,12 +607,14 @@ class Net extends ChangeNotifier implements PeerBook {
     }
   }
 
+  /// Turns the whole network on or off, and keeps the choice.
   Future<void> setOn(bool value) async {
     _app?.setFlag('net_on', value);
     await _apply();
     notifyListeners();
   }
 
+  /// Switches the route [id] on or off, and keeps the choice.
   Future<void> setRoute(String id, bool value) async {
     final board = _board;
     if (board == null) return;
@@ -740,6 +756,7 @@ class _PhoneSigner implements NetSigner {
   Future<Uint8List> sign(List<int> message) => Sms.instance.netSign(message);
 }
 
+/// Data texts by the phone's native side, for the SMS route.
 class _PhoneSms implements SmsBridge {
   @override
   Future<bool> available() => Sms.instance.netSmsAvailable();

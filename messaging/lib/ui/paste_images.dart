@@ -103,6 +103,7 @@ class _PasteImagesState extends State<PasteImages> {
     super.dispose();
   }
 
+  /// The paste keys: a picture on the clipboard goes to [PasteImages.onImage]; anything else is pasted as words.
   Future<void> _paste() async {
     final picture = widget.enabled ? await MacPlatform.pasteImage() : null;
     if (!mounted) return;
@@ -126,6 +127,7 @@ class _PasteImagesState extends State<PasteImages> {
   }
 }
 
+/// The paste keys pressed in a field that takes pictures.
 class _PastePicture extends Intent {
   const _PastePicture();
 }

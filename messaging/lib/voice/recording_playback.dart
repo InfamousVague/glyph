@@ -24,6 +24,8 @@ import 'package:video_player/video_player.dart';
 import 'mpv_property.dart';
 import 'recorder.dart';
 
+/// One kept recording open in the timeline and the mixer: its voices decoded, played together and metered, with the
+/// faders, mutes and solos a live recording has ([RecordingDesk]); [save] makes the remix.
 class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
   RecordingPlayback(this.recording);
 
@@ -41,6 +43,8 @@ class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
   final Recording recording;
 
   static const _channel = MethodChannel('ghost/scribe');
+
+  /// Samples a second in every decoded track: positions and lengths here are counted in them.
   static const rate = 48000;
 
   @override
@@ -77,6 +81,8 @@ class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
   double get seconds => length / rate;
   double get at => position / rate;
 
+  // By voice, in [keys]' order: its decoded samples' file, a reader of that file for the meters, and its player.
+  // [_clock] follows the players while they play.
   final List<String> _pcm = [];
   final List<RandomAccessFile> _readers = [];
   final List<_VoicePlayer> _players = [];
@@ -132,6 +138,7 @@ class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
     }
   }
 
+  /// How far opening has come (null: over), and why it failed where it did; the screen is told.
   void _set({double? opening, String? error}) {
     if (_disposed) return;
     this.opening = opening;
@@ -139,6 +146,7 @@ class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
     notifyListeners();
   }
 
+  /// Starts every voice's player together, from the start again where the playhead is at the end.
   Future<void> play() async {
     if (!ready || playing) return;
     if (position >= length) await seek(0);
@@ -177,11 +185,13 @@ class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
     if (_players.isEmpty || !playing) return;
     final lead = _players.first.position;
     position = math.min(length, lead.inMicroseconds * rate ~/ 1000000);
+    // Once a second (25 ticks of 40 ms): a voice that has drifted from the first is moved back to it.
     if (++_tick % 25 == 0) {
       for (final p in _players.skip(1)) {
         if ((p.position - lead).abs() > const Duration(milliseconds: 50)) unawaited(p.seek(lead));
       }
     }
+    // The end: the playhead within a fiftieth of a second of it and the first player stopped by itself.
     if (position >= length - rate ~/ 50 && !_players.first.isPlaying) {
       playing = false;
       _clock?.cancel();
@@ -218,6 +228,7 @@ class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
     _applyGains();
   }
 
+  /// Sets each player as loud as the mixer has its voice now.
   void _applyGains() {
     for (var i = 0; i < _players.length; i++) {
       unawaited(_players[i].setGain(mix.gain(keys[i])));
@@ -302,6 +313,7 @@ abstract class _VoicePlayer {
   Future<void> dispose();
 }
 
+/// A voice played by media_kit.
 class _MpvVoice implements _VoicePlayer {
   mk.Player? _player;
 
@@ -334,6 +346,7 @@ class _MpvVoice implements _VoicePlayer {
   }
 }
 
+/// A voice played by video_player, on the iPhone.
 class _AvVoice implements _VoicePlayer {
   VideoPlayerController? _c;
 
@@ -416,6 +429,7 @@ void wrapWav(String pcm, String wav) {
     }
   }
 
+  // The 44-byte header of a plain PCM WAV: format 1, one channel, 48 kHz, 16 bits a sample.
   tag(0, 'RIFF');
   h.setUint32(4, 36 + data.length, Endian.little);
   tag(8, 'WAVE');

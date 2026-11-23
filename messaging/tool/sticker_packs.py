@@ -111,6 +111,7 @@ def sprite(name):
     return _cuts[sheet][which]
 
 
+# Smoothstep: 0 at `lo` and below, 1 at `hi` and above, eased between; `v` may be an array.
 def step(lo, hi, v):
     t = np.clip((v - lo) / (hi - lo), 0, 1)
     return t * t * (3 - 2 * t)
@@ -138,11 +139,14 @@ def grown(alpha, by):
     return soft.point(lambda v: 255 if v >= 13 else 0).filter(ImageFilter.GaussianBlur(1.3))
 
 
+# The picture scaled, up or down, so its longer side is `side`.
 def fitted(picture, side):
     scale = side / max(picture.size)
     return picture.resize((max(1, round(picture.width * scale)), max(1, round(picture.height * scale))), LANCZOS)
 
 
+# One sticker from the ghost's pose `name`: the pose filling the square, with the edge. A sweet one is tinted with
+# the pastel pair its `number` picks, drawn smaller, with two little things in its emptiest corners.
 def sticker(name, number, sweet=False):
     big = SIZE * OVER
     edge = (EDGE + RIM) * OVER
@@ -330,6 +334,8 @@ def keep_sheet(pack, source):
     Image.fromarray(px).save(os.path.join(SHEETS, pack + '.webp'), 'WEBP', lossless=True, quality=90, method=6)
 
 
+# Writes a pack's stickers as 01.webp, 02.webp… in its folder, in place of what was there, and a picture of them
+# all to look over: how many bytes they came to.
 def write(pack, made):
     folder = os.path.join(OUT, pack)
     os.makedirs(folder, exist_ok=True)

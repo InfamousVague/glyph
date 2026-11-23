@@ -40,6 +40,9 @@ class FilesRoster {
   /// The owner's hub id, and the hub id of who signed it.
   final String owner;
   final String by;
+
+  // The roles by their id; each member's role id, by hub id; who is banned; the role someone not named has; and the
+  // admins whose grant from the owner checked out.
   final Map<String, _Role> _roles;
   final Map<String, String> _assigned;
   final Set<String> _banned;
@@ -52,6 +55,7 @@ class FilesRoster {
   /// The hub id of a public key: the first 16 bytes of its SHA-256, in hex (the app's NetCrypto.idOf).
   static String idOf(List<int> key) => hexOf(sha256(key).sublist(0, 16));
 
+  /// The bytes of lower-case hex; a FormatException for anything else.
   static List<int> unhex(String text) => _unhex(text);
 
   static List<int> _unhex(String text) {
@@ -112,6 +116,8 @@ class FilesRoster {
     }
   }
 
+  /// The role [id] has: the owner is always admin; someone named admin without the owner's grant is a newcomer; a role
+  /// the roster doesn't have is member.
   ({String id, _Role role}) _roleOf(String id) {
     if (id == owner) return (id: 'admin', role: _roles['admin']!);
     var named = _assigned[id] ?? _newcomer;
@@ -132,6 +138,7 @@ class FilesRoster {
   }
 }
 
+/// A role: its rank (a higher one outranks a lower) and the permissions it gives, by name.
 class _Role {
   _Role(this.rank, this.perms);
   final int rank;

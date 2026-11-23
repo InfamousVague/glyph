@@ -15,6 +15,7 @@ import 'friends/friends.dart';
 import 'inbox/inbox.dart';
 import 'net/net.dart';
 
+/// Asks who is on, by address. Nothing is kept here: each answer is read from the networks' own stores.
 class Presence {
   Presence._();
 

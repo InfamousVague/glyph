@@ -43,18 +43,23 @@ class DialGuard {
   /// How long a connection may take to be made, and a name to be looked up.
   final Duration timeout;
   final Duration lookupWithin;
+
+  /// How a name is looked up (a test's own, else the system's), the clock, and when each dial of the last minute was
+  /// made, by kind.
   final Future<List<InternetAddress>> Function(String host) _resolve;
   final DateTime Function() _now;
   final Map<DialKind, List<DateTime>> _dialled = {};
 
   static Future<List<InternetAddress>> _lookup(String host) => InternetAddress.lookup(host);
 
+  /// How many dials of [kind] a minute are allowed.
   int _most(DialKind kind) => switch (kind) {
         DialKind.own => dialsAMinute,
         DialKind.retry => retriesAMinute,
         DialKind.lookBack => lookBacksAMinute,
       };
 
+  /// The dials of [kind] made within the last minute; older ones are dropped as it is asked.
   List<DateTime> _of(DialKind kind) {
     final now = _now();
     return (_dialled[kind] ??= [])..removeWhere((t) => now.difference(t) >= const Duration(minutes: 1));
@@ -143,6 +148,7 @@ class DialGuard {
     return true;
   }
 
+  /// Whether the four bytes [b] are a public IPv4 address: each range left out says what it is.
   static bool _publicV4(List<int> b) {
     final a = b[0], c = b[1];
     if (a == 0 || a == 10 || a == 127 || a >= 224) return false; // this network, private, loopback, multicast and reserved
@@ -174,6 +180,8 @@ enum DialKind {
 /// Why an address was not dialled ([DialGuard.dial]).
 class DialRefused implements Exception {
   const DialRefused(this.why);
+
+  /// In words, as [DialGuard.shape] and [DialGuard.check] say it: for the keeper's log.
   final String why;
   @override
   String toString() => why;
@@ -192,6 +200,8 @@ const linkMost = 128 << 10;
 Future<HubSocket> connectPinned(Uri url, InternetAddress address, {Duration timeout = const Duration(seconds: 10), SecurityContext? context}) async {
   final secure = url.scheme == 'wss';
   final port = url.hasPort ? url.port : (secure ? 443 : 80);
+  // The socket as far as it has been made, and whether the time ran out: a connection that finishes after that is
+  // destroyed, not left open with nobody holding it.
   Socket? made;
   var late = false;
   Future<WebSocket> connect() async {
@@ -223,8 +233,11 @@ Future<HubSocket> connectPinned(Uri url, InternetAddress address, {Duration time
 class WebSocketHubSocket implements HubSocket {
   WebSocketHubSocket(this._ws, {void Function()? onDone}) : _onDone = onDone;
   final WebSocket _ws;
+
+  /// Called once nothing more comes in: [connectPinned] destroys the socket underneath with it.
   final void Function()? _onDone;
 
+  /// What the hub dialled says: text as a String, anything binary as a `Uint8List`.
   @override
   late final Stream<Object?> incoming = _ws.map<Object?>((data) => data is String || data is Uint8List ? data : Uint8List.fromList(data as List<int>)).transform(StreamTransformer.fromHandlers(handleDone: (sink) {
     _onDone?.call();

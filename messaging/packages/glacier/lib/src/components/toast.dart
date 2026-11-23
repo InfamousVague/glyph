@@ -347,8 +347,12 @@ class GlacierToastProvider extends StatefulWidget {
 class _GlacierToastProviderState extends State<GlacierToastProvider> {
   late final GlacierToastController _controller = GlacierToastController._(this);
   final OverlayPortalController _portal = OverlayPortalController();
+
+  /// The current toast, last, and before it any that are still playing their exit.
   final List<_Entry> _entries = [];
   int _nextId = 0;
+
+  /// The auto-dismiss of the current toast.
   Timer? _timer;
 
   _Entry? get _current => _entries.isNotEmpty && _entries.last.present ? _entries.last : null;
@@ -369,6 +373,7 @@ class _GlacierToastProviderState extends State<GlacierToastProvider> {
   /// child's `initState` or `didUpdateWidget` waits for the frame to finish, as one asked for from an effect does.
   bool get _building => SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks;
 
+  /// `toast()`: [entry] becomes the current toast, and whatever was showing starts its exit.
   void _show(_Entry entry) {
     if (!mounted) return;
     if (_building) {
@@ -387,6 +392,7 @@ class _GlacierToastProviderState extends State<GlacierToastProvider> {
     _arm();
   }
 
+  /// `dismiss()`: the current toast starts its exit, and its timer is dropped.
   void _dismiss() {
     if (!mounted) return;
     if (_building) {
@@ -414,6 +420,7 @@ class _GlacierToastProviderState extends State<GlacierToastProvider> {
     });
   }
 
+  /// A toast's exit has finished: it is taken out of the tree.
   void _gone(_Entry entry) {
     if (!mounted) return;
     setState(() => _entries.remove(entry));
@@ -484,6 +491,7 @@ class _GlacierToastProviderState extends State<GlacierToastProvider> {
   }
 }
 
+/// Carries the provider's controller down to whoever asks to show a toast.
 class _ToastScope extends InheritedWidget {
   const _ToastScope({required this.controller, required super.child});
   final GlacierToastController controller;
@@ -529,6 +537,7 @@ class _ToastItemState extends State<_ToastItem> with SingleTickerProviderStateMi
     super.dispose();
   }
 
+  /// Springs to shown (1) or hidden (0) from wherever it is, at the speed it has; at once under reduced motion.
   void _go(double to) {
     if (GlacierTheme.of(context).reducedMotion) {
       _shown.value = to;
@@ -549,6 +558,7 @@ class _ToastItemState extends State<_ToastItem> with SingleTickerProviderStateMi
         .whenComplete(_finished);
   }
 
+  /// The spring has come to rest: if that was the exit, the provider is told.
   void _finished() {
     if (mounted && !widget.present) widget.onGone();
   }

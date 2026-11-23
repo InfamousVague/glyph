@@ -57,6 +57,7 @@ struct DartCObject {
     value: DartValue,
 }
 
+/// The union in a `Dart_CObject`, with only the members a message here uses.
 #[repr(C)]
 #[derive(Clone, Copy)]
 union DartValue {
@@ -67,6 +68,7 @@ union DartValue {
     _whole: [u64; 5],
 }
 
+/// A list: how many items, and a pointer to each.
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct DartArray {
@@ -74,6 +76,7 @@ struct DartArray {
     values: *mut *mut DartCObject,
 }
 
+/// Bytes the VM copies as it is posted them: what kind of typed data, how long, and where.
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct DartTypedData {
@@ -119,6 +122,7 @@ unsafe fn deliver(post: PostCObject, port: i64, node: u64, events: Vec<Event>) -
     unsafe { post(port, (&mut message as *mut DartCObject).cast()) }
 }
 
+/// A node as the table holds it under its number.
 struct Kept {
     node: Node,
     /// The Dart port its events go to, and so who made it: one port for each isolate.
@@ -127,6 +131,8 @@ struct Kept {
     live: Arc<AtomicBool>,
 }
 
+/// Every node there is, by its number; the next number to give (never 0, never one twice); and the library's threads
+/// (none where they could not be made).
 static NODES: Mutex<Option<HashMap<u64, Arc<Kept>>>> = Mutex::new(None);
 static NEXT: AtomicU64 = AtomicU64::new(1);
 static RUNTIME: OnceLock<Option<Runtime>> = OnceLock::new();
@@ -134,6 +140,7 @@ static RUNTIME: OnceLock<Option<Runtime>> = OnceLock::new();
 #[cfg(target_os = "android")]
 static ANDROID_READY: AtomicBool = AtomicBool::new(false);
 
+/// A lock that a panic elsewhere has not made useless.
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
@@ -143,6 +150,7 @@ fn runtime() -> Option<&'static Runtime> {
     RUNTIME.get_or_init(|| tokio::runtime::Builder::new_multi_thread().worker_threads(2).thread_name("ghost-p2p").enable_all().build().ok()).as_ref()
 }
 
+/// The node of that number, where there is one.
 fn kept(node: u64) -> Option<Arc<Kept>> {
     lock(&NODES).as_ref()?.get(&node).cloned()
 }
@@ -364,10 +372,12 @@ mod tests {
         true
     }
 
+    /// `ghost_p2p_command`, given a slice.
     fn command(node: u64, bytes: &[u8]) -> i32 {
         unsafe { ghost_p2p_command(node, bytes.as_ptr(), bytes.len()) }
     }
 
+    /// Starts a node with `secret` and no link helper.
     fn start(node: u64, secret: [u8; 32]) {
         let mut start = vec![cmd::START, 0];
         start.extend_from_slice(&secret);

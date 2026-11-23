@@ -31,6 +31,7 @@ final class VoiceFx: NSObject, ExternalAudioProcessingDelegate {
     DispatchQueue.global(qos: .utility).async { [fx] in _ = voicefx_deepfilter_model(fx, "") }
   }
 
+  /// The `ghost/voicefx` channel: modes (what this build can do) and configure (the mode and the gain, 1 for as it is).
   func register(messenger: FlutterBinaryMessenger) {
     let channel = FlutterMethodChannel(name: "ghost/voicefx", binaryMessenger: messenger)
     channel.setMethodCallHandler { [weak self] call, result in
@@ -101,12 +102,15 @@ final class VoiceFx: NSObject, ExternalAudioProcessingDelegate {
 
   func audioProcessingInitialize(withSampleRate sampleRateHz: Int, channels: Int) {}
 
+  /// One block of the microphone, on WebRTC's audio thread. WebRTC hands 10 ms at a time, so the rate is a hundred
+  /// times the frames in a block.
   func audioProcessingProcess(_ audioBuffer: RTCAudioBuffer) {
     let frames = audioBuffer.frames
     guard frames > 0, audioBuffer.channels > 0 else { return }
     // The first channel is cleaned; any other is given the same, so a stereo microphone stays one voice.
     let first = audioBuffer.rawBuffer(forChannel: 0)
     voicefx_process(fx, first, Int32(frames), Int32(frames * 100))
+    // The block's loudest sample, as it is after voicefx, kept for when "level" is next asked.
     var loudest: Float = 0
     vDSP_maxmgv(first, 1, &loudest, vDSP_Length(frames))
     os_unfair_lock_lock(peakLock)

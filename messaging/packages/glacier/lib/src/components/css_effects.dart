@@ -17,6 +17,7 @@ import '../plain.dart';
 /// resolved. [Tokens.shadowOf] gives the outer layers alone.
 List<CssShadow> cssShadowsOf(Tokens tokens, String expression) => evalShadows(tokens.resolve(expression), ctx: tokens.css);
 
+/// Picks the outer layers out of a `box-shadow`'s layers, as Flutter shadows.
 extension CssShadowLayers on List<CssShadow> {
   /// The layers [BoxDecoration.boxShadow] draws.
   List<BoxShadow> get outer => [
@@ -46,6 +47,7 @@ class GlacierInsetShadows extends StatelessWidget {
   }
 }
 
+/// Paints [GlacierInsetShadows]' layers, clipped to the rounded box.
 class _InsetPainter extends CustomPainter {
   _InsetPainter(this.shadows, this.radius);
   final List<CssShadow> shadows;
@@ -101,6 +103,7 @@ class GlacierOuterShadows extends StatelessWidget {
   }
 }
 
+/// Paints [GlacierOuterShadows]' layers everywhere but inside the rounded box.
 class _OuterPainter extends CustomPainter {
   _OuterPainter(this.shadows, this.radius);
   final List<BoxShadow> shadows;

@@ -5,6 +5,7 @@ import { ECDH, createHash, createPublicKey, verify } from 'node:crypto';
 
 const hexOf = (b) => Buffer.from(b).toString('hex');
 
+/** The hub itself. An "end" is one connection: { id (once signed in), rooms, ws, tell(message) }. */
 export class FakeHub {
   constructor() {
     this.rooms = new Map(); // name -> { hash, members: Map(id -> end) }
@@ -68,6 +69,7 @@ export class FakeHub {
     return page;
   }
 
+  /** Something an end sent: a room packet (handed to the room's other members), its sign-in, a join or a leave. */
   receive(end, data) {
     if (!this.ends.has(end)) return;
     if (typeof data !== 'string') {
@@ -101,6 +103,7 @@ export class FakeHub {
     else if (typeof m.leave === 'string') this.leave(end, m.leave);
   }
 
+  /** A room is made by its first joiner, whose token it keeps (hashed); anyone with another token is refused. */
   join(end, name, token) {
     const hash = createHash('sha256').update(String(token)).digest('hex');
     let room = this.rooms.get(name);
@@ -113,6 +116,7 @@ export class FakeHub {
     for (const id of others) room.members.get(id).tell({ room: name, came: end.id });
   }
 
+  /** An end out of a room: the others are told, and an empty room is forgotten. */
   leave(end, name) {
     end.rooms.delete(name);
     const room = this.rooms.get(name);
@@ -122,6 +126,7 @@ export class FakeHub {
     else for (const m of room.members.values()) m.tell({ room: name, went: end.id });
   }
 
+  /** A connection closed: out of every room it was in. */
   gone(end) {
     if (!this.ends.delete(end)) return;
     for (const name of [...end.rooms]) this.leave(end, name);

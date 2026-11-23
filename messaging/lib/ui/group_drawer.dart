@@ -37,6 +37,7 @@ Future<void> showGroupDrawer(BuildContext context, InboxNetwork network, String 
 /// The words for a timer of [seconds].
 String timerWords(int seconds) => disappearingTimers.where((t) => t.$1 == seconds).firstOrNull?.$2 ?? (seconds == 0 ? 'Off' : '$seconds seconds');
 
+/// The drawer itself: the group as the network last gave it, read as it opens and again after each change.
 class GroupDrawer extends StatefulWidget {
   const GroupDrawer({super.key, required this.network, required this.chatId});
   final InboxNetwork network;
@@ -66,6 +67,8 @@ class _GroupDrawerState extends State<GroupDrawer> {
     super.dispose();
   }
 
+  /// Asks the network for the group and fills the name and description fields from it; null from the network means
+  /// it is not a group that can be changed from here.
   Future<void> _load() async {
     try {
       final g = await widget.network.groupDetails(widget.chatId);
@@ -83,6 +86,7 @@ class _GroupDrawerState extends State<GroupDrawer> {
     }
   }
 
+  /// An error as words a person reads: without Dart's "Bad state: " and the like at its start.
   static String _words(Object e) => '$e'.replaceFirst(RegExp(r'^(Bad state|Exception|StateError): '), '');
 
   /// Makes [change] on the network, says [done] when it is made, and shows the group as it then is.
@@ -110,6 +114,7 @@ class _GroupDrawerState extends State<GroupDrawer> {
     }
   }
 
+  // The name and the description are saved as typed, only where they changed; a name is never saved empty.
   void _saveTitle() {
     final g = _g;
     final typed = _title.text.trim();
@@ -124,6 +129,7 @@ class _GroupDrawerState extends State<GroupDrawer> {
     _change(GroupChange(description: typed), typed.isEmpty ? 'Description removed' : 'Description saved');
   }
 
+  /// The picture's menu: choose one from the device, or remove the one it has.
   Future<void> _photo() async {
     final g = _g!;
     await showChoices(context, title: 'The group\'s picture', choices: [
@@ -141,6 +147,7 @@ class _GroupDrawerState extends State<GroupDrawer> {
     ]);
   }
 
+  /// The disappearing-message timer's choices, the one set now ticked.
   void _timer() {
     final g = _g!;
     showChoices(context, title: 'Messages sent after this disappear for everyone after', choices: [
@@ -149,6 +156,8 @@ class _GroupDrawerState extends State<GroupDrawer> {
     ]);
   }
 
+  /// A member's menu: only what the network and the group's rules let this person do to them, and copying their
+  /// number. Nothing opens where there is nothing to offer.
   void _person(GroupPerson p) {
     final g = _g!;
     final choices = [
@@ -164,6 +173,7 @@ class _GroupDrawerState extends State<GroupDrawer> {
     showChoices(context, title: p.name, choices: choices);
   }
 
+  /// Add people: the network's contacts who are neither in the group nor already asked into it.
   void _add() {
     final g = _g!;
     final inIt = {for (final p in [...g.people, ...g.pending]) p.id};
@@ -218,6 +228,7 @@ class _GroupDrawerState extends State<GroupDrawer> {
     );
   }
 
+  /// The drawer's content, top to bottom, for the group as it stands.
   List<Widget> _sections(BuildContext context, GroupDetails g) {
     final t = context.tokens;
     final edit = g.canEditInfo;
@@ -308,6 +319,7 @@ class _GroupDrawerState extends State<GroupDrawer> {
     ];
   }
 
+  /// One of the group's rules as a switch; shown and not changeable where this person may not set it ([can] false).
   Widget _rule(String label, bool on, bool can, ValueChanged<bool> set) => SettingRow(
         label: label,
         control: GlacierSwitch(checked: on, disabled: !can, onCheckedChange: can ? set : null, ariaLabel: label),

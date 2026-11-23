@@ -45,16 +45,22 @@
   const input = document.getElementById('search');
   const box = document.getElementById('results');
   if (!input || !box) return;
+  // The index (a promise, fetched once, on the first focus) and which result the arrows are on. Each page in it is
+  // { u: address, t: title, d: summary, s: section, x: its words, h: [[id, heading], …] }.
   let index = null;
   let picked = 0;
-  const load = () => index ?? (index = fetch('/docs/search.json').then((r) => r.json()).catch(() => []));
+  const load = () => index ?? (index = fetch(document.body.dataset.search || '/docs/search.json').then((r) => r.json()).catch(() => []));
   const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  // The text made safe for HTML, with each word searched for wrapped in <mark>.
   const mark = (s, words) => words.reduce((t, w) => t.replace(new RegExp(`(${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<mark>$1</mark>'), esc(s));
+  // 120 characters of a page's words, starting a little before the first of the words found.
   function excerpt(text, words) {
     const at = words.map((w) => text.toLowerCase().indexOf(w)).filter((i) => i >= 0).sort((a, b) => a - b)[0] ?? 0;
     const from = Math.max(0, at - 40);
     return (from ? '…' : '') + text.slice(from, from + 120) + '…';
   }
+  // Lists the eight best pages that hold every word typed: a word in the title counts most, then the summary,
+  // then a heading, and a result links to the first heading that matches.
   async function run() {
     const q = input.value.trim().toLowerCase();
     if (!q) { box.hidden = true; return; }
@@ -94,6 +100,7 @@
       location.href = items[picked].href;
     }
   });
+  // A click anywhere else puts the results away; "/" outside a text field goes to the search.
   document.addEventListener('click', (e) => { if (!e.target.closest('.search')) box.hidden = true; });
   document.addEventListener('keydown', (e) => {
     if (e.key === '/' && document.activeElement !== input && !/input|textarea/i.test(document.activeElement?.tagName ?? '')) { e.preventDefault(); input.focus(); }

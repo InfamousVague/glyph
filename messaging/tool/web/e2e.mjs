@@ -76,6 +76,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const args = process.argv.slice(2);
+// The value after --name on the command line, or [fallback].
 const option = (name, fallback) => {
   const at = args.indexOf(`--${name}`);
   return at >= 0 && at + 1 < args.length ? args[at + 1] : fallback;
@@ -99,6 +100,8 @@ if (!existsSync(join(webDir, 'index.html'))) {
 
 // --- what it needs -------------------------------------------------------------------------------------------------
 
+// Playwright's index.mjs: where GHOST_PLAYWRIGHT says, else the first found in npm's npx cache; the run ends where
+// there is none.
 function findPlaywright() {
   if (process.env.GHOST_PLAYWRIGHT) return process.env.GHOST_PLAYWRIGHT;
   const cache = join(homedir(), '.npm', '_npx');
@@ -112,6 +115,7 @@ function findPlaywright() {
   process.exit(2);
 }
 
+// The Dart the relay is run with: GHOST_DART, else the one inside the Flutter on the PATH, else whatever `dart` is.
 function findDart() {
   if (process.env.GHOST_DART) return process.env.GHOST_DART;
   try {
@@ -129,6 +133,9 @@ const dart = findDart();
 
 // --- a relay of its own ----------------------------------------------------------------------------------------------
 
+// Starts a relay on this machine with an empty folder of its own, and waits for it to say which port it listens on
+// (0 asks for any free one). With [web] it serves the built app too. Gives back the port, what it wrote to stderr,
+// and a stop that ends it and deletes its folder.
 async function startRelay({ port: asked = '0', web = true, env = {} } = {}) {
   const data = mkdtempSync(join(tmpdir(), 'ghost-web-e2e-'));
   const child = spawn(dart, ['run', 'bin/relay.dart', '--host', '127.0.0.1', '--port', String(asked), '--data', data, ...(web ? ['--web', webDir] : [])], {
@@ -159,6 +166,7 @@ async function startRelay({ port: asked = '0', web = true, env = {} } = {}) {
 
 // --- the page, as a person finds things on it ----------------------------------------------------------------------------
 
+// Something a step looked for and did not find: its message is what the run reports.
 class Problem extends Error {}
 
 /// One person's page: what it logged, what it asked the network for, and how to find and press what is on it.
@@ -314,6 +322,7 @@ class Seat {
     }
   }
 
+  /// Waits for [text] to be nowhere on the page.
   async gone(text, { within = 30000 } = {}) {
     const until = Date.now() + within;
     while ((await this.words()).includes(text)) {
@@ -341,6 +350,8 @@ class Seat {
     }, { name, role, last, like });
   }
 
+  /// Presses the thing called [name] with the mouse, waiting for it to be there; [role], [last] and [like] as in
+  /// [where].
   async press(name, { within = 30000, role = null, last = false, like = false } = {}) {
     const until = Date.now() + within;
     for (;;) {
@@ -531,6 +542,7 @@ class Seat {
     }
   }
 
+  /// A picture of the page into the --shots folder, where one was named.
   async shot(name) {
     if (!shots) return;
     mkdirSync(shots, { recursive: true });
@@ -578,12 +590,15 @@ function leftovers(dir, before) {
 
 // --- the run ---------------------------------------------------------------------------------------------------------
 
+// Every line the run has printed, kept as well as printed.
 const said = [];
 const say = (words) => {
   said.push(words);
   console.log(words);
 };
 
+// The whole run in one browser engine, against a relay started for it: true where every step held. The browser and
+// the relay are closed whatever happens.
 async function run(engine) {
   const relay = await startRelay();
   const origin = `http://127.0.0.1:${relay.port}`;
@@ -599,6 +614,7 @@ async function run(engine) {
   const browser = await playwright[engine].launch({ headless: !headed, args: media });
   const seats = [];
   let skipping = false;
+  // One numbered step: done, timed and said; passed over once the run is skipping to its end.
   const step = async (words, what) => {
     if (skipping) return;
     const began = Date.now();

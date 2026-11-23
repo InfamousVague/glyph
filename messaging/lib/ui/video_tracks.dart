@@ -187,6 +187,8 @@ class TrackMemory {
   final String Function(String key) read;
   final void Function(String key, String value) write;
 
+  /// What to change on a video carrying [tracks] so it plays in the languages kept: only what differs from what is
+  /// already on, and a sound only where there is more than one to choose from.
   TrackPlan plan(VideoTracks tracks) {
     String? audio;
     final heard = read(audioKey);

@@ -94,6 +94,8 @@ class VoiceScreen extends StatelessWidget {
   }
 }
 
+/// A space in the list: its name, who is in it now, and Join (with how many) or Connected. A group's channel has no
+/// options button; any other has one.
 class _ChannelRow extends StatelessWidget implements PaneRow {
   const _ChannelRow({required this.channel});
   final VoiceChannel channel;
@@ -374,6 +376,7 @@ class CallDock extends StatelessWidget {
   }
 }
 
+/// Someone's video in a call: their picture with the name along the foot, and a red mic-off mark while muted.
 class _Tile extends StatelessWidget {
   const _Tile({required this.name, required this.muted, this.stream, this.mirror = false, this.screen = false});
   final String name;
@@ -474,6 +477,8 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
     super.dispose();
   }
 
+  /// Makes the space, shares it with the friends ticked (saying who could not be reached), then opens it: its page
+  /// for one without voice, the call itself for one with.
   Future<void> _make() async {
     final v = Voice.instance;
     final c = await v.make(_name.text, kind: _kind);
@@ -762,6 +767,7 @@ class _CallBannerState extends State<CallBanner> with SingleTickerProviderStateM
     super.dispose();
   }
 
+  /// The time in the call as a clock: 4:05, 1:02:09.
   static String _clock(Duration d) {
     final m = d.inMinutes, s = d.inSeconds % 60;
     return m >= 60 ? '${m ~/ 60}:${(m % 60).toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}' : '$m:${s.toString().padLeft(2, '0')}';
@@ -870,6 +876,7 @@ void showPerson(BuildContext context, VoiceSession session, String id, String na
   ));
 }
 
+/// The sheet [showPerson] slides up from the foot: a tap outside it closes it, and it follows the call as it changes.
 class _PersonSheet extends StatelessWidget {
   const _PersonSheet({required this.session, required this.id, required this.name});
   final VoiceSession session;

@@ -58,6 +58,7 @@ String? inviteWordIn(String? text) {
   return m == null ? null : tidyInviteWord(m.group(1)!);
 }
 
+/// Bytes as lower-case hex.
 String _hex(List<int> b) => b.map((x) => x.toRadixString(16).padLeft(2, '0')).join();
 
 /// What the relay keeps [word] by: a SHA-256 of it, as hex.

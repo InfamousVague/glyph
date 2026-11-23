@@ -7,6 +7,7 @@ import 'keccak.dart';
 /// (lib/account/account_crypto.dart); test/account_crypto_test.dart in the app holds this to the same addresses. Like
 /// p256.dart it handles nothing secret but in [sign], which is here for the tests, and so need not be constant-time.
 class Secp256k1 {
+  /// The curve y² = x³ + 7: the field's prime [p], the group's order [n], and the base point.
   static final BigInt p = BigInt.parse('fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f', radix: 16);
   static final BigInt n = BigInt.parse('fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141', radix: 16);
   static final BigInt _gx = BigInt.parse('79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', radix: 16);
@@ -30,6 +31,8 @@ class Secp256k1 {
     return [x3, y3, z3];
   }
 
+  // The sum of two points; then [_times], a point added to itself k times by doubling and adding; then [_affine], a
+  // point's own x and y, or null for the point at infinity. As in p256.dart.
   static List<BigInt> _add(List<BigInt> a, List<BigInt> b) {
     if (a[2] == BigInt.zero) return b;
     if (b[2] == BigInt.zero) return a;

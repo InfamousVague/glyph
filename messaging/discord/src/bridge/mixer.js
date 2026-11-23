@@ -26,6 +26,7 @@ export class PcmQueue {
     return Math.floor(this.len / FRAME_LEN);
   }
 
+  /** Decoded samples added at the end; what would take the queue past [max] is dropped from the front. */
   push(samples) {
     let s = samples;
     if (s.length > this.max) s = s.subarray(s.length - this.max);
@@ -55,6 +56,7 @@ export class PcmQueue {
   }
 }
 
+/** A sum held to what 16 bits can carry. */
 const clip = (v) => (v > 32767 ? 32767 : v < -32768 ? -32768 : v);
 
 /** Every frame added up into a 32-bit sum (so nothing clips before the end). Null frames are silence. */
@@ -111,6 +113,7 @@ export class Gate {
   constructor({ threshold = 120, hangFrames = 15 } = {}) {
     this.threshold = threshold;
     this.hangFrames = hangFrames;
+    // Quiet frames in a row since the last loud one; Infinity until the first, so the gate starts closed.
     this.quiet = Infinity;
   }
 

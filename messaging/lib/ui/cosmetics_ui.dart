@@ -33,6 +33,7 @@ class DressedFace extends StatelessWidget {
       builder: (context, _) {
         final art = CosmeticArt.instance;
         final b = border, d = decoration;
+        // The art is 512 square: the face's circle is 440 across in a border's, 360 in a decoration's.
         Widget? ring, around;
         if (b != null) {
           final side = size * 512 / 440;
@@ -116,6 +117,7 @@ class _DecorationStandInState extends State<_DecorationStandIn> with SingleTicke
   }
 }
 
+/// Paints the decoration's stand-in: the glow, and six sparks at [turn] (0 to 1) of the way round a face [face] wide.
 class _SparksPainter extends CustomPainter {
   _SparksPainter(this.piece, this.face, this.turn);
   final Cosmetic piece;
@@ -203,6 +205,8 @@ class _NameEffectTextState extends State<NameEffectText> with SingleTickerProvid
     if (old.id != widget.id) _animate();
   }
 
+  /// Runs the animation for an effect that moves (shimmer, rainbow, texture) unless reduced motion is asked for, and
+  /// loads a texture's art once for each piece.
   void _animate() {
     final p = _piece;
     final moves = p != null && (p.style == NameStyle.shimmer || p.style == NameStyle.rainbow || p.style == NameStyle.texture);
@@ -331,6 +335,8 @@ class _ProfileEffectLayerState extends State<ProfileEffectLayer> with SingleTick
   }
 }
 
+/// Paints a profile effect's stand-in: 18 motes falling (rising, for embers) at [v] (0 to 1) of one drift. Seeded from
+/// the piece's id, so each mote keeps its place and speed from frame to frame.
 class _MotesPainter extends CustomPainter {
   _MotesPainter(this.piece, this.v);
   final Cosmetic piece;

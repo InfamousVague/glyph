@@ -57,12 +57,14 @@ class _MatrixSignInScreenState extends State<MatrixSignInScreen> {
     _signedIn();
   }
 
+  /// With no server typed, a whole user id (@you:server) stands in for it.
   Future<void> _withPassword() async {
     if (_user.text.trim().isEmpty || _password.text.isEmpty) return;
     await widget.network.signInWithPassword(_server.text.trim().isEmpty && _user.text.trim().startsWith('@') ? _user.text : _server.text, _user.text, _password.text);
     _signedIn();
   }
 
+  /// Hands the recovery key to the network; what it refuses is shown under the field.
   Future<void> _unlock() async {
     if (_key.text.trim().isEmpty) return;
     setState(() {

@@ -79,6 +79,7 @@ class _BreathingState extends State<_Breathing> with SingleTickerProviderStateMi
 /// is found. A version put in place is restarted into; the app goes on loading if that fails or nothing is found.
 /// [updates] keeps looking every few hours afterwards, as it always has.
 Future<void> checkAtLaunch(MacUpdates updates, ValueNotifier<SplashStep> step, {Duration lookFor = const Duration(seconds: 8), Duration downloadFor = const Duration(minutes: 10), Duration restartWait = const Duration(seconds: 20)}) async {
+  // What the splash says for where the update stands, each time it moves.
   void said() {
     step.value = switch (updates.phase) {
       MacUpdatePhase.downloading => (words: updates.release == null ? 'Downloading the update' : 'Downloading ${updates.release!.version}', progress: updates.progress),

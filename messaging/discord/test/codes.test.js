@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ALPHABET, CODE_TTL_MS, Codes } from '../src/codes.js';
 
+// Link codes (src/codes.js): their shape, one use, ten minutes, and the limit a server.
+
 test('a code is six characters from the alphabet without look-alikes', () => {
   const codes = new Codes();
   for (let i = 0; i < 200; i++) {

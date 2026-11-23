@@ -104,6 +104,8 @@ class DiscordState {
   final DateTime? at;
 }
 
+/// The Discord servers linked on this device: keeps the links, reads each server's voice channels from the bot's
+/// service, and asks the bot to bridge a channel when someone joins it from the app.
 class DiscordServers extends ChangeNotifier {
   DiscordServers._();
   static final instance = DiscordServers._();
@@ -121,8 +123,10 @@ class DiscordServers extends ChangeNotifier {
   Timer? _timer;
 
   List<DiscordLink> get links => _links;
+  /// [l]'s server as last read; empty before the first read.
   DiscordState stateOf(DiscordLink l) => _states[l.token] ?? const DiscordState();
 
+  /// Loads the links kept in [app]'s choices and begins reading their servers. Only the first call does anything.
   void start(AppState app) {
     if (_app != null) return;
     _app = app;
@@ -156,6 +160,7 @@ class DiscordServers extends ChangeNotifier {
     client = HttpClient.new;
   }
 
+  /// Saves the links and restarts the reading, since the set of servers changed.
   void _keep() {
     _app?.set('discord_links', jsonEncode([for (final l in _links) l.toJson()]));
     _poll();
@@ -171,6 +176,8 @@ class DiscordServers extends ChangeNotifier {
     _timer = Timer.periodic(const Duration(seconds: 15), (_) => refresh());
   }
 
+  /// One request to the bot's service. The answer's JSON (empty where it isn't JSON) with the HTTP status added as
+  /// `_status`; throws only where the service can't be reached in time.
   Future<Map<String, dynamic>> _call(String method, String path, {Map<String, Object?>? body}) async {
     final http = client()..connectionTimeout = const Duration(seconds: 10);
     try {
@@ -222,6 +229,7 @@ class DiscordServers extends ChangeNotifier {
     if (r['_status'] == 404 && r['error'] == 'unknown code') throw const DiscordProblem('That code isn\'t right, or it has run out. Type /ghost link again for a new one.');
     if (r['_status'] == 410) throw const DiscordProblem('The bot isn\'t in that server any more. Add it again, then type /ghost link.');
     if (r['_status'] == 503) throw const DiscordProblem('The Discord bot is starting up. Try again in a moment.');
+    // An answer with neither an error nor a token didn't come from the bot (a proxy's page, say).
     if (r['_status'] is int && r['error'] == null && r['token'] == null) throw const DiscordProblem('The Discord bot couldn\'t be reached. Try again in a moment.');
     if (r['_status'] == 429) throw const DiscordProblem('Too many tries. Wait a minute and try again.');
     final g = r['guild'];
@@ -229,6 +237,7 @@ class DiscordServers extends ChangeNotifier {
       throw const DiscordProblem('The Discord bot answered strangely. Try again.');
     }
     final link = DiscordLink(token: r['token'] as String, guildId: g['id'] as String, name: g['name'] as String, icon: g['icon'] as String?);
+    // Linking a server again replaces its old link.
     _links = [for (final l in _links) if (l.guildId != link.guildId) l, link];
     _keep();
     return link.name;
@@ -298,6 +307,7 @@ class DiscordServers extends ChangeNotifier {
             _app?.set('discord_links', jsonEncode([for (final x in _links) x.toJson()]));
           }
         } else {
+          // A failed read keeps the channels last seen and says why.
           _states[l.token] = DiscordState(channels: stateOf(l).channels, problem: status == 401 ? 'not linked' : status == 410 ? 'gone' : 'unreachable', at: stateOf(l).at);
         }
       } catch (_) {

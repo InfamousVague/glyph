@@ -100,6 +100,7 @@ class MemoryStore implements PluginStore {
   Map<String, String> withPrefix(String prefix) => {for (final e in values.entries) if (e.key.startsWith(prefix)) e.key: e.value};
 }
 
+/// One plugin's own choices: the person's, each read and written under the plugin's [prefix] (`plugin_<id>_`).
 class _Prefs implements PluginPrefs {
   const _Prefs(this.store, this.prefix, {this.tunes = false});
   final PluginStore store;
@@ -367,6 +368,8 @@ class PluginRegistry with ChangeNotifier {
   /// The choice a plugin's switch is kept under.
   static String switchKey(GhostPlugin plugin) => 'plugin_${plugin.id}';
 
+  /// Whether the person has [plugin] switched on; as the plugin starts ([GhostPlugin.onByDefault]) where they never
+  /// chose.
   bool isOn(GhostPlugin plugin, PluginStore store) {
     if (plugin is OwnSwitch) return (plugin as OwnSwitch).on;
     final value = store.read(switchKey(plugin));
@@ -377,6 +380,7 @@ class PluginRegistry with ChangeNotifier {
   /// switched on. Plugin sync listens (lib/plugins/plugin_sync.dart, GMFB-9) and tells its own moves from the person's.
   static void Function(GhostPlugin plugin, bool on)? switched;
 
+  /// Switches [plugin] on or off: its choice in [store], or its own switch where it keeps one ([OwnSwitch]).
   void setOn(GhostPlugin plugin, PluginStore store, bool on) {
     try {
       switched?.call(plugin, on);
@@ -463,6 +467,8 @@ class PluginRegistry with ChangeNotifier {
 
   Iterable<_Entry> _on(PluginStore store) => _entries.where((e) => isOn(e.plugin, store));
 
+  /// Everything asked of a plugin goes through here: what it throws is told ([_tell]) and [otherwise] stands in, so
+  /// one plugin's fault never breaks the screen that asked.
   T _ask<T>(GhostPlugin plugin, T otherwise, T Function() ask) {
     try {
       return ask();
@@ -510,6 +516,7 @@ class PluginRegistry with ChangeNotifier {
     return _filed;
   }
 
+  /// The first of [sections] that takes the conversation, in their order; null where none does.
   PluginSection? _taker(MessageFacts facts, TagSet tags, PluginStore store, List<PluginSection> sections) {
     for (final s in sections) {
       if (_ask(s.plugin, false, () => s.section.takes(facts, tags, prefsOf(s.plugin, store)))) return s;

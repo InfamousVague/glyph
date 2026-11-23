@@ -23,7 +23,11 @@ class InviteWords {
   final Directory? dataDir;
   final DateTime Function() _now;
 
+  /// The `dir` messages this answers (the hub sends them here).
   static const dirs = {'word-set', 'word-drop', 'word'};
+
+  /// [maxForOne]: words one install may hold. [anHour]: times one install may set a word in an hour. [maxBlob]: the
+  /// most characters in a sealed link. [maxAll]: words kept in all. [life]: how long a word lasts unless set again.
   static const maxForOne = 10;
   static const anHour = 20;
   static const maxBlob = 1024;
@@ -32,6 +36,7 @@ class InviteWords {
 
   /// By the word's hash: who holds it, the sealed link, and when it was last set.
   final Map<String, ({String owner, String blob, int at})> _words = {};
+  // When each install set a word in the last hour, in memory only: what [anHour] counts.
   final Map<String, List<DateTime>> _sets = {};
   bool _dirty = false;
 
@@ -41,6 +46,7 @@ class InviteWords {
 
   File? get _file => dataDir == null ? null : File('${dataDir!.path}/invite_words.json');
 
+  /// Reads invite_words.json (`{v, words: {<hash>: {o: owner, b: sealed link, t: ms}}}`) as the hub starts.
   void load() {
     final f = _file;
     if (f == null || !f.existsSync()) return;
@@ -53,6 +59,7 @@ class InviteWords {
     } catch (_) {}
   }
 
+  /// Writes the file where something changed: after each word set or dropped, and as the hub stops.
   void save() {
     final f = _file;
     if (f == null || !_dirty) return;
@@ -66,6 +73,7 @@ class InviteWords {
     tmp.renameSync(f.path);
   }
 
+  /// Lets go of words not set again for [life]; the hub calls it every ten minutes.
   void sweep() {
     final cut = _now().subtract(life).millisecondsSinceEpoch;
     final before = _words.length;

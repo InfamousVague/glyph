@@ -39,6 +39,7 @@ class RecordingBanner extends StatefulWidget {
   @override
   State<RecordingBanner> createState() => _RecordingBannerState();
 
+  /// Stops this device's recording and says it was saved, with a way to the recordings; or that it couldn't be.
   static Future<void> _stop(BuildContext context) async {
     final r = await CallRecorder.instance.stop();
     if (!context.mounted) return;
@@ -70,6 +71,7 @@ class _RecordingBannerState extends State<RecordingBanner> {
     super.dispose();
   }
 
+  /// The recorder changed: [_tick] runs while this device records, and not otherwise.
   void _changed() {
     final on = CallRecorder.instance.since != null;
     if (on) {
@@ -152,6 +154,7 @@ class _RecordingBannerState extends State<RecordingBanner> {
 
 }
 
+/// A length as m:ss, or h:mm:ss from an hour.
 String _clock(Duration d) {
   final m = d.inMinutes, s = d.inSeconds % 60;
   return m >= 60 ? '${m ~/ 60}:${(m % 60).toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}' : '$m:${s.toString().padLeft(2, '0')}';
@@ -209,6 +212,7 @@ class RecordingsScreen extends StatelessWidget {
     return CallScribe.instance.of(r) != null ? ' · words' : '';
   }
 
+  /// A recording pressed: what can be done with it.
   static void _actions(BuildContext context, Recording r) {
     final name = 'Recording ${r.space.isEmpty ? '' : '${r.space} '}${r.at.toIso8601String().substring(0, 16).replaceAll(':', '.')}.mp4';
     final space = [for (final c in Voice.instance.channels) if (c.seed == r.seed) c].firstOrNull;

@@ -93,6 +93,8 @@ class VoiceChannel {
   /// Whether it has a call: a [SpaceKind.voice] space, or a group's channel.
   bool get hasVoice => kind.hasVoice;
 
+  // The call's room on the hub, the token that lets one join or look at it, and the key what is said there is sealed
+  // with: each derived from the seed under its own label, so none gives away another.
   Uint8List get _seed => NetCrypto.unhex(seed);
   String get room => NetCrypto.hex(NetCrypto.derive(_seed, 'voice room').sublist(0, 16));
   String get token => NetCrypto.hex(NetCrypto.derive(_seed, 'voice token'));
@@ -116,6 +118,8 @@ class VoiceChannel {
   VoiceChannel copyWith({bool? mine, String? name, SpaceKind? kind}) =>
       VoiceChannel(seed: seed, name: name ?? this.name, group: group, mine: mine ?? this.mine, owner: owner, discord: discord, kind: kind ?? this.kind, circle: circle);
 
+  /// As kept and shared: the seed, the name, and `m`, `o` and `k` only where they aren't the usual. The group, the
+  /// Discord bridge and the circle are not carried.
   Map<String, Object> toJson() => {'s': seed, 'n': name, if (mine) 'm': 1, if (owner.isNotEmpty) 'o': owner, if (kind != SpaceKind.voice) 'k': kind.wire};
 
   /// A link anyone can open in a browser to hop in, as a guest or signed up (site/join; Matt, 2026-11-14: "Make the
@@ -141,6 +145,8 @@ class VoiceChannel {
     return VoiceChannel(seed: m.group(1)!, name: name.isEmpty ? 'Space' : name, owner: m.group(3) ?? '', kind: SpaceKind.of(m.group(4)));
   }
 
+  /// A space from its JSON; null where the seed or name is missing. An owner that isn't a compressed public key is
+  /// dropped.
   static VoiceChannel? fromJson(Object? j) {
     if (j is! Map || j['s'] is! String || (j['s'] as String).length != 64 || j['n'] is! String) return null;
     final owner = j['o'] is String && RegExp(r'^0[23][0-9a-f]{64}$').hasMatch(j['o'] as String) ? j['o'] as String : '';
@@ -151,10 +157,15 @@ class VoiceChannel {
 /// What a voice channel stands on: the hub's rooms. The app's is the hub carrier ([HubVoiceRoute]); a test gives
 /// one that passes packets between sessions.
 abstract class VoiceRoute {
+  /// This device's id on the hub.
   String get me;
+
+  /// Joins [room]; the ids of those already in it.
   Future<List<String>> join(String room, String token);
   void leave(String room);
   void send(String room, Uint8List bytes);
+
+  /// Asks to be told who is in [room] without joining it ([looks]), until [unlook].
   void look(String room, String token);
   void unlook(String room);
   Stream<RoomEvent> get events;
@@ -178,6 +189,7 @@ abstract class ReactionRoute {
   Stream<({String room, String from, Uint8List bytes})> get reactionPackets;
 }
 
+/// The app's route: every call passed straight to the relay's hub through its carrier.
 class HubVoiceRoute implements VoiceRoute, ReadOnlyRoute, ReactionRoute {
   HubVoiceRoute(this.hub);
   final HubCarrier hub;
@@ -216,7 +228,10 @@ class HubVoiceRoute implements VoiceRoute, ReadOnlyRoute, ReactionRoute {
 
 /// One other person's connection in a call: what WebRTC needs said between the two, said through the channel.
 abstract class VoicePeer {
+  /// This side's offer, as SDP.
   Future<String> makeOffer();
+
+  /// Takes their offer; this side's answer, as SDP.
   Future<String> takeOffer(String sdp);
   Future<void> takeAnswer(String sdp);
   Future<void> addCandidate(Map<String, dynamic> candidate);
@@ -233,6 +248,7 @@ abstract class VoicePeer {
 /// and the relay too) (VoiceSession._failed). With no relay handed out it is the other way round: every path first,
 /// then the relay alone if one has been handed out since.
 abstract class FallbackMedia implements VoiceMedia {
+  /// The connection to [id], made anew: [onCandidate] is told each way to connect it finds, to pass on to them.
   VoicePeer peerWith(String id, {required void Function(Map<String, dynamic> candidate) onCandidate, required void Function() onFailed, bool relayOnly = false});
 
   /// Whether a relay for calls was handed out (no point starting over through it otherwise).
@@ -341,6 +357,7 @@ class VoiceMember {
   VoiceMember copyWith({String? name, bool? muted, bool? video, bool? screen, bool? guest, String? username, bool? hand}) =>
       VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video, screen: screen ?? this.screen, guest: guest ?? this.guest, username: username ?? this.username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions, hand: hand ?? this.hand);
 
+  /// With the recording and caption fields replaced whole (anything not given goes back to none).
   VoiceMember withRecording({required bool notices, String? recording, Set<String> agreed = const {}, Set<String> declined = const {}, bool captions = false}) =>
       VoiceMember(id, name: name, muted: muted, video: video, screen: screen, guest: guest, username: username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions, hand: hand);
 }
@@ -496,6 +513,7 @@ class VoiceSession extends ChangeNotifier {
   /// Told each caption said in the call: who, the words, and whether the line is done.
   void Function(String from, String words, bool done)? onCaption;
 
+  /// Turns captions on or off for this device's person, and says so to the call.
   void setWantsCaptions(bool on) {
     wantsCaptions = on;
     _sayState();
@@ -525,6 +543,8 @@ class VoiceSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Comes into the call: starts the microphone (and camera), joins the room on the hub, and offers a connection to
+  /// everyone already there. Throws where the relay doesn't answer within 15 seconds.
   Future<void> join({bool withVideo = false}) async {
     video = withVideo;
     await media.start();
@@ -555,6 +575,8 @@ class VoiceSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Goes out of the call: leaves the room, closes every connection and stops the microphone and camera. Safe to call
+  /// when not joined.
   Future<void> leave() async {
     if (joined) Sounds.instance.play(UiSound.hangoutLeave);
     if (joined) route.leave(channel.room);
@@ -586,6 +608,7 @@ class VoiceSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Deafened: nobody is heard, and the microphone is off too for as long as it lasts (the mute choice is kept).
   void setDeafened(bool on) {
     if (on != deafened) Sounds.instance.play(on ? UiSound.deafen : UiSound.undeafen);
     deafened = on;
@@ -655,6 +678,7 @@ class VoiceSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The connection to [id]: the one there is, or one made now whose candidates are said to them (`ice`).
   VoicePeer _peerFor(String id, {bool relayOnly = false}) {
     final had = _peers[id];
     if (had != null) return had;
@@ -700,6 +724,8 @@ class VoiceSession extends ChangeNotifier {
     _say({'t': 'offer', 'to': id, 'sdp': highestOpus(sdp, kbps: kbps, stereo: stereo), 'j': _join, if (relay) 'r': 1, if (again) 'a': 1});
   }
 
+  /// Says this device's state to the call ('me'): its name, muted (deafened counts), video, and the recording and
+  /// caption fields above.
   void _sayState() => _say({
         't': 'me',
         'n': name,
@@ -716,6 +742,7 @@ class VoiceSession extends ChangeNotifier {
         if (hand) 'h': 1,
       });
 
+  /// Sends [what] to the room, sealed with the channel's key. Nothing is sent before joining or after leaving.
   void _say(Map<String, Object?> what) {
     if (!joined) return;
     try {
@@ -723,6 +750,8 @@ class VoiceSession extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// A packet from the room: opened with the channel's key (anything that doesn't open is dropped) and acted on by its
+  /// kind `t`.
   Future<void> _heard(String from, Uint8List bytes) async {
     final clear = NetCrypto.open(channel.key, bytes);
     if (clear == null) return;
@@ -758,6 +787,7 @@ class VoiceSession extends ChangeNotifier {
         // The bridge to Discord saying who is in the Discord voice channel, and who is talking there.
         bridgeId = from;
         discordPeople = [for (final p in (m['people'] as List? ?? const [])) ?DiscordPerson.fromJson(p)];
+        // The bridge says only who is talking, not how loudly: a talker's level is a fixed half.
         discordLevels.value = {for (final p in discordPeople) 'dc:${p.id}': p.speaking && !p.muted ? 0.5 : 0.0};
         notifyListeners();
       case 'me':
@@ -841,6 +871,8 @@ String highestOpus(String sdp, {int kbps = 510, bool stereo = true}) {
   final want = {'minptime': '10', 'useinbandfec': '1', 'stereo': stereo ? '1' : '0', 'sprop-stereo': stereo ? '1' : '0', 'maxaveragebitrate': '${kbps * 1000}', 'maxplaybackrate': '48000', 'cbr': '1', 'usedtx': '0'};
   final out = <String>[];
   final fmtpDone = <String>{};
+  // Each Opus payload's fmtp line is rewritten with these on top of what it had; a payload with no fmtp line gets one
+  // straight after its rtpmap.
   for (var i = 0; i < lines.length; i++) {
     final l = lines[i];
     final fmtp = RegExp(r'^a=fmtp:(\d+) (.*)$').firstMatch(l);

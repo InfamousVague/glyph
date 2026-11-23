@@ -43,6 +43,7 @@ class _VoicePaneState extends State<VoicePane> {
     _devices();
   }
 
+  /// Asks which noise suppression this device runs, then lists its microphones and speakers for the pickers.
   Future<void> _devices() async {
     await VoiceFx.modes();
     _asked = true;
@@ -54,6 +55,7 @@ class _VoicePaneState extends State<VoicePane> {
     });
   }
 
+  /// The chosen device's name for its row: an empty [id] is the system's own, and one not in [list] is unplugged.
   static String _name(List<MediaDeviceInfo> list, String id) {
     if (id.isEmpty) return 'The system\'s own';
     for (final d in list) {
@@ -66,6 +68,8 @@ class _VoicePaneState extends State<VoicePane> {
   /// In a browser neither: the page has the browser's own alone (callsInBrowser).
   bool _offered(NoiseMode m) => Sms.browser ? m == NoiseMode.off || m == NoiseMode.webrtc : m != NoiseMode.deepfilter || VoiceFx.available.contains(m);
 
+  /// The noise suppression chosen, marked where this device will use another in its place (VoiceSettings.noiseOn).
+  /// Not marked until the device has been asked what it runs.
   String _noiseName(VoiceSettings v) {
     // A browser runs its own alone, whatever was chosen on another device.
     if (Sms.browser) return v.noiseOn(const {}).label;
@@ -75,6 +79,8 @@ class _VoicePaneState extends State<VoicePane> {
 
   bool _asked = false;
 
+  /// The choice of a device: the system's own first, then each in [list], the one in use ticked. [use] is handed the
+  /// id chosen (empty for the system's own).
   void _pick(String title, List<MediaDeviceInfo> list, String current, Future<void> Function(String id) use) {
     showChoices(context, title: title, choices: [
       Choice(current.isEmpty ? '✓  The system\'s own' : 'The system\'s own', Lucide.laptop, () => use('').then((_) => setState(() {}))),
@@ -256,6 +262,7 @@ class _AudioTestState extends State<AudioTest> {
   bool _starting = false, _hear = false;
   String? _problem;
 
+  /// Opens the microphone with the call settings chosen; says why under the test where it couldn't be opened.
   Future<void> _start() async {
     if (_media != null || _starting) return;
     setState(() {
@@ -277,6 +284,7 @@ class _AudioTestState extends State<AudioTest> {
     }
   }
 
+  /// Ends the test and lets the microphone go.
   Future<void> _stop() async {
     final media = _media;
     _media = null;

@@ -21,6 +21,7 @@ const werift = require('werift');
 const G = '100000000000000001';
 const C = '400000000000000004';
 
+/** Frame [n] (20 ms, stereo) of a steady [hz] tone, each frame carrying on where the last stopped. */
 function tone(hz, n) {
   const f = new Int16Array(FRAME_LEN);
   for (let i = 0; i < FRAME_LEN / 2; i++) f[2 * i] = f[2 * i + 1] = Math.round(8000 * Math.sin((2 * Math.PI * hz * (n * 960 + i)) / 48000));

@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { TokenStore } from '../src/store.js';
 
+// The links (src/store.js): tokens made, read and revoked, and what the file on disk holds.
+
 test('a token is 32 lowercase hex digits and reads its server', () => {
   const store = new TokenStore(null);
   const token = store.add('g1');

@@ -1,6 +1,8 @@
 import Cocoa
 import FlutterMacOS
 
+/// The Mac app's delegate: the app quits with its window, and links opened into it go to [DeskLinks]. The window and
+/// the channels to Dart are set up in MainFlutterWindow.swift.
 @main
 class AppDelegate: FlutterAppDelegate {
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -24,8 +26,10 @@ final class DeskLinks {
   static let shared = DeskLinks()
   private var channel: FlutterMethodChannel?
   private var pending: [String] = []
+  /// Whether the app has asked for the links yet: from then on they are handed over as they come.
   private var taken = false
 
+  /// Sets up the channel on the app's engine, once it has one.
   func attach(messenger: FlutterBinaryMessenger) {
     let c = FlutterMethodChannel(name: "ghost_desktop/links", binaryMessenger: messenger)
     c.setMethodCallHandler { [weak self] call, result in
@@ -37,6 +41,7 @@ final class DeskLinks {
     channel = c
   }
 
+  /// A link was opened into the app: handed over or held, and the app brought to the front.
   func opened(_ url: String) {
     if taken, let channel {
       channel.invokeMethod("open", arguments: url)

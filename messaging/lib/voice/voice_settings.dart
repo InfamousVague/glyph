@@ -55,6 +55,7 @@ class VoiceSettings {
   static const videoChoices = [2160, 1080, 720, 480];
   static const maxVolume = 200;
 
+  /// The settings as kept in [app]'s choices, each with its default where never set.
   factory VoiceSettings.of(AppState app) => VoiceSettings(
         input: app.choice('voice_input', ''),
         output: app.choice('voice_output', ''),
@@ -71,6 +72,7 @@ class VoiceSettings {
         duckOthers: app.flag('voice_duck_others', fallback: false),
       );
 
+  /// With another device or volume; everything else as it is.
   VoiceSettings copyWith({String? input, String? output, int? inputVolume, int? outputVolume}) => VoiceSettings(
         input: input ?? this.input,
         output: output ?? this.output,
@@ -122,6 +124,7 @@ class VoiceSettings {
     return (scale: base.scale * extra, bitrate: base.bitrate < videoCap ? base.bitrate : videoCap);
   }
 
+  // How a bit rate and a picture height are written in Settings.
   static String kbpsLabel(int k) => k >= 510 ? '510 kb/s · the most Opus carries' : '$k kb/s';
   static String videoLabel(int q) => q >= 2160 ? '4K' : '${q}p';
 }
@@ -144,6 +147,7 @@ enum NoiseMode {
   final String label;
   final String hint;
 
+  /// The mode kept or said under [name]; null for none or one this build doesn't know.
   static NoiseMode? named(String name) {
     for (final m in values) {
       if (m.name == name) return m;

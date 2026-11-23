@@ -26,6 +26,7 @@ import '../plugins/registry.dart';
 import '../voice/channels.dart' show Voice;
 import 'game_sense.dart';
 
+/// One game someone is playing and since when: on the wire, `{n: name, s: ms since the epoch}`.
 @immutable
 class GameActivity {
   const GameActivity(this.name, this.since);
@@ -34,6 +35,7 @@ class GameActivity {
   final String name;
   final DateTime since;
 
+  /// The most characters of a name that are kept of what someone else says.
   static const most = 60;
 
   Map<String, Object> toJson() => {'n': name, 's': since.millisecondsSinceEpoch};
@@ -127,6 +129,7 @@ class GameActivities extends ChangeNotifier {
           if (of(id) != null) id: of(id)!.toJson(),
       };
 
+  /// What this device is playing changed ([GamePresence.look]); listeners are told only where it did.
   void setMine(GameActivity? game) {
     if (mine == game) return;
     mine = game;
@@ -179,6 +182,7 @@ class GamePresence {
     _opening = Timer(first, () => unawaited(look()));
   }
 
+  /// Stops looking. Nothing is told: whoever was told last stops believing it after [GameActivities.kept].
   void stop() {
     _timer?.cancel();
     _opening?.cancel();
@@ -197,6 +201,8 @@ class GamePresence {
     unawaited(look());
   }
 
+  /// The Game activity plugin's switches as they stand: whether it is on, whom it tells, the programs the person
+  /// calls games and the games never said. All off where the plugin isn't there or isn't on.
   ({bool on, bool friends, bool spaces, Set<String> also, Set<String> never}) _prefs() {
     final app = _app;
     final reg = PluginRegistry.instance;
@@ -206,6 +212,7 @@ class GamePresence {
     return (on: true, friends: prefs.flag('friends'), spaces: prefs.flag('spaces'), also: wordsOf(prefs, 'also').toSet(), never: wordsOf(prefs, 'never').toSet());
   }
 
+  /// [_prefs] as one string, to see whether any of them moved.
   String _prefsKey() {
     final p = _prefs();
     return '${p.on}|${p.friends}|${p.spaces}|${p.also.join(',')}|${p.never.join(',')}';
@@ -244,6 +251,8 @@ class GamePresence {
   /// What spaces are told now.
   GameActivity? get forSpaces => _toldSpaces ? activities.mine : null;
 
+  /// The app's own telling: friends are sent what [forFriends] says now, and every space this device is in is told
+  /// about this device again.
   static void _tell(GameActivity? game, {required bool friends, required bool spaces}) {
     if (friends) unawaited(Buddies.instance.sayActivity(GamePresence.instance.forFriends).catchError((_) {}));
     if (spaces) Voice.instance.sayMeEverywhere();

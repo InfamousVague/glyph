@@ -45,6 +45,8 @@ class MarkdownController extends TextEditingController {
     final faint = TextStyle(color: ink.withValues(alpha: 0.4));
     // The word being composed on a phone's keyboard keeps its underline.
     final composing = withComposing && value.isComposingRangeValid ? value.composing : null;
+    // The words are cut at every edge of a marker, a mention and the composing range; each piece between two cuts
+    // then takes one style.
     final cuts = <int>{
       0,
       words.length,

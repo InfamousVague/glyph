@@ -126,6 +126,8 @@ Future<void> _lost(Browser b, BrowserStore kept) async {
   b.reload(note: 'lost');
 }
 
+/// Starts the app in the page: opens what the browser keeps, sets up the app's parts as a browser has them, and
+/// shows the first screen; a notice in their place where this browser won't serve.
 Future<void> _start(Browser b) async {
   // Why the page was loaded again with nothing (signed out, removed, a store lost), said on the welcome.
   final note = b.takeNote();
@@ -234,6 +236,7 @@ void Function() watchForRemoval(Browser b, {DateTime Function()? now}) {
     wasUp = up;
   }
 
+  // The routes were set up anew: the hub's route listened to is the one there is now.
   void netChanged() {
     final now = Net.instance.hub;
     if (identical(now, hub)) return;
@@ -330,6 +333,7 @@ class WebNotice extends StatefulWidget {
 class _WebNoticeState extends State<WebNotice> {
   bool _busy = false;
 
+  /// Runs the button's action, once at a time.
   Future<void> _go() async {
     if (_busy) return;
     setState(() => _busy = true);

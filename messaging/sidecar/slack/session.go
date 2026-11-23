@@ -25,6 +25,7 @@ const (
 	cookieToken = "token"
 )
 
+// copyAgain ends the sign-in errors that copying the browser's session afresh would mend.
 const copyAgain = ": open the workspace in the browser, signed in, and copy the cookies and token again"
 
 // credentials checks what sign_in was given, saying in words what is missing, and gives the token and the cookies to
@@ -104,6 +105,7 @@ type session struct {
 	Cookies    map[string]string `json:"cookies"`
 }
 
+// sessionPath is where the session is kept: session.json in the helper's folder.
 func sessionPath() string { return filepath.Join(dir, "session.json") }
 
 // saveSession writes the session for the person alone to read (0600), whole or not at all.
@@ -152,6 +154,7 @@ func errCode(err error) string {
 	return ""
 }
 
+// statusOf is the HTTP status Slack answered with where it gave no error of its own (a 500, say); 0 otherwise.
 func statusOf(err error) int {
 	var sc slack.StatusCodeError
 	if errors.As(err, &sc) {
@@ -170,6 +173,7 @@ func rejected(err error) bool {
 	return false
 }
 
+// wordsSignedOut is what the app shows for a session Slack ended without saying more.
 const wordsSignedOut = "Slack signed this session out. Open the workspace in the browser, signed in, and copy the cookies and token again."
 
 // endedWords is what the app shows when Slack ends the session.

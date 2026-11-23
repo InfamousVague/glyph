@@ -36,6 +36,7 @@ class Pushes {
   /// `install|device` -> its token (a key from before devices, the install alone, is read as `install|`).
   final Map<String, ({String token, bool sandbox, String day})> _tokens = {};
 
+  /// The key a device's token is kept under, and the install such a key belongs to.
   static String _key(String id, String device) => '$id|$device';
   static String _idOf(String key) => key.contains('|') ? key.substring(0, key.indexOf('|')) : key;
   final Map<String, DateTime> _last = {};
@@ -45,6 +46,7 @@ class Pushes {
 
   int get registered => _tokens.length;
 
+  /// Reads pushes.json: `{<name>: {t: token, s: sandbox, d: day}}`. One that can't be read is started empty.
   void _load() {
     final f = _file;
     if (f == null || !f.existsSync()) return;
@@ -58,6 +60,7 @@ class Pushes {
     } catch (_) {}
   }
 
+  /// Writes every token to a file beside and renames it over, after each change.
   void _save() {
     final f = _file;
     if (f == null) return;
@@ -134,6 +137,7 @@ class ApnsConfig {
   /// The app's bundle id.
   final String topic;
 
+  /// Whether everything needed is set and the key's file is there; where not, nothing is sent.
   bool get ready => keyFile.isNotEmpty && keyId.isNotEmpty && teamId.isNotEmpty && topic.isNotEmpty && File(keyFile).existsSync();
 }
 
@@ -144,6 +148,8 @@ class Apns {
   final ApnsConfig config;
   String? _jwt;
   DateTime? _made;
+
+  /// Whether the last [send] was told the token is no longer one Apple knows (410, BadDeviceToken, Unregistered).
   bool lastGone = false;
 
   /// The private key's 32 bytes, from the PKCS#8 the .p8 holds: the OCTET STRING after the version inside the
@@ -171,6 +177,7 @@ class Apns {
     return '$signed.${_b64(P256.sign(scalar, utf8.encode(signed), nonce))}';
   }
 
+  /// The provider token in use, made again once it is fifty minutes old (Apple takes one for an hour).
   String _jwtNow() {
     final now = DateTime.now();
     if (_jwt == null || _made == null || now.difference(_made!) > const Duration(minutes: 50)) {
@@ -184,6 +191,8 @@ class Apns {
   /// The notification itself: words only, since the relay cannot read what came.
   static const payload = '{"aps":{"alert":{"title":"Ghost Messaging","body":"New message"},"sound":"default","thread-id":"ghost"}}';
 
+  /// Asks Apple to show [payload] on the device with [token]; true where Apple took it (200). curl prints the status
+  /// on stdout and Apple's answer on stderr, which is read for why a token was refused ([lastGone]).
   Future<bool> send(String token, {bool sandbox = false}) async {
     final host = sandbox ? 'api.sandbox.push.apple.com' : 'api.push.apple.com';
     try {

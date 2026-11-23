@@ -21,9 +21,12 @@ final class LiveCaptions: NSObject {
   private var recognizer: SFSpeechRecognizer?
   private var request: SFSpeechAudioBufferRecognitionRequest?
   private var task: SFSpeechRecognitionTask?
+  /// When the request now open was begun: [feed] ends one older than 50 seconds.
   private var began = Date()
   private var format: AVAudioFormat?
 
+  /// The `ghost/captions` channel: available, start (in a language, once speech recognition is allowed), stop and
+  /// muted; `heard` goes back to Dart.
   func register(messenger: FlutterBinaryMessenger) {
     let channel = FlutterMethodChannel(name: "ghost/captions", binaryMessenger: messenger)
     channel.setMethodCallHandler { [weak self] call, result in
@@ -52,6 +55,7 @@ final class LiveCaptions: NSObject {
     self.channel = channel
   }
 
+  /// Turns captions on, in [language] where the device knows it, else its own; false with no on-device recognition.
   private func start(language: String?) -> Bool {
     let r = (language.map { SFSpeechRecognizer(locale: Locale(identifier: $0)) } ?? SFSpeechRecognizer()) ?? SFSpeechRecognizer()
     guard let r, r.supportsOnDeviceRecognition else { return false }
@@ -103,6 +107,7 @@ final class LiveCaptions: NSObject {
     }
   }
 
+  /// Tells Dart what was heard: [done] false for a line still being said, true once it has ended.
   private func say(_ words: String, done: Bool) {
     DispatchQueue.main.async { self.channel?.invokeMethod("heard", arguments: ["text": words, "done": done]) }
   }

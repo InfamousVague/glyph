@@ -242,6 +242,7 @@ List<String> lookClosely(PluginPack pack) {
 
 // --- the screen ---------------------------------------------------------------------------------------------------------
 
+/// The review page for the submission [sid].
 class ReviewItemScreen extends StatefulWidget {
   const ReviewItemScreen(this.sid, {super.key, this.api, this.ask});
   final String sid;
@@ -327,6 +328,8 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
 
   static PluginPack? _parsed(String? b64) => b64 == null ? null : parsePack(_decode(b64), appVersion: appVersion, checkMinApp: false).pack;
 
+  /// Reads the submission and checks its package here: parsed, hashed, compared with its canonical form and with the
+  /// version listed before it; then the diffs, the screenshots and the icon, each in its own time.
   Future<void> _read() async {
     final ReviewItem item;
     try {
@@ -589,6 +592,7 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
         if (mounted) unawaited(_decide(d));
       });
 
+  /// Asks before something not lightly taken back: true only where [yes] was pressed and the page is still up.
   Future<bool> _confirm(String title, String words, String yes, {bool danger = false}) async {
     final t = context.tokens;
     var go = false;
@@ -612,6 +616,7 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
     await _act(() => _api.setListed(row.plugin, listed, note: note.isEmpty ? null : note), listed ? '$name is listed again' : '$name was unlisted');
   }
 
+  /// Withdraws this version everywhere: asks why in one line, then [_revokeFor] confirms and signs it.
   void _revoke() {
     final row = _row;
     final signer = _api.signer;
@@ -652,6 +657,7 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
     await _act(() => _api.revoke(plugin, r), '$name was withdrawn');
   }
 
+  /// Blocks the developer from submitting (with their plugins unlisted too, where chosen), or lets them submit again.
   Future<void> _block(DeveloperView dev, {required bool blocked}) async {
     final who = dev.username == null ? 'this developer' : '@${dev.username}';
     final note = _noteFor(MarketMost.listingNote);
@@ -677,6 +683,8 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
     await _act(() => _api.block(dev.id, blocked: blocked, note: note.isEmpty ? null : note, unlist: unlist), blocked ? '$who is blocked' : '$who can submit again');
   }
 
+  /// Runs an admin [call], says [done] and reads the page afresh; where the relay wants a fresh admin sign-in, signs in
+  /// here and runs it again.
   Future<void> _act(Future<Object?> Function() call, String done) async {
     setState(() => _busy = true);
     try {

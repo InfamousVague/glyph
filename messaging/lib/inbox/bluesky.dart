@@ -28,6 +28,8 @@ class Bluesky extends InboxNetwork {
   @override
   final bool soon;
 
+  // The chat service the account's server is asked to pass chat calls on to; and how often the chats are asked for
+  // again, and the open chat's messages.
   static const _proxy = 'did:web:api.bsky.chat#bsky_chat';
   static const _idle = Duration(seconds: 20);
   static const _open = Duration(seconds: 4);
@@ -43,9 +45,12 @@ class Bluesky extends InboxNetwork {
   String? _pds, _did, _handle, _access, _refresh;
   List<InboxChat> _chats = const [];
   final Map<String, List<InboxMessage>> _messages = {};
+  /// Each chat's cursor to the messages before the oldest held; null once there are none.
   final Map<String, String?> _older = {};
   Timer? _tick, _openTick;
   String? _watching;
+
+  /// Counts this run's sends, for the id a message has until Bluesky gives it one (`local-<n>`).
   int _sent = 0;
 
   @override
@@ -250,6 +255,7 @@ class Bluesky extends InboxNetwork {
 
   // --- what the chat service says, as the app holds it -------------------------------------------------------------
 
+  /// A conversation as the chat service lists it: named for everyone in it but this account.
   InboxChat? _convo(Map c) {
     final convoId = c['id'] as String?;
     if (convoId == null) return null;
@@ -275,6 +281,7 @@ class Bluesky extends InboxNetwork {
     );
   }
 
+  /// A message as the chat service gives it; null for one with no words (a deleted one).
   InboxMessage? _message(Map m) {
     final id = m['id'] as String?;
     final text = m['text'] as String?;
@@ -285,6 +292,7 @@ class Bluesky extends InboxNetwork {
 
   // --- the session ---------------------------------------------------------------------------------------------------
 
+  /// Takes a session as createSession or refreshSession answers it: a new access token, and whatever else it names.
   void _take(Map s) {
     _access = s['accessJwt'] as String?;
     _refresh = s['refreshJwt'] as String? ?? _refresh;
@@ -292,14 +300,17 @@ class Bluesky extends InboxNetwork {
     _handle = s['handle'] as String? ?? _handle;
   }
 
+  /// Saves what signs in again next time. The access token is not kept: a new one is asked for with the refresh token.
   void _keep() => _app?.set('bsky_session', jsonEncode({'pds': _pds, 'did': _did, 'handle': _handle, 'refresh': _refresh}));
 
+  /// Trades the refresh token for a new session, and keeps it.
   Future<void> _refreshSession() async {
     final s = await _call('POST', '$_pds/xrpc/com.atproto.server.refreshSession', token: _refresh);
     _take(s);
     _keep();
   }
 
+  /// Signed in: the chats are asked for now and every [_idle] after.
   void _ready() {
     _state = InboxState.ready;
     _error = null;
@@ -341,6 +352,9 @@ class Bluesky extends InboxNetwork {
     }
   }
 
+  /// One HTTP call; the answer's JSON. [token] is sent in place of the access token (the refresh token, for the calls
+  /// that want it); [proxy] asks the account's server to pass it on to the chat service. Throws [_Status] on 400 and
+  /// up.
   Future<Map> _call(String method, String url, {Object? body, bool auth = true, String? token, bool proxy = false}) async {
     final req = await _client.openUrl(method, Uri.parse(url));
     req.headers.set('accept', 'application/json');
@@ -399,6 +413,7 @@ class Bluesky extends InboxNetwork {
   }
 }
 
+/// An answer of 400 or more: its status, and the error's name and message as the server's JSON gave them.
 class _Status implements Exception {
   const _Status(this.code, this.error, this.message);
   final int code;
@@ -408,6 +423,7 @@ class _Status implements Exception {
   String toString() => 'Bluesky $code ${error ?? ''} ${message ?? ''}'.trim();
 }
 
+/// A failure already in words for the person.
 class _Said implements Exception {
   const _Said(this.message);
   final String message;
@@ -415,5 +431,6 @@ class _Said implements Exception {
   String toString() => message;
 }
 
+/// [Bluesky._plain], for a test of its words.
 @visibleForTesting
 String blueskyPlain(Object e) => Bluesky._plain(e);

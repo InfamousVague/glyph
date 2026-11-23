@@ -126,6 +126,7 @@ class KitBoxPainter extends CustomPainter {
   /// An inset shadow starts at the padding box. False for a box whose border belongs to an element laid over it.
   final bool highlightInsideBorder;
 
+  /// Whether a colour is there to be seen: given, and not wholly transparent.
   static bool _shows(Color? color) => color != null && color.a > 0;
 
   @override
@@ -145,6 +146,8 @@ class KitBoxPainter extends CustomPainter {
       bottomRight: Radius.elliptical((r - borderWidth).clamp(0.0, double.infinity), (r - bottom).clamp(0.0, double.infinity)),
     );
 
+    // Back to front, as CSS stacks them: outer shadows (kept out from under the box), the ring, the background,
+    // the border, then the inset highlight.
     final blurred = shadows.where((s) => _shows(s.color)).toList();
     if (blurred.isNotEmpty) {
       var reach = 0.0;
@@ -249,6 +252,8 @@ class FieldLook {
     return Color.lerp(from, to, t)!;
   }
 
+  /// The look part of the way from [a] to [b]. Only what the stylesheets transition moves; the underlay and the
+  /// backdrop are [b]'s from the start.
   static FieldLook lerp(FieldLook a, FieldLook b, double t) => FieldLook(
     background: _between(a.background, b.background, t),
     border: _between(a.border, b.border, t),
@@ -276,6 +281,7 @@ class FieldLook {
   int get hashCode => Object.hash(background, border, ring, ringSpread, highlight, underlay, underlayHighlight, backdrop);
 }
 
+/// Runs a field's paint from the look it had to the one its state now asks for.
 class _LookTween extends Tween<FieldLook> {
   _LookTween({super.end});
 
@@ -416,13 +422,19 @@ class GlacierFieldCore extends StatefulWidget {
   State<GlacierFieldCore> createState() => GlacierFieldCoreState();
 }
 
+/// The field's state. Public only so [GlacierFieldHandle] and the selection gestures can name it.
 class GlacierFieldCoreState extends State<GlacierFieldCore> implements TextSelectionGestureDetectorBuilderDelegate {
+  /// The controller and focus node made here where the widget brings none of its own.
   TextEditingController? _ownController;
   FocusNode? _ownFocus;
   late final TextSelectionGestureDetectorBuilder _gestures = TextSelectionGestureDetectorBuilder(delegate: this);
   late final GlacierFieldHandle _handle = GlacierFieldHandle._(this);
 
   bool _hovered = false;
+
+  /// Whether the touch selection's handles are up; the text is being set from here, so [_onText] need not
+  /// rebuild; a snap back to the parent's value is waiting for the frame's end; the focus last told to
+  /// [GlacierFieldCore.onFocusChange].
   bool _showHandles = false;
   bool _syncing = false;
   bool _revertQueued = false;
@@ -491,6 +503,7 @@ class GlacierFieldCoreState extends State<GlacierFieldCore> implements TextSelec
     super.dispose();
   }
 
+  /// Puts [text] in the field with the caret at its end, without [_onText] rebuilding for it.
   void _setText(String text) {
     _syncing = true;
     _controller.value = TextEditingValue(
@@ -506,6 +519,7 @@ class GlacierFieldCoreState extends State<GlacierFieldCore> implements TextSelec
     if (!_syncing && mounted) setState(() {});
   }
 
+  /// Rebuilds for the focused look, and tells the listener once for each real change of focus.
   void _onFocus() {
     if (!mounted) return;
     setState(() {});
@@ -538,6 +552,7 @@ class GlacierFieldCoreState extends State<GlacierFieldCore> implements TextSelec
     _queueRevert();
   }
 
+  /// [GlacierFieldHandle.setValue]: a controlled field leaves the text to its parent and only tells it.
   void _setByComponent(String next) {
     if (widget.value == null) {
       _setText(next);
@@ -548,6 +563,7 @@ class GlacierFieldCoreState extends State<GlacierFieldCore> implements TextSelec
 
   void _requestKeyboard() => editableTextKey.currentState?.requestKeyboard();
 
+  /// Whether a selection made by [cause] brings the drag handles up.
   bool _shouldShowHandles(SelectionChangedCause? cause) {
     // A field woken by something that shows no menu (a mouse, a key) shows no handles either.
     if (!_gestures.shouldShowSelectionToolbar || !_gestures.shouldShowSelectionHandles) return false;
@@ -567,6 +583,8 @@ class GlacierFieldCoreState extends State<GlacierFieldCore> implements TextSelec
     };
   }
 
+  /// Shows or hides the handles, keeps a long press's end in view, and on a desktop puts the menu away while the
+  /// mouse drags a selection.
   void _onSelection(TextSelection selection, SelectionChangedCause? cause) {
     final show = _shouldShowHandles(cause);
     if (show != _showHandles) setState(() => _showHandles = show);
@@ -810,6 +828,7 @@ class GlacierTextSelectionControls extends TextSelectionControls with TextSelect
   int get hashCode => color.hashCode;
 }
 
+/// The drop: a disc with its top-left quarter squared off into a point.
 class _HandlePainter extends CustomPainter {
   _HandlePainter(this.color);
   final Color color;
@@ -838,6 +857,7 @@ class GlacierTextSelectionToolbar extends StatelessWidget {
   final Tokens tokens;
   final EditableTextState editable;
 
+  /// The item's own label, or the platform's word for its kind; null for a kind with no word, which is left out.
   static String? _label(BuildContext context, ContextMenuButtonItem item) {
     if (item.label != null) return item.label;
     final words = Localizations.of<WidgetsLocalizations>(context, WidgetsLocalizations) ?? const DefaultWidgetsLocalizations();

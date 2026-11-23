@@ -77,6 +77,8 @@ class GlacierSwitch extends StatefulWidget {
 }
 
 class _GlacierSwitchState extends State<GlacierSwitch> with SingleTickerProviderStateMixin {
+  /// The state where the switch keeps its own (no `checked` given); the thumb's offset from its off place, in
+  /// logical pixels, on a spring; and where that spring was last sent.
   late bool _internal = widget.defaultChecked;
   late final AnimationController _x;
   late double _target;
@@ -124,6 +126,7 @@ class _GlacierSwitchState extends State<GlacierSwitch> with SingleTickerProvider
     ));
   }
 
+  /// Flips the switch: its own state where it keeps one, and the listener told either way.
   void _toggle() {
     final next = !_checked;
     if (widget.checked == null) setState(() => _internal = next);

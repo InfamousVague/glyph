@@ -61,6 +61,8 @@ type request struct {
 	Thumb      bool            `json:"thumb"`
 }
 
+// dir is the --dir flag: where the session, the store, the rooms and the avatars are kept. out is standard output,
+// one JSON object a line; outLock keeps lines whole when goroutines speak at once.
 var (
 	dir     string
 	log     zerolog.Logger
@@ -68,6 +70,7 @@ var (
 	outLock sync.Mutex
 )
 
+// say writes one line, an answer or an event, to standard output.
 func say(v any) {
 	outLock.Lock()
 	defer outLock.Unlock()
@@ -83,6 +86,8 @@ func emit(name string, fields map[string]any) {
 	say(m)
 }
 
+// main resumes a kept session, says "ready", then answers requests (each on a goroutine of its own) until standard
+// input closes.
 func main() {
 	flag.StringVar(&dir, "dir", "", "where the Matrix store is kept")
 	flag.Parse()
@@ -114,6 +119,7 @@ func main() {
 	shutdown()
 }
 
+// parseRequest reads one line as a request. A line that is not JSON, or names no op, is an error (and is passed over).
 func parseRequest(line []byte) (request, error) {
 	var r request
 	err := json.Unmarshal(line, &r)
@@ -131,6 +137,7 @@ func answer(id int64, result any, err error) map[string]any {
 	return map[string]any{"id": id, "ok": true, "result": result}
 }
 
+// handle does one request and says its answer.
 func handle(r request) {
 	result, err := do(r)
 	say(answer(r.ID, result, err))

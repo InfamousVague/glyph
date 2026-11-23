@@ -46,6 +46,7 @@ Future<void> showMessagePopover(
   ));
 }
 
+/// The popover's page: the scrim, then the reactions and the menu placed beside [bubble], coming in with [animation].
 class _Popover extends StatelessWidget {
   const _Popover({required this.animation, required this.bubble, required this.outgoing, required this.reactions, required this.mine, required this.onReact, required this.effects, required this.onEffect, required this.choices});
   final Animation<double> animation;

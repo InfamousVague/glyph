@@ -61,6 +61,8 @@ class _TelegramCallState extends State<TelegramCall> {
     );
   }
 
+  /// The voice chat as a sheet with rounded top corners; open, the chat is a second sheet over it, behind a dimmed
+  /// layer that closes it when tapped.
   Widget _phone(BuildContext context, SpaceCall call, MediaQueryData media, bool chat, VoidCallback toggleChat) {
     final t = context.tokens;
     final pad = media.padding;
@@ -312,6 +314,7 @@ class _Menu extends StatelessWidget {
   }
 }
 
+/// A line of the menu: an icon, a name and a quieter hint under it.
 class _MenuRow extends StatelessWidget {
   const _MenuRow({required this.icon, required this.label, required this.hint, required this.onPressed, this.danger = false});
   final LucideIcon icon;
@@ -406,6 +409,7 @@ class _People extends StatelessWidget {
   }
 }
 
+/// The first row of the list of people, in the accent colour: "Invite to space".
 class _InviteRow extends StatelessWidget {
   const _InviteRow({required this.onPressed});
   final VoidCallback? onPressed;
@@ -452,6 +456,8 @@ const double _textStart = _rowLeft + _faceSize + _faceGap;
   return (words: 'listening', color: t.color('app-ink-3'), icon: Lucide.mic);
 }
 
+/// One person in the list: the face with its talking rings, the name, and what they are doing now ([_status]).
+/// Pressing or holding the row opens what can be done with them.
 class _PersonRow extends StatelessWidget {
   const _PersonRow({required this.call, required this.person, required this.role, this.pad = 16, this.last = false});
   final SpaceCall call;
@@ -556,6 +562,8 @@ class _VideoGrid extends StatelessWidget {
   }
 }
 
+/// Someone whose camera is on, as a rounded tile: their picture (the face until it comes), edged green while they
+/// talk.
 class _VideoTile extends StatelessWidget {
   const _VideoTile({required this.call, required this.person});
   final SpaceCall call;

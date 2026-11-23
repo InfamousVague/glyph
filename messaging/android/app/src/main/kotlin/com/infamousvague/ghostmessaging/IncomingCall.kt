@@ -22,6 +22,8 @@ import android.os.Build
  * rings out ([end]).
  */
 object IncomingCall {
+    // The notification channel's id, the one notification's id, and the intent extra that says what was pressed
+    // ("answer", or "screen" for the notification itself and its full-screen form).
     private const val CHANNEL = "incoming_call"
     private const val NOTIFICATION = 7402
     const val EXTRA = "ring"
@@ -29,6 +31,7 @@ object IncomingCall {
     /** Told when Answer or Decline is pressed ("answer", "decline"): to Dart (MainActivity). */
     @Volatile var onAction: ((String) -> Unit)? = null
 
+    /** Shows the call from [from]: Android's own call style from Android 12, two plain buttons before it. */
     fun show(context: Context, from: String, video: Boolean) {
         val nm = context.getSystemService(NotificationManager::class.java)
         if (nm.getNotificationChannel(CHANNEL) == null) {
@@ -60,6 +63,7 @@ object IncomingCall {
         try { nm.notify(NOTIFICATION, b.build()) } catch (_: SecurityException) {}
     }
 
+    /** Takes the call's notification away, however the ringing ended. */
     fun end(context: Context) {
         context.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION)
     }
@@ -72,6 +76,7 @@ object IncomingCall {
         }
     }
 
+    /** Decline, pressed on the notification: it goes, and the app is told, without its screen being opened. */
     class DeclineReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             end(context)
