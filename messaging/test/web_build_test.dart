@@ -159,10 +159,20 @@ void main() {
     // Its files only: nothing passed on to the relay, nothing of the site's.
     expect(block, isNot(contains('reverse_proxy')));
     expect(block, contains(r'root * ${APP_DIR}'));
-    // Kept out of gogho.st's own block: the site never serves the app, nor passes /app to the relay.
+    // gogho.st serves it under /app/ too (Matt, 2026-11-23: "Deploy the website version as a open in browser option on
+    // the website", gogho.st/app chosen over waiting for app.gogho.st): from the same folder, with the same headers as
+    // app.gogho.st's block, and never passed to the relay.
     final site = RegExp(r'const BLOCK = `\n\$\{DOMAIN\} \{\n([\s\S]*?)\n\}\n').firstMatch(script)!.group(1)!;
-    expect(site, isNot(contains('/app')));
-    expect(site, isNot(contains('APP_')));
+    final under = RegExp(r'\thandle_path /app/\* \{\n([\s\S]*?)\n\t\}\n').firstMatch(site)?.group(1);
+    expect(under, isNotNull, reason: 'gogho.st\'s block serves the app under /app/');
+    expect(under, contains(r'root * ${APP_DIR}'));
+    expect(under, isNot(contains('reverse_proxy')));
+    final underTop = RegExp(r'\t\theader \{\n([\s\S]*?)\n\t\t\}').firstMatch(under!)!.group(1)!;
+    final underSent = {for (final m in RegExp(r'^\t\t\t([A-Za-z-]+) "([^"]*)"$', multiLine: true).allMatches(underTop)) m.group(1)!: m.group(2)!};
+    expect(underSent, {...sent}..remove('Strict-Transport-Security'));
+    expect(RegExp(r'precompressed br gzip').allMatches(under), hasLength(2));
+    expect(RegExp(r'hide \.\*').allMatches(under), hasLength(2));
+    expect(site, contains('path /app/clear-site-data\n\t\theader Sec-Fetch-Site same-origin'));
     // And written with the site's blocks, taken out and written again as theirs are: once app.gogho.st's DNS record
     // points at the box, as gogho.st's does (before that Caddy's retries for its certificate back off for hours).
     expect(script, contains(r'''printf '%s\\n' '${BLOCK.replace('''));

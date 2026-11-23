@@ -90,7 +90,9 @@ if (wantCsp !== APP_CSP) {
 if (APP_BUILD) {
   if (!existsSync(join(APP_BUILD, 'index.html'))) fail(`No index.html in ${APP_BUILD}: build it with node tool/build-web.mjs --app.`);
   const page = readFileSync(join(APP_BUILD, 'index.html'), 'utf8');
-  if (!page.includes('<base href="/">')) fail(`${APP_BUILD} was built to be served from another folder than /: build it with node tool/build-web.mjs --app.`);
+  // Served from / (app.gogho.st, once its DNS record exists) or from /app/ (gogho.st/app, Matt's choice of 2026-11-23
+  // while it doesn't): the one folder is both, so it is built for the one in use (--base /app/ for gogho.st/app).
+  if (!page.includes('<base href="/">') && !page.includes('<base href="/app/">')) fail(`${APP_BUILD} was built to be served from another folder than / or /app/: build it with node tool/build-web.mjs --app, or --base /app/ --hub wss://gogho.st/hub for gogho.st/app.`);
   if (`${policyOf(page)}; frame-ancestors 'none'` !== APP_CSP) fail(`${APP_BUILD}'s page has another policy than app.gogho.st's block sends (built for another hub than ${APP_HUB}, or before the page's policy last changed?): build it again with node tool/build-web.mjs --app.`);
   if (!readdirSync(APP_BUILD).some((n) => /^main\.dart\.[0-9a-f]{8,}\.js$/.test(n))) fail(`${APP_BUILD} has no main.dart.<hash>.js: it is not what tool/build-web.mjs builds.`);
   // The fonts for letters outside the app's own (tool/web/fallback-fonts.mjs): shipped without them, Chinese, Japanese,
@@ -180,6 +182,46 @@ ${DOMAIN} {
 	@discord path /discord /discord/*
 	handle @discord {
 		reverse_proxy 127.0.0.1:18788
+	}
+	# The app in a browser under /app/ (Matt, 2026-11-23: "Deploy the website version as a open in browser option on
+	# the website", choosing gogho.st/app over waiting for app.gogho.st's DNS record): the same folder, headers and
+	# answers as APP_BLOCK below, the prefix taken off.
+	redir /app /app/ permanent
+	@appclear {
+		path /app/clear-site-data
+		header Sec-Fetch-Site same-origin
+	}
+	handle @appclear {
+		header Clear-Site-Data "\\"storage\\""
+		header Cache-Control "no-store"
+		respond 204
+	}
+	handle_path /app/* {
+		root * ${APP_DIR}
+		header {
+			Content-Security-Policy "${APP_CSP}"
+			X-Frame-Options "DENY"
+			X-Content-Type-Options "nosniff"
+			Referrer-Policy "no-referrer"
+			Cross-Origin-Opener-Policy "same-origin"
+			Cross-Origin-Resource-Policy "same-origin"
+			Permissions-Policy "camera=(), microphone=(), geolocation=(), display-capture=()"
+		}
+		@apphashed path_regexp apphashed \\.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]+\\.[A-Za-z0-9]+$
+		handle @apphashed {
+			header Cache-Control "public, max-age=31536000, immutable"
+			file_server {
+				precompressed br gzip
+				hide .*
+			}
+		}
+		handle {
+			header Cache-Control "no-cache"
+			file_server {
+				precompressed br gzip
+				hide .*
+			}
+		}
 	}
 	# Android App Links (site/.well-known/assetlinks.json): what Android reads to open gogho.st/join links in the app
 	# straight away (Matt, 2026-11-17: invites texted to contacts). It must answer 200 as application/json, with no
