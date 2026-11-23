@@ -34,10 +34,12 @@ void main() {
   Uint8List pc(bool seal, Uint8List key, Uint8List nonce, Uint8List aad, Uint8List data) =>
       (GCMBlockCipher(AESEngine())..init(seal, AEADParameters(KeyParameter(key), 128, nonce, aad))).process(data);
 
-  for (final (half, gcm) in [('on 64-bit halves', wideGcm), ('the browser\'s half', webGcm)]) {
+  // The two longest lengths are the 64-bit half's alone: the browser's half is written for JavaScript's numbers and is
+  // slow here, where they took it five to seven seconds; 4096 bytes is 256 blocks of it already.
+  for (final (half, gcm, long) in [('on 64-bit halves', wideGcm, const [65536, 262144]), ('the browser\'s half', webGcm, const <int>[])]) {
     group(half, () {
       test('the same sealed bytes as pointycastle, every length around a block, and it opens what pointycastle seals', () {
-        for (final n in [0, 1, 15, 16, 17, 31, 32, 33, 100, 1000, 4095, 4096, 65536, 262144]) {
+        for (final n in [0, 1, 15, 16, 17, 31, 32, 33, 100, 1000, 4095, 4096, ...long]) {
           for (final aadLen in [0, 13, 16, 41]) {
             final key = bytes(32), nonce = bytes(12), aad = bytes(aadLen), plain = bytes(n);
             final theirs = pc(true, key, nonce, aad, plain);

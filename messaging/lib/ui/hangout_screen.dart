@@ -259,8 +259,9 @@ class _HangoutScreenState extends State<HangoutScreen> {
                     Expanded(child: HangoutChat(room: room, bottom: bottom)),
                   ])
                 : HangoutChat(room: room, bottom: bottom);
-        // A texting or Files space has no call: no Join, no one "in voice", just its chat (SpaceKind).
-        if (s == null && !widget.channel.hasVoice) {
+        // A texting or Files space has no call: no Join, no one "in voice", just its chat (SpaceKind). So has every
+        // space in a browser, which has no calls yet (Sms.callsHere).
+        if (s == null && (!widget.channel.hasVoice || !Sms.callsHere)) {
           return _page(room, actions: actions, body: chat);
         }
         if (s == null) {

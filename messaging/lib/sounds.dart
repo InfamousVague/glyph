@@ -88,7 +88,9 @@ class Sounds {
     }
   }
 
-  bool get on => _app?.flag('sounds', fallback: true) ?? true;
+  // None in a browser (lib/web), which has nothing behind the sounds' channel yet: no file is fetched for one there,
+  // and Settings has no Sounds page.
+  bool get on => !kIsWeb && (_app?.flag('sounds', fallback: true) ?? true);
   void setOn(bool v) => _app?.setFlag('sounds', v);
 
   String get message => _app?.choice('sound_message', messageDefault) ?? messageDefault;

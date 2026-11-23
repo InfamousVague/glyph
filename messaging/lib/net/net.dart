@@ -55,6 +55,11 @@ class Net extends ChangeNotifier implements PeerBook {
   /// The relay server the app is given: ours. Anyone can run their own (relay/README.md) and put its address here.
   static const defaultHub = 'wss://gogho.st/hub';
 
+  /// The relay server an install uses where the person has chosen none: ours ([defaultHub]) on every phone and
+  /// computer. A page in a browser may speak only to the address it came from, so there it is that address's own hub,
+  /// put here before the routes start (lib/web/app.dart).
+  static String homeHub = defaultHub;
+
   AppState? _app;
   Switchboard? _board;
   HubCarrier? _hub;
@@ -196,7 +201,7 @@ class Net extends ChangeNotifier implements PeerBook {
   bool get on => _app?.flag('net_on') ?? true;
   String get hubUrl {
     final own = _app?.choice('net_hub', '') ?? '';
-    return own.trim().isEmpty ? defaultHub : own.trim();
+    return own.trim().isEmpty ? homeHub : own.trim();
   }
 
   @override

@@ -29,6 +29,7 @@ import '../common.dart';
 import '../profile_card.dart';
 import '../dialup/bevel.dart';
 import '../shell.dart';
+import '../../sms.dart' show Sms;
 import 'circle_face.dart';
 import 'circle_settings.dart';
 import 'circle_picture.dart';
@@ -167,7 +168,7 @@ class SpaceKindCards extends StatelessWidget {
     final t = context.tokens;
     return LayoutBuilder(builder: (context, box) {
       final across = box.maxWidth >= 540;
-      final cards = [for (final k in SpaceKind.values) _KindCard(kind: k, chosen: k == value, tall: across, onPress: () => onChanged(k))];
+      final cards = [for (final k in spaceKindsOffered) _KindCard(kind: k, chosen: k == value, tall: across, onPress: () => onChanged(k))];
       if (across) {
         return IntrinsicHeight(
           child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -355,7 +356,7 @@ class _NewCircleScreenState extends State<NewCircleScreen> {
   void _spaceMenu(_Draft d) {
     showChoices(context, title: '${d.name} · ${spaceKindTitle(d.kind)}', choices: [
       Choice('Rename', Lucide.pencil, () => askCircleWords(context, title: 'Rename ${d.name}', initial: d.name, then: (n) => setState(() => d.name = n))),
-      for (final k in SpaceKind.values)
+      for (final k in spaceKindsOffered)
         if (k != d.kind) Choice('Make it ${spaceKindTitle(k).toLowerCase()}', spaceKindIcon(k), () => setState(() => d.kind = k), hint: spaceKindBlurb(k)),
       Choice('Leave it out', Lucide.x, () => setState(() => _spaces.remove(d)), danger: true),
     ]);
@@ -363,7 +364,7 @@ class _NewCircleScreenState extends State<NewCircleScreen> {
 
   void _addSpace() {
     showChoices(context, title: 'Add a space', choices: [
-      for (final k in SpaceKind.values) Choice(spaceKindTitle(k), spaceKindIcon(k), () => setState(() => _spaces.add(_Draft(_firstName(k), k))), hint: spaceKindBlurb(k)),
+      for (final k in spaceKindsOffered) Choice(spaceKindTitle(k), spaceKindIcon(k), () => setState(() => _spaces.add(_Draft(_firstName(k), k))), hint: spaceKindBlurb(k)),
     ]);
   }
 
@@ -402,11 +403,15 @@ class _NewCircleScreenState extends State<NewCircleScreen> {
                 gap,
                 PaneSection(title: 'Icon', children: [SettingRowBox(child: CircleIconPicker(hue: _hue, value: _icon, onChanged: (i) => setState(() => _icon = i)))]),
                 gap,
-                _hued('purple', PaneSection(title: 'Picture', description: const Text('Optional: a picture of your own on the circle\'s face.'), children: _pictureRows(context, picture: _picture, onPicked: (p) => setState(() => _picture = p), onCleared: () => setState(() => _picture = null)))),
-                gap,
+                // Not in a browser, which can't choose a picture yet (Sms.browser).
+                if (!Sms.browser) ...[
+                  _hued('purple', PaneSection(title: 'Picture', description: const Text('Optional: a picture of your own on the circle\'s face.'), children: _pictureRows(context, picture: _picture, onPicked: (p) => setState(() => _picture = p), onCleared: () => setState(() => _picture = null)))),
+                  gap,
+                ],
                 PaneSection(
                   title: 'First spaces',
-                  description: const Text('Press one to rename it or change what it\'s for. You can add more, files spaces too, any time.'),
+                  // A browser makes no Files spaces (spaceKindsOffered), so it doesn't offer them here either.
+                  description: Text(Sms.browser ? 'Press one to rename it or change what it\'s for. You can add more any time.' : 'Press one to rename it or change what it\'s for. You can add more, files spaces too, any time.'),
                   children: [
                     for (final (i, d) in _spaces.indexed)
                       SettingRow(

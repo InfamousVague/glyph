@@ -8,6 +8,7 @@ import '../friends/buddies.dart';
 import '../kit/settings_kit.dart';
 import '../inbox/inbox.dart' show InboxPresence;
 import '../me/me.dart';
+import '../sms.dart' show Sms;
 import 'circles/circle_picture.dart' show pickProfilePicture;
 import 'add_me.dart';
 import 'common.dart';
@@ -148,7 +149,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SizedBox(height: t.space(6)),
               // Matt, 2026-11-19: "build a profile section in the app that allows us to set profile pictures and status
               // messages".
-              PaneSection(
+              // Not in a browser, which can't choose a picture yet (Sms.browser).
+              if (!Sms.browser) PaneSection(
                 title: 'Picture',
                 description: const Text('Shown to your friends, and to people in your spaces and circles who open your profile.'),
                 children: [

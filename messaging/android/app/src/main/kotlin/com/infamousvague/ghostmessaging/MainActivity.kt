@@ -177,6 +177,9 @@ open class MainActivity : FlutterActivity() {
         Sounds.register(this, messenger)
         // The walkthrough's voice (GuideVoice.kt).
         GuideVoice.register(this, messenger)
+        // The direct network's core is handed the app's context when Dart starts its first node, and not before
+        // (P2pCore.kt): registering the channel it asks through loads nothing.
+        P2pCore.register(applicationContext, messenger)
 
         val calls = MethodChannel(messenger, "ghost_messaging/sms")
         // What a paired computer asks that only Dart knows (DartAsk.kt) goes down the same channel.
@@ -207,6 +210,7 @@ open class MainActivity : FlutterActivity() {
         })
         // The interface sounds (Sounds.kt, lib/sounds.dart): a message sent from the bubble sounds as it does in the app.
         Sounds.register(this, messenger)
+        P2pCore.register(applicationContext, messenger)
         handleCalls(MethodChannel(messenger, "ghost_messaging/sms"))
     }
 

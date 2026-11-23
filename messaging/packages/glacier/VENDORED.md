@@ -12,3 +12,9 @@ Local addition (2026-11-20), optional and off unless an app sets it: `GlacierThe
 window's size must stand still before the tokens are worked out for it (Ghost Messaging's desktop app: the tokens,
 and everything drawn from them, were made anew at every frame of a window being dragged larger or smaller;
 docs/performance-audit.md, finding 8). Copy it upstream with the next sync.
+
+Local addition (2026-11-23), in a browser only: the field core's semantics take the focus action as they take a tap
+(`onFocus`, under `kIsWeb`). Flutter's engine gives a field the keyboard in a page with its tree for screen readers on
+by focusing the field's element and saying so as the focus action; without it, a field the app had not focused itself
+took what was typed into its element and the app heard nothing (Ghost Messaging's browser build). Copy it upstream
+with the next sync.
