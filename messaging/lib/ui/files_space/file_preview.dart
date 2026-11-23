@@ -37,6 +37,17 @@ import '../../kit/picture_decode.dart';
 /// libmpv came in (Matt, 2026-11-18: "add support for playing mkv video files and mp4's within the app").
 bool get playsVideo => true;
 
+/// Whether a page in a browser brings [f] into the tab to show it when it is opened (FilesStore.browser holds what
+/// comes down in the tab, and Safari holds that in memory): a picture of 8 MB at most (the app's own bound for one read
+/// whole), words of 16 MB at most (the first 256 KB shown), a sound or a video of 512 MB at most. Anything else is
+/// downloaded only when the person asks (the review of web-files, F2).
+bool browserShowsHere(SpaceFile f) => switch (f.kind) {
+      FileKind.image => f.size <= 8 << 20,
+      FileKind.text || FileKind.code => f.size <= 16 << 20,
+      FileKind.audio || FileKind.video => f.size <= 512 << 20,
+      _ => false,
+    };
+
 /// Opens [f]: a video straight into the player, played as it comes down (lib/files/file_stream.dart; Matt, 2026-11-18:
 /// "do we need to download the whole file to play? would it be possible to setup streaming and buffering of the
 /// file?"), or from the disk where it is here already; anything else in its preview.
@@ -74,8 +85,10 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
   /// Sound played as it comes down: _AudioPlayer holds the stream itself.
   bool _streamed = false;
 
-  /// In a browser: what came down, read back from the tab for a picture or words (a page reads no path).
+  /// In a browser: what came down, read back from the tab for a picture or words (a page reads no path); and a file
+  /// too big to bring into the tab just to show it ([browserShowsHere]).
   Uint8List? _bytes;
+  bool _tooBig = false;
 
   @override
   void initState() {
@@ -92,6 +105,12 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
       _path = had;
       return;
     }
+    // In a browser, what would be held whole in the tab only to be looked at is not brought down by opening it
+    // (browserShowsHere): Download is there, for the person to choose (Safari keeps what a tab holds in memory).
+    if (_store.browser && had == null && !browserShowsHere(widget.file)) {
+      _tooBig = true;
+      return;
+    }
     // Sound plays as it comes down, as a video does, rather than after the whole of it (Matt, 2026-11-18). Not in a
     // browser, which has no server to play from.
     if (widget.file.kind == FileKind.audio && playsVideo && !_store.browser) {
@@ -101,7 +120,13 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
     unawaited(_store.fetch(widget.channel, widget.file).then((p) async {
       // A browser's picture or words, read back from where the tab holds them (the first 256 KB of words).
       final kind = widget.file.kind;
-      final bytes = _store.browser && (kind == FileKind.image || kind == FileKind.text || kind == FileKind.code) ? await HeldFiles.bytes(p) : null;
+      final bytes = !_store.browser
+          ? null
+          : kind == FileKind.text || kind == FileKind.code
+              ? await HeldFiles.bytes(p, most: _WordsState.most)
+              : kind == FileKind.image
+                  ? await HeldFiles.bytes(p)
+                  : null;
       if (mounted) {
         setState(() {
           _path = p;
@@ -171,6 +196,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
       return _note(t, _error!.offline ? Lucide.wifiOff : Lucide.circleAlert, _error!.message, action: _Pill(label: 'Try again', icon: Lucide.refreshCw, onPressed: () => setState(_bring)));
     }
     if (_streamed && f.kind == FileKind.audio) return _AudioPlayer(key: ValueKey('stream ${f.id}'), file: f, stream: () => _store.stream(widget.channel, widget.file));
+    if (_tooBig) return _other(t, f, '', note: 'Too big to show in a browser (${fileSize(f.size)}). Download it, or open it in Ghost Messaging on a phone or a computer.');
     final path = _path;
     if (path == null) {
       final coming = _store.downloading(f);
@@ -209,7 +235,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
       case FileKind.audio:
         return _AudioPlayer(key: ValueKey(path), path: path, file: f, stream: null);
       case FileKind.text || FileKind.code:
-        return _Words(path: path, code: f.kind == FileKind.code, bytes: _bytes);
+        return _Words(path: path, code: f.kind == FileKind.code, bytes: _bytes, size: f.size);
       case FileKind.video when playsVideo:
         return _other(t, f, path, play: true);
       default:
@@ -229,7 +255,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
       };
 
   /// Anything not shown here: its mark, name and size, and the ways to open it elsewhere.
-  Widget _other(Tokens t, SpaceFile f, String path, {bool play = false, bool runs = false}) => Center(
+  Widget _other(Tokens t, SpaceFile f, String path, {bool play = false, bool runs = false, String? note}) => Center(
         child: SingleChildScrollView(
           padding: EdgeInsets.all(t.space(6)),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -241,6 +267,10 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
             SizedBox(height: t.space(5)),
             // A program or a script (FilePlatform.runsCode) is never opened from here: anyone in the space could have
             // added it. It says what it is, by its real ending, and can be shown in its folder or saved.
+            if (note != null) ...[
+              SettingsCallout(icon: AppIcon(Lucide.info, size: 18), child: Text(note)),
+              SizedBox(height: t.space(4)),
+            ],
             if (runs) ...[
               SettingsCallout(
                 icon: AppIcon(Lucide.triangleAlert, size: 18),
@@ -298,12 +328,14 @@ class _Pill extends StatelessWidget {
 
 /// A text or code file's words: the first 256 KB, said where there is more.
 class _Words extends StatefulWidget {
-  const _Words({required this.path, required this.code, this.bytes});
+  const _Words({required this.path, required this.code, this.bytes, this.size});
   final String path;
   final bool code;
 
-  /// The file's bytes where they are held already (a browser's), in place of reading [path].
+  /// The file's bytes where they are held already (a browser's: its first 256 KB), in place of reading [path]; and
+  /// how long the whole file is.
   final Uint8List? bytes;
+  final int? size;
 
   @override
   State<_Words> createState() => _WordsState();
@@ -320,7 +352,7 @@ class _WordsState extends State<_Words> {
     final held = widget.bytes;
     if (held != null) {
       _text = utf8.decode(held.length > most ? Uint8List.sublistView(held, 0, most) : held, allowMalformed: true);
-      _more = held.length > most;
+      _more = (widget.size ?? held.length) > most;
       return;
     }
     unawaited(() async {

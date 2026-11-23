@@ -78,4 +78,36 @@ void main() {
     // Nothing of it written to the page's (absent) disk.
     expect(dir.listSync(), isEmpty);
   });
+
+  // The review of web-files, F2: a page holds what comes down in the tab (Safari: in memory), so opening a file there
+  // brings it in only where it is to be shown, and reads out of it only what is shown.
+  test('in a browser only what is shown is brought into the tab by opening it, and only the start of words is read', () async {
+    SpaceFile of(String name, int size) => SpaceFile(id: 'b' * 32, name: name, size: size, mime: FileKind.mimeOf(name), sha: '', key: Uint8List(32), prefix: Uint8List(8), by: 'maya', byName: 'Maya', at: 1);
+    expect(browserShowsHere(of('a.png', 8 << 20)), isTrue);
+    expect(browserShowsHere(of('a.png', (8 << 20) + 1)), isFalse);
+    expect(browserShowsHere(of('a.txt', 16 << 20)), isTrue);
+    expect(browserShowsHere(of('a.txt', (16 << 20) + 1)), isFalse);
+    expect(browserShowsHere(of('a.mp4', 512 << 20)), isTrue);
+    expect(browserShowsHere(of('a.mp4', (512 << 20) + 1)), isFalse);
+    expect(browserShowsHere(of('a.pdf', 10)), isFalse, reason: 'shown nowhere in the page: downloaded when asked');
+    final sink = HeldFiles.sink()..add(Uint8List(300 * 1024));
+    final url = sink.finish('text/plain');
+    expect((await HeldFiles.bytes(url, most: 256 * 1024))!.length, 256 * 1024);
+    expect((await HeldFiles.bytes(url))!.length, 300 * 1024);
+  });
+
+  testWidgets('a browser\'s preview of a big video brings nothing down by itself, and says how to have it', (tester) async {
+    final dir = Directory.systemTemp.createTempSync('ghost-files-web-big');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final store = FilesStore.forTest(base: null, signer: KeysSigner(NetKeys.generate()), data: dir, browser: true);
+    addTearDown(store.clear);
+    final f = SpaceFile(id: 'c' * 32, name: 'film.mkv', size: 3 << 30, mime: 'video/x-matroska', sha: '', key: Uint8List(32), prefix: Uint8List(8), by: 'maya', byName: 'Maya', at: 1);
+    store.put(space, [f]);
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, FilePreviewScreen(channel: space, file: f, store: store), AppState());
+    await settle(tester);
+    expect(store.downloading(f), isNull);
+    expect(store.transfers, isEmpty);
+    expect(find.textContaining('Too big to show in a browser'), findsOneWidget);
+  });
 }

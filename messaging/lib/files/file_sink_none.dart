@@ -10,8 +10,12 @@ class HeldFiles {
 
   static HeldSink sink() => _MemorySink();
 
-  /// The bytes held under [url]; null where it was let go.
-  static Future<Uint8List?> bytes(String url) async => _held[url];
+  /// The bytes held under [url] (its first [most], where given); null where it was let go.
+  static Future<Uint8List?> bytes(String url, {int? most}) async {
+    final b = _held[url];
+    if (b == null || most == null || b.length <= most) return b;
+    return Uint8List.sublistView(b, 0, most);
+  }
 
   /// Lets [url] go.
   static void release(String url) => _held.remove(url);

@@ -15,10 +15,12 @@ class HeldFiles {
 
   /// The bytes held under [url] (a picture shown in the page: read back from the Blob, not fetched, which the page's
   /// policy would refuse); null where it was let go.
-  static Future<Uint8List?> bytes(String url) async {
+  static Future<Uint8List?> bytes(String url, {int? most}) async {
     final b = _held[url];
     if (b == null) return null;
-    return (await b.arrayBuffer().toDart).toDart.asUint8List();
+    // Only what is to be shown read out of the Blob: the first [most] bytes of words, never the whole.
+    final part = most == null || b.size <= most ? b : b.slice(0, most);
+    return (await part.arrayBuffer().toDart).toDart.asUint8List();
   }
 
   static void release(String url) {
