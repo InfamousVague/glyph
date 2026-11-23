@@ -70,6 +70,10 @@ class _NetPort implements FriendCallsPort {
   }
 }
 
+/// What is said in place of ringing a friend who lives on another relay (docs/OPEN_NETWORK.md, section 4): a call's
+/// room is on one relay, and rooms don't cross relays yet, so they would ring and never be met in it.
+String callElsewhereWords(String name, String relay) => 'Calls don\'t reach another relay yet. $name is on ${relay.isEmpty ? 'another one' : relay}; you can still write to each other.';
+
 /// A call to a friend this device made and that nobody has answered yet.
 class _Outgoing {
   _Outgoing(this.id, this.buddy, this.video, this.channel);

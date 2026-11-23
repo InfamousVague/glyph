@@ -8,6 +8,7 @@ import '../sms.dart';
 import 'carrier.dart';
 import 'crypto.dart';
 import 'forward_secrecy.dart';
+import 'homes.dart';
 import 'hub_carrier.dart';
 import 'hub_link.dart';
 import 'packet.dart';
@@ -59,6 +60,16 @@ class Net extends ChangeNotifier implements PeerBook {
 
   Switchboard? get board => _board;
   HubCarrier? get hub => _hub;
+
+  /// This account's home record and what the relay is told of where friends live (homes.dart; docs/OPEN_NETWORK.md,
+  /// section 4): what lets someone on another relay be a friend. Null until the routes are set up, and where the
+  /// routes are a test's own.
+  Homes? get homes => _homes;
+  Homes? _homes;
+
+  /// Something small kept with the app's choices, and read back, without drawing anything again.
+  String recall(String key) => _app?.choice(key, '') ?? '';
+  void remember(String key, String value) => _app?.keep(key, value);
 
   Map<String, Object?>? _push;
 
@@ -185,7 +196,10 @@ class Net extends ChangeNotifier implements PeerBook {
       if (carriers != null) {
         routes = carriers;
       } else {
-        final hub = _hub = _presenceOf(HubCarrier(url: hubUrl, signer: _PhoneSigner(me.id, me.key))..push = _push);
+        final signer = _PhoneSigner(me.id, me.key);
+        final hub = _hub = _presenceOf(HubCarrier(url: hubUrl, signer: signer)..push = _push);
+        // Where this account lives, said to the relay at every sign-in with where its friends on other relays do.
+        _homes = Homes(signer: signer, read: (key) => app.choice(key, ''), write: app.keep)..attach(hub);
         final sms = _sms = SmsCarrier(_PhoneSms());
         routes = [hub, sms];
       }
@@ -260,6 +274,8 @@ class Net extends ChangeNotifier implements PeerBook {
     _board = null;
     _hub = null;
     _sms = null;
+    _homes?.dispose();
+    _homes = null;
     if (board != null) {
       board.changed.removeListener(notifyListeners);
       await board.stop();
@@ -353,19 +369,29 @@ class Net extends ChangeNotifier implements PeerBook {
     final check = await checkRelay(url, connect: connect, timeout: timeout);
     if (!check.ok) return (problem: check.problem, declined: false);
     if (confirm != null && !await confirm(url)) return (problem: null, declined: true);
-    await setHub(url);
+    await setHub(url, relay: check.relay);
     return (problem: null, declined: false);
   }
 
   /// Uses another relay server ([url] empty: ours again). The route is taken out and one for the new address put
   /// in its place: the rest of the app does not know. Settings › Routes goes through [useRelay], which checks first.
-  Future<void> setHub(String url) async {
+  ///
+  /// Moving is signing a home record with the next count (homes.dart): it is made here, for the address the new relay
+  /// is known by ([relay], what it said of itself when it was checked, where it said anything), and given to the relay
+  /// being left while it is still connected, so that relay knows where this account lives now. The new relay is given
+  /// it as the app signs in there, and friends are told a few at a time (lib/friends/buddies.dart).
+  Future<void> setHub(String url, {HubRelay? relay}) async {
+    final next = Homes.addressOf(relay, url.trim().isEmpty ? defaultHub : url.trim());
+    try {
+      if (next != null) await _homes?.moveTo(next).timeout(const Duration(seconds: 5));
+    } catch (_) {}
     _app?.set('net_hub', url.trim());
     final board = _board, old = _hub, me = id;
     if (board == null || old == null || me == null) return;
     await old.stop();
     old.presence.removeListener(_presenceChanged);
     final hub = _hub = _presenceOf(HubCarrier(url: hubUrl, signer: old.signer)..push = _push);
+    _homes?.attach(hub);
     presence.value++;
     board.add(hub);
     await _apply();

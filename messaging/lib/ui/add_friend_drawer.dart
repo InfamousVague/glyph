@@ -95,14 +95,16 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
     setState(() => _problem = null);
     if (_me.username == null) return;
     final name = tidyHandle(_field.text);
-    if (!Me.goodUsername(name)) {
+    // A username here, or name@relay for someone on another relay (lib/net/home_record.dart).
+    if (!Buddies.goodAddress(name)) {
       setState(() {
         _looked = null;
         _found = null;
       });
       return;
     }
-    _wait = Timer(const Duration(milliseconds: 350), () => _look(name));
+    // A relay's name is longer to type, and each look at one is a question put to another server: waited for longer.
+    _wait = Timer(Duration(milliseconds: name.contains('@') ? 900 : 350), () => _look(name));
   }
 
   Future<void> _look(String name) async {
@@ -147,7 +149,13 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
     });
     try {
       final b = await _buddies.add(name);
-      if (mounted) toast(context, b.state == 'yes' ? 'You and @$name are friends' : 'Friend request sent to @$name');
+      if (!mounted) return;
+      if (_buddies.unreached(b)) {
+        // Found on their relay, but this app's relay couldn't pass the request to it.
+        setState(() => _problem = addUnreachedWords(b.username));
+      } else {
+        toast(context, b.state == 'yes' ? 'You and @${b.username} are friends' : 'Friend request sent to @${b.username}');
+      }
     } catch (e) {
       if (mounted) setState(() => _problem = '$e');
     } finally {
@@ -235,7 +243,7 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
             'yes' => ('Friends already', null),
             'asked' => ('Friend request sent', null),
             'invited' => ('Asked to be your friend', _Button(key: const ValueKey('add-found'), label: 'Accept', filled: true, onPress: _busy ? null : () => _add(name))),
-            _ => ('On Ghost Messaging', _Button(key: const ValueKey('add-found'), label: _busy ? 'Asking…' : 'Add', icon: Lucide.userPlus, filled: true, onPress: _busy ? null : () => _add(name))),
+            _ => (name.contains('@') ? 'On ${name.substring(name.indexOf('@') + 1)}' : 'On Ghost Messaging', _Button(key: const ValueKey('add-found'), label: _busy ? 'Asking…' : 'Add', icon: Lucide.userPlus, filled: true, onPress: _busy ? null : () => _add(name))),
           },
       };
       result = Padding(
@@ -254,7 +262,7 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
       );
     }
     return Column(key: const ValueKey('find-friend'), mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      _title(t, 'Add a friend', 'Type their username. You\'re @${_me.username}.'),
+      _title(t, 'Add a friend', addFriendWords(_me.username ?? '')),
       GlacierSearchField(
         key: const ValueKey('find-friend-field'),
         controller: _field,
@@ -270,6 +278,12 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
     ]);
   }
 }
+
+/// What the add-friend drawer says above its field: how someone is found, here and on another relay.
+String addFriendWords(String mine) => 'Type their username. For someone on another relay, add the relay after it: @name@their.relay. You\'re @$mine.';
+
+/// What is said when someone was found on another relay but this app's relay could not pass the request to theirs.
+String addUnreachedWords(String username) => 'Found @$username, but your relay doesn\'t pass messages to theirs yet. The request is kept, and goes when it can.';
 
 class _Button extends StatelessWidget {
   const _Button({super.key, required this.label, this.icon, this.filled = false, this.onPress});

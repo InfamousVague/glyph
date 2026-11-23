@@ -8,6 +8,7 @@ import '../kit/settings_type.dart';
 import '../net/carrier.dart';
 import '../net/hub_link.dart';
 import '../net/net.dart';
+import '../net/hub_carrier.dart' show HubRelay;
 import '../net/relay_choice.dart';
 import 'common.dart';
 import 'compose.dart';
@@ -118,6 +119,14 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
             label: relayInUseWords(net.hubUrl),
             hint: Text('In use · ${_hubLine(net)}'),
           ),
+          // Whether this relay passes messages to other relays, as it said itself the last time the app signed in.
+          if (net.hub!.state.value == CarrierState.up)
+            SettingRow(
+              key: const ValueKey('relay-talks'),
+              icon: icon(Lucide.network),
+              label: relayTalksWords(net.hub!.relay).$1,
+              hint: Text(relayTalksWords(net.hub!.relay).$2),
+            ),
           if (!net.onDefaultHub)
             SettingRow(
               key: const ValueKey('relay-use-default'),
@@ -197,9 +206,19 @@ extension on String {
   String ifEmpty(String other) => isEmpty ? other : this;
 }
 
-/// What a relay of one's own does and doesn't reach, in Settings › Routes (GMFB-25; docs/SELF_HOSTING.md).
+/// What a relay of one's own does and doesn't reach, in Settings › Routes (GMFB-25; docs/SELF_HOSTING.md). Since
+/// relays talk to each other (docs/OPEN_NETWORK.md, section 4; Matt, 2026-11-22), friends cross relays; the rest is
+/// still each relay's own.
 const relayLimitsWords =
-    'Relays don\'t connect to each other. On your own relay you reach only people using the same relay: friends, usernames, your account backup, circles, spaces and invite words are kept on each relay apart, and people on Ghost Messaging\'s relay can\'t reach you through it. Texts (SMS) still reach anyone. The Marketplace always comes from gogho.st. How to run one: gogho.st/docs/routes.';
+    'Relays can pass messages to each other. Add a friend on another relay as @name@their.relay, and what you write to each other goes through your relay to theirs, where both relays allow it. Everything else is still kept on each relay apart: usernames, your account backup, circles, spaces, calls, who is online and invite words reach only people using the same relay. Texts (SMS) still reach anyone. The Marketplace always comes from gogho.st. How to run one: gogho.st/docs/routes.';
+
+/// Whether the relay in use passes messages to other relays, as a row's label and the line under it: by what the
+/// relay said of itself in its hello ([relay]; null from a relay from before relays talked).
+(String, String) relayTalksWords(HubRelay? relay) => relay == null
+    ? ('Doesn\'t pass messages to other relays', 'This relay is from before relays talked to each other. You reach only people who use it.')
+    : relay.fed
+        ? ('Passes messages to other relays', 'A friend on another relay, added as @name@their.relay, is reached through this one.')
+        : ('Doesn\'t pass messages to other relays', 'Whoever runs it hasn\'t switched that on. You reach only people who use this relay.');
 
 /// How the relay's route stands, in a few words.
 String _hubLine(Net net) {

@@ -919,6 +919,12 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   Future<void> _callFriend({required bool video}) async {
     final b = _callable;
     if (b == null) return;
+    // A call's room is on one relay (docs/OPEN_NETWORK.md, section 4: rooms don't cross relays yet): a friend on
+    // another would ring and never be met in it, so they are not rung.
+    if (Buddies.instance.elsewhere(b)) {
+      toast(context, callElsewhereWords(b.shown, Buddies.instance.relayOf(b)));
+      return;
+    }
     bool rang;
     try {
       rang = await FriendCalls.instance.call(b, video: video);

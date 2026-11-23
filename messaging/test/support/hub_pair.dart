@@ -90,11 +90,12 @@ class _HubEnd implements HubSocket {
 /// A real [Hub] and the way to it in memory: [dial] is a HubCarrier's `dial` (and checkRelay's `connect`), and every
 /// dial makes a [HubPair] and attaches its hub's end.
 class MemoryHub {
-  MemoryHub([Hub? hub]) : hub = hub ?? Hub();
+  MemoryHub([Hub? hub, this.url = 'wss://memory.test/hub']) : hub = hub ?? Hub();
   final Hub hub;
 
-  /// An address to give a HubCarrier. Nothing is looked up by it: whatever is dialled reaches [hub].
-  final String url = 'wss://memory.test/hub';
+  /// An address to give a HubCarrier. Nothing is looked up by it: whatever is dialled reaches [hub]. One of its own
+  /// where a test has several relays (test/support/relay_net.dart).
+  final String url;
 
   /// Every address dialled, in order, those that failed while [down] too.
   final List<String> dialled = [];
@@ -105,7 +106,13 @@ class MemoryHub {
   /// While true nothing answers: a dial fails, as one to a server that is not there does.
   bool down = false;
 
+  /// Where what is dialled here goes from now on, once the server at this address was started again as another hub
+  /// (test/support/relay_net.dart): null while this one is the one there.
+  MemoryHub? redirect;
+
   Future<HubLink> dial(String url) async {
+    final to = redirect;
+    if (to != null) return to.dial(url);
     dialled.add(url);
     if (down) throw StateError('nothing answers at $url');
     final pair = HubPair();

@@ -66,6 +66,10 @@ void showAddMeCode(BuildContext context, String username) {
   );
 }
 
+/// What is said before a friend request is sent from an add-me link while the app uses a relay of one's own.
+String addMeElsewhereWords(String hubUrl, String name) =>
+    'You use ${relayInUseWords(hubUrl).replaceFirst('Your own relay: ', 'your own relay, ')}. @$name is looked up there, so this may be someone other than the person who shared the link, or nobody. If they are on another relay, add them as @$name@their.relay in Add a friend instead.';
+
 /// Someone's add-me link was opened: asked whether to send them a friend request, then sent.
 void askToAdd(BuildContext context, String link) {
   final name = addLinkUsername(link);
@@ -77,9 +81,10 @@ void askToAdd(BuildContext context, String link) {
   if (had?.state == 'yes') return toast(context, 'You and @$name are friends already.');
   if (me.username == null) return toast(context, 'Choose a username first (Settings › Me › Profile), then open the link again.');
   // An add-me link names a username, and usernames are kept on each relay apart (GMFB-25): on a relay of one's own the
-  // name is looked up there, which may be someone else than whoever shared the link.
+  // name is looked up there, which may be someone else than whoever shared the link. Since relays talk to each other
+  // (docs/OPEN_NETWORK.md, section 4) someone on another relay can be added too, by @name@their.relay.
   final net = Net.instance;
-  final elsewhere = net.onDefaultHub ? null : Text('You use ${relayInUseWords(net.hubUrl).replaceFirst('Your own relay: ', 'your own relay, ')}. @$name is looked up there, so this may be someone other than the person who shared the link, or nobody.');
+  final elsewhere = net.onDefaultHub ? null : Text(addMeElsewhereWords(net.hubUrl, name));
   showChoices(context, title: 'Send @$name a friend request?', header: elsewhere, choices: [
     Choice('Send a friend request', Lucide.userPlus, () async {
       try {

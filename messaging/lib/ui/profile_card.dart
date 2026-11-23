@@ -124,6 +124,9 @@ _Ghost _ghostOf(ProfileSubject who) {
   );
 }
 
+/// What a friend's card says of the relay they are on, where it isn't this app's.
+String friendRelayWords(String host) => 'On $host, another relay than yours. What you write to each other goes through your relay to theirs.';
+
 String _nameOf(ProfileSubject who, _Ghost? g) => (g?.name.isNotEmpty == true ? g!.name : (who.name.isNotEmpty ? who.name : (who.username.isNotEmpty ? who.username : 'them')));
 
 /// What can be done with [who] from here, under the card.
@@ -335,8 +338,11 @@ class _ProfileCardState extends State<_ProfileCard> {
             builder: (context, _) => _BadgeSection(badges: SpecialBadges.instance.of(g.id, username: g.username, me: g.me), section: section),
           )
         : const SizedBox.shrink();
+    // The relay a friend is on, where it isn't this app's (docs/OPEN_NETWORK.md, section 4).
+    final theirRelay = g?.buddy == null ? '' : Buddies.instance.relayOf(g!.buddy!);
     final panel = <Widget>[
       if (bio.isNotEmpty) section('About me', Text(bio, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink'), height: 1.4))),
+      if (theirRelay.isNotEmpty) section('Relay', Text(friendRelayWords(theirRelay), style: pageText(t, t.fontSize('sm'), color: t.color('app-ink'), height: 1.4)), key: const ValueKey('profile-relay')),
       badgeList,
       if (who.detail.isNotEmpty) section(who.room != null ? 'In this space' : 'Here', Text(who.detail, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink')))),
       if (links.isNotEmpty)

@@ -2,15 +2,17 @@
 /// what a typed address becomes, whether a Ghost Messaging relay answers at it before the app moves there, and how the
 /// relay in use is named in Settings › Routes. How to run one is docs/SELF_HOSTING.md.
 ///
-/// What a relay of one's own does and doesn't reach (said in Settings › Routes and the docs): relays don't talk to
-/// each other. Friends, usernames, sealed account backups, circles, spaces, invite words and held messages live on
-/// the relay they were made on, so only people using the same relay reach each other through it. Texts (SMS) don't
-/// go through any relay. The Marketplace is always read from Ghost Messaging's own relay.
+/// What a relay of one's own does and doesn't reach (said in Settings › Routes and the docs). Since relays talk to
+/// each other (docs/OPEN_NETWORK.md, section 4; lib/net/homes.dart), a friend can be on another relay, where both
+/// relays allow it. Usernames, sealed account backups, circles, spaces, calls and invite words still live on the relay
+/// they were made on, and reach only people using the same relay. Texts (SMS) don't go through any relay. The
+/// Marketplace is always read from Ghost Messaging's own relay.
 library;
 
 import 'dart:async';
 import 'dart:convert';
 
+import 'hub_carrier.dart' show HubRelay;
 import 'hub_link.dart';
 import 'net.dart';
 
@@ -57,8 +59,14 @@ String? tidyRelayAddress(String typed) {
 
 /// What came of asking an address whether it is a Ghost Messaging relay.
 class RelayCheck {
-  const RelayCheck.answered(this.took) : problem = null;
-  const RelayCheck.failed(this.problem) : took = null;
+  const RelayCheck.answered(this.took, {this.relay}) : problem = null;
+  const RelayCheck.failed(this.problem)
+      : took = null,
+        relay = null;
+
+  /// What the relay said of itself in its greeting (its name, the address it is known by, whether it talks to other
+  /// relays); null from a relay from before.
+  final HubRelay? relay;
 
   /// Why it isn't usable, in words; null where a relay answered.
   final String? problem;
@@ -84,11 +92,13 @@ Future<RelayCheck> checkRelay(String url, {Duration timeout = const Duration(sec
     return RelayCheck.failed('Couldn\'t connect: ${_short(e)}');
   }
   final greeted = Completer<bool>();
+  HubRelay? relay;
   final sub = ws.said.listen(
     (data) {
       if (greeted.isCompleted) return;
       try {
         final m = data is String ? jsonDecode(data) : null;
+        if (m is Map) relay = HubRelay.from(m['relay']);
         greeted.complete(m is Map && m['hello'] is String && RegExp(r'^[0-9a-f]{16,128}$').hasMatch(m['hello'] as String));
       } catch (_) {
         greeted.complete(false);
@@ -108,7 +118,7 @@ Future<RelayCheck> checkRelay(String url, {Duration timeout = const Duration(sec
   }
   await _close(ws, sub);
   if (!ok) return const RelayCheck.failed('A server answered there, but not as a Ghost Messaging relay.');
-  return RelayCheck.answered(DateTime.now().difference(started));
+  return RelayCheck.answered(DateTime.now().difference(started), relay: relay);
 }
 
 Future<void> _close(HubLink ws, StreamSubscription<dynamic> sub) async {

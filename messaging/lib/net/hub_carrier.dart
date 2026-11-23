@@ -29,6 +29,41 @@ class KeysSigner implements NetSigner {
   Future<Uint8List> sign(List<int> message) async => NetCrypto.sign(keys, message);
 }
 
+/// What a relay says of itself in its hub's hello (relay/lib/federation.dart `card`; docs/OPEN_NETWORK.md, section 4):
+/// its own name and key, the address it is known by where it claims one, the relay it stays linked to where it has no
+/// address of its own, and whether it talks to other relays. A relay from before says none of it.
+class HubRelay {
+  const HubRelay({required this.id, required this.key, this.url, this.via, this.fed = false});
+
+  /// The relay's name (NetCrypto.idOf its key) and its public key in base64.
+  final String id;
+  final String key;
+
+  /// Its hub's address as other relays know it; null where it claims none.
+  final String? url;
+
+  /// The public relay it stays linked to, for one with no address of its own (hosted from an app).
+  final String? via;
+
+  /// Whether it passes packets to other relays and asks them who someone is.
+  final bool fed;
+
+  /// What [said] says, where it is a relay's name and the key the name is made from; null otherwise.
+  static HubRelay? from(Object? said) {
+    if (said is! Map) return null;
+    final id = said['id'], key = said['key'], url = said['url'], via = said['via'];
+    if (id is! String || key is! String) return null;
+    try {
+      final k = base64Decode(key);
+      if (k.length != 33 || NetCrypto.idOf(k) != id) return null;
+    } catch (_) {
+      return null;
+    }
+    String? hub(Object? x) => x is String && x.length <= 200 && RegExp(r'^wss?://[^\s?#@]+/hub$').hasMatch(x) ? x : null;
+    return HubRelay(id: id, key: key, url: hub(url), via: hub(via), fed: said['fed'] == true);
+  }
+}
+
 /// Something that happened in a room: who is in it on joining, then who came and went.
 class RoomEvent {
   const RoomEvent(this.room, {this.members, this.came, this.went, this.closed = false});
@@ -109,6 +144,30 @@ class HubCarrier implements Carrier {
   /// What the server's keeper of handles says to this install (relay/lib/handles.dart): every message that starts
   /// `{"dir": …}`. lib/me/me.dart listens.
   Stream<Map<String, dynamic>> get handles => _handles.stream;
+
+  /// What the relay says of home records (relay/lib/federation.dart): its answers to `home` and `home?`, apart from
+  /// the handles' own. lib/net/homes.dart listens.
+  final _homes = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get homes => _homes.stream;
+
+  /// What the relay said of itself in its hello, at the last sign-in; null from a relay from before.
+  HubRelay? relay;
+
+  /// What is said first at every sign-in, before anything else can be sent: this account's home record and its
+  /// friends' (lib/net/homes.dart), so the relay can route from the first packet on.
+  List<Map<String, Object?>> Function()? onSignIn;
+
+  /// The names whose last packet the relay passed on to another relay (`fed` in its answer), and those it did not.
+  final Set<String> _crossed = {};
+  final Map<int, String> _sentTo = {};
+
+  /// Whether the last packet sent to [id] was passed by this relay to another relay (or is kept for one): false where
+  /// it was only kept here, as for someone who lives here.
+  bool passedOn(String id) => _crossed.contains(id);
+
+  /// Takes a packet another connection of this install's brought, as though this route had: what another relay was
+  /// keeping for this install, handed over while that relay was asked something (lib/net/relay_ask.dart).
+  void adopt(String from, Uint8List bytes) => _arrived.add(Arrived(id, bytes, from: from));
 
   /// Says something to the keeper of handles; false where the route is not up.
   bool sayHandles(Map<String, Object?> what) {
@@ -234,6 +293,7 @@ class HubCarrier implements Carrier {
       if (!c.isCompleted) c.completeError(CarrierError(why));
     }
     _sent.clear();
+    _sentTo.clear();
     for (final c in _joining.values) {
       if (!c.isCompleted) c.completeError(CarrierError(why));
     }
@@ -306,6 +366,7 @@ class HubCarrier implements Carrier {
     }
     if (m['hello'] is String && !_ready) {
       takesReactions = m['react'] == true;
+      relay = HubRelay.from(m['relay']);
       // The hub's number, signed: only the holder of this install's key connects under its name.
       final sig = await signer.sign([...utf8.encode(greeting), ...NetCrypto.unhex(m['hello'] as String)]);
       if (!identical(_ws, ws)) return;
@@ -319,6 +380,12 @@ class HubCarrier implements Carrier {
       _ready = true;
       _tries = 0;
       problem = null;
+      // Said before anyone hears the route is up, so nothing can be sent ahead of it.
+      try {
+        for (final first in onSignIn?.call() ?? const <Map<String, Object?>>[]) {
+          ws.say(jsonEncode(first));
+        }
+      } catch (_) {}
       state.value = CarrierState.up;
       if (_watched.isNotEmpty) ws.say(jsonEncode({'watch': _watched.toList()}));
       if (_awaySaid) ws.say(jsonEncode({'away': true}));
@@ -330,11 +397,21 @@ class HubCarrier implements Carrier {
         ws.say(jsonEncode({'look': e.key, 'token': e.value}));
       }
     } else if (m['dir'] is String) {
-      _handles.add(m);
+      // Home records have a listener of their own; a relay from before answers them "no such thing", if at all.
+      final dir = m['dir'], about = m['about'];
+      (dir == 'home' || dir == 'home?' || (dir == 'err' && (about == 'home' || about == 'home?')) ? _homes : _handles).add(m);
     } else if (m.containsKey('ack')) {
+      final to = _sentTo.remove(m['ack']);
+      if (to != null) m['fed'] == true ? _crossed.add(to) : _crossed.remove(to);
       _sent.remove(m['ack'])?.complete(m['here'] == true ? Handed.passed : Handed.held);
     } else if (m.containsKey('nak')) {
-      _sent.remove(m['nak'])?.completeError(CarrierError(m['err'] == 'full' ? 'the relay server is holding too much for them already' : 'the relay server would not take it'));
+      _sentTo.remove(m['nak']);
+      _sent.remove(m['nak'])?.completeError(CarrierError(switch (m['err']) {
+        'full' => 'the relay server is holding too much for them already',
+        'far' => 'their relay can\'t be reached from yours',
+        'refused' => 'their relay would not take it',
+        _ => 'the relay server would not take it',
+      }));
     } else if (m['room'] is String && m['look'] is List) {
       // Who is in a room this install looks at without being in it.
       final room = m['room'] as String;
@@ -427,9 +504,11 @@ class HubCarrier implements Carrier {
       ..setUint8(0, 1)
       ..setUint32(1, seq);
     final done = _sent[seq] = Completer<Handed>();
+    _sentTo[seq] = peer.id;
     ws.say([...head.buffer.asUint8List(), ...NetCrypto.unhex(peer.id), ...packet]);
     return done.future.timeout(const Duration(seconds: 8), onTimeout: () {
       _sent.remove(seq);
+      _sentTo.remove(seq);
       throw CarrierError('the relay server did not answer');
     });
   }

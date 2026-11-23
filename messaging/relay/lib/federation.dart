@@ -92,7 +92,8 @@ class FedConfig {
       publicHub: hub('GHOST_PUBLIC_HUB'),
       via: hub('GHOST_FED_VIA'),
       packetsAMinute: number('GHOST_FED_PACKETS_A_MINUTE', 1200, 1000000),
-      bytesADay: number('GHOST_FED_BYTES_A_DAY', 512 << 20, 1 << 40),
+      // (2^40, written out: a shift keeps 32 bits where an integer is a browser's number.)
+      bytesADay: number('GHOST_FED_BYTES_A_DAY', 512 << 20, 1099511627776),
       lookupsAnHour: number('GHOST_FED_LOOKUPS_AN_HOUR', 600, 1000000),
       ports: ports,
       plain: said('GHOST_FED_PLAIN') == '1',
