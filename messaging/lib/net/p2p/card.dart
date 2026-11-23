@@ -90,7 +90,11 @@ class DeviceCard {
   /// The card [j] is, checked whole, or null: it comes from someone else's device. Every field is of its kind and its
   /// length, the name is the key's, the times are a card's (made before it runs out, good for no longer than
   /// [goodFor], not made further ahead than [ahead], not run out at [now]), and the signature is the key's.
-  static DeviceCard? fromJson(Object? j, {required int now}) {
+  ///
+  /// [known]: this device checked the signature when the card came and has kept the card since under a seal only it
+  /// can make (P2p's kept cards): everything is checked again but the signature, which is arithmetic of some
+  /// milliseconds that would otherwise be done for every card held at every start.
+  static DeviceCard? fromJson(Object? j, {required int now, bool known = false}) {
     if (j is! Map || j.length > mostFields) return null;
     final v = j['v'], a = j['a'], k = j['k'], d = j['d'], n = j['n'], t = j['t'], x = j['x'], s = j['s'];
     if (v is! int || v != version) return null;
@@ -107,8 +111,8 @@ class DeviceCard {
     }
     if (key.length != 33 || (key[0] != 2 && key[0] != 3) || signature.length != 64) return null;
     if (NetCrypto.idOf(key) != a) return null;
-    if (!NetCrypto.verify(key, signedBytes(account: a, device: d, nodeId: n as String, made: t, until: x), signature)) return null;
-    return DeviceCard._(account: a, key: key, device: d, nodeId: n, made: t, until: x, signature: signature);
+    if (!known && !NetCrypto.verify(key, signedBytes(account: a, device: d, nodeId: n as String, made: t, until: x), signature)) return null;
+    return DeviceCard._(account: a, key: key, device: d, nodeId: n as String, made: t, until: x, signature: signature);
   }
 
   bool expired(int now) => until <= now;

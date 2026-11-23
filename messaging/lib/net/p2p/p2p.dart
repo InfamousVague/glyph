@@ -97,15 +97,18 @@ class P2pDevice {
   String get account => card.account;
   String get nodeId => card.nodeId;
 
-  Map<String, dynamic> toJson() => {'c': card.toJson(), 'w': ?where?.toJson(), 'h': heard};
+  /// As it is kept with the app's choices: the card and when it was heard from, and not where it is, which is kept
+  /// apart where the install keeps its keys (P2p.whereName).
+  Map<String, dynamic> toJson() => {'c': card.toJson(), 'h': heard};
 
-  /// Null where [j] isn't one, or its card is no longer good at [now].
-  static P2pDevice? fromJson(Object? j, {required int now}) {
+  /// Null where [j] isn't one, or its card is no longer good at [now]. [where] is where it said it is, as kept apart;
+  /// [known] as DeviceCard.fromJson's.
+  static P2pDevice? fromJson(Object? j, {required int now, Object? where, bool known = false}) {
     if (j is! Map) return null;
-    final card = DeviceCard.fromJson(j['c'], now: now);
+    final card = DeviceCard.fromJson(j['c'], now: now, known: known);
     if (card == null) return null;
     final h = j['h'];
-    return P2pDevice(card, where: P2p.whereOf(j['w'], now: now), heard: h is int ? h : 0);
+    return P2pDevice(card, where: P2p.whereOf(where, now: now), heard: h is int ? h : 0);
   }
 }
 
@@ -183,9 +186,16 @@ class P2p extends ChangeNotifier {
   static const idName = 'p2p_id';
   static const cardName = 'p2p_card';
   static const cardsName = 'p2p_cards';
+  static const checkedName = 'p2p_checked';
   static const toldName = 'p2p_told';
   static const helpersName = 'p2p_helpers';
-  static const keptNames = [idName, cardName, cardsName, toldName, helpersName];
+  static const keptNames = [idName, cardName, cardsName, checkedName, toldName, helpersName];
+
+  /// Where the devices whose cards are held last said they are: their addresses, kept where the install keeps its keys
+  /// beside the node key and not with its choices, which a device's backup copies (Android's vault is sealed with a
+  /// Keystore key that never leaves the phone; the Keychain's items are this device's only). Goes at sign-out too.
+  static const whereName = 'p2p_where';
+  static const secretNames = [keyName, whereName];
 
   /// The person's choice of "Only through link helpers": 'on' or not. A choice, so it stays at sign-out.
   static const helpersOnlyName = 'p2p_helpers_only';
@@ -460,21 +470,43 @@ class P2p extends ChangeNotifier {
       } catch (_) {}
     }
     if (!_helpersOnlySaid) _helpersOnly = await _plain.read(helpersOnlyName) == 'on';
-    // The cards held, each checked again as it was when it came: a device's, of the account it is kept under.
+    // The cards held, each a device's of the account it is kept under. Each was checked whole when it came; where the
+    // seal this device put on them as it kept them still fits (an HMAC under a key made from its node key, which only
+    // it holds), their signatures are not checked again: friends times devices of them at every start of a phone was
+    // seconds of arithmetic (second review, S15). Where it doesn't (they changed, or the node key is another), every
+    // one is checked again, and they are sealed anew.
     final cards = <String, List<P2pDevice>>{};
+    String? keptCards;
+    try {
+      keptCards = await _plain.read(cardsName);
+    } catch (_) {}
+    var sealed = false;
+    if (keptCards != null && keptCards.isNotEmpty) {
+      try {
+        sealed = await _plain.read(checkedName) == _seal(key, keptCards);
+      } catch (_) {}
+    }
+    // Where each said it is, kept apart where the install keeps its keys.
+    Map? kept;
+    try {
+      kept = jsonDecode(await _secrets.read(whereName) ?? '') as Map;
+    } catch (_) {}
+    final whereKept = kept ?? const {};
     var checked = 0;
     try {
-      final kept = jsonDecode(await _plain.read(cardsName) ?? '');
-      if (kept is Map) {
-        for (final e in kept.entries) {
+      final held = jsonDecode(keptCards ?? '');
+      if (held is Map) {
+        for (final e in held.entries) {
           final account = e.key, list = e.value;
           if (account is! String || list is! List) continue;
+          final where = whereKept[account];
           final devices = <P2pDevice>[];
           for (final j in list.take(mostDevices)) {
-            final d = P2pDevice.fromJson(j, now: now);
+            final n = j is Map && j['c'] is Map ? (j['c'] as Map)['n'] : null;
+            final d = P2pDevice.fromJson(j, now: now, known: sealed, where: where is Map ? where[n] : null);
             if (d != null && d.account == account && d.nodeId != nodeId && !devices.any((o) => o.nodeId == d.nodeId || o.card.device == d.card.device)) devices.add(d);
-            // A signature is some milliseconds of arithmetic: with many kept, the screen is drawn between them.
-            if (++checked % 8 == 0) await Future<void>.delayed(Duration.zero);
+            // A signature is some milliseconds of arithmetic: with many to check, the screen is drawn between them.
+            if (!sealed && ++checked % 8 == 0) await Future<void>.delayed(Duration.zero);
           }
           if (devices.isNotEmpty) cards[account] = devices;
         }
@@ -506,6 +538,8 @@ class P2p extends ChangeNotifier {
       ..addAll(told);
     _friendsNow = _readFriends();
     _loaded = true;
+    // Checked again just now: sealed anew for what is kept.
+    if (!sealed && cards.isNotEmpty) _saveCards();
     carrier.restate();
     // What came while this was being read is looked at before anything is told: whoever is then told is told with
     // their own card already held.
@@ -1376,10 +1410,31 @@ class P2p extends ChangeNotifier {
 
   // --- keeping, and forgetting -------------------------------------------------------------------------------------------------
 
+  /// Keeps the cards held, with the seal that spares checking them again at the next start ([_seal]), and where each
+  /// device last said it is, apart, where the install keeps its keys (written only where it changed).
   void _saveCards() {
     if (!_loaded) return;
-    unawaited(_keep(_plain, cardsName, jsonEncode({for (final e in _cards.entries) e.key: [for (final d in e.value) d.toJson()]})).catchError((Object _) {}));
+    final key = _key;
+    final cards = jsonEncode({for (final e in _cards.entries) e.key: [for (final d in e.value) d.toJson()]});
+    final where = jsonEncode({
+      for (final e in _cards.entries)
+        if (e.value.any((d) => d.where != null)) e.key: {for (final d in e.value) if (d.where != null) d.nodeId: d.where!.toJson()},
+    });
+    unawaited(() async {
+      await _keep(_plain, cardsName, cards);
+      if (key != null) await _keep(_plain, checkedName, _seal(key, cards));
+      if (where != _whereSaved) {
+        _whereSaved = where;
+        await _keep(_secrets, whereName, where);
+      }
+    }().catchError((Object _) {}));
   }
+
+  /// What was last written of where the devices are ([whereName]).
+  String? _whereSaved;
+
+  /// The seal on [cards] as this device keeps them: an HMAC under a key made from its node key [key].
+  static String _seal(Uint8List key, String cards) => NetCrypto.hex(NetCrypto.hmac(NetCrypto.derive(key, 'p2p kept cards'), utf8.encode(cards)));
 
   void _saveTold() {
     if (!_loaded) return;
@@ -1424,6 +1479,7 @@ class P2p extends ChangeNotifier {
     _nodeId = null;
     _running = null;
     _minePeer = null;
+    _whereSaved = null;
     carrier.restate();
     await forget(_secrets, _plain);
     if (!_gone) notifyListeners();
@@ -1452,7 +1508,9 @@ class P2p extends ChangeNotifier {
   /// Deletes what the direct network keeps on a device, where none is running to [wipe] itself.
   static Future<void> forget(FsStore secrets, FsStore plain) async {
     // Only what is there: nothing is written where nothing was kept.
-    if ((await secrets.read(keyName) ?? '').isNotEmpty) await secrets.write(keyName, '');
+    for (final name in secretNames) {
+      if ((await secrets.read(name) ?? '').isNotEmpty) await secrets.write(name, '');
+    }
     for (final name in keptNames) {
       if ((await plain.read(name) ?? '').isNotEmpty) await plain.write(name, '');
     }

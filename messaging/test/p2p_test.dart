@@ -467,13 +467,71 @@ void main() {
       await w.settle();
       // (Each card made above was checked once as it was made, by its maker.)
       expect(NetCrypto.verifications - checked, 40 + 30, reason: 'thirty looked at here, and the rest passed over unchecked');
-      expect(a.plain.writes - writes, 30, reason: 'and what is kept was written as often, no more');
+      expect(a.plain.writes - writes, 2 * 30, reason: 'and what is kept (the cards, and the seal on them) was written as often, no more');
       expect(a.p2p.devicesOf(b.account.id).map((d) => d.card), isNot(contains(last)));
       // An hour on, they are looked at again.
       await w.clock.pass(const Duration(hours: 1));
       await b.board.send(b.to(a.account), _said(w, _telling(a, last!)), only: {'hub'});
       await w.settle();
       expect(a.p2p.devicesOf(b.account.id).map((d) => d.card), contains(last));
+    });
+
+    // The second review, S15: every kept card's signature was checked again at each start, friends times devices P-256
+    // checks on every cold start of a phone.
+    test('what was checked is not checked again at each start: the kept cards carry a seal only this device can make, and any change to them has each checked anew', () async {
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      for (var i = 0; i < 4; i++) {
+        await b.board.send(b.to(a.account), _said(w, _telling(a, await _cardOf(w, b.account))), only: {'hub'});
+      }
+      await w.settle();
+      expect(a.p2p.devicesOf(b.account.id), hasLength(5));
+      var checked = NetCrypto.verifications;
+      await a.restart();
+      expect(NetCrypto.verifications - checked, 1, reason: 'its own card alone, as ever; none of the five it holds');
+      expect(a.p2p.devicesOf(b.account.id), hasLength(5));
+      // One of them changed while the app was closed (a device's word put in its place): the seal no longer fits, every
+      // card is checked again, and the one whose signature is not its account's goes.
+      await a.stop();
+      final kept = jsonDecode(a.plain.kept[P2p.cardsName]!) as Map;
+      final list = (kept[b.account.id] as List).cast<Map>();
+      final forged = Map<String, dynamic>.from(list.last['c'] as Map)..['n'] = 'ee' * 32;
+      list.last['c'] = forged;
+      a.plain.kept[P2p.cardsName] = jsonEncode(kept);
+      checked = NetCrypto.verifications;
+      await a.start();
+      expect(NetCrypto.verifications - checked, 1 + 5);
+      expect(a.p2p.devicesOf(b.account.id), hasLength(4));
+      expect(a.p2p.devicesOf(b.account.id).map((d) => d.nodeId), isNot(contains('ee' * 32)));
+      // Sealed anew for what is kept now: the next start checks none again.
+      checked = NetCrypto.verifications;
+      await a.restart();
+      expect(NetCrypto.verifications - checked, 1);
+      // A seal made with another key (another node key: another account, or a key made again) fits nothing.
+      a.plain.kept[P2p.checkedName] = 'ab' * 32;
+      checked = NetCrypto.verifications;
+      await a.restart();
+      expect([NetCrypto.verifications - checked, a.p2p.devicesOf(b.account.id).length], [1 + 4, 4]);
+    });
+
+    // The second review: friends' addresses sat in plain choices (p2p_cards), which a device's backup copies.
+    test('where friends\' devices are is kept where the install keeps its keys, not with its choices, so no backup carries it', () async {
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'), computer: true);
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      final where = b.node.whereabouts.value!.addresses.single;
+      expect(a.p2p.devicesOf(b.account.id).single.where!.addresses, [where]);
+      expect(a.plain.kept.values.join(), isNot(contains(where)));
+      expect(a.secrets.kept[P2p.whereName], contains(where));
+      // And it is there after a start.
+      await a.restart();
+      expect(a.p2p.devicesOf(b.account.id).single.where!.addresses, [where]);
+      // Signing out takes it with the rest.
+      await a.p2p.wipe();
+      expect(a.secrets.kept[P2p.whereName] ?? '', isEmpty);
     });
 
     test('nothing is said of where a phone is while its node is down; a computer says it with its card; never by a route of small packets', () async {
