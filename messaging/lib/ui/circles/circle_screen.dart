@@ -40,8 +40,9 @@ final openCircleSpaceSeed = ValueNotifier<String?>(null);
 /// What a circle's space opens as: a voice space its chat with a way into its call, a texting space only its chat (no
 /// Join: HangoutScreen leaves it out for a space with no voice), and a Files space its files page. The files page is
 /// lib/ui/files_space/ (FilesSpaceScreen), its chat a press away at its top.
-/// In a browser, which has no folder to keep files in, a Files space says so in its page's place ([FilesNotHere]).
-Widget circleSpacePage(VoiceChannel c, {Key? key}) => c.kind == SpaceKind.files ? (Sms.browser ? FilesNotHere(key: key, channel: c) : FilesSpaceScreen(key: key, channel: c)) : HangoutScreen(key: key, channel: c);
+/// In a browser whose build has no Files spaces (Sms.filesHere), a Files space says so in its page's place
+/// ([FilesNotHere]).
+Widget circleSpacePage(VoiceChannel c, {Key? key}) => c.kind == SpaceKind.files ? (!Sms.filesHere ? FilesNotHere(key: key, channel: c) : FilesSpaceScreen(key: key, channel: c)) : HangoutScreen(key: key, channel: c);
 
 /// A Files space, in a browser: where it can be opened, in its page's place.
 class FilesNotHere extends StatelessWidget {

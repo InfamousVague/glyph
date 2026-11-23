@@ -27,6 +27,7 @@ class ReleaseNotes {
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.12.22', '2026-11-23', [
     'Open spaces have walls: the floor is a room now, with see-through walls in colour round its edges. The view stops at a wall, so you never look past the room, and you walk on up to it.',
+    'Signing in on another phone, computer or browser now brings your conversations with friends from your other devices, the newest 300 messages of each, once one of them is open. Settings › Devices says when they went to a device, and which.',
   ]),
   ReleaseNotes('0.12.21', '2026-11-23', [
     'Calls connect faster between people on different versions: two people joining a space at the same moment, or one on 0.12.19, now connect in a couple of seconds instead of up to half a minute, and someone whose connection drops for a moment is connected again by itself.',

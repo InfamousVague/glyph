@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:ghost_relay/feedback.dart';
+import 'package:ghost_relay/files.dart';
 import 'package:ghost_relay/hub.dart';
 import 'package:ghost_relay/market.dart';
 import 'package:ghost_relay/relay.dart';
@@ -18,7 +19,7 @@ void main() {
   late int port;
   late HttpClient http;
 
-  Future<void> boot({String? appOrigin = app}) async {
+  Future<void> boot({String? appOrigin = app, bool withFiles = false}) async {
     final market = Market(
       dir: Directory('${dir.path}/market'),
       config: const MarketConfig(),
@@ -29,7 +30,7 @@ void main() {
     );
     // Feedback with no board to file in: it says so, which is answer enough here.
     final feedback = Feedback(config: const FeedbackConfig(), ownsName: (_, _) => false);
-    relay = Relay(hub: Hub(), market: market, feedback: feedback, appOrigin: appOrigin);
+    relay = Relay(hub: Hub(), market: market, feedback: feedback, appOrigin: appOrigin, files: withFiles ? Files(dir: Directory('${dir.path}/files'), config: const FilesConfig()) : null);
     port = await relay.start(port: 0);
   }
 
@@ -110,6 +111,40 @@ void main() {
     final feedback = await ask('POST', '/feedback', origin: app, body: utf8.encode('{}'));
     expect(feedback.statusCode, HttpStatus.serviceUnavailable);
     expect(feedback.headers.value('access-control-allow-origin'), isNull);
+  });
+
+  // GMFB-30: a browser's build with Files spaces lists, reads and writes a space's files from the app's address.
+  test('the app\'s page may use a Files space\'s files and read the answers; nobody else, and nothing without the address set', () async {
+    const space = '/files/00112233445566778899aabbccddeeff';
+    Future<HttpClientResponse> ahead(String path, String method, {String origin = app}) =>
+        ask('OPTIONS', path, origin: origin, headers: {'access-control-request-method': method, 'access-control-request-headers': 'authorization,range,x-ghost-key,x-ghost-sig,x-ghost-time,x-ghost-body-sha256,x-ghost-body-length'});
+    await boot(withFiles: true);
+    for (final (path, method) in [(space, 'PUT'), ('$space/log', 'POST'), ('$space/blobs/ab', 'GET'), ('$space/blobs/ab', 'DELETE')]) {
+      final first = await ahead(path, method);
+      expect(first.statusCode, HttpStatus.noContent, reason: path);
+      expect(first.headers.value('access-control-allow-origin'), app, reason: path);
+      expect(first.headers.value('access-control-allow-methods')!.split(',').map((m) => m.trim()), containsAll(['GET', 'PUT', 'POST', 'DELETE']), reason: path);
+      final allowed = first.headers.value('access-control-allow-headers')!.split(',').map((h) => h.trim()).toSet();
+      expect(allowed, containsAll(['authorization', 'range', 'x-ghost-key', 'x-ghost-time', 'x-ghost-sig', 'x-ghost-body-sha256', 'x-ghost-body-length']), reason: path);
+      // From anywhere else: nothing said, nothing taken.
+      final other = await ahead(path, method, origin: 'https://evil.example');
+      expect(other.headers.value('access-control-allow-origin'), isNull, reason: path);
+      expect(other.statusCode, isNot(HttpStatus.noContent), reason: path);
+    }
+    // The answer itself, readable by the app's page: here, that the token is wrong, which still needs the token.
+    final read = await ask('GET', space, origin: app, headers: {'authorization': 'Ghost nothing'});
+    expect(read.statusCode, isNot(HttpStatus.ok));
+    expect(read.headers.value('access-control-allow-origin'), app);
+    expect((await ask('GET', space, origin: 'https://evil.example')).headers.value('access-control-allow-origin'), isNull);
+    // /files itself, with no space, is nothing for a page.
+    expect((await ahead('/files', 'GET')).headers.value('access-control-allow-origin'), isNull);
+    await relay.stop();
+    // No app address set: the files routes answer as they did.
+    await boot(appOrigin: null, withFiles: true);
+    final none = await ahead(space, 'PUT');
+    expect(none.headers.value('access-control-allow-origin'), isNull);
+    expect(none.headers['vary'], isNull);
+    expect((await ask('GET', space, origin: app)).headers.value('access-control-allow-origin'), isNull);
   });
 
   test('GHOST_APP_ORIGIN is read as a browser names an address, or left off', () {

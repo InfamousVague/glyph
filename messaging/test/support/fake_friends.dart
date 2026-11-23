@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:ghost_messaging/friends/friends.dart';
 import 'package:ghost_messaging/net/carrier.dart';
+import 'package:ghost_messaging/net/hub_carrier.dart' show HubCarrier;
 import 'package:ghost_messaging/net/packet.dart';
 import 'package:ghost_messaging/net/switchboard.dart';
 import 'package:ghost_messaging/sms.dart';
@@ -87,17 +88,72 @@ class FakePort implements FriendsPort {
   final mineSent = <Envelope>[];
   FakePort? twin;
 
+  /// The most a packet on the hub or the direct route carries (HubCarrier.maxPacket), less sealing's few bytes: what is
+  /// longer goes by no route, as the switchboard finds (GMFB-53's review, H2).
+  static const routeMost = HubCarrier.maxPacket - 64;
+
+  /// Where set, every packet to the account's own devices is refused (the relay's mailbox for them full).
+  bool mineRefused = false;
+
+  /// What went by the hub alone ([sendMine]'s hubOnly), by envelope id.
+  final hubOnly = <String>{};
+
   @override
-  Future<Delivery> sendMine(Envelope envelope) async {
+  @override
+  Future<Delivery> sendMine(Envelope envelope, {bool hubOnly = false}) async {
+    if (envelope.encode().length > routeMost) return Delivery(envelope.id, tried: const ['too big for any route']);
+    if (mineRefused) return Delivery(envelope.id, tried: const ['hub: nak full']);
     mineSent.add(envelope);
+    if (hubOnly) this.hubOnly.add(envelope.id);
     final t = twin;
     if (t == null) return Delivery(envelope.id, tried: const ['no account here']);
-    t._in.add(Received(Peer(id: 'mine', key: Uint8List(32)), envelope, 'hub'));
+    // As the hub hands it: with the device that sent it (relay/lib/hub.dart toPeerFromDevice).
+    t._in.add(Received(Peer(id: 'mine', key: Uint8List(32)), envelope, 'hub', arrived: Arrived('hub', Uint8List(0), device: hubDevice)));
     return Delivery(envelope.id, via: 'hub', handed: Handed.passed);
   }
 
   @override
   bool isMine(Peer peer) => peer.id == 'mine';
+
+  /// This device's number on the account's list (GMFB-53), and the devices the account lists now (all, where null).
+  String device = 'device-${_n++}';
+  static int _n = 0;
+  Set<String>? onList;
+  bool signedIn = true;
+
+  @override
+  ({String device, String name})? get thisDevice => signedIn ? (device: device, name: 'Device $device') : null;
+
+  /// This device's name on the hub, which the hub vouches for on what it sends its account's own name.
+  String get hubDevice => 'hub-$device';
+
+  /// The account's list as a device holding its key reads it (null: one that can't, a browser).
+  List<String>? listing;
+
+  @override
+  Future<String?> vouch(String d, String hub) async => (onList?.contains(d) ?? true) && hub == 'hub-$d' ? 'Device $d' : null;
+
+  @override
+  Future<List<String>?> listedDevices() async => listing;
+
+  /// The conversations with friends by username this device holds (GMFB-53), and what another device's history added.
+  final pastHeld = <String, List<PastRow>>{};
+  final pastKept = <String, List<PastRow>>{};
+
+  @override
+  Future<List<({String address, List<PastRow> rows})>> history() async => [for (final e in pastHeld.entries) (address: e.key, rows: e.value)];
+
+  @override
+  Future<int> keepHistory(String address, List<PastRow> rows) async {
+    final kept = pastKept.putIfAbsent(address, () => []);
+    var added = 0;
+    for (final r in rows) {
+      if (kept.contains(r)) continue;
+      kept.add(r);
+      added++;
+    }
+    return added;
+  }
 
   @override
   Future<Delivery> send(Peer peer, Envelope envelope, {bool metered = false, bool sealed = true, Set<String>? only}) async {
@@ -129,7 +185,9 @@ class FakePort implements FriendsPort {
 
   /// [envelope] arrives sealed by the install named [id], which the routes hold under [address]: on Android, a member of
   /// a group under whatever its admin wrote.
-  void arriveFrom(String id, String address, Envelope envelope) => _in.add(Received(Peer(id: id, key: Uint8List(32), address: address), envelope, 'hub'));
+  /// [device]: the device of this account the hub says sent it (one's own name only).
+  void arriveFrom(String id, String address, Envelope envelope, {String? device}) =>
+      _in.add(Received(Peer(id: id, key: Uint8List(32), address: address), envelope, 'hub', arrived: device == null ? null : Arrived('hub', Uint8List(0), device: device)));
 
   /// The other phone's app opens: what the relay server kept is handed over, and each is answered.
   void otherBack() {

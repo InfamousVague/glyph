@@ -361,7 +361,7 @@ What stood in the way, surveyed 2026-11-22, and what answers each:
 In the first version: signing in, friends and groups of friends, circles and their spaces' chat, calls (the
 browser's WebRTC, as `site/join/voice.js` already proves the room protocol in one), who is here, profiles,
 reporting, formatting, forward secrecy. Not in it: texts through a phone, the other networks' chats (they need
-helper programs), Files spaces, plugins and the Marketplace, recording, the voice changer and noise removal, screen
+helper programs), Files spaces unless the build has them (below), files in a space's chat, plugins and the Marketplace, recording, the voice changer and noise removal, screen
 sharing, the local API, and the direct route (so the browser doesn't check the relay). A closed tab gets nothing:
 there is no push to a browser yet.
 
@@ -384,6 +384,53 @@ decoded on the other side, and someone muted for one person alone is not played 
 microphone or camera allowed for a whole address, not for a page: at gogho.st/app the grant belongs to all of gogho.st
 (its other pages included, `/join` among them, a guest's way into a call), while app.gogho.st's is its own; one
 more reason the app has an address of its own.
+
+**Files spaces** (GMFB-30's last box) are the app's own files layer (`lib/files/`) with the few places it touches the
+device split off, as the rest of the web client was. What a browser does differently is only where bytes come from and
+go to; every rule stays in one place for both: the sealing and its chunks (`lib/net/file_seal.dart`), the relay's
+files routes, their signing and their errors (`FilesApi`), and the log, the roster, the queue and the rules of who may
+do what (`FilesStore`). The split, smallest first:
+
+| The app has | A browser has instead |
+| --- | --- |
+| dart:io's `HttpClient` under `FilesApi` | The page's own `fetch`, its answer read as it streams (`lib/files/files_http.dart`: a pair, with the request built and its answer read in plain Dart, `files_http_fetch.dart`, so a test drives it with a stand-in fetch) |
+| A file's path, read a piece at a time and hashed on another isolate (`FileSource`, `lib/files/file_source.dart`) | The picked or dropped `File`, read a piece at a time with `Blob.slice` and hashed a megabyte at a time between frames |
+| AES-GCM in Dart on isolates (`FastGcm`) | The browser's own AES-GCM (WebCrypto), chunk by chunk, with `FileSeal`'s own nonces and bindings (`lib/net/file_seal_async.dart`); the Dart one in a browser is a megabyte or two a second and holds the page still |
+| The part file and the cache folder | What comes down goes into a `Blob` a chunk at a time (`lib/files/file_sink.dart`), checked against its SHA-256 as it comes, then saved with the browser's own download or shown in the page (pictures, videos and sounds where the app shows them) |
+| The lists, the queue and the cache kept on disk | Nothing kept: a space's list is read from the relay each time the page opens it, an upload stops with the tab (the relay lets its part go a day later, or Remove does), and what came down lasts until the tab closes |
+
+Off unless the build has them (`node tool/build-web.mjs --files`, `--dart-define=GHOST_WEB_FILES=true`,
+`Sms.browserFiles`). Nothing is opened in a tab of its own: a file someone put in a space could be a page with a
+script in it, and at the app's address it could read the store. So a browser shows pictures, videos and sounds in
+the app's own page (Flutter draws a picture; the `<video>` element plays the others) and saves everything else to
+the downloads, as `application/octet-stream`. The relay lets app.gogho.st read its files routes' answers
+(`GHOST_APP_ORIGIN`, as for feedback: `/files/` alone besides those two), and the page's policy names
+`https://gogho.st/files/`; a relay's own `/app/` is the relay's own address and needs neither. What the web server in
+front of the relay answers on its own (a body over its limit, a `502` while the relay restarts) carries no CORS
+header, so a page across addresses sees only a failed request, which it takes as the relay out of reach: an upload
+waits and tries again (gogho.st's blocks take 10 MiB a request, `tool/deploy-site.mjs`; the app's pieces are 4 MB).
+Opening a file brings it into the tab only where the page shows it (`browserShowsHere`: a picture of 8 MB at most,
+words of 16 MB, a sound or a video of 512 MB), and only the first 256 KB of words is read out of the tab; anything
+else, or bigger, is downloaded when the person asks. What a browser keeps of
+a file that came down is in the tab's memory: Chromium and Firefox put a big `Blob` on disk among the profile's
+temporary files and delete it when the tab closes; Safari holds it in memory, so a very large file is better brought
+down by the app. Tried by `tool/web/e2e.mjs --files`: one browser uploads a file to a circle's Files space, by the
+picker and by a drop, the other sees it and downloads it, byte for byte, in Chromium and WebKit.
+
+**A device's conversations** (GMFB-53): the account's backup carries friends and circles, never conversations, and the
+copies an account's devices pass each other carry what is said from then on; so a device signed in on (a browser, an
+iPhone, a computer of its own) asks its account's other devices for the conversations with friends they hold
+(`lib/friends/friends.dart`, `mine-ask`, `mine-past`, `mine-got`), at each start that is due until an answer that
+carried something has ended, or every other device on the account's list has answered with nothing. Anyone holding the
+account's key can send the account anything, so the answer can't go on a device's word alone: the asking goes by the hub,
+which hands it to the account's other devices with the device that sent it, as that device named itself in its hello
+(`docs/network.md`, "The hub"); the account's device list keeps that hub name beside the device's number (`h`, given as
+it is listed, and from its next check by a device holding the account's key that was listed before); and a device answers
+only where `acct-hello` with both says they belong together. It answers each device once (again a day on only where that
+device never said it had it all, which is taken only from that device for that asking), with only conversations with
+the account's present friends, the newest 300 messages each, at most 12 parts of 40 KB, and Settings › Devices says
+"History sent to" the device as the list names it. A relay from before keeps no hub names and stamps nothing: there
+nothing is answered.
 
 ### Its address
 

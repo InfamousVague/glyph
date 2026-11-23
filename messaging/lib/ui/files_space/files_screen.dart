@@ -29,6 +29,7 @@ import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
 import '../../backgrounds.dart' show strongFill;
+import '../../files/browser_files.dart';
 import '../../files/file_platform.dart';
 import '../../files/files_store.dart';
 import '../../plugins/watch_together.dart';
@@ -78,6 +79,15 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
   String? _folder;
   StreamSubscription<List<String>>? _drops;
 
+  /// Files dropped on the page, in a browser (lib/files/browser_files.dart).
+  StreamSubscription<List<FileSource>>? _pageDrops;
+
+  /// Whether this page is a browser's (FilesStore.browser): files come as [FileSource]s there, never as paths.
+  bool get _inBrowser => _store.browser;
+
+  /// True while files are dragged over the window or the page.
+  ValueNotifier<bool> get _over => _inBrowser ? BrowserFiles.over : FilePlatform.over;
+
   @override
   void initState() {
     super.initState();
@@ -85,7 +95,10 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
     unawaited(Voice.instance.hold(_c).then((r) {
       if (mounted) setState(() => _room = r);
     }));
-    if (FilePlatform.canDrop) {
+    if (_inBrowser && FilePlatform.canDrop) {
+      BrowserFiles.dropTarget(true);
+      _pageDrops = BrowserFiles.dropped.listen(_addSources);
+    } else if (FilePlatform.canDrop) {
       FilePlatform.dropTarget(true);
       _drops = FilePlatform.dropped.listen((paths) => _add([for (final p in paths) (path: p, owned: false)]));
     }
@@ -95,8 +108,13 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
   void dispose() {
     _store.close(_c);
     unawaited(Voice.instance.release(_c));
-    if (FilePlatform.canDrop) FilePlatform.dropTarget(false);
+    if (_inBrowser && FilePlatform.canDrop) {
+      BrowserFiles.dropTarget(false);
+    } else if (FilePlatform.canDrop) {
+      FilePlatform.dropTarget(false);
+    }
     _drops?.cancel();
+    _pageDrops?.cancel();
     super.dispose();
   }
 
@@ -115,7 +133,11 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
       return;
     }
     try {
-      _add(await FilePlatform.pick());
+      if (_inBrowser) {
+        _addSources(await BrowserFiles.pick());
+      } else {
+        _add(await FilePlatform.pick());
+      }
     } catch (e) {
       if (mounted) toast(context, 'Couldn\'t add that: $e', tone: GlacierToastTone.danger);
     }
@@ -133,6 +155,16 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
       final paths = [for (final p in picked) if (p.owned == owned) p.path];
       if (paths.isNotEmpty) _store.upload(_c, paths, folder: _folder, owned: owned);
     }
+  }
+
+  /// A browser's files picked or dropped, up into the folder shown, where this person's role may add.
+  void _addSources(List<FileSource> picked) {
+    if (picked.isEmpty || !mounted) return;
+    if (!_store.canUpload(_c)) {
+      toast(context, 'Your role here can\'t add files.', tone: GlacierToastTone.danger);
+      return;
+    }
+    _store.uploadSources(_c, picked, folder: _folder);
   }
 
   void _openFile(SpaceFile f) => openSpaceFile(context, _c, f, store: widget.store);
@@ -273,7 +305,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
     final t = context.tokens;
     final app = AppState.maybeOf(context);
     return ListenableBuilder(
-      listenable: Listenable.merge([_store, Voice.instance, ?_room, if (FilePlatform.canDrop) FilePlatform.over]),
+      listenable: Listenable.merge([_store, Voice.instance, ?_room, if (FilePlatform.canDrop) _over]),
       builder: (context, _) {
         final room = _room ?? Voice.instance.hangoutFor(_c);
         final space = _store.of(_c);
@@ -313,7 +345,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
                 ? (room == null ? const SizedBox.shrink() : HangoutChat(room: room))
                 : Stack(children: [
                     _body(context, t, app, space),
-                    if (FilePlatform.over.value) const Positioned.fill(child: _DropHint()),
+                    if (_over.value) const Positioned.fill(child: _DropHint()),
                   ]),
           ),
         );

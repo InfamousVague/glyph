@@ -417,8 +417,8 @@ class _NewCircleScreenState extends State<NewCircleScreen> {
                 ],
                 PaneSection(
                   title: 'First spaces',
-                  // A browser makes no Files spaces (spaceKindsOffered), so it doesn't offer them here either.
-                  description: Text(Sms.browser ? 'Press one to rename it or change what it\'s for. You can add more any time.' : 'Press one to rename it or change what it\'s for. You can add more, files spaces too, any time.'),
+                  // A browser without Files spaces makes none (spaceKindsOffered), so it doesn't offer them here either.
+                  description: Text(!Sms.filesHere ? 'Press one to rename it or change what it\'s for. You can add more any time.' : 'Press one to rename it or change what it\'s for. You can add more, files spaces too, any time.'),
                   children: [
                     for (final (i, d) in _spaces.indexed)
                       SettingRow(
