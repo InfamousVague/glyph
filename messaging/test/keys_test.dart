@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/keys.dart';
+import 'package:ghost_messaging/ui/markdown_field.dart';
 
 /// The keyboard's commands (lib/keys.dart; Matt, 2026-11-20: "add push to talk and full keyboard commands with a
 /// keyboard shortcuts setting in settings").
@@ -49,7 +50,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     final keys = Keys.forTest()..start(AppState());
     expect(await press(tester, keys, LogicalKeyboardKey.backquote, typing: true), isNull);
-    expect(await press(tester, keys, LogicalKeyboardKey.keyK, held: [primary], typing: true), KeyCommand.search);
+    expect(await press(tester, keys, LogicalKeyboardKey.keyK, held: [primary], typing: true), KeyCommand.quickSwitch);
   });
 
   testWidgets('keys changed are kept; keys taken from another leave it on none; each can be put back', (tester) async {
@@ -83,5 +84,108 @@ void main() {
     expect(b.label, Platform.isMacOS ? 'Cmd+Shift+M' : 'Ctrl+Shift+M');
     expect(const KeyBinding(LogicalKeyboardKey.backquote).label, '`');
     expect(KeyBinding.fromJson(b.toJson()), b);
+  });
+
+  // GMFB-41 (from the Uplink gap review: "Customization: ... keybinds").
+  group('conversations and writing', () {
+    testWidgets('the new commands are on their own keys and found by them, the Writing ones while typing', (tester) async {
+      await tester.pumpWidget(const SizedBox());
+      final keys = Keys.forTest()..start(AppState());
+      expect(await press(tester, keys, LogicalKeyboardKey.keyK, held: [primary]), KeyCommand.quickSwitch);
+      expect(await press(tester, keys, LogicalKeyboardKey.keyF, held: [primary], typing: true), KeyCommand.search, reason: 'Search moved to Cmd+F for the switcher');
+      expect(await press(tester, keys, LogicalKeyboardKey.arrowDown, held: [LogicalKeyboardKey.altLeft], typing: true), KeyCommand.nextChat);
+      expect(await press(tester, keys, LogicalKeyboardKey.arrowUp, held: [LogicalKeyboardKey.altLeft]), KeyCommand.previousChat);
+      expect(await press(tester, keys, LogicalKeyboardKey.arrowDown), isNull, reason: 'the arrow alone is the list\'s and the field\'s');
+      expect(await press(tester, keys, LogicalKeyboardKey.keyR, held: [primary, LogicalKeyboardKey.shiftLeft]), KeyCommand.markRead);
+      expect(await press(tester, keys, LogicalKeyboardKey.backslash, held: [primary]), KeyCommand.toggleSidebar);
+      expect(await press(tester, keys, LogicalKeyboardKey.keyB, held: [primary], typing: true), KeyCommand.bold);
+      expect(await press(tester, keys, LogicalKeyboardKey.keyI, held: [primary], typing: true), KeyCommand.italic);
+      expect(await press(tester, keys, LogicalKeyboardKey.keyE, held: [primary], typing: true), KeyCommand.code);
+      expect(await press(tester, keys, LogicalKeyboardKey.keyE, held: [primary, LogicalKeyboardKey.shiftLeft]), KeyCommand.leaveCall, reason: 'Shift makes it another command');
+      for (final c in Keys.markers.keys) {
+        expect(c.group, 'Writing');
+      }
+    });
+
+    testWidgets('a command moved onto another\'s keys is a clash: found, and the other left on none; copy and paste are never taken', (tester) async {
+      await tester.pumpWidget(const SizedBox());
+      final keys = Keys.forTest()..start(AppState());
+      final boldKeys = Keys.defaults[KeyCommand.bold]!;
+      expect(keys.usedBy(boldKeys, except: KeyCommand.quickSwitch), KeyCommand.bold);
+      expect(keys.usedBy(boldKeys, except: KeyCommand.bold), isNull, reason: 'its own keys are no clash');
+      keys.set(KeyCommand.quickSwitch, boldKeys);
+      expect(keys.of(KeyCommand.bold), isNull);
+      expect(await press(tester, keys, LogicalKeyboardKey.keyB, held: [primary], typing: true), KeyCommand.quickSwitch);
+      // Rebinding to keys nobody has: no clash at all.
+      const f6 = KeyBinding(LogicalKeyboardKey.f6);
+      expect(keys.usedBy(f6, except: KeyCommand.nextChat), isNull);
+      keys.set(KeyCommand.nextChat, f6);
+      expect(await press(tester, keys, LogicalKeyboardKey.f6), KeyCommand.nextChat);
+      // Every field's own keys.
+      expect(Keys.reservedFor(const KeyBinding(LogicalKeyboardKey.keyC, primary: true)), 'Copy');
+      expect(Keys.reservedFor(const KeyBinding(LogicalKeyboardKey.keyV, primary: true)), 'Paste');
+      expect(Keys.reservedFor(const KeyBinding(LogicalKeyboardKey.keyZ, primary: true, shift: true)), 'Redo');
+      expect(Keys.reservedFor(const KeyBinding(LogicalKeyboardKey.keyC, primary: true, shift: true)), isNull);
+      expect(Keys.reservedFor(const KeyBinding(LogicalKeyboardKey.keyC)), isNull);
+      for (final b in Keys.defaults.values) {
+        expect(Keys.reservedFor(b), isNull, reason: '${b.label} is a default and must be free');
+      }
+    });
+
+    testWidgets('Bold, Italic and Code wrap the words chosen in a composer that formats; not a text\'s', (tester) async {
+      final chat = MarkdownController(text: 'see you soon');
+      final text = MarkdownController(text: 'see you soon')..dims = () => false;
+      final chatFocus = FocusNode(), textFocus = FocusNode();
+      addTearDown(() {
+        chat.dispose();
+        text.dispose();
+        chatFocus.dispose();
+        textFocus.dispose();
+      });
+      EditableText field(TextEditingController c, FocusNode f) => EditableText(
+            controller: c,
+            focusNode: f,
+            style: const TextStyle(fontSize: 14),
+            cursorColor: const Color(0xFF000000),
+            backgroundCursorColor: const Color(0xFF888888),
+          );
+      await tester.pumpWidget(Directionality(textDirection: TextDirection.ltr, child: Column(children: [field(chat, chatFocus), field(text, textFocus)])));
+      // Nothing focused: nothing to format, and the key goes on.
+      expect(Keys.format(KeyCommand.bold), isFalse);
+      chatFocus.requestFocus();
+      await tester.pump();
+      chat.selection = const TextSelection(baseOffset: 4, extentOffset: 7);
+      expect(Keys.format(KeyCommand.bold), isTrue);
+      expect(chat.text, 'see **you** soon');
+      expect(chat.selection, const TextSelection(baseOffset: 6, extentOffset: 9), reason: 'the same words stay chosen');
+      expect(Keys.format(KeyCommand.italic), isTrue);
+      expect(chat.text, 'see ***you*** soon');
+      chat.selection = TextSelection.collapsed(offset: chat.text.length);
+      expect(Keys.format(KeyCommand.code), isTrue);
+      expect(chat.text, 'see ***you*** soon``');
+      expect(chat.selection, TextSelection.collapsed(offset: chat.text.length - 1), reason: 'at a cursor, typing goes between the two');
+      expect(Keys.format(KeyCommand.newChat), isFalse, reason: 'not a Writing command');
+      // A text shows the markers as written: none are put in.
+      textFocus.requestFocus();
+      await tester.pump();
+      text.selection = const TextSelection(baseOffset: 0, extentOffset: 3);
+      expect(Keys.format(KeyCommand.bold), isFalse);
+      expect(text.text, 'see you soon');
+    });
+
+    test('next and previous go down and up the list, held at its ends; from nothing open, the first or the last', () {
+      expect(Keys.stepTo(5, 2, 1), 3);
+      expect(Keys.stepTo(5, 2, -1), 1);
+      expect(Keys.stepTo(5, 4, 1), 4);
+      expect(Keys.stepTo(5, 0, -1), 0);
+      expect(Keys.stepTo(5, -1, 1), 0);
+      expect(Keys.stepTo(5, -1, -1), 4);
+    });
+
+    test('the new keys are written as each computer writes them', () {
+      expect(Keys.defaults[KeyCommand.nextChat]!.label, Platform.isMacOS ? 'Option+Down' : 'Alt+Down');
+      expect(Keys.defaults[KeyCommand.toggleSidebar]!.label, Platform.isMacOS ? r'Cmd+\' : r'Ctrl+\');
+      expect(Keys.defaults[KeyCommand.quickSwitch]!.label, Platform.isMacOS ? 'Cmd+K' : 'Ctrl+K');
+    });
   });
 }

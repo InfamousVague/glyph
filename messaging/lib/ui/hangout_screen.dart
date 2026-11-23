@@ -59,7 +59,7 @@ import 'voice_screen.dart';
 import 'jump_to_latest.dart';
 import 'space_chat_files.dart';
 import 'sticker_picker.dart';
-import 'voice.dart' show VoiceRecorder, voiceProblem;
+import 'voice.dart' show VoiceRecorder, micRefusedWords, voiceProblem;
 import '../files/file_platform.dart';
 import '../files/files_store.dart' show FilesStore;
 import '../stickers.dart' show stickerName;
@@ -897,17 +897,17 @@ class _HangoutChatState extends State<HangoutChat> {
     if (!widget.room.sendWith(sticker: stickerName(asset))) toast(context, 'Couldn\'t send the sticker.', tone: GlacierToastTone.danger);
   }
 
-  /// The microphone, on the phone itself (android/.../Voice.kt, as a Telegram chat records): recorded, then sent up as
-  /// a file and its message, as any other file here.
+  /// The microphone, on the phone (android/.../Voice.kt, as a Telegram chat records) or a computer's own
+  /// (lib/desktop/desk_voice.dart, GMFB-32): recorded, then sent up as a file and its message, as any other file here.
   Future<void> _record() async {
     try {
-      final limit = await Sms.instance.startVoice();
+      final limit = await Sms.instance.startVoice(file: true);
       if (!mounted) {
         if (limit != null) Sms.instance.cancelVoice().catchError((_) {});
         return;
       }
       if (limit == null) {
-        toast(context, 'Allow the microphone for Ghost Messaging in Android\'s settings to record a voice message.', tone: GlacierToastTone.danger);
+        toast(context, micRefusedWords(), tone: GlacierToastTone.danger);
         return;
       }
       HapticFeedback.lightImpact();
@@ -1240,7 +1240,7 @@ class _HangoutChatState extends State<HangoutChat> {
               padding: composerFootPadding(t, bottom: MediaQuery.viewInsetsOf(context).bottom > 0 ? MediaQuery.viewInsetsOf(context).bottom : widget.bottom + MediaQuery.paddingOf(context).bottom),
               child: mayWrite
                   ? Builder(builder: (context) {
-                      if (_recording != null) return VoiceRecorder(limit: _recording!, onDiscard: _discardVoice, onSend: _sendVoice, note: VoiceChanger.instance.note);
+                      if (_recording != null) return VoiceRecorder(limit: _recording!, onDiscard: _discardVoice, onSend: _sendVoice, note: VoiceChanger.instance.note, carrier: false);
                       // The same buttons in the same places as every other conversation (lib/ui/composer_box.dart): files,
                       // stickers and, on the phone itself, voice messages, as in other chats (Matt, 2026-11-18). Files
                       // only where the circle's roles let this person share them (spaceMayAttach).
@@ -1256,7 +1256,7 @@ class _HangoutChatState extends State<HangoutChat> {
                         hasSomething: _text.text.isNotEmpty || _picked.isNotEmpty,
                         onAttach: _editing != null ? null : _plusAction(attach && FilePlatform.canPick && _picked.length < HangoutMessage.mostFiles, polls: !waiting),
                         onSticker: _picked.isEmpty && !waiting && _editing == null ? _sticker : null,
-                        onRecord: attach && !Sms.remote && _picked.isEmpty && !waiting && _editing == null ? _record : null,
+                        onRecord: attach && Sms.canRecordVoice && _picked.isEmpty && !waiting && _editing == null ? _record : null,
                         // An edit is saved whenever, slow mode or not: it is no new message.
                         onSend: _editing != null
                             ? (_text.text.trim().isEmpty && _editing!.files.isEmpty ? null : _send)

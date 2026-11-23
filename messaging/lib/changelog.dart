@@ -23,6 +23,12 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.13', '2026-11-22', [
+    'Your own relay server: Settings › Routes can point the app at a relay you run yourself. It checks the address answers before switching, shows which relay is in use, and goes back to ours in one tap. People on different relays can\'t reach each other, and the docs say what else changes. The guide to running one is in the docs.',
+    'Make it yours: build your own look from four colours in Settings › Appearance and share it as a short code, or paste a friend\'s. There\'s a Readable font for easier reading, too.',
+    'Keyboard shortcuts: Cmd/Ctrl+K jumps to any conversation, Option/Alt+Up and Down move through the list, and Cmd/Ctrl+B, I and E format what you write. Search is now Cmd/Ctrl+F. Change any of them in Settings › Keyboard shortcuts.',
+    'Voice messages from your computer: the Mac and Windows apps record voice messages in chats, spaces and the networks\' chats, no phone needed, and Windows plays them too. On Linux, the app now updates itself (install this version once by hand).',
+  ]),
   ReleaseNotes('0.12.12', '2026-11-22', [
     'Stages in spaces: whoever manages a space can make its call a stage, where newcomers listen until brought up to speak. Listeners raise a hand to ask, the menu counts listeners and hands, and a stage holds far more people than an ordinary call.',
     'Formatting in messages: **bold**, *italic*, ~~strikethrough~~, `code`, quotes with "> " and ||spoilers|| that stay hidden until tapped. Choose words in a chat with a friend to make them bold, italic or code.',

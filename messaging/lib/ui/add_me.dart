@@ -13,6 +13,8 @@ import '../friends/buddies.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart';
+import '../net/net.dart';
+import '../net/relay_choice.dart';
 import '../sms.dart';
 import 'common.dart';
 
@@ -74,7 +76,11 @@ void askToAdd(BuildContext context, String link) {
   final had = b.all.where((x) => x.username == name).firstOrNull;
   if (had?.state == 'yes') return toast(context, 'You and @$name are friends already.');
   if (me.username == null) return toast(context, 'Choose a username first (Settings › Me › Profile), then open the link again.');
-  showChoices(context, title: 'Send @$name a friend request?', choices: [
+  // An add-me link names a username, and usernames are kept on each relay apart (GMFB-25): on a relay of one's own the
+  // name is looked up there, which may be someone else than whoever shared the link.
+  final net = Net.instance;
+  final elsewhere = net.onDefaultHub ? null : Text('You use ${relayInUseWords(net.hubUrl).replaceFirst('Your own relay: ', 'your own relay, ')}. @$name is looked up there, so this may be someone other than the person who shared the link, or nobody.');
+  showChoices(context, title: 'Send @$name a friend request?', header: elsewhere, choices: [
     Choice('Send a friend request', Lucide.userPlus, () async {
       try {
         final got = await b.add(name);

@@ -17,6 +17,7 @@ add_executable(${BINARY_NAME} WIN32
   "main_thread.cpp"
   "sounds.cpp"
   "clipboard.cpp"
+  "desk_sound.cpp"
   "ducking.cpp"
   "links.cpp"
   "splash.cpp"

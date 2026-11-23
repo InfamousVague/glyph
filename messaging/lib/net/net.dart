@@ -10,6 +10,7 @@ import 'crypto.dart';
 import 'forward_secrecy.dart';
 import 'hub_carrier.dart';
 import 'packet.dart';
+import 'relay_choice.dart';
 import 'sms_carrier.dart';
 import 'switchboard.dart';
 
@@ -333,8 +334,30 @@ class Net extends ChangeNotifier implements PeerBook {
     notifyListeners();
   }
 
+  /// Whether the relay in use is Ghost Messaging's own default one.
+  bool get onDefaultHub => hubUrl == defaultHub;
+
+  /// Moves to the relay at [typed] (GMFB-25; relay_choice.dart), but only once a Ghost Messaging relay answers there:
+  /// the address is tidied ([tidyRelayAddress]), asked ([checkRelay]), and [confirm], where given, asked with the
+  /// tidied address before anything changes. Empty, or our own address, is ours again and needs no check. Says why
+  /// it didn't move, or null where it did (or the person said no at [confirm]: then declined is true).
+  Future<({String? problem, bool declined})> useRelay(String typed, {RelayConnect? connect, Duration timeout = const Duration(seconds: 8), Future<bool> Function(String url)? confirm}) async {
+    final url = tidyRelayAddress(typed);
+    if (url == null) return (problem: 'That isn\'t a relay server\'s address. It looks like relay.example.com or wss://relay.example.com/hub.', declined: false);
+    if (url.isEmpty || url == defaultHub) {
+      if (!onDefaultHub) await setHub('');
+      return (problem: null, declined: false);
+    }
+    if (url == hubUrl) return (problem: null, declined: false);
+    final check = await checkRelay(url, connect: connect, timeout: timeout);
+    if (!check.ok) return (problem: check.problem, declined: false);
+    if (confirm != null && !await confirm(url)) return (problem: null, declined: true);
+    await setHub(url);
+    return (problem: null, declined: false);
+  }
+
   /// Uses another relay server ([url] empty: ours again). The route is taken out and one for the new address put
-  /// in its place: the rest of the app does not know.
+  /// in its place: the rest of the app does not know. Settings › Routes goes through [useRelay], which checks first.
   Future<void> setHub(String url) async {
     _app?.set('net_hub', url.trim());
     final board = _board, old = _hub, me = id;

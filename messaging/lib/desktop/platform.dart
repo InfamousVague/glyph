@@ -5,6 +5,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
 
+import 'desk_player.dart';
+import 'desk_voice.dart' show m4aMillis;
 import 'link/link.dart';
 
 /// What the Mac app asks of macOS (macos/Runner/DeskChannels.swift): the Mac's name, the Keychain, and Bonjour.
@@ -130,7 +132,9 @@ class MacPlatform {
     } catch (_) {}
   }
 
-  /// Ends the recording: its bytes (AAC in an `.m4a`), or null where there is nothing worth keeping.
+  /// Ends the recording: its bytes (AAC in an `.m4a`), or null where there is nothing worth keeping. Windows answers
+  /// these four too (windows/runner/desk_sound.cpp, GMFB-32), and says in `voiceStart`'s answer how many `seconds`
+  /// fit at its own rate.
   static Future<Uint8List?> voiceStop() async {
     try {
       return await _system.invokeMethod<Uint8List>('voiceStop');
@@ -139,8 +143,13 @@ class MacPlatform {
     }
   }
 
+  /// Windows and Linux play a voice message in Dart, by media_kit ([DeskPlayer], GMFB-32); the Mac and the iPhone
+  /// natively (DeskSound.swift).
+  static bool get _dartPlayer => Platform.isWindows || Platform.isLinux;
+
   /// Plays a message's sound ([bytes] the first time; null goes on with the one paused). Null, or why it cannot.
   static Future<String?> voicePlay(int part, Uint8List? bytes) async {
+    if (_dartPlayer) return DeskPlayer.play(part, bytes);
     try {
       return await _system.invokeMethod<String>('voicePlay', {'part': part, 'bytes': bytes});
     } on MissingPluginException {
@@ -149,18 +158,22 @@ class MacPlatform {
   }
 
   static Future<void> voicePause() async {
+    if (_dartPlayer) return DeskPlayer.pause();
     try {
       await _system.invokeMethod('voicePause');
     } catch (_) {}
   }
 
   static Future<void> voiceHalt() async {
+    if (_dartPlayer) return DeskPlayer.halt();
     try {
       await _system.invokeMethod('voiceHalt');
     } catch (_) {}
   }
 
   static Future<int> voiceLength(Uint8List bytes) async {
+    // Read from the file itself where no native player is asked: an .m4a says how long it runs.
+    if (_dartPlayer) return m4aMillis(bytes);
     try {
       return (await _system.invokeMethod<num>('voiceLength', {'bytes': bytes}))?.toInt() ?? 0;
     } catch (_) {
@@ -171,6 +184,7 @@ class MacPlatform {
   /// Where the sound being played has got to, as the Mac says it (DeskSound.swift `heard`): handed to [heard].
   static void listenToVoice(void Function(Map state) heard) {
     _heard = heard;
+    DeskPlayer.heard = heard;
     _listen();
   }
 

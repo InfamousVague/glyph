@@ -4,6 +4,7 @@
 // BMP in the temporary folder, which the app makes a PNG. Nothing where there is neither, and the field pastes words.
 // Also Windows' Open dialog for choosing files and pictures (Pick, below).
 #include "clipboard.h"
+#include "desk_sound.h"
 
 #include <flutter/method_channel.h>
 #include <flutter/standard_method_codec.h>
@@ -145,6 +146,8 @@ void RegisterClipboard(flutter::BinaryMessenger* messenger) {
       result->Success(flutter::EncodableValue(paths));
       return;
     }
+    // A voice message from Windows' microphone (desk_sound.cpp): this channel is the Mac's DeskChannels' too.
+    if (DeskSoundHandle(call, result)) return;
     if (call.method_name() != "pasteImage") {
       result->NotImplemented();
       return;

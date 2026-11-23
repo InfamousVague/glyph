@@ -46,7 +46,7 @@ import 'poof.dart';
 import 'sticker_picker.dart' show pickSticker;
 import 'reaction_stickers.dart';
 import 'video_screen.dart';
-import 'voice.dart' show VoiceRecorder, voiceProblem;
+import 'voice.dart' show VoiceRecorder, micRefusedWords, voiceProblem;
 import 'conversations.dart' show ConversationRow;
 import 'group_drawer.dart' show showGroupDrawer;
 import 'thread.dart' show LinkedText;
@@ -282,10 +282,10 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
 
   Future<void> _record() async {
     try {
-      final limit = await Sms.instance.startVoice();
+      final limit = await Sms.instance.startVoice(file: true);
       if (!mounted) return;
       if (limit == null) {
-        toast(context, 'Allow the microphone for Ghost Messaging in Android\'s settings to record a voice message.', tone: GlacierToastTone.danger);
+        toast(context, micRefusedWords(), tone: GlacierToastTone.danger);
         return;
       }
       HapticFeedback.lightImpact();
@@ -531,9 +531,10 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                 // layout as messages"): + at its start, the microphone while it is empty, Send once there is something.
                 final files = _n.canSendFiles;
                 final canSend = (_text.text.trim().isNotEmpty || _files.isNotEmpty) && !_sendingFiles;
-                final voice = files && !Sms.remote;
+                // The phone's microphone, or a computer's own (GMFB-32).
+                final voice = files && Sms.canRecordVoice;
                 if (_recording != null) {
-                  return VoiceRecorder(limit: _recording!, onDiscard: _discardVoice, onSend: _sendVoice, note: VoiceChanger.instance.note);
+                  return VoiceRecorder(limit: _recording!, onDiscard: _discardVoice, onSend: _sendVoice, note: VoiceChanger.instance.note, carrier: false);
                 }
                 // The same buttons in the same places as every other conversation (lib/ui/composer_box.dart), each
                 // greyed out where this network can't do it.
