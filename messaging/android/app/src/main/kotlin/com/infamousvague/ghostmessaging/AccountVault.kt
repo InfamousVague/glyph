@@ -23,6 +23,7 @@ object AccountVault {
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    /** The Keystore's AES key that seals what is kept here, made the first time it is wanted. */
     private fun wrapKey(): SecretKey {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (ks.getKey(ALIAS, null) as SecretKey?)?.let { return it }
@@ -43,6 +44,7 @@ object AccountVault {
         }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, wrapKey())
+        // Stored as the Keystore's 12-byte nonce, then the sealed words with their tag.
         val sealed = cipher.iv + cipher.doFinal(value.toByteArray(Charsets.UTF_8))
         prefs(context).edit().putString(name, Base64.getEncoder().encodeToString(sealed)).commit()
     }

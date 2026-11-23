@@ -38,9 +38,11 @@ class ShownView {
   /// The person swapped it: the words as they came in the bubble, the plugin's in the card.
   final bool flipped;
 
+  /// There are two wordings to swap, and the plugin has finished its own.
   bool get canFlip => shown.original != null && !shown.busy;
   bool get swapped => flipped && canFlip;
 
+  /// The words for the bubble and for the card (null: no card), the card's heading, and the word that swaps them.
   String get bubble => swapped ? shown.original! : shown.text;
   String? get card => shown.original == null ? null : (swapped ? shown.text : shown.original);
   String? get heading => swapped ? (shown.flipNote ?? shown.note) : shown.note;
@@ -48,6 +50,7 @@ class ShownView {
 
   void flip() => ShownStore.instance.flip(id);
 
+  /// Whether [o] would draw the same, so nothing need be built again.
   bool same(ShownView? o) => o != null && o.id == id && o.flipped == flipped && shown.same(o.shown);
 }
 
@@ -321,6 +324,7 @@ class _MenuHost implements PluginHost {
     if (say != null) this.say(say);
   }
 
+  // The rest need a conversation's page under them: nothing here.
   @override
   void open(int thread) {}
   @override

@@ -8,6 +8,7 @@ import '../app_state.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 
+/// The ways round the app, each with the name, the line and the icon Settings › Developer shows for it.
 enum NavStyle {
   /// As it was: the pill, which a circle swaps for its own dock, which Settings and the Marketplace hide on a phone,
   /// and which a space's call beside the list gives way to.
@@ -31,6 +32,7 @@ enum NavStyle {
   /// circles").
   static const fallback = NavStyle.rail;
 
+  /// The one chosen on this device, kept under [pref] by name; [fallback] where none, or a name no longer known.
   static NavStyle of(AppState app) {
     final name = app.choice(pref, '');
     for (final s in values) {

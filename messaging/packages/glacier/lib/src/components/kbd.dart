@@ -87,6 +87,7 @@ class _LineBox extends SingleChildRenderObjectWidget {
   void updateRenderObject(BuildContext context, _RenderLineBox renderObject) => renderObject.height = height;
 }
 
+/// [_LineBox]'s render object: as wide as the line, exactly [_height] tall, the line moved to its middle.
 class _RenderLineBox extends RenderShiftedBox {
   _RenderLineBox(this._height) : super(null);
 

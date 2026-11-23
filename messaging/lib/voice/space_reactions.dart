@@ -20,6 +20,7 @@ class ReactionSay {
 /// One emoji on one message, as drawn: how many put it there, whether this person did, and who.
 typedef ReactionTally = ({String emoji, int count, bool mine, List<String> who});
 
+/// Every reaction one space's chat has heard, held by its HangoutRoom: takes what is said, and counts it for drawing.
 class SpaceReactions {
   /// By message id, then person, then emoji.
   final Map<String, Map<String, Map<String, ReactionSay>>> _all = {};
@@ -39,6 +40,7 @@ class SpaceReactions {
     final mine = byPerson.putIfAbsent(person, () => {});
     final had = mine[emoji];
     if (had != null && had.at >= at) return false;
+    // Over the limit a new emoji is refused; one already there can still be changed.
     if (had == null && mine.length >= perPerson && on) return false;
     mine[emoji] = ReactionSay(on: on, at: at);
     // Most recently touched last, so the oldest go first.

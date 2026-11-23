@@ -11,15 +11,15 @@ import 'common.dart';
 import 'video_screen.dart';
 import 'voice.dart' show voiceClock, voiceProblem;
 
-/// A video in the conversation (Matt, 2026-11-14: "mp4 files are not loading it just shows up as a string of text
-/// for the filename"): a picture of where it starts, how long it runs, and a button that plays it, the whole screen in
-/// the app's own player (lib/ui/video_screen.dart) on the phone and on a computer alike (Matt, 2026-11-18: "add
-/// support for playing mkv video files and mp4's within the app in a player themed by glacier UI"; a computer's had
-/// been a window of AVFoundation's, macos/Runner/DeskVideo.swift, which could not open an .mkv).
-/// Where no picture can be made of it (a kind the device cannot read) it is still named and can still be tried.
 /// Why a video that came small is small.
 const String shrunkNote = 'Shrunk by the sender\'s phone to send as a picture message.';
 
+/// A video in the conversation, drawn as a picture of where it starts, how long it runs, and a button that plays it
+/// (Matt, 2026-11-14: "mp4 files are not loading it just shows up as a string of text for the filename"). It plays
+/// the whole screen in the app's own player (lib/ui/video_screen.dart) on the phone and on a computer alike (Matt,
+/// 2026-11-18: "add support for playing mkv video files and mp4's within the app in a player themed by glacier UI";
+/// a computer's had been a window of AVFoundation's, macos/Runner/DeskVideo.swift, which could not open an .mkv).
+/// Where no picture can be made of it (a kind the device cannot read), it is still named and can still be tried.
 class VideoBubble extends StatefulWidget {
   const VideoBubble({super.key, required this.video, required this.radius, required this.maxWidth, required this.ground, required this.ink, this.received = false, this.title});
   final Attachment video;
@@ -51,6 +51,7 @@ class _VideoBubbleState extends State<VideoBubble> {
     if (old.video.id != widget.video.id) _preview = Sms.instance.videoPreview(widget.video);
   }
 
+  /// Opens the player over the whole screen; a second press while it is opening does nothing.
   Future<void> _play() async {
     if (_starting) return;
     setState(() => _starting = true);

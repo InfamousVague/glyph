@@ -42,6 +42,7 @@ class _NewGroupState extends State<NewGroupScreen> {
     if (mounted) setState(() {});
   }
 
+  /// Makes the group of the friends chosen and opens its conversation.
   Future<void> _make() async {
     if (_chosen.isEmpty || _making) return;
     setState(() => _making = true);
@@ -116,6 +117,7 @@ class _NewGroupState extends State<NewGroupScreen> {
   }
 }
 
+/// A friend to put in the group: their face and name, pressed to choose them or not.
 class _FriendRow extends StatelessWidget {
   const _FriendRow({required this.person, required this.chosen, required this.onPressed});
   final Person person;

@@ -27,6 +27,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
   final List<Person> _to = [];
   final _field = TextEditingController();
   final _focus = FocusNode();
+  // The contacts found for what is typed, as the phone answers them.
   List<Map<String, String?>> _matches = const [];
   Timer? _debounce;
 
@@ -48,6 +49,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
     super.dispose();
   }
 
+  /// Looks contacts up for [q], once typing has paused for 120 ms.
   void _search(String q) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 120), () async {
@@ -56,11 +58,14 @@ class _ComposeScreenState extends State<ComposeScreen> {
     });
   }
 
+  /// What is typed can be written to as it stands: a phone number (three or more digits and their punctuation) or an
+  /// email address.
   bool get _typedNumber {
     final q = _field.text.trim();
     return RegExp(r'^[+()\-\s0-9.]{3,}$').hasMatch(q) || RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(q);
   }
 
+  /// Adds [p] to who it is to (once), and clears the field for the next.
   void _add(Person p) {
     if (!_to.any((x) => x.address == p.address)) setState(() => _to.add(p));
     _field.clear();
@@ -68,6 +73,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
     _focus.requestFocus();
   }
 
+  /// On to the conversation with the people chosen (a number still in the field among them), carrying the draft.
   Future<void> _next() async {
     if (_typedNumber) _add(Person(address: _field.text.trim()));
     if (_to.isEmpty) return;
@@ -187,6 +193,7 @@ Widget _face(bool dialup, Widget body) => dialup ? Builder(builder: (context) =>
 Widget _results(bool dialup, bool any, double gutter, Widget list) =>
     dialup && any ? Padding(padding: EdgeInsets.fromLTRB(gutter, 0, gutter, gutter), child: Sunken(child: list)) : list;
 
+/// One person found: their face, their name, and [line] under it.
 class _ContactRow extends StatelessWidget {
   const _ContactRow({required this.person, required this.line, required this.onPress});
   final Person person;

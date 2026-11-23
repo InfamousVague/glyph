@@ -24,6 +24,7 @@ class QrView extends StatelessWidget {
   }
 }
 
+/// Draws the code's dark squares on white, with the clear border round them.
 class _QrPainter extends CustomPainter {
   _QrPainter(this.image);
   final QrImage image;

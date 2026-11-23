@@ -441,6 +441,7 @@ sealed class SlotFill {
   Slot<Object?> get slot;
 }
 
+/// Buttons for an [ActionSlot], and below it widgets for a [WidgetSlot]: each built when its place is drawn.
 final class ActionFill<P> extends SlotFill {
   const ActionFill._(this.slot, this.build);
   @override

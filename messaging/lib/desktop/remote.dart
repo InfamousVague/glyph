@@ -51,6 +51,8 @@ class LinkCalls implements SmsCalls, CapableCalls {
   Set<String> get caps => _caps;
   Set<String> _caps = const {};
 
+  /// Asks the phone what it does. With no connection what is known stands; a phone that does not know the question
+  /// does none. Where the answer has changed, the screens are told to draw again.
   Future<void> _askCaps() async {
     Set<String> next;
     try {
@@ -106,6 +108,8 @@ class LinkCalls implements SmsCalls, CapableCalls {
     };
   }
 
+  /// The list of conversations and each conversation's messages as held in memory, in the phone's own maps: what
+  /// the screens are answered from. Null, or missing, until read from the disk or the phone.
   List<dynamic>? _conversations;
   final Map<int, List<dynamic>> _messages = {};
 
@@ -154,10 +158,13 @@ class LinkCalls implements SmsCalls, CapableCalls {
   Timer? _listSaving;
   bool _fetchingAhead = false;
 
+  /// One number for both counts (the second times a large prime, so neither hides the other): a conversation is
+  /// current while it was last read at this number. [_stale] says one changed.
   int _count(int thread) => (_changed[thread] ?? 0) + _allChanged * 1000003;
   bool _current(int thread) => _readAt[thread] == _count(thread);
   void _stale(int thread) => _changed[thread] = (_changed[thread] ?? 0) + 1;
 
+  /// Whether two answers of the phone's say the same, compared as the JSON they came as.
   static bool _same(Object? a, Object? b) => jsonEncode(a) == jsonEncode(b);
 
   /// A conversation's newest messages ([recent], as the phone just gave them, newest first) joined to the ones kept
@@ -186,6 +193,8 @@ class LinkCalls implements SmsCalls, CapableCalls {
     });
   }
 
+  /// The reading itself, behind [_read]'s queue. A conversation read whole before, and long enough, is asked only
+  /// for its newest [window], joined to what is kept ([merged]); otherwise for as many as are wanted.
   Future<void> _readNow(int thread, {int? limit, required bool quiet}) async {
     final count = _count(thread);
     final had = _messages[thread];
@@ -242,6 +251,7 @@ class LinkCalls implements SmsCalls, CapableCalls {
     }
   }
 
+  /// Writes the list to the disk a moment from now, once for a run of changes.
   void _saveListSoon() {
     // Only a whole list is kept on the disk: the first lot of one would be taken for all of it next time.
     if (!_listWhole) return;
@@ -257,6 +267,7 @@ class LinkCalls implements SmsCalls, CapableCalls {
   Future<void> _readList({bool quiet = false}) => _listReading ??= _readListNow(quiet: quiet).whenComplete(() => _listReading = null);
 
   Future<void> _readListNow({required bool quiet}) async {
+    // Noted before asking: a change the phone says of while the lots are read leaves the list not current.
     final count = _allChanged;
     final all = <dynamic>[];
     int? at = 0;
@@ -265,6 +276,7 @@ class LinkCalls implements SmsCalls, CapableCalls {
       all.addAll(page['items'] as List);
       at = (page['next'] as num?)?.toInt();
     }
+    // Once each (a pinned one comes with the first lot and again in its place), newest first.
     final byId = <Object?, dynamic>{for (final c in all) (c as Map)['id']: c};
     final next = byId.values.toList()..sort((x, y) => (((y as Map)['date'] as num?) ?? 0).compareTo(((x as Map)['date'] as num?) ?? 0));
     final had = _conversations;
@@ -282,7 +294,6 @@ class LinkCalls implements SmsCalls, CapableCalls {
     unawaited(_fetchAhead());
   }
 
-  /// One conversation's line in the list, read again from the phone; gone from here where it is gone from there.
   /// The newest each conversation had when its message sound last played here, and when this ran up.
   final Map<int, int> _soundedUpTo = {};
   final int _since = DateTime.now().millisecondsSinceEpoch;
@@ -297,6 +308,8 @@ class LinkCalls implements SmsCalls, CapableCalls {
     Sounds.instance.play(UiSound.messageIn);
   }
 
+  /// Reads one conversation's line in the list from the phone again, and plays the message sound where a text came
+  /// in; a conversation the phone no longer has is dropped from the list here.
   Future<void> _readOne(int thread) async {
     try {
       final c = await link.request('conversation', {'thread': thread});
@@ -315,6 +328,7 @@ class LinkCalls implements SmsCalls, CapableCalls {
     }
   }
 
+  /// Forgets a conversation's messages, in memory and on the disk. Its line in the list is the caller's to take out.
   void _dropThread(int thread) {
     _messages.remove(thread);
     _got.remove(thread);
@@ -371,6 +385,7 @@ class LinkCalls implements SmsCalls, CapableCalls {
     Sms.instance.changes.add(-1);
   }
 
+  /// Empties what is held in memory. The disk counts as read, so nothing old is brought back from it.
   void _forgetKept() {
     _conversations = null;
     _messages.clear();
@@ -385,7 +400,12 @@ class LinkCalls implements SmsCalls, CapableCalls {
     _listRead = true;
     _listSaving?.cancel();
   }
+
+  /// What is half written in each conversation, held here for as long as the app runs.
   final Map<int, String> _drafts = {};
+
+  /// The texts typed while the phone was away, oldest first. Each has an id below zero ([_localId] counts down),
+  /// which no message of the phone's has. [_flushing]: they are being sent now.
   final List<_Waiting> _waiting = [];
   int _localId = -1;
   bool _flushing = false;
@@ -395,6 +415,8 @@ class LinkCalls implements SmsCalls, CapableCalls {
   /// How many texts are waiting for the phone.
   int get waiting => _waiting.where((w) => !w.failed).length;
 
+  /// Reads this computer's choices and starts listening to the link: the phone's "changed", and each time the
+  /// phone is reached again. Called once, before anything is drawn.
   Future<void> init() async {
     _prefs = await store.prefs();
     // On a computer Enter sends, as every desktop messenger has it; the choice can still be changed.
@@ -420,6 +442,7 @@ class LinkCalls implements SmsCalls, CapableCalls {
 
   bool _wasOnline = false, _everOnline = false;
 
+  /// Plays the disconnected sound as the phone goes, and the connected sound as it comes back.
   void _linkChanged() {
     final now = link.online;
     if (now == _wasOnline) return;
@@ -867,6 +890,7 @@ class LinkCalls implements SmsCalls, CapableCalls {
     _conversations = byId.values.toList()..sort((x, y) => (((y as Map)['date'] as num?) ?? 0).compareTo(((x as Map)['date'] as num?) ?? 0));
   }
 
+  /// A conversation's line in the list as it is held, or null where it is not among those read.
   Map<String, dynamic>? _cached(int thread) {
     for (final c in _conversations ?? const []) {
       if (((c as Map)['id'] as num?)?.toInt() == thread) return c.cast<String, dynamic>();
@@ -874,10 +898,10 @@ class LinkCalls implements SmsCalls, CapableCalls {
     return null;
   }
 
-  /// A picture, fetched in pieces (the phone hands over at most a frame's worth at a time).
   /// The last few videos brought over, so the one a picture was just made of is not fetched again to be played.
   final _videos = <int, Uint8List>{};
 
+  /// A video's bytes, from the last four held or fetched from the phone; null where they cannot be had.
   Future<Uint8List?> _video(int id) async {
     final had = _videos.remove(id);
     final bytes = had ?? await _part(id);
@@ -906,7 +930,7 @@ class LinkCalls implements SmsCalls, CapableCalls {
     }
   }
 
-  /// A picture's or video's bytes from the phone, a piece at a time (Matt, 2026-11-20: "some photos and videos are not
+  /// A picture's or video's bytes from the phone, a piece at a time, each a frame's worth at most (Matt, 2026-11-20: "some photos and videos are not
   /// coming through"): two at once at most ([_partsAtOnce]), the rest waiting their turn, since every piece asked of a
   /// phone that answers on two threads waited behind all the others and a conversation of pictures ran past the 20
   /// seconds a request is given; and a piece the link drops or is slow with is asked again twice before the picture is
@@ -948,10 +972,13 @@ class LinkCalls implements SmsCalls, CapableCalls {
     }
   }
 
+  /// How many pictures are fetched from the phone at once; the rest wait their turn, first come first.
   static const _partsAtOnce = 2;
   int _partsGoing = 0;
   final List<Completer<void>> _partsWaiting = [];
 
+  /// An address in the form two writings of it share: a number's last ten digits (all of them, from seven to ten),
+  /// anything else trimmed and in lower case.
   static String _digits(String address) {
     final d = address.replaceAll(RegExp(r'[^0-9]'), '');
     return d.length >= 7 ? (d.length > 10 ? d.substring(d.length - 10) : d) : address.trim().toLowerCase();
@@ -1041,6 +1068,8 @@ class LinkCalls implements SmsCalls, CapableCalls {
     return _went(sent);
   }
 
+  /// Sends a text through the phone; answers the conversation it went into. With the phone away it is kept among
+  /// those waiting, where the conversation is one already known.
   Future<int> _send(Map<String, dynamic> a) async {
     final addresses = [for (final x in (a['addresses'] as List? ?? const [])) '$x'];
     final body = '${a['body'] ?? ''}';
@@ -1085,12 +1114,17 @@ class LinkCalls implements SmsCalls, CapableCalls {
 /// A text typed while the phone could not be reached.
 class _Waiting {
   _Waiting({required this.key, required this.thread, required this.addresses, required this.body, required this.id}) : date = DateTime.now();
+  /// The name the phone remembers it by, so it is sent once however often it is asked.
   final String key;
   final int thread;
   final List<String> addresses;
   final String body;
+
+  /// Below zero: its id among the conversation's messages until the phone has it.
   final int id;
   final DateTime date;
+
+  /// The phone was reached and would not send it.
   bool failed = false;
 
   /// As the conversation draws it, among the phone's own messages.

@@ -83,6 +83,7 @@ class CallService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        // Six hours at most, so a call that never ends cannot hold the processor awake for good.
         if (wake == null) {
             wake = (getSystemService(POWER_SERVICE) as PowerManager).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "GhostMessaging:call").apply {
                 setReferenceCounted(false)

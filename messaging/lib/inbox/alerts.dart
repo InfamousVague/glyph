@@ -48,10 +48,16 @@ class InboxAlerts {
   /// The app's own, once watching (lib/main.dart).
   static InboxAlerts? instance;
 
+  /// Each network's chats' unread counts at the last look, by network id then chat id: a count that rose is news.
   final _unread = <String, Map<String, int>>{};
+
+  /// When each network was first seen ready: nothing dated before that is notified.
   final _since = <String, DateTime>{};
+
+  /// The names last given to [keepAlive], to tell it only of changes.
   List<String> _alive = const [];
 
+  /// Begins watching every offered network of [inbox], looking at its list on each change.
   void watch(Inbox inbox) {
     for (final n in inbox.networks) {
       if (n.soon) continue;
@@ -81,6 +87,7 @@ class InboxAlerts {
     final before = _unread[n.id];
     final chats = n.shownChats;
     _unread[n.id] = {for (final c in chats) c.id: c.unread};
+    // The first look only takes the counts down: what was unread already is not news.
     if (before == null) return;
     for (final c in chats) {
       final key = '${n.id}:${c.id}';

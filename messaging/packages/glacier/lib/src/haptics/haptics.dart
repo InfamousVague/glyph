@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 /// The kit's haptic vocabulary (`@glacier/react` haptics.ts `HapticKind`).
 enum HapticKind { selection, light, medium, heavy, success, warning, error }
 
+/// Something that gives feedback of a kind: the kit's [haptic], or a provider's own ([HapticsProvider.of]).
 typedef HapticFn = void Function([HapticKind kind]);
 
 /// Programmatic feedback, announced so a visual layer can answer in the same frame as the motor (feedback.ts).
@@ -28,6 +29,7 @@ VoidCallback subscribeFeedback(void Function(FeedbackEvent) listener) {
   return () => _listeners.remove(listener);
 }
 
+/// Tells every subscriber of [event], whether or not the motor is on.
 void emitFeedback(FeedbackEvent event) {
   for (final listener in _listeners.toList()) {
     listener(event);
@@ -64,8 +66,10 @@ void fireMotor([HapticKind kind = HapticKind.light]) {
   }
 }
 
+/// Whether the platform has success, warning and error feedback of its own.
 bool get _notifies => defaultTargetPlatform == TargetPlatform.iOS;
 
+/// Plays [taps] one after another, [everyMs] milliseconds apart, the first at once.
 void _pattern(List<Future<void> Function()> taps, int everyMs) {
   for (var i = 0; i < taps.length; i++) {
     if (i == 0) {
@@ -94,6 +98,7 @@ class HapticTarget extends StatelessWidget {
   Widget build(BuildContext context) => MetaData(metaData: _HapticMark(enabled ? kind : null), behavior: HitTestBehavior.translucent, child: child);
 }
 
+/// What a [HapticTarget] leaves in the render tree for the provider's hit test to find; a null [kind] gives none.
 class _HapticMark {
   const _HapticMark(this.kind);
   final HapticKind? kind;
@@ -121,6 +126,7 @@ class HapticsProvider extends StatefulWidget {
 class _HapticsProviderState extends State<HapticsProvider> {
   HapticFn get _motor => widget.impl ?? fireMotor;
 
+  /// What [HapticsProvider.of] hands out: the motor (or [HapticsProvider.impl]) and the announcement together.
   void _fire([HapticKind kind = HapticKind.light]) {
     _motor(kind);
     emitFeedback(FeedbackEvent(kind));
@@ -154,6 +160,7 @@ class _HapticsProviderState extends State<HapticsProvider> {
   Offset _from = Offset.zero;
   Duration _at = Duration.zero;
 
+  /// The kind of the front-most [HapticTarget] under [position], or null where there is none or it is silent.
   HapticKind? _kindAt(Offset position, int viewId) {
     final result = HitTestResult();
     WidgetsBinding.instance.hitTestInView(result, position, viewId);
@@ -200,6 +207,8 @@ class _HapticsProviderState extends State<HapticsProvider> {
   }
 }
 
+/// Carries the provider's fire function down the tree. It never notifies: the function is the same for the
+/// provider's whole life.
 class _HapticsScope extends InheritedWidget {
   const _HapticsScope({required this.fire, required super.child});
   final HapticFn fire;

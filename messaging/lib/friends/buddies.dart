@@ -66,6 +66,8 @@ class Buddy {
   /// (GMFB-40): kept only so their friend requests and messages are dropped, never given a sealing key (android
   /// Buddies.kt and Chats.peersOf take only the other three).
   final String state;
+
+  /// When this phone asked them or was asked, ms since 1970.
   final int at;
 
   /// Their name, else their username, with no "@" in front (bareName).
@@ -108,6 +110,7 @@ class Buddy {
     return {for (final e in l.entries.take(12)) if (e.key is String && e.value is String && (e.value as String).length <= 80) e.key as String: e.value as String};
   }
 
+  /// The buddy [j] is; null without a username, an id and a key. A picture over the limit is left out.
   static Buddy? fromJson(Object? j) {
     if (j is! Map) return null;
     final u = j['u'], i = j['i'], k = j['k'];
@@ -123,6 +126,8 @@ class Buddy {
 abstract class BuddiesPort {
   /// This install's name and public key (base64).
   Future<({String id, String key})> me();
+
+  /// This person's own username, name and line; and who has [username] in the relay's directory (null for nobody).
   String? get username;
   String get displayName;
   String get bio;
@@ -196,6 +201,18 @@ abstract class BuddiesAcross {
 /// that relay only when the person asks to add them ([Buddies.add]), never as they type.
 enum BuddyLookup { nobody, you, someone, elsewhere }
 
+/// Friends by username on this install: the list, the requests either way, and what friends are told of this
+/// person. On a computer paired with a phone it asks the phone for everything.
+///
+/// Becoming friends is said over the routes as envelopes of kind `buddy`:
+/// - **ask**, in the clear, as a greeting (`hello` with `buddy: ask`), carrying the asker's username, name, line
+///   and public key. Anyone can send it; the hub says who sent it, and the key is checked against that name, so it
+///   can't be sent in someone else's name. It is shown as a request, and nothing more is taken from it.
+/// - **yes**, sealed: the other said yes; their name and line come with it. Two who ask each other are friends.
+/// - **no** and **end**, sealed: no, or no longer. **me**, sealed: a friend changed their name or line.
+///
+/// The list is kept on the phone (`buddies`), and the phone works out the key each pair seals with from it, so
+/// the routes reach them as they reach anyone encryption is on with.
 class Buddies extends ChangeNotifier {
   /// What the phone last said its friends are, as it said it ([refresh]).
   String? _lastSaid;
@@ -218,9 +235,12 @@ class Buddies extends ChangeNotifier {
   final BuddiesPort _port;
   final LookupBudget _lookups;
   final List<StreamSubscription<Object?>> _subs = [];
+
+  /// Everyone a request has passed between, whatever its state.
   List<Buddy> all = [];
   bool _started = false;
 
+  /// Those who said yes, or were said yes to.
   List<Buddy> get friends => [for (final b in all) if (b.state == 'yes') b];
 
   /// [friends] as a list shows them: one each, by username (Matt, 2026-11-19: "my friends are duplicated I have two
@@ -247,6 +267,8 @@ class Buddies extends ChangeNotifier {
         if (identical(best[b.username.toLowerCase()], b) && seen.add(b.username.toLowerCase())) b,
     ];
   }
+
+  /// Those who asked this person and wait for an answer; and those this person asked.
   List<Buddy> get requests => [for (final b in all) if (b.state == 'invited') b];
   List<Buddy> get asked => [for (final b in all) if (b.state == 'asked') b];
 
@@ -313,6 +335,7 @@ class Buddies extends ChangeNotifier {
   /// How often.
   static const askEvery = Duration(minutes: 5);
 
+  /// On a computer: asks the phone to do [what], and takes the list it answers with. A refusal comes as a [MeError].
   Future<Map<String, Object?>> _ask(Map<String, Object?> what) async {
     final Map<String, dynamic> r;
     try {
@@ -396,6 +419,8 @@ class Buddies extends ChangeNotifier {
     return {'list': list(), 'ga': GameActivities.instance.all()};
   }
 
+  /// On a phone: reads the kept list, listens to the routes, and begins asking unanswered requests again. On a
+  /// paired computer: reads the phone's list, now and every twenty seconds.
   Future<void> start() async {
     if (_started) return;
     _started = true;
@@ -777,11 +802,13 @@ class Buddies extends ChangeNotifier {
     return sent;
   }
 
+  /// Keeps the list on the phone and tells listeners.
   Future<void> _save() async {
     await _port.keep(jsonEncode([for (final b in all) b.toJson()]));
     notifyListeners();
   }
 
+  /// Puts [b] in the list in place of whoever had its id, and keeps their picture.
   void _put(Buddy b) {
     all = [for (final o in all) if (o.id != b.id) o, b];
     ProfilePictures.instance.keep(b.id, b.picture);
@@ -1171,6 +1198,7 @@ class Buddies extends ChangeNotifier {
     unawaited(_save());
   }
 
+  /// A sealed `buddy` envelope from someone on the list: their yes, no or end, a changed profile, or their game.
   void _sealed(String from, Envelope e) {
     // Where a friend lives, as they signed it (kind `home`).
     if (e.kind == 'home') return _heardHome(from, e.body['rec'], e.body['has']);
@@ -1267,6 +1295,7 @@ class _AppBuddiesPort implements BuddiesPort, BuddiesAcross, BuddiesSigner {
   Switchboard? _board;
   StreamSubscription<Object?>? _boardSub;
 
+  /// Listens to the switchboard's strangers (greetings in the clear), and again each time the routes are set up anew.
   void _follow() {
     final homes = Net.instance.homes;
     if (!identical(homes, _homes)) {

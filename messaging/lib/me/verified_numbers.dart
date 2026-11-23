@@ -46,6 +46,7 @@ class VerifiedNumbers extends ChangeNotifier {
   /// Whether this person verified their own number (Settings › Me), for their own messages.
   bool get mine => (Me.instance.number ?? '').isNotEmpty;
 
+  /// The answer kept under [key], while it is no older than [keep]; null where there is none or it has gone stale.
   bool? _fresh(String key) {
     final k = _known[key];
     if (k == null || DateTime.now().difference(k.at) > keep) return null;

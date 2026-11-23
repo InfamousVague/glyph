@@ -102,6 +102,7 @@ func roomTitle(name, alias string, others []id.UserID, names map[id.UserID]strin
 	}
 }
 
+// itoa is a count that is never negative, in digits.
 func itoa(n int) string {
 	if n == 0 {
 		return "0"

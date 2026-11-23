@@ -13,6 +13,7 @@ import java.util.Base64
 object Buddies {
     private fun prefs(context: Context) = context.getSharedPreferences("buddies", Context.MODE_PRIVATE)
 
+    /** The list as Dart hands it over, a JSON array, kept whole; [kept] gives it back ("[]" for none). */
     fun keep(context: Context, json: String) {
         prefs(context).edit().putString("list", json).apply()
     }

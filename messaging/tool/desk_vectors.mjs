@@ -10,8 +10,10 @@ const hmac = (key, data) => createHmac('sha256', key).update(data).digest();
 const hkdf = (salt, ikm, info) => hmac(hmac(salt, ikm), Buffer.concat([Buffer.from(info), Buffer.from([1])]));
 /** A value made from a key that is already uniform: the pairing's id, its relay channel, its code. */
 const derive = (key, label) => hmac(key, Buffer.concat([Buffer.from('ghost-desk ' + label), Buffer.from([1])]));
+/** Two byte strings joined smaller first, so both ends make the same salt whichever key is theirs. */
 const ordered = (a, b) => (Buffer.compare(a, b) <= 0 ? Buffer.concat([a, b]) : Buffer.concat([b, a]));
 
+/** A P-256 key pair from a fixed private key: the ECDH object and the public key, compressed. */
 function pair(privHex) {
   const e = createECDH('prime256v1');
   e.setPrivateKey(Buffer.from(privHex, 'hex'));
@@ -28,6 +30,7 @@ const input = {
   phoneNonce: 'e0e1e2e3e4e5e6e7e8e9eaebecedeeef',
 };
 
+// The pairing: the two long-lived keys agree, and the key of the pair is made from that and the offer's secret.
 const desk = pair(input.deskPrivate);
 const phone = pair(input.phonePrivate);
 const secret = Buffer.from(input.secret, 'hex');
@@ -35,8 +38,10 @@ const shared = desk.e.computeSecret(phone.pub);
 const pairKey = hkdf(ordered(phone.pub, desk.pub), Buffer.concat([shared, secret]), 'ghost-messaging desktop v1');
 
 const code = String(derive(pairKey, 'code').readUInt32BE(0) % 1000000).padStart(6, '0');
+/** A value made from the offer's secret alone, which both ends hold before they have each other's key. */
 const fromSecret = (label) => hkdf(Buffer.from('ghost-desk pairing'), secret, label);
 
+// A session: two one-time keys agree, and with the pair's key and both nonces give a key for each direction.
 const de = pair(input.deskEphemeral);
 const pe = pair(input.phoneEphemeral);
 const ee = de.e.computeSecret(pe.pub);
@@ -45,6 +50,7 @@ const expand = (label) => hmac(prk, Buffer.concat([Buffer.from(label), Buffer.fr
 const deskKey = expand('d2p');
 const phoneKey = expand('p2d');
 
+/** One frame sealed with AES-256-GCM: the nonce is the frame's counter in its last eight bytes; the tag follows. */
 function seal(key, counter, text) {
   const nonce = Buffer.alloc(12);
   nonce.writeBigUInt64BE(BigInt(counter), 4);

@@ -26,6 +26,7 @@ object MmsDiag {
         }.apply()
     }
 
+    /** The picture message in [row] went, or is gone: what was kept about its failing is forgotten. */
     fun cleared(context: Context, row: Uri) {
         prefs(context).edit().remove("why:${row.lastPathSegment}").remove("small:${row.lastPathSegment}").remove("tries:${row.lastPathSegment}").apply()
     }
@@ -47,6 +48,7 @@ object MmsDiag {
         prefs(context).edit().putString("last_$kind", listOf(System.currentTimeMillis(), if (ok) 1 else 0, detail).joinToString(SEP)).apply()
     }
 
+    /** What [note] kept for [kind]: `at` (milliseconds), `ok` and `detail`; null where nothing was. */
     private fun last(context: Context, kind: String): Map<String, Any?>? {
         val f = prefs(context).getString("last_$kind", null)?.split(SEP) ?: return null
         if (f.size < 3) return null
@@ -65,6 +67,7 @@ object MmsDiag {
         }
     }
 
+    /** The picture messages announced and not yet fetched, the longest waiting first. */
     fun waiting(context: Context): List<Waiting> =
         prefs(context).getStringSet("waiting", emptySet())!!.mapNotNull { Waiting.of(it) }.sortedBy { it.since }
 

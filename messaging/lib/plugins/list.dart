@@ -47,6 +47,7 @@ abstract interface class PluginEffects {
   Future<List<String>?> unreadIncoming(int thread);
 }
 
+/// The app's own effects: each asked of the phone through [Sms].
 class SmsEffects implements PluginEffects {
   const SmsEffects();
 
@@ -105,6 +106,8 @@ class Sorted {
   bool has(String? section) => section != null && (counts.containsKey(section) || sections.any((s) => s.id == section && s.section.alwaysNow));
 }
 
+/// The list's side of the plugins, one for the list's screen: it keeps each conversation's tags ([TagStore]), sorts
+/// the conversations into sections, and does what the plugins' incoming rules ask as texts come.
 class ListPlugins {
   ListPlugins({required this.changed, required this.open, required this.refresh, PluginRegistry? registry, this.effects = const SmsEffects()}) : registry = registry ?? PluginRegistry.instance {
     tags = TagStore(this.registry, onTagged: _arrived)..addListener(changed);
@@ -487,6 +490,8 @@ class ListPlugins {
     }).catchError((_) {});
   }
 
+  /// Asks the phone whether a sign-in code waits unread in [facts]' conversation, once for each state of it (its
+  /// date and words), and keeps the answer in [_codeWaiting].
   Future<void> _lookForCode(MessageFacts facts) async {
     final thread = facts.thread;
     final seen = (facts.date?.millisecondsSinceEpoch ?? 0, facts.text);
@@ -514,6 +519,8 @@ class ListPlugins {
     if (!_gone) this.changed();
   }
 
+  /// Does what the incoming rules [asked] of a text that just came: marks read, mutes, moves. A plugin from another
+  /// developer is held to more than a built-in is, as said at each step.
   Future<void> _apply(MessageFacts facts, TagSet tags, List<BoundIncoming> asked, PluginStore store) async {
     if (_gone) return;
     var reread = false;
@@ -575,6 +582,8 @@ class ListPlugins {
     return true;
   }
 
+  /// The conversations a plugin muted, each with the plugin's id and the section it was in then; kept in one choice
+  /// as `thread:plugin:section`, commas between.
   List<(int, String, String)> _muted(PluginStore store) {
     final raw = store.read(mutedKey);
     if (raw == null) return const [];

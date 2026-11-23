@@ -133,7 +133,10 @@ class PaneBody extends StatefulWidget {
 }
 
 class _PaneBodyState extends State<PaneBody> {
+  /// How many of the children are built so far.
   late int _built = math.min(widget.children.length, PaneBody.soon);
+
+  /// A frame's callback is already asked for: one lot of children a frame, however often the pane is built in it.
   bool _waiting = false;
 
   @override
@@ -173,6 +176,7 @@ class _PaneBodyState extends State<PaneBody> {
   }
 }
 
+/// A pane's child told its place among the pane's children, counted from 1 as `:nth-child` counts.
 class _NthChild extends InheritedWidget {
   const _NthChild({required this.nth, required super.child});
   final int nth;
@@ -197,7 +201,10 @@ class SettingsRise extends StatefulWidget {
 }
 
 class _SettingsRiseState extends State<SettingsRise> with SingleTickerProviderStateMixin {
+  /// Milliseconds: how long the rise takes, and how much later each place in the arrival starts.
   static const _rise = 360, _step = 40;
+
+  /// Runs over the delay and the rise together; [_eased] is still through the delay, then eases over the rest.
   AnimationController? _controller;
   Animation<double>? _eased;
 
@@ -282,6 +289,7 @@ class _SettingsFindableMarkState extends State<SettingsFindableMark> with Single
     }
   }
 
+  /// Says the name to [finder], in place of whatever was said before; nothing with no finder or no name.
   void _register(SettingsFinder? finder) {
     if (identical(finder, _finder) && _entry != null) return;
     _unregister();
@@ -299,6 +307,7 @@ class _SettingsFindableMarkState extends State<SettingsFindableMark> with Single
     _finder = null;
   }
 
+  /// Starts the light from its beginning: what [FoundSetting.light] calls.
   void _lightUp() {
     if (!mounted) return;
     // The light is a moment, not a movement: it lasts as long on a device that asks for less motion, and holds still.
@@ -439,6 +448,7 @@ class _RowRule extends Decoration {
   BoxPainter createBoxPainter([VoidCallback? onChanged]) => _RowRulePainter(t.color('app-rule'), t.len('glacier-hairline'));
 }
 
+/// Draws the line along the top edge of the box, [width] thick.
 class _RowRulePainter extends BoxPainter {
   _RowRulePainter(this.color, this.width);
   final Color color;
@@ -769,6 +779,7 @@ class _HeroDotState extends State<_HeroDot> with SingleTickerProviderStateMixin 
     _sync();
   }
 
+  /// Starts or stops the breathing as [_HeroDot.pulse] and reduced motion now have it; stopped, the dot is whole.
   void _sync() {
     final on = widget.pulse && !context.tokens.reducedMotion;
     if (on && !_beat.isAnimating) _beat.repeat();
@@ -1133,6 +1144,8 @@ class Pick extends StatelessWidget {
   }
 }
 
+/// A [Pick]'s ring, and inside it a band of [fill] that grows inward from the ring as it is chosen: [inset] is how
+/// far in from the edge the band reaches, the [border] included.
 class _PickPainter extends CustomPainter {
   _PickPainter({required this.ring, required this.fill, required this.inset, required this.border});
   final Color ring, fill;

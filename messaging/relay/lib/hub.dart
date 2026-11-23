@@ -317,9 +317,17 @@ class Hub {
 
   /// How much is held for everyone together, in bytes, and how many may be connected: a server with a few hundred
   /// megabytes to itself, open to anyone who can make a key, is not to be filled by them.
+  ///
+  /// A held packet is counted as its bytes and [heldOverhead] more: what holding it costs beside its bytes. Counted
+  /// by its bytes alone, one connection sending the smallest packets to made-up names filled several times
+  /// [heldBytes] of memory before the count said full.
   final int heldBytes;
   final int maxConnections;
   int _held = 0;
+
+  /// What holding one packet costs beside its bytes: its place in a mailbox, the byte array's and the record's own
+  /// headers, when it came. Rounded up, so [heldBytes] is never less than the memory it stands for.
+  static const heldOverhead = 256;
 
   static const maxPacket = 64 * 1024;
 
@@ -368,6 +376,8 @@ class Hub {
   /// How many packets [room] keeps, for a test.
   int keptIn(String room) => _kept[room]?.frames.length ?? 0;
 
+  /// Adds [frame] to what the room kept under [name] keeps. A room whose token changed (another [hash]) starts again
+  /// with nothing, so what was kept under the old token is never handed to holders of the new one.
   void _keep(String name, String hash, Uint8List frame) {
     var box = _kept[name];
     if (box == null || box.hash != hash) {
@@ -441,6 +451,9 @@ class Hub {
   }
 
   bool _allAway(String id) => (_here[id] ?? const <_End>[]).every((e) => e.away);
+
+  /// [_mail]: packets held for each name that is away. [_rooms]: every room someone is in, by its key ([_keyOf]).
+  /// [_watching]: for each watched name, the connections to tell when it comes, goes or is put away.
   final Map<String, List<_Held>> _mail = {};
   final Map<String, _Room> _rooms = {};
   final Map<String, Set<_End>> _watching = {};
@@ -471,17 +484,21 @@ class Hub {
   /// Who is looking at a room without being in it (a voice channel's list: who is connected), by room, with the hash
   /// of the token each looked with. Told who is in it now and whenever that changes; a wrong token is told nothing.
   final Map<String, Map<_End, String>> _lookers = {};
+  // The most rooms one connection may look at.
   static const maxLooks = 200;
   Timer? _sweeper;
 
+  // Open WebSockets, signed in or not yet: what maxConnections is held against. `connected` counts the signed in.
   int _open = 0;
   int get connected => _here.values.fold(0, (n, l) => n + l.length);
 
   /// How much is held for people who are away, in bytes.
   int get holding => _held;
   int get rooms => _rooms.length;
+  // How many packets are held for [id].
   int heldFor(String id) => _mail[id]?.length ?? 0;
 
+  /// Loads what each part keeps on disk, and every ten minutes drops what has grown old here and in each of them.
   void start() {
     handles?.load();
     _loadV2();
@@ -500,6 +517,7 @@ class Hub {
     });
   }
 
+  /// Writes what each part keeps and closes every connection. Held and kept packets are in memory and go with it.
   void stop() {
     _sweeper?.cancel();
     _sweeper = null;
@@ -600,6 +618,12 @@ class Hub {
   }
 
   /// Takes a connection that asked for the hub (the relay hands over any address ending in `/hub`).
+  ///
+  /// The hub says `{hello: <its number, hex>}`; the app answers `{id, key, sig, device?, peek?}` and is told
+  /// `{ok, held}` and handed what was held for it. After that a binary message is a packet ([_packet]) and a text one
+  /// is JSON, known by its key: `ping`, `push` (pushes.dart), `dir` (accounts, invite words, invites, handles, in that
+  /// order), `watch`, `away`, `join`, `anchor`, `leave`, `look`, `unlook`. Close codes: 4400 bad hello, 4401 no hello
+  /// in time, 4409 replaced by a newer connection of the same device.
   Future<void> accept(HttpRequest request) async {
     if (_open >= maxConnections) {
       request.response.statusCode = HttpStatus.serviceUnavailable;
@@ -635,6 +659,7 @@ class Hub {
     }
     _open++;
     var counted = true;
+    // The hub's number: made fresh for each connection, so a signature heard once signs nobody in again.
     final nonce = [for (var i = 0; i < 32; i++) _random.nextInt(256)];
     final number = hexOf(nonce);
     _nonces.add(number);
@@ -653,6 +678,8 @@ class Hub {
     // Another relay's link, once its hello has come in place of an app's: what it says from then on is federation's.
     FedEnd? link;
 
+    // This connection has ended: out of its rooms, looks and watches, and, where it was the name's last device here,
+    // those watching the name are told it went and when it was last using the app.
     void leave() {
       waiting.cancel();
       _nonces.remove(number);
@@ -801,7 +828,7 @@ class Hub {
         final back = [for (final h in all) if (h.byDevice != null && h.byDevice == made.device) h];
         final held = [for (final h in all) if (!back.contains(h)) h];
         if (back.isNotEmpty) _mail[made.id] = back;
-        _held -= held.fold<int>(0, (n, h) => n + h.frame.length);
+        _held -= held.fold<int>(0, (n, h) => n + h.cost);
         final cutoff = _now().subtract(holdFor);
         final fresh = held.where((h) => h.at.isAfter(cutoff)).toList();
         _tell(socket, {'ok': true, 'held': fresh.length, 'now': _now().millisecondsSinceEpoch, 'since': started.millisecondsSinceEpoch, if (helpers.isNotEmpty) 'helpers': helpers});
@@ -839,6 +866,7 @@ class Hub {
         // are answered as a relay from before answered them.
         federation!.said(e.id, said, e.tell, place: e.place);
       } else if (said['dir'] is String && Accounts.dirs.contains(said['dir'])) {
+        // A `dir` message goes to the part that names it, tried in this order; any other is the handles' to answer.
         final a = accounts;
         if (a == null) {
           _tell(socket, {'dir': 'err', 'about': said['dir'], 'err': 'This server keeps no accounts.'});
@@ -871,6 +899,7 @@ class Hub {
           h.said(e.id, said, fed != null && fed.on && said['dir'] == 'whois' ? (m) => e.tell(fed.withHome(m)) : e.tell);
         }
       } else if (said['watch'] is List) {
+        // Names to be told about from now on, and how each stands now: here, here but away, or when last seen.
         final ids = (said['watch'] as List).where((i) => _hex(i, 32)).cast<String>().take(maxWatched).toList();
         for (final id in ids) {
           if (e.watches.length >= maxWatched && !e.watches.contains(id)) break;
@@ -922,6 +951,9 @@ class Hub {
     }, onDone: leave, onError: (_) => leave(), cancelOnError: true);
   }
 
+  /// A binary message from [from], routed by its first byte ([toPeer], [toRoom], [toRoomKept], [toRoomReaction]). What
+  /// is passed on has the sender's name (16 bytes) put in by the hub, so nobody can send under another's. A packet to
+  /// one person is answered `{ack: seq, here: bool}` or `{nak: seq, err: 'full'}`; a packet to a room is not answered.
   void _packet(_End from, List<int> data) {
     if (data.length > maxPacket + 32 || data.isEmpty) {
       from.ws.close(WebSocketStatus.messageTooBig, 'too big');
@@ -1013,10 +1045,10 @@ class Hub {
     var size = box.fold<int>(0, (n, h) => n + h.frame.length);
     final back = <_Held>[];
     for (final h in items.reversed) {
-      if (box.length + back.length >= mailboxFrames || size + h.frame.length > mailboxBytes || _held + h.frame.length > heldBytes) break;
+      if (box.length + back.length >= mailboxFrames || size + h.frame.length > mailboxBytes || _held + h.cost > heldBytes) break;
       back.insert(0, h);
       size += h.frame.length;
-      _held += h.frame.length;
+      _held += h.cost;
     }
     box.insertAll(0, back);
     if (box.isEmpty) _mail.remove(to);
@@ -1025,12 +1057,12 @@ class Hub {
   bool _hold(String to, Uint8List frame, {String? byDevice}) {
     final box = _mail[to] ??= [];
     final size = box.fold<int>(0, (n, h) => n + h.frame.length);
-    if (box.length >= mailboxFrames || size + frame.length > mailboxBytes || _held + frame.length > heldBytes) {
+    if (box.length >= mailboxFrames || size + frame.length > mailboxBytes || _held + _Held.costOf(frame) > heldBytes) {
       if (box.isEmpty) _mail.remove(to);
       return false;
     }
     box.add(_Held(frame, _now(), byDevice: byDevice));
-    _held += frame.length;
+    _held += _Held.costOf(frame);
     // Their app is closed: woken where it can be (an iPhone's push; an Android phone looks for itself).
     pushes?.held(to);
     return true;
@@ -1063,6 +1095,8 @@ class Hub {
     }
   }
 
+  /// `{look: room, token}`: [e] is told who is in the room now (`{room, look: [names]}`) and whenever that changes,
+  /// without joining it. With a token that is not the room's it is told nothing, now or later.
   void _look(_End e, Object? name, Object? token) {
     if (!_hex(name, 32) || !_hex(token, 64)) return;
     if (e.looks.length >= maxLooks && !e.looks.contains(name)) return;
@@ -1073,6 +1107,7 @@ class Hub {
     if (room == null || room.hash == hash) _tell(e.ws, {'room': name, 'look': [...?room?.members.keys]});
   }
 
+  /// `{unlook: room}`: [e] stops being told who is in the room.
   void _unlook(_End e, String name) {
     e.looks.remove(name);
     final lookers = _lookers[name];
@@ -1080,6 +1115,10 @@ class Hub {
     if (lookers != null && lookers.isEmpty) _lookers.remove(name);
   }
 
+  /// `{join: room, token, ro?}`: puts [e] in the room, making it where it is new (its token is then this one). Answered
+  /// `{room, ok: true, members, ro?}` and handed what the room kept, or `{room, ok: false, err}`: `bad room`,
+  /// `bad anchor` (a read-only room whose name is not made from the owner's key), `refused` (wrong token, or already in
+  /// the other room of this name) or `full`. The others in it are told `{room, came}`.
   void _join(_End e, Object? name, Object? token, [Map? ro]) {
     if (!_hex(name, 32) || !_hex(token, 64)) {
       _tell(e.ws, {'room': name, 'ok': false, 'err': 'bad room'});
@@ -1163,7 +1202,7 @@ class Hub {
     _say('${e.id.substring(0, 6)} left room ${name.substring(0, 6)}');
   }
 
-  /// Forgets packets held longer than [holdFor].
+  /// Forgets packets held for someone longer than [holdFor], and those a room kept longer than [roomKeepFor].
   void sweep() {
     final keptCutoff = _now().subtract(roomKeepFor);
     for (final name in _kept.keys.toList()) {
@@ -1178,7 +1217,7 @@ class Hub {
       final box = _mail[id]!;
       for (final h in box.where((h) => !h.at.isAfter(cutoff)).toList()) {
         box.remove(h);
-        _held -= h.frame.length;
+        _held -= h.cost;
       }
       if (box.isEmpty) _mail.remove(id);
     }
@@ -1331,10 +1370,15 @@ class _End {
   final Set<String> looks = {};
 }
 
+/// A packet held for someone away or kept by a room, as it will be handed over, and when it came.
 class _Held {
   _Held(this.frame, this.at, {this.byDevice});
   final Uint8List frame;
   final DateTime at;
+
+  /// What this counts as against [Hub.heldBytes]: its bytes and what holding it costs.
+  int get cost => costOf(frame);
+  static int costOf(Uint8List frame) => frame.length + Hub.heldOverhead;
 
   /// For a packet an identity sent to its own name: which of its devices sent it (its hello's `device`). That device
   /// isn't handed it back: it is kept for the identity's other devices (GMFB-26, an app passing on a packet it couldn't
@@ -1342,6 +1386,7 @@ class _Held {
   final String? byDevice;
 }
 
+/// A room while someone is in it: who, and for a read-only room whose it is and who may post.
 class _Room {
   _Room(this.hash, {this.owner}) : ownerId = owner == null ? '' : Hub.nameOf(Hub._unhex(owner)) {
     if (owner != null) writers.add(ownerId);

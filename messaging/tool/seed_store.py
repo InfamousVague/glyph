@@ -43,14 +43,17 @@ WORDS = (
 SENDERS = ('AMAZON', 'Verify', 'UPS', 'BankAlert', 'Uber', 'DoorDash', 'CVS', 'Delta', 'Venmo', 'GitHub')
 
 
+# Runs adb against the device `serial`, with `text` as its input: what it printed. Raises where adb fails.
 def adb(serial, *args, text=None):
     return subprocess.run([ADB, '-s', serial, *args], input=text, capture_output=True, text=True, check=True).stdout
 
 
+# A string as SQLite writes one: in single quotes, with any inside doubled.
 def q(s):
     return "'" + s.replace("'", "''") + "'"
 
 
+# Adds to `out` the INSERTs that put `values` (each a row already written out) into `table`, `batch` rows a statement.
 def rows(table, columns, values, out, batch=400):
     for i in range(0, len(values), batch):
         out.append('INSERT INTO %s(%s) VALUES %s;' % (table, columns, ','.join(values[i:i + batch])))

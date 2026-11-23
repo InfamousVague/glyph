@@ -10,6 +10,7 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+/// One release's entry: its version, its day, and a line for each thing it brought.
 @immutable
 class ReleaseNotes {
   const ReleaseNotes(this.version, this.date, this.notes);
@@ -22,6 +23,7 @@ class ReleaseNotes {
   final List<String> notes;
 }
 
+/// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.12.18', '2026-11-23', [
     'Your account key: Profile shows the key your account is known by, written as a did:key, with Copy and Share; a friend\'s profile shows theirs. Sign a statement turns a few words into a signed block you can paste anywhere to show an account elsewhere is yours, and Check a statement says whose a pasted one is. Anyone can check one with standard tools, without asking us.',

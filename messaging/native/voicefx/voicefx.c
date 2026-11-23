@@ -39,6 +39,8 @@ extern void df_free(DFState *st);
 #define ANALYSE 1536 /* How much is looked at for the voice's period: 32 ms, two of the lowest. */
 #define MARKS 64
 
+/* One microphone's state. mode, gain and df may change under voicefx_process; the rest is the processing thread's
+ * own: RNNoise's state, and a block at 48 kHz on its way in (at48) and out (out48) of whichever network runs. */
 struct VoiceFx {
   VFX_ATOMIC int mode;
   VFX_ATOMIC float gain;
@@ -140,6 +142,7 @@ int voicefx_deepfilter_model(VoiceFx *fx, const char *path) {
 #endif
 }
 
+/* The gain is held to 0..2. A mode this build cannot run is kept as asked and does nothing: the sound passes. */
 void voicefx_configure(VoiceFx *fx, int mode, float gain) {
   if (!fx) return;
   if (gain < 0) gain = 0;
@@ -432,6 +435,8 @@ static float limit(float x) {
   return x < 0 ? -bent : bent;
 }
 
+/* Noise first, then gain. Both networks run at 48 kHz: a block at another rate is resampled to 480 samples, cleaned,
+ * and resampled back. A block longer than MOST is left as it came. */
 void voicefx_process(VoiceFx *fx, float *samples, int frames, int rate) {
   if (!fx || !samples || frames <= 0 || frames > MOST) return;
   int mode = vfx_load(&fx->mode);

@@ -4,6 +4,7 @@
 // does the clock: tick() is called by Ticker below in the bot and by hand in tests.
 import { FRAME_MS, Gate, PcmQueue, mix, mixMinusSelf } from './mixer.js';
 
+/** One bridge's sound: packets fed in from both sides as they come, mixed and encoded a frame at a time by tick(). */
 export class AudioEngine {
   constructor({ codec, toDiscordBitrate = 96000, toGhostBitrate = 128000 }) {
     this.codec = codec;
@@ -17,6 +18,7 @@ export class AudioEngine {
     this.decodeErrors = 0;
   }
 
+  /** A speaker's decoder and queue, made the first time they are heard from. */
   source(map, id) {
     let s = map.get(id);
     if (!s) {
@@ -26,6 +28,7 @@ export class AudioEngine {
     return s;
   }
 
+  /** A packet decoded onto its speaker's queue; one that will not decode is counted and dropped. */
   feed(map, id, packet) {
     const s = this.source(map, id);
     try {
@@ -45,6 +48,7 @@ export class AudioEngine {
     this.feed(this.ghostIn, memberId, packet);
   }
 
+  /** A Discord speaker gone from the channel. */
   dropDiscord(userId) {
     this.discordIn.delete(userId);
   }
@@ -111,6 +115,7 @@ export class Ticker {
 
   start() {
     if (this.timer) return;
+    // this.next: when the next call is due, counted on from the last due time and not from when the timer fired.
     this.next = this.now() + this.period;
     const run = () => {
       const t = this.now();

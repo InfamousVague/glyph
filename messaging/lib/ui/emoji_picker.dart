@@ -43,6 +43,7 @@ Future<void> showEmojiPicker(BuildContext context, {required ValueChanged<String
   ));
 }
 
+/// The picker's sheet: the search, the groups' tabs, the skin tone, and the emoji under their headings.
 class EmojiSheet extends StatefulWidget {
   const EmojiSheet({super.key, required this.onPick, this.data});
   final ValueChanged<String> onPick;
@@ -59,6 +60,7 @@ class _EmojiSheetState extends State<EmojiSheet> {
   final _search = TextEditingController();
   final _scroll = ScrollController();
   final _focus = FocusNode();
+  // A key on each group's heading, by the group's place, for its tab to scroll to.
   final _headings = <int, GlobalKey>{};
   bool _tones = false;
 
@@ -82,6 +84,7 @@ class _EmojiSheetState extends State<EmojiSheet> {
     super.dispose();
   }
 
+  /// An emoji pressed: counted among the recent ones and handed on. The sheet stays up for the next.
   void _pick(String emoji, EmojiChoices choices) {
     HapticFeedback.selectionClick();
     choices.used(emoji);
@@ -89,6 +92,7 @@ class _EmojiSheetState extends State<EmojiSheet> {
     setState(() {});
   }
 
+  /// A tab pressed: scrolls to that group's heading, where it has been built.
   void _jump(int section) {
     final there = _headings[section]?.currentContext;
     if (there != null) Scrollable.ensureVisible(there, duration: const Duration(milliseconds: 240), curve: Curves.easeOutCubic);

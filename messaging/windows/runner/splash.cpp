@@ -13,7 +13,9 @@ namespace {
 
 std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> g_channel;
 HWND g_window = nullptr;
+// The window's style from before the splash took its resize edge and maximise button.
 LONG_PTR g_style = 0;
+// Whether the window is small now (the splash, or signing in), so Leave() has something to undo.
 bool g_splash = false;
 
 // The window's own size, in 96-DPI pixels, as main.cpp makes it.
@@ -24,6 +26,8 @@ constexpr int kSplashHeight = 340;
 constexpr int kCompactWidth = 480;
 constexpr int kCompactHeight = 720;
 
+// Sizes the window to [width] by [height] (96-DPI pixels, scaled to its screen) in the middle of that screen's
+// work area, and no larger than it.
 void Centre(HWND window, int width, int height) {
   const UINT dpi = GetDpiForWindow(window);
   const int w = MulDiv(width, dpi, 96), h = MulDiv(height, dpi, 96);
@@ -61,6 +65,7 @@ void Compact() {
 
 }  // namespace
 
+// Makes the window the splash at once, before it is shown, and answers "ghost_desktop/window": `splash` and `compact`.
 void RegisterSplash(flutter::BinaryMessenger* messenger, HWND window) {
   g_window = window;
   g_style = GetWindowLongPtr(window, GWL_STYLE);

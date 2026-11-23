@@ -14,9 +14,11 @@ import java.io.File
  */
 object Sounds {
     private var app: Context? = null
+    /** The ring playing over and over, if one is: the only sound [stop] ends. */
     private var looping: MediaPlayer? = null
     private var counter = 0
 
+    /** The `ghost/sound` channel: play (a WAV's bytes, once or looped) and stop. A sound that fails is not heard. */
     fun register(context: Context, messenger: BinaryMessenger) {
         app = context.applicationContext
         MethodChannel(messenger, "ghost/sound").setMethodCallHandler { call, result ->
@@ -36,6 +38,7 @@ object Sounds {
         }
     }
 
+    /** Plays the WAV in [bytes]; a looped one takes the place of the ring before it. */
     private fun play(context: Context, bytes: ByteArray, loop: Boolean) {
         // A file of its own for each sound playing, so two at once do not write over each other; a handful reused.
         val dir = File(context.cacheDir, "sounds").apply { mkdirs() }
@@ -56,6 +59,7 @@ object Sounds {
         if (loop) looping = player
     }
 
+    /** Ends the ring; sounds played once run to their end. */
     fun stop() {
         looping?.let { try { it.stop() } catch (_: Exception) {}; it.release() }
         looping = null

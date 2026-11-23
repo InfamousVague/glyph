@@ -24,6 +24,7 @@ object Summaries {
     @Volatile private var summarizer: Summarizer? = null
     @Volatile private var downloading = false
 
+    /** The one summarizer, made the first time it is wanted: a conversation in, one bullet out, in English. */
     private fun client(context: Context): Summarizer = summarizer ?: synchronized(this) {
         summarizer ?: Summarization.getClient(
             SummarizerOptions.builder(context.applicationContext)

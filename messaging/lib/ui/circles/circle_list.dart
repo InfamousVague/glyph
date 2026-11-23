@@ -64,6 +64,7 @@ class _CirclePageState extends State<CirclePage> {
     super.dispose();
   }
 
+  // Never below zero: an overscroll past the top is not a scroll.
   void _follow(ScrollMetrics m) => _scrolled.value = m.pixels.clamp(0, double.infinity);
 
   @override

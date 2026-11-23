@@ -55,6 +55,7 @@ object E2eCrypto {
 
     fun privateFrom(pkcs8: ByteArray): PrivateKey = KeyFactory.getInstance("EC").generatePrivate(PKCS8EncodedKeySpec(pkcs8))
 
+    /** [n] as exactly 32 bytes, most significant first: zeros in front where it is shorter, a sign byte dropped. */
     private fun fixed(n: BigInteger): ByteArray {
         val raw = n.toByteArray()
         val out = ByteArray(32)
@@ -86,6 +87,7 @@ object E2eCrypto {
 
     internal fun hmac(key: ByteArray, data: ByteArray): ByteArray = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(key, "HmacSHA256")) }.doFinal(data)
 
+    /** The two joined, the lesser first, so both sides make the same bytes whichever of them is "mine". */
     internal fun ordered(a: ByteArray, b: ByteArray): ByteArray {
         for (i in a.indices) {
             val d = (a[i].toInt() and 0xFF) - (b[i].toInt() and 0xFF)
@@ -125,6 +127,7 @@ object E2eCrypto {
         } catch (_: Exception) { null }
     }
 
+    /** Whether a text is one of the app's sealed ones, by its opening tag. */
     fun isSealed(body: String): Boolean = body.trimStart().startsWith(MSG_TAG)
 
     private val keyPattern = Regex("ghost:k1:([A-Za-z0-9+/]{44})")
@@ -135,6 +138,7 @@ object E2eCrypto {
         return try { Base64.getDecoder().decode(m.groupValues[1]).takeIf { publicFrom(it) != null } } catch (_: Exception) { null }
     }
 
+    /** A public key as a text carries it: the tag, then the key in base64. [keyIn] reads it back. */
     fun keyText(publicKey: ByteArray): String = KEY_TAG + Base64.getEncoder().encodeToString(publicKey)
 
     /** Thirty digits in six groups, from both public keys in a fixed order: the same on both phones. */

@@ -72,6 +72,7 @@ def gap(a, b):
     return max(dx, dy)
 
 
+# Folds piece b into piece a: their pixel counts added, one box round both, their labels together.
 def join(a, b):
     a['n'] += b['n']
     a['box'] = [min(a['box'][0], b['box'][0]), min(a['box'][1], b['box'][1]), max(a['box'][2], b['box'][2]), max(a['box'][3], b['box'][3])]
@@ -236,6 +237,8 @@ def cut_grid(path, cols, rows):
     return out
 
 
+# Cuts one sheet into its sprites and writes each as a WebP, a character no larger than HERO a side and a prop no
+# larger than PROP: the sheet's name, how many of each, and what was written.
 def cut(path):
     name, heroes, props, found = sprites_of(path)
     written = []
@@ -267,6 +270,8 @@ def look(name, written):
     page.save(os.path.join(LOOK, name + '.png'))
 
 
+# Keeps the sheets in the folder given (if one is), then cuts every kept sheet again and writes a picture of each
+# sheet's cuts to look over.
 def main():
     os.makedirs(SHEETS, exist_ok=True)
     os.makedirs(OUT, exist_ok=True)

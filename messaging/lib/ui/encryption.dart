@@ -10,6 +10,7 @@ import 'common.dart';
 /// conversation's header and from Settings › Encryption. [onChanged] is called after anything changes.
 void showEncryptionChoices(BuildContext context, Person person, E2eState state, VoidCallback onChanged) {
   final name = person.label;
+  // Sends this phone's key. Where theirs is already waiting to be answered, that turns encryption on at once.
   Future<void> offer() async {
     try {
       await Sms.instance.e2eOffer(person.address);

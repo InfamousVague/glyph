@@ -54,6 +54,7 @@ class GlacierProgressBar extends StatefulWidget {
 }
 
 class _GlacierProgressBarState extends State<GlacierProgressBar> with SingleTickerProviderStateMixin {
+  /// The clock of the sweep (or the pulse): runs only while the bar's value is unknown.
   late final AnimationController _loop = AnimationController(vsync: this, duration: _turn);
 
   bool get _unknown => widget.indeterminate || widget.value == null;

@@ -53,6 +53,9 @@ String? welcomeNote(String note) {
 class _StandaloneWelcomeState extends State<StandaloneWelcome> {
   final _username = TextEditingController();
   final _password = TextEditingController();
+
+  /// What is wrong with what was typed, or why the username could not be had; and what is being done now, in
+  /// words, while something is.
   String? _problem;
   String? _busy;
 
@@ -70,6 +73,8 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
     super.dispose();
   }
 
+  /// Claims the username, then makes the account and shows its recovery words. A username that cannot be had stops
+  /// here; an account that cannot be made does not, and the welcome is done all the same.
   Future<void> _go() async {
     final want = tidyHandle(_username.text);
     final password = _password.text;

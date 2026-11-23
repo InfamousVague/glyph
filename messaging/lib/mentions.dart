@@ -37,8 +37,11 @@ class Mention {
   static const most = 30;
   static const longest = 81;
 
+
+  /// What an id may be made of: nothing else is taken from the wire as one.
   static final _id = RegExp(r'^[0-9A-Za-z_.:-]{1,64}$');
 
+  /// The same mention [by] code units further on in the words (earlier, where [by] is below zero).
   Mention moved(int by) => Mention(start + by, length, id);
 
   /// On the wire, `[start, length, id]`.
@@ -96,6 +99,7 @@ class Mention {
   String toString() => 'Mention($start+$length $id)';
 }
 
+/// The two halves of a character outside the basic plane (an emoji), as UTF-16 writes it: a surrogate pair.
 bool _highHalf(int unit) => unit >= 0xD800 && unit <= 0xDBFF;
 bool _lowHalf(int unit) => unit >= 0xDC00 && unit <= 0xDFFF;
 

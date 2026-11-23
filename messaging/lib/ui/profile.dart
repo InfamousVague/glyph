@@ -47,6 +47,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
+  /// Claims the username typed on the relay server's directory; nothing is asked where it is already this one.
   Future<void> _claim() async {
     final want = tidyHandle(_username.text);
     if (!Me.goodUsername(want)) {
@@ -68,6 +69,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  /// Fills the fields from a profile brought in from elsewhere; a line about you already written is kept.
   void _fill(SignUpProfile p) {
     setState(() {
       if (p.username.isNotEmpty) _username.text = p.username;
@@ -272,6 +274,7 @@ class _BuddiesScreenState extends State<BuddiesScreen> {
     super.dispose();
   }
 
+  /// Asks the username typed to be a friend, and says whether they are one now or were only asked.
   Future<void> _add() async {
     final name = tidyHandle(_who.text);
     if (!Me.goodUsername(name)) {

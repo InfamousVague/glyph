@@ -12,8 +12,8 @@ import '../kit/settings_type.dart';
 import '../voice/hangout.dart';
 import 'common.dart';
 
-/// Polls in a space's chat (Matt, 2026-11-19: "add Polls as a default feature"; lib/voice/polls.dart): the card a poll
-/// is shown as, and the page one is asked from.
+// Polls in a space's chat (Matt, 2026-11-19: "add Polls as a default feature"; lib/voice/polls.dart): the card a poll
+// is shown as, and the page one is asked from.
 
 /// A poll in the chat: its question, each answer with how many chose it on a bar of its share, a mark on what you
 /// chose, and how many voted. A press on an answer votes for it (and on yours again takes it back); where more than
@@ -81,6 +81,7 @@ class PollCard extends StatelessWidget {
   }
 }
 
+/// One answer of a poll: its words and count over a bar of its [share] (0 to 1), marked where it is yours.
 class _Answer extends StatelessWidget {
   const _Answer({super.key, required this.words, required this.count, required this.share, required this.chosen, required this.multi, this.onPress});
   final String words;

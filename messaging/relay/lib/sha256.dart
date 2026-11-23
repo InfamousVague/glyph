@@ -63,6 +63,7 @@ Uint8List sha256(List<int> message) {
   return out;
 }
 
+/// [bytes] as lowercase hex, two digits a byte.
 String hexOf(List<int> bytes) => bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
 /// SHA-256 taken a piece at a time: a file's chunk is hashed as it streams to disk, never held whole (files.dart).
@@ -85,6 +86,7 @@ class Sha256 {
 
   static int _rotr(int x, int n) => ((x >> n) | (x << (32 - n))) & _mask;
 
+  /// Takes the next piece: fills the 64-byte block and hashes it each time it is full.
   void add(List<int> bytes) {
     if (_closed) throw StateError('closed');
     _length += bytes.length;
@@ -101,6 +103,7 @@ class Sha256 {
     }
   }
 
+  /// The standard's compression of one full block into the running state.
   void _compress() {
     final view = ByteData.sublistView(_block);
     final w = _w;
@@ -146,6 +149,7 @@ class Sha256 {
     final pad = Uint8List(((_filled + 9 + 63) ~/ 64) * 64 - _filled);
     pad[0] = 0x80;
     ByteData.sublistView(pad).setUint64(pad.length - 8, bits);
+    // The padding goes through add(), which counts it: the count is put back so the length stays the message's.
     final before = _length;
     add(pad);
     _length = before;

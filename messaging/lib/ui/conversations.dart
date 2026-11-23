@@ -189,6 +189,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
   /// The section whose chip is chosen; null is the main list.
   String? _section;
 
+  /// Back at the list from what was open: everything it shows is read again.
   void _back() {
     _look();
     _load();
@@ -258,6 +259,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
     super.dispose();
   }
 
+  /// Reads what the notices over the list go by: the texting app this one replaced, and (on the phone itself) whether
+  /// it stands beside Google Messages.
   Future<void> _look() async {
     try {
       final a = await Sms.instance.arriving();
@@ -595,6 +598,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
     return PluginRow(conversation: c, look: RowLook(value: code, end: copy, tap: copy, title: network.name), host: host, onPress: () => openInboxChat(context, network, chat), onLongPress: () => openInboxChat(context, network, chat));
   }
 
+  /// The conversations the list shows now: this page's (archived or not), the chosen section's, pinned ones first,
+  /// and narrowed by the search.
   List<Conversation> get _shown {
     // Pinned conversations first, each group newest first (the order they arrive in).
     final held = (_all ?? const <Conversation>[]).where((c) => c.archived == widget.archived).toList();
@@ -731,6 +736,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
     return _plugins.registry.plugins.any((p) => p.source == PluginSource.dev && _plugins.registry.isOn(p, store));
   }
 
+  /// The row under the search field: the sections' toggle and the plugins' kinds; null where there is neither.
   Widget? _tabsRow(Tokens t) {
     // Messages, codes and voice channels as the toggle's three icons (Matt, 2026-11-15: "use the segmented toggle with
     // the three icons instead of intertwining them remove the other options for now"). Voice is there always: it is
@@ -888,6 +894,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
   List<VoiceChannel> _unreadSpaces(String? section) =>
       section != null || widget.archived ? const [] : [for (final v in Voice.instance.channels) if (v.hangout && v.circle == null && !Voice.instance.archived(v) && Voice.instance.unreadIn(v) > 0) v];
 
+  /// The other networks' chats with unread messages that [section] holds; the archived ones on the Archived page.
   List<InboxChat> _unreadChats(String? section) {
     if (widget.archived) return [for (final n in Inbox.instance.ready) for (final c in n.archivedChats) if (c.unread > 0) c];
     if (section == circlesTab) return const [];
@@ -941,6 +948,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
     ]);
   }
 
+  /// Opens a conversation: in the frame's pane, or as a page over the list, which is read again on coming back.
   Future<void> _open(Conversation c) async {
     Snoozed.instance.opened(Snoozed.text(c.id));
     final shell = _shell;
@@ -961,6 +969,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
 
   void _toggle(Conversation c) => setState(() => _selected.contains(c.id) ? _selected.remove(c.id) : _selected.add(c.id));
 
+  /// A long press on a conversation: its menu.
   void _menu(Conversation c) {
     showChoices(context, title: c.title, choices: [
       // Plugins: where a tap on the row is a section's own (a code's tap copies it), opening it is offered here.
@@ -1082,6 +1091,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
     );
   }
 
+  /// Archives the selected conversations (or, on the Archived page, moves them back), with an Undo in the toast.
   Future<void> _archiveSelected() async {
     final ids = _selected.toList();
     final to = !widget.archived;

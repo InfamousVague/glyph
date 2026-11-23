@@ -29,6 +29,7 @@ Future<void> showPictureOverlay(BuildContext context, {Uint8List? bytes, String?
   ));
 }
 
+/// The overlay's page ([showPictureOverlay] raises it): the picture from [bytes], or the file at [path] once there.
 class PictureOverlay extends StatefulWidget {
   const PictureOverlay({super.key, this.bytes, this.path, this.coming, this.thumb, this.title, this.more});
   final Uint8List? bytes;

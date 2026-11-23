@@ -122,6 +122,7 @@ String stuckWords(String? problem, {String? why, required String here}) => switc
       _ => 'It couldn\'t be loaded on this $here.',
     };
 
+/// The page for [plugin]; [pluginDetailOf] (plugins_page.dart) makes it with the app's own answers.
 class PluginDetail extends StatelessWidget {
   const PluginDetail({super.key, required this.plugin, required this.added, required this.onSwitch, required this.here, this.summary, this.settings = const [], this.hasSettings = false, this.onClose, this.finder, this.seek, this.pack});
 
@@ -567,6 +568,7 @@ class _ShotsState extends State<_Shots> {
     widget.shots.forEach(_fetch);
   }
 
+  /// Asks for the picture named [sha] once, and keeps it only where its bytes hash to that name.
   void _fetch(String sha) {
     if (_asked.containsKey(sha)) return;
     _asked[sha] = false;

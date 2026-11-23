@@ -134,6 +134,8 @@ Uint8List? _unfilter(Uint8List raw, int w, int h, int channels) {
   return out;
 }
 
+// PNG's Paeth predictor: whichever of left ([a]), above ([b]) and above-left ([c]) is nearest to a + b - c, ties
+// going in that order.
 int _paeth(int a, int b, int c) {
   final p = a + b - c;
   final pa = (p - a).abs(), pb = (p - b).abs(), pc = (p - c).abs();

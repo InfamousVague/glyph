@@ -37,6 +37,10 @@ object Desk : DeskHost {
     const val PAIRING_LIFE = 10 * 60 * 1000L
     private const val SENT_KEPT = 500
 
+    /**
+     * A computer paired with this phone: its name, the key the two share, how it may reach the phone ([mode], one of
+     * DeskCrypto.MODES), the relay it was paired with, and when it was paired and last seen (milliseconds).
+     */
     class Pairing(val id: String, var name: String, val key: ByteArray, var mode: String, var relay: String, val since: Long, var seen: Long)
 
     /** A pairing being made: the code was scanned, and the two have yet to say their six digits match. */
@@ -88,6 +92,7 @@ object Desk : DeskHost {
     private val main = Handler(Looper.getMainLooper())
     private var seenSaved = 0L
 
+    /** Called before anything else here (DeskService does, as it starts): reads the pairings kept. */
     fun init(context: Context) {
         if (appContext == null) appContext = context.applicationContext
         load()
@@ -100,6 +105,7 @@ object Desk : DeskHost {
 
     // --- what is kept ---------------------------------------------------------------------------------------------------
 
+    /** The Keystore's AES key that seals each pairing's key where it is kept; made the first time it is wanted. */
     private fun wrapKey(): SecretKey {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (ks.getKey(WRAP_ALIAS, null) as SecretKey?)?.let { return it }
@@ -112,6 +118,7 @@ object Desk : DeskHost {
         }.generateKey()
     }
 
+    /** A pairing's key sealed for the preferences: the 12-byte nonce, then the sealed key, as base64. */
     private fun wrap(key: ByteArray): String {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, wrapKey())
@@ -260,6 +267,7 @@ object Desk : DeskHost {
         changedHere()
     }
 
+    /** The person gave up on the pairing being made: the computer is told, and its connection closed. */
     fun cancel() {
         val p = pending ?: return
         pending = null
@@ -274,6 +282,7 @@ object Desk : DeskHost {
         if (p.phase == "done" || p.phase == "failed") { pending = null; tellService() }
     }
 
+    /** Once both sides have said the digits match: the pairing is kept, and the session it was made over goes on. */
     @Synchronized
     private fun finishIfBoth(p: Pending) {
         if (!p.mine || !p.theirs || p.phase != "code") return
@@ -289,6 +298,10 @@ object Desk : DeskHost {
         changedHere()
     }
 
+    /**
+     * Forgets a computer: its key goes, its open sessions are told and closed, and its relay channel is noted for
+     * removal ([Removed]).
+     */
     fun unpair(id: String) {
         val p = synchronized(this) { pairings.remove(id) } ?: return
         save()
@@ -299,6 +312,7 @@ object Desk : DeskHost {
         changedHere()
     }
 
+    /** Changes how a computer may reach the phone, and tells it. Throws where the mode needs a relay it has none of. */
     fun setMode(id: String, mode: String) {
         if (mode !in DeskCrypto.MODES) return
         val p = synchronized(this) { pairings[id] } ?: return
@@ -448,6 +462,7 @@ object Desk : DeskHost {
     fun contactsChanged() { try { (callsStore ?: return).contactsChanged() } catch (_: Exception) {} }
     @Volatile private var callsStore: Store? = null
 
+    /** What a computer may ask of this phone ([DeskPhone]), answered from the phone's own store and senders. */
     private class Phone(private val context: Context) : DeskPhone {
         private val store = Store(context).also { callsStore = it }
         private val sent = context.getSharedPreferences("desk_sent", Context.MODE_PRIVATE)

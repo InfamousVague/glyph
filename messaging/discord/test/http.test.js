@@ -7,6 +7,9 @@ import { createHandler, MAX_BODY } from '../src/http.js';
 import { answer } from '../src/commands.js';
 import { STAGE, VOICE, guild, member, voiceState } from './fakes.js';
 
+// The HTTP routes (src/http.js) on a real server on a free loopback port, with the clock by hand and the bot's
+// servers stood in for by `world`: claim and its limits, state, invite, CORS, and the /ghost commands' answers.
+
 const G = '100000000000000001';
 const APP = '200000000000000002';
 let clock, codes, store, world, server, base, logs;

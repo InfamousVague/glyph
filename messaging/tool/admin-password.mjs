@@ -13,12 +13,14 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 
+/** The password as the relay keeps it, in hex: 100 000 rounds of SHA-256 in all, the first over the salted text. */
 export function adminHash(salt, pass) {
   let h = createHash('sha256').update(`ghost-admin v1|${salt}|${pass}`, 'utf8').digest();
   for (let i = 1; i < 100000; i++) h = createHash('sha256').update(h).digest();
   return h.toString('hex');
 }
 
+// Only when run as a script: imported, this file gives adminHash and writes nothing.
 const [envFile, outFile] = process.argv.slice(2);
 if (process.argv[1] && process.argv[1].endsWith('admin-password.mjs')) {
   if (!envFile || !outFile) {

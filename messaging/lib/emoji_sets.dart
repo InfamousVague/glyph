@@ -14,6 +14,7 @@ class EmojiSet {
   final String about;
 }
 
+/// The sets offered, in the order shown. The id is what is kept as the choice ([AppState.emoji]).
 const emojiSets = [
   EmojiSet('system', 'This phone\'s', null, 'What Android draws: Samsung\'s on a Galaxy, Google\'s on a Pixel.'),
   EmojiSet('noto', 'Noto', 'Ghost Emoji Noto', 'Google\'s, as on a Pixel and in Google Messages.'),
@@ -22,6 +23,7 @@ const emojiSets = [
   EmojiSet('outline', 'Outline', 'Ghost Emoji Outline', 'One colour, in the text\'s own ink.'),
 ];
 
+/// The set kept as [id]; the phone's own where the id is none of them.
 EmojiSet emojiSet(String id) => emojiSets.firstWhere((s) => s.id == id, orElse: () => emojiSets.first);
 
 /// The sets as this device offers them: all of them, but in a browser. A page there draws every letter itself and

@@ -118,6 +118,8 @@ class RepliesPlugin extends GhostPlugin {
 
   DateTime _now() => (now ?? DateTime.now)();
 
+  /// Asks the phone to remind the person at [at] to follow up in [thread], and says whether it will ([when] is the
+  /// time in words).
   static Future<void> _remind(PluginHost host, int thread, String who, String words, DateTime at, String when) async {
     final ok = await Sms.instance.remind(thread: thread, title: 'Follow up${who.isEmpty ? '' : ' with $who'}', body: words, at: at);
     host.say(ok ? 'I\'ll remind you ${when.toLowerCase()}' : 'Couldn\'t set the reminder');

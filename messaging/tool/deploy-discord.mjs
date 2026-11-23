@@ -135,6 +135,8 @@ const BOX_PLATFORM = ['--os=linux', '--cpu=x64', '--libc=glibc'];
  * package; it picks the box's and falls back to its WebAssembly). Anything else native could not be built here. */
 const NEEDED_NATIVE = ['node_modules/@snazzah/davey-linux-x64-gnu/davey.linux-x64-gnu.node'];
 const ALLOWED_NATIVE = /^node_modules\/(@snazzah\/davey-linux-x64-gnu\/|@evan\/opus\/node\/)[^/]+\.node$/;
+/** Copies the bot into a temporary folder and installs its dependencies there for the box; gives the folder back.
+ * Stops the deploy if a native module is there that is not prebuilt for the box, or the box's DAVE build is not. */
 function stage() {
   const dir = mkdtempSync(join(tmpdir(), 'ghost-discord-'));
   for (const file of ['package.json', 'package-lock.json', 'README.md', 'src']) cpSync(join(BOT, file), join(dir, file), { recursive: true });

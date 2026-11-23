@@ -11,12 +11,14 @@ import 'dart:typed_data';
 import '../desktop/link/crypto.dart' show DeskCrypto;
 import '../net/fast_gcm.dart';
 
+/// What one secret makes: the channel, its token and the key, with sealing and opening under that key.
 class ApiSeal {
   ApiSeal(List<int> secret)
       : channel = DeskCrypto.hex(DeskCrypto.hkdf(_salt, secret, 'relay channel').sublist(0, 16)),
         token = DeskCrypto.hex(DeskCrypto.hkdf(_salt, secret, 'relay token')),
         key = DeskCrypto.hkdf(_salt, secret, 'seal key');
 
+  // HKDF's salt, what every sealed frame is bound to, and how a connection string starts.
   static final List<int> _salt = utf8.encode('ghost-api v1');
   static final Uint8List _aad = Uint8List.fromList(utf8.encode('ghost-api-v1'));
   static const prefix = 'ghostapi1:';

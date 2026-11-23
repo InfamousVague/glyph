@@ -1,9 +1,12 @@
 import Cocoa
 import FlutterMacOS
 
+/// The Mac app's one window: it holds the Flutter view, sets up every channel the app has to macOS (awakeFromNib),
+/// and does what only a window can: its top bar and three buttons, the launch splash's size, files dropped on it
+/// and a picture pasted with ⌘V.
 class MainFlutterWindow: NSWindow, NSDraggingDestination {
-  /// The app's own top bar, with the three buttons folded down into it; off for now (see awakeFromNib).
-  /// The app draws the top of the window: its title strip (lib/desktop/ui/desk_title_bar.dart; Matt, 2026-11-19: "we can
+  /// The app's own top bar, with the three buttons folded down into it; false would put the Mac's own title bar back
+  /// (see awakeFromNib). The app draws the top of the window: its title strip (lib/desktop/ui/desk_title_bar.dart; Matt, 2026-11-19: "we can
   /// roll a custom titlebar if we need to that's a bit thicker to fit the content").
   static let ownTopBar = true
   private var desk: DeskChannels?
@@ -21,6 +24,8 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
   private var pasteTarget = false
   private var pasteMonitor: Any?
   private var updates: UpdatesChannel?
+  /// "ghost_desktop/window": what the app asks of its window (the header's height and look, the splash and sign-in
+  /// sizes, a drag or a double click on a top bar).
   private var chrome: FlutterMethodChannel?
   /// The app's header, which the three buttons sit centred in, and how far in from the left the first one is.
   private var barHeight: CGFloat = 56
@@ -39,7 +44,7 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
     // 2026-11-17: "move the toolbar top bar into our own topbar component so it can match themes on mac make it fold
     // the traffic lights down and shift over the chat list on the sidebar and make the top bars draggable areas").
     // The app says how tall its header is and whether its look is dark (lib/desktop/window_chrome.dart).
-    // For now the Mac's own title bar is back, above the app, with the three buttons where the Mac puts them (Matt,
+    // With ownTopBar off, the Mac's own title bar is back, above the app, with the three buttons where the Mac puts them (Matt,
     // 2026-11-17: "let's bring back the native top bar and remove the thing where we have the traffic lights pushed
     // down until I work on the UI a bit more"): black, as before the app's own top bar (lib/ui/window_chrome.dart
     // MacChrome.own says the same to the app).
@@ -149,6 +154,7 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
   // The window is the drop's destination (registerForDraggedTypes above): the Flutter view under it takes no drags of
   // its own, so AppKit asks the window, and these answer it.
 
+  /// The files in a drag, as paths; folders are left out.
   private func droppedPaths(_ info: NSDraggingInfo) -> [String] {
     let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
     return urls.filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) != true }.map { $0.path }
@@ -176,8 +182,6 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
     return true
   }
 
-  /// The three buttons centred in the app's header: the strip that holds them made as tall as the header, and each
-  /// placed in it. AppKit puts them back at its own height on some changes, so this runs again after each.
   /// The window's own frame and least size, kept while the splash is shown.
   private var fullFrame: NSRect?
   private var fullMin = NSSize(width: 760, height: 520)
@@ -229,6 +233,9 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
     placeLights()
   }
 
+  /// Puts the three buttons centred in the app's header, [lightsX] in from the left: their strip made as tall as the
+  /// header, each button placed in it. Nothing in full screen, or with the Mac's own title bar. AppKit puts them back
+  /// at its own height on some changes, so this runs again after each.
   func placeLights() {
     guard MainFlutterWindow.ownTopBar, !styleMask.contains(.fullScreen),
           let close = standardWindowButton(.closeButton),

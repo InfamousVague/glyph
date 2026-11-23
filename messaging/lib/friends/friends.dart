@@ -25,6 +25,8 @@ abstract class FriendsPort {
   /// only while a link to someone's device is open.
   bool get internet;
 
+  /// Sends [envelope] to [peer] by the routes. [metered] lets it go by a route that costs (a text); [only] names
+  /// the routes it may go by.
   Future<Delivery> send(Peer peer, Envelope envelope, {bool metered = false, bool sealed = true, Set<String>? only});
 
   /// What the routes bring, and the name of each thing sent as the other install says it has it, however late.
@@ -120,11 +122,15 @@ class Friends extends ChangeNotifier {
 
   final FriendsPort _port;
   AppState? _app;
+
+  /// Where each person stands, by their number's [digits].
   final Map<String, E2eState> _by = {};
 
   /// Who each install is: the record that names its id, by that record's address ([digits]), as [whoIs] decides.
   Map<String, String> _byId = {};
   final Map<String, int> _rows = {};
+
+  /// When each friend was last sent a wake, by their id.
   final Map<String, DateTime> _woke = {};
 
   /// What went out and has had no answer yet, by its envelope's id: sent again until the friend's app says it has
@@ -153,6 +159,9 @@ class Friends extends ChangeNotifier {
   final List<StreamSubscription<dynamic>> _subs = [];
   Timer? _soon;
   bool _started = false;
+
+  // Whether a relay server has answered since the app started ([available]), and when one was last looked for
+  // ([look]).
   bool? _answers;
   DateTime? _asked;
 
@@ -209,6 +218,7 @@ class Friends extends ChangeNotifier {
     _seen.clear();
   }
 
+  /// The people or the routes changed: read again a moment later, so many changes at once are one reading.
   void _changed() {
     _soon?.cancel();
     _soon = Timer(const Duration(milliseconds: 120), () async {
@@ -267,6 +277,8 @@ class Friends extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Where [address] stands, where anything has been exchanged with them; their friend state ('' for none); and
+  /// whether they are a friend.
   E2eState? of(String address) => _by[digits(address)];
   String stateOf(String address) => of(address)?.friend ?? '';
   bool isFriend(String address) => of(address)?.isFriend ?? false;
@@ -355,6 +367,7 @@ class Friends extends ChangeNotifier {
     await _ask(address, metered: true);
   }
 
+  /// Notes [address] as asked, and asks them.
   Future<void> _ask(String address, {bool metered = false}) async {
     await _set(address, 'asked');
     await _say(address, 'ask', metered: metered);
@@ -378,6 +391,7 @@ class Friends extends ChangeNotifier {
     await _say(address, 'end');
   }
 
+  /// Keeps [state] as where friendship stands with [address], on the phone and here.
   Future<void> _set(String address, String state) async {
     await _port.setFriend(address, state);
     final s = of(address);
@@ -397,6 +411,8 @@ class Friends extends ChangeNotifier {
 
   // --- what comes -----------------------------------------------------------------------------------------------------
 
+  /// What the routes bring: a `friend` or `text` envelope, sealed, from someone encryption is on with. Anything
+  /// else is not for here.
   Future<void> _received(Received r) async {
     // A copy from another device of this account (GMFB-21).
     if (r.envelope.kind == copyKind && r.sealed && _port.isMine(r.peer)) return _mine(r.envelope);
@@ -516,6 +532,7 @@ class Friends extends ChangeNotifier {
     }
   }
 
+  /// Words [address] wrote as a friend: kept in their conversation, once.
   Future<void> _text(String address, Envelope e) async {
     final words = e.body['t'];
     if (words is! String || words.isEmpty) return;
@@ -579,12 +596,14 @@ class Friends extends ChangeNotifier {
     unawaited(_copy(address, id, words, at.toInt(), out: out));
   }
 
+  /// The friend's app says it has the envelope [id]: it is not sent again, and its row is marked delivered.
   void _acked(String id) {
     final row = _rows.remove(id) ?? _out[id]?.row;
     if (_out.remove(id) != null) _saveOut();
     if (row != null) _port.rowState(row, 'delivered').catchError((_) {});
   }
 
+  /// Reads what was waiting for an answer, and the ids already kept, from the app's choices.
   void _loadOut() {
     _out.clear();
     _seen
@@ -598,6 +617,7 @@ class Friends extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Keeps what is waiting for an answer, and starts or stops the timer that sends it again.
   void _saveOut() {
     _app?.set('friends_out', jsonEncode([for (final o in _out.values) o.toJson()]));
     _watchOut();
@@ -874,6 +894,8 @@ class _Out {
   /// The install it was sent to, by name: sent again only to that one. Null in what was kept by a build from before.
   String? to;
   final String words;
+
+  // The phone's row for it, when it first went, when it goes next, and how many times it has gone.
   final int row;
   final DateTime first;
   DateTime next;

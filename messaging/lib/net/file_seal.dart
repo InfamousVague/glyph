@@ -23,6 +23,7 @@ class FileSeal {
   static const chunk = 256 * 1024;
   static const tag = 16;
 
+  /// The words every chunk's binding starts with.
   static final _label = utf8.encode('ghost-file v1');
 
   /// The key a space's file descriptions are sealed with, from its seed (64 hex digits).
@@ -49,6 +50,8 @@ class FileSeal {
     return size - (n - 1) * chunkSize;
   }
 
+  // A chunk's nonce: the file's eight bytes, then the chunk's number. And what it is bound to: the label, the
+  // file's id, the chunk's number, and whether it is the last.
   static Uint8List _nonce(List<int> prefix, int index) => Uint8List.fromList([...prefix, (index >> 24) & 0xff, (index >> 16) & 0xff, (index >> 8) & 0xff, index & 0xff]);
 
   static Uint8List _aad(String fileId, int index, bool last) =>
@@ -109,12 +112,15 @@ class SealRun {
   final Uint8List key;
   final Uint8List prefix;
   final String fileId;
+
+  /// The whole file's plain size, and the number of the first chunk in [plain].
   final int size;
   final int first;
   final Uint8List plain;
   final int chunkSize;
 }
 
+/// What [FileSeal.openRun] needs: the sealed chunks from [first] on, plain for the same reason.
 class OpenRun {
   const OpenRun({required this.key, required this.prefix, required this.fileId, required this.size, required this.first, required this.sealed, this.chunkSize = FileSeal.chunk});
   final Uint8List key;

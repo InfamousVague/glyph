@@ -14,12 +14,14 @@ enum FileKind {
   other('File', 'Other files');
 
   const FileKind(this.label, this.plural);
+  /// What one file of the kind is called, and what the filter calls them all.
   final String label;
   final String plural;
 
   /// Shown in the app itself: a picture zoomed, a video or sound played, words read.
   bool get previews => this == image || this == video || this == audio || this == text || this == code;
 
+  /// The kind by a name's ending ([endingOf]): asked first, since a type is often missing or says only "octet-stream".
   static const _byEnding = <String, FileKind>{
     // Pictures
     'jpg': image, 'jpeg': image, 'png': image, 'gif': image, 'webp': image, 'heic': image, 'heif': image, 'bmp': image, 'svg': image, 'tif': image, 'tiff': image, 'avif': image, 'ico': image,
@@ -42,6 +44,7 @@ enum FileKind {
     'txt': text, 'md': text, 'markdown': text, 'log': text, 'ini': text, 'cfg': text, 'conf': text, 'srt': text, 'vtt': text,
   };
 
+  /// The type (MIME) of the common endings, for [mimeOf]; fewer than [_byEnding] knows a kind for.
   static const _types = <String, String>{
     'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp', 'heic': 'image/heic', 'svg': 'image/svg+xml', 'bmp': 'image/bmp',
     'mp4': 'video/mp4', 'mov': 'video/quicktime', 'm4v': 'video/x-m4v', 'webm': 'video/webm', 'mkv': 'video/x-matroska',
@@ -61,7 +64,8 @@ enum FileKind {
   /// A file's type from its name, where it is a common one.
   static String mimeOf(String name) => _types[endingOf(name)] ?? 'application/octet-stream';
 
-  /// The kind of a file named [name] with type [mime].
+  /// The kind of a file named [name] with type [mime]: by the name's ending where it is known, else by the type, else
+  /// [other].
   static FileKind of(String name, [String mime = '']) {
     final byName = _byEnding[endingOf(name)];
     if (byName != null) return byName;

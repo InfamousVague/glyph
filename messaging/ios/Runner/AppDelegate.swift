@@ -1,6 +1,8 @@
 import Flutter
 import UIKit
 
+/// The iPhone app's delegate: clears what a previous run left, passes Apple's push token on, and sets up the channels
+/// to Dart once the Flutter engine is there.
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   /// What the app asks of iOS (DeskChannels.swift): kept for as long as the app runs.
@@ -26,6 +28,7 @@ import UIKit
     desk?.pushToken(nil)
   }
 
+  /// The engine is ready: the plugins, then each of the app's own channels on its messenger.
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "GhostMessaging") else { return }

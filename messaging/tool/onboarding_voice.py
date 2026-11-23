@@ -36,6 +36,7 @@ VOICE_NAME = "Jessica"
 SETTINGS = {"stability": 0.5, "similarity_boost": 0.75, "style": 0.2, "use_speaker_boost": True}
 
 
+# The ElevenLabs key, from the environment or ~/.elevenlabs-key; stops with why where there is none.
 def key() -> str:
     value = os.environ.get("ELEVENLABS_API_KEY", "").strip()
     if not value:
@@ -46,6 +47,8 @@ def key() -> str:
     return value
 
 
+# One request to ElevenLabs: a POST of `body` as JSON where there is one, else a GET. The answer's bytes; stops
+# with what ElevenLabs said where it refused.
 def call(path: str, token: str, body: dict | None = None) -> bytes:
     request = urllib.request.Request(
         f"{API}{path}",
@@ -60,6 +63,7 @@ def call(path: str, token: str, body: dict | None = None) -> bytes:
         sys.exit(f"ElevenLabs said {error.code} for {path.split('?')[0]}: {error.read().decode(errors='replace')[:400]}")
 
 
+# What is said on each page, by the page's name: every `'name': 'words',` line of the Dart file WORDS.
 def scripts() -> dict[str, str]:
     found = {}
     for match in re.finditer(r"^\s*'(\w+)':\s*'((?:[^'\\]|\\.)*)',\s*$", WORDS.read_text(), re.M):
@@ -69,11 +73,14 @@ def scripts() -> dict[str, str]:
     return found
 
 
+# The model to speak with: PREFERRED where this account has it, else FALLBACK.
 def model(token: str) -> str:
     ids = {m.get("model_id") for m in json.loads(call("/models", token))}
     return PREFERRED if PREFERRED in ids else FALLBACK
 
 
+# Speaks each page whose words changed since it was last made (all of them with --again, one with --page), removes
+# the sound of a page that is gone, and writes the manifest of what was made from which words.
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--page")

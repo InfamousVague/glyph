@@ -21,6 +21,7 @@ class GoogleChatSignInScreen extends StatefulWidget {
 }
 
 class _GoogleChatSignInScreenState extends State<GoogleChatSignInScreen> {
+  /// Google's sign-in page, while this screen waits for the browser to come back from it.
   String? _page;
 
   @override
@@ -37,6 +38,7 @@ class _GoogleChatSignInScreenState extends State<GoogleChatSignInScreen> {
     super.dispose();
   }
 
+  /// The sign-in this screen started went through: says so and leaves.
   void _changed() {
     if (!mounted || _page == null || widget.network.state != InboxState.ready) return;
     _page = null;

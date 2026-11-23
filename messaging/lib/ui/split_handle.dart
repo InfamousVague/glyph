@@ -27,6 +27,7 @@ class SplitHandle extends StatefulWidget {
   static const double mouseWidth = 9;
   static const double touchWidth = 22;
 
+  /// The handle's width here: the finger's anywhere but on a computer.
   static double widthOf(BuildContext context) => _touch(context) ? touchWidth : mouseWidth;
 
   static bool _touch(BuildContext context) => context.tokens.attrs['platform'] != 'desktop';

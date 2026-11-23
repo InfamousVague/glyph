@@ -55,8 +55,11 @@ class EmbedService {
   }
 }
 
+/// An oEmbed address: [endpoint] asked about [url], for JSON.
 Uri _o(String endpoint, String url, [Map<String, String> more = const {}]) => Uri.parse(endpoint).replace(queryParameters: {'url': url, 'format': 'json', ...more});
 
+/// The services known, asked in this order: one whose host is under another's comes first (music.youtube.com before
+/// youtube.com, which would take it).
 final List<EmbedService> embedServices = [
   EmbedService('youtubemusic', 'YouTube Music', 0xFFFF0000, hosts: ['music.youtube.com'], oembed: (u) => _o('https://www.youtube.com/oembed', u), square: true, video: true),
   EmbedService('youtube', 'YouTube', 0xFFFF0000, hosts: ['youtube.com', 'youtu.be'], oembed: (u) => _o('https://www.youtube.com/oembed', u), video: true),
@@ -87,6 +90,7 @@ class Embed {
   final String? author;
   final String? image;
 
+  /// There is a title or a picture: without either a card would say nothing the link doesn't.
   bool get worthShowing => (title ?? '').trim().isNotEmpty || (image ?? '').isNotEmpty;
 
   /// Where it goes, in words: the service's name, the site's own, or its host.
@@ -114,6 +118,7 @@ abstract final class Embeds {
     return _kept[url] ??= _find(url, service).catchError((_) => null);
   }
 
+  /// The service's oEmbed answer where it has one and it says enough; else the page itself, read for what it says.
   static Future<Embed?> _find(String url, EmbedService? service) async {
     final oembed = service?.oembed;
     if (oembed != null) {
@@ -167,6 +172,7 @@ abstract final class Embeds {
     );
   }
 
+  /// [s] on one line, its runs of spaces single; null where nothing is left.
   static String? _clean(String? s) {
     final t = s?.replaceAll(RegExp(r'\s+'), ' ').trim();
     return t == null || t.isEmpty ? null : t;
@@ -179,6 +185,7 @@ abstract final class Embeds {
     return _clean(_unescape(p.replaceAll(RegExp(r'<[^>]+>'), ' ')));
   }
 
+  /// The few HTML entities a title holds, as their characters.
   static String _unescape(String s) => s
       .replaceAll('&amp;', '&')
       .replaceAll('&quot;', '"')
@@ -188,6 +195,7 @@ abstract final class Embeds {
       .replaceAll('&gt;', '>')
       .replaceAll('&nbsp;', ' ');
 
+  /// The app's own fetch: four redirects at most, eight seconds for each step, and a browser-like user agent.
   static Future<Fetched> _http(Uri url) async {
     final client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 6)
@@ -378,6 +386,7 @@ class EmbedView extends StatelessWidget {
   }
 }
 
+/// A service's mark, an SVG path on a 24 by 24 grid, drawn in one colour at the size given.
 class _MarkPainter extends CustomPainter {
   const _MarkPainter(this.mark, this.color);
   final String mark;

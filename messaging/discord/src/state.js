@@ -11,14 +11,17 @@
 export const CHANNEL_TYPES = { GuildVoice: 2, GuildCategory: 4, GuildStageVoice: 13 };
 const CDN = 'https://cdn.discordapp.com';
 
+// A discord.js Collection (a Map) or a plain array, read alike: its values, one of them by id, a channel's place.
 const each = (collection) => (collection == null ? [] : typeof collection.values === 'function' ? [...collection.values()] : [...collection]);
 const lookup = (collection, id) => (collection == null ? undefined : typeof collection.get === 'function' ? collection.get(id) : each(collection).find((x) => x.id === id));
 const position = (channel) => (Number.isInteger(channel?.rawPosition) ? channel.rawPosition : Number.isInteger(channel?.position) ? channel.position : 0);
 
+/** The server's icon on Discord's CDN, or null where it has none. */
 export function iconUrl(guild) {
   return guild.icon ? `${CDN}/icons/${guild.id}/${guild.icon}.png` : null;
 }
 
+/** The server as every answer names it: id, name and icon. */
 export function guildInfo(guild) {
   return { id: String(guild.id), name: String(guild.name ?? ''), icon: iconUrl(guild) };
 }
@@ -48,8 +51,11 @@ function compareKeys(a, b) {
   }
   return 0;
 }
+/** Discord ids are numbers too long for a Number: the shorter string is the smaller, then by text. */
 const compareIds = (a, b) => (a.length - b.length) || (a < b ? -1 : a > b ? 1 : 0);
 
+// The /state answer: the server, its voice and stage channels the bot can see, in Discord's order, and who is in
+// each (by name), with `at`, the time it was built.
 /** bridged: the channel ids the bridge is in now (each gets "bridged": true). */
 export function buildState(guild, now = Date.now(), { bridged = null } = {}) {
   const channels = guild.channels?.cache;

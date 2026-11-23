@@ -4,7 +4,10 @@
 /// app holds the two to the same bytes. Runs on the Dart VM (64-bit ints), which is where the relay runs.
 library;
 
+// Bytes taken in per round of the permutation: 1600 bits of state less twice the 256-bit digest, in bytes.
 const _rate = 136;
+
+// The 24 round constants, and each lane's rotation (indexed x + 5y), as the Keccak specification gives them.
 
 final List<int> _rc = [
   0x0000000000000001, 0x0000000000008082, 0x800000000000808a, 0x8000000080008000, 0x000000000000808b, 0x0000000080000001,
@@ -17,6 +20,7 @@ const _rot = [0, 1, 62, 28, 27, 36, 44, 6, 55, 20, 3, 10, 43, 25, 39, 41, 45, 15
 
 int _rotl(int x, int n) => n == 0 ? x : (x << n) | (x >>> (64 - n));
 
+/// Keccak-f[1600] on the 25 lanes of [a], in place: 24 rounds of theta, rho and pi, chi, iota.
 void _permute(List<int> a) {
   final c = List<int>.filled(5, 0), b = List<int>.filled(25, 0);
   for (var round = 0; round < 24; round++) {
