@@ -49,6 +49,7 @@ void main() {
     const allowed = {
       'lib/inbox/td_json_io.dart': 'TDLib (lib/inbox/td_json.dart)',
       'lib/files/apple_sha_io.dart': 'CommonCrypto\'s SHA-256 (lib/files/apple_sha.dart)',
+      'lib/net/p2p/node_ffi_io.dart': 'the direct network\'s core (lib/net/p2p/node_ffi.dart)',
     };
     final named = RegExp(r'''^\s*(?:import|export)\s+['"](?:dart:ffi|package:ffi/)''');
     final roots = [Directory('lib'), for (final p in Directory('packages').listSync().whereType<Directory>()) Directory('${p.path}/lib')];
