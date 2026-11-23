@@ -310,8 +310,15 @@ relay's `/link`, `/files` and `/market` answer there too. A page at the same add
 app's store, so a script slipped into one of them could read what the app keeps, and an account's identity can't be
 changed once it has been read. The build for it names its hub, `wss://gogho.st/hub`
 (`node tool/build-web.mjs --app`, `--dart-define=GHOST_WEB_HUB`), and its policy lets it speak to that and to its own
-address and nothing else. A relay anyone runs can serve the same app from its own `/app/` (`--web`, `GHOST_WEB_DIR`),
-built without a hub, which then speaks to the hub beside it.
+address and nothing else, but for the two things it sends over plain HTTP, from the page's own `fetch`
+(`lib/web/http.dart`): a report to the review, `https://gogho.st/market/abuse`, and feedback, `https://gogho.st/feedback`
+(`tool/lib/web_site.mjs` `connectFor`). The relay lets app.gogho.st read those two answers, and no others
+(`GHOST_APP_ORIGIN=https://app.gogho.st`: `Access-Control-Allow-Origin` on `/market/abuse` and `/feedback` alone,
+`relay/lib/relay.dart`). A relay anyone runs can serve the same app from its own `/app/` (`--web`, `GHOST_WEB_DIR`),
+built without a hub, which then speaks to the hub beside it; feedback goes to that relay, beside the page, and a
+report can't go from there (reports go to Ghost Messaging's review, at another address its policy doesn't name), so
+the report sheet says where to report from instead: app.gogho.st, or the app on a phone or a computer. Feedback from a
+browser is words alone: a page can't choose a picture yet.
 
 Both addresses tell the browser the same things on every answer (`tool/web/headers.json`, held to by
 `test/web_build_test.dart` and `relay/test/web_app_test.dart`): the page's own policy as a header, with
@@ -338,13 +345,25 @@ is app.gogho.st's; a relay's own server in front of it says its own.
   opened from the password-sealed copy of the backup each time they are wanted: showing the words, a new password,
   listing or removing the devices, and bringing the backup up to date (which every other device does by itself once a
   day, and a browser only when asked, in Settings › Me). In their place a browser keeps only the key the account's
-  devices seal copies to each other with, made from the words, which opens nothing else. The password-sealed copy is
-  kept, so whoever opens the store could try passwords against it: a long password is what stands in the way.
-- **Signing out deletes the whole database**, its key with it, and the page loads again at the welcome; it takes
-  itself off the account's devices by its own number (`acct-leave`, `relay/lib/accounts.dart`), which needs no
-  account key. **Removed from another device**, it does the same the next time it connects. A store that can't be
-  opened (a record under another key, or changed) is deleted too, and the person is asked to sign in again, never
-  made someone new under the account's choices.
+  devices seal copies to each other with, made from the words: it opens none of the account's other keys, but it
+  opens every copy of what is said with friends by username, both ways, for as long as the account lasts (it never
+  changes). The password-sealed copy is kept, so whoever opens the store could try passwords against it as fast as
+  they like: a long password is what stands in the way.
+- **Signing out deletes the whole database**, its key with it, asks the server for `Clear-Site-Data: "storage"`
+  (`relay/lib/web_app.dart`, app.gogho.st's block), and loads the page again at the welcome; it takes itself off the
+  account's devices by its own number (`acct-leave`, `relay/lib/accounts.dart`), which needs no account key. Deleted,
+  the database is gone to the page and to whoever uses the browser next; Chrome kept its bytes, the key among them,
+  among the profile's files for a while after, until the `Clear-Site-Data` answer took them away. On a computer others
+  use, a private window, or clearing the browser's data for the app, is the safer way.
+- **Removed from another device**, it does the same: a page left open within a few minutes, as soon as its tab is
+  looked at again, or as the hub's connection comes back; a page closed, the next time it is opened. It deletes only
+  on the account's own word: the relay keeps the signed removal (`acct-devices`' `remove`) and hands it to the device,
+  which checks the account key's signature over its own number. A relay that doesn't know the device (another relay,
+  one that lost what it kept, a sign-up never listed, one saying what isn't so) can't make it delete anything: the
+  device says the relay doesn't know it, and offers to sign in again. An iPhone or a computer of its own does the same.
+  A store that can't be opened (a record under another key, or changed) is deleted too, and the person is asked to
+  sign in again, never made someone new under the account's choices; one that can't be read just now (busy, full) is
+  not started on, and nothing is written over it.
 - **One tab at a time**, by the browser's own lock (Web Locks): a browser without it is told it is too old. A tab
   that hands over stops its routes first, writes what it has, then lets go; the other waits for it.
 - **Each browser signed in is a device** on the account's list (at most 20, kept until removed), with its browser's
