@@ -74,7 +74,13 @@ The interfaces are listed as the system lists them; nothing is run in a process 
 route), those of every interface but a virtual machine's or a tunnel's (VPN tunnels, WireGuard, Tailscale,
 ZeroTier, bridges to virtual machines, Docker, Apple's AWDL and LLW, Android's Wi-Fi Direct and CLAT). Never
 loopback, link-local or an address the system no longer means to use; where an interface has an IPv6 privacy
-address, not its lasting one. Public first, at most 8.
+address, not its lasting one. Public first, at most 8. A machine with an address another device could reach it by
+always tells one: where nothing is left after all that, it tells the addresses of the interface its route goes by,
+whatever kind that is, and with no route known, any interface's. (A virtual machine's own network card is its way
+out, not a switch: Windows run by Hyper-V, as every Azure machine is, calls it "Microsoft Hyper-V Network Adapter",
+where a host's switches are "vEthernet (…)", "Hyper-V Virtual Ethernet Adapter".) Where a node can be found nowhere
+three seconds after it came up (no address another device could reach it by, and no link helper it is on), it says
+so, as a `WHEREABOUTS` with neither, rather than nothing.
 
 What iroh tells a node it links with as the link comes up (the addresses hole punching tries) is iroh's own list,
 not this one; on the machines this was tried on it held the same network's addresses and no others.
