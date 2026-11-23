@@ -165,4 +165,25 @@ void main() {
     }
     expect(media['c3']!.offers, ['a1', 'b2']);
   });
+
+  // Voice asks relink on every change in a space's call (lib/voice/channels.dart: _enforce). Someone coming in offers to
+  // everyone there; the one already in, with the lower id, offered back from relink before that offer arrived, so each
+  // held an offer of its own and could take neither (seen in the browser's end-to-end run: no sound, a red mark).
+  test('in a space\'s call the one already there makes no offer of its own to whoever comes in, whatever the ids', () async {
+    final hub = _Hub();
+    final c = VoiceChannel.make('Lounge');
+    final media = {'a1': _Media(), 'b2': _Media()};
+    VoiceSession session(String id) {
+      final s = VoiceSession(channel: c, route: _Route(hub, id), media: media[id]!, name: id)..listens = (_) => false;
+      s.addListener(s.relink);
+      return s;
+    }
+
+    await session('a1').join();
+    await _settle();
+    await session('b2').join();
+    await _settle();
+    expect(media['b2']!.offers, ['a1'], reason: 'whoever comes in offers');
+    expect(media['a1']!.offers, isEmpty, reason: 'and the one already there answers, offering nothing of its own');
+  });
 }

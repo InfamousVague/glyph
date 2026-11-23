@@ -404,19 +404,35 @@ class VoiceSession extends ChangeNotifier {
 
   /// The stage changed (someone brought up to speak, or sent back to listen): connections that are now wanted are made
   /// (the lower id offers, so two never offer each other at once), and those between two who both listen let go.
+  ///
+  /// Only those held apart by the stage ([_withheld]) are offered to here. Anyone else is offered to by whoever came
+  /// into the call later ([join]): Voice asks this on every change in a space's call, so someone who had just come in,
+  /// before their offer arrived, was offered to here as well whenever this side's id was the lower, both sides held an
+  /// offer of their own, neither could take the other's, and the two never connected (seen in a browser against a relay
+  /// with no TURN server; with one, the second try through it connected them 15 s later).
   void relink() {
     if (!joined) return;
     for (final id in members.keys.toList()) {
       if (!_links(id)) {
+        _withheld.add(id);
         if (_peers.containsKey(id)) {
           _offered.remove(id);
           unawaited(_peers.remove(id)?.close());
         }
-      } else if (!_peers.containsKey(id) && route.me.compareTo(id) < 0) {
-        unawaited(_offer(id));
+      } else if (_withheld.contains(id)) {
+        if (_peers.containsKey(id)) {
+          _withheld.remove(id);
+        } else if (route.me.compareTo(id) < 0) {
+          _withheld.remove(id);
+          unawaited(_offer(id));
+        }
       }
     }
   }
+
+  /// Those in the call this device has made no connection with because both listen on a stage ([_links]): when one is
+  /// brought up to speak, [relink] connects them.
+  final Set<String> _withheld = {};
 
   /// This device may not unmute (muted for everyone, or its role may not speak), or turn on video.
   bool locked = false, videoLocked = false;
@@ -534,7 +550,7 @@ class VoiceSession extends ChangeNotifier {
     _sayState();
     for (final id in members.keys.toList()) {
       // On a stage, two who both listen make no connection (GMFB-29).
-      if (_links(id)) unawaited(_offer(id));
+      _links(id) ? unawaited(_offer(id)) : _withheld.add(id);
     }
     notifyListeners();
   }
@@ -554,6 +570,7 @@ class VoiceSession extends ChangeNotifier {
     _offered.clear();
     _retried.clear();
     _relayed.clear();
+    _withheld.clear();
     members.clear();
     await media.stop();
     notifyListeners();
@@ -622,12 +639,15 @@ class VoiceSession extends ChangeNotifier {
         Sounds.instance.play(UiSound.someoneJoined);
       }
       members[e.came!] = VoiceMember(e.came!);
+      // They offer, unless the two of them both listen on a stage.
+      if (!_links(e.came!)) _withheld.add(e.came!);
       _sayState();
     } else if (e.went != null) {
       final was = members.remove(e.went) != null;
       _offered.remove(e.went);
       _retried.remove(e.went);
       _relayed.remove(e.went);
+      _withheld.remove(e.went);
       unawaited(_peers.remove(e.went)?.close());
       // The last of the others gone: the call is over, said so; anyone else going is someone leaving.
       if (was) Sounds.instance.play(members.isEmpty ? UiSound.callEnded : UiSound.someoneLeft);
