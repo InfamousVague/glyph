@@ -172,7 +172,7 @@ void main() {
       final h = await SpaceHarness.load(tester);
       await tester.runAsync(() => Me.instance.start(MemoryMeStore()..set('me_username', 'matt'), ValueNotifier(0), () => null));
       addTearDown(() => tester.runAsync(() => Me.instance.start(MemoryMeStore(), ValueNotifier(0), () => null)));
-      await h.shoot(tester, const ProfileScreen(), 'add-me-profile', size: const Size(412, 2600));
+      await h.shoot(tester, const ProfileScreen(), 'add-me-profile', size: const Size(412, 3400));
       expect(find.text('gogho.st/add/matt'), findsOneWidget);
       await tester.ensureVisible(find.byKey(const ValueKey('add-me-qr')));
       await tester.tap(find.byKey(const ValueKey('add-me-qr')));

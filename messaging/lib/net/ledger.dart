@@ -239,7 +239,17 @@ class Ledger extends ChangeNotifier implements SendLog {
       : _store = store,
         _isFriend = isFriend,
         _now = now ?? DateTime.now,
-        _timer = timer ?? Timer.new;
+        _timer = timer ?? Timer.new {
+    _madeAt = nowMs;
+  }
+
+  /// When this ledger began listing (ms). Where the one before it stopped listening while the app went on ([pause]),
+  /// what any friend sent before this is not compared ([load]).
+  late final int _madeAt;
+
+  /// When this ledger stopped listening while the app went on (Direct switched off: [pause]); 0 where it has not. Said
+  /// in what is kept.
+  int _paused = 0;
 
   /// This account's name, and which of its devices this is (`hub_device`).
   final String me;
@@ -602,8 +612,11 @@ class Ledger extends ChangeNotifier implements SendLog {
   // --- keeping -------------------------------------------------------------------------------------------------------------
 
   /// Reads what is kept. What was listed meanwhile stays, and what is kept is put before it. Nothing kept on another
-  /// device is taken.
-  Future<void> load() async {
+  /// device is taken. Asked again while it reads, it is the same reading.
+  Future<void> load() => _loading ??= _load().whenComplete(() => _loading = null);
+  Future<void>? _loading;
+
+  Future<void> _load() async {
     if (_loaded || _wiped || _gone) return;
     Map? index;
     try {
@@ -611,12 +624,23 @@ class Ledger extends ChangeNotifier implements SendLog {
     } catch (_) {}
     final mine = index != null && index['d'] == device;
     final keptBooks = <String>{};
+    var raise = false;
     if (mine) {
       final since = index['k'];
       if (since is Map) {
         for (final e in since.entries) {
           final at = e.value, had = _since[e.key];
           if (e.key is String && at is int && (had == null || at < had)) _since[e.key as String] = at;
+        }
+      }
+      // The ledger before this one stopped listening while the app went on (Direct was switched off), so what came
+      // since was listed nowhere: from each friend, only what came after this one began is compared. What was listed
+      // stays, and still answers their device's questions.
+      final paused = index['p'];
+      if (paused is int && paused > 0) {
+        raise = true;
+        for (final account in _since.keys.toList()) {
+          if (_since[account]! < _madeAt) _since[account] = _madeAt;
         }
       }
       for (final account in (index['f'] is List ? index['f'] as List : const []).whereType<String>()) {
@@ -665,7 +689,8 @@ class Ledger extends ChangeNotifier implements SendLog {
     for (final account in _books.keys.toList()) {
       _trim(account, _books[account]!);
     }
-    if (!mine && index != null) _saveSoon();
+    // (What is kept is written again without the mark, with each friend's horizon where it now is.)
+    if ((!mine && index != null) || raise) _saveSoon();
     if (!_gone) notifyListeners();
   }
 
@@ -710,7 +735,7 @@ class Ledger extends ChangeNotifier implements SendLog {
         if (!dirty.contains(gone)) await _store.write(bookName(gone), '');
       }
       if (_wiped) return;
-      await _store.write(indexName, jsonEncode({'d': device, 'f': books.toList(), 'k': _since}));
+      await _store.write(indexName, jsonEncode({'d': device, 'f': books.toList(), 'k': _since, if (_paused > 0) 'p': _paused}));
       _keptBooks = books;
       if (_relayDirty) {
         _relayDirty = false;
@@ -759,6 +784,20 @@ class Ledger extends ChangeNotifier implements SendLog {
       if (j is Map && j['f'] is List) friends = j['f'] as List;
     } catch (_) {}
     return [for (final account in friends.whereType<String>()) bookName(account), indexName, relayName];
+  }
+
+  /// Direct was switched off, and the ledger goes with the direct route (lib/net/net.dart) while the app goes on:
+  /// what comes from now until a ledger is made again is listed nowhere. Said at once in what is kept, so that the next
+  /// ledger to [load] it compares only what came after it began, and never takes what came meanwhile, unlisted, for
+  /// something the relay dropped. What was listed stays, and so does what was found of each relay.
+  Future<void> pause() async {
+    // (Switched off while what is kept was still being read: once it has been, or the mark would be written over.)
+    try {
+      await load();
+    } catch (_) {}
+    if (!_loaded || _wiped || _gone) return;
+    _paused = nowMs;
+    await flush();
   }
 
   /// The app is closing: what changed is written, and nothing more is listed.

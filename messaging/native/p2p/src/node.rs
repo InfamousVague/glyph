@@ -14,7 +14,9 @@
 //!   plain HTTP, is off: [`probes`]);
 //! - dial what a hint names that is no other device's address: this device's own (loopback), or one that means nothing
 //!   off a link or everything at once (unspecified, link-local, multicast, broadcast), in whatever form an IPv6 address
-//!   carries it ([`dialable`]), so a friend's word cannot point this node at itself or at its network's services;
+//!   carries it ([`dialable`]), so a friend's hint cannot point this node at itself or at its network's services (QUIC's
+//!   hole punching inside iroh still probes whatever address the other end of a link names: README.md, "What a node
+//!   that links can make this one send");
 //! - let a node that was not allowed say anything, or tell it anything: one that comes through a link helper is
 //!   refused before any handshake (the helper says who is calling), and any other as soon as the handshake has said
 //!   who it is, before iroh has taken the link for its own and told it this node's addresses;
@@ -293,8 +295,13 @@ struct Shared {
     run: RwLock<Option<Arc<Run>>>,
     /// Streams are numbered by the node, never twice, across every start.
     next_stream: AtomicU64,
-    /// The UDP port the node last had on each network it started on: asked for again at its next start there.
-    ports: Mutex<HashMap<Vec<u8>, u16>>,
+    /// The UDP port the node last had on each network it started on, for each node key it was started with: asked for
+    /// again at its next start there with that key. Never another key's: two accounts signed in one after the other on
+    /// one device would otherwise listen on one port, and whoever knew the first's address would know the second's.
+    ports: Mutex<HashMap<([u8; 32], Vec<u8>), u16>>,
+    /// How many times each node has been disallowed: an open asked before the last of them is not handed over, whatever
+    /// its dial came to after ([`Run::open`]).
+    let_go: Mutex<HashMap<EndpointId, u64>>,
     /// Its starting and stopping ended by a bug: whatever is asked of it is answered that it is down.
     fallen: AtomicBool,
 }
@@ -308,6 +315,11 @@ impl Shared {
     /// The node as it is up now, or none.
     fn running(&self) -> Option<Arc<Run>> {
         self.run.read().unwrap_or_else(|p| p.into_inner()).clone()
+    }
+
+    /// How many times `node` has been disallowed so far.
+    fn let_go_count(&self, node: &EndpointId) -> u64 {
+        lock(&self.let_go).get(node).copied().unwrap_or(0)
     }
 }
 
@@ -326,6 +338,8 @@ enum Act {
         channel: u8,
         wait: Duration,
         hint: Hint,
+        /// How many times the node had been disallowed when the open was asked.
+        let_go: u64,
     },
     NetworkChanged,
     /// A bug, made on purpose: the tests' look at what is left of a node when its lifecycle ends by one.
@@ -384,6 +398,7 @@ impl Node {
             run: RwLock::new(None),
             next_stream: AtomicU64::new(0),
             ports: Mutex::new(HashMap::new()),
+            let_go: Mutex::new(HashMap::new()),
             fallen: AtomicBool::new(false),
         });
         on.spawn(async move {
@@ -454,6 +469,9 @@ impl Node {
     pub fn disallow(&self, node: [u8; 32]) {
         let Ok(id) = EndpointId::from_bytes(&node) else { return };
         self.shared.admission.write().unwrap_or_else(|p| p.into_inner()).allowed.remove(&id);
+        // Counted before the lifecycle hears of it: an open asked before this, whose dial is still under way, sees it
+        // however its dial and this come out in time.
+        *lock(&self.shared.let_go).entry(id).or_insert(0) += 1;
         self.ask(Act::LetGo(id));
     }
 
@@ -465,7 +483,8 @@ impl Node {
 
     /// Answered with [`Event::Opened`] or [`Event::OpenFailed`], naming `request`.
     pub fn open(&self, request: u32, node: [u8; 32], channel: u8, wait: Duration, hint: Hint) {
-        if !self.ask(Act::Open { request, node, channel, wait, hint }) {
+        let let_go = EndpointId::from_bytes(&node).map(|id| self.shared.let_go_count(&id)).unwrap_or(0);
+        if !self.ask(Act::Open { request, node, channel, wait, hint, let_go }) {
             self.shared.say(Event::OpenFailed { request, why: OpenError::NotUp, message: "The direct network is not up.".into() });
         }
     }
@@ -729,8 +748,8 @@ async fn lifecycle(shared: Arc<Shared>, mut asked: mpsc::UnboundedReceiver<Act>,
                     up.let_go(&node);
                 }
             }
-            Act::Open { request, node, channel, wait, hint } => match &run {
-                Some(up) => up.tasks.spawn(up.clone().open(request, node, channel, wait, hint)),
+            Act::Open { request, node, channel, wait, hint, let_go } => match &run {
+                Some(up) => up.tasks.spawn(up.clone().open(request, node, channel, wait, hint, let_go)),
                 None => shared.say(Event::OpenFailed { request, why: OpenError::NotUp, message: "The direct network is not up.".into() }),
             },
             Act::NetworkChanged => {
@@ -1554,7 +1573,8 @@ impl Run {
             let network = Here::now().network();
             #[cfg(test)]
             let network = test_network.clone().unwrap_or(network);
-            let had = lock(&shared.ports).get(&network).copied();
+            let key = (node_id(&config.secret), network.clone());
+            let had = lock(&shared.ports).get(&key).copied();
             let (port, mut tries) = match had {
                 Some(port) => (port, PORT_TRIES),
                 None => (first_port(&config.secret, &network), 1),
@@ -1573,10 +1593,10 @@ impl Run {
                 && let Some(port) = ep.bound_sockets().iter().find(|a| a.is_ipv4()).map(|a| a.port()).filter(|port| *port != 0)
             {
                 let mut ports = lock(&shared.ports);
-                if ports.len() >= PORTS_KEPT && !ports.contains_key(&network) {
+                if ports.len() >= PORTS_KEPT && !ports.contains_key(&key) {
                     ports.clear();
                 }
-                ports.insert(network, port);
+                ports.insert(key, port);
             }
             ep
         }
@@ -2036,8 +2056,10 @@ impl Run {
         drop(carried);
     }
 
-    /// Opens a stream to `node` on `channel`, dialling where no link is up.
-    async fn open(self: Arc<Self>, request: u32, node: [u8; 32], channel: u8, wait: Duration, hint: Hint) {
+    /// Opens a stream to `node` on `channel`, dialling where no link is up. Where the node was disallowed after the open
+    /// was asked (`let_go` says how many times it had been then), nothing of it is handed over: a dial under way when
+    /// DISALLOW came, which LetGo found no link of to close, ends in a link that is closed and an open that fails.
+    async fn open(self: Arc<Self>, request: u32, node: [u8; 32], channel: u8, wait: Duration, hint: Hint, let_go: u64) {
         let fail = |why: OpenError, message: &str| self.shared.say(Event::OpenFailed { request, why, message: message.into() });
         let Ok(peer) = EndpointId::from_bytes(&node) else {
             return fail(OpenError::BadRequest, "That is not a node id.");
@@ -2051,7 +2073,7 @@ impl Run {
         let attempt = async {
             let mut tried_again = false;
             loop {
-                let (link, fresh) = self.link_to(peer, &hint).await?;
+                let (link, fresh) = self.link_to(peer, &hint, let_go).await?;
                 *lock(&used) = (!fresh).then(|| link.clone());
                 let carried = link.carrying(true);
                 reached.store(1, Ordering::Relaxed);
@@ -2126,6 +2148,20 @@ impl Run {
                 Err((OpenError::Unreachable, "It did not answer in time.".to_string()))
             }
         };
+        // Disallowed since it was asked, whatever the attempt came to (its link may have been closed under it): the
+        // stream is given up, and so is the link where this open's own dial made it.
+        let opened = if self.shared.let_go_count(&peer) != let_go {
+            if let Ok((link, carried, mut send, mut recv)) = opened {
+                turn_back(&mut send, &mut recv, code::NOT_ALLOWED);
+                if lock(&used).is_none() {
+                    link.end_with(code::NOT_ALLOWED, Closed::NotAllowed);
+                }
+                drop(carried);
+            }
+            Err((OpenError::TurnedAway, "This device no longer allows it.".to_string()))
+        } else {
+            opened
+        };
         match opened {
             Ok((link, carried, send, recv)) => {
                 let share = self.share(&link.peer);
@@ -2139,7 +2175,10 @@ impl Run {
     }
 
     /// The link to `peer`: the newest that is up, or a dial by the hint and by what iroh already knows of it.
-    async fn link_to(self: &Arc<Self>, peer: EndpointId, hint: &Hint) -> Result<(Arc<Link>, bool), (OpenError, String)> {
+    ///
+    /// A link this dial makes to a node disallowed since the open was asked (`let_go`) is closed as soon as it is listed:
+    /// LetGo, which closes what is listed, may have come while the dial was under way.
+    async fn link_to(self: &Arc<Self>, peer: EndpointId, hint: &Hint, let_go: u64) -> Result<(Arc<Link>, bool), (OpenError, String)> {
         if let Some(link) = self.live_link(&peer) {
             return Ok((link, false));
         }
@@ -2150,7 +2189,12 @@ impl Run {
                 return Ok((link, false));
             }
             let conn = self.ep.connect(self.dial_addr(peer, hint), ALPN).await.map_err(|e| why_no_link(&e))?;
-            Ok((self.linked(LinkConn::Full(conn), peer, false, false), true))
+            let link = self.linked(LinkConn::Full(conn), peer, false, false);
+            if self.shared.let_go_count(&peer) != let_go {
+                link.end_with(code::NOT_ALLOWED, Closed::NotAllowed);
+                return Err((OpenError::TurnedAway, "This device no longer allows it.".to_string()));
+            }
+            Ok((link, true))
         }
         .await;
         // Nobody else waiting on this dial: its turn-keeper is not kept.

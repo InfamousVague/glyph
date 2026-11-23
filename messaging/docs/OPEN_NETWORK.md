@@ -14,9 +14,9 @@ releasable at every step. **Status** lines say what is built; everything else is
 | --- | --- | --- |
 | Seams: a hub link and a hub socket that are not a WebSocket | `lib/net/hub_link.dart`, `relay/lib/hub.dart` | built, in 0.12.13 |
 | A link helper (iroh's relay server) for direct links | `tool/build-link.sh`, `tool/deploy-link.mjs`, `native/link-check/` | live at `https://gogho.st:7843` (UDP 7842 for address discovery); not yet handed out by gogho.st's relay (`GHOST_LINK_HELPERS` is set when Direct ships) |
-| The direct network's core (Rust, iroh 1.5) | `native/p2p/`, `lib/net/p2p/node_ffi*.dart` | built, reviewed, fixed; shipped inside the app but never loaded until Direct is switched on; run on the Android emulator through our link helper |
-| The direct route (`p2p`) | `lib/net/p2p/` | built, reviewed twice, fixed; merged switched off (`Net.p2pNode` null). The contract it holds the core to is `lib/net/p2p/node.dart`. Its switch in Settings › Routes (off until the person turns it on, at first) is being built, then a review of the core and the route together |
-| Checking the relay: the ledger, the name watch | `lib/net/ledger.dart`, `lib/net/name_watch.dart` | the name watch in 0.12.16; the ledger built, reviewed and fixed, and waiting on Direct (it compares over direct links) |
+| The direct network's core (Rust, iroh 1.5) | `native/p2p/`, `lib/net/p2p/node_ffi*.dart` | built, reviewed, fixed; carried by the Android, Mac, Windows and Linux builds and never opened until Direct is switched on; run end to end between the Android emulator and a Mac through our link helper |
+| The direct route (`p2p`) | `lib/net/p2p/` | built, reviewed twice, fixed; offered in Settings › Routes on Android, the Mac, Windows and Linux, off until the person switches it on (`net_direct`; the default later). The contract it holds the core to is `lib/net/p2p/node.dart`. Next, a review of the core and the route together |
+| Checking the relay: the ledger, the name watch | `lib/net/ledger.dart`, `lib/net/name_watch.dart` | the name watch in 0.12.16; the ledger built, reviewed and fixed, running while Direct is on (it compares over direct links) |
 | Relays that talk to each other | `relay/lib/federation.dart` | built, reviewed four times, fixed (relay and app); merged; gogho.st's relay runs it switched off (`GHOST_FED` unset, deployed 2026-11-23); the app's side in 0.12.17. It is switched on once the v2 sign-in (0.12.17, the browser extension's 0.2.2) is in enough apps: `GHOST_HUB_NAMES` first, then `GHOST_FED=open` |
 | A relay hosted from the app | `lib/relay_host/` | being built |
 | The web client | `lib/web/`, `web/` | runs end to end in Chromium and WebKit (text, friends, circles' chat; no calls yet); merged after four reviews, its changes to phones and computers in 0.12.17 (part 6 says what it keeps and where it is served); not on `app.gogho.st` yet: its block and build are ready, its DNS record is to add |
@@ -120,6 +120,19 @@ How it is set up, and why (researched 2026-11-22, iroh 1.5.0):
 Dart reaches it through `lib/net/p2p/node.dart` (`P2pNode`): the real one over FFI, a stand-in mesh for tests
 (`test/support/fake_p2p.dart`), and in the browser none (the core as WASM reaches others only through a link
 helper; later). Where the library is not in a build, the route is simply not there.
+
+**Switching it on.** Direct is offered where the app's builds carry the core (Android, the Mac, Windows, Linux:
+`Net.p2pNode`, set where the app starts; not an iPhone, whose build carries none yet, nor a browser), and it starts
+off: it is the one route whose choice is its own (`net_direct`, 'on' or 'off', nothing where never chosen), not in
+`net_off`, so that the day it becomes the default (`Net.directByDefault`) reaches those who never chose and not those
+who switched it off. Until it is on, nothing of it is made: the core's library is not opened, no node key is made,
+nobody is asked who is a friend, no ledger is kept, and a card a friend sends is nobody's to take. Switching it on
+(Settings › Routes) makes the node, the route and the ledger without the app starting again, and gives the node the
+link helpers the relay already named; switching it off closes every link, stops the node (kept, stopped, for the next
+time), lets nobody it let in stay let in, and takes the route and the ledger out. The ledger says it stopped listening
+(`Ledger.pause`), and the next one compares only what came after it began. Before it is on, Settings › Routes says
+what switching it on means (below), lets "Only through link helpers" be chosen first, and where the relay in use names
+no link helper, says that devices behind most home routers can't link.
 
 **Telling each other where we are.** A new envelope kind, `p2p`, never asked to be answered, never sent by a route
 that carries only small packets:

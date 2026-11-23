@@ -25,6 +25,10 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.18', '2026-11-23', [
+    'Your account key: Profile shows the key your account is known by, written as a did:key, with Copy and Share; a friend\'s profile shows theirs. Sign a statement turns a few words into a signed block you can paste anywhere to show an account elsewhere is yours, and Check a statement says whose a pasted one is. Anyone can check one with standard tools, without asking us.',
+    'Vouch for a friend: on a friend\'s profile, Vouch for them to say the account is really them. A vouch lasts a year and can be renewed, or taken back whenever you like. A profile shows how many of your own friends vouch for someone, with their names on a tap, and never a count of everyone. You can hide the vouches you hold in Profile.',
+  ]),
   ReleaseNotes('0.12.17', '2026-11-23', [
     'Remove a device: an iPhone or a computer with an account of its own now deletes everything of the account from itself when it is removed from the account (conversations, keys, recordings and the other networks\' sign-ins), and only when the removal carries the account\'s own signature: never because a relay was changed or lost what it kept. Where a relay doesn\'t know the device, Settings › Me says so and offers to list it again. Signing out says what stays on the device and offers to delete it all. Android phones, and computers paired with one, are as they were.',
     'Safer starts: if an iPhone or a computer with an account of its own can\'t read what it keeps when it starts, it now says so and starts nothing, instead of starting empty and later writing over your messages.',
