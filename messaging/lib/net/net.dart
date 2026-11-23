@@ -240,8 +240,18 @@ class Net extends ChangeNotifier implements PeerBook {
   Future<void> start(AppState app, {List<Carrier>? carriers}) async {
     if ((Sms.paired && !Sms.ownNetwork) || _board != null) return;
     _app = app;
-    // This install's own name among its identity's devices, made once and kept.
+    // This install's own name among its identity's devices, made once and kept. Where the choices it is kept with came
+    // from another device (a backup restored here), a new one: they bring the name with them, so two devices would be
+    // one to the hub, to forward secrecy and to the circles' keys. It is known by the direct network's node key, which is
+    // kept where the install keeps its keys and does not come with a backup, while the node id made from it does.
     var device = app.choice('hub_device', '');
+    if (device.length == 32 && await _restoredHere(app)) {
+      device = '';
+      // What the other device said of its own place on the direct network is not this one's.
+      for (final name in [P2p.idName, P2p.cardName, P2p.toldName]) {
+        app.set(name, '');
+      }
+    }
     if (device.length != 32) {
       device = NetCrypto.hex(NetCrypto.randomBytes(16));
       app.set('hub_device', device);
@@ -307,6 +317,17 @@ class Net extends ChangeNotifier implements PeerBook {
       error = '$e';
     }
     notifyListeners();
+  }
+
+  /// Whether the choices came here from another device: they say a node id was made here, and no node key is kept
+  /// here. A secret store that can't be read says nothing either way.
+  static Future<bool> _restoredHere(AppState app) async {
+    if (app.choice(P2p.idName, '').isEmpty) return false;
+    try {
+      return (await Sms.instance.secretRead(P2p.keyName) ?? '').isEmpty;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// This device's hold on the direct network, where the build has a core ([p2pNode]); null where it has none, or

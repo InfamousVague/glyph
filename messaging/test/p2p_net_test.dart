@@ -48,7 +48,7 @@ void main() {
   late List<Map<String, Object?>> peers;
   late List<Map<String, Object?>> e2e;
   late List<Map<String, Object?>> buddies;
-  late bool e2eFails;
+  late bool e2eFails, secretsLocked;
   late FakeP2pMesh mesh;
   late FakeP2pNode node;
 
@@ -74,6 +74,7 @@ void main() {
     ];
     buddies = [buddy('sam', sam, 'yes'), buddy('asker', asker, 'asked')];
     e2eFails = false;
+    secretsLocked = false;
     mesh = FakeP2pMesh();
     node = mesh.node();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async {
@@ -98,6 +99,7 @@ void main() {
           value.isEmpty ? secrets.remove('${a['name']}') : secrets['${a['name']}'] = value;
           return null;
         case 'secretRead':
+          if (secretsLocked) throw PlatformException(code: 'locked');
           return secrets['${a['name']}'];
       }
       return null;
@@ -439,6 +441,47 @@ void main() {
     expect(await p2p.carrier.send(Peer(id: sam.id, key: keyWith(sam)), Packet.wrap(from: me.id, sealed: true, payload: NetCrypto.seal(keyWith(sam), Envelope(kind: 'ping', ack: false).encode()))), Handed.passed);
     expect(ends.single.proved, isTrue);
     expect(Friends.instance.online, isTrue);
+  });
+
+  // The second review: hub_device travels in backed-up choices, so a backup restored onto another device gave the two
+  // one device name (the hub's, forward secrecy's and the circles' keys are all per device).
+  test('choices restored from another device\'s backup are known by the node key that did not come with them, and the device takes a name of its own', () async {
+    Net.p2pNode = () => node;
+    // A device the app ran on, with Direct: its name, and the direct network's word for its node.
+    final first = AppState();
+    await Net.instance.start(first, carriers: [PlainCarrier('hub')]);
+    await _until(() => Net.instance.p2p!.loaded, 'what the direct network keeps was read');
+    final name = first.choice('hub_device', '');
+    expect([name, first.choice(P2p.idName, '')], [hasLength(32), isNotEmpty]);
+    await Net.instance.shutdown();
+    // Started again where it ran: the same name.
+    await Net.instance.start(first, carriers: [PlainCarrier('hub')]);
+    expect(first.choice('hub_device', ''), name);
+    await Net.instance.shutdown();
+    // Its choices restored onto a new device: they come, the node key does not. A name of its own.
+    final restored = AppState();
+    for (final k in ['hub_device', P2p.idName, P2p.cardName, P2p.toldName, P2p.cardsName]) {
+      restored.set(k, first.choice(k, ''));
+    }
+    secrets.clear();
+    node = mesh.node();
+    await Net.instance.start(restored, carriers: [PlainCarrier('hub')]);
+    final own = restored.choice('hub_device', '');
+    expect(own, allOf(hasLength(32), isNot(name)));
+    await _until(() => Net.instance.p2p!.loaded && Net.instance.p2p!.card != null, 'what the direct network keeps was read');
+    expect(Net.instance.p2p!.card!.device, own);
+    await Net.instance.shutdown();
+    // And keeps it from then on.
+    await Net.instance.start(restored, carriers: [PlainCarrier('hub')]);
+    expect(restored.choice('hub_device', ''), own);
+    await Net.instance.shutdown();
+    // A secret store that can't be read yet says nothing either way: the name stays.
+    secretsLocked = true;
+    final locked = AppState()
+      ..set('hub_device', name)
+      ..set(P2p.idName, first.choice(P2p.idName, ''));
+    await Net.instance.start(locked, carriers: [PlainCarrier('hub')]);
+    expect(locked.choice('hub_device', ''), name);
   });
 
   test('a device the account is gone from forgets its place on the direct network: the key, the cards and what was told', () async {
