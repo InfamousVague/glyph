@@ -23,6 +23,12 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.17', '2026-11-23', [
+    'Remove a device: an iPhone or a computer with an account of its own now deletes everything of the account from itself when it is removed from the account (conversations, keys, recordings and the other networks\' sign-ins), and only when the removal carries the account\'s own signature: never because a relay was changed or lost what it kept. Where a relay doesn\'t know the device, Settings › Me says so and offers to list it again. Signing out says what stays on the device and offers to delete it all. Android phones, and computers paired with one, are as they were.',
+    'Safer starts: if an iPhone or a computer with an account of its own can\'t read what it keeps when it starts, it now says so and starts nothing, instead of starting empty and later writing over your messages.',
+    'Spaces: a message deleted while your device is catching up on a space\'s history now stays deleted, even when the deletion arrives before the message.',
+    'Friends on other relays: each account now signs which relay is its home, so once relays pass messages to each other, people on different relays can be friends, added as @maya@relay.example. Our relay doesn\'t pass messages on yet; the add-friend screen and Settings › Routes say what crosses relays today.',
+  ]),
   ReleaseNotes('0.12.16', '2026-11-23', [
     'Checking the relay: once a day, your devices ask the relay again who each friend\'s username belongs to, and check your own at sign-in. If the relay ever gives a friend\'s username to a different account, their card says so, calmly, and they\'re told: you\'re still talking to the friend you added. Settings › Routes shows what was checked.',
     'Add-me links carry the friend\'s key, so a link only ever adds the person who made it, whatever the relay says.',
