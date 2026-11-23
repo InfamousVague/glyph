@@ -22,6 +22,7 @@ import '../sms.dart';
 import 'address.dart';
 import 'direct_link.dart' show DirectFrames;
 import 'hosting.dart';
+import 'lan_door.dart';
 
 /// This device's relay host (lib/relay_host/relay_host.dart): one where the device can host one (the Mac, Windows,
 /// Linux, Android), none on an iPhone.
@@ -144,6 +145,10 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
   /// connections hold together and each.
   static const maxConnections = 200, heldBytes = 24 << 20, roomKeepBytes = 8 << 20, wireMost = 16 << 20, wireEach = 4 << 20;
 
+  /// The local network's door ([LanDoor]): the most connections at it at once, all together and from one address, and
+  /// how long one may take to finish its request before it is closed.
+  static const doorMost = 64, doorEach = 8, doorWait = Duration(seconds: 5);
+
   /// What waits for the public relay while it can't be reached.
   static const viaQueue = 8 << 20;
 
@@ -175,6 +180,7 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
   Hub? _hub;
   Federation? _fed;
   HttpServer? _server;
+  LanDoor? _lanDoor;
   Future<void>? _starting;
   HostState _state = HostState.off;
   String? _problem, _lanProblem;
@@ -198,6 +204,10 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
   String? get relayId => _fed?.id ?? (_read(idKey).length == 32 ? _read(idKey) : null);
   @override
   int get connections => _hub?.connected ?? 0;
+
+  /// How many connections are at the local network's door now, and how many it closed (full, or too slow); for a test.
+  int get doorOpen => _lanDoor?.open ?? 0;
+  int get doorClosed => (_lanDoor?.turnedAway ?? 0) + (_lanDoor?.timedOut ?? 0);
   @override
   bool get lan => _read(lanKey) != 'off';
   @override
@@ -375,6 +385,7 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
     _hub = null;
     _fed = null;
     _server = null;
+    _lanDoor = null;
     _lanUrls = const [];
     await _closeDirect();
     for (final p in _pairs.toList()) {
@@ -391,13 +402,16 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
     final hub = _hub;
     if (hub == null || _server != null) return;
     try {
-      final server = await HttpServer.bind(_listenOn, port);
+      // Counted and timed at the door, before dart:io's server sees a byte ([LanDoor]).
+      final door = LanDoor(await ServerSocket.bind(_listenOn, port), most: doorMost, each: doorEach, wait: doorWait);
+      final server = HttpServer.listenOn(door)..idleTimeout = doorWait;
       // Stopped while it was being opened.
       if (!identical(hub, _hub)) {
         await server.close(force: true);
         return;
       }
       _server = server;
+      _lanDoor = door;
       server.listen((r) => unawaited(_door(r).catchError((Object _) {})), onError: (Object _) {});
       final found = await _addresses();
       _lanUrls = [for (final a in found) lanHubUrl(a, server.port)];
@@ -414,6 +428,7 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
   Future<void> _closeLan() async {
     final server = _server;
     _server = null;
+    _lanDoor = null;
     _lanUrls = const [];
     await server?.close(force: true);
   }
@@ -421,10 +436,13 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
   /// A request at the local network's door: the hub, at any address ending `/hub`; a line saying what this is,
   /// anywhere else.
   Future<void> _door(HttpRequest r) async {
+    // Its request is whole: not closed for taking too long ([LanDoor]).
+    _lanDoor?.through(r.connectionInfo?.remoteAddress, r.connectionInfo?.remotePort);
     final hub = _hub;
     final upgrade = WebSocketTransformer.isUpgradeRequest(r);
     if (hub != null && upgrade && r.uri.path.endsWith('/hub')) return hub.accept(r);
     r.response
+      ..persistentConnection = false
       ..statusCode = upgrade ? HttpStatus.notFound : HttpStatus.ok
       ..headers.contentType = ContentType.text
       ..write('Ghost Messaging relay, hosted from an app\n');
