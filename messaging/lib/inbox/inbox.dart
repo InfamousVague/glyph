@@ -535,6 +535,8 @@ abstract class InboxNetwork extends ChangeNotifier {
   /// (Telegram's own word). Elsewhere [InboxChat.stranger] says nothing either way.
   bool get marksStrangers => false;
 
+  // The lists last made for [shownChats] and [archivedChats], and what each was made from: made again only when
+  // that changes.
   String? _shownKey, _archivedKey;
   List<InboxChat>? _shown, _archivedList;
 
@@ -688,7 +690,10 @@ abstract class InboxNetwork extends ChangeNotifier {
     return set;
   }
 
+  /// The list [what] as it is kept: one string in the app's choices.
   String _raw(String what) => listStore?.choice('inbox_${id}_$what', '') ?? '';
+
+  /// Each list as last split, with the string it was split from: the same set is handed back until the string changes.
   final Map<String, (String, Set<String>)> _lists = {};
 
   /// Puts [item] in the list [what], or takes it out, and saves. The items are kept as one string, joined by the unit
@@ -872,6 +877,7 @@ class Inbox {
     await Future.wait([for (final n in networks) if (!n.soon) _startOne(n, app)]);
   }
 
+  /// Starts one network where its switch allows, and settles a switch never set.
   Future<void> _startOne(InboxNetwork n, AppState app) async {
     final key = 'inbox_on_${n.id}';
     // Plugins (everything but Telegram and Signal) are off until switched on. 'off' never starts; 'on' starts; an
@@ -906,6 +912,7 @@ class Inbox {
     notifyChange();
   }
 
+  /// A network was switched on or off: [switches] ticks, and the Marketplace is told.
   void notifyChange() {
     _change.value++;
     // The Marketplace draws these switches too (lib/plugins/networks.dart): a word in the plugins' choices redraws it.

@@ -34,6 +34,7 @@ class LevelerCore {
   /// of talk to settle, so a laugh or a cough does not swing anyone.
   static const learn = 0.06, follow = 0.12;
 
+  // By person: how loud they are while speaking, as learned so far (dB), and the gain they are played at now.
   final Map<String, double> _heardDb = {};
   final Map<String, double> _gain = {};
 
@@ -67,6 +68,7 @@ class LevelerCore {
     return gains;
   }
 
+  /// Forgets everyone: the call was left, or the plugin switched off.
   void reset() {
     _gain.clear();
     _heardDb.clear();
@@ -83,6 +85,8 @@ class AutoLeveler extends ChangeNotifier {
   bool Function() isOn = AutoLevelerPlugin.onInCall;
 
   final LevelerCore core = LevelerCore();
+
+  // The call's levels being followed, and its player where it is one that can be told a gain (WebRTC's).
   ValueListenable<Map<String, double>>? _levels;
   RtcMedia? _media;
 
@@ -92,6 +96,7 @@ class AutoLeveler extends ChangeNotifier {
     return g == null || g <= 0 ? 0 : 20 * math.log(g) / math.ln10;
   }
 
+  /// Levelling now: in a call, with the plugin on in it.
   bool get active => _levels != null && isOn();
 
   /// Follows the call there is (called as one is joined and left, as the soundboard is).
@@ -116,6 +121,7 @@ class AutoLeveler extends ChangeNotifier {
     _levels?.addListener(_heard);
   }
 
+  /// A reading of the call's levels: fed to [core], and the gains that moved told to the player.
   void _heard() {
     final levels = _levels;
     if (levels == null) return;
@@ -135,6 +141,7 @@ class AutoLeveler extends ChangeNotifier {
     if (moved) notifyListeners();
   }
 
+  /// Puts everyone back as they arrive and forgets what was learned.
   void _clear() {
     for (final id in core.gains.keys) {
       _media?.setLevelGain(id, 1);

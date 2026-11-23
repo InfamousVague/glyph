@@ -157,6 +157,7 @@ class CosmeticPickerScreen extends StatelessWidget {
   }
 }
 
+/// One tile: the piece as it would look worn alone on your own face, name or card (None: a ban sign), its name under.
 class _Tile extends StatelessWidget {
   const _Tile({super.key, required this.kind, required this.piece, required this.worn, required this.onPick});
   final CosmeticKind kind;

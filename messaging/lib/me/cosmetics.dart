@@ -26,6 +26,7 @@ class Cosmetics {
 
   bool get isEmpty => decoration.isEmpty && border.isEmpty && banner.isEmpty && name.isEmpty && effect.isEmpty;
 
+  /// The id worn of [kind]; '' for none.
   String of(CosmeticKind kind) => switch (kind) {
         CosmeticKind.decoration => decoration,
         CosmeticKind.border => border,
@@ -34,6 +35,7 @@ class Cosmetics {
         CosmeticKind.effect => effect,
       };
 
+  /// These, with [id] worn of [kind] ('' takes it off) and the rest as they are.
   Cosmetics withKind(CosmeticKind kind, String id) => Cosmetics(
         decoration: kind == CosmeticKind.decoration ? id : decoration,
         border: kind == CosmeticKind.border ? id : border,
@@ -76,6 +78,7 @@ class Cosmetics {
   int get hashCode => Object.hash(decoration, border, banner, name, effect);
 }
 
+/// The kinds of piece a profile can wear, one of each at most.
 enum CosmeticKind {
   decoration('d', 'decorations', 'Avatar decoration'),
   border('r', 'borders', 'Picture border'),
@@ -97,6 +100,7 @@ enum CosmeticKind {
 /// [shimmer] across it, a [glow], or a [rainbow] that turns).
 enum NameStyle { texture, gradient, shimmer, glow, rainbow }
 
+/// One piece in the catalog: its kind, the id it is sent as, and what it is called.
 @immutable
 class Cosmetic {
   const Cosmetic(this.kind, this.id, this.label, this.accent, {this.second, this.style = NameStyle.texture});
@@ -188,6 +192,7 @@ class CosmeticCatalog {
     Cosmetic(CosmeticKind.effect, 'starfield-corners', 'Starfield', Color(0xFFFFF3B0), second: Color(0xFFB9A5FF)),
   ];
 
+  /// The pieces of [kind], in the catalog's order.
   static List<Cosmetic> of(CosmeticKind kind) => [for (final c in all) if (c.kind == kind) c];
 
   /// The piece [id] of [kind]; null for none, or one this build does not know (a newer build's).
@@ -236,6 +241,7 @@ class CosmeticArt extends ChangeNotifier {
     return still ? c.asset : null;
   }
 
+  /// For a test: the art in the build is [assets], or not yet read where null.
   @visibleForTesting
   void reset([Set<String>? assets]) {
     _assets = assets;

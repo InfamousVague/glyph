@@ -252,8 +252,10 @@ impl Admission {
     }
 }
 
+/// The one list of who is allowed, shared by the node, its run and iroh's hook.
 type Gatekeeper = Arc<RwLock<Admission>>;
 
+/// The list to read, whatever a panic elsewhere did to its lock.
 fn admission(gate: &Gatekeeper) -> std::sync::RwLockReadGuard<'_, Admission> {
     gate.read().unwrap_or_else(|p| p.into_inner())
 }
@@ -298,10 +300,12 @@ struct Shared {
 }
 
 impl Shared {
+    /// Queues an event for the app; dropped where nothing is left to hand it over.
     fn say(&self, event: Event) {
         let _ = self.events.send(event);
     }
 
+    /// The node as it is up now, or none.
     fn running(&self) -> Option<Arc<Run>> {
         self.run.read().unwrap_or_else(|p| p.into_inner()).clone()
     }
@@ -408,6 +412,8 @@ impl Node {
         !self.shared.fallen.load(Ordering::Relaxed) && self.acts.send(act).is_ok()
     }
 
+    /// Asks for the node to be up with `config`: the answer is an UP or a DOWN event. Up already with the same key
+    /// and helpers, it only says UP again; with others, it is stopped first.
     pub fn start(&self, config: Config) {
         if !self.ask(Act::Start(config, None)) {
             self.shared.say(Event::Down { problem: FELL.into() });
@@ -421,6 +427,7 @@ impl Node {
         }
     }
 
+    /// Asks for the node to be stopped: the answer is an OFF event, whether or not it was up.
     pub fn stop(&self) {
         if !self.ask(Act::Stop) {
             self.shared.say(Event::Off);
@@ -463,6 +470,7 @@ impl Node {
         }
     }
 
+    /// The device's network changed (Wi-Fi for mobile data, say): iroh is told, so it looks at its paths again.
     pub fn network_changed(&self) {
         self.ask(Act::NetworkChanged);
     }
@@ -755,6 +763,8 @@ enum Out {
     Finish,
 }
 
+/// What a stream's queue holds that is not yet written, counted against [`SEND_QUEUE_BYTES`] and
+/// [`SEND_QUEUE_FRAMES`].
 #[derive(Default)]
 struct Queued {
     bytes: usize,
@@ -774,13 +784,16 @@ struct Credit {
     stream: usize,
 }
 
+/// One stream while it is open, as the node's table holds it: what the app's send and close reach it by.
 struct Stream {
     id: u64,
     peer: EndpointId,
     channel: u8,
     incoming: bool,
+    /// To its writer, which sends on in order.
     out: mpsc::UnboundedSender<Out>,
     queued: Mutex<Queued>,
+    /// The app closed it: from here its writer has [`CLOSE_FLUSH`] to write what was queued.
     close_asked: Notify,
     stop: CancellationToken,
     /// Why it was stopped, where something stopped it.
@@ -789,6 +802,7 @@ struct Stream {
 }
 
 impl Stream {
+    /// Stops it at once, without writing what is queued. The first reason given is the one that is said.
     fn stop_for(&self, why: Closed) {
         lock(&self.why).get_or_insert(why);
         self.stop.cancel();
@@ -872,6 +886,7 @@ impl LinkConn {
         }
     }
 
+    /// The connection where iroh holds it; none for a stranger's.
     fn full(&self) -> Option<&Connection> {
         match self {
             LinkConn::Full(c) => Some(c),
@@ -901,15 +916,19 @@ struct Link {
 }
 
 impl Link {
+    /// Ends the link, with the code its connection closes with and what its streams are told. The first reason
+    /// given stands.
     fn end_with(&self, code: u32, why: Closed) {
         lock(&self.ended).get_or_insert((code, why));
         self.stop.cancel();
     }
 
+    /// Neither ended here nor closed by the other end or the network.
     fn live(&self) -> bool {
         !self.stop.is_cancelled() && self.conn.close_reason().is_none()
     }
 
+    /// Counts one more stream on the link (`ours`: one this node opened) until what is returned is dropped.
     fn carrying(self: &Arc<Self>, ours: bool) -> Carried {
         self.streams.send_modify(|n| *n += 1);
         if ours {
@@ -957,6 +976,7 @@ struct Tasks {
 }
 
 impl Tasks {
+    /// Starts a task, forgetting the ones that have ended; nothing is started once the node is stopping.
     fn spawn(&self, task: impl Future<Output = ()> + Send + 'static) {
         if let Some(set) = lock(&self.set).as_mut() {
             while set.try_join_next().is_some() {}
@@ -964,6 +984,7 @@ impl Tasks {
         }
     }
 
+    /// Waits `within` for every task to end, then ends the ones that have not; takes no more from then on.
     async fn end(&self, within: Duration) {
         let Some(mut set) = lock(&self.set).take() else { return };
         let ended = timeout(within, async { while set.join_next().await.is_some() {} }).await.is_ok();
@@ -988,6 +1009,7 @@ enum Source {
 }
 
 impl Source {
+    /// The source an address counts as: itself for IPv4 (and IPv4 carried in IPv6), its /64 for IPv6.
     fn of(ip: IpAddr) -> Source {
         match ip.to_canonical() {
             IpAddr::V6(v6) => {
@@ -1031,6 +1053,8 @@ impl Pools {
         Pools { any: Arc::new(Semaphore::new(limits.handshakes)), helper: Arc::new(Semaphore::new(limits.helper_handshakes)), held: Arc::default() }
     }
 
+    /// A place for one handshake, in the helper pool or the pool for anyone; none where the pool is full or `source`
+    /// already has as many as one source may.
     fn take(&self, helper: bool, source: Source, limits: &Limits) -> Option<Slot> {
         let most = if helper { limits.per_caller } else { limits.per_source };
         let mut held = lock(&self.held);
@@ -1049,8 +1073,11 @@ impl Pools {
 struct Refusals(Mutex<HashMap<Source, (u32, Instant)>>);
 
 impl Refusals {
+    /// How many sources are remembered: past it the ones whose while is over are forgotten, and if that frees
+    /// nothing, all of them.
     const MOST_KEPT: usize = 4096;
 
+    /// Counts one more refusal of `source`, starting its count again where its while is over.
     fn note(&self, source: &Source) {
         let mut by = lock(&self.0);
         if by.len() >= Self::MOST_KEPT {
@@ -1066,6 +1093,7 @@ impl Refusals {
         seen.0 += 1;
     }
 
+    /// Whether `source` has been turned away `most` times in the window, and so is not answered now.
     fn resting(&self, source: &Source, most: u32) -> bool {
         lock(&self.0).get(source).is_some_and(|(n, since)| *n >= most && since.elapsed() < REFUSALS_WINDOW)
     }
@@ -1452,6 +1480,9 @@ pub(crate) fn grow(frame: &mut Vec<u8>, by: usize, most: usize) {
 }
 
 impl Run {
+    /// Brings a node up from `config`: reads its link helpers, binds the endpoint (on the port it last had on this
+    /// network, where it can) and makes the run, taking no caller yet ([`Run::go`] does that). The error is the
+    /// problem as the app is told it.
     async fn begin(shared: &Arc<Shared>, config: &Config, setup: Option<TestSetup>, on: &Handle) -> Result<Arc<Run>, String> {
         let mut helpers: Vec<(RelayUrl, String)> = Vec::new();
         for written in &config.helpers {
@@ -2187,8 +2218,11 @@ impl Run {
 
     /// Carries a stream until it ends, and says why it did.
     async fn pump(&self, link: &Link, st: Arc<Stream>, mut send: SendStream, mut recv: RecvStream, mut queue: mpsc::UnboundedReceiver<Out>) {
+        /// Which of the four things a stream waits on came first.
         enum End {
+            /// It, its link or the node was stopped.
             Stopped,
+            /// The app closed it, and what was queued had not been written [`CLOSE_FLUSH`] later.
             Overdue,
             Read(ReadEnd),
             Wrote(WriteEnd),
@@ -2490,6 +2524,7 @@ struct Held<'a> {
 }
 
 impl Held<'_> {
+    /// Leaves what was set aside counted: the frame is the app's to give back now.
     fn keep(self) {
         std::mem::forget(self);
     }
@@ -2501,15 +2536,18 @@ impl Drop for Held<'_> {
     }
 }
 
+/// How the reading of a stream's frames ended.
 enum ReadEnd {
     /// The other end closed the stream (its end came between two frames, or it reset it).
     Ended,
     /// What came was no frame.
     Broken,
+    /// The link under it went.
     Lost,
 }
 
 impl ReadEnd {
+    /// What a failed read means: a reset is the other end closing, anything else the link going.
     fn of(e: ReadError) -> ReadEnd {
         match e {
             ReadError::Reset(_) => ReadEnd::Ended,
@@ -2518,11 +2556,13 @@ impl ReadEnd {
     }
 }
 
+/// How the writing of a stream's queued frames ended.
 enum WriteEnd {
     /// Closed here, and everything before it written.
     Finished,
     /// The other end stopped reading: it closed the stream.
     StoppedByThem,
+    /// The link under it went.
     Lost,
 }
 

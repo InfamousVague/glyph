@@ -72,6 +72,8 @@ class HomeRecord {
 
   static final _hex32 = RegExp(r'^[0-9a-f]{32}$');
 
+  /// Whether [s] could be an address in a record: not empty, no longer than [maxAddress], printable ASCII with no
+  /// space in it.
   static bool _plain(String s) => s.isNotEmpty && s.length <= maxAddress && s.codeUnits.every((c) => c > 0x20 && c < 0x7f);
 
   /// What an account signs to say it lives at [h], as record number [n], made at [t].

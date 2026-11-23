@@ -25,6 +25,8 @@ class Bounty {
   final int Function(String to, int souls, String why) give;
   final DateTime Function() _now;
 
+  /// The most souls one bounty gives, the most bounties in any day, how far the signed time may be from this relay's
+  /// clock either way, and the longest body read, in bytes.
   static const mostAtOnce = 500;
   static const mostADay = 30;
   static const skew = Duration(minutes: 5);
@@ -33,14 +35,20 @@ class Bounty {
   /// The words the key signs.
   static String signedWords(int time, String bodySha) => 'ghost-bounty v1\nPOST\n/bounty\n$time\n$bodySha';
 
+  /// Whether bounties are paid here at all: the key set is a public key (33 bytes in hex, beginning 02 or 03).
   bool get on => RegExp(r'^0[23][0-9a-f]{64}$').hasMatch(key);
 
   /// GHOST_BOUNTY_KEY from the relay's environment file (tool/deploy-relay.mjs --env).
   static String keyFrom(Map<String, String> env) => (env['GHOST_BOUNTY_KEY'] ?? '').trim().toLowerCase();
 
+  /// When each bounty of the last day was paid; and the signatures taken lately (a hash of each, with its signed time),
+  /// so one heard on the wire can't be sent a second time while its time is still good.
   final List<DateTime> _today = [];
   final Map<String, int> _replays = {};
 
+  /// `POST /bounty`. Answers `{ok, to, souls, n}` (n: their total after), or `{error}` with 405 (not a POST), 404 (no
+  /// key set), 413 (body too long), 401 (not signed by the key, too old, or sent before), 400 (a body that can't be
+  /// read or is out of range) or 429 (the day's bounties are used up).
   Future<void> handle(HttpRequest r) async {
     Future<void> answer(int status, Map<String, Object?> body) async {
       r.response
@@ -80,6 +88,8 @@ class Bounty {
     return answer(HttpStatus.ok, {'ok': true, 'to': to, 'souls': souls, 'n': total});
   }
 
+  /// Whether the request's headers carry the bounty key, a time within [skew] of now, and that key's signature over
+  /// [signedWords] for this body, not taken before. A signature is remembered only once it has checked out.
   bool _signed(HttpRequest r, String bodySha) {
     try {
       final k = base64Decode(r.headers.value('x-ghost-key') ?? '');

@@ -12,6 +12,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+/// Puts one-track MP4s together into one file of many tracks, by moving their boxes about: [merge] is all of it.
 class Mp4Merge {
   /// Writes [out] with the first sound track of each of [inputs], in their order.
   static Future<void> merge(List<String> inputs, String out) async {
@@ -67,6 +68,8 @@ class Mp4Merge {
     }
   }
 
+  /// The movie box (`moov`) of the file at [path], found by stepping over its top-level boxes. Throws a
+  /// [FormatException] where there is none, a box runs past the end, or the file is in fragments (`moof`).
   static Future<Uint8List> _moovOf(String path, int length) async {
     final raf = await File(path).open();
     try {
@@ -78,6 +81,7 @@ class Mp4Merge {
         final d = ByteData.sublistView(h);
         var size = d.getUint32(0);
         final type = latin1.decode(h.sublist(4, 8));
+        // A size of 1: the real one is the 64 bits after the type. Of 0: the box runs to the end of the file.
         if (size == 1 && h.length >= 16) {
           size = d.getUint64(8);
         } else if (size == 0) {
@@ -97,6 +101,7 @@ class Mp4Merge {
     throw FormatException('no movie box in $path');
   }
 
+  /// Whether a track is sound: its handler (`mdia` › `hdlr`) says `soun`.
   static bool _isSound(Uint8List trak) {
     final mdia = _children(trak, 8).where((b) => _type(b) == 'mdia').firstOrNull;
     if (mdia == null) return false;
@@ -104,6 +109,8 @@ class Mp4Merge {
     return hdlr != null && hdlr.length >= 20 && latin1.decode(hdlr.sublist(16, 20)) == 'soun';
   }
 
+  /// A movie header's units a second and its length in them; version 1 keeps its times in 64 bits, so they sit
+  /// further in.
   static ({int scale, int duration}) _mvhdTimes(Uint8List mvhd) {
     final d = ByteData.sublistView(mvhd);
     return mvhd[8] == 1 ? (scale: d.getUint32(28), duration: d.getUint64(32)) : (scale: d.getUint32(20), duration: d.getUint32(24));
@@ -127,6 +134,8 @@ class Mp4Merge {
   static ({Uint8List box, int duration}) _trak(Uint8List trak, {required int id, required int shift, required int from, required int to}) {
     var duration = 0;
     int scaled(int v) => from == to || from == 0 ? v : (v * to / from).round();
+    // Rebuilds the track box by box: the header takes the new number, the edit list the new time, the chunk offsets
+    // the shift; the boxes that hold those are made again around them, and every other box is kept as it is.
     Uint8List walk(Uint8List box, List<String> path) {
       final type = _type(box);
       switch (type) {
@@ -187,8 +196,10 @@ class Mp4Merge {
     return (box: box, duration: duration);
   }
 
+  /// [v] as four bytes, big-endian, as every number in an MP4 is.
   static Uint8List _u32(int v) => Uint8List(4)..buffer.asByteData().setUint32(0, v);
 
+  /// A box's four-letter type.
   static String _type(Uint8List box) => latin1.decode(box.sublist(4, 8));
 
   /// The boxes inside [box], from [from] bytes in.
@@ -202,6 +213,7 @@ class Mp4Merge {
     }
   }
 
+  /// A box of [type] holding [body]: its length, its type, then the parts one after another.
   static Uint8List _box(String type, List<List<int>> body) {
     final length = body.fold<int>(8, (a, b) => a + b.length);
     final out = BytesBuilder(copy: false)

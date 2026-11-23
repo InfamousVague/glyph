@@ -43,6 +43,8 @@ const who = String.fromEnvironment('WHO');
 const hub = String.fromEnvironment('HUB', defaultValue: 'wss://gogho.st/hub');
 const botName = 'Ghost Bugfixes';
 
+/// Where the bot's key and its circle are kept, and that file read (empty where there is none yet) and written
+/// (readable by this user alone).
 File get _saved => File('${Platform.environment['HOME']}/.config/mattssoftware/ghost-updates-bot.json');
 
 Map<String, dynamic> _read() => _saved.existsSync() ? (jsonDecode(_saved.readAsStringSync()) as Map).cast<String, dynamic>() : {};
@@ -65,6 +67,7 @@ List<Mention> _mentions(String words) {
   ];
 }
 
+/// The bot's identity: the key that was saved, or one made now and saved.
 NetKeys _keys() {
   final saved = _read();
   if (saved['key'] is String) return NetKeys.fromScalar(NetCrypto.unhex(saved['key'] as String));
@@ -73,6 +76,7 @@ NetKeys _keys() {
   return keys;
 }
 
+/// Signs in to the relay's hub as the bot, giving it ten seconds to come up.
 Future<HubCarrier> _connect(NetKeys keys) async {
   final c = HubCarrier(url: hub, signer: KeysSigner(keys));
   await c.start();

@@ -13,6 +13,7 @@ import '../voice/channels.dart';
 import 'plugin.dart';
 import 'registry.dart';
 
+/// The plugin: what the Marketplace says of it, and whether it is on in the call there is.
 class AutoLevelerPlugin extends GhostPlugin {
   const AutoLevelerPlugin();
 

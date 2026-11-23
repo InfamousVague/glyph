@@ -110,6 +110,7 @@ final class VoiceFx: NSObject, ExternalAudioProcessingDelegate {
     // The first channel is cleaned; any other is given the same, so a stereo microphone stays one voice.
     let first = audioBuffer.rawBuffer(forChannel: 0)
     voicefx_process(fx, first, Int32(frames), Int32(frames * 100))
+    // The block's loudest sample, as it is after voicefx, kept for when "level" is next asked.
     var loudest: Float = 0
     vDSP_maxmgv(first, 1, &loudest, vDSP_Length(frames))
     os_unfair_lock_lock(peakLock)

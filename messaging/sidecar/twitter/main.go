@@ -71,6 +71,7 @@ const (
 	maxUpload = 100 << 20
 )
 
+// quote is the message a `send` answers: its id, and what the app knows of it.
 type quote struct {
 	ID string `json:"id"`
 	// What the quoted message was, for a quote of a message this run has not seen. Optional: the helper remembers
@@ -80,6 +81,7 @@ type quote struct {
 	TS     int64  `json:"ts"`
 }
 
+// request is one line read from standard input. Each op reads the fields it needs and leaves the rest.
 type request struct {
 	ID      int64             `json:"id"`
 	Op      string            `json:"op"`
@@ -122,28 +124,34 @@ type account struct {
 	// One listing of the inbox at a time.
 	syncLock sync.Mutex
 
+	// How far this run has got: the newest X Chat sequence id passed on.
 	stateLock sync.Mutex
 	maxSeq    string
 
+	// What session.json was last written with, to tell when it needs writing again. One write at a time.
 	saveLock   sync.Mutex
 	savedCooks map[string]string
 	savedSeq   string
 }
 
 var (
+	// Where the session file, the log and the cached avatars are kept (--dir).
 	dir     string
 	log     zerolog.Logger
 	out     = json.NewEncoder(os.Stdout)
 	outLock sync.Mutex
 
+	// mu guards the session in use and whether its live connection is up.
 	mu        sync.Mutex
 	acct      *account
 	connected bool
 	// One sign-in or sign-out at a time.
 	signLock sync.Mutex
+	// The requests still being answered, which main waits for (briefly) when Ghost closes its end.
 	inflight sync.WaitGroup
 )
 
+// say writes [v] to standard output as one JSON line. Nothing else writes there, and outLock keeps each line whole.
 func say(v any) {
 	outLock.Lock()
 	defer outLock.Unlock()
@@ -159,6 +167,8 @@ func event(name string, fields map[string]any) {
 	say(m)
 }
 
+// main opens the kept session, if there is one, says `ready`, then answers the requests on standard input, each in
+// its own goroutine, until Ghost closes it.
 func main() {
 	flag.StringVar(&dir, "dir", "", "where the X session is kept")
 	flag.Parse()
@@ -183,6 +193,7 @@ func main() {
 		start(a)
 	}
 
+	// A request is one line, 8 MB at most.
 	scan := bufio.NewScanner(os.Stdin)
 	scan.Buffer(make([]byte, 1<<20), 8<<20)
 	for scan.Scan() {
@@ -213,6 +224,7 @@ func main() {
 	}
 }
 
+// parseRequest reads one line as a request. A line that is not JSON, or names no op, is an error (and is skipped).
 func parseRequest(line []byte) (request, error) {
 	var r request
 	err := json.Unmarshal(line, &r)
@@ -230,11 +242,13 @@ func answer(id int64, result any, err error) map[string]any {
 	return map[string]any{"id": id, "ok": true, "result": result}
 }
 
+// handle does what [r] asks and says its answer.
 func handle(r request) {
 	result, err := do(r)
 	say(answer(r.ID, result, err))
 }
 
+// bg is a context with no end that carries the helper's log.
 func bg() context.Context { return log.WithContext(context.Background()) }
 
 // libLog is the library's own log: warnings and worse only. Its debug lines carry request bodies.
@@ -246,6 +260,7 @@ func libLog() zerolog.Logger {
 
 var errNotLinked = errors.New("not signed in to X")
 
+// current is the session in use; nil when nobody is signed in.
 func current() *account {
 	mu.Lock()
 	defer mu.Unlock()
@@ -327,6 +342,8 @@ func start(a *account) {
 	}()
 }
 
+// setConnected notes whether [a]'s live connection is up, and says `connected` or `disconnected` when that changes.
+// A session that is no longer the one in use is not listened to.
 func setConnected(a *account, now bool) {
 	mu.Lock()
 	if acct != a || connected == now {
@@ -373,12 +390,14 @@ func ended(a *account, err error) {
 	event("unlinked", map[string]any{"error": endedWords(err)})
 }
 
+// forgetFiles removes what is kept on disk of a session: the session file (and a half-written one) and the avatars.
 func forgetFiles() {
 	_ = os.Remove(sessionPath())
 	_ = os.Remove(sessionPath() + ".new")
 	_ = os.RemoveAll(avatarDir())
 }
 
+// getMaxSeq is how far this run has got: the newest sequence id noted.
 func (a *account) getMaxSeq() string {
 	a.stateLock.Lock()
 	defer a.stateLock.Unlock()
@@ -425,10 +444,12 @@ func (a *account) keepState(always bool) {
 	}
 }
 
+// identity is who is signed in: what `sign_in` answers and the `linked` event carries.
 func (a *account) identity() map[string]any {
 	return map[string]any{"me": a.me, "name": a.name, "handle": a.handle}
 }
 
+// status answers `status`: whether anyone is signed in, whether the live connection is up, and who it is.
 func status() map[string]any {
 	mu.Lock()
 	defer mu.Unlock()
@@ -502,6 +523,8 @@ func unlink() {
 
 // --- requests -------------------------------------------------------------------------------------------------------
 
+// do answers one request within a time limit: a minute, or nearly three for a sign-in or a file. An op that needs a
+// session fails without one, and a failure that means X turned the session away ends it (see ended).
 func do(r request) (any, error) {
 	limit := 60 * time.Second
 	if r.Op == "download" || r.Op == "send_media" || r.Op == "sign_in" {
@@ -541,6 +564,7 @@ func do(r request) (any, error) {
 	return result, nil
 }
 
+// knownOp is whether [op] is one of the ops that need a session: those the account's do answers.
 func knownOp(op string) bool {
 	switch op {
 	case "chats", "history", "send", "send_media", "read", "react", "delete", "download", "who":
@@ -549,6 +573,8 @@ func knownOp(op string) bool {
 	return false
 }
 
+// do runs an op that needs the session. A message's own id (a UUID) is made here, so a file sent with it is
+// uploaded under the same id.
 func (a *account) do(ctx context.Context, r request) (any, error) {
 	switch r.Op {
 	case "chats":
@@ -584,6 +610,7 @@ func (a *account) do(ctx context.Context, r request) (any, error) {
 // a message id. So the helper remembers, in memory only and for this run, the chats, people and newest messages that
 // have passed through it.
 
+// chatNote is what is remembered of a chat.
 type chatNote struct {
 	group bool
 	// A message request not yet answered: answering it accepts it, as the website's reply box does.
@@ -592,6 +619,7 @@ type chatNote struct {
 	newest string
 }
 
+// msgNote is what is remembered of a message: enough to quote it in a reply.
 type msgNote struct {
 	chat string
 	from string
@@ -604,6 +632,8 @@ type msgNote struct {
 // msgNotes is how many messages are remembered before the oldest are let go.
 const msgNotes = 5000
 
+// memory is what this run has seen, by id. Its lock guards every field. order is the remembered message ids, oldest
+// first: which to let go past msgNotes.
 type memory struct {
 	sync.Mutex
 	chats  map[string]chatNote
@@ -620,6 +650,7 @@ func newMemory() *memory {
 	return &memory{chats: map[string]chatNote{}, msgs: map[string]msgNote{}, people: map[string]person{}, said: map[string]string{}}
 }
 
+// reset forgets everything: the session it was seen through is gone.
 func (m *memory) reset() {
 	m.Lock()
 	defer m.Unlock()
@@ -634,6 +665,7 @@ func (m *memory) chat(id string) (chatNote, bool) {
 	return n, ok
 }
 
+// noteChat remembers a chat, keeping the newest message id already known of it where that one is later.
 func (m *memory) noteChat(id string, n chatNote) {
 	m.Lock()
 	defer m.Unlock()
@@ -713,6 +745,7 @@ func (m *memory) newsOf(p person) bool {
 	return true
 }
 
+// nameOf is what to call the person [id]: their name, else their handle, "" where this run has not met them.
 func nameOf(id string) string {
 	p, _ := seen.person(id)
 	return cmp.Or(p.Name, p.Handle)
@@ -749,8 +782,10 @@ func (a *account) learnPeople(ctx context.Context, ids []string) {
 
 // --- avatars --------------------------------------------------------------------------------------------------------
 
+// avatarDir is where people's pictures are kept once fetched.
 func avatarDir() string { return filepath.Join(dir, "avatars") }
 
+// nullable is [s], or JSON's null where it is empty.
 func nullable(s string) any {
 	if s == "" {
 		return nil
@@ -819,6 +854,7 @@ func (a *account) sayName(who person) {
 	event("name", map[string]any{"id": who.ID, "name": who.Name, "handle": who.Handle, "avatar": nullable(a.avatar(bg(), who))})
 }
 
+// who answers `who`: the person with an X user id, asked of X where this run does not know them.
 func (a *account) who(ctx context.Context, id string) (any, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
@@ -837,6 +873,8 @@ func (a *account) who(ctx context.Context, id string) (any, error) {
 
 // --- chats ----------------------------------------------------------------------------------------------------------
 
+// collectKey is the context key a collector travels under: onEvent hands the events of a context that carries one
+// to it, and says nothing to the app.
 type collectKey struct{}
 
 // collector gathers what the events listed with a chat say of it, as the library hands them over: the newest
@@ -850,6 +888,7 @@ type collector struct {
 	newest string
 }
 
+// add takes one of the chat's events: a message or a read mark. Anything else is passed over.
 func (c *collector) add(evt types.TwitterEvent) {
 	c.Lock()
 	defer c.Unlock()
@@ -877,6 +916,7 @@ func (c *collector) add(evt types.TwitterEvent) {
 	}
 }
 
+// summary is what was gathered: unread counts the others' messages that come after the person's own read mark.
 func (c *collector) summary() inboxSummary {
 	c.Lock()
 	defer c.Unlock()
@@ -1226,6 +1266,9 @@ func sendFailure(f *payload.MessageFailureEvent) error {
 	return fmt.Errorf("X turned the message away (failure %d).", ptr.Val(f.FailureType))
 }
 
+// send answers `send`, and `send_media` once the file is uploaded ([att]): sealed where the chat has a key, signed
+// only where it has not. [messageID] is the message's own id (a UUID); the answer carries the sequence id X gave it,
+// which is the id the app knows it by.
 func (a *account) send(ctx context.Context, r request, messageID string, att *payload.MessageAttachment) (any, error) {
 	to := normalizeChat(r.To)
 	if to == "" {
@@ -1382,6 +1425,8 @@ func restChat(id string) string {
 	return strings.ReplaceAll(id, ":", "-")
 }
 
+// react adds or takes back a reaction: through X Chat in an encrypted chat, through X's older API (with its form
+// of the chat id) in the others.
 func (a *account) react(ctx context.Context, to, target, emoji string, remove bool) error {
 	to = normalizeChat(to)
 	if to == "" || target == "" || emoji == "" {
@@ -1588,6 +1633,7 @@ func (a *account) onEvent(ctx context.Context, evt types.TwitterEvent) bool {
 	return true
 }
 
+// onMessage says a message as a `message` event, once: one this run has already passed on is dropped.
 func (a *account) onMessage(ctx context.Context, m *types.Message) {
 	chat := normalizeChat(m.ConversationID)
 	id := cmp.Or(m.SequenceID, m.ID)
@@ -1609,6 +1655,7 @@ func (a *account) onMessage(ctx context.Context, m *types.Message) {
 	go a.sayName(person{ID: sender})
 }
 
+// onReaction says a reaction added or taken back as a `reaction` event.
 func (a *account) onReaction(r *types.MessageReaction, remove bool) {
 	chat := normalizeChat(r.ConversationID)
 	if chat == "" || r.MessageID == "" || r.SenderID == "" || r.EmojiReaction == "" {

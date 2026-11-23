@@ -655,6 +655,7 @@ class _HangoutChatState extends State<HangoutChat> {
   /// The message the next one answers, shown over the box (GMFB-13), or null.
   SpaceReply? _replying;
 
+  /// Makes the next message an answer to [m], in place of any edit under way, and puts the cursor in the box.
   void _startReply(HangoutMessage m) {
     if (!widget.room.mayWrite) return;
     setState(() {

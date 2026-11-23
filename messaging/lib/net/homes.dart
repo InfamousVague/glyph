@@ -66,6 +66,8 @@ class Homes extends ChangeNotifier {
     mine = HomeRecord.check(_json(read('net_home')), forId: signer.id, now: _now());
   }
 
+  /// The account, with a way to sign its record; and where the record and its count are kept (`net_home`,
+  /// `net_home_n`, with the app's choices).
   final NetSigner signer;
   final String Function(String key) _read;
   final void Function(String key, String value) _write;
@@ -111,6 +113,7 @@ class Homes extends ChangeNotifier {
   DateTime? _movingAt;
   bool _disposed = false;
 
+  /// [text] read as JSON; null where it is empty or is none.
   static Object? _json(String text) {
     try {
       return text.isEmpty ? null : jsonDecode(text);
@@ -143,6 +146,7 @@ class Homes extends ChangeNotifier {
     _state();
   }
 
+  /// Lets go of the relay's route: nothing more is heard from it or said through it.
   void detach() {
     final hub = _hub;
     if (hub == null) return;
@@ -166,6 +170,7 @@ class Homes extends ChangeNotifier {
     super.dispose();
   }
 
+  /// Whether there is a relay's route and it is up.
   bool get _up => _hub != null && _hub!.state.value == CarrierState.up;
 
   /// Whether the relay this app uses passes packets to other relays, as it said in its hello.
@@ -224,11 +229,13 @@ class Homes extends ChangeNotifier {
           if (_elsewhere(rec)) {'dir': 'home', 'rec': rec},
       ];
 
+  /// Whether the record [json] names a relay other than the one in use.
   bool _elsewhere(Map<String, Object?> json) {
     final h = json['h'];
     return h is List && _hub != null && !namesHere(h.whereType<String>());
   }
 
+  /// The relay's route came up or went: come up, this account's record is seen to.
   void _state() {
     if (_up) unawaited(ensure());
   }
@@ -239,6 +246,7 @@ class Homes extends ChangeNotifier {
   /// record is being made waits for it.
   Future<void> ensure() => _queue(_ensure);
 
+  /// Runs [job] after the one before it; one that throws does not stop the next.
   Future<void> _queue(Future<void> Function() job) {
     final before = _making ?? Future<void>.value();
     final made = _making = before.then((_) => job()).catchError((Object _) {});
@@ -263,6 +271,8 @@ class Homes extends ChangeNotifier {
     await _make(address);
   }
 
+  /// Signs a record naming [address] with the next count, keeps it as [mine] and gives it to the relay where that is
+  /// up. Null, with [problem] saying why, where it could not be signed.
   Future<HomeRecord?> _make(String address) async {
     final HomeRecord rec;
     try {
@@ -324,6 +334,7 @@ class Homes extends ChangeNotifier {
   /// [id] is no longer a friend (or never was one): their record is no longer given.
   void forget(String id) => _friends.remove(id);
 
+  /// When each friend's record, and this account's own, was last given again ([_keptHere], [_noHome]).
   final Map<String, DateTime> _saidAgain = {};
   DateTime? _gaveOwnAgain;
 
@@ -353,6 +364,8 @@ class Homes extends ChangeNotifier {
     if (livesHere(own)) _hub!.sayHandles({'dir': 'home', 'rec': own.toJson()});
   }
 
+  /// What the relay says of records: its answer to one given it (`home`), or to this account's own asked back
+  /// (`home?`).
   void _heard(Map<String, dynamic> m) {
     if (m['dir'] == 'home?') return _heardOwn(m);
     if (m['dir'] != 'home') return;

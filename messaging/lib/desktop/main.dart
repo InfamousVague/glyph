@@ -46,6 +46,7 @@ import 'updates.dart';
 import '../people.dart';
 import '../plugins/pack/pack.dart' show InstalledPlugins;
 import '../plugins/plugin_sync.dart' show PluginSync;
+import '../plugins/human_check.dart' show startHumanCheck;
 import 'own_calls.dart';
 import '../friends/buddies.dart';
 import '../me/me.dart';
@@ -183,6 +184,9 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // Telegram's and Bluesky's chats (lib/inbox): the computer signs in to them itself, as their own apps do.
   addInboxSettings();
   unawaited(Inbox.instance.start(state));
+  // First messages from someone new on the networks the Human check guards, held until they answer its question, as
+  // on the phone (lib/inbox/human_check.dart; GMFB-23).
+  startHumanCheck(state);
   // The updates looked for at the splash, told to the phone's screens too, so its banner and its words are the
   // computer's (remote.dart).
   if (macUpdates != null) calls.attachUpdates(macUpdates);

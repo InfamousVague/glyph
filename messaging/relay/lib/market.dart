@@ -369,6 +369,8 @@ class Market {
   final _reportsByAddress = _Recent(const Duration(days: 1));
   final _reportsBySomeone = _Recent(const Duration(days: 1));
   final _reportsUnknown = _Recent(const Duration(days: 1));
+  // Reports of people (`POST /market/abuse`): by key in an hour and a day, by address and by someone in a day, and
+  // those from keys with no verified number or linked account, all together.
   final _abuseByKeyHour = _Recent(const Duration(hours: 1));
   final _abuseByKey = _Recent(const Duration(days: 1));
   final _abuseByAddress = _Recent(const Duration(days: 1));

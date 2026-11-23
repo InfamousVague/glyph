@@ -223,6 +223,7 @@ class ForwardSecrecy {
     }
   }
 
+  /// The prekey made last; null where there is none.
   _Prekey? get _newest => _mine.isEmpty ? null : _mine.reduce((a, b) => b.made > a.made ? b : a);
 
   /// Whether a prekey needs making or deleting now: [refresh] has work.
@@ -435,6 +436,8 @@ class ForwardSecrecy {
     return _finish(_unwrap(found.prekey!.keys.scalar, device, from, to, pairKey, payload, found.at!, found.headLength!), found.prekey!, payload);
   }
 
+  /// Finds this device's entry in [payload]'s header: where it starts ([at]), how long the header is, and the prekey
+  /// it names, where this device still holds it. Else [result] says why the packet can't be opened here.
   ({FsResult? result, _Prekey? prekey, int? at, int? headLength}) _find(List<int> payload) {
     if (payload.length < 1 + 33 + 28) return (result: FsResult.bad, prekey: null, at: null, headLength: null);
     final n = payload[0];
@@ -457,6 +460,9 @@ class ForwardSecrecy {
     return (result: null, prekey: prekey, at: at, headLength: headLength);
   }
 
+  /// The arithmetic of opening, with nothing of this object in it (so the worker can run it): agrees a key with the
+  /// packet's one-off key under the prekey's [scalar], unwraps the content key in this device's entry at [at], and
+  /// opens the body with it. Null where any of it does not fit.
   static Uint8List? _unwrap(Uint8List scalar, String device, String from, String to, List<int> pairKey, List<int> payload, int at, int headLength) {
     final onceKey = payload.sublist(1, 34);
     final shared = NetCrypto.agree(NetKeys.fromScalar(scalar), onceKey);
@@ -474,6 +480,8 @@ class ForwardSecrecy {
     }
   }
 
+  /// What opening came to: bad where nothing was opened, a replay where the packet's one-off key was seen before,
+  /// else opened, with the key noted as seen.
   FsOpened _finish(Uint8List? clear, _Prekey prekey, List<int> payload) {
     if (clear == null) return const FsOpened(FsResult.bad);
     final onceKey = payload.sublist(1, 34);
@@ -488,6 +496,7 @@ class ForwardSecrecy {
     return FsOpened(FsResult.opened, clear: clear);
   }
 
+  /// Whether [bytes] holds [want] at [at].
   static bool _same(List<int> bytes, int at, List<int> want) {
     for (var i = 0; i < want.length; i++) {
       if (bytes[at + i] != want[i]) return false;
@@ -495,11 +504,13 @@ class ForwardSecrecy {
     return true;
   }
 
+  /// Keeps what others' devices offered ([peersName]).
   Future<void> _savePeers() async {
     if (!_loaded) return;
     await _plain.write(peersName, jsonEncode({for (final e in _peers.entries) e.key: {for (final b in e.value.values) b.device: b.toJson()}}));
   }
 
+  /// Writes the seen one-off keys two seconds from now, once for all that are seen meanwhile.
   void _saveSeenSoon() {
     _seenTimer ??= Timer(const Duration(seconds: 2), () => unawaited(flush()));
   }
@@ -573,6 +584,7 @@ class FsBundle {
   }
 }
 
+/// One of this device's prekeys: its name (8 hex digits), its key pair, and when it was made (ms).
 class _Prekey {
   _Prekey(this.id, this.keys, this.made);
   final String id;
@@ -611,6 +623,8 @@ enum FsResult {
   bad,
 }
 
+/// What opening a forward-secret packet gave: how it went, and the packet's contents where it was opened (a replay's
+/// too).
 class FsOpened {
   const FsOpened(this.result, {this.clear});
   final FsResult result;
@@ -634,6 +648,7 @@ class _FsWorker {
   static int failSpawns = 0;
   static bool hang = false;
 
+  /// Gives [job] to the worker, started where there is none, and answers what it made of it, or [failed].
   static Future<Object?> call(List job) async {
     final w = _one ??= _FsWorker();
     try {
@@ -644,11 +659,14 @@ class _FsWorker {
     }
   }
 
+  /// Lets the worker go; the next call starts another.
   static void stop() => _one?._die();
 
   /// For a test: kills the worker as if it had crashed.
   static void kill() => _one?._isolate?.kill(priority: Isolate.immediate);
 
+  /// The isolate, the ports its answers and its end come on, the port jobs go to; then the start under way, the jobs
+  /// not yet answered by their numbers, and the next job's number.
   Isolate? _isolate;
   ReceivePort? _from, _exit;
   SendPort? _to;
@@ -668,6 +686,7 @@ class _FsWorker {
     _waiting.clear();
   }
 
+  /// Starts the isolate and waits, [jobFor] at most, for the port jobs are sent to. Throws where it does not start.
   Future<void> _start() async {
     if (failSpawns > 0) {
       failSpawns--;
@@ -694,6 +713,7 @@ class _FsWorker {
     }
   }
 
+  /// Sends [job] under a number of its own and waits for the answer with that number, [jobFor] at most.
   Future<Object?> _call(List job) async {
     // A start that failed is not kept: the throw reaches [call], which lets this worker go.
     await (_starting ??= _start());
@@ -708,6 +728,8 @@ class _FsWorker {
     });
   }
 
+  /// The isolate's own side: sends back the port it takes jobs on, then answers each job with its number and what
+  /// [ForwardSecrecy.work] made of it (null where that threw).
   static void _main(List args) {
     final back = args[0] as SendPort, hang = args[1] as bool;
     final jobs = ReceivePort();

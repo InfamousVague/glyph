@@ -66,6 +66,7 @@ class _GoogleSignInFlowState extends State<GoogleSignInFlow> {
     });
   }
 
+  /// Pairs with the Google cookies the account's other devices synced, in place of signing in here.
   Future<void> _pairSynced() async {
     final e = _synced;
     if (e == null) return;

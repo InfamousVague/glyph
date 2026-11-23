@@ -485,6 +485,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// The most conversations the switcher lists: the newest, which are the ones jumped to.
   static const _switchMost = 400;
 
+  /// What the quick switcher lists: the newest conversations ('c:<id>'), then the places to go to ('go:<place>').
   List<CommandDescriptor> _switchCommands() {
     final every = ConversationsScreen.live?.every ?? const <Conversation>[];
     return [
@@ -502,6 +503,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     ];
   }
 
+  /// Opens what was chosen in the switcher, by the id [_switchCommands] gave it.
   void _runSwitch(String id) {
     if (id.startsWith('c:')) {
       final want = int.tryParse(id.substring(2));

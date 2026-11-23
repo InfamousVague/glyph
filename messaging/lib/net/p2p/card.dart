@@ -115,6 +115,7 @@ class DeviceCard {
     return DeviceCard._(account: a, key: key, device: d, nodeId: n as String, made: t, until: x, signature: signature);
   }
 
+  /// Whether it is no longer good at [now] (ms).
   bool expired(int now) => until <= now;
 
   /// Whether a device holding this card should make itself a new one at [now]: a week or less is left, or its node id

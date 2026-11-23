@@ -166,6 +166,7 @@ void _checkRelay(AppState app) {
     wasUp = up;
   }
 
+  // The routes were set up anew: the relay's route listened to is the one there is now.
   void follow() {
     final now = Net.instance.hub;
     if (identical(now, hub)) return;

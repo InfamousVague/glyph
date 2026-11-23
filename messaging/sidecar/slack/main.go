@@ -58,6 +58,7 @@ const (
 	repliesPerThread = 100
 )
 
+// quote is the message a `send` or `send_media` replies to, as the app names it.
 type quote struct {
 	ID string `json:"id"`
 	// What the app knows of the quoted message. Taken and not needed: a reply goes into the quoted message's thread.
@@ -66,6 +67,7 @@ type quote struct {
 	TS     int64  `json:"ts"`
 }
 
+// request is one line Ghost sends: an op, and whichever of the other fields that op takes.
 type request struct {
 	ID      int64             `json:"id"`
 	Op      string            `json:"op"`
@@ -106,16 +108,21 @@ type account struct {
 }
 
 var (
+	// dir is the folder the session, the log and the cached pictures are kept in (--dir). out is standard output,
+	// written a whole line at a time under outLock.
 	dir     string
 	log     = zerolog.Nop()
 	out     = json.NewEncoder(os.Stdout)
 	outLock sync.Mutex
 
+	// mu guards acct (the session, nil while signed out), its stream's fields, and connected (whether the stream is
+	// up).
 	mu        sync.Mutex
 	acct      *account
 	connected bool
 	// One sign-in or sign-out at a time.
 	signLock sync.Mutex
+	// The requests being answered, which quitting waits for.
 	inflight sync.WaitGroup
 
 	// How Slack is reached: the library's requests, files, pictures, and the live stream. The tests point them at a
@@ -131,11 +138,13 @@ var (
 // slackLog passes the library's own lines to the log, below info: they may carry what a request said.
 type slackLog struct{}
 
+// Output is what the library calls with each line (its logger interface); the call depth is not used.
 func (slackLog) Output(_ int, s string) error {
 	log.Debug().Str("from", "slack-go").Msg(strings.TrimSpace(s))
 	return nil
 }
 
+// say writes [v] to standard output as one JSON line; the lock keeps lines said from different goroutines whole.
 func say(v any) {
 	outLock.Lock()
 	defer outLock.Unlock()
@@ -212,6 +221,8 @@ func serve(in io.Reader) {
 	}
 }
 
+// parseRequest reads one line as a request. A line that is not JSON, or names no op, is an error: serve passes over
+// it without an answer.
 func parseRequest(line []byte) (request, error) {
 	var r request
 	err := json.Unmarshal(line, &r)
@@ -229,17 +240,21 @@ func answer(id int64, result any, err error) map[string]any {
 	return map[string]any{"id": id, "ok": true, "result": result}
 }
 
+// handle does what [r] asks and says its answer.
 func handle(r request) {
 	result, err := do(r)
 	say(answer(r.ID, result, err))
 }
 
+// bg is the context of work no request bounds, carrying the log for the library to write to.
 func bg() context.Context { return log.WithContext(context.Background()) }
 
 // --- the session ----------------------------------------------------------------------------------------------------
 
+// errNotLinked answers every op but status, sign_in and unlink while no one is signed in.
 var errNotLinked = errors.New("not signed in to Slack")
 
+// current is the signed-in account, or nil.
 func current() *account {
 	mu.Lock()
 	defer mu.Unlock()
@@ -315,6 +330,8 @@ func (a *account) consume(ctx context.Context, rtm *slack.RTM) {
 	}
 }
 
+// setConnected notes whether [a]'s stream is up, and says `connected` or `disconnected` when that changes. Nothing
+// is noted or said for an account that is no longer the session.
 func setConnected(a *account, now bool) {
 	mu.Lock()
 	if acct != a || connected == now {
@@ -361,16 +378,20 @@ func ended(a *account, err error) {
 	event("unlinked", map[string]any{"error": endedWords(err)})
 }
 
+// forgetFiles removes what a session keeps on disk: the saved sign-in, one half written, and the cached pictures.
 func forgetFiles() {
 	_ = os.Remove(sessionPath())
 	_ = os.Remove(sessionPath() + ".new")
 	_ = os.RemoveAll(avatarDir())
 }
 
+// identity is who the account is, as sign_in's answer and the `linked` event give it.
 func (a *account) identity() map[string]any {
 	return map[string]any{"me": a.s.Me, "name": a.s.Name, "handle": a.s.Handle}
 }
 
+// view is what convert.go needs beside a chat or message to put it in the protocol's shape: the workspace, who the
+// person is, and this run's memory of people, channel names and messages' words.
 func (a *account) view() view {
 	return view{
 		team:    a.s.Team,
@@ -381,6 +402,7 @@ func (a *account) view() view {
 	}
 }
 
+// status answers `status`: whether a session is held, whether its stream is up, and whose it is.
 func status() map[string]any {
 	mu.Lock()
 	defer mu.Unlock()
@@ -467,6 +489,8 @@ func unlink() {
 
 // --- requests -------------------------------------------------------------------------------------------------------
 
+// do answers one request: status, sign_in and unlink here, the rest by the account. A request has a minute, and one
+// that moves a file nearly three. A failure that means Slack turned the session away also ends it.
 func do(r request) (any, error) {
 	limit := 60 * time.Second
 	if r.Op == "download" || r.Op == "send_media" {
@@ -515,6 +539,7 @@ func (a *account) channelOf(id string) (string, error) {
 	return ch, nil
 }
 
+// do answers the ops that need a session, each on the Slack channel its chat id names.
 func (a *account) do(ctx context.Context, r request) (any, error) {
 	switch r.Op {
 	case "chats":
@@ -572,6 +597,7 @@ func (a *account) do(ctx context.Context, r request) (any, error) {
 // Slack's events name a channel, a person and a message by id alone. So the helper remembers, in memory only and for
 // this run, the chats, people and newest messages that have passed through it.
 
+// msgNote is what is remembered of one message.
 type msgNote struct {
 	thread string // the thread's first message, for a reply in one
 	text   string // in words, for a quote of it
@@ -581,11 +607,13 @@ type msgNote struct {
 // msgNotes is how many messages are remembered before the oldest are let go.
 const msgNotes = 5000
 
+// memory is what this run has seen, behind its own lock. Chats and people are kept by Slack's id, messages by msgKey.
 type memory struct {
 	sync.Mutex
 	chats map[string]slack.Channel
 	said  map[string]bool // chats the app has been told of
 	msgs  map[string]msgNote
+	// order is the keys of msgs, oldest first: the order they are let go in.
 	order []string
 	// people: everyone met; asked: those Slack was asked for and did not name, not asked again this run.
 	people map[string]person
@@ -593,6 +621,7 @@ type memory struct {
 	named  map[string]string // what the last `name` event said of each person
 }
 
+// seen is the one memory, emptied when the session is let go.
 var seen = newMemory()
 
 func newMemory() *memory {
@@ -601,6 +630,7 @@ func newMemory() *memory {
 	return m
 }
 
+// clear empties everything. The caller holds the lock, or is the only one to know of [m] yet.
 func (m *memory) clear() {
 	m.chats, m.said, m.msgs, m.order = map[string]slack.Channel{}, map[string]bool{}, map[string]msgNote{}, nil
 	m.people, m.asked, m.named = map[string]person{}, map[string]bool{}, map[string]string{}
@@ -612,6 +642,7 @@ func (m *memory) reset() {
 	m.clear()
 }
 
+// chat is the channel remembered under Slack's id for it (not the chat id, which carries the workspace too).
 func (m *memory) chat(id string) (slack.Channel, bool) {
 	m.Lock()
 	defer m.Unlock()
@@ -646,8 +677,10 @@ func (m *memory) markSaid(id string) bool {
 	return had
 }
 
+// msgKey is what a message is remembered under: a ts names a message within its channel only.
 func msgKey(ch, ts string) string { return ch + "/" + ts }
 
+// msg is what is remembered of message [ts] of channel [ch].
 func (m *memory) msg(ch, ts string) (msgNote, bool) {
 	m.Lock()
 	defer m.Unlock()
@@ -655,6 +688,7 @@ func (m *memory) msg(ch, ts string) (msgNote, bool) {
 	return n, ok
 }
 
+// noteMsg remembers a message, letting the oldest go past msgNotes. One already held is replaced where it stands.
 func (m *memory) noteMsg(ch, ts string, n msgNote) {
 	if ts == "" {
 		return
@@ -672,6 +706,7 @@ func (m *memory) noteMsg(ch, ts string, n msgNote) {
 	m.msgs[k] = n
 }
 
+// meet remembers a person, keeping the name, handle and picture already known where this sighting has none.
 func (m *memory) meet(p person) {
 	if p.ID == "" {
 		return
@@ -726,8 +761,10 @@ func (a *account) noteMessage(ch string, m slack.Msg) {
 
 // --- people and avatars ---------------------------------------------------------------------------------------------
 
+// avatarDir is where people's pictures are cached, beside the session.
 func avatarDir() string { return filepath.Join(dir, "avatars") }
 
+// nullable is [s], or JSON's null for "".
 func nullable(s string) any {
 	if s == "" {
 		return nil
@@ -811,6 +848,8 @@ func (a *account) sayName(id string) {
 	event("name", map[string]any{"id": who.ID, "name": who.Name, "handle": who.Handle, "avatar": nullable(a.avatar(bg(), who))})
 }
 
+// who answers `who`: a member or an app by id, from this run's memory else asked of Slack, with their picture as a
+// file.
 func (a *account) who(ctx context.Context, id string) (any, error) {
 	id = strings.TrimSpace(id)
 	if id == "" || !slackIDPattern.MatchString(id) {
@@ -964,6 +1003,7 @@ func (a *account) chatsOf(ctx context.Context, list []slack.Channel, side map[st
 	return outList
 }
 
+// sayChats says each of [list] as a `chat` event, noting that the app has now been told of it.
 func (a *account) sayChats(list []chatOut) {
 	for _, c := range list {
 		if ch, ok := parseChatID(a.s.Team, c.ID); ok {
@@ -1148,6 +1188,8 @@ func (a *account) threadOf(ctx context.Context, ch, ts string) string {
 	return ts
 }
 
+// send posts words to a chat; with a quote, as a reply in the quoted message's thread. The answer's id is the new
+// message's ts.
 func (a *account) send(ctx context.Context, ch string, r request) (any, error) {
 	if strings.TrimSpace(r.Text) == "" {
 		return nil, errors.New("nothing to send")
@@ -1245,6 +1287,8 @@ func (a *account) read(ctx context.Context, ch, upto string) error {
 	return a.cli.MarkConversationContext(ctx, ch, resp.Messages[0].Timestamp)
 }
 
+// react adds or removes the person's reaction to a message. Slack takes an emoji by its name; a reaction already
+// there, or already gone, is no error.
 func (a *account) react(ctx context.Context, ch, target, e string, remove bool) error {
 	if target == "" || e == "" {
 		return errors.New("a reaction needs a message and an emoji")
@@ -1340,8 +1384,11 @@ func (a *account) download(ctx context.Context, raw json.RawMessage, path string
 
 // --- what Slack says, live ------------------------------------------------------------------------------------------
 
+// chatOfChannel is the chat id the app knows channel [ch] by.
 func (a *account) chatOfChannel(ch string) string { return chatID(a.s.Team, ch) }
 
+// onEvent takes one thing the live stream said: the connection's own state, messages, reactions, reads, and changes
+// to chats and people. Nothing once [a] is no longer the session.
 func (a *account) onEvent(ctx context.Context, data any) {
 	if current() != a {
 		return
@@ -1416,6 +1463,8 @@ func (a *account) onEvent(ctx context.Context, data any) {
 	}
 }
 
+// onMessage takes a message event, which is also how Slack says a deletion, an edit and a chat's renaming: the
+// subtype tells which. A new message is said as `message`, after its chat where the app has not been told of it.
 func (a *account) onMessage(ctx context.Context, ev *slack.MessageEvent) {
 	ch := ev.Channel
 	if ch == "" {
@@ -1478,6 +1527,7 @@ func (a *account) onMessage(ctx context.Context, ev *slack.MessageEvent) {
 	go a.sayName(senderOf(ev.Msg))
 }
 
+// onReaction says a reaction added or removed, Slack's name for the emoji turned back into the emoji.
 func (a *account) onReaction(item slack.ReactionItem, from, name string, remove bool) {
 	if item.Channel == "" || item.Timestamp == "" || from == "" || name == "" {
 		// A reaction to a file, not a message.

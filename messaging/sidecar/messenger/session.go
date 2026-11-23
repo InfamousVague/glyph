@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 )
 
+// session is what session.json holds: the browser's cookies (which are the sign-in), whose they are, and what a
+// later start needs beside them.
 type session struct {
 	// Platform is the site the cookies are from: "messenger" (messenger.com) or "facebook" (facebook.com).
 	Platform string            `json:"platform"`
@@ -27,6 +29,7 @@ type session struct {
 	Kinds map[string]int64 `json:"kinds,omitempty"`
 }
 
+// sessionPath is where the session is kept in the helper's folder.
 func sessionPath(dir string) string { return filepath.Join(dir, "session.json") }
 
 // saveSession writes the session whole or not at all, never readable by anyone else even for a moment.
@@ -58,6 +61,7 @@ func loadSession(dir string) *session {
 	return &s
 }
 
+// dropSession removes the session file. None being there is no error.
 func dropSession(dir string) error {
 	err := os.Remove(sessionPath(dir))
 	if errors.Is(err, os.ErrNotExist) {

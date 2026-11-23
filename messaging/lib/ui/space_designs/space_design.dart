@@ -690,6 +690,8 @@ class _CallBannersState extends State<CallBanners> {
   /// the screen even when not recording").
   bool _drawn = false;
 
+  /// The lines' height after a layout. [_drawn] follows it a frame later: this is called during layout, where
+  /// setState may not be.
   void _measured(double height) {
     final drawn = height > 0.5;
     if (drawn == _drawn) return;
@@ -777,6 +779,7 @@ class _HeightOf extends SingleChildRenderObjectWidget {
   void updateRenderObject(BuildContext context, _RenderHeightOf renderObject) => renderObject.onHeight = onHeight;
 }
 
+/// [_HeightOf]'s render object: lays its child out as it would be, then reports the height.
 class _RenderHeightOf extends RenderProxyBox {
   _RenderHeightOf(this.onHeight);
   void Function(double height) onHeight;

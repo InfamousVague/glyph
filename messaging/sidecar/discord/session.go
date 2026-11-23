@@ -53,6 +53,7 @@ type session struct {
 	Heartbeat *discordgo.HeartbeatSession `json:"heartbeat,omitempty"`
 }
 
+// sessionPath is where the session is kept: session.json in the helper's folder.
 func sessionPath() string { return filepath.Join(dir, "session.json") }
 
 // saveSession writes the session for the person alone to read (0600), whole or not at all.
@@ -122,6 +123,7 @@ func codeOf(err error) int {
 	return 0
 }
 
+// bodyOf is what Discord's answer said, as it came; "" where the error is not an answer of Discord's.
 func bodyOf(err error) string {
 	var re *discordgo.RESTError
 	if errors.As(err, &re) {
@@ -147,6 +149,7 @@ func rejected(err error) bool {
 	return errors.Is(err, errBadToken) || errors.Is(err, discordgo.ErrUnauthorized) || statusOf(err) == http.StatusUnauthorized
 }
 
+// What the app shows for the three things only the person can mend.
 const (
 	wordsSignedOut = "Discord signed this session out: the token no longer works. Copy a new one from discord.com in the browser and sign in again."
 	wordsVerify    = "Discord wants this account verified before it does that. Open Discord in a browser or its app, finish what it asks, and try again."

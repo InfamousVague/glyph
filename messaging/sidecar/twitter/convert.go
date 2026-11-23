@@ -65,6 +65,7 @@ func compareSeq(a, b string) int {
 	return strings.Compare(a, b)
 }
 
+// isDigits is whether [s] is a decimal number, as X's user ids and sequence ids are; false for "".
 func isDigits(s string) bool {
 	if s == "" {
 		return false
@@ -88,6 +89,7 @@ func ms(s string) int64 {
 
 // --- people ---------------------------------------------------------------------------------------------------------
 
+// person is what is known of someone on X. Any field but ID may be empty.
 type person struct {
 	ID     string
 	Name   string
@@ -95,6 +97,7 @@ type person struct {
 	Pic    string // the address of their picture, as X gives it
 }
 
+// personOfUser reads a person from the library's user; the empty person for nil.
 func personOfUser(u *types.User) person {
 	if u == nil {
 		return person{}
@@ -160,11 +163,13 @@ func avatarURL(pic string) string {
 
 // --- chats ----------------------------------------------------------------------------------------------------------
 
+// memberOut is one of a chat's people other than the person themselves, as the protocol's `chat` lists them.
 type memberOut struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
+// chatOut is the protocol's `chat`. Avatar is a file's path, null where there is none; Last is in milliseconds.
 type chatOut struct {
 	ID          string      `json:"id"`
 	Title       string      `json:"title"`
@@ -334,6 +339,8 @@ type pointer struct {
 	Kind    string `json:"kind"`
 }
 
+// mediaOut is one file of a message, as the protocol lists it: what `download` needs to fetch it, and what is known
+// of it before it is fetched.
 type mediaOut struct {
 	Pointer pointer `json:"pointer"`
 	Mime    string  `json:"mime"`
@@ -343,16 +350,20 @@ type mediaOut struct {
 	Height  int     `json:"height"`
 }
 
+// quoteOut is the message a message answers.
 type quoteOut struct {
 	ID   string `json:"id"`
 	Text string `json:"text"`
 }
 
+// reactionOut is one person's reaction to a message.
 type reactionOut struct {
 	From  string `json:"from"`
 	Emoji string `json:"emoji"`
 }
 
+// messageOut is the protocol's `message`: what `history` lists and the `message` event carries. ID is X's sequence
+// id; TS is in milliseconds.
 type messageOut struct {
 	Chat      string        `json:"chat"`
 	Group     bool          `json:"group"`
@@ -367,6 +378,7 @@ type messageOut struct {
 	Reactions []reactionOut `json:"reactions,omitempty"`
 }
 
+// attachmentsOf is what a message carries: X writes a list, or (its older form) one attachment alone.
 func attachmentsOf(msg types.MessageData) []*types.Attachment {
 	if len(msg.Attachments) > 0 {
 		return msg.Attachments

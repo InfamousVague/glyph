@@ -776,6 +776,8 @@ class Me extends ChangeNotifier {
 
   static const presenceModes = ['online', 'away', 'busy', 'invisible'];
 
+  /// The person chose how they are shown: kept with the app's choices and told to the routes. Nothing for a word
+  /// that is not one of [presenceModes].
   void setPresenceMode(String mode) {
     if (!presenceModes.contains(mode)) return;
     _app?.set('me_presence', mode);
@@ -795,6 +797,7 @@ class Me extends ChangeNotifier {
     }
   }
 
+  /// Keeps what the profile wears (`me_cosmetics`; nothing kept for none).
   void setCosmetics(Cosmetics c) {
     _app?.set('me_cosmetics', c.isEmpty ? '' : jsonEncode(c.toJson()));
     notifyListeners();
@@ -1077,6 +1080,7 @@ class Me extends ChangeNotifier {
   /// ([takeGifts]) and so tells the relay they were shown.
   final gifts = ValueNotifier<List<SoulsGift>>(const []);
 
+  /// Adds [more] to [gifts], passing over one that is there already by its id.
   void _gave(List<SoulsGift> more) {
     final have = {for (final g in gifts.value) ?g.id};
     final fresh = [for (final g in more) if (g.id == null || !have.contains(g.id)) g];

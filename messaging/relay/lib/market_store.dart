@@ -673,10 +673,14 @@ class MarketReport {
 /// kept, as with a plugin's report: the reporter's name and signature are inside, for the reviewer alone.
 class MarketAbuse {
   MarketAbuse({required this.rid, required this.sealed, required this.at, this.done = false, this.doneAt});
+
+  /// The report's id, as review names it to mark it dealt with.
   final String rid;
 
   /// Base64 of the envelope, as the app sent it.
   final String sealed;
+
+  /// When it came (ms), whether review has dealt with it, and when.
   final int at;
   bool done;
   int? doneAt;

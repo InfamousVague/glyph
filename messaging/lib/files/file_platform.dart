@@ -29,6 +29,7 @@ class FilePlatform {
   static const _system = MethodChannel('ghost_desktop/system');
   static const _drop = MethodChannel('ghost_desktop/drop');
 
+  /// Whether this is a computer's app, or the Android phone's: never a browser, which has neither's channels.
   static bool get _desktop => !kIsWeb && (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux);
   static bool get _phone => !kIsWeb && PlatformInfo.isAndroid;
 

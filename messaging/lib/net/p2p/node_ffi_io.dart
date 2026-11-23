@@ -48,6 +48,8 @@ class _Core {
       drop = lib.lookupFunction<Void Function(Uint64), void Function(int)>('ghost_p2p_drop'),
       finalizer = NativeFinalizer(lib.lookup<NativeFinalizerFunction>('ghost_p2p_finalize'));
 
+  /// The library's functions (native/p2p/README.md): its interface's number; whether Android's part is in place (1);
+  /// a node key's node id; a node made for a port; a command given to a node (0 where taken); a node let go.
   final int Function() abi;
   final int Function() ready;
   final int Function(Pointer<Uint8> secret, Pointer<Uint8> out) nodeId;
@@ -67,6 +69,7 @@ class _Core {
   /// port closes, which the library takes as every node of it gone.
   static final RawReceivePort port = RawReceivePort(IrohNode._heard, 'ghost_p2p')..keepIsolateAlive = false;
 
+  /// The library as [open] found it, and whether it has looked: it looks once, found or not.
   static _Core? _opened;
   static bool _tried = false;
 
@@ -84,6 +87,8 @@ class _Core {
     return null;
   }
 
+  /// Each thing that opens at one of the places the library may be ([IrohNode.libraryPlaces]), in their order; on an
+  /// iPhone, the program itself where it holds the library's functions.
   static Iterable<DynamicLibrary> _found() sync* {
     final tries = IrohNode.libraryPlaces(
       release: kReleaseMode,
@@ -133,6 +138,8 @@ class _Core {
   static Pointer<Uint8> _scratch = nullptr;
   static int _room = 0;
 
+  /// The command buffer, with room for [len] bytes at least. One that is outgrown is wiped before it is freed: it may
+  /// have held a node key.
   static Pointer<Uint8> scratch(int len) {
     if (len > _room) {
       if (_room > 0) {
@@ -154,6 +161,7 @@ abstract final class _Cmd {
   static const start = 0x01, stop = 0x02, allow = 0x03, disallow = 0x04, openToAll = 0x05, open = 0x06, send = 0x07, close = 0x08, taken = 0x09, done = 0x0a, networkChanged = 0x0b;
 }
 
+/// What the library says of a node, by an event's first byte.
 abstract final class _Ev {
   static const up = 0x01, down = 0x02, off = 0x03, whereabouts = 0x04, path = 0x05, opened = 0x06, openFailed = 0x07, incoming = 0x08, frame = 0x09, sent = 0x0a, closed = 0x0b;
 }
@@ -179,6 +187,7 @@ const _closedBecause = [
 
 const _hexDigits = '0123456789abcdef';
 
+/// The 32 bytes of [bytes] from [from], as 64 hex digits: a node id as the app writes it.
 String _hex(Uint8List bytes, int from) {
   final out = StringBuffer();
   for (var i = from; i < from + 32; i++) {
@@ -199,6 +208,7 @@ class _Writer {
   }
   final _out = BytesBuilder(copy: false);
 
+  // Numbers go in big-endian, as the library reads them.
   void u8(int v) => _out.addByte(v & 0xff);
   void u16(int v) => _out.add([(v >> 8) & 0xff, v & 0xff]);
   void u32(int v) => _out.add([(v >> 24) & 0xff, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff]);
@@ -284,6 +294,8 @@ class IrohNode implements P2pNode, Finalizable {
   final _waiting = <Uint8List>[];
   bool _gone = false;
 
+  // What [P2pNode]'s members answer from; then each node's path as last said, the streams open by the library's
+  // number for them, the opens under way by the number each was asked with, and that number's next.
   final _state = ValueNotifier<P2pState>(P2pState.off);
   final _whereabouts = ValueNotifier<Whereabouts?>(null);
   final _opened = StreamController<P2pStream>.broadcast();
@@ -300,6 +312,7 @@ class IrohNode implements P2pNode, Finalizable {
   final _allowed = <String, Set<int>>{};
   Set<int> _open = const {};
 
+  /// Whether [nodeId] may open a stream on [channel] to this node: the channel is open to all, or allowed to it.
   bool _permits(String nodeId, int channel) => _open.contains(channel) || (_allowed[nodeId]?.contains(channel) ?? false);
 
   /// What the app last asked for: the config to be up with, or null to be off. [state] follows it at once; the
@@ -353,6 +366,8 @@ class IrohNode implements P2pNode, Finalizable {
   @override
   Future<String> idOf(Uint8List secret) async => _idOf(secret);
 
+  /// The node id [secret] makes, asked of the library with no node running. Throws [P2pError] where the key is not
+  /// 32 bytes or the library is not the one this was written against.
   String _idOf(Uint8List secret) {
     if (secret.length != 32) throw P2pError('A node key is 32 bytes; this one is ${secret.length}.');
     final problem = _core.problem;
@@ -387,6 +402,7 @@ class IrohNode implements P2pNode, Finalizable {
     return failed;
   }
 
+  /// START: whether only link helpers are used, the node key, then each link helper's address, its length first.
   Uint8List _startCommand(P2pConfig config) {
     final command = _Writer(_Cmd.start)
       ..u8(config.helpersOnly ? 1 : 0)
@@ -601,6 +617,7 @@ class IrohNode implements P2pNode, Finalizable {
     if (_number != null) _command(_allowCommand(nodeId, list));
   }
 
+  /// ALLOW: the node id's 32 bytes, how many channels, and each channel's byte.
   Uint8List _allowCommand(String nodeId, List<int> channels) => (_Writer(_Cmd.allow)
         ..bytes(_unhex(nodeId))
         ..u8(channels.length)
@@ -627,6 +644,7 @@ class IrohNode implements P2pNode, Finalizable {
     if (_number != null) _command(_openCommand(list));
   }
 
+  /// OPEN_TO_ALL: how many channels, and each channel's byte.
   Uint8List _openCommand(List<int> channels) => (_Writer(_Cmd.openToAll)
         ..u8(channels.length)
         ..bytes(channels))
@@ -788,6 +806,7 @@ class IrohNode implements P2pNode, Finalizable {
     }
   }
 
+  /// Drops the commands that waited for the node to be made, each wiped first: a START holds the node key.
   void _wipeWaiting() {
     for (final command in _waiting) {
       command.fillRange(0, command.length, 0);
@@ -820,6 +839,7 @@ class IrohNode implements P2pNode, Finalizable {
     _sayTaken({stream: (frames, bytes)});
   }
 
+  /// TAKEN: for each stream, how many frames and bytes of it were handed on; [_mostListed] streams to a command.
   void _sayTaken(Map<int, (int, int)> taken) {
     final list = taken.entries.toList();
     for (var from = 0; from < list.length; from += _mostListed) {
@@ -836,14 +856,18 @@ class IrohNode implements P2pNode, Finalizable {
     }
   }
 
+  /// CLOSE: this side ends [stream].
   void _close(int stream) => _command((_Writer(_Cmd.close)..u64(stream)).take());
 
+  /// [stream]'s end has been handled here: said at the end of the batch of events being handled, with the rest of
+  /// them, or at once outside one.
   void _done(int stream) {
     final now = _doneNow;
     if (now != null) return now.add(stream);
     _sayDone([stream]);
   }
 
+  /// DONE: the streams whose CLOSED the app has handled; [_mostListed] to a command.
   void _sayDone(List<int> streams) {
     for (var from = 0; from < streams.length; from += _mostListed) {
       final part = streams.sublist(from, from + _mostListed < streams.length ? from + _mostListed : streams.length);
@@ -864,6 +888,7 @@ class IrohNode implements P2pNode, Finalizable {
     _nodes[number]?._batch(message);
   }
 
+  /// Handles each event of a batch in order, and says once at its end what was taken and which streams are done.
   void _batch(List<Object?> message) {
     debugBatches++;
     final taken = _takenNow = <int, (int, int)>{};
@@ -894,6 +919,7 @@ class IrohNode implements P2pNode, Finalizable {
     }
   }
 
+  /// One event: [b] is its bytes, the kind first ([_Ev]); [frame] is a FRAME's own bytes.
   void _on(Uint8List b, Uint8List? frame) {
     final d = ByteData.sublistView(b);
     switch (b[0]) {
@@ -1039,6 +1065,7 @@ class _Asked {
   /// Ends the waiting where the library never answers.
   Timer? guard;
 
+  /// Answers whoever asked, once, and ends the wait.
   void say(String? problem) {
     guard?.cancel();
     guard = null;
@@ -1052,14 +1079,19 @@ class _Opening {
   final String nodeId;
   final int channel;
   final done = Completer<P2pStream>();
+
+  /// Ends the open at its timeout, whatever the library does.
   Timer? late;
 
+  /// Fails the open for whoever awaits it, once.
   void fail(String why) {
     late?.cancel();
     if (!done.isCompleted) done.completeError(P2pError(why));
   }
 }
 
+/// One stream with another node, by the library's number for it: frames in as the library hands them up, frames out
+/// as SENDs, each done when the library says it was written.
 class _IrohStream implements P2pStream {
   _IrohStream(this._node, this._id, this.nodeId, this.channel, {required this.incoming});
 
@@ -1095,6 +1127,7 @@ class _IrohStream implements P2pStream {
   @override
   Stream<Uint8List> get frames => _frames.stream;
 
+  /// Someone listens, or listens again: the frames that waited go on to them, and are said to be taken.
   void _flow() {
     if (_heldFrames == 0 || _over) return;
     _node._taken(_id, _heldFrames, _heldBytes);
@@ -1102,11 +1135,13 @@ class _IrohStream implements P2pStream {
     _heldBytes = 0;
   }
 
+  /// The listener went away: what waited is said to be taken, so the library is not held back by a stream nobody reads.
   void _unheard() {
     _deaf = true;
     _flow();
   }
 
+  /// A frame came: handed to whoever listens and said to be taken, or held (and not said) until someone does.
   void _frame(Uint8List frame) {
     if (_closing || _deaf || _frames.isClosed) {
       _node._taken(_id, 1, frame.length);
@@ -1121,6 +1156,7 @@ class _IrohStream implements P2pStream {
     }
   }
 
+  /// The library has written [written] frames of this stream in all: the adds up to there are done.
   void _sent(int written) {
     while (_written < written && _sending.isNotEmpty) {
       _sending.removeFirst().complete();
@@ -1128,6 +1164,7 @@ class _IrohStream implements P2pStream {
     }
   }
 
+  /// The stream is over, and [why]: what was not yet written fails, the frames end, and a [close] waiting is done.
   void _ended(String why) {
     if (_over) return;
     _over = true;
