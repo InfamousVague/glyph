@@ -17,7 +17,7 @@ import 'voice_settings.dart';
 /// Settings › Voice has it ([_audioAsked]), and sent as Opus at the rate chosen there, 510 kb/s unless changed.
 /// Each connection carries one sound and one picture both ways from its start; turning video on or off
 /// puts the camera's picture in or takes it out, with nothing to work out again between the two.
-class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, CameraMedia, SoundMedia {
+class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, CameraMedia, SoundMedia, PlacedMedia {
   RtcMedia({this.relay, this.settings = const VoiceSettings(), this.light = false});
 
   /// Settings' microphone test, made light where the native half can say how loud the microphone is (the Mac's,
@@ -92,7 +92,8 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
       t.enabled = !_deaf && !_silenced.contains(id);
       // Each person's own volume times the output volume (Settings › Voice and video), boosted to twice at most, and
       // times the auto leveler's gain for them where it is on (leveler.dart).
-      final v = ((_volume[id] ?? 1.0) * settings.outputVolume / 100 * (_leveled[id] ?? 1.0)).clamp(0.0, 6.0);
+      // And, in an open space, times how much of them is heard from where this device stands (open_space.dart).
+      final v = ((_volume[id] ?? 1.0) * settings.outputVolume / 100 * (_leveled[id] ?? 1.0) * (_placed[id] ?? 1.0)).clamp(0.0, 6.0);
       if (CallSound.playsItself) {
         _out.set(id, volume: v, silent: !t.enabled);
       } else {
@@ -103,6 +104,19 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
 
   /// Where the app plays what arrives itself (a browser: lib/voice/call_sound.dart), what plays it.
   final CallSound _out = CallSound();
+
+  /// How much of each person is heard from where this device stands in an open space (open_space.dart): 1 is all.
+  final Map<String, double> _placed = {};
+
+  @override
+  void setPlaceGain(String id, double gain) {
+    if (gain >= 1) {
+      if (_placed.remove(id) == null) return;
+    } else {
+      _placed[id] = gain.clamp(0.0, 1.0);
+    }
+    _apply(id);
+  }
 
   /// The auto leveler's gain for each person (leveler.dart): 1 is as they arrive.
   final Map<String, double> _leveled = {};

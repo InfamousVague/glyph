@@ -21,16 +21,21 @@ import '../sounds.dart';
 enum SpaceKind {
   voice('Chat and voice', 'Talk any time, with a chat beside it'),
   text('Texting', 'A chat, no voice'),
-  files('Files', 'Share files, with a chat beside them');
+  files('Files', 'Share files, with a chat beside them'),
+
+  /// A call you walk around in (lib/voice/open_space.dart): everyone has a place on a floor seen from above, and is
+  /// heard louder or quieter by how near they are. A build from before this kind takes it for a voice space where it
+  /// stands alone (everyone heard, nobody placed) and for a chat in a circle ([of], CircleSpace.fromJson).
+  open('Open space', 'Walk around, and hear who is near you');
 
   const SpaceKind(this.label, this.hint);
   final String label;
   final String hint;
 
-  /// Its word on the wire: `voice`, `text`, `files`.
+  /// Its word on the wire: `voice`, `text`, `files`, `open`.
   String get wire => name;
 
-  bool get hasVoice => this == voice;
+  bool get hasVoice => this == voice || this == open;
 
   /// From its word; voice for anything else (missing, or a kind from a newer build).
   static SpaceKind of(Object? wire) {
@@ -338,7 +343,7 @@ class DiscordPerson {
 /// Someone in the call, as they said they are.
 @immutable
 class VoiceMember {
-  const VoiceMember(this.id, {this.name = '', this.muted = false, this.video = false, this.screen = false, this.guest = false, this.username, this.notices = false, this.recording, this.agreed = const {}, this.declined = const {}, this.captions = false, this.hand = false});
+  const VoiceMember(this.id, {this.name = '', this.muted = false, this.video = false, this.screen = false, this.guest = false, this.username, this.notices = false, this.recording, this.agreed = const {}, this.declined = const {}, this.captions = false, this.hand = false, this.recordsVideo = false, this.pictured = const {}});
   final String id;
   final String name;
 
@@ -355,6 +360,18 @@ class VoiceMember {
   /// The recordings of this call they said their voice may be in ('ry'), and those they said it may not ('rn').
   final Set<String> agreed, declined;
 
+  /// The recording they are making takes the call's pictures too, cameras and shared screens ('rv' beside 'r';
+  /// GMFB-42: "capture the webcams and screenshares in the call, not just the audio tracks").
+  final bool recordsVideo;
+
+  /// The recordings they said their picture may be in as well as their voice ('rp'): only ever ones they were asked
+  /// about as "voice and video". A build from before GMFB-42 asked about the voice alone and says no 'rp', so its
+  /// person is never in the picture.
+  final Set<String> pictured;
+
+  /// Whether their picture may be in the recording [id]: they said yes to voice and video, and haven't taken it back.
+  bool picturedIn(String id) => pictured.contains(id) && agreed.contains(id) && !declined.contains(id);
+
   /// They want the call's words as captions ('cw'): each device that can then writes out its own voice.
   final bool captions;
 
@@ -370,11 +387,11 @@ class VoiceMember {
   /// Joined from a browser by the link, with no username: a guest.
   final bool guest;
   VoiceMember copyWith({String? name, bool? muted, bool? video, bool? screen, bool? guest, String? username, bool? hand}) =>
-      VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video, screen: screen ?? this.screen, guest: guest ?? this.guest, username: username ?? this.username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions, hand: hand ?? this.hand);
+      VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video, screen: screen ?? this.screen, guest: guest ?? this.guest, username: username ?? this.username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions, hand: hand ?? this.hand, recordsVideo: recordsVideo, pictured: pictured);
 
   /// With the recording and caption fields replaced whole (anything not given goes back to none).
-  VoiceMember withRecording({required bool notices, String? recording, Set<String> agreed = const {}, Set<String> declined = const {}, bool captions = false}) =>
-      VoiceMember(id, name: name, muted: muted, video: video, screen: screen, guest: guest, username: username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions, hand: hand);
+  VoiceMember withRecording({required bool notices, String? recording, Set<String> agreed = const {}, Set<String> declined = const {}, bool captions = false, bool recordsVideo = false, Set<String> pictured = const {}}) =>
+      VoiceMember(id, name: name, muted: muted, video: video, screen: screen, guest: guest, username: username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions, hand: hand, recordsVideo: recordsVideo && recording != null, pictured: pictured);
 }
 
 /// Media that can say how its connection to someone stands, so a call can mend one that broke ([VoiceSession] looks
@@ -382,6 +399,13 @@ class VoiceMember {
 abstract class LinkedMedia {
   /// true: through. false: not through yet, or lost and trying by itself. null: no connection, or one that failed.
   bool? linkUp(String id);
+}
+
+/// Media that can play each person at a gain for where they stand in an open space, under their own volume
+/// (lib/voice/open_space.dart). lib/voice/rtc.dart's is one; a test's may be.
+abstract class PlacedMedia {
+  /// 0 to 1; 1 takes it away.
+  void setPlaceGain(String id, double gain);
 }
 
 /// Someone's sound as it arrives on this device: the received track carrying it, and a mark of the connection it came
@@ -564,9 +588,23 @@ class VoiceSession extends ChangeNotifier {
   /// Recordings being made by others that this device's person hasn't answered yet.
   List<String> get unanswered => [for (final r in recordingsByOthers.keys) if (!agreed.contains(r) && !declined.contains(r)) r];
 
-  /// Says this device is recording ([id]) or has stopped (null).
-  void setRecording(String? id) {
+  // Pictures (GMFB-42): 'rv' beside 'r' says the recording takes cameras and shared screens too, and 'rp' lists the
+  // recordings this device's person said yes to as "voice and video". Two new fields, not a wider meaning for 'ry':
+  // a build from before this asked "Include your voice?" and its yes must never put a face in a file.
+
+  /// Whether the recording this device is making takes pictures too. Set with [setRecording], for its whole length.
+  bool recordingVideo = false;
+
+  /// The recordings this device's person said their picture may be in as well as their voice.
+  final Set<String> pictured = {};
+
+  /// Whether the recording [id] takes pictures too: this device's own, or another member's that says so.
+  bool takesVideo(String id) => recording == id ? recordingVideo : members.values.any((m) => m.recording == id && m.recordsVideo);
+
+  /// Says this device is recording ([id]) or has stopped (null); [video]: it takes pictures as well as voices.
+  void setRecording(String? id, {bool video = false}) {
     recording = id;
+    recordingVideo = id != null && video;
     _sayState();
     notifyListeners();
   }
@@ -603,13 +641,22 @@ class VoiceSession extends ChangeNotifier {
   /// Says to the call that this device played the soundboard's sound [sound], for each device to play its own copy.
   void saySound(String sound) => _say({'t': 'sb', 's': sound});
 
+  /// Told what someone said of an open space's floor ('os': where they stand; 'osg': its groups;
+  /// lib/voice/open_space.dart).
+  void Function(String from, Map<String, dynamic> what)? onPlace;
+
+  /// Says [what] of an open space's floor to the call.
+  void sayPlace(Map<String, Object?> what) => _say(what);
+
   /// Says [words] of this device's voice to the call; [done]: the line is finished.
   void sayCaption(String words, {required bool done}) => _say({'t': 'cap', 'x': words.length > 600 ? words.substring(words.length - 600) : words, 'f': done});
 
-  /// Answers whether this device's voice may be in the recording [id].
+  /// Answers whether this device's voice may be in the recording [id]; its picture too where the recording takes
+  /// pictures, since that is what was then asked ("voice and video", lib/ui/recording_ui.dart).
   void answerRecording(String id, bool yes) {
     (yes ? agreed : declined).add(id);
     (yes ? declined : agreed).remove(id);
+    yes && takesVideo(id) ? pictured.add(id) : pictured.remove(id);
     _sayState();
     notifyListeners();
   }
@@ -1011,8 +1058,10 @@ class VoiceSession extends ChangeNotifier {
         if (username != null) 'u': username,
         'rs': 1,
         if (recording != null) 'r': recording,
+        if (recording != null && recordingVideo) 'rv': 1,
         if (agreed.isNotEmpty) 'ry': [...agreed],
         if (declined.isNotEmpty) 'rn': [...declined],
+        if (pictured.isNotEmpty) 'rp': [...pictured],
         if (wantsCaptions) 'cw': 1,
         if (hand) 'h': 1,
       });
@@ -1080,12 +1129,14 @@ class VoiceSession extends ChangeNotifier {
         Set<String> ids(Object? l) => {for (final x in (l is List ? l : const [])) if (x is String) x};
         members[from] = had
             .copyWith(name: bareName('${m['n'] ?? ''}'), muted: m['m'] == true, video: m['v'] == true, screen: m['s'] == 1, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null, hand: m['h'] == 1)
-            .withRecording(notices: m['rs'] == 1, recording: m['r'] is String ? m['r'] as String : null, agreed: ids(m['ry']), declined: ids(m['rn']), captions: m['cw'] == 1);
+            .withRecording(notices: m['rs'] == 1, recording: m['r'] is String ? m['r'] as String : null, agreed: ids(m['ry']), declined: ids(m['rn']), captions: m['cw'] == 1, recordsVideo: m['rv'] == 1, pictured: ids(m['rp']));
         notifyListeners();
       case 'wt':
         onWatch?.call(from, m);
       case 'sb':
         if (m['s'] is String) onSound?.call(from, m['s'] as String);
+      case 'os' || 'osg':
+        onPlace?.call(from, m);
       case 'cap':
         if (m['x'] is String) onCaption?.call(from, m['x'] as String, m['f'] == true);
       case 'offer':

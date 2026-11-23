@@ -8,6 +8,7 @@ import '../api/server.dart';
 import 'admin_page.dart' show adminOffered, adminPane;
 import 'setup.dart' show TextsStep;
 import 'api_pane.dart';
+import 'app_lock_ui.dart' show AppLockPane, appLockSummary;
 import '../inbox/inbox.dart';
 import 'blocking.dart';
 import 'report_sheet.dart' show ReportsMadeList, reportsMadeKey;
@@ -224,6 +225,18 @@ List<SettingsSection> _ownSections() => [
     },
     page: (context, m) => [const VoicePane()],
   ),
+  // The app's own lock (GMFB-46; lib/app_lock, lib/ui/app_lock_ui.dart): a PIN, and the fingerprint or face where the
+  // device has one. Not in a browser, which keeps nothing a lock could stand on.
+  SettingsSection(
+    id: 'app-lock',
+    label: 'Lock the app',
+    icon: _icon(Lucide.keyRound),
+    hue: 'slate',
+    group: 'privacy',
+    when: (m) => !Sms.browser,
+    summary: (m) => appLockSummary(),
+    page: (context, m) => const [AppLockPane()],
+  ),
   SettingsSection(
     id: 'encryption',
     label: 'Encryption',
@@ -404,7 +417,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.12.19';
+const appVersion = '0.12.20';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 

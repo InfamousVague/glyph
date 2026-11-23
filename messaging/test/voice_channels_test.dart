@@ -315,6 +315,58 @@ void main() {
     await sam.leave();
   });
 
+  test('a recording that takes pictures says so, and a picture is in it only where the yes was to voice and video (GMFB-42)', () async {
+    final hub = _Hub();
+    final c = VoiceChannel.make('Session zero');
+    final maya = VoiceSession(channel: c, route: _Route(hub, 'maya-id'), media: _Media(), name: 'Maya');
+    final sam = VoiceSession(channel: c, route: _Route(hub, 'sam-id'), media: _Media(), name: 'Sam');
+    await maya.join();
+    await sam.join();
+    await _settle();
+
+    // Sound only, as every recording was before: a yes is to the voice, and no picture follows from it.
+    maya.setRecording('rec1');
+    await _settle();
+    expect(sam.members['maya-id']!.recordsVideo, isFalse);
+    expect(sam.takesVideo('rec1'), isFalse);
+    sam.answerRecording('rec1', true);
+    await _settle();
+    expect(maya.members['sam-id']!.agreed, {'rec1'});
+    expect(maya.members['sam-id']!.pictured, isEmpty);
+    expect(maya.members['sam-id']!.picturedIn('rec1'), isFalse);
+
+    // With pictures: said beside the recording's id, and the yes then covers both.
+    maya.setRecording('rec2', video: true);
+    maya.answerRecording('rec2', true);
+    await _settle();
+    expect(maya.pictured, {'rec2'}, reason: 'its maker is in their own picture');
+    expect(sam.members['maya-id']!.recordsVideo, isTrue);
+    expect(sam.takesVideo('rec2'), isTrue);
+    expect(sam.unanswered, ['rec2']);
+    expect(maya.members['sam-id']!.picturedIn('rec2'), isFalse, reason: 'not until answered; the yes to rec1 is not one to rec2');
+    sam.answerRecording('rec2', true);
+    await _settle();
+    expect(maya.members['sam-id']!.picturedIn('rec2'), isTrue);
+
+    // Taken back: voice and picture both go.
+    sam.answerRecording('rec2', false);
+    await _settle();
+    expect(maya.members['sam-id']!.pictured, isEmpty);
+    expect(maya.members['sam-id']!.picturedIn('rec2'), isFalse);
+
+    // A build from before this says yes to the voice alone ('ry' with no 'rp'): heard, never seen.
+    expect(const VoiceMember('old', notices: true, agreed: {'rec2'}).picturedIn('rec2'), isFalse);
+    // And a picture never outlasts a no, whatever is said beside it.
+    expect(const VoiceMember('odd', notices: true, agreed: {'rec2'}, declined: {'rec2'}, pictured: {'rec2'}).picturedIn('rec2'), isFalse);
+
+    maya.setRecording(null);
+    await _settle();
+    expect(maya.recordingVideo, isFalse);
+    expect(sam.takesVideo('rec2'), isFalse);
+    await maya.leave();
+    await sam.leave();
+  });
+
   test('a channel is made from its seed: the same room, token and key for every member; a group\'s from its id', () {
     final a = VoiceChannel.ofGroup('00112233445566778899aabbccddeeff', 'Climbing');
     final b = VoiceChannel.ofGroup('00112233445566778899aabbccddeeff', 'Climbing crew');

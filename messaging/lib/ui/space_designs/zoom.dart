@@ -6,6 +6,7 @@ import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
 import '../../kit/settings_type.dart';
 import '../ripple_avatar.dart';
+import '../tile_grid.dart';
 import 'space_design.dart';
 
 /// A space's call as a Zoom meeting window (SpaceDesign.zoom): a dark meeting area with a top bar (the green
@@ -525,9 +526,9 @@ class _SpeakerView extends StatelessWidget {
       SizedBox(
         height: h,
         child: LayoutBuilder(builder: (context, box) {
-          // As wide as 16:9 (4:3 on a phone) allows, narrower so a phone's strip fits without scrolling where it can.
+          // As wide as 4:3 allows, narrower so a phone's strip fits without scrolling where it can.
           final fit = strip.isEmpty ? 0.0 : box.maxWidth / strip.length - 6;
-          final w = (h * (wide ? 16 / 9 : 4 / 3)).clamp(0.0, fit < h ? h : fit);
+          final w = (h * tileAspect).clamp(0.0, fit < h ? h : fit);
           return SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: ConstrainedBox(
@@ -546,14 +547,15 @@ class _SpeakerView extends StatelessWidget {
       SizedBox(height: wide ? 14 : 10),
       Expanded(
         child: wide
-            ? Center(child: AspectRatio(aspectRatio: 16 / 9, child: _Tile(call: call, person: speaker, talking: call.isTalking(speaker, now))))
+            // 4:3 for a camera; a shared screen's tile stays 16:9, its picture whole inside.
+            ? Center(child: AspectRatio(aspectRatio: speaker.screen ? 16 / 9 : tileAspect, child: _Tile(call: call, person: speaker, talking: call.isTalking(speaker, now))))
             : _Tile(call: call, person: speaker, talking: call.isTalking(speaker, now)),
       ),
     ]);
   }
 }
 
-/// Gallery view: everyone in an even grid, the tiles as big as fit (16:9 on a computer, filling the screen on a phone).
+/// Gallery view: everyone in an even grid, the tiles as big as fit (4:3 on a computer, filling the screen on a phone).
 class _Gallery extends StatelessWidget {
   const _Gallery({required this.call, required this.now, required this.wide});
   final SpaceCall call;
@@ -569,23 +571,10 @@ class _Gallery extends StatelessWidget {
       var cols = 1;
       var tw = 0.0, th = 0.0;
       if (wide) {
-        var best = 0.0;
-        for (var c = 1; c <= n; c++) {
-          final r = (n / c).ceil();
-          var w = (box.maxWidth - gap * (c - 1)) / c;
-          var h = (box.maxHeight - gap * (r - 1)) / r;
-          if (w / h > 16 / 9) {
-            w = h * 16 / 9;
-          } else {
-            h = w * 9 / 16;
-          }
-          if (w * h > best) {
-            best = w * h;
-            cols = c;
-            tw = w;
-            th = h;
-          }
-        }
+        final fit = fitTiles(box.biggest, n, gap: gap);
+        cols = fit.cols;
+        tw = fit.size.width;
+        th = fit.size.height;
       } else {
         cols = n <= 2 ? 1 : 2;
         final r = (n / cols).ceil();
