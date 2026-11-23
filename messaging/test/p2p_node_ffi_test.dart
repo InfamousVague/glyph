@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -43,11 +45,11 @@ Future<IrohNode> _up(int n) async {
 
 final _ipv4 = RegExp(r'^\d+\.\d+\.\d+\.\d+:(\d+)$');
 
-/// Where [node] is, as another node on this machine dials it: the port it says, at the loopback address.
+/// Where [node] is, as another node on this machine dials it: the IPv4 address it says, as it says it (this
+/// machine's own address on its network: a node dials no loopback address a hint names).
 Future<Whereabouts> _here(IrohNode node) async {
   await _until(() => node.whereabouts.value?.addresses.any(_ipv4.hasMatch) ?? false, 'it never said where it is');
-  final port = _ipv4.firstMatch(node.whereabouts.value!.addresses.firstWhere(_ipv4.hasMatch))!.group(1);
-  return Whereabouts(addresses: ['127.0.0.1:$port']);
+  return Whereabouts(addresses: [node.whereabouts.value!.addresses.firstWhere(_ipv4.hasMatch)]);
 }
 
 /// Everything a stream is handed, and whether it is done.
@@ -64,6 +66,55 @@ class _Heard {
 Future<P2pStream> _next(IrohNode node) => node.opened.first.timeout(const Duration(seconds: 30));
 
 Matcher get _refused => throwsA(isA<P2pError>());
+Matcher _saying(String words) => throwsA(isA<P2pError>().having((e) => e.message, 'message', contains(words)));
+
+/// Whether nothing on this machine holds UDP [port] for IPv4 now.
+Future<bool> _free(int port) async {
+  try {
+    (await RawDatagramSocket.bind(InternetAddress.anyIPv4, port)).close();
+    return true;
+  } on SocketException {
+    return false;
+  }
+}
+
+/// The port of the first IPv4 address in [addresses].
+int _portOf(List<String> addresses) => int.parse(_ipv4.firstMatch(addresses.firstWhere(_ipv4.hasMatch))!.group(1)!);
+
+/// An isolate of its own that starts a node (with the key [n] makes), lets [args]' node in, waits to hear where it is,
+/// and ends with it still up: no stop, no dispose. It says where its node was as it ends. With `toPort`, the node is
+/// left to be let go only by its port's closing (its finalizer is taken off).
+Future<void> _leaveUp(List<Object?> args) async {
+  final (done, n, allow, toPort) = (args[0]! as SendPort, args[1]! as int, args[2] as String?, args[3]! as bool);
+  final node = IrohNode.make()!;
+  await node.start(_config(n));
+  if (allow != null) node.allow(allow, {P2pChannel.packets});
+  while (!(node.whereabouts.value?.addresses.any(_ipv4.hasMatch) ?? false)) {
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+  }
+  if (toPort) node.debugLeaveToPort();
+  Isolate.exit(done, [node.nodeId!, node.whereabouts.value!.addresses]);
+}
+
+/// An isolate of its own that is the first in it to open the core, makes a node, starts it, lets it go and ends.
+Future<void> _useAndLeave(SendPort done) async {
+  final node = IrohNode.make()!;
+  await node.start(_config(91));
+  node.dispose();
+  Isolate.exit(done, true);
+}
+
+/// Where [key]'s 32 bytes are in [bytes], or -1.
+int _find(Uint8List bytes, Uint8List key) {
+  for (var i = 0; i + key.length <= bytes.length; i++) {
+    var all = true;
+    for (var j = 0; j < key.length && all; j++) {
+      all = bytes[i + j] == key[j];
+    }
+    if (all) return i;
+  }
+  return -1;
+}
 
 void main() {
   final skip = IrohNode.available ? false : 'The direct network\'s core is not built here: sh tool/build-p2p.sh mac';
@@ -294,6 +345,191 @@ void main() {
     expect(atB.frames.length, lessThanOrEqualTo(2));
   }, skip: skip, timeout: patient);
 
+
+  // What the review of the core found (2026-11-23), each held to here.
+
+  test('an isolate that ends with its node up leaves nothing of it running', () async {
+    final port = ReceivePort();
+    await Isolate.spawn(_leaveUp, <Object?>[port.sendPort, 81, null, false]);
+    final said = await port.first as List;
+    final udp = _portOf((said[1] as List).cast<String>());
+    // Nothing was said to it since and nothing dials it: it is let go as the isolate ends (its finalizer), and its
+    // socket is closed within moments.
+    var free = false;
+    for (var i = 0; i < 100 && !free; i++) {
+      free = await _free(udp);
+      if (!free) await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    expect(free, isTrue, reason: 'the node of an isolate that ended still holds its port $udp');
+  }, skip: skip, timeout: patient);
+
+  test('a node of an isolate that has gone, dialled, takes nothing down with it and is let go', () async {
+    // The review's probe: a node left up by an isolate that exits, with its finalizer taken off, so that only what
+    // the library does as it tries to tell a port that is gone stands between a caller and the process. (It was a
+    // call into an isolate that had gone: "Callback invoked after it has been deleted", and the process aborted.)
+    final port = ReceivePort();
+    await Isolate.spawn(_leaveUp, <Object?>[port.sendPort, 82, await _node().idOf(_config(83).secret), true]);
+    final said = await port.first as List;
+    final (orphan, addresses) = (said[0] as String, (said[1] as List).cast<String>());
+    final udp = _portOf(addresses);
+    // Made once the other isolate has used the core and gone, as the review's probe did (a node made before would
+    // have been let go by that isolate's first use, before the fix of the next test, and dialled nothing).
+    final b = await _up(83);
+    // It is dialled, by where it said it was, and a frame sent: what it would tell its isolate (the stream, the path)
+    // goes nowhere, and the library lets it go.
+    try {
+      final s = await b.open(orphan, P2pChannel.packets, hint: Whereabouts(addresses: [addresses.firstWhere(_ipv4.hasMatch)]));
+      await s.add(Uint8List.fromList([1, 2, 3]));
+    } on P2pError {
+      // Let go before it answered: as good.
+    }
+    var free = false;
+    for (var i = 0; i < 100 && !free; i++) {
+      free = await _free(udp);
+      if (!free) await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    expect(free, isTrue, reason: 'a node whose isolate is gone, and was told so, still holds its port $udp');
+    // And the process goes on, with its own node as it was.
+    final c = await _up(84);
+    c.allow(b.nodeId!, {P2pChannel.packets});
+    expect((await b.open(c.nodeId!, P2pChannel.packets, hint: await _here(c))).nodeId, c.nodeId);
+  }, skip: skip, timeout: patient);
+
+  test('another isolate using the core leaves this one\'s nodes as they were', () async {
+    // Each isolate is its own to the library (the port its events go to), not the Flutter engine it runs on, which
+    // background isolates and the test runner have none of: the first use in another isolate let go of every node
+    // this one had, while their IrohNode said they were up.
+    final a = await _up(92), b = await _up(93);
+    b.allow(a.nodeId!, {P2pChannel.packets});
+    final where = await _here(b);
+    final port = ReceivePort();
+    await Isolate.spawn(_useAndLeave, port.sendPort);
+    expect(await port.first, isTrue);
+    final coming = _next(b);
+    final s = await a.open(b.nodeId!, P2pChannel.packets, hint: where);
+    final t = await coming;
+    final heard = _Heard(t);
+    await s.add(Uint8List.fromList([7]));
+    await _until(() => heard.frames.length == 1, 'the frame never came');
+  }, skip: skip, timeout: patient);
+
+  test('a release app opens the copy of the core it carries, and nothing its environment or its folder names', () {
+    const mac = '/Applications/Ghost.app/Contents/MacOS/Ghost';
+    expect(IrohNode.libraryPlaces(release: true, os: 'macos', program: mac, current: '/Users/someone', named: '/tmp/another.dylib'), [
+      '/Applications/Ghost.app/Contents/Frameworks/libghost_p2p.dylib',
+    ]);
+    expect(IrohNode.libraryPlaces(release: false, os: 'macos', program: mac, current: '/Users/someone', named: '/tmp/another.dylib'), [
+      '/tmp/another.dylib',
+      '/Applications/Ghost.app/Contents/Frameworks/libghost_p2p.dylib',
+      '/Users/someone/build/p2p/mac/libghost_p2p.dylib',
+    ]);
+    expect(IrohNode.libraryPlaces(release: true, os: 'android', program: '/system/bin/app_process64', current: '/', named: '/sdcard/x.so'), ['libghost_p2p.so']);
+    expect(IrohNode.libraryPlaces(release: true, os: 'linux', program: '/opt/ghost/ghost', current: '/home/x', named: '/tmp/x.so'), ['/opt/ghost/lib/libghost_p2p.so']);
+    expect(IrohNode.libraryPlaces(release: true, os: 'windows', program: r'C:\Ghost\ghost.exe', current: r'C:\Users\x', named: r'C:\x.dll'), [r'C:\Ghost\ghost_p2p.dll']);
+  });
+
+  test('no copy of the node key is left in what the core was handed', () async {
+    final key = _config(95).secret;
+    final node = _node();
+    await node.start(_config(95));
+    expect(node.state.value, P2pState.up);
+    expect(_find(IrohNode.debugCommandBuffer, key), -1, reason: 'the START, node key and all, is still in the command buffer');
+  }, skip: skip, timeout: patient);
+
+  test('a hint is dialled only where it names another device: never this one\'s own loopback address', () async {
+    final a = await _up(96), b = await _up(97);
+    b.allow(a.nodeId!, {P2pChannel.packets});
+    final where = await _here(b);
+    final port = _portOf(where.addresses);
+    // b is there, on this machine's loopback address too: a hint that names only that, in any of its forms, is not
+    // dialled, and says so at once.
+    final asked = Stopwatch()..start();
+    final loopback = Whereabouts(addresses: ['127.0.0.1:$port', '127.1.2.3:$port', '[::1]:$port', '[::ffff:127.0.0.1]:$port', '0.0.0.0:$port', '169.254.1.1:$port']);
+    await expectLater(a.open(b.nodeId!, P2pChannel.packets, hint: loopback, timeout: const Duration(seconds: 20)), _saying('Nothing is known'));
+    expect(asked.elapsed, lessThan(const Duration(seconds: 10)));
+    // By the address it says, it is found.
+    expect((await a.open(b.nodeId!, P2pChannel.packets, hint: where)).nodeId, b.nodeId);
+  }, skip: skip, timeout: patient);
+
+  test('a burst of small frames reaches the app in a few batches, and what was taken is said once a batch', () async {
+    final a = await _up(98), b = await _up(99);
+    b.allow(a.nodeId!, {P2pChannel.packets});
+    final coming = _next(b);
+    final ours = await a.open(b.nodeId!, P2pChannel.packets, hint: await _here(b));
+    final atB = _Heard(await coming);
+    final batches = IrohNode.debugBatches, takens = IrohNode.debugTakens;
+    const many = 3000;
+    await Future.wait([for (var i = 0; i < many; i++) ours.add(Uint8List.fromList([i >> 8, i & 255]))]);
+    await _until(() => atB.frames.length == many, 'not every frame came: ${atB.frames.length} of $many');
+    expect([for (final f in atB.frames) f[0] * 256 + f[1]], List.generate(many, (i) => i));
+    // (Both ends are in this isolate: the sender's batches of SENT count too.)
+    expect(IrohNode.debugBatches - batches, lessThan(many ~/ 4), reason: 'a batch for every frame, or nearly');
+    expect(IrohNode.debugTakens - takens, lessThan(many ~/ 4), reason: 'a TAKEN for every frame, or nearly');
+  }, skip: skip, timeout: patient);
+
+  test('disallow ends every stream with that node before it returns, and allow and openToAll those they no longer let in', () async {
+    // "Before it returns" is before anything more can come from the library: a message from it is handled in a turn
+    // of its own, after every microtask, so what is looked at a few microtasks on is what the call itself did.
+    Future<void> sameTurn() async {
+      for (var i = 0; i < 5; i++) {
+        await Future<void>.value();
+      }
+    }
+
+    final a = await _up(100), b = await _up(101);
+    a.allow(b.nodeId!, {P2pChannel.packets});
+    b.allow(a.nodeId!, {P2pChannel.packets, P2pChannel.hub});
+    final there = await _here(b);
+    var coming = _next(b);
+    final fromA = await a.open(b.nodeId!, P2pChannel.packets, hint: there);
+    final atB = _Heard(await coming);
+    coming = _next(a);
+    final toA = _Heard(await b.open(a.nodeId!, P2pChannel.packets));
+    await coming;
+    coming = _next(b);
+    await a.open(b.nodeId!, P2pChannel.hub, hint: there);
+    final hubAtB = _Heard(await coming);
+    // Fewer channels: the stream on the one it lost is over at once, as far as b can see; the other is not.
+    b.allow(a.nodeId!, {P2pChannel.packets});
+    await sameTurn();
+    expect([hubAtB.done, atB.done, toA.done], [true, false, false], reason: 'allow with fewer channels left a stream on one it lost open');
+    // Disallowed: every stream with it, whichever end opened it, is over when disallow returns.
+    b.disallow(a.nodeId!);
+    await sameTurn();
+    expect([atB.done, toA.done], [true, true], reason: 'a stream with a node that was disallowed was still open when disallow returned');
+    final heard = _Heard(fromA);
+    await _until(() => heard.done, 'the other end never saw its stream closed');
+    // A channel open to all, closed again: what it let in is over at once.
+    final stranger = await _up(102);
+    b.openToAll({P2pChannel.relays});
+    coming = _next(b);
+    await stranger.open(b.nodeId!, P2pChannel.relays, hint: there);
+    final relayAtB = _Heard(await coming);
+    b.openToAll({});
+    await sameTurn();
+    expect(relayAtB.done, isTrue, reason: 'a stream on a channel no longer open to all was still open');
+  }, skip: skip, timeout: patient);
+
+  test('a first start that cannot be made fails at once saying why, and a later one is made', () async {
+    // As on a phone whose context could not be handed to the core: nothing of the library is made, the start throws
+    // and the node is down with the reason, and a stop asked meanwhile is done. Started again once it can be, it is up.
+    final node = _node();
+    IrohNode.debugFailMaking = 'The phone would not say.';
+    addTearDown(() => IrohNode.debugFailMaking = null);
+    final asked = Stopwatch()..start();
+    await expectLater(node.start(_config(103)), _saying('The phone would not say.'));
+    expect(asked.elapsed, lessThan(const Duration(seconds: 5)));
+    expect([node.state.value, node.problem], [P2pState.down, 'The phone would not say.']);
+    final calledOff = node.start(_config(103));
+    final stopped = node.stop();
+    await stopped;
+    await calledOff;
+    expect(node.state.value, P2pState.off);
+    IrohNode.debugFailMaking = null;
+    await node.start(_config(103));
+    expect([node.state.value, node.problem], [P2pState.up, null]);
+  }, skip: skip, timeout: patient);
+
   test('a node that cannot be started says why, and can be started rightly after', () async {
     final node = _node();
     // Thrown, and the node is left down saying the same: by this side's own look at what it was given, and (the
@@ -322,8 +558,12 @@ void main() {
     await expectLater(node.open(other, 0, timeout: const Duration(seconds: 20)), _refused);
     await expectLater(node.open(other, 0, hint: const Whereabouts(helper: 'https://someone-elses.example', addresses: ['nowhere', '0.0.0.0:1']), timeout: const Duration(seconds: 20)), _refused);
     expect(asked.elapsed, lessThan(const Duration(seconds: 10)));
-    expect(() => node.allow('not a node id', {0}), throwsArgumentError);
-    expect(() => node.allow(other, {256}), throwsArgumentError);
+    // Who may come in is never a throw, whatever it is given: an id that is no node id lets nobody in, a channel that
+    // is no channel is none.
+    expect(() => node.allow('not a node id', {0}), returnsNormally);
+    expect(() => node.allow(other, {256, -1}), returnsNormally);
+    expect(() => node.disallow('not a node id'), returnsNormally);
+    expect(() => node.openToAll({300}), returnsNormally);
     node.dispose();
     await expectLater(node.start(_config(71)), _refused);
   }, skip: skip, timeout: patient);

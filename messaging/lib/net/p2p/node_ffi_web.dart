@@ -5,7 +5,7 @@ import 'node.dart';
 /// through a link helper; later). Nothing makes one of these.
 abstract final class IrohNode implements P2pNode {
   /// The number of the C interface the other half was written against.
-  static const abi = 1;
+  static const abi = 2;
 
   /// Whether the library can be opened: never, here.
   static bool get available => false;

@@ -113,15 +113,6 @@ open class MainActivity : FlutterActivity() {
     private lateinit var store: Store
 
     /**
-     * The direct network's core is given the app's context (P2pCore.kt) before there is any engine, and so before any
-     * Dart that could start a node: this screen's engine and a bubble's are both made inside `super.onCreate`.
-     */
-    override fun onCreate(savedInstanceState: android.os.Bundle?) {
-        P2pCore.install(applicationContext)
-        super.onCreate(savedInstanceState)
-    }
-
-    /**
      * One engine for the app's life, not the screen's (Matt, 2026-11-16, on Signal and Telegram messages while Ghost is
      * out of sight: "Yes, build them"): Dart, and with it Signal's helper and Telegram's TDLib, goes on when Android
      * closes the screen (swiped away from Recents), for as long as NetworksService keeps the process. A screen opened
@@ -186,6 +177,9 @@ open class MainActivity : FlutterActivity() {
         Sounds.register(this, messenger)
         // The walkthrough's voice (GuideVoice.kt).
         GuideVoice.register(this, messenger)
+        // The direct network's core is handed the app's context when Dart starts its first node, and not before
+        // (P2pCore.kt): registering the channel it asks through loads nothing.
+        P2pCore.register(applicationContext, messenger)
 
         val calls = MethodChannel(messenger, "ghost_messaging/sms")
         // What a paired computer asks that only Dart knows (DartAsk.kt) goes down the same channel.
@@ -216,6 +210,7 @@ open class MainActivity : FlutterActivity() {
         })
         // The interface sounds (Sounds.kt, lib/sounds.dart): a message sent from the bubble sounds as it does in the app.
         Sounds.register(this, messenger)
+        P2pCore.register(applicationContext, messenger)
         handleCalls(MethodChannel(messenger, "ghost_messaging/sms"))
     }
 

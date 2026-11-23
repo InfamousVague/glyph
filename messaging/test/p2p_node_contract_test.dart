@@ -63,11 +63,11 @@ Future<(IrohNode, IrohNode)> _two(int n, int m) async {
 
 final _ipv4 = RegExp(r'^\d+\.\d+\.\d+\.\d+:(\d+)$');
 
-/// Where [node] is, as another node on this machine dials it: the port it says, at the loopback address.
+/// Where [node] is, as another node on this machine dials it: the IPv4 address it says, as it says it (this
+/// machine's own address on its network: a node dials no loopback address a hint names).
 Future<Whereabouts> _here(IrohNode node) async {
   await _until(() => node.whereabouts.value?.addresses.any(_ipv4.hasMatch) ?? false, 'it never said where it is');
-  final port = _ipv4.firstMatch(node.whereabouts.value!.addresses.firstWhere(_ipv4.hasMatch))!.group(1);
-  return Whereabouts(addresses: ['127.0.0.1:$port']);
+  return Whereabouts(addresses: [node.whereabouts.value!.addresses.firstWhere(_ipv4.hasMatch)]);
 }
 
 /// What a stream brings, and whether it is done.
