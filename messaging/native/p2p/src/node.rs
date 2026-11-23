@@ -9,7 +9,9 @@
 //! What it never does:
 //! - look anyone up, or publish where it is: the endpoint is made with no address lookup at all, and its DNS (only
 //!   ever asked for a link helper's name) asks the system's own servers and nobody else's;
-//! - talk to a link helper the app did not name: a hint's helper is used only when it is one of this node's own;
+//! - talk to a link helper the app did not name: a hint's helper is used only when it is one of this node's own; nor
+//!   to anything else at a helper's name than the helper (iroh's captive-portal check, which asks port 80 there in
+//!   plain HTTP, is off: [`probes`]);
 //! - let a node that was not allowed say anything, or tell it anything: one that comes through a link helper is
 //!   refused before any handshake (the helper says who is calling), and any other as soon as the handshake has said
 //!   who it is, before iroh has taken the link for its own and told it this node's addresses;
@@ -21,7 +23,7 @@
 use std::{
     collections::HashMap,
     future::Future,
-    net::{IpAddr, SocketAddr},
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     sync::{
         Arc, Mutex, MutexGuard, RwLock,
         atomic::{AtomicU64, AtomicUsize, Ordering},
@@ -30,11 +32,12 @@ use std::{
 };
 
 use iroh::{
-    Endpoint, EndpointAddr, EndpointId, RelayMode, RelayUrl, SecretKey, TransportAddr, Watcher,
+    Endpoint, EndpointAddr, EndpointId, NetReportConfig, RelayConfig, RelayMap, RelayMode, RelayUrl, SecretKey, TransportAddr, Watcher,
     dns::DnsResolver,
     endpoint::{
-        AfterHandshakeOutcome, ConnectError, ConnectWithOptsError, ConnectingError, Connection, ConnectionError, EndpointHooks, IncomingAddr,
-        PathList, QuicTransportConfig, ReadError, ReadExactError, RecvStream, SendStream, TransportErrorCode, VarInt, WriteError, presets,
+        AfterHandshakeOutcome, BindOpts, ConnectError, ConnectWithOptsError, ConnectingError, Connection, ConnectionError, EndpointHooks,
+        IncomingAddr, PathList, QuicTransportConfig, ReadError, ReadExactError, RecvStream, SendStream, TransportErrorCode, VarInt, WriteError,
+        presets,
     },
 };
 use n0_future::StreamExt;
@@ -129,6 +132,10 @@ const OPEN_LONGEST: Duration = Duration::from_secs(60);
 const WHEREABOUTS_EVERY: Duration = Duration::from_secs(1);
 /// A link's round trip is looked at again this often, and a second after the link comes up.
 const PATH_LOOK: Duration = Duration::from_secs(10);
+/// A start asks for the port its node had before this many times, this far apart, before it takes any other: the
+/// socket of a moment ago may still be closing.
+const PORT_TRIES: u32 = 10;
+const PORT_TRY_EVERY: Duration = Duration::from_millis(100);
 /// A stopping node's own tasks are given this long to end before they are ended for it.
 const TASKS_WAIT: Duration = Duration::from_secs(2);
 
@@ -198,6 +205,8 @@ struct Shared {
     run: RwLock<Option<Arc<Run>>>,
     /// Streams are numbered by the node, never twice, across every start.
     next_stream: AtomicU64,
+    /// The UDP port the node last had: asked for again at its next start ([`Run::begin`]).
+    port: Mutex<Option<u16>>,
 }
 
 impl Shared {
@@ -259,7 +268,13 @@ impl Node {
     pub fn new(on: &Handle, sink: impl Fn(Event) + Send + 'static) -> Node {
         let (events, mut said) = mpsc::unbounded_channel();
         let (acts, asked) = mpsc::unbounded_channel();
-        let shared = Arc::new(Shared { events, admission: Gatekeeper::default(), run: RwLock::new(None), next_stream: AtomicU64::new(0) });
+        let shared = Arc::new(Shared {
+            events,
+            admission: Gatekeeper::default(),
+            run: RwLock::new(None),
+            next_stream: AtomicU64::new(0),
+            port: Mutex::new(None),
+        });
         on.spawn(async move {
             while let Some(event) = said.recv().await {
                 sink(event);
@@ -344,8 +359,9 @@ impl Node {
         st.out.send(Out::Frame(bytes)).map_err(|_| SendError::NoStream)
     }
 
-    /// Closes a stream: what was queued before is written first, then the other end sees the end of it.
-    /// [`Event::Closed`] says when. Closing what is closed is nothing.
+    /// Closes a stream: what was queued before is written first (given [`CLOSE_FLUSH`] to be; what a slow path has
+    /// not carried by then is given up, the stream reset), then the other end sees the end of it. [`Event::Closed`]
+    /// says when. Closing what is closed is nothing.
     pub fn close(&self, stream: u64) {
         let Some(st) = self.shared.running().and_then(|run| lock(&run.streams).get(&stream).cloned()) else {
             return;
@@ -430,6 +446,12 @@ impl Node {
             m.recv_data_ipv4.get() + m.recv_data_ipv6.get() + m.recv_data_relay.get(),
             m.recv_datagrams.get(),
         ))
+    }
+
+    /// The sockets this node is bound to, while it is up.
+    #[cfg(test)]
+    pub(crate) fn sockets(&self) -> Vec<SocketAddr> {
+        self.shared.running().map(|run| run.ep.bound_sockets()).unwrap_or_default()
     }
 
     /// What iroh knows of where `node` is, while this one is up.
@@ -701,6 +723,38 @@ fn transport() -> QuicTransportConfig {
         .build()
 }
 
+/// A link helper as iroh is to hold it, made from the address the app wrote and from nothing else: its https address
+/// whole (a port and a path are kept), no token, and for asking where this node is seen from, QUIC at the same name on
+/// iroh's usual UDP port (7842, which a helper this app is given keeps to). The day a helper asks for a token it is
+/// one more call here (`with_auth_token`), the token having come the way the address does.
+pub(crate) fn helper(url: &RelayUrl) -> RelayConfig {
+    RelayConfig::from(url.clone())
+}
+
+/// What iroh may ask to learn how this node is connected: only what a link helper is there to answer, at the address
+/// the app wrote. The HTTPS probe stays (a GET of `ping` under the helper's own address: how a node with no socket of
+/// its own comes by its helper at all). The captive-portal check does not: it asks
+/// `http://<the helper's name>/generate_204`, in plain HTTP and on port 80 whatever the helper's own port, which is
+/// a request to a server nobody named as a link helper; and where that server answers anything of its own, the node
+/// is taken to be behind a captive portal for good.
+fn probes() -> NetReportConfig {
+    // Everything that can be left out is, and the one probe that is wanted is put back: so a check that a later iroh
+    // adds is not on for having been forgotten here.
+    let mut probes = NetReportConfig::minimal();
+    probes.https_probes = true;
+    probes
+}
+
+/// The UDP port a node asks for the first time it starts: the same one for the same node key, every time, so that
+/// where a device was last said to be is still where it is after the app was closed and opened again on the same
+/// network. Made of the key and not of the node id, so that it is nobody else's to work out: two bytes of a
+/// signature over words that are signed for nothing else, and that is shown to nobody. Of the ports no service is
+/// given (49152 to 65535).
+pub(crate) fn first_port(secret: &[u8; 32]) -> u16 {
+    let made = SecretKey::from_bytes(secret).sign(b"ghost/1: the port this node asks for").to_bytes();
+    49152 + u16::from_be_bytes([made[0], made[1]]) % 16384
+}
+
 impl Run {
     async fn begin(shared: &Arc<Shared>, config: &Config, test_helper: Option<TestHelper>, on: &Handle) -> Result<Arc<Run>, String> {
         let mut helpers: Vec<(RelayUrl, String)> = Vec::new();
@@ -717,27 +771,72 @@ impl Run {
             return Err("Only through link helpers was chosen, and there is no link helper.".into());
         }
         let incoming_links = Arc::new(AtomicUsize::new(0));
-        let mut builder = Endpoint::builder(presets::Minimal)
-            .secret_key(SecretKey::from_bytes(&config.secret))
-            .alpns(vec![ALPN.to_vec()])
-            // Nobody is looked up and nothing is published: there is no address lookup to ask or to tell.
-            .clear_address_lookup()
-            .relay_mode(if helpers.is_empty() { RelayMode::Disabled } else { RelayMode::custom(helpers.iter().map(|(url, _)| url.clone())) })
-            .transport_config(transport())
-            // A link helper's name is asked of the system's own DNS servers and of no public one behind them.
-            .dns_resolver(DnsResolver::builder().with_system_defaults().disable_fallback().build())
-            .hooks(Gate { admission: shared.admission.clone(), incoming: incoming_links.clone() });
-        #[cfg(test)]
-        if let Some(map) = test_helper {
-            builder = builder.relay_mode(RelayMode::Custom(map)).ca_tls_config(iroh::tls::CaTlsConfig::insecure_skip_verify());
-        }
+        // Made again for each port that is tried: binding uses it up.
+        let make = |port: Option<u16>| -> Result<iroh::endpoint::Builder, String> {
+            let mut builder = Endpoint::builder(presets::Minimal)
+                .secret_key(SecretKey::from_bytes(&config.secret))
+                .alpns(vec![ALPN.to_vec()])
+                // Nobody is looked up and nothing is published: there is no address lookup to ask or to tell.
+                .clear_address_lookup()
+                .relay_mode(if helpers.is_empty() {
+                    RelayMode::Disabled
+                } else {
+                    RelayMode::Custom(helpers.iter().map(|(url, _)| helper(url)).collect::<RelayMap>())
+                })
+                .net_report_config(probes())
+                .transport_config(transport())
+                // A link helper's name is asked of the system's own DNS servers and of no public one behind them.
+                .dns_resolver(DnsResolver::builder().with_system_defaults().disable_fallback().build())
+                .hooks(Gate { admission: shared.admission.clone(), incoming: incoming_links.clone() });
+            #[cfg(test)]
+            if let Some(map) = &test_helper {
+                builder = builder.relay_mode(RelayMode::Custom(map.clone())).ca_tls_config(iroh::tls::CaTlsConfig::insecure_skip_verify());
+            }
+            if config.helpers_only {
+                // No socket of this node's own at all: every packet goes through a link helper.
+                builder = builder.clear_ip_transports();
+            } else if let Some(port) = port {
+                // The same port for both kinds of address. IPv4 must have it; where IPv6 cannot, the node goes
+                // without IPv6 this once rather than give up the port.
+                let unusable = |e| format!("The direct network could not start: {e:#}");
+                builder = builder
+                    .bind_addr((Ipv4Addr::UNSPECIFIED, port))
+                    .map_err(unusable)?
+                    .bind_addr_with_opts((Ipv6Addr::UNSPECIFIED, port), BindOpts::default().set_is_required(false))
+                    .map_err(unusable)?;
+            }
+            Ok(builder)
+        };
         #[cfg(not(test))]
-        let _ = test_helper;
-        if config.helpers_only {
-            // No socket of this node's own at all: every packet goes through a link helper.
-            builder = builder.clear_ip_transports();
+        let _ = &test_helper;
+        // Which port: the one this node had before, and else the one its key makes, so that the address another
+        // device was last told stays good across a stop and a start, and across the app closing. A port that is
+        // taken is not waited for (but for a moment, where it was this node's own): any other will do.
+        let had = *lock(&shared.port);
+        let ep = if config.helpers_only {
+            make(None)?.bind().await
+        } else {
+            let (port, mut tries) = match had {
+                Some(port) => (port, PORT_TRIES),
+                None => (first_port(&config.secret), 1),
+            };
+            loop {
+                match make(Some(port))?.bind().await {
+                    Ok(ep) => break Ok(ep),
+                    Err(_) if tries > 1 => {
+                        tries -= 1;
+                        tokio::time::sleep(PORT_TRY_EVERY).await;
+                    }
+                    Err(_) => break make(None)?.bind().await,
+                }
+            }
         }
-        let ep = builder.bind().await.map_err(|e| format!("The direct network could not start: {e:#}"))?;
+        .map_err(|e| format!("The direct network could not start: {e:#}"))?;
+        if !config.helpers_only
+            && let Some(port) = ep.bound_sockets().iter().find(|a| a.is_ipv4()).map(|a| a.port()).filter(|port| *port != 0)
+        {
+            *lock(&shared.port) = Some(port);
+        }
         let run = Arc::new(Run {
             shared: shared.clone(),
             id: ep.id(),
@@ -767,11 +866,12 @@ impl Run {
 
     /// Ends everything: the streams say so, every linked node is told, the sockets close.
     async fn shut(self: Arc<Self>) {
-        self.stop.cancel();
+        // Each link is told why first, so that it closes with the code that says so; then everything is stopped.
         let links: Vec<Arc<Link>> = lock(&self.links).values().flatten().cloned().collect();
         for link in links {
             link.end_with(code::STOPPED, Closed::Stopped);
         }
+        self.stop.cancel();
         // Tells every linked node and waits for it to have heard (a few seconds at the very most), then ends iroh's
         // own tasks. The sockets themselves close when the last holder of the endpoint goes, just below.
         self.ep.close().await;
@@ -1493,6 +1593,11 @@ impl Run {
     /// first, and no more than the app keeps.
     fn whereabouts(&self, addr: &EndpointAddr) -> (Option<String>, Vec<String>) {
         let helper = addr.relay_urls().find_map(|url| self.helpers.iter().find(|(own, _)| own == url).map(|(_, written)| written.clone()));
+        if self.helpers_only {
+            // It has no socket of its own, so iroh has no address of its own to give; and whatever iroh held, a node
+            // that goes only through link helpers says its helper and nothing else.
+            return (helper, Vec::new());
+        }
         let mut addrs: Vec<(u8, SocketAddr)> = addr
             .ip_addrs()
             .filter_map(|a| Some((rank(&a.ip().to_canonical())?, SocketAddr::new(a.ip().to_canonical(), a.port()))))

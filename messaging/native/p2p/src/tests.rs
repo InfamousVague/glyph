@@ -12,7 +12,7 @@ use iroh::{Endpoint, EndpointAddr, EndpointId, SecretKey, TransportAddr, endpoin
 use tokio::{runtime::Handle, sync::mpsc, time::timeout};
 
 use crate::{
-    node::{ALPN, FRAME_COST, LINK_IDLE, NODE_BUDGET, Node, SEND_QUEUE_BYTES, STREAM_COST, STREAMS_PER_LINK, SendError, node_id},
+    node::{ALPN, FRAME_COST, LINK_IDLE, NODE_BUDGET, Node, SEND_QUEUE_BYTES, STREAM_COST, STREAMS_PER_LINK, SendError, first_port, helper, node_id},
     wire::{Channels, Closed, Config, Event, Hint, MAX_FRAME, OpenError, PathKind, hex},
 };
 
@@ -425,10 +425,11 @@ async fn stop_then_start_is_the_same_node_and_works_again_and_again() {
         let (why, _) = a.open_within(200 + round, b.id, 0, &hint, Duration::from_secs(2)).await.expect_err("nobody is there");
         assert_eq!(why, OpenError::Unreachable);
 
-        // Started with the same secret: the same node id (`up` checks it), a new port, and who was allowed is
-        // still allowed without being said again.
+        // Started with the same secret: the same node id (`up` checks it), at the port it had, and who was allowed
+        // is still allowed without being said again.
         b.up().await;
         hint = b.here().await;
+        assert_eq!(port_of(&hint), port, "round {round}: it came back on another port");
     }
     // Started a second time with what it is already up with: nothing changes, and it says it is up.
     b.node.start(b.config());
@@ -899,6 +900,146 @@ async fn only_through_link_helpers_keeps_the_path_through_the_helper() {
     // What the other has learnt of where the hidden one is: the helper, and nothing else.
     let known = other.node.knows_of(hidden.id).await;
     assert!(!known.is_empty() && known.iter().all(|addr| addr.is_relay()), "the other learnt an address of the hidden one's own: {known:?}");
+}
+
+/// The port a hint's one address names.
+fn port_of(hint: &Hint) -> u16 {
+    hint.addresses[0].rsplit(':').next().unwrap().parse().unwrap()
+}
+
+/// Where a node was last said to be is where it is after a stop and a start, and after the app has closed and
+/// opened: it asks for the port its key makes the first time, and for the port it had every time after. A port that
+/// something else has taken is not waited for: it starts on another, which is then its port.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_node_keeps_its_port_and_takes_another_where_it_is_taken() {
+    // The port a key makes: the same every time, its own, and never one a service is given.
+    assert_eq!(first_port(&[81; 32]), first_port(&[81; 32]));
+    let made: std::collections::HashSet<u16> = (0..=255u8).map(|n| first_port(&[n; 32])).collect();
+    assert!(made.len() > 240, "256 keys made {} ports between them", made.len());
+    assert!(made.iter().all(|port| *port >= 49152));
+
+    // A key whose port nothing on this machine has just now (another run of these tests may have the first tried).
+    let free = |port: u16| std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, port)).is_ok();
+    let n = (81..=120u8).find(|n| free(first_port(&[*n; 32]))).expect("a key whose port is free");
+    let mut a = Dev::new(n);
+    a.up().await;
+    let port = port_of(&a.here().await);
+    assert_eq!(port, first_port(&a.secret), "its first port is not the one its key makes");
+    // Both kinds of address on the one port (where this machine has IPv6 at all): asking for a port loses neither.
+    let sockets = a.node.sockets();
+    let has_ipv6 = std::net::UdpSocket::bind((std::net::Ipv6Addr::UNSPECIFIED, 0)).is_ok();
+    assert!(sockets.iter().any(|at| at.is_ipv4() && at.port() == port), "{sockets:?}");
+    assert!(!has_ipv6 || sockets.iter().any(|at| at.is_ipv6() && at.port() == port), "no IPv6 socket on its port: {sockets:?}");
+
+    // Stopped and started at once, again and again: the port it had.
+    for round in 0..5 {
+        a.off().await;
+        a.up().await;
+        assert_eq!(port_of(&a.here().await), port, "round {round}: it came back on another port");
+    }
+
+    // Taken by something else while it is stopped: it starts all the same, on another port, and keeps that one.
+    a.off().await;
+    let taken = soon("its port to be free", async {
+        loop {
+            match std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, port)) {
+                Ok(socket) => return socket,
+                Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+            }
+        }
+    })
+    .await;
+    a.up().await;
+    let other = port_of(&a.here().await);
+    assert_ne!(other, port, "two sockets have one port");
+    drop(taken);
+    a.off().await;
+    a.up().await;
+    assert_eq!(port_of(&a.here().await), other);
+    a.off().await;
+}
+
+/// A link helper is its https address and nothing else. The port and the path the app wrote are kept; where this node
+/// is seen from is asked by QUIC on UDP 7842 at the same name, which is what the helpers this app is given answer on
+/// (an iroh that chose another port would leave every node with no address of its own to say); no token goes with it.
+#[test]
+fn a_link_helper_is_made_of_its_address_alone() {
+    let made = helper(&"https://link.example:7843".parse().unwrap());
+    assert_eq!(made.url.as_str(), "https://link.example:7843/");
+    assert_eq!(made.quic.as_ref().map(|quic| quic.port), Some(7842));
+    assert_eq!(made.auth_token, None);
+    // Under a path, with or without its last stroke: the same helper, and the path is kept.
+    let under = helper(&"https://link.example/helpers/one".parse().unwrap());
+    assert_eq!(under.url.as_str(), "https://link.example/helpers/one/");
+    assert_eq!(under.url, "https://link.example/helpers/one/".parse().unwrap());
+}
+
+/// A link helper is asked at the address the app wrote, over TLS, and nothing else is asked at its name: iroh's
+/// captive-portal check, which asks `http://<the helper's name>/generate_204` on port 80 whatever the helper's own
+/// port, is off. Seen by listening on this machine's port 80, where a helper at 127.0.0.1 would be asked, while a
+/// node with no socket of its own starts on one (with a socket iroh lets the check go as soon as UDP has answered;
+/// here, as on a network that carries no UDP, nothing does).
+///
+/// Where this machine gives a test no port 80 (Linux without root, or a server already on it) there is nothing to
+/// see, and the test passes saying so. Another iroh on this machine with a helper at 127.0.0.1, made without this,
+/// would be heard here too: a failure is worth one more run alone.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_link_helper_is_asked_nothing_on_port_80() {
+    let Ok(door) = tokio::net::TcpListener::bind((Ipv4Addr::UNSPECIFIED, 80)).await else {
+        eprintln!("port 80 is not this test's to listen on here: not looked at");
+        return;
+    };
+    let (heard, mut asked) = mpsc::unbounded_channel::<String>();
+    let listening = tokio::spawn(async move {
+        loop {
+            let Ok((caller, from)) = door.accept().await else { return };
+            // Only what this machine itself asks is of interest; anything else that finds the port is let go.
+            if !from.ip().is_loopback() {
+                continue;
+            }
+            let heard = heard.clone();
+            tokio::spawn(async move {
+                let mut said = vec![0u8; 1024];
+                let read = timeout(Duration::from_secs(2), async {
+                    loop {
+                        if caller.readable().await.is_err() {
+                            return 0;
+                        }
+                        match caller.try_read(&mut said) {
+                            Ok(n) => return n,
+                            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                            Err(_) => return 0,
+                        }
+                    }
+                })
+                .await
+                .unwrap_or(0);
+                let _ = heard.send(String::from_utf8_lossy(&said[..read]).into_owned());
+            });
+        }
+    });
+
+    let (map, url, _helper) = iroh::test_utils::run_relay_server().await.expect("a link helper");
+    assert_eq!(url.host_str(), Some("127.0.0.1"), "the helper is not where this test listens");
+    let written = url.to_string().trim_end_matches('/').to_string();
+    let mut hidden = Dev::new(32);
+    hidden.node.start_with(Config { secret: hidden.secret, helpers: vec![written], helpers_only: true }, map);
+    hidden.came_up().await;
+    // It is on its helper: iroh has looked at the network, and the check would have begun a fifth of a second in.
+    while hidden.whereabouts().await.0.is_none() {}
+    let asked_it = timeout(Duration::from_secs(2), async {
+        loop {
+            match asked.recv().await {
+                Some(said) if said.contains("generate_204") => return said,
+                Some(_) => {}
+                None => std::future::pending::<()>().await,
+            }
+        }
+    })
+    .await;
+    assert!(asked_it.is_err(), "the helper's name was asked on port 80, in plain HTTP: {asked_it:?}");
+    listening.abort();
+    hidden.off().await;
 }
 
 /// What an idle node costs, measured: run by name, with `cargo test cost -- --ignored --nocapture`. A minute each.

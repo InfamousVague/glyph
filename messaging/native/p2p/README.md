@@ -23,6 +23,9 @@ Dart, behind `lib/net/p2p/node.dart` (`P2pNode`). `lib/net/p2p/node_ffi.dart` is
   hint's helper is used only when it is one of this node's own, whoever sent the hint (iroh would otherwise connect to
   any relay address it is handed). The helper's name is asked of the system's own DNS servers and of no public
   resolver behind them (iroh's default falls back to Cloudflare, Google and Quad9; that is turned off).
+- **Ask a link helper's name anything but what the helper is there for.** See "What a link helper is asked". iroh's
+  captive-portal check is off: it asks `http://<the helper's name>/generate_204`, in plain HTTP on port 80 whatever
+  the helper's own port, and where port 80 there is another server's, takes its answer for a captive portal.
 - **Open a port on the router.** iroh's port mapping (UPnP, NAT-PMP, PCP) is not compiled in, nor its metrics, nor
   the faster datagram calls that are private to Apple's systems.
 - **Believe a length.** A frame's length is checked against the most before anything is set aside for it, and its
@@ -30,7 +33,37 @@ Dart, behind `lib/net/p2p/node.dart` (`P2pNode`). `lib/net/p2p/node_ffi.dart` is
 - **Grow without bound.** See "What is counted".
 
 `helpers_only` binds no socket of this node's own: every packet goes through a link helper, and the other device
-sees the helper's address.
+sees the helper's address. Such a node says where it is by its helper alone, never an address.
+
+### What a link helper is asked
+
+A link helper is an iroh relay server, and is made from its https address alone, as `START` wrote it: a port and a
+path are kept (`https://link.example:7843`), and no token goes with it. Its certificate is checked against the
+roots compiled into the library (Mozilla's), not the system's. Three things are asked of it, all at that one name:
+
+| | |
+| --- | --- |
+| The connection links are made through | HTTPS (a WebSocket) at the address itself, kept open while the node is up, with a ping every 15 seconds |
+| How far away it is | an HTTPS GET of `ping` under the address, when iroh looks at the network |
+| Where this node is seen from | QUIC on UDP port 7842 (iroh's usual port, which a helper keeps to; there is no saying another). Not asked by a `helpers_only` node, which has no socket to ask from |
+
+A helper that asked for a token would be given it here too: iroh sends one as a bearer header on the first of
+these. That is not built. The token would follow its helper's address in `START`, under a new interface number, and
+be handed to iroh where a helper is made (`helper` in `src/node.rs`); nothing else would change.
+
+### The port
+
+A node asks for the same UDP port every time, for IPv4 and IPv6 alike, so that where a device was last said to be
+is still where it is after a stop and a start, and after the app was closed and opened again on the same network.
+The first time in a process it asks for the port its node key makes (49152 to 65535: two bytes of a signature over
+words that are signed for nothing else, and that is shown to nobody, so the port is no one else's to work out from
+the node id); every time after, for the port it had. A port that is taken is not waited for, but for a second
+where it was this node's own a moment ago: the node starts on any other, which is then its port. A `helpers_only`
+node has no port.
+
+What that gives away: the same device shows the same local port on every network it joins, to whoever on that
+network watches (behind a router, what the outside sees is the router's choice). Starting on any port instead is
+one line (`first_port` in `src/node.rs`).
 
 ## The C interface
 
@@ -82,7 +115,7 @@ Every number is big-endian. A node id is its 32 bytes. Text is UTF-8. The first 
 | `05` | OPEN_TO_ALL | `[how many: 1][channel: 1]…` The channels anyone may open, in place of what was. |
 | `06` | OPEN | `[request: 4][node: 32][channel: 1][wait, ms: 4][helper length: 2][helper][how many addresses: 1]`, then for each `[length: 1][address]`. At most 8 addresses (`ip:port`), 64 bytes each. Answered by OPENED or OPEN_FAILED naming `request`. The wait is kept between 100 ms and 60 s. |
 | `07` | SEND | `[stream: 8][the frame]` The frame is the rest of the command, 0 to 1 MiB. Queued; SENT says when it is written. |
-| `08` | CLOSE | `[stream: 8]` What was queued before is written first; then the other end sees the end. CLOSED says when. |
+| `08` | CLOSE | `[stream: 8]` What was queued before is written first, for 10 seconds at most; then the other end sees the end. CLOSED says when. |
 | `09` | TAKEN | `[stream: 8][frames: 4][bytes: 4]` The app has handed that many frames, of that many bytes in all, to whoever listens. See "What is counted". |
 | `0a` | DONE | `[stream: 8]` The app has handled the stream's CLOSED. |
 | `0b` | NETWORK_CHANGED | Nothing. The device's network changed; Android does not tell native code by itself. |
@@ -127,7 +160,19 @@ One protocol, `ghost/1` (the ALPN). A stream is a QUIC bidirectional stream.
 Closing is by either end and for both directions. The end that closes writes what it had queued, ends its half, and
 waits (5 seconds at most) for the other end to have seen the end, which the other end shows by resetting its own
 half: so a frame sent just before a close, or a close just before a stop, is not lost to what comes after. The
-other end is handed every frame sent before the end, then CLOSED.
+other end is handed every frame sent before the end, then CLOSED. What it had queued is given 10 seconds to be
+written: past that the stream is reset, and what was still queued, or written and not yet arrived, is lost.
+
+### A path that is held back
+
+A link helper holds back a device that sends faster than the helper allows, it does not drop: through one, round
+trips rise to seconds and bytes leave at the helper's pace. A stream then does what it does whenever the other end
+is slow. Its writer waits on QUIC, the frames given to SEND wait in the stream's queue, and SENT says how many have
+been written, which is what a sender that wants to be held back goes by (in Dart, the future `add` returns). A
+sender that goes on regardless fills the queue (4 MiB or 4096 frames): that SEND is answered `-4`, the stream is
+closed (CLOSED `5`; the other end sees it closed by this one, CLOSED `1`), and what was queued is dropped. Only
+that stream: the link and its other streams go on. Reading is not hurried by any of this, except that a frame
+whose length has been said has 15 seconds and 8 KiB a second to arrive (see "What is counted").
 
 A link (one QUIC connection) is closed 30 seconds after its last stream: an open link costs both devices a packet
 every few seconds. The next OPEN dials again.
@@ -199,3 +244,8 @@ later (built and tested with 1.94.1).
     cargo test                                      in native/p2p: the node, the bytes, the C interface
     cargo test cost -- --ignored --nocapture        what an idle node costs, measured over a minute
     flutter test test/p2p_node_ffi_test.dart        the same essentials from Dart, through the built library
+    flutter test test/p2p_node_contract_test.dart   the built library held to what the route's stand-in is held to
+
+One test listens on this machine's port 80 to see that a link helper's name is never asked there. Where the
+machine gives a test no port 80 (Linux without root, or a server already on it), that test has nothing to see and
+passes.
