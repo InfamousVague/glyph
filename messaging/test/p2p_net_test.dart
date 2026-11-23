@@ -173,7 +173,13 @@ void main() {
     Net.instance.setMode('online');
     expect([p2p.mayLink(sam.id), node.allowed.keys], [true, [theirs.nodeId]]);
 
-    // Back on the screen: the node, where it is up, looks at its paths again.
+    // Put away, and back on the screen: the direct network knows which, and the node, where it is up, looks at its
+    // paths again.
+    expect(p2p.inUse, isTrue);
+    Net.instance.setAway(true);
+    expect(p2p.inUse, isFalse);
+    Net.instance.setAway(false);
+    expect(p2p.inUse, isTrue);
     await p2p.up();
     Net.instance.resume(const Duration(minutes: 2));
     expect(node.networkChanges, 1);
@@ -196,6 +202,32 @@ void main() {
     final before = Net.instance.direct.value;
     p2p.setHelpers(const ['https://late.example']);
     expect(Net.instance.direct.value, before, reason: 'no longer listened to');
+  });
+
+  test('a direct network made while the person is Invisible and the app put away starts so', () async {
+    // As the app opens in the background with Invisible chosen before (Me tells Net as it starts).
+    Net.instance.setMode('invisible');
+    Net.instance.setAway(true);
+    addTearDown(() {
+      Net.instance.setMode('online');
+      Net.instance.setAway(false);
+    });
+    Net.p2pNode = () => node;
+    final hub = PlainCarrier('hub');
+    await Net.instance.start(AppState(), carriers: [hub]);
+    final p2p = Net.instance.p2p!;
+    await _until(() => p2p.loaded && p2p.card != null, 'what the direct network keeps was read');
+    await pumpEventQueue();
+    expect([p2p.inUse, p2p.mayLink(sam.id)], [false, false]);
+    expect(hub.to, isEmpty, reason: 'Invisible, no friend is told anything');
+    final (_, packet) = await samsCard();
+    hub.take(packet, from: sam.id);
+    await _until(() => p2p.devicesOf(sam.id).isNotEmpty, 'Sam\'s card was taken');
+    expect(node.allowed, isEmpty, reason: 'and his device is not let in');
+    // Seen again: let in, and told.
+    Net.instance.setMode('online');
+    expect(node.allowed, hasLength(1));
+    await _until(() => hub.to.contains(sam.id), 'Sam was told once the person was seen again');
   });
 
   test('the relay in use names the link helpers as the app signs in to it, and another relay\'s take their place', () async {

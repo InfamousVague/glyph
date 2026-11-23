@@ -271,6 +271,10 @@ class P2p extends ChangeNotifier {
   /// Direct is switched on: the route is started (Settings › Routes).
   bool get on => _on;
 
+  /// The app is in use, not put away, as it was last told ([setAway]): only then does a device go looking for the
+  /// others by itself when the relay has gone.
+  bool get inUse => !_away;
+
   /// This device's node id, once read; and its card, once made.
   String? get nodeId => _nodeId;
   DeviceCard? get card => _card;
