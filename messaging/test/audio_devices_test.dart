@@ -99,6 +99,9 @@ class _Connection implements RTCPeerConnection {
   Future<List<RTCRtpSender>> getSenders() async => _senders;
   @override
   Future<void> close() async {}
+  // A closed connection is also let go of by the platform (rtc.dart's close, GMFB-52).
+  @override
+  Future<void> dispose() async {}
   @override
   dynamic noSuchMethod(Invocation i) => null;
 }
