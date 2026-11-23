@@ -5,23 +5,29 @@ small Dart program with no dependencies beyond Dart's own library (`relay/`). An
 it in **Settings › Routes › Relay server**. This page covers how to run it, what it needs, and, before you start,
 what you give up by moving to it.
 
-## Read this first: relays are islands
+## Read this first: what a relay of your own reaches
 
-Relays don't connect to each other. Nothing is passed between your relay and Ghost Messaging's (gogho.st), and the
-app talks to one relay at a time for everything that goes through a relay.
+The app talks to one relay at a time for everything that goes through a relay. Since 2026-11-22 relays can pass
+sealed packets to each other, so **friends can be on different relays**. Everything else a relay keeps is still that
+relay's own.
 
-| | On your own relay |
+Whether a relay talks to others is its keeper's choice, and it is **off unless switched on** (`GHOST_FED`, below).
+Two people on two relays reach each other only where both relays have it on and neither blocks the other. Off, a relay
+is an island as every relay was before: its people reach only each other through it. **Settings › Routes** says of the
+relay in use whether it passes messages to other relays, as that relay says itself.
+
+| | Between people on different relays |
 |---|---|
-| Friends, groups of friends, sealed messages through the relay | Only with people whose app uses **the same relay**. Someone on gogho.st can't reach you there, and you can't reach them, through a relay. |
-| Texts (SMS, including encrypted texts and data texts) | Unchanged: they go over the phone network, not through any relay. |
-| Your username | Kept on each relay apart. `@maya` on your relay and `@maya` on gogho.st can be two different people, and a username you claimed on gogho.st isn't yours on your relay until you claim it there. |
-| Add-me links (`gogho.st/add/<name>`) | The link always says gogho.st, but the app looks the name up on **the relay it uses**. On your relay that may be someone else, or nobody: the app says so before it sends a friend request. |
+| Friends by username: friend requests, what friends write each other (messages, reactions, edits, read marks), and a group of friends' messages between members who are friends | **Yes**, where both relays talk to each other. Add someone as `@maya@their.relay`; each of you goes on using your own relay, and the two relays pass the sealed packets. Each keeps what is for its own person while they are away. |
+| Calls between friends, and a group's voice channel | **Not yet.** A call is a room on one relay. The app says so instead of ringing a friend on another relay. |
+| Who is online, away, last seen | Not shown for a friend on another relay. |
+| Circles and spaces | **No.** A circle's link works anywhere, but each member's app joins the circle's rooms on its own relay: members on different relays don't see each other's messages or who is in a space. |
+| Your username | Kept on each relay apart. `@maya` is a name on the relay you use; `@maya@relay.example` is the `maya` on that relay, and can be someone else than `@maya` on yours. A name is looked up on the relay it names: by your relay where the two talk, by the app itself where they don't. |
+| Add-me links (`gogho.st/add/<name>`) | The link always says gogho.st, but the app looks the name up on **the relay it uses**. On your relay that may be someone else, or nobody: the app says so before it sends a friend request, and says how to add someone on another relay instead. |
 | Your account (username and password, the sealed backup) | Kept on the relay you made it on. Signing in on a new device works only with that device on the same relay. |
-| Circles and spaces | A circle's link works anywhere, but each member's app joins the circle's rooms on its own relay: members on different relays don't see each other's messages or who is in a space. |
 | Circle invite words (`gogho.st/c/<word>`) | Kept on each relay apart. A word made on your relay works typed into **Join a circle** by people on your relay; the gogho.st/c/ page only knows gogho.st's words. |
 | Files spaces | Kept on your relay's disk, for people on your relay. |
-| Held messages, presence (online, away, last seen) | Per relay, in memory. |
-| Calls | Set up through your relay. Without a TURN server of your own (below), a call between two devices that can't reach each other directly doesn't connect. |
+| Texts (SMS, including encrypted texts and data texts) | Unchanged: they go over the phone network, not through any relay. |
 | The Marketplace (browsing, installing, reporting a plugin or a person) | Always Ghost Messaging's, read from gogho.st whatever relay you use. Submitting a plugin needs a username claimed on gogho.st, so it doesn't work from your relay. |
 | Verifying your number, linking Discord, X, Telegram | Off unless you set up your own Twilio Verify service and your own apps with those networks (the env file below). |
 | Waking a closed iPhone | Not possible: it needs Apple's push key for the app's bundle id, which only the app's publisher holds. An iPhone gets what was held for it the next time the app is opened. |
@@ -29,16 +35,42 @@ app talks to one relay at a time for everything that goes through a relay.
 | A computer paired to the phone | Messages go through the phone, so through your relay; but the computer's own key for voice spaces still uses gogho.st. |
 | App updates, docs, the website | From gogho.st, as before. |
 
-So a relay of your own suits a group that moves together: a family, a team, friends who all set the same address.
-Anyone you want to reach through a relay has to use yours.
+So a relay of your own still suits a group that moves together (a family, a team: circles, spaces and calls need
+everyone on the same relay), and its people can now also be friends with people elsewhere, where both relays allow it.
 
-### Not done yet: reaching people on both
+### How relays talk, and what it asks of you
 
-The app could also keep a connection to gogho.st for friends who aren't on your relay. It isn't a small change:
-every part of the app that uses the relay (friends, usernames, circles, rooms, invites, accounts, presence) asks
-**the** relay, not one per person; the switchboard counts a packet held for someone away as delivered, so it never
-learns that the friend was on the other relay; and each friend would need to carry which relay they use, kept in step
-when they move. It's recorded here as future work rather than done halfway.
+- **Nobody is taken on anyone's say-so.** Each account signs a small record of where it lives (a *home record*). Your
+  relay passes a packet to another relay only because the person it is for signed a record naming that relay, and takes
+  one from another relay only for people whose record names that relay. Relays prove their keys to each other over the
+  address that was dialled, so a relay in the middle can't pass a hello on; a relay that claims an address is believed
+  only once yours has dialled that address and seen the same key there (for an hour: a relay given a new key there is
+  seen with it within the hour), and what is for an address goes only over a link yours dialled there itself. A record
+  is good for thirty days.
+- **Your relay dials out**, to other relays' hubs, at `wss://` on port 443 and nowhere else, and never to an address on
+  your server or its own network. It must be reachable at the address you set as `GHOST_PUBLIC_HUB`: other relays dial
+  it to check yours is who it says.
+- **What it sees more:** which of its people talk to people on which other relay, and when. Still never what.
+- **What it keeps more:** its own key (`relay-key.json`: keep it private, and keep it; it is who your relay is to the
+  others; readable by the relay's own user alone, mode 600, and on Windows an ordinary file, which you should keep
+  where only that user can read it) and the records its people gave it (`homes.json`). With another relay unreachable,
+  packets for it wait in memory (at most 16 MB a relay, 32 MB in all, a mailbox's worth for one sender or recipient,
+  seven days; a minute or two for an address never once reached).
+- **Allowances.** Every limit is held so no one party can use it up for nothing: each of your people may make your
+  relay dial eight new relays an hour and send a share of what another relay takes from yours; strangers' hellos share
+  thirty a minute, and a relay at an address yours has checked has its own. Limits per linked relay are counted by its
+  checked address, so a relay can't get more by making new keys.
+- **Moving.** Someone who moves to another relay signs a record with the next count; their app gives it to the relay
+  they leave and the one they join, and tells their friends a few at a time. The relay they left tells any relay that
+  still sends it their packets where they live now.
+
+The protocol itself, every message of it, is in [relay/README.md](../relay/README.md) ("Other relays").
+
+### Not done yet
+
+- **Rooms across relays**: circles, spaces and calls. A circle stays on the relay it was made on.
+- **Who is online** across relays.
+- **Add-me links and invite links that name a relay**, and an account signing in on another relay than its own.
 
 ## What it serves
 
@@ -46,7 +78,7 @@ One program on one port (8787 unless told otherwise), plain HTTP and WebSockets:
 
 | Path | What |
 |---|---|
-| `/hub` (WebSocket) | The hub: apps sign in with their key, find each other, pass sealed packets, hold packets for people away (in memory, 96 MB at most), presence, rooms for circles, spaces and calls, usernames, sealed account backups, invites by number, invite words. |
+| `/hub` (WebSocket) | The hub: apps sign in with their key, find each other, pass sealed packets, hold packets for people away (in memory, 96 MB at most), presence, rooms for circles, spaces and calls, usernames, sealed account backups, invites by number, invite words. Other relays link here too, where you have switched that on. |
 | `/relay/<channel>` (WebSocket) | A phone and its paired computer when they're on different networks. |
 | `/files/...` | Files spaces' sealed files, on disk. |
 | `/word/<hash>` | A circle's invite word, for a web page like gogho.st's /c/. |
@@ -57,8 +89,10 @@ One program on one port (8787 unless told otherwise), plain HTTP and WebSockets:
 | anything else | `Ghost Messaging relay` as plain text: a quick check that it is up. |
 
 It writes only under its data folder (`--data`): pairings, usernames and linked handles, sealed account backups,
-Files, invites, invite words, the Marketplace. Back that folder up if you care about any of it. Nothing it holds can
-be read without the apps' keys, but which installs talk to which is visible to whoever runs it, as with any server.
+Files, invites, invite words, the Marketplace, the relay's own key (`relay-key.json`) and the home records its people
+gave it (`homes.json`) where it talks to other relays, and the accounts that sign in bound to it (`hub-v2.json`); those
+two are logs of what changed, written whole again now and then off the relay's main thread. Back that folder up if you care about any of it. Nothing it holds can be read without the apps'
+keys, but which installs talk to which is visible to whoever runs it, as with any server.
 
 ## Running it
 
@@ -75,13 +109,14 @@ three things, and you should keep them:
 - `GHOST_ADMIN_NAMES=` empty (its built-in default is someone else's username).
 - `GHOST_MARKET_ON=0` (the apps never read your Marketplace).
 
-Optional groups: a TURN server for calls (`GHOST_TURN_*`), link helpers for the apps' direct links between devices
-(`GHOST_LINK_HELPERS`: without one they link only on one network), the app in a browser (`GHOST_WEB_DIR`; and
-`GHOST_APP_ORIGIN`, the address it is served from where that is one of its own, whose page may then read the answers
-to the reports and feedback it sends, and nothing else), Files limits (`GHOST_FILES_*`, lower
-`GHOST_FILES_TOTAL` to fit your disk), Twilio Verify for number checks (`GHOST_TWILIO_*`), network sign-ins
-(`GHOST_DISCORD_*`, `GHOST_X_*`, `GHOST_TELEGRAM_*`, `GHOST_GITHUB_TOKEN`). The rest (`GHOST_APNS_*`, `GHOST_NOTION_*`, `GHOST_BOUNTY_KEY`) only
-Ghost Messaging's own relay can use; leave them empty.
+Optional groups: talking to other relays (`GHOST_FED`, `GHOST_PUBLIC_HUB` and the rest, below), a TURN server for
+calls (`GHOST_TURN_*`), link helpers for the apps' direct links between devices (`GHOST_LINK_HELPERS`: without one they
+link only on one network), the app in a browser (`GHOST_WEB_DIR`; and `GHOST_APP_ORIGIN`, the address it is served
+from where that is one of its own, whose page may then read the answers to the reports and feedback it sends, and
+nothing else), Files limits (`GHOST_FILES_*`, lower `GHOST_FILES_TOTAL` to fit your disk), Twilio Verify for number
+checks (`GHOST_TWILIO_*`), network sign-ins (`GHOST_DISCORD_*`, `GHOST_X_*`, `GHOST_TELEGRAM_*`,
+`GHOST_GITHUB_TOKEN`). The rest (`GHOST_APNS_*`, `GHOST_NOTION_*`, `GHOST_BOUNTY_KEY`) only Ghost Messaging's own relay
+can use; leave them empty.
 
 ```sh
 cp relay/deploy/relay.env.example relay.env   # edit; keep it readable by root (or the relay's user) only
@@ -140,6 +175,69 @@ and not cut an open WebSocket off after a minute.
 To update: build again, `sudo install -m 755 ghost-relay /opt/ghost-relay/ghost-relay`, `sudo systemctl restart
 ghost-relay`. A restart drops whoever is connected (the apps reconnect by themselves) and loses held packets and
 presence, which are only in memory.
+
+### Talking to other relays (optional)
+
+Off unless you switch it on. To let your people be friends with people on other relays, set two things in the env
+file and restart the relay:
+
+```sh
+GHOST_FED=open                                 # or: list, with GHOST_FED_ALLOW=relay.example.org,another.example.net
+GHOST_PUBLIC_HUB=wss://relay.example.com/hub   # your relay's own hub address, as the world reaches it
+```
+
+- `open` links with any relay that proves its key; `list` only with the hosts (or relays' names) in
+  `GHOST_FED_ALLOW`. `GHOST_FED_BLOCK` names relays never linked with, in either mode.
+- The other relay has to have it on too, and not block yours. Friendship across relays takes both.
+- Your relay must be reachable at `GHOST_PUBLIC_HUB` from outside (other relays dial it to check your relay's key),
+  and be able to dial out on port 443.
+- It says its own name as it starts (`other relays: open, this one is 3f9c…`): that name is what another relay's
+  keeper puts in their list to name yours.
+- Limits per linked relay have defaults you can change: `GHOST_FED_PACKETS_A_MINUTE`, `GHOST_FED_BYTES_A_DAY`,
+  `GHOST_FED_LOOKUPS_AN_HOUR`. Of them, each install has a share, each address its installs come from twice that, and
+  installs new to your relay half of each together: people who have held a username on it, or used it, for two days
+  always have the rest, however many installs someone else makes. Keep Caddy or nginx beside the relay so it sees each
+  person's own address.
+- A relay with no address of its own (behind a home router) can set `GHOST_FED_VIA` to a public relay it dials and
+  stays linked to, in place of `GHOST_PUBLIC_HUB`: its people are then reached through that relay, where that relay
+  lets relays stay. Letting relays with no address stay linked to yours (and passing their people's packets on under
+  your relay's name) is a setting of its own, off unless you set `GHOST_FED_STANDING=open` or name the relays.
+- Off (the default) your relay does nothing of this at all: it makes no key, keeps no records, and its hello says
+  nothing of other relays.
+
+Check it: the hub's greeting names your relay and says it talks (`"relay": {"id": …, "url": …, "fed": true}`), and
+**Settings › Routes** in the app shows "Passes messages to other relays".
+
+### Sign-ins bound to your relay (recommended)
+
+List every host name your relay is reached at, commas between, with a port where it is not 443:
+
+```sh
+GHOST_HUB_NAMES=relay.example.com,www.relay.example.com
+```
+
+With them the hub asks apps to sign in bound to the name they dialled, and refuses a sign-in made for another relay;
+once an account has signed in so, it takes no other kind from it. That stops a relay one of your people was pointed at,
+or asked a name of, from signing in to yours as them. An app that dialled a name you didn't list is refused, so list
+them all, without ports where it is 443; without the setting, sign-ins are taken as they always were, and the keys kept
+are not held to. On Windows and elsewhere the names it has seen sign in so are kept in `hub-v2.json` in the data folder:
+200,000 at most, those that have held a username for two days going last, at most 30 new ones an hour from one address
+(an IPv6 address counts by its first 48 bits) and 5,000 from all. Switch it on only once your people's apps (and the
+browser extension) sign in v2: from an account's first v2 sign-in on, its older builds are refused and told to update.
+Keep every listed name registered to you for as long as it is listed. The address is the one your
+proxy saw where the proxy is on the same machine or a private network (it reads the last `X-Forwarded-For` it adds),
+else the connection's own: keep Caddy or nginx beside the relay, as the examples do, so each person counts as
+themselves.
+
+### How much the relay holds
+
+What every connection holds together (a message half come in, what waits for a peer to read) is counted against one
+budget, 64 MB unless you set `GHOST_WIRE_MB`. A connection is ended for it only when more than 8 MB waits for it
+(`GHOST_WIRE_EACH_MB`) for 10 seconds (`GHOST_WIRE_STALL_S`), or a message coming in hasn't grown for 20 seconds
+(`GHOST_WIRE_IN_STALL_S`); past the budget together, those stalled longest go first, then those holding the most. One
+whose own answers pile up is not read from until they go. The hub hands over what it keeps (a room's messages, what was
+held for someone) only as fast as each device takes it. With the 96 MB kept for people who are away, that keeps the
+relay inside a few hundred megabytes however many connect; give it more where your machine has more.
 
 ### Calls through your own TURN server (optional)
 
@@ -230,7 +328,8 @@ greeting; if a Ghost Messaging relay doesn't answer, nothing changes and it says
 means (above) and switches only when you say so. The section always shows which relay is in use, and on your own a
 **Go back to Ghost Messaging's relay** row switches back in one press.
 
-Everyone you want to reach through a relay has to set the same address.
+Everyone you want in a circle, a space or a call with has to set the same address. A friend can also be on another
+relay, where yours and theirs talk to each other (above): add them as `@name@their.relay`.
 
 ## Checking it
 

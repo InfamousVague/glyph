@@ -510,7 +510,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final friends = Buddies.instance.shownFriends;
+    final friends = Buddies.instance.roomFriends;
     return GhostPage(
       title: 'New space',
       body: SettingsPaneScope(

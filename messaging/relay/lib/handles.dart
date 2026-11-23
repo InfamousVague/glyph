@@ -714,11 +714,7 @@ class Handles {
         case 'whois':
           final name = said['name'];
           if (name is! String || !goodName(name)) return tell({'dir': 'whois', 'name': name, 'none': true});
-          final now = _now();
-          final list = _lookups[id] ??= [];
-          list.removeWhere((t) => now.difference(t) > const Duration(hours: 1));
-          if (list.length >= lookupsAnHour) return err('Too many lookups. Try again in a while.');
-          list.add(now);
+          if (!mayLookUp(id)) return err('Too many lookups. Try again in a while.');
           final found = _names[nameKey(name)];
           if (found == null) return tell({'dir': 'whois', 'name': tidyName(name), 'none': true});
           // Looked up in words: the admin page can name its holder from now on, an install on an older app that never
@@ -981,6 +977,38 @@ class Handles {
     _codeFor[k]?.remove(id);
     if (_codeFor[k]?.isEmpty ?? false) _codeFor.remove(k);
     return null;
+  }
+
+  /// Whether [id] may look someone up now, and that it has: at most [lookupsAnHour] an hour, so the usernames cannot
+  /// be walked through. One count for every kind of lookup an install makes, here or of another relay
+  /// (federation.dart).
+  bool mayLookUp(String id) {
+    final now = _now();
+    final list = _lookups[id] ??= [];
+    list.removeWhere((t) => now.difference(t) > const Duration(hours: 1));
+    if (list.length >= lookupsAnHour) return false;
+    list.add(now);
+    return true;
+  }
+
+  /// Who holds the username [name] here, their name and key: what another relay is told when one of its people asks
+  /// (federation.dart, which counts how often that relay asks). Null where nobody does.
+  ({String id, String key})? holder(String name) {
+    if (!goodName(name)) return null;
+    final found = _names[nameKey(name)];
+    final id = found?['id'], key = found?['key'];
+    return id == null || key == null ? null : (id: id, key: key);
+  }
+
+  /// Whether [id] holds a username here: someone who has signed in here (federation.dart keeps packets from other
+  /// relays only for such names).
+  bool holdsAName(String id) => _nameOf.containsKey(id);
+
+  /// The day [id] first claimed the username it holds (midnight UTC), or null where it holds none.
+  DateTime? nameHeldSince(String id) {
+    final k = _nameOf[id];
+    final at = k == null ? null : _names[k]?['at'];
+    return at == null ? null : DateTime.tryParse('${at}T00:00:00Z');
   }
 
   /// The install that holds [name] as its username, or null (accounts.dart: signing in by username).

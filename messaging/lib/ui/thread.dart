@@ -548,7 +548,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           throw _NotSent(files.isNotEmpty
               ? 'pictures and files can\'t be sent to a friend by username yet'
               : own
-                  ? 'no connection. A friend by username is reached over the internet, through the relay'
+                  // A relay that refused them says why (their relay can't be reached from yours, or won't take them).
+                  ? Friends.instance.lastRefusal ?? 'no connection. A friend by username is reached over the internet, through the relay'
                   : 'a friend by username is written to from the phone itself, or from a computer with an account of its own');
         }
         if (!byRoute) await Sms.instance.send(to, body, attachments: files);
@@ -929,6 +930,12 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   Future<void> _callFriend({required bool video}) async {
     final b = _callable;
     if (b == null) return;
+    // A call's room is on one relay (docs/OPEN_NETWORK.md, section 4: rooms don't cross relays yet): a friend on
+    // another would ring and never be met in it, so they are not rung.
+    if (Buddies.instance.apart(b)) {
+      toast(context, callElsewhereWords(b.shown, Buddies.instance.relayOf(b)));
+      return;
+    }
     bool rang;
     try {
       rang = await FriendCalls.instance.call(b, video: video);

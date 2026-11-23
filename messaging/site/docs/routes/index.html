@@ -51,21 +51,35 @@
 <figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Routes</span></div><div class="m-body">
   <div class="m-section"><div class="m-section-title">Relay server</div><div class="m-card">
     <div class="m-row"><span class="m-ico" data-hue="blue"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#globe"/></svg></span><span class="m-txt"><b>Your own relay: relay.example.com</b><small>In use · connected</small></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="green"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#network"/></svg></span><span class="m-txt"><b>Passes messages to other relays</b><small>A friend on another relay, added as @name@their.relay, is reached through this one.</small></span></div>
     <div class="m-row tap"><span class="m-ico" data-hue="blue"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#undo-2"/></svg></span><span class="m-txt"><b>Go back to Ghost Messaging's relay</b><small>gogho.st, where everyone else is.</small></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
     <label class="m-field"><span>Another relay server's address</span><span class="m-input empty">relay.example.com</span></label>
     <div class="m-row"><span class="m-ico" data-hue="green"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#check"/></svg></span><span class="m-txt"><b>Check it and use it</b><small>Nothing changes unless a Ghost Messaging relay answers there.</small></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
-  </div><p class="m-foot">Relays don't connect to each other. On your own relay you reach only people using the same relay.</p></div>
+  </div><p class="m-foot">Relays can pass messages to each other. Add a friend on another relay as @name@their.relay. Everything else is still kept on each relay apart.</p></div>
 </div></div><figcaption>Settings › Routes on a relay of your own.</figcaption></figure>
 
-<aside class="note warn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#triangle-alert"/></svg><div><b>Relays are islands</b>
-<p>Relays don't talk to each other. On your own relay you reach, through the relay, only people whose app uses the same one; people on ours can't reach you there.</p>
+<h2 id="across">Friends on another relay</h2>
+<p>Relays can pass sealed messages to each other, so a friend doesn't have to use the same relay as you. Each of you goes on using your own, and the two relays hand each other what you write. Neither can read it.</p>
+<p>To add someone on another relay, open <b>Contacts</b>, tap <b>Add a friend</b>, and type their username with their relay after it: <code>@maya@relay.example</code>. Nobody is asked while you type: their relay is asked when you tap <b>Add</b>, through yours where it talks to theirs. They are kept, and shown, under that name, and their card says which relay they are on.</p>
+
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Add a friend</span></div><div class="m-body">
+  <label class="m-field"><span>Their username</span><span class="m-input">@maya@relay.example</span></label>
+  <div class="m-row m-raw"><span class="m-avatar" data-hue="rose">M</span><span class="m-txt"><b>maya@relay.example</b><small>On relay.example: Add asks that relay</small></span><span class="m-btn primary tap"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#user-plus"/></svg><span>Add</span></span></div>
+</div></div><figcaption>Adding someone on another relay.</figcaption></figure>
+
+<p>Whether a relay talks to others is up to whoever runs it, and it is off until they switch it on. <span class="ui-path">Settings › Routes</span> says which yours is: <b>Passes messages to other relays</b>, or <b>Doesn't pass messages to other relays</b>. It takes both relays: where yours doesn't, the app asks their relay itself (as nobody: not as you), tells you the request can't be passed on yet, and sends it again by itself for two weeks. Where yours says theirs won't take messages from it, that is the answer.</p>
+
+<aside class="note warn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#triangle-alert"/></svg><div><b>What crosses relays, and what doesn't yet</b>
 <ul>
-<li><b>Kept on each relay apart:</b> usernames, your account and its backup, friends' sealed messages, circles' and spaces' rooms, invite words, Files spaces, and who's online.</li>
-<li><b>Add-me links</b> look the name up on the relay you use, so on yours they may find someone else, or nobody. The app warns you before it sends a request.</li>
+<li><b>Crosses:</b> friend requests and everything friends write each other, where both relays talk. Messages for someone who is away wait at their own relay.</li>
+<li><b>Doesn't yet:</b> calls, circles and spaces (each is a room on one relay), and who's online. The app says so instead of ringing a friend on another relay, keeps their ring as a missed call, and leaves them out of circles and spaces.</li>
+<li><b>Kept on each relay apart:</b> usernames (<code>@maya</code> on yours and <code>@maya@relay.example</code> can be two people), your account and its backup, invite words and Files spaces.</li>
+<li><b>Add-me links</b> look the name up on the relay you use, so on a relay of your own they may find someone else, or nobody. The app warns you before it sends a request.</li>
 <li><b>Still works with anyone:</b> texts (SMS), including encrypted ones. The Marketplace always comes from gogho.st.</li>
-<li><b>Off unless you set them up yourself:</b> calls through a TURN server, verifying numbers by text, linking Discord, X or Telegram. Closed iPhones can't be woken by your relay.</li>
+<li><b>Off on a relay of your own unless you set them up:</b> calls through a TURN server, verifying numbers by text, linking Discord, X or Telegram. Closed iPhones can't be woken by your relay.</li>
+<li><b>Someone on an older version</b> of the app can't be reached from another relay: the app tells you they need a newer one. Where it is their relay that doesn't pass messages on, it says that instead.</li>
 </ul>
-<p>So it suits a group that moves together: everyone sets the same address.</p>
+<p>So a relay of your own suits a group that moves together, for its circles, spaces and calls, and its people can still be friends with people elsewhere.</p>
 </div></aside>
 
 <p>How to run one (Docker, or systemd behind Caddy or nginx, with coturn for calls) is in the repository: <a href="https://github.com/InfamousVague/ghost-messaging/blob/main/docs/SELF_HOSTING.md">docs/SELF_HOSTING.md</a>, with sample files in <code>relay/deploy/</code>.</p>
@@ -130,7 +144,7 @@
     <nav class="prevnext"><a class="prev" href="/docs/keyboard-shortcuts/"><small>Previous</small>Keyboard shortcuts</a><a class="next" href="/docs/coming-soon/"><small>Next</small>Coming soon</a></nav>
     <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
   </main>
-  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#relay">The relay server</a><a href="#own-relay">Your own relay server</a><a href="#direct">Direct Coming soon</a><a href="#checked">How the relay is checked</a><a href="#texts">SMS as a route</a><a href="#test">Test a route</a><a href="#invite">Invite someone by text</a></nav>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#relay">The relay server</a><a href="#own-relay">Your own relay server</a><a href="#across">Friends on another relay</a><a href="#direct">Direct Coming soon</a><a href="#checked">How the relay is checked</a><a href="#texts">SMS as a route</a><a href="#test">Test a route</a><a href="#invite">Invite someone by text</a></nav>
 </div>
 <script src="/docs/docs.js" defer></script>
 </body>

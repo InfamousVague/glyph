@@ -127,6 +127,10 @@ _Ghost _ghostOf(ProfileSubject who) {
   );
 }
 
+/// What a friend's card says of the relay they are on, where it isn't this app's.
+/// A friend's relay, on their card: what reaches them, by whether this app's relay passes messages on ([talks]).
+String friendRelayWords(String host, {bool talks = true}) => talks ? 'On $host, another relay than yours. What you write to each other goes through your relay to theirs, where both pass messages on.' : 'On $host, another relay than yours, and yours doesn\'t pass messages to other relays: what you write doesn\'t reach them from here.';
+
 String _nameOf(ProfileSubject who, _Ghost? g) => (g?.name.isNotEmpty == true ? g!.name : (who.name.isNotEmpty ? who.name : (who.username.isNotEmpty ? who.username : 'them')));
 
 /// What can be done with [who] from here, under the card.
@@ -338,6 +342,8 @@ class _ProfileCardState extends State<_ProfileCard> {
             builder: (context, _) => _BadgeSection(badges: SpecialBadges.instance.of(g.id, username: g.username, me: g.me), section: section),
           )
         : const SizedBox.shrink();
+    // The relay a friend is on, where it isn't this app's (docs/OPEN_NETWORK.md, section 4).
+    final theirRelay = g?.buddy == null ? '' : Buddies.instance.relayOf(g!.buddy!);
     // The name watch (lib/net/name_watch.dart): the relay now gives this friend's username to another key. They are
     // still the key that was added; this only says so.
     final renamed = g == null || g.me || g.id.isEmpty ? null : NameWatch.instance?.changeFor(g.id);
@@ -346,6 +352,7 @@ class _ProfileCardState extends State<_ProfileCard> {
       if (renamed != null)
         section('Their username', Text(friendNameChangedWords(renamed.username, name.isEmpty ? '@${renamed.username}' : name), key: const ValueKey('profile-name-watch'), style: pageText(t, t.fontSize('sm'), color: t.color('app-ink'), height: 1.4))),
       if (bio.isNotEmpty) section('About me', Text(bio, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink'), height: 1.4))),
+      if (theirRelay.isNotEmpty) section('Relay', Text(friendRelayWords(theirRelay, talks: Buddies.instance.relayTalks), style: pageText(t, t.fontSize('sm'), color: t.color('app-ink'), height: 1.4)), key: const ValueKey('profile-relay')),
       badgeList,
       if (who.detail.isNotEmpty) section(who.room != null ? 'In this space' : 'Here', Text(who.detail, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink')))),
       if (links.isNotEmpty)

@@ -80,6 +80,27 @@ class HubPeekTest {
     }
 
     @Test
+    fun aHubThatTakesV2IsSignedV2BoundToTheHostDialled() {
+        val said = mutableListOf<String>()
+        val (url, t) = hub("{\"hello\":\"0a0b\",\"peek\":true,\"v2\":true}", "{\"ok\":true,\"held\":1,\"peek\":true,\"here\":false}", said)
+        var signed: ByteArray? = null
+        val held = HubPeek.look(url, "ab".repeat(16), ByteArray(33) { 2 }, { signed = it; ByteArray(64) }, waitSeconds = 5)
+        t.join(3000)
+        assertEquals(1, held)
+        val host = "127.0.0.1:" + url.substringAfter("127.0.0.1:").substringBefore("/")
+        assertEquals(host, HubPeek.hostOf(url))
+        assertTrue("the v2 words, the host dialled and the hub's number are what is signed",
+            signed!!.contentEquals("ghost-hub v2 ".toByteArray() + byteArrayOf(host.length.toByte()) + host.toByteArray() + byteArrayOf(10, 11)))
+        val hello = JSONObject(said[0])
+        assertEquals(2, hello.getInt("v"))
+        assertEquals(host, hello.getString("host"))
+        // The host as lib/net/hub_carrier.dart writes it: lower case, the scheme's own port left out.
+        assertEquals("gogho.st", HubPeek.hostOf("wss://GoGho.st:443/hub"))
+        assertEquals("relay.example.com:8443", HubPeek.hostOf("wss://relay.example.com:8443/hub"))
+        assertEquals("[::1]:8787", HubPeek.hostOf("ws://[::1]:8787/hub"))
+    }
+
+    @Test
     fun aHubThatDoesNotSayItKnowsALookIsNotSignedInTo() {
         val said = mutableListOf<String>()
         val (url, t) = hub("{\"hello\":\"0a0b\"}", "{\"ok\":true,\"held\":3}", said)

@@ -71,6 +71,11 @@ abstract class FriendsPort {
   /// Whether a relay server answers where the app would look for one. Asked before anyone is a friend, when the
   /// routes have had nobody to dial for.
   Future<bool> probe();
+
+  /// Whether what was last sent to the install [id] waits on this app's relay for theirs to be reached (it said so:
+  /// `waiting` in its answer): what is unanswered for them is sent again only now and then meanwhile, since every copy
+  /// would wait beside the first (found in the review, 2026-11-23).
+  bool waitingAtRelay(String id);
 }
 
 /// Friends (Matt, 2026-11-14: "Add a friend system that allows users to talk without using SMS or MMS but still
@@ -137,6 +142,14 @@ class Friends extends ChangeNotifier {
 
   /// When something unanswered is next sent: twenty seconds after, then twice as long each time, five minutes at most.
   static Duration resendAfter(int tries) => Duration(seconds: (20 * (1 << (tries - 1).clamp(0, 10))).clamp(20, 300));
+
+  /// How long between copies while this app's relay says what was sent waits there for the friend's relay.
+  static const waitingResendAfter = Duration(hours: 1);
+
+  /// Why the last words to a friend weren't taken by any route, as the routes said it (their relay refused them, or
+  /// can't be reached from this app's): shown in the conversation in place of a reason of its own. Null where nothing
+  /// was refused.
+  String? lastRefusal;
   final List<StreamSubscription<dynamic>> _subs = [];
   Timer? _soon;
   bool _started = false;
@@ -625,7 +638,8 @@ class Friends extends ChangeNotifier {
       if (peer == null || peer.id != to) continue;
       o.to = to;
       o.tries++;
-      o.next = now.add(resendAfter(o.tries));
+      // Waiting on this app's relay for theirs: an hour between copies, not minutes; the one that waits goes when it can.
+      o.next = now.add(_port.waitingAtRelay(to) ? waitingResendAfter : resendAfter(o.tries));
       changed = true;
       try {
         final d = await _port.send(peer, Envelope(id: o.id, kind: 'text', body: {'t': o.words}, at: o.first.millisecondsSinceEpoch));
@@ -634,6 +648,22 @@ class Friends extends ChangeNotifier {
     }
     if (changed) _saveOut();
   }
+
+  /// What a route said when it refused a packet (`hub: their relay can't be reached from yours`), without the route's
+  /// name; null where none said anything but that it was down.
+  static String? _refusalIn(List<String> tried) {
+    for (final t in tried) {
+      final colon = t.indexOf(': ');
+      if (colon <= 0) continue;
+      final why = t.substring(colon + 2);
+      if (why.contains('relay') && !why.contains('could not be reached') && !why.contains('not connected')) return why;
+    }
+    return null;
+  }
+
+  /// When what went out as [id] is next sent again, for a test; null where it is not waiting for an answer.
+  @visibleForTesting
+  DateTime? nextResendOf(String id) => _out[id]?.next;
 
   /// What is waiting for an answer, for a test.
   @visibleForTesting
@@ -654,6 +684,7 @@ class Friends extends ChangeNotifier {
   /// nothing more is to be done. False when [address] is not a friend or no route that costs nothing is up: the
   /// caller sends them as a text.
   Future<bool> sendText(String address, String words) async {
+    lastRefusal = null;
     if (!_started || !isFriend(address) || !_port.internet) return false;
     // To the install the friend's record names, by its id: never whoever else the routes hold under that address.
     final peer = _peerFor(address);
@@ -667,6 +698,8 @@ class Friends extends ChangeNotifier {
       d = Delivery(envelope.id);
     }
     if (!d.sent) {
+      // A route that said why (their relay, or this app's, refused it) is what the conversation shows.
+      lastRefusal = _refusalIn(d.tried);
       await _port.dropRow(row);
       return false;
     }
@@ -810,6 +843,9 @@ class _AppPort implements FriendsPort {
 
   @override
   Listenable get changed => Net.instance;
+
+  @override
+  bool waitingAtRelay(String id) => Net.instance.hub?.waitingFor.contains(id) ?? false;
 
   @override
   Future<bool> probe() async {

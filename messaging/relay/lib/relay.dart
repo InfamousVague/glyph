@@ -9,6 +9,7 @@ import 'hub.dart';
 import 'market.dart';
 import 'sha256.dart';
 import 'web_app.dart';
+import 'ws_door.dart';
 
 /// Ghost Messaging's relay (docs/desktop.md): a WebSocket server a phone and the computer it is paired with both dial
 /// out to when they are on different networks. It passes what one sends to the other while both are connected, and
@@ -24,7 +25,9 @@ import 'web_app.dart';
 /// - A channel is removed when either end says so (unpairing), or after ninety days unused. One made for pairing
 ///   (`temp`) lives ten minutes at most, goes as soon as both ends have left it, and is never written to disk.
 class Relay {
-  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub, this.files, this.feedback, this.market, this.bounty, this.web, this.appOrigin}) : _now = now ?? DateTime.now;
+  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub, this.files, this.feedback, this.market, this.bounty, this.web, this.appOrigin, WireBudget? wire})
+      : _now = now ?? DateTime.now,
+        wire = wire ?? hub?.wire ?? WireBudget.shared;
 
   /// The address of the app in a browser served apart from this relay (`GHOST_APP_ORIGIN`, [appOriginFrom]; for
   /// gogho.st, https://app.gogho.st), whose page sends two things here: a report to the Marketplace's review
@@ -50,6 +53,10 @@ class Relay {
   /// The app in a browser, as plain files (web_app.dart), served under `/app/`; none where null.
   final WebApp? web;
 
+  /// What every connection may hold together, waiting to go out or half come in (ws_door.dart, [WireBudget]): the
+  /// hub's, so the pairings' door and the hub's count against one budget.
+  final WireBudget wire;
+
   /// Where people's apps find each other (hub.dart), served at any address ending in `/hub`; none where null.
   final Hub? hub;
 
@@ -72,6 +79,10 @@ class Relay {
   final DateTime Function() _now;
 
   static const maxFrame = (1 << 20) + 64;
+
+  /// The longest message read at all: a frame past [maxFrame] closes the channel once it is read, and one past this
+  /// ends the connection before it is held (ws_door.dart).
+  static const maxMessage = maxFrame + (64 << 10);
   static const tempLife = Duration(minutes: 10);
   static const idleLife = Duration(days: 90);
   static const authWait = Duration(seconds: 10);
@@ -212,7 +223,10 @@ class Relay {
     final WebSocket ws;
     try {
       // No compression, as the hub (hub.dart, accept): a deflated message opens out before its length is looked at.
-      ws = await WebSocketTransformer.upgrade(request, compression: CompressionOptions.compressionOff);
+      // And no message longer than a frame this door takes, with a margin, is held at all (ws_door.dart).
+      final up = await upgradeGuarded(request, most: maxMessage, budget: wire);
+      if (up == null) return;
+      ws = up;
     } catch (_) {
       return;
     }

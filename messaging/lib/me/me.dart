@@ -406,9 +406,10 @@ class Me extends ChangeNotifier {
       case 'admin-log':
         _waiting.remove('${m['dir']}:')?.complete(m);
       case 'whois':
-        // To the lookup of the name it names, and nobody else's ([whois]).
+        // To the lookup of the name it names, and nobody else's ([whois]); never one asked of another relay (`at`:
+        // lib/net/homes.dart's; found in the review of relays that talk, 2026-11-23).
         final name = m['name'];
-        if (name is String) _waiting.remove(_lookingFor(name))?.complete(m);
+        if (name is String && m['at'] == null) _waiting.remove(_lookingFor(name))?.complete(m);
       case 'link':
       case 'proof':
       case 'text':
@@ -448,6 +449,8 @@ class Me extends ChangeNotifier {
         if (changed) _write();
       case 'err':
         final about = m['about'] as String?;
+        // An error about a name asked of another relay is lib/net/homes.dart's.
+        if (about == 'whois' && m['at'] != null) break;
         final error = MeError((m['err'] as String?) ?? 'That did not work.');
         // A check that fails, or a code that is not the one sent, answers whoever waits for "linked". A lookup's refusal
         // names no name: it is the one lookup in flight's, lookups going one at a time ([whois]).

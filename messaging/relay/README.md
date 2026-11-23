@@ -17,8 +17,8 @@ Use the `dart` that comes with Flutter (`$(dirname $(which flutter))/dart`) wher
 
 **Running your own** (GMFB-25): [../docs/SELF_HOSTING.md](../docs/SELF_HOSTING.md). A Dockerfile here, and in
 `deploy/` a Compose file with Caddy, a systemd unit, Caddy and nginx configs, a coturn config, and `relay.env.example`
-listing every variable the relay reads (none is required). Relays don't talk to each other: people reach each other
-through a relay only when both use the same one.
+listing every variable the relay reads (none is required). A relay is an island unless its keeper switches on talking
+to other relays (`GHOST_FED`, "Other relays" below): then two people whose apps use different relays can be friends.
 
 ## The app in a browser (`/app/`)
 
@@ -51,16 +51,250 @@ The same program also serves **the hub** at any address ending `/hub`: where two
 through this server (Matt, 2026-11-14: "for right now we can use our servers to negotiate calls through the app").
 It is `lib/hub.dart`, with its own signature checking in `lib/p256.dart`, and is described with the rest of the
 app's routes in [../docs/network.md](../docs/network.md). Behind a web server it needs one more line beside the
-relay's: in Caddy, `handle /hub { reverse_proxy 127.0.0.1:8787 }`. It keeps nothing on disk: at most 96 MB of
-packets for people who are away, in memory, and 20,000 connections.
+relay's: in Caddy, `handle /hub { reverse_proxy 127.0.0.1:8787 }`. What it holds for people who are away is in
+memory: at most 96 MB of packets, and 20,000 connections. On disk it keeps the relay's own key and the home records
+people gave it where it talks to other relays (`relay-key.json`, `homes.json`: "Other relays", below), and the names
+of the accounts that sign in bound to it (`hub-v2.json`, below).
 
-**Link helpers** (`GHOST_LINK_HELPERS`, optional). The apps also make direct links between a person's own devices
-and their friends' ([../docs/OPEN_NETWORK.md](../docs/OPEN_NETWORK.md), section 2). A link helper is a server that
-helps two devices find each other across networks and carries their sealed traffic where no straight path can be
-made (an `iroh-relay`; it is not this program). Set the variable to where yours are, as https addresses with commas
-between (4 at most, 200 characters each at most), and the hub hands them to each app as it signs in: `"helpers"` in
-its `{"ok": true, …}`. With none it says nothing of them, and devices link only where they are on one network. Like
-every variable, it is listed in `deploy/relay.env.example`.
+**No message longer than a door takes is held** (`lib/ws_door.dart`, found in the review of 2026-11-22). Dart's
+WebSocket holds a whole message before anything can look at its length, so every door takes the socket from the
+upgrade itself, answers it as Dart's own upgrade does (101, the key's accept, no extension: compression is off
+everywhere), and reads the frames' headers before the parser does: a message longer than the door takes ends the
+connection before a byte of it is held. The hub takes a megabyte (the longest an app says is a watch list of 5,000
+keys, about 340 KB), a pairing's door a frame of a megabyte and 64 KB, a link this relay dialled 128 KB; the first
+message at any door (a hello) 16 KB; no door a message in more than 1,024 pieces, a control frame over 125 bytes, or
+bits an extension would use.
+
+**Nor more than the relay has, all connections together** (`WireBudget` in `lib/ws_door.dart`). A door's ceiling
+bounds one connection, but twenty thousand connections at a megabyte each would be far more than the relay's 300 MB. So
+what every connection holds is counted against one budget for the whole process: the part of a message that has come in
+and isn't finished, and what waits to go out (the answers to a peer's pings included: Dart answers each ping by itself).
+Everything written to a connection waits where it is counted, never inside Dart's own WebSocket.
+
+A connection is ended for what it holds only as these say, never for a burst it is being given (the second review,
+2026-11-23, found the first version ending a phone handed a room's kept messages in one go):
+- more than 8 MB waits to go out to it, for 10 seconds on end, whether it reads some of it or not;
+- a message coming in hasn't grown by 16 KB (or been finished) for 20 seconds, signed in or not;
+- all of them together are past 64 MB: those stalled longest go first (what waits for them hasn't gone down by 64 KB,
+  or what comes in grown by 16 KB, for 2 seconds or more), then those holding most of all, past a megabyte each (or a
+  32nd of the budget), until the rest fit.
+
+An ending is counted at once, and the socket destroyed a moment after, never in the middle of a room's broadcast (the
+third review found the list of members changed under one). A connection whose own answers wait past a megabyte is not
+read from until they are under 256 KB again, so a peer flooding pings, or anything else that is answered, limits
+itself, signed in or not.
+
+The hub hands over what it keeps (a room's kept messages, what was held for someone) only as fast as the connection
+takes it: a piece at a time while less than 256 KB waits for it and the budget has room, so a device that reads holds a
+few hundred KB at most. What is said to it meanwhile waits behind the hand-over, in order and counted, so nothing said
+live overtakes what is being handed over (a deletion never comes before the message it deletes). Once the hub closes a
+connection nothing more is written to it, and what it wasn't handed of its held packets is kept again at once, before
+the same device's next connection takes them. The numbers are settings: `GHOST_WIRE_MB`, `GHOST_WIRE_EACH_MB`,
+`GHOST_WIRE_STALL_S`, `GHOST_WIRE_IN_STALL_S`.
+
+A ping or pong with something in it that comes between the pieces of a message (a browser may split a long one) is
+handed on after the message's last piece: Dart's parser alone lost the message's first pieces to it, into its answer
+to the ping. An empty one (the answer to the relay's own pings) goes through at once, as a Close does.
+
+**Signing in.** An app signs the hub's number with its key. Before 2026-11-23 that signature (v1) was the words
+`ghost-hub v1 ` and the number, and said nothing of where it was made, so a relay an app was pointed at, or asked a
+name of, could hand the app the number of the app's own relay and sign in there as the app with the answer. So a hub
+that knows the names it is reached at (`GHOST_HUB_NAMES`) says so in its hello, and an app signs to it bound to the
+host it dialled (v2):
+
+    {"hello": <64 hex>, "peek": true, "react": true, "v2": true, …}
+    {"id", "key", "sig", "v": 2, "host": "gogho.st", "device", "mode"}
+      sig over "ghost-hub v2 " | len(host) (1 byte) | host | the number (32)
+
+The host is what the app dialled, in lower case, with its port only where it is not the scheme's own. The hub takes a
+v2 signature only for a host in its own names (`This relay isn't reached as …` otherwise, whatever the request's
+own Host header says, which the one signing in writes), and **from a key that has signed in with v2 it takes no v1
+again** (`This account signs in a newer way now: update Ghost Messaging on this device.`): the names are kept in
+`hub-v2.json` across restarts. So once an app of this build has signed in to its relay, a v1 signature it gives
+anywhere else is worth nothing there; an app from before keeps signing v1, and keeps working for an account none of
+whose devices has signed in with v2.
+
+Those names are hard to push out with keys made for it (the second look and the second review, 2026-11-23): at most
+200,000 are kept, and past that **a key that has held a username here for two days stays longest**; one holding none, or
+one taken a moment ago, goes first, the one seen longest ago; **one place adds at most 30 new keys an hour, and all of
+them together 5,000**, a place being an IPv4 address or an IPv6 address's first 48 bits. A sign-in past that is taken
+all the same, its key kept the next time it signs in with room. The place is the connection's own address, or, where it
+came through a proxy on the same machine or its private network (Caddy, in front), the last address that proxy put in
+`X-Forwarded-For` (the one it saw: whatever comes before it is the asker's own word).
+
+The kept keys are held to **only while names are set**: a hub with no names offers no v2, so every app signs v1 to it,
+and is taken; set the names again and the keys kept meanwhile are held to again. A v1 sign-in from a kept key is refused
+before its signature is checked, and an app refused again within the hour is answered two minutes late, the connection
+open meanwhile (an app from before tries again half a minute after a refusal, for ever; this way it comes back a few
+times an hour), at most 1,000 waiting at once. A closed app's look (`peek`) is held to the same, and Android's
+background check signs v2 as the app does; so does the browser extension (`extension/src/ghost/relay.ts`), from 0.2.2.
+
+**Switching v2 on**, in this order: (1) ship builds that sign v2 everywhere (the app on every platform, Android's
+background check, the extension) and wait until most people have them, since from a key's first v2 sign-in on, every
+older build of that account is refused (each device is told to update); (2) set `GHOST_HUB_NAMES` to **every** name the
+hub is reached at, without ports where it is 443 (for gogho.st: `gogho.st,www.gogho.st,ghost-sms.com,www.ghost-sms.com`):
+an app that dialled a name not listed is refused, and doesn't fall back to v1. A name must stay registered to you for as
+long as it is listed: whoever held it next could take a v2 sign-in made for it. Taking the names away again (or an env
+file that leaves them out: the deploy's `--env` replaces the box's whole environment) turns the hold off, not the keys.
+
+## Other relays
+
+Relays that pass sealed packets to each other, so two people whose apps use different relays can be friends and talk
+(Matt, 2026-11-22: "I'd like the relays to be able to talk to each other"). It is `lib/federation.dart`, with the home
+record in `lib/home_record.dart` and the rules for dialling out in `lib/fed_dial.dart`; the plan it follows is
+[../docs/OPEN_NETWORK.md](../docs/OPEN_NETWORK.md), section 4 (the code differs where it is safer: what the review of
+2026-11-22 asked for). **Off unless `GHOST_FED` is set, and off it does nothing at all**: no key is made, no record
+kept or answered (`home` and `home?` are answered as a relay from before answers them), no `relay` in the hello, and a
+relay's hello is a bad hello (4400), as it always was.
+
+**A key of its own.** `relay-key.json` in the data folder, made on first start: the file is made empty, its mode set
+to 600 (the C library's `chmod`; said loudly where it can't be), and only then written; nothing is changed for the
+rest of the process. On Windows it is an ordinary file. `{"v":1,"id","key","scalar"}`. The relay's name is the first
+16 bytes of the SHA-256 of its public key, in hex, as an install's is; it prints it as it starts ("this one is …"). Keep
+the file: a relay that loses it has a new name, and other relays' lists that name it no longer do. One that can't be
+read is put aside as `relay-key.json.broken-<ms>`, never written over. The hub's hello says who the relay is:
+
+    {"hello": <64 hex>, "peek": true, "react": true,
+     "relay": {"id", "key", "url": its hub's address (with GHOST_PUBLIC_HUB), "via": (with GHOST_FED_VIA), "fed": true}}
+
+**Home records.** Where an account lives, signed by the account, and the only thing a relay believes about it:
+
+    {"v":1, "a": account name, "k": public key (33 bytes, base64), "h": [1 to 3 addresses], "n": count, "t": made (ms), "s": signature}
+
+signed over `"ghost-home v1\n"`, then the name (16 bytes), the count (4 bytes, big end first), the time (8 bytes), how
+many addresses (1 byte), and each address as its length (1 byte) and its bytes. A record is kept only where the name is
+the key's, the signature is that key's, each address is at most 200 printable characters, its time is no more than
+five minutes ahead, and it is **good: thirty days from its time** (after that it says nothing, so a relay someone left
+can't speak for them by an old record however long ago the newer one was forgotten; the app makes the next well
+before). Of two for one account the one believed is the higher count, then the later made, then the greater signature
+byte by byte, so every relay believes the same one. An address is a hub's (`wss://host/hub`) or a relay hosted from an
+app's (`ghost-relay://<relay name>?n=<node id>&via=<the public relay it stays linked to>`). The app makes and checks
+the same bytes, and both are held to `../test/home_record_vectors.json`.
+
+What an app says of them over its hub connection:
+
+| An app says | The relay answers |
+|---|---|
+| `{"dir":"home","rec": record}`: its own, or a friend's so the relay can route to them | `{"dir":"home","a","ok":true,"n": the count held}`; or `"ok":false` with `"err"`: `bad` (not a record), `old` (ended), `busy` (too many checks just now: give it again) |
+| `{"dir":"home?","a": its own name}` | `{"dir":"home?","a","rec": record}` or `"none":true`. Asked of anyone else's, `"none":true`: nobody is told where anyone lives but over a link, or with the username they chose to be found by |
+| `{"dir":"whois","name":"maya"}` (a name here) | as ever, with `"home"`: the holder's record where one is held |
+| `{"dir":"whois","name":"maya","at":"relay.example"}` | `{"dir":"whois","name","at","id","key","home"}`; or `"none":true`, with `"why"` where it is not that nobody has the name: `off` (this relay doesn't talk to that one), `refused` (that one won't), `down`, `busy`. An `at` that is this relay itself is an ordinary lookup, answered with `"at"` and `"here":true`; an error about one carries `"at"` too |
+| `[1][number][to][packet]` to someone who lives elsewhere | `{"ack": number,"here":false,"fed":true}` (taken by their relay: whether they are connected is not said across relays), with `"waiting":true` where it waits on this relay for theirs; or `{"nak": number,"err"}`: `home` (no record of the sender's naming this relay is held: give it, and send again), `busy` (past what one install or one place may send across relays, or the new relays it may make this one dial, or what installs not yet established share), `full`, `far` (their relay is one this relay can't or won't pass to, or an address never once reached), `refused` |
+
+Records of people who gave theirs here themselves are kept in `homes.json` (the newest 20,000 given, with when each
+was first given here); others' (a friend's, one another relay gave) are the 10,000 used most lately, in memory.
+`homes.json` and `hub-v2.json` are logs of what changed (`lib/kept_log.dart`): a line appended for each change, a
+couple of seconds' changes at a time, and written whole again, once the log has grown far past what stands, in an
+isolate; the whole is never written on the event loop (found in the second review, 2026-11-23: at their largest the
+two were 7 and 22 MB, rewritten whole within two seconds of any change). A file of the kind written before is read, and
+written as a log from the next change. A record's shape and time are looked at
+before anything is counted; then the giver's own checks (600 an hour for an install, and a quarter of any second's;
+ten times an install's, and half a second's, for a linked relay at an address this relay has checked; one install's
+for every relay with no address together); then everyone's (20 a second); and only then the signature.
+
+**A link** is one relay dialling another's hub address and saying, in place of an app's hello:
+
+    {"fed":1, "id", "key", "sig", "url": its own hub address (where it claims one), "c": <64 hex> it made up, "stay": true (to stay linked)}
+      sig over "ghost-fed-dial v2 " | the hub's number (32) | its own name (16) | the answering relay's name (16) | c (32)
+               | stay (1 byte: 1 or 0) | len(the address it dialled) (1) | the address it dialled | len(url) (1) | url
+    {"ok":true, "fed":1, "id", "key", "sig"}
+      sig over "ghost-fed v2 " | c (32) | the dialler's name (16) | its own name (16) | len(the address dialled) (1) | the address dialled
+    {"ok":false, "err"}: no address, busy, bad hello, self, bad address, blocked, not listed, address; then closed (4403)
+
+Each proves it holds its key, over a number the other made up, over both names, and over **the address that was
+dialled**: the relay answering takes a hello only where that address is its own `GHOST_PUBLIC_HUB`, and a relay with
+none takes no relay's hello at all; the dialler takes an answer only where it was signed for the address it dialled.
+So what is signed for one link is no use on another, nor passed on word for word by a relay in the middle, and `stay`
+can't be added on the way. A relay that claims a `url` is believed only once this relay has dialled that address itself
+and seen the same key in the hub's hello there (remembered for an hour; looked at again after five minutes where
+another key was seen). **What is for an address goes only over a link this relay dialled there itself**, never over
+one that came in claiming it: two relays that talk both ways hold two links. A hub that repeats this relay's own name
+is taken to be this relay only where the number in its hello is one this relay's own hub made up. A link is opened
+when first needed, kept while used, closed after ten minutes idle; a relay that can't be reached is tried again after
+5 seconds, then twice as long each time, ten minutes at most (an address never once linked with is given up after
+four tries and not dialled for ten minutes); one that answered no is not asked again for ten minutes. At most 64 links.
+
+**What crosses a link:**
+
+    [5][number: 4][to: 16][from: 16][packet]             -> {"ack": number} (taken) or {"nak": number, "err"}
+    [6][number: 4][to: 16][from: 16][relay: 16][packet]  the same, for someone on a relay that stays linked to this one
+    {"fed":"home", "rec": record}                        a record given: whom the sender speaks for, or where someone lives
+    {"fed":"whois", "q": n, "name"}                      -> {"fed":"whois", "q": n, "id", "key", "home"} or {"fed":"whois", "q": n, "none": true}
+    {"ping": n}                                          -> {"pong": n}: a number or 32 characters, sixty a minute
+
+- **Passing on.** A packet from someone signed in here whose record names this relay, for someone not connected here
+  whose record names another relay, goes to that relay as a `[5]`, after the sender's own record. That relay hands it
+  to their connected devices or keeps it in their mailbox exactly as it would its own, under the same limits, stamped
+  with the `from` it was given, and only for someone who has signed in there (here now, seen since it started, holding
+  a username, or having given their own record): a name a stranger made up gets `nak` `to`.
+- **A relay speaks only for its own people.** A `[5]` whose `from` has no record naming the sending relay (its
+  address, which this relay has seen its key at) is refused: `nak` `home` (`busy` where this relay was too busy to check
+  the record it was just given: sent again in a while). The sender gives the record and sends once more.
+- **One hop.** What another relay passed here is never passed to a third. For someone not here whose record names
+  another relay, this relay says that record and answers `nak` `moved`, and the sender routes it there itself, once,
+  held to what it was held to the first time.
+- **`via`, and standing links.** A relay with no address of its own (`GHOST_FED_VIA`, as one hosted from an app has)
+  dials a public relay and asks to stay, and sends everything not for its own people through that link. Whether it
+  may stay is **the public relay's `GHOST_FED_STANDING`, off unless set**: with it on, the hosted relay's people
+  (records `ghost-relay://<its name>?…&via=<that relay>`) are reached over the standing link, another relay reaches
+  them by sending the public one a `[6]` naming the hosted one (passed only to that relay, linked now or kept for it,
+  and only for someone whose own record says so: `nak` `to` otherwise), and the public relay passes on what the hosted
+  one's people send, to the relay their friend lives on and no further. Off, a relay with no address is linked as any
+  other and is no way through: `far`. The hosted relay believes the relay it stays linked to as an app believes its relay.
+- **Unreachable.** With the other relay down the packet waits here and the sender is told it is kept (`waiting`), for a
+  relay linked with before: 2,000 packets or 16 MB for one relay, seven days, 32 MB for all relays together, a quarter
+  of it at most for what other relays asked to be kept (linked or not); what is on its way over an open link counts
+  too, 64 MB in all; each packet counted as its bytes and 384 more. One recipient, and one sender, have a mailbox's
+  worth of it (200 packets, a megabyte) at most. An address never once linked with keeps what is for it a minute or two
+  and tells its senders it can't be reached.
+- **Other `nak`s:** `limit` (over what this relay takes from that one: the sender leaves it alone 15 seconds, then
+  twice as long each time, an hour at most, and then sends one packet to see before the rest), `full` (their mailbox,
+  or what is kept, is full), `big`, `far`. A frame far past what a packet can be closes the link.
+
+**Allowances.** Everything someone else can grow is counted and capped, and no shared allowance can be used up by one
+party for nothing: a hello's shape is looked at before anything is counted, and in `list` mode the list before
+anything is checked or dialled; a hello is checked before it is counted, strangers' share thirty a minute, and a relay
+at an address this relay has seen its key at has thirty of its own. Each install may make this relay dial eight new
+relays an hour, and send a quarter of a minute's packets and an eighth of a day's bytes across relays; and installs cost
+nothing to make, so one place (an IPv4 address, or an IPv6 address's first 48 bits, through the proxy in front as the
+hub counts it) has twice that, all its installs together, and installs not established here have half of the new
+relays dialled a minute, and half of what may go to each other relay in a minute and in a day, all of them together:
+the rest is always there for those who are (an install that has held a username here, or given its own record here,
+for two days, as this relay saw it, never as the install says). Per linked
+relay, counted by the address this relay has checked it at (every relay with no address shares one): packets a minute,
+bytes a day, names asked after an hour, records a minute. Dials are of three kinds, each its own a minute: a relay's
+own (30), its tries again (30), its looks at an address another relay claims (10; an address that showed nothing is not
+looked at again for ten minutes).
+
+**Dialling out.** The addresses dialled come from other people (a record, a name typed after an `@`, the address a
+relay claims), so each is held to this before anything is dialled: `wss://` only, port 443, a path ending `/hub`, no
+user, query or fragment; the name is looked up here and **every** answer must be a public address (not loopback,
+private, link-local, unique-local, carrier NAT, a documentation or reserved range, nor an IPv4 one of those written as
+IPv6); the connection is then made to the address that was checked, never looked up a second time, with TLS still
+checking the name; the handshake is made here, and only a 101 is taken (a redirect anywhere is a refusal); ten seconds
+for all of it.
+
+| Variable | Default | What |
+|---|---|---|
+| `GHOST_FED` | `off` | `off`: an island, and nothing of this at all. `open`: links with any relay that proves its key, but those blocked. `list`: only those in `GHOST_FED_ALLOW` |
+| `GHOST_PUBLIC_HUB` | none | This relay's own hub address as the world reaches it (`wss://relay.example.com/hub`). Without it the relay claims none: it can ask other relays who someone is, but can't pass its people's packets to them, and takes no relay's hello |
+| `GHOST_FED_ALLOW` | none | With `list`: hosts (`relay.example.org`, or with a port) or relays' names (32 hex), commas between. One listed by name alone is dialled at an address to learn its name there |
+| `GHOST_FED_BLOCK` | none | Never linked with, whatever the mode: hosts or relays' names |
+| `GHOST_FED_PACKETS_A_MINUTE` | 1200 | Packets one linked relay (one checked address) may pass here in a minute; each of your own people may send a quarter of it across relays |
+| `GHOST_FED_BYTES_A_DAY` | 536870912 | Bytes one linked relay may pass here in a day; each of your own people may send an eighth of it across relays |
+| `GHOST_FED_LOOKUPS_AN_HOUR` | 600 | Usernames one linked relay may ask after in an hour |
+| `GHOST_FED_PORTS` | none | Ports dialled besides 443, commas between |
+| `GHOST_FED_PLAIN` | `0` | `1` lets `ws://` (no TLS) be dialled: only between machines you run yourself |
+| `GHOST_FED_VIA` | none | For a relay with no address of its own: the public relay it dials and stays linked to |
+| `GHOST_FED_STANDING` | `off` | Which relays with no address may stay linked to this one, their people reached and their packets passed on under this relay's name: `open`, or relays' names, commas between. For relays hosted from the app |
+| `GHOST_HUB_NAMES` | none | The hosts the hub is reached at, commas between: with them it takes a sign-in bound to the host dialled ("Signing in", above) |
+
+What it adds to what a relay can see: which of its people talk to people on which other relay, and when. Never what.
+What waits for another relay, the links, and others' records are in memory: a restart loses them, as it loses what the
+hub held, and each app says where its friends live again as it signs in.
+
+**Not built:** rooms across relays (circles, spaces, calls stay on the relay they were made on), who is here across
+relays, and an account signing in on another relay than the one it was made on.
 
 ## What an end says to it
 

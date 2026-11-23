@@ -279,9 +279,24 @@ one; Settings › Network takes its address.
    started: what it kept before then went with a restart) and whatever was kept. Where the relay was
    given link helpers for the direct route (`GHOST_LINK_HELPERS`), the same answer names them: `"helpers":
    ["https://…"]`, four at most.
+
+   **Bound to the relay (v2, since 2026-11-23).** A v1 signature says nothing of where it was made: a relay the app
+   was pointed at, or asked a name of, could hand the app the number of the app's own relay and sign in there as the
+   app with the answer (found in the review of relays that talk). A hub that knows the names it is reached at
+   (`GHOST_HUB_NAMES`) says `"v2": true` in its hello, and the app answers `{"id", "key", "sig", "v": 2, "host"}`, the
+   signature over `"ghost-hub v2 "`, the length of the host (one byte), the host the app dialled (lower case, its port
+   only where it is not the scheme's own: `gogho.st`, `relay.example.com:8443`), then the 32 bytes. The hub takes it
+   only for a host in its own names, and from a key that has signed in with v2 it takes no v1 again (kept across
+   restarts), so a v1 signature an app of this build gives anywhere else is worth nothing at its own relay. A hub that
+   says nothing of v2 is signed v1, as ever; Android's background check (`HubPeek.kt`) signs as the app does. A name
+   looked up on another relay itself (`lib/net/relay_ask.dart`) signs in there under a key made for that one question,
+   with no device's name, and takes nothing it is handed.
 2. `[1][a number: 4 bytes][to: 16 bytes][packet]` goes to that name as `[1][from: 16 bytes][packet]`, answered
    `{"ack": number, "here": true}`; or is kept (200 packets or 1 MB a person, seven days, in memory) and answered
-   `"here": false`; or refused, `{"nak": number, "err": "full"}`.
+   `"here": false`; or refused, `{"nak": number, "err": "full"}`. For someone who lives on another relay (where this
+   one talks to others: `relay/README.md`, "Other relays") the answer carries `"fed": true` and never says whether they
+   are connected (`"here": false`, taken), `"waiting": true` where it waits on this relay for theirs, or `nak` with
+   `home`, `busy`, `far` or `refused`, which the app says as the reason in the conversation.
 3. `{"watch": [names]}` is answered `{"here": [those connected]}`, then `{"came": name}` and `{"went": name}`.
 4. Rooms: `{"join": <32 hex>, "token": <64 hex>}`, both made by the members from a key only they hold; the first to
    name a room sets its token. `{"room", "ok", "members"}` to the one joining, `{"room", "came"}` to the rest;

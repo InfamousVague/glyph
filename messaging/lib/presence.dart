@@ -35,6 +35,10 @@ class Presence {
   /// Whether the install named [id] is on our own system now, or when it was last seen, as the relay's hub says: by
   /// its name, for whoever is known by it already (one of the routes' people, a friend by username).
   static InboxPresence? ofId(String id) {
+    // A friend on another relay: who is here doesn't cross relays yet (docs/OPEN_NETWORK.md, section 4), and what this
+    // relay last saw of them (before they moved away, say) would only mislead. Nothing is shown.
+    final buddy = Buddies.instance.byId(id);
+    if (buddy != null && Buddies.instance.apart(buddy)) return null;
     final g = Net.instance.presenceOfId(id);
     return g == null ? null : InboxPresence(network: 'Ghost Messaging', online: g.online, lastSeen: g.lastSeen, away: g.away, busy: g.busy);
   }

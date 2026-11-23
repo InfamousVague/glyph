@@ -451,6 +451,34 @@ void main() {
     expect(b.came.map((c) => c.words), ['once']);
   });
 
+  test('while the relay says what was sent waits on it for their relay, what is unanswered goes again hourly, not every few minutes', () async {
+    await two(annIs: 'yes', benIs: 'yes');
+    a.lost = true;
+    a.waiting.add(ben);
+    expect(await annsPhone.sendText(ben, 'in an outage'), isTrue);
+    await settle();
+    final id = a.sent.firstWhere((x) => x.envelope.kind == 'text').envelope.id;
+    // A route comes up: everything waiting is sent again now, and the relay says it waits there.
+    a.bump();
+    await until(() => a.sent.where((x) => x.envelope.kind == 'text').length == 2);
+    expect(annsPhone.nextResendOf(id)!.difference(DateTime.now()), greaterThan(const Duration(minutes: 50)), reason: 'every copy would only wait beside the first');
+    a.waiting.clear();
+    a.bump();
+    await until(() => a.sent.where((x) => x.envelope.kind == 'text').length == 3);
+    expect(annsPhone.nextResendOf(id)!.difference(DateTime.now()), lessThan(const Duration(minutes: 6)));
+  });
+
+  test('words a relay refused are not put down to no connection: the relay\'s own reason is kept for the conversation', () async {
+    await two(annIs: 'yes', benIs: 'yes');
+    a.refusedWhy = 'their relay can\'t be reached from yours';
+    expect(await annsPhone.sendText(ben, 'hello'), isFalse);
+    expect(annsPhone.lastRefusal, 'their relay can\'t be reached from yours');
+    a.refusedWhy = null;
+    a.up = false;
+    expect(await annsPhone.sendText(ben, 'hello'), isFalse);
+    expect(annsPhone.lastRefusal, isNull, reason: 'no route up is no relay\'s refusal');
+  });
+
   test('sent again later and later: twenty seconds, then twice as long, five minutes at most', () {
     expect([for (var t = 1; t <= 6; t++) Friends.resendAfter(t).inSeconds], [20, 40, 80, 160, 300, 300]);
   });

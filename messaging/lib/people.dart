@@ -13,6 +13,7 @@ import 'friends/groups.dart';
 import 'me/lookup_budget.dart';
 import 'me/me.dart';
 import 'net/carrier.dart';
+import 'net/home_record.dart' show splitUsername;
 import 'net/hub_carrier.dart';
 import 'net/name_watch.dart';
 import 'net/net.dart';
@@ -46,7 +47,7 @@ void startOwnFriends(AppState app) {
 void _hearBuddies() {
   void hear() {
     Net.instance.want('buddies', Buddies.instance.all.isNotEmpty || Me.instance.username != null);
-    Net.instance.watchToo([for (final b in Buddies.instance.friends) b.id]);
+    Net.instance.watchToo([for (final b in Buddies.instance.friends) if (!Buddies.instance.apart(b)) b.id]);
   }
 
   Buddies.instance.start().then((_) {
@@ -75,7 +76,7 @@ void startPeople(AppState app) {
   void hearBuddies() {
     Net.instance.want('buddies', Buddies.instance.all.isNotEmpty || Me.instance.username != null);
     // Friends by username watched on the hub, so their faces say when they are on (lib/presence.dart).
-    Net.instance.watchToo([for (final b in Buddies.instance.friends) b.id]);
+    Net.instance.watchToo([for (final b in Buddies.instance.friends) if (!Buddies.instance.apart(b)) b.id]);
   }
 
   Buddies.instance.start().then((_) {
@@ -117,7 +118,9 @@ void _checkRelay(AppState app) {
   final watch = NameWatch.instance = NameWatch(
     me: () => Net.instance.id,
     username: () => Me.instance.username,
-    friends: () => [for (final b in Buddies.instance.friends) WatchedName(b.username, b.id, b.key)],
+    // Friends whose username is this relay's: one on another relay (name@relay, or whose record names another) is in
+    // that relay's directory, which this relay's lookups don't answer for.
+    friends: () => [for (final b in Buddies.instance.friends) if (splitUsername(b.username).relay == null && !Buddies.instance.elsewhere(b)) WatchedName(b.username, b.id, b.key)],
     whois: Me.instance.whois,
     // Which name this key holds on the relay: what the watch holds its own username to.
     held: Me.instance.heldName,

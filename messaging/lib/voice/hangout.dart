@@ -715,6 +715,20 @@ class HangoutRoom extends ChangeNotifier {
   final Map<String, ({String from, String text, List<Mention> mentions, int at})> _pendingEdits = {};
   static const _pendingEditsKept = 200;
 
+  /// Deletions heard before the message they take away, by its id, and who said them, at most [_pendingEditsKept]: the
+  /// message is passed over as it comes, where whoever said it may delete it (found in the third review of relays that
+  /// talk, 2026-11-23: a relay hands a room's kept messages over a piece at a time, and a deletion said live meanwhile
+  /// could come first, and was passed over, the message then shown).
+  final Map<String, String> _pendingDeletes = {};
+
+  /// Whether [m] was deleted before it came, by someone who may: the deletion is used up by it.
+  bool _deletedEarly(HangoutMessage m) {
+    final by = _pendingDeletes[m.id];
+    if (by == null || !(m.from == by || roster.isOwner(by) || (roster.can(by, Perm.manageMessages) && roster.outranks(by, m.from)))) return false;
+    _pendingDeletes.remove(m.id);
+    return true;
+  }
+
   /// [id]'s words made [text] at [at], where that is newer than what it has.
   void _applyEdit(String id, String text, List<Mention> mentions, int at) {
     var changed = false;
@@ -746,6 +760,7 @@ class HangoutRoom extends ChangeNotifier {
     }
     final have = {for (final m in messages) m.id};
     var more = [for (final m in fresh) if (have.add(m.id)) m];
+    if (_pendingDeletes.isNotEmpty) more = [for (final m in more) if (!_deletedEarly(m)) m];
     if (more.isEmpty) return;
     // An edit that came before the message it changes (the hub hands over what it kept in its own order).
     if (_pendingEdits.isNotEmpty) {
@@ -1176,7 +1191,12 @@ class HangoutRoom extends ChangeNotifier {
       case 'del':
         final id = '${m['id']}';
         final msg = messages.where((x) => x.id == id).firstOrNull;
-        if (msg != null && (msg.from == from || roster.isOwner(from) || (roster.can(from, Perm.manageMessages) && roster.outranks(from, msg.from)))) _drop(id);
+        if (msg == null) {
+          // Before the message it takes away: held for it.
+          if (_pendingDeletes.length < _pendingEditsKept) _pendingDeletes[id] = from;
+        } else if (msg.from == from || roster.isOwner(from) || (roster.can(from, Perm.manageMessages) && roster.outranks(from, msg.from))) {
+          _drop(id);
+        }
       case 'sync?':
         if (_answers(from)) {
           final since = m['since'] is int ? m['since'] as int : 0;

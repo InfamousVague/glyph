@@ -70,6 +70,10 @@ class _NetPort implements FriendCallsPort {
   }
 }
 
+/// What is said in place of ringing a friend who lives on another relay (docs/OPEN_NETWORK.md, section 4): a call's
+/// room is on one relay, and rooms don't cross relays yet, so they would ring and never be met in it.
+String callElsewhereWords(String name, String relay) => 'Calls don\'t reach another relay yet. $name is on ${relay.isEmpty ? 'another one' : relay}${Buddies.instance.relayTalks ? '; you can still write to each other' : ', and your relay doesn\'t pass messages to theirs'}.';
+
 /// A call to a friend this device made and that nobody has answered yet.
 class _Outgoing {
   _Outgoing(this.id, this.buddy, this.video, this.channel);
@@ -122,6 +126,9 @@ class FriendCalls {
     final me = _port.myId;
     final peer = _port.peerOf(buddy.id);
     if (me == null || peer == null) return false;
+    // A call is a room on one relay: a friend on another would ring and never come into it (whoever asks for the call,
+    // not only the conversation's button).
+    if (Buddies.instance.apart(buddy)) return false;
     final c = channelWith(me, buddy.id, buddy.shown);
     await (join ?? (c, v) => Voice.instance.join(c, video: v))(c, video);
     final id = NetCrypto.hex(NetCrypto.randomBytes(8));
@@ -178,6 +185,12 @@ class FriendCalls {
         final me = _port.myId;
         // Only a friend's, and only someone this install knows.
         if (buddy == null || buddy.state != 'yes' || me == null) return true;
+        // From a friend on another relay: the call's room is on theirs, and answering would join one here they never
+        // come into. Not rung: kept as missed, with why (found in the review, 2026-11-23).
+        if (Buddies.instance.apart(buddy)) {
+          _notes.note(_addressOf(buddy), 'Missed ${b['v'] == true ? 'video call' : 'call'} · calls don\'t reach another relay yet', out: false);
+          return true;
+        }
         // A ring that stopped ringing before it got here (held, or sent again late): missed, not rung (GMFB-26). A
         // little slack for the two clocks.
         if (DateTime.now().millisecondsSinceEpoch - r.envelope.at > (ringFor + const Duration(seconds: 30)).inMilliseconds) {
