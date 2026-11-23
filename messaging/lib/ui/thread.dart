@@ -1536,6 +1536,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           // laid out, so the keyboard stays up as it changes.
           Builder(builder: (context) {
             final typing = _text.text.isNotEmpty || editing;
+            final hint = _isGhost ? 'Message' : isMms ? 'Picture message' : (sealed ? 'Encrypted message' : 'Text message');
             final field = Listener(
                       behavior: HitTestBehavior.translucent,
                       onPointerDown: (e) => _fieldDown = e.position,
@@ -1552,11 +1553,18 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                         padding: EdgeInsets.symmetric(vertical: t.lenOf('0.3rem')),
                       child: Stack(children: [
                         if (_text.text.isEmpty)
-                          IgnorePointer(child: Text(_isGhost ? 'Message' : isMms ? 'Picture message' : (sealed ? 'Encrypted message' : 'Text message'), style: composerText.copyWith(color: t.color('app-ink-3')), strutStyle: composerStrut, textHeightBehavior: _evenLeading)),
+                          composerHint(IgnorePointer(child: Text(hint, style: composerText.copyWith(color: t.color('app-ink-3')), strutStyle: composerStrut, textHeightBehavior: _evenLeading))),
                         // On a computer the paste keys bring in a picture on the clipboard first, then words as ever
                         // (Matt, 2026-11-16: "add the ability to paste images into the chatbar on desktop"; on the Mac
                         // the window catches ⌘V ahead of its Edit menu: lib/ui/paste_images.dart).
-                        PasteImages(
+                        // Named and pressed into in a browser's tree for screen readers (composerSemantics).
+                        composerSemantics(
+                          hint: hint,
+                          onPress: () {
+                            _focus.requestFocus();
+                            _field.currentState?.requestKeyboard();
+                          },
+                          child: PasteImages(
                           focusNode: _focus,
                           enabled: Sms.remote && _attachments.length < 5,
                           onImage: (path) => setState(() => _attachments.add(path)),
@@ -1584,6 +1592,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                           contextMenuBuilder: (context, state) => _contextMenu(context, state),
                         ),
                           ),
+                        ),
                         ),
                       ]),
                     ),
