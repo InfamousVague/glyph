@@ -183,6 +183,35 @@ void main() {
     expect(textsTo(ben), ['Are you there?'], reason: 'sent to Ben once, and to nobody since');
   });
 
+  test('a group is joined at a friend\'s asking, by the key that sealed it: not at the asking of someone listed under a friend\'s address', () async {
+    await open();
+    Map<String, Object?> state(NetKeys admin, String name) => {
+          'g': NetCrypto.hex(NetCrypto.randomBytes(16)),
+          'do': 'state',
+          's': {
+            'name': name,
+            'v': 1,
+            'members': [
+              {'i': admin.id, 'k': base64Encode(admin.public), 'a': ''},
+              {'i': me.id, 'k': base64Encode(me.public), 'a': ''},
+            ],
+            'admins': [admin.id],
+          },
+        };
+    arrive(eve, Envelope(kind: 'group', body: state(eve, 'Ben\'s party')));
+    arrive(ivy, Envelope(kind: 'group', body: state(ivy, 'Maya\'s party')));
+    // Ben and Maya, after: joined, and each known by their own record's address.
+    arrive(ben, Envelope(kind: 'group', body: state(ben, 'Hike')));
+    arrive(maya, Envelope(kind: 'group', body: state(maya, 'Dinner')));
+    await until(() => joined.length >= 2, 'Ben\'s and Maya\'s groups joined');
+    await pumpEventQueue(times: 50);
+    expect(joined.map((s) => s['name']).toList(), ['Hike', 'Dinner']);
+    String addressIn(Map<String, dynamic> s, NetKeys who) => '${(s['members'] as List).cast<Map>().firstWhere((m) => m['i'] == who.id)['a']}';
+    expect(addressIn(joined[0], ben), benNumber);
+    expect(addressIn(joined[1], maya), '@maya');
+    expect(groups.all.map((g) => g.name).toSet(), {'Hike', 'Dinner'});
+  });
+
   test('a friend by username who is in a group too is heard, and written to, as that friend: whatever address the routes have for them', () async {
     // As Android's list had it: the group's entry for Maya came first, under the address the group gave her, and her
     // own entry as a friend by username was left out.

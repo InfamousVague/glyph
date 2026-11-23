@@ -93,8 +93,13 @@ abstract class GroupsPort {
   Future<Delivery> send(Peer peer, Envelope envelope);
   Stream<Received> get received;
 
-  /// Whether [address] is a friend: a group is joined only at a friend's asking.
-  bool isFriend(String? address);
+  /// Whether the install named [id] is a friend, by the record that names it (Friends.isFriendId): a group is joined
+  /// only at a friend's asking. Never by an address, which may be what another group's admin wrote for anyone.
+  bool isFriend(String id);
+
+  /// The address this phone's own records give the install named [id] (Friends.addressOf): a number, or `@username`;
+  /// null where none names it.
+  String? addressOf(String id);
   void wake(Peer peer);
 
   /// The records (android Groups.kt): read, a new one of this phone's making, a person as a member, kept.
@@ -356,15 +361,19 @@ class Groups extends ChangeNotifier {
     final mine = _by[id];
     final inIt = members.any((m) => m['i'] == me);
     if (mine == null || mine.gone) {
-      // Joined, or joined again, only at the asking of a friend who is an admin of it.
-      if (!inIt || !_port.isFriend(r.peer.address)) return;
+      // Joined, or joined again, only at the asking of a friend who is an admin of it: a friend by the key that sealed
+      // it, as the records say, never by the address the routes have for them (found in review, 2026-11-23: a member
+      // of another group, listed by its admin under a friend's number, was taken for that friend).
+      if (!inIt || !_port.isFriend(from)) return;
     } else {
       // Changed only by someone who is an admin in the group as this phone holds it, and only forward.
       if (!(mine.member(from)?.admin ?? false) || v <= mine.v) return;
     }
-    // Who sent it knows their own number least: this phone knows them by it.
+    // Who sent it knows their own number least: this phone knows them by its own record of them, or as the group had
+    // them before.
+    final known = _port.addressOf(from) ?? mine?.member(from)?.address ?? '';
     for (final m in members) {
-      if (m['i'] == from && (m['a'] as String).isEmpty) m['a'] = r.peer.address ?? '';
+      if (m['i'] == from && (m['a'] as String).isEmpty) m['a'] = known;
     }
     final name = ((s['name'] as String?) ?? '').trim();
     final had = mine != null && !mine.gone;
@@ -420,7 +429,9 @@ class _AppPort implements GroupsPort {
   @override
   Stream<Received> get received => _in.stream;
   @override
-  bool isFriend(String? address) => address != null && Friends.instance.isFriend(address);
+  bool isFriend(String id) => Friends.instance.isFriendId(id);
+  @override
+  String? addressOf(String id) => Friends.instance.addressOf(id);
   @override
   void wake(Peer peer) => Friends.instance.wake(peer);
 
