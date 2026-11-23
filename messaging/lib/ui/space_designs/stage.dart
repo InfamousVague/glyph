@@ -71,7 +71,8 @@ class _StageCallState extends State<StageCall> {
       color: look.ground,
       child: LayoutBuilder(builder: (context, box) {
         final wide = box.maxWidth >= _wide;
-        final comments = _comments ?? wide;
+        // Never where the chat is under the call already (SpaceSplit).
+        final comments = !call.chatBelow && (_comments ?? wide);
         void toggle() => setState(() => _comments = !comments);
         final bar = _Bar(call: call, look: look, camera: wide, comments: comments, onComments: toggle, bottom: wide ? t.space(3) : pad.bottom + t.space(2));
         final header = _Header(call: call, look: look, camera: !wide, side: wide ? t.space(4) : t.space(3), top: wide ? t.space(3) : pad.top + t.space(1));
@@ -661,7 +662,7 @@ class _Bar extends StatelessWidget {
           ),
         ),
         SizedBox(width: t.space(2)),
-        _Round(look: look, icon: Lucide.messageSquare, label: _Words.comments, on: comments, onPressed: onComments),
+        if (!call.chatBelow) _Round(look: look, icon: Lucide.messageSquare, label: _Words.comments, on: comments, onPressed: onComments),
         _Round(look: look, icon: Lucide.userPlus, label: SpaceWords.invite, onPressed: call.onInvite == null ? null : () => call.onInvite!(context)),
         if (camera) _Camera(call: call, look: look),
         SizedBox(width: t.space(1)),

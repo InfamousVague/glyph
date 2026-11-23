@@ -52,6 +52,9 @@ class _TelegramCallState extends State<TelegramCall> {
       child: ColoredBox(
         color: t.color('glacier-bg'),
         child: LayoutBuilder(builder: (context, box) {
+          // The top of a computer's pane, its chat under it (SpaceSplit): the computer's panel, without a chat of its own,
+          // however short the part it is given.
+          if (call.chatBelow) return _computer(context, call, box, media, false, () {});
           final wide = box.maxWidth >= 760 && box.maxHeight >= 480;
           final chat = _chat ?? wide;
           void toggleChat() => setState(() => _chat = !chat);
@@ -217,10 +220,12 @@ class _Header extends StatelessWidget {
       child: SizedBox(
       height: 58,
       child: Row(children: [
-        SizedBox(width: (MacChrome.enabled ? MacChrome.lightsRoom - t.space(3) : 0) + t.space(3)),
+        // In a pane (SpaceSplit) it is not at the window's left, so the lights are not beside it.
+        SizedBox(width: (MacChrome.enabled && !call.chatBelow ? MacChrome.lightsRoom - t.space(3) : 0) + t.space(3)),
         // A back arrow, as every page's way back is (Matt, 2026-11-17: "make the down chevron a back arrow as well"): it still
-        // puts the call away to its banner.
-        _IconButton(icon: Lucide.arrowLeft, label: 'Back', onPressed: call.onMinimize),
+        // puts the call away to its banner. In a pane the call is the space's own page, with nothing to put it away to:
+        // the room is kept, so the name stays in the middle.
+        if (call.onMinimize == null && call.chatBelow) const SizedBox(width: 38) else _IconButton(icon: Lucide.arrowLeft, label: 'Back', onPressed: call.onMinimize),
         Expanded(
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
@@ -706,8 +711,10 @@ class _Controls extends StatelessWidget {
         )),
         side(_RoundButton(icon: SpaceWords.deafenIcon(call), label: SpaceWords.deafen(call), on: call.deafened, onPressed: call.onDeafen)),
         SizedBox(width: 104, child: _MicButton(call: call)),
-        side(_RoundButton(icon: LucideMore.messageCircle, label: SpaceWords.chat, on: chatOpen, onPressed: onChat)),
-        side(_RoundButton(icon: Lucide.x, label: SpaceWords.leave, danger: true, onPressed: call.onLeave)),
+        // Not where the chat is already under the call (SpaceSplit).
+        if (!call.chatBelow) side(_RoundButton(icon: LucideMore.messageCircle, label: SpaceWords.chat, on: chatOpen, onPressed: onChat)),
+        // Without Chat, Leave has the right half to itself, so the microphone stays in the middle.
+        Expanded(flex: call.chatBelow ? 2 : 1, child: Center(child: _RoundButton(icon: Lucide.x, label: SpaceWords.leave, danger: true, onPressed: call.onLeave))),
       ]),
     );
   }

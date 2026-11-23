@@ -50,6 +50,7 @@ import 'open_space_view.dart';
 import 'ripple_avatar.dart';
 import 'shell.dart';
 import 'space_designs/space_design.dart';
+import 'split_handle.dart';
 import 'sms_space_ui.dart';
 import 'recording_ui.dart' show RecordingBanner;
 import 'space_designs/call_plugins.dart' show CallPlugins;
@@ -153,8 +154,10 @@ class _HangoutScreenState extends State<HangoutScreen> {
     // list beside it (a circle's spaces) is left as it is (Matt, 2026-11-23: "don't transform the server sidebar when
     // we enter to show the lists").
     if (widget.channel.kind == SpaceKind.open) return;
-    // Beside the list: the chat (and the videos) go to the pane, the people stay here (HangoutStage).
-    if (AppShell.wideOf(context)) AppShell.maybeOf(context)?.go('voice');
+    // Beside the list a circle's space stays where it is, this page turning into the call over its chat (SpaceSplit),
+    // the circle's list beside it as it was (Matt, 2026-11-23). A space of one's own goes to the Voice page, which
+    // draws this same page for the call.
+    if (AppShell.wideOf(context) && widget.channel.circle == null) AppShell.maybeOf(context)?.go('voice');
   }
 
   /// The call or the chat, on a phone: the people in the call, or the space's messages.
@@ -257,7 +260,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
         // controls just make it appear like the bottom of all the compose windows look").
         final bottom = pill + (s != null && (wide || _tab != 'chat') ? NavPill.clearance(t) : 0);
         // Before the relay is reached there is no room yet: say so, rather than a bare title over nothing.
-        final chat = room == null
+        Widget chatOver(double bottom) => room == null
             ? _NoRoomYet(name: widget.channel.name)
             : room.waitingForKey
                 // The circle's key changed and this device hasn't got the new one yet (GMFB-26): what is written waits.
@@ -269,6 +272,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
                     Expanded(child: HangoutChat(room: room, bottom: bottom)),
                   ])
                 : HangoutChat(room: room, bottom: bottom);
+        final chat = chatOver(bottom);
         // A texting or Files space has no call: no Join, no one "in voice", just its chat (SpaceKind). So has every
         // space in a browser, which has no calls yet (Sms.callsHere).
         if (s == null && (!widget.channel.hasVoice || !Sms.callsHere)) {
@@ -325,25 +329,48 @@ class _HangoutScreenState extends State<HangoutScreen> {
             ]),
           );
         }
-        // In the call beside the list (a computer, a wide phone): the people and the dock here, the chat and the videos
-        // in the pane (Matt, 2026-11-15: "the voice on desktop should show up on the left side with the right side
-        // reserved for chat").
+        // In the call beside the list (a computer, a wide phone): this page, in the pane, is the call on top and the
+        // space's chat under it, the list beside it left as it is (Matt, 2026-11-23: "a 66% top view with the third
+        // screenshot content at the top and the chat and compose bar at the bottom leaving the sidebar unchanged so
+        // you can still quickly navigate the circle"). The chosen design draws the call (its own header, its people
+        // and buttons, no Chat of its own); Standard draws the app's people and dock under the space's header.
+        if (wide && !open) {
+          final design = SpaceDesign.of(AppState.of(context));
+          final below = chatOver(pill);
+          if (design != SpaceDesign.standard) {
+            return ColoredBox(
+              color: t.color('glacier-bg'),
+              child: SpaceSplit(
+                call: SpaceCallPage(key: ValueKey('split-${design.name}-${s.channel.room}'), design: design, inline: true, chatBelow: true),
+                chat: below,
+              ),
+            );
+          }
+          return _page(
+            room,
+            actions: actions,
+            body: SpaceSplit(
+              call: Stack(children: [
+                ListView(
+                  padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), NavPill.clearance(t) + t.space(4)),
+                  children: [CallPanel(session: s)],
+                ),
+                Positioned(left: 0, right: 0, bottom: t.space(3), child: Center(child: CallDock(session: s))),
+              ]),
+              chat: below,
+            ),
+          );
+        }
         // An open space's here too is its floor, as on a phone: this page is the pane beside a circle's list.
         if (wide) {
           return _page(
             room,
             actions: actions,
             body: Stack(children: [
-              if (open)
-                // The call's buttons at the floor's left foot and the chat's box at its right, on one line (Matt,
-                // 2026-11-23: "left justify the call controls and right justify the compose input").
-                OpenSpaceFloor(session: s, bottomInset: dockAt + NavPill.clearance(t), sayBeside: dockAt)
-              else
-                ListView(
-                  padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), dockAt + NavPill.clearance(t) + t.space(4)),
-                  children: [CallPanel(session: s, videos: false)],
-                ),
-              if (open) Positioned(left: t.space(3), bottom: dockAt, child: CallDock(session: s)) else Positioned(left: 0, right: 0, bottom: dockAt, child: Center(child: CallDock(session: s))),
+              // The call's buttons at the floor's left foot and the chat's box at its right, on one line (Matt,
+              // 2026-11-23: "left justify the call controls and right justify the compose input").
+              OpenSpaceFloor(session: s, bottomInset: dockAt + NavPill.clearance(t), sayBeside: dockAt),
+              Positioned(left: t.space(3), bottom: dockAt, child: CallDock(session: s)),
             ]),
           );
         }
@@ -458,6 +485,82 @@ class _HangoutStageState extends State<HangoutStage> {
         );
       },
     );
+  }
+}
+
+/// A space's call in a computer's pane, beside the list: the call on top, two thirds of the pane, and the space's chat
+/// under it with its composer (Matt, 2026-11-23: "a 66% top view with the third screenshot content at the top and the
+/// chat and compose bar at the bottom"). The line between them is dragged up or down, and where it was left is kept
+/// with the device's choices; a double click puts it back at two thirds. However short the window, the chat keeps room
+/// for its composer and a few lines.
+class SpaceSplit extends StatefulWidget {
+  const SpaceSplit({super.key, required this.call, required this.chat});
+  final Widget call, chat;
+
+  /// The call's share of the pane, as dragged, under this name in the device's choices.
+  static const pref = 'space_split_call';
+
+  /// Two thirds, as Matt asked.
+  static const share = 0.66;
+
+  /// The least the chat keeps (its composer and a few lines) and the least the call does, where the pane has room.
+  static const chatLeast = 200.0;
+  static const callLeast = 240.0;
+
+  /// The call's height in a pane [high] tall, at [share] of it: no more than leaves the chat [chatLeast], and no less
+  /// than [callLeast] (or, in a pane too short for both, a third of it).
+  static double callHeight(double high, double share) {
+    final most = math.max(high - chatLeast, high / 3);
+    final least = math.min(callLeast, most);
+    return (high * share).clamp(least, most);
+  }
+
+  @override
+  State<SpaceSplit> createState() => _SpaceSplitState();
+}
+
+class _SpaceSplitState extends State<SpaceSplit> {
+  /// The call's share as being dragged; null for what is kept (or two thirds).
+  double? _share;
+
+  double _kept(AppState? app) => (double.tryParse(app?.choice(SpaceSplit.pref, '') ?? '') ?? SpaceSplit.share).clamp(0.2, 0.9);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final app = AppState.maybeOf(context);
+    return LayoutBuilder(builder: (context, box) {
+      final high = box.maxHeight;
+      final top = SpaceSplit.callHeight(high, _share ?? _kept(app));
+      final grip = SplitHandle.widthOf(context);
+      return Stack(children: [
+        Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          SizedBox(key: const ValueKey('space-split-call'), height: top, child: widget.call),
+          Container(height: t.len('glacier-hairline'), color: t.color('app-rule')),
+          Expanded(key: const ValueKey('space-split-chat'), child: widget.chat),
+        ]),
+        Positioned(
+          key: const ValueKey('space-split-handle'),
+          left: 0,
+          right: 0,
+          top: top - grip / 2,
+          height: grip,
+          child: SplitHandle(
+            vertical: true,
+            label: 'Resize the call and the chat',
+            onDrag: (dy) => setState(() => _share = SpaceSplit.callHeight(high, (_share ?? top / high) + dy / high) / high),
+            onDone: () {
+              final now = _share;
+              if (now != null) app?.set(SpaceSplit.pref, now.toStringAsFixed(3));
+            },
+            onReset: () {
+              setState(() => _share = null);
+              app?.set(SpaceSplit.pref, '');
+            },
+          ),
+        ),
+      ]);
+    });
   }
 }
 

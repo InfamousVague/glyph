@@ -152,7 +152,10 @@ class _FaceTimeCallState extends State<FaceTimeCall> {
               ),
             ]),
           ),
-          if (wide)
+          // No chat panel where the chat is under the call already (SpaceSplit).
+          if (call.chatBelow)
+            const SizedBox.shrink()
+          else if (wide)
             AnimatedPositioned(
               duration: const Duration(milliseconds: 260),
               curve: Curves.easeOutCubic,
@@ -655,7 +658,8 @@ class _Capsule extends StatelessWidget {
       radius: 36,
       padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
       child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        for (final w in [b.chat, b.mute, b.video, ?b.flip, ?b.screen, b.deafen, b.invite]) slot(w),
+        // No Chat where the chat is under the call already (SpaceSplit).
+        for (final w in [if (!call.chatBelow) b.chat, b.mute, b.video, ?b.flip, ?b.screen, b.deafen, b.invite]) slot(w),
         Container(width: 1, height: 40, margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), color: _white.withValues(alpha: 0.18)),
         for (final w in [b.devices, b.settings, b.minimize]) slot(w),
         const SizedBox(width: 8),
@@ -682,7 +686,7 @@ class _PhoneControls extends StatelessWidget {
           radius: 30,
           padding: const EdgeInsets.fromLTRB(6, 12, 6, 10),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            for (final w in [b.chat, b.mute, b.video, b.deafen, b.invite, b.end]) Expanded(child: w),
+            for (final w in [if (!call.chatBelow) b.chat, b.mute, b.video, b.deafen, b.invite, b.end]) Expanded(child: w),
           ]),
         ),
         const SizedBox(height: 10),

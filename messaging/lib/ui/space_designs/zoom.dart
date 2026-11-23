@@ -701,7 +701,7 @@ class _Toolbar extends StatelessWidget {
           Expanded(child: Center(child: mute())),
           Expanded(child: Center(child: video())),
           Expanded(child: Center(child: people)),
-          Expanded(child: Center(child: chat)),
+          if (!call.chatBelow) Expanded(child: Center(child: chat)),
           Expanded(child: Center(child: more)),
         ]),
       );
@@ -726,7 +726,8 @@ class _Toolbar extends StatelessWidget {
           ]), Alignment.centerLeft)),
           Row(mainAxisSize: MainAxisSize.min, spacing: 4, children: [
             people,
-            chat,
+            // Not where the chat is under the call already (SpaceSplit).
+            if (!call.chatBelow) chat,
             if (full) ...[
               _ToolButton(icon: Lucide.userPlus, label: SpaceWords.invite, onPressed: call.onInvite == null ? null : () => call.onInvite!(context)),
               _ToolButton(icon: SpaceWords.deafenIcon(call), label: SpaceWords.deafen(call), alert: call.deafened, onPressed: call.onDeafen),
@@ -870,7 +871,7 @@ class _SidePanel extends StatelessWidget {
                 decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(9)),
                 child: Row(children: [
                   tab(false, Lucide.users, '${_W.participants} (${call.people.length})'),
-                  tab(true, LucideMore.messageCircle, SpaceWords.chat),
+                  if (!call.chatBelow) tab(true, LucideMore.messageCircle, SpaceWords.chat),
                 ]),
               ),
             ),

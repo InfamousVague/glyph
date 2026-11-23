@@ -16,6 +16,7 @@ import '../kit/settings_type.dart';
 import '../voice/call_sound.dart';
 import '../voice/channels.dart';
 import '../voice/leveler.dart';
+import '../voice/open_space.dart' show OpenSpaces;
 import '../voice/voice.dart';
 import '../sms.dart';
 import 'common.dart';
@@ -51,12 +52,12 @@ class VoiceScreen extends StatelessWidget {
         // In a call, the page is the call and nothing else: who is in it, and its buttons in the dock (Matt,
         // 2026-11-15: "I want the call screen to be super simple too just a list of chatters and the call controls").
         // A hangout's call is its page: the people or the chat, its roles (lib/ui/hangout_screen.dart).
-        // Beside the list on a wide screen the people are in the list's place (HangoutScreen there) and this side is
-        // the hangout's chat, with its videos above it once anyone turns one on (HangoutStage).
         // On a narrow phone with a design chosen, the design is the call page (space_design.dart).
         final design = inlineSpaceCall(context, s);
         if (design != null) return design;
-        if (s != null && s.channel.hangout && AppShell.wideOf(context)) return HangoutStage(key: ValueKey('stage-${s.channel.room}'), channel: s.channel);
+        // A space's call beside the list is the space's own page: the call over its chat (HangoutScreen's SpaceSplit). An
+        // open space's floor is still drawn over its chat here (HangoutStage).
+        if (s != null && s.channel.hangout && AppShell.wideOf(context) && OpenSpaces.isCall(s)) return HangoutStage(key: ValueKey('stage-${s.channel.room}'), channel: s.channel);
         if (s != null && s.channel.hangout) return HangoutScreen(key: ValueKey('hangout-${s.channel.room}'), channel: s.channel);
         // A hangout pressed in the list: its chat where a conversation would be, who is in it and Join at its top.
         final seen = v.viewing;
