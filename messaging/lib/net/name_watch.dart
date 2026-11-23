@@ -131,7 +131,8 @@ class _Relay {
 /// The name watch (docs/OPEN_NETWORK.md, section 3): what checks the relay's "@name is this key", and needs no direct
 /// route. A friend added by username was found by asking the relay who has that username; their app asks the same again
 /// once a day ([every]), each friend at a time of its own through the day, and asks of its own username each time it
-/// signs in to the relay ([signedIn]).
+/// signs in to the relay ([signedIn]). An account of several devices asks once a day all the same: each device asks
+/// about every friend, each on a day of its own (`share`).
 ///
 /// **Each relay is its own directory**, and kept apart (the relay in use: `relay`). For a friend, another account under
 /// their username means something only on a relay that has named their own key under it before (the lookup that added
@@ -152,9 +153,12 @@ class _Relay {
 /// sign-in after does not say it again, and a friend's word about it is said once a week at most.
 ///
 /// **Lookups.** The relay answers an account 120 lookups an hour, counted for all its devices together (they sign in as
-/// one; relay/lib/handles.dart): the watch takes no more than [mostAnHour] of them for the whole account, the friends
-/// shared out among the account's devices it knows of (`share`), a minute apart, and none for an hour after the relay
-/// says too many.
+/// one; relay/lib/handles.dart): the watch takes no more than [mostAnHour] of them for the whole account, shared out
+/// among the account's devices it knows of (`share`), a minute apart, and none for an hour after the relay says too
+/// many. What is shared out is the time, not the friends: with n devices, each asks about every friend every n days, on
+/// its own day of the n, so the account still asks about each friend once a day and every device sees what the relay
+/// says of every friend (the review, N2). What a device shows of a friend it asks again a day on, whatever its day, so
+/// it is never left standing once nobody holds the name (N3).
 ///
 /// Nothing here changes who a friend is: a friend stays the key that was added, whatever the relay says after.
 class NameWatch extends ChangeNotifier {
@@ -336,7 +340,7 @@ class NameWatch extends ChangeNotifier {
     }
   }
 
-  /// This device's share of the account's lookups.
+  /// This device's place among the account's devices it knows of: its day of every [of], and its share of the lookups.
   ({int index, int of}) get _shareNow {
     try {
       final s = _share?.call();
@@ -345,14 +349,6 @@ class NameWatch extends ChangeNotifier {
     } catch (_) {
       return (index: 0, of: 1);
     }
-  }
-
-  /// Whether [f] is this device's to ask: the friends are shared out among the account's devices by their names (S1).
-  bool _mine(WatchedName f) {
-    final s = _shareNow;
-    if (s.of == 1) return true;
-    final h = NetCrypto.sha256(utf8.encode('ghost name watch share ${f.id}'));
-    return (h[0] << 8 | h[1]) % s.of == s.index;
   }
 
   /// The lookups an hour this device takes: its share of [mostAnHour], two at least.
@@ -374,35 +370,59 @@ class NameWatch extends ChangeNotifier {
     _next = null;
   }
 
-  /// The friends changed: the watch plans again.
+  /// The friends changed: what was shown of anyone no longer a friend goes at once, and the watch plans again.
   void friendsChanged() {
+    if (_gone) return;
+    final ids = {for (final f in _friends()) f.id};
+    if (_relays.values.any((r) => r.changes.keys.any((id) => !ids.contains(id)))) {
+      _save();
+      notifyListeners();
+    }
     if (_started) _plan();
   }
 
   // --- asking -----------------------------------------------------------------------------------------------------------
 
-  /// When [f]'s username is next due on the relay in use: a day after it was last asked, or, never asked, at a time of
-  /// the day of its own after it was first seen there (kept, so a phone that runs for less than a day still comes to
-  /// each in turn: S2).
+  /// When [f]'s username is next due on the relay in use: at this device's next turn for them ([_turnAfter]: every n
+  /// days for n devices) and never within a day of when it last asked; where it shows something of them, a day after it
+  /// last asked, whatever its turn (N3). Never asked, at its first turn after they were first seen there (kept, so a
+  /// phone that runs for less than a day still comes to each in turn: S2).
   int _dueAt(WatchedName f) {
     final r = _here, now = nowMs;
     final last = r.checked[f.id];
-    if (last != null) return (last > now ? now : last) + every.inMilliseconds;
+    if (last != null) {
+      final l = last > now ? now : last, again = l + every.inMilliseconds;
+      if (r.changes.containsKey(f.id)) return again;
+      final turn = _turnAfter(f, l);
+      return turn > again ? turn : again;
+    }
     var seen = r.seen[f.id];
     if (seen == null || seen > now) {
       seen = r.seen[f.id] = now;
       _dirty = true;
     }
-    return seen + _spread(f.id);
+    return _turnAfter(f, seen);
+  }
+
+  /// This device's first turn for [f] after [t]. The account asks about each friend once a day, at a time of the day of
+  /// its own, and the days go round its n devices in turn, starting with a device of the friend's own ([_spread]: the
+  /// same on every device of the account): each device asks about a friend every n days, and about a different n-th of
+  /// the friends each day, so none asks more in a day than its share of the lookups allows (N2). Counted from 1970, so
+  /// every device reckons the days alike.
+  int _turnAfter(WatchedName f, int t) {
+    final s = _shareNow, day = every.inMilliseconds, at = _spread(f.id);
+    final period = day * s.of, phase = at.time + (at.day + s.index) % s.of * day;
+    return t - (t - phase) % period + period;
   }
 
   /// What was first seen just now is kept with the next save.
   bool _dirty = false;
 
-  int _spread(String id) {
+  /// [id]'s time of the day, and its day among the account's devices.
+  ({int time, int day}) _spread(String id) {
     final h = NetCrypto.sha256(utf8.encode('ghost name watch ${me() ?? ''} $id'));
-    final n = (h[0] << 24 | h[1] << 16 | h[2] << 8 | h[3]) & 0x7fffffff;
-    return n % every.inMilliseconds;
+    int at(int i) => (h[i] << 24 | h[i + 1] << 16 | h[i + 2] << 8 | h[i + 3]) & 0x7fffffff;
+    return (time: at(0) % every.inMilliseconds, day: at(4));
   }
 
   /// Whether one more lookup may be made now: no more than this device's share of [mostAnHour] in the last hour, [gap]
@@ -434,7 +454,7 @@ class NameWatch extends ChangeNotifier {
     _next?.cancel();
     _next = null;
     if (!_started || _gone || _asking) return;
-    final list = [for (final f in _friends()) if (_mine(f)) f];
+    final list = _friends();
     if (list.isEmpty && _renames.isEmpty && !_ownDue) return;
     var due = _renames.isNotEmpty || _ownDue ? nowMs : list.map(_dueAt).reduce((a, b) => a < b ? a : b);
     if (_dirty) _save();
@@ -462,7 +482,7 @@ class NameWatch extends ChangeNotifier {
       return _plan();
     }
     final now = nowMs;
-    final due = [for (final f in _friends()) if (_mine(f) && _dueAt(f) <= now) f]..sort((a, b) => _dueAt(a).compareTo(_dueAt(b)));
+    final due = [for (final f in _friends()) if (_dueAt(f) <= now) f]..sort((a, b) => _dueAt(a).compareTo(_dueAt(b)));
     if (due.isEmpty) return _plan();
     await _askFriend(due.first);
     _plan();
@@ -545,7 +565,7 @@ class NameWatch extends ChangeNotifier {
   }
 
   /// [id] was found under [username] just now by a lookup that named their key (an add, Buddies.add): the relay in use
-  /// has confirmed it, and their first daily lookup is a day on.
+  /// has confirmed it, and this device asks about them again no sooner than a day on, at its turn.
   void confirmed(String id, String username) {
     if (_gone) return;
     final r = _here;

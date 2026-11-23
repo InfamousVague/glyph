@@ -19,7 +19,9 @@ import 'support/fake_p2p.dart';
 /// After the review (2026-11-23): each relay is its own directory, and another account under a friend's username is
 /// said only where that relay named their key under it before; a friend who changed their username is followed; this
 /// person's own username is said calmly and once, with what usually causes it; the account's devices share the relay's
-/// lookups. The reviewer's probes 1-4 and 8 are here, turned round: each holds the fixed behaviour.
+/// lookups. The reviewer's probes 1-4 and 8 are here, turned round: each holds the fixed behaviour. After the second
+/// review: the devices share the days, not the friends, so every device sees what the relay says of every friend, and a
+/// device asks again what it shows (probes 10 and 11, turned round).
 
 const _day = Duration(days: 1);
 const _relay = 'wss://memory.test/hub';
@@ -83,13 +85,16 @@ NameWatch _watchOf(World w, Install i, String username, Map<String, Account> fri
 }
 
 /// A watch with no installs under it: its own clock, the directory, and what it keeps.
-NameWatch _bare(FakeClock clock, _Directory dir, {required String me, String? Function()? username, List<WatchedName> Function()? friends, Map<String, String>? kept, String Function()? relay, Future<String?> Function()? held, ({int index, int of}) Function()? share, List<(String, Envelope)>? told}) {
+NameWatch _bare(FakeClock clock, _Directory dir, {required String me, String? Function()? username, List<WatchedName> Function()? friends, Map<String, String>? kept, String Function()? relay, Future<String?> Function()? held, ({int index, int of}) Function()? share, List<(String, Envelope)>? told, List<({String name, int at})>? asked}) {
   final store = kept ?? <String, String>{};
   return NameWatch(
     me: () => me,
     username: username ?? () => null,
     friends: friends ?? () => const [],
-    whois: dir.whois,
+    whois: (name) {
+      asked?.add((name: name, at: clock.ms));
+      return dir.whois(name);
+    },
     held: held,
     relay: relay ?? () => _relay,
     share: share,
@@ -295,10 +300,12 @@ void main() {
     final w1 = _bare(clock, dir, me: me.id, username: () => 'sam', friends: () => [_friend('maya', maya)]);
     // Buddies.add looked her up and the relay named her key: the watch is told (no lookup of its own).
     w1.confirmed(maya.id, 'maya');
+    final added = clock.ms;
     dir.names['maya'] = mallory;
     await clock.pass(const Duration(hours: 25));
     expect(w1.changeFor(maya.id)?.other, mallory.id);
     expect(dir.asked.where((x) => x.name == 'maya'), hasLength(1), reason: 'first asked a day after the add');
+    expect(dir.asked.single.at - added, greaterThanOrEqualTo(_day.inMilliseconds), reason: 'not sooner, whatever the turn');
     w1.dispose();
   });
 
@@ -539,17 +546,42 @@ void main() {
     expect(friend0.first - start, lessThanOrEqualTo(const Duration(days: 1, hours: 1).inMilliseconds), reason: 'not held back two days by a clock that was ahead');
   });
 
-  test('S1: the relay\'s lookups are the account\'s, so its devices share the friends between them and the watch\'s share of an hour; told too many, a device asks nothing for an hour', () async {
+  test('S1 and N2: the relay\'s lookups are the account\'s, so its devices share the days between them, not the friends, and the watch\'s share of an hour: each friend asked once a day by one device, and every device asks about every friend in n days; told too many, a device asks nothing for an hour', () async {
     expect(NameWatch.mostAnHour, lessThanOrEqualTo(Handles.lookupsAnHour ~/ 4), reason: 'most of the relay\'s lookups are left to the person');
     final clock = FakeClock();
     final dir = _Directory(clock);
     final friends = [for (var i = 0; i < 90; i++) WatchedName('friend$i', NetCrypto.hex(NetCrypto.randomBytes(16)), 'k')];
     final start = clock.ms;
-    final devices = [for (var d = 0; d < 3; d++) _bare(clock, dir, me: 'a' * 32, friends: () => friends, share: () => (index: d, of: 3), kept: {})];
-    await clock.pass(const Duration(hours: 26));
-    // Each friend asked by one device a day, never by two.
+    final byDevice = [for (var d = 0; d < 3; d++) <({String name, int at})>[]];
+    final devices = [for (var d = 0; d < 3; d++) _bare(clock, dir, me: 'a' * 32, friends: () => friends, share: () => (index: d, of: 3), kept: {}, asked: byDevice[d])];
+    await clock.pass(const Duration(days: 3, hours: 2));
+    // Each friend asked by one device a day, never by two: the account's rate is what one device's was.
     final firstDay = [for (final x in dir.asked) if (x.at - start < _day.inMilliseconds) x.name];
     expect([firstDay.toSet().length, firstDay.length], [90, 90]);
+    for (final f in friends) {
+      final times = [for (final x in dir.asked) if (x.name == f.username) x.at];
+      for (var i = 1; i < times.length; i++) {
+        expect(times[i] - times[i - 1], inInclusiveRange(const Duration(hours: 23).inMilliseconds, const Duration(hours: 25).inMilliseconds), reason: '${f.username} a day apart');
+      }
+    }
+    // And each device asked about every friend, every three days: none of them knows of only some (the review, N2).
+    for (final (d, asked) in byDevice.indexed) {
+      expect(asked.map((x) => x.name).toSet(), hasLength(90), reason: 'device $d');
+      for (final f in friends) {
+        final times = [for (final x in asked) if (x.name == f.username) x.at];
+        for (var i = 1; i < times.length; i++) {
+          expect(times[i] - times[i - 1], greaterThanOrEqualTo(const Duration(days: 3, hours: -1).inMilliseconds), reason: '${f.username} on device $d');
+        }
+      }
+    }
+    // A third of the friends each day, not all of them every third day: no device's day needs more lookups than its share
+    // of the hour gives (the days counted from 1970, as the devices reckon them).
+    final firstWhole = (start + _day.inMilliseconds - 1) ~/ _day.inMilliseconds, end = clock.ms ~/ _day.inMilliseconds;
+    for (final (d, asked) in byDevice.indexed) {
+      for (var k = firstWhole; k < end; k++) {
+        expect(asked.where((x) => x.at ~/ _day.inMilliseconds == k).length, inInclusiveRange(10, 60), reason: 'device $d, day $k');
+      }
+    }
     // Never more than the account's share an hour, all devices together.
     final times = [for (final x in dir.asked) x.at];
     for (final t in times) {
@@ -566,6 +598,96 @@ void main() {
     await clock.pass(const Duration(minutes: 59));
     expect(dir.asked.length - at, 1, reason: 'the refused one, and nothing after it within the hour');
     one.dispose();
+  });
+
+  test('PROBE 10, fixed: a friend\'s username given to another account is shown on every device of the account, not only on one: each asks about every friend, on days of its own', () async {
+    final clock = FakeClock();
+    final dir = _Directory(clock);
+    final keys = [for (var i = 0; i < 8; i++) NetKeys.generate()];
+    final friends = [for (var i = 0; i < 8; i++) _friend('friend$i', keys[i])];
+    for (var i = 0; i < 8; i++) {
+      dir.names['friend$i'] = keys[i];
+    }
+    final phone = _bare(clock, dir, me: 'a' * 32, friends: () => friends, share: () => (index: 0, of: 2), kept: {});
+    final mac = _bare(clock, dir, me: 'a' * 32, friends: () => friends, share: () => (index: 1, of: 2), kept: {});
+    await clock.pass(const Duration(days: 2));
+    expect(dir.asked, hasLength(16), reason: 'each friend once a day, the two devices in turn');
+    final stranger = NetKeys.generate();
+    for (var i = 0; i < 8; i++) {
+      dir.names['friend$i'] = stranger;
+    }
+    await clock.pass(const Duration(days: 2));
+    final all = [for (final f in friends) f.username];
+    expect([for (final f in friends) if (phone.changeFor(f.id) != null) f.username], all, reason: 'the phone');
+    expect([for (final f in friends) if (mac.changeFor(f.id) != null) f.username], all, reason: 'the Mac');
+    phone.dispose();
+    mac.dispose();
+  });
+
+  test('PROBE 11, fixed: what a device shows of a friend it asks again itself, after the account\'s devices are counted again too, and it goes once nobody holds the name', () async {
+    final clock = FakeClock();
+    final dir = _Directory(clock);
+    final keys = [for (var i = 0; i < 8; i++) NetKeys.generate()];
+    final friends = [for (var i = 0; i < 8; i++) _friend('friend$i', keys[i])];
+    for (var i = 0; i < 8; i++) {
+      dir.names['friend$i'] = keys[i];
+    }
+    var share = (index: 0, of: 1);
+    final watch = _bare(clock, dir, me: 'a' * 32, friends: () => friends, share: () => share, kept: {});
+    await clock.pass(const Duration(days: 2));
+    final stranger = NetKeys.generate();
+    for (var i = 0; i < 8; i++) {
+      dir.names['friend$i'] = stranger;
+    }
+    await clock.pass(const Duration(days: 2));
+    expect([for (final f in friends) watch.changeFor(f.id)].whereType<NameChange>(), hasLength(8));
+    // Another device of the account comes along; then nobody holds any of the names.
+    share = (index: 0, of: 2);
+    for (var i = 0; i < 8; i++) {
+      dir.names.remove('friend$i');
+    }
+    await clock.pass(const Duration(days: 3));
+    expect([for (final f in friends) if (watch.changeFor(f.id) != null) f.username], isEmpty);
+    watch.dispose();
+  });
+
+  test('N3: what a device shows of a friend is asked again a day on, whatever its turn, and goes once nobody holds the name; nothing is shown of someone no longer a friend', () async {
+    final clock = FakeClock();
+    final dir = _Directory(clock);
+    final maya = NetKeys.generate();
+    var friends = [_friend('maya', maya)];
+    dir.names['maya'] = maya;
+    // One of four devices: its turn for Maya is every four days.
+    final watch = _bare(clock, dir, me: 'a' * 32, friends: () => friends, share: () => (index: 2, of: 4), kept: {});
+    await clock.pass(const Duration(days: 4));
+    expect(dir.asked, hasLength(1));
+    // At the device's next turn, four days on, the relay names someone else.
+    dir.names['maya'] = NetKeys.generate();
+    for (var h = 0; h <= 4 * 24 && dir.asked.length < 2; h++) {
+      await clock.pass(const Duration(hours: 1));
+    }
+    expect(dir.asked, hasLength(2));
+    expect(dir.asked[1].at - dir.asked[0].at, const Duration(days: 4).inMilliseconds);
+    expect(watch.changeFor(maya.id), isNotNull);
+    final shown = dir.asked.last.at;
+    // Still someone else's a day on: asked again, and still shown.
+    await clock.pass(Duration(milliseconds: shown + const Duration(days: 1, minutes: 5).inMilliseconds - clock.ms));
+    expect(dir.asked, hasLength(3));
+    expect(watch.changeFor(maya.id), isNotNull);
+    // Nobody's now: gone at the next day's asking, not at the device's next turn days on.
+    dir.names.remove('maya');
+    await clock.pass(const Duration(days: 1));
+    expect(dir.asked, hasLength(4));
+    expect(watch.changeFor(maya.id), isNull);
+    // Someone takes it again: shown at the device's next turn; then she is no longer a friend, and it goes at once.
+    dir.names['maya'] = NetKeys.generate();
+    await clock.pass(const Duration(days: 4, minutes: 5));
+    expect(watch.changeFor(maya.id), isNotNull);
+    friends = [];
+    watch.friendsChanged();
+    expect(watch.changeFor(maya.id), isNull);
+    expect(watch.changes, isEmpty);
+    watch.dispose();
   });
 
   test('the lookups are spread through the day, each friend once, never more than so many an hour or closer than a minute; a relay that can\'t be reached is asked again ten minutes on', () async {
