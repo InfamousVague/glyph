@@ -7,6 +7,7 @@ import '../me/me.dart' show Me;
 import '../sms.dart';
 import 'carrier.dart';
 import 'crypto.dart';
+import 'forward_secrecy.dart';
 import 'hub_carrier.dart';
 import 'packet.dart';
 import 'relay_choice.dart';
@@ -187,7 +188,14 @@ class Net extends ChangeNotifier implements PeerBook {
         final sms = _sms = SmsCarrier(_PhoneSms());
         routes = [hub, sms];
       }
-      final board = _board = Switchboard(me: me.id, peers: this, carriers: routes);
+      // This device's forward secrecy (GMFB-26): its prekeys in the secret store beside the account's words, never in
+      // the account's backup. Where that store can't be read, none: everything is sealed the old way, as before.
+      // Where it can't be read yet (an iPhone's Keychain before its first unlock), tried again every half minute and as
+      // the app comes back; until then everything is sealed the old way, with no prekey, which tells friends to do the
+      // same (ForwardSecrecy.sawOld), and forward-secret packets are passed on to a sibling device, not answered.
+      final fs = ForwardSecrecy(device: device, secrets: _SecretFsStore(), plain: _ChoiceFsStore(app));
+      if (!await fs.tryLoad()) _fsAgain(fs);
+      final board = _board = Switchboard(me: me.id, peers: this, carriers: routes, fs: fs);
       board.off.addAll(app.choice('net_off', '').split(',').where((s) => s.isNotEmpty));
       board.changed.addListener(notifyListeners);
       _subs.add(board.received.listen(_received));
@@ -207,7 +215,21 @@ class Net extends ChangeNotifier implements PeerBook {
 
   /// The app has come back after [away] (main.dart): the relay server's connection is made again where it may have
   /// died meanwhile, and what friends were sent and have not answered goes again once it is up (Friends).
-  void resume(Duration away) => _hub?.nudge(away: away);
+  void resume(Duration away) {
+    _hub?.nudge(away: away);
+    final fs = _board?.fs;
+    if (fs != null && !fs.loaded) unawaited(fs.tryLoad());
+  }
+
+  Timer? _fsTimer;
+
+  /// Tries [fs]'s load again every half minute until it works.
+  void _fsAgain(ForwardSecrecy fs) {
+    _fsTimer?.cancel();
+    _fsTimer = Timer.periodic(const Duration(seconds: 30), (t) async {
+      if (fs.loaded || await fs.tryLoad()) t.cancel();
+    });
+  }
 
   Future<void> _readPeers() async {
     final list = await Sms.instance.netPeers();
@@ -231,6 +253,8 @@ class Net extends ChangeNotifier implements PeerBook {
       await s.cancel();
     }
     _subs.clear();
+    _fsTimer?.cancel();
+    _fsTimer = null;
     final board = _board;
     _board = null;
     _hub = null;
@@ -382,6 +406,24 @@ class Net extends ChangeNotifier implements PeerBook {
     );
     return (delivery: d, took: took);
   }
+}
+
+/// Where this device's prekeys are kept: the Keychain, Android's vault, as the account's words are (Sms.secretKeep).
+class _SecretFsStore implements FsStore {
+  @override
+  Future<String?> read(String name) => Sms.instance.secretRead(name);
+  @override
+  Future<void> write(String name, String value) => Sms.instance.secretKeep(name, value);
+}
+
+/// Where what others offered, and the packets seen, are kept: with the app's choices, drawing nothing again.
+class _ChoiceFsStore implements FsStore {
+  _ChoiceFsStore(this.app);
+  final AppState app;
+  @override
+  Future<String?> read(String name) async => app.choice(name, '');
+  @override
+  Future<void> write(String name, String value) async => app.keep(name, value);
 }
 
 class _PhoneSigner implements NetSigner {

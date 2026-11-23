@@ -178,6 +178,12 @@ class FriendCalls {
         final me = _port.myId;
         // Only a friend's, and only someone this install knows.
         if (buddy == null || buddy.state != 'yes' || me == null) return true;
+        // A ring that stopped ringing before it got here (held, or sent again late): missed, not rung (GMFB-26). A
+        // little slack for the two clocks.
+        if (DateTime.now().millisecondsSinceEpoch - r.envelope.at > (ringFor + const Duration(seconds: 30)).inMilliseconds) {
+          _missed(buddy, VoiceRing(channelWith(me, buddy.id, buddy.shown), buddy.shown, DateTime.fromMillisecondsSinceEpoch(r.envelope.at), call: id, video: b['v'] == true, caller: buddy.id));
+          return true;
+        }
         final c = channelWith(me, buddy.id, buddy.shown);
         final ring = VoiceRing(c, buddy.shown, DateTime.now(), call: id, video: b['v'] == true, caller: buddy.id);
         v.ringFor(ring, ringFor, onUnanswered: () => _missed(buddy, ring));

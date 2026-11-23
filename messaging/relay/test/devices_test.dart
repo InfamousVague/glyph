@@ -98,6 +98,24 @@ void main() {
     expect(desk.frames.length, 1, reason: 'the same identity on the computer has it too');
   });
 
+  test('what a device sends to its own name while alone is kept for its other devices, not handed back to it', () async {
+    final phone = _Install(), desk = _Install.copyOf(phone);
+    await phone.connect(url, device: 'phone');
+    await _settle();
+    phone.sendTo(phone, [9, 9, 9]);
+    await _settle();
+    expect(phone.frames, isEmpty, reason: 'nobody else of it here: kept');
+    await phone.ws.close();
+    await _settle();
+    final again = _Install.copyOf(phone);
+    expect((await again.connect(url, device: 'phone'))['held'], 0, reason: 'not handed back to the device that sent it');
+    await _settle();
+    expect(again.frames, isEmpty);
+    expect((await desk.connect(url, device: 'desk'))['held'], 1);
+    await _settle();
+    expect(desk.frames.single.sublist(17), [9, 9, 9]);
+  });
+
   test('the same device again takes its own place; one from before devices still takes the place of another', () async {
     final a = _Install(), again = _Install.copyOf(a), other = _Install.copyOf(a);
     await a.connect(url, device: 'phone');

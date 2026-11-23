@@ -15,6 +15,7 @@ import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
 import 'channels.dart' show AppHangoutStore;
 import '../circles/welcome.dart' show ReadOnlyRoom;
+import '../circles/circle_keys.dart';
 import 'roles.dart';
 import 'voice.dart';
 import '../me/me.dart' show Me;
@@ -87,6 +88,7 @@ class HangoutRoom extends ChangeNotifier {
     _loadAbout();
     _loadVotes();
     _loadReactions();
+    _loadUnsaid();
   }
 
   static const keep = 300;
@@ -98,6 +100,88 @@ class HangoutRoom extends ChangeNotifier {
 
   /// What this install signs rosters with; null where it can't (it then changes nothing).
   final NetSigner? signer;
+
+  /// The circle keys a circle's space is sealed with (GMFB-26, lib/circles/circle_keys.dart): the app's own unless a
+  /// test gives its own. A space of no circle, or none here, is sealed with its seed's key alone, as before.
+  CircleKeys? get circleKeys => _circleKeys ?? CircleKeys.app;
+  set circleKeys(CircleKeys? k) => _circleKeys = k;
+  CircleKeys? _circleKeys;
+
+  /// [clear] sealed for this space: under the circle's newest key held, for a circle's space. Null where a newer key
+  /// of the circle is known than this device holds: never sealed under an older one, which someone put out may hold
+  /// (GMFB-26 review, finding 3); the caller keeps it until the key comes.
+  Uint8List? _seal(List<int> clear) {
+    final circle = channel.circle, k = circleKeys;
+    return circle == null || k == null ? NetCrypto.seal(channel.key, clear) : k.seal(circle, channel.key, 'space', clear);
+  }
+
+  /// [bytes] opened for this space: under an epoch of the circle's key, or the seed's key. One under a key this device
+  /// lacks is kept, opened again when the key comes, and the key asked for (finding 4).
+  Uint8List? _open(Uint8List bytes, String from, {bool reaction = false}) {
+    final circle = channel.circle, k = circleKeys;
+    if (circle == null || k == null) return NetCrypto.open(channel.key, bytes);
+    final o = k.open(circle, channel.key, 'space', bytes);
+    if (o.clear == null && o.unknown) {
+      _unread.add((from: from, bytes: bytes, reaction: reaction));
+      if (_unread.length > 200) _unread.removeAt(0);
+      k.missing(circle);
+    }
+    return o.clear;
+  }
+
+  /// What came under a key this device lacks, and what it would have said: both wait for the key.
+  final List<({String from, Uint8List bytes, bool reaction})> _unread = [];
+  final List<({Map<String, Object?> what, bool keep, bool reaction})> _unsaid = [];
+  static const mostUnsaid = 100;
+
+  /// What waits is kept with the space's other things (`:u`), so a restart doesn't lose it (B5).
+  void _keepUnsaid() {
+    final st = store;
+    if (st is HangoutVotesStore) (st as HangoutVotesStore).keepVotes('${channel.chatRoom}:u', jsonEncode([for (final w in _unsaid) {'w': w.what, 'k': w.keep, 'r': w.reaction}]));
+  }
+
+  void _loadUnsaid() {
+    final st = store;
+    if (st is! HangoutVotesStore) return;
+    try {
+      for (final j in jsonDecode((st as HangoutVotesStore).votesOf('${channel.chatRoom}:u') ?? '[]') as List) {
+        if (j is Map && j['w'] is Map) _unsaid.add((what: (j['w'] as Map).cast<String, Object?>(), keep: j['k'] == true, reaction: j['r'] == true));
+      }
+    } catch (_) {}
+  }
+
+  /// Queues [what] until the circle's key comes.
+  void _wait(Map<String, Object?> what, {bool keep = false, bool reaction = false}) {
+    _unsaid.add((what: what, keep: keep, reaction: reaction));
+    if (_unsaid.length > mostUnsaid) _unsaid.removeAt(0);
+    _keepUnsaid();
+    final circle = channel.circle;
+    if (circle != null) circleKeys?.missing(circle);
+    notifyListeners();
+  }
+
+  /// Whether what is said here waits for the circle's new key: the screen says so.
+  bool get waitingForKey => _unsaid.isNotEmpty || (channel.circle != null && (circleKeys?.lacking(channel.circle!) ?? false));
+
+  /// The circle's key came: what waited is said, and what couldn't be read is read.
+  void _keyCame() {
+    final circle = channel.circle, k = circleKeys;
+    // With no circle keys (switched off, or a space of no circle), what a build with them on left waiting goes now,
+    // under the seed's key, rather than wait for a key that never comes (third review, item 4).
+    if (circle != null && k != null && k.lacking(circle)) return;
+    final said = [..._unsaid];
+    _unsaid.clear();
+    _keepUnsaid();
+    for (final w in said) {
+      w.reaction ? _sendReaction(w.what) : _say(w.what, keep: w.keep);
+    }
+    final unread = [..._unread];
+    _unread.clear();
+    for (final u in unread) {
+      u.reaction ? _heardReaction(u.from, u.bytes) : _heard(u.from, u.bytes);
+    }
+    notifyListeners();
+  }
   String name;
   String? username;
 
@@ -150,6 +234,8 @@ class HangoutRoom extends ChangeNotifier {
     opened = true;
     putOut = roster.banned.contains(me) ? 'You were banned from this space.' : null;
     final at = _inRoom = hubRoom;
+    final circle = channel.circle, keys = circleKeys;
+    if (circle != null && keys != null) _subs.add(keys.taken.where((s) => s == circle).listen((_) => _keyCame()));
     _subs.add(route.packets.where((p) => p.room == at).listen((p) => _heard(p.from, p.bytes)));
     _subs.add(route.events.where((e) => e.room == at).listen(_event));
     // Reactions as packets of their own (relay/lib/hub.dart toRoomReaction): nothing else is taken from one.
@@ -169,6 +255,8 @@ class HangoutRoom extends ChangeNotifier {
     }
     _hi(ask: true);
     _say({'t': 'sync?', 'since': messages.isEmpty ? 0 : messages.last.at, 'v': roster.version, 'av': _about?.version ?? 0});
+    // What waited from before a restart goes now, where the key is here.
+    if (_unsaid.isNotEmpty) _keyCame();
     notifyListeners();
   }
 
@@ -372,23 +460,31 @@ class HangoutRoom extends ChangeNotifier {
     final at = DateTime.now().millisecondsSinceEpoch;
     if (!reactions.take(m.id, me, emoji, on: on, at: at)) return false;
     final what = {'t': 'react', 'id': m.id, 'e': emoji, 'on': on, 'at': at};
-    final r = route;
-    if (opened && r is ReactionRoute && (r as ReactionRoute).takesReactions) {
-      try {
-        (r as ReactionRoute).sendReaction(_inRoom ?? hubRoom, NetCrypto.seal(channel.key, utf8.encode(jsonEncode(what))));
-      } catch (_) {}
-    } else {
-      // A relay from before keeps it as any kept packet (and in a read-only room refuses it from a reader).
-      _say(what, keep: true);
-    }
+    _sendReaction(what);
     _keepReactions();
     notifyListeners();
     return true;
   }
 
+  /// Sends a reaction: as one where the relay takes them, else as a kept packet; waits for the circle's key where it
+  /// lacks it, as a reaction still (B10).
+  void _sendReaction(Map<String, Object?> what) {
+    final r = route;
+    if (opened && r is ReactionRoute && (r as ReactionRoute).takesReactions) {
+      final sealed = _seal(utf8.encode(jsonEncode(what)));
+      if (sealed == null) return _wait(what, reaction: true);
+      try {
+        (r as ReactionRoute).sendReaction(_inRoom ?? hubRoom, sealed);
+      } catch (_) {}
+    } else {
+      // A relay from before keeps it as any kept packet (and in a read-only room refuses it from a reader).
+      _say(what, keep: true);
+    }
+  }
+
   /// A packet that came as a reaction: taken only as one.
   void _heardReaction(String from, Uint8List bytes) {
-    final clear = NetCrypto.open(channel.key, bytes);
+    final clear = _open(bytes, from, reaction: true);
     if (clear == null) return;
     try {
       final m = (jsonDecode(utf8.decode(clear)) as Map).cast<String, dynamic>();
@@ -979,7 +1075,8 @@ class HangoutRoom extends ChangeNotifier {
   void _say(Map<String, Object?> what, {bool keep = false}) {
     if (!opened) return;
     try {
-      final sealed = NetCrypto.seal(channel.key, utf8.encode(jsonEncode(what)));
+      final sealed = _seal(utf8.encode(jsonEncode(what)));
+      if (sealed == null) return _wait(what, keep: keep);
       final r = route;
       if (keep && r is HubVoiceRoute) {
         r.sendKept(_inRoom ?? hubRoom, sealed);
@@ -997,7 +1094,7 @@ class HangoutRoom extends ChangeNotifier {
   }
 
   void _heard(String from, Uint8List bytes) {
-    final clear = NetCrypto.open(channel.key, bytes);
+    final clear = _open(bytes, from);
     if (clear == null) return;
     Map<String, dynamic> m;
     try {

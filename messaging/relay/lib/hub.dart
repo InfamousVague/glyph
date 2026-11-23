@@ -477,7 +477,12 @@ class Hub {
         }
         end = made;
         handles?.came(made.id, made.tell, key: key);
-        final held = _mail.remove(made.id) ?? const <_Held>[];
+        final all = _mail.remove(made.id) ?? const <_Held>[];
+        // What this very device sent to its own name stays kept for the others (a device from before devices, with no
+        // name, is handed everything, as before).
+        final back = [for (final h in all) if (h.byDevice != null && h.byDevice == made.device) h];
+        final held = [for (final h in all) if (!back.contains(h)) h];
+        if (back.isNotEmpty) _mail[made.id] = back;
         _held -= held.fold<int>(0, (n, h) => n + h.frame.length);
         final cutoff = _now().subtract(holdFor);
         final fresh = held.where((h) => h.at.isAfter(cutoff)).toList();
@@ -619,7 +624,7 @@ class Hub {
         _tell(from.ws, {'nak': seq, 'err': 'full'});
         return;
       }
-      box.add(_Held(frame, _now()));
+      box.add(_Held(frame, _now(), byDevice: to == from.id && from.device.isNotEmpty ? from.device : null));
       _held += frame.length;
       _tell(from.ws, {'ack': seq, 'here': false});
       // Their app is closed: woken where it can be (an iPhone's push; an Android phone looks for itself).
@@ -815,9 +820,14 @@ class _End {
 }
 
 class _Held {
-  _Held(this.frame, this.at);
+  _Held(this.frame, this.at, {this.byDevice});
   final Uint8List frame;
   final DateTime at;
+
+  /// For a packet an identity sent to its own name: which of its devices sent it (its hello's `device`). That device
+  /// isn't handed it back: it is kept for the identity's other devices (GMFB-26, an app passing on a packet it couldn't
+  /// open, for a sibling that can). Null for anything else.
+  final String? byDevice;
 }
 
 class _Room {

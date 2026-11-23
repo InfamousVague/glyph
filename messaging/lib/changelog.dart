@@ -28,6 +28,7 @@ const List<ReleaseNotes> changelog = [
     'Make it yours: build your own look from four colours in Settings › Appearance and share it as a short code, or paste a friend\'s. There\'s a Readable font for easier reading, too.',
     'Keyboard shortcuts: Cmd/Ctrl+K jumps to any conversation, Option/Alt+Up and Down move through the list, and Cmd/Ctrl+B, I and E format what you write. Search is now Cmd/Ctrl+F. Change any of them in Settings › Keyboard shortcuts.',
     'Voice messages from your computer: the Mac and Windows apps record voice messages in chats, spaces and the networks\' chats, no phone needed, and Windows plays them too. On Linux, the app now updates itself (install this version once by hand).',
+    'Forward secrecy: messages between friends, and the copies your devices send each other, are now sealed with keys that each device changes daily and deletes after about two weeks. Someone who recorded them can\'t open them later, even with your recovery words. Friends on older versions still get your messages the earlier way. Circles aren\'t covered yet.',
   ]),
   ReleaseNotes('0.12.12', '2026-11-22', [
     'Stages in spaces: whoever manages a space can make its call a stage, where newcomers listen until brought up to speak. Listeners raise a hand to ask, the menu counts listeners and hands, and a stage holds far more people than an ordinary call.',
