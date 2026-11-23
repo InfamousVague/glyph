@@ -289,6 +289,9 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
                       floor: t.color('app-paper-2'),
                       rule: t.color('app-rule'),
                       ink: t.color('app-ink-3'),
+                      // The kind's own purple at the left, running to cyan at the right.
+                      wallA: t.hueSwatch('purple'),
+                      wallB: t.hueSwatch('cyan'),
                       groups: [for (final g in groups) (at: Offset(g.at.x, g.at.y), radius: _radius[g.id] ?? floor.radiusOf(g.id), color: t.hueSwatch(g.hue), mine: floor.groupOf(OpenSpace.meId) == g.id)],
                     ),
                   ),
@@ -458,10 +461,13 @@ class _GroupName extends StatelessWidget {
 /// circle, an outline in its colour over a see-through wash of it (Matt, 2026-11-23: "remove the extra decorations like
 /// a crosshair on the circles just make a circle outline with the semiopaque infill").
 class _FloorPainter extends CustomPainter {
-  _FloorPainter({required this.me, required this.centre, required this.scale, required this.ground, required this.floor, required this.rule, required this.ink, required this.groups});
+  _FloorPainter({required this.me, required this.centre, required this.scale, required this.ground, required this.floor, required this.rule, required this.ink, required this.wallA, required this.wallB, required this.groups});
   final Offset me, centre;
   final double scale;
   final Color ground, floor, rule, ink;
+
+  /// The walls' two colours, left and right.
+  final Color wallA, wallB;
   final List<({Offset at, double radius, Color color, bool mine})> groups;
 
   Offset _at(Offset world) => centre + (world - me) * scale;
@@ -501,47 +507,56 @@ class _FloorPainter extends CustomPainter {
           ..color = ink.withValues(alpha: 0.18));
   }
 
-  /// How thick the walls are and how high they stand, in the floor's units.
-  static const double wallThick = 30, wallHigh = 104;
+  /// How thick the walls are and how high they stand, in the floor's units, and how far apart the far and near walls'
+  /// panel lines are.
+  static const double wallThick = 30, wallHigh = 104, wallPanel = 300;
 
   /// The walls round the floor, drawn as a room seen from above and a little in front (Matt, 2026-11-23: "add 3d walls
-  /// to the edges so it shows a 2.5d wall around the edges"). From there the far wall shows its face, standing
-  /// [wallHigh] above the floor's far edge under its top; the side walls show only their tops, running down the
-  /// sides; and the near wall shows its top and, below it, its outer face in shade. The far wall lays a soft shadow on
-  /// the floor at its foot. Drawn after the floor's dots and groups, which all lie inside it.
+  /// to the edges so it shows a 2.5d wall around the edges", then "use colors and a mixture of hard lines and semi
+  /// opaque walls"). They are glass in two colours, [wallA] at the left running to [wallB] at the right: every face a
+  /// see-through wash of its colour, every edge a hard line of it at full strength, as the groups' circles are drawn.
+  /// The far wall shows its face, standing [wallHigh] above the floor's far edge under its top; the side walls show
+  /// their tops, running down the sides; the near wall shows its top and, below it, its outer face, fainter. The far
+  /// and near faces are ruled into panels, and the far wall's colour falls on the floor at its foot. Drawn after the
+  /// floor's dots and groups, which all lie inside it.
   void _walls(Canvas canvas) {
     const w = OpenWorld.width, h = OpenWorld.height, t = wallThick, up = wallHigh;
     Rect box(double x0, double y0, double x1, double y1) => Rect.fromPoints(_at(Offset(x0, y0)), _at(Offset(x1, y1)));
-    Color shade(double much) => Color.lerp(floor, ink, much)!;
-    Paint fall(Rect r, Color from, Color to) => Paint()..shader = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [from, to]).createShader(r);
-    // The far wall's shadow on the floor, darkest at its foot.
-    final shadow = box(0, 0, w, 54);
-    canvas.drawRect(shadow, fall(shadow, ink.withValues(alpha: 0.2), ink.withValues(alpha: 0)));
-    // The far wall's face, lit from above, with a skirting along its foot.
-    final far = box(0, -up, w, 0);
-    canvas.drawRect(far, fall(far, shade(0.2), shade(0.34)));
-    canvas.drawRect(box(0, -9, w, 0), Paint()..color = shade(0.46));
-    // The near wall's outer face, in shade, under its top.
-    final near = box(-t, h + t, w + t, h + t + up);
-    canvas.drawRect(near, fall(near, shade(0.44), shade(0.56)));
-    // The walls' tops: the far one from corner to corner, the sides down from it, the near one between them.
-    final top = Paint()..color = shade(0.1);
+    // Across the whole room, so every piece takes its colour from where it stands between the two.
+    final room = box(-t, 0, w + t, 0);
+    Shader across(double alpha) => LinearGradient(colors: [wallA.withValues(alpha: alpha), wallB.withValues(alpha: alpha)]).createShader(Rect.fromLTRB(room.left, 0, room.right, 1));
+    Paint wash(double alpha) => Paint()..shader = across(alpha);
+    Paint line(double width, [double alpha = 1]) => Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width
+      ..shader = across(alpha);
+    // The far wall's colour on the floor at its foot, fading out.
+    final glow = box(0, 0, w, 70);
+    canvas.drawRect(glow, Paint()..shader = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color.lerp(wallA, wallB, 0.5)!.withValues(alpha: 0.16), Color.lerp(wallA, wallB, 0.5)!.withValues(alpha: 0)]).createShader(glow));
+    // The faces, see-through: the far wall's, and the near wall's outer one, fainter.
+    final far = box(0, -up, w, 0), near = box(-t, h + t, w + t, h + t + up);
+    canvas.drawRect(far, wash(0.24));
+    canvas.drawRect(near, wash(0.14));
+    // Their panels: a thin hard line every [wallPanel], and one along the far wall a little above the floor.
+    for (var x = wallPanel; x < w; x += wallPanel) {
+      canvas.drawLine(_at(Offset(x, -up)), _at(Offset(x, 0)), line(1, 0.55));
+      canvas.drawLine(_at(Offset(x, h + t)), _at(Offset(x, h + t + up)), line(1, 0.4));
+    }
+    canvas.drawLine(_at(const Offset(0, -14)), _at(const Offset(w, -14)), line(1, 0.55));
+    // The tops, a stronger wash: the far one from corner to corner, the sides down from it, the near one between.
     final tops = [box(-t, -up - t, w + t, -up), box(-t, -up, 0, h + t), box(w, -up, w + t, h + t), box(0, h, w, h + t)];
     for (final r in tops) {
-      canvas.drawRect(r, top);
+      canvas.drawRect(r, wash(0.4));
     }
-    // An edge round the tops' outside and round the floor, so wall and floor are told apart in every look.
-    final edge = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = rule;
-    canvas.drawRect(box(-t, -up - t, w + t, h + t), edge);
-    canvas.drawRect(box(0, -up, w, h), edge);
-    canvas.drawLine(_at(const Offset(0, 0)), _at(const Offset(w, 0)), edge);
+    // The hard lines: round the outside of the tops, round the floor and up the far wall's face, and round the near face.
+    canvas.drawRect(box(-t, -up - t, w + t, h + t), line(2));
+    canvas.drawRect(box(0, -up, w, h), line(2));
+    canvas.drawLine(_at(const Offset(0, 0)), _at(const Offset(w, 0)), line(2));
+    canvas.drawRect(near, line(1.5, 0.7));
   }
 
   @override
-  bool shouldRepaint(_FloorPainter old) => old.me != me || old.centre != centre || old.scale != scale || old.ground != ground || old.floor != floor || !_same(old.groups, groups);
+  bool shouldRepaint(_FloorPainter old) => old.me != me || old.centre != centre || old.scale != scale || old.ground != ground || old.floor != floor || old.wallA != wallA || old.wallB != wallB || !_same(old.groups, groups);
 
   static bool _same(List<({Offset at, double radius, Color color, bool mine})> a, List<({Offset at, double radius, Color color, bool mine})> b) {
     if (a.length != b.length) return false;
