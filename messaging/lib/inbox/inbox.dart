@@ -778,7 +778,9 @@ class Inbox {
   // LinkedIn was a third and is gone (Matt, 2026-11-21: "linked in keeps automatically signing our sessions out remove
   // the plugin"): LinkedIn ended the browser's session whenever the helper used it. Its sign-in is deleted from the
   // device as the networks start ([start]); its source stays in sidecar/linkedin, carried by no build.
-  static Inbox get instance => _instance ??= Inbox._([
+  // None in a browser (lib/web): each needs a helper program, a library in C or sockets of its own, which a page
+  // hasn't, and four of them could not even be made there (dart:io's HttpClient throws as it is constructed).
+  static Inbox get instance => _instance ??= Inbox._(kIsWeb ? const [] : [
         Telegram(),
         Bluesky(soon: true),
         Mastodon(soon: true),

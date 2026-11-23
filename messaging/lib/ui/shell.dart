@@ -960,8 +960,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
           Choice('New circle', Lucide.circle, () => show(const NewCircleScreen(key: ValueKey('new-circle')), showing: 'new')),
           // Its invite link pasted: in at once, its spaces in the list's place.
           Choice('Join a circle by link', Lucide.link2, _joinByLink),
-          // A Discord server's voice channels as a group of spaces (lib/ui/space_groups_ui.dart).
-          Choice('Add a Discord server', Lucide.link, () => show(const AddDiscordScreen(key: ValueKey('add-discord')), showing: 'new')),
+          // A Discord server's voice channels as a group of spaces (lib/ui/space_groups_ui.dart): voice, so not in a
+          // browser, which has no calls yet (Sms.callsHere).
+          if (Sms.callsHere) Choice('Add a Discord server', Lucide.link, () => show(const AddDiscordScreen(key: ValueKey('add-discord')), showing: 'new')),
         ]);
       case 'contacts':
         contacts();
@@ -1059,7 +1060,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: archivedCount, menu: _archiveRows),
         // The Marketplace, with how many updates wait (Matt, 2026-11-20: "Move plugins out of settings into a marketplace
         // button on the navigation rail with a marketplace icon"): "Market" on Dial-Up's taskbar, where six words share it.
-        NavItem(id: 'marketplace', icon: Lucide.store, label: 'Marketplace', short: 'Market', count: MarketState.instance.updates.length, menu: _marketRows),
+        // Not in a browser, which has nowhere to keep a plugin and no texts for one to sort (Sms.browser).
+        if (!Sms.browser) NavItem(id: 'marketplace', icon: Lucide.store, label: 'Marketplace', short: 'Market', count: MarketState.instance.updates.length, menu: _marketRows),
         NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings', count: Me.instance.unseen, menu: _settingsRows),
       ];
 

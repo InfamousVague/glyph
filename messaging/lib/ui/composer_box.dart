@@ -327,10 +327,12 @@ EdgeInsets composerFootPadding(Tokens t, {double bottom = 0}) => EdgeInsets.from
       if (emoji) emojiButton(),
       tap(Lucide.sticker, 'Stickers', onSticker, key: 'composer-stickers'),
       SizedBox(width: t.space(1)),
-      if (hasSomething) sendButton else tap(Lucide.mic, 'Record a voice message', onRecord, key: 'composer-mic'),
+      // Nothing written: the microphone, but in a browser, which records no voice messages yet (Sms.browser), where
+      // Send stands there, waiting for something to send.
+      if (hasSomething || Sms.browser) sendButton else tap(Lucide.mic, 'Record a voice message', onRecord, key: 'composer-mic'),
     ],
     below: [
-      tap(Lucide.mic, 'Record a voice message', onRecord, key: 'composer-mic'),
+      if (!Sms.browser) tap(Lucide.mic, 'Record a voice message', onRecord, key: 'composer-mic'),
       if (emoji) emojiButton(),
       SizedBox(width: t.space(1)),
       sendButton,

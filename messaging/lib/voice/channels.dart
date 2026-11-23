@@ -173,7 +173,8 @@ class Voice extends ChangeNotifier {
       await _keep();
     }
     notifyListeners();
-    if (c.hasVoice) await join(c);
+    // Its call is joined with it, where calls are (not in a browser yet: Sms.callsHere); its chat is there either way.
+    if (c.hasVoice && Sms.callsHere) await join(c);
     _raiseOffer();
   }
 
@@ -712,9 +713,12 @@ class Voice extends ChangeNotifier {
         own = [...own, c];
         unawaited(_keep());
       case 'call' || 'cancel' || 'decline' || 'answered':
-        // Calling one friend (lib/voice/friend_calls.dart, GMFB-28).
+        // Calling one friend (lib/voice/friend_calls.dart, GMFB-28). Not rung where a call can't be answered: a page
+        // in a browser, which has no calls yet (Sms.callsHere); the account's other devices ring as they did.
+        if (!Sms.callsHere) return;
         FriendCalls.instance.received(r, mine: r.peer.id == Net.instance.id);
       case 'ring':
+        if (!Sms.callsHere) return;
         final g = Groups.instance.all.where((g) => g.id == b['g'] && !g.gone).firstOrNull;
         if (g == null || g.member(r.peer.id) == null) return;
         final ring = ringing = VoiceRing(VoiceChannel.ofGroup(g.id, g.name), '${b['n'] ?? nameOf(r.peer.id)}', DateTime.now());
@@ -900,6 +904,8 @@ class Voice extends ChangeNotifier {
 
   /// Hops into [c], leaving any other first.
   Future<void> join(VoiceChannel c, {bool video = false}) async {
+    // Not in a browser yet (Sms.callsHere): the screens there offer no way in, and this holds whatever they miss.
+    if (!Sms.callsHere) throw StateError('Calls aren\'t in the browser yet.');
     final route = _route;
     if (route == null) throw StateError('The relay server isn\'t connected.');
     // A texting or Files space has no call (SpaceKind).

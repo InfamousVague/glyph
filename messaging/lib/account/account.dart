@@ -146,7 +146,8 @@ class Account extends ChangeNotifier {
     return {'dir': dir, 'body': body, 'sig': NetCrypto.hex(AccountCrypto.sign(keys.key, utf8.encode(body)))};
   }
 
-  static String get _platform => PlatformInfo.isAndroid ? 'android' : PlatformInfo.isIOS ? 'ios' : PlatformInfo.isMacOS ? 'macos' : PlatformInfo.isWindows ? 'windows' : 'linux';
+  // A page in a browser is none of the five: "web" (a device list from before this draws it as a computer).
+  static String get _platform => Sms.browser ? 'web' : PlatformInfo.isAndroid ? 'android' : PlatformInfo.isIOS ? 'ios' : PlatformInfo.isMacOS ? 'macos' : PlatformInfo.isWindows ? 'windows' : 'linux';
 
   Future<List<AccountDevice>> _addDevice(Uint8List key, String address) async {
     final m = await relay.ask(_signed('acct-devices', 'devices', (seed: Uint8List(0), key: key, address: address), {
@@ -624,6 +625,8 @@ class AppAccountProfiles implements AccountProfiles {
 
   @override
   String get deviceName {
+    // A page can't learn the name of the computer it is on, and is no kind of computer itself.
+    if (Sms.browser) return Sms.browserName;
     final host = PlatformInfo.localHostname;
     final kind = PlatformInfo.isAndroid ? 'Android phone' : PlatformInfo.isIOS ? 'iPhone' : PlatformInfo.isMacOS ? 'Mac' : PlatformInfo.isWindows ? 'Windows PC' : 'Computer';
     return host.isEmpty || host == 'localhost' ? kind : '$kind · $host';
