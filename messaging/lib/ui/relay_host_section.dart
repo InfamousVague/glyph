@@ -50,6 +50,11 @@ List<Widget> relayHostSections(BuildContext context, Net net) {
         if (host.on) SettingRowBox(child: RelayHostViaBox(host: host)),
         if (up && host.inUse)
           SettingRow(key: const ValueKey('host-in-use'), icon: icon(Lucide.check), label: 'This app uses it', hint: const Text('To leave it, go back to Ghost Messaging\'s relay above, or switch it off.'))
+        else if (up && host.phone)
+          SettingRow(key: const ValueKey('host-use-not'), icon: icon(Lucide.info), label: 'Not for this app on a phone', hint: const Text(phoneNotHereWords))
+        else if (up && host.viaLink.kind != ViaKind.stays)
+          // Only once its public relay lets it stay (found in the second review, 2026-11-23: offered whatever it said).
+          SettingRow(key: const ValueKey('host-use-not'), icon: icon(Lucide.info), label: 'Not for this app yet', hint: const Text(hostedNotLinkedWords))
         else if (up)
           SettingRow(
             key: const ValueKey('host-use'),
@@ -219,6 +224,9 @@ void showRelayCode(BuildContext context, String address) {
 /// where it asks one. The person's yes, and the phrase they gave.
 Future<({bool yes, String? pass})> decideRelay(BuildContext context, String url, RelayCheck check, {String? from}) async {
   var yes = false;
+  // A relay hosted from an app is moved to only while it talks to other relays: its hello says so only while its
+  // public relay lets it stay (relay/lib/federation.dart, card).
+  final usable = !check.hosted || (check.relay?.fed ?? false);
   final pass = TextEditingController();
   final t = context.tokens;
   await showChoices(
@@ -227,14 +235,14 @@ Future<({bool yes, String? pass})> decideRelay(BuildContext context, String url,
     header: Padding(
       padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(2)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-        Text([movingWords(from ?? Net.instance.hubUrl), if (check.hosted) joinHostedWords, relayLimitsWords].join('\n\n'), key: const ValueKey('relay-words'), style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.4)),
+        Text([movingWords(from ?? Net.instance.hubUrl), if (check.hosted) joinHostedWords, if (url.startsWith('ws://')) lanSeenWords, if (!usable) hostedNotLinkedWords, relayLimitsWords].join('\n\n'), key: const ValueKey('relay-words'), style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.4)),
         if (check.asksPass) ...[
           SizedBox(height: t.space(3)),
           GlacierInput(key: const ValueKey('relay-pass'), controller: pass, type: GlacierInputType.password, placeholder: 'Its pass phrase', ariaLabel: 'The relay\'s pass phrase', autoCorrect: false, size: GlacierFieldSize.md),
         ],
       ]),
     ),
-    choices: [Choice('Use this relay', Lucide.check, () => yes = true, hint: check.asksPass ? 'It asks for a pass phrase: whoever runs it can give it to you.' : 'It answered as a Ghost Messaging relay.')],
+    choices: [if (usable) Choice('Use this relay', Lucide.check, () => yes = true, hint: check.asksPass ? 'It asks for a pass phrase: whoever runs it can give it to you.' : 'It answered as a Ghost Messaging relay.')],
   );
   final phrase = pass.text.trim();
   pass.dispose();

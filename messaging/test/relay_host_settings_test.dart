@@ -182,18 +182,21 @@ void main() {
     await done(tester);
   });
 
-  testWidgets('used for this app: asked first, saying what it means for the account\'s other devices and its friends; then this app is on it, in memory', (tester) async {
+  testWidgets('used for this app: offered once its public relay lets it stay, asked first, saying what it means for the account\'s other devices and its friends; then this app is on it, in memory', (tester) async {
     final state = AppState();
+    final public = (await tester.runAsync(PublicRelay.start))!;
+    Net.relayHostMaker = () => RelayHost(via: public.via, viaPlain: true, viaPorts: {public.port}, viaDial: public.viaDial, phone: false);
+    addTearDown(() => Net.relayHostMaker = makeRelayHost);
     await open(tester, state);
     final host = Net.instance.relayHost!;
     await tester.runAsync(() => host.setOn(true));
-    await until(tester, () => find.byKey(const ValueKey('host-use')).evaluate().isNotEmpty, 'the way to use it was never offered');
+    await until(tester, () => find.byKey(const ValueKey('host-use')).evaluate().isNotEmpty, 'the way to use it was never offered (${host.viaLink.kind})');
     await tap(tester, find.byKey(const ValueKey('host-use')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     final words = textOf(tester, const ValueKey('host-words'));
     expect(words, contains(movingWords(Net.defaultHub)));
-    expect(words, contains(moveHereWords('gogho.st')));
+    expect(words, contains(moveHereWords('127.0.0.1')));
     await tap(tester, find.text('Use it'));
     await until(tester, () => Net.instance.hubUrl == host.ownUrl, 'this app never moved onto it');
     await tester.pump();
@@ -218,6 +221,7 @@ void main() {
 
   testWidgets('a pass phrase set here is asked of everyone; and the relay picker asks for a hosted relay\'s, saying who sees what', (tester) async {
     final state = AppState();
+    final public = (await tester.runAsync(PublicRelay.start))!;
     await open(tester, state);
     final host = Net.instance.relayHost!;
     await tester.runAsync(() => host.setOn(true));
@@ -231,11 +235,12 @@ void main() {
     await tester.pump(const Duration(seconds: 6));
 
     // Someone else's relay, hosted from their app, on this network, asking a pass phrase.
-    final theirs = makeHost(Kept(), lan: true);
+    final theirs = makeHost(Kept(), lan: true, via: public.via, viaPlain: true, viaPorts: {public.port}, viaDial: public.viaDial);
     addTearDown(theirs.shutdown);
     await tester.runAsync(() async {
       await theirs.setOn(true);
       await theirs.setPass('their own phrase');
+      await waitFor(() => theirs.viaLink.kind == ViaKind.stays, 'their relay was never let stay: ${theirs.viaLink.kind}');
     });
     final url = theirs.lanUrls.single;
     await type(tester, find.byKey(const ValueKey('relay-address')), url);
@@ -269,6 +274,47 @@ void main() {
     expect(find.text(joinHostedWords), findsOneWidget);
     expect(textOf(tester, const ValueKey('relay-in-use')), 'A relay in someone\'s app: 127.0.0.1:${Uri.parse(url).port}');
     await tester.runAsync(() => Net.instance.want('test', false));
+    await done(tester);
+  });
+
+  testWidgets('not offered for this app until its public relay lets it stay, nor ever on a phone; a joiner isn\'t offered one that doesn\'t stay either (the second review, 2026-11-23)', (tester) async {
+    final state = AppState();
+    await open(tester, state);
+    final host = Net.instance.relayHost!;
+    // Under a test its public relay is never reached: refused.
+    await tester.runAsync(() => host.setOn(true));
+    await until(tester, () => find.byKey(const ValueKey('host-use-not')).evaluate().isNotEmpty, 'it never said why it can\'t be used yet');
+    expect(find.byKey(const ValueKey('host-use')), findsNothing);
+    expect(find.text(hostedNotLinkedWords), findsOneWidget);
+
+    // Someone else's on this network, not let stay: said why, and no way to move there.
+    final theirs = makeHost(Kept(), lan: true);
+    addTearDown(theirs.shutdown);
+    await tester.runAsync(() => theirs.setOn(true));
+    await type(tester, find.byKey(const ValueKey('relay-address')), theirs.lanUrls.single);
+    await tap(tester, find.byKey(const ValueKey('relay-check-and-use')));
+    await until(tester, () => find.byKey(const ValueKey('relay-words')).evaluate().isNotEmpty, '"Use this relay?" was never asked');
+    await tester.pump(const Duration(milliseconds: 300));
+    final words = textOf(tester, const ValueKey('relay-words'));
+    expect(words, contains(hostedNotLinkedWords));
+    expect(words, contains(lanSeenWords), reason: 'on a network address, what the network sees is said to the joiner too');
+    expect(find.text('Use this relay'), findsNothing);
+    Navigator.of(tester.element(find.byKey(const ValueKey('relay-words'))), rootNavigator: true).pop();
+    await tester.pump(const Duration(milliseconds: 300));
+    await done(tester);
+  });
+
+  testWidgets('on a phone, never offered for this app, and said why', (tester) async {
+    final state = AppState();
+    final public = (await tester.runAsync(PublicRelay.start))!;
+    Net.relayHostMaker = () => RelayHost(via: public.via, viaPlain: true, viaPorts: {public.port}, viaDial: public.viaDial, phone: true);
+    addTearDown(() => Net.relayHostMaker = makeRelayHost);
+    await open(tester, state);
+    final host = Net.instance.relayHost!;
+    await tester.runAsync(() => host.setOn(true));
+    await until(tester, () => host.viaLink.kind == ViaKind.stays && find.byKey(const ValueKey('host-use-not')).evaluate().isNotEmpty, 'it never said why not on a phone');
+    expect(find.text(phoneNotHereWords), findsOneWidget, reason: 'linked and let stay, still not on a phone');
+    expect(find.byKey(const ValueKey('host-use')), findsNothing);
     await done(tester);
   });
 }

@@ -54,6 +54,9 @@ abstract class RelayHosting implements Listenable {
   /// Whether people must give a pass phrase to use it.
   bool get hasPass;
 
+  /// Whether this is a phone, where it runs only while the app is in use: not offered for this app there.
+  bool get phone;
+
   /// How the link to [via] stands, said as [viaWords] says it.
   ViaLink get viaLink;
 

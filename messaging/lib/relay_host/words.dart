@@ -11,8 +11,17 @@ const hostOffHint = 'A relay of your own, the same one gogho.st runs, for you an
 /// What whoever runs a relay sees: said before it is switched on.
 const hostSeesWords = 'Whoever runs a relay sees which installs connect to it and when, and who sends to whom. Never what is said: everything is sealed on each device before it leaves. Running this one, that is you.';
 
-/// What someone joining a relay hosted from an app is told before they move to it.
-const joinHostedWords = 'This relay runs in someone\'s Ghost Messaging app. They see which installs connect to it and when, and who sends to whom, never what is said. It is up only while their app is open.';
+/// What someone joining a relay hosted from an app is told before they move to it, and while they are on it.
+const joinHostedWords = 'This relay runs in someone\'s Ghost Messaging app. They see which installs connect to it and when, and who sends to whom, never what is said. It is up only while their app is open. $keepsNoAccountsWords $closedPhoneWords';
+
+/// What a relay hosted from an app doesn't keep, and so what doesn't work while on it.
+const keepsNoAccountsWords = 'It keeps no accounts, usernames or invite words: while you are on it, adding a device, refreshing your backup, deleting your account and finding friends by username don\'t work.';
+
+/// What an Android phone can't do on a relay hosted from an app.
+const closedPhoneWords = 'On an Android phone, a closed app can\'t check it for new messages: they come when you open the app.';
+
+/// Said where a relay hosted from an app can't be moved to yet, its link to its public relay not standing.
+const hostedNotLinkedWords = 'It can\'t be used yet: until its public relay lets it stay linked, friends on other relays couldn\'t reach you there, nor you them.';
 
 /// How long it runs, on a phone or a computer.
 String hostRunsWords({required bool phone}) =>
@@ -47,9 +56,13 @@ const keptWords = 'Its folder keeps its key (so it keeps its name, and its peopl
 String signOutHostWords({required bool everything}) =>
     'It also stops the relay on this device and switches it off, and forgets its pass phrase: everyone on it sees their relay gone. Its folder (its key, where its people said they live) stays${everything ? ', unless you delete everything here' : ''}.';
 
-/// What moving this app onto its own relay means for the account's other devices and its friends, through [viaHost].
+/// What moving this app onto its own relay means for the account's other devices and its friends, through [viaHost]
+/// (offered only while [viaHost] lets it stay linked, and never on a phone).
 String moveHereWords(String viaHost) =>
-    'Your other devices stay on the relay they use until you move them too: until then they don\'t get what you send from here, nor this device what friends send them there. Friends are told you moved, and reach you here only once $viaHost links with relays hosted from an app, which it doesn\'t yet; meanwhile what they send waits on their relay, for up to a week, for when you are back there. People on this relay, on this network or over Direct, reach you at once.';
+    'Your other devices stay on the relay they use until you move them too: until then they don\'t get what you send from here, nor this device what friends send them there. Friends are told you moved, and reach you here through $viaHost. Until a friend\'s app has heard, what they send waits on their relay: about 200 messages at most, for up to three days, and lost if that relay restarts. If the link to $viaHost drops, what you send to friends elsewhere doesn\'t reach them until it is back. People on this relay, on this network or over Direct, reach you at once. $keepsNoAccountsWords';
+
+/// Said in "Use it for this app"'s place on a phone.
+const phoneNotHereWords = 'Not on a phone: it stops a minute after the app is put away, and a closed app can\'t check it for messages. Use it from a computer, where it runs while the app is open.';
 
 /// The pass phrase, set or not.
 const noPassWords = 'No pass phrase: anyone who has its address can use it.';

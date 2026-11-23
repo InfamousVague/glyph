@@ -123,6 +123,7 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
   final bool viaPlain;
 
   /// Whether this is a phone, where it runs only while the app is in use.
+  @override
   final bool phone;
 
   /// The public relay it stays linked to unless the person chose another: Ghost Messaging's own.
@@ -172,15 +173,30 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
     return app == null ? null : Directory('$app${PlatformInfo.pathSeparator}relay');
   }
 
-  /// This device's addresses on its local networks (IPv4, as the door listens), at most four.
+  /// This device's addresses on its local networks (IPv4, as the door listens), at most four: private ones on a network
+  /// of its own ([lanAddressOk]), never a phone's mobile data (found in the second review, 2026-11-23: it listed those).
   static Future<List<String>> lanAddresses() async {
     try {
       final all = await NetworkInterface.list(includeLoopback: false, type: InternetAddressType.IPv4);
-      return [for (final i in all) for (final a in i.addresses) if (!a.isLoopback && !a.isLinkLocal) a.address].take(4).toList();
+      return [for (final i in all) for (final a in i.addresses) if (lanAddressOk(i.name, a)) a.address].take(4).toList();
     } catch (_) {
       return const [];
     }
   }
+
+  /// Whether [a], on the network interface named [interface], is an address of a local network the door may be reached
+  /// at: a private IPv4 address (10/8, 172.16/12, 192.168/16), on an interface that isn't a phone's mobile data
+  /// (Android's rmnet, ccmni and pdp, and the clat and v4- ones made over them).
+  static bool lanAddressOk(String interface, InternetAddress a) {
+    if (a.type != InternetAddressType.IPv4 || a.isLoopback || a.isLinkLocal) return false;
+    final name = interface.toLowerCase();
+    if (const ['rmnet', 'ccmni', 'pdp', 'clat', 'v4-', 'wwan'].any(name.startsWith)) return false;
+    final b = a.rawAddress;
+    return b[0] == 10 || (b[0] == 172 && b[1] >= 16 && b[1] < 32) || (b[0] == 192 && b[1] == 168);
+  }
+
+  /// The addresses of this device the door takes connections at: those it lists ([lanUrls]).
+  Set<String> _doorAt = const {};
 
   Hub? _hub;
   Federation? _fed;
@@ -414,7 +430,7 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
     if (hub == null || _server != null) return;
     try {
       // Counted and timed at the door, before dart:io's server sees a byte ([LanDoor]).
-      final door = LanDoor(await ServerSocket.bind(_listenOn, port), most: doorMost, each: doorEach, wait: doorWait);
+      final door = LanDoor(await ServerSocket.bind(_listenOn, port), most: doorMost, each: doorEach, wait: doorWait, localOk: (a) => _doorAt.contains(a.address));
       final server = HttpServer.listenOn(door)..idleTimeout = doorWait;
       // Stopped while it was being opened.
       if (!identical(hub, _hub)) {
@@ -425,6 +441,7 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
       _lanDoor = door;
       server.listen((r) => unawaited(_door(r).catchError((Object _) {})), onError: (Object _) {});
       final found = await _addresses();
+      _doorAt = found.toSet();
       _lanUrls = [for (final a in found) lanHubUrl(a, server.port)];
       for (final url in _lanUrls) {
         hub.names.add(HubCarrier.hostOf(url));
@@ -581,6 +598,7 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
     if (!identical(hub, _hub) || !identical(server, _server)) return;
     final urls = [for (final a in found) lanHubUrl(a, server.port)];
     if (listEquals(urls, _lanUrls)) return;
+    _doorAt = found.toSet();
     _lanUrls = urls;
     // A sign-in bound to a new address is taken there; the old ones stay names of its, which nobody else is reached by.
     for (final url in urls) {

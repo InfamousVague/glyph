@@ -9,7 +9,10 @@ import 'package:ghost_messaging/net/hub_link.dart';
 import 'package:ghost_messaging/net/net.dart';
 import 'package:ghost_messaging/net/p2p/p2p.dart';
 import 'package:ghost_messaging/relay_host/relay_host_io.dart';
-import 'package:ghost_relay/federation.dart' show FedDial;
+import 'package:ghost_relay/fed_dial.dart' show connectPinned;
+import 'package:ghost_relay/federation.dart';
+import 'package:ghost_relay/hub.dart';
+import 'package:ghost_relay/relay.dart';
 
 import 'hub_pair.dart';
 
@@ -85,5 +88,31 @@ class OnHost {
   Future<void> up() async {
     await carrier.start();
     await waitFor(() => carrier.state.value == CarrierState.up, 'never signed in: ${carrier.problem}');
+  }
+}
+
+/// A public relay in this process, on this machine, that lets relays hosted from an app stay linked to it (GHOST_FED
+/// open, standing links open): what a hosted relay must be linked to before it is offered for use. [via] is its hub's
+/// address; [host] makes a hosted relay's settings for it ([viaPlain], [viaPorts], [viaDial]).
+class PublicRelay {
+  PublicRelay._(this.relay, this.port);
+  final Relay relay;
+  final int port;
+  String get via => 'ws://127.0.0.1:$port/hub';
+
+  /// A hosted relay's way to dial it.
+  Future<HubSocket> viaDial(Uri uri) => connectPinned(uri, InternetAddress.loopbackIPv4);
+
+  static Future<PublicRelay> start() async {
+    final probe = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final port = probe.port;
+    await probe.close();
+    final via = 'ws://127.0.0.1:$port/hub';
+    final fed = Federation(config: FedConfig(mode: FedMode.open, publicHub: via, standingOpen: true));
+    final relay = Relay(hub: Hub(federation: fed));
+    await relay.start(port: port);
+    final r = PublicRelay._(relay, port);
+    addTearDown(relay.stop);
+    return r;
   }
 }

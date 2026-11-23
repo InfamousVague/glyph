@@ -12,7 +12,7 @@ import 'dart:typed_data';
 /// timeout. Each held one of the app's file descriptors (a Mac app from the Dock has 256): one device on the network
 /// could take them all, and the app could then open no file.
 class LanDoor extends Stream<Socket> implements ServerSocket {
-  LanDoor(this._listening, {this.most = 64, this.each = 8, this.wait = const Duration(seconds: 5)});
+  LanDoor(this._listening, {this.most = 64, this.each = 8, this.wait = const Duration(seconds: 5), this.localOk});
 
   final ServerSocket _listening;
 
@@ -20,6 +20,10 @@ class LanDoor extends Stream<Socket> implements ServerSocket {
   /// finish its request.
   final int most, each;
   final Duration wait;
+
+  /// Whether a connection that came in at this device's address [local] is taken: the door listens on every address,
+  /// and takes only those its keeper's network is reached by (not a phone's mobile data). Null takes every one.
+  final bool Function(InternetAddress local)? localOk;
 
   final Set<_DoorSocket> _open = {};
   final Map<String, int> _from = {};
@@ -54,7 +58,13 @@ class LanDoor extends Stream<Socket> implements ServerSocket {
       return null;
     }
     final mine = _from[address] ?? 0;
-    if (_open.length >= most || mine >= each) {
+    bool atOkAddress;
+    try {
+      atOkAddress = localOk?.call(raw.address) ?? true;
+    } catch (_) {
+      atOkAddress = false;
+    }
+    if (_open.length >= most || mine >= each || !atOkAddress) {
       turnedAway++;
       raw.destroy();
       return null;
