@@ -222,10 +222,11 @@ pub unsafe extern "system" fn Java_com_infamousvague_ghostmessaging_P2pCore_nati
         // process ends: what iroh asks of both.
         unsafe {
             let mut vm: *mut jni_sys::JavaVM = std::ptr::null_mut();
-            if ((**env).GetJavaVM)(env, &mut vm) != jni_sys::JNI_OK || vm.is_null() {
+            // (Both calls are as old as JNI itself, which jni-sys files under the first version, 1.1.)
+            if ((**env).v1_1.GetJavaVM)(env, &mut vm) != jni_sys::JNI_OK || vm.is_null() {
                 return false;
             }
-            let global = ((**env).NewGlobalRef)(env, context);
+            let global = ((**env).v1_1.NewGlobalRef)(env, context);
             if global.is_null() {
                 return false;
             }

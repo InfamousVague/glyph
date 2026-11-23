@@ -731,6 +731,43 @@ async fn a_link_that_no_longer_answers_is_let_go_so_the_next_open_dials() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_node_that_links_again_replaces_its_earlier_link_and_an_open_under_way_goes_to_the_new_one() {
+    let mut b = Dev::new(35);
+    b.up().await;
+    let hint = b.here().await;
+    let peer = by_hand(36).await;
+    let peer_id = *peer.id().as_bytes();
+    b.node.allow(peer_id, only(&[0]));
+    let first = soon("a link", peer.connect(at(b.id, &hint), ALPN)).await.expect("a link");
+    b.path(peer_id, PathKind::Direct).await;
+    // This node opens a stream to the peer over the link the peer made, and the peer, which has the stream, never
+    // answers it.
+    b.node.open(7, peer_id, 0, Duration::from_secs(20), Hint::default());
+    let (_unanswered, mut asked) = soon("the stream", first.accept_bi()).await.expect("the stream");
+    let mut channel = [9u8; 1];
+    soon("its channel", asked.read_exact(&mut channel)).await.expect("its channel");
+    assert_eq!(channel, [0]);
+    // The peer links again (as a device does that has given a link up for lost). Its earlier link is let go here,
+    // with the code that says why; and the open, which was waiting on that link, is not failed by this node's own
+    // closing of it: it goes to the new link, where it is answered.
+    let second = soon("a second link", peer.connect(at(b.id, &hint), ALPN)).await.expect("a second link");
+    let (mut answer, mut asked) = soon("the stream, on the new link", second.accept_bi()).await.expect("the stream, on the new link");
+    soon("its channel", asked.read_exact(&mut channel)).await.expect("its channel");
+    answer.write_all(&[1]).await.unwrap();
+    match b.next("an answer to open", |e| matches!(e, Event::Opened { request: 7, .. } | Event::OpenFailed { request: 7, .. })).await {
+        Event::Opened { .. } => {}
+        other => panic!("the open was failed by the link being replaced under it: {other:?}"),
+    }
+    let ended = soon("the earlier link to be closed", first.closed()).await;
+    assert!(
+        matches!(&ended, iroh::endpoint::ConnectionError::ApplicationClosed(c) if c.error_code == iroh::endpoint::VarInt::from_u32(6)),
+        "{ended:?}"
+    );
+    assert!(second.close_reason().is_none());
+    soon("the peer's endpoint to close", peer.close()).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_node_dials_only_by_what_it_may_and_says_why_it_cannot() {
     let (mut a, b, _hint) = pair(23, 24).await;
     // Nothing known of where it is: said at once, not after the wait.
@@ -922,14 +959,17 @@ mod cost {
         a.came_up().await;
         while a.whereabouts().await.0.is_none() {}
         tokio::time::sleep(Duration::from_secs(5)).await;
-        let before = counted(&a).await;
+        let helper_saw = || (helper.metrics().server.got_ping.get(), helper.metrics().server.qad_connections.get());
+        let (before, saw_before) = (counted(&a).await, helper_saw());
         tokio::time::sleep(Duration::from_secs(60)).await;
-        let after = counted(&a).await;
+        let (after, saw_after) = (counted(&a).await, helper_saw());
         println!(
-            "COST on a link helper, no links, 60 s: QUIC sent {} bytes, received {} bytes in {} datagrams (the connection to the helper itself, a TLS stream, is not in these)",
+            "COST on a link helper, no links, 60 s: over UDP (finding its own address by the helper) sent {} bytes, received {} bytes in {} datagrams, in {} exchanges; and over the connection to the helper itself (TLS over TCP, not in those numbers) {} pings, each answered",
             after.0 - before.0,
             after.1 - before.1,
-            after.2 - before.2
+            after.2 - before.2,
+            saw_after.1 - saw_before.1,
+            saw_after.0 - saw_before.0
         );
         drop(helper);
     }

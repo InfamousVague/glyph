@@ -1057,30 +1057,51 @@ impl Run {
         let reached = AtomicUsize::new(0);
         let used: Mutex<Option<Arc<Link>>> = Mutex::new(None);
         let attempt = async {
-            let (link, fresh) = self.link_to(peer, &hint).await?;
-            if !fresh {
-                *lock(&used) = Some(link.clone());
-            }
-            let carried = link.carrying(true);
-            reached.store(1, Ordering::Relaxed);
-            let (mut send, mut recv) = link.conn.open_bi().await.map_err(|e| why_lost(&e))?;
-            reached.store(2, Ordering::Relaxed);
-            send.write_all(&[channel]).await.map_err(|e| match e {
-                WriteError::ConnectionLost(e) => why_lost(&e),
-                _ => (OpenError::Unreachable, "The link was lost.".to_string()),
-            })?;
-            let mut answer = [0u8; 1];
-            match recv.read_exact(&mut answer).await {
-                Ok(()) if answer[0] == ACCEPTED => Ok((link, carried, send, recv)),
-                Ok(()) => {
-                    turn_back(&mut send, &mut recv, code::BROKEN);
-                    Err((OpenError::Refused, "It answered what is no answer.".to_string()))
+            let mut tried_again = false;
+            loop {
+                let (link, fresh) = self.link_to(peer, &hint).await?;
+                *lock(&used) = (!fresh).then(|| link.clone());
+                let carried = link.carrying(true);
+                reached.store(1, Ordering::Relaxed);
+                // A link that was up when it was taken and that this node itself closed in the same moment (it had
+                // just been idle long enough, or the other node had just linked again) is no answer about the other
+                // node: once, the open goes round again, and dials or takes the newer link.
+                let gone = |e: &ConnectionError| !fresh && !tried_again && matches!(e, ConnectionError::LocallyClosed);
+                let (mut send, mut recv) = match link.conn.open_bi().await {
+                    Ok(halves) => halves,
+                    Err(e) if gone(&e) => {
+                        tried_again = true;
+                        continue;
+                    }
+                    Err(e) => return Err(why_lost(&e)),
+                };
+                reached.store(2, Ordering::Relaxed);
+                match send.write_all(&[channel]).await {
+                    Ok(()) => {}
+                    Err(WriteError::ConnectionLost(e)) if gone(&e) => {
+                        tried_again = true;
+                        continue;
+                    }
+                    Err(WriteError::ConnectionLost(e)) => return Err(why_lost(&e)),
+                    Err(_) => return Err((OpenError::Unreachable, "The link was lost.".to_string())),
                 }
-                Err(ReadExactError::ReadError(ReadError::Reset(code))) if code == VarInt::from_u32(code::REFUSED) => {
-                    Err((OpenError::Refused, "It does not take that channel from this device.".to_string()))
-                }
-                Err(ReadExactError::ReadError(ReadError::ConnectionLost(e))) => Err(why_lost(&e)),
-                Err(_) => Err((OpenError::Refused, "It closed the stream as it was opened.".to_string())),
+                let mut answer = [0u8; 1];
+                return match recv.read_exact(&mut answer).await {
+                    Ok(()) if answer[0] == ACCEPTED => Ok((link, carried, send, recv)),
+                    Ok(()) => {
+                        turn_back(&mut send, &mut recv, code::BROKEN);
+                        Err((OpenError::Refused, "It answered what is no answer.".to_string()))
+                    }
+                    Err(ReadExactError::ReadError(ReadError::Reset(code))) if code == VarInt::from_u32(code::REFUSED) => {
+                        Err((OpenError::Refused, "It does not take that channel from this device.".to_string()))
+                    }
+                    Err(ReadExactError::ReadError(ReadError::ConnectionLost(e))) if gone(&e) => {
+                        tried_again = true;
+                        continue;
+                    }
+                    Err(ReadExactError::ReadError(ReadError::ConnectionLost(e))) => Err(why_lost(&e)),
+                    Err(_) => Err((OpenError::Refused, "It closed the stream as it was opened.".to_string())),
+                };
             }
         };
         // What the attempt came to, or that the wait ran out, or that this node stopped. The attempt itself, and with
