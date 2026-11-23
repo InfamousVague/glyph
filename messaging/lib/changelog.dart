@@ -27,6 +27,7 @@ class ReleaseNotes {
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.12.20', '2026-11-23', [
     'Video in calls is squarer: on a computer every camera is shown 4:3, in every call layout, and the tiles grow to fill the window instead of coming out wide and short. A shared screen keeps its own shape.',
+    'Microphones and speakers: the one you choose in Settings › Voice and video, or from the call\'s own buttons, is now the one a call uses, from its start and when you switch in the middle of it. Before, on a Mac every call took the system\'s own whatever you chose, and Settings listed only that one until you had been in a call; on Android a chosen microphone was never used. Choosing "The system\'s own" again now goes back to it, a chosen device that isn\'t plugged in says so while the call uses the system\'s own, and on a Mac the ring and the app\'s other sounds play through the speaker you chose.',
   ]),
   ReleaseNotes('0.12.19', '2026-11-23', [
     'Sign-ins synced from the browser extension now reach your other devices: the relay\'s answers were never passed on, so no device signed in with what the extension synced, and synced plugins never ran either (thanks, Kevin).',
