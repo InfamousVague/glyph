@@ -159,7 +159,7 @@ class SpaceFile {
   /// the relay kept about 2 GB, a 26 GB film went up whole and was listed, and every device then passed over its entry
   /// (Matt, 2026-11-21: "it shows that I uploaded the odyssey but I don't see the file in the movies folder").
   /// 2^40 (a tebibyte), written out: `1 << 40` is 0 in a browser, where a shift keeps 32 bits, and every file would be
-  /// over it (test/web_build_test.dart).
+  /// over it (test/source_guards_test.dart).
   static const maxSize = 0x10000000000;
   static const maxThumb = 18 * 1024;
 

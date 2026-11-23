@@ -24,86 +24,125 @@ class _PageBrowser implements Browser {
     // Sealing what is kept (crypto.subtle) and the one-tab lock are given only to a page from a secure address:
     // https, or this computer itself.
     if (!web.window.isSecureContext) return 'Ghost Messaging needs a secure address to run in a browser: one that starts with https.';
+    // Without the browser's lock between tabs nothing makes sure the app is open in one tab at a time: two would both
+    // be this device to the relay, each taking the other's place, and both would write the one store, each over the
+    // other's conversations. Every browser of the last few years has it (Chrome and Edge 69, Firefox 96, Safari 15.4).
+    if (!(web.window.navigator as JSObject).has('locks') || !(web.window as JSObject).has('BroadcastChannel')) {
+      return 'This browser is too old for Ghost Messaging. It can\'t make sure the app is open in only one tab, which keeps each message from arriving twice and one tab from writing over another\'s conversations. A recent Chrome, Edge, Firefox or Safari can.';
+    }
     return null;
   }
 
   @override
   Future<BrowserStore> openStore() => _PageStore.open();
 
+  @override
+  Future<bool> keep() async {
+    try {
+      if (!(web.window.navigator as JSObject).has('storage')) return false;
+      final storage = web.window.navigator.storage;
+      if (!(storage as JSObject).has('persist')) return false;
+      return (await storage.persist().toDart).toDart;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // --- one tab at a time ---------------------------------------------------------------------------------------------
 
   /// What the tabs of one browser are all asking for, and where they speak to each other.
   static const _name = 'ghost-messaging-tab';
 
-  static web.LockManager? get _locks {
-    final n = web.window.navigator as JSObject;
-    return n.has('locks') ? web.window.navigator.locks : null;
-  }
-
-  static web.BroadcastChannel? _makeChannel() => (web.window as JSObject).has('BroadcastChannel') ? web.BroadcastChannel(_name) : null;
-
   web.BroadcastChannel? _channel;
+  web.BroadcastChannel get _talk => _channel ??= web.BroadcastChannel(_name);
+
+  /// This tab is the app's.
   bool _mine = false;
 
-  /// Hears the other tabs from now on: one asking who is here is answered, and one asking for the tab is given it
-  /// once [onAsked] is done.
-  void _hear(Future<void> Function() onAsked) {
-    final channel = _channel ??= _makeChannel();
-    if (channel == null) return;
+  /// Completing it lets the lock go.
+  Completer<JSAny?>? _held;
+
+  Future<void> Function()? _onAsked;
+  void Function()? _onTaken;
+
+  /// Hears the other tabs from now on: one asking for the tab is told at once that this one is letting go, and is
+  /// given it once [_onAsked] is done (the routes shut down, everything written): the lock is let go, then this page
+  /// starts again as the tab that isn't it.
+  void _hear() {
+    final channel = _talk;
     var going = false;
     channel.onmessage = ((web.MessageEvent e) {
-      final said = e.data.dartify();
-      if (!_mine) return;
-      if (said == 'who') {
-        channel.postMessage('here'.toJS);
-      } else if (said == 'yield' && !going) {
-        going = true;
-        // What is being written is finished first, then it is theirs: this page starts again, as the tab that isn't it.
-        onAsked().catchError((_) {}).whenComplete(() {
-          _mine = false;
-          channel.postMessage('yielded'.toJS);
-          reload();
-        });
-      }
+      if (!_mine || going || e.data.dartify() != 'yield') return;
+      going = true;
+      channel.postMessage('yielding'.toJS);
+      final asked = _onAsked;
+      // However long writing takes, the other tab waits (takeTab); ten seconds is far past any write, and a page that
+      // can't finish by then lets go all the same rather than hold the app away from the other for ever.
+      (asked == null ? Future<void>.value() : asked()).timeout(const Duration(seconds: 10), onTimeout: () {}).catchError((Object _) {}).whenComplete(() {
+        _mine = false;
+        _held?.complete(null);
+        channel.postMessage('yielded'.toJS);
+        reload();
+      });
     }).toJS;
   }
 
-  /// Waits [wait] for another tab to say [word].
-  Future<bool> _heard(String word, Duration wait, {String? after}) {
-    final channel = _channel ??= _makeChannel();
-    if (channel == null) return Future.value(false);
+  /// Waits [wait] for another tab to say one of [words], having said [after].
+  Future<bool> _heard(Set<String> words, Duration wait, {required String after}) {
+    final channel = _talk;
     final heard = Completer<bool>();
     void listener(web.Event e) {
-      if ((e as web.MessageEvent).data.dartify() == word && !heard.isCompleted) heard.complete(true);
+      if (words.contains((e as web.MessageEvent).data.dartify()) && !heard.isCompleted) heard.complete(true);
     }
 
     final js = listener.toJS;
     channel.addEventListener('message', js);
-    if (after != null) channel.postMessage(after.toJS);
+    channel.postMessage(after.toJS);
     return heard.future.timeout(wait, onTimeout: () => false).whenComplete(() => channel.removeEventListener('message', js));
   }
 
-  /// Asks the browser for the lock: only when it is free, or ([steal]) from whichever tab has it. True where this
-  /// tab has it now; it is kept until the page goes.
-  Future<bool> _lock({bool steal = false}) {
-    final locks = _locks!;
+  /// Asks the browser for the lock: only where it is free ([free]), waiting up to [within] for the tab that has it to
+  /// let go, or ([steal]) from whichever tab has it. True where this tab has it now; it is kept until [_held] is
+  /// completed or the page goes.
+  Future<bool> _lock({bool free = false, bool steal = false, Duration within = Duration.zero}) {
     final got = Completer<bool>();
-    final never = Completer<JSAny?>();
-    final asked = locks.request(
+    final held = Completer<JSAny?>();
+    Timer? giveUp;
+    final web.LockOptions options;
+    if (free) {
+      options = web.LockOptions(ifAvailable: true);
+    } else if (steal) {
+      options = web.LockOptions(steal: true);
+    } else {
+      final abort = web.AbortController();
+      giveUp = Timer(within, () => abort.abort());
+      options = web.LockOptions(signal: abort.signal);
+    }
+    final asked = web.window.navigator.locks.request(
       _name,
-      steal ? web.LockOptions(steal: true) : web.LockOptions(ifAvailable: true),
+      options,
       ((web.Lock? lock) {
-        if (!got.isCompleted) got.complete(lock != null);
-        // Held for as long as this is not done: until the page goes.
-        return lock == null ? null : never.future.toJS;
+        giveUp?.cancel();
+        if (lock == null) {
+          if (!got.isCompleted) got.complete(false);
+          return null;
+        }
+        if (!got.isCompleted) got.complete(true);
+        _held = held;
+        // Held for as long as this is not done.
+        return held.future.toJS;
       }).toJS,
     );
-    // Taken from this tab by another that did not wait to be answered: this page starts again, as the one that isn't it.
     asked.toDart.then((_) {}, onError: (Object _) {
+      giveUp?.cancel();
       if (!got.isCompleted) {
+        // The wait ran out.
         got.complete(false);
       } else if (_mine) {
+        // Taken from this tab by another that heard nothing from it in time: nothing more is written here, and this page
+        // starts again, as the one that isn't it.
         _mine = false;
+        _onTaken?.call();
         reload();
       }
     });
@@ -111,30 +150,59 @@ class _PageBrowser implements Browser {
   }
 
   @override
-  Future<TabHold?> holdTab({required Future<void> Function() onAsked}) async {
-    if (_locks != null) {
-      if (!await _lock()) return null;
-    } else if (await _heard('here', const Duration(milliseconds: 400), after: 'who')) {
-      // A browser without the lock: the tabs ask each other, and one that is the app answers.
-      return null;
+  Future<TabHold?> holdTab({required Future<void> Function() onAsked, void Function()? onTaken}) async {
+    _onAsked = onAsked;
+    _onTaken = onTaken;
+    if (!await _lock(free: true)) return null;
+    _mine = true;
+    _hear();
+    return _Held();
+  }
+
+  @override
+  Future<TabHold> takeTab({required Future<void> Function() onAsked, void Function()? onTaken}) async {
+    _onAsked = onAsked;
+    _onTaken = onTaken;
+    // Gone since this page said so: taken without asking anyone.
+    var got = await _lock(free: true);
+    if (!got) {
+      // Asked first: the tab that is it says so at once, shuts its routes down, writes what it has, and lets go, and
+      // this one waits for that, however long the writing takes. Taken from it only where it says nothing at all (it
+      // was closed, or the browser has put it to sleep and it isn't writing anything).
+      final answered = await _heard(const {'yielding', 'yielded'}, const Duration(milliseconds: 1500), after: 'yield');
+      if (answered) got = await _lock(within: const Duration(seconds: 15));
+      if (!got) got = await _lock(steal: true);
     }
     _mine = true;
-    _hear(onAsked);
+    _hear();
     return _Held();
   }
 
   @override
-  Future<TabHold> takeTab({required Future<void> Function() onAsked}) async {
-    // Asked first, so the tab that is it finishes what it is writing; taken all the same where it doesn't answer.
-    await _heard('yielded', const Duration(seconds: 2), after: 'yield');
-    if (_locks != null) await _lock(steal: true);
-    _mine = true;
-    _hear(onAsked);
-    return _Held();
+  void reload({String? note}) {
+    final here = web.window.location;
+    if (note != null && pageNotes.contains(note)) web.window.history.replaceState(null, '', '${here.pathname}${here.search}#$note');
+    here.reload();
   }
 
   @override
-  void reload() => web.window.location.reload();
+  String? takeNote() {
+    final here = web.window.location;
+    final hash = here.hash.startsWith('#') ? here.hash.substring(1) : here.hash;
+    if (!pageNotes.contains(hash)) return null;
+    web.window.history.replaceState(null, '', '${here.pathname}${here.search}');
+    return hash;
+  }
+
+  @override
+  void onVisible(void Function() then) {
+    web.document.addEventListener(
+      'visibilitychange',
+      ((web.Event _) {
+        if (web.document.visibilityState == 'visible') then();
+      }).toJS,
+    );
+  }
 
   @override
   bool openTab(String url) {
@@ -148,10 +216,18 @@ class _PageBrowser implements Browser {
 
 class _Held implements TabHold {}
 
-/// The page's own IndexedDB: one database, one store of named records. A plain value is its text; a sealed one is
-/// twelve random bytes and then AES-256-GCM's output under the key kept as [_keyName], its name bound in.
+/// The page's own IndexedDB: one database, one store of named records, every one sealed: twelve random bytes and then
+/// AES-256-GCM's output under the key kept as [_keyName], the record's name bound in. The key is made by the browser
+/// as not extractable, so the page's code can't read it out; what that is worth is said in lib/web/store.dart.
 class _PageStore implements BrowserStore {
-  _PageStore(this._db, this._key);
+  _PageStore(this._db, this._key) {
+    // Another page deleting the database (the app wiping it from the tab that is it): this connection goes, so the
+    // deletion isn't held up by it.
+    _db.onversionchange = ((web.Event _) {
+      _closed = true;
+      _db.close();
+    }).toJS;
+  }
 
   static const _dbName = 'ghost-messaging', _records = 'kept', _keyName = 'seal-key';
 
@@ -160,6 +236,12 @@ class _PageStore implements BrowserStore {
   /// Made by the browser as not extractable: `encrypt` and `decrypt` take it, and nothing gives its bytes.
   final web.CryptoKey _key;
 
+  /// Nothing more is written ([close]); and the database is gone ([wipe]).
+  bool _closed = false, _gone = false;
+
+  @override
+  void Function(String name)? onLost;
+
   static Future<_PageStore> open() async {
     final opening = web.window.indexedDB.open(_dbName, 1);
     opening.onupgradeneeded = ((web.Event _) {
@@ -167,14 +249,41 @@ class _PageStore implements BrowserStore {
       if (!db.objectStoreNames.contains(_records)) db.createObjectStore(_records);
     }).toJS;
     final db = (await _asked(opening)) as web.IDBDatabase;
-    var key = await _get(db, _keyName);
-    if (key == null || !key.isA<web.CryptoKey>()) {
-      key = await web.window.crypto.subtle
-          .generateKey(_object({'name': 'AES-GCM'.toJS, 'length': 256.toJS}), false, ['encrypt'.toJS, 'decrypt'.toJS].toJS)
-          .toDart;
-      await _put(db, _keyName, key);
+    return _PageStore(db, await _keyOf(db));
+  }
+
+  /// The store's key: the one kept, or, where there is none, one made now and kept, in one transaction, so two pages
+  /// opening the store at once end with the one key (one each was the way one page's records came to be sealed under
+  /// a key the next had replaced). The browser makes a key asynchronously, and a transaction ends once nothing is
+  /// asked of it, so a key is made first, and kept only where none is.
+  static Future<web.CryptoKey> _keyOf(web.IDBDatabase db) async {
+    final made = (await web.window.crypto.subtle
+        .generateKey(_object({'name': 'AES-GCM'.toJS, 'length': 256.toJS}), false, ['encrypt'.toJS, 'decrypt'.toJS].toJS)
+        .toDart) as web.CryptoKey;
+    final done = Completer<web.CryptoKey>();
+    final tx = db.transaction(_records.toJS, 'readwrite');
+    final store = tx.objectStore(_records);
+    web.CryptoKey? chosen;
+    final asked = store.get(_keyName.toJS);
+    asked.onsuccess = ((web.Event _) {
+      final had = asked.result;
+      if (had != null && had.isA<web.CryptoKey>()) {
+        chosen = had as web.CryptoKey;
+      } else {
+        chosen = made;
+        store.put(made, _keyName.toJS);
+      }
+    }).toJS;
+    tx.oncomplete = ((web.Event _) {
+      if (!done.isCompleted) done.complete(chosen!);
+    }).toJS;
+    void failed(web.Event _) {
+      if (!done.isCompleted) done.completeError(StateError('the browser\'s store: ${tx.error?.message ?? 'the key was not kept'}'));
     }
-    return _PageStore(db, key as web.CryptoKey);
+
+    tx.onerror = failed.toJS;
+    tx.onabort = failed.toJS;
+    return done.future;
   }
 
   static Future<JSAny?> _asked(web.IDBRequest request) {
@@ -186,10 +295,11 @@ class _PageStore implements BrowserStore {
 
   static Future<JSAny?> _get(web.IDBDatabase db, String name) => _asked(db.transaction(_records.toJS).objectStore(_records).get(name.toJS));
 
-  /// Done when the browser says the write is kept, not when it was asked for.
-  static Future<void> _write(web.IDBDatabase db, void Function(web.IDBObjectStore store) change) {
+  /// Done when the browser says the write is kept, not when it was asked for. Nothing once the store is closed.
+  Future<void> _write(void Function(web.IDBObjectStore store) change) {
+    if (_closed) return Future.value();
     final done = Completer<void>();
-    final tx = db.transaction(_records.toJS, 'readwrite');
+    final tx = _db.transaction(_records.toJS, 'readwrite');
     tx.oncomplete = ((web.Event _) => done.complete()).toJS;
     void failed(web.Event _) {
       if (!done.isCompleted) done.completeError(StateError('the browser\'s store: ${tx.error?.message ?? 'the write was not kept'}'));
@@ -201,19 +311,15 @@ class _PageStore implements BrowserStore {
     return done.future;
   }
 
-  static Future<void> _put(web.IDBDatabase db, String name, JSAny? value) => _write(db, (s) => s.put(value, name.toJS));
-
   @override
-  Future<String?> read(String name) async {
+  Future<String?> readPlain(String name) async {
+    if (_gone) return null;
     final got = await _get(_db, name);
     return got != null && got.isA<JSString>() ? (got as JSString).toDart : null;
   }
 
   @override
-  Future<void> write(String name, String value) => _put(_db, name, value.toJS);
-
-  @override
-  Future<void> delete(String name) => _write(_db, (s) => s.delete(name.toJS));
+  Future<void> delete(String name) => _write((s) => s.delete(name.toJS));
 
   /// AES-GCM under [nonce], with the record's own name bound in: one record's bytes put under another name don't open.
   static JSObject _params(Uint8List nonce, String name) =>
@@ -228,12 +334,13 @@ class _PageStore implements BrowserStore {
 
   @override
   Future<void> writeSealed(String name, String value) async {
+    if (_closed) return;
     final filled = _random(12);
     final sealed = (await web.window.crypto.subtle.encrypt(_params(filled, name), _key, Uint8List.fromList(utf8.encode(value)).toJS).toDart) as JSArrayBuffer;
     final out = Uint8List(12 + sealed.toDart.lengthInBytes)
       ..setRange(0, 12, filled)
       ..setRange(12, 12 + sealed.toDart.lengthInBytes, sealed.toDart.asUint8List());
-    await _put(_db, name, out.toJS);
+    await _write((s) => s.put(out.toJS, name.toJS));
   }
 
   /// [n] bytes from the browser's own random. Read back from what JavaScript filled: a list handed over may be a
@@ -244,18 +351,59 @@ class _PageStore implements BrowserStore {
     return js.toDart;
   }
 
+  Never _lost(String name) {
+    onLost?.call(name);
+    throw BrowserStoreLost(name);
+  }
+
   @override
   Future<String?> readSealed(String name) async {
+    if (_gone) return null;
     final got = await _get(_db, name);
-    if (got == null || !got.isA<JSUint8Array>()) return null;
+    if (got == null) return null;
+    if (!got.isA<JSUint8Array>()) _lost(name);
     final bytes = (got as JSUint8Array).toDart;
-    if (bytes.length < 12 + 16) return null;
+    if (bytes.length < 12 + 16) _lost(name);
+    final JSArrayBuffer clear;
     try {
-      final clear = (await web.window.crypto.subtle.decrypt(_params(Uint8List.sublistView(bytes, 0, 12), name), _key, Uint8List.sublistView(bytes, 12).toJS).toDart) as JSArrayBuffer;
-      return utf8.decode(clear.toDart.asUint8List());
+      clear = (await web.window.crypto.subtle.decrypt(_params(Uint8List.sublistView(bytes, 0, 12), name), _key, Uint8List.sublistView(bytes, 12).toJS).toDart) as JSArrayBuffer;
     } catch (_) {
-      // Sealed with another key (the browser's store cleared in part), or changed: nothing is kept there.
-      return null;
+      // Sealed under another key, or changed: what this page kept can't be trusted, nor anything beside it.
+      _lost(name);
     }
+    return utf8.decode(clear.toDart.asUint8List());
   }
+
+  @override
+  Future<void> wipe() async {
+    _closed = true;
+    _gone = true;
+    // This page's own connection first, or the deletion would wait on it.
+    _db.close();
+    final asked = web.window.indexedDB.deleteDatabase(_dbName);
+    final done = Completer<void>();
+    asked.onsuccess = ((web.Event _) {
+      if (!done.isCompleted) done.complete();
+    }).toJS;
+    asked.onerror = ((web.Event _) {
+      if (!done.isCompleted) done.completeError(StateError('the browser\'s store: ${asked.error?.message ?? 'it was not deleted'}'));
+    }).toJS;
+    // Held up by a connection in another page (one that has not let go yet): that page is told (versionchange) and
+    // closes its own, and the deletion goes on. Waited for, so the page doesn't start again with the database there.
+    await done.future.timeout(const Duration(seconds: 15), onTimeout: () {});
+    // And the browser told, by the page's own address, to clear everything it keeps for it (relay/lib/web_app.dart,
+    // app.gogho.st's block: `Clear-Site-Data: "storage"`, answered only where the browser says the asking came from
+    // this very page, `Sec-Fetch-Site: same-origin`, which its fetch says by itself): Chromium leaves a deleted
+    // database's bytes, its key among them, in the profile's files until it next tidies them, and this takes them away.
+    // A server that doesn't answer it leaves them; what the app says of that is in lib/web/store.dart.
+    try {
+      await web.window
+          .fetch('clear-site-data'.toJS, web.RequestInit(method: 'GET', cache: 'no-store', credentials: 'same-origin'))
+          .toDart
+          .timeout(const Duration(seconds: 10));
+    } catch (_) {}
+  }
+
+  @override
+  void close() => _closed = true;
 }

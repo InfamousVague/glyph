@@ -233,6 +233,9 @@ class Net extends ChangeNotifier implements PeerBook {
     _push = value;
     _hub?.push = value;
   }
+
+  /// What [setPush] was last given.
+  Map<String, Object?>? get push => _push;
   SmsCarrier? get sms => _sms;
   List<Peer> get people => _peers.values.toList();
   bool get on => _app?.flag('net_on') ?? true;

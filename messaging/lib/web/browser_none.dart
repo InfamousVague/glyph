@@ -17,11 +17,17 @@ class _NoBrowser implements Browser {
   @override
   Future<BrowserStore> openStore() => _none();
   @override
-  Future<TabHold?> holdTab({required Future<void> Function() onAsked}) => _none();
+  Future<bool> keep() => _none();
   @override
-  Future<TabHold> takeTab({required Future<void> Function() onAsked}) => _none();
+  Future<TabHold?> holdTab({required Future<void> Function() onAsked, void Function()? onTaken}) => _none();
   @override
-  void reload() => _none();
+  Future<TabHold> takeTab({required Future<void> Function() onAsked, void Function()? onTaken}) => _none();
+  @override
+  void reload({String? note}) => _none();
+  @override
+  String? takeNote() => _none();
   @override
   bool openTab(String url) => _none();
+  @override
+  void onVisible(void Function() then) => _none();
 }

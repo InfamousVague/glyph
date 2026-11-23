@@ -85,6 +85,77 @@ void main() {
     expect([for (final m in (await back.invokeMethod<List>('messages', {'thread': bee, 'limit': 50}))!) (m as Map)['body']], ['second', 'first']);
   });
 
+  // lib/account/account.dart: signed out with everything deleted, or removed from the account from another device, an
+  // iPhone or a computer of its own deletes everything of it: an honest client stops being the account.
+  test('wiped: the conversations, who it is and every secret gone; a note kept for the welcome; nothing written after', () async {
+    final a = await install('a');
+    final before = (await a.invokeMethod<Map>('netIdentity'))!['id'];
+    await a.invokeMethod('netTextIn', {'address': '@bee', 'body': 'a canary nobody else wrote', 'at': 1000});
+    await a.invokeMethod('setPref', {'key': 'circles_joined_at', 'value': '{"${'5e' * 32}":1}'});
+    await a.invokeMethod('secretKeep', {'name': 'account_words', 'value': 'twelve words'});
+    await a.invokeMethod('secretKeep', {'name': 'circle_keys', 'value': 'keys'});
+    await a.flushed();
+    final dir = Directory('${root.path}/a');
+    expect(File('${dir.path}/secret-names.json').readAsStringSync(), allOf(contains('account_words'), contains('circle_keys')));
+    // Something else of the app's in the same folder (on an iPhone it is Application Support) is left alone.
+    File('${dir.path}/pairing.json').writeAsStringSync('{}');
+    await a.invokeMethod('wipeHere', {'note': 'removed'});
+    expect(dir.listSync().map((e) => e.uri.pathSegments.last).toSet(), {'standalone.json', 'pairing.json'});
+    expect(jsonDecode(File('${dir.path}/standalone.json').readAsStringSync()), {
+      'prefs': {StandaloneCalls.noteKey: 'removed'},
+    });
+    // Nothing asked after it is written: the app is about to start again.
+    await a.invokeMethod('netTextIn', {'address': '@bee', 'body': 'after', 'at': 2000});
+    await a.invokeMethod('secretKeep', {'name': 'circle_keys', 'value': 'again'});
+    await a.flushed();
+    expect(File('${dir.path}/secret-circle_keys.key').existsSync(), isFalse);
+    expect(File('${dir.path}/standalone.json').readAsStringSync(), isNot(contains('after')));
+    // Started again: someone new, nothing of before, the note for the welcome.
+    final again = await install('a');
+    expect((await again.invokeMethod<Map>('netIdentity'))!['id'], isNot(before));
+    expect(await again.invokeMethod<List>('conversations'), isEmpty);
+    expect(await again.invokeMethod('secretRead', {'name': 'account_words'}), isNull);
+    expect((await again.invokeMethod<Map>('prefs'))!, {StandaloneCalls.noteKey: 'removed'});
+  });
+
+  // The second review: a read that failed at start was taken for "nothing kept", and the first write after replaced
+  // the real conversations. What can't be read is not started on; what makes no sense is kept aside, never written over.
+  test('what can\'t be read just now is not started on, and nothing is written over it', () async {
+    final dir = Directory('${root.path}/a')..createSync(recursive: true);
+    // The JSON is there, and can't be read just now (here: not readable by this user).
+    final json = File('${dir.path}/standalone.json')..writeAsStringSync('{"prefs":{"theme":"dark"},"buddies":"[]"}');
+    Process.runSync('chmod', ['000', json.path]);
+    addTearDown(() => Process.runSync('chmod', ['644', json.path]));
+    final c = StandaloneCalls(dir, keychain: false);
+    await expectLater(c.loadAgain(tries: 2, apart: Duration.zero), throwsA(isA<FileSystemException>()));
+    Process.runSync('chmod', ['644', json.path]);
+    expect(json.readAsStringSync(), '{"prefs":{"theme":"dark"},"buddies":"[]"}', reason: 'left as it was');
+    expect(File('${dir.path}/identity.key').existsSync(), isFalse, reason: 'no one new made in its place');
+  });
+
+  test('what was read and makes no sense is kept aside, and the app starts without writing over it', () async {
+    final a = await install('a');
+    await a.invokeMethod('netTextIn', {'address': '@bee', 'body': 'kept', 'at': 1000});
+    await a.flushed();
+    final dir = Directory('${root.path}/a');
+    File('${dir.path}/standalone.json').writeAsStringSync('{"prefs": {"theme": "da');
+    final again = await install('a');
+    expect(await again.invokeMethod<List>('conversations'), isEmpty);
+    final aside = [for (final f in dir.listSync().whereType<File>()) if (f.path.contains('standalone.json.unreadable-')) f];
+    expect(aside, hasLength(1));
+    expect(aside.single.readAsStringSync(), '{"prefs": {"theme": "da');
+    // Written after: the JSON anew, the one kept aside untouched.
+    await again.invokeMethod('setPref', {'key': 'theme', 'value': 'dark'});
+    await again.flushed();
+    expect(aside.single.readAsStringSync(), '{"prefs": {"theme": "da');
+    // Who it is was read as ever.
+    expect((await again.invokeMethod<Map>('netIdentity'))!['id'], (await a.invokeMethod<Map>('netIdentity'))!['id']);
+    // Everything of the person's deleted (signed out, or removed) takes the copy kept aside too (third review); only
+    // the welcome's note is written after.
+    await again.invokeMethod('wipeHere', {'note': 'signed-out'});
+    expect([for (final f in dir.listSync().whereType<File>()) if (f.path.contains('unreadable')) f.uri.pathSegments.last], isEmpty);
+  });
+
   test('where it lives: Application Support beside tmp, not inside it (iOS gives the app no HOME)', () {
     final dir = StandaloneCalls.defaultDir().path;
     expect(dir, endsWith('/Library/Application Support/Ghost Messaging'));

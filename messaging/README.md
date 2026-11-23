@@ -30,6 +30,15 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **A removed device stops being the account, on the account's own word; the app in a browser** (not released; the
+  `web` branch, with its three reviews). A device removed from Settings › Me › Signed in on these devices is handed the
+  account's signed removal by the relay (`relay/lib/accounts.dart`, kept through every backup brought up to date) and,
+  having checked it, deletes everything of the account if it is an iPhone, a computer of its own or a browser
+  (`lib/account/account.dart` `check`); an Android phone, or a computer linked to one, forgets the account's words and
+  keys as before. **Release order: deploy the relay first** (`node tool/deploy-relay.mjs`, with
+  `GHOST_APP_ORIGIN=https://app.gogho.st` in its env), then the apps: a relay from before keeps no removals, and under it
+  a removed iPhone or computer only forgets the words and keys, as the release before did. app.gogho.st then needs its
+  DNS record and `node tool/deploy-site.mjs --caddy --app build/web-app` (`docs/OPEN_NETWORK.md`, part 6).
 - **A saved recording opens in the mixer** (0.11.8, not released; Matt, 2026-11-21: "I'd like to be able to open
   recordings saved from calls in the multi track view with the mixer"). Recordings › a recording › Open in the mixer:
   lib/voice/recording_playback.dart decodes each person's track to 48 kHz mono on the device (ghost/scribe `decode`,

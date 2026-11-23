@@ -83,6 +83,65 @@ void main() {
     expect(page.headers.keys.where((h) => h.startsWith('access-control-')), isEmpty);
   });
 
+  // The list both of the app's addresses are held to (the app's tool/web/headers.json): app.gogho.st's block in
+  // tool/deploy-site.mjs (test/web_build_test.dart), and this.
+  test('every answer says what the app may do: the page\'s own policy as a header, the worker\'s too, and the rest of the list', () async {
+    final list = jsonDecode(File('../tool/web/headers.json').readAsStringSync()) as Map;
+    const policy = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' wss://hub.example/hub; base-uri 'self'";
+    File('${web.path}/index.html').writeAsStringSync('<!DOCTYPE html><head><meta http-equiv="Content-Security-Policy" content="$policy"></head><title>Ghost Messaging</title>');
+    File('${web.path}/argon2id.js').writeAsStringSync('self.onmessage = () => {};');
+    final expected = {...(list['every'] as Map).cast<String, String>(), 'Content-Security-Policy': '$policy; ${list['frameAncestors']}'};
+    for (final (path, status) in const [('/app/', 200), ('/app/argon2id.js', 200), ('/app/main.dart.3f9a1c2b.js', 200), ('/app/nothing-here.js', 404)]) {
+      final got = await raw(path);
+      expect(got.status, status, reason: path);
+      for (final e in expected.entries) {
+        expect(got.headers[e.key.toLowerCase()], e.value, reason: '$path: ${e.key}');
+      }
+    }
+    // Refused, it says the same.
+    final refused = await raw('/app/', method: 'POST', headers: {'Content-Length': '0'});
+    expect(refused.headers['content-security-policy'], expected['Content-Security-Policy']);
+    // The cache's words are the list's.
+    expect((await raw('/app/')).headers['cache-control'], (list['cache'] as Map)['plain']);
+    expect((await raw('/app/main.dart.3f9a1c2b.js')).headers['cache-control'], (list['cache'] as Map)['hashed']);
+    // HSTS is app.gogho.st's: a relay's server in front of it says its own.
+    expect((await raw('/app/')).headers.containsKey('strict-transport-security'), isFalse);
+    // A page whose policy changes (another build) is read again; one with none is held to the relay's own.
+    File('${web.path}/index.html').writeAsStringSync('<!DOCTYPE html><head><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; connect-src \'self\'"></head><p>a longer page than before</p>');
+    expect((await raw('/app/')).headers['content-security-policy'], "default-src 'none'; connect-src 'self'; frame-ancestors 'none'");
+    File('${web.path}/index.html').writeAsStringSync('<!DOCTYPE html><title>No policy here at all, and longer again than both</title>');
+    expect((await raw('/app/argon2id.js')).headers['content-security-policy'], "${WebApp.fallbackPolicy}; frame-ancestors 'none'");
+  });
+
+  // What the page asks for as it signs out or is removed (the app's lib/web/browser_web.dart): the browser told to clear
+  // everything this address keeps, which in Chromium takes a deleted store's bytes off the disk too.
+  test('/app/clear-site-data tells the browser to clear what this address keeps, and nothing else', () async {
+    final got = await raw('/app/clear-site-data', headers: {'Sec-Fetch-Site': 'same-origin'});
+    expect(got.status, 204);
+    expect(got.headers['clear-site-data'], '"storage"');
+    expect(got.headers['cache-control'], 'no-store');
+    expect(got.body, isEmpty);
+    // With the app's own headers, as every answer here.
+    expect(got.headers['x-frame-options'], 'DENY');
+    expect(got.headers['content-security-policy'], endsWith("frame-ancestors 'none'"));
+    // Nowhere else: no file of the folder clears anything.
+    for (final path in ['/app/', '/app/main.dart.js', '/app/nothing-here.js']) {
+      expect((await raw(path)).headers.containsKey('clear-site-data'), isFalse, reason: path);
+    }
+    expect((await raw('/app/clear-site-data', method: 'POST', headers: {'Content-Length': '0', 'Sec-Fetch-Site': 'same-origin'})).status, 405);
+  });
+
+  // Third review, A2: another site sending the browser to it (a link, a redirect, a picture) cleared the app's store in
+  // Chromium and WebKit. Only the page's own fetch is answered; anything else is a file that isn't here.
+  test('/app/clear-site-data answers only the page itself: from anywhere else it is not here', () async {
+    for (final from in [null, 'cross-site', 'same-site', 'none', 'SAME-ORIGIN ', '']) {
+      final got = await raw('/app/clear-site-data', headers: {'Sec-Fetch-Site': ?from});
+      expect(got.status, 404, reason: '$from');
+      expect(got.headers.containsKey('clear-site-data'), isFalse, reason: '$from');
+    }
+    expect((await raw('/app/clear-site-data', headers: {'Sec-Fetch-Site': 'same-origin'})).headers['clear-site-data'], '"storage"');
+  });
+
   test('each file is said to be what it is', () async {
     for (final (path, type) in const [
       ('/app/main.dart.js', 'text/javascript; charset=utf-8'),

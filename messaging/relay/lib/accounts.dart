@@ -44,12 +44,17 @@ class Accounts {
   final DateTime Function() _now;
 
   /// What this answers.
-  static const dirs = {'acct-put', 'acct-find', 'acct-text', 'acct-get', 'acct-seed', 'acct-devices', 'acct-hello', 'acct-delete'};
+  static const dirs = {'acct-put', 'acct-find', 'acct-text', 'acct-get', 'acct-seed', 'acct-devices', 'acct-hello', 'acct-leave', 'acct-delete'};
 
   /// A sealed blob as the app makes it: the backup is a few hundred bytes, friends and circles gzipped beside it.
   static const maxBlob = 64 * 1024;
   static const maxAccounts = 200000;
   static const maxDevices = 20;
+
+  /// The most an `acct-devices` body may be: the app's are a couple of hundred bytes (a device's number, a name of 60
+  /// letters at most, a platform). Each removal's body is kept ([acct-devices], `gone`), so this bounds what one account
+  /// can make the server keep: [maxDevices] of them.
+  static const maxDevicesBody = 2048;
   static const skew = Duration(minutes: 10);
 
   /// Lookups by username, and blobs handed over, per connection and per account, in an hour.
@@ -89,9 +94,22 @@ class Accounts {
   final Map<String, DateTime> _used = {};
 
   int _bytes = 0;
-  static int _sizeOf(Map<String, Object?> a) => ((a['pw'] as String?)?.length ?? 0) + ((a['seed'] as String?)?.length ?? 0);
+
+  /// What an account costs of [maxBytes]: its two blobs, and the removals kept for its devices (`gone`).
+  static int _sizeOf(Map<String, Object?> a) => ((a['pw'] as String?)?.length ?? 0) + ((a['seed'] as String?)?.length ?? 0) + _goneSize(a['gone']);
+  static int _goneSize(Object? gone) {
+    if (gone is! Map) return 0;
+    var n = 0;
+    for (final g in gone.values) {
+      if (g is Map) n += ((g['body'] as String?)?.length ?? 0) + ((g['sig'] as String?)?.length ?? 0);
+    }
+    return n;
+  }
 
   int get count => _accounts.length;
+
+  /// What the accounts kept cost of [maxBytes] now: their blobs and their removals.
+  int get bytesKept => _bytes;
 
   /// The address of [id]'s account, or null.
   String? accountOf(String id) => _byId[id];
@@ -105,19 +123,31 @@ class Accounts {
   File? get _file => dataDir == null ? null : File('${dataDir!.path}/accounts.json');
   bool _dirty = false;
 
+  /// accounts.json is there and could not be read ([load]): nothing about any account is answered, and nothing is
+  /// written over the file, until it is put right and the relay started again. Answered, every device would hear it
+  /// was on no account (`acct-hello`'s `known: false`), and a write would replace every account with the few made since.
+  bool get unreadable => _unreadable;
+  bool _unreadable = false;
+
   void load() {
     final f = _file;
     if (f == null || !f.existsSync()) return;
     try {
       final all = (jsonDecode(f.readAsStringSync()) as Map)['accounts'] as Map;
+      final read = <String, Map<String, Object?>>{};
       for (final e in all.entries) {
         final a = (e.value as Map).cast<String, Object?>();
-        _accounts[e.key as String] = a;
-        _byId[a['id'] as String] = e.key as String;
-        _bytes += _sizeOf(a);
+        if (a['id'] is! String) throw const FormatException('an account with no identity');
+        read[e.key as String] = a;
+      }
+      for (final e in read.entries) {
+        _accounts[e.key] = e.value;
+        _byId[e.value['id'] as String] = e.key;
+        _bytes += _sizeOf(e.value);
       }
     } catch (e) {
-      stderr.writeln('accounts.json could not be read: $e');
+      _unreadable = true;
+      stderr.writeln('accounts.json could not be read ($e): accounts are not answered, and the file is not written, until it is put right and the relay started again.');
     }
   }
 
@@ -125,7 +155,7 @@ class Accounts {
   /// since an account's blobs are not to be lost to a restart).
   void save() {
     final f = _file;
-    if (f == null || !_dirty) return;
+    if (f == null || !_dirty || _unreadable) return;
     try {
       f.parent.createSync(recursive: true);
       final tmp = File('${f.path}.tmp')..writeAsStringSync(jsonEncode({'v': 1, 'accounts': _accounts}));
@@ -238,6 +268,8 @@ class Accounts {
     final dir = said['dir'];
     void err(String why) => tell({'dir': 'err', 'about': dir, 'err': why});
     final now = _now();
+    // What this server kept of its accounts can't be read: it says so, and not that an account or a device isn't here.
+    if (_unreadable) return err('This server can\'t read the accounts it keeps just now. Nothing has been changed: try again later.');
     try {
       switch (dir) {
         case 'acct-put':
@@ -265,10 +297,7 @@ class Accounts {
           if (had != null && had['id'] != identity) return err('That account belongs to another Ghost identity.');
           final other = _byId[identity];
           if (other != null && other != address) return err('This Ghost identity already has an account.');
-          final grows = pw.length + seed.length - (had == null ? 0 : _sizeOf(had));
-          if ((had == null && _accounts.length >= maxAccounts) || _bytes + grows > maxBytes) return err('No more accounts can be made on this server just now.');
-          _bytes += grows;
-          _accounts[address] = {
+          final record = <String, Object?>{
             'id': identity,
             'key': base64Encode(key),
             'bind': base64Encode(bind),
@@ -277,7 +306,15 @@ class Accounts {
             'seed': seed,
             'at': (had?['at'] as String?) ?? now.toUtc().toIso8601String().substring(0, 10),
             'devices': had?['devices'] ?? <Object?>[],
+            // The account's signed removals, kept through every backup brought up to date: every signed-in device does
+            // that once a day, and a removed device asking after it was handed nothing to check, so it stayed the account
+            // (third review, M1).
+            if (had?['gone'] != null) 'gone': had!['gone'],
           };
+          final grows = _sizeOf(record) - (had == null ? 0 : _sizeOf(had));
+          if ((had == null && _accounts.length >= maxAccounts) || _bytes + grows > maxBytes) return err('No more accounts can be made on this server just now.');
+          _bytes += grows;
+          _accounts[address] = record;
           _byId[identity] = address;
           _changed();
           _say('${address.substring(0, 8)} ${had == null ? 'made' : 'resealed'}');
@@ -344,6 +381,7 @@ class Accounts {
         case 'acct-devices':
           // The devices signed in to the account: listed, one added (the device signing in), or one removed.
           if (!_room(_writes, id, now, writesAnHour)) return err('Too many changes this hour. Try again later.');
+          if (said['body'] is String && (said['body'] as String).length > maxDevicesBody) return err('That is too long.');
           final (body, why) = _signed(said, 'devices', id);
           if (body == null) return err(why!);
           final address = (body['a'] as String).toLowerCase();
@@ -359,9 +397,33 @@ class Accounts {
             final day = now.toUtc().toIso8601String().substring(0, 10);
             list.add({'d': d, 'n': _short(add['n'], 60), 'p': _short(add['p'], 20), 'at': day, 'seen': day});
           }
+          // A device taken off the list: the account's own signed words for it are kept, and handed to that device when it
+          // next asks (`acct-hello`), so it can see for itself that the account removed it before it deletes anything.
+          // A relay that has no such account, or lost what it kept, or another relay altogether, has no such words, and
+          // a device of its own deletes nothing on its say (the app's lib/account/account.dart). The newest [maxDevices]
+          // are kept; a device added again has its own taken away.
+          final gone = {...((a['gone'] as Map?) ?? const {}).cast<String, Object?>()};
+          if (add is Map) gone.remove(add['d']);
+          if (remove is String && list.any((x) => x['d'] == remove)) {
+            gone.remove(remove);
+            final proof = {'body': said['body'], 'sig': said['sig']};
+            // Counted in [maxBytes] with the account's blobs. Where the server is full the device is still taken off the
+            // list, and its removal not kept: it then does what a removed device did before removals were kept.
+            if (_bytes + _goneSize({remove: proof}) <= maxBytes) gone[remove] = proof;
+            while (gone.length > maxDevices) {
+              gone.remove(gone.keys.first);
+            }
+          }
           if (remove is String) list.removeWhere((x) => x['d'] == remove);
           if (add is Map || remove is String) {
+            final before = _sizeOf(a);
             a['devices'] = list;
+            if (gone.isEmpty) {
+              a.remove('gone');
+            } else {
+              a['gone'] = gone;
+            }
+            _bytes += _sizeOf(a) - before;
             _changed();
           }
           tell({'dir': 'acct-devices', 'a': address, 'list': list});
@@ -379,7 +441,27 @@ class Accounts {
               _dirty = true;
             }
           }
-          tell({'dir': 'acct-hello', 'a': address, 'known': mine != null, 'account': _accounts.containsKey(address)});
+          // Removed by the account: its signed words for this device go with the answer ([acct-devices] keeps them).
+          final gone = _accounts[address]?['gone'];
+          final proof = mine == null && gone is Map ? gone[d] : null;
+          tell({'dir': 'acct-hello', 'a': address, 'known': mine != null, 'account': _accounts.containsKey(address), if (proof != null) 'removed': proof});
+        case 'acct-leave':
+          // A device taking itself off the account's list as it signs out: a page in a browser, which keeps no account
+          // key to sign with (the app's lib/account/account.dart). No signature, as for `acct-hello`: the device's own
+          // number is 128 random bits only it, the account's devices and this server know, and each of those can take
+          // it off the list with the account's key anyway. It takes off that one device and nothing else.
+          if (!_room(_writes, id, now, writesAnHour)) return err('Too many changes this hour. Try again later.');
+          final address = said['a'] is String ? (said['a'] as String).toLowerCase() : '';
+          final d = said['d'];
+          final list = _accounts[address]?['devices'] as List?;
+          final before = list?.length ?? 0;
+          if (list != null && d is String && d.length == 32) list.removeWhere((x) => x is Map && x['d'] == d);
+          final gone = list != null && list.length < before;
+          if (gone) {
+            _changed();
+            _say('${address.substring(0, 8)} a device left');
+          }
+          tell({'dir': 'acct-leave', 'a': address, 'gone': gone});
         case 'acct-delete':
           if (!_room(_writes, id, now, writesAnHour)) return err('Too many changes this hour. Try again later.');
           final (body, why) = _signed(said, 'delete', id);

@@ -7,7 +7,23 @@
  *   node tool/deploy-site.mjs            the site's files into /opt/ghost-sms-site
  *   node tool/deploy-site.mjs --caddy    that, and the site's block written to /etc/caddy/Caddyfile: added, or put in
  *                                        place of the one there. Needed once, and again when the block below changes.
- *   node tool/deploy-site.mjs --print    the script the box would run, and nothing sent
+ *   node tool/deploy-site.mjs --app build/web-app
+ *                                        the site, and the app in a browser (tool/build-web.mjs --app) into
+ *                                        /opt/ghost-sms-app, swapped in whole as the site is, for app.gogho.st
+ *   node tool/deploy-site.mjs --print    the script the box would run, and nothing sent (with the others: what they do)
+ *
+ * THE APP IN A BROWSER is at an address of its own, app.gogho.st (APP_BLOCK below, tool/lib/web_site.mjs): never under
+ * gogho.st, whose pages have scripts written into them and whose /join takes an address to dial, nor beside the relay's
+ * /link, /files and /market, so nothing slipped into any of those can read what the app keeps in the browser. Its block
+ * sends every header in tool/web/headers.json (test/web_build_test.dart holds it to that list, and the page's own
+ * policy), and answers /clear-site-data with `Clear-Site-Data: "storage"`, which the page asks for as it signs out or
+ * is removed, to the page itself alone (`Sec-Fetch-Site: same-origin`; from anywhere else a link to it would sign the
+ * person out). Its DNS record is the owner's to add, and --caddy is to be run after it exists: the box writes the block
+ * only once app.gogho.st points at it (Caddy's retries for a certificate it can't get yet back off for hours), and
+ * then asks app.gogho.st itself, as a visitor would, for the page, a 404 and the worker (and /clear-site-data, from the
+ * page and from another site), and puts the Caddyfile back if any header on the list is missing. Run while its DNS
+ * can't be checked, --caddy leaves the app's block as it is. No Caddy runs on the computer this is shipped from: the box is where it is
+ * checked.
  *
  * The download and its version are the release's own files (/ghost-messaging.apk and /apk.json, served from
  * /opt/ghost-sms-release by the block), so a release (tool/release.mjs) updates this site's download with nothing to
@@ -17,16 +33,20 @@
  * It uses Ghost.md's box account and its own deploy code, as tool/release.mjs does (this app lives in Ghost.md's
  * repository, so the checkout is the folder above; --glyph <path> or GLYPH_ROOT say otherwise). THE CADDYFILE IS
  * SHARED (attack.fm, ghostmarkdown.com, ghostkbd.com and more), so --caddy is glyph's scripts/deploy-landing.mjs
- * procedure, line for line: it touches only gogho.st's and ghost-sms.com's own blocks; a timestamped backup; every other site asked
+ * procedure, line for line: it touches only this site's own blocks (gogho.st's, ghost-sms.com's, satellite.im's, app.gogho.st's); a timestamped backup; every other site asked
  * for its page before; the block written; `caddy validate`; a reload; every other site asked again; a failed
  * validate, or any site answering differently, puts the backup back. Caddy gets the certificate by itself, once the
  * domain's DNS points at the box. The box counts logins: this spends one.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { APP_DIR, APP_HOST, APP_HUB, appPolicy, policyOf } from './lib/web_site.mjs';
+
+/** The headers both of the app's addresses send (test/web_build_test.dart and relay/test/web_app_test.dart hold to it). */
+const HEADERS = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'web', 'headers.json'), 'utf8'));
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE_DIR = join(ROOT, 'site');
@@ -51,6 +71,34 @@ const args = process.argv.slice(2);
 const withCaddy = args.includes('--caddy');
 const printOnly = args.includes('--print');
 const fail = (message) => { console.error(`x ${message}`); process.exit(1); };
+const appAt = args.indexOf('--app');
+if (appAt >= 0 && (appAt + 1 >= args.length || args[appAt + 1].startsWith('--'))) fail('--app takes the built folder: node tool/build-web.mjs --app, then --app build/web-app.');
+const APP_BUILD = appAt >= 0 ? resolve(args[appAt + 1]) : null;
+
+// app.gogho.st's policy: the page's own (web/index.html) with gogho.st's hub, and frame-ancestors, which only a header
+// can say. Written out in APP_BLOCK, where a test reads it (test/web_build_test.dart), and held here to the page.
+const APP_CSP = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' data: blob:; connect-src 'self' wss://gogho.st/hub https://gogho.st/market/abuse https://gogho.st/feedback; manifest-src 'self'; base-uri 'self'; form-action 'none'; frame-src 'none'; object-src 'none'; frame-ancestors 'none'";
+// Checked on every run: a page whose policy changed and a block that still sends the old one would leave the app on
+// app.gogho.st held to a policy it no longer has.
+const wantCsp = `${appPolicy(ROOT)}; frame-ancestors 'none'`;
+if (wantCsp !== APP_CSP) {
+  fail(`web/index.html's policy has changed, and app.gogho.st's block in tool/deploy-site.mjs still sends the old one, so nothing was shipped (not the site either). Put this in APP_CSP, near the top of tool/deploy-site.mjs:\n  ${wantCsp}\nthen run flutter test test/web_build_test.dart, which holds the block to the page, and this again.`);
+}
+
+// The built app, checked before anything is sent: the page at its top, made for app.gogho.st (served from /, speaking
+// to gogho.st's hub, its policy the block's), and its files all plain ones.
+if (APP_BUILD) {
+  if (!existsSync(join(APP_BUILD, 'index.html'))) fail(`No index.html in ${APP_BUILD}: build it with node tool/build-web.mjs --app.`);
+  const page = readFileSync(join(APP_BUILD, 'index.html'), 'utf8');
+  if (!page.includes('<base href="/">')) fail(`${APP_BUILD} was built to be served from another folder than /: build it with node tool/build-web.mjs --app.`);
+  if (`${policyOf(page)}; frame-ancestors 'none'` !== APP_CSP) fail(`${APP_BUILD}'s page has another policy than app.gogho.st's block sends (built for another hub than ${APP_HUB}, or before the page's policy last changed?): build it again with node tool/build-web.mjs --app.`);
+  if (!readdirSync(APP_BUILD).some((n) => /^main\.dart\.[0-9a-f]{8,}\.js$/.test(n))) fail(`${APP_BUILD} has no main.dart.<hash>.js: it is not what tool/build-web.mjs builds.`);
+  // The fonts for letters outside the app's own (tool/web/fallback-fonts.mjs): shipped without them, Chinese, Japanese,
+  // Korean, Arabic, Devanagari, mathematics and the rest are drawn as boxes. Said, not refused.
+  if (!existsSync(join(APP_BUILD, 'fallback-fonts'))) {
+    console.log(`! ${APP_BUILD} has no fallback fonts: on app.gogho.st, letters outside the app's own fonts (Chinese, Japanese, Korean, Arabic, Devanagari, mathematics, some symbols) will be drawn as boxes. node tool/web/fallback-fonts.mjs --fetch (it asks fonts.gstatic.com for them, once) and its licence in build/fallback-fonts/OFL.txt, then node tool/build-web.mjs --app again.`);
+  }
+}
 
 if (!existsSync(join(SITE_DIR, 'index.html'))) fail('No site/index.html to ship.');
 // The App Links file goes with the rest (the tarball takes dot folders too): without it, installed copies stop
@@ -210,25 +258,100 @@ www.${ALSO} {
 }
 `;
 
-// Both names' blocks are this site's: each is taken out and written again.
-const dom = `(${DOMAIN.replace('.', '[.]')}|${OLD.replace('.', '[.]')}|${ALSO.replace('.', '[.]')})`;
-// Run on the box. Reads the site as a tarball on stdin.
+// The app in a browser at an address of its own (tool/lib/web_site.mjs): its files and nothing else, every answer
+// with the headers in tool/web/headers.json (test/web_build_test.dart reads this block and holds it to that list and
+// to the page's policy). It speaks to gogho.st's hub, which its build names and its policy allows, and to nothing
+// else. A file named by its hash (main.dart.<hash>.js) is kept a year; everything else is asked for again each time.
+// Each file is sent packed where the build packed it beforehand (.br, .gz beside it), and a name starting with a dot
+// (.last_build_id) is never sent.
+const APP_BLOCK = `
+${APP_HOST} {
+	root * ${APP_DIR}
+	header {
+		Content-Security-Policy "${APP_CSP}"
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Resource-Policy "same-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), display-capture=()"
+		Strict-Transport-Security "max-age=31536000"
+	}
+	@clear {
+		path /clear-site-data
+		header Sec-Fetch-Site same-origin
+	}
+	handle @clear {
+		header Clear-Site-Data "\\"storage\\""
+		header Cache-Control "no-store"
+		respond 204
+	}
+	@hashed path_regexp hashed \\.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]+\\.[A-Za-z0-9]+$
+	handle @hashed {
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server {
+			precompressed br gzip
+			hide .*
+		}
+	}
+	handle {
+		header Cache-Control "no-cache"
+		file_server {
+			precompressed br gzip
+			hide .*
+		}
+	}
+}
+`;
+
+// What app.gogho.st must answer with on the page, a 404 and the worker, as `name: value` lines: every header on
+// tool/web/headers.json's list, the policy, HSTS and no-cache. The box checks them as a visitor gets them, once the
+// block is live, and puts the Caddyfile back where any is missing (it was written and checked as text alone before:
+// no Caddy runs on the computer this is shipped from).
+const APP_WANTED = [...Object.entries({ ...HEADERS.every, ...HEADERS.app }).map(([name, value]) => `${name}: ${value}`), `Content-Security-Policy: ${APP_CSP}`];
+// And the one answer the page asks for as it signs out or is removed (lib/web/browser_web.dart, the relay's own in
+// relay/lib/web_app.dart): APP_BLOCK's @clear. Only to the page itself (`Sec-Fetch-Site: same-origin`): from anywhere
+// else it is a file that isn't there, or any link to it would sign the person out (third review, A2).
+const CLEAR_PATH = 'clear-site-data';
+const CLEAR_WANTED = 'Clear-Site-Data: "storage"';
+
+// Every name's block is this site's (app.gogho.st's too, kept apart from gogho.st's own): each is taken out and
+// written again.
+const dom = `(${DOMAIN.replace('.', '[.]')}|${OLD.replace('.', '[.]')}|${ALSO.replace('.', '[.]')}|${APP_HOST.replaceAll('.', '[.]')})`;
+// The same without app.gogho.st's: what is taken out where its new block can't go in (its DNS not checked), so the
+// block it has, if any, stays as it is.
+const domSite = `(${DOMAIN.replace('.', '[.]')}|${OLD.replace('.', '[.]')}|${ALSO.replace('.', '[.]')})`;
+// Run on the box. Reads the site as a tarball on stdin; with --app, the site under site/ and the app under app/.
 const REMOTE = `set -e
 SUDO=; [ "$(id -u)" -eq 0 ] || SUDO=sudo
 STAGE="$HOME/.ghost-sms-site-stage"
 rm -rf "$STAGE"; mkdir -p "$STAGE"; tar xzf - -C "$STAGE"
-[ -f "$STAGE/index.html" ] || { echo "x the site arrived without its index.html"; exit 1; }
-[ -f "$STAGE/.well-known/assetlinks.json" ] || { echo "x the site arrived without .well-known/assetlinks.json"; exit 1; }
+SRC="$STAGE${APP_BUILD ? '/site' : ''}"
+[ -f "$SRC/index.html" ] || { echo "x the site arrived without its index.html"; exit 1; }
+[ -f "$SRC/.well-known/assetlinks.json" ] || { echo "x the site arrived without .well-known/assetlinks.json"; exit 1; }
 $SUDO mkdir -p ${SITE}.next
 $SUDO rm -rf ${SITE}.next/*
-$SUDO cp -a "$STAGE"/. ${SITE}.next/
+$SUDO cp -a "$SRC"/. ${SITE}.next/
 $SUDO chmod -R a+rX ${SITE}.next
 # Swapped in whole, so a visitor never gets a page of one version with scripts of another.
 if [ -d ${SITE} ]; then $SUDO rm -rf ${SITE}.old; $SUDO mv ${SITE} ${SITE}.old; fi
 $SUDO mv ${SITE}.next ${SITE}
 $SUDO rm -rf ${SITE}.old
-rm -rf "$STAGE"
 echo "ok site in ${SITE}: $(ls ${SITE} | tr '\\n' ' ')"
+# The app in a browser, for ${APP_HOST}: swapped in whole as the site is, so a page of one build never loads the
+# engine or the code of another.
+if [ -d "$STAGE/app" ]; then
+  [ -f "$STAGE/app/index.html" ] || { echo "x the app arrived without its index.html"; exit 1; }
+  $SUDO rm -rf ${APP_DIR}.next
+  $SUDO mkdir -p ${APP_DIR}.next
+  $SUDO cp -a "$STAGE/app"/. ${APP_DIR}.next/
+  $SUDO chmod -R a+rX ${APP_DIR}.next
+  if [ -d ${APP_DIR} ]; then $SUDO rm -rf ${APP_DIR}.old; $SUDO mv ${APP_DIR} ${APP_DIR}.old; fi
+  $SUDO mv ${APP_DIR}.next ${APP_DIR}
+  $SUDO rm -rf ${APP_DIR}.old
+  echo "ok app in ${APP_DIR}: $(find ${APP_DIR} -type f | wc -l | tr -d ' ') files"
+fi
+rm -rf "$STAGE"
 [ "${withCaddy ? 1 : 0}" = 1 ] || exit 0
 CF=/etc/caddy/Caddyfile
 
@@ -241,6 +364,13 @@ probe() {
     echo "$h $code"
   done | sort
 }
+# app.gogho.st's block goes in only once its DNS record points at this box, as gogho.st's does: before that Caddy can't
+# get its certificate, and its retries back off for hours, so the app's address would stay without one long after the
+# record is made. --caddy is to be run again once the record is there (it says so below).
+APP_IP=$(getent ahostsv4 ${APP_HOST} 2>/dev/null | awk 'NR==1 { print $1 }')
+SITE_IP=$(getent ahostsv4 ${DOMAIN} 2>/dev/null | awk 'NR==1 { print $1 }')
+WITH_APP=0
+if [ -n "$APP_IP" ] && [ "$APP_IP" = "$SITE_IP" ]; then WITH_APP=1; else echo "! ${APP_HOST}'s DNS record doesn't point at this box yet (${APP_HOST}: \${APP_IP:-none}, ${DOMAIN}: \${SITE_IP:-none}): its block is left out. Run --caddy again once it does."; fi
 BACKUP="$CF.bak-$(date +%Y%m%d-%H%M%S)"
 $SUDO cp -a "$CF" "$BACKUP"
 echo "ok backup $BACKUP"
@@ -252,8 +382,12 @@ echo "before:"; echo "$BEFORE" | sed 's/^/  /'
 restore() { echo "x $1: putting $BACKUP back"; $SUDO cp -a "$BACKUP" "$CF"; $SUDO systemctl reload caddy || true; exit 1; }
 # The domain's own blocks out, if they are there - each from its first line to the next brace at the start of a line -
 # and the new ones on the end.
-$SUDO awk -v start='^(www[.])?${dom}[ ,{]' '$0 ~ start { skip = 1; next } skip && /^}/ { skip = 0; next } !skip' "$CF" | $SUDO tee "$CF.next" >/dev/null
+# app.gogho.st's block is taken out only where a new one goes in: with its DNS not checked just now (a lookup that failed
+# for a moment) the block it has stays, where once --caddy took a live app's block away (third review).
+if [ "$WITH_APP" = 1 ]; then START='^(www[.])?${dom}[ ,{]'; else START='^(www[.])?${domSite}[ ,{]'; fi
+$SUDO awk -v start="$START" '$0 ~ start { skip = 1; next } skip && /^}/ { skip = 0; next } !skip' "$CF" | $SUDO tee "$CF.next" >/dev/null
 printf '%s\\n' '${BLOCK.replace(/'/g, "'\\''")}' | $SUDO tee -a "$CF.next" >/dev/null
+[ "$WITH_APP" = 0 ] || printf '%s\\n' '${APP_BLOCK.replace(/'/g, "'\\''")}' | $SUDO tee -a "$CF.next" >/dev/null
 # Copied onto the Caddyfile rather than moved over it, so the file keeps its owner and its mode.
 $SUDO cp "$CF.next" "$CF"; $SUDO rm -f "$CF.next"
 echo "the new blocks:"; $SUDO awk -v start='^(www[.])?${dom}[ ,{]' '$0 ~ start { on = 1 } on { print "  " $0 } on && /^}/ { on = 0 }' "$CF"
@@ -267,10 +401,56 @@ if [ "$FEEDS" = "$(printf '/apk.json 200\\n/${APK} 200')" ]; then
   [ "$(feeds)" = "$FEEDS" ] || restore "https://${OLD}/apk.json or /${APK} no longer answers, and copies installed before gogho.st update from them"
   echo "ok /apk.json and /${APK} answer as before"
 fi
+# app.gogho.st as a visitor gets it, once Caddy has its certificate (waited for, two minutes at most): every header on
+# the list on the page, on a 404 and on the worker, whose policy only the header can give it. Any missing, or no answer
+# at all, puts the Caddyfile back.
+if [ "$WITH_APP" = 1 ]; then
+  WANT="$(mktemp)"
+  printf '%s\\n' '${APP_WANTED.join('\n').replace(/'/g, "'\\''")}' > "$WANT"
+  appcheck() {
+    for p in / /argon2id.js /no-such-file-here.js; do
+      h=$(curl -sS -D - -o /dev/null --max-time 10 --resolve "${APP_HOST}:443:127.0.0.1" "https://${APP_HOST}$p" | tr -d '\\r') || { echo "  $p: no answer"; return 1; }
+      while IFS= read -r w; do printf '%s\\n' "$h" | grep -Fxiq -- "$w" || { echo "  $p lacks $w"; return 1; }; done < "$WANT"
+      case "$p" in /no-such-file-here.js) ;; *) printf '%s\\n' "$h" | grep -Fxiq -- 'Cache-Control: ${HEADERS.cache.plain}' || { echo "  $p lacks Cache-Control: ${HEADERS.cache.plain}"; return 1; } ;; esac
+    done
+    # What the page asks for as it signs out or is removed: the browser told to clear everything it keeps for the app.
+    h=$(curl -sS -D - -o /dev/null --max-time 10 -H 'Sec-Fetch-Site: same-origin' --resolve "${APP_HOST}:443:127.0.0.1" "https://${APP_HOST}/${CLEAR_PATH}" | tr -d '\\r') || { echo "  /${CLEAR_PATH}: no answer"; return 1; }
+    printf '%s\\n' "$h" | grep -Fxiq -- '${CLEAR_WANTED}' || { echo "  /${CLEAR_PATH} lacks its Clear-Site-Data header"; return 1; }
+    # And only to the page itself: asked from anywhere else (no Sec-Fetch-Site, another site's), it clears nothing.
+    for from in '' 'Sec-Fetch-Site: cross-site'; do
+      h=$(curl -sS -D - -o /dev/null --max-time 10 \${from:+-H "$from"} --resolve "${APP_HOST}:443:127.0.0.1" "https://${APP_HOST}/${CLEAR_PATH}" | tr -d '\\r') || { echo "  /${CLEAR_PATH}: no answer"; return 1; }
+      if printf '%s\\n' "$h" | grep -iq '^clear-site-data:'; then echo "  /${CLEAR_PATH} clears for a request not from the page (\${from:-no Sec-Fetch-Site})"; return 1; fi
+    done
+  }
+  ok=0
+  for i in $(seq 1 30); do if appcheck >/dev/null 2>&1; then ok=1; break; fi; sleep 4; done
+  if [ "$ok" = 1 ]; then echo "ok https://${APP_HOST} answers with every header on the list (/, a 404, /argon2id.js), and /${CLEAR_PATH} with its Clear-Site-Data header"; else appcheck || true; rm -f "$WANT"; restore "https://${APP_HOST} did not answer with every header on tool/web/headers.json's list, or /${CLEAR_PATH} without its Clear-Site-Data header"; fi
+  rm -f "$WANT"
+fi
 echo "ok ${DOMAIN}'s blocks written and live"
 `;
 
+/** Every file under [dir], and their bytes. */
+const measure = (dir) => {
+  let files = 0, bytes = 0;
+  const walk = (d) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      if (e.isDirectory()) walk(join(d, e.name));
+      else {
+        files++;
+        bytes += statSync(join(d, e.name)).size;
+      }
+    }
+  };
+  walk(dir);
+  return { files, bytes };
+};
+
 console.log(`> Shipping ${DOMAIN}${withCaddy ? ' and its Caddy blocks' : ''} (one ssh session)`);
+if (APP_BUILD) {
+  const { files, bytes } = measure(APP_BUILD);
+  console.log(`> and the app in a browser for ${APP_HOST}, from ${APP_BUILD} (${files} files, ${(bytes / 1048576).toFixed(1)} MB), into ${APP_DIR}`);
+}
 if (printOnly) {
   process.stdout.write(REMOTE);
   process.exit(0);
@@ -278,7 +458,20 @@ if (printOnly) {
 
 const { BOX_ENV_KEYS, boxSshOptions, openBox, tarball } = await import(pathToFileURL(join(glyph, 'tauri/scripts/lib/box.mjs')).href);
 const { loadEnv } = await import(pathToFileURL(join(glyph, 'scripts/lib/env.mjs')).href);
-const site = tarball(SITE_DIR, 64 * 1024 * 1024);
+/** The site and the app in one tarball, under site/ and app/ (links to the two folders, followed by tar). */
+const both = () => {
+  const stage = mkdtempSync(join(tmpdir(), 'ghost-site-'));
+  try {
+    symlinkSync(SITE_DIR, join(stage, 'site'));
+    symlinkSync(APP_BUILD, join(stage, 'app'));
+    const tar = spawnSync('tar', ['-czhf', '-', '--no-xattrs', '--no-mac-metadata', '-C', stage, 'site', 'app'], { maxBuffer: 1024 * 1024 * 1024 });
+    if (tar.status !== 0) fail(`tar failed: ${String(tar.stderr)}`);
+    return tar.stdout;
+  } finally {
+    rmSync(stage, { recursive: true, force: true });
+  }
+};
+const site = APP_BUILD ? both() : tarball(SITE_DIR, 64 * 1024 * 1024);
 const env = loadEnv(BOX_ENV_KEYS);
 const box = openBox(env, boxSshOptions({ connectTimeout: 20, knownHosts: join(homedir(), '.ssh', 'known_hosts') }));
 box.logIn();
@@ -297,3 +490,17 @@ const example = curl(['-o', '/dev/null', '-w', '%{http_code} %{content_type}', `
 console.log(`  https://${DOMAIN}/docs/examples/bills.ghostplugin answers ${example || 'nothing yet'} (200 application/json once the block from --caddy is live)`);
 console.log(`  https://${DOMAIN}/ answers ${page || 'nothing yet'}; /apk.json ${info || 'nothing yet'}; /${APK} ${apk || 'nothing yet'} (404 for those two until the first tool/release.mjs)`);
 if (page !== '200') console.log('  (a certificate can take a minute, or longer while the domain\'s DNS settles: Caddy keeps trying.)');
+if (APP_BUILD || withCaddy) {
+  // And from here, as a visitor: every header on the list, on the page, a 404 and the worker.
+  for (const path of ['/', '/argon2id.js', '/no-such-file-here.js']) {
+    const got = curl(['-sS', '-D', '-', '-o', '/dev/null', `https://${APP_HOST}${path}`]);
+    const lines = got.stdout.split(/\r?\n/).map((l) => l.toLowerCase());
+    const missing = APP_WANTED.filter((w) => !lines.includes(w.toLowerCase()));
+    if (!got.stdout) console.log(`  https://${APP_HOST}${path} answers nothing yet (nothing until its DNS record points at the box and --caddy has run since)`);
+    else console.log(`  https://${APP_HOST}${path}: ${missing.length ? `lacks ${missing.join(' | ')}` : 'every header on the list'}`);
+  }
+  const clear = curl(['-sS', '-D', '-', '-o', '/dev/null', '-H', 'Sec-Fetch-Site: same-origin', `https://${APP_HOST}/${CLEAR_PATH}`]).stdout;
+  if (clear) console.log(`  https://${APP_HOST}/${CLEAR_PATH} from the page: ${clear.split(/\r?\n/).some((l) => l.toLowerCase() === CLEAR_WANTED.toLowerCase()) ? CLEAR_WANTED : `lacks ${CLEAR_WANTED}`}`);
+  const elsewhere = curl(['-sS', '-D', '-', '-o', '/dev/null', '-H', 'Sec-Fetch-Site: cross-site', `https://${APP_HOST}/${CLEAR_PATH}`]).stdout;
+  if (elsewhere) console.log(`  https://${APP_HOST}/${CLEAR_PATH} from another site: ${/^clear-site-data:/im.test(elsewhere) ? 'CLEARS (it must not)' : 'clears nothing'}`);
+}
