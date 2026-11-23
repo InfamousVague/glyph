@@ -26,8 +26,10 @@ class ReleaseNotes {
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.12.20', '2026-11-23', [
+    'Video in calls is squarer: on a computer every camera is shown 4:3, in every call layout, and the tiles grow to fill the window instead of coming out wide and short. A shared screen keeps its own shape.',
     'Open spaces: a new kind of space you walk around in. Everyone stands somewhere on a floor seen from above, and you hear people louder the nearer they stand. Walk with W A S D or the arrow keys on a computer, or press where you want to go. Make groups on the floor (a game, a chat, a film): inside one you hear everyone in it, and its circle grows as people step in. Choose Open space when you make a space.',
     'Microphones and speakers: the one you choose in Settings › Voice and video, or from the call\'s own buttons, is now the one a call uses, from its start and when you switch in the middle of it. Before, on a Mac every call took the system\'s own whatever you chose, and Settings listed only that one until you had been in a call; on Android a chosen microphone was never used. Choosing "The system\'s own" again now goes back to it, a chosen device that isn\'t plugged in says so while the call uses the system\'s own, and on a Mac the ring and the app\'s other sounds play through the speaker you chose.',
+    'Fixes: the iPhone player keeps its audio and subtitle choices, the auto leveler reaches the level it is aiming for, and the docs\' search handles a few words it used to garble.',
   ]),
   ReleaseNotes('0.12.19', '2026-11-23', [
     'Sign-ins synced from the browser extension now reach your other devices: the relay\'s answers were never passed on, so no device signed in with what the extension synced, and synced plugins never ran either (thanks, Kevin).',

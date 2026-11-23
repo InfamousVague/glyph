@@ -60,9 +60,10 @@ void main() {
     final two = CallPanel.videoTile(width: 900, count: 2, gap: 8, screenHeight: 720);
     expect(two.width, closeTo(446, 0.5));
     expect(two.height, closeTo(334.5, 0.5));
-    // One alone was 4:3 of the pane's width, taller than the window; now at most 70% of the window's height.
+    // One alone was 4:3 of the pane's width, taller than the window; now at most 70% of the window's height, and still
+    // 4:3 (Matt, 2026-11-23), narrower than the pane.
     final one = CallPanel.videoTile(width: 900, count: 1, gap: 8, screenHeight: 720);
-    expect(one.width, 900);
+    expect(one.width, closeTo(672, 0.5));
     expect(one.height, closeTo(504, 0.5));
     expect(one.height, greaterThanOrEqualTo(720 / 2));
     // Many: up to four across on a wide pane, as before.
