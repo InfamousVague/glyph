@@ -11,6 +11,8 @@ import '../friends/buddies.dart';
 import '../net/crypto.dart';
 import '../sms.dart';
 import 'chats.dart';
+import 'store.dart';
+import 'store_files.dart';
 
 /// Ghost Messaging on an iPhone of its own (Matt, 2026-11-15: "investigate if we can within apples rules make a
 /// bridge for messaging through RCS like we're doing with mautrix on android and if not we'll want to roll a version
@@ -30,17 +32,20 @@ import 'chats.dart';
 ///   [Friends] does for a phone-number friend (send, acknowledge, take back) it does for them.
 /// - **The conversations** are kept in a file of this app's (`standalone.json`): what was written and what came, and
 ///   each conversation's read, archived, pinned and muted.
+///
+/// Where all of that is kept is [StandaloneStore] (store.dart): a folder and the Keychain here, a browser's own store
+/// for the app in a web page, which runs these same calls (lib/web).
 class StandaloneCalls implements SmsCalls {
-  StandaloneCalls(this.dir, {this.keychain = true}) {
+  /// Kept in [dir], and in the Keychain where [keychain] (a build for a device; a test keeps it all in the folder).
+  StandaloneCalls(Directory dir, {bool keychain = true}) : this.on(StandaloneFiles(dir, keychain: keychain));
+
+  /// Kept wherever [store] keeps things: a browser's own store (lib/web), which has no folder.
+  StandaloneCalls.on(this.store) {
     chats = UsernameChats(save: _save, buddies: () => _buddyList);
   }
 
-  final Directory dir;
-
-  /// Whether the identity is kept in the Keychain (a build for a device) or in the folder (a test).
-  final bool keychain;
-
-  static const _account = 'standalone-identity';
+  /// Where the JSON, the identity's key and the secrets are kept (store.dart).
+  final StandaloneStore store;
 
   NetKeys? _keys;
   Map<String, String> _prefs = {};
@@ -49,13 +54,13 @@ class StandaloneCalls implements SmsCalls {
   /// The conversations: every one an iPhone has is with a friend by username.
   late final UsernameChats chats;
 
-  File get _file => File('${dir.path}/standalone.json');
-  File get _keyFile => File('${dir.path}/identity.key');
-  File _secretFile(String name) => File('${dir.path}/secret-${name.replaceAll(RegExp(r'[^a-z0-9_]'), '')}.key');
-
   /// Starts the app again: on a Mac a new copy of the app is opened and this one ends; an iPhone cannot, and says so
   /// (false), and the person is asked to. Never under a test.
   Future<bool> Function() restart = _restartHere;
+
+  /// Opens a web address in this device's own browser, and says whether it could ([MacPlatform.openLink]); a page
+  /// in a browser opens it beside itself (lib/web).
+  Future<bool> Function(String url) openLink = MacPlatform.openLink;
 
   static Future<bool> _restartHere() async {
     if (PlatformInfo.environment.containsKey('FLUTTER_TEST') || !PlatformInfo.isMacOS) return false;
@@ -76,23 +81,10 @@ class StandaloneCalls implements SmsCalls {
     return Directory('$home/Library/Application Support/Ghost Messaging');
   }
 
-  /// Where the first builds kept it by mistake: inside tmp, which iOS may empty. Moved from once, if it is there.
-  static Directory get _misplaced => Directory('${Directory.systemTemp.path}/Library/Application Support/Ghost Messaging');
-
   Future<void> load() async {
-    // What a first build left in tmp is carried over: who this iPhone is (its username is held by that key) and
-    // what was written.
-    final old = _misplaced;
-    if (!File('${dir.path}/standalone.json').existsSync() && old.existsSync() && old.path != dir.path) {
-      dir.createSync(recursive: true);
-      for (final name in ['standalone.json', 'identity.key']) {
-        final f = File('${old.path}/$name');
-        if (f.existsSync()) f.copySync('${dir.path}/$name');
-      }
-    }
-    dir.createSync(recursive: true);
+    await store.open();
     try {
-      final j = jsonDecode(await _file.readAsString()) as Map;
+      final j = jsonDecode((await store.readState())!) as Map;
       _prefs = {for (final e in ((j['prefs'] as Map?) ?? const {}).entries) '${e.key}': '${e.value}'};
       _buddies = (j['buddies'] as String?) ?? '[]';
       chats.load(j);
@@ -101,17 +93,14 @@ class StandaloneCalls implements SmsCalls {
   }
 
   Future<NetKeys> _identity() async {
-    String? kept = keychain ? await MacPlatform.keyRead(_account) : null;
-    if (kept == null && _keyFile.existsSync()) kept = _keyFile.readAsStringSync().trim();
+    final kept = await store.readIdentity();
     if (kept != null && kept.length == 64) {
       try {
         return NetKeys.fromScalar(NetCrypto.unhex(kept));
       } catch (_) {}
     }
     final made = NetKeys.generate();
-    final hex = NetCrypto.hex(made.scalar);
-    // The Keychain where it takes it; else the app's own folder, which iOS keeps to this app alone.
-    if (!keychain || !await MacPlatform.keyWrite(_account, hex)) _keyFile.writeAsStringSync(hex);
+    await store.writeIdentity(NetCrypto.hex(made.scalar));
     return made;
   }
 
@@ -119,11 +108,7 @@ class StandaloneCalls implements SmsCalls {
 
   void _save() {
     final text = jsonEncode({'prefs': _prefs, 'buddies': _buddies, ...chats.toJson()});
-    _last = _last.catchError((_) {}).then((_) async {
-      final temp = File('${_file.path}.new');
-      await temp.writeAsString(text, flush: true);
-      await temp.rename(_file.path);
-    });
+    _last = _last.catchError((_) {}).then((_) => store.writeState(text));
   }
 
   /// Every write done, for a test.
@@ -165,32 +150,19 @@ class StandaloneCalls implements SmsCalls {
         return _keys!.scalar;
       case 'identityImport':
         final made = NetKeys.fromScalar((a['scalar'] as List).cast<int>());
-        final hex = NetCrypto.hex(made.scalar);
-        if (!keychain || !await MacPlatform.keyWrite(_account, hex)) {
-          _keyFile.writeAsStringSync(hex, flush: true);
-        } else if (_keyFile.existsSync()) {
-          // The Keychain took it: a key left in the folder from before would be read first on a build without it.
-          _keyFile.deleteSync();
-        }
+        await store.writeIdentity(NetCrypto.hex(made.scalar), imported: true);
         _keys = made;
         return null;
       case 'secretKeep':
         final name = '${a['name']}', value = '${a['value'] ?? ''}';
-        final file = _secretFile(name);
         if (value.isEmpty) {
-          if (keychain) await MacPlatform.keyDelete('standalone-secret-$name');
-          if (file.existsSync()) file.deleteSync();
+          await store.deleteSecret(name);
           return null;
         }
-        // The Keychain where it takes it; else the app's own folder, as the identity's key itself is kept then.
-        if (!keychain || !await MacPlatform.keyWrite('standalone-secret-$name', value)) file.writeAsStringSync(value, flush: true);
+        await store.writeSecret(name, value);
         return null;
       case 'secretRead':
-        final name = '${a['name']}';
-        final kept = keychain ? await MacPlatform.keyRead('standalone-secret-$name') : null;
-        if (kept != null) return kept;
-        final file = _secretFile(name);
-        return file.existsSync() ? file.readAsStringSync() : null;
+        return store.readSecret('${a['name']}');
       case 'restartApp':
         await flushed();
         return restart();
@@ -315,7 +287,7 @@ class StandaloneCalls implements SmsCalls {
       // A link opened in this device's own browser: a link in a message, and signing up with Discord (Matt,
       // 2026-11-20: "when clicking sign up with discord it says "no browser could be opened""), which had nothing here.
       case 'openLink':
-        return MacPlatform.openLink('${a['url'] ?? ''}');
+        return openLink('${a['url'] ?? ''}');
 
       // The iPhone's own: pictures, the microphone, playing (ios/Runner/DeskChannels.swift, as on a Mac).
       case 'pickImages':
