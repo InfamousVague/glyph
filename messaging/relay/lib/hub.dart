@@ -344,8 +344,8 @@ class Hub {
     if (verbose) stdout.writeln('${_now().toIso8601String()} hub $what');
   }
 
-  void _tell(WebSocket? ws, Map<String, Object?> what) {
-    if (ws == null || ws.readyState != WebSocket.open) return;
+  void _tell(HubSocket? ws, Map<String, Object?> what) {
+    if (ws == null || !ws.isOpen) return;
     try {
       ws.add(jsonEncode(what));
     } catch (_) {}
@@ -365,17 +365,28 @@ class Hub {
       return;
     }
     ws.pingInterval = const Duration(seconds: 30);
+    attach(_WebSocketHubSocket(ws));
+  }
+
+  /// Takes a connection whatever carries it: the WebSocket [accept] upgraded, or any other [HubSocket] (one made in
+  /// this very program, another relay's, a peer-to-peer stream). It is said hello to and heard from then on, as a
+  /// WebSocket always was. [maxConnections] counts these too: one more than that is closed at once (4503, "full").
+  void attach(HubSocket socket) {
+    if (_open >= maxConnections) {
+      socket.close(4503, 'full');
+      return;
+    }
     _open++;
     var counted = true;
     final nonce = [for (var i = 0; i < 32; i++) _random.nextInt(256)];
     _End? end;
     final waiting = Timer(authWait, () {
-      if (end == null) ws.close(4401, 'no hello');
+      if (end == null) socket.close(4401, 'no hello');
     });
     // `peek`: this hub knows a look (below), so a closed app's check can sign in without being handed anything; a
     // hub from before would hand it all over, and the check does not sign in to one that does not say so.
     // `react`: this hub takes reactions ([toRoomReaction]); an app sends them as kept packets to one that doesn't say so.
-    _tell(ws, {'hello': hexOf(nonce), 'peek': true, 'react': true});
+    _tell(socket, {'hello': hexOf(nonce), 'peek': true, 'react': true});
 
     void leave() {
       waiting.cancel();
@@ -429,7 +440,7 @@ class Hub {
       _say('${e.id.substring(0, 6)} left');
     }
 
-    ws.listen((data) {
+    socket.incoming.listen((data) {
       final e = end;
       if (e == null) {
         // The first thing said: who this is, and the hub's number signed with their key.
@@ -444,8 +455,8 @@ class Hub {
         } catch (_) {}
         final id = hello?['id'];
         if (key == null || sig == null || !_hex(id, 32) || nameOf(key) != id || !P256.verify(key, [...utf8.encode(greeting), ...nonce], sig)) {
-          _tell(ws, {'ok': false, 'err': 'bad hello'});
-          ws.close(4400, 'bad hello');
+          _tell(socket, {'ok': false, 'err': 'bad hello'});
+          socket.close(4400, 'bad hello');
           return;
         }
         waiting.cancel();
@@ -455,12 +466,12 @@ class Hub {
         if (hello?['peek'] == true) {
           final cutoff = _now().subtract(holdFor);
           final count = (_mail[id] ?? const <_Held>[]).where((h) => h.at.isAfter(cutoff)).length;
-          _tell(ws, {'ok': true, 'held': count, 'peek': true, 'here': _isHere(id as String)});
-          ws.close(1000, 'looked');
+          _tell(socket, {'ok': true, 'held': count, 'peek': true, 'here': _isHere(id as String)});
+          socket.close(1000, 'looked');
           return;
         }
         final device = hello?['device'] is String && (hello!['device'] as String).length <= 64 ? hello['device'] as String : '';
-        final made = _End(id as String, ws, (what) => _tell(ws, what), device: device);
+        final made = _End(id as String, socket, (what) => _tell(socket, what), device: device);
         final list = _here[made.id] ??= [];
         final first = list.isEmpty;
         // The same device again (a reconnect) takes its own place; the longest here goes where there are too many.
@@ -486,9 +497,9 @@ class Hub {
         _held -= held.fold<int>(0, (n, h) => n + h.frame.length);
         final cutoff = _now().subtract(holdFor);
         final fresh = held.where((h) => h.at.isAfter(cutoff)).toList();
-        _tell(ws, {'ok': true, 'held': fresh.length});
+        _tell(socket, {'ok': true, 'held': fresh.length});
         for (final h in fresh) {
-          ws.add(h.frame);
+          socket.add(h.frame);
         }
         // A mode said with the hello holds from the first moment: someone invisible never shows as come.
         final asked = hello?['mode'];
@@ -512,36 +523,36 @@ class Hub {
       } catch (_) {}
       if (said == null) return;
       if (said.containsKey('ping')) {
-        _tell(ws, {'pong': said['ping']});
+        _tell(socket, {'pong': said['ping']});
       } else if (said.containsKey('push')) {
         // This install's token for push notifications (an iPhone), or null to forget it.
         pushes?.said(e.id, said['push']);
-        _tell(ws, {'push': pushes != null});
+        _tell(socket, {'push': pushes != null});
       } else if (said['dir'] is String && Accounts.dirs.contains(said['dir'])) {
         final a = accounts;
         if (a == null) {
-          _tell(ws, {'dir': 'err', 'about': said['dir'], 'err': 'This server keeps no accounts.'});
+          _tell(socket, {'dir': 'err', 'about': said['dir'], 'err': 'This server keeps no accounts.'});
         } else {
-          a.said(e.id, said, (m) => _tell(ws, m));
+          a.said(e.id, said, (m) => _tell(socket, m));
         }
       } else if (said['dir'] is String && InviteWords.dirs.contains(said['dir'])) {
         final w = words;
         if (w == null) {
-          _tell(ws, {'dir': 'err', 'about': said['dir'], 'err': 'This server keeps no invite words.'});
+          _tell(socket, {'dir': 'err', 'about': said['dir'], 'err': 'This server keeps no invite words.'});
         } else {
-          w.said(e.id, said, (m) => _tell(ws, m));
+          w.said(e.id, said, (m) => _tell(socket, m));
         }
       } else if (said['dir'] is String && Invites.dirs.contains(said['dir'])) {
         final i = invites;
         if (i == null) {
-          _tell(ws, {'dir': 'err', 'about': said['dir'], 'err': 'This server keeps no invites.'});
+          _tell(socket, {'dir': 'err', 'about': said['dir'], 'err': 'This server keeps no invites.'});
         } else {
-          i.said(e.id, said, (m) => _tell(ws, m));
+          i.said(e.id, said, (m) => _tell(socket, m));
         }
       } else if (said['dir'] is String) {
         final h = handles;
         if (h == null) {
-          _tell(ws, {'dir': 'err', 'about': said['dir'], 'err': 'This server keeps no handles.'});
+          _tell(socket, {'dir': 'err', 'about': said['dir'], 'err': 'This server keeps no handles.'});
         } else {
           // The asking connection's own tell, as came and went are given: the answer goes to the device that asked.
           h.said(e.id, said, e.tell);
@@ -553,7 +564,7 @@ class Hub {
           e.watches.add(id);
           (_watching[id] ??= {}).add(e);
         }
-        _tell(ws, {
+        _tell(socket, {
           'here': [for (final id in ids) if (_shown(id)) id],
           'away': [for (final id in ids) if (_shown(id) && _awaySince.containsKey(id)) id],
           'busy': [for (final id in ids) if (_shown(id) && _mode[id] == 'busy') id],
@@ -609,7 +620,7 @@ class Hub {
       final to = hexOf(data.sublist(5, 21));
       final frame = Uint8List.fromList([toPeer, ..._unhex(from.id), ...data.sublist(21)]);
       // To every device of theirs that is here (but the one sending it, where they write to themselves).
-      final there = [for (final t in _here[to] ?? const <_End>[]) if (!identical(t, from) && t.ws.readyState == WebSocket.open) t];
+      final there = [for (final t in _here[to] ?? const <_End>[]) if (!identical(t, from) && t.ws.isOpen) t];
       if (there.isNotEmpty) {
         for (final t in there) {
           t.ws.add(frame);
@@ -639,7 +650,7 @@ class Hub {
       final frame = Uint8List.fromList([toRoomReaction, ...data.sublist(1, 17), ..._unhex(from.id), ...data.sublist(17)]);
       _keep(key, room.hash, frame);
       for (final m in room.members.values.expand((d) => d)) {
-        if (!identical(m, from) && m.ws.readyState == WebSocket.open) m.ws.add(frame);
+        if (!identical(m, from) && m.ws.isOpen) m.ws.add(frame);
       }
     } else if ((data[0] == toRoom || data[0] == toRoomKept) && data.length > 17) {
       // [2][the room, 16 bytes][the packet]: to everyone else in it.
@@ -660,7 +671,7 @@ class Hub {
       for (final e in room.members.entries) {
         if (reader && !room.writers.contains(e.key)) continue;
         for (final m in e.value) {
-          if (!identical(m, from) && m.ws.readyState == WebSocket.open) m.ws.add(frame);
+          if (!identical(m, from) && m.ws.isOpen) m.ws.add(frame);
         }
       }
     }
@@ -743,7 +754,7 @@ class Hub {
     if (kept != null && kept.hash == hash) {
       final cutoff = _now().subtract(roomKeepFor);
       for (final h in kept.frames) {
-        if (h.at.isAfter(cutoff) && e.ws.readyState == WebSocket.open) e.ws.add(h.frame);
+        if (h.at.isAfter(cutoff) && e.ws.isOpen) e.ws.add(h.frame);
       }
     }
     if (first) {
@@ -801,10 +812,41 @@ class Hub {
   }
 }
 
+/// A connection as the hub holds it, whatever carries it: a WebSocket, or anything else that passes strings and bytes.
+abstract class HubSocket {
+  /// What the other end says: a String or a `List<int>`. Done when it has gone.
+  Stream<Object?> get incoming;
+
+  /// Says a String or a `List<int>` to the other end.
+  void add(Object data);
+
+  /// Whether the other end can still be said to.
+  bool get isOpen;
+
+  /// Closes it, with a WebSocket's number and reason for closing where there is a use for them. [incoming] is done
+  /// once it has closed, whichever end closed it.
+  Future<void> close([int? code, String? reason]);
+}
+
+/// A WebSocket as the hub holds it ([Hub.accept]).
+class _WebSocketHubSocket implements HubSocket {
+  _WebSocketHubSocket(this._ws);
+  final WebSocket _ws;
+
+  @override
+  Stream<Object?> get incoming => _ws;
+  @override
+  void add(Object data) => _ws.add(data);
+  @override
+  bool get isOpen => _ws.readyState == WebSocket.open;
+  @override
+  Future<void> close([int? code, String? reason]) => _ws.close(code, reason);
+}
+
 class _End {
   _End(this.id, this.ws, this.tell, {this.device = ''});
   final String id;
-  final WebSocket ws;
+  final HubSocket ws;
 
   /// Which of its name's devices this is, as it said; empty from an app from before devices.
   final String device;
