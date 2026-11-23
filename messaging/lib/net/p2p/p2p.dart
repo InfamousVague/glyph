@@ -28,6 +28,7 @@ class P2pPolicy {
     this.dialFor = const Duration(seconds: 5),
     this.redialAfter = const Duration(seconds: 30),
     this.meetsAnHour = 6,
+    this.meetsInAllAnHour = 12,
     this.saysAnHour = 12,
     this.takesAnHour = 30,
     this.mostDials = 12,
@@ -38,8 +39,10 @@ class P2pPolicy {
   const P2pPolicy.computer() : this(stayUp: true);
 
   /// The node is up whenever Direct is on (a computer). Where false (a phone) it is started only when there is
-  /// something to say, and stopped [idle] after its last stream closed: a node keeps every path warm every few
-  /// seconds, which is megabytes a day and a radio that never sleeps (docs/OPEN_NETWORK.md, section 2).
+  /// something to say, and stopped [idle] after the last reason of its own to be up (a send of its own, a meet it asked
+  /// for or answered, the relay gone while the app is in use), whatever streams are open: a node keeps every path warm
+  /// every few seconds, which is megabytes a day and a radio that never sleeps (docs/OPEN_NETWORK.md, section 2), and
+  /// nothing a friend's device says can keep it up (second review, M2).
   final bool stayUp;
   final Duration idle;
 
@@ -58,8 +61,11 @@ class P2pPolicy {
   /// that could not start is tried again after as long.
   final Duration redialAfter;
 
-  /// A `meet` is answered at most this many times an hour for one friend, and sent as often at most.
+  /// A `meet` is answered at most this many times an hour for one friend, and sent as often at most; and answered at
+  /// most [meetsInAllAnHour] times an hour for all of them together, since each brings a phone's node up (second review,
+  /// M2: three friends at six an hour each kept one up 54 minutes of 60).
   final int meetsAnHour;
+  final int meetsInAllAnHour;
 
   /// The most cards and asks sent to one account in an hour, whatever it sends: nothing someone else's device says
   /// can make this one say more.
@@ -252,8 +258,14 @@ class P2p extends ChangeNotifier {
   Future<bool>? _renewing;
 
   /// When this device last said something to each account, answered or sent a `meet`, and looked at a card of
-  /// theirs, within the hour.
+  /// theirs, within the hour; and when it answered a `meet` from anyone.
   final Map<String, List<int>> _said = {}, _meetsAnswered = {}, _meetsSent = {}, _looked = {};
+  final List<int> _meetsInAll = [];
+
+  /// When this device last had a reason of its own for its node to be up ([reason]), and whether it is out looking
+  /// for its friends' devices with the relay gone and the app in use.
+  int _reasonAt = 0;
+  bool _reaching = false;
 
   /// Until when an answer to a `meet` may still come from each account.
   final Map<String, int> _awaited = {};
@@ -358,6 +370,13 @@ class P2p extends ChangeNotifier {
   /// How many friends' devices are known, and how many of this account's own.
   int get friendsDevices => _cards.keys.where((a) => a != me).fold(0, (n, a) => n + devicesOf(a).length);
   int get ownDevices => devicesOf(me).length;
+
+  /// This device has a reason of its own for its node to be up: a send of its own, a meet it asked for, or one it
+  /// answered. A phone's is stopped [P2pPolicy.idle] after the last, whatever streams are open.
+  void reason() {
+    _reasonAt = nowMs;
+    _idleSoon();
+  }
 
   /// Something is under way that needs the node: it is not stopped for being idle meanwhile.
   void busy(bool yes) {
@@ -658,8 +677,10 @@ class P2p extends ChangeNotifier {
     }
   }
 
-  /// This device's card for [to], with where it is now where its node is up, and which of their cards it holds.
-  Map<String, dynamic> _message(String what, String to) => {'t': what, 'c': _card!.toJson(), 'w': ?_whereNow()?.toJson(), 'h': _held(to)};
+  /// This device's card for [to], with where it is now where its node is up, and which of their cards it holds. A
+  /// phone says where it is only while the app is in use: put away, it is nobody's business where it is (second
+  /// review: a friend could poll a phone's address by `meet`).
+  Map<String, dynamic> _message(String what, String to) => {'t': what, 'c': _card!.toJson(), 'w': ?(policy.stayUp || !_away ? _whereNow() : null)?.toJson(), 'h': _held(to)};
 
   /// The names of the cards held for [account]: what tells its devices whether this one has heard of them.
   List<String> _held(String account) => [for (final d in devicesOf(account).take(mostDevices)) d.card.tag];
@@ -927,6 +948,7 @@ class P2p extends ChangeNotifier {
     if (sent.length >= policy.meetsAnHour || (sent.isNotEmpty && now - sent.last < policy.dialFor.inMilliseconds)) return;
     sent.add(now);
     _awaited[account] = until;
+    reason();
     await _whereKnown(now + 1000 < until ? now + 1000 : until);
     if (!await _say(peer, _message('meet', account), limited: false)) {
       // Not asked after all: nobody waits for an answer.
@@ -935,15 +957,18 @@ class P2p extends ChangeNotifier {
     }
   }
 
-  /// Whether a `meet` from [peer] is answered now: at most [P2pPolicy.meetsAnHour] times an hour for one account, and
-  /// not at all while Direct is off or the person chose Invisible. Counted as answered where it is.
+  /// Whether a `meet` from [peer] is answered now: at most [P2pPolicy.meetsAnHour] times an hour for one account and
+  /// [P2pPolicy.meetsInAllAnHour] for all together; never with a phone's app put away (it is not brought up for a
+  /// friend then), and not at all while Direct is off or the person chose Invisible. Counted as answered where it is.
   bool _mayMeet(Peer peer) {
-    if (!_on || _card == null || !mayLink(peer.id)) return false;
+    if (!_on || _card == null || !mayLink(peer.id) || (!policy.stayUp && _away)) return false;
     final now = nowMs;
     final answered = _meetsAnswered[peer.id] ??= [];
     answered.removeWhere((t) => now - t >= _hour);
-    if (answered.length >= policy.meetsAnHour) return false;
+    _meetsInAll.removeWhere((t) => now - t >= _hour);
+    if (answered.length >= policy.meetsAnHour || _meetsInAll.length >= policy.meetsInAllAnHour) return false;
     answered.add(now);
+    _meetsInAll.add(now);
     return true;
   }
 
@@ -952,6 +977,7 @@ class P2p extends ChangeNotifier {
   Future<void> _met(Peer peer, P2pDevice from) async {
     final now = nowMs;
     busy(true);
+    reason();
     try {
       await up();
       await _whereKnown(now + 1000);
@@ -987,9 +1013,11 @@ class P2p extends ChangeNotifier {
 
   P2pConfig _config() => P2pConfig(secret: _key!, helpers: _helpers, helpersOnly: _helpersOnly);
 
-  /// Brings the node up where it is not, with the link helpers and the choices of now. Throws [CarrierError] where
-  /// Direct is off or it can't be started.
+  /// Brings the node up where it is not, with the link helpers and the choices of now: asked for by this device, so a
+  /// reason of its own for it to be up a while ([reason]). Throws [CarrierError] where Direct is off or it can't be
+  /// started.
   Future<void> up() async {
+    _reasonAt = nowMs;
     while (true) {
       if (!_loaded || !_on) throw CarrierError('Direct is switched off');
       // It could not start a moment ago: not tried again until a while has passed ([P2pPolicy.redialAfter]).
@@ -1114,14 +1142,20 @@ class P2p extends ChangeNotifier {
     if (policy.stayUp && _loaded && _on) unawaited(up().then((_) {}, onError: (Object _) {}));
   }
 
-  /// A phone's node is stopped [P2pPolicy.idle] after its last stream closed, or after it came up with none.
+  /// A phone's node is stopped [P2pPolicy.idle] after its last reason of its own to be up ([reason]), whatever streams
+  /// are open: nothing a friend's device says or keeps open counts (second review, M2). While something it asked for is
+  /// under way ([busy]) it is looked at again when that ends; while it is out looking for its friends with the relay
+  /// gone and the app in use, it stays up.
   void _idleSoon() {
     _idle?.cancel();
     _idle = null;
-    if (policy.stayUp || _gone || node.state.value != P2pState.up || _busy > 0 || carrier.lines > 0) return;
-    _idle = timer(policy.idle, () {
+    if (policy.stayUp || _gone || nodeState != P2pState.up) return;
+    final left = _reasonAt + policy.idle.inMilliseconds - nowMs;
+    _idle = timer(Duration(milliseconds: left < 0 ? 0 : left), () {
       _idle = null;
-      if (policy.stayUp || _busy > 0 || carrier.lines > 0 || node.state.value != P2pState.up) return;
+      if (policy.stayUp || _gone || _busy > 0 || nodeState != P2pState.up) return;
+      if (_reaching && _on && !_away && !_relayUp) _reasonAt = nowMs;
+      if (nowMs - _reasonAt < policy.idle.inMilliseconds) return _idleSoon();
       unawaited(_stop());
     });
   }
@@ -1172,6 +1206,9 @@ class P2p extends ChangeNotifier {
     if (away) {
       _relayTimer?.cancel();
       _relayTimer = null;
+      // No longer out looking for its friends: a phone's node stops in its time.
+      _reaching = false;
+      _idleSoon();
     } else {
       _watchRelay();
     }
@@ -1225,6 +1262,7 @@ class P2p extends ChangeNotifier {
     if (up) {
       _relayTimer?.cancel();
       _relayTimer = null;
+      _reaching = false;
       // What could not be told, or made, while it was away.
       _quietly(refresh());
     } else {
@@ -1257,6 +1295,10 @@ class P2p extends ChangeNotifier {
       });
     if (all.isEmpty) return;
     busy(true);
+    // With the relay gone there is nothing else to be reached by: a phone's node stays up while it is, with the app in
+    // use (a reason of this device's own, not anything a friend says).
+    _reaching = true;
+    reason();
     try {
       await up();
       for (final d in all.take(policy.mostDials)) {

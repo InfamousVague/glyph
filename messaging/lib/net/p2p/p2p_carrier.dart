@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../carrier.dart';
 import '../crypto.dart';
 import '../hub_carrier.dart' show HubCarrier;
+import '../packet.dart';
 import 'node.dart';
 import 'p2p.dart';
 
@@ -55,6 +56,10 @@ class P2pCarrier implements Carrier, LiveLinks {
   /// The most proved streams held with one node: one newly proved takes the place of the oldest. And the most not yet
   /// proved: a newer one takes the place of the oldest of those, and never of one that has proved whose it is.
   static const mostLines = 2, mostProving = 2;
+
+  /// The most streams taken from one node in a minute; one opened beyond that is closed at once, unanswered (second
+  /// review, M2).
+  static const opensAMinute = 10;
 
   static final _words = utf8.encode('ghost-p2p link v2\n');
   static const _mark = 0, _nonceMark = 2, _proofMark = 3, _nonceLength = 16;
@@ -142,11 +147,15 @@ class P2pCarrier implements Carrier, LiveLinks {
     }
     // Whose device the node at the other end is said to be: a stream from a node no card is held for is closed.
     final claimed = dialled != null ? (p2p.deviceAt(dialled, s.nodeId) != null && p2p.mayLink(dialled) ? [dialled] : const <String>[]) : p2p.accountsOf(s.nodeId);
-    if (!_wanted || p2p.nodeId == null || claimed.isEmpty) {
-      unawaited(s.close().catchError((Object _) {}));
-      return;
-    }
+    if (!_wanted || p2p.nodeId == null || claimed.isEmpty) return _drop(s);
     final node = _nodes[s.nodeId] ??= _Node();
+    // No more than [opensAMinute] streams a minute from one node, whoever it is: each costs a handshake.
+    if (dialled == null) {
+      final now = p2p.nowMs;
+      node.opens.removeWhere((t) => now - t >= 60000);
+      if (node.opens.length >= opensAMinute) return _drop(s);
+      node.opens.add(now);
+    }
     // A stream that has not proved whose it is takes the place of another such, never of one that has (second review,
     // S3): a friend who names someone else's node as his can't close her links with this device by dialling it.
     for (var proving = node.lines.where((l) => l.account == null).toList(); proving.length >= mostProving; proving.removeAt(0)) {
@@ -161,6 +170,13 @@ class P2pCarrier implements Carrier, LiveLinks {
     _send(node, line, Uint8List.fromList([_mark, _nonceMark, ...line.nonce]));
     p2p.linesChanged();
     node.bump();
+  }
+
+  /// Closes a stream that is not taken.
+  static void _drop(P2pStream s) {
+    try {
+      unawaited(s.close().catchError((Object _) {}));
+    } catch (_) {}
   }
 
   /// Puts a frame of the handshake on [line]; a stream that won't take it is closed.
@@ -244,8 +260,12 @@ class P2pCarrier implements Carrier, LiveLinks {
       node.bump();
       return;
     }
-    // A packet's first byte is never 0 (packet.dart): anything else that is not one is passed over.
+    // A packet's first byte is never 0 (packet.dart): anything else that is not one is passed over. And only a packet
+    // from the account the stream proved to be (or, on one of this account's own, one it passed on) counts as
+    // something said and is handed on: junk keeps nothing open (second review, M2).
     if (frame.isEmpty || frame[0] == _mark) return;
+    final packet = Packet.parse(frame);
+    if (packet == null || (packet.passed ? p2p.me : packet.from) != line.account) return;
     _said(node, line);
     _arrived.add(Arrived(id, frame, from: line.account));
   }
@@ -433,7 +453,8 @@ class P2pCarrier implements Carrier, LiveLinks {
     p2p.busy(true);
     final took = Completer<bool>();
     try {
-      // A phone's node is started for this.
+      // A phone's node is started for this: a send of its own is a reason for it to be up a while.
+      p2p.reason();
       await p2p.up();
       // No stream open to any of their devices: asked to meet as well, where something else carries the asking.
       if (!devices.any((d) => linkedTo(account, d.nodeId))) unawaited(p2p.meet(account, until).then((_) {}, onError: (Object _) {}));
@@ -466,6 +487,8 @@ class P2pCarrier implements Carrier, LiveLinks {
       if (await _put(node, line, packet, until)) took = true;
     }
     if (!took) throw CarrierError('no link to them is open now');
+    // A send of this device's own: a reason for a phone's node to stay up a while.
+    p2p.reason();
     return Handed.passed;
   }
 
@@ -502,6 +525,9 @@ class _Line {
 /// device of, and whoever waits for either.
 class _Node {
   final List<_Line> lines = [];
+
+  /// When each stream it opened in the last minute was taken.
+  final List<int> opens = [];
 
   /// The dials to it, for each account whose device it was dialled as.
   final Map<String, _Dial> dials = {};
