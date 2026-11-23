@@ -11,6 +11,8 @@ import '../me/me.dart';
 import '../sms.dart' show Sms;
 import 'circles/circle_picture.dart' show pickProfilePicture;
 import 'add_me.dart';
+import 'identity_ui.dart';
+import 'vouches_ui.dart';
 import 'common.dart';
 import 'cosmetics_picker.dart';
 import 'profile_card.dart' show ProfileFace;
@@ -214,6 +216,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   SettingRow(icon: AppIcon(Lucide.check, size: 18), label: 'Save', onPress: _saveProfile),
                 ],
               ),
+              SizedBox(height: t.space(6)),
+              // The account's key as a did:key, and statements signed with it (GMFB-33).
+              const AccountKeySection(),
+              // Friends' vouches that this account is really this person, and whether friends are shown them.
+              if (Buddies.instance.vouchesHere) ...[
+                SizedBox(height: t.space(6)),
+                const VouchesSection(),
+              ],
               if (me.username != null) ...[
                 SizedBox(height: t.space(6)),
                 // A link and QR code that open a friend request to you (GMFB-34).

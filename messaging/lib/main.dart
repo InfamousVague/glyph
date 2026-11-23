@@ -38,6 +38,7 @@ import 'standalone/welcome.dart';
 import 'emoji_sets.dart';
 import 'kit/settings_css.dart';
 import 'net/net.dart';
+import 'net/p2p/node_factory.dart';
 import 'people.dart';
 import 'plugins/notify_hush.dart' show NotifyHush;
 import 'plugins/pack/pack.dart' show InstalledPlugins;
@@ -104,6 +105,9 @@ Future<void> main() async {
   // On a computer this is the companion to the phone's app (lib/desktop): the same screens, asking the phone.
   if (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux) return desktopMain();
   WidgetsFlutterBinding.ensureInitialized();
+  // The direct network's core, where this platform's builds carry it (an Android phone's; an iPhone's carries none
+  // yet): Direct is offered in Settings › Routes, and nothing of the core is opened until it is switched on.
+  if (p2pCoreHere) Net.p2pNode = makeP2pNode;
   // Each frame's times in the log, for a performance pass on an emulator (built with --dart-define=GHOST_FRAME_LOG=true;
   // left out of every other build): how long the frame took to build, to draw, and in all.
   if (const bool.fromEnvironment('GHOST_FRAME_LOG')) {

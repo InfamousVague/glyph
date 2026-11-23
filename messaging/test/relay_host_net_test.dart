@@ -140,7 +140,7 @@ void main() {
     final one = Relay(hub: Hub(helpers: ['https://link.one.example']));
     final first = 'ws://127.0.0.1:${await one.start(port: 0)}/hub';
     addTearDown(one.stop);
-    final app = AppState()..set('net_hub', first);
+    final app = AppState()..set('net_hub', first)..set(Net.directName, 'on');
     await Net.instance.start(app);
     await Net.instance.want('test', true);
     final p2p = Net.instance.p2p!;
@@ -163,7 +163,7 @@ void main() {
     final one = Relay(hub: Hub(helpers: ['https://link.one.example']));
     final first = 'ws://127.0.0.1:${await one.start(port: 0)}/hub';
     addTearDown(one.stop);
-    await Net.instance.start(AppState()..set('net_hub', first));
+    await Net.instance.start(AppState()..set('net_hub', first)..set(Net.directName, 'on'));
     await Net.instance.want('test', true);
     final p2p = Net.instance.p2p!;
     await waitFor(() => p2p.loaded && p2p.helpers.isNotEmpty, 'never signed in to the first relay');

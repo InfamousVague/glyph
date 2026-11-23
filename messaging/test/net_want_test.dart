@@ -100,7 +100,9 @@ void main() {
     expect(Net.instance.board!.off, containsAll(['hub', 'sms']));
     await Net.instance.setRoute('hub', true);
     await Net.instance.setRoute('sms', true);
-    expect(Net.instance.board!.off, isEmpty, reason: 'both switches stay on');
+    // Both switches stay on. Direct is the one route that starts off, by its own choice (net_direct, never net_off),
+    // so it is still listed off: nothing switched it on.
+    expect(Net.instance.board!.off, {'p2p'}, reason: 'both switches stay on');
     expect(app.choice('net_off', 'x'), '');
     // And with Settings › Me wanting the relay server, the hub dials once it is on again.
     await Net.instance.want('me', true);

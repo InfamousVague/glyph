@@ -175,10 +175,26 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
 
-    testWidgets('with a core: the ledger is kept and compared, the section says it has not checked yet, and Check now is there', (tester) async {
+    // Direct starts off (Matt's brief, 2026-11-23): with a core and Direct not switched on, nothing could compare the
+    // ledger either, so none is kept, and the section says why and how to compare too.
+    testWidgets('with a core and Direct off: the relay is checked by the name watch alone, and the section says Direct is off; no ledger kept', (tester) async {
       Net.p2pNode = FakeP2pMesh().node;
       NameWatch.instance = _watch(me: me.id, friends: const []);
       await open(tester, AppState());
+      expect([Net.instance.p2p, Net.instance.ledger, Net.instance.check, Net.instance.board?.log], [null, null, null, null]);
+      expect(find.text('Direct is off, so the relay is checked only by the name watch: friends\' usernames are asked of it again each day, and your own each time you connect. Switch Direct on above to compare what went between your devices and your friends\' over direct links too.'), findsOneWidget);
+      expect(find.textContaining('This device has no direct route'), findsNothing);
+      for (final key in ['relay-checked', 'relay-matched', 'relay-check-now']) {
+        expect(find.byKey(ValueKey(key)), findsNothing, reason: key);
+      }
+      expect(_words(tester, 'names-watched').first, 'No friends added by username yet');
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('with a core: the ledger is kept and compared, the section says it has not checked yet, and Check now is there', (tester) async {
+      Net.p2pNode = FakeP2pMesh().node;
+      NameWatch.instance = _watch(me: me.id, friends: const []);
+      await open(tester, AppState()..set(Net.directName, 'on'));
       expect(Net.instance.ledger, isNotNull);
       expect(Net.instance.board!.log, same(Net.instance.ledger));
       expect(find.textContaining('compare what went between them, over direct links'), findsOneWidget);

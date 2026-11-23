@@ -18,6 +18,7 @@ import '../main.dart' show InkOverrides, ghostTypography;
 import '../sounds.dart';
 import '../keys.dart';
 import '../net/net.dart';
+import '../net/p2p/node_factory.dart';
 import '../sms.dart';
 import '../ui/files_space/share_in.dart';
 import '../ui/window_chrome.dart';
@@ -76,6 +77,10 @@ Duration? deskResizeSettle = const Duration(milliseconds: 120);
 /// `GHOST_DESK_UPDATES=off` or [updates] is false, as it is for a test.
 Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool updates = true}) async {
   WidgetsFlutterBinding.ensureInitialized();
+  // The direct network's core, where this platform's builds carry it (the Mac's, Windows', Linux's; not an iPhone
+  // paired as a computer): Direct is offered in Settings › Routes where this computer runs its own routes, and nothing
+  // of the core is opened until it is switched on.
+  if (p2pCoreHere) Net.p2pNode = makeP2pNode;
   final env = PlatformInfo.environment;
   final dir = folder ?? env['GHOST_DESK_DIR'];
   // The Keychain holds the key in a release build. A build signed to run on this Mac alone loses its Keychain

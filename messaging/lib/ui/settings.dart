@@ -113,6 +113,9 @@ class SettingsModel extends ChangeNotifier {
     Net.instance.addListener(_say);
     // And as the direct route's devices and links change (Settings › Routes › Direct).
     Net.instance.direct.addListener(_say);
+    // And as the route that last carried something to or from someone changes (Settings › Routes › Which route each
+    // person is on).
+    Net.instance.routesUsed.addListener(_say);
     Me.instance.addListener(_say);
     // The packs on this device (lib/plugins/pack): Settings › Developer's Plugins in development lists them, and the
     // search reads their switches.
@@ -172,6 +175,7 @@ class SettingsModel extends ChangeNotifier {
     _gone = true;
     Net.instance.removeListener(_say);
     Net.instance.direct.removeListener(_say);
+    Net.instance.routesUsed.removeListener(_say);
     Me.instance.removeListener(_say);
     _installed?.removeListener(_say);
     for (final w in _watching) {
