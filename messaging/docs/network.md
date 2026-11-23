@@ -276,7 +276,8 @@ one; Settings › Network takes its address.
    (33 bytes, base64) and its signature over `"ghost-hub v1 "` and those 32 bytes (r then s, base64). The hub
    checks the name is that key's and the signature is that key's (`relay/lib/p256.dart`, Dart's BigInt and nothing
    else, held to RFC 6979's example), then `{"ok": true, "held": n, "now": ms, "since": ms}` (its time, and when it
-   started: what it kept before then went with a restart) and whatever was kept. Where the relay was
+   started: what it kept before then went with a restart; a hub that keeps what it holds on disk, `GHOST_HUB_KEEP_HELD`,
+   says the start of the one before it after a clean restart) and whatever was kept. Where the relay was
    given link helpers for the direct route (`GHOST_LINK_HELPERS`), the same answer names them: `"helpers":
    ["https://…"]`, four at most.
 
@@ -292,7 +293,8 @@ one; Settings › Network takes its address.
    looked up on another relay itself (`lib/net/relay_ask.dart`) signs in there under a key made for that one question,
    with no device's name, and takes nothing it is handed.
 2. `[1][a number: 4 bytes][to: 16 bytes][packet]` goes to that name as `[1][from: 16 bytes][packet]`, answered
-   `{"ack": number, "here": true}`; or is kept (200 packets or 1 MB a person, seven days, in memory) and answered
+   `{"ack": number, "here": true}`; or is kept (200 packets or 1 MB a person, seven days, in memory, and on the relay's disk too where its keeper set
+   `GHOST_HUB_KEEP_HELD=1`: sealed, with who it is for and from, `relay/README.md`, "What it keeps") and answered
    `"here": false`; or refused, `{"nak": number, "err": "full"}`. For someone who lives on another relay (where this
    one talks to others: `relay/README.md`, "Other relays") the answer carries `"fed": true` and never says whether they
    are connected (`"here": false`, taken), `"waiting": true` where it waits on this relay for theirs, or `nak` with
