@@ -347,6 +347,92 @@ void main() {
     expect(heardAgain.last, containsPair('known', false));
   });
 
+  // The app's lib/account/account.dart: a device of its own deletes everything only on the account's own word. The
+  // relay keeps that word (the signed removal) and hands it to the removed device, which checks the signature itself.
+  test('a device removed by the account is handed the account\'s signed removal when it asks; one never listed is not', () async {
+    final maya = Who();
+    await claim(maya, 'maya');
+    await ask(maya.id, maya.put(maya.id));
+    final phone = 'a' * 32, mac = 'b' * 32;
+    await ask(maya.id, maya.signed('acct-devices', 'devices', maya.id, {'add': {'d': phone, 'n': 'Galaxy Z Fold', 'p': 'android'}}));
+    await ask(maya.id, maya.signed('acct-devices', 'devices', maya.id, {'add': {'d': mac, 'n': 'MacBook', 'p': 'macos'}}));
+    final removal = maya.signed('acct-devices', 'devices', maya.id, {'remove': mac});
+    await ask(maya.id, removal);
+    final told = await ask(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': mac});
+    expect(told, containsPair('known', false));
+    expect(told['removed'], {'body': removal['body'], 'sig': removal['sig']});
+    // Exactly what the account signed: its signature recovers to the address, over a body that removes this device.
+    final proof = told['removed'] as Map;
+    expect(Secp256k1.signer(utf8.encode(proof['body'] as String), _unhex(proof['sig'] as String)), maya.address.toLowerCase());
+    expect((jsonDecode(proof['body'] as String) as Map)['remove'], mac);
+    // A device still listed, one never listed, another account: nothing of the kind.
+    expect((await ask(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': phone})).containsKey('removed'), isFalse);
+    expect((await ask(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': 'c' * 32})).containsKey('removed'), isFalse);
+    expect((await ask(maya.id, {'dir': 'acct-hello', 'a': Who().address, 'd': mac})).containsKey('removed'), isFalse);
+    // Kept across a restart, as the list is.
+    accounts.save();
+    final again = Accounts(dataDir: dir, handles: handles)..load();
+    final heardAgain = <Map<String, Object?>>[];
+    await again.said(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': mac}, heardAgain.add);
+    expect(heardAgain.last['removed'], {'body': removal['body'], 'sig': removal['sig']});
+    // Added again: its removal goes, and an old one is never handed out for it after.
+    await ask(maya.id, maya.signed('acct-devices', 'devices', maya.id, {'add': {'d': mac, 'n': 'MacBook', 'p': 'macos'}}));
+    expect(await ask(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': mac}), allOf(containsPair('known', true), isNot(contains('removed'))));
+    // A device taking itself off by its own number leaves no removal of the account's to hand out.
+    await ask(maya.id, {'dir': 'acct-leave', 'a': maya.address, 'd': phone});
+    expect((await ask(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': phone})).containsKey('removed'), isFalse);
+  });
+
+  test('the account\'s removals kept are the newest few: no account grows without end', () async {
+    final maya = Who();
+    await claim(maya, 'maya');
+    await ask(maya.id, maya.put(maya.id));
+    String dev(int i) => i.toRadixString(16).padLeft(32, '0');
+    for (var i = 0; i < Accounts.maxDevices + 5; i++) {
+      await ask(maya.id, maya.signed('acct-devices', 'devices', maya.id, {'add': {'d': dev(i), 'n': 'Device $i', 'p': 'web'}}));
+      await ask(maya.id, maya.signed('acct-devices', 'devices', maya.id, {'remove': dev(i)}));
+    }
+    var handed = 0;
+    for (var i = 0; i < Accounts.maxDevices + 5; i++) {
+      if ((await ask(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': dev(i)})).containsKey('removed')) handed++;
+    }
+    expect(handed, Accounts.maxDevices);
+    expect((await ask(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': dev(0)})).containsKey('removed'), isFalse, reason: 'the oldest went first');
+  });
+
+  // An accounts.json that can't be read must not be taken for "no accounts": every device would hear it was on none,
+  // and the next write would replace every account with the few made since.
+  test('an accounts file that can\'t be read: nothing is answered about any account, and the file is never written over', () async {
+    final maya = Who();
+    await claim(maya, 'maya');
+    await ask(maya.id, maya.put(maya.id));
+    await ask(maya.id, maya.signed('acct-devices', 'devices', maya.id, {'add': {'d': 'a' * 32, 'n': 'Galaxy Z Fold', 'p': 'android'}}));
+    accounts.save();
+    final file = File('${dir.path}/accounts.json');
+    final good = file.readAsStringSync();
+    file.writeAsStringSync(good.substring(0, good.length ~/ 2));
+    final broken = Accounts(dataDir: dir, handles: handles)..load();
+    expect(broken.unreadable, isTrue);
+    final heard = <Map<String, Object?>>[];
+    await broken.said(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': 'a' * 32}, heard.add);
+    expect(heard.last, containsPair('dir', 'err'));
+    expect(heard.last.containsKey('known'), isFalse);
+    // Nothing made, and nothing written: the half file is as it was.
+    final nell = Who();
+    come(nell.id, nell.key);
+    await broken.said(nell.id, nell.put(nell.id), heard.add);
+    expect(heard.last, containsPair('dir', 'err'));
+    broken.save();
+    expect(file.readAsStringSync(), good.substring(0, good.length ~/ 2));
+    // Put right, every account is there as it was.
+    file.writeAsStringSync(good);
+    final mended = Accounts(dataDir: dir, handles: handles)..load();
+    expect(mended.unreadable, isFalse);
+    final after = <Map<String, Object?>>[];
+    await mended.said(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': 'a' * 32}, after.add);
+    expect(after.last, containsPair('known', true));
+  });
+
   test('kept across a restart, with no username or number in the file; deleted by the account', () async {
     final maya = Who();
     await claim(maya, 'maya');

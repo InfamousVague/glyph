@@ -1,12 +1,18 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/account/account.dart';
 import 'package:ghost_messaging/account/account_crypto.dart';
 import 'package:ghost_messaging/circles/circle_keys.dart' show CircleKeys;
+import 'package:ghost_messaging/files/files_store.dart' show FilesStore;
+import 'package:ghost_messaging/inbox/inbox.dart' show InboxNetwork;
 import 'package:ghost_messaging/me/me.dart' show Me, MemoryMeStore;
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/forward_secrecy.dart' show ForwardSecrecy;
+import 'package:ghost_messaging/net/hub_carrier.dart' show KeysSigner;
+import 'package:ghost_messaging/net/net.dart' show Net;
 import 'package:ghost_messaging/net/p2p/p2p.dart' show P2p;
 import 'package:ghost_messaging/sms.dart' show Sms;
 import 'package:ghost_relay/accounts.dart';
@@ -37,8 +43,9 @@ class Device implements AccountPort, AccountRelay, AccountProfiles {
     _connect();
   }
 
-  final Accounts relayAccounts;
-  final Handles handles;
+  /// The relay it speaks to: another, where the person chose another (Settings › Routes).
+  Accounts relayAccounts;
+  Handles handles;
   NetKeys keys;
   String username;
   bool hasFriends;
@@ -129,6 +136,53 @@ class Device implements AccountPort, AccountRelay, AccountProfiles {
     expect(heard.last['ok'], isTrue);
     username = name;
   }
+}
+
+/// A device whose relay hands it [said] as its "removal" (a relay saying what isn't so, or one replaying old words).
+class _Told extends Device {
+  _Told(super.relayAccounts, super.handles);
+  Map<String, Object?>? said;
+  @override
+  Future<Map<String, dynamic>> ask(Map<String, Object?> what) async {
+    if (what['dir'] == 'acct-hello' && said != null) return {'dir': 'acct-hello', 'known': false, 'account': true, 'removed': said};
+    return super.ask(what);
+  }
+}
+
+/// An account key's signed `devices` body removing [device] from [address], at [at] (ms): what a relay keeps.
+Map<String, Object?> removalBy(List<String> words, String address, String device, {int? at}) {
+  final key = AccountCrypto.derive(AccountCrypto.seedOf(words), AccountCrypto.ethPath);
+  final body = jsonEncode({'op': 'devices', 'a': address, 'by': 'someone', 'at': at ?? DateTime.now().millisecondsSinceEpoch, 'remove': device});
+  return {'body': body, 'sig': NetCrypto.hex(AccountCrypto.sign(key, utf8.encode(body)))};
+}
+
+/// Another network, as the inbox has them: signed out by a wipe.
+class _Network implements InboxNetwork {
+  var signedOut = 0;
+  @override
+  Future<void> signOut() async => signedOut++;
+  @override
+  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
+}
+
+/// The relay's accounts, with every ask whose body holds [drop] lost on its way ([times] of them, or every one).
+class _Dropping implements Accounts {
+  _Dropping(this.real, {required this.drop, this.times});
+  final Accounts real;
+  final String drop;
+  int? times;
+  @override
+  Future<void> said(String id, Map said, void Function(Map<String, Object?>) tell) async {
+    final body = said['body'];
+    if (body is String && body.contains(drop) && (times == null || times! > 0)) {
+      if (times != null) times = times! - 1;
+      return tell({'dir': 'err', 'about': said['dir'], 'err': 'The relay server did not answer.'});
+    }
+    return real.said(id, said, tell);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 
 /// An iPhone: it can't start itself again.
@@ -497,6 +551,144 @@ void main() {
       expect(iphone.account.ended, isTrue);
       expect(told, greaterThan(0));
     });
+  });
+
+  // The second review: the relay says `known: false` for anything it doesn't know, not only for a device the account
+  // removed. On a device of its own only the account's own signed removal deletes anything (Account.removalProven).
+  group('on a device of its own, the relay\'s word alone deletes nothing', () {
+    setUp(() {
+      Sms.standalone = true;
+      Account.addAgainAfter = Duration.zero;
+    });
+    tearDown(() => Sms.standalone = false);
+
+    test('moved to another relay (Settings › Routes): nothing deleted or forgotten, and it says the relay doesn\'t know it', () async {
+      final iphone = Device(accounts, handles, hasFriends: true);
+      await iphone.claim('maya');
+      await iphone.account.create(iphone.account.draft(), 'correct horse battery');
+      await iphone.account.check();
+      expect(iphone.account.unknownHere, isFalse);
+      final kept = {...iphone.secrets}, prefs = {...iphone.store.kept};
+      // Another relay, with no such account.
+      final otherHandles = Handles(texts: FakeTexts())..load();
+      iphone.relayAccounts = Accounts(handles: otherHandles);
+      iphone.handles = otherHandles;
+      otherHandles.came(iphone.connection, (_) {}, key: iphone.keys.public);
+      await iphone.account.check();
+      expect(iphone.wipes, isEmpty);
+      expect(iphone.account.removedHere, isFalse);
+      expect(iphone.account.unknownHere, isTrue);
+      expect(iphone.account.signedIn, isTrue);
+      expect(iphone.secrets, kept, reason: 'nothing forgotten');
+      expect(iphone.store.kept, prefs);
+      // Back on its own relay: known again, and said so.
+      iphone.relayAccounts = accounts;
+      iphone.handles = handles;
+      await iphone.account.check();
+      expect(iphone.account.unknownHere, isFalse);
+      expect(iphone.wipes, isEmpty);
+    });
+
+    test('a relay that lost what it kept (its accounts file unreadable): nothing deleted', () async {
+      final dir = Directory.systemTemp.createTempSync('accounts-lost');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final relay = Accounts(dataDir: dir, handles: handles);
+      final mac = Device(relay, handles, hasFriends: true);
+      await mac.claim('maya');
+      await mac.account.create(mac.account.draft(), 'correct horse battery');
+      relay.save();
+      File('${dir.path}/accounts.json').writeAsStringSync('{"v":1,"accounts":{"0x');
+      mac.relayAccounts = Accounts(dataDir: dir, handles: handles)..load();
+      await mac.account.check();
+      expect(mac.wipes, isEmpty);
+      expect(mac.account.signedIn, isTrue);
+      expect(mac.secrets, isNotEmpty);
+    });
+
+    test('a sign-up whose listing never arrived: nothing kept as signed in, and nothing deleted after', () async {
+      final mac = _Told(accounts, handles);
+      await mac.claim('nell');
+      // Every "add" lost on its way, twice.
+      final real = mac.relayAccounts;
+      mac.relayAccounts = _Dropping(real, drop: '"add"');
+      await expectLater(mac.account.create(mac.account.draft(), 'correct horse battery'), throwsA(isA<AccountError>().having((e) => e.message, 'says', contains('Sign in to it'))));
+      expect(mac.account.signedIn, isFalse, reason: 'not the account\'s here until it is on its list');
+      expect(mac.secrets, isEmpty);
+      mac.relayAccounts = real;
+      await mac.account.check();
+      expect(mac.wipes, isEmpty);
+      // And it is signed in to as any account is: the backup was kept.
+      final restore = await mac.account.signInWithPassword('nell', 'correct horse battery');
+      await mac.account.finish(restore);
+      expect(mac.account.signedIn, isTrue);
+      expect((await mac.account.devices()).single.here, isTrue);
+    });
+
+    test('a listing lost once is asked again, and the sign-up goes on', () async {
+      final mac = Device(accounts, handles);
+      await mac.claim('nell');
+      mac.relayAccounts = _Dropping(accounts, drop: '"add"', times: 1);
+      await mac.account.create(mac.account.draft(), 'correct horse battery');
+      mac.relayAccounts = accounts;
+      expect(mac.account.signedIn, isTrue);
+      expect((await mac.account.devices()).single.here, isTrue);
+    });
+
+    test('a removal the account didn\'t sign, or of another device, or from before it was added: nothing deleted', () async {
+      final (phone, draft) = await made();
+      final iphone = _Told(accounts, handles);
+      await iphone.account.finish(await iphone.account.signInWithPassword('maya', 'correct horse battery'));
+      final address = iphone.account.address!, device = iphone.account.device;
+      final otherWords = phone.account.draft().words;
+      for (final (why, said) in [
+        ('signed by another key', removalBy(otherWords, address, device)),
+        ('of another device', removalBy(draft.words, address, 'f' * 32)),
+        ('for another account', removalBy(draft.words, '0x${'1' * 40}', device)),
+        ('from before this device was added', removalBy(draft.words, address, device, at: iphone.account.joinedAt - 3600000)),
+        ('not signed at all', {'body': jsonDecode(jsonEncode(removalBy(draft.words, address, device)))['body'], 'sig': '00' * 65}),
+        ('not words at all', {'what': 'removed'}),
+      ]) {
+        iphone.said = said;
+        await iphone.account.check();
+        expect(iphone.wipes, isEmpty, reason: why);
+        expect(iphone.account.unknownHere, isTrue, reason: why);
+      }
+      // The account's own, for this device, now: it is believed.
+      iphone.said = removalBy(draft.words, address, device);
+      await iphone.account.check();
+      expect(iphone.wipes, ['removed']);
+      expect(Account.removalProven(removalBy(draft.words, address, device), address: address.toLowerCase(), device: device), isTrue, reason: 'the address as the relay writes it');
+    });
+  });
+
+  // What else of the person's a device of its own keeps, deleted with its store when everything goes: Files spaces'
+  // files, call recordings, the voice changer's key, and every other network's sign-in. Never the computer's own: the
+  // test's folder stands in for the app's.
+  test('everything else of the person\'s on an iPhone or a computer goes too: recordings, the voice changer, other networks', () async {
+    final home = Directory.systemTemp.createTempSync('ghost-home');
+    addTearDown(() => home.deleteSync(recursive: true));
+    for (final name in ['recordings', 'voicechanger', 'tdlib', 'signal', 'whatsapp', 'matrix', 'gmessages', 'space-files', 'unrelated']) {
+      Directory('${home.path}/$name').createSync();
+      File('${home.path}/$name/kept').writeAsStringSync(name);
+    }
+    final network = _Network();
+    final files = FilesStore.forTest(base: null, signer: KeysSigner(NetKeys.generate()), data: Directory('${home.path}/space-files'));
+    Sms.standalone = true;
+    addTearDown(() => Sms.standalone = false);
+    await AppAccountProfiles(home: home.path, files: files, networks: [network]).wipe();
+    expect(network.signedOut, 1);
+    final left = [for (final e in home.listSync()) e.uri.pathSegments.where((p) => p.isNotEmpty).last];
+    expect(left, ['unrelated'], reason: 'only what the app keeps of the person goes');
+  });
+
+  // An iPhone's push token, given to the relay so it can wake the app (relay/lib/pushes.dart), is taken back before the
+  // routes stop on a wipe or a sign-out: a wiped iPhone isn't woken with "New message" for who it was. Net passes it to
+  // the hub route, which says {"push": null} at once (test/push_wake_test.dart).
+  test('stopping the routes takes an iPhone\'s push token back first', () async {
+    Net.instance.setPush({'apns': 'ab' * 80, 'sandbox': true});
+    addTearDown(() => Net.instance.setPush(null));
+    await AppAccountProfiles().stopAll();
+    expect(Net.instance.push, isNull);
   });
 
   // An Android phone (or a computer paired with one): removed, it forgets the account's words and keys, as before.

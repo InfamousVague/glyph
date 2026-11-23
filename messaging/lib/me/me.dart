@@ -631,8 +631,10 @@ class Me extends ChangeNotifier {
   /// [mineKey] for the account words [words], for a test.
   static Uint8List mineKeyOf(List<String> words) => AccountCrypto.hkdf(AccountCrypto.seedOf(words), 'ghost-account v1', 'ghost mine v1');
 
-  /// Where a page in a browser keeps [mineKey] in the words' place: it opens copies of conversations between the
-  /// account's own devices and nothing else, and can't be turned back into the words.
+  /// Where a page in a browser keeps [mineKey] in the words' place. It can't be turned back into the words, and opens
+  /// none of the account's other keys; but it opens the copies the account's devices pass each other of what is said
+  /// with friends by username, both ways, for as long as the account lasts, since it never changes. Whoever takes it
+  /// from a browser can read those copies as they pass through the relay.
   static const mineSecret = 'account_mine';
 
   /// Forgets the cached cURL key (on sign-out, when the account's words change).

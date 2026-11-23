@@ -83,7 +83,22 @@ Widget _accountSection(BuildContext context) {
   }
   return PaneSection(
       title: 'Account',
+      // The relay doesn't know this device, and nothing signed by the account says it was removed (Account.unknownHere):
+      // nothing was deleted or forgotten; said, with what to do.
+      description: account.unknownHere
+          ? Text(Sms.browser
+              ? 'The relay server doesn\'t list this browser under your account: it may have lost what it kept, or this browser was never added to it. Nothing has been deleted here. Sign in again to list it.'
+              : 'The relay server doesn\'t list this device under your account: it may be another relay than the one your account is on, it may have lost what it kept, or this device was never added to it. Nothing has been deleted or forgotten here. Sign in again to list it, or go back to the relay your account is on (Settings › Routes).')
+          : null,
       children: [
+        if (account.unknownHere)
+          SettingRow(
+            key: const ValueKey('account-sign-in-again'),
+            icon: _icon(Lucide.keyRound),
+            label: 'Sign in again',
+            hint: const Text('With your username and password, to list this device under your account'),
+            onPress: () => push(context, (_) => SignInScreen(username: Me.instance.username ?? '')),
+          ),
         SettingRow(
           icon: _icon(Lucide.shieldCheck),
           label: 'Address',
@@ -140,7 +155,7 @@ Future<void> askSignOut(BuildContext context) {
   if (Sms.standalone) {
     return showChoices(
       context,
-      title: 'Sign out of this device? It becomes someone new here, and your friends and circles stay with your account, to come back when you sign in again. Your conversations, your spaces and your choices stay on this device, unless you delete everything here too.',
+      title: 'Sign out of this device? It becomes someone new here, and your friends and circles stay with your account, to come back when you sign in again. Your conversations, your spaces and your choices stay on this device, unless you delete everything here too, which also signs out of your other networks here (Telegram, Signal and the rest) and deletes its call recordings.',
       choices: [
         Choice('Sign out', Lucide.logOut, out),
         Choice('Sign out and delete everything here', Lucide.trash2, () => out(everything: true), danger: true),
@@ -993,7 +1008,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
     return _AccountPage(title: 'Devices', children: [
       PaneSection(
         title: 'Signed in on these devices',
-        description: const Text('Each one is your account. Remove one you no longer have: the next time it connects it is signed out, and a browser, an iPhone or a computer of its own deletes everything of your account from itself. An Android phone, or a computer linked to one, is signed out and forgets your recovery words and its keys for circles and forward secrecy, and keeps its username, friends and conversations.'),
+        description: const Text('Each one is your account. Remove one you no longer have. A browser is signed out within a few minutes, or as soon as it is next opened; a phone or a computer the next time it starts. A browser, an iPhone or a computer of its own then deletes everything of your account from itself, its other networks\' sign-ins and call recordings included. An Android phone, or a computer linked to one, is signed out and forgets your recovery words and its keys for circles and forward secrecy, and keeps its username, friends and conversations.'),
         footer: _problem != null ? _problemText(context, _problem) : _list == null ? const Text('Asking the relay server…') : null,
         children: [
           for (final d in list)

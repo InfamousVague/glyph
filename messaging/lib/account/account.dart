@@ -4,9 +4,14 @@ import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 
+import 'dart:io' show Directory;
+
 import '../circles/circles.dart';
+import '../desktop/store.dart' show DeskStore;
 import '../files/files_store.dart' show FilesStore;
 import '../friends/buddies.dart';
+import '../inbox/account_helper.dart' show AccountHelper;
+import '../inbox/inbox.dart' show Inbox, InboxNetwork;
 import '../me/me.dart';
 import '../net/carrier.dart';
 import '../net/crypto.dart';
@@ -73,7 +78,8 @@ class Account extends ChangeNotifier {
   /// runs in the page can open what the page keeps (lib/web/store.dart), so there the words are opened from the
   /// password's copy of the backup each time they are wanted ([keysWith], [revealWords]) and forgotten again, and only
   /// what the app needs from them day to day is kept: the key the account's devices seal copies to each other with
-  /// ([Me.mineSecret]), which opens nothing else.
+  /// ([Me.mineSecret]), which opens those copies of what is said with friends by username, both ways and never
+  /// changing, and none of the account's other keys.
   static bool get keepsWords => !Sms.browser;
 
   /// What this install keeps of an account opened just now with [words] (and [pk], where the password was typed):
@@ -121,8 +127,37 @@ class Account extends ChangeNotifier {
   /// 'seed' where the identity is the words' own, 'bound' where it was the install's before the account.
   String get mode => store.choice('acct_mode', 'seed');
 
-  /// The relay said this device was removed from the account (from another device), or the account is gone.
+  /// The relay said this device was removed from the account (from another device): with the account's own signed
+  /// words for it, on a device of its own ([removalProven]); on an Android phone or a paired computer, by its saying so.
   bool removedHere = false;
+
+  /// A device of its own the relay doesn't know as one of the account's, with nothing signed by the account to say it
+  /// was removed: another relay than the account's (Settings › Routes), a relay that lost what it kept, a sign-up whose
+  /// listing never arrived, or a relay saying what isn't so. Nothing is deleted or forgotten for it; Settings › Me says
+  /// so, and offers to sign in again (lib/ui/account_screens.dart).
+  bool unknownHere = false;
+
+  /// When this device last became the account's (ms; `acct_joined`): a removal signed before it is an old one, said
+  /// again (a relay replaying what it kept from before this device was added again), and is not taken.
+  int get joinedAt => int.tryParse(store.choice('acct_joined', '')) ?? 0;
+
+  /// Whether [proof] (what `acct-hello` hands back with `known: false`, relay/lib/accounts.dart) is the account's own
+  /// signed removal of [device]: the account key's signature (EIP-191) over a `devices` body naming [address] and
+  /// removing [device], made no earlier than ten minutes (the relay's allowance for clocks) before [joinedAt]. Nothing
+  /// else that a relay says, or makes up, passes: only the account's words can make it.
+  static bool removalProven(Object? proof, {required String address, required String device, int joinedAt = 0}) {
+    if (proof is! Map || proof['body'] is! String || proof['sig'] is! String) return false;
+    try {
+      final text = proof['body'] as String;
+      final signer = AccountCrypto.signer(utf8.encode(text), NetCrypto.unhex(proof['sig'] as String));
+      if (signer == null || signer.toLowerCase() != address.toLowerCase()) return false;
+      final body = jsonDecode(text) as Map;
+      final at = body['at'];
+      return body['op'] == 'devices' && '${body['a']}'.toLowerCase() == address.toLowerCase() && body['remove'] == device && at is num && at >= joinedAt - 600000;
+    } catch (_) {
+      return false;
+    }
+  }
 
   Future<List<String>?> _keptWords() async {
     final w = await port.secretRead(_words);
@@ -135,6 +170,8 @@ class Account extends ChangeNotifier {
     store.set('acct_address', address);
     store.set('acct_mode', mode);
     store.set('acct_sealed', sealed);
+    store.set('acct_joined', '${DateTime.now().millisecondsSinceEpoch}');
+    unknownHere = false;
     // Why the device had started again with nothing (StandaloneCalls.noteKey), said on the welcome until now.
     if (store.choice('acct_note', '').isNotEmpty) store.set('acct_note', '');
     notifyListeners();
@@ -163,12 +200,29 @@ class Account extends ChangeNotifier {
     final backup = profiles.fill(AccountBackup(words: draft.words, identity: NetCrypto.hex(identity.scalar), mode: fresh ? 'seed' : 'bound'));
     final pk = await PasswordKey.make(password);
     final sealed = await _put(keys, identity, backup, pk);
+    // Listed under the account before this device calls itself signed in to it, as [finish] does: kept the other way
+    // round, a listing that never arrived left a device that thought itself the account's and wasn't on its list, and
+    // the relay said so at its next start. Asked twice; where it still doesn't arrive nothing is kept here, and the
+    // account, made on the relay, is signed in to as any is.
+    try {
+      await _addDevice(keys.key, keys.address);
+    } catch (_) {
+      try {
+        await Future<void>.delayed(addAgainAfter);
+        await _addDevice(keys.key, keys.address);
+      } catch (_) {
+        throw AccountError('Your account was made, but this device couldn\'t be added to it just now. Sign in to it with your username and password in Settings › Me.');
+      }
+    }
     await _keepKeys(draft.words, pk);
     _keepHere(address: keys.address, mode: backup.mode, sealed: sealed);
-    await _addDevice(keys.key, keys.address);
     if (fresh) await port.identityImport(identity.scalar, identity.public);
     return fresh;
   }
+
+  /// How long [create] waits before asking a second time to list this device.
+  @visibleForTesting
+  static Duration addAgainAfter = const Duration(seconds: 2);
 
   /// Seals [backup] both ways and keeps it on the relay; the password's copy, to keep here too.
   Future<String> _put(({Uint8List seed, Uint8List key, String address}) keys, NetKeys identity, AccountBackup backup, PasswordKey password) async {
@@ -478,24 +532,44 @@ class Account extends ChangeNotifier {
     // fail there every time, unsaid, so the backup was never sealed again and a device taken off was never told.
     final r = relay;
     if (r is HubAccountRelay && !await r.hubMade()) return;
+    if (_checking) return;
+    _checking = true;
     try {
       final m = await relay.ask({'dir': 'acct-hello', 'a': address, 'd': device});
       if (m['known'] == false) {
-        removedHere = true;
-        // A device of its own (an iPhone, a computer with no phone, a page in a browser) stops being the account
-        // altogether: everything of it this device keeps is deleted, and the app starts again with nothing. Kept, its
-        // identity, friends and circles went on reading and writing as the account after it was taken off the list.
-        // An Android phone, or a computer paired with one, forgets the account's words and keys, as before.
-        if (Sms.standalone) {
+        if (!Sms.standalone) {
+          // An Android phone, or a computer paired with one: it forgets the account's words and keys, as it always has.
+          removedHere = true;
+          await _forgetHere();
+        } else if (removalProven(m['removed'], address: address, device: device, joinedAt: joinedAt)) {
+          // A device of its own the account removed (its own signed words say so): it stops being the account
+          // altogether, everything of it this device keeps deleted, and the app starts again with nothing. Kept, its
+          // identity, friends and circles went on reading and writing as the account after it was taken off the list.
+          removedHere = true;
           await _wipe('removed');
         } else {
-          await _forgetHere();
+          // Not the account's word, only the relay's: another relay, one that lost what it kept, a sign-up never
+          // listed. Said, with what to do; nothing deleted or forgotten (it was all deleted on this alone once, and a
+          // relay switch cost every conversation).
+          if (!unknownHere) {
+            unknownHere = true;
+            notifyListeners();
+          }
         }
       } else {
+        if (unknownHere) {
+          unknownHere = false;
+          notifyListeners();
+        }
         await refresh();
       }
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      _checking = false;
+    }
   }
+
+  bool _checking = false;
 
   Future<void> _forgetHere() async {
     store.set('acct_address', '');
@@ -787,6 +861,13 @@ abstract class AccountProfiles {
 }
 
 class AppAccountProfiles implements AccountProfiles {
+  /// The app's own, but for a test's [home] (in place of the app's folder, DeskStore.defaultDir), [files] and
+  /// [networks]: a test must never delete what the computer running it keeps.
+  AppAccountProfiles({String? home, FilesStore? files, List<InboxNetwork>? networks}) : _home = home, _files = files, _networks = networks;
+  final String? _home;
+  final FilesStore? _files;
+  final List<InboxNetwork>? _networks;
+
   MeStore? get _store => Account.instance.store is _NoStore ? null : Account.instance.store;
 
   @override
@@ -865,18 +946,54 @@ class AppAccountProfiles implements AccountProfiles {
 
   @override
   Future<void> stopAll() async {
+    // An iPhone's push token first (relay/lib/pushes.dart: `{"push": null}`), so a device that is about to be someone
+    // else, or nothing, is not woken for the identity it was ("New message" alerts on a wiped iPhone). Only where one
+    // was given: no other device has one.
+    try {
+      if (Net.instance.push != null) {
+        Net.instance.setPush(null);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      }
+    } catch (_) {}
     try {
       await Net.instance.shutdown();
     } catch (_) {}
   }
 
+  /// The other networks' folders under the app's own (lib/inbox: each network's `_dir`; Google Messages' helper on a
+  /// computer, lib/desktop/gm_web.dart), deleted with everything else of the person's on a device of its own ([wipe]),
+  /// after each network has signed itself out where it has a way to (Telegram logs out, Signal unlinks).
+  static const otherNetworkFolders = ['tdlib', 'signal', 'whatsapp', 'matrix', 'gmessages'];
+
   @override
   Future<void> wipe() async {
-    // A browser keeps no files of anyone's (lib/files is not in a page).
+    // A browser keeps no files of anyone's (lib/files is not in a page), and runs no other network.
     if (Sms.browser) return;
+    // Files spaces' files.
     try {
-      await FilesStore.instance.wipe();
+      await (_files ?? FilesStore.instance).wipe();
     } catch (_) {}
+    // Every other network's sign-in here: signed out, and its folder deleted. A device that stops being the person keeps
+    // no Telegram, Signal, WhatsApp, Matrix, Messenger, Instagram, Discord, X, Slack or Google Messages session of theirs.
+    final networks = _networks ?? Inbox.instance.networks;
+    await Future.wait([
+      for (final n in networks)
+        () async {
+          try {
+            await n.signOut().timeout(const Duration(seconds: 12));
+          } catch (_) {}
+        }(),
+    ]);
+    final home = _home ?? DeskStore.defaultDir().path;
+    final helpers = [for (final n in networks) if (n is AccountHelper) n.service.id];
+    // Call recordings and their list, and the voice changer's folder (its ElevenLabs key): where an iPhone or a
+    // computer keeps them (CallRecorder.folder, VoiceChanger.defaultFolder), in the app's folder.
+    for (final path in [for (final name in ['recordings', 'voicechanger', ...otherNetworkFolders, ...helpers]) '$home/$name']) {
+      try {
+        final dir = Directory(path);
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+      } catch (_) {}
+    }
   }
 }
 

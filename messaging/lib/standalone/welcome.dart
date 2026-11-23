@@ -13,7 +13,7 @@ import '../kit/settings_type.dart';
 import '../me/me.dart';
 import '../sms.dart' show Sms;
 import '../ui/account_screens.dart';
-import '../ui/common.dart' show push;
+import '../ui/common.dart' show push, toast;
 import '../ui/computers.dart' show PairButton;
 import '../kit/semantic_colors.dart';
 import 'standalone.dart' show StandaloneCalls;
@@ -97,8 +97,10 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
         pageBuilder: (_, _, _) => CreateAccountScreen(step: CreateStep.words, draft: draft, made: true),
         transitionsBuilder: (_, animation, _, child) => FadeTransition(opacity: animation, child: child),
       )));
-    } catch (_) {
-      // The username is this device's already; the account can be made again from Settings › Me.
+    } catch (e) {
+      // The username is this device's already. The account is made from Settings › Me; or, where it was made and this
+      // device couldn't be added to it (Account.create says so), signed in to there.
+      if (mounted) toast(context, e is AccountError ? e.message : 'Your account couldn\'t be made just now. Make it from Settings › Me.');
     }
     widget.onDone();
   }
