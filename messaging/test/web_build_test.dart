@@ -3,6 +3,11 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/files/files_model.dart' show SpaceFile;
+import 'package:ghost_messaging/plugins/list.dart' show ListPlugins;
+import 'package:ghost_messaging/plugins/plugin.dart' show MessageFacts;
+import 'package:ghost_messaging/plugins/spam.dart' show isNetworkChat;
+import 'package:ghost_messaging/standalone/overlay.dart' show UsernameOverlay;
 import 'package:ghost_messaging/web/main.dart';
 
 /// The app's build for a browser (lib/web/main.dart, web/; Matt: "the full web client"). The build itself is
@@ -81,5 +86,41 @@ void main() {
       }
     }
     expect(found, isEmpty, reason: found.join('\n'));
+  });
+
+  // In a browser an integer is JavaScript's number, and `<<`, `>>` and `>>>` keep 32 bits of it: `1 << 40` is 0 there,
+  // at run time and as a constant alike, with nothing to say so. (So a file's most size was 0, and every file over it.)
+  // A number past 32 bits is written out (0x10000000000), which a browser holds exactly up to 2^53.
+  test('nothing in lib/ shifts by 32 bits or more', () {
+    // Where it may, and why.
+    const allowed = {
+      'lib/net/fast_gcm_64.dart': 'the half of lib/net/fast_gcm.dart for 64-bit integers; a browser gets fast_gcm_web.dart',
+    };
+    final shift = RegExp(r'(?:<<|>>>?)=?\s*\(?\s*(?:3[2-9]|[4-9][0-9]|[1-9][0-9]{2,})\b');
+    final found = <String>[];
+    var files = 0;
+    for (final file in Directory('lib').listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart'))) {
+      final path = file.path.replaceAll('\\', '/');
+      files++;
+      final lines = file.readAsLinesSync();
+      final here = [
+        for (var i = 0; i < lines.length; i++)
+          if (!lines[i].trimLeft().startsWith('//') && shift.hasMatch(lines[i])) '$path:${i + 1}: ${lines[i].trim().length > 120 ? '${lines[i].trim().substring(0, 120)}…' : lines[i].trim()}',
+      ];
+      if (allowed.containsKey(path)) {
+        expect(here, isNotEmpty, reason: '$path is allowed such shifts and has none: take it off the list.');
+      } else {
+        found.addAll(here);
+      }
+    }
+    expect(files, greaterThan(300));
+    expect(found, isEmpty, reason: 'A shift keeps 32 bits in a browser: write the number out, or split the file as lib/net/fast_gcm.dart is.\n${found.join('\n')}');
+    // And the four that were `1 << 40` are still 2^40 here.
+    expect(SpaceFile.maxSize, 1099511627776);
+    expect(UsernameOverlay.base, 1099511627776);
+    expect(ListPlugins.chatThread('a'), lessThanOrEqualTo(-1099511627776));
+    expect(ListPlugins.chatThread('a'), greaterThan(-1099511627776 - 0x40000000));
+    expect(isNetworkChat(MessageFacts(thread: ListPlugins.chatThread('a'), senders: const [], text: '', contact: false)), isTrue);
+    expect(isNetworkChat(const MessageFacts(thread: 7, senders: [], text: '', contact: false)), isFalse);
   });
 }
