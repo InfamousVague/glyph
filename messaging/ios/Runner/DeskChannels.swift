@@ -63,6 +63,10 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
       case "name":
         // iOS gives apps "iPhone" rather than the name in Settings › General › About.
         result(UIDevice.current.name)
+      case "keptDir":
+        // Where the app keeps what no backup takes (lib/net/kept_files_io.dart: the ledger the relay is checked by): its
+        // own Caches folder, in its container, which iOS never backs up.
+        result(FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.path)
       case "keyRead":
         result(DeskChannels.keychain(read: args["account"] as? String ?? ""))
       case "keyWrite":

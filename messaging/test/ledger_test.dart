@@ -1,9 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/net/carrier.dart';
 import 'package:ghost_messaging/net/crypto.dart';
-import 'package:ghost_messaging/net/forward_secrecy.dart' show MemoryFsStore;
+import 'package:ghost_messaging/net/forward_secrecy.dart' show FsStore, MemoryFsStore;
 import 'package:ghost_messaging/net/ledger.dart';
 import 'package:ghost_messaging/net/p2p/p2p.dart' show P2pPolicy;
 import 'package:ghost_messaging/net/packet.dart';
@@ -22,6 +23,24 @@ import 'support/hub_pair.dart';
 
 const _second = Duration(seconds: 1);
 const _minute = Duration(minutes: 1);
+
+/// A store whose writes wait while [hold] is set: how many are writing at once, and the most there were.
+class _HeldStore implements FsStore {
+  final kept = <String, String>{};
+  int writing = 0, most = 0;
+  Completer<void>? hold;
+  @override
+  Future<String?> read(String name) async => kept[name];
+  @override
+  Future<void> write(String name, String value) async {
+    writing++;
+    if (writing > most) most = writing;
+    final h = hold;
+    if (h != null) await h.future;
+    kept[name] = value;
+    writing--;
+  }
+}
 
 String _hex32() => NetCrypto.hex(NetCrypto.randomBytes(16));
 
@@ -169,6 +188,42 @@ void main() {
       await again.wipe();
       expect(store.kept.values.where((v) => v.isNotEmpty), isEmpty);
     });
+  });
+
+  test('N5: the flush twenty seconds on, the flush as the app is put away and signing out\'s wipe write one after another, never two at once; a wipe while a flush is writing leaves nothing, a book it had not yet listed too', () async {
+    final clock = FakeClock();
+    final store = _HeldStore();
+    final friend = _hex32(), friend2 = _hex32();
+    final l = Ledger(store: store, me: _hex32(), device: _hex32(), isFriend: (id) => id == friend || id == friend2, now: clock.now, timer: clock.timer);
+    await l.load();
+    Peer peer(String id) => Peer(id: id, key: NetCrypto.randomBytes(32));
+    l.came(peer(friend), Envelope(kind: 'text'), via: 'hub');
+    store.hold = Completer<void>();
+    final timed = l.flush();
+    await clock.settle();
+    expect(store.writing, 1);
+    // Put away while the first is writing: the second waits for it.
+    l.came(peer(friend), Envelope(kind: 'text'), via: 'hub');
+    final away = l.flush();
+    await clock.settle();
+    expect(store.writing, 1);
+    store.hold!.complete();
+    store.hold = null;
+    await Future.wait([timed, away]);
+    expect(store.most, 1);
+    expect((jsonDecode(store.kept[Ledger.indexName]!) as Map)['f'], [friend]);
+    // A new friend's book being written as the person signs out: it goes too, though the index never listed it.
+    l.came(peer(friend2), Envelope(kind: 'text'), via: 'hub');
+    store.hold = Completer<void>();
+    final last = l.flush();
+    await clock.settle();
+    final wiped = l.wipe();
+    await clock.settle();
+    store.hold!.complete();
+    store.hold = null;
+    await Future.wait([last, wiped]);
+    expect(store.most, 1);
+    expect({for (final e in store.kept.entries) if (e.value.isNotEmpty) e.key}, isEmpty);
   });
 
   group('comparing over a direct link', () {

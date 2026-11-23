@@ -518,6 +518,9 @@ open class MainActivity : FlutterActivity() {
                 // A helper of the app's, by its name, in the native libraries Android unpacks (the Signal helper,
                 // libsignalsidecar.so): its path where it is there.
                 "helperPath" -> result.success(java.io.File(applicationInfo.nativeLibraryDir, "lib${call.argument<String>("name")}.so").takeIf { it.exists() }?.path)
+                // The folder of this installed app's that Android's backup never takes (lib/net/kept_files_io.dart: the
+                // ledger the relay is checked by keeps its files under it), as Android gives it.
+                "keptDir" -> result.success(noBackupFilesDir.absolutePath)
                 // A call in a space (CallService.kt): going on with the phone locked, until it ends.
                 "callStarted" -> { CallService.start(this, call.argument<String>("name") ?: "", call.argument<Boolean>("video") ?: false, call.argument<Boolean>("screen") ?: false); result.success(null) }
                 "callEnded" -> { CallService.stop(this); result.success(null) }

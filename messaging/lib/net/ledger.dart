@@ -284,6 +284,16 @@ class Ledger extends ChangeNotifier implements SendLog {
   bool _relayDirty = false;
   Set<String> _keptBooks = {};
 
+  /// What the ledger writes, one after another: the flush twenty seconds after a change, the flush as the app is put
+  /// away, and signing out's wipe, so two never write the same file at once (the second review, N5).
+  Future<void> _writing = Future.value();
+
+  Future<void> _inTurn(Future<void> Function() write) {
+    final run = _writing.then((_) => write());
+    _writing = run.then<void>((_) {}, onError: (Object _) {});
+    return run;
+  }
+
   int get nowMs => _now().millisecondsSinceEpoch;
   bool get loaded => _loaded;
 
@@ -657,10 +667,14 @@ class Ledger extends ChangeNotifier implements SendLog {
   }
 
   /// Writes what changed now: each friend's book first, then the relay's connections (so a connection is never kept as
-  /// having heard later than the lists kept beside it).
-  Future<void> flush() async {
+  /// having heard later than the lists kept beside it). After any flush or wipe still writing ([_inTurn]).
+  Future<void> flush() {
     _saving?.cancel();
     _saving = null;
+    return _inTurn(_flush);
+  }
+
+  Future<void> _flush() async {
     if (!_loaded || _wiped) return;
     // A friend no longer one: nothing of them is kept.
     for (final account in _books.keys.toList()) {
@@ -696,17 +710,24 @@ class Ledger extends ChangeNotifier implements SendLog {
     }
   }
 
-  /// Signing out: nothing of the ledger is kept, here or with the choices.
+  /// Signing out: nothing of the ledger is kept, here or with the choices. Once a flush still writing has ended, every
+  /// book it may have written goes, those it had not yet listed too.
   Future<void> wipe() async {
     _wiped = true;
     _saving?.cancel();
     _saving = null;
+    final books = {for (final account in {..._books.keys, ..._keptBooks, ..._dirty}) bookName(account)};
     _books.clear();
     _since.clear();
     _sessions.clear();
     _relays.clear();
     _dirty.clear();
-    await forget(_store);
+    await _inTurn(() async {
+      for (final name in books) {
+        if ((await _store.read(name) ?? '').isNotEmpty) await _store.write(name, '');
+      }
+      await forget(_store);
+    });
     if (!_gone) notifyListeners();
   }
 
