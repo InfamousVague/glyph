@@ -31,13 +31,35 @@ class Delivery {
 
 /// Something that came, opened and told apart from its copies.
 class Received {
-  const Received(this.peer, this.envelope, this.via, {this.sealed = true});
+  const Received(this.peer, this.envelope, this.via, {this.sealed = true, this.arrived});
   final Peer peer;
   final Envelope envelope;
 
   /// The route that brought it first.
   final String via;
   final bool sealed;
+
+  /// What the route handed over, with the link it came on where the route holds links of its own: what is said back
+  /// on that link goes by it ([Switchboard.send]'s `answering`). Null where it was not made by a switchboard.
+  final Arrived? arrived;
+}
+
+/// Whoever keeps a ledger of what went to whom and what came from whom (lib/net/ledger.dart), as the switchboard tells
+/// it: what a route took and what the route said of it, what came and by which route, what was answered, and that
+/// something came from someone that could not be opened here. Only what was sealed for someone a key is held for; the
+/// envelope is the ledger's to look at, and keeps no words of it.
+abstract class SendLog {
+  /// A route took [envelope] for [peer] and said [handed]: passed on, or kept for them.
+  void sent(Peer peer, Envelope envelope, {required String via, required Handed handed});
+
+  /// [envelope] came from [peer] by [via], the first copy of it.
+  void came(Peer peer, Envelope envelope, {required String via});
+
+  /// [peer] said they have what went as [id].
+  void answered(Peer peer, String id);
+
+  /// A packet from [peer] came by [via] that this device could not open (sealed for another device of this account).
+  void unopened(Peer peer, {required String via});
 }
 
 /// Who the routes can reach: the app's list of the installs it has exchanged keys with.
@@ -83,6 +105,12 @@ abstract class PeerBook {
 /// forward secrecy that this device can't open (sealed before its sender heard of it, or under a prekey it deleted)
 /// is answered with this device's prekey (`fsk`), so the sender's next try (Friends sends again until answered)
 /// reaches it.
+///
+/// **The ledger** (lib/net/ledger.dart, docs/OPEN_NETWORK.md section 3). Where [log] is given it is told what each
+/// route took and what the route said of it, what came and by which route, what was answered, and what came that
+/// could not be opened here ([SendLog]). What the ledger's comparing over a direct link finds is said back through
+/// [held] (what is still held to send again), [sendOn] (by the link that asked, never another way) and [answeredBy] (an
+/// answer that was lost).
 class Switchboard {
   Switchboard({required this.me, required this.peers, List<Carrier> carriers = const [], List<String>? order, DateTime Function()? now, Timer Function(Duration after, void Function() then)? timer, this.fs})
       : order = order ?? ['hub', 'p2p', 'lan', 'sms'],
@@ -147,6 +175,9 @@ class Switchboard {
   /// This install's name.
   final String me;
   final PeerBook peers;
+
+  /// Told what went and came ([SendLog]): the ledger the relay is checked by (lib/net/ledger.dart); none where null.
+  SendLog? log;
 
   /// The routes' names in the order they are tried. A route not named comes after those that are.
   List<String> order;
@@ -360,6 +391,7 @@ class Switchboard {
         continue;
       }
       tried.add(c.id);
+      if (sealed) _logged(() => log?.sent(peer, envelope, via: c.id, handed: handed));
       if (handed == Handed.held) {
         away = true;
         // Kept for them, and not urgent: that is enough, but where a link to one of their devices is open right now
@@ -386,6 +418,58 @@ class Switchboard {
     }
     _waiting.remove(envelope.id);
     return kept == null ? Delivery(envelope.id, tried: tried) : Delivery(envelope.id, via: kept.via, handed: kept.handed, tried: tried);
+  }
+
+  /// Sends [envelope] to [peer] by every route that would take it now and costs nothing, each on its own (the same
+  /// envelope, so the other end takes it once): what must reach them though one route may be the one at fault, the
+  /// name watch's word that the relay gave their username to another key (lib/net/name_watch.dart). What became of it
+  /// by each.
+  Future<List<Delivery>> sendEveryWay(Peer peer, Envelope envelope) async {
+    final out = <Delivery>[];
+    for (final c in routes(peer)) {
+      if (c.traits.maxPacket <= smallRoute) continue;
+      try {
+        out.add(await send(peer, envelope, only: {c.id}));
+      } catch (_) {}
+    }
+    return out;
+  }
+
+  /// Tells the ledger something; whatever goes wrong there stays there.
+  static void _logged(void Function() tell) {
+    try {
+      tell();
+    } catch (_) {}
+  }
+
+  /// Sends [envelope] to [peer] on [line], a link of the route [via] (one [Received.arrived] came on): by that link
+  /// while it is open, else by another open to them, and never by a dial or another route. What the ledger's comparing
+  /// says, and what it sends again, goes so (lib/net/ledger.dart).
+  Future<Delivery> sendOn(Peer peer, Envelope envelope, {required String via, required Object? line}) => send(peer, envelope, answering: Arrived(via, Uint8List(0), line: line));
+
+  /// What went to [peerId] as [id] and has had no answer, as this switchboard still holds it (for [unackedFor]): to be
+  /// sent again where the other end says it never came. Not a call that has stopped ringing or been called off.
+  Envelope? held(String peerId, String id) {
+    final u = _unacked[id];
+    if (u == null || u.peer.id != peerId || _now().difference(u.at) > unackedFor) return null;
+    final e = u.envelope;
+    bool isCall(Envelope x, String t) => x.kind == 'voice' && x.body['t'] == t;
+    if (isCall(e, 'call')) {
+      final ringing = _now().millisecondsSinceEpoch - e.at <= ringFor.inMilliseconds;
+      final cancelled = _unacked.values.any((o) => o.peer.id == peerId && isCall(o.envelope, 'cancel') && o.envelope.body['i'] == e.body['i']);
+      if (!ringing || cancelled) return null;
+    }
+    return e;
+  }
+
+  /// [peerId]'s device says it has what went as [id], though its answer never came here (the ledger's comparing,
+  /// lib/net/ledger.dart): taken as that answer, so nothing waits for it or sends it again.
+  void answeredBy(String peerId, String id) {
+    final u = _unacked[id];
+    if (u != null && u.peer.id != peerId) return;
+    _unacked.remove(id);
+    _waiting.remove(id)?.complete();
+    _acks.add(id);
   }
 
   /// Whether [answer] comes within [within], by [_timer].
@@ -531,6 +615,7 @@ class Switchboard {
           // name: the sender sends this device an old-sealed copy until it offers a prekey (third review, item 3).
           _askForKeys(peer!, a);
           _passOn(whole, a.carrier);
+          _logged(() => log?.unopened(peer, via: a.carrier));
           return;
         }
         final o = await fs.openAway(from: whole.from, to: me, pairKey: peer!.key!, payload: whole.payload);
@@ -542,6 +627,7 @@ class Switchboard {
           case FsResult.notForThisDevice || FsResult.noPrekey:
             _askForKeys(peer, a);
             _passOn(whole, a.carrier);
+            _logged(() => log?.unopened(peer, via: a.carrier));
             return;
           case FsResult.bad:
             return;
@@ -589,6 +675,7 @@ class Switchboard {
         _unacked.remove(id);
         _waiting.remove(id)?.complete();
         _acks.add(id);
+        _logged(() => log?.answered(peer, id));
       }
       return;
     }
@@ -600,7 +687,8 @@ class Switchboard {
     if (replay) return;
     if (!_fresh('${peer.id}:${envelope.id}')) return;
     maybeOld();
-    _received.add(Received(peer, envelope, a.carrier));
+    _logged(() => log?.came(peer, envelope, via: a.carrier));
+    _received.add(Received(peer, envelope, a.carrier, arrived: a));
   }
 
   /// Answers [peer] with this device's prekey, at most every ten minutes: they sealed something this device can't open.

@@ -49,7 +49,22 @@ class RoomEvent {
 /// A packet for someone who is not connected is kept by the hub and handed over when they next are. The hub sees
 /// names and sizes, never contents. It also keeps rooms ([join]), which a voice room and a group are made on.
 class HubCarrier implements Carrier {
-  HubCarrier({required this.url, required this.signer, Duration? retry, HubDial? dial}) : _retry = retry ?? const Duration(seconds: 3), _dial = dial ?? dialHub;
+  HubCarrier({required this.url, required this.signer, Duration? retry, HubDial? dial, DateTime Function()? now})
+      : _retry = retry ?? const Duration(seconds: 3),
+        _dial = dial ?? dialHub,
+        _now = now ?? DateTime.now;
+
+  /// What [signedInAt] and [heardAt] are read from: the time, or a test's clock.
+  final DateTime Function() _now;
+
+  /// When the connection now up signed in (its `ok`), and when anything last came on it, in milliseconds; 0 before the
+  /// first. A frame that came after a moment proves the connection was alive then: the relay's frames to this app come in
+  /// order on it, so whatever the relay put on it before that frame came first (lib/net/ledger.dart).
+  int signedInAt = 0, heardAt = 0;
+
+  /// Whether this install asked to be told when [id] comes and goes ([watch]): only then does [here] say anything of
+  /// them.
+  bool watching(String id) => _watched.contains(id);
 
   /// Which of its identity's devices this install is, said in the hello (Net.start sets it): a phone and its computer
   /// can be here at once under one identity, each handed what is sent to it (relay/lib/hub.dart). Empty, as an app
@@ -301,6 +316,7 @@ class HubCarrier implements Carrier {
 
   Future<void> _said(HubLink ws, Object data) async {
     if (!identical(_ws, ws)) return;
+    if (_ready) heardAt = _now().millisecondsSinceEpoch;
     if (data is List<int>) {
       if (data.length > 17 && data[0] == 1) {
         _arrived.add(Arrived(id, Uint8List.fromList(data.sublist(17)), from: NetCrypto.hex(data.sublist(1, 17))));
@@ -333,6 +349,7 @@ class HubCarrier implements Carrier {
       _ready = true;
       _tries = 0;
       problem = null;
+      signedInAt = heardAt = _now().millisecondsSinceEpoch;
       // Before the route is up: whoever acts on its coming up has the helpers this hub names.
       final named = m['helpers'];
       _helpers.value = List.unmodifiable([
