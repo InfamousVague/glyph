@@ -9,7 +9,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import '../../platform_info.dart';
-import 'dart:isolate';
+import '../../aside.dart';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -520,7 +520,7 @@ class InstalledPlugins extends ChangeNotifier {
     final k = List<String>.of(keys);
     final r = [for (final x in revs) x.toJson()];
     final t = [for (final x in rets) x.toJson()];
-    final out = verifyInIsolate ? await Isolate.run(() => _verifyBatch(k, r, t)) : _verifyBatch(k, r, t);
+    final out = verifyInIsolate ? await runAside(() => _verifyBatch(k, r, t)) : _verifyBatch(k, r, t);
     return (out[0], out[1]);
   }
 
@@ -529,7 +529,7 @@ class InstalledPlugins extends ChangeNotifier {
   static Future<List<(bool, bool)>> _approvalsHold(List<(PackApproval, String, String, String)> copies, List<String> keys, Set<String> retired) async {
     final a = [for (final c in copies) c.$1.toJson()];
     final ids = [for (final c in copies) [c.$2, c.$3, c.$4]];
-    final signed = verifyInIsolate ? await Isolate.run(() => _signedBatch(a, ids)) : _signedBatch(a, ids);
+    final signed = verifyInIsolate ? await runAside(() => _signedBatch(a, ids)) : _signedBatch(a, ids);
     return [for (var i = 0; i < copies.length; i++) (signed[i], keys.contains(copies[i].$1.key) && !retired.contains(copies[i].$1.key))];
   }
 

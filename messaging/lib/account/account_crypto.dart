@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io' show gzip;
-import 'dart:isolate';
+import '../aside.dart';
 import 'dart:typed_data';
 
 import 'package:pointycastle/export.dart';
@@ -244,7 +244,7 @@ class AccountCrypto {
   /// [passwordKey] off the main isolate: a phone's frames go on while 64 MiB are worked through.
   static Future<Uint8List> passwordKeyAway(String password, List<int> salt, {int memoryKiB = argonMemoryKiB, int passes = argonPasses, int lanes = argonLanes}) {
     final s = Uint8List.fromList(salt);
-    return Isolate.run(() => passwordKey(password, s, memoryKiB: memoryKiB, passes: passes, lanes: lanes));
+    return runAside(() => passwordKey(password, s, memoryKiB: memoryKiB, passes: passes, lanes: lanes));
   }
 
   // --- sealing ---------------------------------------------------------------------------------------------------------

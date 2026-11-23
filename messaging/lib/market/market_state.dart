@@ -13,7 +13,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import '../platform_info.dart';
-import 'dart:isolate';
+import '../aside.dart';
 
 import 'package:flutter/foundation.dart';
 
@@ -72,7 +72,7 @@ class MarketState extends ChangeNotifier {
               }
             }(),
         ];
-    return verifyInIsolate ? Isolate.run(all) : Future.value(all());
+    return verifyInIsolate ? runAside(all) : Future.value(all());
   }
 
   /// Asked each time: the identity and the relay can change while the app runs.
@@ -376,7 +376,7 @@ class MarketState extends ChangeNotifier {
     if (fetched.isEmpty) return Future.value(const []);
     final all = [for (final (_, bytes) in fetched) bytes];
     List<PluginPack?> each() => [for (final bytes in all) parsePack(bytes, appVersion: version, checkMinApp: false).pack];
-    return verifyInIsolate ? Isolate.run(each) : Future.value(each());
+    return verifyInIsolate ? runAside(each) : Future.value(each());
   }
 
   static String _markOf(PackApproval a) => sha256Hex(utf8.encode('${a.key}\n${a.sig}\n${approvalWords(a.plugin, a.version, a.sha256)}'));

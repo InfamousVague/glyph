@@ -22,7 +22,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import '../platform_info.dart';
-import 'dart:isolate';
+import '../aside.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -646,7 +646,7 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
       final mix = '${t.dir}/mix.pcm';
       // The mix as its faders, mutes and solos were moved while it recorded; each voice's own track as recorded.
       final moved = [for (final k in keys) this.mix.points(k)];
-      await Isolate.run(() => mixPcm(paths, mix, gains: moved));
+      await runAside(() => mixPcm(paths, mix, gains: moved));
       final out = '${folder().path}/${t.id}.mp4';
       final names = ['Everyone', for (final k in keys) t.names[k]!];
       await makeMp4([mix, ...paths], out, names, work: t.dir);

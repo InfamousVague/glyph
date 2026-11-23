@@ -13,7 +13,7 @@ library;
 import 'dart:async';
 import 'dart:io';
 import '../platform_info.dart';
-import 'dart:isolate';
+import '../aside.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -101,7 +101,7 @@ class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
           final got = await _channel.invokeMethod<Map>('decode', {'path': recording.path, 'track': i + 1, 'out': raw});
           final fromRate = (got?['rate'] as num?)?.toInt() ?? rate;
           final channels = (got?['channels'] as num?)?.toInt() ?? 1;
-          await Isolate.run(() => toMono48k(raw, pcm, fromRate: fromRate, channels: channels));
+          await runAside(() => toMono48k(raw, pcm, fromRate: fromRate, channels: channels));
           try {
             File(raw).deleteSync();
           } catch (_) {}
@@ -110,13 +110,13 @@ class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
         _set(opening: (i + 1) / keys.length * 0.8);
       }
       final paths = List.of(_pcm);
-      final waves = await Isolate.run(() => [for (final p in paths) waveform(p)]);
+      final waves = await runAside(() => [for (final p in paths) waveform(p)]);
       meter.load({for (var i = 0; i < keys.length; i++) keys[i]: waves[i]});
       length = _pcm.fold<int>(0, (n, p) => math.max(n, File(p).lengthSync() ~/ 2));
       // A WAV of each beside its samples, for its player.
       for (final p in _pcm) {
         final wav = p.replaceAll(RegExp(r'\.pcm$'), '.wav');
-        if (!File(wav).existsSync() || File(wav).lengthSync() != File(p).lengthSync() + 44) await Isolate.run(() => wrapWav(p, wav));
+        if (!File(wav).existsSync() || File(wav).lengthSync() != File(p).lengthSync() + 44) await runAside(() => wrapWav(p, wav));
         final player = _VoicePlayer.make();
         await player.open(wav);
         _players.add(player);
@@ -241,7 +241,7 @@ class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
       final gains = [
         for (final k in keys) mix.gain(k) == 1 ? const <GainPoint>[] : [(sample: 0, gain: mix.gain(k))],
       ];
-      await Isolate.run(() => mixPcm(paths, mixed, gains: gains));
+      await runAside(() => mixPcm(paths, mixed, gains: gains));
       final out = '${CallRecorder.folder().path}/$id.mp4';
       await CallRecorder.makeMp4([mixed, ...paths], out, ['Everyone', ...recording.people], work: work.path);
       try {

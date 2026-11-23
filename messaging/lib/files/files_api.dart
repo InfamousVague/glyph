@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
+import '../aside.dart';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
@@ -53,7 +53,7 @@ class FilesApi {
   static Future<String> bodySha(List<int> body) async {
     if (body.length < 256 * 1024) return crypto.sha256.convert(body).toString();
     final bytes = body is Uint8List ? body : Uint8List.fromList(body);
-    return Isolate.run(() => crypto.sha256.convert(bytes).toString());
+    return runAside(() => crypto.sha256.convert(bytes).toString());
   }
 
   String _path(String rest) => '${base.path.endsWith('/') ? base.path.substring(0, base.path.length - 1) : base.path}/$space$rest';

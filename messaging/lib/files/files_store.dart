@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 import '../platform_info.dart';
 import 'dart:isolate';
+import '../aside.dart';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -1375,7 +1376,7 @@ Future<void> markFromInternet(String path) async {
 }
 
 Future<String> _shaAside(String path, {void Function(int read)? told}) => shaOfFileAside(path, told: told);
-Future<Uint8List> _sealAside(SealRun run) => Isolate.run(() => FileSeal.sealRun(run));
+Future<Uint8List> _sealAside(SealRun run) => runAside(() => FileSeal.sealRun(run));
 
 /// [run] sealed on as many isolates as there are cores to spare (up to four), each a share of its chunks: AES on one
 /// core runs at about 25 MB/s, under most connections (Matt, 2026-11-18, of uploading to a circle being slow).
@@ -1400,8 +1401,8 @@ Future<Uint8List> _sealParallel(SealRun run) async {
   }
   return out.takeBytes();
 }
-Future<Uint8List?> _openAside(OpenRun run) => Isolate.run(() => FileSeal.openRun(run));
-Future<List<LoggedOp>> _checkAside(List<LoggedOp> log, String space) => Isolate.run(() => checkAll(log, space));
+Future<Uint8List?> _openAside(OpenRun run) => runAside(() => FileSeal.openRun(run));
+Future<List<LoggedOp>> _checkAside(List<LoggedOp> log, String space) => runAside(() => checkAll(log, space));
 
 /// The SHA-256 of the file at [path], in hex, read a megabyte at a time: run on another isolate.
 String shaOfFile(String path, {void Function(int read)? told, @visibleForTesting bool plain = false}) {
@@ -1429,7 +1430,7 @@ String shaOfFile(String path, {void Function(int read)? told, @visibleForTesting
 /// A big file takes minutes even at its fastest (Matt, 2026-11-21, of a 26 GB file: "it's taking a long time to
 /// 'getting file ready'"), so it has to be able to say where it is.
 Future<String> shaOfFileAside(String path, {void Function(int read)? told}) async {
-  if (told == null) return Isolate.run(() => shaOfFile(path));
+  if (told == null) return runAside(() => shaOfFile(path));
   final port = ReceivePort();
   final done = Completer<String>();
   port.listen((m) {
