@@ -55,6 +55,7 @@ class WaitingInvite {
   /// The same, as the relay dated it.
   WaitingInvite keptAt(DateTime? when) => WaitingInvite(kind: kind, link: link, name: name, by: by, at: when, signer: signer);
 
+  /// What is sealed: the kind, the link, the place's name and the inviter's. Its date and its signer are not in it.
   Map<String, Object> toJson() => {'v': 1, 'k': kind, 'l': link, 'n': name, 'by': by};
 
   static WaitingInvite? fromJson(Object? j, {DateTime? at, String? signer}) {

@@ -27,8 +27,13 @@ class EmojiShortcodeSuggester extends ChangeNotifier {
   /// The person's choices, for the emoji they used lately (first among equals) and to count the one picked as used.
   final AppState? Function()? app;
 
+  /// The controller's value before the last change, for telling a colon just typed from one that was there.
   TextEditingValue _was;
+
+  /// True while this writes an emoji into the controller, so its own change is not read as typing.
   bool _busy = false;
+
+  /// Whether the emoji's names were asked for, so they are loaded once.
   bool _asked = false;
 
   ShortcodeQuery? _query;
@@ -84,6 +89,8 @@ class EmojiShortcodeSuggester extends ChangeNotifier {
     _show(found.isEmpty ? null : q, found);
   }
 
+  /// Sets what the list shows, telling listeners only where it changed. The chosen row goes back to the first where
+  /// the query starts somewhere else or the list grew shorter than it.
   void _show(ShortcodeQuery? q, List<ShortcodeMatch> found) {
     final same = q == _query && found.length == _found.length && [for (var i = 0; i < found.length; i++) found[i].entry == _found[i].entry].every((b) => b);
     if (same) return;
@@ -98,6 +105,7 @@ class EmojiShortcodeSuggester extends ChangeNotifier {
     final q = _query;
     if (q == null) return;
     final text = controller.text;
+    // 0x3A is the colon: where the query no longer starts on one, the words changed under it.
     if (q.end > text.length || text.codeUnitAt(q.start) != 0x3A) return;
     final out = text.replaceRange(q.start, q.end, m.emoji);
     controller.value = TextEditingValue(text: out, selection: TextSelection.collapsed(offset: q.start + m.emoji.length));
@@ -106,6 +114,7 @@ class EmojiShortcodeSuggester extends ChangeNotifier {
     _show(null, const []);
   }
 
+  /// Escape: closes the list, and keeps it closed until the query changes.
   void close() {
     _closedOn = _query;
     _show(null, const []);

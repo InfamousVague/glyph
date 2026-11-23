@@ -48,6 +48,7 @@ abstract class PeerFinder {
 /// The phone this Mac is paired with, as the Mac keeps it.
 class PairedPhone {
   PairedPhone({required this.id, required this.name, required this.key, required this.mode, required this.relay, required this.since, this.host, this.port});
+  /// The pairing's id, made from its key ([DeskCrypto.id]): what the Mac says first so the phone knows which key.
   final String id;
   String name;
 
@@ -56,6 +57,8 @@ class PairedPhone {
 
   /// both, local, relay.
   String mode;
+
+  /// The relay's address as it was at pairing; empty where the pairing has none.
   final String relay;
   final DateTime since;
 
@@ -74,12 +77,15 @@ abstract class LinkStore {
 /// A pairing while it is being made: the QR code is on the screen, then the six digits, then it is done.
 class PairingAttempt {
   PairingAttempt({required this.offer, required this.keyPair}) : started = DateTime.now();
+  /// What the QR code says, and the key pair whose public half is in it.
   final DeskOffer offer;
   final DeskKeyPair keyPair;
   final DateTime started;
 
   /// showing (the QR code, waiting for the phone), code (both show six digits), done, failed.
   String phase = 'showing';
+
+  /// The six digits, once the phone has connected.
   String? code;
   String phoneName = '';
 
@@ -91,6 +97,7 @@ class PairingAttempt {
   bool theirs = false;
   String? error;
 
+  /// The code has been on the screen longer than a pairing may take.
   bool get expired => DateTime.now().difference(started) > PhoneLink.pairingLife;
 }
 
@@ -110,22 +117,30 @@ class PhoneLink extends ChangeNotifier {
 
   /// This Mac's name, as the phone shows it.
   final String name;
+
+  /// Said to the phone as each connection opens, beside the name.
   final String app;
   final PeerFinder? finder;
 
   /// Addresses given by hand: tried first, before what is remembered and what Bonjour finds.
   List<Peer> given;
 
+  /// How long a pairing code stays good while it waits for the phone.
   static Duration pairingLife = const Duration(minutes: 10);
 
   /// How often the phone is looked for while there is no connection, and how often the local network is tried
   /// again while the relay carries the connection. Shorter under test.
   static Duration lookEvery = const Duration(seconds: 3);
   static Duration upgradeEvery = const Duration(seconds: 15);
+
+  /// How often a live connection is asked whether the phone is still there.
   static Duration pingEvery = const Duration(seconds: 20);
+
+  /// How long one address on the local network is given to answer, and how long the phone has to say hello back.
   static Duration connectTimeout = const Duration(milliseconds: 1500);
   static Duration helloTimeout = const Duration(seconds: 8);
 
+  /// The phone paired with, and the pairing being made; either may be null.
   PairedPhone? phone;
   PairingAttempt? attempt;
 
@@ -135,6 +150,8 @@ class PhoneLink extends ChangeNotifier {
   /// For pictures of the screens (test/desk_screens_test.dart), which have no phone to be connected to.
   @visibleForTesting
   String? shownVia;
+
+  /// Connected to the paired phone, and not in the middle of pairing.
   bool get online => via != null && attempt == null;
 
   /// The phone answered that it does not have this pairing: it was unpaired there while the Mac was away.
@@ -150,17 +167,26 @@ class PhoneLink extends ChangeNotifier {
 
   /// Where on the local network the connection now open was made; null through the relay.
   Peer? _sessionPeer;
+
+  /// The connection to the relay, held ready whether or not a session runs over it ([_holdRelay]).
   RelaySocket? _relay;
   Timer? _looker;
   Timer? _pinger;
+
+  /// One look at a time: a look asked for during another runs straight after it.
   bool _looking = false;
   bool _lookAgain = false;
   bool _disposed = false;
+
+  /// The mode was changed here while the phone was away, and it has not been told yet.
   bool _modeDirty = false;
   DateTime _lastUpgradeTry = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// The relay is not dialled again before this; [_relayFailures] counts the drops in a row that set it.
   DateTime _relayRetryAt = DateTime.fromMillisecondsSinceEpoch(0);
   int _relayFailures = 0;
 
+  /// Reads the pairing kept and starts looking for the phone, on a timer and whenever Bonjour finds something.
   Future<void> start() async {
     phone = await store.load();
     finder?.onChange = look;
@@ -191,12 +217,15 @@ class PhoneLink extends ChangeNotifier {
 
   // --- what is being connected to ---------------------------------------------------------------------------------------
 
+  /// While a pairing is being made, what is connected to is the attempt's offer (its mode, relay and temporary
+  /// channel); otherwise the paired phone's.
   bool get _pairing => attempt != null && (attempt!.phase == 'showing' || attempt!.phase == 'code');
   String get _mode => _pairing ? attempt!.offer.mode : (phone?.mode ?? 'both');
   String get _relayBase => (_pairing ? attempt!.offer.relay : (phone?.relay ?? '')).trim();
   bool get _wantLocal => (_pairing || phone != null) && _mode != 'relay';
   bool get _wantRelay => (_pairing || phone != null) && _mode != 'local' && _relayBase.isNotEmpty;
 
+  /// The relay's address with this pairing's channel at its end; null where the relay is not to be used.
   String? get _relayUrl {
     if (!_wantRelay) return null;
     final channel = _pairing ? DeskCrypto.pairingChannel(attempt!.offer.secret) : DeskCrypto.relayChannel(phone!.key);
@@ -255,6 +284,7 @@ class PhoneLink extends ChangeNotifier {
       if (had.closed && had.url == url) {
         // It dropped (or the relay is not there): tried again after a wait that grows to a minute.
         _relayFailures++;
+        // 2, 4, 8, 16, then 32 seconds. Under test, where looks are less than a second apart, one look's wait.
         final wait = Duration(seconds: (2 << (_relayFailures.clamp(1, 5) - 1)).clamp(2, 60));
         _relayRetryAt = DateTime.now().add(lookEvery < const Duration(seconds: 1) ? lookEvery : wait);
       }
@@ -271,6 +301,8 @@ class PhoneLink extends ChangeNotifier {
     socket.connect();
   }
 
+  /// Opens a session over [transport]: as a pairing (the offer's secret and a fresh key pair) while one is being
+  /// made, else under the paired phone's key. Throws where the other end is not that phone.
   Future<LinkSession> _open(FrameTransport transport) async {
     final session = LinkSession(transport);
     final a = attempt;
@@ -282,6 +314,7 @@ class PhoneLink extends ChangeNotifier {
     return session;
   }
 
+  /// Tries each place the phone may be listening, in turn; true once a session is open with one.
   Future<bool> _tryLocal() async {
     for (final peer in _candidates) {
       if (_disposed || (!_pairing && phone == null)) return false;
@@ -296,6 +329,7 @@ class PhoneLink extends ChangeNotifier {
     return false;
   }
 
+  /// Opens a session through the relay, once this side has joined the channel and the phone is on it too.
   Future<bool> _tryRelay() async {
     final relay = _relay;
     if (relay == null || !relay.joined || !relay.peer) return false;
@@ -315,6 +349,8 @@ class PhoneLink extends ChangeNotifier {
     }
   }
 
+  /// Makes [session] the connection in use, in place of any before it (which is told goodbye). In a pairing it
+  /// brings the six digits; with a paired phone it brings the phone's name and mode, and where it was reached.
   void _adopt(LinkSession session, Peer? peer) {
     final old = _session;
     _session = session;
@@ -358,6 +394,7 @@ class PhoneLink extends ChangeNotifier {
     _changed();
   }
 
+  /// The connection in use closed: the phone is looked for again in a moment. One already replaced is ignored.
   void _ended(LinkSession session) {
     if (!identical(_session, session)) return;
     _session = null;
@@ -385,6 +422,8 @@ class PhoneLink extends ChangeNotifier {
     }
   }
 
+  /// What the phone says without being asked. During a pairing's six digits: its mode, its "They match", its cancel.
+  /// Otherwise: unpaired and a change of mode are dealt with here, and anything else goes out on [events].
   void _onEvent(LinkSession session, String name, Map<String, dynamic> args) {
     if (!identical(_session, session)) return;
     final a = attempt;
@@ -457,6 +496,7 @@ class PhoneLink extends ChangeNotifier {
     _changed();
   }
 
+  /// Gives the pairing up from here: the phone is told where it is already showing the digits.
   Future<void> cancelPairing() async {
     final a = attempt;
     if (a == null) return;
@@ -476,6 +516,7 @@ class PhoneLink extends ChangeNotifier {
     }
   }
 
+  /// Once "They match" was said on both: the session's key becomes the pairing's, and the phone is kept.
   void _finishIfBoth() {
     final a = attempt;
     final session = _session;
@@ -542,6 +583,7 @@ class PhoneLink extends ChangeNotifier {
     await relay?.close();
   }
 
+  /// The phone said it has unpaired: the pairing is deleted here and the connections closed, with nothing said back.
   Future<void> _forget() async {
     phone = null;
     refused = false;

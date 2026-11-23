@@ -43,6 +43,7 @@ object GmWeb {
     @Volatile var emoji: String? = null
     @Volatile var problem: String? = null
 
+    /** The helper, packed as a native library so Android lets it run; [available] where this build carries it. */
     fun binary(context: Context) = File(context.applicationInfo.nativeLibraryDir, "libgmsidecar.so")
     fun available(context: Context) = binary(context).exists()
     private fun dir(context: Context) = File(context.filesDir, "gmessages").apply { mkdirs() }
@@ -66,6 +67,7 @@ object GmWeb {
         }
     }
 
+    /** Reads the helper's output, a line of JSON at a time, until it stops. */
     private fun read(p: Process) {
         try {
             p.inputStream.bufferedReader().forEachLine { line -> try { heard(JSONObject(line)) } catch (_: Exception) {} }
@@ -97,6 +99,7 @@ object GmWeb {
         }
     }
 
+    /** One line from the helper: the answer to something asked (it has the asking's `id`), or an event. */
     private fun heard(o: JSONObject) {
         if (o.has("id")) {
             val w = waiting.remove(o.getLong("id")) ?: return
@@ -272,6 +275,7 @@ object GmWeb {
     /** A picture's number for the screens: from its id, the same every time, never one of Android's (which are small). */
     fun partId(media: String): Long = 1_000_000_000_000L + (media.hashCode().toLong() and 0x7fffffffL)
 
+    /** Whether a picture's number is one of these, not one of Android's. */
     fun isPart(id: Long) = id >= 1_000_000_000_000L
 
     /** A picture's bytes, brought down once and kept in the app's cache. */
@@ -415,6 +419,7 @@ object GmWeb {
         Thread { try { ask("read", mapOf("conv" to conv, "msg" to newest)) } catch (e: Exception) { DevLog.add(app, "gmweb", "read $conv: ${e.message}") } }.start()
     }
 
+    /** Begins pairing by QR code ([qr] follows); false, with [problem] saying why, where the helper would not. */
     fun pair(): Boolean = try { problem = null; ask("pair"); true } catch (e: Exception) { problem = e.message; false }
 
     /** Pairs by Google account from a signed-in browser's cookies (lib/gm/google_signin.dart); an emoji follows. */
@@ -424,6 +429,7 @@ object GmWeb {
         null
     } catch (e: Exception) { e.message }
 
+    /** Ends the pairing with Google Messages' web; false, with [problem] saying why, where the helper would not. */
     fun unpair(): Boolean = try { ask("unpair"); paired = false; connected = false; true } catch (e: Exception) { problem = e.message; false }
 
     /** How it stands, for Settings. */

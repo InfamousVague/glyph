@@ -32,6 +32,7 @@ class Envelope {
   /// This envelope with [bundle] as its [fs], the same in every other way.
   Envelope withFs(Map<String, dynamic>? bundle) => Envelope(id: id, kind: kind, body: body, at: at, ack: ack, fs: bundle);
 
+  /// The envelope as bytes: JSON, with a key only for what says something (`n` where no answer is asked for).
   Uint8List encode() => Uint8List.fromList(utf8.encode(jsonEncode({'i': id, 'k': kind, 'a': at, if (body.isNotEmpty) 'b': body, if (!ack) 'n': 1, if (fs != null) 'f': fs})));
 
   static Envelope? decode(List<int> bytes) {
@@ -67,6 +68,8 @@ class Packet {
   final bool passed;
   static const _passed = 8;
 
+  // The first byte holds the version in its high four bits and these flags in its low. [head] is how many bytes
+  // come before a whole packet's envelope, [partHead] before a part's piece.
   static const version = 1;
   static const _sealed = 1;
   static const _part = 2;
@@ -89,6 +92,8 @@ class Packet {
 
   bool get isPart => group != null;
 
+  /// A whole packet's bytes: one byte of version and flags, the sender's id, then [payload]. [fs] counts only with
+  /// [sealed], and [passed] only with both.
   static Uint8List wrap({required String from, required bool sealed, required List<int> payload, bool fs = false, bool passed = false}) =>
       Uint8List.fromList([(version << 4) | (sealed ? _sealed : 0) | (sealed && fs ? _fs : 0) | (sealed && fs && passed ? _passed : 0), ...NetCrypto.unhex(from), ...payload]);
 
@@ -108,6 +113,7 @@ class Packet {
     ];
   }
 
+  /// The packet [bytes] are, whole or a part; null for another version, or one cut short.
   static Packet? parse(List<int> bytes) {
     if (bytes.length < head + 1 || (bytes[0] >> 4) != version) return null;
     final from = NetCrypto.hex(bytes.sublist(1, head));
@@ -151,6 +157,7 @@ class PartJoiner {
   }
 }
 
+/// The pieces of one packet come so far, how many there are to be, and when the first came.
 class _Open {
   _Open(this.count, this.since);
   final int count;

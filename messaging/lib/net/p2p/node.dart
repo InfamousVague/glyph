@@ -31,8 +31,10 @@ import 'package:flutter/foundation.dart';
 /// - Everything between two nodes is encrypted end to end, with no 0-RTT data (nothing that could be replayed).
 /// - Nothing is public: no DNS or pkarr record, no DHT, no mDNS, no relay (link helper) but those in
 ///   [P2pConfig.helpers]. With [P2pConfig.helpersOnly] it tells nobody an address of its own. It never dials a
-///   loopback, unspecified, multicast, broadcast or link-local address, whoever names one. Stopped, it holds no
-///   socket and sends nothing.
+///   loopback, unspecified, multicast, broadcast or link-local address a hint names. (Not yet kept by the core: QUIC's
+///   hole punching inside iroh 1.5 sends a small probe to whatever address the other end of a link names, loopback
+///   included, and iroh has no hook to stop it; native/p2p/README.md, "What a node that links can make this one
+///   send".) Stopped, it holds no socket and sends nothing.
 /// - What it says is true: [P2pNode.whereabouts] and [P2pNode.paths] say how things are, not how they were meant to be.
 /// - Closing a stream delivers what was sent on it before, then ends the other end's [P2pStream.frames].
 /// - Its events (state, whereabouts, paths, streams opened, frames) never come from within a call into it: never
@@ -67,6 +69,7 @@ class Whereabouts {
   /// When it said so, in milliseconds.
   final int at;
 
+  /// Whether it says nothing of where: no link helper and no address.
   bool get isEmpty => helper == null && addresses.isEmpty;
 
   Map<String, dynamic> toJson() => {'r': ?helper, if (addresses.isNotEmpty) 'a': addresses, 't': at};
@@ -120,6 +123,7 @@ enum P2pPathKind {
   direct,
 }
 
+/// The path to the node [nodeId] as it stands now.
 @immutable
 class P2pPath {
   const P2pPath(this.nodeId, this.kind, {this.rttMs});
@@ -195,6 +199,7 @@ abstract class P2pNode {
   /// device card with its node down. Fails only through the Future.
   Future<String> idOf(Uint8List secret);
 
+  /// How the node stands ([P2pState]); whoever listens is told as it changes.
   ValueListenable<P2pState> get state;
 
   /// Why it is down, in words to show; null while it is not.

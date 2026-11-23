@@ -50,6 +50,7 @@ void openSpaceFile(BuildContext context, VoiceChannel c, SpaceFile f, {FilesStor
   push<void>(context, (_) => FilePreviewScreen(channel: c, file: f, store: store, chat: chat));
 }
 
+/// The preview page of one file of a space: its name at the head, and under it the file as its kind is shown.
 class FilePreviewScreen extends StatefulWidget {
   const FilePreviewScreen({super.key, required this.channel, required this.file, this.store, this.chat = false});
   final VoiceChannel channel;
@@ -78,6 +79,8 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
     _bring();
   }
 
+  /// Gets the file to show: the copy on this device where there is one, sound as a stream, and anything else brought
+  /// down whole. Called again by Try again after a failure.
   void _bring() {
     _error = null;
     final had = _store.cached(widget.file);
@@ -137,6 +140,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
     );
   }
 
+  /// A notice in the middle of the page: an icon, a line of words, and a button under them where one is given.
   Widget _note(Tokens t, LucideIcon icon, String words, {Widget? action}) => Center(
         child: Padding(
           padding: EdgeInsets.all(t.space(6)),
@@ -198,6 +202,8 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
     }
   }
 
+  /// How wide a picture is decoded, in pixels: twice the screen's width, so zooming in stays sharp, and never the
+  /// whole of a huge picture.
   int _decodeWidth(BuildContext context) => (MediaQuery.sizeOf(context).width * MediaQuery.devicePixelRatioOf(context) * 2).round().clamp(256, 8192);
 
   /// Whether this page shows [f] itself (a picture, sound, words); else it offers the ways to open it elsewhere.
@@ -241,6 +247,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
       );
 }
 
+/// A button of the preview (Open, Save, Share, Try again): an icon and a word; the [strong] one is the main action.
 class _Pill extends StatelessWidget {
   const _Pill({required this.label, required this.icon, required this.onPressed, this.strong = false});
   final String label;
@@ -383,6 +390,7 @@ class _AudioPlayerState extends State<_AudioPlayer> {
     }
   }
 
+  /// The player or the stream changed: draws again, with what went wrong where either has failed.
   void _tick() {
     if (!mounted) return;
     if (_player?.value.error != null) _problem = 'This sound can\'t be played here. Open it to play it.';

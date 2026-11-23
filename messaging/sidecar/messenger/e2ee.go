@@ -41,10 +41,13 @@ import (
 // "wa:<sender's id>:<the id its sender gave it>", which is all that reacting to it or unsending it needs.
 const sealedPrefix = "wa:"
 
+// isEncryptedID is whether a message id is one the helper made for an encrypted message.
 func isEncryptedID(id string) bool { return strings.HasPrefix(id, sealedPrefix) }
 
+// sealedID is the helper's id for an encrypted message, from its sender's id and the id its sender gave it.
 func sealedID(sender, stanza string) string { return sealedPrefix + sender + ":" + stanza }
 
+// parseSealedID takes such an id apart again; ok is false for any other id.
 func parseSealedID(id string) (sender, stanza string, ok bool) {
 	parts := strings.SplitN(id, ":", 3)
 	if len(parts) != 3 || parts[0]+":" != sealedPrefix || parts[1] == "" || parts[2] == "" {
@@ -57,13 +60,16 @@ func parseSealedID(id string) (sender, stanza string, ok bool) {
 // the account, so not many.
 const keyTries = 2
 
+// The store of the device's keys (e2ee.db), opened once and shared by every connection of this run.
 var (
 	keysLock sync.Mutex
 	keys     *sqlstore.Container
 )
 
+// keysPath is where the device's keys are kept, beside the session. (SQLite may keep -wal and -shm files by it.)
 func keysPath() string { return filepath.Join(dir, "e2ee.db") }
 
+// openKeys is the key store, opened (and made, for the person alone to read) at its first use.
 func openKeys(ctx context.Context) (*sqlstore.Container, error) {
 	keysLock.Lock()
 	defer keysLock.Unlock()
@@ -82,6 +88,7 @@ func openKeys(ctx context.Context) (*sqlstore.Container, error) {
 	return c, nil
 }
 
+// closeKeys closes the key store, before the helper exits or its file is removed. It opens again when next used.
 func closeKeys() {
 	keysLock.Lock()
 	defer keysLock.Unlock()
@@ -122,6 +129,8 @@ func (c *conn) startKeys() {
 	}
 }
 
+// connectKeys makes one try at the encrypted side: the device kept for this account is read, or a new one made
+// and registered with Meta (its number then kept in the session), and whatsmeow's client connected with it.
 func (c *conn) connectKeys() error {
 	ctx := log.WithContext(c.ctx)
 	container, err := openKeys(ctx)
@@ -211,6 +220,8 @@ func (c *conn) dropDevice(e2 *whatsmeow.Client, dev *store.Device) {
 	}
 }
 
+// onSealed is whatsmeow's handler: decrypted messages and receipts are said as events, and what it says of the
+// connection is logged or acted on (a device Meta dropped is registered anew, a token grown old means a new page).
 func (c *conn) onSealed(e2 *whatsmeow.Client, dev *store.Device, raw any) {
 	if !c.current() {
 		return
@@ -304,6 +315,7 @@ func (c *conn) introduce(b *book, chat waTypes.JID) {
 	}
 }
 
+// sealedClient is the encrypted side's client, nil while there is none; it may not be connected yet.
 func (c *conn) sealedClient() *whatsmeow.Client {
 	c.e2mu.Lock()
 	defer c.e2mu.Unlock()
@@ -335,8 +347,11 @@ type sealed struct {
 	Kind string `json:"kind"`
 }
 
+// b64 writes bytes as a pointer carries them.
 func b64(b []byte) string { return base64.StdEncoding.EncodeToString(b) }
 
+// sealedMedia is one file of an encrypted message as the protocol's `media` lists it, its pointer holding what
+// `download` needs to fetch and open it; nil where Meta gave no place to fetch it from.
 func sealedMedia(t *waMediaTransport.WAMediaTransport, kind whatsmeow.MediaType, name string, width, height uint32) map[string]any {
 	in, an := t.GetIntegral(), t.GetAncillary()
 	if in.GetDirectPath() == "" {
@@ -382,6 +397,7 @@ func keyID(me int64, info waTypes.MessageInfo, key *waCommon.MessageKey) string 
 	return sealedID(sender, key.GetID())
 }
 
+// cannotShow stands in for the words of an encrypted message this helper cannot read (it is marked `unsupported`).
 const cannotShow = "This kind of message can't be shown here yet. Open it in Messenger."
 
 // sealed turns a decrypted message into what the app is told. met is true where the chat had not been heard of.
@@ -554,6 +570,7 @@ func (b *book) sealedReceipt(evt *events.Receipt) []ev {
 
 // --- requests in encrypted chats ------------------------------------------------------------------------------------
 
+// chatJID is an encrypted thread's address on the WhatsApp side: a group's, or the other person's.
 func chatJID(t thread) waTypes.JID {
 	if t.Type == table.ENCRYPTED_OVER_WA_GROUP {
 		return waTypes.JID{User: idString(t.Key), Server: waTypes.GroupServer}
@@ -561,6 +578,7 @@ func chatJID(t thread) waTypes.JID {
 	return waTypes.JID{User: idString(t.Key), Server: waTypes.MessengerServer}
 }
 
+// userJID is a person's address on the WhatsApp side, from their Facebook id.
 func userJID(id string) waTypes.JID { return waTypes.JID{User: id, Server: waTypes.MessengerServer} }
 
 // keyFor points at a message of an encrypted chat, for a reaction or an unsend.
@@ -579,12 +597,15 @@ func keyFor(me int64, chat waTypes.JID, id string) (*waCommon.MessageKey, error)
 	return key, nil
 }
 
+// consumerContent wraps a message's content (words, a reaction) in the envelope Messenger's encrypted chats send.
 func consumerContent(content *waConsumerApplication.ConsumerApplication_Content) *waConsumerApplication.ConsumerApplication {
 	return &waConsumerApplication.ConsumerApplication{Payload: &waConsumerApplication.ConsumerApplication_Payload{
 		Payload: &waConsumerApplication.ConsumerApplication_Payload_Content{Content: content},
 	}}
 }
 
+// sendEncrypted sends words to an encrypted chat (files are not sent there yet). The id answered is the helper's
+// own for the message, made from the person's id and an id chosen here.
 func sendEncrypted(ctx context.Context, c *conn, b *book, t thread, text string, q *quote) (any, error) {
 	if strings.TrimSpace(text) == "" {
 		return nil, errors.New("Files can't be sent in end-to-end encrypted Messenger chats from here yet")
@@ -621,6 +642,7 @@ func sendEncrypted(ctx context.Context, c *conn, b *book, t thread, text string,
 	return map[string]any{"id": id, "ts": ts}, nil
 }
 
+// reactEncrypted puts the person's reaction on a message of an encrypted chat; an empty [emoji] takes it off.
 func reactEncrypted(ctx context.Context, c *conn, b *book, t thread, target, emoji string) error {
 	key, err := keyFor(b.me, chatJID(t), target)
 	if err != nil {
@@ -641,6 +663,7 @@ func reactEncrypted(ctx context.Context, c *conn, b *book, t thread, target, emo
 	return nil
 }
 
+// unsendEncrypted takes back the person's own message in an encrypted chat, for everyone.
 func unsendEncrypted(ctx context.Context, c *conn, b *book, t thread, target string) error {
 	if sender, _, ok := parseSealedID(target); ok && sender != idString(b.me) {
 		return errors.New("Only your own messages can be unsent")
@@ -715,11 +738,14 @@ func readEncrypted(ctx context.Context, c *conn, b *book, t thread, upto string)
 	return nil
 }
 
+// unb64 reads a pointer's bytes back; nil where they are not base64.
 func unb64(s string) []byte {
 	b, _ := base64.StdEncoding.DecodeString(s)
 	return b
 }
 
+// downloadSealed fetches a file of an encrypted chat, opens it with the keys its pointer carries, and writes it to
+// [dest] whole or not at all.
 func downloadSealed(ctx context.Context, c *conn, s *sealed, dest string) error {
 	e2, err := c.sealedReady(ctx)
 	if err != nil {

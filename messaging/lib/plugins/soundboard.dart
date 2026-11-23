@@ -20,6 +20,7 @@ import '../voice/soundboard.dart';
 import 'plugin.dart';
 import 'registry.dart';
 
+/// The plugin: what the Marketplace says of it, and where it puts Soundboard in a call.
 class SoundboardPlugin extends GhostPlugin {
   const SoundboardPlugin();
 
@@ -72,6 +73,7 @@ class SoundboardPlugin extends GhostPlugin {
     return reg.isOnIn(p, AppStore(app), inCircle: s.channel.circle != null, circleOn: Circles.instance.pluginOnIn(s.channel, p.id));
   }
 
+  /// The action that opens the pads for the call there is.
   static PluginAction _open() => PluginAction(label: 'Soundboard', icon: Lucide.megaphone, run: (host) => host.present((context) => SoundboardScreen(space: Voice.instance.session?.channel)));
 
   @override

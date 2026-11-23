@@ -22,6 +22,7 @@ namespace {
 
 std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> g_channel;
 
+// Windows' own wide text as UTF-8, which is what the channel carries.
 std::string Utf8(const std::wstring& wide) {
   if (wide.empty()) return {};
   int size = WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), -1, nullptr, 0, nullptr, nullptr);
@@ -30,6 +31,7 @@ std::string Utf8(const std::wstring& wide) {
   return out;
 }
 
+// Whether [path] ends as a picture's file does, whatever its letters' case.
 bool IsImage(std::wstring path) {
   std::transform(path.begin(), path.end(), path.begin(), [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
   for (const wchar_t* end : {L".png", L".jpg", L".jpeg", L".gif", L".webp", L".heic", L".bmp"}) {
@@ -62,6 +64,8 @@ std::string CopiedPicture() {
   auto bits = static_cast<const BYTE*>(GlobalLock(data));
   if (!bits) return {};
   SIZE_T size = GlobalSize(data);
+  // The file header says where the pixels begin: after the bitmap's own header, its three colour masks where it has
+  // them apart, and its colour table (a full one for 8 bits or fewer where the count is not given).
   auto info = reinterpret_cast<const BITMAPINFOHEADER*>(bits);
   DWORD colors = info->biClrUsed ? info->biClrUsed : (info->biBitCount <= 8 ? (1u << info->biBitCount) : 0);
   DWORD masks = (info->biCompression == BI_BITFIELDS && info->biSize == sizeof(BITMAPINFOHEADER)) ? 12 : 0;
@@ -123,6 +127,7 @@ std::vector<std::string> Pick(int most, bool pictures) {
   return out;
 }
 
+// The "most" argument of a call; [fallback] where it is not said.
 int MostOf(const flutter::EncodableValue* args, int fallback) {
   if (const auto* map = std::get_if<flutter::EncodableMap>(args)) {
     auto it = map->find(flutter::EncodableValue("most"));
@@ -136,6 +141,7 @@ int MostOf(const flutter::EncodableValue* args, int fallback) {
 
 }  // namespace
 
+// "ghost_desktop/system" on Windows answers `pasteImage` alone: a copied file first, else a copied picture.
 void RegisterClipboard(flutter::BinaryMessenger* messenger) {
   g_channel = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(messenger, "ghost_desktop/system", &flutter::StandardMethodCodec::GetInstance());
   g_channel->SetMethodCallHandler([](const flutter::MethodCall<flutter::EncodableValue>& call, std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {

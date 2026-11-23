@@ -45,7 +45,11 @@ class GoogleChat extends InboxNetwork {
         _client = client ?? (HttpClient()..connectionTimeout = const Duration(seconds: 10));
 
   final HttpClient _client;
+
+  /// The app's OAuth client, given at build time; empty in a build made without one.
   final String clientId, clientSecret;
+
+  /// Google's addresses, each injectable for a test.
   final String authUrl, tokenUrl, revokeUrl, chatBase, peopleBase;
 
   @override
@@ -65,6 +69,7 @@ class GoogleChat extends InboxNetwork {
     '$_g/directory.readonly',
   ];
 
+  // How often the spaces and the open one are asked for, and the choice the session is kept under.
   static const _idle = Duration(seconds: 30);
   static const _open = Duration(seconds: 6);
   static const _sessionKey = 'googlechat_session';
@@ -81,6 +86,8 @@ class GoogleChat extends InboxNetwork {
   /// The refresh token, the access token and when it runs out, the account's Google id (`sub`) and email.
   String? _refresh, _access, _me, _email;
   DateTime _accessUntil = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// The scopes the person granted, which may be fewer than [scopes].
   Set<String> _granted = const {};
 
   List<InboxChat> _chats = const [];
@@ -120,6 +127,7 @@ class GoogleChat extends InboxNetwork {
   /// Finishes when the sign-in begun by [begin] has ended, either way.
   Future<void>? get pending => _pending?.future;
 
+  /// Whether this build was made with a Google app id, so it can sign in at all.
   bool get configured => clientId.isNotEmpty;
 
   @override
@@ -211,6 +219,7 @@ class GoogleChat extends InboxNetwork {
     notifyListeners();
   }
 
+  /// Stops listening on the loopback address.
   Future<void> _closeListener() async {
     final l = _listener;
     _listener = null;
@@ -245,6 +254,7 @@ class GoogleChat extends InboxNetwork {
     await _exchange(q['code']!);
   }
 
+  /// Answers the browser, sent back to the loopback address, with a small page saying [words].
   Future<void> _page(HttpRequest req, int code, String words) async {
     req.response.statusCode = code;
     req.response.headers.contentType = ContentType.html;
@@ -254,6 +264,7 @@ class GoogleChat extends InboxNetwork {
     await req.response.close();
   }
 
+  /// Trades the code the browser brought back, with the PKCE verifier, for tokens, and ends the sign-in either way.
   Future<void> _exchange(String code) async {
     try {
       final t = await _form(tokenUrl, {
@@ -287,12 +298,14 @@ class GoogleChat extends InboxNetwork {
     }
   }
 
+  /// Tells whoever waits on [pending] that the sign-in has ended.
   void _finishSignIn() {
     final p = _pending;
     _pending = null;
     if (p != null && !p.isCompleted) p.complete();
   }
 
+  /// Ends the sign-in as failed, with [words] to show.
   void _failSignIn(String words) {
     _closeListener();
     _state = InboxState.signedOut;
@@ -301,18 +314,22 @@ class GoogleChat extends InboxNetwork {
     notifyListeners();
   }
 
+  /// Saves what signs in again next time: the refresh token, the account and the scopes granted.
   void _keep() => _app?.set(_sessionKey, jsonEncode({'refresh': _refresh, 'me': _me, 'email': _email, 'scopes': _granted.toList()}));
 
   /// The S256 challenge of a PKCE [verifier].
   static String challengeOf(String verifier) =>
       base64Url.encode(SHA256Digest().process(Uint8List.fromList(ascii.encode(verifier)))).replaceAll('=', '');
 
+  /// [length] random characters from those a PKCE verifier may hold (RFC 7636's unreserved set).
   static String _randomWord(int length) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
     final r = Random.secure();
     return String.fromCharCodes([for (var i = 0; i < length; i++) chars.codeUnitAt(r.nextInt(chars.length))]);
   }
 
+  /// What an ID token says (its middle part, decoded); empty where it can't be read. Its signature is not checked:
+  /// it came straight from Google's token address.
   static Map _claims(String? idToken) {
     if (idToken == null) return const {};
     try {
@@ -335,6 +352,7 @@ class GoogleChat extends InboxNetwork {
     if (refresh != null) _revokeQuietly(refresh);
   }
 
+  /// Forgets the session and everything held of the account.
   void _forget() {
     _refresh = _access = _me = _email = null;
     _granted = const {};
@@ -350,10 +368,12 @@ class GoogleChat extends InboxNetwork {
     _app?.set(_sessionKey, '');
   }
 
+  /// Asks Google to take [token] back, without waiting and whether or not it answers.
   void _revokeQuietly(String token) {
     _form(revokeUrl, {'token': token}).catchError((_) => const {});
   }
 
+  /// Signed in: the spaces are asked for now and every [_idle] after.
   void _ready() {
     _state = InboxState.ready;
     _error = null;
@@ -372,6 +392,7 @@ class GoogleChat extends InboxNetwork {
     _openTick = Timer.periodic(_open, (_) => load(chatId));
   }
 
+  /// Whether Google's 429 still asks Ghost to wait.
   bool get _paused => _pausedUntil != null && DateTime.now().isBefore(_pausedUntil!);
 
   // --- spaces ---------------------------------------------------------------------------------------------------------
@@ -578,6 +599,7 @@ class GoogleChat extends InboxNetwork {
     ];
   }
 
+  /// A message as the Chat API gives it. Notes its thread on the way, for a reply to go into.
   InboxMessage _message(Map p) {
     final name = p['name'] as String;
     final thread = (p['thread'] as Map?)?['name'] as String?;
@@ -616,6 +638,7 @@ class GoogleChat extends InboxNetwork {
   @override
   Future<void> reply(String chatId, String messageId, String text) => _post(chatId, text, _threadOf[messageId]);
 
+  /// Sends [text], into [thread] where given: shown at once as "sending", then as Google has it, or "failed".
   Future<void> _post(String chatId, String text, String? thread) async {
     text = text.trim();
     if (text.isEmpty || _state != InboxState.ready) return;
@@ -684,6 +707,7 @@ class GoogleChat extends InboxNetwork {
     notifyListeners();
   }
 
+  /// [m] with this account's [emoji] put on or taken off: what is shown at once, before Google answers.
   static InboxMessage _reacted(InboxMessage m, String emoji, bool remove) {
     final rs = [...m.reactions];
     final i = rs.indexWhere((r) => r.emoji == emoji);
@@ -698,11 +722,14 @@ class GoogleChat extends InboxNetwork {
 
   // --- calls ----------------------------------------------------------------------------------------------------------
 
+  /// A call worked: the wait after a 429 is over.
   void _calm() {
     _wait = Duration.zero;
     _pausedUntil = null;
   }
 
+  /// Takes a failure: a 429 pauses everything (as long as Google asks, else doubling up to ten minutes), access
+  /// taken away signs out, and the words go to the page.
   void _setError(Object e) {
     if (e is _Status && e.code == 429) {
       final asked = e.retryAfter;
@@ -740,6 +767,7 @@ class GoogleChat extends InboxNetwork {
 
   Future<Map> _getUrl(String url) => _call('GET', url);
 
+  /// A call with the access token; on a 401 the token is asked for afresh and the call made once more.
   Future<Map> _call(String method, String url, {Map<String, String>? query, Object? body}) async {
     var uri = Uri.parse(url);
     if (query != null) uri = uri.replace(queryParameters: {...uri.queryParameters, ...query});
@@ -759,6 +787,7 @@ class GoogleChat extends InboxNetwork {
     return r is Map ? r : const {};
   }
 
+  /// One HTTP call, with [body] as JSON or [form] as a form; the answer's JSON. Throws on 400 and up.
   Future<Object?> _raw(String method, Uri uri, {String? bearer, Object? body, Map<String, String>? form}) async {
     final req = await _client.openUrl(method, uri);
     req.headers.set('accept', 'application/json');
@@ -788,6 +817,7 @@ class GoogleChat extends InboxNetwork {
     return json;
   }
 
+  /// What went wrong, in words for the page.
   static String _plain(Object e) {
     if (e is _Said) return e.message;
     if (e is _Revoked) return 'Google no longer lets Ghost into your Google Chat (the access was removed or ran out). Sign in again.';
@@ -818,6 +848,7 @@ class GoogleChat extends InboxNetwork {
   }
 }
 
+/// An answer of 400 or more: its status, Google's message, and how long it asked to wait where it did (429).
 class _Status implements Exception {
   const _Status(this.code, this.error, {this.retryAfter});
   final int code;
@@ -827,10 +858,12 @@ class _Status implements Exception {
   String toString() => 'Google Chat $code ${error ?? ''}'.trim();
 }
 
+/// Google no longer takes the refresh token: the access was removed or ran out, and only signing in again mends it.
 class _Revoked implements Exception {
   const _Revoked();
 }
 
+/// A failure already in words for the person.
 class _Said implements Exception {
   const _Said(this.message);
   final String message;

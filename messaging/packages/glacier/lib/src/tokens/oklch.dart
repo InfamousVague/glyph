@@ -18,6 +18,7 @@ class Oklch {
 
   static const Oklch transparent = Oklch(0, 0, 0, 0);
 
+  /// A grey: no chroma to speak of, so its hue says nothing ([mix] takes the other colour's).
   bool get achromatic => c < 1e-5;
 
   Oklch withAlpha(double a) => Oklch(l, c, h, a);
@@ -101,6 +102,7 @@ class Oklch {
     return Oklch(l, c, h, alpha);
   }
 
+  /// The sRGB transfer curve, from a stored channel to linear light and back.
   static double _toLinear(double v) => v <= 0.04045 ? v / 12.92 : math.pow((v + 0.055) / 1.055, 2.4).toDouble();
 
   static double _toGamma(double v) {
@@ -108,6 +110,7 @@ class Oklch {
     return v <= 0.0031308 ? 12.92 * v : 1.055 * math.pow(v, 1 / 2.4) - 0.055;
   }
 
+  /// A cube root that keeps the sign: `pow` of a negative number to a third is not a number.
   static double _cbrt(double v) => v < 0 ? -math.pow(-v, 1 / 3).toDouble() : math.pow(v, 1 / 3).toDouble();
 
   @override

@@ -44,8 +44,14 @@ class GoogleSignInFlow extends StatefulWidget {
 
 class _GoogleSignInFlowState extends State<GoogleSignInFlow> {
   final _pasted = TextEditingController();
+
+  /// What is wrong with what was pasted, or why the helper would not pair.
   String? _error;
+
+  /// The helper has the cookies and has not answered yet.
   bool _asking = false;
+
+  /// The sign-in page was opened, or its link copied: the paste step is the current one from then.
   bool _opened = false;
 
   /// The extension's synced Google sign-in, once read; null where there is none.
@@ -60,6 +66,7 @@ class _GoogleSignInFlowState extends State<GoogleSignInFlow> {
     });
   }
 
+  /// Pairs with the Google cookies the account's other devices synced, in place of signing in here.
   Future<void> _pairSynced() async {
     final e = _synced;
     if (e == null) return;
@@ -82,6 +89,7 @@ class _GoogleSignInFlowState extends State<GoogleSignInFlow> {
     super.dispose();
   }
 
+  /// Reads the cookies out of what was pasted and hands them to the helper; says which are missing where some are.
   Future<void> _pair() async {
     final cookies = googleCookiesIn(_pasted.text);
     final missing = googleCookiesMissing(cookies);
@@ -104,6 +112,7 @@ class _GoogleSignInFlowState extends State<GoogleSignInFlow> {
     }
   }
 
+  /// Opens the sign-in page in a private window; where no browser could be, its link is put on the clipboard.
   Future<void> _open() async {
     final ok = await widget.onOpenPrivate!.call();
     if (!mounted) return;

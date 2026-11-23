@@ -58,6 +58,7 @@ class FilesApi {
 
   String _path(String rest) => '${base.path.endsWith('/') ? base.path.substring(0, base.path.length - 1) : base.path}/$space$rest';
 
+  /// Opens a request carrying the space's token; with [signBody], signed by this install's hub key too.
   Future<HttpClientRequest> _open(String method, String rest, {List<int>? signBody, bool sayHash = false}) async {
     final path = _path(rest);
     final req = await _http.openUrl(method, base.replace(path: path.split('?').first, query: path.contains('?') ? path.substring(path.indexOf('?') + 1) : null));
@@ -84,6 +85,7 @@ class FilesApi {
     return req;
   }
 
+  /// The answer as JSON; a status of 300 or more is thrown as a [FilesError] with the relay's words.
   Future<Map<String, dynamic>> _json(HttpClientResponse res) async {
     final text = await res.transform(utf8.decoder).join();
     Map<String, dynamic> m;
@@ -96,6 +98,7 @@ class FilesApi {
     return m;
   }
 
+  /// One request and its JSON answer. Every way of not reaching the server comes out as a [FilesError] of status 0.
   Future<Map<String, dynamic>> _call(String method, String rest, {List<int>? body, bool sign = false, bool sayHash = false}) async {
     try {
       final req = await _open(method, rest, signBody: sign ? (body ?? const []) : null, sayHash: sayHash);
@@ -125,6 +128,7 @@ class FilesApi {
   Future<FilesInfo> ensure({String owner = '', Map<String, Object?>? rv}) async =>
       FilesInfo.from(await _call('PUT', '', body: utf8.encode(jsonEncode({'owner': owner, 'rv': ?rv})), sign: true));
 
+  /// What the relay says of the space now.
   Future<FilesInfo> info() async => FilesInfo.from(await _call('GET', ''));
 
   /// The log's entries after [after]: each `{s, by, at, o}` with `o` the sealed operation in base64.
@@ -141,6 +145,7 @@ class FilesApi {
   /// ([put]), so the relay refuses one that doesn't before reading it; a relay from before reads past it.
   Future<String> newBlob(int size) async => (await _call('POST', '/blobs', body: utf8.encode(jsonEncode({'size': size, 'pre': true})), sign: true))['id'] as String;
 
+  /// How many sealed bytes of [blob] the relay has, how many it is to be, and whether it was finished ([done]).
   Future<({int have, int size, bool done})> state(String blob) async {
     final m = await _call('GET', '/blobs/$blob/state');
     return (have: (m['have'] as num).toInt(), size: (m['size'] as num).toInt(), done: m['done'] == true);
@@ -149,6 +154,7 @@ class FilesApi {
   /// A piece of a blob at [offset] (where it has got to): what it has after.
   Future<int> put(String blob, int offset, Uint8List bytes) async => ((await _call('PUT', '/blobs/$blob?offset=$offset', body: bytes, sign: true, sayHash: true))['have'] as num).toInt();
 
+  /// Tells the relay [blob] is all there.
   Future<void> done(String blob) => _call('POST', '/blobs/$blob/done', sign: true);
 
   /// Lets [blob] go on the relay: this device's own, or the owner's; or anyone's, as a moderator or admin, with the
@@ -186,6 +192,7 @@ class FilesApi {
     }
   }
 
+  /// Drops its connections at once, whatever is under way on them.
   void close() => _http.close(force: true);
 
   /// Lets its connections go once what is under way on them is done (a client replaced, not stopped).
@@ -203,6 +210,7 @@ class FilesPart {
   final int size, have;
   final DateTime at;
 
+  /// One as the relay lists it; null where [j] isn't one.
   static FilesPart? from(Object? j) {
     if (j is! Map || j['id'] is! String || j['by'] is! String || j['z'] is! num) return null;
     return FilesPart(id: j['id'] as String, by: j['by'] as String, size: (j['z'] as num).toInt(), have: (j['h'] as num?)?.toInt() ?? 0, at: DateTime.fromMillisecondsSinceEpoch((j['at'] as num?)?.toInt() ?? 0));

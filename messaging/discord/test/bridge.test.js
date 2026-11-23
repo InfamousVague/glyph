@@ -13,8 +13,11 @@ const G = '100000000000000001';
 const C = '400000000000000004';
 const C2 = '400000000000000005';
 
+/** A codec that does no work: every packet decodes to nothing and every frame encodes to one byte. */
 const rawCodec = { silence: Buffer.from([0]), decoder: () => ({ decode: () => new Int16Array(0) }), encoder: () => ({ encode: () => Buffer.from([1]) }) };
 
+/** The Discord half, recording what the bridge asks of it; `fail` makes joining voice fail, `inChannel` is who
+ * people() answers with. */
 function fakeDiscord() {
   const d = {
     joins: [], links: [], nicknames: [], posts: [], inChannel: [], fail: null,
@@ -36,8 +39,10 @@ function fakeDiscord() {
   return d;
 }
 
+/** WebRTC connections that do nothing. */
 const fakePeers = () => (id, hooks) => ({ async makeOffer() { return 'o'; }, async takeOffer() { return 'a'; }, async takeAnswer() {}, async addCandidate() {}, send() {}, async close() {}, hooks });
 
+/** Bridges on a signed-in fake hub, with timers moved by hand and tickers that only record being started. */
 async function setup() {
   const fake = new FakeHub();
   const me = makeIdentity();

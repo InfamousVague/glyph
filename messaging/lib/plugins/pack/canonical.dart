@@ -15,6 +15,7 @@ import 'format.dart';
 /// [jsonDepthOk], so its recursion is at most [PackLimits.depth] deep.
 String canonicalJson(Object? value) => jsonEncode(_sorted(value));
 
+// [value] with every object's keys in order, at every depth; an ArgumentError for what a pack can't hold.
 Object? _sorted(Object? value) {
   if (value == null || value is bool || value is int || value is String) return value;
   if (value is double) throw ArgumentError.value(value, 'value', 'A pack has no fractions');

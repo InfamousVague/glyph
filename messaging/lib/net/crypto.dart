@@ -21,6 +21,7 @@ class NetKeys {
   /// The private half's 32 bytes, to keep somewhere safe.
   Uint8List get scalar => NetCrypto.unhex(_private.d!.toRadixString(16).padLeft(64, '0'));
 
+  /// A new pair; and the pair whose private half is [scalar] (32 bytes).
   static NetKeys generate() {
     final gen = ECKeyGenerator()..init(ParametersWithRandom(ECKeyGeneratorParameters(NetCrypto.curve), NetCrypto.random));
     final pair = gen.generateKeyPair();
@@ -37,20 +38,25 @@ class NetKeys {
 /// with it, and signing to a hub. It agrees with android/.../E2eCrypto.kt, so a phone's Kotlin and a computer's
 /// Dart make the same key from the same two key pairs (test/net_test.dart holds a made pair to the same bytes).
 class NetCrypto {
+  // The curve (P-256); what every packet sealed here is bound to; and the info a conversation key is made with.
   static final ECDomainParameters curve = ECCurve_secp256r1();
   static final Uint8List _aad = Uint8List.fromList(utf8.encode('ghost-net-v1'));
   static final Uint8List _info = Uint8List.fromList(utf8.encode('ghost-messaging e2e v1'));
 
+  /// The app's secure random: Fortuna, seeded once from the system's.
   static final SecureRandom random = () {
     final seed = Random.secure();
     return FortunaRandom()..seed(KeyParameter(Uint8List.fromList(List.generate(32, (_) => seed.nextInt(256)))));
   }();
 
+  // Random bytes; bytes as lower-case hex, and back ([unhex] takes capitals too, drops an odd last letter, and
+  // throws on anything not hex); SHA-256.
   static Uint8List randomBytes(int n) => random.nextBytes(n);
   static String hex(List<int> bytes) => bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   static Uint8List unhex(String text) => Uint8List.fromList([for (var i = 0; i + 1 < text.length; i += 2) int.parse(text.substring(i, i + 2), radix: 16)]);
   static Uint8List sha256(List<int> data) => SHA256Digest().process(Uint8List.fromList(data));
 
+  /// HMAC-SHA256 of [data] under [key].
   static Uint8List hmac(List<int> key, List<int> data) {
     final mac = HMac(SHA256Digest(), 64)..init(KeyParameter(Uint8List.fromList(key)));
     return mac.process(Uint8List.fromList(data));
@@ -60,6 +66,7 @@ class NetCrypto {
   /// key can be worked back from it, and a hub or a stranger learns no number or name from it.
   static String idOf(List<int> publicKey) => hex(sha256(publicKey).sublist(0, 16));
 
+  /// [a] and [b] joined, the lower first, so both ends make the same salt whichever is theirs.
   static Uint8List _ordered(List<int> a, List<int> b) {
     for (var i = 0; i < a.length && i < b.length; i++) {
       if (a[i] != b[i]) return Uint8List.fromList(a[i] < b[i] ? [...a, ...b] : [...b, ...a]);
@@ -118,6 +125,7 @@ class NetCrypto {
     }
   }
 
+  /// [n] as 32 bytes, big-endian.
   static Uint8List _fixed(BigInt n) => unhex(n.toRadixString(16).padLeft(64, '0'));
 
   /// [mine]'s signature over [message] (hashed with SHA-256): r then s, 64 bytes.

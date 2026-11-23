@@ -9,10 +9,13 @@ keep them.
 """
 import math, os, random, struct, wave
 
+# The sample rate every sound is made and written at. A sound is a list of floats, one a sample.
 R = 22050
 TAU = 2 * math.pi
 
 
+# How loud sample i of n is: a straight rise over `attack` seconds from the start, a straight fall over `release` to
+# the end, 0..1.
 def env(i, n, attack=0.01, release=0.05):
     t, end = i / R, n / R
     a = min(1.0, t / attack) if attack > 0 else 1.0
@@ -20,6 +23,8 @@ def env(i, n, attack=0.01, release=0.05):
     return max(0.0, min(a, r))
 
 
+# A pitched note: a sine, square or saw wave, or with `harmonics` a sum of sines, each (multiple of freq, loudness).
+# `vibrato` is how far the pitch wavers each way, as a part of it, 5.5 times a second.
 def tone(freq, secs, shape="sine", vol=1.0, attack=0.01, release=0.05, vibrato=0.0, harmonics=None):
     """freq: a number, or a function of time in seconds."""
     n = int(secs * R)
@@ -65,15 +70,19 @@ def silence(secs):
     return [0.0] * int(secs * R)
 
 
+# Sounds played together: added sample by sample, as long as the longest.
 def mix(*parts):
     n = max(len(p) for p in parts)
     return [sum(p[i] for p in parts if i < len(p)) for i in range(n)]
 
 
+# `part`, starting `secs` in: for placing a sound inside a mix.
 def at(secs, part):
     return silence(secs) + part
 
 
+# The instruments the sounds below are built from. A bell: a note and overtones that are not whole multiples of it,
+# dying away from the strike.
 def bell(freq, secs, vol=1.0):
     n = int(secs * R)
     return [vol * math.exp(-(i / R) * 4.5 / secs * 1.6) * (math.sin(TAU * freq * i / R) + 0.45 * math.sin(TAU * freq * 2.76 * i / R) + 0.2 * math.sin(TAU * freq * 5.4 * i / R)) * min(1, i / 40) for i in range(n)]
@@ -83,6 +92,7 @@ def brass(freq, secs, vol=1.0, vibrato=0.0):
     return tone(freq, secs, vol=vol, attack=0.03, release=0.08, vibrato=vibrato, harmonics=[(1, 1.0), (2, 0.6), (3, 0.45), (4, 0.3), (5, 0.2), (6, 0.12), (7, 0.08)])
 
 
+# A drum hit: a short sine whose pitch drops as it dies, with a snap of high noise on top.
 def drum(freq, secs, rng, vol=1.0):
     n = int(secs * R)
     body = [vol * math.exp(-(i / R) * 22) * math.sin(TAU * (freq + 60 * math.exp(-(i / R) * 40)) * i / R) for i in range(n)]
@@ -93,6 +103,8 @@ def cymbal(secs, rng, vol=1.0):
     return noise(secs, rng, vol=vol, high=0.25, attack=0.001, release=0.1, decay=secs / 4)
 
 
+# The sounds themselves, one function each. Every one takes the seeded generator its noise comes from, whether it
+# uses any or not, so SOUNDS can call them all alike.
 def airhorn(rng):
     def blast(secs):
         return mix(*[tone(f, secs, shape="saw", vol=0.3, attack=0.02, release=0.06, vibrato=0.004) for f in (415, 440, 523, 622)])
@@ -153,6 +165,7 @@ def drumroll(rng):
         s = int(t * R)
         for i, v in enumerate(hit):
             out[s + i] += v
+        # The hits come closer together and louder as the roll goes on, then the crash.
         gap = max(0.028, gap * 0.97)
         t += gap
     crash = mix(cymbal(0.9, rng, 0.8), drum(120, 0.25, rng, 0.9))
@@ -175,6 +188,7 @@ def boing(rng):
     out, phase = [], 0.0
     for i in range(n):
         t = i / R
+        # A spring: the pitch falls towards 180 Hz and wobbles 13 times a second on the way down.
         f = 180 + 260 * math.exp(-t * 3) * (1 + 0.5 * math.sin(TAU * 13 * t))
         phase += TAU * f / R
         out.append(0.7 * math.exp(-t * 3.2) * (math.sin(phase) + 0.3 * math.sin(2 * phase)) * min(1, i / 60))
@@ -205,6 +219,7 @@ PEAKS = {"buzzer": 0.45, "pew": 0.55, "trombone": 0.6, "airhorn": 0.8}
 SOUNDS = [("airhorn", airhorn), ("applause", applause), ("rimshot", rimshot), ("trombone", trombone), ("ding", ding), ("buzzer", buzzer), ("crickets", crickets), ("drumroll", drumroll), ("tada", tada), ("boing", boing), ("pew", pew), ("whoosh", whoosh)]
 
 
+# Writes a sound as a mono 16-bit WAV, scaled so its loudest sample is at `peak` of full scale.
 def write(path, samples, peak=0.85):
     top = max(1e-9, max(abs(s) for s in samples))
     scale = peak / top
@@ -219,6 +234,7 @@ if __name__ == "__main__":
     out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "soundboard")
     os.makedirs(out, exist_ok=True)
     for i, (name, make) in enumerate(SOUNDS):
+        # A generator of its own for each sound, seeded by its place in the list: changing one leaves the rest alone.
         samples = make(random.Random(1000 + i))
         write(os.path.join(out, name + ".wav"), samples, PEAKS.get(name, 0.85))
         print(f"ok {name}.wav {len(samples) / R:.2f}s")

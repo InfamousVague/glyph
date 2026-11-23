@@ -14,10 +14,13 @@ class MessageLink {
   /// What it opens: the words as written, with `https://` put before one written from `www.`.
   final String address;
 
+  /// What may be a link: a run with no space in it from `http://`, `https://` or `www.`. [_trailing] are the marks
+  /// that end a sentence, not an address, where they are its last characters.
   static final _pattern = RegExp(r'(https?://[^\s]+|www\.[^\s]+)', caseSensitive: false);
   // And the formatting markers a link may be written inside (lib/message_format.dart): "**https://x.com**".
   static const _trailing = '.,;:!?\'"*_~|`';
 
+  /// Every link in [text], in order, each without the punctuation that follows it.
   static List<MessageLink> find(String text) {
     final found = <MessageLink>[];
     for (final m in _pattern.allMatches(text)) {

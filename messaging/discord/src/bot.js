@@ -28,7 +28,9 @@ import { missingMembers } from './state.js';
 import { TokenStore } from './store.js';
 import { channelInfo, discordSide } from './voice.js';
 
+/** One line to the service's log, with the time. */
 const log = (message) => console.log(`${new Date().toISOString()} ${message}`);
+/** A setting that is missing or wrong, or a login Discord turned down: said, and the process ends. */
 const fail = (message) => { console.error(`x ${message}`); process.exit(1); };
 
 const TOKEN = process.env.DISCORD_TOKEN ?? '';
@@ -47,11 +49,14 @@ const codes = new Codes();
 const store = TokenStore.open(DATA);
 const bridgeStore = BridgeStore.open(DATA);
 
+// textBridge: whether chat is carried (off once Discord refuses the intent). client: the gateway client in use now;
+// an older one, given up on, is told apart by not being this one.
 const BASE_INTENTS = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates];
 const TEXT_INTENTS = [GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent];
 let textBridge = BRIDGE;
 let client = null;
 
+/** The promise's value, or null if it has not settled within `ms`. */
 const withTimeout = (promise, ms) => Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve(null), ms))]);
 
 /** People in voice whose member is not cached (a voice state can come without one): fetched over REST, which needs no
@@ -63,6 +68,8 @@ async function fetchMissing(guild) {
   }
 }
 
+/** How http.js finds a server: 'ok' with the guild, 'starting' while the gateway (or the guild) is not ready yet, or
+ * 'gone' when the bot is no longer in it. With `members`, people in voice the cache lacks are fetched first. */
 const guilds = {
   async lookup(id, { members }) {
     if (!client?.isReady()) return { status: 'starting' };
@@ -100,6 +107,7 @@ const bridges = new Bridges({
   },
   log,
 });
+// What http.js may ask of the bridge (POST /join, and /state's "bridged" marks); null when the bridge is off.
 const bridge = BRIDGE
   ? {
       channel: (guild, channelId) => channelInfo(client, guild, channelId),
@@ -108,6 +116,7 @@ const bridge = BRIDGE
     }
   : null;
 
+/** Hooks a gateway client's events up: the /ghost commands, voice and chat for the bridges, and Discord's refusals. */
 function attach(c) {
   c.once(Events.ClientReady, async (ready) => {
     log(`ready in ${ready.guilds.cache.size} servers; ${store.links.size} links on file; chat bridge ${textBridge ? 'on' : 'off'}`);
@@ -167,6 +176,7 @@ function attach(c) {
   });
 }
 
+/** Whether an error is Discord refusing an intent (gateway close code 4014). */
 const disallowed = (e) => /disallowed intents/i.test(String(e?.message ?? e)) || e?.code === 4014;
 
 /** Discord refused the Message Content intent: connect again without the chat's intents. Said once. */
@@ -180,6 +190,8 @@ function withoutText(old) {
   connect(BASE_INTENTS);
 }
 
+/** A new gateway client with these intents becomes the current one and logs in. A failed login ends the process,
+ * unless it is the Message Content refusal, which falls back to voice alone. */
 function connect(intents) {
   const c = new Client({ intents });
   client = c;
@@ -199,6 +211,8 @@ server.listen(PORT, '127.0.0.1', () => {
   log(`invite: ${inviteUrl(APP_ID)}`);
 });
 
+// Stopping: no new requests, every bridge leaves its channel and space, then the hub and Discord are let go; five
+// seconds at most.
 let stopping = false;
 for (const signal of ['SIGTERM', 'SIGINT']) {
   process.on(signal, () => {

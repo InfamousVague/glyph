@@ -58,6 +58,7 @@ const List<MarketSection> marketSections = [
   MarketSection('review', 'Review queue', Lucide.shieldCheck, 'coral', group: _admin),
 ];
 
+// The headings sections are grouped under in the list.
 const String _make = 'Make your own';
 const String _admin = 'Admin';
 
@@ -317,6 +318,7 @@ class _MarketSectionScreenState extends State<MarketSectionScreen> {
     );
   }
 
+  /// The row above In development's list that leads to Settings › Developer, where the packs are loaded.
   Widget _devManage(BuildContext context, AppShellState? shell) => Padding(
         padding: EdgeInsets.only(bottom: context.tokens.space(2)),
         child: PaneSection(children: [

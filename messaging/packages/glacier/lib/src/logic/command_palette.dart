@@ -198,6 +198,8 @@ int? _rankTerm(CommandDescriptor item, String term) {
   return null;
 }
 
+/// A command that matched, with what it is sorted by: its worst term's tier (0 best, 3 group or keywords) and its
+/// place in the caller's list.
 class _Scored<T extends CommandDescriptor> {
   _Scored(this.item, this.rank, this.order, this.matchedKeyword);
   final T item;
@@ -208,7 +210,7 @@ class _Scored<T extends CommandDescriptor> {
 
 /// Filters commands by a query, orders them by where the query hit, and stamps each survivor with its flat index.
 ///
-/// Two rules, both chosen so a user can predict the result and a test can pin it:
+/// Three rules, all chosen so a user can predict the result and a test can pin it:
 ///
 /// - **Every whitespace-separated term must match somewhere.** Terms are ANDed across the label, group and
 ///   keywords, so "audio bar" finds a SeekBar tagged `audio` even though no single field contains that phrase.

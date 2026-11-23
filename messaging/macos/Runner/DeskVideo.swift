@@ -50,6 +50,7 @@ final class DeskVideo {
     return known.contains(said.lowercased()) ? said.lowercased() : "mp4"
   }
 
+  /// The video's bytes as a file in this run's folder, under a name no other has, readable by this account alone.
   private static func write(_ data: Data, id: Int, ext: String) throws -> URL {
     let manager = FileManager.default
     try manager.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])

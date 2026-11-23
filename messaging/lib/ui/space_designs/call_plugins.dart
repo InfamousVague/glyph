@@ -31,6 +31,7 @@ class SpaceExtra {
   final bool builtIn;
 }
 
+/// What the plugins have for the call [Voice] is in and for a space's header, asked of the registry afresh each time.
 abstract final class CallPlugins {
   /// The call [Voice] is in, as a plugin is shown it.
   static CallPlace? place() {
@@ -49,6 +50,7 @@ abstract final class CallPlugins {
     );
   }
 
+  /// Whether plugin `id` is on in [c] as its circle says, in the shape the registry asks for.
   static bool? Function(String id) _circleOn(VoiceChannel c) => (id) => Circles.instance.pluginOnIn(c, id);
 
   /// What the plugins that are on in this call have for its menu.
@@ -114,6 +116,7 @@ class _CallHost implements PluginHost {
     if (context.mounted) push(context, page);
   }
 
+  // The rest act on a conversation, which a call has none of: they do nothing here.
   @override
   void open(int thread) {}
   @override

@@ -72,6 +72,7 @@ class _TryPackSectionState extends State<TryPackSection> {
     super.dispose();
   }
 
+  /// Runs the typed text through the pack; with no sender typed it is from the short code 72975.
   void _try() {
     final text = _text.text.trim();
     if (text.isEmpty) return;
@@ -85,6 +86,7 @@ class _TryPackSectionState extends State<TryPackSection> {
     });
   }
 
+  /// Runs every sample text through the pack, and keeps a line for each saying what came of it.
   void _trySamples() {
     setState(() {
       _samples = [

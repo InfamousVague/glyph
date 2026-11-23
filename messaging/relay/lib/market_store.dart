@@ -22,6 +22,7 @@ class MarketStore {
   final Directory dir;
   final DateTime Function() _now;
 
+  /// Plugins by their pack id. [developers] is by the hub id of each one's key, [reports] by report id.
   final Map<String, MarketPlugin> plugins = {};
 
   /// In the order they were sent: a plugin's earlier submissions come before its later ones.
@@ -100,6 +101,7 @@ class MarketStore {
     _countBlobs();
   }
 
+  /// Everything in [f], or null where any of it isn't of the shape toJson writes: a file is read whole or not at all.
   _Parsed? _parse(File f) {
     try {
       final j = jsonDecode(f.readAsStringSync());
@@ -122,6 +124,7 @@ class MarketStore {
     }
   }
 
+  /// Fills [auditOwners] from audit.jsonl, passing over any line that doesn't read.
   Future<void> _readAudit() async {
     if (!_audit.existsSync()) return;
     try {
@@ -143,6 +146,7 @@ class MarketStore {
     }
   }
 
+  /// Fills [blobs] and [bytesInAll] from the two folders, deleting any `.part` left from a write that never finished.
   void _countBlobs() {
     for (final kind in ['packages', 'shots']) {
       final d = Directory('${dir.path}/$kind');
@@ -166,6 +170,9 @@ class MarketStore {
 
   // --- saving ---------------------------------------------------------------------------------------------------------
 
+  // [_soon]: the second's wait before a save. [_saving]: the chain the saves run in, one after another. [_queued]:
+  // the number of the newest save asked for, so an older one still waiting is skipped. [_auditing]: the chain the
+  // audit's lines are appended in.
   Timer? _soon;
   Future<void> _saving = Future.value();
   int _queued = 0;
@@ -202,6 +209,7 @@ class MarketStore {
     }
   }
 
+  /// Puts a save at the end of the chain.
   void _queue() {
     if (_closed) return;
     final mine = ++_queued;
@@ -216,6 +224,7 @@ class MarketStore {
     });
   }
 
+  /// One save: the state written beside, the file there before kept as state.json.bak, then the new one renamed in.
   Future<void> _write() async {
     final words = await _wordsOf(toJson());
     // stop() writes the newest itself, once this is done.
@@ -245,6 +254,7 @@ class MarketStore {
     _auditNow = true;
   }
 
+  /// The same save, synchronously and on this isolate: for when the relay is stopping and nothing may be left to later.
   void _writeNow() {
     try {
       dir.createSync(recursive: true);
@@ -256,6 +266,7 @@ class MarketStore {
     }
   }
 
+  /// state.json's whole content, as a copy that shares nothing with the store, so another isolate can be sent it.
   Map<String, Object?> toJson() => {
         'v': 1,
         'plugins': {for (final e in plugins.entries) e.key: e.value.toJson()},
@@ -292,6 +303,7 @@ class MarketStore {
 
   // --- blobs ----------------------------------------------------------------------------------------------------------
 
+  /// Whether `<kind>/<sha>` is on disk.
   bool has(String kind, String sha) => blobs.containsKey('$kind/$sha');
 
   /// Writes [bytes] as `<kind>/<sha>` (`packages` or `shots`) where it isn't there already: `<sha>.part`, then renamed.
@@ -307,6 +319,7 @@ class MarketStore {
     bytesInAll += bytes.length;
   }
 
+  /// The bytes of `<kind>/<sha>`, or null where it isn't here or can't be read.
   Future<Uint8List?> readBlob(String kind, String sha) async {
     if (!blobs.containsKey('$kind/$sha')) return null;
     try {
@@ -379,6 +392,7 @@ class MarketStore {
   }
 }
 
+/// What one state file held, read whole before any of it is taken into the store.
 class _Parsed {
   _Parsed({required this.plugins, required this.submissions, required this.developers, required this.reports, required this.abuse, required this.revoked, required this.retired, required this.listingAt});
   final Map<String, MarketPlugin> plugins;
@@ -398,6 +412,7 @@ const Set<String> closedStates = {'approved', 'rejected', 'withdrawn', 'supersed
 
 // Reading a record back: anything not of its shape makes the whole file unreadable, which load() answers by trying the
 // copy before it.
+// By what they read: _s text, _i a whole number, _b true or false, _m an object, _l a list; with n, null is let be.
 String _s(Map j, String k) => j[k] is String ? j[k] as String : throw FormatException('$k is not text');
 String? _sn(Map j, String k) => j[k] == null ? null : _s(j, k);
 int _i(Map j, String k) => j[k] is int ? j[k] as int : throw FormatException('$k is not a number');
@@ -426,9 +441,13 @@ class MarketPlugin {
 
   /// The approved version the catalog lists.
   MarketCurrent? current;
+
+  /// Every version ever approved, oldest first, the current one among them.
   final List<MarketVersion> versions;
   final int createdAt;
   int updatedAt;
+
+  /// When it last went from not listed to listed (ms): the catalog's `listedAt`.
   int? listedAt;
 
   /// With no approved version, when the id is let go: 30 days after its last open submission closed.
@@ -502,6 +521,8 @@ class MarketSubmission {
 
   /// The address it came from, kept only while it is open, for the per-address counts.
   String? address;
+
+  /// One of [openStates] or [closedStates].
   String status;
 
   /// 'now', or 'later': approved, it waits for its developer to list it.
@@ -574,6 +595,7 @@ class MarketSubmission {
       );
 }
 
+/// One screenshot of a submission: its file is `shots/<sha256>`.
 class MarketShot {
   MarketShot({required this.sha256, required this.mime, required this.size});
   final String sha256, mime;
@@ -651,10 +673,14 @@ class MarketReport {
 /// kept, as with a plugin's report: the reporter's name and signature are inside, for the reviewer alone.
 class MarketAbuse {
   MarketAbuse({required this.rid, required this.sealed, required this.at, this.done = false, this.doneAt});
+
+  /// The report's id, as review names it to mark it dealt with.
   final String rid;
 
   /// Base64 of the envelope, as the app sent it.
   final String sealed;
+
+  /// When it came (ms), whether review has dealt with it, and when.
   final int at;
   bool done;
   int? doneAt;

@@ -14,7 +14,9 @@
 //!   plain HTTP, is off: [`probes`]);
 //! - dial what a hint names that is no other device's address: this device's own (loopback), or one that means nothing
 //!   off a link or everything at once (unspecified, link-local, multicast, broadcast), in whatever form an IPv6 address
-//!   carries it ([`dialable`]), so a friend's word cannot point this node at itself or at its network's services;
+//!   carries it ([`dialable`]), so a friend's hint cannot point this node at itself or at its network's services (QUIC's
+//!   hole punching inside iroh still probes whatever address the other end of a link names: README.md, "What a node
+//!   that links can make this one send");
 //! - let a node that was not allowed say anything, or tell it anything: one that comes through a link helper is
 //!   refused before any handshake (the helper says who is calling), and any other as soon as the handshake has said
 //!   who it is, before iroh has taken the link for its own and told it this node's addresses;
@@ -252,8 +254,10 @@ impl Admission {
     }
 }
 
+/// The one list of who is allowed, shared by the node, its run and iroh's hook.
 type Gatekeeper = Arc<RwLock<Admission>>;
 
+/// The list to read, whatever a panic elsewhere did to its lock.
 fn admission(gate: &Gatekeeper) -> std::sync::RwLockReadGuard<'_, Admission> {
     gate.read().unwrap_or_else(|p| p.into_inner())
 }
@@ -291,19 +295,31 @@ struct Shared {
     run: RwLock<Option<Arc<Run>>>,
     /// Streams are numbered by the node, never twice, across every start.
     next_stream: AtomicU64,
-    /// The UDP port the node last had on each network it started on: asked for again at its next start there.
-    ports: Mutex<HashMap<Vec<u8>, u16>>,
+    /// The UDP port the node last had on each network it started on, for each node key it was started with: asked for
+    /// again at its next start there with that key. Never another key's: two accounts signed in one after the other on
+    /// one device would otherwise listen on one port, and whoever knew the first's address would know the second's.
+    ports: Mutex<HashMap<([u8; 32], Vec<u8>), u16>>,
+    /// How many times each node has been disallowed: an open asked before the last of them is not handed over, whatever
+    /// its dial came to after ([`Run::open`]).
+    let_go: Mutex<HashMap<EndpointId, u64>>,
     /// Its starting and stopping ended by a bug: whatever is asked of it is answered that it is down.
     fallen: AtomicBool,
 }
 
 impl Shared {
+    /// Queues an event for the app; dropped where nothing is left to hand it over.
     fn say(&self, event: Event) {
         let _ = self.events.send(event);
     }
 
+    /// The node as it is up now, or none.
     fn running(&self) -> Option<Arc<Run>> {
         self.run.read().unwrap_or_else(|p| p.into_inner()).clone()
+    }
+
+    /// How many times `node` has been disallowed so far.
+    fn let_go_count(&self, node: &EndpointId) -> u64 {
+        lock(&self.let_go).get(node).copied().unwrap_or(0)
     }
 }
 
@@ -322,6 +338,8 @@ enum Act {
         channel: u8,
         wait: Duration,
         hint: Hint,
+        /// How many times the node had been disallowed when the open was asked.
+        let_go: u64,
     },
     NetworkChanged,
     /// A bug, made on purpose: the tests' look at what is left of a node when its lifecycle ends by one.
@@ -380,6 +398,7 @@ impl Node {
             run: RwLock::new(None),
             next_stream: AtomicU64::new(0),
             ports: Mutex::new(HashMap::new()),
+            let_go: Mutex::new(HashMap::new()),
             fallen: AtomicBool::new(false),
         });
         on.spawn(async move {
@@ -408,6 +427,8 @@ impl Node {
         !self.shared.fallen.load(Ordering::Relaxed) && self.acts.send(act).is_ok()
     }
 
+    /// Asks for the node to be up with `config`: the answer is an UP or a DOWN event. Up already with the same key
+    /// and helpers, it only says UP again; with others, it is stopped first.
     pub fn start(&self, config: Config) {
         if !self.ask(Act::Start(config, None)) {
             self.shared.say(Event::Down { problem: FELL.into() });
@@ -421,6 +442,7 @@ impl Node {
         }
     }
 
+    /// Asks for the node to be stopped: the answer is an OFF event, whether or not it was up.
     pub fn stop(&self) {
         if !self.ask(Act::Stop) {
             self.shared.say(Event::Off);
@@ -447,6 +469,9 @@ impl Node {
     pub fn disallow(&self, node: [u8; 32]) {
         let Ok(id) = EndpointId::from_bytes(&node) else { return };
         self.shared.admission.write().unwrap_or_else(|p| p.into_inner()).allowed.remove(&id);
+        // Counted before the lifecycle hears of it: an open asked before this, whose dial is still under way, sees it
+        // however its dial and this come out in time.
+        *lock(&self.shared.let_go).entry(id).or_insert(0) += 1;
         self.ask(Act::LetGo(id));
     }
 
@@ -458,11 +483,13 @@ impl Node {
 
     /// Answered with [`Event::Opened`] or [`Event::OpenFailed`], naming `request`.
     pub fn open(&self, request: u32, node: [u8; 32], channel: u8, wait: Duration, hint: Hint) {
-        if !self.ask(Act::Open { request, node, channel, wait, hint }) {
+        let let_go = EndpointId::from_bytes(&node).map(|id| self.shared.let_go_count(&id)).unwrap_or(0);
+        if !self.ask(Act::Open { request, node, channel, wait, hint, let_go }) {
             self.shared.say(Event::OpenFailed { request, why: OpenError::NotUp, message: "The direct network is not up.".into() });
         }
     }
 
+    /// The device's network changed (Wi-Fi for mobile data, say): iroh is told, so it looks at its paths again.
     pub fn network_changed(&self) {
         self.ask(Act::NetworkChanged);
     }
@@ -721,8 +748,8 @@ async fn lifecycle(shared: Arc<Shared>, mut asked: mpsc::UnboundedReceiver<Act>,
                     up.let_go(&node);
                 }
             }
-            Act::Open { request, node, channel, wait, hint } => match &run {
-                Some(up) => up.tasks.spawn(up.clone().open(request, node, channel, wait, hint)),
+            Act::Open { request, node, channel, wait, hint, let_go } => match &run {
+                Some(up) => up.tasks.spawn(up.clone().open(request, node, channel, wait, hint, let_go)),
                 None => shared.say(Event::OpenFailed { request, why: OpenError::NotUp, message: "The direct network is not up.".into() }),
             },
             Act::NetworkChanged => {
@@ -755,6 +782,8 @@ enum Out {
     Finish,
 }
 
+/// What a stream's queue holds that is not yet written, counted against [`SEND_QUEUE_BYTES`] and
+/// [`SEND_QUEUE_FRAMES`].
 #[derive(Default)]
 struct Queued {
     bytes: usize,
@@ -774,13 +803,16 @@ struct Credit {
     stream: usize,
 }
 
+/// One stream while it is open, as the node's table holds it: what the app's send and close reach it by.
 struct Stream {
     id: u64,
     peer: EndpointId,
     channel: u8,
     incoming: bool,
+    /// To its writer, which sends on in order.
     out: mpsc::UnboundedSender<Out>,
     queued: Mutex<Queued>,
+    /// The app closed it: from here its writer has [`CLOSE_FLUSH`] to write what was queued.
     close_asked: Notify,
     stop: CancellationToken,
     /// Why it was stopped, where something stopped it.
@@ -789,6 +821,7 @@ struct Stream {
 }
 
 impl Stream {
+    /// Stops it at once, without writing what is queued. The first reason given is the one that is said.
     fn stop_for(&self, why: Closed) {
         lock(&self.why).get_or_insert(why);
         self.stop.cancel();
@@ -872,6 +905,7 @@ impl LinkConn {
         }
     }
 
+    /// The connection where iroh holds it; none for a stranger's.
     fn full(&self) -> Option<&Connection> {
         match self {
             LinkConn::Full(c) => Some(c),
@@ -901,15 +935,19 @@ struct Link {
 }
 
 impl Link {
+    /// Ends the link, with the code its connection closes with and what its streams are told. The first reason
+    /// given stands.
     fn end_with(&self, code: u32, why: Closed) {
         lock(&self.ended).get_or_insert((code, why));
         self.stop.cancel();
     }
 
+    /// Neither ended here nor closed by the other end or the network.
     fn live(&self) -> bool {
         !self.stop.is_cancelled() && self.conn.close_reason().is_none()
     }
 
+    /// Counts one more stream on the link (`ours`: one this node opened) until what is returned is dropped.
     fn carrying(self: &Arc<Self>, ours: bool) -> Carried {
         self.streams.send_modify(|n| *n += 1);
         if ours {
@@ -957,6 +995,7 @@ struct Tasks {
 }
 
 impl Tasks {
+    /// Starts a task, forgetting the ones that have ended; nothing is started once the node is stopping.
     fn spawn(&self, task: impl Future<Output = ()> + Send + 'static) {
         if let Some(set) = lock(&self.set).as_mut() {
             while set.try_join_next().is_some() {}
@@ -964,6 +1003,7 @@ impl Tasks {
         }
     }
 
+    /// Waits `within` for every task to end, then ends the ones that have not; takes no more from then on.
     async fn end(&self, within: Duration) {
         let Some(mut set) = lock(&self.set).take() else { return };
         let ended = timeout(within, async { while set.join_next().await.is_some() {} }).await.is_ok();
@@ -988,6 +1028,7 @@ enum Source {
 }
 
 impl Source {
+    /// The source an address counts as: itself for IPv4 (and IPv4 carried in IPv6), its /64 for IPv6.
     fn of(ip: IpAddr) -> Source {
         match ip.to_canonical() {
             IpAddr::V6(v6) => {
@@ -1031,6 +1072,8 @@ impl Pools {
         Pools { any: Arc::new(Semaphore::new(limits.handshakes)), helper: Arc::new(Semaphore::new(limits.helper_handshakes)), held: Arc::default() }
     }
 
+    /// A place for one handshake, in the helper pool or the pool for anyone; none where the pool is full or `source`
+    /// already has as many as one source may.
     fn take(&self, helper: bool, source: Source, limits: &Limits) -> Option<Slot> {
         let most = if helper { limits.per_caller } else { limits.per_source };
         let mut held = lock(&self.held);
@@ -1049,8 +1092,11 @@ impl Pools {
 struct Refusals(Mutex<HashMap<Source, (u32, Instant)>>);
 
 impl Refusals {
+    /// How many sources are remembered: past it the ones whose while is over are forgotten, and if that frees
+    /// nothing, all of them.
     const MOST_KEPT: usize = 4096;
 
+    /// Counts one more refusal of `source`, starting its count again where its while is over.
     fn note(&self, source: &Source) {
         let mut by = lock(&self.0);
         if by.len() >= Self::MOST_KEPT {
@@ -1066,6 +1112,7 @@ impl Refusals {
         seen.0 += 1;
     }
 
+    /// Whether `source` has been turned away `most` times in the window, and so is not answered now.
     fn resting(&self, source: &Source, most: u32) -> bool {
         lock(&self.0).get(source).is_some_and(|(n, since)| *n >= most && since.elapsed() < REFUSALS_WINDOW)
     }
@@ -1452,6 +1499,9 @@ pub(crate) fn grow(frame: &mut Vec<u8>, by: usize, most: usize) {
 }
 
 impl Run {
+    /// Brings a node up from `config`: reads its link helpers, binds the endpoint (on the port it last had on this
+    /// network, where it can) and makes the run, taking no caller yet ([`Run::go`] does that). The error is the
+    /// problem as the app is told it.
     async fn begin(shared: &Arc<Shared>, config: &Config, setup: Option<TestSetup>, on: &Handle) -> Result<Arc<Run>, String> {
         let mut helpers: Vec<(RelayUrl, String)> = Vec::new();
         for written in &config.helpers {
@@ -1523,7 +1573,8 @@ impl Run {
             let network = Here::now().network();
             #[cfg(test)]
             let network = test_network.clone().unwrap_or(network);
-            let had = lock(&shared.ports).get(&network).copied();
+            let key = (node_id(&config.secret), network.clone());
+            let had = lock(&shared.ports).get(&key).copied();
             let (port, mut tries) = match had {
                 Some(port) => (port, PORT_TRIES),
                 None => (first_port(&config.secret, &network), 1),
@@ -1542,10 +1593,10 @@ impl Run {
                 && let Some(port) = ep.bound_sockets().iter().find(|a| a.is_ipv4()).map(|a| a.port()).filter(|port| *port != 0)
             {
                 let mut ports = lock(&shared.ports);
-                if ports.len() >= PORTS_KEPT && !ports.contains_key(&network) {
+                if ports.len() >= PORTS_KEPT && !ports.contains_key(&key) {
                     ports.clear();
                 }
-                ports.insert(network, port);
+                ports.insert(key, port);
             }
             ep
         }
@@ -2005,8 +2056,10 @@ impl Run {
         drop(carried);
     }
 
-    /// Opens a stream to `node` on `channel`, dialling where no link is up.
-    async fn open(self: Arc<Self>, request: u32, node: [u8; 32], channel: u8, wait: Duration, hint: Hint) {
+    /// Opens a stream to `node` on `channel`, dialling where no link is up. Where the node was disallowed after the open
+    /// was asked (`let_go` says how many times it had been then), nothing of it is handed over: a dial under way when
+    /// DISALLOW came, which LetGo found no link of to close, ends in a link that is closed and an open that fails.
+    async fn open(self: Arc<Self>, request: u32, node: [u8; 32], channel: u8, wait: Duration, hint: Hint, let_go: u64) {
         let fail = |why: OpenError, message: &str| self.shared.say(Event::OpenFailed { request, why, message: message.into() });
         let Ok(peer) = EndpointId::from_bytes(&node) else {
             return fail(OpenError::BadRequest, "That is not a node id.");
@@ -2020,7 +2073,7 @@ impl Run {
         let attempt = async {
             let mut tried_again = false;
             loop {
-                let (link, fresh) = self.link_to(peer, &hint).await?;
+                let (link, fresh) = self.link_to(peer, &hint, let_go).await?;
                 *lock(&used) = (!fresh).then(|| link.clone());
                 let carried = link.carrying(true);
                 reached.store(1, Ordering::Relaxed);
@@ -2095,6 +2148,20 @@ impl Run {
                 Err((OpenError::Unreachable, "It did not answer in time.".to_string()))
             }
         };
+        // Disallowed since it was asked, whatever the attempt came to (its link may have been closed under it): the
+        // stream is given up, and so is the link where this open's own dial made it.
+        let opened = if self.shared.let_go_count(&peer) != let_go {
+            if let Ok((link, carried, mut send, mut recv)) = opened {
+                turn_back(&mut send, &mut recv, code::NOT_ALLOWED);
+                if lock(&used).is_none() {
+                    link.end_with(code::NOT_ALLOWED, Closed::NotAllowed);
+                }
+                drop(carried);
+            }
+            Err((OpenError::TurnedAway, "This device no longer allows it.".to_string()))
+        } else {
+            opened
+        };
         match opened {
             Ok((link, carried, send, recv)) => {
                 let share = self.share(&link.peer);
@@ -2108,7 +2175,10 @@ impl Run {
     }
 
     /// The link to `peer`: the newest that is up, or a dial by the hint and by what iroh already knows of it.
-    async fn link_to(self: &Arc<Self>, peer: EndpointId, hint: &Hint) -> Result<(Arc<Link>, bool), (OpenError, String)> {
+    ///
+    /// A link this dial makes to a node disallowed since the open was asked (`let_go`) is closed as soon as it is listed:
+    /// LetGo, which closes what is listed, may have come while the dial was under way.
+    async fn link_to(self: &Arc<Self>, peer: EndpointId, hint: &Hint, let_go: u64) -> Result<(Arc<Link>, bool), (OpenError, String)> {
         if let Some(link) = self.live_link(&peer) {
             return Ok((link, false));
         }
@@ -2119,7 +2189,12 @@ impl Run {
                 return Ok((link, false));
             }
             let conn = self.ep.connect(self.dial_addr(peer, hint), ALPN).await.map_err(|e| why_no_link(&e))?;
-            Ok((self.linked(LinkConn::Full(conn), peer, false, false), true))
+            let link = self.linked(LinkConn::Full(conn), peer, false, false);
+            if self.shared.let_go_count(&peer) != let_go {
+                link.end_with(code::NOT_ALLOWED, Closed::NotAllowed);
+                return Err((OpenError::TurnedAway, "This device no longer allows it.".to_string()));
+            }
+            Ok((link, true))
         }
         .await;
         // Nobody else waiting on this dial: its turn-keeper is not kept.
@@ -2187,8 +2262,11 @@ impl Run {
 
     /// Carries a stream until it ends, and says why it did.
     async fn pump(&self, link: &Link, st: Arc<Stream>, mut send: SendStream, mut recv: RecvStream, mut queue: mpsc::UnboundedReceiver<Out>) {
+        /// Which of the four things a stream waits on came first.
         enum End {
+            /// It, its link or the node was stopped.
             Stopped,
+            /// The app closed it, and what was queued had not been written [`CLOSE_FLUSH`] later.
             Overdue,
             Read(ReadEnd),
             Wrote(WriteEnd),
@@ -2490,6 +2568,7 @@ struct Held<'a> {
 }
 
 impl Held<'_> {
+    /// Leaves what was set aside counted: the frame is the app's to give back now.
     fn keep(self) {
         std::mem::forget(self);
     }
@@ -2501,15 +2580,18 @@ impl Drop for Held<'_> {
     }
 }
 
+/// How the reading of a stream's frames ended.
 enum ReadEnd {
     /// The other end closed the stream (its end came between two frames, or it reset it).
     Ended,
     /// What came was no frame.
     Broken,
+    /// The link under it went.
     Lost,
 }
 
 impl ReadEnd {
+    /// What a failed read means: a reset is the other end closing, anything else the link going.
     fn of(e: ReadError) -> ReadEnd {
         match e {
             ReadError::Reset(_) => ReadEnd::Ended,
@@ -2518,11 +2600,13 @@ impl ReadEnd {
     }
 }
 
+/// How the writing of a stream's queued frames ended.
 enum WriteEnd {
     /// Closed here, and everything before it written.
     Finished,
     /// The other end stopped reading: it closed the stream.
     StoppedByThem,
+    /// The link under it went.
     Lost,
 }
 

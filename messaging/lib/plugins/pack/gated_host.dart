@@ -19,6 +19,8 @@ class _Lately {
 
 final Expando<_Lately> _lately = Expando('pack lately');
 
+/// Made for one press of one button of [plugin]'s (PackPlugin._run): each verb goes on to [inner] only where the pack
+/// lists its permission, within its limits, and for the conversation the button was offered on.
 class GatedHost implements PluginHost {
   GatedHost(this.inner, {required this.plugin, required this.thread, Future<bool> Function(String url)? openLink}) : _openLink = openLink;
   final PluginHost inner;
@@ -108,6 +110,7 @@ class GatedHost implements PluginHost {
   }
 }
 
+// [s] cut to [n] UTF-16 units at most, never between the two halves of a surrogate pair.
 String _cut(String s, int n) {
   if (s.length <= n) return s;
   final last = s.codeUnitAt(n - 1);

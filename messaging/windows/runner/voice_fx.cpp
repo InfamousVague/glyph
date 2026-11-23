@@ -27,12 +27,14 @@ extern "C" {
 
 namespace {
 
+// What libwebrtc calls with each block of the microphone, on its audio thread; it owns the one VoiceFx.
 class Processor : public libwebrtc::RTCAudioProcessing::CustomProcessing {
  public:
   Processor() : fx_(voicefx_create()) {}
 
   void Initialize(int sample_rate_hz, int num_channels) override {}
 
+  // A block is 10 ms, so the rate is a hundred times its frames.
   void Process(int num_bands, int num_frames, int buffer_size, float* buffer) override {
     voicefx_process(fx_, buffer, num_frames, num_frames * 100);
     // A call being recorded takes this device's voice as it is sent (call_recorder.cpp).
@@ -53,6 +55,7 @@ Processor* g_processor = nullptr;
 bool g_attached = false;
 std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> g_channel;
 
+// Into flutter_webrtc's capture post-processing, once; false while flutter_webrtc has no audio processing to give.
 bool Attach() {
   if (g_attached) return true;
   auto* webrtc = FlutterWebRTCPluginSharedInstance();
@@ -67,6 +70,7 @@ bool Attach() {
 
 }  // namespace
 
+// The "ghost/voicefx" channel: modes (what this build can do) and configure (the mode and the gain, 1 for as it is).
 void RegisterVoiceFx(flutter::BinaryMessenger* messenger) {
   if (!g_processor) {
     g_processor = new Processor();

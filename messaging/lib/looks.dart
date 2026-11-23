@@ -78,6 +78,7 @@ enum Look {
   /// Offered in Settings › Appearance: every look is now; a look still being built can say false here.
   bool get ready => true;
 
+  /// The choice the look is kept under, as its enum name.
   static const pref = 'look';
 
   /// The look chosen in [app]: Ghost where none was, or one no longer known.

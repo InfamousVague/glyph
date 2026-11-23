@@ -18,6 +18,7 @@ import { randomBytes } from 'node:crypto';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
+// The value after --name, or the fallback.
 const opt = (name, fallback) => { const i = args.indexOf('--' + name); return i >= 0 ? args[i + 1] : fallback; };
 const seconds = Number(opt('seconds', '15'));
 // How long to let the bandwidth estimate climb before measuring.
@@ -25,6 +26,7 @@ const settle = Number(opt('settle', '5'));
 const only = opt('only', '');
 const { chromium } = await import(process.env.PLAYWRIGHT ?? 'playwright');
 
+// How many members, and whether with cameras. --only voice-2,video-4 runs just those.
 const scenarios = [
   { name: 'voice-2', n: 2, video: false },
   { name: 'voice-4', n: 4, video: false },
@@ -49,6 +51,7 @@ if (!hub) {
   await new Promise((done) => relay.stdout.on('data', (d) => { if (String(d).includes('listening')) done(); }));
   hub = `ws://127.0.0.1:${port}/hub`;
 }
+// bench.html, served from this machine on a free port: a page over http://127.0.0.1 may use a camera and microphone.
 const page = readFileSync(join(here, 'bench.html'));
 const server = createServer((req, res) => { res.setHeader('content-type', 'text/html'); res.end(page); }).listen(0, '127.0.0.1');
 await new Promise((r) => server.on('listening', r));
@@ -79,6 +82,7 @@ function cpu() {
 
 const results = [];
 for (const s of scenarios) {
+  // One seed a scenario: every page is given it, and so joins the same channel.
   const seed = randomBytes(32).toString('hex');
   const context = await browser.newContext({ permissions: ['microphone', 'camera'] });
   const pages = [];
@@ -98,6 +102,8 @@ for (const s of scenarios) {
   }
   const connectMs = Date.now() - began;
   await new Promise((r) => setTimeout(r, settle * 1000));
+  // The counters before (a) and after (b) the measured stretch, with the CPU read once a second in between: the
+  // rates below are the difference over the stretch's real length.
   const a = await Promise.all(pages.map((p) => p.evaluate(() => window.bench.stats())));
   const cpus = [];
   const t0 = Date.now();

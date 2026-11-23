@@ -18,6 +18,7 @@ import '../main.dart' show InkOverrides, ghostTypography;
 import '../sounds.dart';
 import '../keys.dart';
 import '../net/net.dart';
+import '../net/p2p/node_factory.dart';
 import '../sms.dart';
 import '../ui/files_space/share_in.dart';
 import '../ui/window_chrome.dart';
@@ -46,6 +47,7 @@ import 'updates.dart';
 import '../people.dart';
 import '../plugins/pack/pack.dart' show InstalledPlugins;
 import '../plugins/plugin_sync.dart' show PluginSync;
+import '../plugins/human_check.dart' show startHumanCheck;
 import 'own_calls.dart';
 import '../friends/buddies.dart';
 import '../me/me.dart';
@@ -75,6 +77,10 @@ Duration? deskResizeSettle = const Duration(milliseconds: 120);
 /// `GHOST_DESK_UPDATES=off` or [updates] is false, as it is for a test.
 Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool updates = true}) async {
   WidgetsFlutterBinding.ensureInitialized();
+  // The direct network's core, where this platform's builds carry it (the Mac's, Windows', Linux's; not an iPhone
+  // paired as a computer): Direct is offered in Settings › Routes where this computer runs its own routes, and nothing
+  // of the core is opened until it is switched on.
+  if (p2pCoreHere) Net.p2pNode = makeP2pNode;
   final env = PlatformInfo.environment;
   final dir = folder ?? env['GHOST_DESK_DIR'];
   // The Keychain holds the key in a release build. A build signed to run on this Mac alone loses its Keychain
@@ -183,6 +189,9 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // Telegram's and Bluesky's chats (lib/inbox): the computer signs in to them itself, as their own apps do.
   addInboxSettings();
   unawaited(Inbox.instance.start(state));
+  // First messages from someone new on the networks the Human check guards, held until they answer its question, as
+  // on the phone (lib/inbox/human_check.dart; GMFB-23).
+  startHumanCheck(state);
   // The updates looked for at the splash, told to the phone's screens too, so its banner and its words are the
   // computer's (remote.dart).
   if (macUpdates != null) calls.attachUpdates(macUpdates);
@@ -208,7 +217,9 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
 /// handover.dart). A phone from before handovers is left as it is: the computer asks it for friends as before.
 void _handover(PhoneLink link, LinkCalls calls, DeskOwnCalls? own, Directory ownDir, bool keychain, AppState state) {
   var busy = false;
+  // When friends were last exchanged: not again within five minutes, unless the person asks.
   DateTime? synced;
+  // Where the handover stands, for Settings › Me: waiting, old, asking, failed (with why), done.
   void say(String phase, [String? problem]) => DeskHandover.state.value = (phase: phase, problem: problem);
   Future<void> go({bool asked = false}) async {
     if (busy) return;
@@ -295,6 +306,8 @@ void _takeMe(AppState state, Object? me, {bool onlyMissing = false}) {
   if (changed) state.set('me_from_phone', jsonEncode(taken));
 }
 
+/// The computer's app, once the splash is done: the phone's own screens over the link to the phone, with the
+/// pairing wizard, the welcome or the frame as things stand ([DeskHome]).
 class DesktopApp extends StatefulWidget {
   const DesktopApp({super.key, required this.sheet, required this.state, required this.link, required this.calls, required this.store, this.envPeers = const [], this.updates, this.accents, this.relaunch});
   final TokenSheet sheet;
@@ -306,6 +319,8 @@ class DesktopApp extends StatefulWidget {
   final PhoneLink link;
   final LinkCalls calls;
   final DeskStore store;
+
+  /// Addresses of the phone given in the environment as the app was started, kept apart from those typed in Settings.
   final List<Peer> envPeers;
   final MacUpdates? updates;
 
@@ -394,6 +409,8 @@ class _DeskHomeState extends State<DeskHome> {
 
   /// The wizard, asked for from the offer.
   bool _linking = false;
+
+  /// The app is about to open again: asked for once, however often the page is built meanwhile.
   bool _restarting = false;
 
   /// Whether signing in to an account has been offered on this paired computer (AccountOffer); null until read.
@@ -441,6 +458,7 @@ class _DeskHomeState extends State<DeskHome> {
     });
   }
 
+  /// The pairing wizard filling the window, with a strip along its top that the window can be dragged by.
   Widget _wizard({String? skipLabel, VoidCallback? onSkip}) => Stack(children: [
         Positioned.fill(child: PairWizard(skipLabel: skipLabel, onSkip: onSkip)),
         Positioned(left: 0, right: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),

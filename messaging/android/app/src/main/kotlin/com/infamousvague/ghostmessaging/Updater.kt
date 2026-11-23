@@ -50,6 +50,7 @@ object Updater {
     private const val PAGE_EVERY_MS = 5 * 60 * 1000L
     private const val FOCUS_FLOOR_MS = 60 * 1000L
 
+    /** What apk.json says of the newest release: its version and code, the APK's hash and size, and where it is. */
     data class Release(val version: String, val code: Long, val sha256: String, val bytes: Long, val url: String)
 
     /** Where an update stands, as the settings app shows it. */
@@ -87,6 +88,7 @@ object Updater {
     fun addListener(l: (State) -> Unit) { listeners += l }
     fun removeListener(l: (State) -> Unit) { listeners -= l }
 
+    /** The new state, kept and told to every listener on the main thread. */
     private fun set(next: State) {
         state = next
         main.post { listeners.toList().forEach { it(next) } }
@@ -253,6 +255,7 @@ object Updater {
         set(state.copy(phase = "failed", progress = null, error = error))
     }
 
+    /** The update server has no release to offer (it answered 404), which is not the same as it being unreachable. */
     private class NotServing(message: String) : IllegalStateException(message)
 
     /** Whether Android says there is a connection at all; true where it will not say. */
@@ -275,6 +278,10 @@ object Updater {
         }
     }
 
+    /**
+     * Reads apk.json and refuses anything odd in it: more than 64 KB, a hash that is not a SHA-256, or a file that is
+     * neither an https address nor a bare name beside it.
+     */
     private fun fetchRelease(context: Context): Release {
         val conn = open("$BASE/apk.json?t=${System.currentTimeMillis()}")
         try {
@@ -293,9 +300,14 @@ object Updater {
         }
     }
 
+    /** Where a release's APK is kept: the app's cache, named by its version code. */
     private fun apkFile(context: Context, release: Release) =
         File(File(context.cacheDir, "updates").apply { mkdirs() }, "ghost-messaging-${release.code}.apk")
 
+    /**
+     * Downloads [release] unless a whole copy is here already, checks it, and hands it to Android's installer. With
+     * [silentOnly] it stops at "ready" where Android would ask the person; without it, where installs are not allowed.
+     */
     private fun downloadAndInstall(context: Context, release: Release, silentOnly: Boolean) {
         val file = apkFile(context, release)
         if (!(file.exists() && file.length() == release.bytes && sha256(file) == release.sha256)) {
@@ -369,6 +381,7 @@ object Updater {
         if (theirs.isNotEmpty() && ours.isNotEmpty() && theirs != ours) throw IllegalStateException("The download is not signed by this app's key.")
     }
 
+    /** The SHA-256 of each certificate a package is signed with, as hex. */
     private fun signers(info: PackageInfo): Set<String> {
         val sigs = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             info.signingInfo?.let { if (it.hasMultipleSigners()) it.apkContentsSigners else it.signingCertificateHistory }
@@ -386,6 +399,7 @@ object Updater {
         return source == context.packageName
     }
 
+    /** Copies the APK into an install session and commits it; Android answers through [InstallReceiver]. */
     private fun commit(context: Context, file: File) {
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
@@ -405,6 +419,10 @@ object Updater {
         }
     }
 
+    /**
+     * What the installer said of the session: its own prompt to show, done, or why not. An install the person turned
+     * down goes back to "available"; any other failure is "failed".
+     */
     internal fun onInstallStatus(context: Context, intent: Intent) {
         when (val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {

@@ -101,6 +101,8 @@ class SettingsModel extends ChangeNotifier {
   InstalledPlugins? _installed;
   bool _gone = false;
 
+  /// Starts listening to everything Settings shows the state of, so its pages draw again as any of it changes, and
+  /// reads it all once.
   void start() {
     _updates = Sms.instance.updates.stream.listen((u) {
       update = u;
@@ -111,6 +113,9 @@ class SettingsModel extends ChangeNotifier {
     Net.instance.addListener(_say);
     // And as the direct route's devices and links change (Settings › Routes › Direct).
     Net.instance.direct.addListener(_say);
+    // And as the route that last carried something to or from someone changes (Settings › Routes › Which route each
+    // person is on).
+    Net.instance.routesUsed.addListener(_say);
     Me.instance.addListener(_say);
     // The packs on this device (lib/plugins/pack): Settings › Developer's Plugins in development lists them, and the
     // search reads their switches.
@@ -129,6 +134,7 @@ class SettingsModel extends ChangeNotifier {
     refresh();
   }
 
+  /// Tells the listeners, unless the model has been let go: an answer may land after it has.
   void _say() {
     if (!_gone) notifyListeners();
   }
@@ -169,6 +175,7 @@ class SettingsModel extends ChangeNotifier {
     _gone = true;
     Net.instance.removeListener(_say);
     Net.instance.direct.removeListener(_say);
+    Net.instance.routesUsed.removeListener(_say);
     Me.instance.removeListener(_say);
     _installed?.removeListener(_say);
     for (final w in _watching) {
@@ -629,6 +636,7 @@ class _SettingsRevealState extends State<SettingsReveal> {
     if (widget.shown && !old.shown) _reveal();
   }
 
+  /// Scrolls the list, once this frame is laid out, so the row is seen whole.
   void _reveal() => WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         final box = context.findRenderObject();
@@ -763,6 +771,7 @@ class SettingsSectionRow extends StatelessWidget {
 
 final RegExp _notWord = RegExp(r'[^\p{L}\p{N}]+', unicode: true);
 
+/// [text] as its words, folded for matching: letters and numbers kept, everything else a gap.
 List<String> _words(String text) => fold(text).split(_notWord).where((w) => w.isNotEmpty).toList();
 
 /// Every word of [query] starts a word of [text].

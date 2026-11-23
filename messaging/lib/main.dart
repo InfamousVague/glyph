@@ -38,6 +38,7 @@ import 'standalone/welcome.dart';
 import 'emoji_sets.dart';
 import 'kit/settings_css.dart';
 import 'net/net.dart';
+import 'net/p2p/node_factory.dart';
 import 'people.dart';
 import 'plugins/notify_hush.dart' show NotifyHush;
 import 'plugins/pack/pack.dart' show InstalledPlugins;
@@ -60,9 +61,7 @@ import 'ui/computers.dart';
 import 'ui/files_space/share_in.dart';
 import 'onboarding/onboarding.dart';
 import 'inbox/alerts.dart';
-import 'inbox/human_check.dart' show HumanCheck;
-import 'plugins/human_check.dart' show HumanCheckPlugin;
-import 'plugins/registry.dart' show AppStore, PluginRegistry;
+import 'plugins/human_check.dart' show startHumanCheck;
 import 'files/files_store.dart';
 import 'inbox/inbox.dart';
 import 'inbox/telegram.dart';
@@ -71,8 +70,6 @@ import 'ui/settings_panes.dart' show appVersion;
 import 'ui/shell.dart';
 import 'ui/update_banner.dart';
 
-/// Ghost Messaging: an SMS/MMS app drawn with Glacier and Ghost.md's stylesheets, as Ghost Keyboard's settings are.
-/// The messages themselves are Android's (android/.../Store.kt); this is the screen over them.
 /// What goes wrong on the screens' side goes in the app's own log (Settings › Developer; Matt, 2026-11-13: "a
 /// developer setting with copying errors and reporting"): what it was and where, never what a message said.
 void _logErrors() {
@@ -96,10 +93,19 @@ void _logErrors() {
   };
 }
 
+/// Ghost Messaging: an SMS/MMS app drawn with Glacier and Ghost.md's stylesheets, as Ghost Keyboard's settings are.
+/// The messages themselves are Android's (android/.../Store.kt); this is the screen over them.
+///
+/// Where the app starts on every platform. A computer goes off to lib/desktop; a phone reads what must be read
+/// before the first frame (the stylesheets, the choices, the plugins) and draws [GhostMessagingApp]. What needs the
+/// app to be usable (its network, friends, the inbox) starts later, in [_HomeState._check].
 Future<void> main() async {
   // On a computer this is the companion to the phone's app (lib/desktop): the same screens, asking the phone.
   if (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux) return desktopMain();
   WidgetsFlutterBinding.ensureInitialized();
+  // The direct network's core, where this platform's builds carry it (an Android phone's; an iPhone's carries none
+  // yet): Direct is offered in Settings › Routes, and nothing of the core is opened until it is switched on.
+  if (p2pCoreHere) Net.p2pNode = makeP2pNode;
   // Each frame's times in the log, for a performance pass on an emulator (built with --dart-define=GHOST_FRAME_LOG=true;
   // left out of every other build): how long the frame took to build, to draw, and in all.
   if (const bool.fromEnvironment('GHOST_FRAME_LOG')) {
@@ -219,6 +225,8 @@ GlacierTypography _typography(String emoji) {
   );
 }
 
+/// The phone's app: the choices over everything ([AppScope]), then the theme made from them (stylesheet, look,
+/// emoji set), then [_Home]. Built again whenever a choice changes.
 class GhostMessagingApp extends StatelessWidget {
   const GhostMessagingApp({super.key, required this.sheet, required this.state, this.accents, this.home});
   final TokenSheet sheet;
@@ -275,6 +283,7 @@ class _Home extends StatefulWidget {
 }
 
 class _HomeState extends State<_Home> with WidgetsBindingObserver {
+  /// The frame (the list and the pane beside it), for opening what a notification asks for in it.
   final _shell = GlobalKey<AppShellState>();
 
   /// Each page that opens in the pane asks for a look for a newer version, as each page of the app does.
@@ -300,6 +309,7 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     if (Sms.standalone) Account.instance.addListener(_accountChanged);
   }
 
+  /// The account changed: drawn again only where it has ended on this device.
   void _accountChanged() {
     if (mounted && Account.instance.ended) setState(() {});
   }
@@ -334,6 +344,10 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     });
   }
 
+  /// Asks whether the app can run (the texting app, beside Google Messages, or texts passed by), as it opens and
+  /// each time it comes back to the screen. With [first], and where it can, everything that runs behind the screens
+  /// is started, once: sounds, keys, the app's network and friends, files, the inbox, alerts, a paired computer's
+  /// answers; and what the app was opened to show is opened.
   Future<void> _check({bool first = false}) async {
     final s = await Sms.instance.status();
     // Whether the phone's contacts can be read, before the list is drawn: without them plugins from other developers
@@ -379,11 +393,7 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       // First messages from someone new on the networks the Human check guards, held until they answer its question
       // (lib/inbox/human_check.dart; GMFB-23, Matt, Mac 0.12.6: "have new messages from that platform stay hidden from
       // notificatoins and my messages until they solve a small challenge").
-      HumanCheck.instance ??= HumanCheck(
-        choices: () => HumanCheckPlugin.choicesIn(PluginRegistry.instance, AppStore(app)),
-        read: (key) => app.choice(key, ''),
-        write: app.keep,
-      )..watch(Inbox.instance, choicesChanged: app);
+      startHumanCheck(app);
       // Mentions of this device in spaces' chats, notified (lib/voice/mention_alerts.dart).
       MentionAlerts.instance ??= MentionAlerts(
         notify: (a) => Sms.instance.notifyInbox(a.key, network: a.where, title: a.title, body: a.body, group: true),
@@ -431,6 +441,8 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     }
   }
 
+  /// Opens what was asked for from outside the app, in the frame: a circle, a space, a network's chat, a pairing,
+  /// a conversation by its thread or its people, or a new message.
   Future<void> _open(OpenRequest req) async {
     // A circle's link opened before the app is set up: held, and the circle opened once it is (lib/circles/pending_link.dart).
     if (req.circle != null && (_isDefault != true || _walking || (Sms.standalone && Me.instance.username == null))) {

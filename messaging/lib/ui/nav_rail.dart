@@ -16,6 +16,7 @@ import '../kit/settings_kit.dart' show settingsHue;
 import 'circles/circle_face.dart';
 import 'nav_bar.dart';
 
+/// The rail's column itself; what a press on any of it does is the shell's, handed in.
 class NavRail extends StatelessWidget {
   const NavRail({
     super.key,

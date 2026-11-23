@@ -37,11 +37,25 @@ class Received {
 
   /// The route that brought it first.
   final String via;
+
+  /// Whether it came sealed with the pair's key; nothing unsealed is passed on from someone a key is held for.
   final bool sealed;
 
   /// What the route handed over, with the link it came on where the route holds links of its own: what is said back
   /// on that link goes by it ([Switchboard.send]'s `answering`). Null where it was not made by a switchboard.
   final Arrived? arrived;
+}
+
+/// The route that last carried something to someone, and the one that last brought something from them, each with when
+/// (Settings › Routes, "Which route each person is on"; GMFB-24). Null where nothing has gone, or come, this run.
+@immutable
+class RouteUse {
+  const RouteUse({this.sentBy, this.sentAt, this.cameBy, this.cameAt});
+  final String? sentBy, cameBy;
+  final DateTime? sentAt, cameAt;
+
+  /// When anything last went or came.
+  DateTime get last => [?sentAt, ?cameAt].reduce((a, b) => a.isAfter(b) ? a : b);
 }
 
 /// Whoever keeps a ledger of what went to whom and what came from whom (lib/net/ledger.dart), as the switchboard tells
@@ -65,6 +79,7 @@ abstract class SendLog {
 /// Who the routes can reach: the app's list of the installs it has exchanged keys with, each by the name of its key.
 /// Never by an address, which the list may hold for someone it isn't theirs (found in review, 2026-11-23).
 abstract class PeerBook {
+  /// Someone by their install's name; and by their phone number, however it is written.
   Peer? byId(String id);
 }
 
@@ -191,11 +206,41 @@ class Switchboard {
   final _received = StreamController<Received>.broadcast();
   final _strangers = StreamController<({String from, Envelope envelope, String via, String? address})>.broadcast();
   final _acks = StreamController<String>.broadcast();
+
+  /// The names of what has come already, oldest first ([_fresh]).
   final LinkedHashSet<String> _seen = LinkedHashSet();
+
+  /// Envelopes sent and waiting for the other install's answer, by id.
   final Map<String, Completer<void>> _waiting = {};
 
   /// Told whenever a route is added, taken out, or changes state: Settings draws from it.
   final changed = ValueNotifier<int>(0);
+
+  /// Which route last carried something to each person, and which brought something from them ([RouteUse]), by their
+  /// install's name: what this switchboard saw this run, in memory only, never written down or told anyone. Only what
+  /// was sealed for someone a key is held for (this account's own other devices among them, by its own name). No more
+  /// than [mostUsed] people, the longest quiet let go first.
+  Map<String, RouteUse> get used => UnmodifiableMapView(_used);
+  final LinkedHashMap<String, RouteUse> _used = LinkedHashMap();
+  static const mostUsed = 200;
+
+  /// Goes up whenever [used] changes: Settings › Routes draws from it.
+  final usedChanged = ValueNotifier<int>(0);
+
+  void _use(String peer, {String? sentBy, String? cameBy}) {
+    final had = _used.remove(peer);
+    final now = _now();
+    _used[peer] = RouteUse(
+      sentBy: sentBy ?? had?.sentBy,
+      sentAt: sentBy != null ? now : had?.sentAt,
+      cameBy: cameBy ?? had?.cameBy,
+      cameAt: cameBy != null ? now : had?.cameAt,
+    );
+    while (_used.length > mostUsed) {
+      _used.remove(_used.keys.first);
+    }
+    usedChanged.value++;
+  }
 
   /// What came, from people a key is held for.
   Stream<Received> get received => _received.stream;
@@ -206,6 +251,7 @@ class Switchboard {
   /// The name of each thing sent as the other install says it has it, however late.
   Stream<String> get acked => _acks.stream;
 
+  /// The routes, in the order they are tried.
   List<Carrier> get carriers {
     final list = _carriers.values.toList();
     int at(Carrier c) {
@@ -258,6 +304,7 @@ class Switchboard {
 
   void _bump() => changed.value++;
 
+  /// Starts every route not switched off; none is waited for.
   Future<void> start() async {
     for (final c in carriers) {
       if (!off.contains(c.id)) unawaited(c.start().catchError((_) {}));
@@ -392,7 +439,10 @@ class Switchboard {
         continue;
       }
       tried.add(c.id);
-      if (sealed) _logged(() => log?.sent(peer, envelope, via: c.id, handed: handed));
+      if (sealed) {
+        _use(peer.id, sentBy: c.id);
+        _logged(() => log?.sent(peer, envelope, via: c.id, handed: handed));
+      }
       if (handed == Handed.held) {
         away = true;
         // Kept for them, and not urgent: that is enough, but where a link to one of their devices is open right now
@@ -596,6 +646,8 @@ class Switchboard {
   /// The packets being passed on now, by tag ([_passOn]).
   final Set<String> _passing = {};
 
+  /// What a route brought: parsed, held to whom the route vouches sent it, joined where it came in parts, opened, and
+  /// handed to whoever listens.
   Future<void> _arrived(Arrived a) async {
     final parsed = Packet.parse(a.bytes);
     // From this install's own name: only another device of the same account (a copy, GMFB-21), sealed with the
@@ -666,6 +718,7 @@ class Switchboard {
     }
     // From someone a key is held for, only what was sealed with it: anything else could be anyone's.
     if (!whole.sealed) return;
+    _use(peer.id, cameBy: a.carrier);
     // Only a prekey, taken above: what they have not answered goes again, sealed for it too.
     if (envelope.kind == fsAsk) {
       if (_fresh('${peer.id}:${envelope.id}')) maybeOld();

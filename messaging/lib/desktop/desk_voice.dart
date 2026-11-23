@@ -53,6 +53,7 @@ class DeskVoice {
     return ((heard['level'] as num?)?.toDouble() ?? 0.0).clamp(0.0, 1.0);
   }
 
+  /// Stops recording and lets what was recorded go.
   static Future<void> cancel() => MacPlatform.voiceCancel();
 
   /// Ends it: the `.m4a`'s bytes. Throws where it was too short to keep (under a second).

@@ -38,6 +38,7 @@ const specialBadges = [
   SpecialBadge('supporter', 'Supporter', 'Supports Ghost Messaging', _heart, 'rose'),
 ];
 
+/// The badge with this id; null for one this build doesn't know.
 SpecialBadge? specialBadge(String id) => specialBadges.where((b) => b.id == id).firstOrNull;
 
 /// [ids] in the order [specialBadges] draws them, unknown ones left out.

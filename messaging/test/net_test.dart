@@ -446,6 +446,44 @@ void main() {
       expect([d.via, d.acked], ['p2p', true]);
       expect(two.got.last.via, 'p2p');
     });
+
+    // GMFB-24: Settings › Routes shows which route each person is on, from what the switchboard saw.
+    test('which route last carried something to each person and from them, and when: held in memory, bounded, and only for the sealed', () async {
+      final hub = FakeCarrier.pair('hub'), sms = FakeCarrier.pair('sms');
+      final two = Two([hub, sms]);
+      expect([two.left.used, two.right.used], [isEmpty, isEmpty]);
+      var told = 0;
+      two.left.usedChanged.addListener(() => told++);
+      expect((await two.left.send(two.toB, Envelope(kind: 'text'))).via, 'hub');
+      await _tick();
+      // A's text went by the relay, and B's answer came by it; B saw the same the other way.
+      final ab = two.left.used[two.b.id]!, ba = two.right.used[two.a.id]!;
+      expect([ab.sentBy, ab.cameBy, ba.sentBy, ba.cameBy], ['hub', 'hub', 'hub', 'hub']);
+      expect(told, greaterThanOrEqualTo(2));
+      // By SMS only: what went is said to have gone by it; what came last came by the relay still (no answer by SMS).
+      await two.left.send(two.toB, Envelope(kind: 'text', ack: false), only: {'sms'}, metered: true);
+      await _tick();
+      final now = two.left.used[two.b.id]!;
+      expect([now.sentBy, now.cameBy], ['sms', 'hub']);
+      expect(now.sentAt!.isAfter(ab.sentAt!) || now.sentAt == ab.sentAt, isTrue);
+      expect(two.right.used[two.a.id]!.cameBy, 'sms');
+      // Nothing for what went in the clear to someone no key is held for, nor for anything that came from them.
+      final stranger = NetKeys.generate();
+      await two.left.send(Peer(id: stranger.id), Envelope(kind: 'hello', ack: false), sealed: false);
+      hub.$1.take(Packet.wrap(from: stranger.id, sealed: false, payload: Envelope(kind: 'hello', ack: false).encode()));
+      await _tick();
+      expect(two.left.used.keys, [two.b.id]);
+      // No more than so many people, the longest quiet let go first.
+      final book = Book();
+      final board = Switchboard(me: two.a.id, peers: book, carriers: [FakeCarrier('hub')]);
+      final ids = [for (var i = 0; i <= Switchboard.mostUsed; i++) NetKeys.generate().id];
+      for (final id in ids) {
+        await board.send(Peer(id: id, key: NetCrypto.randomBytes(32)), Envelope(kind: 'text', ack: false));
+      }
+      expect(board.used.length, Switchboard.mostUsed);
+      expect(board.used.containsKey(ids.first), isFalse);
+      expect(board.used.containsKey(ids.last), isTrue);
+    });
   });
 
   group('through the real hub', () {
@@ -652,7 +690,8 @@ void main() {
 
     test('what is held for everyone together has a limit, and what was handed over no longer counts', () async {
       await relay.stop();
-      relay = Relay(hub: Hub(heldBytes: 2500));
+      // Room for two packets of a thousand bytes, each counted with what holding it costs (Hub.heldOverhead), not three.
+      relay = Relay(hub: Hub(heldBytes: 2500 + 2 * Hub.heldOverhead));
       url = 'ws://127.0.0.1:${await relay.start(port: 0)}/hub';
       final a = NetKeys.generate(), b = NetKeys.generate(), c = NetKeys.generate();
       final hubA = HubCarrier(url: url, signer: KeysSigner(a));
@@ -667,7 +706,7 @@ void main() {
       final got = hubB.arrived.first;
       await up(hubB);
       await got.timeout(const Duration(seconds: 3));
-      expect(relay.hub!.holding, lessThan(1100));
+      expect(relay.hub!.holding, lessThan(1100 + Hub.heldOverhead));
       expect(await hubA.send(Peer(id: c.id), packet), Handed.held);
       await hubA.stop();
       await hubB.stop();

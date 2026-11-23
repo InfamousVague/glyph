@@ -153,6 +153,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   /// Settings › Messages: reaction texts hung on their messages. Read as the page's choices change.
   bool _foldOn = true;
 
+  /// More than one person here, or a group of friends: senders are named, and there is no encryption to read.
   bool get _group => _people.length > 1 || _isGhost;
 
   /// The group of friends this conversation is (lib/friends/groups.dart), where it is one: as the phone's own
@@ -176,8 +177,6 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     if (mounted) setState(() {});
   }
 
-  /// Sends [body] to whoever this conversation is with: in a group of friends to each member by the app's routes,
-  /// which is the only way one is written to; anywhere else as a text.
   /// Where a message scheduled from Send goes (lib/ui/schedule_ui.dart): this group of friends, or these people by
   /// text (to a friend by the app's routes where one is up, as Send does); none in a group that can't be written to.
   ScheduleTarget? get _scheduleTarget {
@@ -187,6 +186,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     return (kind: 'text', target: _people.map((p) => p.address).join(','), who: who);
   }
 
+  /// Send pressed and held, or right-clicked: the menu that schedules what is written (words alone).
   void _sendMenu() {
     if (_attachments.isNotEmpty) {
       toast(context, 'Pictures can\'t be scheduled yet. Send them now, or schedule the words alone.');
@@ -199,6 +199,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     });
   }
 
+  /// Sends [body] as words alone: a text to the people here, or in a group of friends to each member by the app's
+  /// routes, which is the only way one is written to. Throws [_NotSent] where the group can't be written to or reached.
   Future<void> _sendWords(String body) async {
     if (!_isGhost) {
       await Sms.instance.send(_people.map((p) => p.address).toList(), body);
@@ -288,8 +290,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     if (_messages != null) _load();
   }
 
-  /// Where encryption stands with the one person here: asked again each time the conversation changes, since a key
-  /// arriving is a text like any other.
+  /// Reads the conversation's name and which group it is again, and redraws if either changed.
   Future<void> _loadName() async {
     try {
       final c = await Sms.instance.conversation(widget.thread);
@@ -302,6 +303,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     } catch (_) {}
   }
 
+  /// Reads the conversation's name, and with one person here where encryption stands with them: asked again each
+  /// time the conversation changes, since a key arriving is a text like any other.
   Future<void> _loadE2e() async {
     // A group has no encryption to read, and may have a name: read as the conversation opens, and again after its
     // settings close.
@@ -336,6 +339,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     _e2eChanged();
   }
 
+  /// Accepts ([yes]) or declines the friend request the one person here sent.
   Future<void> _answerFriend(bool yes) async {
     final who = _people.first;
     try {
@@ -408,6 +412,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   bool _older = false;
   bool _readingOlder = false;
 
+  /// Holds [_step] more messages and reads the conversation again; one reading at a time.
   Future<void> _readOlder() async {
     if (_readingOlder || !_older) return;
     _readingOlder = true;
@@ -433,6 +438,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   String? _firstNewKey;
   bool _newKnown = false;
 
+  /// Reads the newest [_limit] messages and folds them for drawing; run as the conversation opens and at every
+  /// change to it. [markRead] also marks what came as read, once where the unread began has been noted.
   Future<void> _load({bool markRead = false}) async {
     _loadE2e();
     final asked = _limit;
@@ -471,6 +478,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     }
   }
 
+  /// Whether two addresses are one person's: numbers by their last ten digits, anything without digits as written.
   static bool _same(String a, String b) {
     String d(String s) {
       final x = s.replaceAll(RegExp(r'[^0-9]'), '');
@@ -512,11 +520,14 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     return m;
   }
 
+  /// Takes [m] back out of the messages drawn as sending (it failed, or was only ever held here).
   void _dropPending(Message m) {
     if (!_pending.remove(m)) return;
     setState(() => _folded = Folded(messages: _folded.messages.where((x) => x.key != m.key).toList(), reactions: _folded.reactions));
   }
 
+  /// Send: what is written and the pictures picked go, drawn at once as sending. If nothing went, the words and
+  /// pictures are put back in the composer.
   Future<void> _send() async {
     final body = _text.text.trim();
     if ((body.isEmpty && _attachments.isEmpty) || _sending) return;
@@ -641,6 +652,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     }
   }
 
+  /// Picks pictures to send with the next message: five at most in all.
   Future<void> _attach() async {
     final uris = await Sms.instance.pickImages();
     if (uris.isNotEmpty && mounted) setState(() => _attachments.addAll(uris.take(5 - _attachments.length)));
@@ -667,6 +679,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   /// Reacts to [m] with [effect]: its emoji goes as a reaction, and the effect plays here as it goes.
   Future<void> _reactWith(Message m, ScreenEffect effect) => _react(m, effectReactionEmoji[effect]!);
 
+  /// [m] just came or went: its bubble's effect plays as it is drawn, and its screen effect over the conversation,
+  /// where effects are on.
   void _playFor(Message m) {
     if (!AppState.of(context).effects) return;
     _freshKey = m.key;
@@ -688,8 +702,10 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     _load();
   }
 
+  /// Your own words, once they have left the composer for good: not while sending, nor one still coming down.
   bool _canEdit(Message m) => m.outgoing && m.body.isNotEmpty && m.state != 'sending' && m.state != 'pending_download' && m.state != 'downloading';
 
+  /// Puts [m]'s words in the composer to be changed, keeping what was being written to put back after.
   void _startEdit(Message m) {
     setState(() {
       if (_editing == null) _draftBeforeEdit = _text.text;
@@ -730,6 +746,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     ]);
   }
 
+  /// Changes [m]'s words on this phone, and with [send] texts the others the correction.
   Future<void> _applyEdit(Message m, String body, {required bool send}) async {
     _cancelEdit();
     try {
@@ -750,6 +767,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     ]);
   }
 
+  /// Who reacted with what, newest first: a tap on a message's reactions.
   void _showReactions(List<Reaction> list) {
     String who(String by) {
       if (by.isEmpty) return 'You';
@@ -762,9 +780,6 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     ]);
   }
 
-  /// A long press on a message. [at] is where its bubble is on the screen: the reactions, the screen effects and
-  /// what else can be done come up beside it (lib/ui/message_popover.dart). A line that is no bubble (a key, a
-  /// background) has the sheet from the foot of the screen.
   /// Messages going in a puff, deleted once it has gone off ([_gone]).
   final Set<String> _poofing = {};
 
@@ -795,6 +810,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     return _plugins.words(m, sent.text);
   }
 
+  /// A long press on [m]. [at] is where its bubble is on the screen: the reactions, the screen effects and what else
+  /// can be done come up beside it (lib/ui/message_popover.dart). With no [at], a line that is no bubble (a key, a
+  /// background), it is the sheet from the foot of the screen.
   void _messageMenu(Message m, [Rect? at]) {
     // One drawn before the phone has it (_pending) has nothing on the phone to act on yet.
     if (m.kind == 'pending') return;
@@ -900,8 +918,6 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   /// What went wrong, as the phone put it, without the wrapping a channel's error comes in.
   static String _said(Object e) => e is PlatformException ? (e.message ?? e.code) : '$e';
 
-  /// The conversation's own settings (lib/ui/chat_settings.dart): its people, its background and bubbles, its
-  /// encryption, whether it is muted or pinned. From the cog at the top, and from a tap on the name.
   /// Hops into the group's channel, and shows it.
   Future<void> _voice(VoiceChannel c, {bool video = false}) async {
     try {
@@ -919,7 +935,6 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     }
   }
 
-  /// Rings everyone in the group, and hops into its channel.
   /// The friend by username this conversation is with, where they can be called: one person, a friend.
   Buddy? get _callable {
     if (_group || _people.length != 1 || !_people.first.address.startsWith('@')) return null;
@@ -927,6 +942,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     return Buddies.instance.all.where((b) => b.state == 'yes' && b.username.toLowerCase() == name).firstOrNull;
   }
 
+  /// Rings the friend this conversation is with ([_callable]) and goes to the call. Where they couldn't be reached, says
+  /// so and leaves the call it had made.
   Future<void> _callFriend({required bool video}) async {
     final b = _callable;
     if (b == null) return;
@@ -957,6 +974,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     }
   }
 
+  /// Rings everyone in the group, and hops into its channel.
   Future<void> _callGroup() async {
     final g = _ghost;
     if (g == null) return;
@@ -965,6 +983,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     await _voice(VoiceChannel.ofGroup(g.id, g.name));
   }
 
+  /// Opens the conversation's own settings (lib/ui/chat_settings.dart): its people, its background and bubbles, its
+  /// encryption, whether it is muted or pinned. From the cog at the top, and from a tap on the name. Reads the
+  /// conversation again once they close.
   Future<void> _openSettings() async {
     await push<void>(context, (_) => ChatSettingsScreen(thread: widget.thread, people: _people));
     _e2eChanged();
@@ -1378,6 +1399,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   /// it is paired with does that for one (a picture message goes again whole, a text is deleted and sent anew).
   static bool _canRetry(Message m) => Sms.can(m.kind == 'mms' ? 'resendMms' : 'deleteMessage');
 
+  /// The line under your own message: where it stands, with the time once it has gone.
   String _statusText(Message m) => switch (m.state) {
         'sending' => 'Sending…',
         // Typed on a computer while the phone could not be reached: it goes when the phone is back (lib/desktop).
@@ -1754,6 +1776,7 @@ class _E2eBar extends StatelessWidget {
   }
 }
 
+/// The day, centred above the first message of each day.
 class _DayHeading extends StatelessWidget {
   const _DayHeading({required this.date, this.busy = false});
   final DateTime date;
@@ -1802,6 +1825,8 @@ class _Notice extends StatelessWidget {
   }
 }
 
+/// One message drawn: its words and attachments in a bubble, the sender's name and face where the list asks for
+/// them, its reactions, and the status line where one is given.
 class _Bubble extends StatelessWidget {
   const _Bubble({
     required this.message,
@@ -2168,6 +2193,7 @@ class _FootGround extends StatelessWidget {
   }
 }
 
+/// An attachment that is not drawn (a file, or one this phone no longer has): a file mark and its name or kind.
 class _Pill extends StatelessWidget {
   const _Pill({required this.text, required this.ground, required this.ink});
   final String text;
@@ -2190,6 +2216,7 @@ class _Pill extends StatelessWidget {
   }
 }
 
+/// A message's picture, read from the phone by its part's [id]; a tap opens it over the whole screen ([_Viewer]).
 class _Picture extends StatelessWidget {
   const _Picture({required this.id, required this.radius, required this.maxWidth, this.onTap});
   final int id;
@@ -2255,6 +2282,7 @@ class _Sticker extends StatelessWidget {
   }
 }
 
+/// A picture over the whole screen; a tap anywhere closes it.
 class _Viewer extends StatelessWidget {
   const _Viewer({required this.bytes});
   final Uint8List bytes;
@@ -2375,6 +2403,8 @@ class _LinkedTextState extends State<LinkedText> {
     if (old.text != widget.text || !listEquals(old.mentions, widget.mentions) || (old.onMention == null) != (widget.onMention == null)) _read();
   }
 
+  /// Finds the links and mentions in the words and makes a tap for each; a link inside a mention is left to the
+  /// mention. The old taps are let go first.
   void _read() {
     for (final t in [..._taps, ..._mentionTaps, ..._spoilerTaps]) {
       t.dispose();

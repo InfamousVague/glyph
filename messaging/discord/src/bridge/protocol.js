@@ -3,6 +3,7 @@
 // hub's room frames. Pure: node:crypto only, no network. test/protocol.test.js checks it against voice.js itself.
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'node:crypto';
 
+// Bytes (a Buffer or any typed array) as lowercase hex, hex as bytes, and a SHA-256 digest.
 export const hex = (b) => Buffer.from(b.buffer ? new Uint8Array(b.buffer, b.byteOffset, b.byteLength) : b).toString('hex');
 export const unhex = (h) => Buffer.from(String(h ?? ''), 'hex');
 export const sha256 = (b) => createHash('sha256').update(b).digest();
@@ -26,6 +27,7 @@ export function seal(key, clear) {
 export function open(key, sealed) {
   try {
     const b = Buffer.from(sealed);
+    // Shorter than an iv and a tag: not a sealed packet at all.
     if (b.length < 28) return null;
     const d = createDecipheriv('aes-256-gcm', key, b.subarray(0, 12), { authTagLength: 16 });
     d.setAAD(AAD);
@@ -36,6 +38,7 @@ export function open(key, sealed) {
   }
 }
 
+// A JSON message sealed, and one opened: null unless it opens with this key and is a JSON object (not a list).
 export const sealJson = (key, what) => seal(key, Buffer.from(JSON.stringify(what), 'utf8'));
 export function openJson(key, sealed) {
   const clear = open(key, sealed);
@@ -64,6 +67,7 @@ export function spaceKeys(seedHex) {
   };
 }
 
+/** The first byte of a binary hub frame that is for a room. */
 export const TO_ROOM = 2;
 
 /** What a member sends to the hub for a room: [2][room, 16 bytes][sealed]. */

@@ -94,7 +94,33 @@ export const sections = [
       { slug: 'keyboard-shortcuts', icon: 'keyboard', title: 'Keyboard shortcuts', summary: 'Jump to a conversation, format what you write, mute a call, and change any shortcut\'s keys.' },
       { slug: 'routes', icon: 'globe', title: 'Routes', summary: 'How messages travel between Ghost apps: the relay, your own relay, texts, and testing them.' },
       { slug: 'coming-soon', icon: 'clock', title: 'Coming soon', summary: 'What is built but not out yet.', soon: true },
-      { slug: 'developer', icon: 'braces', title: 'Developer API', summary: 'Control the app from a script or another program, through its API.' },
+    ],
+  },
+];
+
+// The developer docs: a book of their own at /docs/developer/, with their own sidebar and search, never listed among
+// the pages above (Matt, 2026-11-23: "a developer docs section ... that outlines all the major parts of the app and how
+// they work together, I'd like an API docs complete with a postman file", then "please also list the developer docs at
+// /docs/developer and don't mix them in with /docs"). Each page is docs-src/pages/developer/<name>.html, but the first,
+// which is docs-src/pages/developer.html: the list of them. The two API references are drawn from docs-src/api
+// (tool/build-docs.mjs), as the Postman collection is.
+export const developer = [
+  {
+    title: 'The source',
+    pages: [
+      { slug: 'developer', icon: 'braces', title: 'Developer docs', summary: 'For people reading, building or scripting Ghost Messaging: how it is built, and both of its APIs.' },
+      { slug: 'developer/architecture', icon: 'network', title: 'How the app is built', summary: 'The major parts of Ghost Messaging, where each lives in the source, and what it talks to.' },
+      { slug: 'developer/flows', icon: 'workflow', title: 'How the parts work together', summary: 'Things followed from the tap to the wire: a text, a message to a friend, a call, pairing a computer, adding a plugin, and more.' },
+      { slug: 'developer/build', icon: 'terminal', title: 'Build, test and run it', summary: 'Running the app and the relay from source, the tests, the scripts, and how the code is commented.' },
+    ],
+  },
+  {
+    title: 'APIs',
+    pages: [
+      { slug: 'developer/api', icon: 'book-open', title: 'API overview and Postman', summary: 'The two APIs, how each is reached and signed, and a Postman collection of both.' },
+      { slug: 'developer/app-api', icon: 'code', title: 'App API', summary: 'Control the app from a script or another program: every method, what it takes and what it answers.' },
+      { slug: 'developer/relay-api', icon: 'globe', title: 'Relay server API', summary: 'The relay server\'s HTTP routes: files, the Marketplace, feedback and the rest.' },
+      { slug: 'developer/hub', icon: 'share-2', title: 'The hub and pairing protocols', summary: 'What an app says to the relay server over a WebSocket: signing in, packets, presence, rooms and the directory.' },
     ],
   },
 ];

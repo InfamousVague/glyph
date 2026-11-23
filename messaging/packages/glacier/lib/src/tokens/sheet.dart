@@ -17,6 +17,7 @@ class TokenCondition {
   final bool negated;
   final bool isClass;
 
+  /// Whether an element with these attributes and classes, its own and inherited, meets the condition.
   bool holds(Map<String, String> attrs, Set<String> classes) {
     if (isClass) return classes.contains(key);
     final has = value == null ? attrs.containsKey(key) : attrs[key] == value;
@@ -39,6 +40,9 @@ class TokenRule {
 
   /// Custom properties by their whole name, `--glacier-space-2`.
   final Map<String, String> declarations;
+
+  /// How many simple selectors the selector has, and where the rule came in the sheets: a sheet's rules are
+  /// sorted by the first and then the second.
   final int specificity;
   final int order;
 
@@ -87,6 +91,8 @@ class TokenSheet {
     return TokenSheet._(rules);
   }
 
+  /// Reads the rules of one block of CSS into [out]. Of the at-rules only a reduced-motion `@media` is gone into;
+  /// a rule with rules nested in it is passed over.
   static void _block(String css, List<TokenRule> out, {required bool reducedMotion}) {
     var i = 0;
     while (i < css.length) {
@@ -117,6 +123,7 @@ class TokenSheet {
     }
   }
 
+  /// The custom properties a rule's body declares, each value on one line with single spaces.
   static Map<String, String> _declarations(String body) {
     final out = <String, String>{};
     for (final part in splitTop(body, ';')) {
@@ -128,10 +135,13 @@ class TokenSheet {
     return out;
   }
 
+  /// One piece of a selector this sheet can read: a space, `:root`, a negated `data-` attribute (groups 1 and 2),
+  /// a `data-` attribute (3 and 4) or a class (5).
   static final _piece = RegExp(
     r'''\s+|:root|:not\(\[data-([\w-]+)(?:=['"]?([^'"\]]*)['"]?)?\]\)|\[data-([\w-]+)(?:=['"]?([^'"\]]*)['"]?)?\]|\.([A-Za-z_][\w-]*)''',
   );
 
+  /// A selector as its conditions, or null where any part of it is something else (an element, a pseudo-class).
   static ({List<TokenCondition> conditions, int specificity, List<TokenCondition> subject})? _selector(String selector) {
     final conditions = <TokenCondition>[];
     // The last compound's own conditions: begun again at each space between compounds.

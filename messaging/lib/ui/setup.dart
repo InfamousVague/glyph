@@ -58,6 +58,7 @@ class _TextsStepState extends State<TextsStep> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) _look();
   }
 
+  /// Asks the phone how texts arrive now and what has been allowed; done at the start and at every return to the app.
   Future<void> _look() async {
     try {
       final a = await Sms.instance.arriving();
@@ -88,6 +89,7 @@ class _TextsStepState extends State<TextsStep> with WidgetsBindingObserver {
     widget.onDone();
   }
 
+  /// Asks Android to make Ghost the default texting app; a no is remembered so the page can say what to do next.
   Future<void> _go() async {
     setState(() => _asking = true);
     final ok = await Sms.instance.requestDefault();
@@ -249,6 +251,7 @@ class _Card extends StatelessWidget {
   }
 }
 
+/// One numbered instruction: the number in a filled circle, the words beside it.
 class _Step extends StatelessWidget {
   const _Step({required this.number, required this.text});
   final String number;
@@ -301,6 +304,7 @@ class _Button extends StatelessWidget {
   }
 }
 
+/// One point made with an icon in place of a number.
 class _Point extends StatelessWidget {
   const _Point({required this.icon, required this.text});
   final LucideIcon icon;

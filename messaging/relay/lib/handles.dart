@@ -54,12 +54,18 @@ class Handles {
   /// Who texts a number its code; null where that is not set up, and a number cannot be linked.
   final TextCodes? _texts;
 
+  /// Every network a link may be on (`p` in a message). [_signIn]: proved by signing in there, in a browser.
+  /// [_proof]: proved by a code put in the account's public profile.
   static const networks = ['discord', 'telegram', 'x', 'bluesky', 'mastodon', 'github', 'phone'];
   static const _signIn = {'discord', 'telegram', 'x'};
   static const _proof = {'bluesky', 'mastodon', 'github'};
 
   /// Linked, and told to nobody: see the class's words on a phone number.
   static const _quiet = {'phone'};
+
+  /// [maxWatch]: the most handles one install may watch for. [maxPending]: the most joinings kept for one that is away.
+  /// [maxFollows]: the most handles an import of who someone follows hands back. [stateLife]: how long a sign-in
+  /// started in the app may take to finish in the browser.
   static const maxWatch = 5000;
   static const maxPending = 300;
   static const maxFollows = 5000;
@@ -80,6 +86,8 @@ class Handles {
 
   /// install -> network -> {k: the handle's hash, a: the account's hash, at: the day}
   final Map<String, Map<String, Map<String, String>>> _links = {};
+  // [_listed]: installs that turned listing on. [_watch]: install -> the handle hashes it watches for. [_pending]:
+  // install -> hashes that joined while it was away, told at its next hello.
   final Set<String> _listed = {};
   final Map<String, Set<String>> _watch = {};
   final Map<String, List<String>> _pending = {};
@@ -89,6 +97,7 @@ class Handles {
   /// at: the day}. Looking one up hashes what was typed. An install has one. The username itself is kept apart, in
   /// [_shown], for the admin page alone (since 2026-11-19).
   final Map<String, Map<String, String>> _names = {};
+  // install -> the hash of the username it holds.
   final Map<String, String> _nameOf = {};
 
   /// What each install keeps here for itself, sealed with a key only it has: Ghost's own lists of what was archived
@@ -218,6 +227,7 @@ class Handles {
   /// The most souls one grant gives or takes.
   static const soulsAtOnce = 100000;
 
+  /// How many souls [id] has, and the special badges it was given.
   int soulsOf(String id) => _souls[id] ?? 0;
 
   /// A bounty's souls, given by the bounty key (bounty.dart) as the admin page gives them: added, kept, logged with why
@@ -240,6 +250,7 @@ class Handles {
     return _same(adminHashOf(want.substring(0, at), pass), want.substring(at + 1));
   }
 
+  /// How many times over the admin's password is hashed, so each guess at a stolen hash costs that much.
   static const adminRounds = 100000;
 
   /// The hash kept for [pass] with [salt] (tool/admin-password.mjs makes one the same way).
@@ -289,6 +300,8 @@ class Handles {
     return k == null ? null : _shown[k];
   }
 
+  /// `{"dir":"souls"}` as [id] is told it: their total, their badges and the one they show; with a gift, how many
+  /// souls ([got]) or which [badge], [why], and the gift's id ([gift]) for the app to say it showed it (`souls-seen`).
   Map<String, Object?> _soulsMessage(String id, {int? got, String? why, String? badge, String? gift}) => {
         'dir': 'souls',
         'n': soulsOf(id),
@@ -349,9 +362,14 @@ class Handles {
     out.sort((a, b) => '${b['at'] ?? ''}'.compareTo('${a['at'] ?? ''}'));
     return out;
   }
+
+  /// What profile codes are made with ([codeFor]): 32 random bytes in hex, made once and kept in handles.json.
   String _secret = '';
 
   // Made from the above as it is read and changed.
+  // [_watchers]: a handle's hash -> the installs watching for it. [_account]: an account's hash -> the install it is
+  // linked to. [_here]: each connected install's way to be told something. [_asked]: sign-ins started and not yet
+  // finished, by their state. [_fetched]: when each install last made this server fetch ([fetchesAnHour]).
   final Map<String, Set<String>> _watchers = {};
   final Map<String, String> _account = {};
   final Map<String, void Function(Map<String, Object?>)> _here = {};
@@ -413,6 +431,8 @@ class Handles {
     return RegExp(r'^[a-z0-9][a-z0-9._]{2,19}$').hasMatch(n) && !n.contains('..') && !reserved.contains(n);
   }
 
+  /// Usernames nobody may claim: ones that would read as the service or its staff, and a few words with a meaning of
+  /// their own (everyone, here, null).
   static const reserved = {'admin', 'administrator', 'ghost', 'ghostmessaging', 'ghost_messaging', 'support', 'help', 'official', 'staff', 'moderator', 'mod', 'system', 'root', 'security', 'team', 'everyone', 'here', 'null', 'undefined'};
   int get listed => _listed.length;
   int get watched => _watch.values.fold(0, (n, s) => n + s.length);
@@ -443,6 +463,7 @@ class Handles {
     return digits;
   }
 
+  // What a tidied handle may look like: a number in E.164, a North American one, a plain handle, a server's name.
   static final _number = RegExp(r'^\+[1-9][0-9]{7,14}$');
   static final _northAmerican = RegExp(r'^\+1[2-9][0-9]{9}$');
   static final _plain = RegExp(r'^[a-z0-9._-]{1,64}$');
@@ -472,6 +493,8 @@ class Handles {
 
   File? get _file => dataDir == null ? null : File('${dataDir!.path}/handles.json');
 
+  /// Reads handles.json, makes the profile codes' secret where there is none, and builds the lookups that are worked
+  /// out from what is kept ([_account], [_watchers], [_nameOf]).
   void load() {
     final file = _file;
     try {
@@ -516,6 +539,7 @@ class Handles {
     }
   }
 
+  /// Writes all that is kept to handles.json now (to a file beside, renamed over).
   void save() {
     _saver?.cancel();
     _saver = null;
@@ -545,6 +569,7 @@ class Handles {
     } catch (_) {}
   }
 
+  /// Something kept has changed: written within two seconds, once for a run of changes.
   void _changed() => _saver ??= Timer(const Duration(seconds: 2), save);
 
   /// Forgets sign-ins that were started and never finished, and codes by text that have run out.
@@ -563,11 +588,14 @@ class Handles {
 
   // --- an install comes, speaks, and goes ---------------------------------------------------------------------------
 
+  /// The hub says [id] has connected: [tell] is how to say something to it, [key] the public key it proved. With
+  /// several devices under one name, the one that came last is the one told what is not an answer.
   void came(String id, void Function(Map<String, Object?>) tell, {List<int>? key}) {
     _here[id] = tell;
     if (key != null) _keys[id] = base64Encode(key);
   }
 
+  /// The hub says the connection [tell] of [id] has closed.
   void went(String id, void Function(Map<String, Object?>) tell) {
     // Signed in to the admin page for as long as that connection is here, no longer, whichever of the identity's
     // connections _here holds.
@@ -603,6 +631,7 @@ class Handles {
     return list.length < aDay && list.where((t) => now.difference(t) <= const Duration(hours: 1)).length < anHour;
   }
 
+  /// Whether [id] may have this server fetch from another once more this hour ([fetchesAnHour]); counts it where so.
   bool _mayFetch(String id) {
     final now = _now();
     final list = _fetched[id] ??= [];
@@ -625,6 +654,8 @@ class Handles {
     try {
       switch (said['dir']) {
         case 'hello':
+          // Said as the app connects: how each network is linked here, what this install has, and anything that
+          // happened for it while it was away (a sign-in finished, someone it watches for joined).
           tell({
             'dir': 'hello',
             'ways': ways,
@@ -653,6 +684,7 @@ class Handles {
             _changed();
           }
         case 'keep':
+          // The install's own sealed blob ([_kept]), replaced whole; an empty one forgets it. 'kept' hands it back.
           final blob = said['blob'];
           if (blob is! String || blob.length > maxKept) return err('That is more than can be kept.');
           if (blob.isEmpty) {
@@ -665,6 +697,8 @@ class Handles {
         case 'kept':
           tell({'dir': 'kept', 'blob': _kept[id]});
         case 'curl-keep':
+          // Keeps the account's sealed sign-in cookies in its one slot, in place of what was there; an empty one
+          // clears it.
           final blob = said['blob'];
           if (blob is! String || blob.length > maxCurl) return err('That is more than can be kept.');
           if (blob.isEmpty) {
@@ -675,12 +709,14 @@ class Handles {
           _changed();
           tell({'dir': 'curl-keep', 'ok': true});
         case 'curl-kept':
+          // What is kept in that slot, as it was given; null for nothing.
           tell({'dir': 'curl-kept', 'blob': _curl[id]});
         case 'name':
           // Whether this install has a username here; the app keeps the words, this server only their hash.
           final mine = _nameOf[id];
           tell({'dir': 'name', 'k': mine});
         case 'claim':
+          // Takes a username for this install, giving up the one it had; refused as taken where another holds it.
           final name = said['name'];
           if (name is! String || !goodName(name)) return err('A username is 3 to 20 letters, numbers, dots or underscores.');
           final key = _keys[id];
@@ -703,6 +739,7 @@ class Handles {
           _changed();
           tell({'dir': 'claim', 'name': tidyName(name), 'ok': true, 'k': k});
         case 'release':
+          // Gives up this install's username: anyone may claim it from now on.
           final k = _nameOf.remove(id);
           if (k != null) {
             _remember(id, k);
@@ -712,6 +749,7 @@ class Handles {
           _changed();
           tell({'dir': 'released'});
         case 'whois':
+          // Who holds a username: their hub name and public key, which is all it takes to write to them.
           final name = said['name'];
           if (name is! String || !goodName(name)) return tell({'dir': 'whois', 'name': name, 'none': true});
           if (!mayLookUp(id)) return err('Too many lookups. Try again in a while.');
@@ -754,6 +792,7 @@ class Handles {
               },
           });
         case 'souls?':
+          // This install's own souls and badges.
           tell(_soulsMessage(id));
         case 'souls-seen':
           // The gifts the app has shown: kept no longer.
@@ -776,6 +815,8 @@ class Handles {
           _changed();
           tell(_soulsMessage(id));
         case 'admin-login':
+          // The admin page's sign-in: only from an install holding one of the admin's usernames, a few tries an hour,
+          // and good for this connection alone.
           final now = _now();
           final tries = _adminTries[id] ??= [];
           tries.removeWhere((t) => now.difference(t) > const Duration(hours: 1));
@@ -791,6 +832,8 @@ class Handles {
           _say('${id.substring(0, 6)} signed in to the admin page');
           tell({'dir': 'admin', 'ok': true});
         case 'admin-users' || 'admin-give' || 'admin-badge' || 'admin-log':
+          // The admin page itself, for a connection signed in to it: everyone known here, the log of what was given,
+          // giving or taking souls, and giving or taking a special badge (the person is told at once where connected).
           if (!_adminHere(id, tell)) return tell({'dir': said['dir'], 'ok': false, 'err': 'Sign in to the admin page first.'});
           switch (said['dir']) {
             case 'admin-users':
@@ -823,6 +866,8 @@ class Handles {
               tell({'dir': 'admin-badge', 'ok': true, 'to': to, 'special': specialOf(to)});
           }
         case 'link':
+          // Starts a sign-in: answers the address for the app to open in a browser, good for [stateLife]. The state in
+          // it names this install; the verifier is X's PKCE secret, which never leaves this server.
           if (!known || !_signIn.contains(network)) return err('That network is not linked by signing in.');
           if (ways[network] != 'signin') return err('Signing in with that network is not set up on this server yet.');
           final state = hexOf([for (var i = 0; i < 16; i++) _random.nextInt(256)]);
@@ -843,6 +888,8 @@ class Handles {
           final problem = await checkCode(id, number, said['code']);
           if (problem != null) return err(problem);
           _link(id, 'phone', number, number);
+        // 'proof' answers the code to put in the account's public profile; 'check' reads the profile and links the
+        // account where the code is in it.
         case 'proof':
         case 'check':
           final handle = said['handle'] is String ? tidy(network is String ? network : '', said['handle'] as String) : '';
@@ -857,6 +904,7 @@ class Handles {
           if (!found.text.contains(code)) return err('The code is not in that profile yet. It can take a minute to show.');
           _link(id, network, handle, found.account);
         case 'unlink':
+          // Forgets this install's link on one network.
           if (!known) return;
           final gone = _links[id]?.remove(network);
           if (gone != null) {
@@ -866,6 +914,7 @@ class Handles {
           }
           tell({'dir': 'unlinked', 'p': network});
         case 'listed':
+          // The listing switch. Turned on, everyone watching for one of this install's handles is told it joined.
           final on = said['on'] == true;
           if (on && _listed.add(id)) {
             for (final link in (_links[id] ?? const <String, Map<String, String>>{}).entries) {
@@ -877,6 +926,8 @@ class Handles {
           _changed();
           tell({'dir': 'listed', 'on': on});
         case 'watch':
+          // Handle hashes to stop and to start watching for (`remove`, `add`). Those added that a listed install
+          // already holds are told straight away, marked `already`.
           final mine = _watch[id] ??= {};
           for (final k in (said['remove'] as List? ?? const []).whereType<String>()) {
             if (mine.remove(k)) {
@@ -910,6 +961,7 @@ class Handles {
           _changed();
           tell({'dir': 'forgotten'});
         case 'follows':
+          // Who the linked account follows on a network whose follow lists are public, for the app to watch for.
           final handle = said['handle'] is String ? tidy(network is String ? network : '', said['handle'] as String) : '';
           if (!_proof.contains(network)) return err('Who you follow there cannot be read.');
           // Only of the account this install proved is its own.
@@ -1014,6 +1066,7 @@ class Handles {
   /// The install that holds [name] as its username, or null (accounts.dart: signing in by username).
   String? holderOf(String name) => goodName(name) ? (_names[nameKey(name)]?['id']) : null;
 
+  /// The listed installs with a link whose handle hashes to [k], a phone number's never among them.
   Iterable<String> _listedHolders(String k) sync* {
     for (final e in _links.entries) {
       if (_listed.contains(e.key) && e.value.entries.any((l) => l.value['k'] == k && !_quiet.contains(l.key))) yield e.key;
@@ -1072,6 +1125,7 @@ class Handles {
 
   // --- reading a public profile: Bluesky, Mastodon, GitHub -------------------------------------------------------------
 
+  /// What GitHub's API is asked with: it refuses a request with no User-Agent, and allows more with a token.
   Map<String, String> get _githubHeaders => {
         'User-Agent': 'ghost-messaging-relay',
         'Accept': 'application/vnd.github+json',
@@ -1150,8 +1204,11 @@ class Handles {
 
   // --- signing in: Discord, X, Telegram (a browser's requests, under /link/) -------------------------------------------
 
+  /// Where [network] sends the browser back to once the person has signed in: the address registered with it.
   String _redirect(String network) => '${config.publicUrl}/link/$network/callback';
 
+  /// The one small page a browser is shown here. [title] is escaped; [words] is HTML and the caller escapes what it
+  /// puts in it.
   static String _page(String title, String words) => '''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ghost Messaging</title>
@@ -1166,6 +1223,8 @@ class Handles {
 <body><main><h1>${const HtmlEscape().convert(title)}</h1>$words</main></body></html>
 ''';
 
+  /// Answers a browser with [_page], never cached. [_sorry] is the page for a sign-in that failed, [_thanks] for one
+  /// that linked.
   Future<void> _html(HttpRequest request, int status, String title, String words) async {
     request.response
       ..statusCode = status
@@ -1182,6 +1241,7 @@ class Handles {
   Future<void> _thanks(HttpRequest request, String network, String handle) => _html(request, HttpStatus.ok, 'Linked',
       '<p>${const HtmlEscape().convert('@$handle')} on ${const HtmlEscape().convert(nameOf(network))} is linked to your Ghost Messaging.</p><p>You can close this page and go back to the app.</p>');
 
+  /// A network's name as people write it.
   static String nameOf(String network) => switch (network) {
         'x' => 'X',
         'github' => 'GitHub',
@@ -1263,8 +1323,11 @@ class Handles {
     return true;
   }
 
+  /// [fields] as a form's body (application/x-www-form-urlencoded).
   static String _form(Map<String, String> fields) => fields.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}').join('&');
 
+  /// Who signed in at Discord: the callback's [code] is swapped for a token, the token used once to ask who it is,
+  /// and then dropped. Null where Discord doesn't confirm it.
   Future<({String account, String handle, Map<String, String> about})?> _discord(String code) async {
     final token = await _fetch('POST', Uri.https('discord.com', '/api/oauth2/token'),
         headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Authorization': 'Basic ${base64Encode(utf8.encode('${config.discordId}:${config.discordSecret}'))}'},
@@ -1286,6 +1349,7 @@ class Handles {
     );
   }
 
+  /// Who signed in at X, the same way, with the [verifier] whose hash went out when the sign-in started (PKCE).
   Future<({String account, String handle, Map<String, String> about})?> _x(String code, String verifier) async {
     final token = await _fetch('POST', Uri.https('api.x.com', '/2/oauth2/token'),
         headers: {
@@ -1331,6 +1395,8 @@ class Handles {
   }
 }
 
+/// A sign-in started in the app and not yet finished in the browser: which install asked, for which network, X's
+/// PKCE verifier, and when.
 class _Asked {
   _Asked(this.id, this.network, this.verifier, this.at);
   final String id;
@@ -1394,6 +1460,8 @@ class HandlesConfig {
 
   /// Where this server is reached from outside: what a sign-in comes back to.
   final String publicUrl;
+
+  /// The OAuth client's id and secret at Discord and at X. X's secret may be empty (a public client).
   final String discordId;
   final String discordSecret;
   final String xId;
@@ -1419,9 +1487,12 @@ class HandlesConfig {
   /// The most texts sent in a day, to everyone together: what a mistake or an attack can cost.
   final int textsADay;
 
+  /// Whether texting a code is set up.
   bool get texts => twilioSid.isNotEmpty && twilioToken.isNotEmpty && twilioVerify.isNotEmpty;
 }
 
+/// What another server answered: its status (0 where it could not be asked at all), its body as text, and the few
+/// headers kept (`link`, for a next page).
 class Fetched {
   const Fetched(this.status, this.body, [this.headers = const {}]);
   final int status;
@@ -1433,6 +1504,7 @@ class Fetched {
 /// unless it resolves to a public address, so this server cannot be pointed at its own network.
 typedef Fetch = Future<Fetched> Function(String method, Uri url, {Map<String, String> headers, String? body, bool outside});
 
+/// Whether [a] is an address no outside server has: this machine, a private or carrier network, link-local, multicast.
 bool _private(InternetAddress a) {
   if (a.isLoopback || a.isLinkLocal || a.isMulticast) return true;
   final b = a.rawAddress;

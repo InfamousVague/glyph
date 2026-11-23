@@ -49,6 +49,9 @@ class FrameGuard {
   /// ([WireBudget] counts them). Nothing once it is finished, and nothing for a control frame, which is read at once.
   int holding = 0;
 
+  /// Where in a frame the next byte is: its first byte, its length byte, the longer length's bytes, its mask, what it
+  /// carries. Then what the frame's header said (last piece, control frame, masked, its length, what of it is left to
+  /// read), and the message it belongs to: how many messages have begun, this one's length so far, and its pieces.
   static const _head = 0, _length = 1, _moreLength = 2, _mask = 3, _payload = 4;
   int _at = _head;
   bool _fin = false, _control = false, _masked = false;
@@ -56,6 +59,7 @@ class FrameGuard {
   bool _inMessage = false;
   int _messages = 0, _message = 0, _frames = 0;
 
+  /// The longest the message being read may be: [first] for the first, [most] after.
   int get _ceiling => _messages <= 1 ? first : most;
 
   /// A ping or pong with something in it that came between the pieces of a message is held back until that message's
@@ -81,10 +85,13 @@ class FrameGuard {
     return _run(bytes, out) ? out.takeBytes() : null;
   }
 
+  /// Reads [bytes] a step at a time ([_step]). With [out], also copies them to it in order, but for a ping or pong
+  /// inside a message that has something in it: that goes to [_later], and to [out] after the message's last piece.
   bool _run(List<int> bytes, BytesBuilder? out) {
     if (why != null) return false;
     var i = 0, run = 0;
     final n = bytes.length;
+    // Copies what has been read since the last copy, up to [end], to where it goes now: the frame held aside, or out.
     void flush(int end) {
       if (out != null && end > run) (_diverting ? _cur : out).add(bytes.sublist(run, end));
       run = end;
@@ -120,6 +127,7 @@ class FrameGuard {
           _diverting = false;
         }
       }
+      // A message's last piece has just gone: the pings and pongs held back for it follow.
       if (_ended) {
         _ended = false;
         if (out != null) {
@@ -180,6 +188,7 @@ class FrameGuard {
         if (_message + _len > _ceiling) return _fail('a message longer than this door takes');
         if (--_lengthBytes == 0 && !_lengthDone()) return -1;
       case _mask:
+        // The four bytes of the mask are skipped: nothing here reads what a frame carries.
         final step = min(_left, n - i);
         i += step;
         _left -= step;
@@ -194,11 +203,14 @@ class FrameGuard {
     return i;
   }
 
+  /// Says no for [reason], as [_step] gives it back: -1.
   int _fail(String reason) {
     _no(reason);
     return -1;
   }
 
+  /// The frame's length is read: a control frame is held to 125 bytes, anything else is added to its message and the
+  /// message held to its ceiling; then the mask is next, or what the frame carries. False where the connection must end.
   bool _lengthDone() {
     if (_control) {
       if (_len > 125) return _no('a control frame too long');
@@ -215,12 +227,14 @@ class FrameGuard {
     return true;
   }
 
+  /// What the frame carries is next, to be skipped over; a frame that carries nothing is done already.
   void _startPayload() {
     _left = _len;
     _at = _payload;
     if (_left == 0) _frameDone();
   }
 
+  /// A frame has been read to its end; where it was a message's last piece, the message is over and nothing of it held.
   void _frameDone() {
     if (!_control && _fin) {
       _inMessage = false;
@@ -230,6 +244,7 @@ class FrameGuard {
     _at = _head;
   }
 
+  /// Remembers why ([why]), and is false: every read after it is refused too.
   bool _no(String reason) {
     why = reason;
     return false;
@@ -316,6 +331,9 @@ class WireBudget {
   /// of [most], and never less than a megabyte, past anything a hand-over a piece at a time holds (a few hundred KB).
   int get bigShare => max(most ~/ 32, 1 << 20);
 
+  /// The clock (a test's own), the bytes held by everyone together, the connections that hold anything, the hand-overs
+  /// waiting for room in the order they began to wait, the once-a-second [sweep] while anything is held, and whether a
+  /// round of letting hand-overs go on is due already ([_roomMade]).
   final DateTime Function() _now;
   int _used = 0;
   final Set<WireHold> _holding = {};
@@ -337,6 +355,8 @@ class WireBudget {
   /// A connection's share, ended by [end] where it must go.
   WireHold open(void Function() end) => WireHold._(this, end);
 
+  /// [h] holds something other than the [before] bytes it held: the total follows, when it went past [bigShare] is
+  /// noted, the sweeper runs while anything is held, and where it holds less, those waiting for room are looked at.
   void _changed(WireHold h, int before) {
     final now = h.held;
     _used += now - before;
@@ -390,6 +410,7 @@ class WireBudget {
     return h == null || !h._gone;
   }
 
+  /// [h]'s connection is over, ended or closed: nothing of it is counted any more, and its hand-over never goes on.
   void _drop(WireHold h) {
     if (h._gone) return;
     final before = h.held;
@@ -438,6 +459,12 @@ class WireBudget {
 class WireHold {
   WireHold._(this.budget, this._end) : _inMoved = budget._now(), _outMoved = budget._now();
   final WireBudget budget;
+
+  /// Ends its connection. Then what it holds, in bytes: of a message coming in, in the socket's queue, and behind a
+  /// hand-over. The marks a stall is measured from (the incoming length when it last moved, what has gone out since
+  /// the queue last moved, and when each last moved); since when it has been past [WireBudget.eachOut] and past
+  /// [WireBudget.bigShare]; whether it is over; and the hand-over waiting to go on ([whenRoom]), with whether it waits
+  /// on this connection's own queue.
   final void Function() _end;
   int _in = 0, _out = 0, _behind = 0;
   int _inMark = 0, _outGone = 0;
@@ -466,6 +493,7 @@ class WireHold {
     return d;
   }
 
+  /// Notes when what waits to go out went past [WireBudget.eachOut], and forgets it once it is back under.
   void _over() {
     if (_out + _behind > budget.eachOut) {
       _overAt ??= budget._now();
@@ -521,6 +549,7 @@ class WireHold {
     }
   }
 
+  /// [n] bytes went out: it is not stalled once [WireBudget.outStep] have gone since it last moved, or nothing waits.
   void _moved(int n) {
     _outGone += n;
     if (_out + _behind == 0 || _outGone >= WireBudget.outStep) {
@@ -605,6 +634,8 @@ class GuardedSocket extends Stream<Uint8List> implements Socket {
   StreamSubscription<Uint8List>? _reading;
   bool _readingHeld = false;
 
+  /// What comes in, as the WebSocket's parser listens to it: each read goes through the guard and is counted against
+  /// the budget first, and the first one refused by either destroys the socket and ends the stream.
   @override
   StreamSubscription<Uint8List> listen(void Function(Uint8List event)? onData, {Function? onError, void Function()? onDone, bool? cancelOnError}) {
     var ended = false;
@@ -686,6 +717,7 @@ class GuardedSocket extends Stream<Uint8List> implements Socket {
     }));
   }
 
+  // Everything from here is the socket's own, handed straight through; destroying it lets go of its share first.
   @override
   Encoding get encoding => _socket.encoding;
   @override
@@ -771,6 +803,7 @@ Future<WebSocket?> upgradeGuarded(HttpRequest request, {required int most, int f
 /// Why a WebSocket this relay dialled was not made ([dialGuarded]).
 class WsRefused implements Exception {
   const WsRefused(this.why);
+  /// In words, for the keeper's log: what the answer to the handshake was, or what was wrong with it.
   final String why;
   @override
   String toString() => why;

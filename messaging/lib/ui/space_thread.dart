@@ -107,6 +107,7 @@ class _SpaceThreadScreenState extends State<SpaceThreadScreen> {
     super.dispose();
   }
 
+  /// Sends the box's words as a reply in this thread. The box is emptied only where the room took them.
   void _send() {
     if (widget.room.send(_text.text, thread: widget.root.id)) _text.clear();
   }
@@ -210,6 +211,8 @@ class _ThreadMessage extends StatelessWidget {
     );
   }
 
+  /// Press and hold, or a right click: copy the words; a reply, never the message the thread hangs from, can be
+  /// deleted here by whoever may.
   void _menu(BuildContext context) {
     final m = message;
     showChoices(context, choices: [

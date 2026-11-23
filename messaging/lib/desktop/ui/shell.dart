@@ -29,6 +29,7 @@ class DeskShell extends StatefulWidget {
 }
 
 class _DeskShellState extends State<DeskShell> {
+  /// The computer's own sections of Settings, made once the link is in reach.
   DeskSettings? _settings;
 
   // The two sources handed to Settings, and taken out of it again when this goes.

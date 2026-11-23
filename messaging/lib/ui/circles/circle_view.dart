@@ -148,5 +148,6 @@ class CircleView {
   /// Its spaces with anyone in their calls.
   List<CircleSpaceView> get live => [for (final s in spaces) if (s.live) s];
 
+  /// The space that is [selected], where it is one of these.
   CircleSpaceView? get open => spaces.where((s) => s.seed == selected).firstOrNull;
 }

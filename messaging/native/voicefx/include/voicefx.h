@@ -26,10 +26,13 @@ extern "C" {
 #define VOICEFX_EXPORT __attribute__((visibility("default")))
 #endif
 
+/* One microphone's processing state: made once, configured from any thread, run on WebRTC's. */
 typedef struct VoiceFx VoiceFx;
 
+/* What is done about noise (voicefx_configure's mode). */
 enum { VOICEFX_OFF = 0, VOICEFX_RNNOISE = 1, VOICEFX_DEEPFILTER = 2 };
 
+/* A new state, off and at a gain of 1; NULL without memory. Destroy it only once nothing is processing with it. */
 VOICEFX_EXPORT VoiceFx *voicefx_create(void);
 VOICEFX_EXPORT void voicefx_destroy(VoiceFx *fx);
 
@@ -61,8 +64,8 @@ VOICEFX_EXPORT void voicefx_feed(VoiceFx *fx, const int16_t *pcm, int n, int rat
 VOICEFX_EXPORT int voicefx_queued_ms(VoiceFx *fx);
 
 /* A voice effect made here, as it is said, in a call (Matt, 2026-11-21: "Add support (by default) for the voice
- * changer to use on the fly voice changing the elevenlabs is very slow and not real time"): about 43 ms behind,
- * nothing leaves the device. Applied after the noise suppression and the gain; not while voicefx_live is on. */
+ * changer to use on the fly voice changing the elevenlabs is very slow and not real time"): about 48 ms behind
+ * (the robot 43), nothing leaves the device. Applied after the noise suppression and the gain; not while voicefx_live is on. */
 enum {
   VOICEFX_EFFECT_NONE = 0,
   VOICEFX_EFFECT_DEEPER = 1,    /* a little lower and bigger */

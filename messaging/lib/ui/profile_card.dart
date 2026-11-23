@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert' show base64Decode;
 import 'composer_box.dart' show ComposerBox, ComposerField;
 import 'cosmetics_ui.dart';
 import 'dart:io';
@@ -16,6 +17,7 @@ import '../friends/buddies.dart';
 import '../inbox/inbox.dart';
 import '../kit/settings_type.dart';
 import '../me/cosmetics.dart';
+import '../me/identity.dart';
 import '../me/me.dart';
 import '../mentions.dart';
 import '../me/pictures.dart';
@@ -33,6 +35,8 @@ import 'shell.dart';
 import 'thread.dart';
 import 'special_badges.dart';
 import 'username_friends.dart' show acceptRequest;
+import 'identity_ui.dart' show theirDidWords, didWords;
+import 'vouches_ui.dart';
 import 'verified_badge.dart';
 import 'name_watch_words.dart';
 import 'nav_bar.dart' show HoverTip;
@@ -107,6 +111,8 @@ class _Ghost {
   bool get friend => buddy?.state == 'yes';
 }
 
+/// Gathers what is known of [who]: found among friends by id or username, among those present in the space it was
+/// opened from, or as oneself.
 _Ghost _ghostOf(ProfileSubject who) {
   final buddies = Buddies.instance;
   final user = who.username.startsWith('@') ? who.username.substring(1) : who.username;
@@ -151,6 +157,7 @@ List<Choice> _actions(BuildContext context, ProfileSubject who, _Ghost? g) {
   final phone = links['phone'];
   return [
     if (ghost.friend) Choice('Open chat', Lucide.messageSquare, () => unawaited(_openGhostChat(context, ghost))),
+    if (ghost.friend) ...vouchChoices(context, ghost.buddy!),
     if (phone != null && phone.isNotEmpty) Choice('Text $phone', Lucide.messageSquare, () => unawaited(_openNumber(context, phone, ghost.name)), hint: 'Their number, as they shared it'),
     for (final e in links.entries)
       if (e.key != 'phone' && Inbox.instance.named(e.key)?.state == InboxState.ready)
@@ -180,6 +187,7 @@ Future<void> _addFriend(BuildContext context, String username) async {
   }
 }
 
+/// Opens the conversation with a friend on Ghost, addressed by their username.
 Future<void> _openGhostChat(BuildContext context, _Ghost g) async {
   final address = UsernameChats.addressOf(g.username);
   final person = Person(address: address, name: g.name);
@@ -190,6 +198,7 @@ Future<void> _openGhostChat(BuildContext context, _Ghost g) async {
   push<void>(context, (_) => ThreadScreen(thread: thread, people: [person]));
 }
 
+/// Opens the conversation of texts with [number].
 Future<void> _openNumber(BuildContext context, String number, String name) async {
   try {
     final person = Person(address: number, name: name);
@@ -203,6 +212,7 @@ Future<void> _openNumber(BuildContext context, String number, String name) async
   }
 }
 
+/// Opens the chat with [who] on their network, asking the network who a username is where only that is known.
 Future<void> _openNetworkChat(BuildContext context, ProfileSubject who) async {
   final network = who.network!;
   try {
@@ -238,6 +248,9 @@ class _ProfileCard extends StatefulWidget {
 class _ProfileCardState extends State<_ProfileCard> {
   InboxProfile? _network;
   String? _picture;
+
+  /// This account's did:key, on its own card (asked of the routes as the card opens; GMFB-33).
+  String? _myDid;
   bool _looking = true;
   final _dm = TextEditingController();
 
@@ -263,6 +276,8 @@ class _ProfileCardState extends State<_ProfileCard> {
     super.dispose();
   }
 
+  /// Fetches what the card shows beyond what was handed in: a network's profile (ten seconds at most), or the
+  /// picture of someone on Ghost.
   Future<void> _look() async {
     final who = widget.who, g = widget.ghost;
     try {
@@ -271,6 +286,9 @@ class _ProfileCardState extends State<_ProfileCard> {
       } else if (g != null) {
         if (g.me) {
           _picture = Me.instance.pictureSharp;
+          try {
+            _myDid = Did.ofKey((await Sms.instance.netIdentity()).key);
+          } catch (_) {}
         } else if (g.buddy != null && g.buddy!.picture.isNotEmpty) {
           _picture = g.buddy!.picture;
         } else if (g.id.isNotEmpty) {
@@ -347,6 +365,9 @@ class _ProfileCardState extends State<_ProfileCard> {
     // The name watch (lib/net/name_watch.dart): the relay now gives this friend's username to another key. They are
     // still the key that was added; this only says so.
     final renamed = g == null || g.me || g.id.isEmpty ? null : NameWatch.instance?.changeFor(g.id);
+    // Their account key as a did:key (GMFB-33; lib/me/identity.dart), with Copy and Share: a friend's from the key held
+    // for them, this account's own as the routes know it.
+    final did = g == null ? null : (g.me ? _myDid : _didOf(g.buddy));
     final panel = <Widget>[
       // In the card's own ink: the usual reason is an ordinary one (they changed or gave up the name, and someone took it).
       if (renamed != null)
@@ -354,6 +375,21 @@ class _ProfileCardState extends State<_ProfileCard> {
       if (bio.isNotEmpty) section('About me', Text(bio, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink'), height: 1.4))),
       if (theirRelay.isNotEmpty) section('Relay', Text(friendRelayWords(theirRelay, talks: Buddies.instance.relayTalks), style: pageText(t, t.fontSize('sm'), color: t.color('app-ink'), height: 1.4)), key: const ValueKey('profile-relay')),
       badgeList,
+      if (did != null)
+        section(
+          'Account key',
+          key: const ValueKey('profile-did'),
+          Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+            Row(children: [
+              Expanded(child: Text(Did.short(did), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink')))),
+              IconTap(key: const ValueKey('profile-did-copy'), icon: Lucide.copy, label: 'Copy the account key', size: 16, box: t.lenOf('2rem'), onPressed: () => _copy(context, did)),
+              IconTap(key: const ValueKey('profile-did-share'), icon: Lucide.share2, label: 'Share the account key', size: 16, box: t.lenOf('2rem'), onPressed: () => unawaited(Sms.instance.shareText('A Ghost Messaging account key', did))),
+            ]),
+            Text(g!.me ? didWords : theirDidWords(name.isEmpty ? 'This person' : name), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'), height: 1.4)),
+          ]),
+        ),
+      // How many of the viewer's own friends vouch for them (GMFB-33), their names on a tap.
+      if (g != null && (g.me || g.buddy?.state == 'yes')) VouchesLine(buddy: g.me ? null : g.buddy, section: section),
       if (who.detail.isNotEmpty) section(who.room != null ? 'In this space' : 'Here', Text(who.detail, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink')))),
       if (links.isNotEmpty)
         section(
@@ -591,6 +627,8 @@ List<Mention> handleMentions(String text) {
   return Mention.checked(out, text);
 }
 
+/// An "@username" written in a message: 3 to 20 letters, numbers, dots or underscores, not inside a word or an email
+/// address.
 final _handle = RegExp(r'(^|[^A-Za-z0-9_.@])@([A-Za-z0-9][A-Za-z0-9._]{2,19})(?![A-Za-z0-9_@])');
 
 /// [m]'s mentions as the message lines carry them: `n:<id>` where the network named the person, `u:<username>` where
@@ -599,5 +637,15 @@ List<Mention> inboxMentions(InboxMessage m) => Mention.checked([
       for (final x in m.mentions)
         if (x.user.isNotEmpty || x.username.isNotEmpty) Mention(x.start, x.length, x.user.isNotEmpty ? 'n:${x.user}' : 'u:${x.username}'),
     ], m.text);
+
+/// [b]'s did:key, from the key held for them; null where none is, or it isn't a key.
+String? _didOf(Buddy? b) {
+  if (b == null || b.key.isEmpty) return null;
+  try {
+    return Did.ofKey(base64Decode(b.key));
+  } catch (_) {
+    return null;
+  }
+}
 
 String _titled(String network) => network.isEmpty ? network : network[0].toUpperCase() + network.substring(1);

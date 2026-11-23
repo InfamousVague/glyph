@@ -2,6 +2,7 @@
 // ({t:'dc', people}), the bot's nickname, and chat messages each way (with nothing echoed back where it came from).
 import { avatarUrl, memberName } from '../state.js';
 
+// A discord.js Collection (a Map) or a plain array, read alike: its values, and one of them by id.
 const each = (collection) => (collection == null ? [] : typeof collection.values === 'function' ? [...collection.values()] : [...collection]);
 const lookup = (collection, id) => (collection == null ? undefined : typeof collection.get === 'function' ? collection.get(id) : each(collection).find((x) => x.id === id));
 
@@ -41,6 +42,7 @@ export function nicknameFor(names) {
   return `Ghost · ${names.length} people`;
 }
 
+// The longest message passed on each way, in characters: 2000 is Discord's own limit for a message.
 const GHOST_MAX = 4000;
 const DISCORD_MAX = 2000;
 
@@ -71,6 +73,7 @@ export function webhookName(name) {
   return clean || 'Ghost';
 }
 
+/** Discord's allowed_mentions for "nobody": an @everyone or @name typed in Ghost shows as text and pings no one. */
 const noMentions = { parse: [] };
 
 /** A Ghost chat message as the webhook posts it: under the sender's name, pinging nobody. */

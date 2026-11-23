@@ -44,6 +44,8 @@ enum UiSound {
   reconnecting('reconnecting');
 
   const UiSound(this.file);
+
+  /// Its file's name in assets/sounds/, without the ending. The two [loud] ones have the chosen take after it.
   final String file;
 
   /// Ringing and a new message: at their full loudness, and chosen from three.
@@ -57,6 +59,8 @@ class SoundChoice {
   final String label;
 }
 
+/// Plays the interface sounds, and holds the person's choices about them (on or off, which message sound and
+/// ring, how loud the quieter ones are).
 class Sounds {
   Sounds._();
   static final Sounds instance = Sounds._();
@@ -76,9 +80,14 @@ class Sounds {
   static const quietDefault = 33;
 
   AppState? _app;
+
+  /// The sound files read so far, by name, as they are in the app's assets.
   final Map<String, Uint8List> _files = {};
+
+  /// The sound playing over and over now, where one is.
   UiSound? _looping;
 
+  /// Given the app's choices, once they are read. Until then every sound is on, at its defaults.
   void start(AppState app) {
     _app = app;
     // Once, whatever was chosen before: the muted bell, as Matt asked. Chosen again in Settings › Sounds it stays.
@@ -99,6 +108,7 @@ class Sounds {
   /// The loudness of the quieter sounds, 0 to 100.
   int get quiet => int.tryParse(_app?.choice('sound_quiet', '$quietDefault') ?? '') ?? quietDefault;
 
+  /// Choosing a message sound or a ring plays it once, at its full loudness, to be heard.
   void setMessage(String id) {
     _app?.set('sound_message', id);
     unawaited(_play('message-in-$id', 1, loop: false));
@@ -124,18 +134,21 @@ class Sounds {
     unawaited(_play(_name(s), s.loud ? 1 : quiet / 100, loop: true));
   }
 
+  /// Stops what is playing over and over; with [only], just where it is that sound.
   void stopLoop([UiSound? only]) {
     if (_looping == null || (only != null && _looping != only)) return;
     _looping = null;
     unawaited(_channel.invokeMethod<void>('stop').catchError((_) {}));
   }
 
+  /// The file a sound plays from: the take chosen, for a new message and for ringing in.
   String _name(UiSound s) => switch (s) {
         UiSound.messageIn => 'message-in-$message',
         UiSound.ringIn => 'ring-in-$ring',
         _ => s.file,
       };
 
+  /// Reads the file (once), scales it to [volume] (0 to 1) and hands it to the device's player.
   Future<void> _play(String name, double volume, {required bool loop}) async {
     if (volume <= 0) return;
     try {
@@ -164,6 +177,7 @@ class Sounds {
         }
         break;
       }
+      // A chunk of odd length has a byte of padding after it.
       at += 8 + size + (size & 1);
     }
     return out;

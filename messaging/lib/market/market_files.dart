@@ -56,6 +56,8 @@ Future<PickedPlugin?> pickPluginFile() async {
   return null;
 }
 
+/// The picked file's own name: the last part of what was [picked] (an address on Android, decoded), else of the
+/// [copy] that was read.
 String _nameOf(String picked, String copy) {
   final last = Uri.tryParse(picked)?.pathSegments.lastOrNull;
   if (last != null && last.isNotEmpty) {

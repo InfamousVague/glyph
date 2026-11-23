@@ -31,6 +31,8 @@ func isMine(me string, p linkedingo.MessagingParticipant) bool {
 	return me != "" && p.EntityURN.ID() == me
 }
 
+// person is what is known of someone on LinkedIn. ID is their messaging URN; Pic, where there is one, is their
+// picture in the sizes LinkedIn keeps.
 type person struct {
 	ID     string
 	Name   string
@@ -77,11 +79,14 @@ func handleFromProfileURL(profileURL, id string) string {
 	return handle
 }
 
+// memberOut is one of a chat's members in a `chat`, the person themself left out.
 type memberOut struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
+// chatOut is the protocol's `chat`: what `chats` answers with and a `chat` event carries. Avatar is a file's path,
+// Last the newest activity's time in milliseconds, Snippet the newest message's words.
 type chatOut struct {
 	ID          string      `json:"id"`
 	Title       string      `json:"title"`
@@ -165,6 +170,7 @@ type pointer struct {
 	Expires int64  `json:"expires,omitempty"`
 }
 
+// mediaOut is one thing a message carries: what `download` needs to fetch it, and what the app shows before it has.
 type mediaOut struct {
 	Pointer pointer `json:"pointer"`
 	Mime    string  `json:"mime"`
@@ -174,11 +180,14 @@ type mediaOut struct {
 	Height  int     `json:"height"`
 }
 
+// quoteOut is the message a reply answers, with its words.
 type quoteOut struct {
 	ID   string `json:"id"`
 	Text string `json:"text"`
 }
 
+// messageOut is the protocol's `message`: an entry of `history` and what a `message` event carries. TS is when it
+// was delivered, in milliseconds. Reactions are not listed: they reach the app as `reaction` events alone.
 type messageOut struct {
 	Chat  string     `json:"chat"`
 	Group bool       `json:"group"`

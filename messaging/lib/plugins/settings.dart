@@ -139,6 +139,8 @@ List<SettingsSection> pluginPages([PluginRegistry? registry]) {
   ];
 }
 
+/// Every plugin in one card with its switch, then a card of its own settings for each that is on and has no page in
+/// the Marketplace.
 List<Widget> pluginsPane(BuildContext context, AppState app, PluginRegistry registry) {
   final store = AppStore(app);
   return [
@@ -249,6 +251,7 @@ class _WordsFieldState extends State<_WordsField> {
     super.dispose();
   }
 
+  /// Kept a line each, as [wordsOf] reads them; written only where they changed, and once more as the field goes.
   void _save() {
     final words = [for (final w in _text.text.split(RegExp(r'[\n,]'))) if (w.trim().isNotEmpty) w.trim()];
     final kept = words.join('\n');

@@ -33,6 +33,7 @@ object Bus {
     val others = java.util.concurrent.CopyOnWriteArrayList<(Long) -> Unit>()
     val prefsOthers = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
     private val main = Handler(Looper.getMainLooper())
+    /** A conversation changed: the screen is told on the main thread, and so are the computers connected now. */
     fun changed(thread: Long) {
         main.post { listener?.invoke(thread); for (o in others) o(thread) }
         // And the computers paired with this phone that are connected now (Desk.kt).
@@ -47,18 +48,17 @@ object Bus {
 /** Mutable where the system adds its result extras to the intent it sends back (Android 12 asks that it be said). */
 private val MUTABLE = PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
 
+/** Android's sender for the SIM [subId] names, or its default one where that is no SIM. */
 private fun smsManager(context: Context, subId: Int): SmsManager {
     val base = context.getSystemService(SmsManager::class.java)
     return if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID && subId >= 0) base.createForSubscriptionId(subId) else base
 }
 
+/** The SIM the phone is set to text from. */
 private fun defaultSub(): Int = SubscriptionManager.getDefaultSmsSubscriptionId()
 
+/** What the app sends by the carrier: texts, picture and group messages, stickers, voice messages. */
 object Sender {
-    /**
-     * Sends [body] to [addresses]: one person is an SMS (in as many parts as it takes), several are one group MMS,
-     * and pictures ([attachments], content URIs) make it an MMS too. Returns the conversation.
-     */
     /**
      * Sends one of the app's stickers (Matt, 2026-11-13: "generate 4 sticker packs using our ghost mascot") to
      * [addresses] as a picture message. [picture] is the sticker as the app keeps it (a WebP with a clear
@@ -119,6 +119,12 @@ object Sender {
         return thread
     }
 
+    /**
+     * Sends [body] to [addresses] and gives the conversation: one person is an SMS (in as many parts as it takes),
+     * several are one group MMS, and pictures ([attachments], content URIs) make it an MMS too.
+     * [plain] sends the words as they are, neither sealed nor marked. Throws where there is no one to send to or the
+     * message could not be saved.
+     */
     fun send(context: Context, addresses: List<String>, body: String, attachments: List<String> = emptyList(), plain: Boolean = false): Long {
         val store = Store(context)
         val clean = addresses.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
@@ -155,6 +161,10 @@ object Sender {
         android.telephony.SmsMessage.calculateLength(a, false)[0] == android.telephony.SmsMessage.calculateLength(b, false)[0]
     } catch (_: Exception) { false }
 
+    /**
+     * Writes the text to the outbox and hands it to Android in as many parts as it takes. What became of it comes back
+     * to [SmsStatusReceiver], which marks the row.
+     */
     private fun sendSms(context: Context, store: Store, thread: Long, address: String, body: String) {
         val sub = defaultSub()
         val row = store.insertSmsOutbox(thread, address, body, sub) ?: throw IllegalStateException("Could not save the message")
@@ -231,6 +241,11 @@ object Sender {
     /** The most a picture message is made, whatever a carrier's settings say: larger ones often do not cross to another carrier. */
     private const val LARGEST = 1024 * 1024
 
+    /**
+     * Builds one MMS for everyone in [to]: each picture in [attachments] made a JPEG that fits its share of the
+     * carrier's limit, then the words; written to the outbox and handed to Android. [again] and [tries] are for the
+     * log and the count when a message is sent again.
+     */
     private fun sendMms(context: Context, store: Store, thread: Long, to: List<String>, body: String, attachments: List<String>, ready: List<Pdu.Part> = emptyList(), again: String? = null, tries: Int = 1) {
         val sub = defaultSub()
         val sms = smsManager(context, sub)
@@ -337,6 +352,7 @@ object Sender {
         }
     }
 
+    /** [bmp] turned the way its file's EXIF says it was taken, since the JPEG made of it carries no EXIF. */
     private fun rotated(context: Context, uri: Uri, bmp: Bitmap): Bitmap = try {
         val exif = context.contentResolver.openInputStream(uri)?.use { android.media.ExifInterface(it) }
         val deg = when (exif?.getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, 1)) {

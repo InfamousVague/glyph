@@ -422,3 +422,26 @@ h1 { font-size: clamp(1.8rem, 1.5rem + 1.2vw, 2.4rem); line-height: 1.15; letter
 figure.shot { margin: 1rem 0 1.25rem; }
 figure.shot img { display: block; width: 100%; height: auto; border-radius: .75rem; border: 1px solid var(--rule); }
 figure.shot figcaption { margin-top: .5rem; font-size: .875rem; opacity: .75; }
+
+/* --- Developer docs: the layers' picture and the API reference (tool/build-docs.mjs's <api-methods/>, <relay-routes/>) --- */
+.arch { display: grid; gap: .5rem; margin: 1.4rem 0 1.8rem; }
+.arch-row { display: flex; flex-wrap: wrap; gap: .5rem; }
+.arch-box { flex: 1 1 9rem; background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r-md); padding: .6rem .75rem; }
+.arch-box.wide { flex: 3 1 18rem; }
+.arch-box b { display: block; font-size: .92rem; }
+.arch-box small { display: block; color: var(--ink-3); font: .74rem/1.4 var(--mono); overflow-wrap: anywhere; }
+.arch-row:first-child .arch-box { background: var(--mist); border-color: var(--rule-2); }
+.api-m { border: 1px solid var(--rule); border-radius: var(--r-lg); background: var(--paper); padding: .9rem 1.1rem .4rem; margin: .9rem 0; scroll-margin-top: 5rem; }
+.api-m h4 { margin: 0 0 .3rem; font-size: 1rem; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.api-m h4 code { font-size: .95em; overflow-wrap: anywhere; }
+.api-m p { margin: .35rem 0; }
+.api-m pre { background: var(--paper-2); margin: .6rem 0; }
+.api-m table { margin: .5rem 0 .7rem; font-size: .88rem; }
+.api-ret { color: var(--ink-2); font-size: .92rem; }
+.api-ret code { overflow-wrap: anywhere; }
+.badge.danger { background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--amber); }
+.verb { font: 700 .72rem/1 var(--mono); letter-spacing: .04em; padding: .28rem .45rem; border-radius: .4rem; background: color-mix(in srgb, var(--teal) 16%, transparent); color: var(--teal-ink); }
+.verb.post, .verb.put { background: color-mix(in srgb, var(--blue) 16%, transparent); color: var(--blue); }
+.verb.delete { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+/* The way from one book to the other (the docs, the developer docs), at the sidebar's foot. */
+.nav-other { margin-top: .4rem; padding-top: .9rem !important; border-top: 1px solid var(--rule); border-radius: 0 !important; color: var(--ink-3) !important; }

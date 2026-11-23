@@ -19,6 +19,7 @@ const googleCookiesNeeded = ['SID', 'HSID', 'SSID', 'OSID', 'APISID', 'SAPISID']
 Map<String, String> googleCookiesIn(String pasted) {
   final text = pasted.trim();
   final found = <String, String>{};
+  // Keeps the wanted cookies out of `name=value; name=value`.
   void take(String pairs) {
     for (final part in pairs.split(';')) {
       final i = part.indexOf('=');

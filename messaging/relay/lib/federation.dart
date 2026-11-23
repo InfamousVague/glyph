@@ -31,6 +31,8 @@ enum FedMode {
 class FedConfig {
   const FedConfig({this.mode = FedMode.off, this.allow = const {}, this.block = const {}, this.publicHub = '', this.via = '', this.packetsAMinute = 1200, this.bytesADay = 512 << 20, this.lookupsAnHour = 600, this.ports = const {}, this.plain = false, this.standingOpen = false, this.standing = const {}, this.problems = const []});
 
+  /// Reads `GHOST_FED`, the other `GHOST_FED_*` settings and `GHOST_PUBLIC_HUB` from [env]. Nothing typed wrong stops
+  /// the relay: it is read as its default or passed over, and said in [problems].
   factory FedConfig.fromEnvironment(Map<String, String> env) {
     final problems = <String>[];
     String said(String name) => (env[name] ?? '').trim();
@@ -120,9 +122,11 @@ class FedConfig {
     );
   }
 
+  /// A relay's name (32 hex digits), and a host with or without its port, as the keeper's lists and `whois` take them.
   static final _relayName = RegExp(r'^[0-9a-f]{32}$');
   static final _hostAndPort = RegExp(r'^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*(:[0-9]{1,5})?$');
 
+  /// Whether it links at all, and with whom (`GHOST_FED`).
   final FedMode mode;
 
   /// With [FedMode.list], the only relays linked with: each a host (`relay.example.com`, or with its port) or a
@@ -168,7 +172,10 @@ typedef FedDial = Future<HubSocket> Function(Uri url);
 
 /// A link another relay opened, as the hub hands it what that relay says ([Federation.incoming]).
 abstract class FedEnd {
+  /// Something that relay said on the link: a text frame or a binary one.
   void heard(Object? data);
+
+  /// Its connection closed.
   void gone();
 }
 
@@ -346,11 +353,14 @@ class Federation {
   static const toRelay = 5;
   static const toRelayVia = 6;
 
+  /// [text] as it is signed: a byte of its length, then its bytes (255 at most).
   static List<int> _sized(String text) {
     final bytes = utf8.encode(text);
     return [bytes.length.clamp(0, 255), ...bytes.take(255)];
   }
 
+  /// The bytes a dialling relay signs ([dialWords]), and those the relay it dialled signs back ([answerWords]). Names
+  /// are 32 hex digits; [nonce] and [c] are the 32-byte numbers the hub and the dialler made up.
   static List<int> dialBytes({required List<int> nonce, required String dialler, required String answerer, required List<int> c, required String dialled, required String url, bool stay = false}) =>
       [...utf8.encode(dialWords), ...nonce, ..._unhex(dialler), ..._unhex(answerer), ...c, stay ? 1 : 0, ..._sized(dialled), ..._sized(url)];
 
@@ -367,12 +377,14 @@ class Federation {
   /// A relay that answered no is not asked again for this long.
   static const refusedFor = Duration(minutes: 10);
 
+  /// Whether [text] is exactly [length] lowercase hex digits, and the bytes such text writes.
   static final _hexOnly = RegExp(r'^[0-9a-f]+$');
   static bool _hex(Object? text, int length) => text is String && text.length == length && _hexOnly.hasMatch(text);
   static List<int> _unhex(String text) => [for (var i = 0; i + 1 < text.length; i += 2) int.parse(text.substring(i, i + 2), radix: 16)];
 
   // --- who this relay is ---------------------------------------------------------------------------------------------
 
+  /// This relay's private key (32 bytes): read from `relay-key.json`, or made and written there.
   late List<int> _scalar;
 
   /// This relay's public key (33 bytes) and its name. Made only where federation is on.
@@ -390,6 +402,7 @@ class Federation {
     }
   }
 
+  /// Reads the key kept in `relay-key.json`, or makes one and writes it there; sets [key] and [id] from it.
   void _loadKey() {
     final file = _keyFile;
     List<int>? scalar;
@@ -487,6 +500,7 @@ class Federation {
   /// the one it always was.
   Map<String, Object?>? get card => !on ? null : {'id': id, 'key': base64Encode(key), if (config.publicHub.isNotEmpty) 'url': config.publicHub, if (config.via.isNotEmpty) 'via': config.via, 'fed': true};
 
+  /// A line for the keeper's log, written only where the relay was started verbose.
   void _say(String what) {
     // Never an address of a person's, never a whole name.
     if (verbose) stdout.writeln('${_now().toIso8601String()} fed $what');
@@ -494,6 +508,7 @@ class Federation {
 
   // --- what the hub gives it ------------------------------------------------------------------------------------------
 
+  /// What the hub gave in [bind]. Until then nothing is handed over, nobody is here and no number is its own.
   bool? Function(String to, String from, List<int> packet) _deliver = (_, _, _) => null;
   bool Function(String id) _isHere = (_) => false;
   bool Function(String id) _knows = (_) => false;
@@ -512,6 +527,7 @@ class Federation {
     _handles = handles;
   }
 
+  /// The once-a-second clock ([tick]), the write of the records that is due ([_changed]), and whether [stop] was called.
   Timer? _ticker;
   Timer? _saver;
   bool _stopped = false;
@@ -557,6 +573,8 @@ class Federation {
     }
   }
 
+  /// The records held may have changed: where they have, they are written to their file in two seconds, once for
+  /// everything that changes meanwhile.
   void _changed() {
     if (homes.file == null || !homes.dirty) return;
     _saver ??= Timer(const Duration(seconds: 2), () {
@@ -567,6 +585,8 @@ class Federation {
 
   // --- who may link ---------------------------------------------------------------------------------------------------
 
+  /// Whether [list] (the keeper's allow or block) names this relay: by its name, by its address's host or host and
+  /// port, or by the name of the relay this one saw at that address.
   bool _listed(Set<String> list, {String? relay, Uri? url}) {
     if (relay != null && list.contains(relay)) return true;
     if (url == null) return false;
@@ -597,6 +617,9 @@ class Federation {
 
   // --- limits ---------------------------------------------------------------------------------------------------------
 
+  /// What is counted: for each linked relay (by [_whoOf]), record checks for each giver and for everyone this second,
+  /// hellos from relays not yet seen at their address, and for each install signed in here. Each map is kept to so
+  /// many, the one used longest ago let go first.
   final Map<String, _Meter> _meters = {};
   final Map<String, _Checks> _checks = {};
   final _Count _checksNow = _Count();
@@ -608,6 +631,7 @@ class Federation {
   /// allowance between them: a key is free to make.
   String _whoOf(_Link link) => link.url != null ? 'u:${link.url}' : (link.standing && config.standing.contains(link.id) ? 'r:${link.id}' : '*');
 
+  /// The counts for one linked relay, by [_whoOf]; 1024 are kept.
   _Meter _meter(String who) {
     final m = _meters.remove(who) ?? _Meter();
     _meters[who] = m;
@@ -617,6 +641,7 @@ class Federation {
     return m;
   }
 
+  /// The counts for one install signed in here; 50,000 are kept.
   _Sender _sender(String id) {
     final s = _senders.remove(id) ?? _Sender();
     _senders[id] = s;
@@ -634,6 +659,7 @@ class Federation {
   /// install's share; a connection made in this program (a test's, or none) has the place ''.
   final Map<String, _Sender> _origins = {};
 
+  /// The counts for one place; null for a connection that has none.
   _Sender? _origin(String place) {
     if (place.isEmpty) return null;
     final o = _origins.remove(place) ?? _Sender();
@@ -755,6 +781,7 @@ class Federation {
     return rec == null ? m : {...m, 'home': rec.toJson()};
   }
 
+  /// Names asked after by each install, counted here only where there are no handles to count them.
   final Map<String, _Count> _lookups = {};
 
   /// The existing limit on lookups ([Handles.lookupsAnHour]), kept by the handles where there are any.
@@ -796,6 +823,7 @@ class Federation {
     return canonicalHub('wss://$host/hub');
   }
 
+  /// The reasons an app is given with `none`; anything else another relay says for a reason is left out.
   static const _whys = {'off', 'refused', 'down', 'busy'};
 
   /// `{"dir":"whois","name":"maya","at":"relay.example"}`: who has that username on that relay. Asked of it over a
@@ -853,6 +881,8 @@ class Federation {
 
   // --- passing a packet on ----------------------------------------------------------------------------------------------
 
+  /// The relays something waits for, by `u:<address>` or `r:<name>`; what waits from each sender, over all of them;
+  /// and the bytes waiting in all (as counted), and those of them other relays had this one keep.
   final Map<String, _Peer> _peers = {};
   final Map<String, _Share> _waitingFrom = {};
   int _queued = 0;
@@ -867,8 +897,11 @@ class Federation {
   int get links => _links.length;
   bool linkedWith(String relay) => _links.any((l) => l.id == relay && l.socket.isOpen);
 
+  /// Addresses that turned out to be this relay's own when it dialled them ([_isMe]), and when: remembered for
+  /// [believedFor].
   final Map<String, DateTime> _selfUrls = {};
 
+  /// Whether [url], or the place [a] names (an address, or a relay's name where it has none), is this relay.
   bool _isSelfUrl(String url) => url == config.publicHub || _selfUrls.containsKey(url);
   bool _isSelf(HomeAddress a) => a.url != null ? _isSelfUrl(a.url!) : a.relay == id;
 
@@ -878,6 +911,8 @@ class Federation {
   /// A relay with no address, known by its name alone: one that dials this relay and stays linked.
   _Peer? _peerNamed(String relay) => _peer('r:$relay', relay: relay);
 
+  /// The relay waited on under [key], made where there is none yet; null where [maxPeers] are waited on already and
+  /// none of them can go.
   _Peer? _peer(String key, {Uri? url, String? relay}) {
     final had = _peers[key];
     if (had != null) return had;
@@ -891,6 +926,7 @@ class Federation {
     return _peers[key] = _Peer(key, url: url, relay: relay, lastUsed: now, made: now, everLinked: url == null || _linkedOnce.containsKey('$url'));
   }
 
+  /// Whether [peer] said no within [refusedFor].
   bool _refusedNow(_Peer peer) => peer.refusedUntil != null && _now().isBefore(peer.refusedUntil!);
 
   /// Whether [url] was given up on a moment ago: never once linked with, and nothing answered there.
@@ -1055,6 +1091,7 @@ class Federation {
     return null;
   }
 
+  /// Takes [out] from its relay's queue, from every count [_enqueue] put it in, and off the link it was sent on.
   void _dequeue(_Out out) {
     final peer = out.peer;
     if (!peer.queue.remove(out)) return;
@@ -1128,6 +1165,8 @@ class Federation {
     _tell(link, {'fed': 'home', 'rec': rec.toJson()});
   }
 
+  /// Sends [out] on [link] under the link's next number: `[kind][number, 4 bytes][to][from]` (16 bytes each), the
+  /// hosted relay's name for a `[6]`, then the packet. Its sender's record is said first where it has not been.
   void _fly(_Link link, _Out out) {
     _give(link, out.from);
     // To a relay that must itself find where they live (the relay this one stays linked to, or the one theirs does).
@@ -1145,6 +1184,7 @@ class Federation {
     } catch (_) {}
   }
 
+  /// Says [what] on [link] as JSON, where it is still open.
   void _tell(_Link link, Map<String, Object?> what) {
     if (!link.socket.isOpen) return;
     try {
@@ -1239,6 +1279,8 @@ class Federation {
 
   // --- links ------------------------------------------------------------------------------------------------------------
 
+  /// The links open, the hellos under way with relays this one dialled, and the key last seen at each address (base64)
+  /// with when.
   final List<_Link> _links = [];
   final List<_Hello> _hellosOut = [];
   final LinkedHashMap<String, ({String key, DateTime at})> _seenAt = LinkedHashMap();
@@ -1249,6 +1291,7 @@ class Federation {
   final LinkedHashMap<String, DateTime> _dead = LinkedHashMap();
   final LinkedHashMap<String, DateTime> _lookedNo = LinkedHashMap();
 
+  /// Puts [key] in [map] as its newest, and lets the oldest go past [most].
   static void _remember(LinkedHashMap<String, DateTime> map, String key, DateTime at, int most) {
     map.remove(key);
     map[key] = at;
@@ -1257,6 +1300,7 @@ class Federation {
     }
   }
 
+  /// [key] (base64) was seen at [url] just now; 1024 addresses are remembered.
   void _believe(String url, String key) {
     _seenAt.remove(url);
     _seenAt[url] = (key: key, at: _now());
@@ -1303,6 +1347,7 @@ class Federation {
     unawaited(_open(peer, url));
   }
 
+  /// Dials [peer] and listens for its hub's hello ([_helloHeard]); a dial that comes to nothing is [_failed].
   Future<void> _open(_Peer peer, Uri url) async {
     final HubSocket socket;
     try {
@@ -1322,6 +1367,7 @@ class Federation {
     socket.incoming.listen((data) => _helloHeard(hello, data), onDone: () => _helloGone(hello), onError: (_) => _helloGone(hello), cancelOnError: true);
   }
 
+  /// A dialled connection closed: the link it had become is lost, or the hello it never finished has failed.
   void _helloGone(_Hello hello) {
     _hellosOut.remove(hello);
     final link = hello.link;
@@ -1481,6 +1527,7 @@ class Federation {
     }
   }
 
+  /// [link] is closed: what was on it unanswered waits for the next, and names asked on it are answered `down`.
   void _lost(_Link link) {
     if (!_links.remove(link)) return;
     _say('link with ${link.id.substring(0, 6)} closed');
@@ -1549,6 +1596,7 @@ class Federation {
     return key;
   }
 
+  /// The looks under way ([_keyAt]), so that [tick] can close a slow one and [stop] all of them.
   final List<_Look> _looks = [];
 
   /// Another relay's hello, said in place of an app's ([Hub.attach] hands it over): the link is made where it proves
@@ -1559,6 +1607,8 @@ class Federation {
     return end;
   }
 
+  /// Checks the hello of a relay that dialled this one, what costs least first, and answers yes (signed, and the link
+  /// is made) or `{"ok":false,"err":…}` and closes with 4403.
   Future<void> _admit(_In end, Map hello, List<int> nonce) async {
     final socket = end.socket;
     void no(String why) {
@@ -1638,6 +1688,8 @@ class Federation {
     return false;
   }
 
+  /// Something a linked relay said: a packet passed here (binary, [_took]), its answer to one sent it (`ack` or `nak`,
+  /// [_answered]), a ping, a record it gives (`fed: home`), or a username asked or answered (`fed: whois`).
   void _heard(_Link link, Object? data) {
     // Far past anything a link carries: not a relay that keeps the rules, and nothing more is read from it.
     if ((data is List<int> && data.length > Hub.maxPacket + 256) || (data is String && data.length > 65536)) {
@@ -1646,6 +1698,8 @@ class Federation {
     }
     if (data is List<int>) {
       if (data.isEmpty) return;
+      // Before the packet: the kind (1 byte), its number (4), who it is for and from (16 each), 37 in all; a `[6]`
+      // has the name of the relay linked to this one (16) after them.
       if (data[0] == toRelay) return _took(link, data, 37, null);
       if (data[0] == toRelayVia && data.length > 53) return _took(link, data, 53, hexOf(data.sublist(37, 53)));
       return;
@@ -1833,6 +1887,7 @@ class _Count {
   DateTime? _since;
   int _n = 0;
 
+  /// Counts [by] more where that keeps it to [most] in [every]; a stretch that has ended starts again from [now].
   bool take(DateTime now, Duration every, int most, {int by = 1}) {
     if (over(now, every)) {
       _since = now;
@@ -1874,6 +1929,7 @@ class _Sender {
   final bytes = _Count();
   final relays = _Count();
 
+  /// Whether nothing is being counted for it any more.
   bool over(DateTime now) => packets.over(now, const Duration(minutes: 1)) && bytes.over(now, const Duration(days: 1)) && relays.over(now, const Duration(hours: 1));
 }
 
@@ -1907,6 +1963,8 @@ class _Target {
         far = true;
   static const nowhere = _Target._far();
 
+  /// The address to pass it to, or ([named]) the name of a relay that stays linked here; [kind] is the frame's first
+  /// byte, and [relay] the hosted relay a `[6]` names.
   final String? url;
   final String? named;
   final int kind;
@@ -1934,11 +1992,15 @@ class _Link {
 
   /// The relay this one stays linked to (`GHOST_FED_VIA`).
   final bool isVia;
+
+  /// When something last crossed it, and the last number given to a packet or a question on it.
   DateTime used;
   int seq = 0;
 
   /// What was sent on it and is not answered yet, by its number.
   final Map<int, _Out> flying = {};
+
+  /// The names asked on it and not answered yet, by their number.
   final Map<int, _Ask> asked = {};
 
   /// The records said on it, as `name:count:time`.
@@ -1954,15 +2016,21 @@ class _Link {
 /// A relay something waits for: by its hub's address, or for one with no address by its name.
 class _Peer {
   _Peer(this.key, {this.url, this.relay, required this.lastUsed, required this.made, this.everLinked = false});
+  /// `u:<address>` or `r:<name>`, as [Federation._peers] holds it; its hub's address, and its name once known.
   final String key;
   final Uri? url;
   String? relay;
+
+  /// The packets and the names asked that wait for it, and the queue's bytes as counted ([_Out.size]).
   final Queue<_Out> queue = Queue();
   final List<_Ask> asks = [];
   int bytes = 0;
 
   /// What waits for it, by whom it is for.
   final Map<String, _Share> byRecipient = {};
+
+  /// A dial is under way; the dials that failed in a row and when it is next tried ([Federation.backoff]); and until
+  /// when it is left alone, because it said no or because it said this relay is over its limit.
   bool dialling = false;
   int failures = 0;
   DateTime? nextTry;
@@ -1972,6 +2040,8 @@ class _Peer {
   /// How many times in a row it said this relay was over its limit, and whether one packet goes alone to see.
   int limits = 0;
   bool probing = false;
+
+  /// When something was last sent or asked for it: one nothing has used for an hour is forgotten.
   DateTime lastUsed;
 
   /// What installs not established here have sent it lately, all together ([Federation.established]).
@@ -1981,6 +2051,7 @@ class _Peer {
   final DateTime made;
   bool everLinked;
 
+  /// Nothing waits for it and it is not being dialled.
   bool get idle => queue.isEmpty && asks.isEmpty && !dialling;
 }
 
@@ -1992,6 +2063,9 @@ class _Out {
   /// Another relay passed it here to be passed on (a `[6]`, or from a relay that stays linked to this one): not from
   /// someone signed in here.
   final bool forOthers;
+
+  /// The frame's first byte ([Federation.toRelay] or [Federation.toRelayVia]), who it is for and from, the hosted
+  /// relay a `[6]` names, when it was taken, who is told what became of it, and whether they have been.
   final int kind;
   final String to;
   final String from;
@@ -2027,10 +2101,13 @@ class _Ask {
   final String name;
   final DateTime at;
   final void Function(Map) _answer;
+
+  /// Its number on the link it was sent on, whether it has been sent, and whether it has been answered.
   int q = 0;
   bool sent = false;
   bool done = false;
 
+  /// Answers whoever asked, once.
   void answer(Map m) {
     if (done) return;
     done = true;
@@ -2044,10 +2121,15 @@ class _Hello {
   final _Peer peer;
   final HubSocket socket;
   final DateTime deadline;
+
+  /// The number in its hub's hello, the relay's name and key as that hello said them, and the number this relay made
+  /// up for it to sign: all null until the hub's hello is heard.
   List<int>? nonce;
   String? id;
   List<int>? key;
   List<int>? c;
+
+  /// It is finished, one way or the other; and the link it became.
   bool done = false;
   _Link? link;
 }
@@ -2059,6 +2141,7 @@ class _Look {
   final DateTime deadline;
 }
 
+/// The hub's end of a link another relay dialled. Nothing it says is heard until [Federation._admit] has made the link.
 class _In implements FedEnd {
   _In(this._fed, this.socket);
   final Federation _fed;

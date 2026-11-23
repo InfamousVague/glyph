@@ -36,6 +36,7 @@ struct Dev {
 }
 
 impl Dev {
+    /// A node not yet started, whose key is 32 bytes of `n`: each test's devices take numbers of their own.
     fn new(n: u8) -> Dev {
         let (tx, said) = mpsc::unbounded_channel();
         let node = Node::new(&Handle::current(), move |events| {
@@ -47,6 +48,7 @@ impl Dev {
         Dev { node, said, kept: VecDeque::new(), secret, id: node_id(&secret), takes: true }
     }
 
+    /// What it is started with where the test names no link helper.
     fn config(&self) -> Config {
         Config { secret: self.secret, helpers: vec![], helpers_only: false }
     }
@@ -97,6 +99,7 @@ impl Dev {
         all
     }
 
+    /// Starts it, and waits for it to say it is up.
     async fn up(&mut self) {
         self.node.start(self.config());
         self.came_up().await;
@@ -108,6 +111,7 @@ impl Dev {
         self.came_up().await;
     }
 
+    /// Waits for the answer to a start, which must be UP with the id its secret makes.
     async fn came_up(&mut self) {
         let id = self.id;
         match self.next("up", |e| matches!(e, Event::Up { .. } | Event::Down { .. })).await {
@@ -116,6 +120,7 @@ impl Dev {
         }
     }
 
+    /// Stops it, and waits for it to say it is off.
     async fn off(&mut self) {
         self.node.stop();
         self.next("off", |e| matches!(e, Event::Off)).await;
@@ -140,6 +145,7 @@ impl Dev {
         }
     }
 
+    /// Opens a stream to `to` on `channel`, given ten seconds: the stream's number, or why not.
     async fn open(&mut self, request: u32, to: [u8; 32], channel: u8, hint: &Hint) -> Result<u64, (OpenError, String)> {
         self.open_within(request, to, channel, hint, Duration::from_secs(10)).await
     }
@@ -160,6 +166,7 @@ impl Dev {
         }
     }
 
+    /// The next stream another node opened here: its number, who opened it, and on which channel.
     async fn incoming(&mut self) -> (u64, [u8; 32], u8) {
         match self.next("an incoming stream", |e| matches!(e, Event::Incoming { .. })).await {
             Event::Incoming { stream, node, channel } => (stream, node, channel),
@@ -193,6 +200,7 @@ impl Dev {
         self.next("word of what was sent", |e| matches!(e, Event::Sent { stream: s, frames: n } if *s == stream && *n >= frames)).await;
     }
 
+    /// Waits for the path to `of` to be said to be of `kind`; its round trip in milliseconds, where one was said.
     async fn path(&mut self, of: [u8; 32], kind: PathKind) -> Option<u32> {
         match self.next("a path", |e| matches!(e, Event::Path { node, kind: k, .. } if *node == of && *k == kind)).await {
             Event::Path { rtt_ms, .. } => rtt_ms,
@@ -232,6 +240,7 @@ async fn port_is_free(port: u16) -> std::io::Result<()> {
     }
 }
 
+/// An event for a failure's message: a frame by its length, not its bytes.
 fn brief(event: &Event) -> String {
     match event.as_frame() {
         Some((stream, frame)) => format!("Frame({stream}, {} bytes)", frame.len()),
@@ -566,6 +575,7 @@ async fn by_hand(n: u8) -> Endpoint {
     Endpoint::builder(presets::Minimal).secret_key(SecretKey::from_bytes(&[n; 32])).bind().await.expect("an endpoint")
 }
 
+/// A node's address as iroh dials it, from its id and the addresses of a hint.
 fn at(node: [u8; 32], hint: &Hint) -> EndpointAddr {
     EndpointAddr::from_parts(EndpointId::from_bytes(&node).unwrap(), hint.addresses.iter().map(|a| TransportAddr::Ip(a.parse().unwrap())))
 }
@@ -1098,6 +1108,7 @@ async fn a_link_helper_is_asked_nothing_on_port_80() {
 mod cost {
     use super::*;
 
+    /// The node's own count of its traffic so far.
     async fn counted(dev: &Dev) -> (u64, u64, u64) {
         dev.node.traffic().expect("it is up")
     }
@@ -1913,4 +1924,125 @@ async fn android_partner() {
         println!("PARTNER the path to it: {kind:?}");
     }
     me.off().await;
+}
+
+// What the review of Direct's switch found (2026-11-23), each held to here.
+
+/// DISALLOW closes what is listed; an open whose dial was still under way when it came made its link only after, and
+/// that link was carried and its stream handed over, frames and all, from a node no longer allowed. Now the open fails
+/// and its link is closed; and an open asked after the node is allowed again is not held to the disallow before it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_open_under_way_when_its_node_is_disallowed_fails_and_hands_nothing_over() {
+    let (mut a, mut b, hint) = pair(230, 231).await;
+    a.node.allow(b.id, only(&[0]));
+    for round in 0..3u32 {
+        a.node.open(round, b.id, 0, Duration::from_secs(10), hint.clone());
+        a.node.disallow(b.id);
+        let answer = a
+            .next("an answer to the open", |e| matches!(e, Event::Opened { request, .. } | Event::OpenFailed { request, .. } if *request == round))
+            .await;
+        match answer {
+            Event::OpenFailed { why, .. } => assert_eq!(why, OpenError::TurnedAway, "round {round}"),
+            other => panic!("round {round}: the open to a node disallowed while it was dialled came to {other:?}"),
+        }
+        // Whatever the other end took of it is closed, and nothing of it reaches this node's app.
+        if b.comes(Duration::from_millis(500), |e| matches!(e, Event::Incoming { .. })).await {
+            let (theirs, ..) = b.incoming().await;
+            let _ = b.node.send(theirs, b"from a node that was disallowed");
+            assert!(matches!(b.closed(theirs).await, Closed::ByThem | Closed::LinkLost | Closed::NotAllowed), "round {round}");
+        }
+        let handed: Vec<Event> = a.drain().await.into_iter().filter(|e| e.as_frame().is_some() || matches!(e, Event::Incoming { .. })).collect();
+        assert!(handed.is_empty(), "round {round}: handed over after the disallow: {:?}", handed.iter().map(brief).collect::<Vec<_>>());
+        // Allowed again: an open asked now goes.
+        a.node.allow(b.id, only(&[0]));
+        let ours = a.open(100 + round, b.id, 0, &hint).await.unwrap_or_else(|e| panic!("round {round}: allowed again, the open failed: {e:?}"));
+        let (theirs, ..) = b.incoming().await;
+        b.node.send(theirs, b"allowed again").unwrap();
+        assert_eq!(a.frame(ours).await, b"allowed again");
+        a.node.close(ours);
+        a.closed(ours).await;
+        b.closed(theirs).await;
+    }
+}
+
+/// The port a node had on a network is its key's, not the node's: another account signed in on the same device (the
+/// same Node, another node key) asked for the first account's port, so whoever knew where the first was could tell the
+/// second was on the same device. Now each key asks for its own, and the first has its own back.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn another_node_key_on_the_same_node_never_takes_the_port_the_first_had() {
+    let home = b"192.168.40.0/24".to_vec();
+    let free = |port: u16| std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, port)).is_ok();
+    let first = (140..=185u8).find(|n| free(first_port(&[*n; 32], &home))).expect("a key whose port is free");
+    let second = (186..=229u8)
+        .find(|n| free(first_port(&[*n; 32], &home)) && first_port(&[*n; 32], &home) != first_port(&[first; 32], &home))
+        .expect("another key whose port is free");
+    let mut a = Dev::new(first);
+    a.up_on(&home).await;
+    let had = port_of(&a.here().await);
+    a.off().await;
+
+    a.secret = [second; 32];
+    a.id = node_id(&a.secret);
+    a.up_on(&home).await;
+    let theirs = port_of(&a.here().await);
+    assert_ne!(theirs, had, "the second account's node listens on the first account's port");
+    assert_eq!(theirs, first_port(&a.secret, &home));
+    a.off().await;
+
+    a.secret = [first; 32];
+    a.id = node_id(&a.secret);
+    a.up_on(&home).await;
+    assert_eq!(port_of(&a.here().await), had, "the first account did not have its own port back");
+    a.off().await;
+}
+
+/// What is not closed, and cannot be with iroh 1.5 as pinned (README.md, "What a node that links can learn"): a node
+/// that links with this one names addresses of its own in QUIC's hole punching (noq's REACH_OUT and ADD_ADDRESS), and
+/// this node sends a small probe to each, whatever they are: its own loopback here. noq-proto takes any address there;
+/// iroh's transport builder will not turn hole punching off (it ignores fewer than 8 addresses or 9 paths, for the
+/// endpoint and for one connection alike) and hands every IP destination to the socket. Run by name; it passes the day
+/// this node sends nothing there (`cargo test named_probe -- --ignored`).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "iroh 1.5 has no hook to keep hole punching off an address the other end names"]
+async fn a_node_never_sends_a_named_probe_to_its_own_loopback() {
+    for allowed in [false, true] {
+        let mut b = Dev::new(if allowed { 232 } else { 233 });
+        b.up().await;
+        let here: SocketAddr = loop {
+            let (_, addresses) = b.whereabouts().await;
+            if let Some(a) = addresses.iter().filter_map(|a| a.parse::<SocketAddr>().ok()).find(|a| a.is_ipv4()) {
+                break a;
+            }
+        };
+        let target = tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("a socket");
+        let named = target.local_addr().expect("its address");
+        let key = SecretKey::from_bytes(&[if allowed { 234 } else { 235 }; 32]);
+        let other = Endpoint::builder(presets::Minimal)
+            .secret_key(key.clone())
+            .alpns(vec![ALPN.to_vec()])
+            .external_addr(named)
+            .bind()
+            .await
+            .expect("an endpoint");
+        if allowed {
+            b.node.allow(*key.public().as_bytes(), only(&[0]));
+        }
+        let conn = other.connect(EndpointAddr::from_parts(EndpointId::from_bytes(&b.id).unwrap(), [TransportAddr::Ip(here)]), ALPN).await;
+        let mut buf = [0u8; 2048];
+        let got = timeout(Duration::from_secs(10), async {
+            loop {
+                let (n, from) = target.recv_from(&mut buf).await.expect("recv");
+                if from.port() == here.port() {
+                    return n;
+                }
+            }
+        })
+        .await;
+        assert!(got.is_err(), "allowed {allowed}: the node sent {:?} bytes to {named}, which the other end named", got.ok());
+        if let Ok(conn) = conn {
+            conn.close(0u32.into(), b"");
+        }
+        other.close().await;
+        b.off().await;
+    }
 }

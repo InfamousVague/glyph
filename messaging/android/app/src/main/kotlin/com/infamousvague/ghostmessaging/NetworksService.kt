@@ -27,6 +27,7 @@ class NetworksService : Service() {
         private const val CHANNEL = "networks-min"
         private const val NOTIFICATION = 7501
 
+        /** Keeps the app running for the networks in [names], which its notification names; an empty list stops it. */
         fun keep(context: Context, names: List<String>) {
             val i = Intent(context.applicationContext, NetworksService::class.java).putStringArrayListExtra("names", ArrayList(names))
             try {
@@ -65,6 +66,7 @@ class NetworksService : Service() {
         return START_NOT_STICKY
     }
 
+    /** The service's notification: silent, kept off the lock screen, a press opening the app. */
     private fun notification(names: List<String>): Notification {
         val nm = getSystemService(NotificationManager::class.java)
         if (nm.getNotificationChannel(CHANNEL) == null) {

@@ -48,6 +48,7 @@ class _TeamsSignInScreenState extends State<TeamsSignInScreen> {
     }
   }
 
+  /// Asks Microsoft for a device code, copies it, and opens the page it is typed on.
   Future<void> _begin() async {
     final code = await widget.network.begin();
     if (code == null || !mounted) return;

@@ -45,11 +45,13 @@ abstract class UsernameOverlay implements SmsCalls {
   /// The friends by username kept, as their list was last given.
   List<Buddy> get buddyList => _buddies;
 
+  /// The calls this stands in front of, and the file the conversations with friends by username are kept in.
   final SmsCalls inner;
   final File file;
   late final UsernameChats chats;
   List<Buddy> _buddies = const [];
 
+  /// Reads the conversations kept, and the friends by username from where [inner] keeps their list.
   Future<void> load() async {
     try {
       chats.load(jsonDecode(await file.readAsString()) as Map);
@@ -59,6 +61,7 @@ abstract class UsernameOverlay implements SmsCalls {
     } catch (_) {}
   }
 
+  /// Takes the friends' list as JSON; a list that cannot be read is no friends.
   void keepBuddies(String json) {
     try {
       _buddies = [for (final j in jsonDecode(json) as List) ?Buddy.fromJson(j)];
@@ -69,6 +72,7 @@ abstract class UsernameOverlay implements SmsCalls {
 
   Future<void> _last = Future.value();
 
+  /// Writes the conversations, one write after another, each to a new file that then takes the old one's place.
   void _save() {
     final text = jsonEncode(chats.toJson());
     _last = _last.catchError((_) {}).then((_) async {
@@ -96,6 +100,7 @@ abstract class UsernameOverlay implements SmsCalls {
 
   bool _isName(Object? address) => address is String && UsernameChats.isUsername(address);
 
+  /// What this answers of a call, or [pass] for what goes on to [inner].
   Future<Object?> _answer(String method, Map a) async {
     final own = await answerOwn(method, a);
     if (!identical(own, pass)) return own;

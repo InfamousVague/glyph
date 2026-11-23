@@ -20,6 +20,8 @@ export const COMMAND = {
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
+/** The words a /ghost subcommand answers with, doing what it asks on the way: link makes a code, unlink revokes
+ * the server's tokens and waiting codes, status counts its links. */
 export function answer({ sub, guildId, canManage }, { codes, store }) {
   if (!guildId) return 'Use this in a server.';
   if ((sub === 'link' || sub === 'unlink') && !canManage) return 'Only members who can Manage Server can do that.';

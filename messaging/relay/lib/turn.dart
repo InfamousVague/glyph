@@ -29,6 +29,7 @@ class TurnConfig {
   /// until the server asks it to sign in again, so a day.
   final Duration ttl;
 
+  /// Whether a media relay is handed out at all: there is a secret, and an address for it.
   bool get on => secret.isNotEmpty && urls.isNotEmpty;
 
   /// `GHOST_TURN_SECRET`, `GHOST_TURN_URLS` (comma-separated) and `GHOST_TURN_TTL` (seconds), from the relay's
@@ -55,6 +56,8 @@ class TurnConfig {
 /// HMAC (RFC 2104) over SHA-1, which coturn's REST credentials are made with.
 Uint8List hmacSha1(List<int> key, List<int> message) {
   const block = 64;
+  // A key longer than a block is hashed first; then it is padded with zeros to a block, and XORed with 0x36 for the
+  // inner hash and 0x5c for the outer.
   var k = key.length > block ? sha1(key) : Uint8List.fromList(key);
   final padded = Uint8List(block)..setRange(0, k.length, k);
   final inner = Uint8List(block), outer = Uint8List(block);

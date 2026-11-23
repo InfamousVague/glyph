@@ -21,6 +21,7 @@ import '../app_state.dart';
 import '../desktop/link/crypto.dart' show DeskCrypto;
 import 'api.dart';
 
+/// The HTTP server itself: started and stopped by [apply], as the choices in Settings › API change.
 class ApiServer {
   ApiServer._();
   static final ApiServer instance = ApiServer._();
@@ -28,12 +29,15 @@ class ApiServer {
   static const defaultPort = 8765;
 
   HttpServer? _server;
+
+  /// What the server now running was started with (Wi-Fi or not, and the port): started again when that changes.
   String? _servingKey;
 
   /// Where it is served ("127.0.0.1:8765", or the phone's addresses on the network too), null while off; or why not.
   final ValueNotifier<List<String>?> addresses = ValueNotifier(null);
   final ValueNotifier<String?> problem = ValueNotifier(null);
 
+  // The person's choices: served at all (`api_local`), on the network too (`api_lan`), and on which port.
   static bool on(AppState app) => app.flag('api_local', fallback: false);
   static bool lan(AppState app) => app.flag('api_lan', fallback: false);
   static int port(AppState app) => int.tryParse(app.choice('api_port', '')) ?? defaultPort;
@@ -83,6 +87,7 @@ class ApiServer {
     }
   }
 
+  /// Stops serving, closing the connections that are open.
   Future<void> stop() async {
     final s = _server;
     _server = null;
@@ -91,6 +96,8 @@ class ApiServer {
     await s?.close(force: true);
   }
 
+  /// One request: the token checked, then the documentation (GET) or a call (POST), answered as JSON with a status
+  /// to match.
   Future<void> _handle(AppState app, HttpRequest r) async {
     final res = r.response;
     Future<void> send(int status, Object? body) async {

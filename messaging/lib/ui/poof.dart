@@ -35,6 +35,7 @@ class _PoofState extends State<Poof> with SingleTickerProviderStateMixin {
   /// vanishing"): the line goes at once, and [Poof.onDone] is told in the next frame, as it would be at the puff's end.
   bool _vanish = false;
 
+  /// Starts the puff, from its beginning with [restart]; under Dial-Up the line just goes.
   void _go({bool restart = false}) {
     if (isBevelChrome(context.tokens)) {
       if (_vanish) return;

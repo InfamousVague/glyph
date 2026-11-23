@@ -153,6 +153,7 @@ class RelayRecord {
   int madeUp(int now, {int within = 7}) => _sum(now, within, 1);
   int restarts(int now, {int within = 7}) => _sum(now, within, 2);
 
+  /// The count at place [at] of each day's list, summed over the [n] days up to [now].
   int _sum(int now, int n, int at) {
     final from = Ledger.dayOf(now - Duration(days: n - 1).inMilliseconds);
     return days.entries.where((e) => e.key.compareTo(from) >= 0).fold(0, (s, e) => s + (e.value.length > at ? e.value[at] : 0));
@@ -238,7 +239,17 @@ class Ledger extends ChangeNotifier implements SendLog {
       : _store = store,
         _isFriend = isFriend,
         _now = now ?? DateTime.now,
-        _timer = timer ?? Timer.new;
+        _timer = timer ?? Timer.new {
+    _madeAt = nowMs;
+  }
+
+  /// When this ledger began listing (ms). Where the one before it stopped listening while the app went on ([pause]),
+  /// what any friend sent before this is not compared ([load]).
+  late final int _madeAt;
+
+  /// When this ledger stopped listening while the app went on (Direct switched off: [pause]); 0 where it has not. Said
+  /// in what is kept.
+  int _paused = 0;
 
   /// This account's name, and which of its devices this is (`hub_device`).
   final String me;
@@ -271,11 +282,16 @@ class Ledger extends ChangeNotifier implements SendLog {
   static const indexName = 'ldg', relayName = 'ldg_relay';
   static String bookName(String account) => 'ldg.$account';
 
+  /// Each friend's book, by account.
   final Map<String, _Book> _books = {};
 
   /// When this device first knew each friend as one (anything from or to them, a card included): what they sent before
   /// is not compared, as it was not listed (it came before they were a friend here).
   final Map<String, int> _since = {};
+
+  /// The connections this device had to relays, and what the comparisons found of each relay, by its address. Then
+  /// how the ledger stands (read, signed out of, closed), the wait before the next write, the books and whether the
+  /// relay's part changed since the last one, and the friends whose books are written already.
   final List<RelaySession> _sessions = [];
   final Map<String, RelayRecord> _relays = {};
   bool _loaded = false, _wiped = false, _gone = false;
@@ -288,6 +304,7 @@ class Ledger extends ChangeNotifier implements SendLog {
   /// away, and signing out's wipe, so two never write the same file at once (the second review, N5).
   Future<void> _writing = Future.value();
 
+  /// Runs [write] once whatever is being written is done; one that throws does not stop the next.
   Future<void> _inTurn(Future<void> Function() write) {
     final run = _writing.then((_) => write());
     _writing = run.then<void>((_) {}, onError: (Object _) {});
@@ -326,6 +343,7 @@ class Ledger extends ChangeNotifier implements SendLog {
     return friend;
   }
 
+  /// [account]'s book, begun where there is none.
   _Book _book(String account) => _books[account] ??= _Book();
 
   // --- what the switchboard says ------------------------------------------------------------------------------------
@@ -368,6 +386,8 @@ class Ledger extends ChangeNotifier implements SendLog {
     _trim(peer.id, b);
   }
 
+  /// A message put down as missing came after all: counted for its relay's day as made up (and as lost to a restart
+  /// where it was), and where what was put down is a wrong, put down against that relay now.
   void _cameStraight(String account, LedgerMissing m) {
     if (m.relay.isEmpty || _wiped || _gone) return;
     final r = _relays[m.relay] ??= RelayRecord(m.relay);
@@ -428,6 +448,7 @@ class Ledger extends ChangeNotifier implements SendLog {
     _changed(account);
   }
 
+  /// [account]'s book changed: it is written soon, and whoever listens is told.
   void _changed(String account) {
     _dirty.add(account);
     _saveSoon();
@@ -591,8 +612,11 @@ class Ledger extends ChangeNotifier implements SendLog {
   // --- keeping -------------------------------------------------------------------------------------------------------------
 
   /// Reads what is kept. What was listed meanwhile stays, and what is kept is put before it. Nothing kept on another
-  /// device is taken.
-  Future<void> load() async {
+  /// device is taken. Asked again while it reads, it is the same reading.
+  Future<void> load() => _loading ??= _load().whenComplete(() => _loading = null);
+  Future<void>? _loading;
+
+  Future<void> _load() async {
     if (_loaded || _wiped || _gone) return;
     Map? index;
     try {
@@ -600,12 +624,23 @@ class Ledger extends ChangeNotifier implements SendLog {
     } catch (_) {}
     final mine = index != null && index['d'] == device;
     final keptBooks = <String>{};
+    var raise = false;
     if (mine) {
       final since = index['k'];
       if (since is Map) {
         for (final e in since.entries) {
           final at = e.value, had = _since[e.key];
           if (e.key is String && at is int && (had == null || at < had)) _since[e.key as String] = at;
+        }
+      }
+      // The ledger before this one stopped listening while the app went on (Direct was switched off), so what came
+      // since was listed nowhere: from each friend, only what came after this one began is compared. What was listed
+      // stays, and still answers their device's questions.
+      final paused = index['p'];
+      if (paused is int && paused > 0) {
+        raise = true;
+        for (final account in _since.keys.toList()) {
+          if (_since[account]! < _madeAt) _since[account] = _madeAt;
         }
       }
       for (final account in (index['f'] is List ? index['f'] as List : const []).whereType<String>()) {
@@ -654,10 +689,12 @@ class Ledger extends ChangeNotifier implements SendLog {
     for (final account in _books.keys.toList()) {
       _trim(account, _books[account]!);
     }
-    if (!mine && index != null) _saveSoon();
+    // (What is kept is written again without the mark, with each friend's horizon where it now is.)
+    if ((!mine && index != null) || raise) _saveSoon();
     if (!_gone) notifyListeners();
   }
 
+  /// Writes what changed [saveAfter] from now, unless a write waits already.
   void _saveSoon() {
     if (!_loaded || _saving != null || _wiped || _gone) return;
     _saving = _timer(saveAfter, () {
@@ -698,7 +735,7 @@ class Ledger extends ChangeNotifier implements SendLog {
         if (!dirty.contains(gone)) await _store.write(bookName(gone), '');
       }
       if (_wiped) return;
-      await _store.write(indexName, jsonEncode({'d': device, 'f': books.toList(), 'k': _since}));
+      await _store.write(indexName, jsonEncode({'d': device, 'f': books.toList(), 'k': _since, if (_paused > 0) 'p': _paused}));
       _keptBooks = books;
       if (_relayDirty) {
         _relayDirty = false;
@@ -747,6 +784,20 @@ class Ledger extends ChangeNotifier implements SendLog {
       if (j is Map && j['f'] is List) friends = j['f'] as List;
     } catch (_) {}
     return [for (final account in friends.whereType<String>()) bookName(account), indexName, relayName];
+  }
+
+  /// Direct was switched off, and the ledger goes with the direct route (lib/net/net.dart) while the app goes on:
+  /// what comes from now until a ledger is made again is listed nowhere. Said at once in what is kept, so that the next
+  /// ledger to [load] it compares only what came after it began, and never takes what came meanwhile, unlisted, for
+  /// something the relay dropped. What was listed stays, and so does what was found of each relay.
+  Future<void> pause() async {
+    // (Switched off while what is kept was still being read: once it has been, or the mark would be written over.)
+    try {
+      await load();
+    } catch (_) {}
+    if (!_loaded || _wiped || _gone) return;
+    _paused = nowMs;
+    await flush();
   }
 
   /// The app is closing: what changed is written, and nothing more is listed.
@@ -806,6 +857,8 @@ class LedgerCheck extends ChangeNotifier {
         _now = now ?? DateTime.now,
         _timer = timer ?? Timer.new;
 
+  /// The ledger written in, the routes and the direct network compared over, and the relay's route as it is now (null
+  /// while there is none).
   final Ledger ledger;
   final Switchboard board;
   final P2p p2p;
@@ -854,8 +907,12 @@ class LedgerCheck extends ChangeNotifier {
   /// How many `ldg` messages were refused for being too big or too many.
   int refused = 0;
 
+  /// The friends' devices linked now ("account nodeId"), and the wait before each is compared with again.
   Set<String> _links = {};
   final Map<String, Timer> _again = {};
+
+  /// When a `sum` was last sent to, and weighed from, each device (by node id); and for each account, when its sums and
+  /// difs were weighed and things were sent it again, within the hour ([_mayHave]).
   final Map<String, int> _sumSent = {}, _sumHeard = {};
   final Map<String, List<int>> _sums = {}, _difs = {}, _sentAgain = {};
   final Map<String, int> _goneSaid = {}, _goneRun = {};
@@ -873,6 +930,7 @@ class LedgerCheck extends ChangeNotifier {
   /// When "Check now" was last pressed (ms; 0 never).
   int get checkedNow => _checkedNow;
 
+  /// Begins hearing what comes, the direct links and the routes, and sets the first round that runs by itself.
   void start() {
     if (_started) return;
     _started = true;
@@ -884,6 +942,7 @@ class LedgerCheck extends ChangeNotifier {
     _roundSoon();
   }
 
+  /// Stops hearing all of it, and drops every wait.
   Future<void> stop() async {
     if (!_started) return;
     _started = false;
@@ -902,8 +961,10 @@ class LedgerCheck extends ChangeNotifier {
 
   // --- this device's connection to the relay ---------------------------------------------------------------------------
 
+  /// The routes changed: the relay's route may be another one now.
   void _routesChanged() => _follow(_relay());
 
+  /// Listens to [hub]'s state in place of the one listened to before.
   void _follow(HubCarrier? hub) {
     if (identical(hub, _hub)) return;
     _hub?.state.removeListener(_relayState);
@@ -915,6 +976,8 @@ class LedgerCheck extends ChangeNotifier {
   /// The relay's connection came or went: what it heard is put down in the ledger.
   void _relayState() => _noteRelay();
 
+  /// Puts this device's connection to the relay in the ledger, once it has signed in: the relay's address, when it
+  /// signed in, when it last heard anything, and when the relay said it started.
   void _noteRelay() {
     final hub = _hub;
     if (hub != null && hub.signedInAt > 0) ledger.relay(hub.url, hub.signedInAt, hub.heardAt, started: hub.relayStartedAt);
@@ -922,6 +985,8 @@ class LedgerCheck extends ChangeNotifier {
 
   // --- links -----------------------------------------------------------------------------------------------------------------
 
+  /// The direct network changed: each friend's device newly linked is compared with, and the wait of each no longer
+  /// linked is dropped. This account's own devices are not compared with.
   void _linksChanged() {
     if (!_started) return;
     final now = <String>{};
@@ -971,10 +1036,13 @@ class LedgerCheck extends ChangeNotifier {
     _quietly(board.sendOn(peer, Envelope(kind: kind, body: body, ack: false), via: p2p.carrier.id, line: line));
   }
 
+  /// Runs [work] without waiting for it; what goes wrong in it stays in it.
   static void _quietly(Future<Object?> work) => unawaited(work.then((_) {}, onError: (Object _) {}));
 
   // --- what comes ---------------------------------------------------------------------------------------------------------
 
+  /// What a route brought. An `ldg` envelope is weighed only where it came sealed, by the direct route, on a stream
+  /// proved to be a friend's device's: a `sum` or a `dif`.
   void _received(Received r) {
     // Something came: what this device's connection to the relay last heard is kept up to date, so what is kept of it
     // after the app starts again is no older than the last thing that came.
@@ -1006,8 +1074,12 @@ class LedgerCheck extends ChangeNotifier {
     return true;
   }
 
+  /// Whether [x] could be an envelope's name: a string, not empty, no longer than [Ledger.longestId].
   static bool _id(Object? x) => x is String && x.isNotEmpty && x.length <= Ledger.longestId;
 
+  /// Weighs a `sum` from [account]'s device at [nodeId]: what it says it sent is held against what came here (matched,
+  /// or put down as missing and asked for), what it says came there against what was sent, and what it says of its
+  /// connection to the relay against whom the relay says is here.
   void _sum(Received r, String account, String nodeId, Map<String, dynamic> body) {
     final w = body['w'], s = body['s'], g = body['g'], h = body['h'];
     // Refused whole: anything that is not what a sum is, or bigger than a ledger keeps.
@@ -1110,6 +1182,7 @@ class LedgerCheck extends ChangeNotifier {
     return 'made';
   }
 
+  /// Whether [a] and [b] are one relay's address, letter case and slashes at the end aside.
   static bool _sameRelay(String a, String b) {
     String tidy(String u) {
       var t = u.trim().toLowerCase();
@@ -1122,6 +1195,8 @@ class LedgerCheck extends ChangeNotifier {
     return tidy(a) == tidy(b);
   }
 
+  /// Answers a `dif`: what [account]'s device says never came, that this device did send it and still holds, is sent
+  /// again on the stream that asked.
   void _dif(Received r, String account, Map<String, dynamic> body) {
     final want = body['want'];
     if (want is! List || want.length > mostWant || !want.every(_id) || !_mayHave(_difs, account, difsAnHour)) {
@@ -1206,6 +1281,8 @@ class LedgerCheck extends ChangeNotifier {
     return dialled;
   }
 
+  /// Sets the next round that runs by itself ([_roundNow]), and the one after it: [roundsComputer] apart on a
+  /// computer, [roundsPhone] on a phone.
   void _roundSoon() {
     _round?.cancel();
     if (!_started) return;

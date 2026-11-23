@@ -102,6 +102,7 @@ abstract class Carrier {
   /// Why it is down, in words to show; null while it is not.
   String? get problem;
 
+  /// Starts it (dialling, listening) and stops it; [state] says how it stands after.
   Future<void> start();
   Future<void> stop();
 

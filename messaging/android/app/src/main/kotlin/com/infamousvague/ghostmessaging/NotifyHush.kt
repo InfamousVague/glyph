@@ -16,12 +16,16 @@ import java.util.regex.Pattern
  * test/notify_hush_vectors.json. Before the app has written them (its first start) nothing is held back.
  */
 object NotifyHush {
+    /** The key the rules are kept under in the "ui" preferences. */
     const val PREF = "notify_hush"
 
+    // The rules as last read, and the text they were read from: read again only when that changes. Each pattern is
+    // compiled once.
     private var parsedFrom: String? = null
     private var parsed: JSONObject? = null
     private val patterns = HashMap<String, Pattern?>()
 
+    /** The rules [raw] holds; null where there are none yet or they cannot be read. */
     private fun rules(raw: String?): JSONObject? {
         if (raw.isNullOrBlank()) return null
         if (raw != parsedFrom) {
@@ -38,6 +42,7 @@ object NotifyHush {
         }
     }
 
+    /** Whether the pattern is found anywhere in [text]; never where it could not be read. */
     private fun has(source: String, text: String) = pattern(source)?.matcher(text)?.find() == true
 
     /** A word or pattern of its own, never part of a longer word: TextKind._re's wrap, and spam.dart's _hasWord. */
@@ -67,6 +72,8 @@ object NotifyHush {
         if (s.optJSONArray("neverWords").strings().any { word(it, text) }) return false
         if (listed(senders, s.optJSONArray("alwaysSenders").strings())) return true
         if (s.optJSONArray("alwaysWords").strings().any { word(it, text) }) return true
+        // Otherwise by its signs: each one found counts one (a strong one two, where that is on), against what is
+        // needed. A short code is a sender of four to six digits.
         val short = senders.any { Regex("^\\d{4,6}$").matches(it.replace(Regex("[\\s-]"), "")) }
         val double = s.optBoolean("strongDouble", true)
         var score = 0
@@ -100,6 +107,8 @@ object NotifyHush {
         if (!stranger || text.isBlank()) return false
         // A sign-in code is the Codes section's, asked before any kind.
         if (Notifier.otp(text) != null) return false
+        // A conversation from a linked network (not a text) has a thread number at or below minus 2^40. Each set of
+        // rules says whether it looks at groups and at networks.
         val network = thread <= -(1L shl 40)
         fun looks(o: JSONObject) = !(group && !o.optBoolean("groups", true)) && !(network && !o.optBoolean("networks", true))
         val spam = if (rules.isNull("spam")) null else rules.optJSONObject("spam")

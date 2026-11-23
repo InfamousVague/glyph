@@ -101,6 +101,7 @@ class _RecordingPlaybackDrawerState extends State<RecordingPlaybackDrawer> {
     super.dispose();
   }
 
+  /// Pauses what is playing and closes the drawer.
   void _close() {
     unawaited(_p.pause());
     final nav = Navigator.of(context);
@@ -267,6 +268,7 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
   double _viewStart = 0;
   bool _saving = false;
 
+  /// [_mixLevels] brought up to the steps [rec] has now, each at most 1; started over where the mix has changed.
   List<double> _mixed(RecordingDesk rec) {
     final levels = rec.meter.levels;
     final n = _stepsOf(levels);
@@ -286,6 +288,7 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
     return _mixLevels;
   }
 
+  /// Stops the call's recording and says where it was saved, with a way to the recordings' page.
   Future<void> _stop() async {
     if (_stopping) return;
     setState(() => _stopping = true);
@@ -605,6 +608,7 @@ class _TrackHeader extends StatelessWidget {
   }
 }
 
+/// A round button in the panel's header: an icon, with [text] before it where there is room for a word.
 class _ToolButton extends StatelessWidget {
   const _ToolButton({super.key, required this.icon, required this.label, required this.onPressed, this.text});
   final LucideIcon icon;
@@ -653,6 +657,7 @@ class _TimelinePainter extends CustomPainter {
   final TextStyle label;
   final TextStyle clipLabel;
 
+  /// Where a moment of the recording is across the painting, in points from its left edge.
   double _x(double second) => (second - start) * perSecond;
 
   @override
@@ -791,6 +796,7 @@ Color _colourOf(Tokens t, String key) {
   return PluginHues.of(t.child(attrs: {'theme': 'dark'}), hueFor(key)).accent;
 }
 
+/// How many steps the longest track has.
 int _stepsOf(Map<String, List<double>> levels) => levels.values.fold<int>(0, (n, l) => l.length > n ? l.length : n);
 
 /// A level as it is drawn: speech sits low on a straight scale, so it is lifted (a square root) as editors draw it.

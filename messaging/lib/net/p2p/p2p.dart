@@ -245,18 +245,29 @@ class P2p extends ChangeNotifier {
   /// The route that carries packets over the direct network.
   late final P2pCarrier carrier;
 
+  /// The node key, the node id it makes and this device's card, once read ([load]); the cards held, by account; and
+  /// what each account was told.
   Uint8List? _key;
   String? _nodeId;
   DeviceCard? _card;
   final Map<String, List<P2pDevice>> _cards = {};
   final Map<String, _Told> _told = {};
+
+  /// The friends and this account's own devices (as one peer) as last read ([refresh]), and the nodes the core has
+  /// been told to let in ([_allow]).
   Map<String, Peer> _friendsNow = const {};
   Peer? _minePeer;
   final Set<String> _allowed = {};
+
+  /// The link helpers and the "Only through link helpers" choice; and whether the relay, or the person, has said
+  /// either since the app started: what is kept of each is read only until then ([load]).
   List<String> _helpers = const [];
   bool _helpersSaid = false;
   bool _helpersOnly = false;
   bool _helpersOnlySaid = false;
+
+  /// How this stands: what is kept has been read (and the read under way), Direct is on, the person is Invisible, the
+  /// app is put away, it has been shut down ([shutdown]), it has been signed out of ([wipe]).
   bool _loaded = false;
   Future<void>? _loading;
   bool _on = false;
@@ -265,11 +276,14 @@ class P2p extends ChangeNotifier {
   bool _gone = false;
   bool _wiped = false;
 
+  /// The switchboard heard and spoken through ([attach]), and whether the relay's route was up when last looked.
   Switchboard? _board;
   StreamSubscription<Received>? _heard;
   StreamSubscription<P2pPath>? _paths;
   bool _relayWasUp = false;
 
+  /// What the node was last started with, and the start under way; whether it could not start, and why; how many
+  /// things under way need it ([busy]); the waits; and whether a telling is under way, and another wanted after it.
   P2pConfig? _running;
   Future<void>? _starting;
   bool _failed = false;
@@ -552,6 +566,7 @@ class P2p extends ChangeNotifier {
     _watchRelay();
   }
 
+  /// The friends whose keys are held, by name; as they were last read where they can't be asked now.
   Map<String, Peer> _readFriends() {
     try {
       return {for (final p in _friends()) if (p.key != null && p.id != me) p.id: p};
@@ -602,6 +617,7 @@ class P2p extends ChangeNotifier {
     _quietly(_tell());
   }
 
+  /// Drops the cards held that have run out; whether any went.
   bool _dropRunOut() {
     final now = nowMs;
     var changed = false;
@@ -700,12 +716,14 @@ class P2p extends ChangeNotifier {
   /// by.
   bool get _through => _throughRoutes.any((c) => c.state.value == CarrierState.up);
 
+  /// The routes cards and meets may go by: not this one, not switched off, not metered, and not for small packets only.
   Iterable<Carrier> get _throughRoutes {
     final board = _board;
     if (board == null) return const [];
     return board.carriers.where((c) => c.id != carrier.id && !board.off.contains(c.id) && !c.traits.metered && c.traits.maxPacket > Switchboard.smallRoute);
   }
 
+  /// Whether the relay's route (`hub`) is up.
   bool get _relayUp => _board?.carrier('hub')?.state.value == CarrierState.up;
 
   /// Says [body] to [peer], sealed, by a route that is not this one. False where none took it, or this device has
@@ -731,6 +749,8 @@ class P2p extends ChangeNotifier {
     }
   }
 
+  /// Whether the relay says a device of [account]'s is connected now; true where there is no relay to ask, or asking
+  /// throws.
   bool _isHere(String account) {
     final present = _present;
     if (present == null) return true;
@@ -828,6 +848,7 @@ class P2p extends ChangeNotifier {
     }
   }
 
+  /// Notes, and keeps, that [account] was told the card named [tag] just now.
   void _wasTold(String account, String tag, {int asked = 0, int asks = 0}) {
     if (!_loaded) return;
     _told[account] = _Told(tag, nowMs, asked, asks);
@@ -855,6 +876,7 @@ class P2p extends ChangeNotifier {
     _watchRelay();
   }
 
+  /// Stops hearing the board [attach] gave.
   void detach() {
     _heard?.cancel();
     _heard = null;
@@ -862,6 +884,8 @@ class P2p extends ChangeNotifier {
     _board = null;
   }
 
+  /// What a route brought. Only a sealed `p2p` envelope from one of this account's own devices or a friend's, come by
+  /// a route that carries big packets, is acted on: a `card`, a `card?` or a `meet`.
   void _received(Received r) {
     final e = r.envelope;
     if (e.kind != kind || !r.sealed || _gone || _wiped) return;
@@ -1026,8 +1050,10 @@ class P2p extends ChangeNotifier {
     }
   }
 
+  /// Whether the IPv4 address [b] is one another device can be at: not 0/8, loopback, link-local, multicast or 240/4.
   static bool _reachable4(List<int> b) => b[0] != 0 && b[0] != 127 && !(b[0] == 169 && b[1] == 254) && b[0] < 224;
 
+  /// The same of the sixteen bytes of an IPv6 address.
   static bool _reachable6(List<int> b) {
     // ::ffff:a.b.c.d (mapped) and ::a.b.c.d (compatible, ::1 and :: among them): the IPv4 address inside decides.
     final zeros = b.sublist(0, 10).every((x) => x == 0);
@@ -1127,6 +1153,7 @@ class P2p extends ChangeNotifier {
 
   // --- when the node runs ---------------------------------------------------------------------------------------------------
 
+  /// What the node is started with now: its key, the link helpers, and the "Only through link helpers" choice.
   P2pConfig _config() => P2pConfig(secret: _key!, helpers: _helpers, helpersOnly: _helpersOnly);
 
   /// Brings the node up where it is not, with the link helpers and the choices of now: asked for by this device, so a
@@ -1147,6 +1174,7 @@ class P2p extends ChangeNotifier {
     }
   }
 
+  /// Starts the node with [config] and waits until it is up or has not started, [P2pPolicy.dialFor] at most.
   Future<void> _start(P2pConfig config) async {
     _running = config;
     // Waited for until it has answered and is no longer starting, and no longer than a dial may take whatever the
@@ -1222,6 +1250,7 @@ class P2p extends ChangeNotifier {
     return done.future;
   }
 
+  /// The node's state changed: up, a failure held is cleared; down, why is noted and it is tried again after a while.
   void _nodeState() {
     if (_gone) return;
     switch (nodeState) {
@@ -1243,6 +1272,8 @@ class P2p extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The wait after a node that could not start is over: the failure is cleared, so the next thing that wants the
+  /// node starts it, and a computer's is started at once.
   void _again() {
     _retry = null;
     if (!_failed) return;
@@ -1380,6 +1411,8 @@ class P2p extends ChangeNotifier {
     if (state == P2pState.up || state == P2pState.starting) unawaited(up().then((_) {}, onError: (Object _) {}));
   }
 
+  /// The board's routes changed. Only the relay's coming up or going matters here: the network is looked at again,
+  /// and what waited for it is told (come up) or the wait to reach out without it starts (gone).
   void _routesChanged() {
     final up = _relayUp;
     if (up == _relayWasUp) return;
@@ -1407,6 +1440,7 @@ class P2p extends ChangeNotifier {
     });
   }
 
+  /// Brings the node up and dials the devices that said where they are and are not linked ([_watchRelay]).
   Future<void> _reachOut() async {
     // This account's own devices first, then friends', each by when it was last heard from; only those that said
     // where they are, and no more than a handful at once.
@@ -1464,6 +1498,7 @@ class P2p extends ChangeNotifier {
   /// The seal on [cards] as this device keeps them: an HMAC under a key made from its node key [key].
   static String _seal(Uint8List key, String cards) => NetCrypto.hex(NetCrypto.hmac(NetCrypto.derive(key, 'p2p kept cards'), utf8.encode(cards)));
 
+  /// Keeps what was told to whom (`p2p_told`).
   void _saveTold() {
     if (!_loaded) return;
     unawaited(_keep(_plain, toldName, jsonEncode({for (final e in _told.entries) e.key: e.value.toJson()})).catchError((Object _) {}));
@@ -1544,6 +1579,7 @@ class P2p extends ChangeNotifier {
     }
   }
 
+  /// Cancels every wait held.
   void _stopTimers() {
     for (final t in [_idle, _relayTimer, _retry, _due, _askTimer]) {
       t?.cancel();
@@ -1551,8 +1587,12 @@ class P2p extends ChangeNotifier {
     _idle = _relayTimer = _retry = _due = _askTimer = null;
   }
 
-  /// The app is closing, or the routes are being set up anew: the node is stopped and nothing more is heard. What is
-  /// kept stays.
+  /// The app is closing, the routes are being set up anew, or Direct was switched off: the node is stopped, nobody it
+  /// let in is let in any more, and nothing more is heard. What is kept stays.
+  ///
+  /// Nobody is left let in because the node outlives this: the app keeps one node for as long as it runs, and the
+  /// direct network made again when Direct is switched on again holds the same one, where who is allowed outlives a
+  /// stop and a start (node.dart). A friend removed while Direct was off was let in by the core still.
   Future<void> shutdown() async {
     _gone = true;
     _loaded = false;
@@ -1563,6 +1603,12 @@ class P2p extends ChangeNotifier {
     carrier.closeAll();
     await carrier.dispose();
     await _stop();
+    for (final n in _allowed.toList()) {
+      try {
+        node.disallow(n);
+      } catch (_) {}
+    }
+    _allowed.clear();
   }
 }
 

@@ -32,6 +32,8 @@ class SoundboardScreen extends StatelessWidget {
   /// Chooses a clip to add: its path, or null where none was. Null: this device's own picker.
   final Future<String?> Function()? pickClip;
 
+  /// The circle whose sounds these are: the one given, else the call's space's; as Circles holds it now, so a sound
+  /// added or taken away shows.
   Circle? get _circle {
     final c = circle ?? (space == null ? null : Circles.instance.circleOf(space!));
     return c == null ? null : Circles.instance.bySeed(c.seed) ?? c;
@@ -111,6 +113,7 @@ class SoundboardScreen extends StatelessWidget {
     );
   }
 
+  /// Chooses a clip, refuses one that isn't an audio file or is over [boardClipMost], and goes on to naming it.
   Future<void> _add(BuildContext context, Circle c) async {
     String? path;
     try {
@@ -126,6 +129,7 @@ class SoundboardScreen extends StatelessWidget {
     await push<void>(context, (_) => SoundNameScreen(circle: c, path: path!));
   }
 
+  /// A long press on one of the circle's own sounds: name it again, or take it away.
   void _menu(BuildContext context, Circle c, BoardSound s) => showChoices(context, title: '${s.emoji}  ${s.name}', choices: [
         Choice('Name it again', Lucide.pencil, () => push<void>(context, (_) => SoundNameScreen(circle: c, sound: s))),
         Choice('Take it away', Lucide.trash2, () async {
@@ -135,6 +139,7 @@ class SoundboardScreen extends StatelessWidget {
       ]);
 }
 
+/// A heading over a group of pads, in small capitals, with a line of smaller words under it where there are any.
 class _Heading extends StatelessWidget {
   const _Heading(this.words, {this.hint});
   final String words;
@@ -170,6 +175,7 @@ class _Pads extends StatelessWidget {
   }
 }
 
+/// One pad: a sound's emoji over its name, or ([_Pad.add]) the pad that adds a sound.
 class _Pad extends StatelessWidget {
   const _Pad({super.key, required BoardSound this.sound, required this.onPress, this.onLong});
   const _Pad.add({super.key, required this.onPress})
@@ -217,6 +223,7 @@ class SoundNameScreen extends StatefulWidget {
   final String? path;
   final BoardSound? sound;
 
+  /// The faces a sound can be given; the first is a new sound's.
   static const emoji = ['🔊', '😂', '🎺', '🐐', '💀', '🔥', '👻', '🎵', '🙌', '😱', '🤡', '💥', '🚨', '🐸', '❤️', '👋'];
 
   /// A clip's name from its file's: "wow-what.mp3" is "Wow what".
@@ -244,6 +251,7 @@ class _SoundNameScreenState extends State<SoundNameScreen> {
     super.dispose();
   }
 
+  /// Renames a sound that is there already, or adds the clip under this name and face; says why where it couldn't.
   Future<void> _save() async {
     if (_busy) return;
     final name = _name.text.trim();

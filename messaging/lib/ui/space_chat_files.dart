@@ -187,6 +187,7 @@ class _PictureState extends State<_Picture> {
     }
   }
 
+  /// The picture's file: from the store's cache if it is there, else brought down, unless it is over [autoFetchMost].
   void _bring() {
     final f = widget.file;
     if (!drawsPicture(f)) return;
@@ -424,6 +425,7 @@ class SpaceOutgoing extends StatelessWidget {
   }
 }
 
+/// Words to press under a message that has not gone: "Try again", "Don't send".
 class _Link extends StatelessWidget {
   const _Link({super.key, required this.label, required this.onPressed});
   final String label;
@@ -477,6 +479,7 @@ class SpacePickedStrip extends StatelessWidget {
     );
   }
 
+  /// A square for a file that is not drawn as a picture: its kind's badge over its name.
   Widget _named(Tokens t, double side, FileKind kind, String name) => Container(
         width: side,
         height: side,

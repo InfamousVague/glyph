@@ -122,7 +122,7 @@ adb reverse tcp:8080 tcp:8080    # then load http://127.0.0.1:8080/yours.ghostpl
 <p>Loading can be refused for reasons outside the file too: <code>too_many_packs</code> (sixteen plugins on the device already), <code>id_installed</code> (the Marketplace's copy of that id is here), <code>id_changed</code> (a reload with another id), <code>bad_link</code> and <code>fetch_failed</code> (a link that isn't allowed, or didn't answer), and <code>dev_mode_off</code>.</p>
 
 <h2 id="api">From your computer, through the API</h2>
-<p>With the phone plugged in by USB and <ui>Settings › API › Serve the API</ui> on (<a href="/docs/developer/">Developer API</a>), a script can load, try and remove plugins in development:</p>
+<p>With the phone plugged in by USB and <ui>Settings › API › Serve the API</ui> on (<a href="/docs/developer/app-api/">Developer API</a>), a script can load, try and remove plugins in development:</p>
 <pre><code>adb forward tcp:8765 tcp:8765
 
 # Load it: the file's JSON as "pack" (or its words as a string, "text")

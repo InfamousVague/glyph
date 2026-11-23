@@ -15,6 +15,8 @@ class LucideIcon {
 
   /// Lucide's own name for it: the class its svg wears on the page, less `lucide-`, and the key in the docs' pages.
   final String name;
+
+  /// A stroked drawing's paths on the 24 grid, and which of them wear the wash, by their place (icon_wash.dart).
   final List<String> shapes;
   final List<int> wash;
 
@@ -79,6 +81,7 @@ Color inkAt(BuildContext context) =>
 class DrawnIconPainter extends CustomPainter {
   const DrawnIconPainter({required this.strokes, required this.washed, required this.color, required this.strokeWidth, this.viewBox = 24, this.evenOdd = false, this.filled = false, this.fills = const [], this.washAlpha, this.cut = const []});
 
+  /// SVG paths, as written: those drawn as lines, and those filled with the wash under them.
   final List<String> strokes;
   final List<String> washed;
 

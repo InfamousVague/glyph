@@ -80,6 +80,7 @@ class Invites {
   static const anHour = 40;
   static const aDay = 120;
 
+  // A number's hash or an invite's tag (SHA-256 in hex), and a sealed invite's characters (base64, either alphabet).
   static final _hash = RegExp(r'^[0-9a-f]{64}$');
   static final _base64 = RegExp(r'^[A-Za-z0-9+/=_-]+$');
 
@@ -92,6 +93,7 @@ class Invites {
 
   int _bytes = 0;
 
+  /// How many invites wait, for every number together.
   int get waiting => _waiting.values.fold(0, (n, l) => n + l.length);
 
   /// The bytes of sealed invites held.
@@ -102,12 +104,14 @@ class Invites {
     if (verbose) stdout.writeln('${_now().toIso8601String()} invites $what');
   }
 
+  /// What an invite keeps of who left it (`w`): a hash of the sender with the number [h], for [maxFromOne] to count by.
   static String _sender(String who, String h) => hexOf(sha256(utf8.encode('ghost-invite-from v1|$who|$h'))).substring(0, 32);
 
   // --- what is kept ---------------------------------------------------------------------------------------------------
 
   File? get _file => dataDir == null ? null : File('${dataDir!.path}/invites.json');
 
+  /// Reads invites.json as the hub starts, keeping only entries of the right shape, and drops those past [life].
   void load() {
     final file = _file;
     try {
@@ -143,6 +147,8 @@ class Invites {
     } catch (_) {}
   }
 
+  // The write under way, which the next waits for; and the number of the newest write asked for, by which an older
+  // one still under way knows to stop.
   Future<void>? _saving;
   int _written = 0;
 
@@ -177,6 +183,7 @@ class Invites {
   /// Forgets invites past [life], and the counts past a day; saves where anything changed, and is done once saved.
   Future<void> sweep() => _sweepNow() ? _saveSoon() : (_saving ?? Future.value());
 
+  /// The forgetting itself; whether there is anything to save (from this, or from a change since the last save).
   bool _sweepNow() {
     final now = _now();
     final cutoff = now.subtract(life).millisecondsSinceEpoch;
@@ -207,6 +214,7 @@ class Invites {
     void err(String why) => tell({'dir': 'err', 'about': dir, 'err': why});
     switch (dir) {
       case 'invite':
+        // Leaves sealed invites for numbers, each by the number's hash.
         final list = said['list'];
         if (list is! List || list.isEmpty || list.length > maxAtOnce) return err('Send between one and $maxAtOnce invites at a time.');
         // Someone, not a key: a key made a moment ago would otherwise start every count again.
@@ -257,6 +265,7 @@ class Invites {
         _changed();
         _say('${id.substring(0, min(6, id.length))} left $kept of ${good.length}');
         tell({'dir': 'invite', 'left': kept});
+      // 'invites' lists what waits for the number this install verified; 'invites-drop' removes those it has taken.
       case 'invites':
       case 'invites-drop':
         final h = said['h'];

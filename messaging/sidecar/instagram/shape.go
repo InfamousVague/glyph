@@ -68,11 +68,13 @@ func personID(fbid int64) string {
 	return strconv.FormatInt(fbid, 10)
 }
 
+// parsePersonID reads a person's id back into Instagram's number; 0 where it is not one.
 func parsePersonID(id string) int64 {
 	n, _ := strconv.ParseInt(strings.TrimSpace(id), 10, 64)
 	return n
 }
 
+// userName is what to call a person: their full name, else their username; "" for nobody.
 func userName(u *slidetypes.User) string {
 	if u == nil {
 		return ""
@@ -200,6 +202,7 @@ func ms(unixMilli int64) int64 {
 	return unixMilli
 }
 
+// nullable is [s], or JSON's null where it is empty.
 func nullable(s string) any {
 	if s == "" {
 		return nil
@@ -299,6 +302,8 @@ func mediaItem(address, kind, name string, width, height int) map[string]any {
 	return item
 }
 
+// attachmentKind is whether an attachment is a "video" or an "image": by what Instagram calls it, else by the
+// ending of its address, else [fallback].
 func attachmentKind(att *slidetypes.Attachment, fallback string) string {
 	if att.DashManifest != "" || strings.Contains(att.Typename, "Video") {
 		return "video"
@@ -314,6 +319,7 @@ func attachmentKind(att *slidetypes.Attachment, fallback string) string {
 	return fallback
 }
 
+// noun is what a kind of media is called in the words for one this app cannot show.
 func noun(kind string) string {
 	switch kind {
 	case "video":
