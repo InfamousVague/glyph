@@ -429,6 +429,10 @@ open class MainActivity : FlutterActivity() {
                 "identityImport" -> bg { E2e.importScalar(applicationContext, call.argument<ByteArray>("scalar")!!, call.argument<ByteArray>("public")!!); Bus.changed(-1); null }
                 "secretKeep" -> bg { AccountVault.keep(applicationContext, call.argument<String>("name")!!, call.argument<String>("value") ?: ""); null }
                 "secretRead" -> bg { AccountVault.read(applicationContext, call.argument<String>("name")!!) }
+                // The app's own lock (AppLock.kt, GMFB-46): the fingerprint or face, and the app switcher kept blank.
+                "lockBioCan" -> result.success(AppLock.canBiometric(this))
+                "lockBioAsk" -> AppLock.askBiometric(this, call.argument<String>("reason") ?: "Unlock Ghost Messaging") { ok -> try { result.success(ok) } catch (_: Exception) {} }
+                "lockSecure" -> { AppLock.secure(this, call.argument<Boolean>("on") ?: false); result.success(null) }
                 "restartApp" -> {
                     // Every choice on the disk first (an empty commit writes what apply() still holds), then this task
                     // started again and the process ended, so the new identity is read from nothing.
@@ -712,6 +716,9 @@ open class MainActivity : FlutterActivity() {
 
     override fun onResume() {
         super.onResume()
+        // While the app's own lock has a PIN set the app switcher shows nothing of the app, a bubble's screen too
+        // (AppLock.kt, GMFB-46): set again each time, since a screen made anew starts without it.
+        AppLock.secure(this, AppLock.isSet(this))
         // A bubble on the screen: its conversation's messages come in quietly (Notifier.incoming). The app's place in
         // front, and what it does as it comes forward, are the app's.
         if (bubble) { if (bubbleThread >= 0) Bubbles.showing.add(bubbleThread); return }

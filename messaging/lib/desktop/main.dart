@@ -11,6 +11,7 @@ import 'package:glacier/glacier.dart';
 import '../games/game_activity.dart';
 import '../accent.dart';
 import '../account/account.dart';
+import '../app_lock/app_lock.dart';
 import '../app_state.dart';
 import '../kit/settings_css.dart';
 import '../looks.dart';
@@ -20,6 +21,7 @@ import '../keys.dart';
 import '../net/net.dart';
 import '../net/p2p/node_factory.dart';
 import '../sms.dart';
+import '../ui/app_lock_ui.dart' show AppLockGate;
 import '../ui/call_moved_note.dart';
 import '../ui/files_space/share_in.dart';
 import '../ui/window_chrome.dart';
@@ -141,6 +143,9 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   final accents = loaded[0]! as AccentSheets;
   final sheet = accents.base;
   installSettingsStyles(sheet);
+  // The app's lock (GMFB-46, lib/app_lock), read before the app is drawn: with a PIN set it opens locked, once the
+  // splash is done. Its record is kept as the pairing's key is: the Keychain in a release build, else the app's folder.
+  await AppLock.start(state, folder: store.dir, keychain: store.keychain);
   final step = ValueNotifier<SplashStep>((words: 'Starting Ghost Messaging', progress: null));
   runApp(_SplashApp(sheet: accents.of(state), state: state, step: step));
   // The app's own updates, looked for before anything else, as Discord does: a version found is brought down and
@@ -380,9 +385,14 @@ class _DesktopAppState extends State<DesktopApp> {
               resizeSettle: deskResizeSettle,
               // A newer version says so with the card the phone has, at the top of the list (lib/ui/update_banner.dart).
               // On the Mac, the window's own title strip over everything (lib/desktop/ui/desk_title_bar.dart).
+              // Over all of it, the title strip and toasts too, the lock screen while the app is locked
+              // (lib/ui/app_lock_ui.dart, GMFB-46), with a strip of its own to move the window by.
               child: InkOverrides(
-                child: GlacierToastProvider(
-                  child: MacChrome.stripEnabled ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [DeskTitleBar(navigator: _navigator), Expanded(child: _recorded(child!))]) : _recorded(child!),
+                child: AppLockGate(
+                  dragStrip: true,
+                  child: GlacierToastProvider(
+                    child: MacChrome.stripEnabled ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [DeskTitleBar(navigator: _navigator), Expanded(child: _recorded(child!))]) : _recorded(child!),
+                  ),
                 ),
               ),
             ),

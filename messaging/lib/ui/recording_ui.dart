@@ -140,10 +140,15 @@ class _RecordingBannerState extends State<RecordingBanner> {
         for (final e in s.recordingsByOthers.entries) {
           final who = v.nameOf(e.value);
           final yes = s.agreed.contains(e.key), no = s.declined.contains(e.key);
+          // A recording that takes pictures asks for both at once, and says both afterwards (GMFB-42); the yes covers
+          // the picture only where this was the question (VoiceSession.pictured).
+          final video = s.takesVideo(e.key);
+          final what = (yes ? s.pictured.contains(e.key) : video) ? 'voice and video' : 'voice';
+          final are = what == 'voice' ? 'is' : 'are', not = what == 'voice' ? 'isn\'t' : 'aren\'t';
           if (!yes && !no) {
-            lines.add(line('$who is recording this call. Include your voice?', [pill('Leave me out', () => s.answerRecording(e.key, false)), pill('Include me', () => s.answerRecording(e.key, true), solid: true)], key: 'recording-ask'));
+            lines.add(line('$who is recording this call. Include your $what?', [pill('Leave me out', () => s.answerRecording(e.key, false)), pill('Include me', () => s.answerRecording(e.key, true), solid: true)], key: 'recording-ask'));
           } else {
-            lines.add(line(yes ? '$who is recording · your voice is in it' : '$who is recording · your voice isn\'t in it', [pill(yes ? 'Leave me out' : 'Include me', () => s.answerRecording(e.key, !yes))], key: 'recording-other'));
+            lines.add(line(yes ? '$who is recording · your $what $are in it' : '$who is recording · your $what $not in it', [pill(yes ? 'Leave me out' : 'Include me', () => s.answerRecording(e.key, !yes))], key: 'recording-other'));
           }
         }
         if (lines.isEmpty) return const SizedBox.shrink();

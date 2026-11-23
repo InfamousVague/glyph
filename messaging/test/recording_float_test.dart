@@ -441,6 +441,35 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.byKey(const ValueKey('recording-drawer')), findsNothing);
   });
+  // GMFB-42: a recording that takes cameras and shared screens asks for both, in the same one answer.
+  testWidgets('someone else\'s recording asks for the voice, or for voice and video where it takes pictures', (tester) async {
+    final v = Voice.instance;
+    final s = v.session = VoiceSession(channel: VoiceChannel.make('Lounge'), route: _NoRoute(), media: _NoMedia(), name: 'Matt');
+    addTearDown(() => v.session = null);
+    s.members['kev'] = const VoiceMember('kev', name: 'Kevin', notices: true, recording: 'rec-1');
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, const Align(alignment: Alignment.topCenter, child: RecordingBanner()), AppState());
+    expect(find.textContaining('Include your voice?'), findsOneWidget);
+    await tester.tap(find.text('Include me'));
+    await tester.pump();
+    expect(find.textContaining('your voice is in it'), findsOneWidget);
+    expect(s.pictured, isEmpty, reason: 'a yes to the voice is not one to the picture');
+
+    s.members['kev'] = const VoiceMember('kev', name: 'Kevin', notices: true, recording: 'rec-2', recordsVideo: true);
+    // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+    s.notifyListeners();
+    await tester.pump();
+    expect(find.textContaining('Include your voice and video?'), findsOneWidget);
+    await tester.tap(find.text('Include me'));
+    await tester.pump();
+    expect(find.textContaining('your voice and video are in it'), findsOneWidget);
+    expect(s.pictured, {'rec-2'});
+    await tester.tap(find.text('Leave me out'));
+    await tester.pump();
+    expect(find.textContaining('your voice and video aren\'t in it'), findsOneWidget);
+    expect(s.pictured, isEmpty);
+  });
+
   // GMFB-16 (@kevin, Android 0.11.5: "Audio recording banner covers ui elements in a way that makes them unusable and
   // cannot be moved").
   testWidgets('the lines over a call move when dragged, and fold to a chip that unfolds them', (tester) async {

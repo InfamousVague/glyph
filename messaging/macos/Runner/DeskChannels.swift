@@ -2,6 +2,7 @@ import Cocoa
 import FlutterMacOS
 import AVFoundation
 import Security
+import LocalAuthentication
 import UniformTypeIdentifiers
 
 /// What the Mac app asks of macOS itself (lib/desktop/platform.dart): the Mac's name, the Keychain for the pairing's
@@ -48,6 +49,20 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
         result(DeskChannels.keychain(write: args["account"] as? String ?? "", value: args["value"] as? String ?? ""))
       case "keyDelete":
         result(DeskChannels.keychain(delete: args["account"] as? String ?? ""))
+      // The app's own lock (lib/app_lock/app_lock.dart, GMFB-46): Touch ID or Face ID in the PIN's place, where the
+      // person switched that on. Only ever yes or no; the PIN is checked in Dart and always works too.
+      case "lockBioCan":
+        result(LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil))
+      case "lockBioAsk":
+        let context = LAContext()
+        // No "Enter Password" under it: the app's PIN is the other way in, not the device's passcode.
+        context.localizedFallbackTitle = ""
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil) else { return result(false) }
+        // macOS puts "Ghost Messaging is trying to" before it: the reason starts in lower case here.
+        let reason = args["reason"] as? String ?? "unlock Ghost Messaging"
+        context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason.prefix(1).lowercased() + reason.dropFirst()) { ok, _ in
+          DispatchQueue.main.async { result(ok) }
+        }
       // What the message field has on a Mac that the phone has from Android: pictures to choose, the Mac's own
       // emoji, and a voice message to record and to play (DeskSound.swift).
       case "pickPictures":

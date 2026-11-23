@@ -19,6 +19,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../me/me.dart';
+import '../app_lock/app_lock.dart';
 import '../app_state.dart';
 import '../market/market_state.dart';
 import '../plugins/pack/pack.dart' show InstalledPlugins, PackNotice, registryIdOf;
@@ -378,6 +379,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
       if (session != null && keys.pushToTalk) session.setMuted(true, quiet: true);
       return true;
     }
+    // The app locked (lib/app_lock, GMFB-46): no command starts behind the lock screen, whose number pad has the keys.
+    // (Push to talk let go of, above, still turns the microphone off.)
+    if (AppLock.instance.locked) return false;
     if (e is! KeyDownEvent) return e is KeyRepeatEvent && _talking != null && e.logicalKey == _talking;
     final command = keys.commandFor(e, typing: Keys.typing);
     if (command == null) return false;

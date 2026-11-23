@@ -4,6 +4,8 @@
 <dict>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Ghost Messaging writes out a recorded call's words on this device. Nothing is sent anywhere.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>To unlock Ghost Messaging with your face in place of your PIN, where you switched that on.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>For voice messages and calls.</string>
 	<key>NSCameraUsageDescription</key>
