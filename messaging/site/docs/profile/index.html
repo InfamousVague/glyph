@@ -84,10 +84,40 @@
 <p><span class="ui-path">Settings › Friends joining</span> works the other way: add the handles of people you know on Discord, Telegram or X, and you're told when they join Ghost Messaging. Those apps don't let another app read your friend list, so you add them yourself.</p>
 <p><b>Remove everything about me</b> unlinks every account and your number, and clears your watch list, on the phone and on the server.</p>
 
+<h2 id="account-key">Your account key</h2>
+<p>Your account is known on the network by a key, the same on every device you use. <span class="ui-path">Settings › Me › Profile</span> shows it written as a <b>did:key</b>, a standard way to write a key as text, with <b>Copy</b> and <b>Share</b>. A friend's card shows theirs.</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Profile</span></div><div class="m-body">
+  <div class="m-section"><div class="m-section-title">Your account key</div><div class="m-card">
+    <div class="m-row tap"><span class="m-ico" data-hue="blue"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#key-round"/></svg></span><span class="m-txt"><b>did:key:zDnaerDaTF5B…FU2169</b><small>Copy</small></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="teal"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#share-2"/></svg></span><span class="m-txt"><b>Share it</b></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="purple"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#pen-line"/></svg></span><span class="m-txt"><b>Sign a statement</b><small>Words to paste anywhere, which show they came from this account</small></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="green"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#shield-check"/></svg></span><span class="m-txt"><b>Check a statement</b><small>Paste one to see whose it is</small></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
+  </div></div>
+</div></div><figcaption>Settings › Me › Profile › Your account key.</figcaption></figure>
+<ul>
+  <li><b>Sign a statement</b>: write up to 280 characters, like "I am @alex on Ghost Messaging", and you get a block of text to paste in a bio, a post or a page elsewhere. It shows those words came from your account, and when.</li>
+  <li><b>Check a statement</b>: paste a block to see whose it is: yours, a friend's, or an account you don't know. Nothing is sent anywhere to check it.</li>
+  <li>Anyone can check a statement without the app or our servers: the block names the account's key, and the signature is a standard one (P-256 with SHA-256). The format, and a small script that checks one, are in the app's source.</li>
+</ul>
+
+<h2 id="vouches">Vouching for friends</h2>
+<p>On a friend's card, <b>Vouch for @name</b> says their account really is them. You can take it back whenever you like.</p>
+<figure class="mock"><div class="m-screen"><div class="m-body">
+  <div class="m-sheet"><div class="m-sheet-title">Maya Chen</div>
+    <p class="m-p">@maya · Vouched for by 2 of your friends</p>
+    <span class="m-btn secondary tap"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#user-check"/></svg><span>Vouch for @maya</span></span>
+  </div>
+</div></div><figcaption>A friend's card, vouched for by two of your friends.</figcaption></figure>
+<ul>
+  <li>A card counts only the vouches of <b>your own friends</b>, and tapping the count shows their names. There's no count of everyone, and nobody who isn't a friend sees any of it.</li>
+  <li>Your vouch goes to that friend, sealed, and travels with their profile to their friends. Each one is signed by your key, so nobody can make one up in your name, the relay included.</li>
+  <li>In <span class="ui-path">Profile › Vouches</span> you see who vouches for you, and can hide them from your friends. Removing or blocking a friend drops their vouch.</li>
+</ul>
+
     <nav class="prevnext"><a class="prev" href="/docs/how-accounts-work/"><small>Previous</small>How your account works</a><a class="next" href="/docs/circles/"><small>Next</small>Make a circle and invite people</a></nav>
     <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
   </main>
-  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#profile">Name, picture and status</a><a href="#number">Verify your phone number</a><a href="#linked">Linked accounts and friends joining</a></nav>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#profile">Name, picture and status</a><a href="#number">Verify your phone number</a><a href="#linked">Linked accounts and friends joining</a><a href="#account-key">Your account key</a><a href="#vouches">Vouching for friends</a></nav>
 </div>
 <script src="/docs/docs.js" defer></script>
 </body>
