@@ -289,7 +289,10 @@ void main() {
     expect(media['b']!.count('offer to a'), 2);
   });
 
-  test('two offers that cross: the lower id\'s stands, and the other side answers it', () async {
+  // Both find the connection gone and look again at once: relink makes no offer of its own (it connects only those a
+  // stage held apart), and the mending's lower id goes first, so one offer is made and answered. Two offers that really
+  // cross (the higher's stands) are stage_links_test's.
+  test('both quick to look again after the connection broke: one offer, answered, connected', () async {
     await session('a').join();
     await session('b').join();
     await _until(allThrough, 'the call as it starts');

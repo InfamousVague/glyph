@@ -401,7 +401,7 @@ class MendTimes {
 /// - Back in the room after the relay was lost ([_back]): every connection is made again, as on coming in.
 /// - Every few seconds each member is looked at ([_mend]): where there is no working connection, one of the two
 ///   offers a new one (the lower id first, the other if it never does), again and again, further apart each time.
-/// - Two offers that cross are settled by id (the lower's stands), not left to fail both ways.
+/// - Two offers that cross are settled by id (the higher's stands: see the offer's own words), not left to fail both ways.
 /// - What one member says is acted on in the order it was said, so a way to connect never overtakes its offer.
 /// Nothing new is said on the wire: a fresh offer is marked `a`, which every build since the relay fallback takes.
 class VoiceSession extends ChangeNotifier {
@@ -464,9 +464,8 @@ class VoiceSession extends ChangeNotifier {
   ///
   /// Only those held apart by the stage ([_withheld]) are offered to here. Anyone else is offered to by whoever came
   /// into the call later ([join]): Voice asks this on every change in a space's call, so someone who had just come in,
-  /// before their offer arrived, was offered to here as well whenever this side's id was the lower, both sides held an
-  /// offer of their own, neither could take the other's, and the two never connected (seen in a browser against a relay
-  /// with no TURN server; with one, the second try through it connected them 15 s later).
+  /// before their offer arrived, was offered to here as well whenever this side's id was the lower, and the two offers
+  /// crossed. Whatever still has no connection after that is [_mendAll]'s.
   void relink() {
     if (!joined) return;
     for (final id in members.keys.toList()) {
@@ -724,15 +723,14 @@ class VoiceSession extends ChangeNotifier {
         Sounds.instance.play(UiSound.someoneJoined);
       }
       members[e.came!] = VoiceMember(e.came!);
-      // They offer, unless the two of them both listen on a stage.
-      if (!_links(e.came!)) _withheld.add(e.came!);
       // An offer of this device's still unanswered was to them as they were before: theirs is the one to answer now.
       _awaiting.remove(e.came);
+      // They offer, unless the two of them both listen on a stage.
+      if (!_links(e.came!)) _withheld.add(e.came!);
       _sayState();
     } else if (e.went != null) {
       final was = members.remove(e.went) != null;
       _forget(e.went!);
-      _withheld.remove(e.went);
       unawaited(_peers.remove(e.went)?.close());
       // The last of the others gone: the call is over, said so; anyone else going is someone leaving.
       if (was) Sounds.instance.play(members.isEmpty ? UiSound.callEnded : UiSound.someoneLeft);
@@ -743,6 +741,7 @@ class VoiceSession extends ChangeNotifier {
   /// Everything remembered of the tries to connect to [id].
   void _forget(String id) {
     _offered.remove(id);
+    _withheld.remove(id);
     _retried.remove(id);
     _relayed.remove(id);
     _awaiting.remove(id);
@@ -978,12 +977,16 @@ class VoiceSession extends ChangeNotifier {
         // An offer from another join of theirs (another device, or the app opened again) is a new connection: the old
         // one goes first, whether or not 'moved' got here (an older build says none).
         final j = m['j'];
-        // Both offered at once (each waits on the other's answer): the lower id's offer stands, and the other side
+        // Both offered at once (each waits on the other's answer): the higher id's offer stands, and the other side
         // gives its own up and answers. Left alone, each tried to take an offer on a connection that had made one,
-        // and neither connected.
+        // and neither connected. The higher's, because an app from before 677fd6dc7 already in a space's call offers
+        // back from relink to whoever comes in only where its id is the lower, and gives its own offer up when it
+        // finds the newcomer's (the `j` below): the newcomer (a browser, always) keeps its offer and both connect at
+        // once. An offer marked again (`a`) is always answered: whoever sent it has let go of the connection this
+        // side's offer was waiting on.
         var crossed = false;
-        if (_awaiting.containsKey(from) && _peers.containsKey(from)) {
-          if (route.me.compareTo(from) < 0) return;
+        if (m['a'] != 1 && _awaiting.containsKey(from) && _peers.containsKey(from)) {
+          if (route.me.compareTo(from) > 0) return;
           crossed = true;
         }
         if (_peers.containsKey(from) && j != null && _offerJoin[from] != j) await _peers.remove(from)?.close();
