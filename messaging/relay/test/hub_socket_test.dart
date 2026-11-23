@@ -81,7 +81,7 @@ class _Install {
 
   /// Attaches a new connection to [hub] and signs in, as the other tests do over a WebSocket: the hub's number, signed
   /// with this install's key. What the hub answers the hello with.
-  Future<Map> attach(Hub hub, {String? device}) async {
+  Future<Map> attach(Hub hub, {String? device, bool clock = false}) async {
     final s = socket = _MemorySocket();
     final first = Completer<Map>(), hello = Completer<Map>();
     s.said.listen((d) {
@@ -102,7 +102,15 @@ class _Install {
     final nonce = _unhex((await first.future)['hello'] as String);
     final sig = P256.sign(scalar, [...utf8.encode(Hub.greeting), ...nonce], _bytes(32));
     s.say(jsonEncode({'id': id, 'key': base64Encode(key), 'sig': base64Encode(sig), 'device': ?device}));
-    return hello.future.timeout(const Duration(seconds: 5));
+    // The hub's clock, said with every sign-in ("now", and "since" it started), is left out here unless [clock]: what it
+    // says of it is its own test's.
+    final ok = await hello.future.timeout(const Duration(seconds: 5));
+    if (!clock) {
+      ok
+        ..remove('now')
+        ..remove('since');
+    }
+    return ok;
   }
 
   /// A packet to [to], as the app's hub route sends one: [1][seq][to][the packet].
@@ -113,6 +121,23 @@ class _Install {
 }
 
 void main() {
+  // The app's docs/OPEN_NETWORK.md, section 3: what the relay kept for someone goes with a restart, and an app that knows
+  // when the relay started knows what went with it is no fault of the relay's.
+  test('a sign-in says the hub\'s time now and when it started, the same at every sign-in until it starts again', () async {
+    var t = DateTime.utc(2026, 11, 23, 9);
+    final hub = Hub(now: () => t);
+    final started = t.millisecondsSinceEpoch;
+    t = t.add(const Duration(minutes: 5));
+    final a = await _Install().attach(hub, clock: true);
+    expect([a['ok'], a['now'], a['since']], [true, t.millisecondsSinceEpoch, started]);
+    t = t.add(const Duration(hours: 2));
+    final b = await _Install().attach(hub, clock: true);
+    expect([b['now'], b['since']], [t.millisecondsSinceEpoch, started]);
+    // Started again: another start.
+    final again = Hub(now: () => t);
+    expect((await _Install().attach(again, clock: true))['since'], t.millisecondsSinceEpoch);
+  });
+
   test('two connections held in memory both sign in, and a packet from one reaches the other', () async {
     final hub = Hub();
     final a = _Install(), b = _Install();

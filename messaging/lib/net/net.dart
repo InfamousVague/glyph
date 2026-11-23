@@ -6,12 +6,15 @@ import 'package:flutter/foundation.dart';
 import '../app_state.dart';
 import '../friends/buddies.dart' show Buddy;
 import '../me/me.dart' show Me;
+import '../platform_info.dart';
 import '../sms.dart';
 import 'carrier.dart';
 import 'crypto.dart';
 import 'forward_secrecy.dart';
 import 'hub_carrier.dart';
 import 'hub_link.dart';
+import 'kept_files.dart';
+import 'ledger.dart';
 import 'p2p/node.dart';
 import 'p2p/p2p.dart';
 import 'packet.dart';
@@ -91,10 +94,31 @@ class Net extends ChangeNotifier implements PeerBook {
   P2p? get p2p => _p2p;
 
   /// Goes up whenever what Settings › Routes shows of the direct route changes: the devices known, the links, the
-  /// link helpers. Apart from the routes' own changes, which friends' unanswered words are sent again on.
+  /// link helpers, what the ledger's comparisons found. Apart from the routes' own changes, which friends' unanswered
+  /// words are sent again on.
   final ValueNotifier<int> direct = ValueNotifier(0);
 
   void _directChanged() => direct.value++;
+
+  // --- checking the relay (lib/net/ledger.dart; docs/OPEN_NETWORK.md, section 3) -------------------------------------
+
+  Ledger? _ledger;
+  LedgerCheck? _check;
+
+  /// What went to each friend and came from them, and what comparing it over direct links found of the relay; null
+  /// where this build has no direct route (nothing could compare it), or the routes are not set up.
+  Ledger? get ledger => _ledger;
+  LedgerCheck? get check => _check;
+
+  /// Who else holds what was sent and is unanswered, to send it again where a friend's device says it never came
+  /// (Friends' list: lib/friends/friends.dart); kept here, so a check made later is given them too.
+  final List<Envelope? Function(String peer, String id)> _holders = [];
+
+  void addHolder(Envelope? Function(String peer, String id) holder) {
+    if (_holders.contains(holder)) return;
+    _holders.add(holder);
+    _check?.holders.add(holder);
+  }
 
   /// Those of [people] who are friends: whom the direct route links with, and tells where this device is. Never
   /// someone who has only asked or been asked, nor the other members of a group.
@@ -168,6 +192,8 @@ class Net extends ChangeNotifier implements PeerBook {
     _away = away;
     _hub?.awayNow = away;
     _p2p?.setAway(away);
+    // Put away, the app may not come back: what the ledger listed is written now.
+    if (away) unawaited(_ledger?.flush());
   }
 
   /// Watches these names too (friends by username, lib/friends/buddies.dart), beside those the phone has keys with.
@@ -304,6 +330,10 @@ class Net extends ChangeNotifier implements PeerBook {
           directProblem = _couldNot(e);
         }
       }
+      // The ledger, where there is a direct route to compare it over (docs/OPEN_NETWORK.md, section 3): told by the
+      // switchboard what went and came, kept with the choices of this device only, and compared with friends' devices
+      // as direct links are proved. Without a core nothing could compare it, so nothing is listed.
+      if (p2p != null) _startLedger(board, p2p, me.id, device);
       // People come and go as keys are exchanged and encryption is turned on and off.
       _subs.add(Sms.instance.prefsChanged.stream.listen((_) => refresh()));
       error = null;
@@ -356,6 +386,32 @@ class Net extends ChangeNotifier implements PeerBook {
   }
 
   static String _couldNot(Object e) => 'The direct route could not be started on this device ($e). The other routes work as before.';
+
+  /// Where the ledger is kept: files of its own, out of any backup (kept_files.dart; the review, D6); under a test,
+  /// memory, so nothing is written where this computer's own app keeps its files (a test gives its own folder where
+  /// that is what it looks at). Null where there is nowhere (a browser): then no ledger is kept.
+  static FsStore? Function() ledgerStore = defaultLedgerStore;
+  static FsStore? defaultLedgerStore() => PlatformInfo.environment.containsKey('FLUTTER_TEST') ? MemoryFsStore() : ledgerFiles();
+
+  void _startLedger(Switchboard board, P2p p2p, String me, String device) {
+    try {
+      final store = ledgerStore();
+      if (store == null) return;
+      // Friends as they are each time it asks: the set is made anew whenever the people are read again.
+      final ledger = _ledger = Ledger(store: store, me: me, device: device, isFriend: (id) => _friendIds.contains(id));
+      board.log = ledger;
+      ledger.addListener(_directChanged);
+      unawaited(ledger.load());
+      final check = _check = LedgerCheck(ledger: ledger, board: board, p2p: p2p, relay: () => _hub);
+      check.holders.addAll(_holders);
+      check.addListener(_directChanged);
+      check.start();
+    } catch (_) {
+      board.log = null;
+      _ledger = null;
+      _check = null;
+    }
+  }
 
   /// The app has come back after [away] (main.dart): the relay server's connection is made again where it may have
   /// died meanwhile, and what friends were sent and have not answered goes again once it is up (Friends).
@@ -443,12 +499,23 @@ class Net extends ChangeNotifier implements PeerBook {
     _fsTimer = null;
     _p2pTimer?.cancel();
     _p2pTimer = null;
-    final board = _board, p2p = _p2p;
+    final board = _board, p2p = _p2p, ledger = _ledger, check = _check;
     _board = null;
     _hub = null;
     _sms = null;
     _p2p = null;
+    _ledger = null;
+    _check = null;
     _followHelpers(null);
+    if (check != null) {
+      check.removeListener(_directChanged);
+      await check.stop();
+    }
+    if (ledger != null) {
+      ledger.removeListener(_directChanged);
+      board?.log = null;
+      await ledger.shutdown();
+    }
     if (board != null) {
       board.changed.removeListener(notifyListeners);
       await board.stop();

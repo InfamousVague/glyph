@@ -19,6 +19,7 @@ import '../me/cosmetics.dart';
 import '../me/me.dart';
 import '../mentions.dart';
 import '../me/pictures.dart';
+import '../net/name_watch.dart';
 import '../net/net.dart';
 import '../sms.dart';
 import '../standalone/chats.dart' show UsernameChats;
@@ -33,6 +34,7 @@ import 'thread.dart';
 import 'special_badges.dart';
 import 'username_friends.dart' show acceptRequest;
 import 'verified_badge.dart';
+import 'name_watch_words.dart';
 import 'nav_bar.dart' show HoverTip;
 import 'plugins_page/plugin_art.dart' show PluginHues;
 import '../me/verified_numbers.dart';
@@ -336,7 +338,13 @@ class _ProfileCardState extends State<_ProfileCard> {
             builder: (context, _) => _BadgeSection(badges: SpecialBadges.instance.of(g.id, username: g.username, me: g.me), section: section),
           )
         : const SizedBox.shrink();
+    // The name watch (lib/net/name_watch.dart): the relay now gives this friend's username to another key. They are
+    // still the key that was added; this only says so.
+    final renamed = g == null || g.me || g.id.isEmpty ? null : NameWatch.instance?.changeFor(g.id);
     final panel = <Widget>[
+      // In the card's own ink: the usual reason is an ordinary one (they changed or gave up the name, and someone took it).
+      if (renamed != null)
+        section('Their username', Text(friendNameChangedWords(renamed.username, name.isEmpty ? '@${renamed.username}' : name), key: const ValueKey('profile-name-watch'), style: pageText(t, t.fontSize('sm'), color: t.color('app-ink'), height: 1.4))),
       if (bio.isNotEmpty) section('About me', Text(bio, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink'), height: 1.4))),
       badgeList,
       if (who.detail.isNotEmpty) section(who.room != null ? 'In this space' : 'Here', Text(who.detail, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink')))),

@@ -7,6 +7,7 @@ import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/forward_secrecy.dart' show MemoryFsStore;
 import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/net/hub_link.dart';
+import 'package:ghost_messaging/net/ledger.dart';
 import 'package:ghost_messaging/net/p2p/node.dart';
 import 'package:ghost_messaging/net/p2p/p2p.dart';
 import 'package:ghost_messaging/net/packet.dart';
@@ -29,20 +30,30 @@ import 'hub_pair.dart';
 ///   await w.relayGone();                  // nothing answers at the relay
 ///   await a.text(b.account, 'still here') // …so it goes straight
 class World {
-  World({List<String> helpers = const []}) : memory = MemoryHub(Hub(helpers: helpers));
+  World({List<String> helpers = const [], this.ledgers = false}) {
+    // Where the installs keep ledgers, the relay keeps the test's time too: what it says of when it started is held to
+    // the installs' clocks (lib/net/ledger.dart).
+    memory = MemoryHub(Hub(helpers: helpers, now: ledgers ? clock.now : null));
+  }
+
+  /// Whether each install keeps a ledger and compares it over direct links (lib/net/ledger.dart), as the app does where
+  /// it has the direct route. Off unless asked for: what it says over links would be counted in the direct route's own
+  /// tests. An install can say otherwise for itself ([Install.ledger]).
+  final bool ledgers;
 
   final clock = FakeClock();
   late final mesh = FakeP2pMesh(clock: clock);
 
   /// The relay's hub, in memory. Put another in its place to stand for a relay that started again.
-  MemoryHub memory;
+  late MemoryHub memory;
   final installs = <Install>[];
 
   Account account(String name) => Account(name);
 
-  /// An install of [account]: a phone's unless [computer], whose node is up whenever Direct is on.
-  Install install(Account account, {bool computer = false, P2pPolicy? policy, String network = 'home', List<Carrier> also = const []}) {
-    final i = Install._(this, account, policy ?? (computer ? const P2pPolicy.computer() : const P2pPolicy()), network, also);
+  /// An install of [account]: a phone's unless [computer], whose node is up whenever Direct is on. [ledger]: whether it
+  /// keeps a ledger and compares it, where not as the world says ([ledgers]).
+  Install install(Account account, {bool computer = false, P2pPolicy? policy, String network = 'home', List<Carrier> also = const [], bool? ledger}) {
+    final i = Install._(this, account, policy ?? (computer ? const P2pPolicy.computer() : const P2pPolicy()), network, also)..keepsLedger = ledger ?? ledgers;
     installs.add(i);
     return i;
   }
@@ -113,7 +124,7 @@ class Install implements PeerBook {
   /// [was]'s app deleted and put back on the same device: the same account and device name, nothing kept (a test puts
   /// back what outlives an app, as an iPhone's Keychain does).
   factory Install.again(Install was) {
-    final i = Install._(was.world, was.account, was.policy, was.network, was.also, device: was.device);
+    final i = Install._(was.world, was.account, was.policy, was.network, was.also, device: was.device)..keepsLedger = was.keepsLedger;
     i.friends.addAll(was.friends);
     i.known.addAll(was.known);
     was.world.installs.add(i);
@@ -160,6 +171,22 @@ class Install implements PeerBook {
   late P2p p2p;
   late Switchboard board;
   bool running = false;
+
+  /// Whether it keeps a ledger and compares it over direct links ([World.ledgers]); and, where it does, the ledger and
+  /// its comparing as the app makes them (lib/net/net.dart).
+  bool keepsLedger = false;
+  Ledger? ledger;
+  LedgerCheck? check;
+
+  /// What it sent and holds unanswered, beside the switchboard's own five minutes, as Friends' list of what is
+  /// unanswered does: given to the comparing to send again ([LedgerCheck.holders]).
+  final outbox = <String, Envelope>{};
+
+
+  /// The connection to the relay it dialled last, as the relay's end holds it: a test makes the relay drop what it says
+  /// on it ([HubPair.dropToApp]). Each new one is given [dropToApp] as it is made.
+  HubPair? pair;
+  bool Function(Object said)? dropToApp;
   StreamSubscription<Received>? _sub;
 
   /// Everything the switchboard passed on, since the first start.
@@ -195,7 +222,17 @@ class Install implements PeerBook {
     node = world.mesh.node(network: network)
       ..failStarts = startFails
       ..hangs = coreHangs;
-    hub = HubCarrier(url: world.memory.url, signer: KeysSigner(account.keys), retry: const Duration(hours: 1), dial: (url) async => _DeviceLink(await world.memory.dial(url), device));
+    hub = HubCarrier(
+      url: world.memory.url,
+      signer: KeysSigner(account.keys),
+      retry: const Duration(hours: 1),
+      now: world.clock.now,
+      dial: (url) async {
+        final link = await world.memory.dial(url);
+        pair = world.memory.pairs.last..dropToApp = dropToApp;
+        return _DeviceLink(link, device);
+      },
+    );
     p2p = P2p(
       node: node,
       signer: _InstallSigner(this),
@@ -212,6 +249,14 @@ class Install implements PeerBook {
     board = Switchboard(me: account.id, peers: this, carriers: [hub, p2p.carrier, ...also], now: world.clock.now, timer: world.clock.timer);
     if (startOff) board.off.add(p2p.carrier.id);
     _sub = board.received.listen(got.add);
+    if (keepsLedger) {
+      final l = ledger = Ledger(store: plain, me: account.id, device: device, isFriend: (id) => friends.any((f) => f.id == id), now: world.clock.now, timer: world.clock.timer);
+      board.log = l;
+      await l.load();
+      check = LedgerCheck(ledger: l, board: board, p2p: p2p, relay: () => hub, now: world.clock.now, timer: world.clock.timer)
+        ..holders.add((peer, id) => outbox[id])
+        ..start();
+    }
     hub.helpers.addListener(_helpers);
     // Who is connected to the relay, as the app watches the people it reaches (Net._apply).
     hub.watch([for (final a in [...friends, ...known]) a.id]);
@@ -238,6 +283,10 @@ class Install implements PeerBook {
     hub.helpers.removeListener(_helpers);
     hub.presence.removeListener(_presence);
     await _sub?.cancel();
+    await check?.stop();
+    check = null;
+    await ledger?.shutdown();
+    ledger = null;
     await board.stop();
     await p2p.shutdown();
     await board.dispose();
@@ -253,8 +302,24 @@ class Install implements PeerBook {
   /// How many times this install's node has dialled [other]'s.
   int dialled(Install other) => world.mesh.dials.where((d) => identical(d.from, node) && d.to == other.p2p.nodeId).length;
 
-  /// Sends [words] to [to] as a friend's text, by [only] those routes where given.
-  Future<Delivery> text(Account to, String words, {Set<String>? only, bool urgent = false}) => board.send(this.to(to), Envelope(kind: 'text', body: {'t': words}), only: only, urgent: urgent);
+  /// Sends [words] to [to] as a friend's text, by [only] those routes where given. Held in [outbox] until it is
+  /// answered, as Friends holds what it sent.
+  Future<Delivery> text(Account to, String words, {Set<String>? only, bool urgent = false}) async {
+    final e = Envelope(kind: 'text', body: {'t': words}, at: world.clock.ms);
+    outbox[e.id] = e;
+    late final StreamSubscription<String> answered;
+    answered = board.acked.listen((id) {
+      if (id != e.id) return;
+      outbox.remove(id);
+      unawaited(answered.cancel());
+    });
+    final d = await board.send(this.to(to), e, only: only, urgent: urgent);
+    if (d.acked) {
+      outbox.remove(e.id);
+      unawaited(answered.cancel());
+    }
+    return d;
+  }
 
   @override
   String toString() => '${account.name}\'s ${policy.stayUp ? 'computer' : 'phone'}';
