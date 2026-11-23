@@ -32,6 +32,11 @@ abstract class FriendsPort {
 
   /// Where encryption and friendship stand with everyone something has been exchanged with.
   Future<List<E2eState>> states();
+
+  /// Whether this device's routes carry friends by number: a phone's do. A computer paired with a phone has routes of
+  /// its own for friends by username alone; the phone's records for numbers, which it shows, are the phone's to act on,
+  /// and say nothing here of who an install is ([Friends.whoIs]).
+  bool get numbers;
   Future<void> setFriend(String address, String state);
 
   /// Sends this phone's key to [address] by text: what turns encryption on, or asks for it.
@@ -193,7 +198,9 @@ class Friends extends ChangeNotifier {
     _by
       ..clear()
       ..addEntries(all.map((s) => MapEntry(digits(s.address), s)));
-    _byId = whoIs(all);
+    // On a computer paired with a phone, only friends by username say who an install is: what its own routes bring
+    // is kept with them, as before, never handed to the phone's conversation with the same person's number.
+    _byId = whoIs(_port.numbers ? all : [for (final s in all) if (s.address.startsWith('@')) s]);
     for (final s in all.where((s) => s.on && s.friend == 'want')) {
       await _ask(s.address);
     }
@@ -660,6 +667,10 @@ class _AppPort implements FriendsPort {
 
   @override
   Future<List<E2eState>> states() => Sms.instance.e2eList();
+
+  /// A phone's, an iPhone's and a browser's: everything but a computer paired with a phone (lib/desktop/own_calls.dart).
+  @override
+  bool get numbers => !Sms.paired;
 
   @override
   Future<void> setFriend(String address, String state) => Sms.instance.friendSet(address, state);

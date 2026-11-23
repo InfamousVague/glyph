@@ -293,6 +293,22 @@ void main() {
     expect(b.came, isEmpty);
   });
 
+  test('one person, a friend by number and by username with the one key: heard in the number\'s conversation on a phone, as before, and in the username\'s on a computer paired with it, whose routes carry no numbers', () async {
+    for (final computer in [false, true]) {
+      final port = FakePort(ann)
+        ..numbers = !computer
+        ..stand(ben, friend: 'yes');
+      // Ben's username, as his phone's install's key names it.
+      port.book['@ben'] = E2eState(address: '@ben', state: 'on', friend: 'yes', hasGhost: true, id: FakePort.idAt(ben));
+      final phone = Friends(port);
+      await phone.start();
+      port.arriveFrom(FakePort.idAt(ben), computer ? '@ben' : ben, Envelope(kind: 'text', body: {'t': 'hello'}));
+      await until(() => port.came.isNotEmpty);
+      expect(port.came.single.address, computer ? '@ben' : ben, reason: computer ? 'on the computer' : 'on the phone');
+      await phone.shutdown();
+    }
+  });
+
   test('who an install is where two records name it: the one encryption is on with, then a friend\'s, then a number\'s; two alike, nobody\'s', () {
     const k = 'the-key';
     E2eState r(String address, {String state = 'on', String friend = '', String? id = k, List<String> others = const []}) => E2eState(address: address, state: state, friend: friend, id: id, otherIds: others);

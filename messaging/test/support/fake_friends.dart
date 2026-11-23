@@ -22,6 +22,10 @@ class FakePort implements FriendsPort {
   /// Where this phone stands with the other, as android E2e keeps it.
   final Map<String, E2eState> book = {};
 
+  /// A phone's routes carry friends by number; a computer paired with a phone's don't.
+  @override
+  bool numbers = true;
+
   /// The relay server's route is up; the other phone is connected to it; it takes what it is given.
   bool up = true;
   bool otherHere = true;
