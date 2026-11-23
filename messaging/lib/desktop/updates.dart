@@ -611,7 +611,9 @@ class LinuxUpdateHost implements UpdateHost {
   }
 
   static Future<void> _launch(String exe) async {
-    await Process.start(exe, const [], mode: ProcessStartMode.detached, workingDirectory: File(exe).parent.path);
+    // Said to be the app opening itself again (GHOST_DESK_AGAIN, desk.dart startedAgain): this copy is still open as
+    // the new one starts, which would otherwise only show this one's window and go (GMFB-47, linux/runner/main.cc).
+    await Process.start(exe, const [], environment: const {'GHOST_DESK_AGAIN': '1'}, mode: ProcessStartMode.detached, workingDirectory: File(exe).parent.path);
   }
 
   static void _quit() => exit(0);

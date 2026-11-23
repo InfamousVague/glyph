@@ -25,6 +25,16 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.20', '2026-11-23', [
+    'Microphones and speakers: the one you choose in Settings › Voice and video, or from the call\'s own buttons, is now the one a call uses, from its start and when you switch in the middle of it. Before, on a Mac every call took the system\'s own whatever you chose, and Settings listed only that one until you had been in a call; on Android a chosen microphone was never used. Choosing "The system\'s own" again now goes back to it, a chosen device that isn\'t plugged in says so while the call uses the system\'s own, and on a Mac the ring and the app\'s other sounds play through the speaker you chose.',
+  ]),
+  ReleaseNotes('0.12.19', '2026-11-23', [
+    'Sign-ins synced from the browser extension now reach your other devices: the relay\'s answers were never passed on, so no device signed in with what the extension synced, and synced plugins never ran either (thanks, Kevin).',
+    'Calls mend themselves: someone whose connection drops for a moment is connected again by itself, a connection that fails or gets stuck is offered again every couple of seconds, and two people joining at once no longer miss each other. Nobody has to leave and come back.',
+    'Read stays read: a conversation read on a computer paired with your phone, or a chat on another network, no longer comes back unread after the app starts again.',
+    'Your own conversations reach a device that has just opened: messages your other devices sent while it was closed are no longer dropped.',
+    'Host a relay on this device (Settings › Routes, on a Mac, Windows or Linux computer, and on Android while the app is open): the same relay server gogho.st runs, for people on your network or over Direct, with an optional pass phrase. Off until you switch it on, and it says what whoever runs it can see.',
+  ]),
   ReleaseNotes('0.12.18', '2026-11-23', [
     'Human check on computers: on a Mac, Windows or Linux computer, a first message from someone new on the networks you chose for it now waits out of Messages until they answer its question, as it does on a phone. Before, only phones asked, so strangers and bots got straight through on a computer.',
     'Direct, in Settings › Routes: your devices and your friends\' can link straight to each other, as a second route beside the relay server and a way to check what the relay says. It is off until you switch it on, and the page says how each link stands. Routes also lists the people you have reached this session and which route carried each.',

@@ -12,6 +12,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 
+import '../relay_host/address.dart';
 import 'hub_carrier.dart' show HubRelay;
 import 'hub_link.dart';
 import 'net.dart';
@@ -25,6 +26,9 @@ bool isOwnRelay(String url) {
 /// The relay in use, in a line for Settings › Routes.
 String relayInUseWords(String hubUrl) {
   if (hubUrl == Net.defaultHub) return 'Ghost Messaging\'s relay (gogho.st)';
+  // A relay hosted from an app (lib/relay_host): this one's own, or someone else's reached over Direct.
+  final hosted = GhostRelayAddress.parse(hubUrl);
+  if (hosted != null) return hosted.relay == Net.instance.hostedHere ? 'The relay on this device' : 'A relay in someone\'s app (${hosted.relay.substring(0, 8)}), over Direct';
   final u = Uri.tryParse(hubUrl);
   final host = u == null ? hubUrl : '${u.host}${u.hasPort ? ':${u.port}' : ''}';
   if (isOwnRelay(hubUrl)) return 'Ghost Messaging\'s relay ($host)';
@@ -39,6 +43,11 @@ String? tidyRelayAddress(String typed) {
   var s = typed.trim();
   if (s.isEmpty) return '';
   if (s.contains(RegExp(r'\s'))) return null;
+  // A relay hosted from someone's app (lib/relay_host/address.dart), or the link its keeper shared: its address as
+  // written, in lower case, or nothing where it isn't one.
+  if (s.toLowerCase().startsWith('ghostmsg://')) s = relayFromLink(s) ?? '';
+  if (s.isEmpty) return null;
+  if (isGhostRelay(s)) return GhostRelayAddress.parse(s)?.toString();
   if (!s.contains('://')) s = 'wss://$s';
   final Uri u;
   try {
@@ -59,14 +68,20 @@ String? tidyRelayAddress(String typed) {
 
 /// What came of asking an address whether it is a Ghost Messaging relay.
 class RelayCheck {
-  const RelayCheck.answered(this.took, {this.relay}) : problem = null;
+  const RelayCheck.answered(this.took, {this.relay, this.hosted = false, this.asksPass = false}) : problem = null;
   const RelayCheck.failed(this.problem)
       : took = null,
-        relay = null;
+        relay = null,
+        hosted = false,
+        asksPass = false;
 
   /// What the relay said of itself in its greeting (its name, the address it is known by, whether it talks to other
   /// relays); null from a relay from before.
   final HubRelay? relay;
+
+  /// Whether it said it runs in someone's app (relay/lib/hub.dart `hosted`; lib/relay_host), and whether it asks for a
+  /// pass phrase (`pass`): said to the person before they move there, and the phrase asked for.
+  final bool hosted, asksPass;
 
   /// Why it isn't usable, in words; null where a relay answered.
   final String? problem;
@@ -93,12 +108,22 @@ Future<RelayCheck> checkRelay(String url, {Duration timeout = const Duration(sec
   }
   final greeted = Completer<bool>();
   HubRelay? relay;
+  var hosted = false, asksPass = false;
+  Map? hello;
+  var doorFull = false;
   final sub = ws.said.listen(
     (data) {
       if (greeted.isCompleted) return;
       try {
         final m = data is String ? jsonDecode(data) : null;
-        if (m is Map) relay = HubRelay.from(m['relay']);
+        if (m is Map) {
+          // A hosted relay's door, full for this device: said so, not taken for something else.
+          if (m['door'] == 'full') doorFull = true;
+          hello = m;
+          relay = HubRelay.from(m['relay']);
+          hosted = m['hosted'] == true;
+          asksPass = m['pass'] == true;
+        }
         greeted.complete(m is Map && m['hello'] is String && RegExp(r'^[0-9a-f]{16,128}$').hasMatch(m['hello'] as String));
       } catch (_) {
         greeted.complete(false);
@@ -117,8 +142,13 @@ Future<RelayCheck> checkRelay(String url, {Duration timeout = const Duration(sec
     return const RelayCheck.failed('A server answered there, but not as a Ghost Messaging relay.');
   }
   await _close(ws, sub);
+  if (doorFull) return const RelayCheck.failed(doorFullWords);
   if (!ok) return const RelayCheck.failed('A server answered there, but not as a Ghost Messaging relay.');
-  return RelayCheck.answered(DateTime.now().difference(started), relay: relay);
+  // A hosted relay's address names the relay: the one that answers must be it (found in the second review,
+  // 2026-11-23: anything at that node was taken).
+  final named = GhostRelayAddress.parse(url);
+  if (named != null && (hello == null || !HubRelay.proves(hello!, named))) return RelayCheck.failed(wrongRelayWords);
+  return RelayCheck.answered(DateTime.now().difference(started), relay: relay, hosted: hosted, asksPass: asksPass);
 }
 
 /// Stops listening and closes the connection, waiting two seconds at most; nothing that goes wrong in it matters.

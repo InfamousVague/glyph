@@ -564,6 +564,10 @@ func messageShape(chat string, group bool, m *slidetypes.Message, me int64, name
 		if q := m.RepliedToMessage; q != nil {
 			qr := render(q)
 			quote["text"] = cmp.Or(qr.text, q.IGDSnippet, mediaWords(qr.media))
+			// Who wrote the one answered: the app names them over the quote (GMFB-44).
+			if from := personID(q.SenderFBID); from != "" {
+				quote["from"] = from
+			}
 		}
 		shape["quote"] = quote
 	}

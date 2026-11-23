@@ -27,7 +27,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 
 import '../desktop/store.dart' show DeskStore;
 import 'channels.dart';
@@ -475,8 +474,14 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
   /// Whose voices are being recorded now, by name ('You' first).
   List<String> get recordedNames => [for (final k in _now?.names.keys ?? const <String>[]) if (k == 'me' || (_now?.tapped.contains(k) ?? false)) _now!.names[k]!];
 
+  /// For a test: where recordings are kept instead, so one that records writes nothing in the app's own folder.
+  @visibleForTesting
+  static Directory? folderForTest;
+
   /// Where recordings are kept: the app's own folder (a phone's is cleared only with the app).
   static Directory folder() {
+    final given = folderForTest;
+    if (given != null) return given;
     if (!kIsWeb && PlatformInfo.isAndroid) return Directory('${Directory.systemTemp.parent.path}/files/recordings');
     return Directory('${DeskStore.defaultDir().path}/recordings');
   }
@@ -574,11 +579,12 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
     final c = StreamController<void>();
     void tell() => c.add(null);
     s.addListener(tell);
-    final media = Voice.instance.media;
-    media?.remote.addListener(tell);
+    final media = s.media;
+    final sounds = media is SoundMedia ? (media as SoundMedia).sounds : null;
+    sounds?.addListener(tell);
     c.onCancel = () {
       s.removeListener(tell);
-      media?.remote.removeListener(tell);
+      sounds?.removeListener(tell);
     };
     return c.stream;
   }
@@ -596,24 +602,31 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
       return;
     }
     unawaited(_channel.invokeMethod('muted', {'on': s.muted || s.deafened}).catchError((_) {}));
-    final remote = Voice.instance.media?.remote.value ?? const <String, MediaStream>{};
-    for (final m in s.members.values) {
+    // Each one's sound as the call's media says it (GMFB-52: "After a user says include me I expect them to show up in
+    // the mixer and their audio to be recorded"). It was looked for in the streams the tiles draw, which have held
+    // pictures only since video was mended, so nobody who said yes was ever tapped.
+    final media = s.media;
+    final sounds = media is SoundMedia ? (media as SoundMedia).sounds.value : const <String, VoiceSound>{};
+    for (final m in s.members.values.toList()) {
       final yes = m.agreed.contains(t.id) && !m.declined.contains(t.id);
-      final track = remote[m.id]?.getAudioTracks().firstOrNull;
+      final sound = sounds[m.id];
+      // Which track on which connection: a connection made again mid-call (VoiceSession mends a broken one) brings
+      // their sound under the same track id, and it is the new one that has to be tapped.
+      final mark = sound == null ? null : '${sound.link}/${sound.track}';
       // Tapped where they said yes and their sound has come, and again whenever it comes on another track (Matt,
       // 2026-11-21: "recording is only recording my audio and not everyones audio tracks": since calls start through
       // the relay and may start over, a voice's first track can end while the call goes on). The native half keeps
       // writing the same file.
-      if (yes && track?.id != null && (!t.tapped.contains(m.id) || t.trackOf[m.id] != track!.id)) {
-        final id = track!.id!;
+      if (yes && sound != null && (!t.tapped.contains(m.id) || t.trackOf[m.id] != mark)) {
+        final id = sound.track;
         t.tapped.add(m.id);
-        t.trackOf[m.id] = id;
+        t.trackOf[m.id] = mark!;
         t.names[m.id] = Voice.instance.nameOf(m.id);
         try {
           final ok = await _channel.invokeMethod<bool>('add', {'key': m.id, 'track': id, 'path': '${t.dir}/${_safe(m.id)}.pcm'});
           // Not found yet (the track is announced before the native side holds it): tried again in a second.
           if (ok == false) {
-            t.trackOf.remove(m.id);
+            if (t.trackOf[m.id] == mark) t.trackOf.remove(m.id);
             _again?.cancel();
             _again = Timer(const Duration(seconds: 1), () => unawaited(_follow(s)));
           }

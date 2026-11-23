@@ -13,6 +13,10 @@ std::wstring LinkInCommandLine();
 // Hands [link] to a copy of the app already running and says true; false where none is.
 bool HandToRunningCopy(const std::wstring& link);
 
+// Brings the window of a copy of the app already running to the front, for a second start with no link (GMFB-47);
+// false where no window of one is found.
+bool ShowRunningCopy();
+
 // Makes ghostmsg: links open this app, for this Windows user (no administrator needed).
 void RegisterLinkScheme();
 

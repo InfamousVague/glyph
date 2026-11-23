@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/art/lucide.g.dart';
+import 'package:ghost_messaging/art/lucide_more.dart';
 import 'package:ghost_messaging/ui/hangout_screen.dart' show RoleTag;
 import 'package:ghost_messaging/ui/ripple_avatar.dart';
 import 'package:ghost_messaging/ui/space_designs/space_design.dart';
@@ -74,6 +76,44 @@ void main() {
     expect(log, ['person b']);
     await tester.pumpWidget(const SizedBox());
     semantics.dispose();
+  });
+
+  // GMFB-49 (Kevin: "muting should be split in communities"): which mute it is, on each person's row.
+  testWidgets('muted for everyone, muted for you and muted are told apart; a locked microphone says why when pressed', (tester) async {
+    final h = await SpaceHarness.load(tester);
+    addTearDown(tester.view.reset);
+    final base = h.call(people: 0, withChat: false);
+    const why = 'A moderator muted you for everyone. Only a moderator can unmute you.';
+    final call = SpaceCall(
+      channel: base.channel,
+      levels: base.levels,
+      changes: base.changes,
+      muted: true,
+      micLocked: true,
+      micLockedWhy: why,
+      people: const [
+        SpacePerson(id: 'me', name: 'Me', me: true, muted: true, mutedForAll: true),
+        SpacePerson(id: 'a', name: 'Maya Chen', muted: true, mutedForAll: true),
+        SpacePerson(id: 'b', name: 'Sam Ortiz', muted: true, mutedForMe: true),
+        SpacePerson(id: 'c', name: 'Riley', muted: true),
+      ],
+    );
+    expect(SpaceWords.mutedIcon(call.people[1]), Lucide.lock);
+    expect(SpaceWords.mutedIcon(call.people[2]), LucideMore.volumeX);
+    expect(SpaceWords.mutedIcon(call.people[3]), LucideMore.micOff);
+    await h.shoot(tester, TelegramCall(call: call), 'space-telegram-mutes');
+    expect(find.text('muted for everyone'), findsNWidgets(2));
+    expect(find.text('muted for you'), findsOneWidget);
+    expect(find.text('muted'), findsOneWidget);
+    await tester.tap(find.text('Muted by a moderator'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text(why), findsOneWidget);
+    // A stage's listener is locked by their role, not by a moderator.
+    await h.shoot(tester, TelegramCall(call: SpaceCall(channel: base.channel, levels: base.levels, changes: base.changes, muted: true, micLocked: true, micLockedByRole: true, people: const [SpacePerson(id: 'me', name: 'Me', me: true, muted: true)])), 'space-telegram-listener');
+    expect(find.text('Muted by a moderator'), findsNothing);
+    expect(find.text('Your role can\'t speak'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 6));
   });
 
   testWidgets('a moderator\'s mute disables the microphone and says why', (tester) async {

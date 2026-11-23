@@ -598,6 +598,42 @@ void main() {
       expect(o.heard(bob.id), isFalse);
     });
 
+    // GMFB-49 (Kevin: "admins/ moderators can mute users if needed while not allowing that user to unmute themselves").
+    test('a moderator\'s mute holds for someone who comes in later, the muted can\'t lift it, and an admin can', () async {
+      final o = owner.room(channel), a = ann.room(channel), b = bob.room(channel);
+      for (final r in [o, a, b]) {
+        await r.open();
+      }
+      await _settle();
+      await o.setRole(ann.id, Role.moderator);
+      await _settle();
+      expect(await a.muteForAll(bob.id, true), isTrue);
+      await _settle();
+      expect(b.mutedForAll(bob.id), isTrue);
+      expect(b.micLockedWhy, contains('muted you for everyone'));
+      expect(a.micLockedWhy, isNull);
+      // He can't unmute himself, whatever his app says to the room.
+      expect(await b.muteForAll(bob.id, false), isFalse);
+      bob.route.send(channel.chatRoom, NetCrypto.seal(channel.key, utf8.encode(jsonEncode({'t': 'mute', 'who': bob.id, 'on': false}))));
+      await _settle();
+      expect(o.heard(bob.id), isFalse);
+      // Cat comes in afterwards: her app silences him too.
+      final c = cat.room(channel);
+      await c.open();
+      await _settle();
+      expect(c.heard(bob.id), isFalse, reason: 'told of the mute by the moderator there');
+      expect(c.mutedForAll(bob.id), isTrue);
+      // The owner lifts the moderator's mute: everyone hears him again.
+      expect(o.mutedForAll(bob.id), isTrue);
+      expect(await o.muteForAll(bob.id, false), isTrue);
+      await _settle();
+      for (final r in [o, a, b, c]) {
+        expect(r.heard(bob.id), isTrue);
+        expect(r.mutedForAll(bob.id), isFalse);
+      }
+      expect(b.micLockedWhy, isNull);
+    });
+
     test('an admin edits a role and adds one; the newcomers\' role can be changed', () async {
       final o = owner.room(channel), a = ann.room(channel);
       await o.open();

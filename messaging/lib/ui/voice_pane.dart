@@ -55,13 +55,16 @@ class _VoicePaneState extends State<VoicePane> {
     });
   }
 
-  /// The chosen device's name for its row: an empty [id] is the system's own, and one not in [list] is unplugged.
-  static String _name(List<MediaDeviceInfo> list, String id) {
+  /// The chosen device's name for its row: an empty [id] is the system's own; one found again by [name] (its id
+  /// changed) is that one; one not there at all is unplugged, and a call uses the system's own until it is back.
+  static String _name(List<MediaDeviceInfo> list, String id, String name) {
     if (id.isEmpty) return 'The system\'s own';
+    final c = DeviceChoice.resolve(id, name, list);
+    if (c.missing) return name.isEmpty ? 'Not connected: using the system\'s own' : '$name is not connected: using the system\'s own';
     for (final d in list) {
-      if (d.deviceId == id) return d.label.isEmpty ? 'A device' : d.label;
+      if (d.deviceId == c.id) return d.label.isEmpty ? 'A device' : d.label;
     }
-    return 'Not connected now';
+    return 'A device';
   }
 
   /// DeepFilterNet is offered where this device runs it; RNNoise always (WebRTC's own stands in where it cannot run).
@@ -79,13 +82,26 @@ class _VoicePaneState extends State<VoicePane> {
 
   bool _asked = false;
 
+  // A device chosen: kept and used in the call there is (Voice.useInput), and in the test running here too.
+  static Future<void> _useInput(String id, {String name = ''}) async {
+    await Voice.instance.useInput(id, name: name);
+    await AudioTest.running?.setInput(id, name: name);
+  }
+
+  static Future<void> _useOutput(String id, {String name = ''}) async {
+    await Voice.instance.useOutput(id, name: name);
+    await AudioTest.running?.setOutput(id, name: name);
+  }
+
   /// The choice of a device: the system's own first, then each in [list], the one in use ticked. [use] is handed the
   /// id chosen (empty for the system's own).
-  void _pick(String title, List<MediaDeviceInfo> list, String current, Future<void> Function(String id) use) {
+  /// The Mac lists the system's own as a device of its own ("default"): offered once, as the first choice.
+  void _pick(String title, List<MediaDeviceInfo> list, String current, Future<void> Function(String id, {String name}) use) {
     showChoices(context, title: title, choices: [
       Choice(current.isEmpty ? '✓  The system\'s own' : 'The system\'s own', Lucide.laptop, () => use('').then((_) => setState(() {}))),
       for (final d in list)
-        Choice('${d.deviceId == current ? '✓  ' : ''}${d.label.isEmpty ? 'A device' : d.label}', Lucide.mic, () => use(d.deviceId).then((_) => setState(() {}))),
+        if (d.deviceId != 'default')
+          Choice('${d.deviceId == current ? '✓  ' : ''}${d.label.isEmpty ? 'A device' : d.label}', Lucide.mic, () => use(d.deviceId, name: d.label).then((_) => setState(() {}))),
     ]);
   }
 
@@ -112,10 +128,10 @@ class _VoicePaneState extends State<VoicePane> {
         title: 'Devices',
         description: const Text('Used in a call at once. The system\'s own follows whatever the device uses.'),
         children: [
-          SettingRow(icon: icon(Lucide.mic), label: 'Microphone', value: Text(_name(_inputs, v.input)), onPress: () => _pick('Microphone', _inputs, v.input, voice.useInput)),
+          SettingRow(icon: icon(Lucide.mic), label: 'Microphone', value: Text(_name(_inputs, v.input, v.inputName)), onPress: () => _pick('Microphone', _inputs, v.input, _useInput)),
           // A browser that can't send a page's sound to a speaker of its choosing (Safari) plays through the computer's.
           if (CallSound.canChooseOutput)
-            SettingRow(icon: icon(LucideMore.headphones), label: 'Speaker or headset', value: Text(_name(_outputs, v.output)), onPress: () => _pick('Speaker or headset', _outputs, v.output, voice.useOutput)),
+            SettingRow(icon: icon(LucideMore.headphones), label: 'Speaker or headset', value: Text(_name(_outputs, v.output, v.outputName)), onPress: () => _pick('Speaker or headset', _outputs, v.output, _useOutput)),
         ],
       ),
       if (Sms.browser) ...[gap, SettingsCallout(child: const Text(callsInBrowser))],
@@ -253,6 +269,9 @@ class AudioTest extends StatefulWidget {
   @visibleForTesting
   static RtcMedia Function(VoiceSettings settings)? make;
 
+  /// The test running now, if one is: a device chosen while it runs is switched to in it at once.
+  static RtcMedia? running;
+
   @override
   State<AudioTest> createState() => _AudioTestState();
 }
@@ -275,7 +294,7 @@ class _AudioTestState extends State<AudioTest> {
       await media.start();
       media.hearMyself = _hear;
       if (!mounted) return unawaited(media.stop());
-      setState(() => _media = media);
+      setState(() => _media = AudioTest.running = media);
     } catch (e) {
       unawaited(media.stop());
       if (mounted) setState(() => _problem = 'The microphone couldn\'t be opened: $e');
@@ -288,12 +307,14 @@ class _AudioTestState extends State<AudioTest> {
   Future<void> _stop() async {
     final media = _media;
     _media = null;
+    if (identical(AudioTest.running, media)) AudioTest.running = null;
     if (mounted) setState(() {});
     await media?.stop();
   }
 
   @override
   void dispose() {
+    if (identical(AudioTest.running, _media)) AudioTest.running = null;
     unawaited(_media?.stop());
     super.dispose();
   }

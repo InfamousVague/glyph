@@ -165,7 +165,8 @@ object CallRecorder {
         val track = FlutterWebRTCPlugin.sharedSingleton?.getRemoteTrack(trackId) as? AudioTrack ?: return false
         val had = others[key]
         val file = had?.first ?: Track(File(path))
-        had?.second?.let { (t, s) -> t.removeSink(s) }
+        // The track they had may be gone with its connection (one made again, GMFB-52): taking the tap off it throws.
+        had?.second?.let { (t, s) -> runCatching { t.removeSink(s) } }
         val sink = AudioTrackSink { data, bits, rate, channels, frames, _ ->
             val d = data.duplicate().order(ByteOrder.LITTLE_ENDIAN)
             file.write(due(), frames, rate, channels.coerceAtLeast(1)) { i, c ->

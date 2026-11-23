@@ -138,6 +138,37 @@ an app that dialled a name not listed is refused, and doesn't fall back to v1. A
 long as it is listed: whoever held it next could take a v2 sign-in made for it. Taking the names away again (or an env
 file that leaves them out: the deploy's `--env` replaces the box's whole environment) turns the hold off, not the keys.
 
+**A relay hosted from the app** (the app's `lib/relay_host`; [../docs/OPEN_NETWORK.md](../docs/OPEN_NETWORK.md), section
+5) is this same hub run inside the app, which asks four things of it. Each is a setting of `Hub` that does nothing unless
+it is set, and `bin/relay.dart` sets none of them: a relay on a server, gogho.st's, says and does what it did.
+
+- `pass`: a pass phrase everyone who uses the hub must give. The hello says so (`"pass": true`, with `"salt"`: the
+  relay's own, `passSalt`, its name where it has one), and a sign-in, or a closed app's look, is taken only with
+  `"pass"` in it: HMAC-SHA256, under the phrase made into a key (PBKDF2 with HMAC-SHA256, `ghost-hub pass v2 ` and the
+  salt its salt, 20,000 rounds, 32 bytes), over `ghost-hub pass v2 `, the hub's number for that connection and the
+  install's name (16 bytes), in hex. So it is good for that connection and that install alone, and nothing of the
+  phrase crosses; seen on a local network it can be tried against as fast as the rounds allow, for that relay alone (a
+  list of likely phrases made into keys once is no use against another), so a long phrase is what stands in the way.
+  None given is answered `{"ok": false, "err": …, "pass": "needed"}` and counts for nothing; a wrong one `"pass":
+  "wrong"`, and costs whoever gave it: each place (a network address; over Direct the node) has 5 free, then each try
+  waits a minute, doubled with each wrong one, at most an hour; and strangers together (installs that never gave the
+  phrase here) have 200 an hour, past which a stranger's isn't read until the hour is out. An install that has given
+  the right phrase here (kept in `hub-pass.json`, under a tag of the key, so a new phrase starts it again) is read
+  still, and the keeper's own app in memory (`attach(own: true)`) is never asked: a stranger can hold newcomers off for
+  an hour at a time, never those who use it. A try that isn't read is answered `"pass": "busy"` with `"wait"`, the
+  seconds until it would be. Each refusal closes the connection (4401). Another relay's hello is not asked for it:
+  whether relays link is their keepers' own choice.
+- `attach(reachedAs:)`: a connection taken knowing how the app at the far end named this relay's place (the node id
+  its Direct connection came in at, or the relay's name in memory): the hello carries `"relaySig"`, the relay key's
+  signature over `ghost-hub relay v1 `, the connection's number and that place, which an app dialling
+  `ghost-relay://<name>?n=<node>` checks against the name, the key and the node it dialled. Nothing where it isn't
+  given or the relay has no key.
+- `hosted`: the hello says it runs in someone's app (`"hosted": true`), so whoever joins is told that whoever runs it
+  sees which installs talk and when (never what), and that it is up only while their app is.
+- `roomKeepBytes`: what rooms keep, all of them together (256 MB unless given less).
+- `trustsProxy: false`: `X-Forwarded-For` is not believed (the place a connection counts as, above): with nothing in
+  front of the hub, anyone on its network could write anything there, and be a new place each time they tried.
+
 ## Other relays
 
 Relays that pass sealed packets to each other, so two people whose apps use different relays can be friends and talk
@@ -198,7 +229,7 @@ for every relay with no address together); then everyone's (20 a second); and on
     {"fed":1, "id", "key", "sig", "url": its own hub address (where it claims one), "c": <64 hex> it made up, "stay": true (to stay linked)}
       sig over "ghost-fed-dial v2 " | the hub's number (32) | its own name (16) | the answering relay's name (16) | c (32)
                | stay (1 byte: 1 or 0) | len(the address it dialled) (1) | the address it dialled | len(url) (1) | url
-    {"ok":true, "fed":1, "id", "key", "sig"}
+    {"ok":true, "fed":1, "id", "key", "sig", "stay": true (where it asked to stay, and may)}
       sig over "ghost-fed v2 " | c (32) | the dialler's name (16) | its own name (16) | len(the address dialled) (1) | the address dialled
     {"ok":false, "err"}: no address, busy, bad hello, self, bad address, blocked, not listed, address; then closed (4403)
 
@@ -242,6 +273,10 @@ four tries and not dialled for ten minutes); one that answered no is not asked a
   and only for someone whose own record says so: `nak` `to` otherwise), and the public relay passes on what the hosted
   one's people send, to the relay their friend lives on and no further. Off, a relay with no address is linked as any
   other and is no way through: `far`. The hosted relay believes the relay it stays linked to as an app believes its relay.
+  The public relay's yes says whether one that asked to stay may (`"stay": true`, said only where it may: a relay from
+  before says nothing, and is read as no). Whoever runs the hosted one is shown how its link stands
+  (`Federation.viaLink`): up, and whether it may stay; or why not, `down` where nothing answered, else what the public
+  relay said (one with federation off answers "not a relay that talks to others"), and when it is dialled next.
 - **Unreachable.** With the other relay down the packet waits here and the sender is told it is kept (`waiting`), for a
   relay linked with before: 2,000 packets or 16 MB for one relay, seven days, 32 MB for all relays together, a quarter
   of it at most for what other relays asked to be kept (linked or not); what is on its way over an open link counts
