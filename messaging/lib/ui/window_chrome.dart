@@ -1,4 +1,4 @@
-import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
@@ -23,7 +23,7 @@ class MacChrome {
   static const bool own = false;
 
   /// Only in the Mac app with its own top bar, and not under `flutter test` (which runs on a Mac but draws no window).
-  static bool enabled = own && Platform.isMacOS && !Platform.environment.containsKey('FLUTTER_TEST');
+  static bool enabled = own && PlatformInfo.isMacOS && !PlatformInfo.environment.containsKey('FLUTTER_TEST');
 
   /// The window's own title strip instead (Matt, 2026-11-19: "I want the top bar where we drag like the window titlebar
   /// to house these buttons we can roll a custom titlebar if we need to that's a bit thicker to fit the content"): one
@@ -33,7 +33,7 @@ class MacChrome {
   static const bool strip = true;
 
   /// Only in the Mac app, and not under `flutter test`.
-  static bool stripEnabled = strip && !own && Platform.isMacOS && !Platform.environment.containsKey('FLUTTER_TEST');
+  static bool stripEnabled = strip && !own && PlatformInfo.isMacOS && !PlatformInfo.environment.containsKey('FLUTTER_TEST');
 
   /// Whether a top bar drags the window: with either kind of the app's own top bar.
   static bool get draggable => enabled || stripEnabled;

@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -254,14 +255,14 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
   }
 
   static Directory _appDir() {
-    if (Platform.isAndroid) return Directory('${Directory.systemTemp.parent.path}/files');
+    if (PlatformInfo.isAndroid) return Directory('${Directory.systemTemp.parent.path}/files');
     return DeskStore.defaultDir();
   }
 
   static Directory _cacheDir() {
-    if (Platform.isAndroid) return Directory.systemTemp;
-    final home = Platform.environment['HOME'];
-    if (Platform.isMacOS && home != null) return Directory('$home/Library/Caches/Ghost Messaging');
+    if (PlatformInfo.isAndroid) return Directory.systemTemp;
+    final home = PlatformInfo.environment['HOME'];
+    if (PlatformInfo.isMacOS && home != null) return Directory('$home/Library/Caches/Ghost Messaging');
     return Directory('${DeskStore.defaultDir().path}/cache');
   }
 
@@ -716,7 +717,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     for (final p in paths) {
       final f = File(p);
       if (!f.existsSync()) continue;
-      final name = SpaceFile.cleanName(p.split(Platform.pathSeparator).last.split('/').last);
+      final name = SpaceFile.cleanName(p.split(PlatformInfo.pathSeparator).last.split('/').last);
       transfers.add(Transfer._up(
         space: c,
         path: p,
@@ -1365,10 +1366,10 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
 /// stream (zone 3, the internet) on Windows. Nothing elsewhere; a failure is no matter (the file is still there).
 Future<void> markFromInternet(String path) async {
   try {
-    if (Platform.isMacOS) {
+    if (PlatformInfo.isMacOS) {
       final secs = (DateTime.now().millisecondsSinceEpoch ~/ 1000).toRadixString(16);
       await Process.run('xattr', ['-w', 'com.apple.quarantine', '0081;$secs;Ghost Messaging;', path]);
-    } else if (Platform.isWindows) {
+    } else if (PlatformInfo.isWindows) {
       await File('$path:Zone.Identifier').writeAsString('[ZoneTransfer]\r\nZoneId=3\r\n');
     }
   } catch (_) {}
@@ -1385,7 +1386,7 @@ Future<Uint8List> _sealParallel(SealRun run) async {
   // In a call, two at most: the call's sound and pictures need the cores more than an upload needs to be quick
   // (GMFB-6, @matt: "The app is super laggy when in a voice call and uploading a video to the files").
   final most = Voice.instance.session != null ? 2 : 4;
-  final ways = math.min(math.min(most, math.max(1, Platform.numberOfProcessors - 1)), count);
+  final ways = math.min(math.min(most, math.max(1, PlatformInfo.numberOfProcessors - 1)), count);
   if (ways <= 1 || run.first + count > n) return _sealAside(run);
   final per = (count + ways - 1) ~/ ways;
   final parts = <Future<Uint8List>>[];
@@ -1504,7 +1505,7 @@ class _AppleSha implements _Sha {
   static const _room = 4 << 20;
 
   static _AppleSha? open() {
-    if (!Platform.isMacOS && !Platform.isIOS) return null;
+    if (!PlatformInfo.isMacOS && !PlatformInfo.isIOS) return null;
     try {
       final lib = ffi.DynamicLibrary.process();
       final init = lib.lookupFunction<ffi.Int32 Function(ffi.Pointer<ffi.Void>), int Function(ffi.Pointer<ffi.Void>)>('CC_SHA256_Init');

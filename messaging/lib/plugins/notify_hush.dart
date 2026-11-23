@@ -16,7 +16,7 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Platform;
+import '../platform_info.dart';
 
 import '../app_state.dart';
 import 'kinds.dart';
@@ -106,7 +106,7 @@ class NotifyHush {
   /// Keeps [key] up to date from here on: written now, and again (once for a run of changes) whenever a choice that
   /// changes it does. On Android alone: a computer or an iPhone posts no texts' notifications.
   static void start(AppState app, {PluginRegistry? registry}) {
-    if (!Platform.isAndroid) return;
+    if (!PlatformInfo.isAndroid) return;
     void write() {
       _due = false;
       try {

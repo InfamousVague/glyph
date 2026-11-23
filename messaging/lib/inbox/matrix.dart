@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MethodChannel;
@@ -83,7 +84,7 @@ class Matrix extends InboxNetwork {
   /// Whether the recovery key has signed this device ([unlock]).
   bool get verified => _verified;
 
-  String get _dir => folder ?? (Platform.isAndroid ? '${Directory.systemTemp.parent.path}/files/matrix' : '${DeskStore.defaultDir().path}/matrix');
+  String get _dir => folder ?? (PlatformInfo.isAndroid ? '${Directory.systemTemp.parent.path}/files/matrix' : '${DeskStore.defaultDir().path}/matrix');
   File get _file => File('$_dir/chats.json');
 
   @override
@@ -119,17 +120,17 @@ class Matrix extends InboxNetwork {
   /// The helper: beside the app on a computer (Contents/Helpers on a Mac), the phone's native libraries on Android.
   Future<MatrixLink?> _process() async {
     String? binary;
-    if (Platform.isAndroid) {
+    if (PlatformInfo.isAndroid) {
       try {
         binary = await const MethodChannel('ghost_messaging/sms').invokeMethod<String>('helperPath', {'name': 'matrixsidecar'});
       } catch (_) {}
-    } else if (Platform.isMacOS || Platform.isWindows) {
-      final named = Platform.environment['GHOST_MATRIXSIDECAR'];
-      final exe = File(Platform.resolvedExecutable).parent.path;
+    } else if (PlatformInfo.isMacOS || PlatformInfo.isWindows) {
+      final named = PlatformInfo.environment['GHOST_MATRIXSIDECAR'];
+      final exe = File(PlatformInfo.resolvedExecutable).parent.path;
       for (final c in [
         ?named,
-        if (Platform.isWindows) '$exe\\matrix-sidecar.exe' else '$exe/../Helpers/matrix-sidecar',
-        '${Directory.current.path}/build/matrix-sidecar/${Platform.isWindows ? 'windows/matrix-sidecar.exe' : 'mac/matrix-sidecar'}',
+        if (PlatformInfo.isWindows) '$exe\\matrix-sidecar.exe' else '$exe/../Helpers/matrix-sidecar',
+        '${Directory.current.path}/build/matrix-sidecar/${PlatformInfo.isWindows ? 'windows/matrix-sidecar.exe' : 'mac/matrix-sidecar'}',
       ]) {
         if (File(c).existsSync()) {
           binary = c;
@@ -645,7 +646,7 @@ class Matrix extends InboxNetwork {
           ? 'audio/mp4'
           : const {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp', 'heic': 'image/heic', 'mp4': 'video/mp4', 'mov': 'video/quicktime', 'pdf': 'application/pdf'}[ext] ??
               'application/octet-stream';
-      final name = path.split(Platform.pathSeparator).last;
+      final name = path.split(PlatformInfo.pathSeparator).last;
       final text = i == paths.length - 1 ? caption : '';
       try {
         final r = (await _ask('send_media', {'room': chatId, 'path': path, 'mime': mime, 'name': name, 'text': text}) as Map?) ?? const {};

@@ -15,7 +15,7 @@ library;
 
 import '../split_handle.dart';
 import 'dart:async';
-import 'dart:io' show Platform;
+import '../../platform_info.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
@@ -55,7 +55,7 @@ const List<String> featuredPlugins = ['translate', 'codes', 'spam'];
 const double pluginsWide = 720;
 
 /// Where the plugins run, in a word.
-String pluginsHere() => Sms.remote ? (Platform.isIOS ? 'iPhone' : 'computer') : 'phone';
+String pluginsHere() => Sms.remote ? (PlatformInfo.isIOS ? 'iPhone' : 'computer') : 'phone';
 
 /// What plugins are, in a line: the band's.
 String pluginsLine() => 'Extras for your messages, built in or from other developers, each on this ${pluginsHere()} alone.';

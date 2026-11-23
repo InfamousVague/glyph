@@ -1,9 +1,9 @@
-import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/services.dart';
 
 /// Under `flutter test`, which draws no window.
-bool get isUnderTest => Platform.environment.containsKey('FLUTTER_TEST');
+bool get isUnderTest => PlatformInfo.environment.containsKey('FLUTTER_TEST');
 
 /// The computer's window: small while signing up or in, its own size for the app (Matt, 2026-11-20: "make the sign up /
 /// sign in window smaller"), as Discord's sign-in is a small window of its own. The Mac's and Windows' halves do it

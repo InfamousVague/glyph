@@ -21,6 +21,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:isolate';
 import 'dart:math' as math;
 
@@ -391,7 +392,7 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
 
   /// Whether this platform records calls: a phone, a Mac or iPhone, and Windows (windows/runner/call_recorder.cpp;
   /// Matt, 2026-11-21: "my friend is not able to see plugins added for recording calls on his pc"); not a browser.
-  static bool get supported => !kIsWeb && (Platform.isAndroid || Platform.isMacOS || Platform.isIOS || Platform.isWindows);
+  static bool get supported => !kIsWeb && (PlatformInfo.isAndroid || PlatformInfo.isMacOS || PlatformInfo.isIOS || PlatformInfo.isWindows);
 
   _Taking? _now;
 
@@ -464,7 +465,7 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
 
   /// Where recordings are kept: the app's own folder (a phone's is cleared only with the app).
   static Directory folder() {
-    if (!kIsWeb && Platform.isAndroid) return Directory('${Directory.systemTemp.parent.path}/files/recordings');
+    if (!kIsWeb && PlatformInfo.isAndroid) return Directory('${Directory.systemTemp.parent.path}/files/recordings');
     return Directory('${DeskStore.defaultDir().path}/recordings');
   }
 
@@ -691,7 +692,7 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
   /// [names]; [work] is a folder for what is made on the way. Also what a recording mixed again in the mixer is saved
   /// as (lib/voice/recording_playback.dart).
   static Future<void> makeMp4(List<String> inputs, String out, List<String> names, {required String work}) async {
-    if (!kIsWeb && Platform.isWindows) {
+    if (!kIsWeb && PlatformInfo.isWindows) {
       // Windows makes each voice an AAC file of its own; they are put together here (lib/voice/mp4_merge.dart).
       final parts = <String>[];
       for (final (i, p) in inputs.indexed) {

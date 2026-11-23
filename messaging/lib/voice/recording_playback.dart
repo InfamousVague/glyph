@@ -12,6 +12,7 @@ library;
 
 import 'dart:async';
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:isolate';
 import 'dart:math' as math;
 
@@ -286,7 +287,7 @@ class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
 /// One voice's player: media_kit (libmpv) on Android, the Mac and Windows, the video_player package (AVFoundation) on
 /// the iPhone, as the app's video player has them (lib/ui/video_engine.dart).
 abstract class _VoicePlayer {
-  static _VoicePlayer make() => !kIsWeb && Platform.isIOS ? _AvVoice() : _MpvVoice();
+  static _VoicePlayer make() => !kIsWeb && PlatformInfo.isIOS ? _AvVoice() : _MpvVoice();
 
   Future<void> open(String path);
   Future<void> play();

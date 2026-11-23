@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
@@ -150,7 +150,7 @@ class _VoicePaneState extends State<VoicePane> {
           SettingRow(icon: icon(LucideMore.headphones), label: 'Stereo', hint: const Text('Two channels; off sends one.'), disabled: v.music, control: GlacierSwitch(checked: v.sendStereo, disabled: v.music, onCheckedChange: (on) => flag('voice_stereo', on), ariaLabel: 'Stereo')),
           SettingRow(icon: icon(Lucide.volume2), label: 'Echo cancellation', hint: const Text('Keeps your speaker out of your microphone. Off for headphones only.'), disabled: v.music, control: GlacierSwitch(checked: v.useEcho, disabled: v.music, onCheckedChange: (on) => flag('voice_echo', on), ariaLabel: 'Echo cancellation')),
           SettingRow(icon: icon(Lucide.slidersHorizontal), label: 'Automatic gain', hint: const Text('Evens out how loud you are. Off keeps your own level.'), disabled: v.music, control: GlacierSwitch(checked: v.useGain, disabled: v.music, onCheckedChange: (on) => flag('voice_gain', on), ariaLabel: 'Automatic gain')),
-          if (!kIsWeb && Platform.isWindows)
+          if (!kIsWeb && PlatformInfo.isWindows)
             SettingRow(
               icon: icon(LucideMore.volumeX),
               label: 'Lower other sounds in calls',

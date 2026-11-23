@@ -1,4 +1,4 @@
-import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
@@ -143,7 +143,7 @@ class _WhatsAppLinkScreenState extends State<WhatsAppLinkScreen> {
                     ),
                   ),
                 ),
-                if (n.qr != null && Platform.isAndroid)
+                if (n.qr != null && PlatformInfo.isAndroid)
                   SettingRow(
                     icon: _icon(Lucide.share2),
                     label: 'Show it on another screen',

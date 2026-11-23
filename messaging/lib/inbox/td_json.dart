@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
@@ -39,9 +40,9 @@ class TdJson implements TdTransport {
   static DynamicLibrary? open() {
     if (_opened != null) return _opened;
     final tries = <String>[
-      if (Platform.isAndroid) 'libtdjson.so',
-      if (Platform.isMacOS) ...[
-        '${File(Platform.resolvedExecutable).parent.parent.path}/Frameworks/libtdjson.dylib',
+      if (PlatformInfo.isAndroid) 'libtdjson.so',
+      if (PlatformInfo.isMacOS) ...[
+        '${File(PlatformInfo.resolvedExecutable).parent.parent.path}/Frameworks/libtdjson.dylib',
         // A build run from the checkout (flutter run, flutter test), before the release puts it in the app.
         '${Directory.current.path}/build/tdlib/mac/libtdjson.dylib',
       ],

@@ -4,13 +4,14 @@
 library;
 
 import 'dart:io';
+import '../platform_info.dart';
 
 /// The paths chosen (at most [most]); [pictures] limits the chooser to pictures and videos.
 Future<List<String>> linuxPick({int most = 50, bool pictures = false}) async {
   const kinds = '*.png *.jpg *.jpeg *.gif *.webp *.heic *.bmp *.mp4 *.mov *.mkv *.webm';
   final tries = <(String, List<String>)>[
     ('zenity', ['--file-selection', '--multiple', '--separator=\n', '--title=Choose files', if (pictures) '--file-filter=Pictures and videos | $kinds']),
-    ('kdialog', ['--getopenfilename', Platform.environment['HOME'] ?? '.', if (pictures) 'Pictures and videos ($kinds)', '--multiple', '--separate-output', '--title', 'Choose files']),
+    ('kdialog', ['--getopenfilename', PlatformInfo.environment['HOME'] ?? '.', if (pictures) 'Pictures and videos ($kinds)', '--multiple', '--separate-output', '--title', 'Choose files']),
   ];
   for (final (tool, args) in tries) {
     try {

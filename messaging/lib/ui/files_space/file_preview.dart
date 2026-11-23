@@ -8,6 +8,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../../platform_info.dart';
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
@@ -233,7 +234,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
                 _Pill(label: 'Open', icon: Lucide.externalLink, strong: true, onPressed: () => FilePlatform.open(path, f.name)),
               if (FilePlatform.canSave) _Pill(label: FilePlatform.canShare ? 'Save' : 'Download', icon: LucideMore.download, onPressed: () => fileAction(context, widget.channel, f, _store, (p) => FilePlatform.save(p, f.name, f.mime), doneWords: true)),
               if (FilePlatform.canShare) _Pill(label: 'Share', icon: Lucide.share2, onPressed: () => FilePlatform.share(path, f.name, f.mime)),
-              if (Platform.isMacOS) _Pill(label: 'Show in Finder', icon: Lucide.folderOpen, onPressed: () => FilePlatform.reveal(path)),
+              if (PlatformInfo.isMacOS) _Pill(label: 'Show in Finder', icon: Lucide.folderOpen, onPressed: () => FilePlatform.reveal(path)),
             ]),
           ]),
         ),

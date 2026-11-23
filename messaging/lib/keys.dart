@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
+import 'platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -61,7 +61,7 @@ class KeyBinding {
   /// Ctrl as itself on a Mac, where [primary] is Cmd; on the others it is [primary].
   final bool control;
 
-  static bool get _mac => !kIsWeb && Platform.isMacOS;
+  static bool get _mac => !kIsWeb && PlatformInfo.isMacOS;
 
   /// Whether it holds a key that is not typed: it works while the cursor is in a field.
   bool get chord => primary || alt || control;

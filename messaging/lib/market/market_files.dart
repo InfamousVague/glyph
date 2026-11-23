@@ -9,6 +9,7 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -26,11 +27,11 @@ typedef PickedPlugin = ({String name, Uint8List bytes, String? path});
 
 /// Where a plugin file can be chosen: Android's picker, a Mac's Open panel and Windows' Open dialog (GMFB-7: Windows
 /// had none, so a downloaded plugin file could not be loaded there).
-bool get canPickPluginFile => Platform.isAndroid || Platform.isMacOS || Platform.isWindows;
+bool get canPickPluginFile => PlatformInfo.isAndroid || PlatformInfo.isMacOS || PlatformInfo.isWindows;
 
 /// A .ghostplugin chosen with the device's own picker; null where none was.
 Future<PickedPlugin?> pickPluginFile() async {
-  if (Platform.isAndroid) {
+  if (PlatformInfo.isAndroid) {
     final picked = await Sms.instance.pickFiles();
     if (picked.isEmpty) return null;
     final copy = await Sms.instance.cacheCopy(picked.first);
@@ -46,11 +47,11 @@ Future<PickedPlugin?> pickPluginFile() async {
       }
     }
   }
-  if (Platform.isMacOS || Platform.isWindows) {
+  if (PlatformInfo.isMacOS || PlatformInfo.isWindows) {
     final paths = await FilePlatform.pickPaths(most: 1);
     if (paths.isEmpty) return null;
     final path = paths.first;
-    return (name: path.split(Platform.pathSeparator).last, bytes: await _readAtMost(File(path), PackLimits.packageBytes + 1), path: path);
+    return (name: path.split(PlatformInfo.pathSeparator).last, bytes: await _readAtMost(File(path), PackLimits.packageBytes + 1), path: path);
   }
   return null;
 }
