@@ -76,12 +76,21 @@ class P2pCarrier implements Carrier, LiveLinks {
   static final _words = utf8.encode('ghost-p2p link v2\n');
   static const _mark = 0, _nonceMark = 2, _proofMark = 3, _nonceLength = 16;
 
+  /// The route's name to the switchboard and in what is kept (`net_off`, Net.directName), what it is called, and what
+  /// it is, in words: the same for Settings › Routes' row before the route is made (Direct switched off) as after.
+  static const routeId = 'p2p', label = 'Direct';
+
+  /// What switching Direct on means, said on its row before it is on (Matt's brief, 2026-11-23): who is told where this
+  /// device is, who learns its network address, and what a link helper sees.
+  static const aboutWords =
+      'Straight between your devices and your friends\', for when the relay server can\'t carry something. Their devices learn this device\'s network address, and nobody else is told it. A link helper sees which devices link and how much they send, never who they are or what is said.';
+
   @override
-  String get id => 'p2p';
+  String get id => routeId;
   @override
-  String get name => 'Direct';
+  String get name => label;
   @override
-  String get about => 'Straight between your devices and your friends\', with no server in between. Their device sees your network address; nobody else does.';
+  String get about => aboutWords;
   @override
   CarrierTraits get traits => CarrierTraits(maxPacket: maxPacket, ackWait: p2p.policy.ackWait);
   @override

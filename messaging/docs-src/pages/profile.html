@@ -51,3 +51,34 @@
 <p>Under <b>Linked accounts</b>, link your Discord, Telegram or X account by signing in to it. Then friends who look for that handle can find you. Bluesky, Mastodon and GitHub are <soon/>.</p>
 <p><ui>Settings › Friends joining</ui> works the other way: add the handles of people you know on Discord, Telegram or X, and you're told when they join Ghost Messaging. Those apps don't let another app read your friend list, so you add them yourself.</p>
 <p><b>Remove everything about me</b> unlinks every account and your number, and clears your watch list, on the phone and on the server.</p>
+
+<h2 id="account-key">Your account key</h2>
+<p>Your account is known on the network by a key, the same on every device you use. <ui>Settings › Me › Profile</ui> shows it written as a <b>did:key</b>, a standard way to write a key as text, with <b>Copy</b> and <b>Share</b>. A friend's card shows theirs.</p>
+<m-screen title="Profile" back caption="Settings › Me › Profile › Your account key.">
+  <m-section title="Your account key">
+    <m-row icon="key-round" hue="blue" label="did:key:zDnaerDaTF5B…FU2169" hint="Copy" tap/>
+    <m-row icon="share-2" hue="teal" label="Share it" chev/>
+    <m-row icon="pen-line" hue="purple" label="Sign a statement" hint="Words to paste anywhere, which show they came from this account" chev/>
+    <m-row icon="shield-check" hue="green" label="Check a statement" hint="Paste one to see whose it is" chev/>
+  </m-section>
+</m-screen>
+<ul>
+  <li><b>Sign a statement</b>: write up to 280 characters, like "I am @alex on Ghost Messaging", and you get a block of text to paste in a bio, a post or a page elsewhere. It shows those words came from your account, and when.</li>
+  <li><b>Check a statement</b>: paste a block to see whose it is: yours, a friend's, or an account you don't know. Nothing is sent anywhere to check it.</li>
+  <li>Anyone can check a statement without the app or our servers: the block names the account's key, and the signature is a standard one (P-256 with SHA-256). The format, and a small script that checks one, are in the app's source.</li>
+</ul>
+
+<h2 id="vouches">Vouching for friends</h2>
+<p>On a friend's card, <b>Vouch for @name</b> says their account really is them, for a year. The card says when yours runs out; <b>Vouch for @name again</b> renews it for another year, and you can take it back whenever you like.</p>
+<m-screen caption="A friend's card, vouched for by two of your friends.">
+  <m-sheet title="Maya Chen">
+    <m-p>@maya · Vouched for by 2 of your friends</m-p>
+    <m-btn icon="user-check" tap>Vouch for @maya</m-btn>
+  </m-sheet>
+</m-screen>
+<ul>
+  <li>A card counts only the vouches of <b>your own friends</b>, and tapping the count shows their names. There's no count of everyone. Your vouch reaches your friend's friends with their profile, but nobody else, and each of them counts it only if you are their friend too.</li>
+  <li>On a computer paired with your phone, vouching is done on the phone.</li>
+  <li>Your vouch goes to that friend, sealed, and travels with their profile to their friends. Each one is signed by your key, so nobody can make one up in your name, the relay included.</li>
+  <li>In <ui>Profile › Vouches</ui> you see who vouches for you, and can hide them from your friends. Removing or blocking a friend drops their vouch.</li>
+</ul>
