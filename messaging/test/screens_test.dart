@@ -1722,7 +1722,8 @@ void main() {
       expect(892 - composer.bottom, lessThan(32 + 40), reason: 'no room kept for a pill that isn\'t there');
       v.view(null);
 
-      // Wide, in the call: the people and the dock in the list's place, the chat in the pane.
+      // Wide, in the call: the list left as it is, and in the pane the call (the people and the dock) on top and the
+      // chat under it (SpaceSplit; Matt, 2026-11-23).
       tester.view.physicalSize = const Size(1280 * 2.0, 800 * 2.0);
       v.session = VoiceSession(channel: channel, route: route, media: _NoMedia({'a': 0.4}), name: 'Me')
         ..members['a'] = const VoiceMember('a', name: 'Maya Chen', username: 'maya')
@@ -1732,17 +1733,13 @@ void main() {
       shell.go('voice');
       await _settle(tester);
       await _shootAgain(tester, '22-hangout-wide', dark: dark);
-      expect(find.byType(HangoutStage), findsOneWidget, reason: 'the pane is the chat');
-      expect(find.byType(HangoutPeople), findsOneWidget, reason: 'the people in the list\'s place');
+      expect(find.byType(SpaceSplit), findsOneWidget, reason: 'the pane is the call over the chat');
+      expect(find.byType(HangoutPeople), findsNothing, reason: 'nothing in the list\'s place');
       final people = tester.getRect(find.byType(CallPanel)), chat = tester.getRect(find.byType(HangoutChat));
-      expect(people.right, lessThanOrEqualTo(chat.left), reason: 'voice on the left, chat on the right');
+      expect(people.bottom, lessThanOrEqualTo(chat.top + 1), reason: 'the call on top, the chat under it');
       expect(find.text('Saving you a seat'), findsOneWidget);
-      // The pill is put away; the call's buttons stand where it was.
-      expect(find.byType(NavPill), findsNothing);
-      expect(find.byType(CallBanner), findsNothing);
-      final dock = tester.getRect(find.byType(CallDock));
-      expect(800 - dock.bottom, lessThan(32 + 40), reason: 'at the foot, where the pill stood');
-      expect(dock.right, lessThanOrEqualTo(people.right + 40), reason: 'in the list\'s column');
+      expect(find.byType(CallDock), findsOneWidget, reason: 'the call\'s buttons once, over the call');
+      expect(tester.getRect(find.byType(CallDock)).bottom, lessThanOrEqualTo(chat.top + 1));
       v.session = null;
       // A hangout's menu (Matt, 2026-11-15: "there also needs to be a context menu to open settings for hangouts and
       // manage permissions and such as well as delete the hangouts on desktop"): its settings, link, sharing, delete.

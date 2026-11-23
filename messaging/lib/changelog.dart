@@ -25,6 +25,9 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.24', '2026-11-23', [
+    'Voice spaces on a computer: in a call, the space shows the call in the top two thirds and its chat with the message box under it, and the circle\'s list beside it stays as it was, so you can move between spaces without leaving the call. Drag the line between them to make either bigger.',
+  ]),
   ReleaseNotes('0.12.23', '2026-11-23', [
     'Open spaces show the chat on the floor: what people write comes up as bubbles for a few seconds, over the group its writer stands in or at the side, fainter the further away they are. A box at the foot of the floor writes to the chat.',
     'Open spaces stay in their own page: joining one leaves the list beside it as it was, with the call\'s controls over the foot of the floor. The walls take your accent colour, and the words saying how to walk fade once you have.',

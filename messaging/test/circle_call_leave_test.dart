@@ -57,7 +57,8 @@ void main() {
   });
 
   for (final (name, size, wide) in [('a phone', const Size(412, 892), false), ('a wide window', const Size(1100, 832), true)]) {
-    for (final how in ['Leave', 'Back']) {
+    // Beside the list the call is the top of the space's own page (SpaceSplit), with nothing to put away: Leave alone.
+    for (final how in [if (!wide) 'Back', 'Leave']) {
       testWidgets('on $name, ${how == 'Leave' ? 'leaving' : 'putting away'} a circle\'s call lands back on the circle', (tester) async {
         Circles.instance.join(_circle);
         final sheet = await loadSheet(tester);
@@ -74,12 +75,13 @@ void main() {
         expect(find.byType(HangoutScreen), findsOneWidget);
 
         // Joined: on a phone the space's page is the call (the Telegram design, the default); beside the list the call
-        // is a page over everything, as HangoutScreen's Join opens it.
+        // is the top of the space's page, the chat under it, nothing pushed over the window (Matt, 2026-11-23).
         _join(lounge);
         await settle(tester);
         if (wide) {
-          expect(openSpaceCall(tester.element(find.byType(HangoutScreen))), isTrue);
+          expect(openSpaceCall(tester.element(find.byType(HangoutScreen))), isFalse);
           await settle(tester);
+          expect(find.byType(SpaceSplit), findsOneWidget);
         }
         expect(find.byType(SpaceCallPage), findsOneWidget);
 
