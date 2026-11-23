@@ -157,8 +157,10 @@ const CLOSE_SEEN: Duration = Duration::from_secs(5);
 /// What `open` waits at least and at most, whatever it was asked.
 const OPEN_SHORTEST: Duration = Duration::from_millis(100);
 const OPEN_LONGEST: Duration = Duration::from_secs(60);
-/// The app hears where this node is no more often than this.
+/// The app hears where this node is no more often than this; and that it is nowhere (no address another device could
+/// reach it by, no link helper it is on) once this long after it came up, where that is so.
 const WHEREABOUTS_EVERY: Duration = Duration::from_secs(1);
+const NOWHERE_AFTER: Duration = Duration::from_secs(3);
 /// A link's round trip is looked at again this often, and a second after the link comes up.
 const PATH_LOOK: Duration = Duration::from_secs(10);
 /// A start asks for the port its node had before this many times, this far apart, before it takes any other: the
@@ -1169,9 +1171,11 @@ fn masked(ip: IpAddr, prefix: u8) -> IpAddr {
 
 /// Whether an interface is a virtual machine's, a tunnel, or something else no other device reaches this one by: a
 /// VPN's tunnel (utun, tun, tap, ppp, ipsec, WireGuard, Tailscale, ZeroTier), a bridge to virtual machines (Parallels,
-/// VMware, VirtualBox, UTM, Hyper-V, WSL, Docker, libvirt, LXC), Apple's own links between its devices (AWDL, LLW),
-/// Android's Wi-Fi Direct and IPv4-over-IPv6 (CLAT) interfaces. Unix names by how they begin, Windows' by the words in
-/// them.
+/// VMware, VirtualBox, UTM, a Hyper-V host's switch, WSL, Docker, libvirt, LXC), Apple's own links between its devices
+/// (AWDL, LLW), Android's Wi-Fi Direct and IPv4-over-IPv6 (CLAT) interfaces. Unix names by how they begin, Windows'
+/// names and descriptions by the words in them. Not the network card a virtual machine itself is given ("Microsoft
+/// Hyper-V Network Adapter" in a Windows machine run by Hyper-V, as every Azure one is): that is the machine's own way
+/// out, and the only one it has.
 pub(crate) fn virtual_interface(name: &str) -> bool {
     let name = name.to_ascii_lowercase();
     const BEGINS: &[&str] = &[
@@ -1219,7 +1223,7 @@ pub(crate) fn virtual_interface(name: &str) -> bool {
         "vethernet",
         "virtualbox",
         "vmware",
-        "hyper-v",
+        "hyper-v virtual",
         "wsl",
         "tap-",
         "openvpn",
@@ -1265,10 +1269,12 @@ impl Here {
     fn now() -> Here {
         let mut addrs = HashMap::new();
         for interface in netdev::get_interfaces().into_iter().filter(|i| i.is_up()) {
-            let tunnel = interface.if_type == netdev::interface::types::InterfaceType::Tunnel
-                || virtual_interface(&interface.name)
-                || interface.friendly_name.as_deref().is_some_and(virtual_interface)
-                || interface.description.as_deref().is_some_and(virtual_interface);
+            let tunnel = tunnel_interface(
+                &interface.name,
+                interface.friendly_name.as_deref(),
+                interface.description.as_deref(),
+                interface.if_type == netdev::interface::types::InterfaceType::Tunnel,
+            );
             for net in &interface.ipv4 {
                 let ip = IpAddr::V4(net.addr());
                 let network = (masked(ip, net.prefix_len()), net.prefix_len());
@@ -1321,6 +1327,12 @@ impl Here {
     }
 }
 
+/// Whether an interface, as the system describes it (its name; on Windows its friendly name and description too; and
+/// whether the system calls it a tunnel), is one no other device reaches this one by ([`virtual_interface`]).
+pub(crate) fn tunnel_interface(name: &str, friendly: Option<&str>, description: Option<&str>, tunnel_type: bool) -> bool {
+    tunnel_type || virtual_interface(name) || friendly.is_some_and(virtual_interface) || description.is_some_and(virtual_interface)
+}
+
 /// The address this machine would send from towards the internet, as its routing table has it: a UDP socket is
 /// pointed at an address of the ranges kept for documentation (192.0.2.1, 2001:db8::1), which sends nothing, and the
 /// system says which of its addresses it would send from. IPv4's, or else IPv6's; none where there is no route.
@@ -1339,28 +1351,50 @@ fn route_source() -> Option<IpAddr> {
 /// its route to the internet goes by, which is the network it is on; where that is not known, or is a tunnel, those of
 /// every interface but a virtual machine's or a tunnel's. Never one that means nothing off this device, nor a lasting
 /// IPv6 address beside a privacy one, nor one the system no longer means to use; no more than the app keeps.
+///
+/// A machine with an address another device could reach it by always tells one: where nothing is left after that,
+/// the addresses of the interface its route goes by, whatever kind it is; and where no route is known at all, those of
+/// any interface. (A machine whose only way out looks like a virtual one, say a virtual machine whose network card is
+/// named as a host's switches are, is better told by that address than not at all.)
 pub(crate) fn worth_telling(found: impl Iterator<Item = SocketAddr>, here: &Here) -> Vec<SocketAddr> {
     let route = here.route();
     let private_on: HashSet<(&str, IpAddr)> =
         here.addrs.values().filter(|l| l.temporary && !l.stale).map(|l| (l.interface.as_str(), masked(l.network.0, 64))).collect();
-    let mut told: Vec<(u8, SocketAddr)> = found
+    // Every address worth anything, each with where it is: on no interface here (where the internet sees this node), or
+    // on one of this machine's interfaces.
+    let mut found: Vec<(u8, SocketAddr, Option<&Local>)> = found
         .map(|a| SocketAddr::new(a.ip().to_canonical(), a.port()))
         .filter(|a| a.port() != 0)
-        .filter_map(|a| {
-            let rank = rank(&a.ip())?;
-            let Some(local) = here.addrs.get(&a.ip()) else { return Some((rank, a)) };
-            let on_route = match route {
-                Some(route) => local.interface == route,
-                None => !local.tunnel,
-            };
-            let lasting_beside_private =
-                a.is_ipv6() && !local.temporary && private_on.contains(&(local.interface.as_str(), masked(local.network.0, 64)));
-            (on_route && !local.stale && !lasting_beside_private).then_some((rank, a))
+        .filter_map(|a| Some((rank(&a.ip())?, a, here.addrs.get(&a.ip()))))
+        .filter(|(_, a, local)| {
+            local.is_none_or(|local| {
+                let lasting_beside_private =
+                    a.is_ipv6() && !local.temporary && private_on.contains(&(local.interface.as_str(), masked(local.network.0, 64)));
+                !local.stale && !lasting_beside_private
+            })
         })
         .collect();
-    told.sort();
-    told.dedup();
-    told.into_iter().take(MAX_ADDRESSES).map(|(_, a)| a).collect()
+    found.sort_by_key(|(rank, a, _)| (*rank, *a));
+    found.dedup_by_key(|(_, a, _)| *a);
+    // Which of this machine's own are told, the first of these that leaves any.
+    let tiers: [&dyn Fn(&Local) -> bool; 3] = [
+        &|local| match route {
+            Some(route) => local.interface == route,
+            None => !local.tunnel,
+        },
+        &|local| here.default.as_deref() == Some(local.interface.as_str()),
+        &|_| here.default.is_none(),
+    ];
+    let own = tiers.iter().find(|tier| found.iter().any(|(_, _, local)| local.is_some_and(|l| tier(l)))).copied();
+    found
+        .into_iter()
+        .filter(|(_, _, local)| match local {
+            None => true,
+            Some(local) => own.is_some_and(|tier| tier(local)),
+        })
+        .take(MAX_ADDRESSES)
+        .map(|(_, a, _)| a)
+        .collect()
 }
 
 /// Whether an address a hint names may be dialled: another device's address, and never this one's own (loopback, but
@@ -2404,13 +2438,16 @@ impl Run {
         let mut addr = self.ep.watch_addr();
         let mut told: Option<(Option<String>, Vec<String>)> = None;
         let mut told_at: Option<Instant> = None;
+        // Where it is is said as soon as anything is known of it; where nothing is a moment after the node came up (no
+        // address another device could reach it by, and no link helper it is on), that is said too, as it is: nowhere,
+        // for now. The app then knows, and is not left waiting on something that may never come.
+        let nowhere_at = Instant::now() + NOWHERE_AFTER;
         loop {
             let here = if self.helpers_only { Here::default() } else { Here::now() };
             let now = self.whereabouts(&addr.get(), &here);
             let news = match &told {
                 Some(told) => *told != now,
-                // Nothing to say is not said first.
-                None => now.0.is_some() || !now.1.is_empty(),
+                None => now.0.is_some() || !now.1.is_empty() || Instant::now() >= nowhere_at,
             };
             if news {
                 let wait = told_at.map(|at| (at + WHEREABOUTS_EVERY).saturating_duration_since(Instant::now())).unwrap_or_default();
@@ -2427,6 +2464,7 @@ impl Run {
             tokio::select! {
                 _ = self.stop.cancelled() => return,
                 changed = addr.updated() => if changed.is_err() { return },
+                _ = tokio::time::sleep_until(nowhere_at), if told.is_none() => {}
             }
         }
     }

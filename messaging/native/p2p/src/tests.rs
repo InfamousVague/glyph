@@ -15,7 +15,7 @@ use tokio::{runtime::Handle, sync::mpsc, time::timeout};
 use crate::{
     node::{
         ALPN, FRAME_COST, Here, LINK_IDLE, Limits, Local, NODE_BUDGET, Node, PEER_SHARE, SEND_QUEUE_BYTES, STREAM_COST, STREAMS_PER_LINK, SendError,
-        TestSetup, dialable, first_port, frame_time, grow, helper, node_id, virtual_interface, worth_telling,
+        TestSetup, dialable, first_port, frame_time, grow, helper, node_id, tunnel_interface, virtual_interface, worth_telling,
     },
     wire::{Channels, Closed, Config, Event, Hint, MAX_FRAME, OpenError, PathKind, hex},
 };
@@ -129,16 +129,15 @@ impl Dev {
         }
     }
 
-    /// A hint that says only its loopback address: the port it is bound on, from where it says it is.
+    /// A hint that says only its loopback address: the port it is bound on, from where it says it is (the first time
+    /// it says an IPv4 address of its own).
     async fn here(&mut self) -> Hint {
-        let (_, addresses) = self.whereabouts().await;
-        let port = addresses
-            .iter()
-            .filter_map(|a| a.parse::<SocketAddr>().ok())
-            .find(|a| a.is_ipv4())
-            .map(|a| a.port())
-            .expect("an IPv4 address of its own");
-        Hint { helper: None, addresses: vec![format!("127.0.0.1:{port}")] }
+        loop {
+            let (_, addresses) = self.whereabouts().await;
+            if let Some(port) = addresses.iter().filter_map(|a| a.parse::<SocketAddr>().ok()).find(|a| a.is_ipv4()).map(|a| a.port()) {
+                return Hint { helper: None, addresses: vec![format!("127.0.0.1:{port}")] };
+            }
+        }
     }
 
     async fn open(&mut self, request: u32, to: [u8; 32], channel: u8, hint: &Hint) -> Result<u64, (OpenError, String)> {
@@ -1684,6 +1683,67 @@ fn a_node_tells_the_addresses_of_the_network_it_is_on_and_no_others() {
     for name in ["en0", "en1", "eth0", "wlan0", "wlp3s0", "enp0s31f6", "rmnet_data0", "ccmni1", "Ethernet", "Wi-Fi"] {
         assert!(!virtual_interface(name), "{name}");
     }
+}
+
+/// What a Windows machine run by Hyper-V (every one of GitHub's Windows runners, which Azure runs) says of its one network
+/// card: a name that is a GUID, "Ethernet" for people to read, and "Microsoft Hyper-V Network Adapter". That card is the
+/// machine's way out, not a host's switch to virtual machines ("vEthernet (…)", "Hyper-V Virtual Ethernet Adapter"),
+/// and its address is told. Taken for a switch, the node had nothing at all to tell, and said nothing.
+#[test]
+fn a_virtual_machines_own_network_card_is_its_way_out() {
+    let guid = "{8B6C21F5-3C67-4A0E-9C1B-2E5D7F0A1B2C}";
+    assert!(!tunnel_interface(guid, Some("Ethernet"), Some("Microsoft Hyper-V Network Adapter"), false));
+    assert!(!tunnel_interface(guid, Some("Ethernet 2"), Some("Mellanox ConnectX-4 Lx Virtual Ethernet Adapter"), false));
+    assert!(tunnel_interface(guid, Some("vEthernet (WSL)"), Some("Hyper-V Virtual Ethernet Adapter"), false));
+    assert!(tunnel_interface(guid, Some("vEthernet (Default Switch)"), Some("Hyper-V Virtual Ethernet Adapter #2"), false));
+    assert!(tunnel_interface(guid, Some("Loopback Pseudo-Interface 1"), Some("Software Loopback Interface 1"), false));
+    assert!(tunnel_interface("tunsnx", None, None, false));
+    assert!(tunnel_interface("{0}", Some("Ethernet 3"), Some("Some adapter"), true), "one the system calls a tunnel");
+    let card = |ip: &str, prefix: u8| {
+        let (ip, mut local) = local(guid, ip, prefix, false);
+        local.tunnel = tunnel_interface(guid, Some("Ethernet"), Some("Microsoft Hyper-V Network Adapter"), false);
+        (ip, local)
+    };
+    let here = Here { addrs: HashMap::from([card("10.1.0.207", 16), card("fe80::4d:1", 64)]), default: Some(guid.into()) };
+    let found = ["10.1.0.207:50432", "[fe80::4d:1]:50432"].map(|a| a.parse::<SocketAddr>().unwrap());
+    let told: Vec<String> = worth_telling(found.into_iter(), &here).into_iter().map(|a| a.to_string()).collect();
+    assert_eq!(told, ["10.1.0.207:50432"]);
+}
+
+/// A machine with an address another device could reach it by always tells one: where the interface its route goes
+/// by looks like a tunnel and there is no other, that interface's; where no route is known at all, any interface's.
+#[test]
+fn a_machine_with_an_address_always_tells_one() {
+    let found = ["10.8.0.6:41000", "[fe80::1]:41000"].map(|a| a.parse::<SocketAddr>().unwrap());
+    let tunnel_only = HashMap::from([local("utun4", "10.8.0.6", 24, false), local("utun4", "fe80::1", 64, false)]);
+    let told = |default: Option<&str>| -> Vec<String> {
+        let here = Here { addrs: tunnel_only.clone(), default: default.map(str::to_string) };
+        worth_telling(found.into_iter(), &here).into_iter().map(|a| a.to_string()).collect()
+    };
+    assert_eq!(told(Some("utun4")), ["10.8.0.6:41000"], "the route's own interface, a tunnel and the only one");
+    assert_eq!(told(None), ["10.8.0.6:41000"], "no route known: any interface");
+    // Where there is a network beside the tunnel, that is told, and the tunnel is not.
+    let mut both = tunnel_only.clone();
+    both.extend([local("en0", "192.168.1.20", 24, false)]);
+    let here = Here { addrs: both, default: Some("utun4".into()) };
+    let found = ["10.8.0.6:41000", "192.168.1.20:41000"].map(|a| a.parse::<SocketAddr>().unwrap());
+    let told: Vec<String> = worth_telling(found.into_iter(), &here).into_iter().map(|a| a.to_string()).collect();
+    assert_eq!(told, ["192.168.1.20:41000"]);
+}
+
+/// A node that can be found nowhere (no address of its own to tell, and no link helper it is on: here one that goes
+/// only through link helpers, whose helper does not answer) says so a moment after it comes up, as an empty
+/// WHEREABOUTS, rather than nothing at all.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_node_that_can_be_found_nowhere_says_so() {
+    let mut lost = Dev::new(124);
+    lost.node.start(Config { secret: lost.secret, helpers: vec!["https://127.0.0.1:9".into()], helpers_only: true });
+    lost.came_up().await;
+    let began = std::time::Instant::now();
+    assert_eq!(lost.whereabouts().await, (None, vec![]));
+    let after = began.elapsed();
+    assert!(after >= Duration::from_secs(2) && after < Duration::from_secs(10), "said after {after:?}");
+    lost.off().await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
