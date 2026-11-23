@@ -15,15 +15,25 @@
  *   2. Two browsers (two contexts: nothing shared) open the page and sign up, each with a username and a password.
  *   3. One adds the other by username; the other accepts; each writes to the other and sees what the other wrote.
  *   4. One page is loaded again: still signed in, the conversation still there.
- *   5. A second tab in the same browser is told the app is open in another tab; "Use it here" moves it over.
- *   6. One makes a circle and copies its invite link; the other joins by the link; each writes in its General space
+ *   5. What that browser keeps, read as any script in the page could read it: every record sealed, the store's key
+ *      not extractable, no recovery words, no password key, nothing of the conversation or the account in the clear.
+ *   6. A second tab in the same browser is told the app is open in another tab; "Use it here" moves it over.
+ *   7. One makes a circle and copies its invite link; the other joins by the link; each writes in its General space
  *      and reads what the other wrote there; its chat-and-voice space is its chat alone, with no way into a call.
- *   7. Settings call it a browser, with an About of its own and none of what a browser has nothing to set for.
- *   8. One signs in on a third, new browser with the username and password: the same person, the friend still there,
- *      both browsers in the account's devices as browsers. How long signing in took, and the password of it, is said.
- *   9. The page's own Argon2id (web/argon2id.js, in a worker) is held to test/vectors/argon2id.json.
- *  10. In a narrow window the page is laid out as a phone; wide again, as a computer.
- *  11. Nothing was asked of any address but the relay's own, the pages logged no error, and the relay wrote nothing to
+ *   8. Settings call it a browser, with an About of its own and none of what a browser has nothing to set for; and
+ *      the Marketplace is on no key (Ctrl+5), in no quick switcher and in no list of shortcuts.
+ *   9. One signs in on a third, new browser with the username and password: the same person, the friend still there,
+ *      both browsers in the account's devices as browsers, after the password. How long signing in took is said.
+ *  10. The page's own Argon2id (web/argon2id.js, in a worker) is held to test/vectors/argon2id.json.
+ *  11. In a narrow window the page is laid out as a phone; wide again, as a computer.
+ *  12. From the third browser the first is removed: started again, it deletes everything of the account and opens at
+ *      the welcome saying why, and what is written to the account after reaches the third and not it.
+ *  13. The third signs out: everything deleted, the welcome saying so; the next person signs up there and finds nothing
+ *      of the one before. Signed in once more (from an address naming a page after its #), the account lists that
+ *      browser alone: the removed one and the one that signed out (by its own number) are gone.
+ *  14. Every answer from the app's address carries the headers in tool/web/headers.json, the page's own policy among
+ *      them with frame-ancestors 'none'.
+ *  15. Nothing was asked of any address but the relay's own, the pages logged no error, and the relay wrote nothing to
  *      stderr.
  *
  * The page is a canvas: what is on it is found through Flutter's accessibility tree (the fields' and buttons' names),
@@ -53,6 +63,11 @@ const webDir = resolve(option('web', join(root, 'build', 'web')));
 const shots = option('shots', null);
 const headed = args.includes('--headed');
 const engines = option('engine', 'both') === 'both' ? ['chromium', 'webkit'] : [option('engine', 'chromium')];
+// A build that names its hub (tool/build-web.mjs --hub ws://127.0.0.1:<port>/hub), as app.gogho.st's names gogho.st's:
+// the hub is a relay of its own on that port, and the page comes from another, so the two are different addresses.
+const hubPort = option('hub-port', null);
+// The people's first steps only: signing up, a friend, a message each way.
+const quick = args.includes('--quick');
 
 if (!existsSync(join(webDir, 'index.html'))) {
   console.error(`e2e: no built app at ${webDir}: run node tool/build-web.mjs first.`);
@@ -91,9 +106,9 @@ const dart = findDart();
 
 // --- a relay of its own ----------------------------------------------------------------------------------------------
 
-async function startRelay() {
+async function startRelay({ port: asked = '0', web = true } = {}) {
   const data = mkdtempSync(join(tmpdir(), 'ghost-web-e2e-'));
-  const child = spawn(dart, ['run', 'bin/relay.dart', '--host', '127.0.0.1', '--port', '0', '--data', data, '--web', webDir], {
+  const child = spawn(dart, ['run', 'bin/relay.dart', '--host', '127.0.0.1', '--port', String(asked), '--data', data, ...(web ? ['--web', webDir] : [])], {
     cwd: join(root, 'relay'),
     // Nothing of this computer's settings: the relay as anyone would first run it.
     env: { PATH: process.env.PATH, HOME: process.env.HOME },
@@ -131,8 +146,22 @@ class Seat {
     this.origin = origin;
     this.errors = [];
     this.outside = new Set();
+    // The fonts the engine asks for a letter none of the app's own fonts has (tool/web/fallback-fonts.mjs): a build
+    // without them answers 404 for each, which the browser logs as an error. Those are counted and said, not taken for
+    // the page's own errors; every other 404 still is one.
+    this.missingFonts = new Set();
+    this.fontMisses = 0;
+    this.notFound = [];
+    page.on('response', (r) => {
+      if (r.status() !== 404 || !new URL(r.url()).pathname.includes('/fallback-fonts/')) return;
+      this.missingFonts.add(new URL(r.url()).pathname.split('/fallback-fonts/')[1]);
+      this.fontMisses++;
+    });
     page.on('console', (m) => {
-      if (m.type() === 'error' && !/GL Driver Message|WebGL|GPU stall/.test(m.text())) this.errors.push(m.text().slice(0, 600));
+      if (m.type() !== 'error' || /GL Driver Message|WebGL|GPU stall/.test(m.text())) return;
+      // Weighed at the end against the fonts missed: the two arrive in either order.
+      if (/the server responded with a status of 404/.test(m.text())) return this.notFound.push(m.text().slice(0, 600));
+      this.errors.push(m.text().slice(0, 600));
     });
     page.on('pageerror', (e) => this.errors.push(`uncaught: ${String(e.message || e)} ${String(e.stack || '').slice(0, 1200)}`));
     page.on('request', (r) => {
@@ -141,19 +170,58 @@ class Seat {
     });
     page.on('websocket', (w) => {
       const u = new URL(w.url());
-      if (u.host !== new URL(origin).host) this.outside.add(`${u.protocol}//${u.host}`);
+      // The page's own address, or the hub its build names (--hub-port): nothing else.
+      if (u.host !== new URL(origin).host && u.host !== `127.0.0.1:${hubPort}`) this.outside.add(`${u.protocol}//${u.host}`);
+    });
+    // What the relay told the browser with the page and with the worker, as it said it.
+    this.headers = {};
+    page.on('response', (r) => {
+      const u = new URL(r.url());
+      if (u.origin === origin && (u.pathname === '/app/' || u.pathname === '/app/argon2id.js')) this.headers[u.pathname] = r.headers();
     });
   }
 
-  static async open(context, name, origin) {
+  static async open(context, name, origin, { at = '' } = {}) {
     const seat = new Seat(name, await context.newPage(), origin);
-    await seat.load();
+    await seat.load({ at });
     return seat;
   }
 
-  async load() {
-    await this.page.goto(`${this.origin}/app/`);
+  /// The page, loaded; [at] is what follows /app/ in the address (a # and anything a link might say).
+  async load({ at = '' } = {}) {
+    await this.page.goto(`${this.origin}/app/${at}`);
     await this.ready();
+  }
+
+  /// Everything the page keeps, read as any script running in the page could read it: each record's kind, and for one
+  /// that is text, the text. (What a script could open with the store's key is lib/web/store.dart's to say; this is
+  /// what anyone reading the browser's store gets without it.)
+  async kept() {
+    return this.page.evaluate(async () => {
+      const db = await new Promise((done, fail) => {
+        const r = indexedDB.open('ghost-messaging');
+        r.onsuccess = () => done(r.result);
+        r.onerror = () => fail(r.error);
+      });
+      try {
+        if (!db.objectStoreNames.contains('kept')) return {};
+        const store = db.transaction('kept').objectStore('kept');
+        const all = (q) => new Promise((done) => { q.onsuccess = () => done(q.result); });
+        const keys = await all(store.getAllKeys());
+        const values = await all(store.getAll());
+        const out = {};
+        keys.forEach((k, i) => {
+          const v = values[i];
+          out[k] = typeof v === 'string' ? { kind: 'text', text: v }
+            : v instanceof Uint8Array ? { kind: 'sealed', latin1: new TextDecoder('latin1').decode(v) }
+            : v instanceof CryptoKey ? { kind: 'key', extractable: v.extractable }
+            : { kind: typeof v };
+        });
+        return out;
+      } finally {
+        db.close();
+      }
+    });
   }
 
   /// Flutter's view on the page and its accessibility tree switched on, as a screen reader switches it on.
@@ -367,10 +435,14 @@ const say = (words) => {
 
 async function run(engine) {
   const relay = await startRelay();
+  // The hub elsewhere, where the build names one: the page's relay then serves the page alone.
+  const hub = hubPort ? await startRelay({ port: hubPort, web: false }) : null;
   const origin = `http://127.0.0.1:${relay.port}`;
   const browser = await playwright[engine].launch({ headless: !headed });
   const seats = [];
+  let skipping = false;
   const step = async (words, what) => {
+    if (skipping) return;
     const began = Date.now();
     await what();
     say(`  ok  ${words} (${((Date.now() - began) / 1000).toFixed(1)} s)`);
@@ -463,6 +535,10 @@ async function run(engine) {
       await m.sees(answer, { within: 20000 });
       await m.shot(`${engine}-Maya-7-answered`);
     });
+    if (quick) {
+      say('  (--quick: the rest is left out)');
+      skipping = true;
+    }
     await step('Maya loads the page again: still signed in, the conversation and both messages still there', async () => {
       await m.load();
       await m.sees(sam.username);
@@ -471,6 +547,24 @@ async function run(engine) {
       await m.sees(hello);
       await m.sees(answer);
       await m.shot(`${engine}-Maya-8-reloaded`);
+    });
+    await step('what Maya\'s browser keeps is all sealed, and holds neither her recovery words nor her password\'s key', async () => {
+      const kept = await m.kept();
+      const names = Object.keys(kept);
+      for (const name of ['seal-key', 'identity', 'state', 'secret:account_mine']) {
+        if (!names.includes(name)) throw new Problem(`the browser keeps no ${name}: ${names.join(', ')}`);
+      }
+      for (const gone of ['secret:account_words', 'secret:account_pwkey', 'secret:was_key']) {
+        if (names.includes(gone)) throw new Problem(`the browser keeps ${gone}, which a browser must not keep.`);
+      }
+      if (kept['seal-key'].kind !== 'key' || kept['seal-key'].extractable !== false) throw new Problem(`the store's key is ${JSON.stringify(kept['seal-key'])}, not one that can't be read out.`);
+      for (const [name, v] of Object.entries(kept)) {
+        if (name !== 'seal-key' && v.kind !== 'sealed') throw new Problem(`${name} is kept as ${v.kind}, not sealed.`);
+        // Nothing of the conversation, the friend or the account is there to be read without the key.
+        for (const plain of [hello, answer, sam.username, 'acct_sealed', 'acct_address', 'circles']) {
+          if ((v.latin1 ?? v.text ?? '').includes(plain)) throw new Problem(`${name} holds "${plain}" as it was written.`);
+        }
+      }
     });
     await step('a second tab of Maya\'s browser is told the app is open in another tab; "Use it here" moves it over', async () => {
       const second = await Seat.open(mayaBrowser, 'Maya (second tab)', origin);
@@ -550,6 +644,39 @@ async function run(engine) {
       await s.sees('What this browser keeps');
       await s.shot(`${engine}-Sam-13-about`);
     });
+    await step('the Marketplace is nowhere in a browser: not on its keys, in the quick switcher or in the shortcuts', async () => {
+      await s.press('Messages', { role: 'button' });
+      await s.page.mouse.click(800, 600);
+      // Cmd or Ctrl and 5 opens the Marketplace on a phone or a computer (lib/keys.dart); in a page Ctrl is the key.
+      await s.page.keyboard.press('Control+5');
+      await s.page.waitForTimeout(1500);
+      await s.lacks('Marketplace', 'Discover', 'Installed');
+      // The quick switcher: the app's places, and no Marketplace among them.
+      await s.page.keyboard.press('Control+k');
+      await s.sees('Keyboard shortcuts', { within: 10000 });
+      await s.sees('Archive');
+      await s.lacks('Marketplace');
+      await s.shot(`${engine}-Sam-14-switcher`);
+      await s.page.keyboard.press('Escape');
+      await s.page.waitForTimeout(500);
+      await s.press('Settings', { role: 'button' });
+      await s.wheelTo('Emoji', 'Keyboard shortcuts');
+      await s.press('Keyboard shortcuts');
+      await s.sees('Start something new');
+      await s.lacks('Marketplace', 'Push to talk', 'Mute or unmute');
+      await s.shot(`${engine}-Sam-15-shortcuts`);
+    });
+    await step('Maya brings her backup up to date from her browser, with her password: what a browser keeps can\'t do it by itself', async () => {
+      await m.press('Settings', { role: 'button' });
+      await m.wheelTo('Change password', 'Update your backup');
+      await m.press('Update your backup');
+      await m.sees('Your password first');
+      await m.type('Password', maya.password);
+      await m.press('Update my backup', { role: 'button' });
+      await m.sees('Backup up to date', { within: 60000 });
+      await m.shot(`${engine}-Maya-13-backup`);
+      await m.press('Messages', { role: 'button' });
+    });
     let elsewhere;
     await step('Maya signs in on another browser with her username and password: the same person, her friend there', async () => {
       elsewhere = await Seat.open(await person(), 'Maya (another browser)', origin);
@@ -571,10 +698,15 @@ async function run(engine) {
       await elsewhere.press('Contacts', { role: 'button' });
       await elsewhere.sees(`${sam.username}, Ghost`, { within: 30000 });
       await elsewhere.shot(`${engine}-Maya-15-signed-in`);
-      // Her two browsers, in her list of devices, each called what it is.
+      // Her two browsers, in her list of devices, each called what it is: after her password, which a browser keeps
+      // nothing in place of.
       await elsewhere.press('Settings', { role: 'button' });
       await elsewhere.press('Signed in on these devices');
+      await elsewhere.sees('Your password first');
+      await elsewhere.type('Password', maya.password);
+      await elsewhere.press('Show my devices', { role: 'button' });
       await elsewhere.sees('Browser · ', { within: 30000 });
+      await elsewhere.sees('^A browser\\. Last seen today, signed in today$', { like: true });
       await elsewhere.lacks('Computer', 'Computer · browser', 'Mac', 'Linux');
       await elsewhere.shot(`${engine}-Maya-16-devices`);
     });
@@ -609,6 +741,114 @@ async function run(engine) {
       await elsewhere.page.setViewportSize({ width: 1180, height: 780 });
       await elsewhere.sees('Resize the list');
     });
+    const afterRemoval = `Sam, after one of Maya's browsers was removed, from ${engine}`;
+    await step('Maya removes her first browser from another: it deletes everything of her as it next starts, and hears nothing more for her', async () => {
+      await elsewhere.press('Settings', { role: 'button' });
+      await elsewhere.press('Signed in on these devices');
+      // The page asks for the password again: it held the opened account only while it was open.
+      await elsewhere.sees('Your password first');
+      await elsewhere.type('Password', maya.password);
+      await elsewhere.press('Show my devices', { role: 'button' });
+      await elsewhere.press('A browser. Last seen today, signed in today', { within: 30000 });
+      await elsewhere.press('Remove', { role: 'button', last: true });
+      await elsewhere.gone('A browser. Last seen today, signed in today', { within: 30000 });
+      await elsewhere.sees('This device');
+      await elsewhere.shot(`${engine}-Maya-19-removed-one`);
+      // The removed browser starts again (the next time it is opened): it asks the relay, is told, deletes everything,
+      // and loads itself again, at the welcome saying why. Two loads: the one asked for, and the one after the wipe.
+      let loads = 0;
+      const counted = () => loads++;
+      m.page.on('load', counted);
+      await m.page.goto(`${origin}/app/`);
+      for (const until = Date.now() + 90000; loads < 2;) {
+        if (Date.now() > until) throw new Problem('the removed browser never loaded itself again.');
+        await m.page.waitForTimeout(200);
+      }
+      m.page.off('load', counted);
+      await m.ready();
+      await m.sees('This browser was removed from your account from another device', { within: 60000 });
+      await m.sees('Pick a username and a password.');
+      await m.shot(`${engine}-Maya-20-removed`);
+      const kept = Object.keys(await m.kept());
+      if (kept.includes('secret:account_mine')) throw new Problem(`the removed browser still keeps the account's key: ${kept.join(', ')}`);
+      // Sam writes to Maya: her other browser hears it, the removed one nothing.
+      await s.press('Messages', { role: 'button' });
+      await s.press(maya.username);
+      await s.write('Encrypted message', afterRemoval);
+      await elsewhere.press('Messages', { role: 'button' });
+      await elsewhere.sees(afterRemoval, { within: 20000 });
+      await m.page.waitForTimeout(2000);
+      if ((await m.words()).includes(afterRemoval) || (await m.words()).includes(hello)) throw new Problem('the removed browser still reads what is written to Maya.');
+    });
+    await step('Maya signs out of her other browser: everything of her is deleted from it, and it opens at the welcome saying so', async () => {
+      await elsewhere.press('Settings', { role: 'button' });
+      await elsewhere.wheelTo('Change password', 'Sign out of this browser');
+      await elsewhere.press('Sign out of this browser');
+      await elsewhere.sees('Everything of your account is deleted from it');
+      await elsewhere.shot(`${engine}-Maya-21-sign-out`);
+      const loaded = elsewhere.page.waitForEvent('load', { timeout: 90000 });
+      await elsewhere.press('Sign out and delete', { role: 'button', last: true });
+      await loaded;
+      await elsewhere.ready();
+      await elsewhere.sees('You\'re signed out, and everything of your account was deleted from this browser.', { within: 60000 });
+      await elsewhere.shot(`${engine}-Maya-22-signed-out`);
+      const kept = Object.keys(await elsewhere.kept());
+      if (kept.includes('secret:account_mine')) throw new Problem(`the browser signed out of still keeps the account's key: ${kept.join(', ')}`);
+    });
+    await step('the next person at that browser signs up, and finds nothing of Maya\'s', async () => {
+      const eve = { username: `eve_${tag}`, password: `eve's password ${tag}` };
+      await elsewhere.press('Continue', { role: 'button' }).catch(() => {});
+      await elsewhere.type('Username', eve.username);
+      await elsewhere.type('Password', eve.password);
+      await elsewhere.press('Continue', { role: 'button' });
+      await elsewhere.gone('Pick a username and a password.', { within: 90000 });
+      await elsewhere.sees('Your recovery words');
+      await elsewhere.press('Later', { role: 'button' });
+      await elsewhere.gone('Your recovery words');
+      await elsewhere.press('Messages', { role: 'button' });
+      await elsewhere.page.waitForTimeout(2000);
+      const words = await elsewhere.words();
+      for (const theirs of [sam.username, hello, answer, afterRemoval, inSpace, 'Lighthouse']) {
+        if (words.includes(theirs)) throw new Problem(`the next person at Maya's browser sees "${theirs}".`);
+      }
+      await elsewhere.shot(`${engine}-Eve-1-nothing-of-maya`);
+    });
+    await step('Maya signs in once more, from a link with a page after its #: her list has that browser alone', async () => {
+      // An address that names a page of the app (once, the Marketplace) opens at the welcome, as any does.
+      const again = await Seat.open(await person(), 'Maya (once more)', origin, { at: '#/settings/../marketplace' });
+      seats.push(again);
+      await again.sees('Already have an account?');
+      await again.press('Sign in', { role: 'button', last: true });
+      await again.sees('A private window is a new device each time');
+      await again.type('Username', maya.username);
+      await again.type('Password', maya.password);
+      const loaded = again.page.waitForEvent('load', { timeout: 120000 });
+      await again.press('Sign in', { role: 'button', last: true });
+      await loaded;
+      await again.ready();
+      await again.sees('Messages', { within: 60000 });
+      await again.press('Settings', { role: 'button' });
+      await again.press('Signed in on these devices');
+      await again.type('Password', maya.password);
+      await again.press('Show my devices', { role: 'button' });
+      await again.sees('This device', { within: 30000 });
+      await again.page.waitForTimeout(1000);
+      // The browser she removed, and the one she signed out of (which took itself off by its own number), are gone.
+      if (/Last seen/.test(await again.words())) throw new Problem(`Maya's list still has other devices: ${(await again.words()).replace(/\n/g, ' | ').slice(0, 600)}`);
+      await again.shot(`${engine}-Maya-23-alone`);
+    });
+    await step('every answer from the app\'s address says what the app may do: the page\'s policy as a header, and the rest of the list', async () => {
+      const list = JSON.parse(readFileSync(join(root, 'tool', 'web', 'headers.json'), 'utf8'));
+      const page = readFileSync(join(webDir, 'index.html'), 'utf8');
+      const meta = /<meta http-equiv="Content-Security-Policy" content="([^"]+)">/.exec(page)?.[1];
+      for (const path of ['/app/', '/app/argon2id.js', '/app/nothing-here.js']) {
+        const got = await fetch(`${origin}${path}`);
+        for (const [name, value] of Object.entries(list.every)) {
+          if (got.headers.get(name) !== value) throw new Problem(`${path} says ${name}: ${got.headers.get(name)}, not ${value}.`);
+        }
+        if (got.headers.get('content-security-policy') !== `${meta}; ${list.frameAncestors}`) throw new Problem(`${path}'s policy is ${got.headers.get('content-security-policy')}`);
+      }
+    });
     say(`  ${engine}: signing in took ${(signIn / 1000).toFixed(1)} s from the press to the app, signed in (the page loads again on the way); the password itself took ${stretch} ms of it, on a thread of its own.`);
     if (process.env.GHOST_E2E_LOOK) {
       let x = seats[seats.length - 1];
@@ -637,11 +877,16 @@ async function run(engine) {
         if (x.errors.length) say(`  look: errors so far: ${x.errors.join(' || ')}`);
       }
     }
+    const missing = new Set(seats.flatMap((x) => [...x.missingFonts]));
+    if (missing.size) say(`  ${engine}: the engine asked for ${missing.size} fallback font${missing.size === 1 ? '' : 's'} this build hasn't got (${[...missing].map((p) => p.split('/')[0]).join(', ')}): letters outside the app's own fonts were drawn as boxes. node tool/web/fallback-fonts.mjs --fetch, then build again.`);
     const outside = new Set(seats.flatMap((x) => [...x.outside]));
+    // A 404 logged that no missing fallback font accounts for is the page's own error.
+    for (const x of seats) x.errors.push(...x.notFound.slice(x.fontMisses).map((e) => `${e} (no missing fallback font to account for it)`));
     const errors = seats.flatMap((x) => x.errors.map((e) => `${x.name}: ${e}`));
     if (outside.size) throw new Problem(`something was asked of ${[...outside].join(', ')}`);
     if (errors.length) throw new Problem(`the page logged errors:\n    ${errors.join('\n    ')}`);
     if (relay.errors.length) throw new Problem(`the relay wrote to stderr: ${relay.errors.join('')}`);
+    if (hub?.errors.length) throw new Problem(`the hub's relay wrote to stderr: ${hub.errors.join('')}`);
     return true;
   } catch (e) {
     say(`  FAILED in ${engine}: ${e instanceof Problem ? e.message : e.stack}`);
@@ -653,6 +898,7 @@ async function run(engine) {
   } finally {
     await browser.close();
     await relay.stop();
+    await hub?.stop();
   }
 }
 
