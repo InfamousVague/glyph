@@ -10,6 +10,7 @@ import '../me/cosmetics.dart';
 import '../me/pictures.dart';
 import '../net/carrier.dart';
 import '../net/crypto.dart';
+import '../net/name_watch.dart';
 import '../net/net.dart';
 import '../net/packet.dart';
 import '../net/switchboard.dart';
@@ -401,6 +402,9 @@ class Buddies extends ChangeNotifier {
     final me = await _port.me();
     if (found.id == me.id) throw MeError('That\'s you.');
     final had = byId(found.id);
+    // The relay named their key under this username just now: what the name watch holds its answers to from here
+    // (lib/net/name_watch.dart), so a later answer naming another account is worth saying.
+    if (Buddies.keyMatches(found, found.id)) NameWatch.instance?.confirmed(found.id, name);
     if (had != null && had.state == 'yes') return had;
     // They asked first: this is a yes.
     if (had != null && had.state == 'invited') return accept(had);
@@ -513,6 +517,11 @@ class Buddies extends ChangeNotifier {
     if (had == null || had.state == 'blocked') return;
     final name = e.body['n'] is String ? e.body['n'] as String : null, bio = e.body['b'] is String ? e.body['b'] as String : null;
     final said = _said(e.body);
+    // The username they say they go by now, in their own sealed profile: where it isn't the one they were added under,
+    // the name watch looks it up, and asks about it from then on where the relay names their key for it (they changed
+    // it, and their old one may be anyone's now).
+    final u = e.body['u'];
+    if ((e.body['s'] == 'me' || e.body['s'] == 'yes') && u is String && Me.goodUsername(u) && tidyHandle(u) != had.username) NameWatch.instance?.saidName(from, u);
     switch (e.body['s']) {
       case 'yes':
         if (had.state == 'asked') Sounds.instance.play(UiSound.friendAccepted);

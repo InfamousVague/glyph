@@ -303,8 +303,9 @@ class Switchboard {
   /// [metered] lets it go by a route that may cost money. [urgent] tries the routes after one that only kept it.
   /// [sealed] false sends it in the clear (a greeting to someone no key is held for). [only] keeps it to those
   /// routes. [answering] is what this answers: it goes by the route that came by, and on a route of live links by the
-  /// link it came on.
-  Future<Delivery> send(Peer peer, Envelope envelope, {bool metered = false, bool urgent = false, bool sealed = true, Set<String>? only, Arrived? answering}) async {
+  /// link it came on. [linksOnly]: a route of live links carries it only by a link open now, as after a route that kept
+  /// it: nothing is dialled or started for it.
+  Future<Delivery> send(Peer peer, Envelope envelope, {bool metered = false, bool urgent = false, bool sealed = true, Set<String>? only, Arrived? answering, bool linksOnly = false}) async {
     if (answering != null) only = {answering.carrier};
     final key = peer.key;
     if (sealed && key == null) return Delivery(envelope.id, tried: const ['no key is held for them, and it was to be sealed']);
@@ -365,7 +366,7 @@ class Switchboard {
       // nothing is dialled or started for someone who is away, or whose app is slow to answer. So too for something
       // urgent while a route that wakes a closed app comes after (it is not kept waiting on a dial), and for an answer.
       final live = c is LiveLinks ? c as LiveLinks : null;
-      final links = live != null && (away || unanswered || answering != null || (urgent && candidates.skip(i + 1).any((l) => l.traits.wakes))) ? live : null;
+      final links = live != null && (linksOnly || away || unanswered || answering != null || (urgent && candidates.skip(i + 1).any((l) => l.traits.wakes))) ? live : null;
       if (links != null && answering == null && !links.linked(peer)) continue;
       final packet = packetFor(c);
       final pieces = Packet.split(packet, c.traits.maxPacket, maxParts: c.traits.maxParts);
@@ -422,14 +423,16 @@ class Switchboard {
 
   /// Sends [envelope] to [peer] by every route that would take it now and costs nothing, each on its own (the same
   /// envelope, so the other end takes it once): what must reach them though one route may be the one at fault, the
-  /// name watch's word that the relay gave their username to another key (lib/net/name_watch.dart). What became of it
-  /// by each.
+  /// name watch's word that the relay gave their username to another account (lib/net/name_watch.dart). A route of live
+  /// links (the direct route) only by a link open now: nothing is dialled or started for it (the review, D8). What
+  /// became of it by each.
   Future<List<Delivery>> sendEveryWay(Peer peer, Envelope envelope) async {
     final out = <Delivery>[];
     for (final c in routes(peer)) {
       if (c.traits.maxPacket <= smallRoute) continue;
+      if (c is LiveLinks && !(c as LiveLinks).linked(peer)) continue;
       try {
-        out.add(await send(peer, envelope, only: {c.id}));
+        out.add(await send(peer, envelope, only: {c.id}, linksOnly: true));
       } catch (_) {}
     }
     return out;

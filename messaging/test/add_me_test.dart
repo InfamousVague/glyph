@@ -80,12 +80,16 @@ class _Keyed implements BuddiesPort {
 }
 
 void main() {
-  test('the link carries the start of the account\'s name after #, never sent to a server; the app refuses the relay\'s answer where its key doesn\'t begin so, and keeps and sends nothing', () async {
+  test('the link carries the account\'s whole name after #, never sent to a server; the app refuses the relay\'s answer where its key doesn\'t make that name, and keeps and sends nothing', () async {
     final maya = NetKeys.generate(), mallory = NetKeys.generate();
     final link = addMeLink('maya', id: maya.id);
-    expect(link, 'https://gogho.st/add/maya#${maya.id.substring(0, keyDigits)}');
-    expect([addLinkUsername(link), addLinkKey(link)], ['maya', maya.id.substring(0, 8)]);
-    expect(addLinkKey('ghostmsg://add/maya#${maya.id.substring(0, 8).toUpperCase()}'), maya.id.substring(0, 8), reason: 'the page passes it on as it is');
+    // All 32 hex digits (the review, S3): eight were 32 bits, which a relay could search out a key to match.
+    expect(link, 'https://gogho.st/add/maya#${maya.id}');
+    expect(keyDigits, 32);
+    expect([addLinkUsername(link), addLinkKey(link)], ['maya', maya.id]);
+    expect(addLinkKey('ghostmsg://add/maya#${maya.id.toUpperCase()}'), maya.id, reason: 'the page passes it on as it is');
+    // A link from before, with eight, is still taken as it says.
+    expect(addLinkKey('https://gogho.st/add/maya#${maya.id.substring(0, 8)}'), maya.id.substring(0, 8));
     expect([addLinkKey('https://gogho.st/add/maya'), addLinkKey('https://gogho.st/add/maya#1234'), addLinkKey('https://gogho.st/add/maya#not-a-key'), addLinkKey('https://evil.example/add/maya#${maya.id.substring(0, 8)}')], [isNull, isNull, isNull, isNull]);
     expect(addMeLink('maya'), 'https://gogho.st/add/maya', reason: 'with no account name, a link from before');
 

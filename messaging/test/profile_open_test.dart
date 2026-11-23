@@ -10,6 +10,7 @@ import 'package:ghost_messaging/ui/special_badges.dart' show SpecialBadges;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:glacier/glacier.dart' show GlacierContext;
 import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
 import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner;
 import 'package:ghost_messaging/net/name_watch.dart';
@@ -133,10 +134,15 @@ void main() {
 
   // The name watch (lib/net/name_watch.dart; docs/OPEN_NETWORK.md, section 3): the relay now gives a friend's username to
   // another key, and their card says so; they are still who was added.
-  testWidgets('a friend whose username the relay now gives to another key: their card says so, and that they are still who you added', (tester) async {
+  testWidgets('a friend whose username the relay now gives to another account: their card says so in its own ink, with the usual reason, and that they are still who you added', (tester) async {
     final kept = {
       NameWatch.keptName: jsonEncode({
-        'x': {_maya: ['maya', 'c' * 32, DateTime(2026, 11, 22).millisecondsSinceEpoch]},
+        'me': 'me',
+        'r': {
+          '': {
+            'x': {_maya: ['maya', 'c' * 32, DateTime(2026, 11, 22).millisecondsSinceEpoch, 'friend']},
+          },
+        },
       }),
     };
     NameWatch.instance = NameWatch(me: () => 'me', username: () => 'me', friends: () => [const WatchedName('maya', _maya, 'k')], whois: (_) async => null, tell: (_, _) async {}, read: (n) => kept[n] ?? '', write: (n, v) => kept[n] = v, now: DateTime.now, timer: (_, _) => Timer(Duration.zero, () {}))..start();
@@ -147,7 +153,12 @@ void main() {
     await h.shoot(tester, GhostPage(title: '# general', body: HangoutChat(room: room)), 'profile-name-watch');
     await tester.tap(find.text('Maya Chen').first);
     await tester.pump(const Duration(milliseconds: 400));
-    expect(tester.widget<Text>(find.byKey(const ValueKey('profile-name-watch'))).data, 'The relay now says @maya is a different key; you are still talking to the Maya Chen you added.');
+    final line = tester.widget<Text>(find.byKey(const ValueKey('profile-name-watch')));
+    expect(line.data, '@maya now belongs to another account on the relay. If Maya changed or gave up their username, that\'s why. You\'re still talking to the Maya Chen you added.');
+    // Not in the danger ink (the review, M2): almost always the reason is an ordinary one.
+    final t = tester.element(find.byKey(const ValueKey('profile-name-watch'))).tokens;
+    expect(line.style?.color, t.color('app-ink'));
+    expect(line.style?.color, isNot(t.color('app-danger')));
     // Kevin, whose username the relay gives as ever, has no such line.
     await tester.tapAt(const Offset(10, 10));
     await tester.pump(const Duration(milliseconds: 400));

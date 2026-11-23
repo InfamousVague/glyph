@@ -12,6 +12,7 @@ import '../net/ledger.dart';
 import '../net/name_watch.dart';
 import '../net/net.dart';
 import '../net/p2p/node.dart';
+import 'name_watch_words.dart';
 import '../net/p2p/p2p.dart';
 import '../net/relay_choice.dart';
 import 'common.dart';
@@ -171,15 +172,6 @@ String nameWatchHint(int lastAsked, {required int now}) => lastAsked <= 0
     ? 'Each is asked at a time of its own through the day, and the answer held against the key you added.'
     : 'Last asked ${agoWords(lastAsked, now)}. Each answer is held against the key you added; nothing the relay says changes who your friends are.';
 
-/// The name watch's word that the relay now gives a friend's username to another key: on the friend, and here.
-String nameChangedWords(String username) => 'The relay now says @$username is a different key';
-String nameChangedHint(String who) => 'You are still talking to the $who you added.';
-
-/// This person's own username, given by the relay to another key, by its own answer or a friend's app's word.
-String nameOwnWords(String username) => 'The relay now gives your username @$username to another key';
-const nameOwnHint = 'Friends who already added you still reach you, and nothing changes who they are talking to. If you didn\'t change your username, tell them.';
-String nameToldWords(String who) => '$who\'s app saw the relay give your username to another key';
-
 /// Settings › Routes › Checking the relay (docs/OPEN_NETWORK.md, section 3; Matt, 2026-11-22: "p2p as a secondary back
 /// up that validates everything our relay says"). Per relay, plainly: when it was last checked over direct links and
 /// with how many devices, how many messages matched and how many were made up for, each thing it got wrong with its
@@ -257,13 +249,14 @@ PaneSection relayCheckSection(BuildContext context, {required Ledger? ledger, re
       label: nameWatchWords(watch.watching),
       hint: Text(nameWatchHint(watch.lastAsked, now: at)),
     ));
+    // In the rows' own ink, with what usually causes each said (the review, M1 and M2).
     final own = watch.own;
-    if (own != null) rows.add(SettingRow(key: const ValueKey('names-own'), icon: icon(Lucide.circleAlert), label: nameOwnWords(own.username), hint: Text('${dayWords(own.at)}. $nameOwnHint')));
+    if (own != null) rows.add(SettingRow(key: const ValueKey('names-own'), icon: icon(Lucide.info), label: ownNameWords(own), hint: Text('${dayWords(own.at)}. ${ownNameHint(own)}')));
     for (final (i, t) in watch.toldMe.reversed.indexed) {
-      rows.add(SettingRow(key: ValueKey('names-told-$i'), icon: icon(Lucide.circleAlert), label: nameToldWords(who(t.by ?? '')), hint: Text(dayWords(t.at))));
+      rows.add(SettingRow(key: ValueKey('names-told-$i'), icon: icon(Lucide.info), label: toldWords(who(t.by ?? ''), t.username), hint: Text('${dayWords(t.at)}. $toldHint')));
     }
     for (final (i, c) in watch.changes.indexed) {
-      rows.add(SettingRow(key: ValueKey('names-changed-$i'), icon: icon(Lucide.circleAlert), label: nameChangedWords(c.change.username), hint: Text('${dayWords(c.change.at)}. ${nameChangedHint(who(c.friend))}')));
+      rows.add(SettingRow(key: ValueKey('names-changed-$i'), icon: icon(Lucide.info), label: friendNameChangedLabel(c.change.username), hint: Text('${dayWords(c.change.at)}. ${friendNameChangedHint(who(c.friend))}')));
     }
   }
   return PaneSection(
@@ -271,7 +264,9 @@ PaneSection relayCheckSection(BuildContext context, {required Ledger? ledger, re
     description: Text(compares
         ? 'Your devices and your friends\' compare what went between them, over direct links, to find anything the relay dropped or kept back. Friends\' usernames are asked of it again each day.'
         : 'This device has no direct route, so the relay is checked only by the name watch: friends\' usernames are asked of it again each day, and your own each time you connect. Nothing is dialled.'),
-    footer: const Text('What is compared is which messages went and came, and when: never their words. It goes only to the friend it concerns, sealed, over a direct link.'),
+    footer: Text(compares
+        ? 'What is compared is which messages went and came, and when: never their words. It goes only to the friend it concerns, sealed, over a direct link.'
+        : 'Only the relay you use is asked. A friend whose username it now gives to another account is told, sealed, through the relay.'),
     children: rows,
   );
 }

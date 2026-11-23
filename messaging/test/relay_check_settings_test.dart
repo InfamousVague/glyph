@@ -11,6 +11,7 @@ import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/ledger.dart';
 import 'package:ghost_messaging/net/name_watch.dart';
 import 'package:ghost_messaging/net/net.dart';
+import 'package:ghost_messaging/ui/name_watch_words.dart';
 import 'package:ghost_messaging/ui/network.dart';
 import 'package:ghost_messaging/ui/settings.dart' show SettingsModel;
 import 'package:glacier/glacier.dart';
@@ -77,7 +78,19 @@ void main() {
     ]);
     expect(dayWords(DateTime(2026, 11, 21, 9).millisecondsSinceEpoch), '21 Nov');
     expect([nameWatchWords(0), nameWatchWords(1), nameWatchWords(4)], ['No friends added by username yet', 'Asks the relay about 1 friend\'s username each day', 'Asks the relay about 4 friends\' usernames each day']);
-    expect('${nameChangedWords('maya')}; ${nameChangedHint('Maya').replaceFirst('You', 'you')}', 'The relay now says @maya is a different key; you are still talking to the Maya you added.');
+    // Calm, and the usual reason named (the review, M1 and M2).
+    expect(friendNameChangedWords('maya', 'Maya Chen'), '@maya now belongs to another account on the relay. If Maya changed or gave up their username, that\'s why. You\'re still talking to the Maya Chen you added.');
+    NameChange own(NameKind k) => NameChange(username: 'matt', other: 'c' * 32, at: now, kind: k);
+    expect([for (final k in [NameKind.none, NameKind.changed, NameKind.old, NameKind.contradicts]) ownNameWords(own(k))], [
+      '@matt now belongs to another account on this relay',
+      '@matt now belongs to another account on this relay',
+      '@matt is still held by this device\'s old key',
+      'The relay says @matt is yours, yet gives it to another account when others ask',
+    ]);
+    expect(ownNameHint(own(NameKind.none)), 'That happens when you gave it up or changed it on another of your devices, made a new key, or use another relay.');
+    for (final k in NameKind.values) {
+      expect('${ownNameWords(own(k))} ${ownNameHint(own(k))}', isNot(contains('still reach you')), reason: 'not said: after a new key it is not so');
+    }
   });
 
   group('as the app holds the routes', () {
@@ -132,10 +145,16 @@ void main() {
       final mallory = NetKeys.generate();
       final kept = {
         NameWatch.keptName: jsonEncode({
-          'c': {sam.id: DateTime.now().millisecondsSinceEpoch - 2 * 3600000},
-          'x': {sam.id: ['sam', mallory.id, DateTime(2026, 11, 22).millisecondsSinceEpoch]},
-          'm': [['matt', mallory.id, DateTime.now().millisecondsSinceEpoch, sam.id]],
-          'o': ['matt', mallory.id, DateTime(2026, 11, 21).millisecondsSinceEpoch],
+          'me': me.id,
+          'r': {
+            '': {
+              'c': {sam.id: DateTime.now().millisecondsSinceEpoch - 2 * 3600000},
+              'b': {sam.id: DateTime.now().millisecondsSinceEpoch - 3 * 86400000},
+              'x': {sam.id: ['sam', mallory.id, DateTime(2026, 11, 22).millisecondsSinceEpoch, 'friend']},
+              'o': ['matt', mallory.id, DateTime(2026, 11, 21).millisecondsSinceEpoch, 'none'],
+            },
+          },
+          'm': [['matt', mallory.id, DateTime.now().millisecondsSinceEpoch, 'told', sam.id]],
         }),
       };
       NameWatch.instance = _watch(me: me.id, friends: [WatchedName('sam', sam.id, base64Encode(sam.public))], kept: kept);
@@ -147,9 +166,12 @@ void main() {
         expect(find.byKey(ValueKey(key)), findsNothing, reason: key);
       }
       expect(_words(tester, 'names-watched'), ['Asks the relay about 1 friend\'s username each day', startsWith('Last asked 2 h ago.')]);
-      expect(_words(tester, 'names-own'), ['The relay now gives your username @matt to another key', '21 Nov. $nameOwnHint']);
-      expect(_words(tester, 'names-told-0'), ['@sam\'s app saw the relay give your username to another key', dayWords(DateTime.now().millisecondsSinceEpoch)]);
-      expect(_words(tester, 'names-changed-0'), ['The relay now says @sam is a different key', '22 Nov. You are still talking to the @sam you added.']);
+      expect(_words(tester, 'names-own'), ['@matt now belongs to another account on this relay', '21 Nov. That happens when you gave it up or changed it on another of your devices, made a new key, or use another relay.']);
+      expect(_words(tester, 'names-told-0'), ['@sam\'s app saw the relay give your username @matt to another account', '${dayWords(DateTime.now().millisecondsSinceEpoch)}. If you changed or gave it up, or made a new key, that\'s why.']);
+      expect(_words(tester, 'names-changed-0'), ['@sam now belongs to another account on the relay', '22 Nov. If @sam changed or gave up their username, that\'s why. You\'re still talking to the @sam you added.']);
+      // With Direct off nothing goes over a direct link, and the footer says how a friend is told (the review, S8).
+      expect(find.textContaining('over a direct link'), findsNothing);
+      expect(find.text('Only the relay you use is asked. A friend whose username it now gives to another account is told, sealed, through the relay.'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });
 

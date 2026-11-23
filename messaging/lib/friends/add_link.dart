@@ -3,18 +3,21 @@
 /// whether to send that person a friend request (lib/main.dart); the site's page (site/add) does the same for someone
 /// without the app, leading to it.
 ///
-/// `#KEY` is the first [keyDigits] hex digits of the person's account name (the SHA-256 of their key, as
+/// `#KEY` is the person's whole account name, 32 hex digits (the first 16 bytes of the SHA-256 of their key, as
 /// NetCrypto.idOf makes it), after `#` so a browser never sends it to any server (docs/OPEN_NETWORK.md, section 3: the
-/// name watch). The app refuses the relay's answer for the username where its key doesn't make a name that begins so
-/// (Buddies.add's keyPrefix): a relay that gives the username to someone else can't slip them in through the link.
+/// name watch). The app refuses the relay's answer for the username where its key doesn't make that name
+/// (Buddies.add's keyPrefix): a relay that gives the username to someone else can't slip them in through the link. All
+/// 32 digits, not 8 (the review, S3): 8 is 32 bits, and a relay could search out a key whose name begins the same in some
+/// four thousand million tries. A link from before, with 8, is still taken as it says.
 library;
 
 import '../me/me.dart' show Me;
 
-/// How many hex digits of the account name an add-me link carries.
-const keyDigits = 8;
+/// How many hex digits of the account name an add-me link carries (all of it), and the fewest one is taken with (a link
+/// made before it carried all).
+const keyDigits = 32, fewestKeyDigits = 8;
 
-/// [username]'s add-me link, with the first [keyDigits] hex digits of [id] (their account name) after `#` where given.
+/// [username]'s add-me link, with [id] (their account name, all [keyDigits] hex digits of it) after `#` where given.
 String addMeLink(String username, {String? id}) => 'https://gogho.st/add/$username${id != null && RegExp(r'^[0-9a-f]{32}$').hasMatch(id) ? '#${id.substring(0, keyDigits)}' : ''}';
 
 /// The username an add-me link names ([addMeLink], or the app's own `ghostmsg://add/NAME`), tidied; null for
@@ -27,12 +30,12 @@ String? addLinkUsername(String? text) {
   return Me.goodUsername(name) ? name : null;
 }
 
-/// The key digits an add-me link carries after `#` (lower case): [keyDigits] to 32 hex digits; null where it carries
-/// none (a link from before), or anything else there.
+/// The key digits an add-me link carries after `#` (lower case): [fewestKeyDigits] to [keyDigits] hex digits; null
+/// where it carries none (a link from before), or anything else there.
 String? addLinkKey(String? text) {
   if (text == null || addLinkUsername(text) == null) return null;
   final t = text.trim(), at = t.indexOf('#');
   if (at < 0) return null;
   final key = t.substring(at + 1).toLowerCase();
-  return RegExp('^[0-9a-f]{$keyDigits,32}\$').hasMatch(key) ? key : null;
+  return RegExp('^[0-9a-f]{$fewestKeyDigits,$keyDigits}\$').hasMatch(key) ? key : null;
 }

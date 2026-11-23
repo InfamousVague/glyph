@@ -28,6 +28,7 @@ import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
 import '../friends/buddies.dart';
 import '../net/name_watch.dart';
+import 'name_watch_words.dart';
 import '../sms.dart';
 import 'common.dart';
 import 'new_group.dart';
@@ -348,8 +349,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   void _nameNotice(NameChange c) {
     if (!mounted) return;
     final by = c.by;
-    final who = by == null ? null : (Buddies.instance.byId(by)?.shown ?? 'A friend');
-    toast(context, who == null ? 'The relay now gives your username @${c.username} to another key. Friends who added you still reach you: Settings › Routes says more.' : '$who\'s app saw the relay give your username @${c.username} to another key. Settings › Routes says more.', tone: GlacierToastTone.danger);
+    // Said once, calmly: the usual reasons are ordinary ones, and the words name them.
+    toast(context, nameNoticeWords(c, who: by == null ? null : (Buddies.instance.byId(by)?.shown ?? 'A friend')));
   }
 
   List<StreamSubscription<PackNotice>> _notices = const [];

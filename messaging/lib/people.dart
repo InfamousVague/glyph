@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import 'account/account.dart';
 import 'app_state.dart';
 import 'snooze.dart';
@@ -28,7 +30,7 @@ import 'voice/channels.dart';
 /// voice and circles are started as a paired computer's (lib/desktop/main.dart).
 void startOwnFriends(AppState app) {
   // Friends' words go by the routes ([Friends]): a friend by username's, here; a number's, still by the phone's texts.
-  Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => _checkRelay(app));
+  Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => quietly(() => _checkRelay(app)));
   Me.instance.start(AppMeStore(app), Net.instance, () => Net.instance.hub, needHub: (yes) => Net.instance.want('me', yes));
   // A Ghost account of this computer's own, under the identity it took on (Matt, 2026-11-18: "there doesn't seem to be
   // a way to login on desktop just to claim a username, i would like to be able to link a session to a new account").
@@ -54,7 +56,8 @@ void _hearBuddies() {
 }
 
 void startPeople(AppState app) {
-  Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => _checkRelay(app)).then((_) => Groups.instance.start()).then((_) => Voice.instance.start(app)).then((_) => Circles.instance.start(app));
+  // What checks the relay is started quietly: nothing it does can stop groups, voice and the circles starting after it.
+  Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => quietly(() => _checkRelay(app))).then((_) => Groups.instance.start()).then((_) => Voice.instance.start(app)).then((_) => Circles.instance.start(app));
   // The accounts linked and the handles watched for (Settings › Me): spoken of to the relay server only once one has
   // been.
   Me.instance.start(AppMeStore(app), Net.instance, () => Net.instance.hub, needHub: (yes) => Net.instance.want('me', yes));
@@ -81,6 +84,15 @@ void startPeople(AppState app) {
   });
 }
 
+/// Runs [step], and whatever goes wrong in it, at once or later, stays in it (the review, S5): what checks the relay sits
+/// in the chain that starts groups, voice and the circles, and must never stop them.
+@visibleForTesting
+Future<void> quietly(FutureOr<void> Function() step) async {
+  try {
+    await step();
+  } catch (_) {}
+}
+
 /// What checks the relay where the app runs its own network (docs/OPEN_NETWORK.md, section 3). Friends' unanswered
 /// words are given to the ledger's comparing, to send again straight where a friend's device says they never came
 /// (lib/net/ledger.dart; only where the build has the direct route). And the name watch (lib/net/name_watch.dart), which
@@ -95,6 +107,18 @@ void _checkRelay(AppState app) {
     username: () => Me.instance.username,
     friends: () => [for (final b in Buddies.instance.friends) WatchedName(b.username, b.id, b.key)],
     whois: Me.instance.whois,
+    // Which name this key holds on the relay: what the watch holds its own username to.
+    held: Me.instance.heldName,
+    // Each relay is its own directory.
+    relay: () => Net.instance.hubUrl,
+    // The relay's lookups are the account's, shared by all its devices: this one's share, among those forward secrecy
+    // has heard from this week.
+    share: () {
+      final me = Net.instance.id, fs = Net.instance.board?.fs;
+      final devices = {HubCarrier.device, if (me != null && fs != null) ...fs.devicesOf(me)}.where((d) => d.isNotEmpty).toList()..sort();
+      final at = devices.indexOf(HubCarrier.device);
+      return at < 0 ? (index: 0, of: 1) : (index: at, of: devices.length);
+    },
     tell: (id, envelope) async {
       final board = Net.instance.board, peer = Net.instance.byId(id);
       if (board != null && peer != null && peer.key != null) await board.sendEveryWay(peer, envelope);
@@ -103,6 +127,19 @@ void _checkRelay(AppState app) {
     // Its own bookkeeping, which no screen draws from the choices: nothing is drawn again for it.
     write: app.keep,
   );
+  // This person's username claimed, changed or given up (Settings › Me): kept with the key and relay it was claimed
+  // under, and what was said of the one before goes.
+  var username = Me.instance.username;
+  Me.instance.addListener(() {
+    final now = Me.instance.username;
+    if (now == username) return;
+    username = now;
+    if (now != null) {
+      watch.claimed(now);
+    } else {
+      watch.usernameChanged();
+    }
+  });
   Net.instance.listen((r) {
     if (r.envelope.kind == NameWatch.kind) watch.heard(r.peer.id, r.envelope, sealed: r.sealed);
   });

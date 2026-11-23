@@ -422,6 +422,7 @@ class Me extends ChangeNotifier {
       case 'released':
       case 'keep':
       case 'kept':
+      case 'name':
         _waiting.remove('${m['dir']}:${network ?? ''}')?.complete(m);
       case 'linked':
         if (network != null && m['handle'] is String) {
@@ -805,13 +806,33 @@ class Me extends ChangeNotifier {
     );
   }
 
-  /// Who has the username [name]: their install and its public key, or null where nobody does.
+  /// Who has the username [name]: their install and its public key, or null where nobody does. Two lookups of one name
+  /// at once share the one question and its answer: a second asked while the first waits would otherwise take the first's
+  /// place, and the first's timing out would drop the second (the review, S4).
   Future<({String id, String key})?> whois(String name) async {
     final n = tidyHandle(name);
-    final got = await _ask({'dir': 'whois', 'name': n}, 'whois', key: 'whois:$n');
+    // (The block, not an arrow: what `remove` gives back is this very lookup, and a future waited on itself never ends.)
+    final got = await (_whoisAsked[n] ??= _ask({'dir': 'whois', 'name': n}, 'whois', key: 'whois:$n').whenComplete(() {
+      _whoisAsked.remove(n);
+    }));
     if (got['none'] == true || got['id'] is! String || got['key'] is! String) return null;
     return (id: got['id'] as String, key: got['key'] as String);
   }
+
+  /// The lookups waiting for an answer, by the name asked ([whois]).
+  final Map<String, Future<Map<String, dynamic>>> _whoisAsked = {};
+
+  /// Which username this install's key holds on the relay, as the relay keeps it: the name's hash ([nameKeyOf]), or
+  /// null for none. What the name watch holds its own username to (lib/net/name_watch.dart): a username given up or
+  /// changed on another device, a new key, or another relay are this answering otherwise, not the relay lying.
+  Future<String?> heldName() async {
+    final got = await _ask({'dir': 'name'}, 'name');
+    final k = got['k'];
+    return k is String && k.isNotEmpty ? k : null;
+  }
+
+  /// What a username is kept by on the relay: its hash, as the relay's `Handles.nameKey` makes it.
+  static String nameKeyOf(String name) => NetCrypto.hex(NetCrypto.sha256(utf8.encode('ghost-name v1|${tidyHandle(name)}')));
 
   /// The address to open in a browser to sign in on [network] and prove the account. The link itself arrives
   /// later, when the sign-in is done ([links] changes).
