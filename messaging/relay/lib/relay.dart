@@ -38,6 +38,11 @@ class Relay {
   /// The headers a request from [appOrigin] to those two may carry: what they are signed with, and the body's kind.
   static const appHeaders = 'content-type, x-ghost-key, x-ghost-time, x-ghost-sig, x-ghost-body-sha256, x-ghost-body-length';
 
+  /// What a request from [appOrigin] to a Files space's files (`/files/...`, files.dart) may carry besides: the space's
+  /// token, and the part of a blob asked for. And the ways it may ask: list and read, make and write, delete.
+  static const filesHeaders = 'authorization, range, $appHeaders';
+  static const filesMethods = 'GET, PUT, POST, DELETE';
+
   /// `GHOST_APP_ORIGIN` from [env], as a browser names an address in its `Origin` header: https and a host (a port
   /// where one is said), or http to this machine, for a try here; lower case, no slash after. Null where it is unset,
   /// or anything else (said on stderr).
@@ -168,7 +173,13 @@ class Relay {
   /// Whether [segments] is one of the two things the app's page sends from its own address ([appOrigin]), and this
   /// relay takes it: `/market/abuse`, `/feedback`.
   bool _fromTheApp(List<String> segments) =>
-      (segments.length == 2 && segments[0] == 'market' && segments[1] == 'abuse' && market != null) || (segments.length == 1 && segments[0] == 'feedback' && feedback != null);
+      (segments.length == 2 && segments[0] == 'market' && segments[1] == 'abuse' && market != null) || (segments.length == 1 && segments[0] == 'feedback' && feedback != null) || _filesFromTheApp(segments);
+
+  /// Whether [segments] is a Files space's files, which the app's page at [appOrigin] lists, reads and writes from a
+  /// build with Files spaces (docs/OPEN_NETWORK.md, part 6): `/files/<space>...`, and this relay keeps files. Every
+  /// request still needs the space's token, and every write its signature, as from the app; the browser's rule only
+  /// stops other pages reading the answers, and so it is for the app's page alone.
+  bool _filesFromTheApp(List<String> segments) => segments.length >= 2 && segments[0] == 'files' && files != null;
 
   /// [status] and nothing else, where the answer hasn't begun: its headers sent already (or a WebSocket's), nothing.
   static Future<void> _answerOnly(HttpRequest request, int status) async {
@@ -188,17 +199,19 @@ class Relay {
   Future<void> _route(HttpRequest request, List<String> segments) async {
     final name = segments.isEmpty ? '' : segments.last;
     final upgrade = WebSocketTransformer.isUpgradeRequest(request);
-    // From the app's page at its own address ([appOrigin]): a report or feedback, its answer readable by that page.
+    // From the app's page at its own address ([appOrigin]): a report, feedback, or a Files space's files, its answer
+    // readable by that page.
     if (!upgrade && appOrigin != null && _fromTheApp(segments)) {
       request.response.headers.add(HttpHeaders.varyHeader, 'Origin');
       if (request.headers.value('origin') == appOrigin) {
         request.response.headers.set('access-control-allow-origin', appOrigin!);
         // What the browser asks first, the headers being the app's own: yes, for a POST with them, for ten minutes.
         if (request.method == 'OPTIONS') {
+          final files = _filesFromTheApp(segments);
           request.response
             ..statusCode = HttpStatus.noContent
-            ..headers.set('access-control-allow-methods', 'POST')
-            ..headers.set('access-control-allow-headers', appHeaders)
+            ..headers.set('access-control-allow-methods', files ? filesMethods : 'POST')
+            ..headers.set('access-control-allow-headers', files ? filesHeaders : appHeaders)
             ..headers.set('access-control-max-age', '600');
           await request.response.close();
           return;
