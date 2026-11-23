@@ -318,13 +318,16 @@ differs is small: a browser plays a received sound only through a media element 
 `lib/voice/call_sound.dart` puts each person's sound in an audio element (at their volume, up to as loud as they
 arrive; silenced as muting and deafening say; through the speaker chosen where the browser lets a page choose one,
 which Safari doesn't). Settings › Voice and video there has the microphone, the browser's own noise suppression, the
-sound's quality and the picture's, and says what a browser's call leaves out: recording, the voice changer, noise
+sound's bit rate, stereo, echo cancellation and automatic gain, and the camera's quality, and says what a browser's call leaves out: recording, the voice changer, noise
 removal beyond the browser's own (RNNoise, DeepFilterNet), boosting past 100% and screen sharing, all of which need the
 app's native halves. Off unless the build has them (`node tool/build-web.mjs --calls`, `Sms.browserCalls`): the build
 on app.gogho.st and gogho.st/app has none until it is built so and deployed. Tried by `tool/web/e2e.mjs --calls`: two
 browsers ring each other and hear each other (WebRTC's own count of the sound's bytes and energy received, and the
 element playing it), muted is silence, both join a circle's voice space and hear each other, a camera's picture is
-decoded on the other side, and someone muted for one person alone is not played there.
+decoded on the other side, and someone muted for one person alone is not played there. A browser remembers a
+microphone or camera allowed for a whole address, not for a page: at gogho.st/app the grant belongs to all of gogho.st
+(its other pages included, `/join` among them, a guest's way into a call), while app.gogho.st's is its own; one
+more reason the app has an address of its own.
 
 ### Its address
 

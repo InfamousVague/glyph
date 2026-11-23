@@ -443,6 +443,15 @@ class VoiceSession extends ChangeNotifier {
           _withheld.remove(id);
           unawaited(_offer(id));
         }
+      } else if (!_peers.containsKey(id) && route.me.compareTo(id) < 0) {
+        // Someone to connect with who came in a while ago and still has made no connection here: their offer never
+        // came (on a stage, their roster read the two of them as listeners as they came in, and has changed since).
+        // The lower id offers, as for the stage's own changes.
+        final came = _cameAt[id];
+        if (came != null && DateTime.now().difference(came) >= offerGrace) {
+          _cameAt.remove(id);
+          unawaited(_offer(id));
+        }
       }
     }
   }
@@ -450,6 +459,21 @@ class VoiceSession extends ChangeNotifier {
   /// Those in the call this device has made no connection with because both listen on a stage ([_links]): when one is
   /// brought up to speak, [relink] connects them.
   final Set<String> _withheld = {};
+
+  /// When each came in whose offer is awaited ([_event]): one that hasn't come within [offerGrace] is made here.
+  final Map<String, DateTime> _cameAt = {};
+
+  /// How long whoever came in has to offer before the lower id offers in their place ([relink]).
+  @visibleForTesting
+  static Duration offerGrace = const Duration(seconds: 4);
+
+  /// The route to the relay was lost ([RoomEvent.closed]): the next list of who is here (the carrier joining the room
+  /// again by itself) is a coming back, and this device offers to everyone again, as it did joining.
+  bool _dropped = false;
+
+  /// Those this device has offered to and not yet had an answer from: where their own first offer crosses it, the
+  /// higher id lets its offer go unanswered ([_heard], `offer`).
+  final Set<String> _awaiting = {};
 
   /// This device may not unmute (muted for everyone, or its role may not speak), or turn on video.
   bool locked = false, videoLocked = false;
@@ -593,6 +617,9 @@ class VoiceSession extends ChangeNotifier {
     _retried.clear();
     _relayed.clear();
     _withheld.clear();
+    _cameAt.clear();
+    _awaiting.clear();
+    _dropped = false;
     members.clear();
     await media.stop();
     notifyListeners();
@@ -662,8 +689,16 @@ class VoiceSession extends ChangeNotifier {
         Sounds.instance.play(UiSound.someoneJoined);
       }
       members[e.came!] = VoiceMember(e.came!);
-      // They offer, unless the two of them both listen on a stage.
-      if (!_links(e.came!)) _withheld.add(e.came!);
+      // They offer, unless the two of them both listen on a stage; where they don't in time, the lower id does (relink).
+      if (!_links(e.came!)) {
+        _withheld.add(e.came!);
+      } else {
+        final id = e.came!;
+        _cameAt[id] = DateTime.now();
+        Timer(offerGrace + const Duration(milliseconds: 50), () {
+          if (joined && members.containsKey(id) && !_peers.containsKey(id)) relink();
+        });
+      }
       _sayState();
     } else if (e.went != null) {
       final was = members.remove(e.went) != null;
@@ -671,9 +706,32 @@ class VoiceSession extends ChangeNotifier {
       _retried.remove(e.went);
       _relayed.remove(e.went);
       _withheld.remove(e.went);
+      _cameAt.remove(e.went);
+      _awaiting.remove(e.went);
       unawaited(_peers.remove(e.went)?.close());
       // The last of the others gone: the call is over, said so; anyone else going is someone leaving.
       if (was) Sounds.instance.play(members.isEmpty ? UiSound.callEnded : UiSound.someoneLeft);
+    } else if (e.closed) {
+      _dropped = true;
+    } else if (e.members != null && _dropped && joined) {
+      // Back on the relay after losing it: the others let go of this device when the hub said it went, and connect
+      // again only if this device offers, as on joining. Marked again (`a`), so whoever still holds the old connection
+      // lets it go first.
+      _dropped = false;
+      for (final id in e.members!) {
+        if (id == route.me || (refuse?.call(id) ?? false)) continue;
+        members.putIfAbsent(id, () => VoiceMember(id));
+      }
+      _sayState();
+      for (final id in members.keys.toList()) {
+        if (_links(id)) {
+          _retried.remove(id);
+          unawaited(_peers.remove(id)?.close());
+          unawaited(_offer(id, again: true));
+        } else {
+          _withheld.add(id);
+        }
+      }
     }
     notifyListeners();
   }
@@ -717,6 +775,8 @@ class VoiceSession extends ChangeNotifier {
   /// relay first"), [relayOnly] said for a second try.
   Future<void> _offer(String id, {bool? relayOnly, bool again = false}) async {
     _offered.add(id);
+    _awaiting.add(id);
+    _cameAt.remove(id);
     final m = media;
     final relay = relayOnly ?? (m is FallbackMedia && m.hasRelay);
     relay ? _relayed.add(id) : _relayed.remove(id);
@@ -805,6 +865,10 @@ class VoiceSession extends ChangeNotifier {
         if (m['x'] is String) onCaption?.call(from, m['x'] as String, m['f'] == true);
       case 'offer':
         members.putIfAbsent(from, () => VoiceMember(from));
+        // Both offered each other first at once (a build from before 677fd6dc7 still offers back to whoever comes in):
+        // the higher id lets theirs go unanswered, and they, finding this side's offer, let their own go and answer it.
+        if (m['a'] != 1 && _awaiting.contains(from) && _peers.containsKey(from) && route.me.compareTo(from) > 0) return;
+        _awaiting.remove(from);
         // An offer from another join of theirs (another device, or the app opened again) is a new connection: the old
         // one goes first, whether or not 'moved' got here (an older build says none).
         final j = m['j'];
@@ -831,6 +895,7 @@ class VoiceSession extends ChangeNotifier {
         // One meant for another device of this identity's (its offer's mark, not this one's) is not taken here.
         final j = m['j'];
         if (j != null && j != _join) return;
+        _awaiting.remove(from);
         await _peers[from]?.takeAnswer('${m['sdp']}');
       case 'ice':
         if (m['c'] is Map) await _peerFor(from).addCandidate((m['c'] as Map).cast<String, dynamic>());

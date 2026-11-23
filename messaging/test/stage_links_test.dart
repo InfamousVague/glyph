@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/voice/voice.dart';
 
@@ -185,5 +187,110 @@ void main() {
     await _settle();
     expect(media['b2']!.offers, ['a1'], reason: 'whoever comes in offers');
     expect(media['a1']!.offers, isEmpty, reason: 'and the one already there answers, offering nothing of its own');
+  });
+
+  // From the review of 677fd6dc7: someone whose connection to the relay drops long enough for the hub to say they went
+  // comes back by their carrier joining the room again by itself (the room said closed, then who is there). Nobody runs
+  // join() again, so the one coming back offers again from that list, marked again.
+  test('someone whose relay connection dropped and came back is connected again', () async {
+    final hub = _Hub();
+    final c = VoiceChannel.make('Lounge');
+    final media = {'a1': _Media(), 'b2': _Media()};
+    final routes = <String, _Route>{};
+    VoiceSession session(String id) {
+      final s = VoiceSession(channel: c, route: routes[id] = _Route(hub, id), media: media[id]!, name: id)..listens = (_) => false;
+      s.addListener(s.relink);
+      return s;
+    }
+
+    final a = session('a1');
+    await a.join();
+    await _settle();
+    final b = session('b2');
+    await b.join();
+    await _settle();
+    expect(media['b2']!.offers, ['a1']);
+    routes['a1']!._events.add(RoomEvent(c.room, went: 'b2'));
+    await _settle();
+    expect(media['a1']!.closed, contains('b2'));
+    routes['a1']!._events.add(RoomEvent(c.room, came: 'b2'));
+    routes['b2']!._events.add(RoomEvent(c.room, closed: true));
+    routes['b2']!._events.add(RoomEvent(c.room, members: ['a1']));
+    await _settle();
+    expect(media['b2']!.offers, ['a1', 'a1'], reason: 'the one coming back offers again');
+    expect(media['a1']!.offers, isEmpty);
+    expect(a.members.keys, contains('b2'));
+    expect(b.joined, isTrue);
+  });
+
+  // An app from before 677fd6dc7 already in the call offers back to whoever comes in from relink, when its id is the
+  // lower. The newcomer (the browser, always) lets that offer go unanswered; the old app, finding the newcomer's offer,
+  // lets its own go and answers (its offer handling, as it was).
+  test('a newcomer lets the crossing first offer of an older app with the lower id go unanswered', () async {
+    final hub = _Hub();
+    final c = VoiceChannel.make('Lounge');
+    final old = _Route(hub, 'a1');
+    await old.join(c.room, c.token);
+    final said = <Map<String, dynamic>>[];
+    old.packets.listen((p) => said.add((jsonDecode(utf8.decode(NetCrypto.open(c.key, p.bytes)!)) as Map).cast<String, dynamic>()));
+    final media = _Media();
+    final b = VoiceSession(channel: c, route: _Route(hub, 'b2'), media: media, name: 'b2')..listens = (_) => false;
+    b.addListener(b.relink);
+    await b.join();
+    await _settle();
+    expect(media.offers, ['a1']);
+    // The old app's own first offer, crossing.
+    old.send(c.room, NetCrypto.seal(c.key, utf8.encode(jsonEncode({'t': 'offer', 'to': 'b2', 'sdp': _Peer._opus, 'j': 'old-join'}))));
+    await _settle();
+    expect([for (final m in said) if (m['t'] == 'answer') m], isEmpty, reason: 'not answered: the old app answers ours');
+    expect(media.closed, isNot(contains('a1')), reason: 'its own offer is kept');
+    // A second try marked again is answered as ever.
+    old.send(c.room, NetCrypto.seal(c.key, utf8.encode(jsonEncode({'t': 'offer', 'to': 'b2', 'sdp': _Peer._opus, 'j': 'old-join', 'a': 1}))));
+    await _settle();
+    expect([for (final m in said) if (m['t'] == 'answer') m], hasLength(1));
+  });
+
+  // A stage: b2 is being brought up to speak while c3 comes in; c3's roster still reads b2 a listener at its join, so it
+  // offers nothing to b2, and b2 waits for an offer that never comes. After a moment the lower id offers.
+  test('two whose stage rosters disagree for a moment as one comes in still connect', () async {
+    final was = VoiceSession.offerGrace;
+    VoiceSession.offerGrace = const Duration(milliseconds: 200);
+    addTearDown(() => VoiceSession.offerGrace = was);
+    final hub = _Hub();
+    final c = VoiceChannel.make('Town hall');
+    final media = {'a1': _Media(), 'b2': _Media(), 'c3': _Media()};
+    final listeningAt = {
+      'a1': {'b2', 'c3'},
+      'b2': {'b2', 'c3'},
+      'c3': {'b2', 'c3'},
+    };
+    final sessions = <String, VoiceSession>{};
+    VoiceSession session(String id) {
+      final s = VoiceSession(channel: c, route: _Route(hub, id), media: media[id]!, name: id)..listens = (x) => listeningAt[id]!.contains(x);
+      s.addListener(s.relink);
+      return sessions[id] = s;
+    }
+
+    await session('a1').join();
+    await _settle();
+    await session('b2').join();
+    await _settle();
+    listeningAt['a1']!.remove('b2');
+    listeningAt['b2']!.remove('b2');
+    sessions['a1']!.relink();
+    sessions['b2']!.relink();
+    await _settle();
+    await session('c3').join();
+    await _settle();
+    listeningAt['c3']!.remove('b2');
+    sessions['c3']!.relink();
+    await _settle();
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    await _settle();
+    final b2c3 = media['b2']!.offers.where((x) => x == 'c3').length + media['c3']!.offers.where((x) => x == 'b2').length;
+    expect(b2c3, 1, reason: 'b2 and c3 connected once');
+    for (final s in sessions.values) {
+      await s.leave();
+    }
   });
 }
