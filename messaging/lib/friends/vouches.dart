@@ -139,6 +139,15 @@ class Vouches extends ChangeNotifier {
   /// year, so they stop counting that vouch even though they merge what each device of this account says.
   final Map<String, int> dropped = {};
 
+  /// Which friends were carried each held vouch (by voucher), and so which are told of its dropping ([droppedFor]):
+  /// nobody else learns that someone once vouched for this account (found in review, 2026-11-23).
+  final Map<String, Set<String>> sentTo = {};
+  final Map<String, Set<String>> droppedTo = {};
+
+  /// The SHA-256 (hex) of what friends were last told this account holds, kept so a carrying the app was closed before
+  /// making is made at its next start (lib/friends/buddies.dart).
+  String? lastCarried;
+
   /// What friends' profiles said they dropped (by friend, then voucher: when): a vouch by that voucher older than
   /// that is no longer counted for them.
   final Map<String, Map<String, int>> floors = {};
@@ -156,6 +165,9 @@ class Vouches extends ChangeNotifier {
     _carryUntil.clear();
     dropped.clear();
     floors.clear();
+    sentTo.clear();
+    droppedTo.clear();
+    lastCarried = null;
     hidden = false;
     try {
       final j = jsonDecode(_read(_key(me)));
@@ -187,6 +199,13 @@ class Vouches extends ChangeNotifier {
             if (e.key is String && e.value is int) dropped[e.key as String] = e.value as int;
           }
         }
+        for (final (into, from) in [(sentTo, j['st']), (droppedTo, j['dt'])]) {
+          if (from is! Map) continue;
+          for (final e in from.entries) {
+            if (e.key is String && e.value is List) into[e.key as String] = {...(e.value as List).whereType<String>()};
+          }
+        }
+        if (j['lc'] is String) lastCarried = j['lc'] as String;
         final fl = j['fl'];
         if (fl is Map) {
           for (final e in fl.entries) {
@@ -226,6 +245,8 @@ class Vouches extends ChangeNotifier {
     final year = Vouch.lasts.inMilliseconds;
     final before = this.dropped.length + floors.length;
     this.dropped.removeWhere((_, at) => at + year <= now);
+    droppedTo.removeWhere((by, _) => !this.dropped.containsKey(by));
+    sentTo.removeWhere((by, _) => held[by]?.on != true);
     for (final f in floors.values) {
       f.removeWhere((_, at) => at + year <= now);
     }
@@ -245,6 +266,9 @@ class Vouches extends ChangeNotifier {
         if (hidden) 'hide': true,
         if (_carryUntil.isNotEmpty) 'cu': _carryUntil,
         if (dropped.isNotEmpty) 'dr': dropped,
+        if (sentTo.isNotEmpty) 'st': {for (final e in sentTo.entries) e.key: [...e.value]},
+        if (droppedTo.isNotEmpty) 'dt': {for (final e in droppedTo.entries) e.key: [...e.value]},
+        'lc': ?lastCarried,
         if (floors.isNotEmpty) 'fl': floors,
       }));
     }
@@ -345,7 +369,12 @@ class Vouches extends ChangeNotifier {
       final k = keyOf?.call(v.by);
       final checked = k != null && friendKey != null && v.checks(byKey: k, forKey: friendKey);
       if (k != null && !checked) continue;
-      if (!v.on && !checked) continue;
+      if (!v.on && !checked) {
+        // A withdrawal newer than what is held of them, which can't be checked yet: what it takes back goes, so a vouch
+        // taken back is never counted once its voucher becomes a friend (found in review, 2026-11-23).
+        if (before != null) into.remove(v.by);
+        continue;
+      }
       into[v.by] = v;
     }
     if (hidden) into.removeWhere((_, v) => v.on);
@@ -357,6 +386,26 @@ class Vouches extends ChangeNotifier {
       return;
     }
     carried[friend] = into;
+    _save();
+  }
+
+  /// [friend] was just told what this account holds: they now have each vouch carried, and are told if it is dropped.
+  void carriedTo(String friend) {
+    final now = _now();
+    for (final v in held.values) {
+      if (v.on && v.goodAt(now)) sentTo.putIfAbsent(v.by, () => {}).add(friend);
+    }
+  }
+
+  /// The vouchers this account dropped whom [friend] was carried a vouch from, and when: what `vd` tells them.
+  Map<String, int> droppedFor(String friend) => {
+        for (final e in dropped.entries)
+          if (droppedTo[e.key]?.contains(friend) ?? false) e.key: e.value,
+      };
+
+  /// Keeps [hash] as what friends were last told.
+  void markCarried(String hash) {
+    lastCarried = hash;
     _save();
   }
 
@@ -388,7 +437,11 @@ class Vouches extends ChangeNotifier {
   /// for them, and what their profile carried.
   void forget(String id) {
     _carryUntil.remove(id);
-    if (held[id]?.on ?? false) dropped[id] = _now();
+    if (held[id]?.on ?? false) {
+      dropped[id] = _now();
+      droppedTo[id] = sentTo[id] ?? {};
+    }
+    sentTo.remove(id);
     final a = held.remove(id), b = given.remove(id), c = carried.remove(id);
     floors.remove(id);
     if (a != null || b != null || c != null) _save();

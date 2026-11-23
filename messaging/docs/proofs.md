@@ -80,24 +80,27 @@ How it travels (`lib/friends/buddies.dart`; every part is something a build from
 - To the friend, sealed, as an envelope of kind `vouch`: `{"b": voucher, "f": friend, "t": ms, "s": signature, "x": 1
   where taken back}`. The friend keeps it only where it came from the voucher, names this account and its key, checks
   against the key it holds for the voucher, is good now, and is newer than that voucher's word before (so an old vouch
-  sent again never undoes its withdrawal). It takes at most four changes an hour from one friend, and keeps at most 64
-  vouches and 64 withdrawals.
+  sent again never undoes its withdrawal). Every word is taken; past four changes an hour from one friend, telling
+  friends of them waits for the hour to be up. It keeps at most 64 vouches and 64 withdrawals.
 - A device making a vouch or a withdrawal makes it later than the account's newest word about that friend, whichever
   of its devices said it (another device's comes back in the friend's profile), so a device whose clock is behind
   can still take a vouch back.
 - With the friend's sealed profile to **all of their friends**, as `vo` (`[{"b","t","s","x"?}]`, the friend's name left
   out since it is the profile's) in `buddy` `yes` and `me`, and alone in `buddy` `vo` a few minutes after what they
-  hold changes, once, however much changed meanwhile. Every friend of theirs receives the voucher's name and signed
+  hold changes, once, however much changed meanwhile (what was last told is kept, so an app closed before telling
+  tells at its next start). Every friend of theirs receives the voucher's name and signed
   vouch; only those who are the voucher's friends too count it. A withdrawal is carried only while the vouch it took
   back could still count. `vh: 1` says the person hid the vouches they hold (`vo` is then empty), and `vd` (`{voucher:
-  ms}`) names friends whose vouch they dropped and when, for a year. Never with a friend request, which goes in the
+  ms}`) names friends whose vouch they dropped and when, for a year, and only to the friends who were carried that
+  vouch. Never with a friend request, which goes in the
   clear.
 - What a viewer shows: **Vouched for by N of your friends**, counting only vouches whose voucher is one of the
   viewer's own friends, checked against the key the viewer holds for that friend, and the friend's key the viewer
   holds. Never a count of everyone, nothing given to the relay or a directory, and nothing the relay can forge: it
   sees only sealed envelopes. A viewer merges what each profile says with what it held, newest per voucher (so two
   devices of one person don't make the count flip), checks one entry per voucher however long the list, keeps the
-  withdrawals it has checked, and keeps no withdrawal it couldn't check.
+  withdrawals it has checked, and keeps no withdrawal it couldn't check, though one newer than the vouch it holds from
+  that voucher still takes that vouch away.
 - Removing or blocking a friend, or their ending it, drops their vouch for you, yours for them, and what their profile
   carried; your friends are told with `vd`.
 - A computer paired with a phone doesn't vouch: the phone does.

@@ -266,20 +266,19 @@ void main() {
 
   // From the review of 2026-11-23 (did-fix.md).
   group('review fixes', () {
-    test('one friend toggling a vouch: the person tells each friend once, later, and takes at most four changes an hour', () async {
+    test('one friend toggling a vouch: the person takes every word but tells each friend once, later', () async {
       final w = VouchWorld();
       final maya = VouchPort(w, 'maya'), x = VouchPort(w, 'x');
       final others = [for (var i = 0; i < 10; i++) VouchPort(w, 'f$i')];
       final b = await makeFriends([(maya, x), for (final o in others) (maya, o)], carryAfter: const Duration(hours: 1));
       final mayaAtX = b[x]!.byId(maya.keys.id)!;
-      final changes = <bool>[];
-      b[maya]!.vouches.addListener(() => changes.add(true));
       for (var i = 0; i < 20; i++) {
         await b[x]!.vouch(mayaAtX, on: i.isEven);
         await pumpEventQueue();
       }
       expect(maya.sent.where((s) => s.envelope.body['s'] == 'vo'), isEmpty, reason: 'nothing at once');
-      expect(changes.length, lessThanOrEqualTo(Buddies.vouchesAnHour), reason: 'the hour\'s changes from one friend are capped');
+      // Every word is taken (the newest stands: x's last was a withdrawal); only the telling waits.
+      expect(b[maya]!.vouches.held[x.keys.id]!.on, isFalse);
       await b[maya]!.carryNow();
       await b[maya]!.carryNow();
       expect(maya.sent.where((s) => s.envelope.body['s'] == 'vo').length, 11, reason: 'one envelope a friend, and none again for the same');
@@ -361,6 +360,97 @@ void main() {
       expect(b[theo]!.vouchersOf(mayaAtTheo).length, 2);
       for (final y in b.values) {
         y.dispose();
+      }
+    });
+  });
+
+  // From the second review of 2026-11-23.
+  group('second review fixes', () {
+    test('a carrying the app closed before making is made at its next start', () async {
+      final w = VouchWorld();
+      final maya = VouchPort(w, 'maya'), sam = VouchPort(w, 'sam'), theo = VouchPort(w, 'theo');
+      final store = <String, String>{};
+      Vouches mayaStore() => Vouches(read: (k) => store[k] ?? '', write: (k, v) => store[k] = v);
+      final b = await makeFriends([(maya, sam), (maya, theo), (sam, theo)], stores: {maya: mayaStore()}, carryAfter: const Duration(hours: 1));
+      await b[sam]!.vouch(b[sam]!.byId(maya.keys.id)!);
+      await pumpEventQueue();
+      b[maya]!.dispose(); // closed well inside the wait
+      final again = Buddies(maya, vouches: mayaStore(), carryAfter: Duration.zero);
+      await again.start();
+      await pumpEventQueue();
+      expect(b[theo]!.vouchersOf(b[theo]!.byId(maya.keys.id)).length, 1);
+      // And once told, a start after doesn't tell again.
+      again.dispose();
+      final sent = maya.sent.length;
+      final third = Buddies(maya, vouches: mayaStore(), carryAfter: Duration.zero);
+      await third.start();
+      await pumpEventQueue();
+      expect(maya.sent.where((s) => s.envelope.body['s'] == 'vo').length, maya.sent.take(sent).where((s) => s.envelope.body['s'] == 'vo').length);
+      third.dispose();
+      for (final x in [b[sam]!, b[theo]!]) {
+        x.dispose();
+      }
+    });
+
+    test('a first start with no vouches at all tells nobody anything', () async {
+      final w = VouchWorld();
+      final maya = VouchPort(w, 'maya'), sam = VouchPort(w, 'sam');
+      final b = await makeFriends([(maya, sam)]);
+      await pumpEventQueue();
+      expect(maya.sent.where((s) => s.envelope.body['s'] == 'vo'), isEmpty);
+      for (final x in b.values) {
+        x.dispose();
+      }
+    });
+
+    test('past four changes an hour from one friend, the word is still taken and friends are still told', () async {
+      final w = VouchWorld();
+      final maya = VouchPort(w, 'maya'), sam = VouchPort(w, 'sam'), theo = VouchPort(w, 'theo');
+      final b = await makeFriends([(maya, sam), (maya, theo), (sam, theo)]);
+      final mayaAtSam = b[sam]!.byId(maya.keys.id)!;
+      for (final on in [true, false, true, false, true, false, true]) {
+        await b[sam]!.vouch(mayaAtSam, on: on);
+        await pumpEventQueue();
+      }
+      expect(b[maya]!.vouchersOf(null).length, 1, reason: 'the seventh, a vouch, is held');
+      await b[maya]!.carryNow(); // what the hour's timer does
+      await pumpEventQueue();
+      expect(b[theo]!.vouchersOf(b[theo]!.byId(maya.keys.id)).length, 1);
+      for (final x in b.values) {
+        x.dispose();
+      }
+    });
+
+    test('a withdrawal a viewer can\'t check yet takes away the vouch it holds, so it never counts once they are friends', () {
+      final sam = NetKeys.generate(), maya = NetKeys.generate(), theo = NetKeys.generate();
+      final samKey = base64Encode(sam.public), mayaKey = base64Encode(maya.public);
+      final now = DateTime.now().millisecondsSinceEpoch;
+      Vouch word(bool on, int t) => Vouch(by: sam.id, forId: maya.id, on: on, t: t, sig: NetCrypto.sign(sam, Vouch.signedBytes(by: sam.id, forId: maya.id, forKey: mayaKey, on: on, t: t)));
+      final viewer = Vouches.inMemory()..load(theo.id);
+      viewer.tookCarried(maya.id, [word(true, now - 2000).carried()], friendKey: mayaKey, keyOf: (_) => null);
+      expect(viewer.carried[maya.id]!.containsKey(sam.id), isTrue);
+      viewer.tookCarried(maya.id, [word(false, now - 1000).carried()], friendKey: mayaKey, keyOf: (_) => null);
+      expect(viewer.carried[maya.id]?[sam.id], isNull);
+      expect(viewer.vouchersOf(maya.id, mayaKey, [sam.id], id: (x) => x, key: (_) => samKey), isEmpty);
+    });
+
+    test('a dropped voucher is told only to friends who were carried their vouch', () async {
+      final w = VouchWorld();
+      final maya = VouchPort(w, 'maya'), sam = VouchPort(w, 'sam'), theo = VouchPort(w, 'theo'), zoe = VouchPort(w, 'zoe');
+      final b = await makeFriends([(maya, sam), (maya, theo)]);
+      await b[sam]!.vouch(b[sam]!.byId(maya.keys.id)!);
+      await pumpEventQueue();
+      // Zoe becomes Maya's friend after Sam's vouch was carried, and Maya then removes Sam.
+      final mz = await makeFriends([(maya, zoe)]);
+      b[maya]!.all = [...b[maya]!.all, friendOf(zoe)];
+      maya.list = jsonEncode([for (final x in b[maya]!.all) x.toJson()]);
+      await b[maya]!.remove(b[maya]!.byId(sam.keys.id)!);
+      await pumpEventQueue();
+      await b[maya]!.carryNow();
+      final vo = maya.sent.where((s) => s.envelope.body['s'] == 'vo' && s.envelope.body.containsKey('vd'));
+      expect({for (final s in vo) s.to}, {theo.keys.id}, reason: 'Theo was carried Sam\'s vouch; Zoe never learns Sam vouched');
+      for (final x in [...b.values, ...mz.values]) {
+        x.dispose();
       }
     });
   });
