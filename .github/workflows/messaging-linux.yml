@@ -16,6 +16,10 @@ on:
       build:
         description: Build number (116)
         required: true
+      p2p:
+        description: The direct network's core (no leaves it out, and the app has no direct route)
+        required: false
+        default: 'yes'
   push:
     tags:
       - 'messaging-linux-*'
@@ -67,6 +71,33 @@ jobs:
 
       - name: Build the app
         run: flutter build linux --release --build-name=$VERSION --build-number=$BUILD --dart-define=GHOST_BUILD=$BUILD --dart-define=GHOST_VERSION=$VERSION
+
+      # The direct network's core (messaging/native/p2p, Rust on iroh; lib/net/p2p/node_ffi.dart), from nothing but
+      # what its Cargo.lock names, with the Rust its rust-toolchain.toml names: in the app's lib folder as
+      # libghost_p2p.so, where the app looks for it, so in the .deb and the folder alike. Left out (p2p: no), the app
+      # has no direct route and is otherwise the same. A tag push, which can say no p2p, builds it and goes on without
+      # it where it fails: a core that would not build does not hold up a release.
+      - name: Rust for the direct network's core
+        id: rust
+        if: inputs.p2p != 'no'
+        continue-on-error: ${{ github.event_name == 'push' }}
+        working-directory: messaging/native/p2p
+        run: |
+          rustup toolchain install --no-self-update
+          rustc --version
+
+      - name: Build the direct network's core
+        id: core
+        if: inputs.p2p != 'no' && steps.rust.outcome == 'success'
+        continue-on-error: ${{ github.event_name == 'push' }}
+        working-directory: messaging/native/p2p
+        run: cargo build --release --locked
+
+      - name: Put the direct network's core in the app's folder
+        if: inputs.p2p != 'no' && steps.core.outcome == 'success'
+        run: |
+          cp native/p2p/target/release/libghost_p2p.so build/linux/x64/release/bundle/lib/libghost_p2p.so
+          ls -la build/linux/x64/release/bundle/lib/libghost_p2p.so
 
       - name: Package it
         run: |

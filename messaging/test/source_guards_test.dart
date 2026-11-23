@@ -63,8 +63,9 @@ void main() {
       'lib/files/apple_sha.dart',
       'lib/voice/mpv_property.dart',
       'lib/web/browser.dart',
+      'lib/net/p2p/node_ffi.dart',
     });
-    expect(halves.keys, containsAll(['lib/platform_info_io.dart', 'lib/platform_info_web.dart', 'lib/aside_io.dart', 'lib/aside_web.dart', 'lib/net/fast_gcm_64.dart', 'lib/net/fast_gcm_web.dart', 'lib/account/gzip_io.dart', 'lib/account/gzip_web.dart', 'lib/inbox/td_json_io.dart', 'lib/inbox/td_json_web.dart', 'lib/files/apple_sha_io.dart', 'lib/files/apple_sha_web.dart', 'lib/net/hub_link_io.dart', 'lib/net/hub_link_web.dart', 'lib/voice/mpv_property_io.dart', 'lib/voice/mpv_property_web.dart', 'lib/account/argon2_browser_none.dart', 'lib/account/argon2_browser_web.dart', 'lib/web/browser_none.dart', 'lib/web/browser_web.dart']));
+    expect(halves.keys, containsAll(['lib/platform_info_io.dart', 'lib/platform_info_web.dart', 'lib/aside_io.dart', 'lib/aside_web.dart', 'lib/net/fast_gcm_64.dart', 'lib/net/fast_gcm_web.dart', 'lib/account/gzip_io.dart', 'lib/account/gzip_web.dart', 'lib/inbox/td_json_io.dart', 'lib/inbox/td_json_web.dart', 'lib/files/apple_sha_io.dart', 'lib/files/apple_sha_web.dart', 'lib/net/hub_link_io.dart', 'lib/net/hub_link_web.dart', 'lib/voice/mpv_property_io.dart', 'lib/voice/mpv_property_web.dart', 'lib/account/argon2_browser_none.dart', 'lib/account/argon2_browser_web.dart', 'lib/web/browser_none.dart', 'lib/web/browser_web.dart', 'lib/net/p2p/node_ffi_io.dart', 'lib/net/p2p/node_ffi_web.dart']));
 
     final found = <String>[];
     for (final path in files) {
@@ -94,6 +95,7 @@ void main() {
     const allowed = {
       'lib/inbox/td_json_io.dart': 'TDLib (lib/inbox/td_json.dart)',
       'lib/files/apple_sha_io.dart': 'CommonCrypto\'s SHA-256 (lib/files/apple_sha.dart)',
+      'lib/net/p2p/node_ffi_io.dart': 'the direct network\'s core (lib/net/p2p/node_ffi.dart)',
     };
     final named = RegExp(r'''^\s*(?:import|export)\s+['"](?:dart:ffi|package:ffi/)''');
     final roots = [Directory('lib'), for (final p in Directory('packages').listSync().whereType<Directory>()) Directory('${p.path}/lib')];
