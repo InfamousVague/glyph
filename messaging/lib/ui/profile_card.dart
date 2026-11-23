@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert' show base64Decode;
 import 'composer_box.dart' show ComposerBox, ComposerField;
 import 'cosmetics_ui.dart';
 import 'dart:io';
@@ -16,6 +17,7 @@ import '../friends/buddies.dart';
 import '../inbox/inbox.dart';
 import '../kit/settings_type.dart';
 import '../me/cosmetics.dart';
+import '../me/identity.dart';
 import '../me/me.dart';
 import '../mentions.dart';
 import '../me/pictures.dart';
@@ -33,6 +35,7 @@ import 'shell.dart';
 import 'thread.dart';
 import 'special_badges.dart';
 import 'username_friends.dart' show acceptRequest;
+import 'identity_ui.dart' show theirDidWords, didWords;
 import 'verified_badge.dart';
 import 'name_watch_words.dart';
 import 'nav_bar.dart' show HoverTip;
@@ -238,6 +241,9 @@ class _ProfileCard extends StatefulWidget {
 class _ProfileCardState extends State<_ProfileCard> {
   InboxProfile? _network;
   String? _picture;
+
+  /// This account's did:key, on its own card (asked of the routes as the card opens; GMFB-33).
+  String? _myDid;
   bool _looking = true;
   final _dm = TextEditingController();
 
@@ -271,6 +277,9 @@ class _ProfileCardState extends State<_ProfileCard> {
       } else if (g != null) {
         if (g.me) {
           _picture = Me.instance.pictureSharp;
+          try {
+            _myDid = Did.ofKey((await Sms.instance.netIdentity()).key);
+          } catch (_) {}
         } else if (g.buddy != null && g.buddy!.picture.isNotEmpty) {
           _picture = g.buddy!.picture;
         } else if (g.id.isNotEmpty) {
@@ -347,6 +356,9 @@ class _ProfileCardState extends State<_ProfileCard> {
     // The name watch (lib/net/name_watch.dart): the relay now gives this friend's username to another key. They are
     // still the key that was added; this only says so.
     final renamed = g == null || g.me || g.id.isEmpty ? null : NameWatch.instance?.changeFor(g.id);
+    // Their account key as a did:key (GMFB-33; lib/me/identity.dart), with Copy and Share: a friend's from the key held
+    // for them, this account's own as the routes know it.
+    final did = g == null ? null : (g.me ? _myDid : _didOf(g.buddy));
     final panel = <Widget>[
       // In the card's own ink: the usual reason is an ordinary one (they changed or gave up the name, and someone took it).
       if (renamed != null)
@@ -354,6 +366,19 @@ class _ProfileCardState extends State<_ProfileCard> {
       if (bio.isNotEmpty) section('About me', Text(bio, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink'), height: 1.4))),
       if (theirRelay.isNotEmpty) section('Relay', Text(friendRelayWords(theirRelay, talks: Buddies.instance.relayTalks), style: pageText(t, t.fontSize('sm'), color: t.color('app-ink'), height: 1.4)), key: const ValueKey('profile-relay')),
       badgeList,
+      if (did != null)
+        section(
+          'Account key',
+          key: const ValueKey('profile-did'),
+          Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+            Row(children: [
+              Expanded(child: Text(Did.short(did), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink')))),
+              IconTap(key: const ValueKey('profile-did-copy'), icon: Lucide.copy, label: 'Copy the account key', size: 16, box: t.lenOf('2rem'), onPressed: () => _copy(context, did)),
+              IconTap(key: const ValueKey('profile-did-share'), icon: Lucide.share2, label: 'Share the account key', size: 16, box: t.lenOf('2rem'), onPressed: () => unawaited(Sms.instance.shareText('A Ghost Messaging account key', did))),
+            ]),
+            Text(g!.me ? didWords : theirDidWords(name.isEmpty ? 'This person' : name), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'), height: 1.4)),
+          ]),
+        ),
       if (who.detail.isNotEmpty) section(who.room != null ? 'In this space' : 'Here', Text(who.detail, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink')))),
       if (links.isNotEmpty)
         section(
@@ -599,5 +624,15 @@ List<Mention> inboxMentions(InboxMessage m) => Mention.checked([
       for (final x in m.mentions)
         if (x.user.isNotEmpty || x.username.isNotEmpty) Mention(x.start, x.length, x.user.isNotEmpty ? 'n:${x.user}' : 'u:${x.username}'),
     ], m.text);
+
+/// [b]'s did:key, from the key held for them; null where none is, or it isn't a key.
+String? _didOf(Buddy? b) {
+  if (b == null || b.key.isEmpty) return null;
+  try {
+    return Did.ofKey(base64Decode(b.key));
+  } catch (_) {
+    return null;
+  }
+}
 
 String _titled(String network) => network.isEmpty ? network : network[0].toUpperCase() + network.substring(1);
