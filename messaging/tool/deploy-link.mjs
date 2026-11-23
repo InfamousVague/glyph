@@ -124,11 +124,11 @@ for tool in ufw runuser timeout openssl curl ss; do command -v $tool >/dev/null 
 
 # Its four ports are its own already (held by the service's own process), or nobody's.
 MAIN=$($SUDO systemctl show -p MainPID --value ghost-link 2>/dev/null || true)
-for port in "t ${PORT}" "u ${QUIC}" "t ${PLAIN}" "t ${METRICS}"; do
-  set -- $port
+ours_or_free() {
   OTHERS=$($SUDO ss -lnp$1 | grep ":$2 " | grep -v "pid=$MAIN," || true)
   [ -z "$OTHERS" ] || { echo "x port $2 is in use by something else:"; echo "$OTHERS"; exit 1; }
-done
+}
+ours_or_free t ${PORT}; ours_or_free u ${QUIC}; ours_or_free t ${PLAIN}; ours_or_free t ${METRICS}
 
 # What copies the certificate: written here, asked first whether there is one to copy, and installed further down.
 cat > "$STAGE/ghost-link-cert" <<'EOF_CERT'
