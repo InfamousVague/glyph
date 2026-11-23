@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:ghost_messaging/friends/friends.dart';
 import 'package:ghost_messaging/net/carrier.dart';
+import 'package:ghost_messaging/net/hub_carrier.dart' show HubCarrier;
 import 'package:ghost_messaging/net/packet.dart';
 import 'package:ghost_messaging/net/switchboard.dart';
 import 'package:ghost_messaging/sms.dart';
@@ -87,8 +88,17 @@ class FakePort implements FriendsPort {
   final mineSent = <Envelope>[];
   FakePort? twin;
 
+  /// The most a packet on the hub or the direct route carries (HubCarrier.maxPacket), less sealing's few bytes: what is
+  /// longer goes by no route, as the switchboard finds (GMFB-53's review, H2).
+  static const routeMost = HubCarrier.maxPacket - 64;
+
+  /// Where set, every packet to the account's own devices is refused (the relay's mailbox for them full).
+  bool mineRefused = false;
+
   @override
   Future<Delivery> sendMine(Envelope envelope) async {
+    if (envelope.encode().length > routeMost) return Delivery(envelope.id, tried: const ['too big for any route']);
+    if (mineRefused) return Delivery(envelope.id, tried: const ['hub: nak full']);
     mineSent.add(envelope);
     final t = twin;
     if (t == null) return Delivery(envelope.id, tried: const ['no account here']);
@@ -98,6 +108,18 @@ class FakePort implements FriendsPort {
 
   @override
   bool isMine(Peer peer) => peer.id == 'mine';
+
+  /// This device's number on the account's list (GMFB-53), and the devices the account lists now (all, where null).
+  String device = 'device-${_n++}';
+  static int _n = 0;
+  Set<String>? listedDevices;
+  bool signedIn = true;
+
+  @override
+  ({String device, String name})? get thisDevice => signedIn ? (device: device, name: 'Device $device') : null;
+
+  @override
+  Future<bool> listed(String d) async => listedDevices?.contains(d) ?? true;
 
   /// The conversations with friends by username this device holds (GMFB-53), and what another device's history added.
   final pastHeld = <String, List<PastRow>>{};

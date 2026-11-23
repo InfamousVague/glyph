@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import '../account/account.dart' show Account;
 import '../app_state.dart';
 import '../net/carrier.dart';
 import '../net/hub_link.dart';
@@ -71,6 +72,12 @@ abstract class FriendsPort {
 
   /// Messages of [address]'s conversation that another device of the account held, kept here once each: how many new.
   Future<int> keepHistory(String address, List<PastRow> rows);
+
+  /// This device's number on the account's list and its name; null where it is in no account.
+  ({String device, String name})? get thisDevice;
+
+  /// Whether the device [device] is on the account's list now (not removed): the relay's `acct-hello` for it.
+  Future<bool> listed(String device);
   Future<void> rowState(int id, String state);
   Future<void> dropRow(int id);
   Future<void> storeIn(String address, String words, int at);
@@ -230,7 +237,10 @@ class Friends extends ChangeNotifier {
     _out.clear();
     _seen.clear();
     _historyAsked = false;
-    _answered.clear();
+    _answering.clear();
+    _takenRows.clear();
+    _takenParts = 0;
+    _nonce = null;
   }
 
   /// The people or the routes changed: read again a moment later, so many changes at once are one reading.
@@ -435,6 +445,7 @@ class Friends extends ChangeNotifier {
     // A new device of this account asking for what is held here, and the answer to this device's own asking (GMFB-53).
     if (r.envelope.kind == historyAsk && r.sealed && _port.isMine(r.peer)) return _answerHistory(r.envelope);
     if (r.envelope.kind == historyKind && r.sealed && _port.isMine(r.peer)) return _takeHistory(r.envelope);
+    if (r.envelope.kind == historyGot && r.sealed && _port.isMine(r.peer)) return _historyHad(r.envelope);
     if (!r.sealed) return;
     final kind = r.envelope.kind;
     if (kind != 'friend' && kind != 'text') return;
@@ -617,31 +628,54 @@ class Friends extends ChangeNotifier {
 
   // --- a new device's history (GMFB-53) -----------------------------------------------------------------------------------
 
-  /// What a device asks its account's other devices for once, the first time its routes are up: the conversations with
-  /// friends by username they hold (@kevin, GMFB-53: "Upon logging in on web, none of my messages appear in the sidebar
-  /// and only my circles appear"). The account's backup carries friends and circles, never conversations, and the
-  /// copies ([copyKind]) carry only what is said from then on, so a device signed in on (a browser, an iPhone, a
-  /// computer of its own) had its friends and an empty list. Sealed with the account's key as a copy is, by the relay,
-  /// which keeps it for the devices that are away: any that holds conversations answers when it is next connected.
-  /// Builds from before pass both kinds over.
+  /// What a device asks its account's other devices for until one answers: the conversations with friends by username
+  /// they hold (@kevin, GMFB-53: "Upon logging in on web, none of my messages appear in the sidebar and only my circles
+  /// appear"). The account's backup carries friends and circles, never conversations, and the copies ([copyKind])
+  /// carry only what is said from then on, so a device signed in on (a browser, an iPhone, a computer of its own) had its
+  /// friends and an empty list. `{n, d, dn}`: this device's asking, its number on the account's list and its name.
+  /// Sealed with the account's key as a copy is, by the relay, which keeps it for the devices that are away. Builds
+  /// from before pass all four kinds over.
   static const historyAsk = 'mine-ask';
 
-  /// The answer: `{n, a, r: [[words, when, 1 where ours], …]}`, one conversation (or part of one) each, for the device
-  /// whose asking was `n` alone. Kept there once each ([FriendsPort.keepHistory]) and never passed on.
+  /// The answer, for the device whose asking was `n` alone: `{n, a, r: [[words, when, 1 where ours], …]}`, a
+  /// conversation (or part of one) each, then `{n, e: 1}` to say it is all (sent even where there is nothing, so the
+  /// asker stops asking). Kept there once each ([FriendsPort.keepHistory]) and never passed on.
   static const historyKind = 'mine-past';
 
-  /// The most messages of one conversation a device hands over, and the most words in one answer.
-  static const historyMost = 300;
-  static const historyBytes = 64 * 1024;
+  /// The asker saying it has had an answer's end: `{n, d}`. The answering device then never answers that device again.
+  static const historyGot = 'mine-got';
 
-  /// Asked already ([_askHistory]); and the askings answered here, so one is answered once however often it comes.
+  /// The most messages of one conversation a device hands over or takes; the most words in one part, counted as the
+  /// JSON that goes (a packet on the hub or the direct route is at most 60 KB sealed, HubCarrier.maxPacket, with the
+  /// envelope, its sealing and forward secrecy's room besides); the most parts in one answer (the account's mailbox
+  /// on the relay holds 200 packets and 1 MB for a device that is away, which the copies need too); and the most
+  /// parts one asking takes in.
+  static const historyMost = 300;
+  static const historyBytes = 40 * 1024;
+  static const historyParts = 12;
+  static const historyTaken = 120;
+
+  /// The pause between one part and the next, so an answer doesn't fill the relay's mailbox for an away asker at once.
+  @visibleForTesting
+  static Duration historyPace = const Duration(milliseconds: 150);
+
+  /// Asked already this run ([_askHistory]); askings being answered now; what each asking has taken in, by address.
   bool _historyAsked = false;
-  final Set<String> _answered = {};
+  final Set<String> _answering = {};
+  final Map<String, int> _takenRows = {};
+  int _takenParts = 0;
 
   /// This device's asking: made once, kept with the choices so an answer kept on the relay while it was closed is
-  /// still taken.
+  /// still taken. Let go at sign-out (lib/account/account.dart forget), with the rest of `history_…`.
   String? _nonce;
-  String get _myAsking => _nonce ??= (_app?.choice('history_n', '') ?? '').isNotEmpty ? _app!.choice('history_n', '') : _newNonce();
+  String get _myAsking {
+    final app = _app;
+    // Without the choices (a test): one for this run.
+    if (app == null) return _nonce ??= _newNonce();
+    final kept = app.choice('history_n', '');
+    return kept.isNotEmpty ? kept : _newNonce();
+  }
+
   String _newNonce() {
     final n = base64Url.encode(List<int>.generate(12, (_) => _rand.nextInt(256)));
     _app?.set('history_n', n);
@@ -650,18 +684,26 @@ class Friends extends ChangeNotifier {
 
   static final _rand = Random.secure();
 
-  /// Asks this account's other devices for the conversations they hold, once per install, as soon as it can go.
+  /// How long after the last asking the next is due, after [tries] askings with no answer: half a minute, doubling,
+  /// twelve hours at most. Asked at each start that is due, until an answer's end comes.
+  static Duration historyBackoff(int tries) => Duration(seconds: 30 * (1 << tries.clamp(0, 11))) > const Duration(hours: 12) ? const Duration(hours: 12) : Duration(seconds: 30 * (1 << tries.clamp(0, 11)));
+
+  /// Asks this account's other devices for the conversations they hold, where no answer has ended yet and it is due.
   Future<void> _askHistory() async {
     if (_historyAsked || !_started || !_port.internet) return;
-    if (_app?.flag('history_historyAsked', fallback: false) ?? false) {
-      _historyAsked = true;
-      return;
-    }
+    if (_app?.flag('history_done', fallback: false) ?? false) return;
+    final me = _port.thisDevice;
+    if (me == null) return;
+    final tries = int.tryParse(_app?.choice('history_tries', '') ?? '') ?? 0;
+    final last = int.tryParse(_app?.choice('history_last', '') ?? '') ?? 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (last > 0 && now - last < historyBackoff(tries - 1).inMilliseconds) return;
     _historyAsked = true;
     try {
-      final d = await _port.sendMine(Envelope(kind: historyAsk, body: {'n': _myAsking}));
+      final d = await _port.sendMine(Envelope(kind: historyAsk, body: {'n': _myAsking, 'd': me.device, 'dn': me.name}));
       if (d.sent) {
-        _app?.setFlag('history_historyAsked', true);
+        _app?.set('history_tries', '${tries + 1}');
+        _app?.set('history_last', '$now');
         return;
       }
     } catch (_) {}
@@ -669,53 +711,127 @@ class Friends extends ChangeNotifier {
     _historyAsked = false;
   }
 
-  /// Another device of this account asked: what is held here, a conversation at a time, for it alone.
-  Future<void> _answerHistory(Envelope e) async {
-    final n = e.body['n'];
-    if (n is! String || n.isEmpty || n == _myAsking || !_answered.add(n)) return;
-    List<({String address, List<PastRow> rows})> held;
+  /// When this device answered each device of the account (ms), or `got` once that device said it had it all: kept.
+  Map<String, Object?> get _answered {
     try {
-      held = await _port.history();
+      return (jsonDecode(_app?.choice('history_answered', '{}') ?? '{}') as Map).cast<String, Object?>();
     } catch (_) {
-      return;
-    }
-    for (final c in held) {
-      final rows = c.rows.length > historyMost ? c.rows.sublist(c.rows.length - historyMost) : c.rows;
-      var part = <List<Object>>[];
-      var size = 0;
-      Future<void> send() async {
-        if (part.isEmpty) return;
-        try {
-          await _port.sendMine(Envelope(kind: historyKind, body: {'n': n, 'a': c.address, 'r': part}));
-        } catch (_) {}
-        part = [];
-        size = 0;
-      }
-
-      for (final r in rows) {
-        final row = <Object>[r.t, r.at, r.o ? 1 : 0];
-        final bytes = utf8.encode(r.t).length + 24;
-        if (size + bytes > historyBytes) await send();
-        part.add(row);
-        size += bytes;
-      }
-      await send();
+      return {};
     }
   }
 
-  /// What another device held, answering this device's asking: kept in the conversations, once each.
+  void _setAnswered(String device, Object value) {
+    final m = _answered..[device] = value;
+    _app?.set('history_answered', jsonEncode(m));
+  }
+
+  /// Another device of this account asked: what is held here, for it alone, where it is on the account's list (not one
+  /// removed, nor anyone holding the account's key who never signed in as a device), once per device (again after a day
+  /// only where it never said it had the answer), and said where the person sees their devices ([historyNote]).
+  Future<void> _answerHistory(Envelope e) async {
+    final b = e.body;
+    final n = b['n'], device = b['d'], name = b['dn'];
+    final me = _port.thisDevice;
+    if (n is! String || n.isEmpty || n == _myAsking || device is! String || device.isEmpty || me == null || device == me.device) return;
+    final had = _answered[device];
+    if (had == 'got') return;
+    if (had is num && DateTime.now().millisecondsSinceEpoch - had.toInt() < const Duration(days: 1).inMilliseconds) return;
+    if (!_answering.add(device)) return;
+    try {
+      if (!await _port.listed(device)) return;
+      List<({String address, List<PastRow> rows})> held;
+      try {
+        held = await _port.history();
+      } catch (_) {
+        return;
+      }
+      // The newest conversations first: an answer cut at [historyParts] has what was said last.
+      held.sort((x, y) => (y.rows.isEmpty ? 0 : y.rows.last.at).compareTo(x.rows.isEmpty ? 0 : x.rows.last.at));
+      final parts = <Map<String, Object?>>[];
+      for (final c in held) {
+        final rows = c.rows.length > historyMost ? c.rows.sublist(c.rows.length - historyMost) : c.rows;
+        var part = <List<Object>>[];
+        var size = 0;
+        for (final r in rows) {
+          var row = <Object>[r.t, r.at, r.o ? 1 : 0];
+          var bytes = utf8.encode(jsonEncode(row)).length + 1;
+          // One message too long for a part of its own: its words cut to what fits.
+          if (bytes > historyBytes - 512) {
+            var t = r.t;
+            while (bytes > historyBytes - 512 && t.isNotEmpty) {
+              t = t.substring(0, t.length * 3 ~/ 4);
+              row = <Object>[t, r.at, r.o ? 1 : 0];
+              bytes = utf8.encode(jsonEncode(row)).length + 1;
+            }
+          }
+          if (size + bytes > historyBytes - 512 && part.isNotEmpty) {
+            parts.add({'n': n, 'a': c.address, 'r': part});
+            part = [];
+            size = 0;
+          }
+          part.add(row);
+          size += bytes;
+        }
+        if (part.isNotEmpty) parts.add({'n': n, 'a': c.address, 'r': part});
+      }
+      for (final body in [...parts.take(historyParts), {'n': n, 'e': 1}]) {
+        if (!await _sendPart(body)) return;
+        if (historyPace > Duration.zero) await Future<void>.delayed(historyPace);
+      }
+      _setAnswered(device, DateTime.now().millisecondsSinceEpoch);
+      historyNote = 'History sent to ${name is String && name.trim().isNotEmpty ? name.trim() : 'a device'} on ${DateTime.now().toIso8601String().substring(0, 10)}';
+      _app?.set('history_note', historyNote!);
+    } finally {
+      _answering.remove(device);
+    }
+  }
+
+  /// One part sent, tried three times a moment apart; false where none went (too big, the mailbox full, no route).
+  Future<bool> _sendPart(Map<String, Object?> body) async {
+    for (var tries = 0; tries < 3; tries++) {
+      try {
+        if ((await _port.sendMine(Envelope(kind: historyKind, body: body))).sent) return true;
+      } catch (_) {}
+      await Future<void>.delayed(Duration(milliseconds: 300 * (tries + 1)));
+    }
+    return false;
+  }
+
+  /// The last answer this device gave another of the account: "History sent to Maya's iPhone on 2026-11-23", for
+  /// Settings › Devices (lib/ui/account_screens.dart), so a handover the person didn't make is seen.
+  String? historyNote;
+
+  /// What another device held, answering this device's asking: kept in the conversations, once each, within the bounds
+  /// one asking may take in; its end said back, and no more asking.
   Future<void> _takeHistory(Envelope e) async {
     final b = e.body;
-    final n = b['n'], address = b['a'], rows = b['r'];
-    if (n != _myAsking || address is! String || !address.startsWith('@') || rows is! List) return;
+    if (b['n'] != _myAsking) return;
+    if (b['e'] == 1) {
+      _app?.setFlag('history_done', true);
+      final me = _port.thisDevice;
+      if (me != null) unawaited(_port.sendMine(Envelope(kind: historyGot, body: {'n': _myAsking, 'd': me.device})).then((_) {}, onError: (_) {}));
+      return;
+    }
+    final address = b['a'], rows = b['r'];
+    if (address is! String || !address.startsWith('@') || rows is! List) return;
+    if (++_takenParts > historyTaken) return;
+    final room = historyMost - (_takenRows[address] ?? 0);
+    if (room <= 0) return;
     final past = <PastRow>[
-      for (final r in rows)
+      for (final r in rows.take(room))
         if (r is List && r.length >= 3 && r[0] is String && (r[0] as String).isNotEmpty && r[1] is num) (t: r[0] as String, at: (r[1] as num).toInt(), o: r[2] == 1),
     ];
     if (past.isEmpty) return;
+    _takenRows[address] = (_takenRows[address] ?? 0) + past.length;
     try {
       await _port.keepHistory(address, past);
     } catch (_) {}
+  }
+
+  /// A device of the account says it had this device's answer whole: it is never answered again.
+  void _historyHad(Envelope e) {
+    final d = e.body['d'];
+    if (d is String && d.isNotEmpty) _setAnswered(d, 'got');
   }
 
   /// The friend's app says it has the envelope [id]: it is not sent again, and its row is marked delivered.
@@ -831,8 +947,10 @@ class Friends extends ChangeNotifier {
     // To the install the friend's record names, by its id: never whoever else the routes hold under that address.
     final peer = _peerFor(address);
     if (peer == null) return false;
-    final row = await _port.storeOut(address, words);
+    // The envelope first, and the row stamped with its time: the copy to the account's other devices carries that time,
+    // so every device holds the message at the same moment (GMFB-53: a history from two devices kept it twice).
     final envelope = Envelope(kind: 'text', body: {'t': words});
+    final row = await _port.storeOut(address, words, at: envelope.at);
     Delivery d;
     try {
       d = await _port.send(peer, envelope);
@@ -988,6 +1106,12 @@ class _AppPort implements FriendsPort {
         for (final c in await Sms.instance.netHistory())
           if (c['a'] is String) (address: c['a'] as String, rows: [for (final r in (c['r'] as List? ?? const [])) if (r is List && r.length >= 3 && r[0] is String && r[1] is num) (t: r[0] as String, at: (r[1] as num).toInt(), o: r[2] == 1)]),
       ];
+
+  @override
+  ({String device, String name})? get thisDevice => Account.instance.address == null ? null : (device: Account.instance.device, name: Account.instance.profiles.deviceName);
+
+  @override
+  Future<bool> listed(String device) => Account.instance.lists(device);
 
   @override
   Future<int> keepHistory(String address, List<PastRow> rows) => Sms.instance.netHistoryKeep(address, [for (final r in rows) [r.t, r.at, r.o ? 1 : 0]]);

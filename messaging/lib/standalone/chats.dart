@@ -262,10 +262,12 @@ class UsernameChats {
 
   /// What this device holds of its conversations with friends by username, for another device of the account that has
   /// just been signed in on (Friends.historyKind): each conversation's address and its newest [most] messages, oldest
-  /// first, as `[words, when, 1 where ours]`. Lines about calls and messages that never went are left out.
+  /// first. Only conversations with a friend of the account signed in now ([buddyAt]): a plain sign-out keeps the
+  /// conversations on a device of its own, and they are never handed to whoever signs in next (review of GMFB-53).
+  /// Lines about calls and messages that never went are left out.
   List<({String address, List<PastRow> rows})> history({int most = 300}) => [
         for (final t in threads.values)
-          if (isUsername(t.address))
+          if (isUsername(t.address) && buddyAt(t.address) != null)
             (
               address: t.address,
               rows: [
@@ -282,23 +284,41 @@ class UsernameChats {
             if (r is List && r.length >= 3 && r[0] is String && r[1] is num) (t: r[0] as String, at: (r[1] as num).toInt(), o: r[2] == 1 || r[2] == true),
       ];
 
+  /// How close in time two copies of one message can be and still be one: a row is stamped as it is kept, which on a
+  /// device from before GMFB-53's fix was a moment before its copy's envelope.
+  static const sameMessageWithin = 5000;
+
   /// Messages of the conversation with [address] that another device of the account holds (its [history]), kept here
-  /// in their places by when they were written, each once: one already here (the same words, at the same moment, the
-  /// same way) is passed over, so two devices answering, or a copy that came live meanwhile, keep nothing twice. Past
+  /// in their places by when they were written, each once: one already here (the same words, the same way, within
+  /// [sameMessageWithin]) is passed over, so two devices answering, or a copy that came live meanwhile, keep nothing
+  /// twice. Only with a friend of this account (no conversation is made for anyone else), and [most] at most. Past
   /// messages, so nothing is made unread. How many were new.
-  int keepHistory(String address, List<PastRow> rows) {
-    if (!isUsername(address) || rows.isEmpty) return 0;
+  int keepHistory(String address, List<PastRow> rows, {int most = 300}) {
+    if (!isUsername(address) || rows.isEmpty || buddyAt(address) == null) return 0;
     final t = threadWith(address);
-    var added = 0;
-    for (final p in rows) {
-      if (p.t.isEmpty || t.rows.any((r) => r.at == p.at && r.out == p.o && r.body == p.t)) continue;
-      final row = ChatRow(id: _nextRow++, body: p.t, at: p.at, out: p.o, state: p.o ? 'sent' : 'received');
-      final before = t.rows.indexWhere((r) => r.at > p.at);
-      before < 0 ? t.rows.add(row) : t.rows.insert(before, row);
-      added++;
+    // What is here, by its words and way, each with its times: looked up, not searched for every row.
+    final had = <String, List<int>>{};
+    for (final r in t.rows) {
+      had.putIfAbsent('${r.out ? 1 : 0}${r.body}', () => []).add(r.at);
     }
-    if (added > 0) _changed(t.id);
-    return added;
+    final fresh = <ChatRow>[];
+    for (final p in rows.take(most)) {
+      if (p.t.isEmpty) continue;
+      final times = had.putIfAbsent('${p.o ? 1 : 0}${p.t}', () => []);
+      if (times.any((at) => (at - p.at).abs() <= sameMessageWithin)) continue;
+      times.add(p.at);
+      fresh.add(ChatRow(id: _nextRow++, body: p.t, at: p.at, out: p.o, state: p.o ? 'sent' : 'received'));
+    }
+    if (fresh.isEmpty) return 0;
+    // In their places, once: put together and sorted by time (a stable sort keeps what was here before what came).
+    final all = [...t.rows, ...fresh];
+    final order = {for (var i = 0; i < all.length; i++) all[i]: i};
+    all.sort((x, y) => x.at != y.at ? x.at.compareTo(y.at) : order[x]!.compareTo(order[y]!));
+    t.rows
+      ..clear()
+      ..addAll(all);
+    _changed(t.id);
+    return fresh.length;
   }
 
   /// To a friend by username: by the routes ([Friends.sendText] keeps it here as it goes). Pictures and groups are not

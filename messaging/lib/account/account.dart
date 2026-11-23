@@ -504,6 +504,19 @@ class Account extends ChangeNotifier {
   }
 
   /// The devices signed in to the account; with [keys] ([keysWith]) where this install keeps no words (a browser).
+  /// Whether the device numbered [device] is on this account's list now (GMFB-53: a history goes only to one that is):
+  /// the relay's `acct-hello` for it, which needs no key and says only yes or no. False where the relay can't be asked.
+  Future<bool> lists(String device) async {
+    final a = address;
+    if (a == null) return false;
+    try {
+      final m = await relay.ask({'dir': 'acct-hello', 'a': a, 'd': device}).timeout(const Duration(seconds: 10));
+      return m['known'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<List<AccountDevice>> devices({AccountKeys? keys}) async {
     final m = await relay.ask(_signed('acct-devices', 'devices', keys?._keys ?? await _keys(), const {}));
     return AccountDevice.list(m['list'], device);
@@ -1052,6 +1065,11 @@ class AppAccountProfiles implements AccountProfiles {
       store.set(k, '');
     }
     store.set('circles', '[]');
+    // The history handover's asking and answers are this account's (GMFB-53): the next account signed in here asks
+    // for its own, with an asking of its own.
+    for (final k in ['history_n', 'history_done', 'history_tries', 'history_last', 'history_answered', 'history_note']) {
+      store.set(k, '');
+    }
     // A device of its own keeps its conversations and spaces at sign-out, and says so (lib/ui/account_screens.dart):
     // not the circles' seeds, kept where the circles were.
     if (Sms.standalone) {
