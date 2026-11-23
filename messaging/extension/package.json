@@ -1,7 +1,7 @@
 {
   "name": "ghost-messaging-keys",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Ghost Messaging's key sync: a browser extension that captures the sign-in cookies for the chat networks the app signs in to (Messenger, Instagram, Discord, X, Slack, Google Messages) and syncs them, sealed, across every device signed into your Ghost account.",
   "type": "module",
   "scripts": {
