@@ -67,6 +67,7 @@ object Arriving {
         installer == null || installer !in setOf("com.android.vending", "com.sec.android.app.samsungapps", "com.amazon.venezia")
     } catch (_: Exception) { true }
 
+    /** How many rows a table has (that match [where]); null where Android will not let it be read. */
     private fun count(context: Context, uri: Uri, where: String? = null, args: Array<String>? = null): Int? = try {
         context.contentResolver.query(uri, arrayOf("_id"), where, args, null)?.use { it.count }
     } catch (_: Exception) { null }

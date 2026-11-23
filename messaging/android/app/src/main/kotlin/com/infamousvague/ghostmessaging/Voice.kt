@@ -100,6 +100,7 @@ object Voice {
         return out to length
     }
 
+    /** Ends the recording and keeps nothing of it. */
     @Synchronized
     fun cancel() {
         val r = recorder ?: return
@@ -127,6 +128,7 @@ object Voice {
         }
     }
 
+    /** Tells the [listener] where the sound has got to; one that [ended] is said to be back at its start. */
     private fun say(playing: Boolean, ended: Boolean = false) {
         val p = player
         val (position, duration) = try { if (p == null || ended) 0 to (p?.duration ?: 0) else p.currentPosition to p.duration } catch (_: Exception) { 0 to 0 }
@@ -150,6 +152,7 @@ object Voice {
         main.post { playFrom(context, part, if (GmWeb.isPart(part)) null else Uri.parse("content://mms/part/$part")) }
     }
 
+    /** On the main thread: goes on with [part] if it is the one paused, else plays [uri]; a null one is said to end. */
     private fun playFrom(context: Context, part: Long, uri: Uri?) {
         val had = player
         if (had != null && playingPart == part) {
@@ -178,6 +181,7 @@ object Voice {
         }
     }
 
+    /** Holds the sound where it is; [play] with the same part goes on from there. */
     fun pause() = main.post {
         try { player?.pause() } catch (_: Exception) {}
         main.removeCallbacks(tick)

@@ -96,6 +96,7 @@ class SpaceGroupRow extends StatelessWidget {
   }
 }
 
+/// The menu of a group the person made: rename it, or delete it.
 void _groupMenu(BuildContext context, SpaceGroupHeading heading) {
   showChoices(context, title: heading.name, choices: [
     Choice('Rename group', Lucide.pencil, () => askGroupName(context, title: 'Rename group', initial: heading.name, then: (name) => SpaceGroups.instance.rename(heading.id, name))),
@@ -103,6 +104,7 @@ void _groupMenu(BuildContext context, SpaceGroupHeading heading) {
   ]);
 }
 
+/// A linked Discord server's menu: open it in Discord, ask again who is in its channels, or take it out of the app.
 void _discordMenu(BuildContext context, DiscordLink link) {
   showChoices(context, title: link.name, choices: [
     Choice('Open in Discord', Lucide.externalLink, () => Sms.instance.openLink('https://discord.com/channels/${link.guildId}')),
@@ -116,6 +118,7 @@ void askGroupName(BuildContext context, {required String title, String initial =
   push(context, (_) => _GroupNamePage(title: title, initial: initial, then: then));
 }
 
+/// The page [askGroupName] opens: one field for the name.
 class _GroupNamePage extends StatefulWidget {
   const _GroupNamePage({required this.title, required this.initial, required this.then});
   final String title;
@@ -238,6 +241,7 @@ class DiscordChannelRow extends StatelessWidget {
   }
 }
 
+/// A tiny filled tag in a Discord channel's row: GHOST on a bridged channel, BOT and LIVE beside a member.
 class _Badge extends StatelessWidget {
   const _Badge({required this.words, required this.color});
   final String words;
@@ -282,6 +286,7 @@ class _AddDiscordScreenState extends State<AddDiscordScreen> {
     super.dispose();
   }
 
+  /// Claims the server with the code typed; a refusal is shown under the field in the service's words.
   Future<void> _link() async {
     setState(() {
       _busy = true;

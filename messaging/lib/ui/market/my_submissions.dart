@@ -54,6 +54,7 @@ String resubmitVersion(SubmissionView s, {String? current}) {
   return v;
 }
 
+/// Marketplace › My submissions: a section for each plugin sent, with its listing and a row for each version.
 class MySubmissionsScreen extends StatefulWidget {
   const MySubmissionsScreen({super.key, this.api, this.highlight, this.market, this.hub});
 
@@ -88,6 +89,7 @@ class _MySubmissionsScreenState extends State<MySubmissionsScreen> {
     if (_api.signer != null) unawaited(_read());
   }
 
+  /// Reads what this developer has sent, and tells [MarketState] it was seen so its decisions aren't toasted again.
   Future<void> _read() async {
     setState(() {
       _loading = true;
@@ -112,6 +114,7 @@ class _MySubmissionsScreenState extends State<MySubmissionsScreen> {
     }
   }
 
+  /// Lists the plugin again, or takes it off the Marketplace once that is confirmed.
   Future<void> _setListed(PluginState p, bool listed) async {
     if (!listed) {
       var go = false;
@@ -294,6 +297,8 @@ class _MySubmissionScreenState extends State<MySubmissionScreen> {
     unawaited(_load());
   }
 
+  /// Reads the submission afresh, then its package and each screenshot; a screenshot is shown only where its bytes
+  /// match the hash the submission names.
   Future<void> _load() async {
     try {
       final fresh = await _api.submission(_s.sid);

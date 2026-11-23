@@ -53,6 +53,7 @@ Color fileRetroInk(Tokens t, FileKind kind) {
   return Color(t.isDark ? dark : light);
 }
 
+/// The icon a kind of file is marked with.
 LucideIcon fileIcon(FileKind kind) => switch (kind) {
       FileKind.image => Lucide.image,
       FileKind.video => Lucide.film,
@@ -148,6 +149,7 @@ class _VideoMark extends StatelessWidget {
   }
 }
 
+/// A picture's small copy, from its bytes; [fallback] where they can't be drawn.
 class _Thumb extends StatelessWidget {
   const _Thumb({required this.bytes, required this.width, required this.height, required this.fallback});
   final Uint8List bytes;

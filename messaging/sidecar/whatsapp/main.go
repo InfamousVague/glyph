@@ -70,12 +70,15 @@ import (
 // deviceName is what WhatsApp shows in the phone's Linked devices.
 const deviceName = "Ghost Messaging"
 
+// quote names the message a send answers: its id, its author's JID and its words, which WhatsApp shows above the
+// reply.
 type quote struct {
 	ID     string `json:"id"`
 	Author string `json:"author"`
 	Text   string `json:"text"`
 }
 
+// request is one line the app sends. Fields not used by an op are left empty.
 type request struct {
 	ID      int64           `json:"id"`
 	Op      string          `json:"op"`
@@ -96,6 +99,12 @@ type request struct {
 	On      bool            `json:"on"`
 }
 
+// dir is the --dir flag: where the store, the log and the avatars are kept. out is standard output, one JSON object a
+// line; outLock keeps lines whole when goroutines speak at once.
+//
+// mu guards the store, the linked device's client (nil when not linked), the last connection word said to the app,
+// and the cancel of a link still waiting for its scan. inflight counts the requests not yet answered, for main to
+// wait on when the app quits.
 var (
 	dir     string
 	log     zerolog.Logger
@@ -110,6 +119,7 @@ var (
 	inflight  sync.WaitGroup
 )
 
+// say writes one line, an answer or an event, to standard output.
 func say(v any) {
 	outLock.Lock()
 	defer outLock.Unlock()
@@ -125,6 +135,8 @@ func event(name string, fields map[string]any) {
 	say(m)
 }
 
+// main opens the store, connects the device linked before (if any), says "ready", then answers requests (each on a
+// goroutine of its own) until standard input closes.
 func main() {
 	flag.StringVar(&dir, "dir", "", "where the WhatsApp store is kept")
 	flag.Parse()
@@ -182,6 +194,7 @@ func main() {
 	mu.Unlock()
 }
 
+// parseRequest reads one line as a request. A line that is not JSON, or names no op, is an error (and is passed over).
 func parseRequest(line []byte) (request, error) {
 	var r request
 	err := json.Unmarshal(line, &r)
@@ -199,17 +212,20 @@ func answer(id int64, result any, err error) map[string]any {
 	return map[string]any{"id": id, "ok": true, "result": result}
 }
 
+// handle does one request and says its answer.
 func handle(r request) {
 	result, err := do(r)
 	say(answer(r.ID, result, err))
 }
 
+// bg is a context that carries the helper's log.
 func bg() context.Context { return log.WithContext(context.Background()) }
 
 // --- the store ------------------------------------------------------------------------------------------------------
 
 func dbPath() string { return filepath.Join(dir, "whatsapp.db") }
 
+// openStore opens whatsmeow's SQLite store: the account's keys, sessions and contacts.
 func openStore() error {
 	// The store holds the account's keys: readable by the person alone.
 	if f, err := os.OpenFile(dbPath(), os.O_CREATE|os.O_RDWR, 0o600); err == nil {
@@ -225,6 +241,7 @@ func openStore() error {
 	return nil
 }
 
+// firstDevice is the linked device the store holds, or nil: the helper keeps one WhatsApp account.
 func firstDevice() *store.Device {
 	devs, err := container.GetAllDevices(bg())
 	if err != nil {
@@ -241,6 +258,8 @@ func firstDevice() *store.Device {
 
 // --- the connection -------------------------------------------------------------------------------------------------
 
+// newClient is a client for [dev], linked or about to be, with its events sent to onEvent. It reconnects by itself
+// and asks the phone again for a message it could not decrypt.
 func newClient(dev *store.Device) *whatsmeow.Client {
 	c := whatsmeow.NewClient(dev, waLog.Zerolog(log.With().Str("component", "whatsmeow").Logger()))
 	c.EnableAutoReconnect = true
@@ -274,6 +293,8 @@ func stop() {
 	connected = false
 }
 
+// setConnected tells the app when [c]'s connection comes up or goes down: only on a change, and only while [c] is
+// the linked client (a client still showing QR codes says nothing).
 func setConnected(c *whatsmeow.Client, now bool) {
 	mu.Lock()
 	if cli != c || connected == now {
@@ -322,6 +343,7 @@ func forget() error {
 
 var errNotLinked = errors.New("not linked to WhatsApp")
 
+// client is the linked client, or errNotLinked. Takes mu itself: never call it with mu held.
 func client() (*whatsmeow.Client, error) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -333,6 +355,8 @@ func client() (*whatsmeow.Client, error) {
 
 // --- requests -------------------------------------------------------------------------------------------------------
 
+// do carries out one request and returns its result. A minute for most; nearly three for the ops that move files.
+// The ops in the first switch work unlinked; the rest need the linked client.
 func do(r request) (any, error) {
 	limit := 60 * time.Second
 	if r.Op == "download" || r.Op == "send_media" {
@@ -429,6 +453,7 @@ func do(r request) (any, error) {
 		if len(r.IDs) == 0 {
 			return nil, nil
 		}
+		// Who wrote the messages read: the chat itself in a chat of two, the named author in a group.
 		sender := chat
 		if r.Author != "" {
 			if sender, err = parseJID(r.Author); err != nil {
@@ -450,6 +475,7 @@ func do(r request) (any, error) {
 				return nil, err
 			}
 		}
+		// WhatsApp takes a reaction back as a reaction with no emoji.
 		emoji := r.Emoji
 		if r.Remove {
 			emoji = ""
@@ -476,6 +502,7 @@ func do(r request) (any, error) {
 	return nil, fmt.Errorf("unknown op %q", r.Op)
 }
 
+// status is whether a device is linked and connected, and whose account it is.
 func status() map[string]any {
 	mu.Lock()
 	c, conn := cli, connected
@@ -529,6 +556,8 @@ func textMessage(text string, q *quote) *waE2E.Message {
 	return &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{Text: proto.String(text), ContextInfo: ctx}}
 }
 
+// sendAndSay sends [msg] and answers the id and time (milliseconds) WhatsApp knows it by. A send cut short by the
+// request's time limit says so.
 func sendAndSay(ctx context.Context, c *whatsmeow.Client, to types.JID, msg *waE2E.Message) (map[string]any, error) {
 	resp, err := c.SendMessage(ctx, to, msg)
 	if err != nil {
@@ -549,6 +578,8 @@ type pointer struct {
 	Msg  json.RawMessage `json:"msg"`
 }
 
+// pointerOf is the pointer for the media message [m] of [kind], made from a copy with its thumbnail, waveform and
+// reply context taken out; nil where it cannot be written as JSON.
 func pointerOf(kind string, m proto.Message) map[string]any {
 	m = proto.Clone(m)
 	switch v := m.(type) {
@@ -614,6 +645,8 @@ func parsePointer(raw json.RawMessage) (whatsmeow.DownloadableMessage, error) {
 	return m, nil
 }
 
+// download fetches and decrypts the file [msg] points to into [path], by way of a ".part" file beside it, so [path]
+// is only ever a whole file.
 func download(ctx context.Context, c *whatsmeow.Client, msg whatsmeow.DownloadableMessage, path string) error {
 	if path == "" {
 		return errors.New("no path")
@@ -673,6 +706,8 @@ func upload(ctx context.Context, c *whatsmeow.Client, path, mime, name, caption 
 	return msg, pointerOf(kind, part), nil
 }
 
+// mediaKind is how WhatsApp carries a file of type [mime]: as an image, video, audio or document. A WebP goes as a
+// document, not an image.
 func mediaKind(mime string) string {
 	switch {
 	case strings.HasPrefix(mime, "image/") && mime != "image/webp":
@@ -687,6 +722,9 @@ func mediaKind(mime string) string {
 
 // --- linking --------------------------------------------------------------------------------------------------------
 
+// The linking under way, for pair_phone to join: pairClient is the client now showing QR codes (nil between rounds
+// and when none is), and firstQR is closed once the link's first code has come, when WhatsApp is ready to give a
+// phone code too. pairMu guards both.
 var (
 	pairMu     sync.Mutex
 	pairClient *whatsmeow.Client
@@ -830,6 +868,7 @@ func pairPhone(ctx context.Context, phone string) (string, error) {
 
 func avatarDir() string { return filepath.Join(dir, "avatars") }
 
+// nullable is [s], or JSON's null for an empty one.
 func nullable(s string) any {
 	if s == "" {
 		return nil
@@ -845,6 +884,8 @@ func number(jid types.JID) string {
 	return ""
 }
 
+// infoName is what to call someone: their name in the phone's address book, else a business's name, else the name
+// they gave themselves on WhatsApp.
 func infoName(i types.ContactInfo) string {
 	return strings.TrimSpace(cmp.Or(i.FullName, i.FirstName, i.BusinessName, i.PushName))
 }
@@ -895,6 +936,8 @@ func chatID(c *whatsmeow.Client, jid types.JID) types.JID {
 	return jid
 }
 
+// person is someone as the app is told them, from the store's contacts; with [pic], their picture is fetched too
+// (a question to WhatsApp).
 func person(ctx context.Context, c *whatsmeow.Client, jid types.JID, pic bool) map[string]any {
 	jid = chatID(c, jid)
 	info, _ := c.Store.Contacts.GetContact(ctx, jid)
@@ -905,6 +948,8 @@ func person(ctx context.Context, c *whatsmeow.Client, jid types.JID, pic bool) m
 	return map[string]any{"jid": jid.String(), "name": infoName(info), "number": number(jid), "avatar": nullable(a)}
 }
 
+// contacts is the people in the phone's address book who are on WhatsApp, by name, each once and without pictures
+// (the app asks "who" for one).
 func contacts(ctx context.Context, c *whatsmeow.Client) ([]map[string]any, error) {
 	all, err := c.Store.Contacts.GetAllContacts(ctx)
 	if err != nil {
@@ -929,10 +974,12 @@ func contacts(ctx context.Context, c *whatsmeow.Client) ([]map[string]any, error
 	return list, nil
 }
 
+// who is the "who" op's answer: person, under the name the Signal helper gives the same thing.
 func who(ctx context.Context, c *whatsmeow.Client, jid types.JID, pic bool) map[string]any {
 	return person(ctx, c, jid, pic)
 }
 
+// blocked is everyone on the account's block list, as WhatsApp's servers have it, by phone number where there is one.
 func blocked(ctx context.Context, c *whatsmeow.Client) ([]map[string]any, error) {
 	bl, err := c.GetBlocklist(ctx, "")
 	if err != nil {
@@ -952,6 +999,8 @@ func blocked(ctx context.Context, c *whatsmeow.Client) ([]map[string]any, error)
 	return list, nil
 }
 
+// describeGroup is a group as the app has it: its id, title and members (by phone number where WhatsApp gives one),
+// and, with [pic], its picture.
 func describeGroup(ctx context.Context, c *whatsmeow.Client, g *types.GroupInfo, pic bool) map[string]any {
 	members := make([]string, 0, len(g.Participants))
 	for _, p := range g.Participants {
@@ -968,6 +1017,7 @@ func describeGroup(ctx context.Context, c *whatsmeow.Client, g *types.GroupInfo,
 	return map[string]any{"id": g.JID.String(), "title": g.Name, "members": members, "avatar": nullable(a)}
 }
 
+// groups is every group the account is in, without pictures (one comes with each group's "group" event).
 func groups(ctx context.Context, c *whatsmeow.Client) ([]map[string]any, error) {
 	gs, err := c.GetJoinedGroups(ctx)
 	if err != nil {
@@ -980,6 +1030,9 @@ func groups(ctx context.Context, c *whatsmeow.Client) ([]map[string]any, error) 
 	return list, nil
 }
 
+// groupInfo is a group in full, in the fields the Signal helper's groupInfo gives: describeGroup's, and its
+// description, disappearing timer (seconds, 0 off), each member with their role, who may change its details and add
+// people, whether only admins may write, and whether you are an admin.
 func groupInfo(ctx context.Context, c *whatsmeow.Client, jid types.JID) (map[string]any, error) {
 	g, err := c.GetGroupInfo(ctx, jid)
 	if err != nil {
@@ -995,6 +1048,7 @@ func groupInfo(ctx context.Context, c *whatsmeow.Client, jid types.JID) (map[str
 		if jid.IsEmpty() {
 			jid = p.JID
 		}
+		// A group may list its people by number or by hidden id: you are whichever of yours matches.
 		me := jid.User == own.User || (p.LID.User != "" && p.LID.User == ownLID.User) || p.JID.User == ownLID.User
 		if me && (p.IsAdmin || p.IsSuperAdmin) {
 			admin = true
@@ -1024,6 +1078,7 @@ func groupInfo(ctx context.Context, c *whatsmeow.Client, jid types.JID) (map[str
 
 // --- events ---------------------------------------------------------------------------------------------------------
 
+// announced is what has been told to the app this run, by key ("group:<jid>"); see once.
 var (
 	announcedMu sync.Mutex
 	announced   = map[string]bool{}
@@ -1040,6 +1095,7 @@ func once(key string) bool {
 	return true
 }
 
+// onEvent takes what whatsmeow hears for [c], on its event loop, and tells the app.
 func onEvent(c *whatsmeow.Client, raw any) {
 	switch evt := raw.(type) {
 	case *events.Connected:
@@ -1262,6 +1318,8 @@ func history(c *whatsmeow.Client, h *waHistorySync.HistorySync) {
 	}
 }
 
+// conversation is one chat of a history sync as a "history" event's fields: its messages oldest first, each with
+// the reactions it has gathered, and "last", the chat's latest time, in milliseconds. Nil for broadcasts and channels.
 func conversation(c *whatsmeow.Client, conv *waHistorySync.Conversation) map[string]any {
 	jid, err := types.ParseJID(conv.GetID())
 	if err != nil || jid.Server == types.BroadcastServer || jid.Server == types.NewsletterServer {
@@ -1300,7 +1358,7 @@ func conversation(c *whatsmeow.Client, conv *waHistorySync.Conversation) map[str
 	}
 }
 
-// reactionsOf is a past message's reactions, who → emoji ("me" for this account's own).
+// reactionsOf is a past message's reactions, who → emoji (this account's own under its own id).
 func reactionsOf(c *whatsmeow.Client, web *waWeb.WebMessageInfo) map[string]string {
 	out := map[string]string{}
 	for _, r := range web.GetReactions() {

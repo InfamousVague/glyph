@@ -71,6 +71,8 @@ bool openCircleLink(AppShellState shell, String text) {
   return true;
 }
 
+/// Asks the relay which circle's link the invite word [word] stands for and opens it as a link; says so where the
+/// relay can't be asked or no circle has the word.
 Future<void> _openWord(AppShellState shell, String word) async {
   String? link;
   try {

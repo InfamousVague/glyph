@@ -263,6 +263,7 @@ class Market {
   /// What a review key signs to say it is no longer to be trusted.
   static String retirementWords(String key) => 'ghost-market retire v1\n$key';
 
+  /// The SHA-256 of no bytes: what a signed GET or DELETE, which has no body, signs as its body's hash.
   static const emptySha = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
   /// How far a request's time may be from the relay's, and how long what it signed is remembered against its being
@@ -280,7 +281,11 @@ class Market {
   /// How long an id with no approved version is held after its last open submission closes.
   static const idHeld = Duration(days: 30);
 
+  /// The most characters in a developer's notes to review or a report's text, a reviewer's note on a decision, a note
+  /// on a listing or a block, and a withdrawal's reason.
   static const notesMost = 1000, decisionNoteMost = 2000, listingNoteMost = 500, whyMost = 200;
+
+  /// How many reports are kept for one plugin, the newest; and the reasons a report may give.
   static const reportsKept = 200;
   static const reportReasons = {'misleading', 'harmful', 'spam', 'privacy', 'broken', 'other'};
 
@@ -341,11 +346,16 @@ class Market {
     'revoked': (410, 'This plugin was withdrawn.'),
   };
 
+  // Done once start() has loaded the store: a request that comes before waits on it.
   final Completer<void> _ready = Completer();
   bool _started = false, _stopping = false;
+  // Every minute, forgets counts that have run out; an hour after start and daily from then, the sweep.
   Timer? _pruner, _firstSweep, _sweeper;
 
   // In memory, and gone with a restart, as the relay's other counters are.
+  // What each signed request signed (a hash of its key and words) -> when, oldest first, against its being sent again.
+  // Then the counts each limit is held by: signed requests by address and by key, public reads and reads of the two
+  // lists by address, retirements by address, a day's submissions and reports by who sent them and from where.
   final LinkedHashMap<String, int> _replays = LinkedHashMap();
   final _signedByAddress = _Windows(const Duration(minutes: 1));
   final _signedByKey = _Recent(const Duration(hours: 1));
@@ -380,9 +390,13 @@ class Market {
   Uint8List _catalog = Uint8List(0), _withdrawals = Uint8List(0);
   String _catalogTag = '', _withdrawalsTag = '';
   String? _catalogWords, _withdrawalsWords;
+  // An approved package's SHA-256 -> its plugin's id and version. Then: the withdrawn packages' hashes, the retired
+  // review keys, every key that signed an approval or a withdrawal kept here, and the listed plugins' screenshots.
   Map<String, (String, String)> _approved = {};
   Set<String> _revokedShas = {}, _retiredKeys = {}, _signers = {}, _listedShots = {};
 
+  // Per request: whether an answer has begun, whether its body was read or let go, and whether it is a public read
+  // (answered `no-cache`, where everything else is `no-store`).
   final Expando<bool> _answered = Expando(), _bodyTaken = Expando(), _publicAsk = Expando();
 
   /// Plugins listed now, for the start line.
@@ -457,6 +471,14 @@ class Market {
     }
   }
 
+  /// Routes by number ([_routeOf]; the numbers are docs/marketplace.md's). Public, unsigned: 1 `GET /market` (limits
+  /// and whether it is open), 2 `GET /catalog`, 3 `GET /revoked` (withdrawals and retired keys), 4 `GET /packages/<sha>`,
+  /// 6 `GET /shots/<sha>`, 22 `POST /retire`. Signed, from anyone: 7 `POST /report`. Signed, a developer's: 8
+  /// `POST /submissions`, 9 `GET /mine`, 10 `GET /submissions/<sid>`, 11 `…/package`, 12 `…/shots/<n>`, 13
+  /// `DELETE /submissions/<sid>` (withdraw), 17 `POST /plugins/<id>/listing` (review's too). Signed, review's: 14
+  /// `GET /review` (the queue), 15 `GET /review/<sid>`, 16 `POST /review/<sid>` (a decision), 18
+  /// `POST /plugins/<id>/revoke`, 19 `GET /reports`, 20 `POST /reports/<rid>`, 21 `POST /developers/<id>/block`.
+  /// Review may read 10 to 12 as well. A refusal anywhere below is thrown as [_Refused] and answered here.
   Future<void> _handle(HttpRequest r) async {
     await _ready.future;
     var parts = r.uri.pathSegments.skipWhile((s) => s.isEmpty).skip(1).toList();
@@ -533,6 +555,8 @@ class Market {
     }
   }
 
+  // The shapes a path's parts must have: a SHA-256, a submission's id, a report's id, a developer's hub id, and a
+  // screenshot's number (one digit).
   static final _hex64 = RegExp(r'^[0-9a-f]{64}$');
   static final _sid = RegExp(r'^[0-9a-f]{24}$');
   static final _rid = RegExp(r'^[0-9a-f]{16}$');
@@ -595,6 +619,7 @@ class Market {
 
   static final _jsonType = ContentType('application', 'json', charset: 'utf-8');
 
+  /// The headers on every JSON answer: nothing in it is to be run, framed or sniffed as another type by a browser.
   Map<String, String> _jsonHeaders(HttpRequest r) => {
         'X-Content-Type-Options': 'nosniff',
         'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'; sandbox",
@@ -602,6 +627,7 @@ class Market {
         'Cache-Control': _publicAsk[r] == true ? 'no-cache' : 'no-store',
       };
 
+  /// Sends an answer whole, with its length, and marks [r] answered so [handle] doesn't answer it again.
   Future<void> _send(HttpRequest r, int status, List<int> bytes, {ContentType? type, required Map<String, String> headers}) async {
     _answered[r] = true;
     final res = r.response..statusCode = status;
@@ -734,12 +760,14 @@ class Market {
     }
   }
 
+  /// Forgets signed requests older than [replayLife]: past [skew] their time alone refuses them.
   void _pruneReplays(int now) {
     while (_replays.isNotEmpty && now - _replays.values.first >= replayLife.inMilliseconds) {
       _replays.remove(_replays.keys.first);
     }
   }
 
+  /// Whether one more signature may be checked this second ([MarketConfig.verifyASecond]); counts it where so.
   bool _mayVerify(int now) {
     final second = now ~/ 1000;
     if (second != _verifySecond) {
@@ -813,6 +841,7 @@ class Market {
     throw const _Refused('bad_json');
   }
 
+  /// Refuses not_admin unless [a] is signed in to the admin page; [fresh], within the last [freshAdmin].
   void _admin(_Asker a, {bool fresh = false}) {
     if (!(fresh ? adminSignedIn(a.id, within: freshAdmin) : adminSignedIn(a.id))) throw const _Refused('not_admin');
   }
@@ -825,12 +854,14 @@ class Market {
     return _verify(k, utf8.encode(words), s);
   }
 
+  /// Runs [work] after everything queued before it has finished, failed or not ([_submitting]).
   Future<T> _oneAtATime<T>(Future<T> Function() work) {
     final run = _submitting.then((_) => work());
     _submitting = run.then((_) {}, onError: (Object _) {});
     return run;
   }
 
+  /// A random id of [bytes] bytes in hex that isn't [taken].
   String _newId(int bytes, bool Function(String) taken) {
     while (true) {
       final id = hexOf([for (var i = 0; i < bytes; i++) _random.nextInt(256)]);
@@ -849,6 +880,8 @@ class Market {
     if (list && !_listReads.take(address, 10, now)) throw const _Refused('rate_limited');
   }
 
+  /// Route 1: whether the Marketplace is open here, its limits, and the labels, shelves, hues and permissions a
+  /// package may name, so the app's submission form checks against what this server takes.
   Future<void> _info(HttpRequest r) {
     _read(r);
     return _answer(r, 200, {
@@ -873,6 +906,8 @@ class Market {
     return _send(r, 200, bytes, type: _jsonType, headers: headers);
   }
 
+  /// Route 4: an approved package by its SHA-256, listed or not (whoever has an earlier version can still fetch it);
+  /// 410 once it is withdrawn.
   Future<void> _package(HttpRequest r, String sha) async {
     _read(r);
     final of = _approved[sha];
@@ -883,6 +918,7 @@ class Market {
     return _file(r, bytes, type: 'application/octet-stream', disposition: 'attachment; filename="${of.$1}-${of.$2}.ghostplugin"', public: true);
   }
 
+  /// Route 6: a screenshot of a listed plugin's current version, by its SHA-256.
   Future<void> _shot(HttpRequest r, String sha) async {
     _read(r);
     if (!_listedShots.contains(sha)) throw const _Refused('not_found');
@@ -895,8 +931,12 @@ class Market {
 
   static final _username = packUsernamePattern;
 
+  /// Who [id] is counted as: the number or account it proved, else its key alone.
   String _someone(String id) => whoOf(id) ?? 'key|$id';
 
+  /// Route 7: a report of an approved plugin, from anyone with the app. Held to a few a day by key, by key and plugin,
+  /// by address and by the someone behind the key (10, 3, 5, 5), and in all from senders with no verified number or
+  /// linked account ([MarketConfig.reportsADay]).
   Future<void> _report(HttpRequest r, _Asker a) async {
     final j = _object(a.body);
     final plugin = j['plugin'], version = j['version'], reason = j['reason'], text = j.containsKey('text') ? j['text'] : '', username = j['username'];
@@ -946,8 +986,10 @@ class Market {
     return _answer(r, 201, {'ok': true, 'id': rid});
   }
 
+  /// A report as review is shown it.
   Map<String, Object?> _reportView(MarketReport x) => {'rid': x.rid, 'plugin': x.plugin, 'version': x.version, 'reason': x.reason, 'text': x.text, 'username': x.username, 'verified': x.verified, 'at': x.at, 'done': x.done, 'doneAt': x.doneAt};
 
+  /// Route 19, review's: the newest 500 reports, newest first.
   Future<void> _reports(HttpRequest r, _Asker a) {
     _admin(a);
     return _answer(r, 200, {
@@ -956,6 +998,7 @@ class Market {
     });
   }
 
+  /// Route 20, review's: marks a report dealt with (`{"done": true}`); it stays in the list.
   Future<void> _resolve(HttpRequest r, _Asker a, String rid) {
     _admin(a);
     final j = _object(a.body);
@@ -1037,6 +1080,8 @@ class Market {
 
   // --- submissions ----------------------------------------------------------------------------------------------------
 
+  /// Whether [e] is a screenshot as a submission sends one: `{mime, data}` (base64), or `{keep: <sha256>}` for one of
+  /// the plugin's that is here already.
   static bool _shotShaped(Object? e) => e is Map && ((e.length == 2 && e['mime'] is String && e['data'] is String) || (e.length == 1 && e['keep'] is String));
 
   /// What [devId]'s kept submissions hold on disk ('packages/<sha256>', 'shots/<sha256>').
@@ -1045,8 +1090,10 @@ class Market {
           if (s.owner == devId && !s.swept) ...['packages/${s.sha256}', for (final x in s.shots) 'shots/${x.sha256}'],
       };
 
+  /// How many bytes those are, each file counted once ([MarketConfig.bytesPerDeveloper]).
   int _bytesOf(String devId) => _blobsOf(devId).fold(0, (n, name) => n + (_store.blobs[name] ?? 0));
 
+  /// Whether a submission of [plugin] is still open: sent, in review, or sent back for changes.
   bool _hasOpen(String plugin) => _store.submissions.values.any((s) => s.plugin == plugin && s.open);
 
   /// Route 8, one at a time, its checks in order: who may submit, the request, the package's bytes, its top level, the
@@ -1065,6 +1112,8 @@ class Market {
     var shots = const <Object?>[];
     var notes = '';
     var list = 'now';
+    // `{check: true, package}` asks only whether the package would be taken: every check below is run, nothing is
+    // kept. A real submission carries its screenshots, notes to review, when to list it, and `agree`.
     if (check) {
       if (j.length != 2 || j['check'] != true || j['package'] is! String) throw const _Refused('bad_request');
     } else {
@@ -1091,6 +1140,8 @@ class Market {
     } catch (e) {
       throw _Refused('invalid_package', issues: [PackIssue('bad_json', '', 'The file isn\'t UTF-8 JSON: ${'$e'.split('\n').first}')]);
     }
+    // The bytes sent must be the one way this JSON is written (market_pack.dart): an approval signs their SHA-256,
+    // so two spellings of one package would be two packages.
     try {
       if (!_same(canonicalBytes(decoded), package)) throw const _Refused('not_canonical');
     } on ArgumentError {
@@ -1161,6 +1212,7 @@ class Market {
     if (open.where((s) => s.address == a.address).length >= config.openPerAddress) throw const _Refused('open_limit');
     if (!config.needVerified && who == null && open.where((s) => whoOf(s.owner) == null).length >= config.openUnverified) throw const _Refused('open_limit');
     if (open.length >= config.openTotal) throw const _Refused('open_limit');
+    // Room: only what isn't on disk already counts, against the developer's share and against the whole store's.
     final mineOnDisk = _blobsOf(a.id);
     final names = {'packages/$sha': package.length, for (final x in taken) 'shots/${x.sha256}': x.size};
     var forDeveloper = 0, forAll = 0;
@@ -1254,6 +1306,7 @@ class Market {
     return _answer(r, 201, {'ok': true, 'submission': _view(s)});
   }
 
+  /// Whether [a] and [b] are the same bytes (nothing secret is compared, so it stops at the first difference).
   static bool _same(List<int> a, List<int> b) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
@@ -1272,6 +1325,8 @@ class Market {
     return s;
   }
 
+  /// Routes 11 and 12: a submission's package, and its screenshot number n, to its developer or review, approved or
+  /// not; never cached.
   Future<void> _submissionPackage(HttpRequest r, _Asker a, String sid) async {
     final s = _submissionFor(a, sid);
     final bytes = await _store.readBlob('packages', s.sha256);
@@ -1279,6 +1334,7 @@ class Market {
     return _file(r, bytes, type: 'application/octet-stream', disposition: 'attachment; filename="${s.plugin}-${s.version}.ghostplugin"', public: false);
   }
 
+  // [arg] is `<sid>/<n>` as [_routeOf] made it: 24 hex digits, a slash, one digit.
   Future<void> _submissionShot(HttpRequest r, _Asker a, String arg) async {
     final s = _submissionFor(a, arg.substring(0, 24));
     final n = int.parse(arg.substring(25));
@@ -1288,6 +1344,8 @@ class Market {
     return _file(r, bytes, type: 'image/png', disposition: 'inline', public: false);
   }
 
+  /// Route 13: its developer takes back a submission still waiting for review. (Review's withdrawal of an approved
+  /// version is route 18, [_revoke].)
   Future<void> _withdraw(HttpRequest r, _Asker a, String sid) {
     final s = _submissionFor(a, sid, admin: false);
     if (!s.open) throw const _Refused('wrong_state');
@@ -1297,6 +1355,7 @@ class Market {
     return _answer(r, 200, {'ok': true, 'submission': _view(s)});
   }
 
+  /// Route 9: the asker's own newest 100 submissions, their plugins' listings, and whether they are blocked.
   Future<void> _mine(HttpRequest r, _Asker a) => _answer(r, 200, {
         'ok': true,
         'blocked': _store.developers[a.id]?.blocked ?? false,
@@ -1354,6 +1413,8 @@ class Market {
   /// The reviewer's last note on [x] that asked for changes or turned it down.
   static MarketNote? _askedOf(MarketSubmission x) => x.notes.reversed.where((n) => n.by == 'reviewer' && (n.status == 'changes_requested' || n.status == 'rejected')).firstOrNull;
 
+  /// A submission as review sees it: [_view], and whose it is, whether it updates a listed version and what more that
+  /// would let it do, and whether review has sent an earlier one back (`again`).
   Map<String, Object?> _row(MarketSubmission s) {
     final current = _store.plugins[s.plugin]?.current;
     final update = current != null && current.sid != s.sid;
@@ -1370,8 +1431,10 @@ class Market {
     };
   }
 
+  /// A plugin's listing as its developer and review are told it: listed or not, by whom it was taken off, and why.
   Map<String, Object?> _pluginState(MarketPlugin p) => {'id': p.id, 'listing': p.listing, 'current': p.current?.version, 'by': p.by, 'note': p.note, 'noteAt': p.noteAt};
 
+  /// A developer as review sees them, whether or not they have submitted anything yet.
   Map<String, Object?> _developerView(String devId) {
     final d = _store.developers[devId];
     return {
@@ -1386,6 +1449,7 @@ class Market {
 
   // --- review ---------------------------------------------------------------------------------------------------------
 
+  /// Route 14, review's: everything waiting, the 50 most lately decided, and how many are in each state.
   Future<void> _queue(HttpRequest r, _Asker a) {
     _admin(a);
     final all = _store.submissions.values.toList();
@@ -1403,6 +1467,9 @@ class Market {
     });
   }
 
+  /// Route 15, review's: one submission with all a reviewer compares it against: its package, the listed version's
+  /// (`previous`), the last one of the developer's that review sent back, with the note (`asked`), the plugin's
+  /// earlier submissions and the developer.
   Future<void> _item(HttpRequest r, _Asker a, String sid) async {
     _admin(a);
     final s = _store.submissions[sid];
@@ -1520,6 +1587,9 @@ class Market {
     return x;
   }
 
+  /// Route 16, review's decision on a submission: `start` (in review), `changes` or `reject` (each with a note), or
+  /// `approve`, which carries the reviewer's signed approval and may withdraw up to five earlier versions in the same
+  /// step, and asks for a sign-in within [freshAdmin].
   Future<void> _decide(HttpRequest r, _Asker a, String sid) {
     _admin(a);
     final j = _object(a.body);
@@ -1638,6 +1708,7 @@ class Market {
     return _answer(r, 200, {'ok': true, 'plugin': _pluginState(p)});
   }
 
+  /// Route 18, review's: withdraws one approved version of a plugin, by a withdrawal the reviewer signed.
   Future<void> _revoke(HttpRequest r, _Asker a, String id) {
     _admin(a, fresh: true);
     final x = _revocationOf(_object(a.body));
@@ -1651,6 +1722,8 @@ class Market {
     return _answer(r, 200, {'ok': true, 'revoked': kept, 'plugin': _pluginState(p)});
   }
 
+  /// Route 21, review's: blocks a developer from submitting, or lets them again; with `unlist`, takes their listed
+  /// plugins off as well. The note is kept on the developer and on each of their plugins.
   Future<void> _block(HttpRequest r, _Asker a, String devId) {
     _admin(a, fresh: true);
     final j = _object(a.body);
@@ -1706,6 +1779,7 @@ class Market {
 
   // --- what changes with each change ----------------------------------------------------------------------------------
 
+  /// Called after every change to the store: the served lists are made again and state.json is saved soon.
   void _changed() {
     _rebuild();
     _store.changed();
@@ -1760,6 +1834,7 @@ class Market {
     }
   }
 
+  /// Every minute: drops the replays and counts that have run out, so memory holds only what still limits someone.
   void _prune() {
     final now = _ms();
     _pruneReplays(now);
@@ -1792,6 +1867,7 @@ class Market {
         _say('swept ${swept.length}, released ${released.length}');
       });
 
+  /// The sweep as the timer runs it: a failure is a line on stderr, never an unhandled error.
   Future<void> _sweepQuietly() async {
     try {
       await sweep();

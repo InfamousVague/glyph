@@ -16,6 +16,7 @@ import '../../circles/circle.dart';
 import '../../kit/semantic_colors.dart';
 import '../dialup/bevel.dart';
 
+/// The toggle: shows [value] and tells [onChanged] of the segment pressed or stepped to.
 class PermTriToggle extends StatelessWidget {
   const PermTriToggle({super.key, required this.value, required this.onChanged, required this.label, this.disabled = false});
 
@@ -30,6 +31,7 @@ class PermTriToggle extends StatelessWidget {
 
   bool get _off => disabled || onChanged == null;
 
+  /// Moves the choice one segment along for an arrow key, stopping at either end.
   void _step(int by) {
     if (_off) return;
     final i = (value.index + by).clamp(0, PermOverride.values.length - 1);
@@ -78,6 +80,7 @@ class PermTriToggle extends StatelessWidget {
   }
 }
 
+/// One of the three segments: its mark, on its own colour when [chosen] (red, plain or green).
 class _Segment extends StatelessWidget {
   const _Segment({required this.state, required this.chosen, required this.radius, required this.label, required this.onPressed});
   final PermOverride state;

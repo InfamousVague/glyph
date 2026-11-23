@@ -118,6 +118,7 @@ class DeskService : Service() {
 
     // --- the notification a foreground service must show ----------------------------------------------------------------
 
+    /** The notification's one line: the pairing being made, else the computer or how many computers are paired. */
     private fun text(): String {
         val all = Desk.all()
         val pending = Desk.pending
@@ -192,6 +193,7 @@ class DeskService : Service() {
         for ((name, w) in want) if (name !in relays) relays[name] = RelayLink(w.first, w.second, w.third).also { it.start() }
     }
 
+    /** A relay channel's address: the relay's, then the channel's name. */
     private fun join(relay: String, channel: String) = relay.trimEnd('/') + "/" + channel
 
     /**
@@ -214,6 +216,7 @@ class DeskService : Service() {
 
     // --- the local network ----------------------------------------------------------------------------------------------
 
+    /** Listens for paired computers on the local network and announces the phone there (Bonjour, [SERVICE_TYPE]). */
     private fun startLocal() {
         if (server != null) return
         try {
@@ -227,6 +230,7 @@ class DeskService : Service() {
         }
     }
 
+    /** Stops announcing and listening, and ends the local connections open now. */
     private fun stopLocal() {
         unregisterNsd()
         server?.close()
@@ -234,6 +238,7 @@ class DeskService : Service() {
         for (c in connections) c.end()
     }
 
+    /** Announces the phone on the local network under its service name, at [port]; a failure is only logged. */
     private fun registerNsd(port: Int) {
         try {
             val info = NsdServiceInfo().apply { serviceName = Desk.serviceName(); serviceType = SERVICE_TYPE; setPort(port) }

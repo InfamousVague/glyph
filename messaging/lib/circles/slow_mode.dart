@@ -22,8 +22,8 @@ String slowModeLabel(int seconds) {
   return seconds == 3600 ? '1 hour' : '${seconds ~/ 3600} hours';
 }
 
-/// How long is left of a wait of [seconds] since [last] (milliseconds since the epoch) at [now]: a countdown's words,
-/// "0:12" or "4:05".
+/// What is [left] of a wait as a countdown's words, "0:12" or "4:05": part of a second counts as a whole one, so it
+/// reads 0:00 only once the wait is over.
 String slowModeLeft(Duration left) {
   final s = left.inSeconds + (left.inMilliseconds % 1000 > 0 ? 1 : 0);
   return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';

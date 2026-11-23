@@ -38,6 +38,7 @@ class VoiceFx {
     return available;
   }
 
+  /// For a test: what the device can run set to [to], as if asked; with none, asked afresh next time.
   @visibleForTesting
   static void reset([Set<NoiseMode> to = const {}, bool live = false, bool effects = false, bool level = false]) {
     available = to;

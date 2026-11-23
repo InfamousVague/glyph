@@ -13,6 +13,7 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+/// The side a panel goes on, and the most it may measure there.
 class MenuRoom {
   const MenuRoom({required this.below, required this.height, required this.width});
 

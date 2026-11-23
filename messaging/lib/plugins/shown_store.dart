@@ -17,6 +17,8 @@ import 'package:flutter/foundation.dart';
 import 'plugin.dart';
 import 'registry.dart';
 
+/// Keeps each message's answer from the text rules, which are asked off the build: a bubble reads what is held and is
+/// drawn again, through this notifier, when the answer comes or changes.
 class ShownStore extends ChangeNotifier {
   ShownStore({PluginRegistry? registry, this.most = 600}) : _registry = registry;
 
@@ -35,6 +37,7 @@ class ShownStore extends ChangeNotifier {
   /// Goes up whenever some message's answer changes.
   int version = 0;
 
+  /// What a message is held under: its id, or its conversation and words where it has none.
   static String keyOf(MessageFacts facts) => facts.id ?? '${facts.thread}|${facts.text}';
 
   /// What the plugins that are on show in place of [facts]' words, as far as they have said; null for the words as
@@ -71,6 +74,8 @@ class ShownStore extends ChangeNotifier {
   /// Whether the message [id] is to be asked about again ([ShownText.again] has passed, or [again] was called).
   bool due(String id) => _held[id]?.stale ?? false;
 
+  /// Asks [rules] in order and keeps the first answer; one that says "later" is passed over and asked again when its
+  /// wait is up.
   Future<void> _ask(String key, _Shown entry, MessageFacts facts, List<BoundText> rules) async {
     ShownText? answer;
     // The soonest a plugin that answered "later" ([ShownText.later]) wants to be asked again.
@@ -140,6 +145,7 @@ class ShownStore extends ChangeNotifier {
   /// Whether the person has swapped the message [id]: the words as they came in the bubble, the plugin's in the card.
   bool flipped(String id) => _flipped.contains(id);
 
+  /// Swaps the message [id], or swaps it back.
   void flip(String id) {
     if (!_flipped.remove(id)) _flipped.add(id);
     version++;
@@ -165,6 +171,7 @@ class ShownStore extends ChangeNotifier {
   }
 }
 
+/// What is held of one message: the answer, and what it was an answer to.
 class _Shown {
   _Shown({required this.text, required this.mark, this.shown});
 

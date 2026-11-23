@@ -65,6 +65,7 @@ object DeskCrypto {
     /** A private key from its 32 bytes: the examples' fixed keys (a phone's own are made by [E2eCrypto.newKeyPair]). */
     fun privateFromScalar(scalar: ByteArray): PrivateKey = KeyFactory.getInstance("EC").generatePrivate(ECPrivateKeySpec(BigInteger(1, scalar), E2eCrypto.curve))
 
+    /** The ECDH secret of this side's private key and the other's public one; null where theirs is no key. */
     private fun agree(mine: PrivateKey, theirs: ByteArray): ByteArray? {
         val peer = E2eCrypto.publicFrom(theirs) ?: return null
         return KeyAgreement.getInstance("ECDH").apply { init(mine); doPhase(peer, true) }.generateSecret()
@@ -109,6 +110,7 @@ object DeskCrypto {
     /** What both sides can make from the QR code's secret alone, to find each other before there is a key. */
     fun fromSecret(secret: ByteArray, label: String): ByteArray = hkdf(PAIRING_SALT, secret, label.toByteArray())
 
+    /** While pairing: the name a hello goes under, and the relay channel and its token, all from the code's secret. */
     fun pairingId(secret: ByteArray): String = hex(fromSecret(secret, "id").copyOf(8))
     fun pairingChannel(secret: ByteArray): String = hex(fromSecret(secret, "relay channel").copyOf(16))
     fun pairingToken(secret: ByteArray): String = hex(fromSecret(secret, "relay token"))
@@ -123,6 +125,7 @@ object DeskCrypto {
 
     /** The pairing's name on the wire: it says which key a hello is under, and nothing of the key. */
     fun id(pairKey: ByteArray): String = hex(derive(pairKey, "id").copyOf(8))
+    /** Once paired: the relay channel the two meet on and the token that opens it, from the pairing's key. */
     fun relayChannel(pairKey: ByteArray): String = hex(derive(pairKey, "relay channel").copyOf(16))
     fun relayToken(pairKey: ByteArray): String = hex(derive(pairKey, "relay token"))
 

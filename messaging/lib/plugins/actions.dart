@@ -131,6 +131,7 @@ String? numberIn(String text) {
   return m?.group(0)?.trim();
 }
 
+/// A time as a chip says it, on a twelve-hour clock: "3 PM", "3:30 PM".
 String _clock(DateTime d) {
   final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
   return d.minute == 0 ? '$h ${d.hour < 12 ? 'AM' : 'PM'}' : '$h:${d.minute.toString().padLeft(2, '0')} ${d.hour < 12 ? 'AM' : 'PM'}';
@@ -234,6 +235,7 @@ class ActionChips extends StatelessWidget {
         _ => Lucide.copy,
       };
 
+  /// A chip pressed: a code is copied; a parcel, a place, a number or a date is handed to the phone's own app for it.
   Future<void> _run(BuildContext context, MessageAction a) async {
     switch (a.kind) {
       case 'code':

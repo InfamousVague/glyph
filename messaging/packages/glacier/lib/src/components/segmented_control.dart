@@ -94,6 +94,7 @@ class GlacierSegmentedControl extends StatefulWidget {
 }
 
 class _GlacierSegmentedControlState extends State<GlacierSegmentedControl> with SingleTickerProviderStateMixin {
+  /// The selected value where the control holds its own (no `value` given).
   late String _internal;
 
   /// How far the thumb has come on its way from [_from] to [_to], 0 to 1, and a little past on the spring's overshoot.
@@ -190,6 +191,7 @@ class _GlacierSegmentedControlState extends State<GlacierSegmentedControl> with 
     ));
   }
 
+  /// Selects a segment by a press or a key: the control's own state where it holds it, and the listener told.
   void _select(int index) {
     final value = widget.options[index].value;
     if (value == _selected) return; // a radio that is already checked does not change
@@ -199,6 +201,8 @@ class _GlacierSegmentedControlState extends State<GlacierSegmentedControl> with 
     _syncThumb();
   }
 
+  /// The arrow keys on a focused segment: selects and focuses the next enabled one that way, round the ends, as
+  /// a radio group does. Left and right swap in a right-to-left layout.
   KeyEventResult _onKey(int index, KeyEvent event) {
     if (event is KeyUpEvent || index >= widget.options.length) return KeyEventResult.ignored;
     final key = event.logicalKey;

@@ -50,6 +50,7 @@ SPOTS = [
 ]
 
 
+# The first PNG in `folder`, by name, whose name starts with `start`; stops where there is none.
 def find(folder, start):
     for f in sorted(folder.iterdir()):
         if f.name.startswith(start) and f.suffix.lower() == ".png":
@@ -67,12 +68,15 @@ def trim(image):
     return image.crop((max(0, l - pad), max(0, t - pad), min(image.size[0], r + pad), min(image.size[1], b + pad)))
 
 
+# A copy of the picture no longer than `longest` on its longer side, in proportion; never made larger.
 def fitted(image, longest):
     image = image.copy()
     image.thumbnail((longest, longest), Image.LANCZOS)
     return image
 
 
+# The first of the Mac's own fonts that opens (San Francisco, Helvetica, Arial Bold) at `size`; Pillow's default
+# where none does.
 def font(size, bold=True):
     for path, index in (("/System/Library/Fonts/SFNS.ttf", 0), ("/System/Library/Fonts/Helvetica.ttc", 1 if bold else 0), ("/Library/Fonts/Arial Bold.ttf", 0)):
         try:

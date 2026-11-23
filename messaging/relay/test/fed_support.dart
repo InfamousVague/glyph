@@ -155,7 +155,7 @@ class FakeNet {
 class TestRelay {
   /// [shipped] makes every limit not named the one the relay ships with, where the default here is generous for what
   /// a test is not about: a test of a contest for a shared allowance asks for it.
-  TestRelay(this.net, this.host, {FedMode mode = FedMode.open, Set<String> allow = const {}, Set<String> block = const {}, bool public = true, String via = '', bool standingOpen = false, Set<String> standing = const {}, int seed = 1, int? packetsAMinute, int? bytesADay, int? lookupsAnHour, int? queuePackets, int? queueBytes, int? queuedBytes, int? maxLinks, int? maxPeers, int? checksAnHour, int? checksASecond, int? hellosAMinute, int? recordsAMinute, int? newRelaysAnHour, int? dialsAMinute, int? retriesAMinute, int? lookBacksAMinute, Directory? dataDir, int? maxOwn, int? maxOthers, int heldBytes = 96 << 20, bool fed = true, bool shipped = false}) {
+  TestRelay(this.net, this.host, {FedMode mode = FedMode.open, Set<String> allow = const {}, Set<String> block = const {}, bool public = true, String via = '', bool standingOpen = false, Set<String> standing = const {}, int seed = 1, int? packetsAMinute, int? bytesADay, int? lookupsAnHour, int? queuePackets, int? queueBytes, int? queuedBytes, int? maxLinks, int? maxPeers, int? checksAnHour, int? checksASecond, int? hellosAMinute, int? recordsAMinute, int? newRelaysAnHour, int? dialsAMinute, int? retriesAMinute, int? lookBacksAMinute, Directory? dataDir, int? maxOwn, int? maxOthers, int heldBytes = 96 << 20, bool fed = true, bool shipped = false, Directory? hubData}) {
     const d = FedConfig();
     int pick(int? given, int generous, int ships) => given ?? (shipped ? ships : generous);
     this.fed = Federation(
@@ -178,7 +178,7 @@ class TestRelay {
       homes: dataDir == null ? HomeBook(maxOwn: maxOwn ?? 20000, maxOthers: maxOthers ?? 10000, now: net.now) : null,
     );
     handles = Handles(now: net.now, random: Random(seed + 100))..load();
-    hub = Hub(now: net.now, random: Random(seed + 200), handles: handles, federation: fed ? this.fed : null, heldBytes: heldBytes);
+    hub = Hub(now: net.now, random: Random(seed + 200), handles: handles, federation: fed ? this.fed : null, heldBytes: heldBytes, dataDir: hubData, keepHeld: hubData != null);
     if (public) net.hubs[url] = hub;
     net.relays[host] = this;
   }
@@ -216,7 +216,10 @@ class Install {
   int _count = 0;
 
   /// Signs in to [relay]'s hub: the hub's number, signed with this install's key.
-  Future<Map> signIn(TestRelay relay, {String? device, String from = ''}) async {
+  Future<Map> signIn(TestRelay relay, {String? device, String from = ''}) => signInTo(relay.hub, device: device, from: from);
+
+  /// Signs in to [hub] itself, one not on the made-up internet.
+  Future<Map> signInTo(Hub hub, {String? device, String from = ''}) async {
     final (mine, theirs) = MemSocket.pair();
     socket = mine;
     final first = Completer<Map>(), second = Completer<Map>();
@@ -234,7 +237,7 @@ class Install {
         said.add(m);
       }
     });
-    relay.hub.attach(theirs, from: from);
+    hub.attach(theirs, from: from);
     hello = await first.future;
     final sig = P256.sign(scalar, [...utf8.encode(Hub.greeting), ...unhex(hello['hello'] as String)], someBytes(32));
     mine.add(jsonEncode({'id': id, 'key': base64Encode(key), 'sig': base64Encode(sig), 'device': ?device}));

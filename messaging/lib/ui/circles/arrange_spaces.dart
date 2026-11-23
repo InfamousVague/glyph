@@ -15,6 +15,7 @@ import '../dialup/bevel.dart';
 import 'circle_face.dart';
 import 'new_circle.dart';
 
+/// The page: the circle with [seed]'s spaces in their order, read again each time the circle changes.
 class ArrangeCircleSpacesScreen extends StatelessWidget {
   const ArrangeCircleSpacesScreen({super.key, required this.seed});
   final String seed;
@@ -67,6 +68,8 @@ class ArrangeCircleSpacesScreen extends StatelessWidget {
   }
 }
 
+/// One space's row: its kind's mark, its name, and its kind and heading under it. Pressed by someone who may [edit],
+/// it opens the space's menu.
 class _ArrangeRow extends StatelessWidget {
   const _ArrangeRow({super.key, required this.index, required this.circle, required this.space, required this.edit});
   final int index;

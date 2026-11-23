@@ -12,6 +12,7 @@ import 'hub_pass.dart';
 /// Who this install is to a hub: its name, its public key, and a way to sign with the private one, which stays
 /// wherever it is kept (Android's keystore on a phone).
 abstract class NetSigner {
+  /// Its name on the hub (made from its public key), and the public key itself.
   String get id;
   Uint8List get publicKey;
 
@@ -70,6 +71,8 @@ class HubRelay {
 class RoomEvent {
   const RoomEvent(this.room, {this.members, this.came, this.went, this.closed = false});
   final String room;
+
+  /// Who is in the room, said on joining it; or who came; or who went. One of them at a time.
   final List<String>? members;
   final String? came;
   final String? went;
@@ -326,10 +329,17 @@ class HubCarrier implements Carrier {
   HubLink? _ws;
   bool _wanted = false;
   bool _ready = false;
+
+  // The next try at connecting; the number the last packet went with; and how many tries have failed in a row.
   Timer? _again;
   int _seq = 0;
   int _tries = 0;
+
+  /// Packets sent and not yet answered by the hub, by the number each went with ([_seq]).
   final Map<int, Completer<Handed>> _sent = {};
+
+  // The names asked about ([watch]), and the rooms joined and looked at, each with its token: all said again on
+  // every sign-in.
   final Set<String> _watched = {};
   final Map<String, String> _joined = {};
   final Map<String, String> _looked = {};
@@ -352,10 +362,13 @@ class HubCarrier implements Carrier {
     if (_ready) _ws?.say(jsonEncode({'look': room, 'token': token}));
   }
 
+  /// Stops being told who is in [room].
   void unlook(String room) {
     looking.remove(room);
     if (_looked.remove(room) != null && _ready) _ws?.say(jsonEncode({'unlook': room}));
   }
+
+  /// Joins the hub has not answered yet, by room.
   final Map<String, Completer<List<String>>> _joining = {};
 
   @override
@@ -397,6 +410,8 @@ class HubCarrier implements Carrier {
     state.value = CarrierState.off;
   }
 
+  /// Lets the connection go: everything waiting for an answer fails with [why], each room joined is said to be
+  /// closed, and nobody is known to be here.
   void _drop(String why) {
     final ws = _ws;
     _ws = null;
@@ -423,6 +438,7 @@ class HubCarrier implements Carrier {
     }
   }
 
+  /// Dials the hub. Signing in follows in [_said], when the hub says hello.
   Future<void> _connect() async {
     if (!_wanted || _ws != null) return;
     // Refused for its pass phrase, wrong or not given: not dialled again, the route started anew or not, until one is
@@ -696,6 +712,8 @@ class HubCarrier implements Carrier {
   @override
   bool reaches(Peer peer) => _ready;
 
+  /// Hands [packet] to the hub for [peer]: passed on where they are connected, held for them where they aren't.
+  /// Fails where the hub refuses it or says nothing for eight seconds.
   @override
   Future<Handed> send(Peer peer, Uint8List packet) {
     final ws = _ws;
@@ -747,6 +765,7 @@ class HubCarrier implements Carrier {
     });
   }
 
+  /// Leaves [room]; it is not joined again on reconnecting.
   void leave(String room) {
     _readOnly.remove(room);
     if (_joined.remove(room) != null && _ready) _ws?.say(jsonEncode({'leave': room}));

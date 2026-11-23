@@ -137,6 +137,7 @@ class AnchoredPosition {
     }
   }
 
+  /// The same position with the arrow's place measured afresh ([projectArrowOffset]).
   AnchoredPosition withArrowOffset(double value) => AnchoredPosition(left: left, top: top, side: side, placement: placement, arrowOffset: value);
 
   @override
@@ -381,6 +382,8 @@ ArrowGlassShape buildArrowGlassShape({
 class _Outline {
   final Path path = Path();
   final StringBuffer _d = StringBuffer();
+
+  /// The pen's place, which SVG's `H` and `V` keep one coordinate of.
   double _x = 0, _y = 0;
 
   String get d => _d.toString();
@@ -393,6 +396,7 @@ class _Outline {
     _d.write(command);
   }
 
+  // SVG's own commands, by their letters: move, horizontal and vertical lines, a line, and (below) arc and close.
   void m(double x, double y) {
     _write('M ${_n(x)} ${_n(y)}');
     path.moveTo(_x = x, _y = y);
@@ -467,6 +471,7 @@ abstract class GlacierAnchor {
   bool focus() => false;
 }
 
+/// A fixed rectangle: it has no direction, takes no focus, and holds a press that falls inside it.
 class _RectAnchor extends GlacierAnchor {
   const _RectAnchor(this._rect);
   final Rect _rect;
@@ -481,6 +486,7 @@ class _RectAnchor extends GlacierAnchor {
   int get hashCode => _rect.hashCode;
 }
 
+/// A widget by its key: its render box says where it is, whether a press hit it, and what in it can take focus.
 class _KeyAnchor extends GlacierAnchor {
   const _KeyAnchor(this.key);
   final GlobalKey key;
@@ -505,6 +511,7 @@ class _KeyAnchor extends GlacierAnchor {
     return box != null && path.any((entry) => identical(entry.target, box));
   }
 
+  // The first focusable node, in the order the enclosing focus node lists them, that sits inside the keyed widget.
   @override
   bool focus() {
     final context = key.currentContext;
@@ -519,6 +526,7 @@ class _KeyAnchor extends GlacierAnchor {
     return false;
   }
 
+  /// Whether [inner] is [outer] or somewhere under it in the tree.
   static bool _within(BuildContext inner, BuildContext outer) {
     if (identical(inner, outer)) return true;
     var found = false;
@@ -536,6 +544,8 @@ class _KeyAnchor extends GlacierAnchor {
   int get hashCode => key.hashCode;
 }
 
+/// The leader of a layer link: its place is read off the layer tree, so it is known only once a frame has been
+/// composited.
 class _LinkAnchor extends GlacierAnchor {
   const _LinkAnchor(this.link);
   final LayerLink link;
@@ -718,6 +728,8 @@ class RenderGlacierAnchored extends RenderShiftedBox {
   AnchoredPosition? _position;
   Rect? _trigger;
 
+  /// What was last reported through [onChange]; the frame callback that asks for the next paint, while one is
+  /// booked; and whether the after-frame look at the anchor is booked.
   Placement? _lastPlacement;
   double? _lastArrow;
   int? _tick;

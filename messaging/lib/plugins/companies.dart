@@ -12,11 +12,11 @@
 ///   it, and nothing is ever looked up for a name read out of a text, which anyone can send.
 library;
 
-/// A company that sends sign-in codes.
 /// The app's own address: the company whose face is the app's ghost (Matt, 2026-11-14: "it's not using the ghost
 /// logo for the icon in codes").
 const ghostDomain = 'gogho.st';
 
+/// One company that sends sign-in codes: what a code's row is named and drawn by.
 class Company {
   const Company(this.name, this.domain, this.color, [this.also = const []]);
 
@@ -170,6 +170,8 @@ const List<Company> companies = [
   Company('Login.gov', 'login.gov', 0x112E51),
 ];
 
+/// One way a company is written in a text, as a pattern: its name or one of its other names, letter for letter where
+/// it was written with `=`, in either case otherwise.
 class _Way {
   _Way(this.company, String written)
       : exact = written.startsWith('='),
@@ -188,6 +190,7 @@ final List<_Way> _ways = [
   for (final c in companies) ...[_Way(c, c.name), for (final a in c.also) _Way(c, a)],
 ]..sort((a, b) => b.words.length.compareTo(a.words.length));
 
+// A web address in a text, its host captured: after http(s)://, after an @, or bare ("chase.com").
 final RegExp _address = RegExp(r'(?:https?://|@|(?<![A-Za-z0-9.@-]))((?:[a-z0-9-]+\.)+[a-z]{2,})(?![A-Za-z0-9-])', caseSensitive: false);
 
 /// The known company [text] is from, or null: the one named first in it, by name or by web address.
@@ -195,6 +198,7 @@ Company? companyIn(String text) {
   Company? found;
   var at = text.length + 1;
   var long = 0;
+  // The earliest in the text wins; of two at the same place, the longer.
   void take(Company c, int start, int length) {
     if (start < at || (start == at && length > long)) {
       found = c;

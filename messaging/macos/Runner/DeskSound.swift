@@ -18,6 +18,7 @@ final class DeskSound: NSObject, AVAudioPlayerDelegate {
 
   private var recorder: AVAudioRecorder?
   private var file: URL?
+  /// The most bytes a recording may weigh (0 for no limit), and whether this one has reached it.
   private var most = 0
   private var full = false
 
@@ -35,6 +36,7 @@ final class DeskSound: NSObject, AVAudioPlayerDelegate {
     }
   }
 
+  /// The recording itself, once the microphone is allowed: AAC in an .m4a, 16 kHz mono at 24 kbit/s.
   private func begin(most bytes: Int) -> [String: Any] {
     cancel()
     guard let url = try? DeskVideo.place(named: "voice-\(UUID().uuidString).m4a") else { return ["ok": false, "error": "The recording has nowhere to go"] }
@@ -79,6 +81,7 @@ final class DeskSound: NSObject, AVAudioPlayerDelegate {
     return data
   }
 
+  /// Ends the recording and keeps nothing of it.
   func cancel() {
     guard let recorder else { return }
     recorder.stop()
@@ -90,6 +93,7 @@ final class DeskSound: NSObject, AVAudioPlayerDelegate {
   // MARK: playing
 
   private var player: AVAudioPlayer?
+  /// The message part whose sound is in [player].
   private var playing = -1
   private var ticker: Timer?
 
@@ -121,6 +125,7 @@ final class DeskSound: NSObject, AVAudioPlayerDelegate {
     return nil
   }
 
+  /// Tells [heard] where the sound has got to, about eight times a second while it plays.
   private func tick() {
     ticker?.invalidate()
     ticker = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
@@ -129,12 +134,14 @@ final class DeskSound: NSObject, AVAudioPlayerDelegate {
     }
   }
 
+  /// Holds the sound where it is; [play] with the same part goes on from there.
   func pause() {
     player?.pause()
     ticker?.invalidate()
     say(playing: false)
   }
 
+  /// Stops the sound and lets it go, saying nothing more about it.
   func halt() {
     ticker?.invalidate()
     ticker = nil

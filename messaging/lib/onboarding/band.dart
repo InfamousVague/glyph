@@ -75,12 +75,19 @@ Widget bandDisc(LucideIcon icon, {required double height, required double width}
   );
 }
 
+/// The band itself: a rounded field washed with [colours] from its top left to its bottom right, the sign in its
+/// middle, and up to four tiles floating at [_spots]. Decoration only: a screen reader is told nothing of it.
 class HueBand extends StatefulWidget {
   const HueBand({super.key, required this.colours, required this.height, required this.sign, this.tiles = const []});
 
+  /// The wash's colours, two or more.
   final List<Color> colours;
   final double height;
+
+  /// Builds the sign for a band of this height and width ([bandDisc] is the usual one).
   final Widget Function(double height, double width) sign;
+
+  /// Each tile's mark, built for the tile's size ([bandIcon]).
   final List<Widget Function(double size)> tiles;
 
   @override
@@ -88,6 +95,7 @@ class HueBand extends StatefulWidget {
 }
 
 class _HueBandState extends State<HueBand> with SingleTickerProviderStateMixin {
+  /// One turn of the drift, over and over: the tiles bob on it and the sign breathes with it.
   late final AnimationController _drift = AnimationController(vsync: this, duration: const Duration(seconds: 6));
 
   @override
@@ -148,6 +156,8 @@ class _HueBandState extends State<HueBand> with SingleTickerProviderStateMixin {
     );
   }
 
+  /// The [i]th tile: a square of glass at its spot, bobbing five pixels up and down, each a little out of step
+  /// with the last.
   Widget _tile(int i, Widget Function(double) mark, {required double width, required double height}) {
     final (x, y, share, turn) = _spots[i];
     final size = math.min(height * share, width * 0.2);
@@ -177,6 +187,7 @@ class _HueBandState extends State<HueBand> with SingleTickerProviderStateMixin {
     );
   }
 
+  /// The sign, growing and shrinking by a fortieth of its size with the drift.
   Widget _breathing(Widget sign) => AnimatedBuilder(
         animation: _drift,
         child: sign,

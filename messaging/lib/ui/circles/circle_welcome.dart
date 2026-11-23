@@ -130,6 +130,7 @@ class _CircleWelcomeWordsState extends State<CircleWelcomeWords> {
     super.dispose();
   }
 
+  /// Hands the words back, trimmed (empty for no welcome), and closes the page.
   void _done() {
     widget.then(_words.text.trim());
     Navigator.of(context).maybePop();

@@ -23,6 +23,7 @@ class ZoomCall extends StatefulWidget {
   State<ZoomCall> createState() => _ZoomCallState();
 }
 
+/// What is open over or beside the meeting: Participants, Chat, or the More sheet. None is null.
 enum _Panel { people, chat, more }
 
 /// Zoom's meeting colours.
@@ -78,6 +79,8 @@ class _Press extends StatelessWidget {
 }
 
 class _ZoomCallState extends State<ZoomCall> {
+  /// Gallery view (true) or Speaker view (false) once chosen; null until then, when a computer's window with three
+  /// or more people starts in the gallery.
   bool? _gallery;
   _Panel? _panel;
 
@@ -115,6 +118,7 @@ class _ZoomCallState extends State<ZoomCall> {
     if (loudest != null) _last = loudest.id;
   }
 
+  /// Opens [p], or closes it when it is already the one open.
   void _open(_Panel p) => setState(() => _panel = _panel == p ? null : p);
   void _close() => setState(() => _panel = null);
 
@@ -195,6 +199,8 @@ class _ZoomCallState extends State<ZoomCall> {
     });
   }
 
+  /// The meeting area between the bars: the waiting card when alone, else the gallery or the speaker view, redrawn
+  /// as the voice levels change.
   Widget _stage(BuildContext context, {required bool wide, required bool gallery}) {
     return ValueListenableBuilder<Map<String, double>>(
       valueListenable: call.levels,
@@ -215,6 +221,8 @@ class _ZoomCallState extends State<ZoomCall> {
 
 // The top bar ------------------------------------------------------------------------------------------------------
 
+/// The bar over the meeting. On a computer: the Encrypted shield, the space's name, the clock, the view switch (not
+/// when alone) and Minimise. On a phone: Minimise, the name over "Encrypted · clock", and a small Leave.
 class _TopBar extends StatelessWidget {
   const _TopBar({required this.call, required this.wide, required this.top, required this.gallery, required this.alone, required this.onView});
   final SpaceCall call;
@@ -659,6 +667,9 @@ class _Alone extends StatelessWidget {
 
 // The toolbar -------------------------------------------------------------------------------------------------------
 
+/// The labelled bar along the foot. A phone gets five even buttons (Mute, Video, Participants, Chat, More); a
+/// computer gets Mute and Video at the left, the rest in the middle and Leave at the right, folding the less used
+/// ones under More as the meeting area narrows.
 class _Toolbar extends StatelessWidget {
   const _Toolbar({required this.call, required this.wide, required this.bottom, required this.panel, required this.onPanel});
   final SpaceCall call;
@@ -798,6 +809,7 @@ class _ToolButton extends StatelessWidget {
 
 // Panels and sheets (these follow the app's theme) -----------------------------------------------------------------
 
+/// The dimmed layer behind a sheet or an overlaid panel; a tap on it closes what is open.
 class _Scrim extends StatelessWidget {
   const _Scrim({required this.onTap});
   final VoidCallback onTap;
@@ -967,6 +979,7 @@ class _People extends StatelessWidget {
   }
 }
 
+/// One of the two buttons along the foot of the Participants list: Invite, and Mute me / Unmute me.
 class _PanelAction extends StatelessWidget {
   const _PanelAction({required this.icon, required this.label, this.onPressed, this.semanticLabel});
   final LucideIcon icon;

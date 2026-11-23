@@ -47,6 +47,7 @@ class TwilioVerify implements TextCodes {
   // Part of an address: nothing but what a SID is made of.
   bool get _sound => RegExp(r'^[A-Za-z0-9]{8,64}$').hasMatch(service);
 
+  // The service's address for Verifications (send a code) or VerificationCheck (check one).
   Uri _at(String what) => Uri.https('verify.twilio.com', '/v2/Services/$service/$what');
 
   Map<String, String> get _headers => {
@@ -56,6 +57,7 @@ class TwilioVerify implements TextCodes {
 
   static String _form(Map<String, String> fields) => fields.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}').join('&');
 
+  // The `status` Twilio's answer carries ("pending" once a code is sent, "approved" once one checks out), or null.
   static Object? _status(String body) {
     try {
       return (jsonDecode(body) as Map)['status'];

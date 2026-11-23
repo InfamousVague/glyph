@@ -20,6 +20,10 @@ object Reminders {
     private const val CHANNEL = "reminders"
     const val ACTION = "ghost.REMIND"
 
+    /**
+     * Sets a reminder about [thread] for [at] (milliseconds since 1970), waking the phone for it. One reminder for a
+     * conversation and a time: asked again, it takes the new words. False where Android would not set it.
+     */
     fun schedule(context: Context, thread: Long, title: String, body: String, at: Long): Boolean = try {
         val intent = Intent(context, ReminderReceiver::class.java).setAction(ACTION)
             .putExtra(Notifier.EXTRA_THREAD, thread).putExtra("title", title).putExtra("body", body)
@@ -31,6 +35,7 @@ object Reminders {
         false
     }
 
+    /** The reminder's notification, which opens [thread]; one for a conversation, a newer one taking its place. */
     fun show(context: Context, thread: Long, title: String, body: String) {
         val nm = context.getSystemService(NotificationManager::class.java)
         if (nm.getNotificationChannel(CHANNEL) == null) {
@@ -57,6 +62,7 @@ object Reminders {
     }
 }
 
+/** Woken by the alarm [Reminders.schedule] set: shows the reminder it carries. */
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Reminders.ACTION) return

@@ -31,6 +31,8 @@ typedef ApprovalCheck = ({PackApproval approval, String plugin, String version, 
 /// How approvals are checked, a batch at once: [MarketState.verifyApprovals] unless a test wraps it, to count.
 typedef MarketVerify = Future<List<bool>> Function(List<ApprovalCheck> checks);
 
+/// What the Marketplace's screens listen to: the catalog, the listings that checked out, the developer's own
+/// submissions and drafts. It fetches and checks; installing is [InstalledPlugins]'s.
 class MarketState extends ChangeNotifier {
   /// Nothing is read or written here: [start] and [refresh] do it. [installed] and [cache] are read when first used, so
   /// lib/desktop/main.dart can put its own InstalledPlugins in place at startup after this is made. [now], [verify] and
@@ -123,6 +125,7 @@ class MarketState extends ChangeNotifier {
     return p != null && l != null && (p.developer == null || l.pack.developer != p.developer) ? l : null;
   }
 
+  /// Whether version [a] is higher than [b]; false where either isn't a version.
   static bool _newer(String a, String b) {
     try {
       return compareVersions(a, b) > 0;
@@ -141,6 +144,7 @@ class MarketState extends ChangeNotifier {
   /// How many submissions wait in the review queue, as the queue was last read (the Review queue row's second line).
   int? reviewWaiting;
 
+  /// The review queue's screen read the queue: [waiting] is how many it held.
   void reviewQueueRead(int waiting) {
     reviewWaiting = waiting;
     _say();
@@ -187,6 +191,8 @@ class MarketState extends ChangeNotifier {
     return _refreshing = _refresh().whenComplete(() => _refreshing = null);
   }
 
+  /// One refresh, in order: the catalog (a failure leaves the kept one standing), the withdrawals, the packages'
+  /// check, then the developer's own.
   Future<void> _refresh() async {
     _last = _now();
     final api = this.api;
@@ -217,6 +223,7 @@ class MarketState extends ChangeNotifier {
 
   static final String _defaultMarket = marketUrlFor(Net.defaultHub).toString();
 
+  /// Reads [api]'s withdrawals and hands them to the installer, which checks each signature; a failure is only logged.
   Future<void> _takeRevoked(MarketApi api) async {
     try {
       final list = await api.revoked();
@@ -379,10 +386,12 @@ class MarketState extends ChangeNotifier {
     return verifyInIsolate ? runAside(each) : Future.value(each());
   }
 
+  /// What a verified signature is kept under in verified.json: the SHA-256 of its key, its signature and its words.
   static String _markOf(PackApproval a) => sha256Hex(utf8.encode('${a.key}\n${a.sig}\n${approvalWords(a.plugin, a.version, a.sha256)}'));
 
   void _leaveOut(CatalogEntry e, String why) => _log('${e.id} left out: $why');
 
+  /// A line in the Developer log under 'market'; never throws.
   void _log(String line) {
     try {
       Sms.instance.devLog('market', line);
@@ -397,6 +406,8 @@ class MarketState extends ChangeNotifier {
   int _heldBytes = 0;
   static const int _most = 64 * 1024 * 1024;
 
+  /// Holds [bytes] as the newest read; a map keeps the order its keys went in, so the first key is the least lately
+  /// read.
   void _hold(String sha, Uint8List bytes) {
     final had = _held.remove(sha);
     if (had != null) _heldBytes -= had.length;
@@ -408,6 +419,7 @@ class MarketState extends ChangeNotifier {
     }
   }
 
+  /// The bytes held for [sha], now the newest read; null where none are.
   Uint8List? _heldOf(String sha) {
     final b = _held.remove(sha);
     if (b != null) _held[sha] = b;
@@ -442,6 +454,8 @@ class MarketState extends ChangeNotifier {
     }
   }
 
+  /// Writes a package to the cache under its SHA-256, then trims the cache; a failure is let go, since the cache only
+  /// saves a fetch.
   Future<void> _keepPackage(File file, Uint8List bytes) async {
     try {
       await file.parent.create(recursive: true);
@@ -494,6 +508,7 @@ class MarketState extends ChangeNotifier {
   /// Puts [l] in place of the version on this device, the switch left as the person left it.
   Future<PackOutcome> update(ListingPlugin l) => _put(l, on: false);
 
+  /// Hands [l]'s checked bytes and its approval to the installer, one at a time for each plugin ([adding]).
   Future<PackOutcome> _put(ListingPlugin l, {required bool on}) async {
     final id = l.pack.id;
     if (_adding.contains(id)) return PackOutcome.failed('busy', '${l.name} is being added.');
@@ -527,6 +542,7 @@ class MarketState extends ChangeNotifier {
     }
   }
 
+  /// Writes mine.json: what the next read is compared with, to tell what changed.
   Future<void> _keepMine(Map<String, String> seen, Map<String, String> plugins) async {
     try {
       await cache.create(recursive: true);
@@ -564,6 +580,8 @@ class MarketState extends ChangeNotifier {
   /// developer is looking at it.
   Future<void> seenMine(MyMarket got) => _heardMine(got, tell: false);
 
+  /// Keeps [got] as [mine] and in mine.json. With [tell], a notice for each submission whose status changed since
+  /// mine.json was written, and for each plugin the reviewer took off the Marketplace.
   Future<void> _heardMine(MyMarket got, {required bool tell}) async {
     mine = got;
     _say();
@@ -589,6 +607,7 @@ class MarketState extends ChangeNotifier {
     _say();
   }
 
+  /// The toast's words for a submission's new status; null for a status nobody is told of.
   static String? _toldOf(SubmissionView s, MyMarket mine) => switch (s.status) {
         'changes_requested' => '${s.name} ${s.version}: changes asked for. See Marketplace › My submissions.',
         'approved' => s.listing == 'listed' || (s.listing == null && s.list == 'now')
@@ -634,6 +653,7 @@ class MarketState extends ChangeNotifier {
     });
   }
 
+  /// [d] on disk: each screenshot that is new bytes as a file beside draft.json, which names the files.
   Future<void> _writeDraft(SubmitDraft d) async {
     // Sent for review (or dropped) while it waited: nothing of it is written again.
     if (_drafts[d.packId] == null) return;
@@ -702,6 +722,8 @@ class MarketState extends ChangeNotifier {
   File get _catalogFile => File('${cache.path}${PlatformInfo.pathSeparator}catalog.json');
   File get _verifiedFile => File('${cache.path}${PlatformInfo.pathSeparator}verified.json');
 
+  /// The catalog as last read, with its ETag, written to and read from catalog.json: what a start shows before the
+  /// relay answers, and what a 304 leaves standing.
   Future<void> _keepCatalog(Catalog c) async {
     try {
       await cache.create(recursive: true);
@@ -719,6 +741,7 @@ class MarketState extends ChangeNotifier {
     }
   }
 
+  /// The marks ([_markOf]) of the signatures that verified before, read from and written to verified.json.
   Future<Set<String>> _verifiedKept() async {
     try {
       final j = jsonDecode(await _verifiedFile.readAsString());

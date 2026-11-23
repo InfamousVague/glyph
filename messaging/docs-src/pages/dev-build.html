@@ -1,0 +1,64 @@
+<p>Everything is in one repository, <a href="https://github.com/InfamousVague/ghost-messaging">github.com/InfamousVague/ghost-messaging</a>, under the AGPL-3.0. A build from source isn't signed as the releases are, so it installs as a separate app beside the real one.</p>
+
+<h2 id="need">What you need</h2>
+<ul>
+  <li><b>Flutter</b> (stable), which brings Dart. The relay uses the same Dart and nothing else.</li>
+  <li>For Android: the Android SDK and a phone or emulator. For a Mac or iPhone build: Xcode.</li>
+  <li><b>Node</b> for the scripts in <code>tool/</code> and the Discord bot; <b>Go</b> only to build the helper programs in <code>sidecar/</code>.</li>
+</ul>
+
+<h2 id="run">Run it</h2>
+<pre><code>flutter pub get
+flutter run                                    # on the connected phone, or -d macos / windows / linux
+flutter build apk --release --target-platform android-arm64
+flutter build macos</code></pre>
+<p>A computer's build starts in <code>lib/desktop/main.dart</code>; with no phone paired it runs on its own, with an account and no texts. The app talks to the relay at gogho.st unless <ui>Settings › Routes</ui> is given another.</p>
+
+<h2 id="relay">Run the relay</h2>
+<pre><code>cd relay
+dart pub get                                   # the test package only
+dart run bin/relay.dart --port 8787 --verbose  # ws://127.0.0.1:8787/hub and /relay/&lt;channel&gt;
+dart compile exe bin/relay.dart -o ghost-relay # one file to run on a server</code></pre>
+<p>Put it behind a web server that holds the certificate and passes <code>/hub</code>, <code>/relay/*</code>, <code>/files*</code>, <code>/market*</code>, <code>/link/*</code>, <code>/word/*</code> and <code>/feedback</code> to it. Then point an app at it: <ui>Settings › Routes</ui> takes the hub's address. <a href="/docs/dev-relay-api/#own">Running your own</a> lists what it reads from its environment.</p>
+
+<h2 id="tests">Tests</h2>
+<table>
+  <tr><th>Run</th><th>What it covers</th></tr>
+  <tr><td><code>flutter test</code></td><td>The app: about 200 files in <code>test/</code>, by feature. Screen tests draw each screen and compare it with the picture in <code>test/shots</code>; <code>--update-goldens</code> writes them again. Several start the real relay in the test's own process and send through it.</td></tr>
+  <tr><td><code>cd relay &amp;&amp; dart test</code></td><td>The relay, part by part.</td></tr>
+  <tr><td><code>cd android &amp;&amp; ./gradlew :app:testDebugUnitTest</code></td><td>The Kotlin that needs no phone: the MMS format, the encryption, the link's sealing and session.</td></tr>
+  <tr><td><code>cd discord &amp;&amp; npm test</code></td><td>The Discord bot and its bridge.</td></tr>
+  <tr><td><code>go test ./...</code> in a <code>sidecar/</code> folder</td><td>That helper program.</td></tr>
+  <tr><td><code>flutter test tool/net/live_hub_test.dart --dart-define=HUB=wss://…/hub</code></td><td>Two made-up installs through a running relay. <code>tool/net</code> has one of these for each of the relay's parts.</td></tr>
+  <tr><td><code>flutter test integration_test/… -d macos</code></td><td>On a real device: the desktop link against a phone, the native recorder and transcripts.</td></tr>
+</table>
+<p>Where two languages must agree to the byte (Kotlin and Dart on a seal, the app and the relay on a plugin's checks), both are tested against the same fixed values, kept in <code>test/*_vectors.json</code>.</p>
+
+<h2 id="scripts">Scripts</h2>
+<table>
+  <tr><th>Script</th><th>What it does</th></tr>
+  <tr><td><code>tool/build-docs.mjs</code></td><td>Builds these docs from <code>docs-src</code> into <code>site/docs</code>, with the API reference and the Postman collection. <code>--check</code> fails where <code>site/docs</code> isn't what <code>docs-src</code> makes.</td></tr>
+  <tr><td><code>tool/ghost-api.mjs</code></td><td>A command-line client for <a href="/docs/developer/">the app's API</a>.</td></tr>
+  <tr><td><code>tool/release*.mjs</code></td><td>Build, check and publish a release for Android, Mac, Windows and Linux. Each ends by publishing the source.</td></tr>
+  <tr><td><code>tool/deploy-relay.mjs</code>, <code>deploy-site.mjs</code>, <code>deploy-discord.mjs</code></td><td>Put the relay, the site and the Discord bot on a server.</td></tr>
+  <tr><td><code>tool/build-*sidecar.sh</code>, <code>build-tdlib.sh</code></td><td>Build the helper programs and Telegram's library for each platform.</td></tr>
+  <tr><td><code>tool/phosphor.mjs</code> and the <code>.py</code> files</td><td>Make the icons, stickers, effects and sounds the app ships with.</td></tr>
+</table>
+
+<h2 id="api-docs">Keeping the API docs true</h2>
+<p>The API pages and the Postman collection are made, not written:</p>
+<ul>
+  <li><b>The app's API</b> comes from the app's own registry. After changing <code>lib/api/methods.dart</code>, run <code>UPDATE_API_DOCS=1 flutter test test/api_reference_test.dart</code>, which writes <code>docs-src/api/app-methods.json</code>. Without the variable the same test fails where the file is behind the code.</li>
+  <li><b>The relay's routes</b> are listed in <code>docs-src/api/relay-routes.mjs</code>. A route added to <code>relay/lib</code> is added there.</li>
+  <li><code>node tool/build-docs.mjs</code> then draws both references and writes the collection.</li>
+</ul>
+
+<h2 id="comments">How the code is commented</h2>
+<p>The source is written to be read. The conventions, so a change fits in:</p>
+<ul>
+  <li>A file opens by saying what it is for and where it sits: a doc comment on its main class, or on <code>library;</code>.</li>
+  <li>Classes, and any method whose name and signature don't say enough, have a line or two on what they are for and what they promise. Comments say why, and what a caller can rely on; they don't repeat the code.</li>
+  <li>Inside a function, a comment sits above a step whose reason isn't plain: a workaround, an order that matters, a detail of a protocol.</li>
+  <li>Plain words. "Chooses a route for each thing sent" rather than "route selection manager".</li>
+  <li>Where a file has a twin in another language (<code>DeskCrypto.kt</code> and <code>lib/desktop/link/crypto.dart</code>), each names the other.</li>
+</ul>

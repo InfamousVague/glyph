@@ -29,12 +29,14 @@ class ConnectionMode {
   final LucideIcon icon;
 }
 
+/// The three ways a phone and a computer connect, by the ids Android keeps them under; the first is the default.
 const connectionModes = [
   ConnectionMode('both', 'Local network, then relay', 'Tries the network the two share first, and the relay when they are apart.', Lucide.network),
   ConnectionMode('local', 'Local network only', 'Only while the phone and the computer are on the same network. Nothing leaves it.', Lucide.wifi),
   ConnectionMode('relay', 'Relay only', 'Always through the relay, which passes sealed data it cannot read.', LucideMore.cloud),
 ];
 
+/// A mode's name by its id; the first mode's for an id that is not known.
 String connectionLabel(String mode) => connectionModes.firstWhere((m) => m.id == mode, orElse: () => connectionModes.first).label;
 
 /// A relay's address as a person reads it: its host, without the scheme or the path.
@@ -76,6 +78,7 @@ class ConnectionChoice extends StatelessWidget {
   }
 }
 
+/// How long ago in words: minutes, then hours, and from a day on the date as the list of conversations writes it.
 String _ago(DateTime? when) {
   if (when == null) return 'never';
   final d = DateTime.now().difference(when);
@@ -96,6 +99,7 @@ String computerLine(Computer c) => switch (c.via) {
 List<Widget> computersPane(BuildContext context, SettingsModel m) {
   Widget icon(LucideIcon i) => AppIcon(i, size: 18);
 
+  // A paired computer's menu: how it connects (the relay's ways only where it was paired with a relay), and the rest.
   void manage(Computer c) {
     showChoices(context, title: '${c.name}\n${computerLine(c)} · paired ${c.since == null ? '' : listWhen(c.since!)}', choices: [
       for (final mode in connectionModes)
@@ -245,6 +249,7 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
     super.dispose();
   }
 
+  /// Asks Android where the pairing stands, and shows that.
   Future<void> _read() async {
     try {
       final s = await Sms.instance.pairing();
@@ -252,6 +257,7 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
     } catch (_) {}
   }
 
+  /// Starts pairing with the computer whose code this is; a code that can't be used is said under the buttons.
   Future<void> _begin(String code) async {
     try {
       final s = await Sms.instance.beginPairing(code.trim());
@@ -268,6 +274,7 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
     }
   }
 
+  /// Scans the computer's code with the camera and begins with what it read.
   Future<void> _scan() async {
     final r = await Sms.instance.scanPairingCode();
     if (!mounted) return;
@@ -278,6 +285,7 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
     if (r.text != null) _begin(r.text!);
   }
 
+  /// Begins with a pairing code on the clipboard where there is one; otherwise shows the field to type one into.
   Future<void> _paste() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = data?.text?.trim() ?? '';
@@ -289,6 +297,7 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
     }
   }
 
+  /// Chooses how the two connect once paired, while the pairing is still under way.
   Future<void> _mode(String mode) async {
     try {
       final s = await Sms.instance.setPairingMode(mode);
@@ -298,6 +307,7 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
     }
   }
 
+  /// After a failure: the old pairing is put away and the page is back at its start.
   Future<void> _again() async {
     await Sms.instance.pairingShown();
     await Sms.instance.cancelPairing();
@@ -355,6 +365,8 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
     ];
   }
 
+  // What the page shows at each phase of the pairing, in the order they come: nothing begun, looking for the
+  // computer, the six digits to compare, paired, and not paired.
   List<Widget> _start(Tokens t) => [
         _Lead(icon: Lucide.laptop, title: 'Your texts on your computer', body: 'Open Ghost Messaging on the computer. It shows a code to scan. The phone stays the only thing that sends and receives; the computer shows your conversations and sends through it, sealed between the two.'),
         PairButton(label: 'Scan the code', icon: LucideMore.qrCode, onPressed: _scan),

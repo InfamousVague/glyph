@@ -17,6 +17,7 @@ import '../ui/common.dart' show toast;
 import '../ui/relay_host_section.dart' show askToUseRelay;
 import '../ui/shell.dart';
 
+/// Hears the links the system hands the app, and opens the circle each names.
 class DeskLinks {
   DeskLinks._();
 

@@ -605,6 +605,7 @@ class _TrackHeader extends StatelessWidget {
   }
 }
 
+/// A round button in the panel's header: an icon, with [text] before it where there is room for a word.
 class _ToolButton extends StatelessWidget {
   const _ToolButton({super.key, required this.icon, required this.label, required this.onPressed, this.text});
   final LucideIcon icon;
@@ -653,6 +654,7 @@ class _TimelinePainter extends CustomPainter {
   final TextStyle label;
   final TextStyle clipLabel;
 
+  /// Where a moment of the recording is across the painting, in points from its left edge.
   double _x(double second) => (second - start) * perSecond;
 
   @override
@@ -791,6 +793,7 @@ Color _colourOf(Tokens t, String key) {
   return PluginHues.of(t.child(attrs: {'theme': 'dark'}), hueFor(key)).accent;
 }
 
+/// How many steps the longest track has.
 int _stepsOf(Map<String, List<double>> levels) => levels.values.fold<int>(0, (n, l) => l.length > n ? l.length : n);
 
 /// A level as it is drawn: speech sits low on a straight scale, so it is lifted (a square root) as editors draw it.

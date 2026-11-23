@@ -14,6 +14,10 @@ import (
 	"maunium.net/go/mautrix/sqlstatestore"
 )
 
+// Tests of the helper's parts that need no homeserver: reading requests, shaping answers, what a typed server
+// resolves to, room titles, events turned into the app's messages, the store on SQLite, and the rooms kept across a
+// restart.
+
 func TestParseRequest(t *testing.T) {
 	r, err := parseRequest([]byte(`{"id":8,"op":"send","room":"!r:s","text":"hi","reply_to":"$e"}`))
 	if err != nil || r.ID != 8 || r.Op != "send" || r.Room != "!r:s" || r.Text != "hi" || r.ReplyTo != "$e" {
@@ -107,6 +111,7 @@ func TestRoomTitle(t *testing.T) {
 	}
 }
 
+// parsed is [raw], an event as a homeserver sends it, read into mautrix's type.
 func parsed(t *testing.T, raw string) *event.Event {
 	t.Helper()
 	var evt event.Event

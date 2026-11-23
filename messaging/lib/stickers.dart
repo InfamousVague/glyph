@@ -16,6 +16,7 @@ class StickerPack {
 /// The packs' names, in the order they are offered. A pack with no pictures is not offered.
 const _names = {'ghost': 'Ghost', 'love': 'Love', 'party': 'Party', 'sweet': 'Sweet', 'mischief': 'Mischief'};
 
+/// The packs, read once and kept for as long as the app runs.
 Future<List<StickerPack>>? _packs;
 
 /// Every pack the app carries, read from what is bundled.

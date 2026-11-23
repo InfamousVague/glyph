@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
 
+/** What the log strikes out ([DevLog.scrub]): phone numbers, and nothing else that is made of digits. */
 class DevLogTest {
     @Test
     fun aPhoneNumberIsStruckOutHoweverItIsWritten() {

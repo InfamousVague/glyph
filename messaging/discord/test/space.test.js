@@ -28,6 +28,7 @@ function fakePeers() {
   return { factory, made };
 }
 
+/** A GhostSpace opened on a signed-in fake hub, with everything it tells its owner recorded in `events`. */
 async function setup() {
   const fake = new FakeHub();
   const me = makeIdentity();

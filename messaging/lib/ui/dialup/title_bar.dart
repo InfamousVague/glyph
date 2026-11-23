@@ -147,6 +147,7 @@ class TitleBarButton extends StatelessWidget {
   }
 }
 
+/// Draws one [TitleGlyph] in [ink] at the middle of its box: an X for close, a question mark and its dot for help.
 class _GlyphPainter extends CustomPainter {
   const _GlyphPainter(this.glyph, this.ink);
   final TitleGlyph glyph;

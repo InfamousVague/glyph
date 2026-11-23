@@ -25,6 +25,7 @@ class TcpTransport implements FrameTransport {
     _socket.done.then((_) {}, onError: (_) => _end());
   }
 
+  /// Dials the phone at [host] and [port]. Throws where nothing answers within [timeout].
   static Future<TcpTransport> connect(String host, int port, {Duration timeout = const Duration(milliseconds: 1500)}) async {
     final socket = await Socket.connect(host, port, timeout: timeout);
     socket.setOption(SocketOption.tcpNoDelay, true);
@@ -33,6 +34,8 @@ class TcpTransport implements FrameTransport {
 
   final Socket _socket;
   final _frames = StreamController<Uint8List>();
+
+  /// The bytes that have come and are not yet a whole frame.
   final _buffer = BytesBuilder(copy: false);
   bool _closed = false;
 
@@ -42,6 +45,8 @@ class TcpTransport implements FrameTransport {
   @override
   Stream<Uint8List> get frames => _frames.stream;
 
+  /// Cuts what has arrived into frames by their lengths and passes each whole one on; the rest waits for more.
+  /// A length of nothing, or over the largest a frame may be, ends the connection.
   void _onBytes(Uint8List bytes) {
     _buffer.add(bytes);
     var all = _buffer.takeBytes();
@@ -134,10 +139,15 @@ class LinkSession {
   /// What the phone's `ready` said of it: its name, the app's version, how the pairing connects.
   Map<String, dynamic> ready = const {};
 
+  /// What seals and opens this connection's frames, once the hellos have made its keys.
   DeskChannel? _channel;
   StreamSubscription<Uint8List>? _sub;
+
+  /// What [open] waits on: the phone's hello, then its `ready`.
   Completer<Uint8List>? _helloBack;
   Completer<Map<String, dynamic>>? _readyBack;
+
+  /// The requests not yet answered, by their ids; [_next] is the id the next one goes under.
   final _waiting = <int, Completer<dynamic>>{};
   final _events = StreamController<({String name, Map<String, dynamic> args})>.broadcast();
   final _done = Completer<void>();
@@ -145,6 +155,7 @@ class LinkSession {
   bool _live = false;
   bool _closed = false;
 
+  /// Open and proved on both sides: requests and events can go.
   bool get live => _live && !_closed;
   bool get closed => _closed;
 
@@ -194,6 +205,7 @@ class LinkSession {
     }
   }
 
+  /// Sends one frame: its type's byte, then [body]. [_send] seals a message and sends it as a sealed frame.
   void _say(int type, List<int> body) => transport.send(Uint8List.fromList([type, ...body]));
 
   void _send(Map<String, dynamic> message) {
@@ -202,6 +214,8 @@ class LinkSession {
     _say(DeskCrypto.sealed, channel.seal(jsonEncode(message)));
   }
 
+  /// Takes one frame from the phone: its hello, or a sealed `ready`, `res` (an answer) or `ev` (an event). Anything
+  /// else, or anything that does not open, closes the connection.
   void _onFrame(Uint8List frame) {
     if (_closed || frame.isEmpty) return;
     final body = Uint8List.sublistView(frame, 1);
@@ -270,6 +284,7 @@ class LinkSession {
     _send({'t': 'ev', 'm': name, 'a': ?args});
   }
 
+  /// The connection is over: everything still waiting on it fails with [LinkDown], and [done] completes.
   void _ended() {
     if (_closed) return;
     _closed = true;

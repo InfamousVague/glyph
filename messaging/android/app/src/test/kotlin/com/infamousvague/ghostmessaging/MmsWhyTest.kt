@@ -6,6 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** Why a picture message did not go or come, in words ([MmsWhy]): from Android's code and the carrier's answer. */
 class MmsWhyTest {
     @Test
     fun mobileDataOffIsSaidAsThat() {

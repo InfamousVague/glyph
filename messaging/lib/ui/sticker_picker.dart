@@ -27,6 +27,7 @@ Future<String?> pickSticker(BuildContext context, {bool encrypted = false}) {
   ));
 }
 
+/// The stickers as a sheet from the foot of the screen: a tab for each pack over the pack chosen.
 class StickerSheet extends StatefulWidget {
   const StickerSheet({super.key, this.encrypted = false, this.packs});
   final bool encrypted;

@@ -61,6 +61,7 @@ SOUNDS = {
 LOOPS = {'ring-in', 'ring-out'}
 
 
+# The ElevenLabs key, from the environment or ~/.elevenlabs-key; stops with why where there is none.
 def key() -> str:
     k = os.environ.get('ELEVENLABS_API_KEY', '').strip()
     if not k:
@@ -71,6 +72,8 @@ def key() -> str:
     return k
 
 
+# One take of a sound from ElevenLabs' sound generation, as MP3 bytes: `text` says it, `seconds` (half a second at
+# least) is how long it runs.
 def generate(api_key: str, model: str, text: str, seconds: float) -> bytes:
     body = json.dumps({'text': text, 'duration_seconds': max(0.5, seconds), 'prompt_influence': 0.7, 'model_id': model}).encode()
     req = urllib.request.Request('https://api.elevenlabs.io/v1/sound-generation?output_format=mp3_44100_128', data=body,
@@ -105,6 +108,8 @@ def finish(mp3: bytes, dest: pathlib.Path, loop: bool) -> None:
                         '-c:a', 'libopus', '-b:a', '96k', str(dest.with_suffix('.ogg'))], check=True)
 
 
+# Makes TAKES takes of each sound named (all of them where none is), skipping one whose takes are all there unless
+# --again, into OUT or the folder after --out, and records each sound's prompt in prompts.json there.
 def main() -> None:
     args = sys.argv[1:]
     out = OUT
