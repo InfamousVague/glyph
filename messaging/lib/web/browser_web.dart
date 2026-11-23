@@ -392,9 +392,10 @@ class _PageStore implements BrowserStore {
     // closes its own, and the deletion goes on. Waited for, so the page doesn't start again with the database there.
     await done.future.timeout(const Duration(seconds: 15), onTimeout: () {});
     // And the browser told, by the page's own address, to clear everything it keeps for it (relay/lib/web_app.dart,
-    // app.gogho.st's block: `Clear-Site-Data: "storage"`): Chromium leaves a deleted database's bytes, its key among
-    // them, in the profile's files until it next tidies them, and this takes them away. A server that doesn't answer
-    // it leaves them; what the app says of that is in lib/web/store.dart.
+    // app.gogho.st's block: `Clear-Site-Data: "storage"`, answered only where the browser says the asking came from
+    // this very page, `Sec-Fetch-Site: same-origin`, which its fetch says by itself): Chromium leaves a deleted
+    // database's bytes, its key among them, in the profile's files until it next tidies them, and this takes them away.
+    // A server that doesn't answer it leaves them; what the app says of that is in lib/web/store.dart.
     try {
       await web.window
           .fetch('clear-site-data'.toJS, web.RequestInit(method: 'GET', cache: 'no-store', credentials: 'same-origin'))

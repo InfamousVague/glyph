@@ -116,7 +116,7 @@ void main() {
   // What the page asks for as it signs out or is removed (the app's lib/web/browser_web.dart): the browser told to clear
   // everything this address keeps, which in Chromium takes a deleted store's bytes off the disk too.
   test('/app/clear-site-data tells the browser to clear what this address keeps, and nothing else', () async {
-    final got = await raw('/app/clear-site-data');
+    final got = await raw('/app/clear-site-data', headers: {'Sec-Fetch-Site': 'same-origin'});
     expect(got.status, 204);
     expect(got.headers['clear-site-data'], '"storage"');
     expect(got.headers['cache-control'], 'no-store');
@@ -128,7 +128,18 @@ void main() {
     for (final path in ['/app/', '/app/main.dart.js', '/app/nothing-here.js']) {
       expect((await raw(path)).headers.containsKey('clear-site-data'), isFalse, reason: path);
     }
-    expect((await raw('/app/clear-site-data', method: 'POST', headers: {'Content-Length': '0'})).status, 405);
+    expect((await raw('/app/clear-site-data', method: 'POST', headers: {'Content-Length': '0', 'Sec-Fetch-Site': 'same-origin'})).status, 405);
+  });
+
+  // Third review, A2: another site sending the browser to it (a link, a redirect, a picture) cleared the app's store in
+  // Chromium and WebKit. Only the page's own fetch is answered; anything else is a file that isn't here.
+  test('/app/clear-site-data answers only the page itself: from anywhere else it is not here', () async {
+    for (final from in [null, 'cross-site', 'same-site', 'none', 'SAME-ORIGIN ', '']) {
+      final got = await raw('/app/clear-site-data', headers: {'Sec-Fetch-Site': ?from});
+      expect(got.status, 404, reason: '$from');
+      expect(got.headers.containsKey('clear-site-data'), isFalse, reason: '$from');
+    }
+    expect((await raw('/app/clear-site-data', headers: {'Sec-Fetch-Site': 'same-origin'})).headers['clear-site-data'], '"storage"');
   });
 
   test('each file is said to be what it is', () async {

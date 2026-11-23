@@ -17,10 +17,12 @@
  * /link, /files and /market, so nothing slipped into any of those can read what the app keeps in the browser. Its block
  * sends every header in tool/web/headers.json (test/web_build_test.dart holds it to that list, and the page's own
  * policy), and answers /clear-site-data with `Clear-Site-Data: "storage"`, which the page asks for as it signs out or
- * is removed. Its DNS record is the owner's to add, and --caddy is to be run after it exists: the box writes the block
+ * is removed, to the page itself alone (`Sec-Fetch-Site: same-origin`; from anywhere else a link to it would sign the
+ * person out). Its DNS record is the owner's to add, and --caddy is to be run after it exists: the box writes the block
  * only once app.gogho.st points at it (Caddy's retries for a certificate it can't get yet back off for hours), and
- * then asks app.gogho.st itself, as a visitor would, for the page, a 404 and the worker, and puts the Caddyfile back if
- * any header on the list is missing. No Caddy runs on the computer this is shipped from: the box is where it is
+ * then asks app.gogho.st itself, as a visitor would, for the page, a 404 and the worker (and /clear-site-data, from the
+ * page and from another site), and puts the Caddyfile back if any header on the list is missing. Run while its DNS
+ * can't be checked, --caddy leaves the app's block as it is. No Caddy runs on the computer this is shipped from: the box is where it is
  * checked.
  *
  * The download and its version are the release's own files (/ghost-messaging.apk and /apk.json, served from
@@ -275,7 +277,10 @@ ${APP_HOST} {
 		Permissions-Policy "camera=(), microphone=(), geolocation=(), display-capture=()"
 		Strict-Transport-Security "max-age=31536000"
 	}
-	@clear path /clear-site-data
+	@clear {
+		path /clear-site-data
+		header Sec-Fetch-Site same-origin
+	}
 	handle @clear {
 		header Clear-Site-Data "\\"storage\\""
 		header Cache-Control "no-store"
@@ -305,13 +310,17 @@ ${APP_HOST} {
 // no Caddy runs on the computer this is shipped from).
 const APP_WANTED = [...Object.entries({ ...HEADERS.every, ...HEADERS.app }).map(([name, value]) => `${name}: ${value}`), `Content-Security-Policy: ${APP_CSP}`];
 // And the one answer the page asks for as it signs out or is removed (lib/web/browser_web.dart, the relay's own in
-// relay/lib/web_app.dart): APP_BLOCK's @clear.
+// relay/lib/web_app.dart): APP_BLOCK's @clear. Only to the page itself (`Sec-Fetch-Site: same-origin`): from anywhere
+// else it is a file that isn't there, or any link to it would sign the person out (third review, A2).
 const CLEAR_PATH = 'clear-site-data';
 const CLEAR_WANTED = 'Clear-Site-Data: "storage"';
 
 // Every name's block is this site's (app.gogho.st's too, kept apart from gogho.st's own): each is taken out and
 // written again.
 const dom = `(${DOMAIN.replace('.', '[.]')}|${OLD.replace('.', '[.]')}|${ALSO.replace('.', '[.]')}|${APP_HOST.replaceAll('.', '[.]')})`;
+// The same without app.gogho.st's: what is taken out where its new block can't go in (its DNS not checked), so the
+// block it has, if any, stays as it is.
+const domSite = `(${DOMAIN.replace('.', '[.]')}|${OLD.replace('.', '[.]')}|${ALSO.replace('.', '[.]')})`;
 // Run on the box. Reads the site as a tarball on stdin; with --app, the site under site/ and the app under app/.
 const REMOTE = `set -e
 SUDO=; [ "$(id -u)" -eq 0 ] || SUDO=sudo
@@ -373,7 +382,10 @@ echo "before:"; echo "$BEFORE" | sed 's/^/  /'
 restore() { echo "x $1: putting $BACKUP back"; $SUDO cp -a "$BACKUP" "$CF"; $SUDO systemctl reload caddy || true; exit 1; }
 # The domain's own blocks out, if they are there - each from its first line to the next brace at the start of a line -
 # and the new ones on the end.
-$SUDO awk -v start='^(www[.])?${dom}[ ,{]' '$0 ~ start { skip = 1; next } skip && /^}/ { skip = 0; next } !skip' "$CF" | $SUDO tee "$CF.next" >/dev/null
+# app.gogho.st's block is taken out only where a new one goes in: with its DNS not checked just now (a lookup that failed
+# for a moment) the block it has stays, where once --caddy took a live app's block away (third review).
+if [ "$WITH_APP" = 1 ]; then START='^(www[.])?${dom}[ ,{]'; else START='^(www[.])?${domSite}[ ,{]'; fi
+$SUDO awk -v start="$START" '$0 ~ start { skip = 1; next } skip && /^}/ { skip = 0; next } !skip' "$CF" | $SUDO tee "$CF.next" >/dev/null
 printf '%s\\n' '${BLOCK.replace(/'/g, "'\\''")}' | $SUDO tee -a "$CF.next" >/dev/null
 [ "$WITH_APP" = 0 ] || printf '%s\\n' '${APP_BLOCK.replace(/'/g, "'\\''")}' | $SUDO tee -a "$CF.next" >/dev/null
 # Copied onto the Caddyfile rather than moved over it, so the file keeps its owner and its mode.
@@ -402,8 +414,13 @@ if [ "$WITH_APP" = 1 ]; then
       case "$p" in /no-such-file-here.js) ;; *) printf '%s\\n' "$h" | grep -Fxiq -- 'Cache-Control: ${HEADERS.cache.plain}' || { echo "  $p lacks Cache-Control: ${HEADERS.cache.plain}"; return 1; } ;; esac
     done
     # What the page asks for as it signs out or is removed: the browser told to clear everything it keeps for the app.
-    h=$(curl -sS -D - -o /dev/null --max-time 10 --resolve "${APP_HOST}:443:127.0.0.1" "https://${APP_HOST}/${CLEAR_PATH}" | tr -d '\\r') || { echo "  /${CLEAR_PATH}: no answer"; return 1; }
+    h=$(curl -sS -D - -o /dev/null --max-time 10 -H 'Sec-Fetch-Site: same-origin' --resolve "${APP_HOST}:443:127.0.0.1" "https://${APP_HOST}/${CLEAR_PATH}" | tr -d '\\r') || { echo "  /${CLEAR_PATH}: no answer"; return 1; }
     printf '%s\\n' "$h" | grep -Fxiq -- '${CLEAR_WANTED}' || { echo "  /${CLEAR_PATH} lacks its Clear-Site-Data header"; return 1; }
+    # And only to the page itself: asked from anywhere else (no Sec-Fetch-Site, another site's), it clears nothing.
+    for from in '' 'Sec-Fetch-Site: cross-site'; do
+      h=$(curl -sS -D - -o /dev/null --max-time 10 \${from:+-H "$from"} --resolve "${APP_HOST}:443:127.0.0.1" "https://${APP_HOST}/${CLEAR_PATH}" | tr -d '\\r') || { echo "  /${CLEAR_PATH}: no answer"; return 1; }
+      if printf '%s\\n' "$h" | grep -iq '^clear-site-data:'; then echo "  /${CLEAR_PATH} clears for a request not from the page (\${from:-no Sec-Fetch-Site})"; return 1; fi
+    done
   }
   ok=0
   for i in $(seq 1 30); do if appcheck >/dev/null 2>&1; then ok=1; break; fi; sleep 4; done
@@ -482,6 +499,8 @@ if (APP_BUILD || withCaddy) {
     if (!got.stdout) console.log(`  https://${APP_HOST}${path} answers nothing yet (nothing until its DNS record points at the box and --caddy has run since)`);
     else console.log(`  https://${APP_HOST}${path}: ${missing.length ? `lacks ${missing.join(' | ')}` : 'every header on the list'}`);
   }
-  const clear = curl(['-sS', '-D', '-', '-o', '/dev/null', `https://${APP_HOST}/${CLEAR_PATH}`]).stdout;
-  if (clear) console.log(`  https://${APP_HOST}/${CLEAR_PATH}: ${clear.split(/\r?\n/).some((l) => l.toLowerCase() === CLEAR_WANTED.toLowerCase()) ? CLEAR_WANTED : `lacks ${CLEAR_WANTED}`}`);
+  const clear = curl(['-sS', '-D', '-', '-o', '/dev/null', '-H', 'Sec-Fetch-Site: same-origin', `https://${APP_HOST}/${CLEAR_PATH}`]).stdout;
+  if (clear) console.log(`  https://${APP_HOST}/${CLEAR_PATH} from the page: ${clear.split(/\r?\n/).some((l) => l.toLowerCase() === CLEAR_WANTED.toLowerCase()) ? CLEAR_WANTED : `lacks ${CLEAR_WANTED}`}`);
+  const elsewhere = curl(['-sS', '-D', '-', '-o', '/dev/null', '-H', 'Sec-Fetch-Site: cross-site', `https://${APP_HOST}/${CLEAR_PATH}`]).stdout;
+  if (elsewhere) console.log(`  https://${APP_HOST}/${CLEAR_PATH} from another site: ${/^clear-site-data:/im.test(elsewhere) ? 'CLEARS (it must not)' : 'clears nothing'}`);
 }

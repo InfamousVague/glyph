@@ -34,8 +34,16 @@ class WebApp {
   final Directory dir;
 
   /// Beside the page: answered with `Clear-Site-Data: "storage"` and nothing else (the app's lib/web/browser_web.dart asks
-  /// for it as it wipes; app.gogho.st's block in tool/deploy-site.mjs answers the same).
+  /// for it as it wipes; app.gogho.st's block in tool/deploy-site.mjs answers the same), and only to the page itself
+  /// ([clearAsker]).
   static const clearPath = 'clear-site-data';
+
+  /// Who may be told to clear: a request the browser says came from this very address (`Sec-Fetch-Site: same-origin`),
+  /// as the page's own fetch does. Anything else (a link in a message, another site sending the browser here, a picture
+  /// asked for from elsewhere, the address typed) is answered as a file that isn't here: answered, a link would have
+  /// signed the person out, and each time it was followed again the account would have one more device on its list
+  /// (third review, A2). A browser too old to say where a request came from clears nothing; the store is deleted anyway.
+  static const clearAsker = 'same-origin';
 
   /// The policy of a page whose `<meta>` gives none (a build that isn't the app's): its own address and nothing else.
   static const fallbackPolicy =
@@ -156,7 +164,7 @@ class WebApp {
     // What the page asks for as it signs out or is removed, once it has deleted its store (the app's lib/web/browser_web.dart):
     // the browser is told to clear everything this address keeps, which in Chromium also takes the deleted store's
     // bytes off the disk, where deleting the database alone leaves them for a while.
-    if (parts.length == 1 && parts.single == clearPath) {
+    if (parts.length == 1 && parts.single == clearPath && request.headers.value('sec-fetch-site') == clearAsker) {
       response
         ..statusCode = HttpStatus.noContent
         ..headers.set('Clear-Site-Data', '"storage"')

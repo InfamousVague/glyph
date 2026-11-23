@@ -138,7 +138,13 @@ void main() {
     // What the page asks for as it signs out or is removed (lib/web/browser_web.dart, the relay's own in
     // relay/lib/web_app.dart): the browser told to clear everything it keeps for the address. Answered before any file
     // is looked for, and checked on the box as a visitor gets it.
-    expect(block, contains('\t@clear path /clear-site-data\n\thandle @clear {\n\t\t' r'header Clear-Site-Data "\\"storage\\""' '\n\t\theader Cache-Control "no-store"\n\t\trespond 204\n\t}'));
+    // Only to the page itself (Sec-Fetch-Site: same-origin): from anywhere else it is a file that isn't there, or a link
+    // to it from another site would sign the person out (third review, A2).
+    expect(block, contains('\t@clear {\n\t\tpath /clear-site-data\n\t\theader Sec-Fetch-Site same-origin\n\t}\n\thandle @clear {\n\t\t' r'header Clear-Site-Data "\\"storage\\""' '\n\t\theader Cache-Control "no-store"\n\t\trespond 204\n\t}'));
+    expect(File('relay/lib/web_app.dart').readAsStringSync(), contains("static const clearAsker = 'same-origin';"));
+    // The box checks both: the page's own asking clears, another site's doesn't.
+    expect(script, contains("-H 'Sec-Fetch-Site: same-origin' --resolve"));
+    expect(script, contains("for from in '' 'Sec-Fetch-Site: cross-site'; do"));
     expect(block.indexOf('handle @clear'), lessThan(block.indexOf('handle @hashed')));
     expect(File('lib/web/browser_web.dart').readAsStringSync(), contains("fetch('clear-site-data'.toJS"));
     expect(File('relay/lib/web_app.dart').readAsStringSync(), contains("static const clearPath = 'clear-site-data';"));
@@ -161,6 +167,12 @@ void main() {
     // points at the box, as gogho.st's does (before that Caddy's retries for its certificate back off for hours).
     expect(script, contains(r'''printf '%s\\n' '${BLOCK.replace('''));
     expect(script, contains(r'''[ "$WITH_APP" = 0 ] || printf '%s\\n' '${APP_BLOCK.replace('''));
+    // And its block is taken out only where a new one goes in: with the DNS not checked, the one it has stays.
+    expect(script, contains(r'''if [ "$WITH_APP" = 1 ]; then START='^(www[.])?${dom}[ ,{]'; else START='^(www[.])?${domSite}[ ,{]'; fi'''));
+    expect(script, contains(r'''$SUDO awk -v start="$START" '$0 ~ start { skip = 1; next }'''));
+    final domSite = RegExp(r'const domSite = `([^`]+)`;').firstMatch(script)?.group(1);
+    expect(domSite, isNotNull);
+    expect(domSite, isNot(contains('APP_HOST')));
     expect(script, contains(r'''if [ -n "$APP_IP" ] && [ "$APP_IP" = "$SITE_IP" ]; then WITH_APP=1;'''));
     expect(script, contains(r"${APP_HOST.replaceAll('.', '[.]')}"));
   });
