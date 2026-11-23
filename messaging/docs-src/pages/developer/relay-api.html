@@ -171,6 +171,14 @@ POST
 <p>Limits: 1 to 500 souls at a time, 30 grants a day, a body of 4,096 bytes, a reason of 200 characters.</p>
 <relay-routes group="bounty"/>
 
+<h2 id="souls">Sending souls</h2>
+<p>A person can send some of their souls to someone else on the same relay. The sender signs a <code>POST /souls/send</code> with their own hub key, so the relay knows whose souls to move: the id of the key that signed. The headers are the three a bounty carries, over the five lines <code>ghost-souls v1</code>, <code>POST</code>, the path, the time and the body's SHA-256 in hex.</p>
+<p>Souls only move. The sender's count goes down and the receiver's goes up by the same number in one step, with a receipt, and all three are written to disk together before the relay answers. The receiver must hold a username on this relay, so souls can't be sent to nobody. Both people are told their new count over the hub if they are connected.</p>
+<p>Each sending carries an <code>id</code> the sender makes up. The relay moves souls once for an id: a request sent again because its answer was lost gets the first receipt back with <code>"again": true</code>. The app writes that id into the card it puts in the chat, and the other person's app asks <code>POST /souls/receipt</code> before it shows the card as souls sent. A receipt is given only to the two people in it.</p>
+<p>Limits: 1 to 100 souls at a time; 300 souls and 10 sendings from one person in 24 hours; 20 askings to send and 300 receipt checks an hour by one key; 600 signed requests an hour from one address; a body of 1,024 bytes. Receipts are kept for a day at least, and the newest 5,000 after that.</p>
+<p>Every answer of these two routes is JSON with <code>ok</code>. A relay from before them answers the paths as it answers any it doesn't know, with <code>200</code> and a line of text, and the app reads that as "not available yet".</p>
+<relay-routes group="souls"/>
+
 <h2 id="app">The app in a browser</h2>
 <p>A relay started with <code>--web &lt;folder&gt;</code> serves the app built for a browser under <code>/app/</code>, as plain files. A page in a browser may speak only to where it came from, and the hub sends no CORS headers, so the page and the hub have to be one address: this is how a relay gives its people the app in a browser. Without the folder there is no <code>/app/</code>, and these paths get the root answer.</p>
 <ul>

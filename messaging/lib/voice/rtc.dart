@@ -17,7 +17,7 @@ import 'voice_settings.dart';
 /// Settings › Voice has it ([_audioAsked]), and sent as Opus at the rate chosen there, 510 kb/s unless changed.
 /// Each connection carries one sound and one picture both ways from its start; turning video on or off
 /// puts the camera's picture in or takes it out, with nothing to work out again between the two.
-class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, CameraMedia, SoundMedia, PlacedMedia {
+class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, CameraMedia, SoundMedia, PlacedMedia, PictureMedia {
   RtcMedia({this.relay, this.settings = const VoiceSettings(), this.light = false});
 
   /// Settings' microphone test, made light where the native half can say how loud the microphone is (the Mac's,
@@ -79,6 +79,24 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
   /// (GMFB-52). [remote] holds pictures only, so a recording that looked there for a voice found nobody's.
   @override
   final ValueNotifier<Map<String, VoiceSound>> sounds = ValueNotifier(const {});
+
+  /// Each other member's picture, for a recording that takes video to draw (GMFB-42): the video track their tile
+  /// draws from [remote], with their connection's mark.
+  @override
+  Map<String, VoiceSound> get pictures => {
+        for (final e in _peers.entries)
+          if (e.value._view?.getVideoTracks().firstOrNull?.id case final String track) e.key: (track: track, link: identityHashCode(e.value)),
+      };
+
+  /// What this device sends as its picture: the screen while it shares, else the camera while video is on.
+  @override
+  ({String track, bool screen})? get ownPicture {
+    final id = _picture?.id;
+    return id == null ? null : (track: id, screen: sharing);
+  }
+
+  @override
+  late final Listenable pictureChanges = Listenable.merge([remote, localVideo, localScreen]);
   final Map<String, _RtcPeer> _peers = {};
   bool _deaf = false;
 

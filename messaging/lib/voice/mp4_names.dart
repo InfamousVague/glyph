@@ -4,7 +4,8 @@
 /// For each track, in order: its name is written three ways, since players disagree on where it is read from:
 /// `udta/name` (VLC, FFmpeg's "name"), `udta/©nam` (FFmpeg's and so libmpv's "title", the app's own player) and the
 /// handler's name (`mdia/hdlr`). Every audio track is put in one alternate group, and only the first is enabled: a
-/// player that plays one track plays the mix (Apple asks for one enabled track a group).
+/// player that plays one track plays the mix (Apple asks for one enabled track a group). A track of video (GMFB-42:
+/// the call's cameras and screens, after the voices) is left enabled and in no group, so it plays beside the mix.
 ///
 /// The movie box is rebuilt in memory; where it comes before the media (a "fast start" file) every chunk offset is
 /// moved by however much it grew. The media itself is never read.
@@ -137,12 +138,21 @@ class Mp4Names {
           final i = track++;
           final name = i < names.length ? names[i] : null;
           final kids = [for (final c in _children(box, 8)) c];
+          // What it carries, from its handler: only sound is one of the voices to choose between.
+          var sound = true;
+          for (final c in kids) {
+            if (_type(c) != 'mdia') continue;
+            for (final m in _children(c, 8)) {
+              if (_type(m) == 'hdlr' && m.length >= 20) sound = latin1.decode(m.sublist(16, 20)) == 'soun';
+            }
+          }
           final out = <Uint8List>[];
           var hadUdta = false;
           for (final c in kids) {
             final t = _type(c);
             if (t == 'tkhd') {
-              out.add(_tkhd(c, first: i == 0));
+              // A picture's header is left as it was written: enabled, in no group.
+              out.add(sound ? _tkhd(c, first: i == 0) : c);
             } else if (t == 'mdia') {
               out.add(_box('mdia', [for (final m in _children(c, 8)) _type(m) == 'hdlr' && name != null ? _hdlr(m, name) : walk(m)]));
             } else if (t == 'udta') {

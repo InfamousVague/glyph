@@ -65,11 +65,30 @@
 <h2 id="sign-in">Sign in on another device</h2>
 <p>On the new device: <span class="ui-path">Settings › Me › Account › Sign in to your Ghost account</span>. Sign in with your username and password, or with your 12 recovery words alone.</p>
 <figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Sign in to your Ghost account</span></div><div class="m-body">
-  <div class="m-tabs"><span class="on">Username</span><span class="">Recovery words</span></div>
+  <div class="m-tabs"><span class="on">Username</span><span class="">Recovery words</span><span class="">Phone</span></div>
   <label class="m-field"><span>Username</span><span class="m-input">alex</span></label>
   <label class="m-field"><span>Password</span><span class="m-input">••••••••••••</span></label>
   <span class="m-btn primary tap"><span>Sign in</span></span>
 </div></div><figcaption>If your account has a verified number, a code is texted to it as well.</figcaption></figure>
+<h3 id="scan">Or scan a code with your phone</h3>
+<p>If your Android phone is already signed in, it can sign the new device in for you, with nothing to type.</p>
+<ol class="steps">
+<li class="step"><div class="step-body"><h3>Show the code on the new device</h3>
+<p>On its sign-in screen, choose <b>Phone</b>. It shows a QR code. The code holds nothing of your account, and a new one takes its place every two minutes.</p>
+</div></li>
+<li class="step"><div class="step-body"><h3>Scan it with your phone</h3>
+<p>On the phone: <span class="ui-path">Settings › Me › Account › Sign in a new device</span>, and point the camera at the code. The scanner in <span class="ui-path">Settings › Computers</span> reads it too.</p>
+</div></li>
+<li class="step"><div class="step-body"><h3>Compare the six digits</h3>
+<p>Both show six digits. If they are the same, tap <b>They match, sign it in</b> on the phone. If they differ, tap <b>They don't match</b>: nothing is sent.</p>
+</div></li>
+<li class="step"><div class="step-body"><h3>Unlock</h3>
+<p>The phone asks for its lock first: your Ghost Messaging PIN or fingerprint if you lock the app (<span class="ui-path">Settings › Lock the app</span>), otherwise the phone's fingerprint or face. A phone with neither asks for your account's password. Then the new device signs in. No texted code is asked.</p>
+</div></li>
+</ol>
+<aside class="note warn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#triangle-alert"/></svg><div><b>Only for a device in front of you</b><p>Saying yes signs that device in as you, with everything of your account. Never do it for a code someone else shows you or sends you, whoever they say they are. A device signed in this way is listed under <b>Signed in on these devices</b>, where you can remove it.</p></div></aside>
+<p>Both devices need to be on the same relay. Scanning works from an Android phone for now.</p>
+
 <aside class="note warn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#triangle-alert"/></svg><div><b>Signing in replaces what's on the device</b><p>Signing in makes the device your account. Anything on it from before, as someone else, is replaced, and the app starts again. Your texts are not touched.</p></div></aside>
 
 <h2 id="manage">Devices, password and signing out</h2>

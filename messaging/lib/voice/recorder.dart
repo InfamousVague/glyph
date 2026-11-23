@@ -16,6 +16,11 @@
 /// clock (silence where someone came late, left or dropped out), so a crash loses only the file at the end. Stopping
 /// mixes them, has the platform encode each as AAC into one MP4, and names the tracks (lib/voice/mp4_names.dart). The
 /// recording stays on the device ([CallRecorder.folder]) until its maker shares it.
+///
+/// **With video** (GMFB-42, lib/voice/recording_video.dart), on a Mac, where its maker chose so at the start: one track
+/// of video after the voices, the cameras and shared screens of those who said yes to voice and video. The native half
+/// encodes it to a file of its own while the call runs (the frames can't be kept as they are, as the voices are), and
+/// the stop copies it into the MP4 beside the voices without encoding it again.
 library;
 
 import 'dart:async';
@@ -35,13 +40,14 @@ import '../plugins/scribe.dart' show ScribePlugin;
 import 'mp4_merge.dart';
 import 'mp4_names.dart';
 import 'plugin_note.dart';
+import 'recording_video.dart';
 import 'scribe.dart';
 import 'voice.dart';
 
 /// One recording kept on this device.
 @immutable
 class Recording {
-  const Recording({required this.id, required this.path, required this.space, required this.at, required this.seconds, required this.people, this.by = '', this.seed = '', this.markers = const [], this.mixedFrom});
+  const Recording({required this.id, required this.path, required this.space, required this.at, required this.seconds, required this.people, this.by = '', this.seed = '', this.markers = const [], this.mixedFrom, this.video = false});
 
   final String id;
 
@@ -69,7 +75,10 @@ class Recording {
   /// in a call.
   final String? mixedFrom;
 
-  Map<String, Object?> toJson() => {'id': id, 'path': path, 'space': space, 'at': at.millisecondsSinceEpoch, 'seconds': seconds, 'people': people, 'by': by, 'seed': seed, if (markers.isNotEmpty) 'markers': markers, 'from': ?mixedFrom};
+  /// It has a track of video after its voices: the call's cameras and shared screens (GMFB-42).
+  final bool video;
+
+  Map<String, Object?> toJson() => {'id': id, 'path': path, 'space': space, 'at': at.millisecondsSinceEpoch, 'seconds': seconds, 'people': people, 'by': by, 'seed': seed, if (markers.isNotEmpty) 'markers': markers, 'from': ?mixedFrom, if (video) 'video': true};
 
   static Recording? fromJson(Object? j) {
     if (j is! Map || j['id'] is! String || j['path'] is! String || j['at'] is! int) return null;
@@ -84,6 +93,7 @@ class Recording {
       seed: '${j['seed'] ?? ''}',
       markers: [for (final m in (j['markers'] as List? ?? const [])) if (m is num) m.toDouble()],
       mixedFrom: j['from'] is String ? j['from'] as String : null,
+      video: j['video'] == true,
     );
   }
 }
@@ -109,6 +119,16 @@ class _Taking {
 
   /// The moments marked, in seconds from the start.
   final List<double> markers = [];
+
+  /// It takes video too (GMFB-42): the native half is encoding the call's picture beside the voices.
+  bool video = false;
+
+  /// The picture's file while it is made: video alone, put into the MP4 at the stop.
+  String get videoPart => '$dir/video.mov';
+
+  /// What the native half was last told to draw ([VideoLayout.signature]), and the telling still on its way.
+  String pictureSaid = '';
+  Future<void> picturing = Future.value();
 }
 
 /// How loud each voice is as it is recorded, a tenth of a second at a time: read from the files the native half
@@ -403,6 +423,13 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
   /// Matt, 2026-11-21: "my friend is not able to see plugins added for recording calls on his pc"); not a browser.
   static bool get supported => !kIsWeb && (PlatformInfo.isAndroid || PlatformInfo.isMacOS || PlatformInfo.isIOS || PlatformInfo.isWindows);
 
+  /// Whether this device can put the call's cameras and shared screens in a recording: a Mac (GMFB-42,
+  /// lib/voice/recording_video.dart). Everywhere else a recording is the voices, as before.
+  static bool get videoSupported => supported && RecordingVideo.supported;
+
+  /// Whether the recording being made takes video.
+  bool get recordingVideo => _now?.video ?? false;
+
   _Taking? _now;
 
   /// Each voice's loudness as it is recorded (RecordingMeter), read every tenth of a second while recording.
@@ -535,8 +562,10 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
 
   StreamSubscription<void>? _watch;
 
-  /// Starts recording the call [Voice] is in; the reason in words where it can't.
-  Future<String?> start() async {
+  /// Starts recording the call [Voice] is in; the reason in words where it can't. [video]: with the call's cameras
+  /// and shared screens too, where this device can ([videoSupported]) and the picture's file can be begun; otherwise
+  /// the voices alone, and [recordingVideo] says which it was.
+  Future<String?> start({bool video = false}) async {
     final v = Voice.instance;
     final s = v.session;
     if (s == null) return 'There is no call to record.';
@@ -552,14 +581,25 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
     }
     final t = _now = _Taking(id, dir.path, s.channel.name, s.channel.seed, DateTime.now());
     t.names['me'] = s.name.isEmpty ? 'You' : s.name;
-    s.setRecording(id);
+    // The picture's file begun before anyone is asked: what they are asked ("voice and video", or the voice alone) is
+    // what is then taken, for the recording's whole length.
+    if (video && videoSupported) {
+      try {
+        t.video = await _channel.invokeMethod<bool>('video.start', {'path': t.videoPart, 'width': RecordingVideo.width, 'height': RecordingVideo.height, 'fps': RecordingVideo.fps, 'bitrate': RecordingVideo.bitrate}) ?? false;
+      } catch (e) {
+        debugPrint('recorder: no video: $e');
+      }
+    }
+    s.setRecording(id, video: t.video);
     s.answerRecording(id, true);
     // A line every build shows, the browser page and older apps among them.
     // With Record call's note, which draws it as a card with its icon (lib/plugins/record_call.dart); the words are what
     // a build without it shows.
     v.hangoutFor(s.channel)?.sendWith(
-      text: '🔴 ${t.names['me']} started recording this call. Only the voices of people who say yes are in it.',
-      note: PluginChatNote('recordcall', 'started', {'by': t.names['me']!}),
+      text: t.video
+          ? '🔴 ${t.names['me']} started recording this call, with video. Only people who say yes are in it.'
+          : '🔴 ${t.names['me']} started recording this call. Only the voices of people who say yes are in it.',
+      note: PluginChatNote('recordcall', 'started', {'by': t.names['me']!, if (t.video) 'video': '1'}),
     );
     _watch = _changes(s).listen((_) => _follow(s));
     _follow(s);
@@ -582,9 +622,13 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
     final media = s.media;
     final sounds = media is SoundMedia ? (media as SoundMedia).sounds : null;
     sounds?.addListener(tell);
+    // And whenever a picture comes, goes or changes, for a recording that draws them (GMFB-42).
+    final pictures = media is PictureMedia ? (media as PictureMedia).pictureChanges : null;
+    pictures?.addListener(tell);
     c.onCancel = () {
       s.removeListener(tell);
       sounds?.removeListener(tell);
+      pictures?.removeListener(tell);
     };
     return c.stream;
   }
@@ -646,7 +690,44 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
       t.trackOf.remove(gone);
       unawaited(_channel.invokeMethod('remove', {'key': gone}).catchError((_) {}));
     }
+    if (t.video) _picture(s, t);
     notifyListeners();
+  }
+
+  /// Tells the native half what the recording's picture is made of now, where that has changed: who has a tile, whose
+  /// camera or screen may be drawn in it (only with their yes to voice and video), and where each goes
+  /// (lib/voice/recording_video.dart). The tiles' backs and names go as a picture painted here.
+  void _picture(VoiceSession s, _Taking t) {
+    final media = s.media;
+    final pictures = media is PictureMedia ? media as PictureMedia : null;
+    final layout = RecordingVideo.layout(RecordingVideo.faces(
+      recording: t.id,
+      myName: t.names['me']!,
+      members: s.members.values,
+      nameOf: Voice.instance.nameOf,
+      own: pictures?.ownPicture,
+      pictures: pictures?.pictures ?? const {},
+    ));
+    final said = layout.signature;
+    if (said == t.pictureSaid) return;
+    t.pictureSaid = said;
+    // One at a time, in order; one that a newer has overtaken while it waited is not sent.
+    t.picturing = t.picturing.then((_) async {
+      if (_now != t || t.pictureSaid != said) return;
+      try {
+        final plate = await RecordingVideo.plate(layout);
+        if (_now != t) return;
+        final missing = await _channel.invokeMethod<Object?>('video.layout', {'plate': plate, 'width': layout.width, 'height': layout.height, 'tiles': layout.toNative()});
+        // A track said here before the native half holds it: told again in a second, as a voice's is.
+        if (missing is List && missing.isNotEmpty && _now == t && t.pictureSaid == said) {
+          t.pictureSaid = '';
+          _again?.cancel();
+          _again = Timer(const Duration(seconds: 1), () => unawaited(_follow(s)));
+        }
+      } catch (e) {
+        debugPrint('recorder: the picture was not laid out: $e');
+      }
+    });
   }
 
   /// Stops the recording and makes its MP4; the recording, or null where nothing could be made.
@@ -667,7 +748,19 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
     // What the "stopped" card says (lib/plugins/record_call.dart): how long, how many voices, where it went.
     var seconds = DateTime.now().difference(t.started).inSeconds;
     var voices = 0;
+    var pictured = false;
     try {
+      // The picture's file is closed first, where one was made and has any frames.
+      String? picture;
+      if (t.video) {
+        try {
+          await t.picturing;
+          final got = await _channel.invokeMethod<Object?>('video.stop');
+          if (got is Map && ((got['frames'] as num?)?.toInt() ?? 0) > 0) picture = t.videoPart;
+        } catch (e) {
+          debugPrint('recorder: the video was not closed: $e');
+        }
+      }
       final counts = ((await _channel.invokeMethod<Map>('stop')) ?? const {}).map((k, v) => MapEntry('$k', (v as num).toInt()));
       // Every voice that has any sound, 'me' first, in the order they came.
       final keys = [for (final k in t.names.keys) if ((counts[k] ?? 0) > 0) k];
@@ -679,10 +772,10 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
       await runAside(() => mixPcm(paths, mix, gains: moved));
       final out = '${folder().path}/${t.id}.mp4';
       final names = ['Everyone', for (final k in keys) t.names[k]!];
-      await makeMp4([mix, ...paths], out, names, work: t.dir);
+      pictured = await makeMp4([mix, ...paths], out, names, work: t.dir, video: picture);
       seconds = (counts.values.fold<int>(0, (a, b) => a > b ? a : b) / 48000).round();
       voices = keys.length;
-      final r = Recording(id: t.id, path: out, space: t.space, at: t.started, seconds: seconds, people: names.skip(1).toList(), by: t.names['me']!, seed: t.seed, markers: List.of(t.markers));
+      final r = Recording(id: t.id, path: out, space: t.space, at: t.started, seconds: seconds, people: names.skip(1).toList(), by: t.names['me']!, seed: t.seed, markers: List.of(t.markers), video: pictured);
       _readKept();
       _kept.insert(0, r);
       _writeKept();
@@ -712,6 +805,7 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
           'by': t.names['me']!,
           'seconds': '$seconds',
           if (voices > 0) 'voices': '$voices',
+          if (pictured) 'video': '1',
           'savedTo': ?savedTo,
         }),
       );
@@ -721,7 +815,12 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
   /// Makes [out], an MP4 with a track of AAC for each of [inputs] (48 kHz mono 16-bit files, the mix first), named
   /// [names]; [work] is a folder for what is made on the way. Also what a recording mixed again in the mixer is saved
   /// as (lib/voice/recording_playback.dart).
-  static Future<void> makeMp4(List<String> inputs, String out, List<String> names, {required String work}) async {
+  ///
+  /// [video] is a file of video alone to put in as the last track, as it is (GMFB-42; a Mac's, which is where one is
+  /// made). After the voices, so every voice keeps its place in the file and a reader that counts tracks finds them
+  /// where they were. True where the file made has it.
+  static Future<bool> makeMp4(List<String> inputs, String out, List<String> names, {required String work, String? video}) async {
+    var pictured = false;
     if (!kIsWeb && PlatformInfo.isWindows) {
       // Windows makes each voice an AAC file of its own; they are put together here (lib/voice/mp4_merge.dart).
       final parts = <String>[];
@@ -732,9 +831,12 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
       }
       await Mp4Merge.merge(parts, out);
     } else {
-      await _channel.invokeMethod('mux', {'out': out, 'inputs': inputs});
+      // With a picture asked for, the answer says whether it went in; without, it is the file's path, as it was.
+      final made = await _channel.invokeMethod<Object?>('mux', {'out': out, 'inputs': inputs, 'video': ?video});
+      pictured = made is Map && made['video'] == true;
     }
     await Mp4Names.apply(out, names);
+    return pictured;
   }
 
   /// Keeps [r] in the list of recordings on this device, the newest first (a recording mixed again in the mixer).

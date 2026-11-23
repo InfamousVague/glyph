@@ -99,6 +99,16 @@
 <li class="step"><div class="step-body"><h3>Signing out</h3><p>The whole database is deleted, its key with it, and the page asks its server for <code>Clear-Site-Data</code> (<code>relay/lib/web_app.dart</code> answers it at <code>/app/clear-site-data</code>). A browser removed from the account on another device does the same when it next hears of it.</p></div></li>
 </ol>
 
+<h2 id="scan-sign-in">Signing in a new device by a scanned code</h2>
+<p>A phone already signed in hands the account's recovery words to a new device (<code>lib/account/handover.dart</code>; the screens are <code>lib/ui/handover_screens.dart</code>). The relay needs nothing new: the two meet in an ordinary room.</p>
+<ol class="steps">
+<li class="step"><div class="step-body"><h3>The new device shows a code</h3><p><code>HandoverNewDevice.start</code> makes a P-256 key pair and a 32-byte secret for this one sign-in. The QR holds the public key, the secret and the hub's address (<code>HandoverCode</code>), nothing of any account. It joins a room whose name and token are made from the secret (<code>HubHandoverRoom</code>, <code>lib/account/handover_hub.dart</code>).</p></div></li>
+<li class="step"><div class="step-body"><h3>The phone scans it</h3><p><code>HandoverPhone.start</code> makes a key pair of its own, joins the same room and says its public key, sealed with a key made from the secret. A new device on another relay is refused here: the account would not be found there.</p></div></li>
+<li class="step"><div class="step-body"><h3>Both hold one key</h3><p>ECDH of the two keys through HKDF, salted with the secret and bound to both public keys (<code>HandoverKeys.make</code>). The six digits are made from it. The new device answers with proof of the key, and only then can the phone approve.</p></div></li>
+<li class="step"><div class="step-body"><h3>The phone's lock</h3><p>On yes, the screen asks the app's lock (<code>lib/app_lock/app_lock.dart</code>) or the phone's fingerprint or face, and where there is neither, the account's password.</p></div></li>
+<li class="step"><div class="step-body"><h3>The words go once</h3><p><code>HandoverPhone.approve</code> seals the words with a key made from the shared one. The new device takes one answer, leaves the room, and signs in with <code>Account.signInWithWords</code>. Each side gives up two minutes after it began. Room packets are passed on and never kept by the relay.</p></div></li>
+</ol>
+
 <h2 id="cookies">Signing in to a network with browser cookies</h2>
 <p>Messenger, Instagram, Discord, X and Slack.</p>
 <ol class="steps">
@@ -129,7 +139,7 @@
     <nav class="prevnext"><a class="prev" href="/docs/developer/architecture/"><small>Previous</small>How the app is built</a><a class="next" href="/docs/developer/build/"><small>Next</small>Build, test and run it</a></nav>
     <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
   </main>
-  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#sms">Sending a text</a><a href="#hub">A message to a friend</a><a href="#route">The hub or a direct link</a><a href="#elsewhere">Adding a friend on another relay</a><a href="#call">Joining a call in a space</a><a href="#web">Signing in from a browser</a><a href="#cookies">Signing in to a network with browser cookies</a><a href="#pair">Pairing a computer</a><a href="#plugin">Adding a Marketplace plugin</a></nav>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#sms">Sending a text</a><a href="#hub">A message to a friend</a><a href="#route">The hub or a direct link</a><a href="#elsewhere">Adding a friend on another relay</a><a href="#call">Joining a call in a space</a><a href="#web">Signing in from a browser</a><a href="#scan-sign-in">Signing in a new device by a scanned code</a><a href="#cookies">Signing in to a network with browser cookies</a><a href="#pair">Pairing a computer</a><a href="#plugin">Adding a Marketplace plugin</a></nav>
 </div>
 <script src="/docs/docs.js" defer></script>
 </body>

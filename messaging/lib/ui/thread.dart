@@ -46,6 +46,9 @@ import '../voice/voice.dart';
 import '../voice/channels.dart';
 import '../voice/friend_calls.dart';
 import '../friends/buddies.dart';
+import '../net/net.dart' show Net;
+import '../souls/souls_send.dart' show SoulsCard;
+import 'souls_send.dart';
 import '../me/me.dart' show Me;
 import 'encryption.dart';
 import 'message_popover.dart';
@@ -942,6 +945,69 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     return Buddies.instance.all.where((b) => b.state == 'yes' && b.username.toLowerCase() == name).firstOrNull;
   }
 
+  /// The friend by username souls can be sent to from here, and whose souls cards are drawn here (GMFB-39, "Payments
+  /// between friends"; Matt, 2026-11-23: "Tip souls in a chat"): one person, a friend, written to by this app itself
+  /// (a computer that shows its phone's conversations leaves it to the phone). Where they are here under two ids, the
+  /// newest, which is the one the relay knows their username by.
+  Buddy? get _soulsFriend {
+    if (_group || _people.length != 1 || !UsernameChats.isUsername(_people.first.address) || !Sms.ownNetwork) return null;
+    final name = _people.first.address.substring(1).toLowerCase();
+    return Buddies.instance.shownFriends.where((b) => b.state == 'yes' && b.username.toLowerCase() == name).firstOrNull;
+  }
+
+  /// The composer's + in a chat with a friend by username, where pictures can't go yet: what can be added instead.
+  void _plusForFriend() {
+    showChoices(context, choices: [
+      Choice('Send souls', Lucide.flame, _sendSouls, hint: 'A thank-you from your souls to theirs'),
+    ]);
+  }
+
+  /// Opens the page souls are sent from (lib/ui/souls_send.dart). The card goes into this conversation as a message
+  /// to the friend, by the app's routes, as words written here do.
+  Future<void> _sendSouls() async {
+    final b = _soulsFriend;
+    if (b == null) return;
+    // Souls are kept by one relay and stay on it: a friend who lives on another has no count here to add to.
+    if (Buddies.instance.elsewhere(b)) {
+      toast(context, '${b.shown} is on another relay. Souls can only be sent to friends on yours.');
+      return;
+    }
+    final address = _people.first.address;
+    await push<void>(context, (_) => SendSoulsScreen(to: b.id, name: b.shown, write: (words) => Friends.instance.sendText(address, words)));
+    if (mounted) _load();
+  }
+
+  /// [m] as a souls card, where it is one in a chat with a friend souls can be sent to ([_soulsFriend]); null for
+  /// every other message, which is drawn as its words.
+  ({SoulsCard card, Buddy friend})? _soulsCardOf(Message m) {
+    if (m.notice != null || m.attachments.isNotEmpty) return null;
+    final card = SoulsCard.of(m.body);
+    if (card == null) return null;
+    final friend = _soulsFriend;
+    return friend == null ? null : (card: card, friend: friend);
+  }
+
+  /// The souls card the message at [i] of [msgs] (newest first) is. Who sent to whom is who wrote the message, never
+  /// what it says: the relay's receipt has to agree with that before the card says souls were sent, and the same
+  /// receipt on a message further up makes this one a repeat that says so.
+  Widget _soulsCard(({SoulsCard card, Buddy friend}) souls, List<Message> msgs, int i, {double maxWidth = 320, Widget Function(String words)? line}) {
+    final m = msgs[i];
+    final me = Net.instance.hub?.signer.id ?? '';
+    final receipt = 'Souls receipt: ${souls.card.id}';
+    return SoulsSentCard(
+      key: ValueKey('souls-${m.key}'),
+      card: souls.card,
+      mine: m.outgoing,
+      name: souls.friend.shown,
+      from: m.outgoing ? me : souls.friend.id,
+      to: m.outgoing ? souls.friend.id : me,
+      repeat: msgs.skip(i + 1).any((o) => o.body.contains(receipt)),
+      maxWidth: maxWidth,
+      onLongPress: () => _messageMenu(m),
+      line: line,
+    );
+  }
+
   /// Rings the friend this conversation is with ([_callable]) and goes to the call. Where they couldn't be reached, says
   /// so and leaves the call it had made.
   Future<void> _callFriend({required bool video}) async {
@@ -1169,6 +1235,16 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       final newer = i > 0 ? msgs[i - 1] : null;
       final older = i < msgs.length - 1 ? msgs[i + 1] : null;
       bool joins(Message? a, Message b) => a != null && !_isLine(a) && a.outgoing == b.outgoing && a.address == b.address && a.date.difference(b.date).inMinutes.abs() < 3;
+      // Souls a friend sent, or you sent them: the card, on the side of whoever sent (lib/ui/souls_send.dart; GMFB-39).
+      final souls = _soulsCardOf(m);
+      if (souls != null) {
+        items.add(Padding(
+          padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1)),
+          child: Align(alignment: m.outgoing ? Alignment.centerRight : Alignment.centerLeft, child: _soulsCard(souls, msgs, i, maxWidth: MediaQuery.sizeOf(context).width * 0.8)),
+        ));
+        if (older == null || !_sameDay(older.date, m.date)) items.add(_DayHeading(date: m.date, busy: busy));
+        return items;
+      }
       if (_isLine(m)) {
         // A text that carried an encryption key, or a chat background: a line saying so, where its letters would
         // have been a bubble.
@@ -1266,6 +1342,13 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       final m = msgs[i];
       final newer = i > 0 ? msgs[i - 1] : null;
       final older = i < msgs.length - 1 ? msgs[i + 1] : null;
+      // Souls sent, as the room's speaker says it (lib/ui/souls_send.dart; GMFB-39).
+      final souls = _soulsCardOf(m);
+      if (souls != null) {
+        items.add(_soulsCard(souls, msgs, i, line: (words) => HostLine(words, onLongPress: () => _messageMenu(m))));
+        if (older == null || !_sameDay(older.date, m.date)) items.add(HostLine.day(m.date));
+        continue;
+      }
       if (_isLine(m)) {
         final who = nameOf(m);
         items.add(HostLine(
@@ -1644,7 +1727,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
             final buttons = composerButtons(
               t,
               hasSomething: _text.text.isNotEmpty || _attachments.isNotEmpty || editing,
-              onAttach: Sms.can('sendPictures') && !_isGhost && !_byName && !editing && _attachments.length < 5 ? _attach : null,
+              // To a friend by username, where pictures can't go yet, the + offers what can: Send souls (GMFB-39).
+              onAttach: Sms.can('sendPictures') && !_isGhost && !_byName && !editing && _attachments.length < 5 ? _attach : (!editing && _soulsFriend != null ? _plusForFriend : null),
               onSticker: Sms.can('sendSticker') && reach && !_sending && _attachments.isEmpty ? _sticker : null,
               onRecord: Sms.can('sendVoice') && Sms.canRecordVoice && reach && !_sending && _attachments.isEmpty ? _record : null,
               onSend: canSend ? _send : null,

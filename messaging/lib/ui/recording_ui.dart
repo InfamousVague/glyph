@@ -130,7 +130,8 @@ class _RecordingBannerState extends State<RecordingBanner> {
           final others = names.length <= 1 ? 'only your voice so far' : names.skip(1).join(', ');
           // Mixer opens the tracks, their meters and faders full screen (Matt, 2026-11-20: "make the recording plugin
           // banner have a button for "mixer" and have it open a drawer full screen with the audio tracks and whatnot").
-          lines.add(line('Recording$clock · $others', [
+          // With the cameras and shared screens of those who said yes to both (GMFB-42).
+          lines.add(line('Recording${rec.recordingVideo ? ' with video' : ''}$clock · $others', [
             pill('Mixer', () => unawaited(showRecordingMixer(context)), icon: Lucide.slidersHorizontal),
             pill('Stop', () => _stop(context), solid: true, icon: Lucide.square),
           ], key: 'recording-mine'));
@@ -192,8 +193,8 @@ class RecordingsScreen extends StatelessWidget {
                     for (final r in kept)
                       SettingRow(
                         key: ValueKey('recording-${r.id}'),
-                        icon: AppIcon(Lucide.audioLines, size: 18),
-                        label: '${r.space.isEmpty ? 'A call' : r.space} · ${_date(r.at)}${r.mixedFrom == null ? '' : ' · mixed again'}',
+                        icon: AppIcon(r.video ? Lucide.video : Lucide.audioLines, size: 18),
+                        label: '${r.space.isEmpty ? 'A call' : r.space} · ${_date(r.at)}${r.mixedFrom == null ? '' : ' · mixed again'}${r.video ? ' · with video' : ''}',
                         hint: Text('${_clock(Duration(seconds: r.seconds))} · ${r.people.join(', ')}${r.markers.isEmpty ? '' : ' · marked at ${r.markers.map((m) => _clock(Duration(seconds: m.floor()))).join(', ')}'}${_wordsNote(r)}'),
                         onPress: () => _actions(context, r),
                       ),
@@ -226,8 +227,10 @@ class RecordingsScreen extends StatelessWidget {
       // Every voice a track of the timeline and a strip of the mixer, to play and mix again (lib/voice/recording_playback.dart).
       // First, before the player (Matt, 2026-11-23: "i want to see the mixer when viewing sounds recordings but it
       // just loads the media player view").
+      // One with video is played first, since only the player shows its picture (GMFB-42); the mixer has its voices.
+      if (r.video) Choice('Play', Lucide.play, () => push(context, (_) => VideoScreen(path: r.path, title: r.space.isEmpty ? 'Recording' : r.space))),
       if (r.people.isNotEmpty) Choice('Open in the mixer', Lucide.slidersHorizontal, () => unawaited(showRecordingPlayback(context, r))),
-      Choice('Play', Lucide.play, () => push(context, (_) => VideoScreen(path: r.path, title: r.space.isEmpty ? 'Recording' : r.space))),
+      if (!r.video) Choice('Play', Lucide.play, () => push(context, (_) => VideoScreen(path: r.path, title: r.space.isEmpty ? 'Recording' : r.space))),
       // Scribe's (lib/plugins/scribe.dart): the words, where it is on for this recording.
       if (CallScribe.instance.of(r) != null)
         Choice('Read the words', Lucide.scrollText, () => push(context, (_) => TranscriptScreen(recording: r)))

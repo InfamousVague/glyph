@@ -178,6 +178,12 @@ class Account extends ChangeNotifier {
     return AccountCrypto.validWords(words) ? words : null;
   }
 
+  /// The recovery words this device keeps, to hand to a new device of the person's that a phone signed in here scanned
+  /// the code of (GMFB-45; lib/account/handover.dart). Asked only once the phone's own lock was passed
+  /// (lib/ui/handover_screens.dart). Null where this device is signed in to nothing or keeps no words (a browser,
+  /// [keepsWords]): the password opens them there ([revealWords]).
+  Future<List<String>?> wordsForNewDevice() async => signedIn && keepsWords ? _keptWords() : null;
+
   /// Notes in the preferences that this device is in the account at [address], with the password's sealed copy.
   void _keepHere({required String address, required String mode, required String sealed}) {
     store.set('acct_address', address);

@@ -58,6 +58,8 @@ class ScanActivity : Activity() {
         const val RESULT_TEXT = "text"
         private const val TAG = "GhostDesk"
         private const val PERMISSION = 51
+        /** What a new device's sign-in code starts with (HandoverCode.tag in lib/account/handover.dart). */
+        private const val SIGN_IN_TAG = "GHOSTSIGNIN1:"
     }
 
     private lateinit var preview: TextureView
@@ -77,7 +79,7 @@ class ScanActivity : Activity() {
         super.onCreate(savedInstanceState)
         preview = TextureView(this)
         hint = TextView(this).apply {
-            text = "Point the camera at the code on your computer"
+            text = "Point the camera at the code on the other screen"
             setTextColor(Color.WHITE)
             textSize = 16f
             gravity = Gravity.CENTER
@@ -169,8 +171,10 @@ class ScanActivity : Activity() {
                     if (plane.rowStride == w) buffer.get(luminance, 0, minOf(buffer.remaining(), w * h))
                     else for (row in 0 until h) { buffer.position(row * plane.rowStride); buffer.get(luminance, row * w, minOf(w, buffer.remaining())) }
                     val text = Scan.read(luminance, w, h)
-                    if (text != null && DeskCrypto.isOffer(text)) found(text)
-                    else if (text != null) runOnUiThread { hint.text = "That code isn't a Ghost Messaging pairing code" }
+                    // A computer's pairing code, or a new device's sign-in code (GMFB-45; lib/account/handover.dart):
+                    // whoever opened the camera tells the two apart.
+                    if (text != null && (DeskCrypto.isOffer(text) || text.trim().startsWith(SIGN_IN_TAG))) found(text)
+                    else if (text != null) runOnUiThread { hint.text = "That code isn't one of Ghost Messaging's" }
                 } catch (e: Exception) { Log.w(TAG, "frame", e) } finally { image.close() }
             }, background)
             val request = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {

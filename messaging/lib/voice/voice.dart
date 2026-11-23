@@ -422,6 +422,22 @@ abstract class SoundMedia {
   ValueListenable<Map<String, VoiceSound>> get sounds;
 }
 
+/// Media that can say which track each picture in the call is on, for a recording that takes video to draw
+/// (lib/voice/recording_video.dart; GMFB-42). lib/voice/rtc.dart's is one; a test's may be.
+abstract class PictureMedia {
+  /// Each other member's picture by their id, their camera or their screen: the received track and its connection's
+  /// mark, as [SoundMedia.sounds] says their sound. There from when their connection brings one, whether or not they
+  /// are sending anything on it.
+  Map<String, VoiceSound> get pictures;
+
+  /// What this device sends as its picture now: its screen while it shares, else its camera while video is on; null
+  /// while it sends none.
+  ({String track, bool screen})? get ownPicture;
+
+  /// Tells when [pictures] or [ownPicture] may have changed.
+  Listenable get pictureChanges;
+}
+
 /// How long a call waits before it mends a connection ([VoiceSession]'s `mend`): short in a test.
 @immutable
 class MendTimes {

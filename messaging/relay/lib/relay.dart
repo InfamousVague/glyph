@@ -8,6 +8,7 @@ import 'files.dart';
 import 'hub.dart';
 import 'market.dart';
 import 'sha256.dart';
+import 'souls_send.dart';
 import 'web_app.dart';
 import 'ws_door.dart';
 
@@ -25,7 +26,7 @@ import 'ws_door.dart';
 /// - A channel is removed when either end says so (unpairing), or after ninety days unused. One made for pairing
 ///   (`temp`) lives ten minutes at most, goes as soon as both ends have left it, and is never written to disk.
 class Relay {
-  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub, this.files, this.feedback, this.market, this.bounty, this.web, this.appOrigin, WireBudget? wire})
+  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub, this.files, this.feedback, this.market, this.bounty, this.souls, this.web, this.appOrigin, WireBudget? wire})
       : _now = now ?? DateTime.now,
         wire = wire ?? hub?.wire ?? WireBudget.shared;
 
@@ -73,6 +74,9 @@ class Relay {
 
   /// Bounties paid in souls by the bounty key (bounty.dart), under `/bounty`; none where null.
   final Bounty? bounty;
+
+  /// Souls sent from one person to another (souls_send.dart), under `/souls/send` and `/souls/receipt`; none where null.
+  final SoulsSend? souls;
 
   /// The Marketplace, plugins from other developers and their review (market.dart), served under `/market`; none where
   /// null.
@@ -173,7 +177,10 @@ class Relay {
   /// Whether [segments] is one of the two things the app's page sends from its own address ([appOrigin]), and this
   /// relay takes it: `/market/abuse`, `/feedback`.
   bool _fromTheApp(List<String> segments) =>
-      (segments.length == 2 && segments[0] == 'market' && segments[1] == 'abuse' && market != null) || (segments.length == 1 && segments[0] == 'feedback' && feedback != null) || _filesFromTheApp(segments);
+      (segments.length == 2 && segments[0] == 'market' && segments[1] == 'abuse' && market != null) || (segments.length == 1 && segments[0] == 'feedback' && feedback != null) || _souls(segments) || _filesFromTheApp(segments);
+
+  /// Whether [segments] is one of the two routes souls are sent by (souls_send.dart), and this relay has them.
+  bool _souls(List<String> segments) => souls != null && segments.length == 2 && segments[0] == 'souls' && (segments[1] == 'send' || segments[1] == 'receipt');
 
   /// Whether [segments] is a Files space's files, which the app's page at [appOrigin] lists, reads and writes from a
   /// build with Files spaces (docs/OPEN_NETWORK.md, part 6): `/files/<space>...`, and this relay keeps files. Every
@@ -238,6 +245,8 @@ class Relay {
     if (!upgrade && segments.length == 1 && segments.first == 'feedback' && feedback != null) return feedback!.handle(request);
     // A bounty's souls (bounty.dart): one signed POST to /bounty.
     if (!upgrade && segments.length == 1 && segments.first == 'bounty' && bounty != null) return bounty!.handle(request);
+    // Souls sent to a friend (souls_send.dart; GMFB-39): a signed POST to /souls/send, and /souls/receipt to check one.
+    if (!upgrade && _souls(segments)) return souls!.handle(request, segments[1]);
     if (!upgrade || !_hex(name, 32)) {
       request.response
         ..statusCode = upgrade ? HttpStatus.notFound : HttpStatus.ok

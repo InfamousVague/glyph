@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../account/handover.dart' show HandoverCode;
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
@@ -18,6 +19,7 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
+import 'handover_screens.dart' show HandoverApproveScreen;
 import 'settings.dart';
 
 /// One of the three ways a phone and a computer reach each other.
@@ -282,7 +284,15 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
       setState(() => _problem = 'The camera was refused. Paste the code instead, or allow the camera on Android\'s page for the app.');
       return;
     }
-    if (r.text != null) _begin(r.text!);
+    final text = r.text;
+    if (text == null) return;
+    // The same camera reads a new device's sign-in code (GMFB-45): that one goes to its own screen, where it is
+    // compared and asked about, and nothing is paired.
+    if (HandoverCode.isOne(text)) {
+      Navigator.of(context).pushReplacement(PageRouteBuilder<void>(pageBuilder: (_, _, _) => HandoverApproveScreen(code: text)));
+      return;
+    }
+    _begin(text);
   }
 
   /// Begins with a pairing code on the clipboard where there is one; otherwise shows the field to type one into.

@@ -328,7 +328,8 @@ void main() {
       expect(header(space), isEmpty, reason: 'not in its call');
       expect(header(const SpacePlace(space: 's', spaceName: 'Notes', voice: false, inCall: true)), isEmpty, reason: 'no call in a texting space');
       if (CallRecorder.supported) {
-        expect(header(const SpacePlace(space: 's', spaceName: 'Lounge', circle: 'c', inCall: true)), ['Record this call']);
+        // With video where this device can take it (GMFB-42), which is what the one button then says.
+        expect(header(const SpacePlace(space: 's', spaceName: 'Lounge', circle: 'c', inCall: true)), [CallRecorder.videoSupported ? 'Record voice and video' : 'Record this call']);
       }
     });
   });
