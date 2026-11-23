@@ -38,6 +38,7 @@ import '../../voice/soundboard.dart' show circleSounds, boardCircleMost;
 import '../soundboard_screen.dart';
 import '../../plugins/registry.dart' show PluginRegistry;
 import '../../plugins/record_call.dart' show RecordCallPlugin;
+import '../../sms.dart' show Sms;
 import '../../files/files_model.dart' show SpaceFile;
 import '../files_space/files_screen.dart' show askFileWords;
 import '../../voice/channels.dart';
@@ -388,7 +389,8 @@ class _SectionBody extends StatelessWidget {
       if (edit) ...[
         PaneSection(title: 'Circle', children: [
           SettingRow(key: const ValueKey('circle-rename'), icon: AppIcon(Lucide.pencil, size: 18), label: 'Name', value: Text(c.name), onPress: () => askCircleWords(context, title: 'Rename circle', initial: c.name, then: (n) => circles.edit(c, name: n))),
-          SettingRow(
+          // Not in a browser, which can't choose a picture yet (Sms.browser).
+          if (!Sms.browser) SettingRow(
             key: const ValueKey('circle-picture'),
             icon: AppIcon(Lucide.imagePlus, size: 18),
             label: c.picture == null ? 'Choose a picture' : 'Change the picture',
@@ -1156,7 +1158,7 @@ class _SpacePermissionsState extends State<_SpacePermissions> {
           value: Text(spaceKindTitle(s.kind)),
           onPress: edit
               ? () => showChoices(context, title: 'What kind of space is ${s.name}?', choices: [
-                    for (final k in SpaceKind.values)
+                    for (final k in spaceKindsOffered)
                       if (k != s.kind) Choice('Make it ${spaceKindTitle(k).toLowerCase()}', spaceKindIcon(k), () => circles.updateSpace(circles.bySeed(c.seed) ?? c, s.seed, kind: k), hint: spaceKindBlurb(k)),
                   ])
               : null,

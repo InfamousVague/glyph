@@ -14,21 +14,29 @@ import '../art/lucide_more.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../keys.dart';
+import '../sms.dart' show Sms;
 import 'common.dart';
 import 'settings.dart';
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 
-String shortcutsSummary(SettingsModel m) => Keys.instance.pushToTalk ? 'Push to talk on ${Keys.instance.of(KeyCommand.pushToTalk)?.label ?? 'no key'}' : 'Push to talk off';
+// Where there are no calls (a browser, for now: Sms.callsHere) there is no push to talk to speak of, nor the calls'
+// commands to put on keys.
+String shortcutsSummary(SettingsModel m) => !Sms.callsHere
+    ? 'Every command and its keys'
+    : Keys.instance.pushToTalk
+        ? 'Push to talk on ${Keys.instance.of(KeyCommand.pushToTalk)?.label ?? 'no key'}'
+        : 'Push to talk off';
 
 List<Widget> shortcutsPane(BuildContext context, SettingsModel m) {
   final keys = Keys.instance;
   final groups = <String, List<KeyCommand>>{};
   for (final c in KeyCommand.values) {
+    if (c.group == 'Calls' && !Sms.callsHere) continue;
     (groups[c.group] ??= []).add(c);
   }
   return [
-    PaneSection(
+    if (Sms.callsHere) PaneSection(
       footer: Text('In a call your microphone stays off, and is on only while you hold ${keys.of(KeyCommand.pushToTalk)?.label ?? 'its key'}. It works while Ghost Messaging is the app in front.'),
       children: [
         SettingRow(
