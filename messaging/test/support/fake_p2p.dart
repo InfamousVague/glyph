@@ -17,6 +17,7 @@ import 'package:ghost_messaging/net/p2p/node.dart';
 ///   final s = await a.open(b.nodeId!, P2pChannel.packets, hint: b.whereabouts.value);
 ///   mesh.unreachable(b);                                // nothing reaches it: a dial waits out its time and fails
 ///   mesh.natted(b);                                     // reached only through a link helper
+///   mesh.inbound(b, false);                             // it dials out, and nothing dials in
 ///   mesh.slow(b, const Duration(seconds: 2));           // a dial to it takes that long
 ///   await mesh.clock.pass(const Duration(seconds: 5));  // time moves when a test says so, never by itself
 ///
@@ -124,7 +125,7 @@ class FakeP2pMesh {
   /// How many frames have crossed.
   int frames = 0;
 
-  final Set<FakeP2pNode> _unreachable = {}, _natted = {};
+  final Set<FakeP2pNode> _unreachable = {}, _natted = {}, _deaf = {};
   final Map<FakeP2pNode, Duration> _slow = {};
   final Set<String> _cut = {};
   final Set<String> _helpersDown = {};
@@ -148,6 +149,10 @@ class FakeP2pMesh {
 
   /// No straight path to or from [n] (a router that lets nothing in): it is reached only through a link helper.
   void natted(FakeP2pNode n, [bool yes = true]) => _set(_natted, n, yes);
+
+  /// Whether anything can dial [n] (a router that lets out what it will not let in): with [yes] false it still dials
+  /// others, and a link it made itself carries both ways.
+  void inbound(FakeP2pNode n, bool yes) => _set(_deaf, n, !yes);
 
   /// A dial to or from [n] takes [dial] by the mesh's clock ([Duration.zero]: at once again).
   void slow(FakeP2pNode n, Duration dial) {
@@ -208,7 +213,7 @@ class FakeP2pMesh {
     final up = _links[_pair(from, to)];
     if (up != null) return up.kind;
     final there = to.whereabouts.value;
-    if (there == null) return null;
+    if (there == null || _deaf.contains(to)) return null;
     final told = [?hint, ?from._known[to._id]];
     // Straight: it was told an address the other has now, both let a straight path be, and they share a network.
     final address = told.any((w) => w.addresses.any(there.addresses.contains));
@@ -498,9 +503,12 @@ class FakeP2pNode implements P2pNode {
 
   @override
   P2pPath? pathTo(String nodeId) {
-    final other = mesh.nodes.where((n) => n._id == nodeId).firstOrNull;
-    final link = other == null ? null : mesh._links[FakeP2pMesh._pair(this, other)];
-    return link == null ? null : P2pPath(nodeId, link.kind, rttMs: FakeP2pMesh._rtt(link.kind));
+    // More than one node may have had this id: an app that started again is a new node with the same key.
+    for (final other in mesh.nodes.where((n) => n._id == nodeId)) {
+      final link = mesh._links[FakeP2pMesh._pair(this, other)];
+      if (link != null) return P2pPath(nodeId, link.kind, rttMs: FakeP2pMesh._rtt(link.kind));
+    }
+    return null;
   }
 }
 

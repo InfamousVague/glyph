@@ -179,8 +179,16 @@ void main() {
     expect(DeviceCard.fromJson(j, now: _made - _day - 1), isNull, reason: 'made more than a day ahead of this clock');
     // Signed to last sixty days: the signature is good, the card is not.
     final keys = _keys();
-    final long = {...j, 'x': _made + 60 * _day, 's': base64Encode(NetCrypto.sign(keys, DeviceCard.signedBytes(account: keys.id, device: _device, nodeId: _node, made: _made, until: _made + 60 * _day)))};
-    expect(DeviceCard.fromJson(long, now: _made), isNull);
+    Map<String, dynamic> signed(int made, int until) =>
+        {...j, 't': made, 'x': until, 's': base64Encode(NetCrypto.sign(keys, DeviceCard.signedBytes(account: keys.id, device: _device, nodeId: _node, made: made, until: until)))};
+    expect(DeviceCard.fromJson(signed(_made, _made + 30 * _day), now: _made), isNotNull, reason: 'signed here as the card was');
+    expect(DeviceCard.fromJson(signed(_made, _made + 60 * _day), now: _made), isNull);
+    // Signed to run out before it was made, or made before time began: the same.
+    expect(DeviceCard.fromJson(signed(_made + _day ~/ 2, _made + _day ~/ 4), now: _made), isNull);
+    expect(DeviceCard.fromJson(signed(_made + _day ~/ 2, _made + _day ~/ 2), now: _made), isNull);
+    expect(DeviceCard.fromJson(signed(-_day, _day), now: 1000), isNull);
+    expect(DeviceCard.fromJson(signed(0, _day), now: 1000), isNull);
+    expect(DeviceCard.fromJson(signed(1, _day), now: 1000), isNotNull);
   });
 
   test('made again when a week is left, or the node id, the device or the account is another', () async {

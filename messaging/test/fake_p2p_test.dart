@@ -362,6 +362,25 @@ void main() {
       expect(linked, isTrue);
     });
 
+    test('a node nothing can dial in to still dials out, and the link it made carries both ways', () async {
+      final (mesh, a, b) = await _two();
+      mesh.inbound(a, false);
+      var failed = false;
+      unawaited(b.open(a.nodeId!, _ch, hint: a.whereabouts.value).then<void>((_) {}, onError: (_) => failed = true));
+      await mesh.clock.pass(const Duration(seconds: 5));
+      expect(failed, isTrue, reason: 'nothing gets in');
+      final theirs = b.opened.first;
+      final s = await a.open(b.nodeId!, _ch, hint: b.whereabouts.value);
+      final heard = _Heard(s);
+      await (await theirs).add(_bytes([5]));
+      await mesh.clock.settle();
+      expect(heard.frames, [[5]]);
+      // And over the link that is up, the other end opens a stream too.
+      expect((await b.open(a.nodeId!, _ch)).nodeId, a.nodeId);
+      mesh.inbound(a, true);
+      await s.close();
+    });
+
     test('through a link helper only where no straight path can be: the helper the other is on, which the one dialling was given and told of', () async {
       final mesh = FakeP2pMesh();
       final a = mesh.node(), b = mesh.node(network: 'elsewhere');

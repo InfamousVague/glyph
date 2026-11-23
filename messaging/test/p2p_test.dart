@@ -1,0 +1,1208 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/net/carrier.dart';
+import 'package:ghost_messaging/net/crypto.dart';
+import 'package:ghost_messaging/net/hub_carrier.dart';
+import 'package:ghost_messaging/net/p2p/card.dart';
+import 'package:ghost_messaging/net/p2p/node.dart';
+import 'package:ghost_messaging/net/p2p/p2p.dart';
+import 'package:ghost_messaging/net/p2p/p2p_carrier.dart';
+import 'package:ghost_messaging/net/packet.dart';
+import 'package:ghost_relay/hub.dart';
+
+import 'support/direct_world.dart';
+import 'support/fake_p2p.dart';
+import 'support/hub_pair.dart';
+
+/// The direct route (lib/net/p2p; docs/OPEN_NETWORK.md, section 2; Matt, 2026-11-22: "p2p delivery with the relay as
+/// a primary source but have p2p as a secondary back up"): installs wired as the app wires them (support/
+/// direct_world.dart), over a real hub in memory and a stand-in for the direct network's core, on a clock the tests
+/// move by hand. Nothing here waits on the machine.
+
+const _helper = 'https://link.example';
+const _packets = {P2pChannel.packets};
+const _second = Duration(seconds: 1);
+const _minute = Duration(minutes: 1);
+
+/// A `p2p` envelope as a device makes one, at the world's time.
+Envelope _said(World w, Map<String, dynamic> body) => Envelope(kind: P2p.kind, body: body, ack: false, at: w.clock.ms);
+
+/// What a device that holds [to]'s card says to tell it [card] (or to ask it to meet): the card, and that it holds
+/// theirs, so nothing needs answering.
+Map<String, dynamic> _telling(Install to, DeviceCard card, {String what = 'card', Map<String, dynamic>? where}) => {'t': what, 'c': card.toJson(), 'w': ?where, 'h': [to.p2p.card!.tag]};
+
+/// A card [account] signed for a device that is not one of the installs: for a test of what is taken and what is not.
+Future<DeviceCard> _cardOf(World w, Account account, {String? device, String? node}) =>
+    DeviceCard.make(KeysSigner(account.keys), device: device ?? NetCrypto.hex(NetCrypto.randomBytes(16)), nodeId: node ?? NetCrypto.hex(NetCrypto.randomBytes(32)), now: w.clock.now());
+
+Map<String, dynamic> _kept(Install i, String name) => (jsonDecode(i.plain.kept[name] ?? '{}') as Map).cast<String, dynamic>();
+
+void main() {
+  late World w;
+  setUp(() => w = World());
+  tearDown(() => w.stop());
+
+  group('telling each other where we are', () {
+    test('two installs that are friends tell each other their cards through the relay once, and not again when they start again', () async {
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      final cardA = a.p2p.card!, cardB = b.p2p.card!;
+      // Each made its node key, kept it with its secrets, and its card names the node id that key makes.
+      final key = NetCrypto.unhex(a.secrets.kept[P2p.keyName]!);
+      expect(key, hasLength(32));
+      expect([cardA.account, cardA.device, cardA.nodeId], [a.account.id, a.device, FakeP2pNode.idFor(key)]);
+      expect(a.plain.kept.values.join(), isNot(contains(a.secrets.kept[P2p.keyName]!)), reason: 'the node key is in no choice');
+      // And each holds the other's, heard once.
+      expect(a.p2p.devicesOf(b.account.id).single.card, cardB);
+      expect(b.p2p.devicesOf(a.account.id).single.card, cardA);
+      expect([a.heard, b.heard], [['card from sam'], ['card from maya']]);
+      expect([a.p2p.friendsDevices, a.p2p.ownDevices], [1, 0]);
+      // The node lets in the devices cards are held for, on the packets channel, and nobody else.
+      expect(a.node.allowed, {cardB.nodeId: _packets});
+      expect(b.node.allowed, {cardA.nodeId: _packets});
+      // A phone's node was started for none of it, and nothing was dialled.
+      expect([a.node.starts, b.node.starts, w.mesh.dials], [0, 0, isEmpty]);
+      expect(_kept(a, P2p.toldName)[b.account.id], containsPair('c', cardA.tag));
+
+      // Both apps close and open again: the cards are still held, the nodes let the same devices in, and nothing more
+      // is said.
+      await a.restart();
+      await b.restart();
+      await w.clock.pass(const Duration(minutes: 5));
+      expect([a.heard, b.heard], [['card from sam'], ['card from maya']], reason: 'told once, not at every start');
+      expect([a.p2p.card, b.p2p.card], [cardA, cardB]);
+      expect(a.p2p.devicesOf(b.account.id).single.card, cardB);
+      expect(a.node.allowed, {cardB.nodeId: _packets});
+      expect(a.node.starts, 0);
+    });
+
+    test('one who starts while the other is away is told when they come, each still once', () async {
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
+      w.friends(a, b);
+      await a.start();
+      expect(w.memory.hub.heldFor(b.account.id), 1, reason: 'the relay keeps the card for them');
+      // A while later the other opens the app: it is handed the card as it signs in, before it has read its own.
+      await w.clock.pass(const Duration(seconds: 20));
+      await b.start();
+      expect(b.p2p.devicesOf(a.account.id).single.card, a.p2p.card);
+      expect(a.p2p.devicesOf(b.account.id).single.card, b.p2p.card);
+      expect([a.heard, b.heard], [['card from sam'], ['card from maya']]);
+      await w.clock.pass(const Duration(days: 2));
+      expect([a.heard, b.heard], [['card from sam'], ['card from maya']], reason: 'each holds the other\'s: nothing more to say or ask');
+    });
+
+    test('two that tell each other at the same moment each answer once, and then nothing more is said, at any later start either', () async {
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
+      w.friends(a, b);
+      // The relay is not there as they start, and comes back for both at once.
+      w.memory.down = true;
+      await a.start();
+      await b.start();
+      expect([a.heard, b.heard], [isEmpty, isEmpty]);
+      await w.relayBack();
+      // Each told the other not yet holding theirs, so each was answered: a card and an answer each way.
+      expect([a.heard, b.heard], [['card from sam', 'card from sam'], ['card from maya', 'card from maya']]);
+      expect(a.got.map((r) => r.envelope.body['h']), [isEmpty, [a.p2p.card!.tag]], reason: 'the answer says it holds this device\'s card');
+      await w.clock.pass(const Duration(days: 2));
+      await a.restart();
+      await b.restart();
+      await w.clock.pass(const Duration(days: 2));
+      expect([a.heard.length, b.heard.length], [2, 2]);
+    });
+
+    test('someone told who never says theirs is asked half a minute on and once a week after; when they do say it, it is taken and not answered', () async {
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
+      w.friends(a, b);
+      // Sam has Direct switched off.
+      await a.start();
+      await b.start();
+      await b.board.setOn('p2p', false);
+      await w.settle();
+      a.friends.remove(b.account);
+      await a.p2p.refresh();
+      a.friends.add(b.account);
+      await a.p2p.refresh();
+      await w.settle();
+      final heard = b.heard.length;
+      expect(a.p2p.devicesOf(b.account.id), isEmpty, reason: 'switched off, a device says nothing of itself');
+      expect(b.p2p.devicesOf(a.account.id), hasLength(1), reason: 'but takes what it is told, to have it when it is switched on');
+      await w.clock.pass(const Duration(seconds: 30));
+      expect(b.heard.sublist(heard), isEmpty);
+      await w.clock.pass(const Duration(seconds: 2));
+      expect(b.heard.sublist(heard), ['card? from maya']);
+      // Not again that week, however often the app starts.
+      await w.clock.pass(const Duration(days: 6));
+      await a.restart();
+      expect(b.heard.sublist(heard), ['card? from maya']);
+      await w.clock.pass(const Duration(days: 1, minutes: 1));
+      await a.restart();
+      expect(b.heard.sublist(heard), ['card? from maya', 'card? from maya']);
+      expect(a.p2p.devicesOf(b.account.id), isEmpty);
+      // Switched on: it tells its card, holding Maya's already, and that is the end of it.
+      final before = a.heard.length;
+      await b.board.setOn('p2p', true);
+      await w.settle();
+      expect(a.heard.sublist(before), ['card from sam']);
+      expect(a.p2p.devicesOf(b.account.id).single.card, b.p2p.card);
+      await w.clock.pass(const Duration(minutes: 5));
+      expect(b.heard.sublist(heard), hasLength(2));
+    });
+
+    test('a card is taken only from a sealed envelope whose sender is the account it names, and only from a friend', () async {
+      final maya = w.account('maya'), sam = w.account('sam'), dan = w.account('dan'), eve = w.account('eve');
+      final a = w.install(maya), b = w.install(sam), d = w.install(dan), e = w.install(eve);
+      w.friends(a, b);
+      // Dan has asked to be a friend: a key is held for him and the routes reach him, but he is not one. He holds Maya
+      // to be his.
+      a.known.add(dan);
+      d.friends.add(maya);
+      // Eve is nobody to Maya, and tries all the same.
+      e.friends.add(maya);
+      for (final i in [a, b, d, e]) {
+        await i.start();
+      }
+      expect(a.got.where((r) => r.peer.id == dan.id && r.envelope.kind == P2p.kind), hasLength(1), reason: 'Dan\'s card came, sealed with his key');
+      expect(a.p2p.devicesOf(dan.id), isEmpty, reason: 'and was not taken: he is not a friend');
+      expect(a.p2p.devicesOf(eve.id), isEmpty);
+      expect(a.node.allowed.keys, [b.p2p.nodeId]);
+      // Nor were they told anything: where this device is goes to friends only.
+      expect([d.heard, e.heard], [isEmpty, isEmpty]);
+      expect([d.p2p.devicesOf(maya.id), e.p2p.devicesOf(maya.id)], [isEmpty, isEmpty]);
+
+      // From a friend, but not sealed: a card for another device of his, good in itself.
+      final second = await _cardOf(w, sam);
+      await b.board.send(b.to(maya), _said(w, _telling(a, second)), sealed: false, only: {'hub'});
+      await w.settle();
+      expect(a.p2p.devicesOf(sam.id), hasLength(1), reason: 'in the clear, it is anyone\'s');
+      // From a friend and sealed, but naming another account: Eve's own card, and one for Maya's own account.
+      for (final card in [e.p2p.card!, a.p2p.card!]) {
+        for (final what in ['card', 'meet']) {
+          await b.board.send(b.to(maya), _said(w, _telling(a, card, what: what)), only: {'hub'});
+        }
+      }
+      await w.settle();
+      expect(a.p2p.devicesOf(eve.id), isEmpty);
+      expect(a.p2p.devicesOf(maya.id), isEmpty);
+      expect(a.p2p.devicesOf(sam.id), hasLength(1));
+      expect(a.node.allowed.keys, [b.p2p.nodeId]);
+      expect(a.node.starts, 0, reason: 'a meet with someone else\'s card brings nothing up');
+      // What it takes: his own card, in his own sealed envelope.
+      await b.board.send(b.to(maya), _said(w, _telling(a, second)), only: {'hub'});
+      await w.settle();
+      expect(a.p2p.devicesOf(sam.id).map((x) => x.card), containsAll([b.p2p.card, second]));
+      expect(a.node.allowed.keys, unorderedEquals([b.p2p.nodeId, second.nodeId]));
+    });
+
+    test('a friend removed or blocked: their cards go, their devices are let in no longer, and they are told nothing more', () async {
+      final a = w.install(w.account('maya'), computer: true), b = w.install(w.account('sam'), computer: true);
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      await w.relayGone();
+      expect((await a.text(b.account, 'before')).acked, isTrue);
+      expect(a.p2p.carrier.lines, greaterThan(0));
+      // Removed, or blocked: no longer among the people.
+      a.friends.remove(b.account);
+      await a.p2p.refresh();
+      await w.settle();
+      expect(a.p2p.devicesOf(b.account.id), isEmpty);
+      expect(a.node.allowed, isEmpty);
+      expect([a.p2p.carrier.lines, b.p2p.carrier.lines], [0, 0], reason: 'the stream between them was closed');
+      expect(_kept(a, P2p.cardsName), isEmpty);
+      expect(_kept(a, P2p.toldName).keys, [a.account.id], reason: 'only its own account is still down as told');
+      // Their device is turned away from now on.
+      final sending = b.text(a.account, 'hello?', only: {'p2p'});
+      await w.clock.pass(const Duration(seconds: 5));
+      expect((await sending).sent, isFalse);
+      // Friends again: told again, as holding none of theirs, so their device says its card again.
+      await w.relayBack();
+      final heard = [a.heard.length, b.heard.length];
+      a.friends.add(b.account);
+      await a.p2p.refresh();
+      await w.settle();
+      expect([a.heard.sublist(heard[0]), b.heard.sublist(heard[1])], [['card from sam'], ['card from maya']]);
+      expect(a.p2p.devicesOf(b.account.id).single.card, b.p2p.card);
+      expect(a.node.allowed.keys, [b.p2p.nodeId]);
+    });
+
+    test('at most eight devices are kept for one friend, the one heard from longest ago going first, and its node is let in no longer', () async {
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      final cards = <DeviceCard>[];
+      for (var i = 0; i < 9; i++) {
+        await w.clock.pass(_minute);
+        cards.add(await _cardOf(w, b.account));
+        await b.board.send(b.to(a.account), _said(w, _telling(a, cards.last)), only: {'hub'});
+        await w.settle();
+      }
+      final held = a.p2p.devicesOf(b.account.id);
+      expect(held, hasLength(P2p.mostDevices));
+      // The eight heard from latest stay: the last eight made up. His real device, heard from first, went when the
+      // ninth card came.
+      expect(held.map((d) => d.card), unorderedEquals(cards.sublist(1)));
+      expect(a.node.allowed.keys, unorderedEquals(cards.sublist(1).map((c) => c.nodeId)));
+      expect((jsonDecode(a.plain.kept[P2p.cardsName]!) as Map)[b.account.id], hasLength(8));
+      // Maya's device asks, as it does once a week, saying which of his cards it holds. His real device is not among
+      // them, so it says its card again and is back, in place of the longest unheard: only a device that says nothing
+      // more is forgotten.
+      await w.clock.pass(_minute);
+      final heard = a.heard.length;
+      await a.board.send(a.to(b.account), _said(w, {'t': 'card?', 'h': [for (final d in a.p2p.devicesOf(b.account.id)) d.card.tag]}), only: {'hub'});
+      await w.settle();
+      expect(a.heard.sublist(heard), ['card from sam']);
+      expect(a.p2p.devicesOf(b.account.id).map((d) => d.card), unorderedEquals([b.p2p.card, ...cards.sublist(2)]));
+      // Asked again now that it is held, it says nothing.
+      await a.board.send(a.to(b.account), _said(w, {'t': 'card?', 'h': [b.p2p.card!.tag]}), only: {'hub'});
+      await w.settle();
+      expect(a.heard.sublist(heard), ['card from sam']);
+      // An older card for a device than the one held is a copy from before: not taken.
+      final device = cards.last.device;
+      final older = await DeviceCard.make(KeysSigner(b.account.keys), device: device, nodeId: NetCrypto.hex(NetCrypto.randomBytes(32)), now: w.clock.now().subtract(const Duration(hours: 1)));
+      await b.board.send(b.to(a.account), _said(w, _telling(a, older)), only: {'hub'});
+      await w.settle();
+      expect(a.p2p.devicesOf(b.account.id).firstWhere((d) => d.card.device == device).card, cards.last);
+    });
+
+    test('a card that runs out is dropped and its node let in no longer; a device makes its own again with a week left and tells it once', () async {
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      final first = a.p2p.card!;
+      // A card of a device that is never heard from again.
+      final gone = await _cardOf(w, b.account);
+      await b.board.send(b.to(a.account), _said(w, _telling(a, gone)), only: {'hub'});
+      await w.settle();
+      expect(a.p2p.devicesOf(b.account.id), hasLength(2));
+      expect([a.heard.length, b.heard.length], [2, 1]);
+      // Twenty-three days on a week is left: each makes a new card and tells the other, once.
+      await w.clock.pass(const Duration(days: 22));
+      expect([a.p2p.card, a.heard.length, b.heard.length], [first, 2, 1]);
+      await w.clock.pass(const Duration(days: 1, minutes: 1));
+      final next = a.p2p.card!;
+      expect(next, isNot(first));
+      expect([next.nodeId, next.device, next.made > first.made], [first.nodeId, first.device, true]);
+      expect(b.p2p.devicesOf(a.account.id).single.card, next);
+      expect([a.heard.length, b.heard.length], [3, 2], reason: 'the new card, told once and not answered');
+      expect(jsonDecode(a.plain.kept[P2p.cardName]!), next.toJson());
+      // Thirty days after it was made the other device's card has run out.
+      await w.clock.pass(const Duration(days: 7));
+      expect(a.p2p.devicesOf(b.account.id).map((d) => d.card.device), [b.device]);
+      expect(a.node.allowed.keys, [b.p2p.nodeId]);
+      expect(a.plain.kept[P2p.cardsName], isNot(contains(gone.nodeId)));
+    });
+
+    test('a card that can\'t be signed (a keystore that refuses) is tried again ten minutes on, not at once, and told then', () async {
+      final a = w.install(w.account('maya'))..signFails = true, b = w.install(w.account('sam'));
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      expect([a.p2p.card, a.signs, b.heard], [null, 1, isEmpty]);
+      expect(a.p2p.devicesOf(b.account.id), hasLength(1), reason: 'what it is told is taken all the same');
+      expect(a.p2p.carrier.state.value, CarrierState.up);
+      // Nothing it hears makes it ask the keystore again before its time.
+      await b.board.send(b.to(a.account), _said(w, const {'t': 'card?'}), only: {'hub'});
+      await w.clock.pass(const Duration(minutes: 9, seconds: 58));
+      expect([a.p2p.card, a.signs], [null, 1]);
+      a.signFails = false;
+      await w.clock.pass(const Duration(seconds: 4));
+      expect(a.signs, 2);
+      expect(a.p2p.card!.account, a.account.id);
+      expect(b.p2p.devicesOf(a.account.id).single.card, a.p2p.card, reason: 'and told once it was made');
+      expect(a.signs, 2, reason: 'signed once for as long as the card is good');
+      await a.restart();
+      await w.clock.pass(const Duration(days: 1));
+      expect(a.signs, 2);
+    });
+
+    test('a node key made again makes another node id and another card, told again; the friend lets the new node in and not the old', () async {
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      final old = a.p2p.card!;
+      await w.clock.pass(const Duration(minutes: 2));
+      a.secrets.kept.remove(P2p.keyName);
+      await a.restart();
+      final now = a.p2p.card!;
+      expect(now.nodeId, isNot(old.nodeId));
+      expect(now.nodeId, FakeP2pNode.idFor(NetCrypto.unhex(a.secrets.kept[P2p.keyName]!)));
+      expect(b.p2p.devicesOf(a.account.id).single.card, now, reason: 'in place of the old one: the same device');
+      expect(b.node.allowed.keys, [now.nodeId]);
+      // The friend's card was kept through it, and the new card said so: there was nothing to answer.
+      expect(a.heard, ['card from sam']);
+      expect(a.p2p.devicesOf(b.account.id).single.card, b.p2p.card);
+    });
+
+    test('asked, a device says its card; what it says to one account in an hour has a limit, whatever is asked of it', () async {
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      await w.clock.pass(const Duration(hours: 2));
+      for (var i = 0; i < 20; i++) {
+        await b.board.send(b.to(a.account), _said(w, const {'t': 'card?'}), only: {'hub'});
+      }
+      await w.settle();
+      expect(b.heard.where((h) => h == 'card from maya'), hasLength(1 + const P2pPolicy().saysAnHour));
+      // An hour on it answers again.
+      await w.clock.pass(const Duration(hours: 1));
+      await b.board.send(b.to(a.account), _said(w, const {'t': 'card?'}), only: {'hub'});
+      await w.settle();
+      expect(b.heard.where((h) => h == 'card from maya'), hasLength(2 + const P2pPolicy().saysAnHour));
+    });
+
+    test('nothing is said of where a phone is while its node is down; a computer says it with its card; never by a route of small packets', () async {
+      // A route of small packets that costs nothing, so that it is its size alone that keeps cards off it.
+      const small = CarrierTraits(maxPacket: 133, maxParts: 6, live: false);
+      final sms = (PlainCarrier('sms', traits: small), PlainCarrier('sms', traits: small));
+      sms.$1.twin = sms.$2;
+      sms.$2.twin = sms.$1;
+      final a = w.install(w.account('maya'), also: [sms.$1]), b = w.install(w.account('sam'), computer: true, also: [sms.$2]);
+      w.friends(a, b);
+      // The relay is not there as they start: only the route of data texts is up.
+      w.memory.down = true;
+      await a.start();
+      await b.start();
+      await w.clock.pass(_minute);
+      expect([sms.$1.state.value, sms.$1.carried, sms.$2.carried], [CarrierState.up, isEmpty, isEmpty], reason: 'a card is never sent in small packets');
+      expect([a.heard, b.heard], [isEmpty, isEmpty]);
+      await w.relayBack();
+      expect([a.heard.toSet(), b.heard.toSet()], [{'card from sam'}, {'card from maya'}]);
+      expect(sms.$1.carried, isEmpty);
+      expect(b.p2p.devicesOf(a.account.id).single.where, isNull, reason: 'a phone\'s node is down: it is nowhere to be found');
+      final where = a.p2p.devicesOf(b.account.id).single.where!;
+      expect(where.addresses, b.node.whereabouts.value!.addresses);
+      expect(where.helper, isNull);
+      // A card that comes by the route of small packets is not looked at, though it is sealed and a friend's.
+      final second = await _cardOf(w, b.account);
+      await b.board.send(b.to(a.account), _said(w, _telling(a, second)), only: {'sms'});
+      await w.settle();
+      expect(sms.$2.carried, isNotEmpty);
+      expect(a.got.last.via, 'sms');
+      expect(a.p2p.devicesOf(b.account.id), hasLength(1));
+      // The same by the relay is taken.
+      await b.board.send(b.to(a.account), _said(w, _telling(a, second)), only: {'hub'});
+      await w.settle();
+      expect(a.p2p.devicesOf(b.account.id), hasLength(2));
+    });
+
+    test('where a device says it is, is held to what a node can use: addresses that are addresses, a link helper only of this device\'s own relay', () async {
+      w = World(helpers: [_helper]);
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      expect(a.p2p.helpers, [_helper]);
+      Future<Whereabouts?> told(Map<String, dynamic> where) async {
+        await w.clock.pass(_second);
+        await b.board.send(b.to(a.account), _said(w, _telling(a, b.p2p.card!, where: where)), only: {'hub'});
+        await w.settle();
+        final d = a.p2p.devicesOf(b.account.id).single;
+        return a.p2p.hintFor(d);
+      }
+
+      // Nothing said: this device's own link helper is what there is to try.
+      expect(a.p2p.devicesOf(b.account.id).single.where, isNull);
+      expect(a.p2p.hintFor(a.p2p.devicesOf(b.account.id).single), const Whereabouts(helper: _helper));
+      var hint = await told({'r': 'https://evil.example', 'a': ['10.1.2.3:4000', 'not an address', '10.1.2.3', '10.1.2.3:99999', '[2001:db8::7]:4001', 'example.com:80', '300.1.1.1:5'], 't': w.clock.ms});
+      expect(hint!.addresses, ['10.1.2.3:4000', '[2001:db8::7]:4001']);
+      expect(hint.helper, _helper, reason: 'a server someone else names is never connected to');
+      hint = await told({'r': _helper, 'a': ['192.168.1.9:1234'], 't': w.clock.ms});
+      expect([hint!.helper, hint.addresses], [_helper, ['192.168.1.9:1234']]);
+      // Older word of where it is does not take the place of newer.
+      hint = await told({'a': ['192.168.1.1:1'], 't': w.clock.ms - 60000});
+      expect(hint!.addresses, ['192.168.1.9:1234']);
+      // "Only through link helpers": no address of theirs is dialled, and none of this device's own is told.
+      await a.p2p.setHelpersOnly(true);
+      expect(a.p2p.hintFor(a.p2p.devicesOf(b.account.id).single), const Whereabouts(helper: _helper));
+      expect(P2p.isAddress('1.2.3.4:5'), isTrue);
+      for (final bad in ['1.2.3.4', '1.2.3.4:', '1.2.3.4:0', '1.2.3.4:+5', ':5', 'host:5', '[::1]', '1.2.3:5', '[zz::1]:5']) {
+        expect(P2p.isAddress(bad), isFalse, reason: bad);
+      }
+      expect(P2p.tidyHelpers(['https://a.example', 'http://b.example', 'https://', 'https://user:pw@c.example', 7, 'https://${'x' * 200}.example', 'https://a.example', 'https://d.example', 'https://e.example', 'https://f.example', 'https://g.example']),
+          ['https://a.example', 'https://d.example', 'https://e.example', 'https://f.example']);
+    });
+  });
+
+  group('the route', () {
+    test('is called Direct, comes after the relay, and reaches only those a good card is held for', () async {
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
+      final stranger = w.account('zed');
+      w.friends(a, b);
+      await a.start();
+      final c = a.p2p.carrier;
+      expect([c.id, c.name], ['p2p', 'Direct']);
+      expect(c.about, 'Straight between your devices and your friends\', with no server in between. Their device sees your network address; nobody else does.');
+      expect([c.traits.maxPacket, c.traits.metered, c.traits.live, c.traits.wakes], [HubCarrier.maxPacket, false, true, false]);
+      expect(a.board.carriers.map((r) => r.id), ['hub', 'p2p']);
+      expect(c.state.value, CarrierState.up, reason: 'ready, though a phone\'s node is down until there is something to say');
+      expect(c.reaches(a.to(b.account)), isFalse, reason: 'no card held for them yet');
+      await b.start();
+      expect(c.reaches(a.to(b.account)), isTrue);
+      expect(c.reaches(Peer(id: stranger.id)), isFalse);
+      expect(c.reaches(a.mine), isFalse, reason: 'no other device of this account');
+      // Switched off, it reaches nobody and its node is stopped; on again, it is as it was.
+      await a.board.setOn('p2p', false);
+      expect([c.state.value, c.reaches(a.to(b.account))], [CarrierState.off, false]);
+      await expectLater(c.send(a.to(b.account), Uint8List(20)), throwsA(isA<CarrierError>()));
+      await a.board.setOn('p2p', true);
+      expect([c.state.value, c.reaches(a.to(b.account))], [CarrierState.up, true]);
+    });
+
+    test('with the relay taken away, a text goes by the direct route and is answered, and one comes back the same way', () async {
+      final a = w.install(w.account('maya'), computer: true), b = w.install(w.account('sam'), computer: true);
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      await w.relayGone();
+      expect([a.hub.state.value, b.hub.state.value], [CarrierState.down, CarrierState.down]);
+      final d = await a.text(b.account, 'are you there');
+      expect([d.via, d.handed, d.acked], ['p2p', Handed.passed, true]);
+      expect(d.tried, ['p2p']);
+      expect(b.texts, ['are you there']);
+      expect(b.got.last.via, 'p2p');
+      expect(b.got.last.peer.id, a.account.id);
+      // Dialled once, by where their card said they were, and the path is straight.
+      expect(w.mesh.dials, hasLength(1));
+      expect(w.mesh.dials.single.hint!.addresses, b.node.whereabouts.value!.addresses);
+      expect(a.node.pathTo(b.p2p.nodeId!)!.kind, P2pPathKind.direct);
+      expect(a.p2p.carrier.links.single, (account: b.account.id, nodeId: b.p2p.nodeId!, kind: P2pPathKind.direct));
+      // The answer comes back on the stream that is open: nothing more is dialled.
+      final back = await b.text(a.account, 'here');
+      expect([back.via, back.acked], ['p2p', true]);
+      expect(a.texts, ['here']);
+      expect(w.mesh.dials, hasLength(1));
+      // What crossed is sealed: none of the words are in any frame, and the node saw nothing but frames.
+      expect(a.got.last.sealed, isTrue);
+    });
+
+    test('two phones with a link helper find each other once the relay has been gone fifteen seconds, with the app in use', () async {
+      w = World(helpers: [_helper]);
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam')), c = w.install(w.account('cleo'));
+      w.friends(a, b);
+      w.friends(a, c);
+      for (final i in [a, b, c]) {
+        await i.start();
+      }
+      // Cleo's phone has the app put away.
+      c.p2p.setAway(true);
+      await w.relayGone();
+      await w.clock.pass(const Duration(seconds: 14));
+      expect([a.node.starts, b.node.starts, c.node.starts], [0, 0, 0]);
+      await w.clock.pass(const Duration(seconds: 1));
+      expect([a.node.state.value, b.node.state.value, c.node.state.value], [P2pState.up, P2pState.up, P2pState.off], reason: 'each in use brought its node up by itself');
+      expect(a.node.config!.helpers, [_helper]);
+      // Neither had said where it is (a phone's node is down as it tells its card): each tried the other through the
+      // link helper their relay named to both.
+      expect(a.p2p.carrier.linked(a.to(b.account)), isTrue);
+      expect(a.node.pathTo(b.p2p.nodeId!)!.kind, P2pPathKind.helper);
+      expect(a.p2p.carrier.linked(a.to(c.account)), isFalse);
+      final d = await a.text(b.account, 'the relay is down');
+      expect([d.via, d.acked], ['p2p', true]);
+      expect(b.texts, ['the relay is down']);
+      // The relay back: it carries again, and the node was told the network changed each time.
+      await w.relayBack();
+      expect((await a.text(b.account, 'and back')).via, 'hub');
+      expect(a.node.networkChanges, greaterThan(0));
+    });
+
+    test('a packet goes to both devices of a friend; one unreachable still counts as passed; none reachable throws, and the switchboard goes on', () async {
+      final lan = PlainCarrier.pair('lan');
+      final sam = w.account('sam');
+      final a = w.install(w.account('maya'), computer: true, also: [lan.$1]);
+      final b1 = w.install(sam, computer: true, also: [lan.$2]), b2 = w.install(sam, computer: true);
+      for (final b in [b1, b2]) {
+        w.friends(a, b);
+      }
+      for (final i in [a, b1, b2]) {
+        await i.start();
+      }
+      expect(a.p2p.devicesOf(sam.id).map((d) => d.nodeId), unorderedEquals([b1.p2p.nodeId, b2.p2p.nodeId]));
+      expect([b1.p2p.ownDevices, b2.p2p.ownDevices], [1, 1], reason: 'and the two know each other as their account\'s own');
+      await w.relayGone();
+      var d = await a.text(sam, 'to both');
+      expect([d.via, d.acked], ['p2p', true]);
+      await w.settle();
+      expect([b1.texts, b2.texts], [['to both'], ['to both']]);
+      expect(a.p2p.carrier.links.map((l) => l.nodeId), unorderedEquals([b1.p2p.nodeId, b2.p2p.nodeId]));
+
+      // One of them falls off the network: the other takes it at once, and that is passed.
+      w.mesh.unreachable(b2.node);
+      d = await a.text(sam, 'to one');
+      expect([d.via, d.handed, d.acked], ['p2p', Handed.passed, true]);
+      expect([b1.texts.last, b2.texts.last], ['to one', 'to both']);
+      // The other was still being tried, for the five seconds a send has.
+      final dials = w.mesh.dialsTo(b2.p2p.nodeId!);
+      expect(dials, 2);
+      await w.clock.pass(const Duration(seconds: 5));
+      // And is not dialled again for a while: what is sent meanwhile does not wait on it.
+      d = await a.text(sam, 'again');
+      expect(d.acked, isTrue);
+      await w.clock.pass(const Duration(seconds: 5));
+      expect(w.mesh.dialsTo(b2.p2p.nodeId!), dials);
+
+      // Neither can be reached: the route says so after its five seconds, and the next route carries it.
+      w.mesh.unreachable(b1.node);
+      final sending = a.text(sam, 'by another way');
+      await w.clock.pass(const Duration(milliseconds: 4999));
+      expect(b1.texts.last, 'again', reason: 'still trying the direct way');
+      await w.clock.pass(const Duration(milliseconds: 1));
+      d = await sending;
+      expect(d.tried, ['p2p: none of their devices could be reached directly', 'lan']);
+      expect([d.via, d.acked], ['lan', true]);
+      expect(b1.texts.last, 'by another way');
+      // Half a minute on they are dialled again; found, the route carries once more.
+      w.mesh.unreachable(b1.node, false);
+      w.mesh.unreachable(b2.node, false);
+      await w.clock.pass(const Duration(seconds: 30));
+      d = await a.text(sam, 'found again');
+      expect([d.via, d.acked], ['p2p', true]);
+    });
+
+    test('a frame from a friend\'s device that says it is from another friend is dropped: what arrives is vouched for', () async {
+      final maya = w.account('maya'), sam = w.account('sam'), cleo = w.account('cleo');
+      final a = w.install(maya, computer: true), b = w.install(sam, computer: true), c = w.install(cleo, computer: true);
+      w.friends(a, b);
+      w.friends(a, c);
+      for (final i in [a, b, c]) {
+        await i.start();
+      }
+      await w.relayGone();
+      final vouched = <String?>[];
+      a.p2p.carrier.arrived.listen((x) => vouched.add(x.from));
+      // A packet Cleo's own device would send, sealed with the key she and Maya share: good in every way.
+      final words = Envelope(kind: 'text', body: {'t': 'from cleo'}, ack: false);
+      final packet = Packet.wrap(from: cleo.id, sealed: true, payload: NetCrypto.seal(a.to(cleo).key!, words.encode()));
+      // Sam's device puts it on its own stream to Maya.
+      expect(await b.p2p.carrier.send(b.to(maya), packet), Handed.passed);
+      await w.settle();
+      expect(vouched, [sam.id], reason: 'the route says whose device brought it');
+      expect(a.texts, isEmpty, reason: 'and the switchboard takes nothing under another name than that');
+      // The same bytes from Cleo's device are taken.
+      expect(await c.p2p.carrier.send(c.to(maya), packet), Handed.passed);
+      await w.settle();
+      expect(vouched, [sam.id, cleo.id]);
+      expect(a.texts, ['from cleo']);
+    });
+
+    test('a node no card is held for can\'t open a stream; one let in by mistake is closed on; one that can\'t prove whose it is hears nothing', () async {
+      final a = w.install(w.account('maya'), computer: true), b = w.install(w.account('sam'), computer: true);
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      final arrived = <Arrived>[];
+      a.p2p.carrier.arrived.listen(arrived.add);
+      final where = a.node.whereabouts.value;
+      // A stranger's node, told where Maya's device is: turned away by the node itself.
+      final stranger = w.mesh.node();
+      await stranger.start(P2pConfig(secret: NetCrypto.randomBytes(32)));
+      await expectLater(stranger.open(a.p2p.nodeId!, P2pChannel.packets, hint: where), throwsA(isA<P2pError>()));
+      // Were the node to let it in all the same, the route closes the stream: no card says whose it is.
+      a.node.allow(stranger.nodeId!, _packets);
+      var stream = await stranger.open(a.p2p.nodeId!, P2pChannel.packets, hint: where);
+      var done = false;
+      stream.frames.listen((_) {}, onDone: () => done = true);
+      await w.settle();
+      expect([done, a.p2p.carrier.lines], [true, 0]);
+      // A node a friend's card names, that does not hold the friend's key (the card is only the account's word): it
+      // says a packet without proving itself, then a proof made with another key. Nothing is taken, and it is closed on.
+      final keyless = w.mesh.node();
+      final secret = NetCrypto.randomBytes(32);
+      await keyless.start(P2pConfig(secret: secret));
+      final lie = await _cardOf(w, b.account, node: keyless.nodeId);
+      await b.board.send(b.to(a.account), _said(w, _telling(a, lie)), only: {'hub'});
+      await w.settle();
+      expect(a.node.allowed.keys, contains(keyless.nodeId));
+      final packet = Packet.wrap(from: b.account.id, sealed: true, payload: NetCrypto.seal(a.to(b.account).key!, Envelope(kind: 'text', body: {'t': 'unproved'}).encode()));
+      for (final first in [packet, Uint8List.fromList([0, 1, ...NetCrypto.hmac(NetCrypto.randomBytes(32), utf8.encode('ghost-p2p link v1\n'))])]) {
+        stream = await keyless.open(a.p2p.nodeId!, P2pChannel.packets, hint: where);
+        done = false;
+        stream.frames.listen((_) {}, onDone: () => done = true);
+        await stream.add(first);
+        await w.settle();
+        expect(done, isTrue);
+        await expectLater(stream.add(packet), throwsA(isA<P2pError>()));
+      }
+      expect(arrived, isEmpty);
+      expect(a.texts, isEmpty);
+      expect(a.p2p.carrier.links, isEmpty);
+      // One that says nothing at all is let go after the five seconds a dial has.
+      stream = await keyless.open(a.p2p.nodeId!, P2pChannel.packets, hint: where);
+      done = false;
+      stream.frames.listen((_) {}, onDone: () => done = true);
+      await w.clock.pass(const Duration(milliseconds: 4999));
+      expect([done, a.p2p.carrier.lines], [false, 1]);
+      await w.clock.pass(const Duration(milliseconds: 1));
+      expect([done, a.p2p.carrier.lines], [true, 0]);
+    });
+
+    test('the proof is held to its bytes, and a friend who names another friend\'s node as their own is sent nothing there', () async {
+      final maya = w.account('maya'), xan = w.account('xan'), yara = w.account('yara');
+      final a = w.install(maya, computer: true), x = w.install(xan, computer: true), y = w.install(yara, computer: true);
+      w.friends(a, x);
+      w.friends(a, y);
+      for (final i in [a, x, y]) {
+        await i.start();
+      }
+      // The first frame each way: [0][1][HMAC(link key, "ghost-p2p link v1\n" | the sender's node | the other's)], the
+      // link key made from what the two accounts seal their packets with.
+      final linkKey = NetCrypto.derive(a.to(yara).key!, 'p2p link');
+      expect(a.p2p.linkKey(yara.id), linkKey);
+      expect(y.p2p.linkKey(maya.id), linkKey, reason: 'both arrive at one key');
+      expect(a.p2p.linkKey(xan.id), isNot(linkKey));
+      Uint8List proof(String from, String to) => Uint8List.fromList([0, 1, ...NetCrypto.hmac(linkKey, [...utf8.encode('ghost-p2p link v1\n'), ...NetCrypto.unhex(from), ...NetCrypto.unhex(to)])]);
+      // By hand, as Yara's device: the proof, then a packet. Taken, and vouched for as hers.
+      final arrived = <Arrived>[];
+      a.p2p.carrier.arrived.listen(arrived.add);
+      final raw = w.mesh.node();
+      await raw.start(P2pConfig(secret: NetCrypto.randomBytes(32)));
+      final hers = await _cardOf(w, yara, node: raw.nodeId);
+      await y.board.send(y.to(maya), _said(w, _telling(a, hers)), only: {'hub'});
+      await w.settle();
+      final stream = await raw.open(a.p2p.nodeId!, P2pChannel.packets, hint: a.node.whereabouts.value);
+      final back = <Uint8List>[];
+      stream.frames.listen(back.add);
+      await stream.add(proof(raw.nodeId!, a.p2p.nodeId!));
+      await w.settle();
+      expect(back.single, proof(a.p2p.nodeId!, raw.nodeId!), reason: 'answered with this device\'s own, the node ids the other way round');
+      final packet = Packet.wrap(from: yara.id, sealed: true, payload: NetCrypto.seal(a.to(yara).key!, Envelope(kind: 'text', body: {'t': 'by hand'}, ack: false).encode()));
+      await stream.add(packet);
+      await w.settle();
+      expect([arrived.single.from, arrived.single.carrier, arrived.single.bytes], [yara.id, 'p2p', packet]);
+      expect(a.texts, ['by hand']);
+      // The proof said the other way round (a copy of what this device sent back) proves nothing.
+      final mirror = await raw.open(a.p2p.nodeId!, P2pChannel.packets, hint: a.node.whereabouts.value);
+      var closed = false;
+      mirror.frames.listen((_) {}, onDone: () => closed = true);
+      await mirror.add(back.single);
+      await w.settle();
+      expect(closed, isTrue);
+
+      // Xan says Yara's device is his: a card for his account naming her node, and where it is. It is only his word.
+      final lie = await _cardOf(w, xan, node: y.p2p.nodeId);
+      await x.board.send(x.to(maya), _said(w, _telling(a, lie, where: y.node.whereabouts.value!.toJson())), only: {'hub'});
+      await w.settle();
+      expect(a.p2p.devicesOf(xan.id).map((d) => d.nodeId), contains(y.p2p.nodeId));
+      await w.relayGone();
+      // His own device is off the network, so the only device of "his" in reach is hers.
+      w.mesh.unreachable(x.node);
+      final heard = <Arrived>[];
+      y.p2p.carrier.arrived.listen(heard.add);
+      final frames = w.mesh.frames;
+      final sending = a.text(xan, 'for xan alone', only: {'p2p'});
+      await w.clock.pass(const Duration(seconds: 5));
+      expect((await sending).sent, isFalse, reason: 'her device could not prove it is his, and nothing was said to it');
+      expect(w.mesh.dialsTo(y.p2p.nodeId!), 1, reason: 'it was dialled as his, and let this device in as Maya\'s');
+      expect(w.mesh.frames - frames, 1, reason: 'this device\'s own proof, and not a packet after it');
+      expect(heard, isEmpty);
+      expect(y.got.where((r) => r.envelope.kind == 'text'), isEmpty);
+      // Her device is still hers to Maya, both ways.
+      expect((await y.text(maya, 'still me')).acked, isTrue);
+      expect((await a.text(yara, 'I know')).acked, isTrue);
+      expect(a.p2p.carrier.links.map((l) => l.account).toSet(), {yara.id}, reason: 'no device is linked as his');
+    });
+
+    test('a frame longer than the relay\'s packet is refused both ways, and a stream is let go after ninety seconds with nothing said', () async {
+      final a = w.install(w.account('maya'), computer: true), b = w.install(w.account('sam'), computer: true);
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      await w.relayGone();
+      expect(P2pCarrier.maxPacket, 60 * 1024);
+      await expectLater(a.p2p.carrier.send(a.to(b.account), Uint8List(P2pCarrier.maxPacket + 1)), throwsA(isA<CarrierError>()));
+      expect(w.mesh.dials, isEmpty, reason: 'refused before anything is dialled');
+      expect(await a.p2p.carrier.send(a.to(b.account), Uint8List(P2pCarrier.maxPacket)..[0] = 0x11), Handed.passed);
+      await w.settle();
+      expect([a.p2p.carrier.lines, b.p2p.carrier.lines], [1, 1]);
+      await expectLater(a.p2p.carrier.sendLinked(a.to(b.account), Uint8List(P2pCarrier.maxPacket + 1)), throwsA(isA<CarrierError>()));
+      // Kept open while things are said on it: eighty seconds on, a text; eighty more, still open.
+      await w.clock.pass(const Duration(seconds: 80));
+      expect((await a.text(b.account, 'still talking')).acked, isTrue);
+      await w.clock.pass(const Duration(seconds: 80));
+      expect([a.p2p.carrier.lines, b.p2p.carrier.lines, w.mesh.dials.length], [1, 1, 1]);
+      // Ten more with nothing said: ninety in all, and both ends let it go.
+      await w.clock.pass(const Duration(seconds: 10));
+      expect([a.p2p.carrier.lines, b.p2p.carrier.lines], [0, 0]);
+      expect([a.node.streams, b.node.streams], [0, 0]);
+      expect(a.p2p.carrier.linked(a.to(b.account)), isFalse);
+      // A device that sends a longer frame on a proved stream is closed on, and nothing of it is passed on.
+      final arrived = <Arrived>[];
+      b.p2p.carrier.arrived.listen(arrived.add);
+      final linkKey = a.p2p.linkKey(b.account.id)!;
+      final raw = await a.node.open(b.p2p.nodeId!, P2pChannel.packets, hint: b.node.whereabouts.value);
+      var closed = false;
+      raw.frames.listen((_) {}, onDone: () => closed = true);
+      await raw.add(Uint8List.fromList([0, 1, ...NetCrypto.hmac(linkKey, [...utf8.encode('ghost-p2p link v1\n'), ...NetCrypto.unhex(a.p2p.nodeId!), ...NetCrypto.unhex(b.p2p.nodeId!)])]));
+      await w.settle();
+      expect(closed, isFalse);
+      await raw.add(Uint8List(P2pCarrier.maxPacket + 1)..[0] = 0x11);
+      await w.settle();
+      expect([closed, arrived], [true, isEmpty]);
+    });
+
+    test('no more than two streams are held with one device, and a stream on another channel is not this route\'s to touch', () async {
+      final a = w.install(w.account('maya'), computer: true), b = w.install(w.account('sam'), computer: true);
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      final linkKey = b.p2p.linkKey(a.account.id)!;
+      final proof = Uint8List.fromList([0, 1, ...NetCrypto.hmac(linkKey, [...utf8.encode('ghost-p2p link v1\n'), ...NetCrypto.unhex(b.p2p.nodeId!), ...NetCrypto.unhex(a.p2p.nodeId!)])]);
+      // Sam's device opens stream after stream, each proved: the third takes the place of the first.
+      final closed = <int>[];
+      for (var i = 0; i < 3; i++) {
+        final s = await b.node.open(a.p2p.nodeId!, P2pChannel.packets, hint: a.node.whereabouts.value);
+        s.frames.listen((_) {}, onDone: () => closed.add(i));
+        await s.add(proof);
+        await w.settle();
+        expect(a.p2p.carrier.lines, i < 2 ? i + 1 : 2);
+      }
+      expect(closed, [0]);
+      expect(a.p2p.carrier.links, hasLength(1), reason: 'one device, however many streams');
+
+      // A relay hosted on this device would open another channel to anyone. Such a stream is someone else's: the
+      // direct route neither closes it nor takes what is said on it for packets.
+      final arrived = <Arrived>[];
+      a.p2p.carrier.arrived.listen(arrived.add);
+      a.node.openToAll({P2pChannel.hub});
+      final stranger = w.mesh.node();
+      await stranger.start(P2pConfig(secret: NetCrypto.randomBytes(32)));
+      final other = await stranger.open(a.p2p.nodeId!, P2pChannel.hub, hint: a.node.whereabouts.value);
+      var done = false;
+      other.frames.listen((_) {}, onDone: () => done = true);
+      await other.add(proof);
+      await other.add(Packet.wrap(from: b.account.id, sealed: true, payload: NetCrypto.seal(a.to(b.account).key!, Envelope(kind: 'text', body: {'t': 'on the wrong channel'}).encode())));
+      await w.clock.pass(const Duration(minutes: 5));
+      expect([done, arrived, a.texts], [false, isEmpty, isEmpty]);
+      expect(a.node.streams, 1, reason: 'still open, for whoever it is for; the proved ones were let go for being quiet');
+    });
+
+    test('the relay only kept it and a link is open: it goes straight too, once, and is taken once; with no link nothing is dialled or started', () async {
+      w = World(helpers: [_helper]);
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      // A link between the two phones, made by a send that went the direct way.
+      expect((await a.text(b.account, 'first', only: {'p2p'})).acked, isTrue);
+      expect(a.p2p.carrier.linked(a.to(b.account)), isTrue);
+      // Sam's phone loses the relay, and only the relay.
+      await b.hub.stop();
+      await w.settle();
+      // (What Sam's phone said to its own account's name is kept there for his other devices, whatever else is.)
+      final kept = w.memory.hub.heldFor(b.account.id);
+      final frames = w.mesh.frames, dials = w.mesh.dials.length;
+      final acked = <String>[];
+      a.board.acked.listen(acked.add);
+      final e = Envelope(kind: 'text', body: {'t': 'kept, and straight'});
+      var d = await a.board.send(a.to(b.account), e);
+      expect([d.via, d.handed, d.acked], ['hub', Handed.held, false], reason: 'the relay\'s word is the answer: the link was not waited for');
+      expect(d.tried, ['hub', 'p2p']);
+      expect(w.memory.hub.heldFor(b.account.id), kept + 1);
+      await w.settle();
+      expect(b.texts, ['first', 'kept, and straight']);
+      expect(b.got.last.via, 'p2p');
+      expect(acked, [e.id], reason: 'answered over the link');
+      expect(w.mesh.frames - frames, 2, reason: 'one packet over, one answer back');
+      expect(w.mesh.dials, hasLength(dials), reason: 'by the stream that was open: nothing was dialled');
+      // Back on the relay, Sam's phone is handed what it kept: the same envelope, passed on once.
+      await b.hub.start();
+      await w.until(() => b.hub.state.value == CarrierState.up, 'Sam\'s phone signed in again');
+      await w.settle();
+      expect(w.memory.hub.heldFor(b.account.id), kept);
+      expect(b.texts, ['first', 'kept, and straight']);
+
+      // The link is let go, and both phones' nodes stop. The relay keeps the next one: nothing else happens.
+      await w.clock.pass(const Duration(minutes: 4));
+      expect([a.p2p.carrier.lines, a.node.state.value, b.node.state.value], [0, P2pState.off, P2pState.off]);
+      await b.hub.stop();
+      await w.settle();
+      final starts = [a.node.starts, b.node.starts];
+      d = await a.text(b.account, 'kept only');
+      await w.clock.pass(const Duration(seconds: 10));
+      expect([d.via, d.handed], ['hub', Handed.held]);
+      expect(d.tried, ['hub']);
+      expect(w.mesh.dials, hasLength(dials));
+      expect([a.node.starts, b.node.starts], starts);
+      expect(b.texts, hasLength(2));
+    });
+
+    test('a copy to the account\'s own name reaches its other device directly when the relay is away', () async {
+      final maya = w.account('maya');
+      final desk = w.install(maya, computer: true), laptop = w.install(maya, computer: true);
+      await desk.start();
+      await laptop.start();
+      // The two told each other through the account's own name.
+      expect(desk.heard, ['card from maya']);
+      expect(desk.p2p.devicesOf(maya.id).single.card, laptop.p2p.card);
+      expect(laptop.p2p.devicesOf(maya.id).single.card, desk.p2p.card);
+      expect([desk.p2p.ownDevices, desk.p2p.friendsDevices], [1, 0]);
+      expect(desk.p2p.carrier.reaches(desk.mine), isTrue);
+      await w.relayGone();
+      // As Friends sends a copy of a conversation to the account's other devices (lib/friends/friends.dart, copyKind).
+      final copy = Envelope(kind: 'mine', body: {'a': '@sam', 't': 'see you at 7', 'i': 'abcd', 'at': 1, 'o': true});
+      final d = await desk.board.send(desk.mine, copy, only: const {'hub', 'p2p'});
+      expect([d.via, d.acked], ['p2p', true]);
+      final got = laptop.got.where((r) => r.envelope.kind == 'mine').single;
+      expect([got.peer.id, got.via, got.envelope.body['t']], [maya.id, 'p2p', 'see you at 7']);
+      expect(desk.p2p.carrier.links.single.account, maya.id);
+      // With no account signed in here there are no own devices, and what was held of them goes.
+      desk.signedIn = false;
+      await desk.p2p.refresh();
+      expect(desk.p2p.devicesOf(maya.id), isEmpty);
+      expect(desk.p2p.carrier.reaches(desk.mine), isFalse);
+    });
+  });
+
+  group('when the node runs', () {
+    test('a phone\'s is down until needed, up for a send, and down two minutes after its last stream closed; a computer\'s stays up', () async {
+      w = World(helpers: [_helper]);
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam')), c = w.install(w.account('cleo'), computer: true);
+      w.friends(a, b);
+      w.friends(a, c);
+      for (final i in [a, b, c]) {
+        await i.start();
+      }
+      await w.clock.pass(const Duration(minutes: 10));
+      expect([a.node.state.value, a.node.starts, b.node.starts], [P2pState.off, 0, 0], reason: 'down until there is something to say');
+      expect([c.node.state.value, c.node.starts, c.node.stops], [P2pState.up, 1, 0], reason: 'a computer\'s is up whenever Direct is on');
+
+      // A send that reaches the direct route: the node is started for it, the other is asked to meet and brings its
+      // own up, and the two link.
+      final d = await a.text(b.account, 'by the direct route', only: {'p2p'});
+      expect([d.via, d.acked], ['p2p', true]);
+      expect([a.node.state.value, a.node.starts, b.node.state.value, b.node.starts], [P2pState.up, 1, P2pState.up, 1]);
+      expect(b.heard.last, 'meet from maya');
+      expect(a.heard.last, 'card from sam', reason: 'answered with where it is now');
+      expect(a.p2p.devicesOf(b.account.id).single.where!.addresses, b.node.whereabouts.value!.addresses);
+      expect(b.p2p.devicesOf(a.account.id).single.where!.addresses, a.node.whereabouts.value!.addresses);
+      expect(a.node.config!.helpers, [_helper]);
+
+      // Ninety seconds with nothing said and the streams are let go; two minutes after the last closed, the node stops.
+      await w.clock.pass(const Duration(seconds: 89));
+      expect(a.p2p.carrier.lines, greaterThan(0));
+      await w.clock.pass(_second);
+      expect([a.p2p.carrier.lines, b.p2p.carrier.lines], [0, 0]);
+      await w.clock.pass(const Duration(seconds: 119));
+      expect([a.node.state.value, b.node.state.value], [P2pState.up, P2pState.up]);
+      await w.clock.pass(_second);
+      expect([a.node.state.value, a.node.stops, b.node.state.value, b.node.stops], [P2pState.off, 1, P2pState.off, 1]);
+      expect([c.node.state.value, c.node.stops], [P2pState.up, 0]);
+      // A stream opened to a computer is let go the same, and its node stays.
+      expect((await a.text(c.account, 'to a computer', only: {'p2p'})).acked, isTrue);
+      await w.clock.pass(const Duration(minutes: 10));
+      expect([c.p2p.carrier.lines, c.node.state.value, c.node.stops, a.node.state.value], [0, P2pState.up, 0, P2pState.off]);
+    });
+
+    test('a meet brings a phone\'s node up and is answered with where it is; the seventh in an hour is not, nor any while Invisible or switched off', () async {
+      w = World(helpers: [_helper]);
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      // As Maya's device asks: its card, by the relay. (Sent by hand, past the limit her own device keeps to.)
+      Future<void> meet() async {
+        await a.board.send(a.to(b.account), _said(w, {'t': 'meet', 'c': a.p2p.card!.toJson(), 'h': [b.p2p.card!.tag]}), only: {'hub'});
+        await w.settle();
+      }
+
+      int answers() => a.heard.where((h) => h == 'card from sam').length;
+      expect([b.node.starts, answers()], [0, 1]);
+      for (var i = 1; i <= 6; i++) {
+        await meet();
+        expect([b.node.state.value, b.node.starts, answers()], [P2pState.up, i, 1 + i], reason: 'meet $i');
+        expect(a.p2p.devicesOf(b.account.id).single.where!.addresses, b.node.whereabouts.value!.addresses, reason: 'where it is now, each time');
+        expect(w.mesh.dialsTo(a.p2p.nodeId!), i, reason: 'and it dials the one that asked');
+        // Nothing comes of it (Maya's node is down): Sam's stops again, two minutes after it came up.
+        await w.clock.pass(const Duration(minutes: 5));
+        expect(b.node.state.value, P2pState.off);
+      }
+      // The seventh within the hour: nothing.
+      await meet();
+      await w.clock.pass(const Duration(minutes: 5));
+      expect([b.node.starts, answers(), w.mesh.dialsTo(a.p2p.nodeId!)], [6, 7, 6]);
+      // An hour after the first, it is answered again.
+      await w.clock.pass(const Duration(minutes: 25));
+      await meet();
+      expect([b.node.starts, answers()], [7, 8]);
+      await w.clock.pass(const Duration(hours: 2));
+
+      // Invisible: not answered at all, and the friend's device is let in no longer, since a link says "here".
+      b.p2p.setMode('invisible');
+      expect(b.node.allowed, isEmpty);
+      await meet();
+      await w.clock.pass(const Duration(minutes: 5));
+      expect([b.node.starts, answers()], [7, 8]);
+      expect(b.p2p.carrier.reaches(b.to(a.account)), isFalse);
+      final dials = w.mesh.dials.length;
+      expect((await b.text(a.account, 'not while invisible', only: {'p2p'})).sent, isFalse);
+      expect(w.mesh.dials, hasLength(dials), reason: 'nothing is dialled while Invisible');
+      // Seen again: let in again, and answered.
+      b.p2p.setMode('online');
+      expect(b.node.allowed.keys, [a.p2p.nodeId]);
+      await meet();
+      expect([b.node.starts, answers()], [8, 9]);
+      await w.clock.pass(const Duration(hours: 2));
+
+      // Direct switched off: not at all.
+      await b.board.setOn('p2p', false);
+      await meet();
+      await w.clock.pass(const Duration(minutes: 5));
+      expect([b.node.starts, answers()], [8, 9]);
+      // One the relay kept for ten minutes is no longer "I am up": not answered either. (Sam's phone is in his pocket
+      // meanwhile, or it would look for its friends itself once the relay had been gone a while.)
+      await b.board.setOn('p2p', true);
+      b.p2p.setAway(true);
+      await b.hub.stop();
+      await w.settle();
+      await meet();
+      await w.clock.pass(const Duration(minutes: 10));
+      await b.hub.start();
+      await w.until(() => b.hub.state.value == CarrierState.up, 'Sam\'s phone signed in again');
+      await w.settle();
+      expect(b.heard.last, 'meet from maya');
+      expect([b.node.starts, answers()], [8, 9]);
+      // A fresh one is, as ever.
+      await meet();
+      expect([b.node.starts, answers()], [9, 10]);
+    });
+
+    test('asked to meet, a device says where it is now and is dialled again by that, inside the same five seconds', () async {
+      // Two phones on one network with no link helper: neither has ever said where it is.
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      expect(a.p2p.hintFor(a.p2p.devicesOf(b.account.id).single), isNull);
+      // Maya's router lets nothing in: Sam's phone can't dial hers, so it is her dial that has to get through.
+      w.mesh.inbound(a.node, false);
+      final began = w.clock.ms;
+      final d = await a.text(b.account, 'found by the answer', only: {'p2p'});
+      expect([d.via, d.acked], ['p2p', true]);
+      expect(w.clock.ms, began, reason: 'no time had to pass: the first dial was not waited out');
+      // Dialled first knowing nothing of where it is, then again by what its answer to the meet said.
+      final dials = [for (final x in w.mesh.dials) if (x.to == b.p2p.nodeId) x.hint?.addresses];
+      expect(dials, [null, b.node.whereabouts.value!.addresses]);
+      expect(b.heard.last, 'meet from maya');
+      expect(a.p2p.carrier.links.single.kind, P2pPathKind.direct);
+      await w.clock.pass(const Duration(seconds: 5));
+      expect(w.mesh.dialsTo(b.p2p.nodeId!), 2);
+    });
+
+    test('Invisible: this account\'s own devices go on linking, friends\' do not', () async {
+      final maya = w.account('maya');
+      final desk = w.install(maya, computer: true), laptop = w.install(maya, computer: true), b = w.install(w.account('sam'), computer: true);
+      w.friends(desk, b);
+      w.friends(laptop, b);
+      for (final i in [desk, laptop, b]) {
+        await i.start();
+      }
+      await w.relayGone();
+      expect((await desk.text(b.account, 'seen')).acked, isTrue);
+      // Invisible, as the person chose, on both their devices.
+      desk.p2p.setMode('invisible');
+      laptop.p2p.setMode('invisible');
+      await w.settle();
+      expect(desk.node.allowed.keys, [laptop.p2p.nodeId]);
+      expect([desk.p2p.carrier.linked(desk.to(b.account)), b.p2p.carrier.linkedTo(maya.id, desk.p2p.nodeId!)], [false, false], reason: 'the link with the friend\'s device was closed');
+      // The friend's device is turned away, and none of theirs is dialled.
+      final sending = b.text(maya, 'are you there?', only: {'p2p'});
+      await w.clock.pass(const Duration(seconds: 5));
+      expect((await sending).sent, isFalse);
+      expect((await desk.text(b.account, 'unseen', only: {'p2p'})).sent, isFalse);
+      // The account's own other device is reached as ever.
+      final d = await desk.board.send(desk.mine, Envelope(kind: 'mine', body: const {'t': 'to myself'}), only: const {'p2p'});
+      expect([d.via, d.acked], ['p2p', true]);
+      expect(laptop.got.last.envelope.body['t'], 'to myself');
+    });
+
+    test('the relay\'s link helpers reach the node\'s config, are kept for a start while it is away, and a change restarts a running node', () async {
+      w = World(helpers: [_helper, 'http://not.https.example', 'https://two.example']);
+      final a = w.install(w.account('maya'), computer: true), b = w.install(w.account('sam'));
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      expect(a.hub.helpers.value, [_helper, 'https://two.example']);
+      expect(a.p2p.helpers, [_helper, 'https://two.example']);
+      expect(a.node.config!.helpers, [_helper, 'https://two.example']);
+      expect(a.node.whereabouts.value!.helper, _helper);
+      expect(jsonDecode(a.plain.kept[P2p.helpersName]!), [_helper, 'https://two.example']);
+      // A phone's node is down: nothing is started for the news, and its next start has them.
+      expect([b.p2p.helpers, b.node.starts], [[_helper, 'https://two.example'], 0]);
+
+      // The relay names another: the computer's running node is started again with it; the phone's is left down.
+      var starts = a.node.starts, stops = a.node.stops;
+      w.memory = MemoryHub(Hub(helpers: ['https://other.example']));
+      for (final i in [a, b]) {
+        i.hub.nudge(away: const Duration(minutes: 5));
+      }
+      await w.until(() => a.hub.state.value == CarrierState.up && b.hub.state.value == CarrierState.up, 'both signed in to the relay again');
+      await w.settle();
+      expect(a.hub.helpers.value, ['https://other.example']);
+      expect([a.node.starts, a.node.stops], [starts + 1, stops + 1]);
+      expect([a.node.state.value, a.node.config!.helpers], [P2pState.up, ['https://other.example']]);
+      expect(b.node.starts, 0);
+      // The same again changes nothing.
+      for (final p in w.memory.pairs.toList()) {
+        p.cut();
+      }
+      a.hub.nudge();
+      await w.until(() => a.hub.state.value == CarrierState.up, 'signed in again');
+      await w.settle();
+      expect(a.node.starts, starts + 1);
+
+      // The app starts while the relay is away: the helpers it last named are what the node is given.
+      await w.relayGone();
+      await a.restart();
+      expect(a.hub.helpers.value, isEmpty);
+      expect(a.node.config!.helpers, ['https://other.example']);
+      // Told by itself, with the relay as it was (the app moving to another relay lets the old one's go at once): a
+      // running node is started again for that too.
+      starts = a.node.starts;
+      a.p2p.setHelpers(const ['https://third.example']);
+      await w.settle();
+      expect([a.node.starts, a.node.config!.helpers], [starts + 1, ['https://third.example']]);
+      a.p2p.setHelpers(const ['https://third.example']);
+      await w.settle();
+      expect(a.node.starts, starts + 1);
+      a.p2p.setHelpers(const ['https://other.example']);
+      await w.settle();
+      // A relay that names none: none are used.
+      w.memory = MemoryHub(Hub());
+      a.hub.nudge();
+      await w.until(() => a.hub.state.value == CarrierState.up, 'signed in to a relay with no helpers');
+      await w.settle();
+      expect([a.p2p.helpers, a.node.config!.helpers, a.plain.kept[P2p.helpersName]], [isEmpty, isEmpty, '[]']);
+      expect(a.node.whereabouts.value!.helper, isNull);
+    });
+
+    test('"Only through link helpers" reaches the node, restarts one that is running, and is kept', () async {
+      w = World(helpers: [_helper]);
+      final a = w.install(w.account('maya'), computer: true), b = w.install(w.account('sam'), computer: true);
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      expect([a.p2p.helpersOnly, a.node.config!.helpersOnly], [false, false]);
+      final starts = a.node.starts;
+      await a.p2p.setHelpersOnly(true);
+      await w.settle();
+      expect([a.p2p.helpersOnly, a.node.config!.helpersOnly, a.node.starts], [true, true, starts + 1]);
+      expect(a.plain.kept[P2p.helpersOnlyName], 'on');
+      expect(a.node.whereabouts.value!.addresses, isEmpty);
+      // The path is the helper's, and what the other is told of where this device is has no address in it.
+      await w.relayGone();
+      expect((await a.text(b.account, 'through the helper')).acked, isTrue);
+      expect(a.node.pathTo(b.p2p.nodeId!)!.kind, P2pPathKind.helper);
+      await w.relayBack();
+      await a.board.send(a.to(b.account), _said(w, const {'t': 'card?'}), only: {'hub'});
+      await b.board.send(b.to(a.account), _said(w, const {'t': 'card?'}), only: {'hub'});
+      await w.settle();
+      final told = b.p2p.devicesOf(a.account.id).single.where!;
+      expect([told.helper, told.addresses], [_helper, isEmpty]);
+      // Kept: the app started again still has it, and the node is started with it.
+      await a.restart();
+      expect([a.p2p.helpersOnly, a.node.config!.helpersOnly], [true, true]);
+      await a.p2p.setHelpersOnly(false);
+      await w.settle();
+      expect([a.node.config!.helpersOnly, a.plain.kept[P2p.helpersOnlyName], a.node.whereabouts.value!.addresses.length], [false, 'off', 1]);
+    });
+
+    test('a node that can\'t start: the route is down and says why, a send goes on to the next route, and it is tried again after a while', () async {
+      final lan = PlainCarrier.pair('lan');
+      final a = w.install(w.account('maya'), computer: true, also: [lan.$1]), b = w.install(w.account('sam'), computer: true, also: [lan.$2]);
+      w.friends(a, b);
+      a.startFails = 'The direct network\'s port is taken';
+      await a.start();
+      await b.start();
+      expect([a.p2p.carrier.state.value, a.p2p.carrier.problem], [CarrierState.down, 'The direct network\'s port is taken']);
+      expect(a.node.starts, 1, reason: 'not tried over and over');
+      final d = await a.text(b.account, 'another way', only: {'p2p', 'lan'});
+      expect([d.via, d.tried], ['lan', ['lan']], reason: 'a route that is down is passed over');
+      // Nothing that wants the node meanwhile starts it again: the people changing, a card asked for, a meet.
+      await a.p2p.refresh();
+      await b.board.send(b.to(a.account), _said(w, {'t': 'meet', 'c': b.p2p.card!.toJson(), 'h': [a.p2p.card!.tag]}), only: {'hub'});
+      await expectLater(a.p2p.up(), throwsA(isA<CarrierError>()));
+      await w.clock.pass(const Duration(seconds: 20));
+      expect([a.node.starts, a.p2p.carrier.state.value], [1, CarrierState.down]);
+      await w.clock.pass(const Duration(seconds: 9));
+      // Half a minute on it is tried again, by itself on a computer.
+      a.node.failStarts = null;
+      await w.clock.pass(const Duration(seconds: 2));
+      expect([a.node.state.value, a.p2p.carrier.state.value, a.p2p.carrier.problem], [P2pState.up, CarrierState.up, null]);
+      expect(a.node.starts, 2);
+    });
+  });
+
+  group('signing out', () {
+    test('wipes the node key, the node id, the cards and what was told; the node stops and lets nobody in; what comes after is a new node', () async {
+      final a = w.install(w.account('maya'), computer: true), b = w.install(w.account('sam'), computer: true);
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      await w.relayGone();
+      expect((await a.text(b.account, 'before')).acked, isTrue);
+      final was = a.p2p.nodeId!;
+      for (final name in [P2p.idName, P2p.cardName, P2p.cardsName, P2p.toldName]) {
+        expect(a.plain.kept[name], isNotEmpty, reason: name);
+      }
+      expect(a.secrets.kept[P2p.keyName], hasLength(64));
+      await a.p2p.setHelpersOnly(true);
+
+      await a.p2p.wipe();
+      await w.settle();
+      expect(a.secrets.kept[P2p.keyName], isEmpty);
+      for (final name in P2p.keptNames) {
+        expect(a.plain.kept[name], isEmpty, reason: name);
+      }
+      expect(a.plain.kept[P2p.helpersOnlyName], 'on', reason: 'a choice, not the account\'s');
+      expect([a.node.state.value, a.node.allowed, a.p2p.carrier.lines, b.p2p.carrier.lines], [P2pState.off, isEmpty, 0, 0]);
+      expect([a.p2p.loaded, a.p2p.card, a.p2p.nodeId, a.p2p.devicesOf(b.account.id)], [false, null, null, isEmpty]);
+      expect(a.p2p.carrier.reaches(a.to(b.account)), isFalse);
+      // The app starts again as it does after signing out: a new key, another node id, nothing held.
+      await a.restart();
+      expect(a.p2p.nodeId, isNot(was));
+      expect(a.secrets.kept[P2p.keyName], hasLength(64));
+    });
+
+    test('a node key made under one account is never carried to another', () async {
+      final a = w.install(w.account('maya'));
+      await a.start();
+      final was = a.p2p.nodeId!;
+      final key = a.secrets.kept[P2p.keyName];
+      await a.stop();
+      // The same install, now another account's (signed in to one, with the choices and secrets it had).
+      final other = w.install(w.account('someone else'));
+      other.secrets.kept.addAll(a.secrets.kept);
+      other.plain.kept.addAll(a.plain.kept);
+      await other.start();
+      expect(other.secrets.kept[P2p.keyName], isNot(key));
+      expect(other.p2p.nodeId, isNot(was));
+      expect(other.p2p.card!.account, other.account.id);
+    });
+
+    test('the node key can\'t be read (a locked secret store): nothing is made or carried until it can', () async {
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
+      w.friends(a, b);
+      await b.start();
+      a.secrets.locked = true;
+      await a.start();
+      expect([a.p2p.loaded, a.p2p.carrier.state.value, a.p2p.nodeId], [false, CarrierState.connecting, null]);
+      expect(a.secrets.kept, isEmpty);
+      expect(a.p2p.carrier.reaches(a.to(b.account)), isFalse);
+      // Sam's card came meanwhile, and is looked at once the store opens.
+      expect(a.got.where((r) => r.envelope.kind == P2p.kind), hasLength(1));
+      a.secrets.locked = false;
+      expect(await a.p2p.tryLoad(), isTrue);
+      await w.settle();
+      expect([a.p2p.loaded, a.p2p.carrier.state.value], [true, CarrierState.up]);
+      expect(a.p2p.devicesOf(b.account.id).single.card, b.p2p.card);
+      expect(b.p2p.devicesOf(a.account.id).single.card, a.p2p.card);
+    });
+  });
+}
