@@ -148,12 +148,17 @@ class Sounds {
         _ => s.file,
       };
 
+  /// The speaker or headset chosen for calls (Settings › Voice and video), which the ring and every other sound play
+  /// through too; empty for the system's own. The Mac's player plays through it (Sounds.swift); the others' through
+  /// the system's own.
+  String get output => _app?.choice('voice_output', '') ?? '';
+
   /// Reads the file (once), scales it to [volume] (0 to 1) and hands it to the device's player.
   Future<void> _play(String name, double volume, {required bool loop}) async {
     if (volume <= 0) return;
     try {
       final wav = _files[name] ??= (await rootBundle.load('assets/sounds/$name.wav')).buffer.asUint8List();
-      await _channel.invokeMethod<void>('play', {'name': name, 'bytes': scaled(wav, volume), 'loop': loop});
+      await _channel.invokeMethod<void>('play', {'name': name, 'bytes': scaled(wav, volume), 'loop': loop, 'output': output});
     } catch (_) {
       // No player on this device, or no file: the app goes on quietly.
     }
