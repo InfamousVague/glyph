@@ -226,7 +226,7 @@ void main() {
     await net.settle();
     expect(asker.said.where((m) => m['dir'] == 'whois' && m['id'] != null), hasLength(Handles.lookupsAnHour));
     asker.said.clear();
-    expect(await ask('maya', 'b.test', as: asker), {'dir': 'err', 'about': 'whois', 'err': 'Too many lookups. Try again in a while.'});
+    expect(await ask('maya', 'b.test', as: asker), {'dir': 'err', 'about': 'whois', 'at': 'b.test', 'err': 'Too many lookups. Try again in a while.'}, reason: 'said with the host, so an app can tell it from an answer to a name here');
     asker.say({'dir': 'whois', 'name': 'alice'});
     await pumpEventQueue();
     expect(asker.said.last, {'dir': 'err', 'about': 'whois', 'p': null, 'err': 'Too many lookups. Try again in a while.'});

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -59,10 +60,11 @@ import 'ws_door.dart';
 /// - **What it does not carry:** a call's sound and picture. Those go between the phones directly (or through a
 ///   media relay); the hub carries only what sets a call up.
 class Hub {
-  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words, this.turn = const TurnConfig(), List<String> helpers = const [], this.federation})
+  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words, this.turn = const TurnConfig(), List<String> helpers = const [], this.federation, Iterable<String> names = const [], this.dataDir})
       : _now = now ?? DateTime.now,
         _random = random ?? Random.secure(),
-        helpers = linkHelpers(helpers) {
+        helpers = linkHelpers(helpers),
+        names = hubNames(names) {
     federation?.bind(deliver: deliver, isHere: _isHere, knows: _knows, ownNumber: _nonces.contains, handles: handles);
   }
 
@@ -112,8 +114,88 @@ class Hub {
   /// over. None where null: the hub is then exactly the one it was before any of it.
   final Federation? federation;
 
-  /// What is signed to connect: these words, then the hub's number.
+  /// What is signed to connect: these words, then the hub's number (v1, what every app signed before 2026-11-23).
   static const greeting = 'ghost-hub v1 ';
+
+  /// What is signed to connect where the hub takes it (v2, found in the review of relays that talk, 2026-11-23): these
+  /// words, the host the app dialled ([hostBytes]: its length, then it), then the hub's number. A v1 signature says
+  /// nothing of where it was made, so a relay an app was pointed at, or asked a name of, could hand it the number of
+  /// the app's own relay and sign in there as the app with the answer. A v2 signature is good only at a relay that is
+  /// reached by that host ([names]); and a relay that has seen a key sign in with v2 takes no v1 from it again
+  /// ([_signsV2]), so a v1 signature that key gives anywhere else is worth nothing here.
+  static const greetingV2 = 'ghost-hub v2 ';
+
+  /// What an app signs with v2 to the hub it reached at [host] (lower case, with its port where it is not the scheme's
+  /// own), for the hub's number [nonce].
+  static List<int> signedV2(String host, List<int> nonce) {
+    final bytes = utf8.encode(host);
+    return [...utf8.encode(greetingV2), bytes.length.clamp(0, 255), ...bytes.take(255), ...nonce];
+  }
+
+  /// The hosts this hub is reached at (`GHOST_HUB_NAMES`), as a v2 sign-in names them: lower case, with a port only
+  /// where it is not 443 or 80. With none the hub takes v1 alone, as it always did, and says nothing of v2.
+  final Set<String> names;
+
+  /// [said] as hosts are named.
+  static Set<String> hubNames(Iterable<String> said) => {
+        for (final n in said.map((n) => n.trim().toLowerCase()).where((n) => n.isNotEmpty && n.length <= 200 && !n.contains('/') && !n.contains(' ')))
+          n.endsWith(':443') || n.endsWith(':80') ? n.substring(0, n.lastIndexOf(':')) : n,
+      };
+
+  /// Where the names of the keys that have signed in with v2 are kept across restarts (`hub-v2.json`); none in memory.
+  final Directory? dataDir;
+
+  /// The keys that have signed in here with v2, the latest last: from any of them a v1 signature is refused. The most
+  /// kept is [maxSignsV2]; the one that signed in longest ago goes first.
+  final LinkedHashMap<String, bool> _signsV2 = LinkedHashMap();
+  static const maxSignsV2 = 200000;
+  bool _v2Dirty = false;
+  Timer? _v2Saver;
+
+  /// Whether the key named [id] has signed in here with v2, for a test.
+  bool signsV2(String id) => _signsV2.containsKey(id);
+
+  File? get _v2File => dataDir == null ? null : File('${dataDir!.path}/hub-v2.json');
+
+  void _sawV2(String id) {
+    final had = _signsV2.remove(id) != null;
+    _signsV2[id] = true;
+    while (_signsV2.length > maxSignsV2) {
+      _signsV2.remove(_signsV2.keys.first);
+    }
+    if (had) return;
+    _v2Dirty = true;
+    if (_v2File != null) _v2Saver ??= Timer(const Duration(seconds: 2), _saveV2);
+  }
+
+  void _loadV2() {
+    final f = _v2File;
+    if (f == null || !f.existsSync()) return;
+    try {
+      final all = jsonDecode(f.readAsStringSync());
+      final ids = all is Map && all['ids'] is List ? all['ids'] as List : const [];
+      for (final id in ids.length > maxSignsV2 ? ids.sublist(ids.length - maxSignsV2) : ids) {
+        if (_hex(id, 32)) _signsV2[id as String] = true;
+      }
+    } catch (e) {
+      stderr.writeln('relay: hub-v2.json could not be read (${'$e'.split('\n').first}); started again from nothing');
+    }
+  }
+
+  void _saveV2() {
+    _v2Saver?.cancel();
+    _v2Saver = null;
+    final f = _v2File;
+    if (f == null || !_v2Dirty) return;
+    try {
+      f.parent.createSync(recursive: true);
+      final tmp = File('${f.path}.tmp')..writeAsStringSync(jsonEncode({'v': 1, 'ids': _signsV2.keys.toList()}));
+      tmp.renameSync(f.path);
+      _v2Dirty = false;
+    } catch (e) {
+      stderr.writeln('relay: hub-v2.json could not be written (${'$e'.split('\n').first})');
+    }
+  }
 
   /// How much is held for everyone together, in bytes, and how many may be connected: a server with a few hundred
   /// megabytes to itself, open to anyone who can make a key, is not to be filled by them.
@@ -283,6 +365,7 @@ class Hub {
   int heldFor(String id) => _mail[id]?.length ?? 0;
 
   void start() {
+    _loadV2();
     handles?.load();
     invites?.load();
     words?.load();
@@ -302,6 +385,7 @@ class Hub {
   void stop() {
     _sweeper?.cancel();
     _sweeper = null;
+    _saveV2();
     handles?.save();
     invites?.save();
     words?.save();
@@ -434,7 +518,9 @@ class Hub {
     // hub from before would hand it all over, and the check does not sign in to one that does not say so.
     // `react`: this hub takes reactions ([toRoomReaction]); an app sends them as kept packets to one that doesn't say so.
     // `relay`: this relay's own name and key, where it has them (federation.dart); an app from before passes over it.
-    _tell(socket, {'hello': hexOf(nonce), 'peek': true, 'react': true, 'relay': ?federation?.card});
+    // `v2`: this hub takes a sign-in bound to the host it is reached at ([greetingV2]); said only where its names are
+    // known, and an app from before passes over it.
+    _tell(socket, {'hello': hexOf(nonce), 'peek': true, 'react': true, 'relay': ?federation?.card, if (names.isNotEmpty) 'v2': true});
 
     // Another relay's link, once its hello has come in place of an app's: what it says from then on is federation's.
     FedEnd? link;
@@ -519,10 +605,23 @@ class Hub {
           sig = base64Decode(hello?['sig'] as String);
         } catch (_) {}
         final id = hello?['id'];
-        if (key == null || sig == null || !_hex(id, 32) || nameOf(key) != id || !P256.verify(key, [...utf8.encode(greeting), ...nonce], sig)) {
-          _tell(socket, {'ok': false, 'err': 'bad hello'});
+        void bad([String why = 'bad hello']) {
+          _tell(socket, {'ok': false, 'err': why});
           socket.close(4400, 'bad hello');
-          return;
+        }
+
+        if (key == null || sig == null || !_hex(id, 32) || nameOf(key) != id) return bad();
+        if (hello?['v'] == 2) {
+          // Bound to the host it was signed for, which must be one this hub is reached at.
+          final host = hello?['host'];
+          if (host is! String || !names.contains(host.toLowerCase())) return bad('This relay isn\'t reached as ${host is String && host.length <= 200 ? host : 'that'}.');
+          if (!P256.verify(key, signedV2(host.toLowerCase(), nonce), sig)) return bad();
+          _sawV2(id as String);
+        } else {
+          if (!P256.verify(key, [...utf8.encode(greeting), ...nonce], sig)) return bad();
+          // A key that has signed in here with v2 signs every sign-in here so: a v1 signature of its is one made
+          // somewhere else, for anyone to pass on.
+          if (_signsV2.containsKey(id)) return bad('This account signs in a newer way now: update Ghost Messaging on this device.');
         }
         waiting.cancel();
         _nonces.remove(number);
@@ -705,7 +804,9 @@ class Hub {
       // sender told what that relay said (`fed` in the answer says it went that way); never what an account sends its
       // own name (federation.dart).
       final fed = federation;
-      if (fed != null && to != from.id && fed.pass(to, from.id, data.sublist(21), (here, [err]) => _tell(from.ws, err != null ? {'nak': seq, 'err': err} : {'ack': seq, 'here': here == true, 'fed': true}))) return;
+      // `waiting`: it is kept on this relay until theirs is reached, not taken there yet (the app sends it again less
+      // often meanwhile: what waits is each sender's own share).
+      if (fed != null && to != from.id && fed.pass(to, from.id, data.sublist(21), (here, [err]) => _tell(from.ws, err != null ? {'nak': seq, 'err': err} : {'ack': seq, 'here': here == true, 'fed': true, if (here == null) 'waiting': true}))) return;
       if (!_hold(to, frame, byDevice: to == from.id && from.device.isNotEmpty ? from.device : null)) {
         _tell(from.ws, {'nak': seq, 'err': 'full'});
         return;

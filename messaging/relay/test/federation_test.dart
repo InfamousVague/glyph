@@ -182,7 +182,7 @@ void main() {
       await thenDown();
       final n = alice.send(bob.id, [5]);
       await pumpEventQueue();
-      expect(alice.answerTo(n), {'ack': n, 'here': false, 'fed': true});
+      expect(alice.answerTo(n), {'ack': n, 'here': false, 'fed': true, 'waiting': true}, reason: 'kept here, waiting for their relay: said so');
       expect([a.fed.waitingFor(b.url), a.hub.heldFor(bob.id)], [1, 0], reason: 'kept for that relay, not in a mailbox here');
       // Tried again later, later each time: after 5 seconds, then 10, then 20.
       expect(net.dialled, [b.url]);
@@ -376,7 +376,7 @@ void main() {
       await net.settle();
       expect([got, alice.answerTo(n)], [hasLength(1), isNull], reason: 'sent, and not yet answered');
       await net.pass(Federation.answerWithin);
-      expect(alice.answerTo(n), {'ack': n, 'here': false, 'fed': true}, reason: 'told it is kept, in good time for the app');
+      expect(alice.answerTo(n), {'ack': n, 'here': false, 'fed': true, 'waiting': true}, reason: 'told it is kept, in good time for the app');
       expect(a.fed.waiting, greaterThan(0));
       final first = net.made[b.url]!.last;
       swallow = false;

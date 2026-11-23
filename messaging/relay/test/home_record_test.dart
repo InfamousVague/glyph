@@ -38,7 +38,7 @@ void main() {
       final read = HomeRecord.read(b['rec'], now: now);
       expect([read.rec, read.err], [isNull, b['why']], reason: '${b['name']}');
     }
-    expect({for (final b in bad) b['why']}, {'shape', 'name', 'addresses', 'count', 'time', 'future', 'signature'});
+    expect({for (final b in bad) b['why']}, {'shape', 'name', 'addresses', 'count', 'time', 'future', 'old', 'signature'});
   });
 
   test('a record made ahead of the clock is taken up to five minutes, by this relay\'s own clock', () {
@@ -62,6 +62,14 @@ void main() {
     for (final b in (v['bad'] as List).where((b) => const {'shape', 'name', 'addresses', 'count', 'time'}.contains(b['why']))) {
       expect(HomeRecord.read(b['rec'], now: now, verify: false).err, b['why'], reason: '${b['name']}');
     }
+  });
+
+  test('of two records for one account, the one believed: the higher count, the later made, the greater signature', () {
+    for (final o in v['order'] as List) {
+      final older = HomeRecord.read(o['older'], now: now).rec!, newer = HomeRecord.read(o['newer'], now: now).rec!;
+      expect([newer.newerThan(older), older.newerThan(newer)], [true, false], reason: '${o['name']}');
+    }
+    expect((v['order'] as List), hasLength(3));
   });
 
   test('hubs\' addresses as they are compared', () {

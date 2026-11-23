@@ -44,7 +44,7 @@ class Raw {
     final head = Completer<String>();
     Raw? raw;
     s.listen((d) {
-      if (raw != null) return raw!.heard.add(d);
+      if (raw != null) return raw.heard.add(d);
       got.add(d);
       final text = latin1.decode(got.toBytes());
       final end = text.indexOf('\r\n\r\n');

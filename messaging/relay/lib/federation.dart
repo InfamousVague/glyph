@@ -760,10 +760,10 @@ class Federation {
     if (_isSelfUrl(url)) {
       final h = _handles;
       if (h == null) return tell(none());
-      unawaited(h.said(asker, {'dir': 'whois', 'name': name}, (m) => tell(m['dir'] == 'whois' ? {...withHome(m), 'at': at, 'here': true} : m)));
+      unawaited(h.said(asker, {'dir': 'whois', 'name': name}, (m) => tell(m['dir'] == 'whois' ? {...withHome(m), 'at': at, 'here': true} : (m['dir'] == 'err' ? {...m, 'at': at} : m))));
       return;
     }
-    if (!_mayLookUp(asker)) return tell({'dir': 'err', 'about': 'whois', 'err': 'Too many lookups. Try again in a while.'});
+    if (!_mayLookUp(asker)) return tell({'dir': 'err', 'about': 'whois', 'at': at, 'err': 'Too many lookups. Try again in a while.'});
     final uri = Uri.parse(url);
     if (_stopped || !_mayLink(url: uri, toLearn: true) || guard.shape(uri) != null) return tell(none('off'));
     if (_deadNow(url)) return tell(none('down'));
@@ -879,7 +879,8 @@ class Federation {
   /// to pass on (no record, or the record names this relay): the hub keeps it, as it always did.
   ///
   /// [answer] is told once what became of it: taken (`here` false: the other relay took it, and whether they are
-  /// there is not said across relays; or it is kept here for that relay), or with `err` why not: `home` (no record of
+  /// there is not said across relays), kept here for that relay (`here` null: it waits until that relay is reached), or
+  /// with `err` why not: `home` (no record of
   /// the sender's naming this relay is held: their app gives it, and sends again), `busy` (the sender is past what one
   /// install may send across relays, or may make this relay dial), `full`, `far` (their relay is one this relay
   /// doesn't or can't pass to), `refused`.
@@ -1007,7 +1008,7 @@ class Federation {
       // or two, and then they are told it can't be reached.)
       if (peer.url == null || (peer.everLinked && peer.failures > 0 && !peer.dialling)) {
         for (final out in peer.queue) {
-          out.tell(false);
+          out.tell(null);
         }
       }
       return;
@@ -1270,7 +1271,7 @@ class Federation {
         out.tell(null, 'far');
       } else if (peer.everLinked) {
         // Unreachable: it waits here, and its sender is told it is kept.
-        out.tell(false);
+        out.tell(null);
       }
     }
   }
@@ -1715,7 +1716,7 @@ class Federation {
           _dequeue(out);
           out.tell(false);
         } else if (!out.answered && peer.everLinked && now.difference(out.at) >= answerWithin) {
-          out.tell(false);
+          out.tell(null);
         }
       }
       for (final ask in peer.asks.toList()) {

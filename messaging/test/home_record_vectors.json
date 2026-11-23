@@ -340,6 +340,21 @@
       }
     },
     {
+      "name": "made thirty days before the clock: ended",
+      "why": "old",
+      "rec": {
+        "v": 1,
+        "a": "bc609618bfe80ad8dfcc8e15df6c07c0",
+        "k": "AgIX5hfwtkQ5KCePlpmeaaI6TywVK99tbN9m5bgCgtTt",
+        "h": [
+          "wss://gogho.st/hub"
+        ],
+        "n": 1,
+        "t": 1792756800000,
+        "s": "HhhTL9R1TALzBB2cdc6zO4P/2BrHzk/ogsyxyYvFiW5NcT3HGF78+FiGh4Xb6S5D6QKefYA58tl/3fBJh+JS8A=="
+      }
+    },
+    {
       "name": "an address changed after it was signed",
       "why": "signature",
       "rec": {
@@ -428,6 +443,83 @@
         "n": 1,
         "t": 1795345200000,
         "s": "UPc/7Gr0cozXwbgkOnzUIUzmv8YQSBTUQMpFoq5v5MsiovTwENdFI8u6ZCP0ZQqoNQJUASZvUk+pllPTK8bkLg=="
+      }
+    }
+  ],
+  "order": [
+    {
+      "name": "the higher count, whatever else",
+      "older": {
+        "v": 1,
+        "a": "bc609618bfe80ad8dfcc8e15df6c07c0",
+        "k": "AgIX5hfwtkQ5KCePlpmeaaI6TywVK99tbN9m5bgCgtTt",
+        "h": [
+          "wss://a.example/hub"
+        ],
+        "n": 4,
+        "t": 1795345200000,
+        "s": "HhhTL9R1TALzBB2cdc6zO4P/2BrHzk/ogsyxyYvFiW5Hl76xjHO/rUHP2qurQ9ODW52nwYoKus9WDpQX79zAiA=="
+      },
+      "newer": {
+        "v": 1,
+        "a": "bc609618bfe80ad8dfcc8e15df6c07c0",
+        "k": "AgIX5hfwtkQ5KCePlpmeaaI6TywVK99tbN9m5bgCgtTt",
+        "h": [
+          "wss://a.example/hub"
+        ],
+        "n": 5,
+        "t": 1795345140000,
+        "s": "HhhTL9R1TALzBB2cdc6zO4P/2BrHzk/ogsyxyYvFiW5nBDBi1u2oQiTWJKGWITEv+YL1Z+JOG1DjMOrxbUwV9w=="
+      }
+    },
+    {
+      "name": "one count: the later made",
+      "older": {
+        "v": 1,
+        "a": "bc609618bfe80ad8dfcc8e15df6c07c0",
+        "k": "AgIX5hfwtkQ5KCePlpmeaaI6TywVK99tbN9m5bgCgtTt",
+        "h": [
+          "wss://a.example/hub"
+        ],
+        "n": 5,
+        "t": 1795345140000,
+        "s": "HhhTL9R1TALzBB2cdc6zO4P/2BrHzk/ogsyxyYvFiW5nBDBi1u2oQiTWJKGWITEv+YL1Z+JOG1DjMOrxbUwV9w=="
+      },
+      "newer": {
+        "v": 1,
+        "a": "bc609618bfe80ad8dfcc8e15df6c07c0",
+        "k": "AgIX5hfwtkQ5KCePlpmeaaI6TywVK99tbN9m5bgCgtTt",
+        "h": [
+          "wss://b.example/hub"
+        ],
+        "n": 5,
+        "t": 1795345200000,
+        "s": "HhhTL9R1TALzBB2cdc6zO4P/2BrHzk/ogsyxyYvFiW7cl/0uds3T8RHpyovoqgOqT1g5syUqsJkYKl4LeZZycg=="
+      }
+    },
+    {
+      "name": "one count, made at once: the greater signature",
+      "older": {
+        "v": 1,
+        "a": "bc609618bfe80ad8dfcc8e15df6c07c0",
+        "k": "AgIX5hfwtkQ5KCePlpmeaaI6TywVK99tbN9m5bgCgtTt",
+        "h": [
+          "wss://c.example/hub"
+        ],
+        "n": 6,
+        "t": 1795345200000,
+        "s": "WRq3ceu8/W2cuQlNEGUordGmnUTCwfYn8InsWLnGGt+GkUleNCJ/8b//eHwcYF6puG99CgPhSKTPfsYXlIPOrg=="
+      },
+      "newer": {
+        "v": 1,
+        "a": "bc609618bfe80ad8dfcc8e15df6c07c0",
+        "k": "AgIX5hfwtkQ5KCePlpmeaaI6TywVK99tbN9m5bgCgtTt",
+        "h": [
+          "wss://d.example/hub"
+        ],
+        "n": 6,
+        "t": 1795345200000,
+        "s": "cxA+wws8z1fargjpNTSu8USjWUDPa7uhKgz3y9XWWmTUiRKIv3XgqMs2cJcxN0lSI8z5BOXVVdyBg4dqorgjpw=="
       }
     }
   ],

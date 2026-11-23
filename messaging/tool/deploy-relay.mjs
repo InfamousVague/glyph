@@ -60,6 +60,8 @@ const fail = (message) => { console.error(`x ${message}`); process.exit(1); };
 // shape of the ones that have one. A name that is not here is a slip of the hand, and is refused.
 const KNOWN = {
   GHOST_PUBLIC_URL: /^https:\/\/[A-Za-z0-9.-]+$/,
+  // The hosts the hub is reached at (relay/lib/hub.dart `names`): a sign-in is bound to the one the app dialled.
+  GHOST_HUB_NAMES: /^[a-z0-9.-]+(:[0-9]{1,5})?(,[a-z0-9.-]+(:[0-9]{1,5})?)*$/,
   GHOST_DISCORD_ID: /^[0-9]{15,22}$/,
   GHOST_DISCORD_SECRET: null,
   GHOST_X_ID: null,
@@ -170,6 +172,7 @@ const SHAPES = {
   GHOST_MARKET_REVIEW_KEYS: 'base64 public keys of 44 characters, commas between',
   GHOST_TURN_SECRET: '32 to 128 letters, digits, - or _',
   GHOST_TURN_URLS: 'turn:host:3478?transport=udp and the like, commas between',
+  GHOST_HUB_NAMES: 'host names, commas between, like gogho.st,www.gogho.st',
   GHOST_FED: 'off, open or list',
   GHOST_PUBLIC_HUB: 'this relay\'s hub address, like wss://relay.example.com/hub',
   GHOST_FED_ALLOW: 'hosts or relays\' names of 32 hex digits, commas between',

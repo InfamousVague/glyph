@@ -379,7 +379,7 @@ void main() {
       expect(alice.answerTo(sent.last), isNull);
       expect(a.fed.waitingFor(b.url), 1);
       await net.pass(Federation.answerWithin);
-      expect(alice.answerTo(sent.last), {'ack': sent.last, 'here': false, 'fed': true});
+      expect(alice.answerTo(sent.last), {'ack': sent.last, 'here': false, 'fed': true, 'waiting': true});
       await net.pass(const Duration(seconds: 56));
       await net.settle();
       expect(bob.frames, [for (var i = 0; i < 3; i++) handed(alice.id, [i])]);

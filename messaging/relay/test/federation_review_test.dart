@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:ghost_relay/federation.dart';
 import 'package:ghost_relay/hub.dart';
@@ -246,7 +245,7 @@ void main() {
       // Alice still has hers, for Carol.
       final n = alice.send(carol.id, [3]);
       await net.settle();
-      expect(alice.answerTo(n), {'ack': n, 'here': false, 'fed': true});
+      expect(alice.answerTo(n), {'ack': n, 'here': false, 'fed': true, 'waiting': true});
       expect(a.fed.waitingFor(b.url), Hub.mailboxFrames + 1);
     });
 
@@ -375,7 +374,7 @@ void main() {
       expect(bob.frames, hasLength(10));
       // The eleventh: b is too busy to check her record, says so, and a sends it again in a while.
       await net.pass(Federation.answerWithin);
-      expect(senders[10].answerTo(sent[10]), {'ack': sent[10], 'here': false, 'fed': true}, reason: 'told it is kept, not refused');
+      expect(senders[10].answerTo(sent[10]), {'ack': sent[10], 'here': false, 'fed': true, 'waiting': true}, reason: 'told it is kept, not refused');
       for (var m = 0; m < 70; m++) {
         await net.pass(const Duration(minutes: 1));
       }

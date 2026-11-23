@@ -122,7 +122,7 @@ void main() {
     expect(v.fed.linkedWith(r.id), isFalse);
     final n = zed.send(xena.id, [1]);
     await pumpEventQueue();
-    expect(zed.answerTo(n), {'ack': n, 'here': false, 'fed': true}, reason: 'told at once: a relay with no address can only be waited for');
+    expect(zed.answerTo(n), {'ack': n, 'here': false, 'fed': true, 'waiting': true}, reason: 'told at once: a relay with no address can only be waited for');
     net.down.remove(v.url);
     final m = yuri.send(xena.id, [2]);
     await pumpEventQueue();
