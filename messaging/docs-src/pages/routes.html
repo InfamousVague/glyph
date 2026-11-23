@@ -52,16 +52,23 @@
 
 <p>How to run one (Docker, or systemd behind Caddy or nginx, with coturn for calls) is in the repository: <a href="https://github.com/InfamousVague/ghost-messaging/blob/main/docs/SELF_HOSTING.md">docs/SELF_HOSTING.md</a>, with sample files in <code>relay/deploy/</code>.</p>
 
-<h2 id="direct">Direct <soon/></h2>
-<p>A second way between Ghost apps, tried after the relay server: straight from one device to another, with no server in between. The relay stays first, because it is fast and keeps a message for someone who is away. The direct route is the way through when the relay can't carry something, for instance when it can't be reached.</p>
+<h2 id="direct">Direct</h2>
+<p>A second way between Ghost apps, tried after the relay server: straight from one device to another. The relay stays first, because it is fast and keeps a message for someone who is away. The direct route is the way through when the relay can't carry something, for instance when it can't be reached, and the way your app checks what the relay says (below).</p>
+<p><b>It starts off.</b> Switch it on under <ui>Settings › Routes</ui> on an Android phone or a computer (the Mac, Windows or Linux); it isn't in the iPhone app or the browser yet. Until you switch it on, none of it runs on your device. Before you do, Settings says what it means.</p>
 <p>Your device links only with your own other devices and with your friends' devices. They are told where it is in sealed messages; nobody else is, and nothing is put in any public directory. What crosses a direct link is sealed exactly as it is through the relay.</p>
 
-<m-screen title="Routes" back caption="Settings › Routes, in a build that has the direct route.">
+<m-screen title="Routes" back caption="Settings › Routes, before Direct is switched on.">
   <m-section title="Routes" foot="The ways this phone reaches another, tried from the top.">
     <m-row icon="globe" hue="blue" label="Relay server" hint="Through a server on the internet. The server sees who talks to whom, never what is said." switch="on"/>
-    <m-row icon="link-2" hue="teal" label="Direct" hint="Straight between your devices and your friends', with no server in between. Their device sees your network address; nobody else does." switch="on"/>
+    <m-row icon="link-2" hue="teal" label="Direct" hint="Off. Straight between your devices and your friends', for when the relay server can't carry something. Their devices learn this device's network address, and nobody else is told it." switch="off"/>
     <m-row icon="message-square" hue="green" label="SMS" hint="As data texts over the phone network. Each counts as a text on your plan." switch="on"/>
   </m-section>
+  <m-section title="Direct" foot="A link helper sees which devices link and how much they send, never who they are or what is said.">
+    <m-row icon="eye-off" hue="slate" label="Only through link helpers" hint="Friends' devices then see the link helper's address and not this device's. It is slower." switch="off"/>
+  </m-section>
+</m-screen>
+
+<m-screen title="Routes" back caption="Settings › Routes, with Direct switched on.">
   <m-section title="Direct" foot="A link helper sees which devices link and how much they send, never who they are or what is said.">
     <m-row icon="users" hue="blue" label="Knows 3 friends' devices" hint="And 1 other device of your own."/>
     <m-row icon="link" hue="teal" label="Linked to 1 device now" hint="1 straight."/>
@@ -71,11 +78,11 @@
 
 <ul>
 <li><b>Who counts as a friend:</b> only someone you and they both said yes to, as a friend by username or by number. People you share a group with, and people who have only asked, are never linked with or told anything.</li>
-<li><b>What a friend's device learns:</b> your device's network address, as with any direct connection, and on a phone only while you're using the app. Switch on <b>Only through link helpers</b> and friends are told at once, and from then see the helper's address instead; links are slower then. It is off unless you switch it on, because where the relay names no link helper, nothing would link at all.</li>
-<li><b>Link helpers</b> are servers that help two devices find each other across networks, and pass their sealed packets along where no straight path can be made. The relay you use names them. Where it names none, direct links work only between devices on the same network.</li>
-<li><b>On a phone</b> the direct network runs only for something of your own: a message you send, or the relay being unreachable while you use the app. It stops two minutes after, whatever a friend's device does, so it doesn't wear the battery down. On a computer it stays up while the route is on.</li>
+<li><b>What a friend's device learns:</b> your device's network address, as with any direct connection, and on a phone only while you're using the app. Switch on <b>Only through link helpers</b> and friends are told at once, and from then see the helper's address instead; links are slower then. You can switch it on before you switch Direct on, so that no friend's device ever sees your address. It is off unless you switch it on, because where the relay names no link helper, nothing would link at all.</li>
+<li><b>Link helpers</b> are servers that help two devices find each other across networks, and pass their sealed packets along where no straight path can be made. The relay you use names them. Where it names none (a relay of your own that hasn't been given one), Settings says so: devices behind most home routers can't link then, and direct links work only between devices that can reach each other as they are, such as two on the same network.</li>
+<li><b>On a phone</b> the direct network runs only for something of your own: a message you send, or the relay being unreachable while you use the app. It stops two minutes after, whatever a friend's device does, so it doesn't wear the battery down; with the app put away nothing of it keeps the phone awake. On a computer it stays up while the route is on.</li>
 <li><b>Invisible:</b> while you've chosen to be shown as Invisible, your device makes no direct links with friends' devices, since a link would show it is there. Your own devices still link with each other.</li>
-<li><b>Off:</b> switch <b>Direct</b> off under Routes and nothing is linked, and nobody is told where your device is.</li>
+<li><b>Off:</b> switch <b>Direct</b> off under Routes and every link is closed at once, nothing is linked, and nobody is told where your device is. What it knew of your friends' devices stays, for when you switch it on again.</li>
 <li><b>If it can't start</b> on your device, <ui>Settings › Routes</ui> says why under <b>Direct</b>, and every other route works as before.</li>
 </ul>
 
@@ -85,7 +92,7 @@
 <li><b>Usernames.</b> Each friend you added by username is looked up again once a day, and your own each time you connect. If the relay that once gave a friend's username to them now gives it to another account, their profile says so; usually it's because they changed or gave up their username and someone else took it. Either way you're still talking to the friend you added: the relay can't swap them for someone else. If a friend tells their app they go by a new username, and the relay agrees, that's the one looked up from then on. Their app is told too, through the relay and over a direct link where one is open. Each relay is its own directory, so on a relay of your own nobody's username is held against what ours said. If you use Ghost Messaging on several devices, they take turns: your friends are still looked up once a day between them, and each of your devices shows what was found. These lookups and the checks on friend requests use at most a quarter of what the relay answers your account in an hour, leaving the rest for adding friends and accepting requests. If the relay ever says that's used up, <b>Accept</b> tells you by when it frees up.</li>
 <li><b>Your own username.</b> If the relay gives it to another account, you're told once, calmly, with the usual reasons: you gave it up or changed it on another of your devices, made a new key for this phone (the old key still holds it), or use another relay.</li>
 <li><b>Add-me links</b> carry your account's name (made from your key) after a <code>#</code>, which no browser sends to any server. Whoever opens your link adds that key and no other, whatever the relay says.</li>
-<li><b>Messages</b> <soon/>. With <b>Direct</b>, your device and a friend's compare, over a direct link, which messages went between them and when, never what they said. Anything your device never got is sent again straight. Only once it has come is anything held against the relay, and then as the friend's device's word. A device that was away while another of yours took a message, or a message lost when the relay restarted, isn't counted against it.</li>
+<li><b>Messages.</b> With <b>Direct</b> switched on, your device and a friend's compare, over a direct link, which messages went between them and when, never what they said. Anything your device never got is sent again straight. Only once it has come is anything held against the relay, and then as the friend's device's word. A device that was away while another of yours took a message, or a message lost when the relay restarted, isn't counted against it.</li>
 </ul>
 
 <m-screen title="Routes" back caption="Settings › Routes, Checking the relay, in a build with Direct.">
