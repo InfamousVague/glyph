@@ -42,7 +42,7 @@ Future<void> main(List<String> args) async {
         final nonce = unhex(m['hello'] as String);
         final v2 = m['v2'] == true;
         final sig = P256.sign(scalar, v2 ? Hub.signedV2(host, nonce) : [...utf8.encode(Hub.greeting), ...nonce], bytes(32));
-        ws.add(jsonEncode({'id': id, 'key': base64Encode(key), 'sig': base64Encode(sig), if (v2) 'v': 2, if (v2) 'host': host, if (phrase != null) 'pass': hex(Hub.passProof(Hub.passKeyOf(phrase), nonce, id))}));
+        ws.add(jsonEncode({'id': id, 'key': base64Encode(key), 'sig': base64Encode(sig), if (v2) 'v': 2, if (v2) 'host': host, if (phrase != null) 'pass': hex(Hub.passProof(Hub.passKeyOf(phrase, m['salt'] as String), nonce, id))}));
       } else if (m.containsKey('ok') && !signedIn) {
         if (m['ok'] != true) {
           stdout.writeln('REFUSED ${jsonEncode(m)}');

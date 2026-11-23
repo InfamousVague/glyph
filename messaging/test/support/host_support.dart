@@ -11,6 +11,8 @@ import 'package:ghost_messaging/net/p2p/p2p.dart';
 import 'package:ghost_messaging/relay_host/relay_host_io.dart';
 import 'package:ghost_relay/federation.dart' show FedDial;
 
+import 'hub_pair.dart';
+
 /// What the tests of a relay hosted from the app stand on (test/relay_host_test.dart and the rest): a host as the app
 /// makes one, but for what it keeps and where, and installs on it in memory.
 
@@ -65,10 +67,12 @@ Future<void> waitFor(bool Function() ok, String what, {Duration most = const Dur
 
 /// An install on the relay this device hosts, in memory: its key and its route, dialled as the app dials its own.
 class OnHost {
-  OnHost(RelayHost host, {String? Function()? pass, HubDial? dial}) : keys = NetKeys.generate() {
+  /// This app on [host], in memory ([RelayHost.dialHere]: the keeper's own, never asked for the pass phrase); with
+  /// [stranger], another device's way in, in memory too but attached as anyone's, so asked as anyone is.
+  OnHost(RelayHost host, {String? Function()? pass, HubDial? dial, bool stranger = false}) : keys = NetKeys.generate() {
     carrier = HubCarrier(url: host.ownUrl!, signer: KeysSigner(keys), retry: const Duration(milliseconds: 20), dial: (url) {
       dials++;
-      return (dial ?? (_) => host.dialHere())(url);
+      return (dial ?? (stranger ? (url) => MemoryHub(host.hub!).dial(url) : (_) => host.dialHere()))(url);
     })
       ..pass = pass;
     carrier.arrived.listen(got.add);

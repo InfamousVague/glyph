@@ -14,7 +14,8 @@ import 'fed_support.dart';
 /// What a relay hosted from the app asks of the hub (the app's lib/relay_host; docs/OPEN_NETWORK.md, section 5), each an
 /// option that does nothing unless it is set, so a relay on a server, gogho.st's, says and does exactly what it did:
 ///
-/// - a pass phrase people must give to use it ([Hub.passKeyOf], [Hub.passProof]), with the wrong ones counted;
+/// - a pass phrase people must give to use it ([Hub.passKeyOf], [Hub.passProof]), salted with the relay's own, with the
+///   wrong ones costing whoever gives them;
 /// - a hello that says it runs in someone's app ([Hub.hosted]);
 /// - less kept for rooms than a server keeps ([Hub.roomKeepBytes]);
 /// - no word believed of whom a connection came through, with nobody in front of it ([Hub.trustsProxy]);
@@ -23,7 +24,7 @@ import 'fed_support.dart';
 
 /// A connection's answers as a test reads them: the hello, then whatever came after, and how it was closed.
 class _Signing {
-  _Signing(this.hub, {this.from = ''}) {
+  _Signing(this.hub, {this.from = '', bool own = false}) {
     final (mine, theirs) = MemSocket.pair();
     socket = mine;
     mine.incoming.listen((d) {
@@ -36,7 +37,7 @@ class _Signing {
         if (!answer.isCompleted) answer.complete(m);
       }
     });
-    hub.attach(theirs, from: from);
+    hub.attach(theirs, from: from, own: own);
   }
 
   final Hub hub;
@@ -52,7 +53,7 @@ class _Signing {
     final h = await hello.future;
     final nonce = unhex(h['hello'] as String);
     final sig = P256.sign(who.scalar, [...utf8.encode(Hub.greeting), ...nonce], someBytes(32));
-    final proof = pass ?? (phrase == null ? null : _hex(Hub.passProof(Hub.passKeyOf(phrase), nonce, (proofFor ?? who).id)));
+    final proof = pass ?? (phrase == null ? null : _hex(Hub.passProof(Hub.passKeyOf(phrase, h['salt'] as String), nonce, (proofFor ?? who).id)));
     socket.add(jsonEncode({'id': who.id, 'key': base64Encode(who.key), 'sig': base64Encode(sig), 'pass': ?proof, if (peek) 'peek': true}));
     return withoutClock(await answer.future.timeout(const Duration(seconds: 5)));
   }
@@ -81,7 +82,9 @@ void main() {
     test('the hello says one is asked for; none given is refused and said so, and the connection is closed', () async {
       final hub = Hub(pass: phrase);
       final s = _Signing(hub);
-      expect((await s.hello.future)['pass'], true);
+      final h = await s.hello.future;
+      expect(h['pass'], true);
+      expect(h['salt'], hub.passSalt);
       expect(await s.signIn(Install()), {'ok': false, 'err': 'This relay asks for a pass phrase.', 'pass': 'needed'});
       await pumpEventQueue();
       expect([s.socket.isOpen, s.socket.other.code], [false, 4401]);
@@ -102,7 +105,7 @@ void main() {
       // Made for one connection's number, given on another.
       final first = _Signing(hub);
       final nonce = unhex((await first.hello.future)['hello'] as String);
-      final proof = _hex(Hub.passProof(Hub.passKeyOf(phrase), nonce, maya.id));
+      final proof = _hex(Hub.passProof(Hub.passKeyOf(phrase, hub.passSalt), nonce, maya.id));
       expect(await first.signIn(maya, pass: proof), {'ok': true, 'held': 0});
       expect(await _Signing(hub).signIn(maya, pass: proof), containsPair('pass', 'wrong'), reason: 'seen once, it is worth nothing again');
       // Made for Maya's name, given by Alex.
@@ -115,27 +118,99 @@ void main() {
       expect(await _Signing(hub).signIn(Install(), phrase: phrase, peek: true), {'ok': true, 'held': 0, 'peek': true, 'here': false});
     });
 
-    test('wrong ones are counted for each place and for everyone: past either, even the right one waits an hour; none given counts for nothing', () async {
+    test('wrong ones cost their place: a few free, then each try waits, doubled each time; none given counts for nothing', () async {
       var t = DateTime.utc(2026, 11, 23, 9);
-      final hub = Hub(now: () => t, pass: phrase, passGuessesAnHour: 3, passGuessesAll: 5);
+      final hub = Hub(now: () => t, pass: phrase, passGuessesFree: 3, passWaitFirst: const Duration(minutes: 1), passWaitMost: const Duration(minutes: 5));
       Future<Map> at(String place, {String? said}) => _Signing(hub, from: place).signIn(Install(), phrase: said);
       // An app not told the phrase yet tries again and again: that is no guess.
       for (var i = 0; i < 10; i++) {
         expect(await at('10.0.0.2'), containsPair('pass', 'needed'));
       }
       expect(await at('10.0.0.2', said: phrase), containsPair('ok', true));
-      // Three wrong from one place, and that place is done for the hour, the right phrase too.
+      // Three wrong from one place are free; the fourth try waits a minute, the right phrase too.
       for (var i = 0; i < 3; i++) {
         expect(await at('10.0.0.3', said: 'guess $i'), containsPair('pass', 'wrong'));
       }
-      expect(await at('10.0.0.3', said: phrase), {'ok': false, 'err': 'Too many wrong pass phrases lately. Try again in a while.', 'pass': 'busy'});
-      // Another place still may, until everyone together has had five wrong.
+      expect(await at('10.0.0.3', said: phrase), {'ok': false, 'err': 'Too many wrong pass phrases lately. Try again in a while.', 'pass': 'busy', 'wait': 60});
+      // Another place is not touched by it.
       expect(await at('10.0.0.4', said: phrase), containsPair('ok', true));
-      expect(await at('10.0.0.4', said: 'guess 3'), containsPair('pass', 'wrong'));
-      expect(await at('10.0.0.5', said: 'guess 4'), containsPair('pass', 'wrong'));
-      expect(await at('10.0.0.6', said: phrase), containsPair('pass', 'busy'), reason: 'five wrong in all this hour: nobody\'s is looked at');
-      t = t.add(const Duration(minutes: 61));
-      expect(await at('10.0.0.3', said: phrase), containsPair('ok', true), reason: 'an hour on, it may try again');
+      t = t.add(const Duration(seconds: 61));
+      expect(await at('10.0.0.3', said: 'guess 3'), containsPair('pass', 'wrong'), reason: 'a minute on, one more is looked at');
+      expect(await at('10.0.0.3', said: phrase), containsPair('wait', 120), reason: 'and the next waits twice as long');
+      t = t.add(const Duration(minutes: 2, seconds: 1));
+      expect(await at('10.0.0.3', said: 'guess 4'), containsPair('pass', 'wrong'));
+      t = t.add(const Duration(minutes: 4, seconds: 1));
+      expect(await at('10.0.0.3', said: 'guess 5'), containsPair('pass', 'wrong'), reason: 'four minutes was enough');
+      expect(await at('10.0.0.3', said: phrase), containsPair('wait', 300), reason: 'at most passWaitMost');
+      t = t.add(const Duration(minutes: 66));
+      expect(await at('10.0.0.3', said: phrase), containsPair('ok', true), reason: 'an hour after it might have tried again, it is forgotten');
+    });
+
+    test('strangers with new places each time can\'t shut out anyone who has used the relay, nor the keeper\'s own app: only newcomers wait', () async {
+      // Over Direct a place is a node id, and node ids are free (found in review, 2026-11-23: with a count for everyone
+      // of 200 an hour, ten made-up nodes shut everyone out, the keeper's own app in memory too).
+      final t = DateTime.utc(2026, 11, 23, 9);
+      final hub = Hub(now: () => t, pass: phrase, passGuessesFree: 5, passGuessesAll: 20);
+      final maya = Install();
+      expect(await _Signing(hub, from: 'p2p:maya').signIn(maya, phrase: phrase), containsPair('ok', true));
+      expect(hub.passKnows(maya.id), isTrue);
+      var wrong = 0;
+      for (var node = 0; node < 10; node++) {
+        for (var g = 0; g < 5; g++) {
+          final m = await _Signing(hub, from: 'p2p:far-$node').signIn(Install(), phrase: 'guess $node.$g');
+          if (m['pass'] == 'wrong') wrong++;
+        }
+      }
+      expect(wrong, 20, reason: 'strangers together had their twenty this hour; the rest weren\'t looked at');
+      expect(await _Signing(hub, from: 'p2p:far-99').signIn(Install(), phrase: phrase), containsPair('pass', 'busy'), reason: 'a newcomer, even with the right phrase, waits the hour out');
+      expect(await _Signing(hub, from: 'p2p:maya-2').signIn(maya, phrase: phrase), containsPair('ok', true), reason: 'Maya has used it: still looked at');
+      expect(await _Signing(hub, own: true).signIn(Install()), containsPair('ok', true), reason: 'the keeper\'s own app is never asked');
+      // Someone claiming Maya's name without her key is no better off than a stranger.
+      final fake = _Signing(hub, from: 'p2p:far-100');
+      final h = await fake.hello.future;
+      final nonce = unhex(h['hello'] as String);
+      final other = Install();
+      final sig = P256.sign(other.scalar, [...utf8.encode(Hub.greeting), ...nonce], someBytes(32));
+      fake.socket.add(jsonEncode({'id': maya.id, 'key': base64Encode(maya.key), 'sig': base64Encode(sig), 'pass': _hex(Hub.passProof(Hub.passKeyOf('guess', hub.passSalt), nonce, maya.id))}));
+      expect(await fake.answer.future, containsPair('pass', 'busy'));
+    });
+
+    test('those who have used it are kept in its folder, under their phrase: a new phrase starts it again', () async {
+      final dir = await Directory.systemTemp.createTemp('hub-pass');
+      addTearDown(() => dir.delete(recursive: true));
+      final maya = Install();
+      var hub = Hub(pass: phrase, passSalt: 'r1', dataDir: dir)..start();
+      expect(await _Signing(hub).signIn(maya, phrase: phrase), containsPair('ok', true));
+      hub.stop();
+      hub = Hub(pass: phrase, passSalt: 'r1', dataDir: dir)..start();
+      expect(hub.passKnows(maya.id), isTrue, reason: 'started again, it still knows her');
+      hub.stop();
+      hub = Hub(pass: '$phrase, changed', passSalt: 'r1', dataDir: dir)..start();
+      expect(hub.passKnows(maya.id), isFalse, reason: 'a new phrase: nobody is known until they give it');
+      hub.stop();
+    });
+
+    test('each relay salts with its own name: keys made for one relay\'s overheard sign-ins are no use against another', () async {
+      // The review's probe (2026-11-23): with one salt for every relay, keys for a list of likely phrases made once
+      // cracked any relay's overheard sign-in at one HMAC a phrase.
+      final likely = ['password', 'hunter2', 'our wifi', 'letmein'];
+      final table = {for (final p in likely) p: Hub.passKeyOf(p, 'one-relay')};
+      final net = FakeNet();
+      final v = TestRelay(net, 'v.test', seed: 5);
+      final hub = Hub(pass: 'hunter2', federation: v.fed);
+      expect(hub.passSalt, v.fed.id, reason: 'a relay with a name salts with it');
+      expect(Hub(pass: 'x').passSalt, isNot(Hub(pass: 'x').passSalt), reason: 'one without, with its own random bytes');
+      final s = _Signing(hub);
+      final h = await s.hello.future;
+      final nonce = unhex(h['hello'] as String);
+      final who = Install();
+      final proof = _hex(Hub.passProof(Hub.passKeyOf('hunter2', h['salt'] as String), nonce, who.id));
+      final sig = P256.sign(who.scalar, [...utf8.encode(Hub.greeting), ...nonce], someBytes(32));
+      s.socket.add(jsonEncode({'id': who.id, 'key': base64Encode(who.key), 'sig': base64Encode(sig), 'pass': proof}));
+      expect(await s.answer.future, containsPair('ok', true));
+      final found = [for (final e in table.entries) if (_hex(Hub.passProof(e.value, nonce, who.id)) == proof) e.key];
+      expect(found, isEmpty, reason: 'the table made for another salt finds nothing');
+      expect(_hex(Hub.passProof(Hub.passKeyOf('hunter2', v.fed.id), nonce, who.id)), proof, reason: 'only keys made for this relay\'s salt do');
     });
 
     test('with nothing in front of it, what a connection says it came through is not believed: one place stays one place', () async {
@@ -148,7 +223,7 @@ void main() {
         final nonce = unhex((jsonDecode(answers.current as String) as Map)['hello'] as String);
         final who = Install();
         final sig = P256.sign(who.scalar, [...utf8.encode(Hub.greeting), ...nonce], someBytes(32));
-        ws.add(jsonEncode({'id': who.id, 'key': base64Encode(who.key), 'sig': base64Encode(sig), 'pass': _hex(Hub.passProof(Hub.passKeyOf(said), nonce, who.id))}));
+        ws.add(jsonEncode({'id': who.id, 'key': base64Encode(who.key), 'sig': base64Encode(sig), 'pass': _hex(Hub.passProof(Hub.passKeyOf(said, (jsonDecode(answers.current as String) as Map)['salt'] as String), nonce, who.id))}));
         await answers.moveNext();
         final m = jsonDecode(answers.current as String) as Map;
         await ws.close();
@@ -156,7 +231,7 @@ void main() {
       }
 
       for (final trusts in [true, false]) {
-        final hub = Hub(pass: phrase, passGuessesAnHour: 1, trustsProxy: trusts, wire: WireBudget());
+        final hub = Hub(pass: phrase, passGuessesFree: 1, trustsProxy: trusts, wire: WireBudget());
         final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
         server.listen(hub.accept);
         expect(await signInOver(server.port, '203.0.113.1', 'wrong'), containsPair('pass', 'wrong'));
@@ -177,13 +252,15 @@ void main() {
       expect((net.made[v.url]!.first.heard.first as Map)['pass'], true, reason: 'the hub it dialled does ask apps for one');
     });
 
-    test('the key is PBKDF2-HMAC-SHA256 over the phrase, salted with the words, 20,000 rounds: the app makes the same', () {
+    test('the key is PBKDF2-HMAC-SHA256 over the phrase, salted with the words and the relay\'s salt, 20,000 rounds: the app makes the same', () {
       // RFC 7914's vector for PBKDF2-HMAC-SHA256 holds the arithmetic (P = "passwd", S = "salt", c = 1: its first 32
       // bytes); the app (test/relay_host_test.dart) is held to the same value for this phrase.
       expect(_hex(Hub.pbkdf2Sha256(utf8.encode('passwd'), utf8.encode('salt'), 1)), '55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc');
-      expect([Hub.passWords, Hub.passRounds], ['ghost-hub pass v1', 20000]);
-      expect(_hex(Hub.passKeyOf(phrase)), '52ccc74cd79a05d60949ba3cdec7e131217245002c9eb91c062a3839c0a7ea1f');
-      expect(Hub.passKeyOf(phrase), isNot(Hub.passKeyOf('$phrase.')));
+      expect([Hub.passWords, Hub.passRounds], ['ghost-hub pass v2', 20000]);
+      // Python's hashlib.pbkdf2_hmac('sha256', phrase, b'ghost-hub pass v2 ' + b'ab' * 16, 20000, 32) gives the same.
+      expect(_hex(Hub.passKeyOf(phrase, 'ab' * 16)), '57127492378841a4077eb48b9242dd3ab2f4d818086d9e7b010dac4843bbb1b4');
+      expect(Hub.passKeyOf(phrase, 'ab' * 16), isNot(Hub.passKeyOf('$phrase.', 'ab' * 16)));
+      expect(Hub.passKeyOf(phrase, 'ab' * 16), isNot(Hub.passKeyOf(phrase, 'cd' * 16)));
     });
   });
 

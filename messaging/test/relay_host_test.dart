@@ -34,10 +34,12 @@ void main() {
 
   group('the pass phrase', () {
     const phrase = 'correct horse battery staple';
-    test('the app makes the key and the proof as the relay does', () {
-      final key = HubPass.keyNow(phrase);
-      expect(NetCrypto.hex(key), '52ccc74cd79a05d60949ba3cdec7e131217245002c9eb91c062a3839c0a7ea1f', reason: 'the value relay/test/hosted_options_test.dart holds the relay to');
-      expect(key, Hub.passKeyOf(phrase));
+    final salt = 'ab' * 16;
+    test('the app makes the key and the proof as the relay does, with the relay\'s own salt', () {
+      final key = HubPass.keyNow(phrase, salt);
+      expect(NetCrypto.hex(key), '57127492378841a4077eb48b9242dd3ab2f4d818086d9e7b010dac4843bbb1b4', reason: 'the value relay/test/hosted_options_test.dart holds the relay to');
+      expect(key, Hub.passKeyOf(phrase, salt));
+      expect(HubPass.keyNow(phrase, 'cd' * 16), isNot(key), reason: 'another relay, another key');
       final nonce = NetCrypto.randomBytes(32), id = NetKeys.generate().id;
       expect(HubPass.proof(key, nonce, id), NetCrypto.hex(Hub.passProof(key, nonce, id)));
       expect([HubPass.words, HubPass.rounds], [Hub.passWords, Hub.passRounds]);
@@ -216,7 +218,7 @@ void main() {
       await mine.up();
       expect(mine.carrier.asksPass, isTrue);
       String? given;
-      final other = OnHost(host, pass: () => given);
+      final other = OnHost(host, pass: () => given, stranger: true);
       await other.carrier.start();
       await waitFor(() => other.carrier.passRefused != null, 'never refused');
       expect([other.carrier.passRefused, other.carrier.state.value, other.carrier.problem], ['needed', CarrierState.down, 'This relay asks for a pass phrase.']);
@@ -238,8 +240,8 @@ void main() {
       }
     });
 
-    test('refused for too many wrong phrases lately, the route waits ten minutes before it asks again (not its usual few seconds)', () async {
-      final memory = MemoryHub(Hub(pass: phrase, passGuessesAnHour: 0));
+    test('refused for too many wrong phrases lately, the route waits as long as the relay says before it asks again (not its usual few seconds)', () async {
+      final memory = MemoryHub(Hub(pass: phrase, passGuessesAll: 0));
       var dials = 0;
       final c = HubCarrier(url: memory.url, signer: KeysSigner(NetKeys.generate()), retry: const Duration(milliseconds: 5), dial: (url) {
         dials++;
@@ -252,8 +254,9 @@ void main() {
       for (var i = 0; i < 30; i++) {
         await Future<void>.delayed(const Duration(milliseconds: 10));
       }
-      expect(dials, 1, reason: 'its usual wait is 5 ms here; this one is ten minutes');
-      expect(HubCarrier.passBusyWait, const Duration(minutes: 10));
+      expect(dials, 1, reason: 'its usual wait is 5 ms here; this one is the relay\'s');
+      expect(c.passBusyFor, const Duration(hours: 1), reason: 'strangers have had all theirs this hour: the hour is out in an hour');
+      expect(HubCarrier.passBusyWait, const Duration(minutes: 10), reason: 'where a relay doesn\'t say');
       await c.stop();
     });
 

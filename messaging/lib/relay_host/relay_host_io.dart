@@ -313,6 +313,8 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
         roomKeepBytes: roomKeepBytes,
         wire: WireBudget(most: wireMost, eachOut: wireEach),
         pass: _pass,
+        // Its key salted with this relay's own name: guesses made into keys for another relay are no use here.
+        passSalt: fed.id,
         hosted: true,
         trustsProxy: false,
         helpers: _helpers(),
@@ -516,7 +518,8 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
     if (hub == null) throw const HubDialRefused('The relay on this device isn\'t running.');
     final pair = _MemoryPair(onCut: (p) => _pairs.remove(p));
     _pairs.add(pair);
-    hub.attach(pair.socket);
+    // The keeper's own app: never asked for the pass phrase, so no stranger's wrong ones can shut it out.
+    hub.attach(pair.socket, own: true);
     return pair.link;
   }
 

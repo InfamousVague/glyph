@@ -141,15 +141,22 @@ file that leaves them out: the deploy's `--env` replaces the box's whole environ
 5) is this same hub run inside the app, which asks four things of it. Each is a setting of `Hub` that does nothing unless
 it is set, and `bin/relay.dart` sets none of them: a relay on a server, gogho.st's, says and does what it did.
 
-- `pass`: a pass phrase everyone who uses the hub must give. The hello says so (`"pass": true`), and a sign-in, or a
-  closed app's look, is taken only with `"pass"` in it: HMAC-SHA256, under the phrase made into a key (PBKDF2 with
-  HMAC-SHA256, `ghost-hub pass v1` its salt, 20,000 rounds, 32 bytes), over `ghost-hub pass v1 `, the hub's number for
-  that connection and the install's name (16 bytes), in hex. So it is good for that connection and that install alone,
-  and nothing of the phrase crosses; seen on a local network it can be tried against as fast as the rounds allow, so a
-  long phrase is what stands in the way. None given is answered `{"ok": false, "err": …, "pass": "needed"}` and counts
-  for nothing; a wrong one `"pass": "wrong"`, and counts: 20 an hour from one place, 200 from all places together, and
-  past either every sign-in is answered `"pass": "busy"`, unread, until its hour is over. Each refusal closes the
-  connection (4401). Another relay's hello is not asked for it: whether relays link is their keepers' own choice.
+- `pass`: a pass phrase everyone who uses the hub must give. The hello says so (`"pass": true`, with `"salt"`: the
+  relay's own, `passSalt`, its name where it has one), and a sign-in, or a closed app's look, is taken only with
+  `"pass"` in it: HMAC-SHA256, under the phrase made into a key (PBKDF2 with HMAC-SHA256, `ghost-hub pass v2 ` and the
+  salt its salt, 20,000 rounds, 32 bytes), over `ghost-hub pass v2 `, the hub's number for that connection and the
+  install's name (16 bytes), in hex. So it is good for that connection and that install alone, and nothing of the
+  phrase crosses; seen on a local network it can be tried against as fast as the rounds allow, for that relay alone (a
+  list of likely phrases made into keys once is no use against another), so a long phrase is what stands in the way.
+  None given is answered `{"ok": false, "err": …, "pass": "needed"}` and counts for nothing; a wrong one `"pass":
+  "wrong"`, and costs whoever gave it: each place (a network address; over Direct the node) has 5 free, then each try
+  waits a minute, doubled with each wrong one, at most an hour; and strangers together (installs that never gave the
+  phrase here) have 200 an hour, past which a stranger's isn't read until the hour is out. An install that has given
+  the right phrase here (kept in `hub-pass.json`, under a tag of the key, so a new phrase starts it again) is read
+  still, and the keeper's own app in memory (`attach(own: true)`) is never asked: a stranger can hold newcomers off for
+  an hour at a time, never those who use it. A try that isn't read is answered `"pass": "busy"` with `"wait"`, the
+  seconds until it would be. Each refusal closes the connection (4401). Another relay's hello is not asked for it:
+  whether relays link is their keepers' own choice.
 - `hosted`: the hello says it runs in someone's app (`"hosted": true`), so whoever joins is told that whoever runs it
   sees which installs talk and when (never what), and that it is up only while their app is.
 - `roomKeepBytes`: what rooms keep, all of them together (256 MB unless given less).

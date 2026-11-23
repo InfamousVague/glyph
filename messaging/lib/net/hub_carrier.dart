@@ -218,11 +218,15 @@ class HubCarrier implements Carrier {
   String? Function()? pass;
 
   /// Why the relay refused this app's pass phrase at the last sign-in, where it did: `needed` (none given), `wrong`, or
-  /// `busy` (too many wrong ones lately, from here or from anywhere). The route then waits, and is not tried again by
-  /// itself: a phrase wrong a minute ago is wrong now, and each try would count against everyone ([nudge] tries again
-  /// once one is given); after `busy`, in [passBusyWait]. Null once it signs in.
+  /// `busy` (too many wrong ones lately, from here, or from strangers while this install is new there). The route then
+  /// waits, and is not tried again by itself: a phrase wrong a minute ago is wrong now, and each try would cost this
+  /// device more waiting ([nudge] tries again once one is given); after `busy`, as long as the relay says, or
+  /// [passBusyWait]. Null once it signs in.
   String? passRefused;
   static const passBusyWait = Duration(minutes: 10);
+
+  /// How long the route waits after the last `busy`, before it asks again; null otherwise.
+  Duration? passBusyFor;
 
   /// What is said first at every sign-in, before anything else can be sent: this account's home record and its
   /// friends' (lib/net/homes.dart), so the relay can route from the first packet on.
@@ -500,11 +504,13 @@ class HubCarrier implements Carrier {
       final sig = await signer.sign(v2 ? signedV2(host, nonce) : [...utf8.encode(greeting), ...nonce]);
       // A hub that asks for a pass phrase is shown a proof of it for this connection ([HubPass]), where one was given;
       // with none it is told nothing, and says so.
+      // Made with the relay's own salt; a hub that names none, or one that can't be, is given none.
       final phrase = asksPass ? pass?.call()?.trim() : null;
+      final salt = m['salt'];
       String? proof;
-      if (phrase != null && phrase.isNotEmpty) {
+      if (phrase != null && phrase.isNotEmpty && HubPass.saltOk(salt)) {
         try {
-          proof = HubPass.proof(await HubPass.keyOf(phrase), nonce, signer.id);
+          proof = HubPass.proof(await HubPass.keyOf(phrase, salt as String), nonce, signer.id);
         } catch (_) {}
       }
       if (!identical(_ws, ws)) return;
@@ -517,7 +523,12 @@ class HubCarrier implements Carrier {
           // The pass phrase: not tried again by itself, but once a phrase is given (or, too many wrong lately, a while
           // on): each try with the same would be refused the same, and count.
           passRefused = kind;
-          _lost(m['err'] is String ? m['err'] as String : 'This relay asks for a pass phrase.', again: kind == 'busy' ? passBusyWait : null);
+          // Busy: as long as the relay says that try would wait (`"wait"`, seconds), a minute to an hour; ten minutes
+          // where it doesn't say.
+          final wait = m['wait'];
+          final busyFor = wait is int && wait > 0 ? Duration(seconds: wait.clamp(60, 3600)) : passBusyWait;
+          passBusyFor = kind == 'busy' ? busyFor : null;
+          _lost(m['err'] is String ? m['err'] as String : 'This relay asks for a pass phrase.', again: kind == 'busy' ? busyFor : null);
           return;
         }
         _lost('The relay server refused this app: ${m['err'] ?? 'no reason given'}');
@@ -527,6 +538,7 @@ class HubCarrier implements Carrier {
       _tries = 0;
       problem = null;
       passRefused = null;
+      passBusyFor = null;
       signedInAt = heardAt = _now().millisecondsSinceEpoch;
       final relayNow = m['now'], since = m['since'];
       relayStartedAt = relayNow is int && since is int && since <= relayNow ? signedInAt - (relayNow - since) : 0;
