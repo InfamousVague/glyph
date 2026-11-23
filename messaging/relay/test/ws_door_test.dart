@@ -200,6 +200,23 @@ void main() {
       expect(g.take([...frame(1, [1], fin: false), for (var i = 0; i < 10; i++) ...frame(0, [1], fin: false)]), isFalse, reason: 'eleven');
     });
 
+    test('a ping or pong between the pieces of a message is handed on after its last piece, byte by byte or all at once', () {
+      final message = [...frame(1, utf8.encode('hello '), fin: false), ...frame(9, utf8.encode('p')), ...frame(0, utf8.encode('wor'), fin: false), ...frame(10, const []), ...frame(0, utf8.encode('ld'))];
+      final expected = [...frame(1, utf8.encode('hello '), fin: false), ...frame(0, utf8.encode('wor'), fin: false), ...frame(0, utf8.encode('ld')), ...frame(9, utf8.encode('p')), ...frame(10, const [])];
+      expect(FrameGuard(most: 1000).pass(message), expected);
+      final g = FrameGuard(most: 1000);
+      final out = <int>[];
+      for (final b in message) {
+        out.addAll(g.pass([b])!);
+      }
+      expect(out, expected);
+      // Outside a message, as they came; and more than a message may hold back ends the connection.
+      final plain = [...frame(9, const [1]), ...frame(1, utf8.encode('x'))];
+      expect(FrameGuard(most: 1000).pass(plain), plain);
+      final flood = [...frame(1, const [1], fin: false), for (var i = 0; i <= FrameGuard.laterMost; i++) ...frame(9, const [])];
+      expect(FrameGuard(most: 1000).pass(flood), isNull);
+    });
+
     test('a byte at a time is read as all at once, masked or not', () {
       final stream = [...frame(1, utf8.encode('hello'), fin: false), ...frame(9, [1, 2]), ...frame(0, List.filled(300, 3)), ...frame(2, List.filled(70000, 4), mask: false), ...frame(2, const [])];
       final whole = FrameGuard(most: 100000);
@@ -235,6 +252,32 @@ void main() {
       await pumpEventQueue();
       expect(raw.said().single['hello'], hasLength(64), reason: 'and its hello follows');
       raw.destroy();
+    });
+
+    test('a ping between the pieces of a message: the message arrives whole, and the ping is answered after it', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final got = <Object?>[];
+      server.listen((r) async {
+        final ws = await upgradeGuarded(r, most: 1 << 20, first: 1 << 20);
+        ws?.listen((d) => got.add(d), onError: (_) {});
+      });
+      final raw = await Raw.open(server.port, '/');
+      await raw.send([...frame(1, utf8.encode('hello '), fin: false), ...frame(9, utf8.encode('p')), ...frame(0, utf8.encode('world'))]);
+      for (var i = 0; i < 200 && (got.isEmpty || raw.heard.length < 3); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(got, ['hello world'], reason: 'Dart\'s own parser alone gives "world", and puts "hello " in the pong');
+      expect(raw.heard.toBytes(), [0x8a, 1, ...utf8.encode('p')], reason: 'the pong, with the ping\'s own byte');
+      raw.destroy();
+    });
+
+    test('a key with a byte past ASCII is refused with a 400, not left hanging (found in the second review, 2026-11-23)', () async {
+      final raw = await Raw.open(port, '/hub', key: 'dGhlIHNhbXBsZSBub25jZQ==\u00e9');
+      expect(raw.head, startsWith('HTTP/1.1 400'));
+      expect(await raw.closes(), isTrue);
+      final pairing = await Raw.open(port, '/${'ab' * 16}', key: '\u00e9dGhlIHNhbXBsZSBub25jZQ==');
+      expect(pairing.head, startsWith('HTTP/1.1 400'));
     });
 
     test('the hub: a frame that says it is a terabyte long ends the connection at its header, with nothing more sent', () async {

@@ -53,15 +53,29 @@ keys, about 340 KB), a pairing's door a frame of a megabyte and 64 KB, a link th
 message at any door (a hello) 16 KB; no door a message in more than 1,024 pieces, a control frame over 125 bytes, or
 bits an extension would use.
 
-**Nor more than the relay has, all connections together** (`WireBudget` in `lib/ws_door.dart`, found in the second look
-of 2026-11-23). A door's ceiling bounds one connection, but twenty thousand connections at a megabyte each would be far
-more than the relay's 300 MB. So what every connection holds is counted against one budget for the whole process: the
-part of a message that has come in and isn't finished, and what waits to go out to a peer that doesn't read (the
-answers to its pings included: Dart answers each ping by itself, and holds the answer for as long as it isn't read).
-Everything written to a connection waits where it is counted, never inside Dart's own WebSocket. Past 8 MB waiting to
-go out, a connection is ended (its peer isn't reading); and where all of them together would pass 64 MB, the
-connection holding the most is ended, and the next, until the rest fit. An app that reads what it is sent and sends
-whole messages holds next to nothing, so it is never the one that goes.
+**Nor more than the relay has, all connections together** (`WireBudget` in `lib/ws_door.dart`). A door's ceiling
+bounds one connection, but twenty thousand connections at a megabyte each would be far more than the relay's 300 MB. So
+what every connection holds is counted against one budget for the whole process: the part of a message that has come in
+and isn't finished, and what waits to go out (the answers to a peer's pings included: Dart answers each ping by itself).
+Everything written to a connection waits where it is counted, never inside Dart's own WebSocket.
+
+A connection is ended for what it holds **only once it has stopped moving it**, never for how much it was given at once
+(the second review, 2026-11-23, found the first version ending a phone handed a room's kept messages in one go, though
+it read them as fast as they came, and again each time it came back):
+- what waits to go out has gone past 8 MB and not gone down by 64 KB (or to nothing) for 10 seconds;
+- a message coming in hasn't grown by 16 KB (or been finished) for 20 seconds, signed in or not;
+- all of them together are past 64 MB: those stalled longest go first, until the rest fit, and one stalled less than 2
+  seconds never does (a burst being read goes through, past the budget for a moment).
+
+And the hub hands over what it keeps (a room's kept messages, what was held for someone) only as fast as the connection
+takes it: a piece at a time while less than 256 KB waits for it and the budget has room. What a connection that goes
+wasn't handed of its held packets is kept for it again. A device that reads what it is sent holds little, but it is not
+true that it can never be ended: one that keeps 8 MB waiting without reading 64 KB of it in 10 seconds is. The numbers
+are settings: `GHOST_WIRE_MB`, `GHOST_WIRE_EACH_MB`, `GHOST_WIRE_STALL_S`, `GHOST_WIRE_IN_STALL_S`.
+
+A ping or pong that comes between the pieces of a message (a browser may split a long one, and answers the relay's pings
+meanwhile) is handed on after the message's last piece: Dart's parser alone lost the message's first pieces to it, into
+its answer to the ping.
 
 **Signing in.** An app signs the hub's number with its key. Before 2026-11-23 that signature (v1) was the words
 `ghost-hub v1 ` and the number, and said nothing of where it was made, so a relay an app was pointed at, or asked a
@@ -81,15 +95,28 @@ again** (`This account signs in a newer way now: update Ghost Messaging on this 
 anywhere else is worth nothing there; an app from before keeps signing v1, and keeps working for an account none of
 whose devices has signed in with v2.
 
-Those names are hard to push out with keys made for it (the second look, 2026-11-23): at most 200,000 are kept, and
-past that **a key holding no username goes first**, the one seen longest ago (a key found holding one by then is kept
-with those that do), so a stream of new keys, which hold no names, pushes out its own kind; and **one place adds at most
-30 new keys an hour**, a place being an IPv4 address or an IPv6 address's first 64 bits. A sign-in past that is taken
-all the same, its key kept the next time it signs in with room. The place is the connection's own address, or, where
-it came through a proxy on the same machine or its private network (Caddy, in front), the last address that proxy put
-in `X-Forwarded-For` (the one it saw: whatever comes before it is the asker's own word). A closed app's look (`peek`) is held to the same, and
-Android's background check signs v2 as the app does. A hub with no names says nothing of v2 and takes v1 alone, as
-before: list every name the hub is reached at, since an app that dialled one not listed is refused.
+Those names are hard to push out with keys made for it (the second look and the second review, 2026-11-23): at most
+200,000 are kept, and past that **a key that has held a username here for two days stays longest**; one holding none, or
+one taken a moment ago, goes first, the one seen longest ago; **one place adds at most 30 new keys an hour, and all of
+them together 5,000**, a place being an IPv4 address or an IPv6 address's first 48 bits. A sign-in past that is taken
+all the same, its key kept the next time it signs in with room. The place is the connection's own address, or, where it
+came through a proxy on the same machine or its private network (Caddy, in front), the last address that proxy put in
+`X-Forwarded-For` (the one it saw: whatever comes before it is the asker's own word).
+
+The kept keys are held to **only while names are set**: a hub with no names offers no v2, so every app signs v1 to it,
+and is taken; set the names again and the keys kept meanwhile are held to again. A v1 sign-in from a kept key is refused
+before its signature is checked, and an app refused again within the hour is answered two minutes late, the connection
+open meanwhile (an app from before tries again half a minute after a refusal, for ever; this way it comes back a few
+times an hour), at most 1,000 waiting at once. A closed app's look (`peek`) is held to the same, and Android's
+background check signs v2 as the app does; so does the browser extension (`extension/src/ghost/relay.ts`), from 0.2.2.
+
+**Switching v2 on**, in this order: (1) ship builds that sign v2 everywhere (the app on every platform, Android's
+background check, the extension) and wait until most people have them, since from a key's first v2 sign-in on, every
+older build of that account is refused (each device is told to update); (2) set `GHOST_HUB_NAMES` to **every** name the
+hub is reached at, without ports where it is 443 (for gogho.st: `gogho.st,www.gogho.st,ghost-sms.com,www.ghost-sms.com`):
+an app that dialled a name not listed is refused, and doesn't fall back to v1. A name must stay registered to you for as
+long as it is listed: whoever held it next could take a v2 sign-in made for it. Taking the names away again (or an env
+file that leaves them out: the deploy's `--env` replaces the box's whole environment) turns the hold off, not the keys.
 
 ## Other relays
 
@@ -133,10 +160,15 @@ What an app says of them over its hub connection:
 | `{"dir":"home?","a": its own name}` | `{"dir":"home?","a","rec": record}` or `"none":true`. Asked of anyone else's, `"none":true`: nobody is told where anyone lives but over a link, or with the username they chose to be found by |
 | `{"dir":"whois","name":"maya"}` (a name here) | as ever, with `"home"`: the holder's record where one is held |
 | `{"dir":"whois","name":"maya","at":"relay.example"}` | `{"dir":"whois","name","at","id","key","home"}`; or `"none":true`, with `"why"` where it is not that nobody has the name: `off` (this relay doesn't talk to that one), `refused` (that one won't), `down`, `busy`. An `at` that is this relay itself is an ordinary lookup, answered with `"at"` and `"here":true`; an error about one carries `"at"` too |
-| `[1][number][to][packet]` to someone who lives elsewhere | `{"ack": number,"here":false,"fed":true}` (taken by their relay: whether they are connected is not said across relays), with `"waiting":true` where it waits on this relay for theirs; or `{"nak": number,"err"}`: `home` (no record of the sender's naming this relay is held: give it, and send again), `busy` (past what one install may send across relays, or the new relays it may make this one dial), `full`, `far` (their relay is one this relay can't or won't pass to, or an address never once reached), `refused` |
+| `[1][number][to][packet]` to someone who lives elsewhere | `{"ack": number,"here":false,"fed":true}` (taken by their relay: whether they are connected is not said across relays), with `"waiting":true` where it waits on this relay for theirs; or `{"nak": number,"err"}`: `home` (no record of the sender's naming this relay is held: give it, and send again), `busy` (past what one install or one place may send across relays, or the new relays it may make this one dial, or what installs not yet established share), `full`, `far` (their relay is one this relay can't or won't pass to, or an address never once reached), `refused` |
 
-Records of people who gave theirs here themselves are kept in `homes.json` (the newest 20,000 given); others' (a
-friend's, one another relay gave) are the 10,000 used most lately, in memory. A record's shape and time are looked at
+Records of people who gave theirs here themselves are kept in `homes.json` (the newest 20,000 given, with when each
+was first given here); others' (a friend's, one another relay gave) are the 10,000 used most lately, in memory.
+`homes.json` and `hub-v2.json` are logs of what changed (`lib/kept_log.dart`): a line appended for each change, a
+couple of seconds' changes at a time, and written whole again, once the log has grown far past what stands, in an
+isolate; the whole is never written on the event loop (found in the second review, 2026-11-23: at their largest the
+two were 7 and 22 MB, rewritten whole within two seconds of any change). A file of the kind written before is read, and
+written as a log from the next change. A record's shape and time are looked at
 before anything is counted; then the giver's own checks (600 an hour for an install, and a quarter of any second's;
 ten times an install's, and half a second's, for a linked relay at an address this relay has checked; one install's
 for every relay with no address together); then everyone's (20 a second); and only then the signature.
@@ -204,7 +236,12 @@ four tries and not dialled for ten minutes); one that answered no is not asked a
 party for nothing: a hello's shape is looked at before anything is counted, and in `list` mode the list before
 anything is checked or dialled; a hello is checked before it is counted, strangers' share thirty a minute, and a relay
 at an address this relay has seen its key at has thirty of its own. Each install may make this relay dial eight new
-relays an hour, and send a quarter of a minute's packets and an eighth of a day's bytes across relays. Per linked
+relays an hour, and send a quarter of a minute's packets and an eighth of a day's bytes across relays; and installs cost
+nothing to make, so one place (an IPv4 address, or an IPv6 address's first 48 bits, through the proxy in front as the
+hub counts it) has twice that, all its installs together, and installs not established here have half of the new
+relays dialled a minute, and half of what may go to each other relay in a minute and in a day, all of them together:
+the rest is always there for those who are (an install that has held a username here, or given its own record here,
+for two days, as this relay saw it, never as the install says). Per linked
 relay, counted by the address this relay has checked it at (every relay with no address shares one): packets a minute,
 bytes a day, names asked after an hour, records a minute. Dials are of three kinds, each its own a minute: a relay's
 own (30), its tries again (30), its looks at an address another relay claims (10; an address that showed nothing is not

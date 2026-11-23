@@ -538,7 +538,7 @@ class Federation {
     _ticker = null;
     _saver?.cancel();
     _saver = null;
-    if (on) homes.save();
+    if (on) homes.saveNow();
     for (final hello in _hellosOut.toList()) {
       hello.done = true;
       hello.socket.close(WebSocketStatus.goingAway);
@@ -561,7 +561,7 @@ class Federation {
     if (homes.file == null || !homes.dirty) return;
     _saver ??= Timer(const Duration(seconds: 2), () {
       _saver = null;
-      homes.save();
+      unawaited(homes.save());
     });
   }
 
@@ -626,6 +626,42 @@ class Federation {
     return s;
   }
 
+  /// What one place has done across relays lately, all its installs together (a place: an IPv4 address, or an IPv6
+  /// address's first 48 bits, as the hub counts it: hub.dart, placeOf; through the proxy in front, the address that
+  /// proxy saw). Installs cost nothing to make, so a share kept per install alone was a share for however many installs
+  /// one person made (found in the second review, 2026-11-23: four new installs a minute asking for names at hosts that
+  /// don't exist used up the relay's dials, and eight a day of bytes at another relay). One place has twice one
+  /// install's share; a connection made in this program (a test's, or none) has the place ''.
+  final Map<String, _Sender> _origins = {};
+
+  _Sender? _origin(String place) {
+    if (place.isEmpty) return null;
+    final o = _origins.remove(place) ?? _Sender();
+    _origins[place] = o;
+    while (_origins.length > 50000) {
+      _origins.remove(_origins.keys.first);
+    }
+    return o;
+  }
+
+  /// What installs not yet established here ([established]) have used together: half at most of the new relays this
+  /// relay dials in a minute, and of what may go to each relay in a minute and a day, so the rest is always there for
+  /// those who are.
+  final _Count _strangerRelays = _Count();
+
+  /// How long an install must have held a username here, or given its own record here, to be established.
+  static const establishedAfter = Duration(days: 2);
+
+  /// Whether [id] is established here: it has held a username here, or kept its own record here, for
+  /// [establishedAfter] (both as this relay saw them, never as the install says).
+  bool established(String id) {
+    final now = _now();
+    final named = _handles?.nameHeldSince(id);
+    if (named != null && now.difference(named) >= establishedAfter) return true;
+    final since = homes.ownSince(id);
+    return since != null && now.difference(since) >= establishedAfter;
+  }
+
   /// Takes a record someone gave, where it checks out and is newer: `kept`, `held` (nothing newer in it), `busy` (too
   /// many checks just now: give it again later), or why it is not a record at all (`old` for one past its end). What
   /// costs nothing is looked at first: the very record held already, then its shape and time; then the giver's own
@@ -686,7 +722,7 @@ class Federation {
   static bool takes(Map said) => said['dir'] == 'home' || said['dir'] == 'home?' || (said['dir'] == 'whois' && said['at'] is String);
 
   /// Something the signed-in install [id] said that [takes] is true of; the answer goes to [tell].
-  void said(String id, Map said, void Function(Map<String, Object?>) tell) {
+  void said(String id, Map said, void Function(Map<String, Object?>) tell, {String place = ''}) {
     switch (said['dir']) {
       case 'home':
         // Its own record, or a friend's so this relay can route to them: kept where it checks out and is newer.
@@ -706,7 +742,7 @@ class Federation {
         final rec = a == id ? homes.of(id) : null;
         tell({'dir': 'home?', 'a': a, if (rec == null) 'none': true else 'rec': rec.toJson()});
       case 'whois':
-        _whoisFromApp(id, said, tell);
+        _whoisFromApp(id, said, tell, place);
     }
   }
 
@@ -733,9 +769,24 @@ class Federation {
     return c.take(_now(), const Duration(hours: 1), Handles.lookupsAnHour);
   }
 
-  /// Whether [id] (an install signed in here) may make this relay dial one more relay for the first time this hour,
-  /// and that it has.
-  bool _mayAddRelay(String id) => _sender(id).relays.take(_now(), const Duration(hours: 1), newRelaysAnHour);
+  /// Whether [id] (an install signed in here, from [place]) may make this relay dial one more relay for the first time,
+  /// and that it has: [newRelaysAnHour] an hour for the install, twice that for its place, and where it is not
+  /// established, half of the dials a minute for all such together. Counted only where all of them allow it.
+  bool _mayAddRelay(String id, String place) {
+    final now = _now(), hour = const Duration(hours: 1);
+    final mine = _sender(id).relays, theirs = _origin(place)?.relays;
+    if (!mine.take(now, hour, newRelaysAnHour)) return false;
+    if (theirs != null && !theirs.take(now, hour, newRelaysAnHour * 2)) {
+      mine.back();
+      return false;
+    }
+    if (!established(id) && !_strangerRelays.take(now, const Duration(minutes: 1), max(1, guard.dialsAMinute ~/ 2))) {
+      mine.back();
+      theirs?.back();
+      return false;
+    }
+    return true;
+  }
 
   /// The hub's address `at` names (`relay.example`, or with a port): `wss://relay.example/hub`. Null where it is not
   /// a host.
@@ -751,7 +802,7 @@ class Federation {
   /// link, and answered with what was asked (`name`, `at`) and `id`, `key`, and `home` where that relay holds their
   /// record; or `none`, with `why` where it is not that nobody has the name: `off` (this relay doesn't talk to that
   /// one), `refused` (that one won't talk to this), `down` (it couldn't be reached), `busy`.
-  void _whoisFromApp(String asker, Map said, void Function(Map<String, Object?>) tell) {
+  void _whoisFromApp(String asker, Map said, void Function(Map<String, Object?>) tell, String place) {
     final name = said['name'], at = said['at'];
     Map<String, Object?> none([Object? why]) => {'dir': 'whois', 'name': name is String ? Handles.tidyName(name) : name, 'at': at, 'none': true, if (_whys.contains(why)) 'why': why};
     final url = at is String ? hubAt(at) : null;
@@ -769,7 +820,7 @@ class Federation {
     if (_deadNow(url)) return tell(none('down'));
     var peer = _peers['u:$url'];
     if (peer == null) {
-      if (!_mayAddRelay(asker)) return tell(none('busy'));
+      if (!_mayAddRelay(asker, place)) return tell(none('busy'));
       peer = _peerAt(url);
       if (peer == null) return tell(none('busy'));
     }
@@ -884,7 +935,7 @@ class Federation {
   /// the sender's naming this relay is held: their app gives it, and sends again), `busy` (the sender is past what one
   /// install may send across relays, or may make this relay dial), `full`, `far` (their relay is one this relay
   /// doesn't or can't pass to), `refused`.
-  bool pass(String to, String from, List<int> packet, void Function(bool? here, [String? err]) answer) {
+  bool pass(String to, String from, List<int> packet, void Function(bool? here, [String? err]) answer, {String place = ''}) {
     if (!on || _stopped) return false;
     final rec = homes.of(to);
     if (rec == null) return false;
@@ -901,18 +952,35 @@ class Federation {
       answer(null, 'home');
       return true;
     }
-    final s = _sender(from);
-    final now = _now();
-    if (!s.packets.take(now, const Duration(minutes: 1), max(1, config.packetsAMinute ~/ 4)) || !s.bytes.take(now, const Duration(days: 1), max(1, config.bytesADay ~/ 8), by: packet.length + perPacket)) {
+    final now = _now(), minute = const Duration(minutes: 1), day = const Duration(days: 1);
+    final size = packet.length + perPacket;
+    final mine = _sender(from), origin = _origin(place);
+    // The install's share of what this relay may send others, and its place's twice that: counted where both allow.
+    if (!mine.packets.take(now, minute, max(1, config.packetsAMinute ~/ 4))) {
       answer(null, 'busy');
       return true;
     }
-    return _send(target, to, from, packet, answer, by: from);
+    if (!mine.bytes.take(now, day, max(1, config.bytesADay ~/ 8), by: size)) {
+      mine.packets.back();
+      answer(null, 'busy');
+      return true;
+    }
+    if (origin != null) {
+      final packetOk = origin.packets.take(now, minute, max(1, config.packetsAMinute ~/ 2));
+      if (!packetOk || !origin.bytes.take(now, day, max(1, config.bytesADay ~/ 4), by: size)) {
+        if (packetOk) origin.packets.back();
+        mine.packets.back();
+        mine.bytes.back(size);
+        answer(null, 'busy');
+        return true;
+      }
+    }
+    return _send(target, to, from, packet, answer, by: from, place: place);
   }
 
   /// Sends a packet to where [target] says; [by] is the install signed in here it is from, where it is (packets other
   /// relays had this one pass on are [forStanding]).
-  bool _send(_Target target, String to, String from, List<int> packet, void Function(bool? here, [String? err]) answer, {String? by, bool forStanding = false}) {
+  bool _send(_Target target, String to, String from, List<int> packet, void Function(bool? here, [String? err]) answer, {String? by, bool forStanding = false, String place = ''}) {
     if (target.far) {
       answer(null, 'far');
       return true;
@@ -925,7 +993,7 @@ class Federation {
     final key = url != null ? 'u:$url' : 'r:${target.named}';
     var peer = _peers[key];
     if (peer == null) {
-      if (by != null && url != null && !_mayAddRelay(by)) {
+      if (by != null && url != null && !_mayAddRelay(by, place)) {
         answer(null, 'busy');
         return true;
       }
@@ -938,6 +1006,20 @@ class Federation {
     if (_refusedNow(peer)) {
       answer(null, 'far');
       return true;
+    }
+    // Installs not established here have half of what this relay may send that relay in a minute and in a day, all of
+    // them together: the rest is there for those who are, whoever else makes installs.
+    if (by != null && !established(by)) {
+      final now = _now(), size = packet.length + perPacket;
+      if (!peer.strangerPackets.take(now, const Duration(minutes: 1), max(1, config.packetsAMinute ~/ 2))) {
+        answer(null, 'busy');
+        return true;
+      }
+      if (!peer.strangerBytes.take(now, const Duration(days: 1), max(1, config.bytesADay ~/ 2), by: size)) {
+        peer.strangerPackets.back();
+        answer(null, 'busy');
+        return true;
+      }
     }
     final out = _Out(peer, target.kind, to, from, target.relay, Uint8List.fromList(packet), _now(), answer, forOthers: forStanding);
     final why = _enqueue(peer, out);
@@ -1891,6 +1973,9 @@ class _Peer {
   int limits = 0;
   bool probing = false;
   DateTime lastUsed;
+
+  /// What installs not established here have sent it lately, all together ([Federation.established]).
+  final strangerPackets = _Count(), strangerBytes = _Count();
 
   /// When it was first wanted, and whether this relay has ever linked with that address (lately).
   final DateTime made;

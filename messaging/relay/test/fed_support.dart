@@ -210,7 +210,7 @@ class Install {
   int _count = 0;
 
   /// Signs in to [relay]'s hub: the hub's number, signed with this install's key.
-  Future<Map> signIn(TestRelay relay, {String? device}) async {
+  Future<Map> signIn(TestRelay relay, {String? device, String from = ''}) async {
     final (mine, theirs) = MemSocket.pair();
     socket = mine;
     final first = Completer<Map>(), second = Completer<Map>();
@@ -228,7 +228,7 @@ class Install {
         said.add(m);
       }
     });
-    relay.hub.attach(theirs);
+    relay.hub.attach(theirs, from: from);
     hello = await first.future;
     final sig = P256.sign(scalar, [...utf8.encode(Hub.greeting), ...unhex(hello['hello'] as String)], someBytes(32));
     mine.add(jsonEncode({'id': id, 'key': base64Encode(key), 'sig': base64Encode(sig), 'device': ?device}));

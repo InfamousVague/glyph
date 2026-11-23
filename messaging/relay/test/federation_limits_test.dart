@@ -256,7 +256,9 @@ void main() {
       await pumpEventQueue();
       expect([a.fed.homes.own, a.fed.homes.others], [1, 1]);
       a.fed.stop();
-      expect(jsonDecode(File('${dir.path}/homes.json').readAsStringSync()), {'v': 1, 'own': [mine]});
+      final lines = File('${dir.path}/homes.json').readAsLinesSync().map((l) => jsonDecode(l) as Map).toList();
+      expect([for (final l in lines) l['s']], [alice.id], reason: 'a line for her record alone: the file is a log of what changed');
+      expect({...(lines.single['x'] as Map)}..remove('since'), mine);
       final id = a.id;
       a = TestRelay(net, 'a.test', dataDir: dir, seed: 9);
       expect(a.id, id, reason: 'and it is the same relay: its key was kept');

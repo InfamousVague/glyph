@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'kept_log.dart';
 import 'p256.dart';
 import 'sha256.dart';
 
@@ -221,16 +222,28 @@ String? canonicalHub(String address) {
 /// Of two records for one account the one [HomeRecord.order] believes is held, whoever gave it, and none past its end:
 /// nothing here is ever made by the relay.
 class HomeBook {
-  HomeBook({this.file, this.maxOwn = 20000, this.maxOthers = 10000, DateTime Function()? now}) : _now = now ?? DateTime.now;
+  HomeBook({this.file, this.maxOwn = 20000, this.maxOthers = 10000, DateTime Function()? now})
+      : _now = now ?? DateTime.now,
+        _log = file == null ? null : KeptLog(file);
   final DateTime Function() _now;
 
-  /// Where the relay's own people's records are kept; null keeps nothing across restarts.
+  /// Where the relay's own people's records are kept; null keeps nothing across restarts. A log of what changed
+  /// (kept_log.dart), appended as changes come and compacted now and then off the event loop: never the whole file
+  /// written on it.
   final File? file;
+  final KeptLog? _log;
   final int maxOwn;
   final int maxOthers;
 
   final LinkedHashMap<String, HomeRecord> _own = LinkedHashMap();
   final LinkedHashMap<String, HomeRecord> _others = LinkedHashMap();
+
+  /// When each of this relay's own people first gave their record here, by this relay's clock (federation.dart counts
+  /// someone who has for a while as established); kept with the records.
+  final Map<String, DateTime> _since = {};
+
+  /// When [a] first gave their own record here, by this relay's clock; null where they haven't, or it has gone.
+  DateTime? ownSince(String a) => _own.containsKey(a) ? _since[a] : null;
 
   /// Whether anything kept across restarts has changed since it was last written.
   bool dirty = false;
@@ -247,8 +260,7 @@ class HomeBook {
     final mine = _own[a];
     if (mine != null) {
       if (mine.goodAt(_now())) return mine;
-      _own.remove(a);
-      dirty = true;
+      _letGoOwn(a);
       return null;
     }
     final other = _others.remove(a);
@@ -275,17 +287,18 @@ class HomeBook {
       final had = _own.remove(a);
       _others.remove(a);
       _own[a] = newer ? rec : held;
+      _since.putIfAbsent(a, _now);
       while (_own.length > maxOwn) {
-        _own.remove(_own.keys.first);
+        _letGoOwn(_own.keys.first);
       }
-      if (newer || had == null) dirty = true;
+      if (newer || had == null) _keptOwn(a);
       return newer;
     }
     if (_own.containsKey(a)) {
       // A newer copy of one of this relay's own people's, from someone else: in the older one's place.
       if (newer) {
         _own[a] = rec;
-        dirty = true;
+        _keptOwn(a);
       }
       return newer;
     }
@@ -297,34 +310,64 @@ class HomeBook {
     return newer;
   }
 
-  void load() {
-    final f = file;
-    if (f == null) return;
-    try {
-      if (!f.existsSync()) return;
-      final all = jsonDecode(f.readAsStringSync());
-      final list = all is Map && all['own'] is List ? all['own'] as List : const [];
-      for (final j in list.length > maxOwn ? list.sublist(list.length - maxOwn) : list) {
-        // Checked when it was kept; read back for its shape alone (a signature is seven milliseconds of arithmetic,
-        // and there may be tens of thousands), and whether it is still good.
-        final rec = HomeRecord.read(j, now: _now(), verify: false).rec;
-        if (rec != null) _own[rec.a] = rec;
-      }
-    } catch (_) {
-      // A file that cannot be read is started again from nothing: each app gives its record again as it signs in.
-    }
-    dirty = false;
+  /// [a]'s own record, as it is written: the record, and since when it has been given here.
+  Map<String, Object?> _entry(String a) => {..._own[a]!.toJson(), 'since': (_since[a] ?? _now()).millisecondsSinceEpoch};
+
+  void _keptOwn(String a) {
+    _log?.set(a, _entry(a));
+    dirty = true;
   }
 
-  void save() {
-    final f = file;
-    if (f == null || !dirty) return;
-    try {
-      f.parent.createSync(recursive: true);
-      final now = _now();
-      final tmp = File('${f.path}.tmp')..writeAsStringSync(jsonEncode({'v': 1, 'own': [for (final r in _own.values) if (r.goodAt(now)) r.toJson()]}));
-      tmp.renameSync(f.path);
-      dirty = false;
-    } catch (_) {}
+  void _letGoOwn(String a) {
+    if (_own.remove(a) == null) return;
+    _since.remove(a);
+    _log?.remove(a);
+    dirty = true;
+  }
+
+  void load() {
+    final log = _log;
+    if (log == null) return;
+    final now = _now();
+    // A file written whole, before (`{"v":1,"own":[records]}`): each record given here since it was made.
+    Iterable<MapEntry<String, Object?>> whole(Map all) sync* {
+      final list = all['own'] is List ? all['own'] as List : const [];
+      for (final j in list) {
+        if (j is Map && j['a'] is String) yield MapEntry(j['a'] as String, {...j, 'since': j['t'] is int && (j['t'] as int) < now.millisecondsSinceEpoch ? j['t'] : now.millisecondsSinceEpoch});
+      }
+    }
+
+    final kept = log.load(whole: whole);
+    final entries = kept.entries.toList();
+    for (final e in entries.length > maxOwn ? entries.sublist(entries.length - maxOwn) : entries) {
+      final j = e.value;
+      if (j is! Map) continue;
+      // Checked when it was kept; read back for its shape alone (a signature is seven milliseconds of arithmetic, and
+      // there may be tens of thousands), and whether it is still good.
+      final rec = HomeRecord.read(j, now: now, verify: false).rec;
+      if (rec == null || rec.a != e.key) continue;
+      _own[rec.a] = rec;
+      final since = j['since'];
+      _since[rec.a] = since is int ? DateTime.fromMillisecondsSinceEpoch(since, isUtc: true) : now;
+    }
+    dirty = log.dirty;
+  }
+
+  Map<String, Object?> _all() => {for (final a in _own.keys) a: _entry(a)};
+
+  /// Writes what changed: appended to the log, off the event loop.
+  Future<void> save() {
+    final log = _log;
+    if (log == null || !dirty) return Future.value();
+    dirty = false;
+    return log.flush(standing: _own.length, all: _all);
+  }
+
+  /// Writes what changed now, on this thread: as the relay stops.
+  void saveNow() {
+    final log = _log;
+    if (log == null) return;
+    log.flushNow(standing: _own.length, all: _all);
+    dirty = false;
   }
 }

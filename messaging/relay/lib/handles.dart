@@ -1001,6 +1001,13 @@ class Handles {
   /// relays only for such names).
   bool holdsAName(String id) => _nameOf.containsKey(id);
 
+  /// The day [id] first claimed the username it holds (midnight UTC), or null where it holds none.
+  DateTime? nameHeldSince(String id) {
+    final k = _nameOf[id];
+    final at = k == null ? null : _names[k]?['at'];
+    return at == null ? null : DateTime.tryParse('${at}T00:00:00Z');
+  }
+
   /// The install that holds [name] as its username, or null (accounts.dart: signing in by username).
   String? holderOf(String name) => goodName(name) ? (_names[nameKey(name)]?['id']) : null;
 

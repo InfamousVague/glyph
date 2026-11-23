@@ -89,7 +89,8 @@ One program on one port (8787 unless told otherwise), plain HTTP and WebSockets:
 
 It writes only under its data folder (`--data`): pairings, usernames and linked handles, sealed account backups,
 Files, invites, invite words, the Marketplace, the relay's own key (`relay-key.json`) and the home records its people
-gave it (`homes.json`) where it talks to other relays, and the accounts that sign in bound to it (`hub-v2.json`). Back that folder up if you care about any of it. Nothing it holds can be read without the apps'
+gave it (`homes.json`) where it talks to other relays, and the accounts that sign in bound to it (`hub-v2.json`); those
+two are logs of what changed, written whole again now and then off the relay's main thread. Back that folder up if you care about any of it. Nothing it holds can be read without the apps'
 keys, but which installs talk to which is visible to whoever runs it, as with any server.
 
 ## Running it
@@ -190,7 +191,10 @@ GHOST_PUBLIC_HUB=wss://relay.example.com/hub   # your relay's own hub address, a
 - It says its own name as it starts (`other relays: open, this one is 3f9c…`): that name is what another relay's
   keeper puts in their list to name yours.
 - Limits per linked relay have defaults you can change: `GHOST_FED_PACKETS_A_MINUTE`, `GHOST_FED_BYTES_A_DAY`,
-  `GHOST_FED_LOOKUPS_AN_HOUR`.
+  `GHOST_FED_LOOKUPS_AN_HOUR`. Of them, each install has a share, each address its installs come from twice that, and
+  installs new to your relay half of each together: people who have held a username on it, or used it, for two days
+  always have the rest, however many installs someone else makes. Keep Caddy or nginx beside the relay so it sees each
+  person's own address.
 - A relay with no address of its own (behind a home router) can set `GHOST_FED_VIA` to a public relay it dials and
   stays linked to, in place of `GHOST_PUBLIC_HUB`: its people are then reached through that relay, where that relay
   lets relays stay. Letting relays with no address stay linked to yours (and passing their people's packets on under
@@ -212,18 +216,25 @@ GHOST_HUB_NAMES=relay.example.com,www.relay.example.com
 With them the hub asks apps to sign in bound to the name they dialled, and refuses a sign-in made for another relay;
 once an account has signed in so, it takes no other kind from it. That stops a relay one of your people was pointed at,
 or asked a name of, from signing in to yours as them. An app that dialled a name you didn't list is refused, so list
-them all; without the setting, sign-ins are taken as they always were. On Windows and elsewhere the names it has seen
-sign in so are kept in `hub-v2.json` in the data folder: 200,000 at most, those holding no username going first, and at
-most 30 new ones an hour from one address (an IPv6 address counts by its first 64 bits). The address is the one your
+them all, without ports where it is 443; without the setting, sign-ins are taken as they always were, and the keys kept
+are not held to. On Windows and elsewhere the names it has seen sign in so are kept in `hub-v2.json` in the data folder:
+200,000 at most, those that have held a username for two days going last, at most 30 new ones an hour from one address
+(an IPv6 address counts by its first 48 bits) and 5,000 from all. Switch it on only once your people's apps (and the
+browser extension) sign in v2: from an account's first v2 sign-in on, its older builds are refused and told to update.
+Keep every listed name registered to you for as long as it is listed. The address is the one your
 proxy saw where the proxy is on the same machine or a private network (it reads the last `X-Forwarded-For` it adds),
 else the connection's own: keep Caddy or nginx beside the relay, as the examples do, so each person counts as
 themselves.
 
 ### How much the relay holds
 
-What every connection holds together, a message half come in or what waits for a peer that doesn't read, is kept under
-64 MB, and what waits to go out to one connection under 8 MB: past them the connection holding the most is ended. With
-the 96 MB kept for people who are away, that keeps the relay inside a few hundred megabytes however many connect.
+What every connection holds together (a message half come in, what waits for a peer to read) is counted against one
+budget, 64 MB unless you set `GHOST_WIRE_MB`. A connection is ended only for holding what it has stopped moving: more
+than 8 MB waiting (`GHOST_WIRE_EACH_MB`) without 64 KB of it read for 10 seconds (`GHOST_WIRE_STALL_S`), or a message
+coming in that hasn't grown for 20 seconds (`GHOST_WIRE_IN_STALL_S`). Past the budget together, those stalled longest go
+first. The hub hands over what it keeps (a room's messages, what was held for someone) only as fast as each device takes
+it. With the 96 MB kept for people who are away, that keeps the relay inside a few hundred megabytes however many
+connect; give it more where your machine has more.
 
 ### Calls through your own TURN server (optional)
 

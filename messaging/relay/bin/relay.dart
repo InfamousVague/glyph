@@ -15,6 +15,7 @@ import 'package:ghost_relay/market.dart';
 import 'package:ghost_relay/relay.dart';
 import 'package:ghost_relay/turn.dart';
 import 'package:ghost_relay/web_app.dart';
+import 'package:ghost_relay/ws_door.dart';
 
 /// `dart run bin/relay.dart [--host 127.0.0.1] [--port 8787] [--data relay-data] [--web <folder>] [--verbose]`
 ///
@@ -81,6 +82,12 @@ Future<void> _main(List<String> args) async {
   // The link helpers the apps' direct links use (hub.dart, helpers): https addresses, commas between
   // (GHOST_LINK_HELPERS); without them devices link only where they are on one network.
   final helpers = (Platform.environment['GHOST_LINK_HELPERS'] ?? '').split(',');
+  // What every connection may hold together, and when one is ended for it (ws_door.dart, WireBudget): every door's.
+  final wireProblems = <String>[];
+  WireBudget.shared = WireBudget.fromEnvironment(Platform.environment, problems: wireProblems);
+  for (final p in wireProblems) {
+    stderr.writeln('relay: $p');
+  }
   // Relays that talk to each other (federation.dart; Matt, 2026-11-22: "I'd like the relays to be able to talk to each
   // other"): this relay's own key (relay-key.json, made the first time) and the home records its people give it
   // (homes.json), both in the data folder. Whether it links with other relays is GHOST_FED: off, unless it is set to
@@ -102,7 +109,7 @@ Future<void> _main(List<String> args) async {
   final web = webDir.isEmpty ? null : WebApp(Directory(webDir));
   final relay = Relay(dataDir: data, verbose: verbose, hub: hub, files: files, feedback: feedback, market: market, bounty: Bounty(key: Bounty.keyFrom(Platform.environment), give: handles.giveBounty), web: web);
   final got = await relay.start(host: host, port: port);
-  stdout.writeln('Ghost Messaging relay listening on ws://$host:$got (${relay.channelCount} pairings kept; ${handles.linked} handles linked; ${files.spaces} Files spaces; ${market.listed} plugins listed; call relay: ${turn.on ? turn.urls.join(' ') : 'off'}; link helpers: ${hub.helpers.isEmpty ? 'none' : hub.helpers.join(' ')}; the app in a browser: ${web == null ? 'off' : (web.there ? '/app/' : 'no index.html in $webDir')}; sign-ins bound to: ${hub.names.isEmpty ? 'none' : hub.names.join(' ')}; other relays: ${federation == null ? 'off' : '${fedConfig.mode.name}, this one is ${federation.id}'}; sign-ins: ${handles.ways.entries.where((e) => e.value == 'signin').map((e) => e.key).join(', ').padRight(1, '-')})');
+  stdout.writeln('Ghost Messaging relay listening on ws://$host:$got (${relay.channelCount} pairings kept; ${handles.linked} handles linked; ${files.spaces} Files spaces; ${market.listed} plugins listed; call relay: ${turn.on ? turn.urls.join(' ') : 'off'}; link helpers: ${hub.helpers.isEmpty ? 'none' : hub.helpers.join(' ')}; connections hold at most ${WireBudget.shared.most >> 20} MB together; the app in a browser: ${web == null ? 'off' : (web.there ? '/app/' : 'no index.html in $webDir')}; sign-ins bound to: ${hub.names.isEmpty ? 'none' : hub.names.join(' ')}; other relays: ${federation == null ? 'off' : '${fedConfig.mode.name}, this one is ${federation.id}'}; sign-ins: ${handles.ways.entries.where((e) => e.value == 'signin').map((e) => e.key).join(', ').padRight(1, '-')})');
   for (final signal in [ProcessSignal.sigint, ProcessSignal.sigterm]) {
     signal.watch().listen((_) async {
       await relay.stop();
