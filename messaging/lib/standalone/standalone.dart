@@ -81,6 +81,8 @@ class StandaloneCalls implements SmsCalls {
     return Directory('$home/Library/Application Support/Ghost Messaging');
   }
 
+  /// Throws [StoreLost] where what is kept is there and can't be opened (a browser's store, lib/web/store.dart): the
+  /// page wipes it and the person signs in again, rather than this device quietly becoming someone new.
   Future<void> load() async {
     await store.open();
     try {
@@ -88,6 +90,8 @@ class StandaloneCalls implements SmsCalls {
       _prefs = {for (final e in ((j['prefs'] as Map?) ?? const {}).entries) '${e.key}': '${e.value}'};
       _buddies = (j['buddies'] as String?) ?? '[]';
       chats.load(j);
+    } on StoreLost {
+      rethrow;
     } catch (_) {}
     _keys = await _identity();
   }
@@ -106,7 +110,16 @@ class StandaloneCalls implements SmsCalls {
 
   Future<void> _last = Future.value();
 
+  /// Nothing more is kept ([close], or everything here wiped): what is asked to be written after is let go.
+  bool _closed = false;
+  bool get closed => _closed;
+
+  /// Why everything here was wiped ('signed-out', 'removed'), for the page in a browser that loads again after
+  /// (lib/web/app.dart); null where it wasn't.
+  String? endNote;
+
   void _save() {
+    if (_closed) return;
     final text = jsonEncode({'prefs': _prefs, 'buddies': _buddies, ...chats.toJson()});
     _last = _last.catchError((_) {}).then((_) => store.writeState(text));
   }
@@ -114,6 +127,38 @@ class StandaloneCalls implements SmsCalls {
   /// Every write done: before the app starts again, before a page in a browser hands over to another tab of itself
   /// (lib/web), and for a test.
   Future<void> flushed() => _last;
+
+  /// Nothing more is written from here: a page in a browser handing over to another tab, which will write the same
+  /// store (lib/web/app.dart). What was asked before is still written ([flushed]).
+  void close() {
+    _closed = true;
+    store.close();
+  }
+
+  /// Everything this device keeps deleted: the conversations and choices, who it is, every secret (lib/account: signed
+  /// out with everything deleted, or removed from the account from another device). What was being written is
+  /// finished first, so it can't put back what is deleted; nothing is written after but, where it is given, [note]
+  /// alone, for the welcome to say as the app starts again (lib/standalone/welcome.dart). A page in a browser keeps
+  /// nothing at all, and is loaded again with the note instead ([endNote]).
+  Future<void> wipe({String? note}) async {
+    _closed = true;
+    await _last.catchError((_) {});
+    await store.wipe();
+    endNote = note;
+    _prefs = {};
+    _buddies = '[]';
+    chats.load(const {});
+    if (note != null) {
+      try {
+        await store.writeState(jsonEncode({
+          'prefs': {noteKey: note},
+        }));
+      } catch (_) {}
+    }
+  }
+
+  /// The pref that carries why the app starts again with nothing ([wipe]), for the welcome to say.
+  static const noteKey = 'acct_note';
 
   List<Buddy> get _buddyList {
     try {
@@ -149,11 +194,14 @@ class StandaloneCalls implements SmsCalls {
       case 'identityExport':
         return _keys!.scalar;
       case 'identityImport':
+        // Once everything here is wiped (or another tab has the store), nothing is put back.
+        if (_closed) return null;
         final made = NetKeys.fromScalar((a['scalar'] as List).cast<int>());
         await store.writeIdentity(NetCrypto.hex(made.scalar), imported: true);
         _keys = made;
         return null;
       case 'secretKeep':
+        if (_closed) return null;
         final name = '${a['name']}', value = '${a['value'] ?? ''}';
         if (value.isEmpty) {
           await store.deleteSecret(name);
@@ -163,6 +211,10 @@ class StandaloneCalls implements SmsCalls {
         return null;
       case 'secretRead':
         return store.readSecret('${a['name']}');
+      // Everything of the account on this device deleted (lib/account: signed out with everything, or removed).
+      case 'wipeHere':
+        await wipe(note: a['note'] is String ? a['note'] as String : null);
+        return null;
       case 'restartApp':
         await flushed();
         return restart();

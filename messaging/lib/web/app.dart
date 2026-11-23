@@ -18,6 +18,7 @@ import '../plugins/pack/pack.dart' show InstalledPlugins;
 import '../plugins/registry.dart' show PluginRegistry, logPluginError;
 import '../sms.dart';
 import '../standalone/standalone.dart';
+import '../standalone/store.dart' show StoreLost;
 import '../standalone/welcome.dart';
 import '../ui/settings.dart' show SettingsSources;
 import '../ui/shell.dart';
@@ -38,13 +39,14 @@ import 'store.dart';
 /// the standalone calls and [startPeople]: the routes, friends, groups, spaces and circles.
 ///
 /// One tab at a time ([Browser.holdTab]): two tabs of one browser are the same device to the hub, and each would
-/// take the other's place there for ever, and both would write the one store.
+/// take the other's place there for ever, and both would write the one store. A browser without the lock between tabs
+/// that makes sure of it is told so, and nothing is started ([Browser.unfit]).
 Future<void> webMain({Browser? browser}) async {
   WidgetsFlutterBinding.ensureInitialized();
   final b = browser ?? Browser.instance;
   final unfit = b.unfit;
   if (unfit != null) return runApp(WebNotice(words: unfit));
-  final hold = await b.holdTab(onAsked: _letGo);
+  final hold = await b.holdTab(onAsked: letGo, onTaken: _taken);
   if (hold == null) {
     // Open in another tab already: said, with the way to have it here instead.
     return runApp(WebNotice(
@@ -52,7 +54,7 @@ Future<void> webMain({Browser? browser}) async {
       more: 'It runs in one tab at a time, so each message arrives once.',
       action: 'Use it here',
       onAction: () async {
-        await b.takeTab(onAsked: _letGo);
+        await b.takeTab(onAsked: letGo, onTaken: _taken);
         await _start(b);
       },
     ));
@@ -60,23 +62,67 @@ Future<void> webMain({Browser? browser}) async {
   await _start(b);
 }
 
-/// Another tab is taking over: everything asked to be kept is written before this one lets go.
-Future<void> _letGo() async {
-  final calls = Sms.calls;
+/// Another tab is taking over. The routes first, so nothing more comes in or goes out here once the other is to have
+/// them: a message heard by this tab after it had written its last would be lost with it. Then everything asked to be
+/// kept is written, and nothing is written after, so this tab's last write can't cross the other's first.
+@visibleForTesting
+Future<void> letGo() async {
+  try {
+    await Net.instance.shutdown();
+  } catch (_) {}
   await Sms.instance.prefsWritten();
-  if (calls is StandaloneCalls) await calls.flushed();
+  final calls = Sms.calls;
+  if (calls is StandaloneCalls) {
+    await calls.flushed();
+    calls.close();
+  }
 }
 
-/// Where the hub is for a page at [address]: beside the app's own folder, `/hub` where the page is `/app/`. A page
-/// may speak only to where it came from, so this is the one relay a browser can use.
-String hubFor(Uri address) {
+/// The lock was taken from this tab without waiting for it (it said nothing in time): nothing more is written here,
+/// as the page starts again.
+void _taken() {
+  final calls = Sms.calls;
+  if (calls is StandaloneCalls) calls.close();
+}
+
+/// The hub this build was made for (`node tool/build-web.mjs --hub wss://gogho.st/hub`, `--dart-define=GHOST_WEB_HUB`):
+/// the build for app.gogho.st names gogho.st's; a relay's own build names none.
+const builtHub = String.fromEnvironment('GHOST_WEB_HUB');
+
+/// Where the hub is for a page at [address]: the one the build names ([built], [builtHub]: app.gogho.st's is on
+/// gogho.st, an address of its own, so no page of the site's can read what the app keeps); or, for a build that names
+/// none, beside the app's own folder, `/hub` where the page is `/app/`, as a relay that serves the app itself has it
+/// (relay/lib/web_app.dart). Either way the page's policy lets it speak to that one address and its own
+/// (web/index.html).
+String hubFor(Uri address, {String built = builtHub}) {
+  if (built.isNotEmpty) return built;
   final path = address.path;
   final at = path.lastIndexOf('/app/');
   final before = at >= 0 ? path.substring(0, at) : (path.endsWith('/app') ? path.substring(0, path.length - 4) : '');
   return Uri(scheme: address.scheme == 'https' ? 'wss' : 'ws', host: address.host, port: address.hasPort ? address.port : null, path: '$before/hub').toString();
 }
 
+bool _losing = false;
+
+/// What this browser kept can't be opened (a sealed record under another key, or changed): it is all deleted, and the
+/// page starts again saying so, for the person to sign in again. A store that can't be trusted is never quietly made
+/// someone new.
+Future<void> _lost(Browser b, BrowserStore kept) async {
+  // Once: every record after the first that won't open says the same.
+  if (_losing) return;
+  _losing = true;
+  final calls = Sms.calls;
+  if (calls is StandaloneCalls) calls.close();
+  try {
+    await Net.instance.shutdown();
+  } catch (_) {}
+  await kept.wipe();
+  b.reload(note: 'lost');
+}
+
 Future<void> _start(Browser b) async {
+  // Why the page was loaded again with nothing (signed out, removed, a store lost), said on the welcome.
+  final note = b.takeNote();
   final BrowserStore kept;
   try {
     kept = await b.openStore();
@@ -86,15 +132,26 @@ Future<void> _start(Browser b) async {
       more: 'Ghost Messaging keeps who you are and your conversations in the browser. A private window, or a browser set to keep nothing, has nowhere for them.',
     ));
   }
+  // Kept through a browser running short of space, where it agrees to (each browser decides; a site visited often, or
+  // added to the home screen, mostly is).
+  unawaited(b.keep());
   final calls = StandaloneCalls.on(WebStandaloneStore(kept));
-  // Starting again is the page loaded again, once what was asked to be kept is written; a link opens beside the page.
+  // Starting again is the page loaded again, once what was asked to be kept is written (with why, where everything
+  // here was just deleted); a link opens beside the page.
   calls.restart = () async {
     await calls.flushed();
-    b.reload();
+    b.reload(note: calls.endNote);
     return true;
   };
   calls.openLink = (url) async => b.openTab(url);
-  await calls.load();
+  try {
+    await calls.load();
+  } on StoreLost {
+    return _lost(b, kept);
+  }
+  // Found while the app runs: the same.
+  kept.onLost = (_) => unawaited(_lost(b, kept));
+  if (note != null) await calls.invokeMethod('setPref', {'key': StandaloneCalls.noteKey, 'value': note});
   Sms.calls = calls;
   Sms.standalone = true;
   Sms.browser = true;
@@ -156,6 +213,10 @@ class WebApp extends StatelessWidget {
               );
             },
             home: const WebHome(),
+            // Whatever the address says after its # (a link, a bookmark), the app opens on its first page: no page of
+            // the app is reached from the address, so nothing hidden here is (the Marketplace, calls) and no address
+            // leads anywhere unexpected.
+            onGenerateInitialRoutes: (_) => [PageRouteBuilder<void>(settings: const RouteSettings(name: '/'), pageBuilder: (context, _, _) => const WebHome())],
           ),
         ),
       );

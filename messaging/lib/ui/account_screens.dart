@@ -22,6 +22,7 @@ import '../kit/semantic_colors.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart' show Me, tidyHandle;
+import '../platform_info.dart';
 import '../sms.dart';
 import 'common.dart';
 import 'computers.dart' show PairButton;
@@ -91,19 +92,68 @@ Widget _accountSection(BuildContext context) {
         ),
         SettingRow(icon: _icon(Lucide.lock), label: 'Change password', onPress: () => push(context, (_) => const ChangePasswordScreen())),
         SettingRow(icon: _icon(Lucide.eye), label: 'Show recovery words', hint: const Text('After your password'), onPress: () => push(context, (_) => const ShowWordsScreen())),
-        SettingRow(icon: _icon(Lucide.laptop), label: 'Signed in on these devices', onPress: () => push(context, (_) => const DevicesScreen())),
+        SettingRow(
+          icon: _icon(Lucide.laptop),
+          label: 'Signed in on these devices',
+          hint: Account.keepsWords ? null : const Text('After your password'),
+          onPress: () => push(context, (_) => const DevicesScreen()),
+        ),
+        // A browser keeps no words and no password key, so its backup is brought up to date only when asked, with the
+        // password (Account.refreshWith); every other device does it by itself once a day.
+        if (!Account.keepsWords)
+          SettingRow(
+            icon: _icon(Lucide.refreshCw),
+            label: 'Update your backup',
+            hint: const Text('Your profile, friends and circles from this browser, after your password'),
+            onPress: () => push(context, (_) => const UpdateBackupScreen()),
+          ),
         SettingRow(
           icon: _icon(Lucide.logOut),
-          label: 'Sign out of this device',
-          onPress: () => showChoices(context, title: 'Sign out of this device? It becomes someone new here: your friends and circles stay with your account, and come back when you sign in again.', choices: [
-            Choice('Sign out', Lucide.logOut, () async {
-              final again = await Account.instance.signOut();
-              if (!again && context.mounted) await push<void>(context, (_) => const RestartScreen());
-            }, danger: true),
-          ]),
+          label: Sms.browser ? 'Sign out of this browser' : 'Sign out of this device',
+          onPress: () => askSignOut(context),
         ),
       ],
     );
+}
+
+/// What signing out does here, said plainly, and the choices it comes with (Account.signOut).
+///
+/// - **In a browser** everything of the account is deleted from it: the whole store, its key with it. Nothing kept
+///   there is safe from the next person at the browser, nor from whatever runs in the page.
+/// - **On an iPhone or a computer of its own** it becomes someone new, and its conversations, spaces and choices stay,
+///   unless everything is deleted too: it is the person's own device, where the conversations are often wanted back.
+/// - **On an Android phone** its texts and conversations stay, as they always have; **a computer paired with a phone**
+///   goes back to being the same you as the phone.
+Future<void> askSignOut(BuildContext context) {
+  Future<void> out({bool everything = false}) async {
+    final again = await Account.instance.signOut(everything: everything);
+    if (!again && context.mounted) await push<void>(context, (_) => const RestartScreen());
+  }
+
+  if (Sms.browser) {
+    return showChoices(
+      context,
+      title: 'Sign out of this browser? Everything of your account is deleted from it: your conversations here, your friends, circles and keys. Your friends and circles stay with your account and come back when you sign in again; your other devices keep their own conversations.',
+      choices: [Choice('Sign out and delete', Lucide.logOut, out, danger: true)],
+    );
+  }
+  if (Sms.standalone) {
+    return showChoices(
+      context,
+      title: 'Sign out of this device? It becomes someone new here, and your friends and circles stay with your account, to come back when you sign in again. Your conversations, your spaces and your choices stay on this device, unless you delete everything here too.',
+      choices: [
+        Choice('Sign out', Lucide.logOut, out),
+        Choice('Sign out and delete everything here', Lucide.trash2, () => out(everything: true), danger: true),
+      ],
+    );
+  }
+  return showChoices(
+    context,
+    title: Sms.paired
+        ? 'Sign out of this computer? It goes back to being the same you as your phone. Your friends and circles stay with your account, and come back when you sign in again.'
+        : 'Sign out of this phone? It becomes someone new here: your friends and circles stay with your account, and come back when you sign in again. Your texts and conversations stay on this phone.',
+    choices: [Choice('Sign out', Lucide.logOut, out, danger: true)],
+  );
 }
 
 class _CopyButton extends StatelessWidget {
@@ -608,7 +658,11 @@ class _SignInScreenState extends State<SignInScreen> {
     );
     final warning = SettingsCallout(
       icon: _icon(Lucide.smartphone),
-      child: const Text('Signing in makes this device your account. Anything on it from before, as someone else, is replaced, and the app starts again.'),
+      // A browser is a device of its own on the account's list each time it signs in, and a private window is a new
+      // browser each time: it keeps nothing once closed, so its place on the list stays until it is removed.
+      child: Text(Sms.browser
+          ? 'Signing in makes this browser one of your account\'s devices, listed under it until you sign out here or remove it from another. A private window is a new device each time, and keeps nothing once it is closed: sign out before closing it, or remove it later.'
+          : 'Signing in makes this device your account. Anything on it from before, as someone else, is replaced, and the app starts again.'),
     );
     if (_needsPassword) {
       return _AccountPage(title: 'Sign in', children: [
@@ -672,13 +726,17 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 }
 
-/// Shown where the app cannot start itself again (an iPhone): the person closes it and opens it again.
+/// Shown where the app cannot start itself again (an iPhone, a computer that can't open itself again): the person
+/// closes it and opens it again.
 class RestartScreen extends StatelessWidget {
   const RestartScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final how = PlatformInfo.isIOS || PlatformInfo.isAndroid ? 'Swipe it away from the app switcher and open it again to finish.' : 'Quit Ghost Messaging and open it again to finish.';
+    // Everything of the account here was deleted (signed out with everything, or removed from another device).
+    final gone = Account.instance.ended;
     return ColoredBox(
       color: t.color('glacier-bg'),
       child: Center(
@@ -689,7 +747,13 @@ class RestartScreen extends StatelessWidget {
             _gap(context, 4),
             Text('Open Ghost Messaging again', textAlign: TextAlign.center, style: pageText(t, t.fontSize('xl'), weight: 'bold', color: t.color('app-ink'))),
             _gap(context, 2),
-            Text('Swipe it away from the app switcher and open it again to finish. Until then it stays offline, so nothing is sent as the device you were before.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('md'), color: t.color('app-ink-2'), height: 1.45)),
+            Text(
+              gone
+                  ? '${Account.instance.removedHere ? 'This device was removed from your account from another device, so everything of the account on it was deleted.' : 'Everything of your account was deleted from this device.'} $how Until then it stays offline.'
+                  : '$how Until then it stays offline, so nothing is sent as the device you were before.',
+              textAlign: TextAlign.center,
+              style: pageText(t, t.fontSize('md'), color: t.color('app-ink-2'), height: 1.45),
+            ),
           ]),
         ),
       ),
@@ -826,12 +890,34 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       ]);
 }
 
-/// The devices signed in to the account, this one first; any other can be removed.
+/// The devices signed in to the account, this one first; any other can be removed. In a browser, which keeps nothing
+/// that can change the account (Account.keepsWords), the password comes first, and the account it opens is held by
+/// this page while it is open, never kept.
 class DevicesScreen extends StatefulWidget {
   const DevicesScreen({super.key, this.devices});
 
   /// The list to start from, for the pictures; otherwise it is asked of the relay.
   final List<AccountDevice>? devices;
+
+  /// A day the relay keeps (YYYY-MM-DD, its own time's), as a person says it: today, yesterday, or 3 Nov 2026.
+  static String dayOf(String ymd, {DateTime? now}) {
+    final d = DateTime.tryParse(ymd);
+    if (d == null) return ymd;
+    final today = (now ?? DateTime.now()).toUtc();
+    final days = DateTime.utc(today.year, today.month, today.day).difference(DateTime.utc(d.year, d.month, d.day)).inDays;
+    if (days <= 0) return 'today';
+    if (days == 1) return 'yesterday';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${d.day} ${months[d.month - 1]} ${d.year}';
+  }
+
+  /// What a device's row says under its name: this one, or when it was last seen; for a browser, when it signed in too,
+  /// so one long forgotten (a private window closed without signing out) is found and removed.
+  static String hintOf(AccountDevice d, {DateTime? now}) {
+    if (d.here) return 'This device';
+    final seen = 'Last seen ${dayOf(d.seen, now: now)}';
+    return d.platform == 'web' && d.since.isNotEmpty ? 'A browser. $seen, signed in ${dayOf(d.since, now: now)}' : seen;
+  }
 
   @override
   State<DevicesScreen> createState() => _DevicesScreenState();
@@ -840,11 +926,40 @@ class DevicesScreen extends StatefulWidget {
 class _DevicesScreenState extends State<DevicesScreen> {
   late List<AccountDevice>? _list = widget.devices;
   String? _problem;
+  final _password = TextEditingController();
+  AccountKeys? _keys;
+  bool _busy = false;
+
+  /// The password is wanted before anything can be asked.
+  bool get _locked => _list == null && !Account.keepsWords && _keys == null;
 
   @override
   void initState() {
     super.initState();
-    if (_list == null) _load(Account.instance.devices);
+    if (_list == null && Account.keepsWords) _load(Account.instance.devices);
+  }
+
+  @override
+  void dispose() {
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _open() async {
+    setState(() {
+      _busy = true;
+      _problem = null;
+    });
+    try {
+      final keys = await Account.instance.keysWith(_password.text);
+      if (!mounted) return;
+      setState(() => _keys = keys);
+      await _load(() => Account.instance.devices(keys: keys));
+    } catch (e) {
+      if (mounted) setState(() => _problem = e is AccountError ? e.message : 'That did not work.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _load(Future<List<AccountDevice>> Function() ask) async {
@@ -861,31 +976,96 @@ class _DevicesScreenState extends State<DevicesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_locked) {
+      return _AccountPage(title: 'Devices', children: [
+        PaneSection(
+          title: 'Your password first',
+          description: const Text('This browser keeps nothing that can change your account, so your password opens it for this page.'),
+          footer: _problemText(context, _problem),
+          children: [_field(_password, 'Password', 'Password', secret: true, autofill: 'current-password', onSubmitted: (_) => _open())],
+        ),
+        _gap(context, 8),
+        PairButton(label: _busy ? 'Opening…' : 'Show my devices', icon: Lucide.laptop, onPressed: _busy ? null : _open),
+      ]);
+    }
     final list = [...?_list]..sort((a, b) => a.here == b.here ? 0 : (a.here ? -1 : 1));
+    final keys = _keys;
     return _AccountPage(title: 'Devices', children: [
       PaneSection(
         title: 'Signed in on these devices',
-        description: const Text('Each one is your account. Remove one you no longer have: it is signed out the next time it connects.'),
+        description: const Text('Each one is your account. Remove one you no longer have: the next time it connects it is signed out, and a browser, an iPhone or a computer of its own deletes everything of your account from itself. An Android phone, or a computer linked to one, is signed out and forgets your recovery words and its keys for circles and forward secrecy, and keeps its username, friends and conversations.'),
         footer: _problem != null ? _problemText(context, _problem) : _list == null ? const Text('Asking the relay server…') : null,
         children: [
           for (final d in list)
             SettingRow(
               icon: _icon(_iconOf(d.platform)),
               label: d.name.isEmpty ? 'A device' : d.name,
-              hint: Text(d.here ? 'This device' : 'Last seen ${d.seen}'),
+              hint: Text(DevicesScreen.hintOf(d)),
               onPress: d.here
                   ? null
                   : () => showChoices(context, title: 'Remove ${d.name.isEmpty ? 'this device' : d.name} from your account?', choices: [
-                        Choice('Remove', Lucide.trash2, () => _load(() => Account.instance.removeDevice(d.id)), danger: true),
+                        Choice('Remove', Lucide.trash2, () => _load(() => Account.instance.removeDevice(d.id, keys: keys)), danger: true),
                       ]),
             ),
         ],
       ),
       _gap(context),
       // Every device signed in is connected at once since the hub keeps each of a name's devices (relay/lib/hub.dart).
-      const SettingsCallout(child: Text('Every device signed in is connected as your account at once, and each gets what is sent to you.')),
+      const SettingsCallout(child: Text('Every device signed in is connected as your account at once, and each gets what is sent to you. Each browser you sign in on, and each private window, is a device of its own here until it signs out or you remove it; an account has room for 20.')),
     ]);
   }
+}
+
+/// The backup brought up to date from a browser, after the password (Account.refreshWith): the profile, friends and
+/// circles as they are here, put together with what the backup has, and sealed again both ways. Every other device
+/// does this by itself once a day; a browser keeps nothing that could.
+class UpdateBackupScreen extends StatefulWidget {
+  const UpdateBackupScreen({super.key});
+
+  @override
+  State<UpdateBackupScreen> createState() => _UpdateBackupScreenState();
+}
+
+class _UpdateBackupScreenState extends State<UpdateBackupScreen> {
+  final _password = TextEditingController();
+  String? _problem;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _go() async {
+    setState(() {
+      _busy = true;
+      _problem = null;
+    });
+    try {
+      final done = await Account.instance.refreshWith(_password.text);
+      if (!mounted) return;
+      if (!done) return setState(() => _problem = 'The backup could not be sealed just now. Try again in a while.');
+      toast(context, 'Backup up to date');
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) setState(() => _problem = e is AccountError ? e.message : 'That did not work.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => _AccountPage(title: 'Update your backup', children: [
+        PaneSection(
+          title: 'Your password first',
+          description: const Text('Your profile, friends and circles from this browser go into your backup beside what is there, so a device signing in next has them. It is sealed again with your password and your recovery words.'),
+          footer: _problemText(context, _problem),
+          children: [_field(_password, 'Password', 'Password', secret: true, autofill: 'current-password', onSubmitted: (_) => _go())],
+        ),
+        _gap(context, 8),
+        PairButton(label: _busy ? 'Sealing…' : 'Update my backup', icon: Lucide.refreshCw, onPressed: _busy ? null : _go),
+      ]);
 }
 
 

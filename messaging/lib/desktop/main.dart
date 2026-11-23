@@ -52,7 +52,7 @@ import '../me/me.dart';
 import '../standalone/standalone.dart';
 import '../friends/handover.dart' show DeskHandover;
 import '../standalone/welcome.dart';
-import '../ui/account_screens.dart' show SignInScreen;
+import '../ui/account_screens.dart' show RestartScreen, SignInScreen;
 import '../ui/common.dart' show push;
 import 'ui/link_offer.dart';
 
@@ -480,6 +480,9 @@ class _DeskHomeState extends State<DeskHome> {
           // Unpaired since it opened: the wizard, or the app of its own again.
           return _sized(false, _wizard(skipLabel: 'Use without a phone', onSkip: _restart));
         }
+        // Everything of its account deleted (signed out with everything, or removed from another device) on a computer
+        // that can't open itself again (Windows, Linux): only that it is to be opened again, offline.
+        if (Account.instance.ended) return _sized(true, const RestartScreen());
         // Linked from here or from Settings: the app opens again on the phone.
         if (linked) {
           _restart();

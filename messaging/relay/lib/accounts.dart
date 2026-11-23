@@ -44,7 +44,7 @@ class Accounts {
   final DateTime Function() _now;
 
   /// What this answers.
-  static const dirs = {'acct-put', 'acct-find', 'acct-text', 'acct-get', 'acct-seed', 'acct-devices', 'acct-hello', 'acct-delete'};
+  static const dirs = {'acct-put', 'acct-find', 'acct-text', 'acct-get', 'acct-seed', 'acct-devices', 'acct-hello', 'acct-leave', 'acct-delete'};
 
   /// A sealed blob as the app makes it: the backup is a few hundred bytes, friends and circles gzipped beside it.
   static const maxBlob = 64 * 1024;
@@ -380,6 +380,23 @@ class Accounts {
             }
           }
           tell({'dir': 'acct-hello', 'a': address, 'known': mine != null, 'account': _accounts.containsKey(address)});
+        case 'acct-leave':
+          // A device taking itself off the account's list as it signs out: a page in a browser, which keeps no account
+          // key to sign with (the app's lib/account/account.dart). No signature, as for `acct-hello`: the device's own
+          // number is 128 random bits only it, the account's devices and this server know, and each of those can take
+          // it off the list with the account's key anyway. It takes off that one device and nothing else.
+          if (!_room(_writes, id, now, writesAnHour)) return err('Too many changes this hour. Try again later.');
+          final address = said['a'] is String ? (said['a'] as String).toLowerCase() : '';
+          final d = said['d'];
+          final list = _accounts[address]?['devices'] as List?;
+          final before = list?.length ?? 0;
+          if (list != null && d is String && d.length == 32) list.removeWhere((x) => x is Map && x['d'] == d);
+          final gone = list != null && list.length < before;
+          if (gone) {
+            _changed();
+            _say('${address.substring(0, 8)} a device left');
+          }
+          tell({'dir': 'acct-leave', 'a': address, 'gone': gone});
         case 'acct-delete':
           if (!_room(_writes, id, now, writesAnHour)) return err('Too many changes this hour. Try again later.');
           final (body, why) = _signed(said, 'delete', id);

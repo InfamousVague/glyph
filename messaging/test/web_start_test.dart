@@ -6,6 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/account/account.dart';
 import 'package:ghost_messaging/desktop/platform.dart' show computerWord, desktopName;
 import 'package:ghost_messaging/emoji_sets.dart';
+import 'package:ghost_messaging/files/file_kinds.dart' show FileKind;
+import 'package:ghost_messaging/files/files_model.dart' show SpaceFile;
+import 'package:ghost_messaging/keys.dart';
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/looks.dart';
 import 'package:ghost_messaging/net/crypto.dart';
@@ -13,6 +16,9 @@ import 'package:ghost_messaging/net/net.dart';
 import 'package:ghost_messaging/platform_info.dart';
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/standalone/standalone.dart';
+import 'package:ghost_messaging/standalone/store.dart' show StoreLost;
+import 'package:ghost_messaging/standalone/welcome.dart' show welcomeNote;
+import 'package:ghost_messaging/ui/account_screens.dart' show DevicesScreen, askSignOut;
 import 'package:ghost_messaging/ui/circles/circle_face.dart' show spaceKindsOffered;
 import 'package:ghost_messaging/ui/circles/circle_screen.dart' show FilesNotHere, circleSpacePage;
 import 'package:ghost_messaging/ui/composer_box.dart' show composerButtons;
@@ -21,8 +27,10 @@ import 'package:ghost_messaging/ui/hangout_screen.dart' show HangoutScreen;
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/ui/settings_panes.dart';
 import 'package:ghost_messaging/ui/settings_shortcuts.dart' show shortcutsSummary;
+import 'package:ghost_messaging/ui/space_chat_files.dart' show SpaceChatFiles, SpaceFilesNotHere;
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/voice/channels.dart';
+import 'package:ghost_messaging/voice/hangout.dart' show HangoutMessage;
 import 'package:ghost_messaging/voice/voice.dart';
 import 'package:ghost_messaging/web/app.dart';
 import 'package:ghost_messaging/web/browser.dart';
@@ -58,39 +66,91 @@ void main() {
       expect((await (await page(MemoryBrowserProfile())).invokeMethod<Map>('netIdentity'))!['id'], isNot(first['id']));
     });
 
-    test('the key and every secret are sealed; only the one JSON record is plain', () async {
+    test('every record is sealed: the JSON, the key and every secret; nothing is kept plain', () async {
       final profile = MemoryBrowserProfile();
       final c = await page(profile);
       final scalar = NetCrypto.hex(((await c.invokeMethod<List>('identityExport'))!).cast<int>());
       await c.invokeMethod('secretKeep', {'name': 'account-words', 'value': 'twelve words nobody else has'});
       await c.invokeMethod('setPref', {'key': 'theme', 'value': 'dark'});
+      // A circle's seed kept by the circles beside their list, and a message: in the JSON, which is sealed too.
+      await c.invokeMethod('setPref', {'key': 'circles_joined_at', 'value': '{"${'5e' * 32}":1}'});
+      await c.invokeMethod('netTextIn', {'address': '@sam', 'body': 'a canary nobody else wrote', 'at': 1000});
       await c.flushed();
-      expect(profile.store.plain.keys, [WebStandaloneStore.stateName]);
-      expect(profile.store.sealed.keys, unorderedEquals([WebStandaloneStore.identityName, 'secret:account-words']));
-      // Neither is anywhere as it was given: not in the plain record, not in what the store holds.
-      for (final kept in [...profile.store.plain.values, ...profile.store.sealed.values]) {
-        expect(kept, isNot(contains(scalar)));
-        expect(kept, isNot(contains('twelve words nobody else has')));
+      expect(profile.store.plain, isEmpty);
+      expect(profile.store.sealed.keys, unorderedEquals([WebStandaloneStore.stateName, WebStandaloneStore.identityName, 'secret:account-words']));
+      // Nothing is anywhere as it was given: not the key, not the secret, not the seed, not the message.
+      for (final kept in profile.store.sealed.values) {
+        for (final given in [scalar, 'twelve words nobody else has', '5e' * 32, 'a canary nobody else wrote', 'theme']) {
+          expect(kept, isNot(contains(given)));
+        }
       }
       expect(await c.invokeMethod('secretRead', {'name': 'account-words'}), 'twelve words nobody else has');
       // The choices are in the JSON, and there after a reload; a secret given as nothing is taken away.
-      expect((jsonDecode(profile.store.plain[WebStandaloneStore.stateName]!) as Map)['prefs'], {'theme': 'dark'});
+      expect((jsonDecode((await profile.store.readSealed(WebStandaloneStore.stateName))!) as Map)['prefs'], containsPair('theme', 'dark'));
       expect((await (await page(profile)).invokeMethod<Map>('prefs'))!['theme'], 'dark');
       await c.invokeMethod('secretKeep', {'name': 'account-words', 'value': ''});
-      expect(profile.store.sealed.keys, [WebStandaloneStore.identityName]);
+      expect(profile.store.sealed.keys, unorderedEquals([WebStandaloneStore.stateName, WebStandaloneStore.identityName]));
       expect(await c.invokeMethod('secretRead', {'name': 'account-words'}), isNull);
     });
 
-    test('a key that will not open (the browser\'s store cleared in part) is as if none were kept', () async {
+    test('a JSON record a build from before kept plain is read, and sealed in its place', () async {
       final profile = MemoryBrowserProfile();
       final first = await (await page(profile)).invokeMethod<Map>('netIdentity');
-      profile.store.sealed[WebStandaloneStore.identityName] = 'not what was sealed';
-      final next = await (await page(profile)).invokeMethod<Map>('netIdentity');
-      expect(next!['id'], isNot(first!['id']));
-      // And the new one is kept.
-      expect((await (await page(profile)).invokeMethod<Map>('netIdentity'))!['id'], next['id']);
+      profile.store.sealed.remove(WebStandaloneStore.stateName);
+      profile.store.plain[WebStandaloneStore.stateName] = jsonEncode({'prefs': {'theme': 'dark'}, 'buddies': '[]'});
+      final again = await page(profile);
+      expect((await again.invokeMethod<Map>('prefs'))!['theme'], 'dark');
+      expect((await again.invokeMethod<Map>('netIdentity'))!['id'], first!['id']);
+      expect(profile.store.plain, isEmpty);
+      expect(profile.store.sealed.keys, contains(WebStandaloneStore.stateName));
     });
 
+    test('a record that won\'t open is a store lost: never quietly someone new', () async {
+      final profile = MemoryBrowserProfile();
+      await (await page(profile)).invokeMethod<Map>('netIdentity');
+      profile.store.sealed[WebStandaloneStore.identityName] = 'not what was sealed';
+      await expectLater(page(profile), throwsA(isA<StoreLost>()));
+      // The JSON the same.
+      final other = MemoryBrowserProfile();
+      await (await page(other)).invokeMethod<Map>('netIdentity');
+      await (await page(other)).invokeMethod('setPref', {'key': 'acct_address', 'value': '0xabc'});
+      other.store.sealed[WebStandaloneStore.stateName] = 'changed';
+      await expectLater(page(other), throwsA(isA<StoreLost>()));
+      // An identity gone from a store that has the rest: the same.
+      final third = MemoryBrowserProfile();
+      final c = await page(third);
+      await c.invokeMethod('setPref', {'key': 'acct_address', 'value': '0xabc'});
+      await c.flushed();
+      third.store.sealed.remove(WebStandaloneStore.identityName);
+      await expectLater(page(third), throwsA(isA<StoreLost>()));
+      // And one found while the app runs is told.
+      final fourth = MemoryBrowserProfile();
+      final d = await page(fourth);
+      String? lost;
+      fourth.store.onLost = (name) => lost = name;
+      await d.invokeMethod('secretKeep', {'name': 'fs_prekeys', 'value': 'kept'});
+      fourth.store.sealed['secret:fs_prekeys'] = 'changed';
+      await expectLater(d.invokeMethod('secretRead', {'name': 'fs_prekeys'}), throwsA(isA<StoreLost>()));
+      expect(lost, 'secret:fs_prekeys');
+    });
+
+    test('wiped, nothing is kept and nothing more is written; the page is told why for the welcome', () async {
+      final profile = MemoryBrowserProfile();
+      final c = await page(profile);
+      await c.invokeMethod('netTextIn', {'address': '@sam', 'body': 'before', 'at': 1000});
+      await c.invokeMethod('secretKeep', {'name': 'circle_keys', 'value': 'keys'});
+      await c.flushed();
+      await c.invokeMethod('wipeHere', {'note': 'signed-out'});
+      expect(profile.store.wipes, 1);
+      expect(profile.store.sealed, isEmpty);
+      expect(c.endNote, 'signed-out');
+      // Whatever is asked after is let go: the routes may still be finishing.
+      await c.invokeMethod('netTextIn', {'address': '@sam', 'body': 'after', 'at': 2000});
+      await c.invokeMethod('secretKeep', {'name': 'circle_keys', 'value': 'again'});
+      await c.invokeMethod('identityImport', {'scalar': NetKeys.generate().scalar});
+      await c.flushed();
+      expect(profile.store.sealed, isEmpty);
+    });
     test('an account kept in a restored key is who the page is from then on', () async {
       final profile = MemoryBrowserProfile();
       final c = await page(profile);
@@ -126,6 +186,28 @@ void main() {
     });
   });
 
+  test('a tab letting go writes what it has, and nothing after', () async {
+    final before = Sms.calls;
+    final profile = MemoryBrowserProfile();
+    final c = StandaloneCalls.on(WebStandaloneStore(profile.store));
+    await c.load();
+    Sms.calls = c;
+    try {
+      await c.invokeMethod('netTextIn', {'address': '@sam', 'body': 'heard before handing over', 'at': 1000});
+      await letGo();
+      expect(c.closed, isTrue);
+      final kept = (await profile.store.readSealed(WebStandaloneStore.stateName))!;
+      expect(kept, contains('heard before handing over'));
+      // A message heard after (the routes were stopped first, so none should be) is never written over the other tab's.
+      await c.invokeMethod('netTextIn', {'address': '@sam', 'body': 'heard after', 'at': 2000});
+      await c.flushed();
+      expect((await profile.store.readSealed(WebStandaloneStore.stateName))!, kept);
+      expect(profile.store.closed, isTrue);
+    } finally {
+      Sms.calls = before;
+    }
+  });
+
   test('the hub is beside the app: the page\'s own address, /hub where the page is /app/', () {
     expect(hubFor(Uri.parse('https://gogho.st/app/')), 'wss://gogho.st/hub');
     expect(hubFor(Uri.parse('https://gogho.st/app/index.html')), 'wss://gogho.st/hub');
@@ -137,6 +219,15 @@ void main() {
     expect(hubFor(Uri.parse('https://example.org/')), 'wss://example.org/hub');
     // And nothing is changed where the app is no page: the relay it always had.
     expect(Net.homeHub, Net.defaultHub);
+  });
+
+  // app.gogho.st (tool/build-web.mjs --app): the hub is the one the build names, wherever the page is.
+  test('a build that names its hub speaks to that one, wherever the page is', () {
+    expect(hubFor(Uri.parse('https://app.gogho.st/'), built: 'wss://gogho.st/hub'), 'wss://gogho.st/hub');
+    expect(hubFor(Uri.parse('https://app.gogho.st/app/'), built: 'wss://gogho.st/hub'), 'wss://gogho.st/hub');
+    // This test's build names none.
+    expect(builtHub, isEmpty);
+    expect(hubFor(Uri.parse('https://app.gogho.st/')), 'wss://app.gogho.st/hub');
   });
 
   test('a browser is named by what it says it is, and never as one of the five platforms', () {
@@ -185,6 +276,32 @@ void main() {
       expect(Sms.browser, isFalse);
       expect(browser.reloads, 0);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a store that won\'t open is deleted, and the page starts again saying so', (tester) async {
+      final profile = MemoryBrowserProfile();
+      final c = StandaloneCalls.on(WebStandaloneStore(profile.store));
+      await c.load();
+      await c.invokeMethod('setPref', {'key': 'acct_address', 'value': '0xabc'});
+      await c.flushed();
+      profile.store.sealed[WebStandaloneStore.identityName] = 'sealed under another key';
+      final browser = MemoryBrowser(profile: profile);
+      await webMain(browser: browser);
+      expect(profile.store.wipes, 1);
+      expect(browser.reloadNotes, ['lost']);
+      expect(Sms.browser, isFalse, reason: 'nothing was started');
+      expect(tester.takeException(), isNull);
+    });
+
+    test('the note a page was loaded again with is said once, then gone from the address', () {
+      final browser = MemoryBrowser(note: 'removed');
+      expect(browser.takeNote(), 'removed');
+      expect(browser.takeNote(), isNull);
+      expect(MemoryBrowser(note: 'anything else').takeNote(), isNull);
+      expect(welcomeNote('removed'), contains('removed from your account from another device'));
+      expect(welcomeNote('signed-out'), contains('signed out'));
+      expect(welcomeNote('lost'), contains('couldn\'t be opened'));
+      expect(welcomeNote(''), isNull);
     });
 
     testWidgets('the button is pressed once while what it does runs', (tester) async {
@@ -324,6 +441,91 @@ void main() {
       expect(await keys(something: false), contains('composer-send'));
       expect(await keys(something: true), contains('composer-send'));
       expect(tester.takeException(), isNull);
+    });
+
+    // Matt: "the full web client". What a browser hasn't got is in no list of commands, on no key and in no quick
+    // switcher, however it is asked for; everywhere else every command is as it was.
+    test('the Marketplace and the calls\' commands are on no key, and in no list, in a browser', () {
+      for (final c in KeyCommand.values) {
+        expect(Keys.offered(c), isTrue, reason: '${c.name} elsewhere');
+      }
+      final keys = Keys.forTest();
+      asAPage();
+      for (final c in KeyCommand.values) {
+        expect(Keys.offered(c), c.group != 'Calls' && c != KeyCommand.marketplace, reason: c.name);
+      }
+      // No key is the Marketplace's, nor push to talk's: the key alone is the key.
+      expect(keys.commandFor(const KeyDownEvent(physicalKey: PhysicalKeyboardKey.backquote, logicalKey: LogicalKeyboardKey.backquote, timeStamp: Duration.zero), typing: false), isNull);
+      Sms.browser = false;
+      expect(keys.commandFor(const KeyDownEvent(physicalKey: PhysicalKeyboardKey.backquote, logicalKey: LogicalKeyboardKey.backquote, timeStamp: Duration.zero), typing: false), KeyCommand.pushToTalk);
+    });
+
+    testWidgets('a picture or a file posted in a space from a phone shows what it is, and opens nowhere here', (tester) async {
+      final sheet = await _sheet(tester);
+      asAPage();
+      SpaceFile file(String name, {Uint8List? thumb}) => SpaceFile(id: NetCrypto.hex(NetCrypto.randomBytes(16)), name: name, size: 123456, mime: FileKind.mimeOf(name), sha: '', key: NetCrypto.randomBytes(32), prefix: NetCrypto.randomBytes(8), by: 'maya', byName: 'Maya', at: 0, thumb: thumb, width: 40, height: 30);
+      final picture = file('beach.jpg', thumb: base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='));
+      final message = HangoutMessage(id: 'm1', from: 'maya', name: 'Maya', text: 'from the beach', at: 0, files: [picture, file('notes.pdf'), file('clip.mp4')]);
+      await tester.pumpWidget(_Themed(
+        sheet: sheet,
+        child: Center(child: SpaceChatFiles(channel: const VoiceChannel(seed: 'aa', name: 'General', kind: SpaceKind.text), message: message, maxWidth: 280, ground: const Color(0xFF222222), ink: const Color(0xFFFFFFFF))),
+      ));
+      await tester.pump();
+      expect(tester.takeException(), isNull, reason: 'nothing looked for on a disk the page hasn\'t got');
+      expect(find.byType(SpaceFilesNotHere), findsOneWidget);
+      expect(find.text('beach.jpg'), findsOneWidget);
+      expect(find.text('notes.pdf'), findsOneWidget);
+      expect(find.textContaining('opens on a phone or a computer'), findsNWidgets(3));
+      // The small picture that came in the message is drawn; nothing else is fetched.
+      expect(find.byType(Image), findsOneWidget);
+      await tester.tap(find.byKey(ValueKey('space-file-not-here-${picture.id}')));
+      await tester.pump();
+      expect(find.text(SpaceFilesNotHere.words), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
+      expect(tester.takeException(), isNull);
+    });
+
+    // What signing out does here is said plainly (lib/ui/account_screens.dart: askSignOut).
+    testWidgets('signing out says what goes and what stays: everything in a browser, a choice on a device of its own', (tester) async {
+      final sheet = await _sheet(tester);
+      Future<List<String>> said() async {
+        await tester.pumpWidget(_Themed(
+          sheet: sheet,
+          child: Builder(builder: (context) => GestureDetector(key: const ValueKey('ask'), behavior: HitTestBehavior.opaque, onTap: () => askSignOut(context), child: const SizedBox.expand())),
+        ));
+        await tester.tap(find.byKey(const ValueKey('ask')));
+        await tester.pumpAndSettle();
+        final words = [for (final t in tester.widgetList<Text>(find.byType(Text))) t.data ?? t.textSpan?.toPlainText() ?? ''];
+        await tester.pumpWidget(const SizedBox());
+        return words;
+      }
+
+      asAPage();
+      var words = await said();
+      expect(words.join('\n'), contains('Sign out of this browser? Everything of your account is deleted from it'));
+      expect(words, contains('Sign out and delete'));
+      expect(words, isNot(contains('Sign out')));
+      // An iPhone or a computer of its own: what stays is said, and deleting it too is offered.
+      Sms.browser = false;
+      words = await said();
+      expect(words.join('\n'), contains('Your conversations, your spaces and your choices stay on this device, unless you delete everything here too.'));
+      expect(words, containsAll(['Sign out', 'Sign out and delete everything here']));
+      // A phone: its texts and conversations stay, as they always have.
+      Sms.standalone = false;
+      Sms.calls = before;
+      words = await said();
+      expect(words.join('\n'), contains('Your texts and conversations stay on this phone.'));
+      expect(words, isNot(contains('Sign out and delete everything here')));
+      expect(tester.takeException(), isNull);
+    });
+
+    test('a browser\'s place on the list says when it was last seen and signed in', () {
+      final now = DateTime.utc(2026, 11, 23, 12);
+      AccountDevice device(String p, {bool here = false}) => AccountDevice(id: 'a' * 32, name: 'Browser · Chrome · Mac', platform: p, since: '2026-11-03', seen: '2026-11-22', here: here);
+      expect(DevicesScreen.hintOf(device('web'), now: now), 'A browser. Last seen yesterday, signed in 3 Nov 2026');
+      expect(DevicesScreen.hintOf(device('android'), now: now), 'Last seen yesterday');
+      expect(DevicesScreen.hintOf(device('web', here: true), now: now), 'This device');
+      expect(DevicesScreen.dayOf('2026-11-23', now: now), 'today');
     });
   });
 }

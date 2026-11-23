@@ -3,9 +3,12 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/account/account.dart';
 import 'package:ghost_messaging/account/account_crypto.dart';
-import 'package:ghost_messaging/me/me.dart' show MemoryMeStore;
+import 'package:ghost_messaging/circles/circle_keys.dart' show CircleKeys;
+import 'package:ghost_messaging/me/me.dart' show Me, MemoryMeStore;
 import 'package:ghost_messaging/net/crypto.dart';
+import 'package:ghost_messaging/net/forward_secrecy.dart' show ForwardSecrecy;
 import 'package:ghost_messaging/net/p2p/p2p.dart' show P2p;
+import 'package:ghost_messaging/sms.dart' show Sms;
 import 'package:ghost_relay/accounts.dart';
 import 'package:ghost_relay/handles.dart';
 import 'package:ghost_relay/texts.dart';
@@ -91,6 +94,15 @@ class Device implements AccountPort, AccountRelay, AccountProfiles {
   @override
   Future<bool> identityForget() async => false;
 
+  /// Each time everything here was deleted ([Account] on a device of its own), with why.
+  final wipes = <String>[];
+  @override
+  Future<void> wipeHere(String note) async {
+    wipes.add(note);
+    secrets.clear();
+    store.kept.clear();
+  }
+
   // AccountProfiles
   @override
   bool get fresh => username.isEmpty && !hasFriends;
@@ -106,13 +118,26 @@ class Device implements AccountPort, AccountRelay, AccountProfiles {
 
   @override
   Future<void> forget() async => username = '';
+  var stops = 0, profileWipes = 0;
   @override
-  Future<void> stopAll() async {}
+  Future<void> stopAll() async => stops++;
+  @override
+  Future<void> wipe() async => profileWipes++;
 
   Future<void> claim(String name) async {
     await handles.said(connection, {'dir': 'claim', 'name': name});
     expect(heard.last['ok'], isTrue);
     username = name;
+  }
+}
+
+/// An iPhone: it can't start itself again.
+class _Stuck extends Device {
+  _Stuck(super.relayAccounts, super.handles);
+  @override
+  Future<bool> restart() async {
+    restarts++;
+    return false;
   }
 }
 
@@ -302,6 +327,188 @@ void main() {
     expect(await byWords.account.refresh(force: true), isFalse);
     await byWords.account.revealWords('correct horse battery');
     expect(await byWords.account.refresh(force: true), isTrue);
+  });
+
+  // A page in a browser keeps no recovery words and no password key (Account.keepsWords): anything running in the page
+  // could open what it keeps. The password opens them from the sealed copy each time they are wanted.
+  group('in a browser', () {
+    setUp(() {
+      Sms.browser = true;
+      Sms.standalone = true;
+    });
+    tearDown(() {
+      Sms.browser = false;
+      Sms.standalone = false;
+    });
+
+    test('making an account, or signing in, keeps no words and no password key: only the key copies are sealed with', () async {
+      final page = Device(accounts, handles, hasFriends: true);
+      await page.claim('maya');
+      final draft = page.account.draft();
+      await page.account.create(draft, 'correct horse battery');
+      expect(page.secrets.keys, [Me.mineSecret]);
+      expect(page.secrets[Me.mineSecret], NetCrypto.hex(Me.mineKeyOf(draft.words)));
+      // Nothing of the words anywhere it keeps.
+      final kept = [...page.secrets.values, ...page.store.kept.values].join(' ');
+      for (final w in draft.words.toSet()) {
+        expect(RegExp('\\b$w\\b').hasMatch(kept), isFalse, reason: 'a recovery word kept in a browser');
+      }
+      // Shown, and a new password: for the password, and still nothing kept of it.
+      expect(await page.account.revealWords('correct horse battery'), draft.words);
+      await page.account.changePassword('correct horse battery', 'a new one here');
+      expect(page.secrets.keys, [Me.mineSecret]);
+      // Signed in on another browser: the same.
+      final other = Device(accounts, handles);
+      await other.account.finish(await other.account.signInWithPassword('maya', 'a new one here'));
+      expect(other.secrets.keys, [Me.mineSecret]);
+      expect(other.secrets[Me.mineSecret], page.secrets[Me.mineSecret]);
+      // And by the words: nothing of them kept either, nor the identity it had before.
+      final third = Device(accounts, handles);
+      await third.account.finish(await third.account.signInWithWords(draft.words));
+      expect(third.secrets.keys, [Me.mineSecret]);
+    });
+
+    test('the devices, a removal and the backup brought up to date are opened with the password each time', () async {
+      final page = Device(accounts, handles, hasFriends: true);
+      await page.claim('maya');
+      final draft = page.account.draft();
+      await page.account.create(draft, 'correct horse battery');
+      // Nothing it keeps can sign for the account.
+      await expectLater(page.account.devices(), throwsA(isA<AccountError>().having((e) => e.message, 'says', contains('password'))));
+      await expectLater(page.account.keysWith('not it'), throwsA(isA<AccountError>()));
+      final keys = await page.account.keysWith('correct horse battery');
+      final other = Device(accounts, handles);
+      await other.account.finish(await other.account.signInWithPassword('maya', 'correct horse battery'));
+      final list = await page.account.devices(keys: keys);
+      expect(list, hasLength(2));
+      expect((await page.account.removeDevice(list.firstWhere((d) => !d.here).id, keys: keys)), hasLength(1));
+      // Once a day by itself is not for a browser: only when asked, with the password.
+      expect(await page.account.refresh(force: true), isFalse);
+      page.hasFriends = false;
+      await expectLater(page.account.refreshWith('not it'), throwsA(isA<AccountError>()));
+      expect(await page.account.refreshWith('correct horse battery'), isTrue);
+      final fresh = Device(accounts, handles);
+      expect((await fresh.account.signInWithPassword('maya', 'correct horse battery')).backup.username, 'maya');
+      expect(page.secrets.keys, [Me.mineSecret]);
+    });
+
+    test('a store from before, with the words in it: the key made from them kept in their place, the words gone', () async {
+      final page = Device(accounts, handles);
+      final words = page.account.draft().words;
+      page.secrets['account_words'] = words.join(' ');
+      page.secrets['account_pwkey'] = '{"v":1}';
+      page.account.start(page.store);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(page.secrets, {Me.mineSecret: NetCrypto.hex(Me.mineKeyOf(words))});
+    });
+
+    // The phone beside the page is a phone: what it does is done as one.
+    Future<T> asPhone<T>(Future<T> Function() what) async {
+      Sms.browser = false;
+      Sms.standalone = false;
+      try {
+        return await what();
+      } finally {
+        Sms.browser = true;
+        Sms.standalone = true;
+      }
+    }
+
+    test('signing out takes it off the list by its own number, and deletes everything here', () async {
+      final (phone, _) = await asPhone(made);
+      final page = Device(accounts, handles);
+      await page.account.finish(await page.account.signInWithPassword('maya', 'correct horse battery'));
+      expect(await asPhone(phone.account.devices), hasLength(2));
+      final restarts = page.restarts;
+      expect(await page.account.signOut(), isTrue);
+      expect(page.wipes, ['signed-out']);
+      expect(page.stops, greaterThan(0), reason: 'the routes stopped before anything was deleted');
+      expect(page.restarts, restarts + 1);
+      expect(page.secrets, isEmpty);
+      // Off the account's list, though it keeps no key to sign that with.
+      expect(await asPhone(phone.account.devices), hasLength(1));
+      expect(phone.account.signedIn, isTrue);
+    });
+
+    test('removed from another device: everything here deleted the next time it asks', () async {
+      final (phone, _) = await asPhone(made);
+      final page = Device(accounts, handles);
+      await page.account.finish(await page.account.signInWithPassword('maya', 'correct horse battery'));
+      final theirs = (await asPhone(phone.account.devices)).firstWhere((d) => !d.here);
+      await asPhone(() => phone.account.removeDevice(theirs.id));
+      await page.account.check();
+      expect(page.account.removedHere, isTrue);
+      expect(page.wipes, ['removed']);
+      expect(page.secrets, isEmpty);
+      expect(page.store.kept, isEmpty);
+    });
+  });
+
+  // An iPhone, or a computer with no phone (Sms.standalone): removed, it stops being the account altogether; signing out
+  // offers to delete everything here too, and says what stays where it doesn't (lib/ui/account_screens.dart).
+  group('on a device of its own', () {
+    setUp(() => Sms.standalone = true);
+    tearDown(() => Sms.standalone = false);
+
+    test('removed from another device: everything of the account here deleted, its keys first, the routes stopped', () async {
+      final (phone, _) = await made();
+      final laptop = Device(accounts, handles);
+      await laptop.account.finish(await laptop.account.signInWithPassword('maya', 'correct horse battery'));
+      laptop.secrets[ForwardSecrecy.secretsName] = 'prekeys';
+      laptop.secrets[CircleKeys.secretsName] = 'circle keys';
+      final theirs = (await phone.account.devices()).firstWhere((d) => !d.here);
+      await phone.account.removeDevice(theirs.id);
+      final restarts = laptop.restarts;
+      await laptop.account.check();
+      expect(laptop.account.removedHere, isTrue);
+      expect(laptop.wipes, ['removed']);
+      expect(laptop.stops, greaterThan(0));
+      expect(laptop.profileWipes, 1, reason: 'its Files spaces\' files too');
+      expect(laptop.secrets, isEmpty);
+      expect(laptop.restarts, restarts + 1);
+      expect(laptop.account.ended, isFalse, reason: 'it started again by itself');
+    });
+
+    test('signing out keeps the conversations unless everything is to go; either way off the list', () async {
+      final (phone, _) = await made();
+      final laptop = Device(accounts, handles);
+      await laptop.account.finish(await laptop.account.signInWithPassword('maya', 'correct horse battery'));
+      await laptop.account.signOut();
+      expect(laptop.wipes, isEmpty, reason: 'signed out as before: someone new, the rest stays');
+      expect(laptop.account.signedIn, isFalse);
+      expect(await phone.account.devices(), hasLength(1));
+      final mac = Device(accounts, handles);
+      await mac.account.finish(await mac.account.signInWithPassword('maya', 'correct horse battery'));
+      mac.secrets[ForwardSecrecy.secretsName] = 'prekeys';
+      expect(await mac.account.signOut(everything: true), isTrue);
+      expect(mac.wipes, ['signed-out']);
+      expect(mac.secrets, isEmpty);
+      expect(await phone.account.devices(), hasLength(1));
+    });
+
+    test('a device that can\'t start again by itself shows only that it is to be opened again', () async {
+      final (phone, _) = await made();
+      final iphone = _Stuck(accounts, handles);
+      await iphone.account.finish(await iphone.account.signInWithPassword('maya', 'correct horse battery'));
+      await phone.account.removeDevice((await phone.account.devices()).firstWhere((d) => !d.here).id);
+      var told = 0;
+      iphone.account.addListener(() => told++);
+      await iphone.account.check();
+      expect(iphone.account.ended, isTrue);
+      expect(told, greaterThan(0));
+    });
+  });
+
+  // An Android phone (or a computer paired with one): removed, it forgets the account's words and keys, as before.
+  test('elsewhere, a removed device forgets the account and deletes nothing else', () async {
+    final (phone, _) = await made();
+    final android = Device(accounts, handles);
+    await android.account.finish(await android.account.signInWithPassword('maya', 'correct horse battery'));
+    await phone.account.removeDevice((await phone.account.devices()).firstWhere((d) => !d.here).id);
+    await android.account.check();
+    expect(android.wipes, isEmpty);
+    expect(android.account.signedIn, isFalse);
+    expect(android.secrets, isEmpty);
   });
 
   test('signing in by password sends only the proof, never weaker than an account is made with', () async {

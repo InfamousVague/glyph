@@ -318,6 +318,35 @@ void main() {
     expect(await ask(maya.id, Who().signed('acct-devices', 'devices', maya.id, {'remove': phone})), containsPair('dir', 'err'));
   });
 
+  // A page in a browser keeps no account key (the app's lib/account/account.dart), so it takes itself off the list by
+  // its own number as it signs out, as it asks by that number whether it is still on it.
+  test('a device takes itself off the list by its own number, and only itself', () async {
+    final maya = Who();
+    await claim(maya, 'maya');
+    await ask(maya.id, maya.put(maya.id));
+    final phone = 'a' * 32, browser = 'c' * 32;
+    await ask(maya.id, maya.signed('acct-devices', 'devices', maya.id, {'add': {'d': phone, 'n': 'Galaxy Z Fold', 'p': 'android'}}));
+    await ask(maya.id, maya.signed('acct-devices', 'devices', maya.id, {'add': {'d': browser, 'n': 'Browser · Chrome · Mac', 'p': 'web'}}));
+    // From any connection: the number is the proof.
+    final stranger = Who();
+    expect(await ask(stranger.id, {'dir': 'acct-leave', 'a': maya.address, 'd': browser}), allOf(containsPair('dir', 'acct-leave'), containsPair('gone', true)));
+    expect(await ask(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': browser}), containsPair('known', false));
+    expect(await ask(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': phone}), containsPair('known', true));
+    final listed = await ask(maya.id, maya.signed('acct-devices', 'devices', maya.id, const {}));
+    expect([for (final d in listed['list'] as List) (d as Map)['d']], [phone]);
+    // A number that isn't on the list, or isn't one, or another account's address: nothing taken off.
+    expect(await ask(stranger.id, {'dir': 'acct-leave', 'a': maya.address, 'd': browser}), containsPair('gone', false));
+    expect(await ask(stranger.id, {'dir': 'acct-leave', 'a': maya.address, 'd': 'a'}), containsPair('gone', false));
+    expect(await ask(stranger.id, {'dir': 'acct-leave', 'a': Who().address, 'd': phone}), containsPair('gone', false));
+    expect(await ask(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': phone}), containsPair('known', true));
+    // And kept so: the list is written as for any change.
+    accounts.save();
+    final again = Accounts(dataDir: dir, handles: handles)..load();
+    final heardAgain = <Map<String, Object?>>[];
+    await again.said(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': browser}, heardAgain.add);
+    expect(heardAgain.last, containsPair('known', false));
+  });
+
   test('kept across a restart, with no username or number in the file; deleted by the account', () async {
     final maya = Who();
     await claim(maya, 'maya');

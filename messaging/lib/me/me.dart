@@ -610,11 +610,16 @@ class Me extends ChangeNotifier {
 
   /// The key this account's devices seal the copies of their conversations to each other with (GMFB-21; Friends
   /// copyKind): from the account's words, as the blob's is, so every device signed in to the account has it and
-  /// nobody else does. Null where no account is signed in to here.
+  /// nobody else does. Null where no account is signed in to here. A page in a browser keeps no words, only this key,
+  /// made from them as it signed in ([mineSecret], lib/account/account.dart).
   Future<Uint8List?> mineKey() async {
     try {
       final typed = await Sms.instance.secretRead('account_words');
-      if (typed == null || typed.trim().isEmpty) return null;
+      if (typed == null || typed.trim().isEmpty) {
+        if (!Sms.browser) return null;
+        final kept = await Sms.instance.secretRead(mineSecret);
+        return kept != null && kept.length == 64 ? NetCrypto.unhex(kept) : null;
+      }
       final words = AccountCrypto.tidyWords(typed);
       if (!AccountCrypto.validWords(words)) return null;
       return mineKeyOf(words);
@@ -625,6 +630,10 @@ class Me extends ChangeNotifier {
 
   /// [mineKey] for the account words [words], for a test.
   static Uint8List mineKeyOf(List<String> words) => AccountCrypto.hkdf(AccountCrypto.seedOf(words), 'ghost-account v1', 'ghost mine v1');
+
+  /// Where a page in a browser keeps [mineKey] in the words' place: it opens copies of conversations between the
+  /// account's own devices and nothing else, and can't be turned back into the words.
+  static const mineSecret = 'account_mine';
 
   /// Forgets the cached cURL key (on sign-out, when the account's words change).
   void forgetCurlKey() => _curlKeyCache = null;

@@ -5,10 +5,12 @@ import '../platform_info.dart';
 import 'package:flutter/foundation.dart';
 
 import '../circles/circles.dart';
+import '../files/files_store.dart' show FilesStore;
 import '../friends/buddies.dart';
 import '../me/me.dart';
 import '../net/carrier.dart';
 import '../net/crypto.dart';
+import '../net/forward_secrecy.dart' show ForwardSecrecy;
 import '../net/hub_carrier.dart';
 import '../net/net.dart';
 import '../net/p2p/p2p.dart';
@@ -31,7 +33,13 @@ import 'account_crypto.dart';
 ///   again from nothing, so nothing goes on as the fresh install it was.
 /// - **On this device**: the address and this device's number in the preferences, the password's sealed copy there
 ///   too (it is sealed; it is what "show my recovery words" and a new password open), and the words in the install's
-///   secure storage (Android's Keystore-sealed vault, the Keychain), never in the preferences.
+///   secure storage (Android's Keystore-sealed vault, the Keychain), never in the preferences. A page in a browser
+///   keeps no words and no password key at all ([keepsWords]): it opens them from the sealed copy with the password
+///   each time they are wanted ([keysWith]).
+/// - **Signed out, or removed from the account from another device**, a device of its own (an iPhone, a computer with
+///   no phone, a page in a browser) can delete everything of the account it keeps ([signOut] with everything; always
+///   in a browser, and always once removed); an Android phone, or a computer paired with one, forgets the account's
+///   words and keys.
 class Account extends ChangeNotifier {
   Account({required this.relay, required this.port, required this.store, required this.profiles});
 
@@ -49,13 +57,48 @@ class Account extends ChangeNotifier {
   void start(MeStore store) {
     this.store = store;
     notifyListeners();
-    unawaited(signedIn ? check() : resume());
+    unawaited(() async {
+      if (!keepsWords) await _dropKeptWords();
+      await (signedIn ? check() : resume());
+    }());
   }
 
   // --- what this device keeps -----------------------------------------------------------------------------------------
 
   static const _words = 'account_words';
   static const _pwKey = 'account_pwkey';
+
+  /// Whether this install keeps the recovery words and the key the password makes where it keeps its keys (Android's
+  /// Keystore-sealed vault, the Keychain): every device but a page in a browser. A browser keeps neither: anything that
+  /// runs in the page can open what the page keeps (lib/web/store.dart), so there the words are opened from the
+  /// password's copy of the backup each time they are wanted ([keysWith], [revealWords]) and forgotten again, and only
+  /// what the app needs from them day to day is kept: the key the account's devices seal copies to each other with
+  /// ([Me.mineSecret]), which opens nothing else.
+  static bool get keepsWords => !Sms.browser;
+
+  /// What this install keeps of an account opened just now with [words] (and [pk], where the password was typed):
+  /// the words and the password's key, or, in a browser, the one key made from the words that the app needs.
+  Future<void> _keepKeys(List<String> words, PasswordKey? pk) async {
+    if (keepsWords) {
+      await port.secretKeep(_words, words.join(' '));
+      if (pk != null) await port.secretKeep(_pwKey, pk.toJson());
+      return;
+    }
+    await port.secretKeep(Me.mineSecret, NetCrypto.hex(Me.mineKeyOf(words)));
+  }
+
+  /// A browser's store from a build before it kept no words: the key made from them kept in their place, and the
+  /// words and the password's key deleted.
+  Future<void> _dropKeptWords() async {
+    try {
+      final words = await _keptWords();
+      final pk = await port.secretRead(_pwKey);
+      if (words == null && (pk == null || pk.isEmpty)) return;
+      if (words != null) await port.secretKeep(Me.mineSecret, NetCrypto.hex(Me.mineKeyOf(words)));
+      await port.secretKeep(_words, '');
+      await port.secretKeep(_pwKey, '');
+    } catch (_) {}
+  }
 
   /// The account's address, EIP-55 capitals; null where this device is in none.
   String? get address {
@@ -92,6 +135,8 @@ class Account extends ChangeNotifier {
     store.set('acct_address', address);
     store.set('acct_mode', mode);
     store.set('acct_sealed', sealed);
+    // Why the device had started again with nothing (StandaloneCalls.noteKey), said on the welcome until now.
+    if (store.choice('acct_note', '').isNotEmpty) store.set('acct_note', '');
     notifyListeners();
   }
 
@@ -118,8 +163,7 @@ class Account extends ChangeNotifier {
     final backup = profiles.fill(AccountBackup(words: draft.words, identity: NetCrypto.hex(identity.scalar), mode: fresh ? 'seed' : 'bound'));
     final pk = await PasswordKey.make(password);
     final sealed = await _put(keys, identity, backup, pk);
-    await port.secretKeep(_words, draft.words.join(' '));
-    await port.secretKeep(_pwKey, pk.toJson());
+    await _keepKeys(draft.words, pk);
     _keepHere(address: keys.address, mode: backup.mode, sealed: sealed);
     await _addDevice(keys.key, keys.address);
     if (fresh) await port.identityImport(identity.scalar, identity.public);
@@ -233,16 +277,17 @@ class Account extends ChangeNotifier {
       sealed = await _put(keys, identity, restore.backup, pk);
     }
     await _addDevice(keys.key, keys.address);
-    await port.secretKeep(_words, restore.backup.words.join(' '));
-    if (pk != null) await port.secretKeep(_pwKey, pk.toJson());
+    await _keepKeys(restore.backup.words, pk);
     // The identity this install had until now, where it is another and its own: kept beside the words, so what it was in
     // circles becomes the account's (Voice.carryOver) rather than someone else beside it. Not a paired computer's: the
-    // identity it took on is its phone's, still the phone's after this, and never to be folded into another.
+    // identity it took on is its phone's, still the phone's after this, and never to be folded into another. Nor a
+    // page in a browser's, which is signed in from its first page, before it can have been in any circle: kept, it would
+    // be one more private key in the browser for nothing.
     try {
       final before = NetKeys.fromScalar(await port.identityExport());
       // Only an identity with no friends of its own: one that has them is someone people know, perhaps another person
       // who used this computer, and not to be made the account's in anyone's eyes.
-      if (!Sms.paired && Buddies.instance.all.isEmpty && before.id != identity.id) await port.secretKeep(Voice.wasKey, NetCrypto.hex(before.scalar));
+      if (keepsWords && !Sms.paired && Buddies.instance.all.isEmpty && before.id != identity.id) await port.secretKeep(Voice.wasKey, NetCrypto.hex(before.scalar));
     } catch (_) {}
     // The new identity, then everything that hangs off it, then this device's account; the old identity is gone
     // from the moment the first is written, so nothing below may fail half way and leave this install between the two.
@@ -282,8 +327,24 @@ class Account extends ChangeNotifier {
     final backup = pk == null ? null : AccountCrypto.openWithPasswordKey(blob, pk, address);
     if (backup == null) throw AccountError('That password isn\'t right.');
     // Typed here at last (a device signed in by its words): kept, so the backup can be brought up to date from now on.
-    await port.secretKeep(_pwKey, pk!.toJson());
+    // Not in a browser, which keeps no password key ([keepsWords]).
+    if (keepsWords) await port.secretKeep(_pwKey, pk!.toJson());
     return backup.words;
+  }
+
+  /// The account opened with [password] from the password's copy of the backup kept here: what lists the devices,
+  /// removes one, or brings the backup up to date where this install keeps no words (a browser, [keepsWords]). Held by
+  /// whoever asked for as long as they need it, never kept. Throws [AccountError] where the password isn't right.
+  Future<AccountKeys> keysWith(String password) async {
+    final address = this.address;
+    if (address == null) throw AccountError('This device is not signed in.');
+    final blob = store.choice('acct_sealed', '');
+    final pk = await PasswordKey.forBlob(blob, password);
+    final backup = pk == null ? null : AccountCrypto.openWithPasswordKey(blob, pk, address);
+    if (backup == null) throw AccountError('That password isn\'t right.');
+    final keys = _keysOf(backup.words);
+    if (keys.address != address) throw AccountError('That backup is not this account\'s.');
+    return AccountKeys._(keys, backup.words, pk!);
   }
 
   /// A new password: the backup opened with [old], its profile brought up to now, and sealed again both ways.
@@ -297,13 +358,14 @@ class Account extends ChangeNotifier {
     final pk = await PasswordKey.make(next);
     final sealed = await _put(keys, identity, profiles.fill(backup), pk);
     store.set('acct_sealed', sealed);
-    await port.secretKeep(_pwKey, pk.toJson());
+    if (keepsWords) await port.secretKeep(_pwKey, pk.toJson());
     notifyListeners();
   }
 
   /// Seals the backup again with this install's profile, friends and circles as they are now, both ways, with the
   /// password's key kept here: at most once a day, as the app starts ([check]). Nothing where the password has not
-  /// been typed on this device (signed in by its words, and the words not yet shown or the password not changed).
+  /// been typed on this device (signed in by its words, and the words not yet shown or the password not changed), nor
+  /// in a browser, which keeps neither ([refreshWith]).
   Future<bool> refresh({bool force = false}) async {
     final address = this.address;
     final today = DateTime.now().toUtc().toIso8601String().substring(0, 10);
@@ -311,6 +373,17 @@ class Account extends ChangeNotifier {
     final words = await _keptWords();
     final pk = PasswordKey.fromJson(await port.secretRead(_pwKey));
     if (words == null || pk == null) return false;
+    return _reseal(words, pk, address, today);
+  }
+
+  /// [refresh] where this install keeps no words (a browser): the backup opened with [password], brought up to now and
+  /// sealed again both ways. Throws [AccountError] where the password isn't right; false where nothing could be sealed.
+  Future<bool> refreshWith(String password) async {
+    final k = await keysWith(password);
+    return _reseal(k._words, k._pk, k._keys.address, DateTime.now().toUtc().toIso8601String().substring(0, 10));
+  }
+
+  Future<bool> _reseal(List<String> words, PasswordKey pk, String address, String today) async {
     final keys = _keysOf(words);
     if (keys.address != address) return false;
     final identity = NetKeys.fromScalar(await port.identityExport());
@@ -348,19 +421,20 @@ class Account extends ChangeNotifier {
   }
 
   Future<({Uint8List seed, Uint8List key, String address})> _keys() async {
+    if (!keepsWords) throw AccountError('Type your password first: this browser keeps nothing that can change your account.');
     final words = await _keptWords();
     if (words == null || address == null) throw AccountError('This device\'s copy of the account can\'t be read. Sign in again.');
     return _keysOf(words);
   }
 
-  /// The devices signed in to the account.
-  Future<List<AccountDevice>> devices() async {
-    final m = await relay.ask(_signed('acct-devices', 'devices', await _keys(), const {}));
+  /// The devices signed in to the account; with [keys] ([keysWith]) where this install keeps no words (a browser).
+  Future<List<AccountDevice>> devices({AccountKeys? keys}) async {
+    final m = await relay.ask(_signed('acct-devices', 'devices', keys?._keys ?? await _keys(), const {}));
     return AccountDevice.list(m['list'], device);
   }
 
-  Future<List<AccountDevice>> removeDevice(String d) async {
-    final m = await relay.ask(_signed('acct-devices', 'devices', await _keys(), {'remove': d}));
+  Future<List<AccountDevice>> removeDevice(String d, {AccountKeys? keys}) async {
+    final m = await relay.ask(_signed('acct-devices', 'devices', keys?._keys ?? await _keys(), {'remove': d}));
     return AccountDevice.list(m['list'], device);
   }
 
@@ -408,7 +482,15 @@ class Account extends ChangeNotifier {
       final m = await relay.ask({'dir': 'acct-hello', 'a': address, 'd': device});
       if (m['known'] == false) {
         removedHere = true;
-        await _forgetHere();
+        // A device of its own (an iPhone, a computer with no phone, a page in a browser) stops being the account
+        // altogether: everything of it this device keeps is deleted, and the app starts again with nothing. Kept, its
+        // identity, friends and circles went on reading and writing as the account after it was taken off the list.
+        // An Android phone, or a computer paired with one, forgets the account's words and keys, as before.
+        if (Sms.standalone) {
+          await _wipe('removed');
+        } else {
+          await _forgetHere();
+        }
       } else {
         await refresh();
       }
@@ -421,6 +503,8 @@ class Account extends ChangeNotifier {
     store.set('acct_mode', '');
     await port.secretKeep(_words, '');
     await port.secretKeep(_pwKey, '');
+    // What a browser keeps in the words' place.
+    if (!keepsWords) await port.secretKeep(Me.mineSecret, '');
     // Out of the account, this install is no longer whoever it was before signing in either (Voice.carryOver).
     await port.secretKeep(Voice.wasKey, '');
     // And this device's forward-secrecy prekeys and what it knew of others' (GMFB-26): nothing of the account left.
@@ -449,11 +533,13 @@ class Account extends ChangeNotifier {
   }
 
   /// Signs this device out: taken off the account's list, the words forgotten here, and a new identity of its own in
-  /// place of the account's, so it is no longer the account to anyone; then the app starts again.
-  Future<bool> signOut() async {
-    try {
-      await relay.ask(_signed('acct-devices', 'devices', await _keys(), {'remove': device}));
-    } catch (_) {}
+  /// place of the account's, so it is no longer the account to anyone; then the app starts again. What stays on the
+  /// device is said where this is asked (lib/ui/account_screens.dart): its conversations, spaces and choices. With
+  /// [everything], always in a browser, a device of its own deletes everything of the account it keeps instead
+  /// ([_wipe]).
+  Future<bool> signOut({bool everything = false}) async {
+    await _leaveList();
+    if (Sms.standalone && (everything || Sms.browser)) return _wipe('signed-out');
     await _forgetHere();
     // A computer paired with a phone goes back to the phone's identity (it is taken on again as the app starts);
     // anywhere else, a new identity of its own.
@@ -464,6 +550,65 @@ class Account extends ChangeNotifier {
     await profiles.forget();
     return restart();
   }
+
+  /// This device taken off the account's list: signed with the account's key where the words are kept here, or, where
+  /// they are not (a browser), asked by this device's own number alone (`acct-leave`, relay/lib/accounts.dart), which
+  /// only it and the account's devices know. A relay from before that has no answer to it is given a few seconds; the
+  /// device then stays on the list, with when it was last seen, until it is removed from another.
+  Future<void> _leaveList() async {
+    final address = this.address;
+    if (address == null) return;
+    try {
+      final words = await _keptWords();
+      if (words != null) {
+        await relay.ask(_signed('acct-devices', 'devices', _keysOf(words), {'remove': device}));
+      } else {
+        await relay.ask({'dir': 'acct-leave', 'a': address, 'd': device}).timeout(const Duration(seconds: 6));
+      }
+    } catch (_) {}
+  }
+
+  /// Everything here was deleted ([_wipe]) and the app could not start again by itself (an iPhone, a computer that
+  /// can't open itself again): it shows only that it is to be opened again, offline (RestartScreen).
+  bool ended = false;
+
+  /// Everything of the account this device of its own keeps deleted, and the app started again with nothing, the
+  /// welcome saying why ([note]: 'signed-out', 'removed'). The routes are stopped first, so nothing more is said or
+  /// written as the account from the moment it begins; then the account's words and keys are forgotten by their
+  /// owners, what else the device keeps of it (a computer's Files spaces' files), and the store itself: in a browser
+  /// the whole database, its key with it; on an iPhone or a computer the JSON (conversations, choices, friends,
+  /// circles' and spaces' keys), who it is, and every secret.
+  Future<bool> _wipe(String note) async {
+    await profiles.stopAll();
+    // A browser's database goes whole below; what the words' owners forget is a computer's or an iPhone's Keychain.
+    // The routes being stopped, forward secrecy's prekeys and the circles' keys are deleted by name here.
+    if (keepsWords) {
+      await _forgetHere();
+      for (final name in const [ForwardSecrecy.secretsName, CircleKeys.secretsName]) {
+        try {
+          if ((await port.secretRead(name) ?? '').isNotEmpty) await port.secretKeep(name, '');
+        } catch (_) {}
+      }
+    }
+    await profiles.wipe();
+    await port.wipeHere(note);
+    final again = await restart();
+    if (!again) {
+      ended = true;
+      notifyListeners();
+    }
+    return again;
+  }
+}
+
+/// The account opened with its password ([Account.keysWith]), held by a screen while it lists or removes devices or
+/// brings the backup up to date, where the install keeps no words (a browser). Nothing outside this file reads what is
+/// in it, and it is never kept.
+class AccountKeys {
+  AccountKeys._(this._keys, this._words, this._pk);
+  final ({Uint8List seed, Uint8List key, String address}) _keys;
+  final List<String> _words;
+  final PasswordKey _pk;
 }
 
 class AccountDraft {
@@ -585,6 +730,10 @@ abstract class AccountPort {
   /// Lets go of this install's identity where it has one to go back to (a computer paired with a phone takes the
   /// phone's on again); false where it has none, and signing out makes a new one.
   Future<bool> identityForget();
+
+  /// Everything a device of its own keeps deleted (lib/standalone: its conversations and choices, who it is, every
+  /// secret), with [note] kept for the welcome to say as it starts again. Asked only where [Sms.standalone].
+  Future<void> wipeHere(String note);
 }
 
 class SmsAccountPort implements AccountPort {
@@ -607,6 +756,8 @@ class SmsAccountPort implements AccountPort {
   Future<bool> restart() => _own(() => Sms.instance.restartApp());
   @override
   Future<bool> identityForget() => Sms.instance.identityForget();
+  @override
+  Future<void> wipeHere(String note) => Sms.instance.wipeHere(note);
 }
 
 /// What an account carries besides its identity: the profile, friends by username, circles, the key Ghost's own kept
@@ -629,6 +780,10 @@ abstract class AccountProfiles {
 
   /// Everything that speaks as this install stopped, before it starts again as another.
   Future<void> stopAll();
+
+  /// What this install keeps of the account besides its store deleted, as everything of it is ([Account.signOut] with
+  /// everything, or removed): a computer's or an iPhone's Files spaces' files.
+  Future<void> wipe();
 }
 
 class AppAccountProfiles implements AccountProfiles {
@@ -671,6 +826,24 @@ class AppAccountProfiles implements AccountProfiles {
     await Sms.instance.buddiesKeep(jsonEncode(b.friends));
   }
 
+  /// What this install keeps of its circles besides the list itself, much of it by each circle's seed (its key), and
+  /// each as it reads when empty: it goes with the circles at sign-out, and comes back with them at sign-in. Read where
+  /// each is written, in lib/circles/circles.dart; and the spaces' read marks (lib/voice/channels.dart), by each space's
+  /// seed. (Each is read as JSON beside others in one go: an empty text would lose those with it.)
+  static const circleLeftovers = {
+    'circles_gone': '[]',
+    'circles_seen': '{}',
+    'circles_was': '{}',
+    'circles_last_join': '{}',
+    'circles_joined_at': '{}',
+    'circles_joins': '{}',
+    'circles_announce': '[]',
+    'circles_system': '{}',
+    'circle_invites': '[]',
+    'circles_joined': '{}',
+    'voice_read': '{}',
+  };
+
   @override
   Future<void> forget() async {
     final store = _store;
@@ -679,6 +852,14 @@ class AppAccountProfiles implements AccountProfiles {
       store.set(k, '');
     }
     store.set('circles', '[]');
+    // A device of its own keeps its conversations and spaces at sign-out, and says so (lib/ui/account_screens.dart):
+    // not the circles' seeds, kept where the circles were.
+    if (Sms.standalone) {
+      for (final e in circleLeftovers.entries) {
+        final had = store.choice(e.key, '');
+        if (had.isNotEmpty && had != e.value) store.set(e.key, e.value);
+      }
+    }
     await Sms.instance.buddiesKeep('[]');
   }
 
@@ -686,6 +867,15 @@ class AppAccountProfiles implements AccountProfiles {
   Future<void> stopAll() async {
     try {
       await Net.instance.shutdown();
+    } catch (_) {}
+  }
+
+  @override
+  Future<void> wipe() async {
+    // A browser keeps no files of anyone's (lib/files is not in a page).
+    if (Sms.browser) return;
+    try {
+      await FilesStore.instance.wipe();
     } catch (_) {}
   }
 }

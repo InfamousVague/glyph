@@ -941,6 +941,11 @@ class Sms {
     }
   }
 
+  /// Everything a device of its own keeps deleted (lib/standalone: an iPhone, a computer with no phone, a page in a
+  /// browser): its conversations and choices, who it is, every secret; with [note] ('signed-out', 'removed') kept to be
+  /// said as it starts again. Asked only where [standalone] (lib/account/account.dart).
+  Future<void> wipeHere(String? note) => _calls.invokeMethod('wipeHere', {'note': note});
+
   // --- groups of friends (lib/friends/groups.dart, android Groups.kt) ------------------------------------------------
 
   /// The groups this phone is in, each as android Groups.view gives it.

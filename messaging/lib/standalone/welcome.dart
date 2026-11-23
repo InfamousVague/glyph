@@ -5,14 +5,18 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../account/account.dart';
+import '../app_state.dart';
+import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart';
+import '../sms.dart' show Sms;
 import '../ui/account_screens.dart';
 import '../ui/common.dart' show push;
 import '../ui/computers.dart' show PairButton;
 import '../kit/semantic_colors.dart';
+import 'standalone.dart' show StandaloneCalls;
 
 /// The first thing a device of its own shows (lib/standalone; Matt, 2026-11-15: "roll a version of the app that works
 /// without sms"). Since 2026-11-20 it asks for two things only (Matt: "rework the onboarding flow to be very simple and
@@ -23,12 +27,27 @@ import '../kit/semantic_colors.dart';
 ///
 /// The username is claimed first, then the account is made with this install's own identity ("bound"): made the
 /// other way round, a fresh install would take the words' identity and have to start again before it had a username.
+///
+/// Where the device has just deleted everything of an account (lib/account/account.dart: signed out with everything,
+/// or removed from another device), or a browser found what it kept couldn't be opened, it says so here
+/// ([welcomeNote]) until an account is made or signed in to.
 class StandaloneWelcome extends StatefulWidget {
   const StandaloneWelcome({super.key, required this.onDone});
   final VoidCallback onDone;
 
   @override
   State<StandaloneWelcome> createState() => _StandaloneWelcomeState();
+}
+
+/// What the welcome says for the note a device started again with (StandaloneCalls.noteKey); null for none.
+String? welcomeNote(String note) {
+  final here = Sms.browser ? 'browser' : 'device';
+  return switch (note) {
+    'removed' => 'This $here was removed from your account from another device, so everything of the account on it was deleted. Sign in again, or start afresh.',
+    'signed-out' => 'You\'re signed out, and everything of your account was deleted from this $here.',
+    'lost' => 'What this browser kept for Ghost Messaging couldn\'t be opened, so it was cleared. Sign in again with your username and password.',
+    _ => null,
+  };
 }
 
 class _StandaloneWelcomeState extends State<StandaloneWelcome> {
@@ -115,6 +134,11 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
               Text('Ghost Messaging', style: pageText(t, t.fontSize('2xl'), weight: 'bold', color: t.color('app-ink'), height: 1.2)),
               SizedBox(height: t.space(2)),
               Text('Pick a username and a password.', style: pageText(t, t.fontSize('md'), color: t.color('app-ink-2'), height: 1.45)),
+              // Why this device starts with nothing, where it was just made to (lib/account/account.dart).
+              if (welcomeNote(AppState.maybeOf(context)?.choice(StandaloneCalls.noteKey, '') ?? '') case final note?) ...[
+                SizedBox(height: t.space(4)),
+                SettingsCallout(key: const ValueKey('welcome-note'), icon: const AppIcon(Lucide.info, size: 18), child: Text(note)),
+              ],
               SizedBox(height: t.space(6)),
               PaneSection(
                 footer: _problem == null ? null : Text(_problem!, style: TextStyle(color: t.danger)),
