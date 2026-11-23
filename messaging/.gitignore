@@ -66,3 +66,5 @@ app.*.map.json
 /sidecar/linkedin/linkedinsidecar
 # The Matrix helper (tool/build-matrixsidecar.sh android --ship), built for each release; its other builds are in build/.
 /android/app/src/main/jniLibs/*/libmatrixsidecar.so
+# The link helper's proof (native/link-check, a crate of its own): cargo's output. The helper itself is built into build/.
+/native/link-check/target/
