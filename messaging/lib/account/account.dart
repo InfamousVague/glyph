@@ -1077,8 +1077,9 @@ class AppAccountProfiles implements AccountProfiles {
     if (home == null) return;
     final helpers = [for (final n in networks) if (n is AccountHelper) n.service.id];
     // Call recordings and their list, and the voice changer's folder (its ElevenLabs key): where an iPhone or a
-    // computer keeps them (CallRecorder.folder, VoiceChanger.defaultFolder), in the app's folder.
-    for (final path in [for (final name in ['recordings', 'voicechanger', ...otherNetworkFolders, ...helpers]) '$home/$name']) {
+    // computer keeps them (CallRecorder.folder, VoiceChanger.defaultFolder), in the app's folder. And the folder of the
+    // relay this computer hosts (lib/relay_host: its key, where its people said they live), which a plain sign-out keeps.
+    for (final path in [for (final name in ['recordings', 'voicechanger', 'relay', ...otherNetworkFolders, ...helpers]) '$home/$name']) {
       try {
         final dir = Directory(path);
         if (dir.existsSync()) dir.deleteSync(recursive: true);

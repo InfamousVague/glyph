@@ -145,7 +145,12 @@ class Net extends ChangeNotifier implements PeerBook {
   /// The relay named its link helpers as the app signed in to it ([HubCarrier.helpers]).
   void _helpersSaid() {
     final hub = _helpersOf;
-    if (hub != null) _p2p?.setHelpers(hub.helpers.value);
+    if (hub == null) return;
+    // A relay hosted from an app is reached over Direct by the helpers in use now: one that names none (its keeper's own
+    // relay named none) doesn't take them away, or the node would start again without them and its link to the relay
+    // would go with it, for good.
+    if (isGhostRelay(hub.url) && hub.helpers.value.isEmpty) return;
+    _p2p?.setHelpers(hub.helpers.value);
   }
 
   void _followHelpers(HubCarrier? hub) {

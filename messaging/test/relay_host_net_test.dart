@@ -21,6 +21,7 @@ import 'package:ghost_relay/relay.dart';
 
 import 'support/fake_p2p.dart';
 import 'support/host_support.dart';
+import 'support/hub_pair.dart';
 
 /// A relay hosted from the app, as the routes hold it (lib/net/net.dart; lib/relay_host): started as the routes start,
 /// before the relay's route dials it; reached through dialHub; kept to on a move by the direct route's link helpers;
@@ -148,6 +149,29 @@ void main() {
     // Another relay: the helpers in use are let go at once.
     await Net.instance.setHub('ws://127.0.0.1:1/hub');
     expect(p2p.helpers, isEmpty);
+    await Net.instance.want('test', false);
+  });
+
+  test('on a relay hosted from an app, a hub that names no link helpers doesn\'t take away those its Direct connection runs on', () async {
+    final mesh = FakeP2pMesh();
+    final node = mesh.node();
+    Net.p2pNode = () => node;
+    final one = Relay(hub: Hub(helpers: ['https://link.one.example']));
+    final first = 'ws://127.0.0.1:${await one.start(port: 0)}/hub';
+    addTearDown(one.stop);
+    await Net.instance.start(AppState()..set('net_hub', first));
+    await Net.instance.want('test', true);
+    final p2p = Net.instance.p2p!;
+    await waitFor(() => p2p.loaded && p2p.helpers.isNotEmpty, 'never signed in to the first relay');
+    // A hosted relay whose keeper's relay named no helpers, reached (here) in memory in Direct's place.
+    final hosted = MemoryHub(Hub());
+    HubDials.hosted = hosted.dial;
+    final url = '${GhostRelayAddress(relay: 'ab' * 16, node: 'cd' * 32, via: Net.defaultHub)}';
+    await Net.instance.setHub(url);
+    await waitFor(() => Net.instance.hub!.state.value == CarrierState.up, 'never signed in to the hosted relay');
+    await pumpEventQueue();
+    expect(Net.instance.hub!.helpers.value, isEmpty, reason: 'it said it names none');
+    expect(p2p.helpers, ['https://link.one.example']);
     await Net.instance.want('test', false);
   });
 
