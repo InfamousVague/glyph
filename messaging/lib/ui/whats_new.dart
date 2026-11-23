@@ -70,6 +70,7 @@ final List<(List<String>, LucideIcon)> _noteIcons = [
   (['open space'], Lucide.compass),
   (['fixes'], Lucide.listChecks),
   (['replies on'], LucideMore.reply),
+  (['share screen'], LucideMore.screenShare),
   (['splash'], LucideMore.rocket),
   // Keyboard shortcuts (GMFB-41).
   (['keyboard shortcuts'], LucideMore.keyboard),

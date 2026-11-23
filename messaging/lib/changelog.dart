@@ -25,6 +25,12 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.23', '2026-11-23', [
+    'Open spaces show the chat on the floor: what people write comes up as bubbles for a few seconds, over the group its writer stands in or at the side, fainter the further away they are. A box at the foot of the floor writes to the chat.',
+    'Open spaces stay in their own page: joining one leaves the list beside it as it was, with the call\'s controls over the foot of the floor. The walls take your accent colour, and the words saying how to walk fade once you have.',
+    'Recording a call: opening a recording from a Files space or a space\'s chat now shows the mixer, with a track for each voice, instead of the video player. The player is one button away.',
+    'Share screen on a Mac and a PC: its list of screens and windows now opens, and says what to do when there is nothing to share.',
+  ]),
   ReleaseNotes('0.12.22', '2026-11-23', [
     'Open spaces have walls: the floor is a room now, with see-through walls in colour round its edges. The view stops at a wall, so you never look past the room, and you walk on up to it.',
     'Signing in on another phone, computer or browser now brings your conversations with friends from your other devices, the newest 300 messages of each, once one of them is open. Settings › Devices says when they went to a device, and which.',
