@@ -100,6 +100,9 @@ const KNOWN = {
   GHOST_FILES_PROMISED_PER_ADDRESS: /^[0-9]{1,13}$/,
   // Bounties in souls without the admin page (relay/lib/bounty.dart): the bounty key's public half, 33 bytes in hex.
   GHOST_BOUNTY_KEY: /^0[23][0-9a-fA-F]{64}$/,
+  // The app in a browser at an address of its own (relay/lib/relay.dart appOriginFrom; gogho.st's is https://app.gogho.st):
+  // its page may read the answers to a report and to feedback it sends the relay, and nothing else.
+  GHOST_APP_ORIGIN: /^https:\/\/[a-z0-9.-]+(:[0-9]{1,5})?$/,
   // The app's Share feedback, filed in Notion (relay/lib/feedback.dart): the integration's secret and the board's data source.
   GHOST_NOTION_TOKEN: /^(ntn_|secret_)[A-Za-z0-9]{20,80}$/,
   GHOST_NOTION_FEEDBACK: /^[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}$/,
@@ -147,6 +150,7 @@ const SHAPES = {
   GHOST_TWILIO_SID: 'AC or SK and 32 more characters',
   GHOST_TWILIO_TOKEN: '32 letters and digits',
   GHOST_TWILIO_VERIFY: 'VA and 32 more characters',
+  GHOST_APP_ORIGIN: 'https:// and the app\'s own host, no slash after (https://app.gogho.st)',
   GHOST_NOTION_TOKEN: 'ntn_ and the rest, from the integration\'s page',
   GHOST_NOTION_FEEDBACK: 'the board\'s data source id, a UUID',
   GHOST_MARKET_REVIEW_KEYS: 'base64 public keys of 44 characters, commas between',

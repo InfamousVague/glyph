@@ -22,12 +22,30 @@ const META = /<meta http-equiv="Content-Security-Policy" content="([^"]+)">/;
 /** The policy a page's `<meta>` gives, from [html]; null where it gives none. */
 export const policyOf = (html) => META.exec(html)?.[1] ?? null;
 
-/** [policy] with connect-src the page's own address and [hub]: what a build that names its hub is held to. */
+/**
+ * What the page sends to beside [hub], over plain HTTP from the page itself (lib/web/http.dart), where the hub is at
+ * another address than the page: feedback to the hub's server (lib/feedback/feedback_api.dart feedbackUrlFor), and a
+ * report to Ghost Messaging's review there where the hub is Ghost Messaging's own (lib/market/market_api.dart
+ * marketIsOwn, marketUrlFor; lib/ui/report_sheet.dart reportsGoFromHere: a page made for another relay sends none).
+ * The relay must also let the page's address read the answers (relay/lib/relay.dart, GHOST_APP_ORIGIN).
+ */
+export function sentBeside(hub) {
+  const u = new URL(hub);
+  const at = `${u.protocol === 'wss:' ? 'https:' : 'http:'}//${u.host}${u.pathname.replace(/\/hub$/, '').replace(/\/$/, '')}`;
+  const own = u.hostname === 'gogho.st' || u.hostname === 'ghost-sms.com';
+  return [...(own ? [`${at}/market/abuse`] : []), `${at}/feedback`];
+}
+
+/** connect-src for a build that names [hub]: the page's own address, the hub, and what it sends beside it. */
+export const connectFor = (hub) => `connect-src 'self' ${[hub, ...sentBeside(hub)].join(' ')}`;
+
+/** [policy] with connect-src the page's own address, [hub] and what it sends beside it ([connectFor]): what a build
+ * that names its hub is held to. */
 export function withHub(policy, hub) {
   const parts = policy.split(';').map((p) => p.trim());
   const at = parts.findIndex((p) => p.split(' ')[0] === 'connect-src');
   if (at < 0 || parts[at] !== "connect-src 'self'") throw new Error(`the page's policy has no plain connect-src 'self' to name the hub in (${policy}).`);
-  parts[at] = `connect-src 'self' ${hub}`;
+  parts[at] = connectFor(hub);
   return parts.join('; ');
 }
 

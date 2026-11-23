@@ -715,8 +715,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
             count: unread,
             onPress: unread > 0 ? () => _markAllRead(_section) : null,
           ),
-          // Not in a browser: feedback goes up with pictures from the device's files, by a way a page hasn't got.
-          if (!MacChrome.stripEnabled && !Sms.browser)
+          // In a browser too, words alone (it can't choose a picture yet), sent by the page's own fetch.
+          if (!MacChrome.stripEnabled)
             QuickRow(key: const ValueKey('share-feedback'), icon: LucideMore.messageSquareWarning, label: 'Share feedback', onPress: () => FeedbackButton.open(context)),
           // An unreviewed pack's rows look like any other's, so the list says while one runs (Matt, 2026-11-20: "a
           // developer setting for users to be able to manually upload plugins for development testing").

@@ -28,7 +28,8 @@
  *        --pwa-strategy=none      no service worker (web/flutter_bootstrap.js sets none up)
  *        --base-href              where the page is served from
  *        --dart-define=GHOST_WEB_HUB   the hub, where one is named (lib/web/app.dart: hubFor)
- *      and, where a hub is named, the page's policy lets it speak to that one too (connect-src).
+ *      and, where a hub is named, the page's policy lets it speak to that one too (connect-src), and send there the
+ *      feedback, and a report where the hub is Ghost Messaging's own (tool/lib/web_site.mjs connectFor).
  *   4. Takes the four emoji sets off the list of fonts a browser loads before its first frame (eleven megabytes):
  *      the app fetches the one in use when it starts, and another when it is chosen (lib/web/emoji.dart). The files
  *      stay in the build.
@@ -51,7 +52,7 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameS
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
-import { APP_HUB, goodHub, pageWithHub, policyOf } from './lib/web_site.mjs';
+import { APP_HUB, connectFor, goodHub, pageWithHub, policyOf } from './lib/web_site.mjs';
 import { checkArgon2 } from './web/check-argon2.mjs';
 import { engineFonts, fontsDir, present } from './web/fallback-fonts.mjs';
 
@@ -103,13 +104,15 @@ if (built.status !== 0) fail('flutter build web failed.');
 for (const needed of ['index.html', 'main.dart.js', 'flutter_bootstrap.js', 'argon2id.js', 'assets/FontManifest.json', 'canvaskit/canvaskit.wasm']) {
   if (!existsSync(join(out, needed))) fail(`the build has no ${needed}.`);
 }
-// The hub named: the page's policy lets it speak to that one, beside its own address, and nothing else.
+// The hub named: the page's policy lets it speak to that one, beside its own address, and send there what it sends
+// over plain HTTP (feedback, and a report where the hub is Ghost Messaging's own: tool/lib/web_site.mjs sentBeside),
+// and nothing else.
 if (hub) {
   const pagePath = join(out, 'index.html');
   const page = pageWithHub(readFileSync(pagePath, 'utf8'), hub);
   writeFileSync(pagePath, page);
   const said = policyOf(page).split(';').map((p) => p.trim()).find((p) => p.startsWith('connect-src '));
-  if (said !== `connect-src 'self' ${hub}`) fail(`the built page's policy says ${said}, not connect-src 'self' ${hub}.`);
+  if (said !== connectFor(hub)) fail(`the built page's policy says ${said}, not ${connectFor(hub)}.`);
 }
 
 // What a build before this one left beside the files: packed copies and a main.dart.js by another name.

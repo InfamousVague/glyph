@@ -263,7 +263,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       text: _text.text.trim(),
       username: _withName ? _username : null,
       platform: FeedbackReport.thisPlatform,
-      version: appVersion,
+      version: FeedbackReport.thisVersion(appVersion),
       shots: List.of(_shots),
     );
     setState(() => _sending = true);
@@ -375,8 +375,10 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                       key: const ValueKey('feedback-add-shot'),
                       icon: AppIcon(Lucide.imagePlus, size: 18),
                       label: _picking ? 'Adding…' : 'Add a screenshot',
-                      disabled: _sending || _picking,
-                      onPress: _sending || _picking ? null : _addShot,
+                      // Not in a browser, which can't choose a picture yet (Sms.browser): the words go alone there.
+                      hint: Sms.browser ? const Text('Not from a browser yet: say what you saw in words') : null,
+                      disabled: Sms.browser || _sending || _picking,
+                      onPress: Sms.browser || _sending || _picking ? null : _addShot,
                     ),
                 ],
               ),

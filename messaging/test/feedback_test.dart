@@ -132,6 +132,50 @@ void main() {
     }));
   });
 
+  // In a browser, which has no dart:io: the page's own fetch (lib/web/http.dart), here a stand-in for it. The same
+  // signed POST, the same answers (second review of the web client: "Report and feedback don't work in a browser").
+  group('from a page', () {
+    test('the same signed POST to /feedback on the hub\'s server, answered with the ticket id', () async {
+      final keys = NetKeys.generate();
+      final got = <({String method, Uri url, Map<String, String> headers, List<int> body})>[];
+      final id = await sendFeedback(_report(username: null), signer: KeysSigner(keys), hubUrl: 'wss://gogho.st/hub', transport: (method, url, headers, body, {required most}) async {
+        got.add((method: method, url: url, headers: headers, body: body));
+        return (status: 200, headers: const <String, String>{}, body: Uint8List.fromList(utf8.encode('{"ok":true,"id":"GMFB-77"}')));
+      });
+      expect(id, 'GMFB-77');
+      final r = got.single;
+      expect(r.method, 'POST');
+      expect(r.url.toString(), 'https://gogho.st/feedback');
+      expect(r.headers['content-type'], 'application/json; charset=utf-8');
+      expect((jsonDecode(utf8.decode(r.body)) as Map)['text'], 'I pressed Send and nothing happened.');
+      expect(r.headers['x-ghost-key'], base64Encode(keys.public));
+      final time = r.headers['x-ghost-time']!;
+      final sha = NetCrypto.hex(NetCrypto.sha256(r.body));
+      expect(NetCrypto.verify(keys.public, utf8.encode('ghost-feedback v1\nPOST\n/feedback\n$time\n$sha'), base64Decode(r.headers['x-ghost-sig']!)), isTrue);
+    });
+
+    test('the relay\'s refusal in its words; no answer the page may read is "couldn\'t reach"', () async {
+      await expectLater(
+        sendFeedback(_report(), signer: KeysSigner(NetKeys.generate()), hubUrl: 'wss://gogho.st/hub', transport: (method, url, headers, body, {required most}) async {
+          return (status: 503, headers: const <String, String>{}, body: Uint8List.fromList(utf8.encode('{"error":"Feedback isn\'t set up on this server yet."}')));
+        }),
+        throwsA(isA<FeedbackError>().having((e) => e.message, 'message', 'Feedback isn\'t set up on this server yet.').having((e) => e.status, 'status', 503)),
+      );
+      // What a browser does where the relay doesn't let the page's address read the answer: fetch fails, as with no
+      // answer at all.
+      await expectLater(
+        sendFeedback(_report(), signer: KeysSigner(NetKeys.generate()), hubUrl: 'wss://gogho.st/hub', transport: (method, url, headers, body, {required most}) async => throw StateError('TypeError: Failed to fetch')),
+        throwsA(isA<FeedbackError>().having((e) => e.message, 'message', contains('Couldn\'t reach the server'))),
+      );
+    });
+
+    test('a browser is said in the version, and as the platform the relay files with none', () {
+      // Here, a computer: as before.
+      expect(FeedbackReport.thisVersion('0.9.40'), '0.9.40');
+      expect(FeedbackReport.thisPlatform, isNot('web'));
+    });
+  });
+
   test('the address is the hub\'s server with /feedback in place of /hub', () {
     expect(feedbackUrlFor('wss://gogho.st/hub').toString(), 'https://gogho.st/feedback');
     expect(feedbackUrlFor('ws://127.0.0.1:8787/hub').toString(), 'http://127.0.0.1:8787/feedback');

@@ -15,7 +15,9 @@ import 'dart:typed_data';
 
 import '../net/hub_carrier.dart' show NetSigner;
 import '../net/net.dart';
+import '../platform_info.dart';
 import '../plugins/pack/pack.dart' show InstalledPlugins, PackIssue, PackLimits, PackRevocation, packHere, packIdPattern, sha256Hex;
+import '../web/http.dart' show pageHttp;
 import 'market_models.dart';
 
 /// Whether [hubUrl] is Ghost Messaging's own relay: its host is gogho.st or ghost-sms.com.
@@ -53,7 +55,8 @@ class MarketError implements Exception {
 }
 
 /// How a call reaches the relay: a method, an address, headers and a body, read back no further than [most] bytes.
-/// The app's own goes through dart:io; a test passes one of its own.
+/// The app's own goes through dart:io, and in a browser through the page's own fetch (lib/web/http.dart: a report is
+/// the one call made there); a test passes one of its own.
 typedef MarketTransport = Future<({int status, Map<String, String> headers, Uint8List body})> Function(String method, Uri url, Map<String, String> headers, List<int> body, {required int most});
 
 const String _unreachable = 'Couldn\'t reach the Marketplace. Try again in a moment.';
@@ -70,7 +73,7 @@ abstract final class MarketReads {
 
 class MarketApi {
   MarketApi({required this.hubUrl, this.signer, MarketTransport? transport, DateTime Function()? now})
-      : _transport = transport ?? _http,
+      : _transport = transport ?? (PlatformInfo.isWeb ? pageHttp : _http),
         _now = now ?? DateTime.now;
 
   /// Ghost Messaging's own relay whatever net_hub says (Net.instance.hubUrl where marketIsOwn, else Net.defaultHub):

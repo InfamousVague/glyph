@@ -39,7 +39,11 @@ web server, pass `/app/` on to the relay beside `/hub`. Without the option there
 
 Serve it from its own address if you can (as gogho.st does: app.gogho.st, the app's `tool/deploy-site.mjs`): a page
 at the same address as anything else there (a site with scripts written into it, the relay's `/link` pages) shares the
-app's store in the browser, and a script slipped into one of those could read what the app keeps.
+app's store in the browser, and a script slipped into one of those could read what the app keeps. A page there
+sends the relay two things across addresses, a report (`POST /market/abuse`) and feedback (`POST /feedback`):
+`GHOST_APP_ORIGIN` names that address (`https://app.gogho.st` for gogho.st), and the relay answers those two, and
+nothing else, so the page may read them (CORS: `Access-Control-Allow-Origin` that address, a `POST` with the app's
+signature headers). Without it, the page at its own address can send neither.
 
 ## The hub
 

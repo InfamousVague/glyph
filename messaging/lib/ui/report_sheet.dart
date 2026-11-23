@@ -24,8 +24,10 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../market/market_api.dart';
 import '../me/me.dart';
+import '../net/net.dart';
 import '../plugins/pack/pack.dart' show InstalledPlugins;
 import '../safety/abuse_report.dart';
+import '../sms.dart';
 import '../voice/channels.dart';
 import '../voice/hangout.dart';
 import 'circles/members_drawer.dart' show showMembersDrawer;
@@ -75,6 +77,13 @@ Future<String> sendReportLive(AbuseReport report) async {
   final sealed = await sealReport(report, signer: signer, reviewKeys: keys);
   return api.reportPerson(sealed, signer: signer);
 }
+
+/// Whether a report can go from here: from anywhere but a page made for a relay other than Ghost Messaging's own.
+/// Reports go to Ghost Messaging's own review ([sendReportLive], MarketApi.live). A page reaches it only where its
+/// build names gogho.st's hub, as app.gogho.st's does: its policy names the review's address (tool/lib/web_site.mjs),
+/// and the relay lets that page read the answer (relay/lib/relay.dart, GHOST_APP_ORIGIN). A page from another relay
+/// may speak to that relay alone, and its sheet says where to report from instead ([ReportForm]).
+bool reportsGoFromHere({bool? browser, String? hub}) => !(browser ?? Sms.browser) || marketIsOwn(hub ?? Net.instance.hubUrl);
 
 /// Blocks a Ghost person: Buddies.block in the app; a test gives its own.
 typedef ReportBlock = Future<void> Function(ReportTarget target);
@@ -140,7 +149,7 @@ class _ReportFormState extends State<ReportForm> {
       reporterUsername: Me.instance.username ?? '',
       at: DateTime.now().millisecondsSinceEpoch,
       platform: FeedbackReport.thisPlatform,
-      version: appVersion,
+      version: FeedbackReport.thisVersion(appVersion),
     );
     setState(() => _sending = true);
     try {
@@ -163,9 +172,62 @@ class _ReportFormState extends State<ReportForm> {
     }
   }
 
+  /// Blocks them without a report, where a report can't go from here.
+  Future<void> _blockOnly() async {
+    setState(() => _sending = true);
+    try {
+      await (widget.block ?? blockLive)(_t);
+      if (!mounted) return;
+      toast(context, '${_t.shown} is blocked');
+      Navigator.of(context).maybePop();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      toast(context, 'Couldn\'t block them just now.', tone: GlacierToastTone.danger);
+    }
+  }
+
+  /// In a page made for another relay ([reportsGoFromHere]): where to report from instead, and Block, which needs no
+  /// reviewer.
+  Widget _notFromHere(Tokens t) {
+    final gutter = DrawerHead.gutter(t);
+    final host = Uri.tryParse(Net.instance.hubUrl)?.host ?? '';
+    return SettingsPaneScope(
+      finder: SettingsFinder(),
+      child: ListView(
+        padding: EdgeInsets.fromLTRB(gutter, t.space(3), gutter, t.space(4)),
+        shrinkWrap: true,
+        children: [
+          PaneSection(children: [
+            SettingRow(
+              key: const ValueKey('report-not-here'),
+              icon: AppIcon(Lucide.flag, size: 18),
+              label: 'Report from the app or app.gogho.st',
+              hint: Text('Reports go to the Ghost Messaging reviewer, which this page can\'t reach: it was made for ${host.isEmpty ? 'another server' : host}. Report ${_t.shown} from app.gogho.st, or from Ghost Messaging on your phone or computer.'),
+            ),
+          ]),
+          if (_canBlock) ...[
+            SizedBox(height: t.space(3)),
+            PaneSection(children: [
+              SettingRow(
+                key: const ValueKey('report-block-only'),
+                icon: AppIcon(Lucide.ban, size: 18),
+                label: 'Block ${_t.shown}',
+                hint: const Text('Ends being friends; their friend requests and messages to you are dropped.'),
+                disabled: _sending,
+                onPress: _sending ? null : () => unawaited(_blockOnly()),
+              ),
+            ]),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    if (!reportsGoFromHere()) return _notFromHere(t);
     final gap = SizedBox(height: t.space(3));
     final ink = pageText(t, t.fontSize('md'), color: t.color('app-ink'), height: 1.4);
     final gutter = DrawerHead.gutter(t);
