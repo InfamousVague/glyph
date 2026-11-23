@@ -451,4 +451,50 @@ void main() {
       expect(c.pathTo(d.nodeId!)!.kind, P2pPathKind.helper);
     });
   });
+
+  group('a core that misbehaves, when a test says so', () {
+    test('throws where it is told to, at once, and never answers where it is told to hang', () async {
+      final (mesh, a, b) = await _two();
+      final s = await a.open(b.nodeId!, _ch, hint: b.whereabouts.value);
+      a.throws.addAll({'allow', 'disallow', 'openToAll', 'networkChanged', 'pathTo', 'add', 'close', 'start', 'stop', 'open', 'idOf'});
+      expect(() => a.allow(b.nodeId!, {_ch}), throwsA(isA<P2pError>()));
+      expect(() => a.disallow(b.nodeId!), throwsA(isA<P2pError>()));
+      expect(() => a.openToAll({}), throwsA(isA<P2pError>()));
+      expect(a.networkChanged, throwsA(isA<P2pError>()));
+      expect(() => a.pathTo(b.nodeId!), throwsA(isA<P2pError>()));
+      expect(() => s.add(_bytes([1])), throwsA(isA<P2pError>()), reason: 'thrown, not failed through the Future');
+      expect(s.close, throwsA(isA<P2pError>()));
+      expect(() => a.start(_config(1)), throwsA(isA<P2pError>()));
+      expect(a.stop, throwsA(isA<P2pError>()));
+      expect(() => a.open(b.nodeId!, _ch), throwsA(isA<P2pError>()));
+      expect(() => a.idOf(_key(1)), throwsA(isA<P2pError>()));
+      expect([a.now, a.calls['disallow'], a.allowed.keys], [P2pState.up, 1, [b.nodeId]], reason: 'nothing it was asked was done');
+      // Its getters too.
+      a.throws.addAll({'state', 'whereabouts', 'nodeId', 'problem', 'opened', 'paths'});
+      expect(() => a.state, throwsA(isA<P2pError>()));
+      expect(() => a.whereabouts, throwsA(isA<P2pError>()));
+      expect(() => a.nodeId, throwsA(isA<P2pError>()));
+      expect(() => a.problem, throwsA(isA<P2pError>()));
+      expect(() => a.opened, throwsA(isA<P2pError>()));
+      expect(() => a.paths, throwsA(isA<P2pError>()));
+      a.throws.clear();
+      // A frame that never goes, a close that never answers, a dial that never ends, a start that never ends.
+      final theirs = b.opened.first;
+      final t = await a.open(b.nodeId!, _ch, hint: b.whereabouts.value);
+      final heard = _Heard(await theirs);
+      a.hangsOn.addAll({'add', 'close', 'open'});
+      var answered = false;
+      unawaited(t.add(_bytes([7])).then((_) => answered = true));
+      unawaited(t.close().then((_) => answered = true));
+      unawaited(a.open(b.nodeId!, _ch).then((_) => answered = true, onError: (_) => answered = true));
+      await mesh.clock.pass(const Duration(minutes: 1));
+      expect([answered, heard.frames], [false, isEmpty]);
+      final c = mesh.node()..hangsOn.add('start');
+      unawaited(c.start(_config(3)).then((_) => answered = true));
+      await mesh.clock.pass(const Duration(minutes: 1));
+      expect([answered, c.now], [false, P2pState.starting]);
+      // And the factory of a build whose core would not load.
+      expect(FakeP2pMesh.broken(StateError('no library')), throwsA(isA<StateError>()));
+    });
+  });
 }

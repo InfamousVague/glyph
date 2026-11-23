@@ -20,6 +20,9 @@ import 'package:ghost_messaging/net/p2p/node.dart';
 ///   mesh.inbound(b, false);                             // it dials out, and nothing dials in
 ///   mesh.slow(b, const Duration(seconds: 2));           // a dial to it takes that long
 ///   await mesh.clock.pass(const Duration(seconds: 5));  // time moves when a test says so, never by itself
+///   b.throws.add('disallow');                           // a core that breaks node.dart's word: it throws there
+///   b.hangsOn.add('add');                               // …or never answers
+///   Net.p2pNode = FakeP2pMesh.broken(StateError('…'));   // a core whose library would not load
 ///
 /// What it knows of the real thing, so a test fails where the app would: a node gets a new address each time it
 /// starts (a dial by an old one finds nothing), a dial keeps trying until its time is up (a node that comes up
@@ -133,6 +136,10 @@ class FakeP2pMesh {
   final Map<String, _Link> _links = {};
   int _ports = 40000;
 
+  /// What makes the app's node (Net.p2pNode) in a build whose core can't be loaded: it throws [error], as loading a
+  /// library that is missing, or built for another machine, does.
+  static P2pNode Function() broken(Object error) => () => throw error;
+
   /// A node, not started. Nodes on one [network] reach each other's addresses as they are; nodes on different ones
   /// only through a link helper.
   FakeP2pNode node({String network = 'home'}) {
@@ -212,7 +219,7 @@ class FakeP2pMesh {
     if (_unreachable.contains(from) || _unreachable.contains(to) || _cut.contains(_pair(from, to))) return null;
     final up = _links[_pair(from, to)];
     if (up != null) return up.kind;
-    final there = to.whereabouts.value;
+    final there = to._where.value;
     if (there == null || _deaf.contains(to)) return null;
     final told = [?hint, ?from._known[to._id]];
     // Straight: it was told an address the other has now, both let a straight path be, and they share a network.
@@ -234,8 +241,8 @@ class FakeP2pMesh {
   void _try(_Dial d) {
     if (d.done.isCompleted) return;
     final from = d.from;
-    if (from.state.value != P2pState.up || from._run != d.run) return d.fail('this node is not up');
-    final to = nodes.where((n) => n._id == d.to && n.state.value == P2pState.up).firstOrNull;
+    if (from._state.value != P2pState.up || from._run != d.run) return d.fail('this node is not up');
+    final to = nodes.where((n) => n._id == d.to && n._state.value == P2pState.up).firstOrNull;
     if (to == null) return;
     final kind = _path(from, to, d.hint);
     if (kind == null) return;
@@ -259,8 +266,8 @@ class FakeP2pMesh {
     final link = _links[key];
     if (link == null) {
       _links[key] = _Link(kind)..streams = 1;
-      from._known[to._id!] = to.whereabouts.value!;
-      if (from.whereabouts.value != null) to._known[from._id!] = from.whereabouts.value!;
+      from._known[to._id!] = to._where.value!;
+      if (from._where.value != null) to._known[from._id!] = from._where.value!;
       from._paths.add(P2pPath(to._id!, kind, rttMs: _rtt(kind)));
       to._paths.add(P2pPath(from._id!, kind, rttMs: _rtt(kind)));
     } else {
@@ -322,7 +329,9 @@ class _Dial {
   }
 }
 
-/// A node on a [FakeP2pMesh]: [P2pNode] as node.dart describes it, counted so a test can ask what was done to it.
+/// A node on a [FakeP2pMesh]: [P2pNode] as node.dart describes it, counted so a test can ask what was done to it. It
+/// can also be made to break every promise node.dart makes ([throws], [hangsOn], [hangs], [failStarts]), as a real core
+/// might: a test then sees what the direct route makes of a core that misbehaves.
 class FakeP2pNode implements P2pNode {
   FakeP2pNode._(this.mesh, this.network) : _serial = mesh.nodes.length;
   final FakeP2pMesh mesh;
@@ -338,6 +347,9 @@ class FakeP2pNode implements P2pNode {
   /// How many times it was told the network changed.
   int networkChanges = 0;
 
+  /// How many times each call was made of it, by name ('allow', 'disallow', 'openToAll', 'networkChanged', 'pathTo').
+  final Map<String, int> calls = {};
+
   /// Set, every start fails with these words until it is null again.
   String? failStarts;
 
@@ -346,6 +358,20 @@ class FakeP2pNode implements P2pNode {
 
   /// Set, the node never answers a stop or what a key makes (a core that hangs): the stop is done all the same.
   bool hangs = false;
+
+  /// The calls and getters that throw at once, as node.dart says none ever does: 'allow', 'disallow', 'openToAll',
+  /// 'networkChanged', 'pathTo', 'nodeId', 'state', 'problem', 'whereabouts', 'opened', 'paths'; and 'idOf', 'start',
+  /// 'stop', 'open', which node.dart says fail only through their Futures; and on its streams 'add' and 'close'.
+  final Set<String> throws = {};
+
+  /// The calls whose Futures never complete, as a core that hangs: 'start', 'open', and on its streams 'add' and
+  /// 'close'. (A start that hangs leaves the node starting; an add that hangs takes the frame nowhere.)
+  final Set<String> hangsOn = {};
+
+  void _call(String name) {
+    calls[name] = (calls[name] ?? 0) + 1;
+    if (throws.contains(name)) throw P2pError('the core broke in $name');
+  }
 
   P2pConfig? _config;
   String? _id;
@@ -357,6 +383,9 @@ class FakeP2pNode implements P2pNode {
   final Map<String, Whereabouts> _known = {};
   final _opened = StreamController<P2pStream>.broadcast();
   final _paths = StreamController<P2pPath>.broadcast();
+  final ValueNotifier<P2pState> _state = ValueNotifier(P2pState.off);
+  final ValueNotifier<Whereabouts?> _where = ValueNotifier(null);
+  String? _problem;
 
   /// The node id a node key makes here: the same key, the same id, and nothing of the key in it.
   static String idFor(List<int> secret) => NetCrypto.hex(NetCrypto.sha256([...utf8.encode('fake p2p node '), ...secret]));
@@ -370,33 +399,59 @@ class FakeP2pNode implements P2pNode {
   /// How many streams are open at this end.
   int get streams => _streams.length;
 
-  @override
-  String? get nodeId => _id;
+  /// How it stands, read by a test whatever [throws] says.
+  P2pState get now => _state.value;
 
   @override
-  Future<String> idOf(Uint8List secret) => hangs ? Completer<String>().future : Future.value(idFor(secret));
+  String? get nodeId {
+    _call('nodeId');
+    return _id;
+  }
 
   @override
-  final ValueNotifier<P2pState> state = ValueNotifier(P2pState.off);
+  Future<String> idOf(Uint8List secret) {
+    _call('idOf');
+    return hangs ? Completer<String>().future : Future.value(idFor(secret));
+  }
 
   @override
-  String? problem;
+  ValueNotifier<P2pState> get state {
+    _call('state');
+    return _state;
+  }
 
   @override
-  final ValueNotifier<Whereabouts?> whereabouts = ValueNotifier(null);
+  String? get problem {
+    _call('problem');
+    return _problem;
+  }
 
-  bool get _running => state.value == P2pState.up || state.value == P2pState.starting;
+  set problem(String? why) => _problem = why;
+
+  @override
+  ValueNotifier<Whereabouts?> get whereabouts {
+    _call('whereabouts');
+    return _where;
+  }
+
+  bool get _running => _state.value == P2pState.up || _state.value == P2pState.starting;
 
   @override
   Future<void> start(P2pConfig config) async {
+    _call('start');
+    if (hangsOn.contains('start')) {
+      _config = config;
+      _state.value = P2pState.starting;
+      return Completer<void>().future;
+    }
     if (_running && _config == config) return _starting ?? Future<void>.value();
     if (_running) await stop();
     starts++;
     configs.add(config);
     _config = config;
-    problem = null;
+    _problem = null;
     final run = ++_run;
-    state.value = P2pState.starting;
+    _state.value = P2pState.starting;
     return _starting = () async {
       if (startTakes > Duration.zero) {
         final waited = Completer<void>();
@@ -410,12 +465,12 @@ class FakeP2pNode implements P2pNode {
       _starting = null;
       final why = failStarts;
       if (why != null) {
-        problem = why;
-        state.value = P2pState.down;
+        _problem = why;
+        _state.value = P2pState.down;
         return;
       }
       _id = idFor(config.secret);
-      state.value = P2pState.up;
+      _state.value = P2pState.up;
       _whereNow();
       mesh._changed();
     }();
@@ -424,13 +479,13 @@ class FakeP2pNode implements P2pNode {
   /// A new address, as a node binds one each time it starts and each time its network changes.
   void _whereNow() {
     final c = _config!;
-    whereabouts.value = Whereabouts(helper: c.helpers.firstOrNull, addresses: c.helpersOnly ? const [] : List.unmodifiable([mesh._address(this)]), at: mesh.clock.ms);
+    _where.value = Whereabouts(helper: c.helpers.firstOrNull, addresses: c.helpersOnly ? const [] : List.unmodifiable([mesh._address(this)]), at: mesh.clock.ms);
   }
 
   /// The device moved to [network] (Wi-Fi to mobile data): its old address finds nothing, and its links are gone.
   void move(String network) {
     this.network = network;
-    if (state.value != P2pState.up) return;
+    if (_state.value != P2pState.up) return;
     for (final s in _streams.toList()) {
       mesh._close(s);
     }
@@ -441,17 +496,18 @@ class FakeP2pNode implements P2pNode {
   /// It stops by itself, as a core that failed does: [problem] says why.
   void fail(String why) {
     _end();
-    problem = why;
-    state.value = P2pState.down;
+    _problem = why;
+    _state.value = P2pState.down;
   }
 
   @override
   Future<void> stop() {
-    if (state.value != P2pState.off) {
+    _call('stop');
+    if (_state.value != P2pState.off) {
       stops++;
       _end();
-      problem = null;
-      state.value = P2pState.off;
+      _problem = null;
+      _state.value = P2pState.off;
     }
     return hangs ? Completer<void>().future : Future.value();
   }
@@ -466,17 +522,24 @@ class FakeP2pNode implements P2pNode {
       d.fail('this node is not up');
     }
     _known.clear();
-    whereabouts.value = null;
+    _where.value = null;
   }
 
   @override
-  void networkChanged() => networkChanges++;
+  void networkChanged() {
+    _call('networkChanged');
+    networkChanges++;
+  }
 
   @override
-  void allow(String nodeId, Set<int> channels) => _allowed[nodeId] = Set.of(channels);
+  void allow(String nodeId, Set<int> channels) {
+    _call('allow');
+    _allowed[nodeId] = Set.of(channels);
+  }
 
   @override
   void disallow(String nodeId) {
+    _call('disallow');
     _allowed.remove(nodeId);
     for (final s in _streams.where((s) => s.nodeId == nodeId).toList()) {
       mesh._close(s);
@@ -484,14 +547,19 @@ class FakeP2pNode implements P2pNode {
   }
 
   @override
-  void openToAll(Set<int> channels) => _openToAll = Set.of(channels);
+  void openToAll(Set<int> channels) {
+    _call('openToAll');
+    _openToAll = Set.of(channels);
+  }
 
   bool _lets(String nodeId, int channel) => _openToAll.contains(channel) || (_allowed[nodeId]?.contains(channel) ?? false);
 
   @override
   Future<P2pStream> open(String nodeId, int channel, {Whereabouts? hint, Duration timeout = const Duration(seconds: 5)}) {
+    _call('open');
     mesh.dials.add((from: this, to: nodeId, channel: channel, hint: hint));
-    if (state.value != P2pState.up) return Future.error(P2pError('this node is not up'));
+    if (hangsOn.contains('open')) return Completer<P2pStream>().future;
+    if (_state.value != P2pState.up) return Future.error(P2pError('this node is not up'));
     if (nodeId == _id) return Future.error(P2pError('a node does not dial itself'));
     final d = _Dial(this, _run, nodeId, channel, hint);
     mesh._pending.add(d);
@@ -501,13 +569,20 @@ class FakeP2pNode implements P2pNode {
   }
 
   @override
-  Stream<P2pStream> get opened => _opened.stream;
+  Stream<P2pStream> get opened {
+    _call('opened');
+    return _opened.stream;
+  }
 
   @override
-  Stream<P2pPath> get paths => _paths.stream;
+  Stream<P2pPath> get paths {
+    _call('paths');
+    return _paths.stream;
+  }
 
   @override
   P2pPath? pathTo(String nodeId) {
+    _call('pathTo');
     // More than one node may have had this id: an app that started again is a new node with the same key.
     for (final other in mesh.nodes.where((n) => n._id == nodeId)) {
       final link = mesh._links[FakeP2pMesh._pair(this, other)];
@@ -535,7 +610,13 @@ class _FakeStream implements P2pStream {
   Stream<Uint8List> get frames => _in.stream;
 
   @override
-  Future<void> add(Uint8List frame) async {
+  Future<void> add(Uint8List frame) {
+    _owner._call('add');
+    if (_owner.hangsOn.contains('add')) return Completer<void>().future;
+    return _add(frame);
+  }
+
+  Future<void> _add(Uint8List frame) async {
     if (_closed) throw P2pError('the stream has closed');
     if (frame.length > P2pNode.maxFrame) throw P2pError('a frame is at most ${P2pNode.maxFrame} bytes');
     _owner.mesh.frames++;
@@ -544,5 +625,9 @@ class _FakeStream implements P2pStream {
   }
 
   @override
-  Future<void> close() async => _owner.mesh._close(this);
+  Future<void> close() {
+    _owner._call('close');
+    if (_owner.hangsOn.contains('close')) return Completer<void>().future;
+    return Future.sync(() => _owner.mesh._close(this));
+  }
 }
