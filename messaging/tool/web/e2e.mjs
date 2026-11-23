@@ -14,6 +14,9 @@
  *      two people are made here, with names nobody has.
  *   2. Two browsers (two contexts: nothing shared) open the page and sign up, each with a username and a password.
  *   3. One adds the other by username; the other accepts; each writes to the other and sees what the other wrote.
+ *  3b. One shares feedback from the page (words alone: a page can't choose a picture yet), by the page's own fetch, to
+ *      the hub's relay, beside the page or (--hub-port) at another address its policy names and whose relay lets the
+ *      page read the answer (GHOST_APP_ORIGIN); this relay has no board to file it in, and the page shows it saying so.
  *   4. One page is loaded again: still signed in, the conversation still there.
  *   5. What that browser keeps, read as any script in the page could read it: every record sealed, the store's key
  *      not extractable, no recovery words, no password key, nothing of the conversation or the account in the clear.
@@ -26,11 +29,15 @@
  *      both browsers in the account's devices as browsers, after the password. How long signing in took is said.
  *  10. The page's own Argon2id (web/argon2id.js, in a worker) is held to test/vectors/argon2id.json.
  *  11. In a narrow window the page is laid out as a phone; wide again, as a computer.
- *  12. From the third browser the first is removed: started again, it deletes everything of the account and opens at
- *      the welcome saying why, and what is written to the account after reaches the third and not it.
+ *  12. From the third browser the first is removed: left open and looked at again (no reload), it checks the account's
+ *      signed removal, deletes everything of the account and opens at the welcome saying why, and what is written to
+ *      the account after reaches the third and not it.
  *  13. The third signs out: everything deleted, the welcome saying so; the next person signs up there and finds nothing
  *      of the one before. Signed in once more (from an address naming a page after its #), the account lists that
  *      browser alone: the removed one and the one that signed out (by its own number) are gone.
+ *  13b. (Chromium) In a profile on disk, after signing out, the profile's IndexedDB files hold none of the account's
+ *      records' bytes and not the deleted store's key; first searched with the page's Clear-Site-Data answer withheld,
+ *      to show what the search finds without it.
  *  14. Every answer from the app's address carries the headers in tool/web/headers.json, the page's own policy among
  *      them with frame-ancestors 'none'.
  *  15. Nothing was asked of any address but the relay's own, the pages logged no error, and the relay wrote nothing to
@@ -48,6 +55,7 @@
  * A tool, not part of `flutter test`. Exit code 0 when everything held.
  */
 import { spawn, execFileSync } from 'node:child_process';
+import { createDecipheriv } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -106,12 +114,12 @@ const dart = findDart();
 
 // --- a relay of its own ----------------------------------------------------------------------------------------------
 
-async function startRelay({ port: asked = '0', web = true } = {}) {
+async function startRelay({ port: asked = '0', web = true, env = {} } = {}) {
   const data = mkdtempSync(join(tmpdir(), 'ghost-web-e2e-'));
   const child = spawn(dart, ['run', 'bin/relay.dart', '--host', '127.0.0.1', '--port', String(asked), '--data', data, ...(web ? ['--web', webDir] : [])], {
     cwd: join(root, 'relay'),
     // Nothing of this computer's settings: the relay as anyone would first run it.
-    env: { PATH: process.env.PATH, HOME: process.env.HOME },
+    env: { PATH: process.env.PATH, HOME: process.env.HOME, ...env },
   });
   const errors = [];
   child.stderr.on('data', (d) => errors.push(String(d)));
@@ -152,6 +160,13 @@ class Seat {
     this.missingFonts = new Set();
     this.fontMisses = 0;
     this.notFound = [];
+    // Feedback the relay has no board to file in (the run's relays have none): it answers 503, which the browser logs.
+    // Counted as the fonts are, and weighed at the end the same way.
+    this.feedbackRefused = 0;
+    this.unavailable = [];
+    page.on('response', (r) => {
+      if (r.status() === 503 && new URL(r.url()).pathname === '/feedback') this.feedbackRefused++;
+    });
     page.on('response', (r) => {
       if (r.status() !== 404 || !new URL(r.url()).pathname.includes('/fallback-fonts/')) return;
       this.missingFonts.add(new URL(r.url()).pathname.split('/fallback-fonts/')[1]);
@@ -161,11 +176,15 @@ class Seat {
       if (m.type() !== 'error' || /GL Driver Message|WebGL|GPU stall/.test(m.text())) return;
       // Weighed at the end against the fonts missed: the two arrive in either order.
       if (/the server responded with a status of 404/.test(m.text())) return this.notFound.push(m.text().slice(0, 600));
+      if (/the server responded with a status of 503/.test(m.text())) return this.unavailable.push(m.text().slice(0, 600));
       this.errors.push(m.text().slice(0, 600));
     });
     page.on('pageerror', (e) => this.errors.push(`uncaught: ${String(e.message || e)} ${String(e.stack || '').slice(0, 1200)}`));
     page.on('request', (r) => {
       const u = new URL(r.url());
+      // Where the build names a hub elsewhere (--hub-port), what the page sends beside it over plain HTTP too: feedback
+      // (tool/lib/web_site.mjs sentBeside; a report goes nowhere from a page made for a relay not Ghost Messaging's).
+      if (hubPort && u.host === `127.0.0.1:${hubPort}` && u.pathname === '/feedback') return;
       if (u.origin !== origin && !['data:', 'blob:', 'about:'].includes(u.protocol)) this.outside.add(`${u.origin}${u.pathname}`);
     });
     page.on('websocket', (w) => {
@@ -191,6 +210,30 @@ class Seat {
   async load({ at = '' } = {}) {
     await this.page.goto(`${this.origin}/app/${at}`);
     await this.ready();
+  }
+
+  /// The bytes of the records that hold the account (`identity`, `state`, `secret:account_mine`), as hex: what the search
+  /// of a profile's files looks for after they are deleted ([leftovers]).
+  async recordBytes() {
+    return this.page.evaluate(async () => {
+      const db = await new Promise((done, fail) => {
+        const r = indexedDB.open('ghost-messaging');
+        r.onsuccess = () => done(r.result);
+        r.onerror = () => fail(r.error);
+      });
+      const get = (name) => new Promise((done) => {
+        const q = db.transaction('kept').objectStore('kept').get(name);
+        q.onsuccess = () => done(q.result);
+      });
+      const hex = (b) => [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+      const out = {};
+      for (const name of ['identity', 'state', 'secret:account_mine']) {
+        const v = await get(name);
+        if (v instanceof Uint8Array) out[name] = hex(v);
+      }
+      db.close();
+      return out;
+    });
   }
 
   /// Everything the page keeps, read as any script running in the page could read it: each record's kind, and for one
@@ -425,6 +468,44 @@ class Seat {
   }
 }
 
+// --- what a profile's files still hold ---------------------------------------------------------------------------------
+
+/// What of [before] (records' hex, Seat.recordBytes) is still among the files under [dir]: each record's own bytes, and
+/// the deleted store's key, found by trying every 32 bytes of every file as the AES-256-GCM key of the identity record.
+function leftovers(dir, before) {
+  if (!existsSync(dir)) return [];
+  const files = [];
+  const walk = (d) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) (e.isDirectory() ? walk(join(d, e.name)) : files.push(join(d, e.name)));
+  };
+  walk(dir);
+  const found = [];
+  for (const [name, hex] of Object.entries(before)) {
+    const needle = Buffer.from(hex.slice(0, 64), 'hex');
+    const where = files.filter((f) => readFileSync(f).includes(needle));
+    if (where.length) found.push(`${name}'s bytes in ${where.map((f) => f.slice(dir.length + 1)).join(', ')}`);
+  }
+  const identity = before.identity && Buffer.from(before.identity, 'hex');
+  if (identity && identity.length > 28) {
+    const iv = identity.subarray(0, 12), body = identity.subarray(12, identity.length - 16), tag = identity.subarray(identity.length - 16);
+    const aad = Buffer.from('ghost-messaging kept v1|identity');
+    search: for (const f of files) {
+      const bytes = readFileSync(f);
+      for (let i = 0; i + 32 <= bytes.length; i++) {
+        try {
+          const d = createDecipheriv('aes-256-gcm', bytes.subarray(i, i + 32), iv);
+          d.setAAD(aad);
+          d.setAuthTag(tag);
+          Buffer.concat([d.update(body), d.final()]);
+          found.push(`the deleted store's key in ${f.slice(dir.length + 1)}, opening the identity`);
+          break search;
+        } catch {}
+      }
+    }
+  }
+  return found;
+}
+
 // --- the run ---------------------------------------------------------------------------------------------------------
 
 const said = [];
@@ -435,9 +516,10 @@ const say = (words) => {
 
 async function run(engine) {
   const relay = await startRelay();
-  // The hub elsewhere, where the build names one: the page's relay then serves the page alone.
-  const hub = hubPort ? await startRelay({ port: hubPort, web: false }) : null;
   const origin = `http://127.0.0.1:${relay.port}`;
+  // The hub elsewhere, where the build names one: the page's relay then serves the page alone, and the hub's lets the
+  // page's address read what it answers the page's feedback (GHOST_APP_ORIGIN, as gogho.st's lets app.gogho.st).
+  const hub = hubPort ? await startRelay({ port: hubPort, web: false, env: { GHOST_APP_ORIGIN: origin } }) : null;
   const browser = await playwright[engine].launch({ headless: !headed });
   const seats = [];
   let skipping = false;
@@ -534,6 +616,21 @@ async function run(engine) {
       await s.sees(hello);
       await m.sees(answer, { within: 20000 });
       await m.shot(`${engine}-Maya-7-answered`);
+    });
+    // Feedback goes from the page by its own fetch (lib/web/http.dart), to the hub's relay: beside the page, or at another
+    // address (--hub-port), where the page's policy names it and the relay lets the page read the answer. This run's
+    // relay has no board to file it in, and says so: the page showing those words is the answer having come back.
+    await step('Sam shares feedback from the page, words alone, and reads the relay\'s answer', async () => {
+      await s.press('Messages', { role: 'button' });
+      await s.press('Share feedback');
+      await s.sees('Not from a browser yet');
+      await s.type('What happened', `From the browser e2e run, ${engine}`);
+      await s.clickAside('Screenshots');
+      await s.wheelTo('Screenshots', 'Send');
+      await s.press('Send', { last: true });
+      await s.sees('Feedback isn\'t set up on this server yet.', { within: 30000 });
+      await s.shot(`${engine}-Sam-7-feedback`);
+      await s.page.keyboard.press('Escape');
     });
     if (quick) {
       say('  (--quick: the rest is left out)');
@@ -742,7 +839,7 @@ async function run(engine) {
       await elsewhere.sees('Resize the list');
     });
     const afterRemoval = `Sam, after one of Maya's browsers was removed, from ${engine}`;
-    await step('Maya removes her first browser from another: it deletes everything of her as it next starts, and hears nothing more for her', async () => {
+    await step('Maya removes her first browser from another: left open, it notices when looked at again, deletes everything of her, and hears nothing more for her', async () => {
       await elsewhere.press('Settings', { role: 'button' });
       await elsewhere.press('Signed in on these devices');
       // The page asks for the password again: it held the opened account only while it was open.
@@ -754,15 +851,15 @@ async function run(engine) {
       await elsewhere.gone('A browser. Last seen today, signed in today', { within: 30000 });
       await elsewhere.sees('This device');
       await elsewhere.shot(`${engine}-Maya-19-removed-one`);
-      // The removed browser starts again (the next time it is opened): it asks the relay, is told, deletes everything,
-      // and loads itself again, at the welcome saying why. Two loads: the one asked for, and the one after the wipe.
+      // The removed browser was left open (a library's computer). Looked at again, it asks the relay, is handed the
+      // account's signed removal, checks it, deletes everything and loads itself again, at the welcome saying why.
       let loads = 0;
       const counted = () => loads++;
       m.page.on('load', counted);
-      await m.page.goto(`${origin}/app/`);
-      for (const until = Date.now() + 90000; loads < 2;) {
-        if (Date.now() > until) throw new Problem('the removed browser never loaded itself again.');
-        await m.page.waitForTimeout(200);
+      for (const until = Date.now() + 90000; loads < 1;) {
+        if (Date.now() > until) throw new Problem('the removed browser, left open and looked at again, never noticed it was removed.');
+        await m.page.evaluate(() => document.dispatchEvent(new Event('visibilitychange'))).catch(() => {});
+        for (let i = 0; i < 40 && loads < 1; i++) await m.page.waitForTimeout(250);
       }
       m.page.off('load', counted);
       await m.ready();
@@ -837,6 +934,52 @@ async function run(engine) {
       if (/Last seen/.test(await again.words())) throw new Problem(`Maya's list still has other devices: ${(await again.words()).replace(/\n/g, ' | ').slice(0, 600)}`);
       await again.shot(`${engine}-Maya-23-alone`);
     });
+    // Chromium kept a deleted store's bytes, its key among them, in the profile's files after signing out (the second
+    // review). The page asks for `Clear-Site-Data: "storage"` as it wipes. Looked for in a profile on disk, twice: first
+    // with that answer withheld, to show the search finds what is left, then as the app does it.
+    if (engine === 'chromium') {
+      await step('Chromium keeps nothing of a signed-out account among its profile\'s files', async () => {
+        const found = {};
+        for (const [label, withheld] of [['withheld', true], ['given', false]]) {
+          const dir = mkdtempSync(join(tmpdir(), 'ghost-e2e-profile-'));
+          const context = await playwright.chromium.launchPersistentContext(dir, { headless: !headed, viewport: { width: 1180, height: 780 } });
+          try {
+            if (withheld) await context.route('**/clear-site-data', (r) => r.fulfill({ status: 204, body: '' }));
+            const seat = new Seat(`Wren (${label})`, context.pages()[0] ?? (await context.newPage()), origin);
+            if (!withheld) seats.push(seat);
+            await seat.load();
+            await seat.sees('Pick a username and a password.');
+            await seat.press('Continue', { role: 'button' }).catch(() => {});
+            await seat.type('Username', `wren_${tag}${withheld ? 'w' : 'g'}`);
+            await seat.type('Password', `wren's password ${tag}`);
+            await seat.press('Continue', { role: 'button' });
+            await seat.gone('Pick a username and a password.', { within: 90000 });
+            await seat.sees('Your recovery words');
+            await seat.press('Later', { role: 'button' });
+            await seat.gone('Your recovery words');
+            await seat.page.waitForTimeout(2000);
+            const before = await seat.recordBytes();
+            await seat.press('Settings', { role: 'button' });
+            await seat.wheelTo('Change password', 'Sign out of this browser');
+            await seat.press('Sign out of this browser');
+            const loaded = seat.page.waitForEvent('load', { timeout: 90000 });
+            await seat.press('Sign out and delete', { role: 'button', last: true });
+            await loaded;
+            await seat.ready();
+            await seat.sees('You\'re signed out', { within: 60000 });
+            await seat.page.waitForTimeout(2000);
+            await context.close();
+            found[label] = leftovers(join(dir, 'Default', 'IndexedDB'), before);
+          } finally {
+            await context.close().catch(() => {});
+            rmSync(dir, { recursive: true, force: true });
+          }
+        }
+        if (found.given.length) throw new Problem(`after signing out, the profile's files still hold: ${found.given.join('; ')}`);
+        if (!found.withheld.length) say('  (the search found nothing left even with the clearing withheld: Chromium tidied it away first, so this run shows nothing either way)');
+        else say(`  with the clearing withheld, the search found: ${found.withheld.join('; ')}; as the app does it, nothing`);
+      });
+    }
     await step('every answer from the app\'s address says what the app may do: the page\'s policy as a header, and the rest of the list', async () => {
       const list = JSON.parse(readFileSync(join(root, 'tool', 'web', 'headers.json'), 'utf8'));
       const page = readFileSync(join(webDir, 'index.html'), 'utf8');
@@ -882,6 +1025,7 @@ async function run(engine) {
     const outside = new Set(seats.flatMap((x) => [...x.outside]));
     // A 404 logged that no missing fallback font accounts for is the page's own error.
     for (const x of seats) x.errors.push(...x.notFound.slice(x.fontMisses).map((e) => `${e} (no missing fallback font to account for it)`));
+    for (const x of seats) x.errors.push(...x.unavailable.slice(x.feedbackRefused).map((e) => `${e} (no feedback the relay had no board for, to account for it)`));
     const errors = seats.flatMap((x) => x.errors.map((e) => `${x.name}: ${e}`));
     if (outside.size) throw new Problem(`something was asked of ${[...outside].join(', ')}`);
     if (errors.length) throw new Problem(`the page logged errors:\n    ${errors.join('\n    ')}`);
