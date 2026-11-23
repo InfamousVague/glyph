@@ -160,10 +160,11 @@ void main() {
     expect(Net.instance.board!.carrier('p2p'), same(p2p.carrier));
     await _until(() => p2p.loaded && p2p.card != null, 'what the direct network keeps was read');
     // The node key where the install keeps its keys; the node id and the card with the app's choices.
-    expect(secrets[P2p.keyName], hasLength(64));
-    expect(p2p.nodeId, FakeP2pNode.idFor(NetCrypto.unhex(secrets[P2p.keyName]!)));
+    final key = (jsonDecode(secrets[P2p.keyName]!) as Map)['k'] as String;
+    expect([key, (jsonDecode(secrets[P2p.keyName]!) as Map)['a']], [hasLength(64), me.id]);
+    expect(p2p.nodeId, FakeP2pNode.idFor(NetCrypto.unhex(key)));
     expect(app.choice(P2p.idName, ''), contains(p2p.nodeId!));
-    expect(app.withPrefix('p2p_').values.join(), isNot(contains(secrets[P2p.keyName]!)));
+    expect(app.withPrefix('p2p_').values.join(), isNot(contains(key)));
     final card = DeviceCard.fromJson(jsonDecode(app.choice(P2p.cardName, '')), now: DateTime.now().millisecondsSinceEpoch)!;
     expect([card.account, card.device, card.nodeId], [me.id, app.choice('hub_device', ''), p2p.nodeId]);
     expect(card, p2p.card, reason: 'signed through the phone, whose key it is');

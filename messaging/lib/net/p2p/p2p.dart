@@ -135,10 +135,12 @@ class P2pDevice {
 /// that does not list its own card answers with it; one that is listed says nothing. So two devices settle in at
 /// most a card each and an answer each, and nothing more is said at any later start.
 ///
-/// **The node key** is 32 random bytes made here and kept where the install keeps its keys (`p2p_node`), never in the
-/// account's backup. The node id it makes is learned once ([P2pNode.idOf]) and kept with the app's choices, so a card
-/// can be made while the node is down. A key made under one account is never carried to another: an install that has
-/// become someone else makes a new one, and signing out deletes it ([wipe]).
+/// **The node key** is 32 random bytes made here and kept where the install keeps its keys (`p2p_node`), with the name
+/// of the account it was made under, never in the account's backup. The node id it makes is learned once
+/// ([P2pNode.idOf]) and kept with the app's choices, so a card can be made while the node is down. A key made under one
+/// account is never carried to another: an install that has become someone else makes a new one, even where its
+/// choices are gone and its secret store is not (an app deleted and put back on an iPhone or a Mac), and signing out
+/// deletes it ([wipe]).
 ///
 /// **When the node runs** is [P2pPolicy]'s: a computer's whenever Direct is on, a phone's only while there is
 /// something to say.
@@ -171,7 +173,7 @@ class P2p extends ChangeNotifier {
   /// The envelope kind devices tell each other where they are with.
   static const kind = 'p2p';
 
-  /// Where the node key is kept, in the install's secret store.
+  /// Where the node key is kept, in the install's secret store: `{"a": the account it was made under, "k": 64 hex}`.
   static const keyName = 'p2p_node';
 
   /// What is kept with the app's choices: the node id, this device's card, the cards held, what was told to whom,
@@ -413,8 +415,10 @@ class P2p extends ChangeNotifier {
 
   Future<void> _load() async {
     if (_loaded || _gone || _wiped) return;
-    final keptKey = await _secrets.read(keyName);
-    var key = keptKey != null && _hex64.hasMatch(keptKey) ? NetCrypto.unhex(keptKey) : null;
+    // The node key, with the account it was made under: a key left by another account is never used, whatever the
+    // choices say, since on an iPhone or a Mac the secret store outlives a deleted app and its choices do not (second
+    // review, S8). One kept with no account named is not taken either.
+    var key = keyOf(await _secrets.read(keyName), me);
     Map? id;
     try {
       id = jsonDecode(await _plain.read(idName) ?? '') as Map;
@@ -428,7 +432,7 @@ class P2p extends ChangeNotifier {
     }
     if (key == null) {
       key = NetCrypto.randomBytes(32);
-      await _secrets.write(keyName, NetCrypto.hex(key));
+      await _secrets.write(keyName, jsonEncode({'a': me, 'k': NetCrypto.hex(key)}));
     }
     final tag = NetCrypto.hex(NetCrypto.sha256([...utf8.encode('ghost-p2p node key '), ...key]).sublist(0, 8));
     var nodeId = id != null && id['g'] == tag && isNodeId(id['n']) ? id['n'] as String : null;
@@ -1350,6 +1354,19 @@ class P2p extends ChangeNotifier {
     await _stop();
     await forget(_secrets, _plain);
     if (!_gone) notifyListeners();
+  }
+
+  /// The node key in [kept] (what the secret store holds under [keyName]: the key, and the account it was made under),
+  /// where it was made under [account]; null otherwise.
+  static Uint8List? keyOf(String? kept, String account) {
+    try {
+      final j = jsonDecode(kept ?? '');
+      final k = j is Map ? j['k'] : null;
+      if (j is! Map || j['a'] != account || k is! String || !_hex64.hasMatch(k)) return null;
+      return NetCrypto.unhex(k);
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Deletes what the direct network keeps on a device, where none is running to [wipe] itself.

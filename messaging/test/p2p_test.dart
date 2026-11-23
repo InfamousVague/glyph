@@ -42,6 +42,9 @@ Future<DeviceCard> _cardOf(World w, Account account, {String? device, String? no
 
 Map<String, dynamic> _kept(Install i, String name) => (jsonDecode(i.plain.kept[name] ?? '{}') as Map).cast<String, dynamic>();
 
+/// The node key [i] keeps in its secret store: with the account it was made under.
+Uint8List _nodeKey(Install i) => NetCrypto.unhex((jsonDecode(i.secrets.kept[P2p.keyName]!) as Map)['k'] as String);
+
 /// A route of live links that reaches this account's other devices by its word, and can link with none of them now.
 class _DeadLinks implements Carrier, LiveLinks {
   @override
@@ -106,10 +109,10 @@ void main() {
       await b.start();
       final cardA = a.p2p.card!, cardB = b.p2p.card!;
       // Each made its node key, kept it with its secrets, and its card names the node id that key makes.
-      final key = NetCrypto.unhex(a.secrets.kept[P2p.keyName]!);
+      final key = _nodeKey(a);
       expect(key, hasLength(32));
       expect([cardA.account, cardA.device, cardA.nodeId], [a.account.id, a.device, FakeP2pNode.idFor(key)]);
-      expect(a.plain.kept.values.join(), isNot(contains(a.secrets.kept[P2p.keyName]!)), reason: 'the node key is in no choice');
+      expect(a.plain.kept.values.join(), isNot(contains(NetCrypto.hex(key))), reason: 'the node key is in no choice');
       // And each holds the other's, heard once.
       expect(a.p2p.devicesOf(b.account.id).single.card, cardB);
       expect(b.p2p.devicesOf(a.account.id).single.card, cardA);
@@ -386,7 +389,7 @@ void main() {
       await a.restart();
       final now = a.p2p.card!;
       expect(now.nodeId, isNot(old.nodeId));
-      expect(now.nodeId, FakeP2pNode.idFor(NetCrypto.unhex(a.secrets.kept[P2p.keyName]!)));
+      expect(now.nodeId, FakeP2pNode.idFor(_nodeKey(a)));
       expect(b.p2p.devicesOf(a.account.id).single.card, now, reason: 'in place of the old one: the same device');
       expect(b.node.allowed.keys, [now.nodeId]);
       // The friend's card was kept through it, and the new card said so: there was nothing to answer.
@@ -1792,7 +1795,7 @@ void main() {
       for (final name in [P2p.idName, P2p.cardName, P2p.cardsName, P2p.toldName]) {
         expect(a.plain.kept[name], isNotEmpty, reason: name);
       }
-      expect(a.secrets.kept[P2p.keyName], hasLength(64));
+      expect(_nodeKey(a), hasLength(32));
       await a.p2p.setHelpersOnly(true);
 
       await a.p2p.wipe();
@@ -1808,7 +1811,7 @@ void main() {
       // The app starts again as it does after signing out: a new key, another node id, nothing held.
       await a.restart();
       expect(a.p2p.nodeId, isNot(was));
-      expect(a.secrets.kept[P2p.keyName], hasLength(64));
+      expect(_nodeKey(a), hasLength(32));
     });
 
     test('a node key made under one account is never carried to another', () async {
@@ -1825,6 +1828,33 @@ void main() {
       expect(other.secrets.kept[P2p.keyName], isNot(key));
       expect(other.p2p.nodeId, isNot(was));
       expect(other.p2p.card!.account, other.account.id);
+    });
+
+    // The second review, S8 (R2-C): whose a node key is was kept in the choices (p2p_id) alone; on an iPhone or a Mac the
+    // Keychain outlives a deleted app and its choices don't, so a reinstall signing in to another account used the key.
+    test('a node key is kept with the account it was made under, and one left by another account is never used, choices or none', () async {
+      final first = w.install(w.account('one'));
+      await first.start();
+      final kept = jsonDecode(first.secrets.kept[P2p.keyName]!) as Map;
+      expect([kept['a'], kept['k']], [first.account.id, hasLength(64)]);
+      final id = first.p2p.nodeId;
+      await first.stop();
+      // The app deleted and put back: the Keychain still has the key, the choices are gone. Another account signs in.
+      final second = w.install(w.account('two'));
+      second.secrets.kept[P2p.keyName] = first.secrets.kept[P2p.keyName]!;
+      await second.start();
+      expect(second.p2p.nodeId, isNot(id));
+      expect((jsonDecode(second.secrets.kept[P2p.keyName]!) as Map)['a'], second.account.id);
+      // A key kept with no account named (as the first version kept them) is not taken either.
+      final third = w.install(w.account('three'));
+      third.secrets.kept[P2p.keyName] = 'ab' * 32;
+      await third.start();
+      expect(third.p2p.nodeId, isNot(FakeP2pNode.idFor(NetCrypto.unhex('ab' * 32))));
+      // The same account after a reinstall keeps its node: the key is its own.
+      final again = Install.again(first);
+      again.secrets.kept[P2p.keyName] = first.secrets.kept[P2p.keyName]!;
+      await again.start();
+      expect(again.p2p.nodeId, id);
     });
 
     test('the node key can\'t be read (a locked secret store): nothing is made or carried until it can', () async {

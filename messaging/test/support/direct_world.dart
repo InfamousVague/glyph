@@ -104,7 +104,17 @@ class Account {
 
 /// One device of an account: what it keeps (secrets and choices, as the app's stores), its node, its routes.
 class Install implements PeerBook {
-  Install._(this.world, this.account, this.policy, this.network, this.also) : device = NetCrypto.hex(NetCrypto.randomBytes(16));
+  Install._(this.world, this.account, this.policy, this.network, this.also, {String? device}) : device = device ?? NetCrypto.hex(NetCrypto.randomBytes(16));
+
+  /// [was]'s app deleted and put back on the same device: the same account and device name, nothing kept (a test puts
+  /// back what outlives an app, as an iPhone's Keychain does).
+  factory Install.again(Install was) {
+    final i = Install._(was.world, was.account, was.policy, was.network, was.also, device: was.device);
+    i.friends.addAll(was.friends);
+    i.known.addAll(was.known);
+    was.world.installs.add(i);
+    return i;
+  }
 
   final World world;
   final Account account;
