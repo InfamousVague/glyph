@@ -258,8 +258,11 @@ class Net extends ChangeNotifier implements PeerBook {
         routes = [...carriers];
       } else {
         final hub = _hub = _presenceOf(HubCarrier(url: hubUrl, signer: signer)..push = _push);
-        // Where this account lives, said to the relay at every sign-in with where its friends on other relays do.
-        _homes = Homes(signer: signer, read: (key) => app.choice(key, ''), write: app.keep)..attach(hub);
+        // Where this account lives, said to the relay at every sign-in with where its friends on other relays do; its
+        // changes are the routes' (Settings › Routes says when the record couldn't be made).
+        _homes = Homes(signer: signer, read: (key) => app.choice(key, ''), write: app.keep)
+          ..attach(hub)
+          ..addListener(notifyListeners);
         final sms = _sms = SmsCarrier(_PhoneSms());
         routes = [hub, sms];
       }
@@ -496,7 +499,8 @@ class Net extends ChangeNotifier implements PeerBook {
   Future<void> setHub(String url, {HubRelay? relay}) async {
     final next = Homes.addressOf(relay, url.trim().isEmpty ? defaultHub : url.trim());
     try {
-      if (next != null) await _homes?.moveTo(next).timeout(const Duration(seconds: 5));
+      // (The relay being left answers the new record, and friends on it are told, before it is left: ten seconds.)
+      if (next != null) await _homes?.moveTo(next).timeout(const Duration(seconds: 10));
     } catch (_) {}
     _app?.set('net_hub', url.trim());
     final board = _board, old = _hub, me = id;

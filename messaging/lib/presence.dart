@@ -40,7 +40,7 @@ class Presence {
     // A friend on another relay: who is here doesn't cross relays yet (docs/OPEN_NETWORK.md, section 4), and what
     // this relay last saw of them (before they moved away, say) would only mislead. Nothing is shown.
     final buddy = id == null ? null : Buddies.instance.byId(id);
-    final g = id == null || (buddy != null && Buddies.instance.elsewhere(buddy)) ? null : Net.instance.presenceOfId(id);
+    final g = id == null || (buddy != null && Buddies.instance.apart(buddy)) ? null : Net.instance.presenceOfId(id);
     final ghost = g == null ? null : InboxPresence(network: 'Ghost Messaging', online: g.online, lastSeen: g.lastSeen, away: g.away, busy: g.busy);
     // Busy or away on Ghost is how they chose to be shown: it wins over being online elsewhere.
     if (ghost != null && (ghost.online || ghost.busy || ghost.away)) return ghost;

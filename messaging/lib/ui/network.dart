@@ -204,6 +204,15 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
               label: relayTalksWords(net.hub!.relay).$1,
               hint: Text(relayTalksWords(net.hub!.relay).$2),
             ),
+          // A record of where this account lives that couldn't be made, said rather than swallowed (found in the
+          // review of relays that talk, 2026-11-23): without one nobody on another relay can reach this account.
+          if (net.homes?.problem != null)
+            SettingRow(
+              key: const ValueKey('relay-home-problem'),
+              icon: icon(Lucide.triangleAlert),
+              label: 'Friends on other relays can\'t reach you',
+              hint: Text(net.homes!.problem!),
+            ),
           if (!net.onDefaultHub)
             SettingRow(
               key: const ValueKey('relay-use-default'),
@@ -290,10 +299,19 @@ extension on String {
 const relayLimitsWords =
     'Relays can pass messages to each other. Add a friend on another relay as @name@their.relay, and what you write to each other goes through your relay to theirs, where both relays allow it. Everything else is still kept on each relay apart: usernames, your account backup, circles, spaces, calls, who is online and invite words reach only people using the same relay. Texts (SMS) still reach anyone. The Marketplace always comes from gogho.st. How to run one: gogho.st/docs/routes.';
 
+/// What moving away from the relay at [from] cuts off, said before the move (found in the review, 2026-11-23): friends
+/// who stay on it reach this account only where the two relays pass messages to each other.
+String movingWords(String from) {
+  final u = Uri.tryParse(from);
+  final host = u == null || u.host.isEmpty ? 'the relay you use now' : u.host;
+  return 'Friends who stay on $host reach you there only where it and the new relay pass messages to each other. Circles, spaces, calls and your account stay on the relay they were made on.';
+}
+
 /// Whether the relay in use passes messages to other relays, as a row's label and the line under it: by what the
-/// relay said of itself in its hello ([relay]; null from a relay from before relays talked).
+/// relay said of itself in its hello ([relay]; null where it says nothing of itself, as a relay with that switched
+/// off says nothing, and one from before relays talked).
 (String, String) relayTalksWords(HubRelay? relay) => relay == null
-    ? ('Doesn\'t pass messages to other relays', 'This relay is from before relays talked to each other. You reach only people who use it.')
+    ? ('Doesn\'t pass messages to other relays', 'It has that switched off, or is from before relays talked to each other. You reach only people who use it.')
     : relay.fed
         ? ('Passes messages to other relays', 'A friend on another relay, added as @name@their.relay, is reached through this one.')
         : ('Doesn\'t pass messages to other relays', 'Whoever runs it hasn\'t switched that on. You reach only people who use this relay.');
@@ -360,7 +378,7 @@ class _RelayAddressFieldState extends State<RelayAddressField> {
     await showChoices(
       context,
       title: 'Use ${relayInUseWords(url).replaceFirst('Your own relay: ', '')}?',
-      header: const Text(relayLimitsWords),
+      header: Text('${movingWords(widget.net.hubUrl)}\n\n$relayLimitsWords'),
       choices: [Choice('Use this relay', Lucide.check, () => yes = true, hint: 'It answered as a Ghost Messaging relay.')],
     );
     return yes;

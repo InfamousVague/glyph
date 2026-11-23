@@ -78,7 +78,8 @@ void main() {
     await pumpScreen(tester, sheet, AddFriendDrawer(buddies: alex.buddies, me: me), AppState());
     expect(find.text(addFriendWords('alex')), findsOneWidget, reason: 'how someone on another relay is added is said above the field');
     await look(tester, '@maya@b.test');
-    expect(find.text('On b.test'), findsOneWidget, reason: 'found, and the relay they are on is named');
+    expect(find.text('On b.test: Add asks that relay'), findsOneWidget, reason: 'the relay they are on is named, and nobody is asked until Add is pressed');
+    expect(net.asked, isEmpty);
     expect(find.text('On Ghost Messaging'), findsNothing);
     await tester.tap(find.byKey(const ValueKey('add-found')));
     // (The request is a greeting nobody answers: the route waits four seconds for an answer before it says "sent".)
@@ -105,10 +106,14 @@ void main() {
     });
     final me = await meAs(tester, 'alex');
     await pumpScreen(tester, sheet, AddFriendDrawer(buddies: alex.buddies, me: me), AppState());
+    // Nobody there: known only once Add asks.
     await look(tester, 'nobody@b.test');
-    expect(find.text('Nobody has this username'), findsOneWidget);
+    expect(find.text('On b.test: Add asks that relay'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('add-found')));
+    await turns(tester, done: () => find.text('Nobody has the username @nobody on b.test.').evaluate().isNotEmpty);
+    expect(find.text('Nobody has the username @nobody on b.test.'), findsOneWidget);
     await look(tester, 'oldie@b.test');
-    expect(find.text('On b.test'), findsOneWidget);
+    expect(find.text('On b.test: Add asks that relay'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('add-found')));
     await turns(tester, done: () => find.textContaining('newer version').evaluate().isNotEmpty);
     expect(find.text('@oldie@b.test can\'t be reached from another relay yet. They need a newer version of Ghost Messaging.'), findsOneWidget);
@@ -124,7 +129,7 @@ void main() {
     final me = await meAs(tester, 'alex');
     await pumpScreen(tester, sheet, AddFriendDrawer(buddies: alex.buddies, me: me), AppState());
     await look(tester, 'maya@b.test');
-    expect(find.text('On b.test'), findsOneWidget);
+    expect(find.text('On b.test: Add asks that relay'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('add-found')));
     await turns(tester, done: () => find.text(addUnreachedWords('maya@b.test')).evaluate().isNotEmpty);
     expect(alex.buddies.asked.single.username, 'maya@b.test', reason: 'she is kept, for when the request can go');

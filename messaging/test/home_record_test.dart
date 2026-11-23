@@ -69,12 +69,30 @@ Future<Map<String, Object?>> _build() async {
     {'name': 'a count that is not a number', 'why': 'count', 'rec': but({'n': '1'})},
     {'name': 'a time before there was one', 'why': 'time', 'rec': but({'t': -1})},
     {'name': 'made six minutes ahead of the clock', 'why': 'future', 'rec': _signedByRelayCode(_sam, ['wss://gogho.st/hub'], t: _now.millisecondsSinceEpoch + 6 * 60000)},
+    {'name': 'made thirty days before the clock: ended', 'why': 'old', 'rec': _signedByRelayCode(_sam, ['wss://gogho.st/hub'], t: _now.subtract(const Duration(days: 30)).millisecondsSinceEpoch)},
     {'name': 'an address changed after it was signed', 'why': 'signature', 'rec': but({'h': ['wss://evil.example/hub']})},
     {'name': 'an address added after it was signed', 'why': 'signature', 'rec': but({'h': ['wss://gogho.st/hub', 'wss://evil.example/hub']})},
     {'name': 'the count raised after it was signed', 'why': 'signature', 'rec': but({'n': 2})},
     {'name': 'the time changed after it was signed', 'why': 'signature', 'rec': but({'t': _made + 1})},
     {'name': 'signed by another key', 'why': 'signature', 'rec': _signedByRelayCode(_sam, ['wss://gogho.st/hub'], signWith: _maya)},
     {'name': 'the app\'s record with its address changed', 'why': 'signature', 'rec': {...byApp.toJson(), 'h': ['wss://evil.example/hub']}},
+  ];
+  // Which of two records for one account is believed: the higher count, then the later made, then the greater signature.
+  final early = _signedByRelayCode(_sam, ['wss://a.example/hub'], n: 5, t: _made - 60000);
+  final late = _signedByRelayCode(_sam, ['wss://b.example/hub'], n: 5, t: _made);
+  final twinA = _signedByRelayCode(_sam, ['wss://c.example/hub'], n: 6, t: _made, nonce: 3);
+  final twinB = _signedByRelayCode(_sam, ['wss://d.example/hub'], n: 6, t: _made, nonce: 4);
+  final aFirst = () {
+    final x = base64Decode(twinA['s']! as String), y = base64Decode(twinB['s']! as String);
+    for (var i = 0; i < 64; i++) {
+      if (x[i] != y[i]) return x[i] > y[i];
+    }
+    return false;
+  }();
+  final order = [
+    {'name': 'the higher count, whatever else', 'older': _signedByRelayCode(_sam, ['wss://a.example/hub'], n: 4, t: _made), 'newer': early},
+    {'name': 'one count: the later made', 'older': early, 'newer': late},
+    {'name': 'one count, made at once: the greater signature', 'older': aFirst ? twinB : twinA, 'newer': aFirst ? twinA : twinB},
   ];
   return {
     'about': 'Home records as the app and the relay must both read them (docs/OPEN_NETWORK.md, section 1). Written by test/home_record_test.dart (UPDATE_HOME_VECTORS=1); read by it and by relay/test/home_record_test.dart.',
@@ -86,6 +104,7 @@ Future<Map<String, Object?>> _build() async {
     ],
     'good': good,
     'bad': bad,
+    'order': order,
     'hubs': [
       ['wss://gogho.st/hub', 'wss://gogho.st/hub'],
       ['WSS://Relay.Example.COM:443/hub/', 'wss://relay.example.com/hub'],
@@ -153,7 +172,26 @@ void main() {
       expect(relay.HomeRecord.read(b['rec'], now: now).err, b['why'], reason: 'the relay: ${b['name']}');
       whys.add(b['why'] as String);
     }
-    expect(whys, {'shape', 'name', 'addresses', 'count', 'time', 'future', 'signature'}, reason: 'every way of being wrong is in the file');
+    expect(whys, {'shape', 'name', 'addresses', 'count', 'time', 'future', 'old', 'signature'}, reason: 'every way of being wrong is in the file');
+  });
+
+  test('of two records for one account, both believe the same one: the higher count, the later made, the greater signature', () {
+    for (final o in v['order'] as List) {
+      final older = HomeRecord.check(o['older'], now: now)!, newer = HomeRecord.check(o['newer'], now: now)!;
+      expect([newer.newerThan(older), older.newerThan(newer), HomeRecord.order(newer, older) > 0], [true, false, true], reason: 'the app: ${o['name']}');
+      final ro = relay.HomeRecord.read(o['older'], now: now).rec!, rn = relay.HomeRecord.read(o['newer'], now: now).rec!;
+      expect([rn.newerThan(ro), ro.newerThan(rn)], [true, false], reason: 'the relay: ${o['name']}');
+    }
+    expect((v['order'] as List).length, 3);
+  });
+
+  test('a record is good for thirty days by both, and ended after', () {
+    final rec = ((v['good'] as List).first as Map)['rec'] as Map;
+    final made = DateTime.fromMillisecondsSinceEpoch(rec['t'] as int, isUtc: true);
+    expect(HomeRecord.check(rec, now: made.add(HomeRecord.goodFor - const Duration(milliseconds: 1))), isNotNull);
+    expect(HomeRecord.check(rec, now: made.add(HomeRecord.goodFor)), isNull);
+    expect(relay.HomeRecord.read(rec, now: made.add(HomeRecord.goodFor)).err, 'old');
+    expect(HomeRecord.goodFor, relay.HomeRecord.goodFor);
   });
 
   test('a record is held to the account it is said to be for', () {

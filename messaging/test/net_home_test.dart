@@ -65,6 +65,8 @@ class _Friends implements BuddiesPort, BuddiesAcross {
   @override
   bool passedOn(String id) => false;
   @override
+  String? refusedWhy(String id) => null;
+  @override
   String recall(String key) => '';
   @override
   void remember(String key, String value) {}
@@ -148,8 +150,11 @@ void main() {
     final app = await startOn(one);
     final homes = Net.instance.homes!;
     await _until(() => homes.mine != null && one.fed.homes.isOwn(keys.id), 'the relay was never given it');
-    expect([homes.mine!.a, homes.mine!.h, homes.mine!.n], [keys.id, [one.url], 1]);
-    expect([app.choice('net_home_n', ''), HomeRecord.check(jsonDecode(app.choice('net_home', '')), forId: keys.id)!.n], ['1', 1]);
+    // Its count is never below the seconds since 1970: a device restored, or another of the account's, makes a newer
+    // one than any before without knowing them.
+    final first = homes.mine!.n;
+    expect([homes.mine!.a, homes.mine!.h, first], [keys.id, [one.url], greaterThanOrEqualTo(DateTime.now().millisecondsSinceEpoch ~/ 1000 - 60)]);
+    expect([app.choice('net_home_n', ''), HomeRecord.check(jsonDecode(app.choice('net_home', '')), forId: keys.id)!.n], ['$first', first]);
     expect(one.fed.homes.of(keys.id)!.toJson(), homes.mine!.toJson());
     expect([Net.instance.hub!.relay!.id, Net.instance.hub!.relay!.fed, homes.relayTalks], [one.fed.id, true, true]);
     // The app is closed and opened again: the record it kept is given again as it signs in, and no new one is made.
@@ -158,7 +163,7 @@ void main() {
     await Net.instance.want('test', true);
     await _until(() => Net.instance.hub!.state.value == CarrierState.up, 'never signed in again');
     await Future<void>.delayed(const Duration(milliseconds: 30));
-    expect([Net.instance.homes!.mine!.n, app.choice('net_home_n', ''), one.fed.homes.of(keys.id)!.n], [1, '1', 1]);
+    expect([Net.instance.homes!.mine!.n, app.choice('net_home_n', ''), one.fed.homes.of(keys.id)!.n], [first, '$first', first]);
     expect(Net.instance.homes!.mine!.toJson(), jsonDecode(app.choice('net_home', '')), reason: 'the very record kept, not another');
   });
 
@@ -166,17 +171,19 @@ void main() {
     final one = await relay(), two = await relay();
     final app = await startOn(one);
     await _until(() => one.fed.homes.isOwn(keys.id), 'the first relay was never given the first record');
+    final first = Net.instance.homes!.mine!.n;
     final moved = await Net.instance.useRelay(two.url);
     expect(moved.problem, isNull);
     await _until(() => Net.instance.hub!.state.value == CarrierState.up && two.fed.homes.isOwn(keys.id), 'the new relay was never given it');
     final mine = Net.instance.homes!.mine!;
-    expect([mine.n, mine.h, app.choice('net_home_n', '')], [2, [two.url], '2']);
+    expect([mine.n, mine.h, app.choice('net_home_n', '')], [greaterThan(first), [two.url], '${mine.n}']);
     expect(one.fed.homes.of(keys.id)!.toJson(), mine.toJson(), reason: 'the relay left holds the new record: it knows where they live now');
     expect(two.fed.homes.of(keys.id)!.toJson(), mine.toJson());
     // And back: the next count again.
     await Net.instance.useRelay(one.url);
-    await _until(() => Net.instance.hub!.state.value == CarrierState.up && (one.fed.homes.of(keys.id)?.n ?? 0) == 3, 'never moved back');
-    expect([Net.instance.homes!.mine!.n, Net.instance.homes!.mine!.h, two.fed.homes.of(keys.id)!.n], [3, [one.url], 3]);
+    await _until(() => Net.instance.hub!.state.value == CarrierState.up && (one.fed.homes.of(keys.id)?.n ?? 0) > mine.n, 'never moved back');
+    final back = Net.instance.homes!.mine!;
+    expect([back.n, back.h, two.fed.homes.of(keys.id)!.n], [greaterThan(mine.n), [one.url], back.n]);
   });
 
   test('a relay from before, and one that doesn\'t talk to others: the record is made all the same, and the app knows which it is on', () async {
@@ -186,10 +193,12 @@ void main() {
     expect([Net.instance.homes!.mine!.h, Net.instance.hub!.relay, Net.instance.homes!.relayTalks], [[old.url], isNull, false]);
     await Net.instance.shutdown();
     keys = NetKeys.generate();
+    // Off, a relay says nothing of itself and keeps nothing: the app copes as with one from before.
     final island = await relay(mode: FedMode.off);
     await startOn(island);
-    await _until(() => island.fed.homes.isOwn(keys.id), 'the relay was never given it');
-    expect([Net.instance.hub!.relay!.fed, Net.instance.homes!.relayTalks], [false, false]);
+    await _until(() => Net.instance.homes!.mine != null, 'no record was made');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect([Net.instance.hub!.relay, Net.instance.homes!.relayTalks, island.fed.homes.own], [isNull, false, 0]);
   });
 
   test('who is here is not shown for a friend on another relay, though this relay saw them once; for a friend on it, it is', () async {
@@ -241,16 +250,19 @@ void main() {
       expect(relayTalksWords(HubRelay(id: keys.id, key: key, fed: true)), ('Passes messages to other relays', 'A friend on another relay, added as @name@their.relay, is reached through this one.'));
       expect(relayTalksWords(HubRelay(id: keys.id, key: key)).$1, 'Doesn\'t pass messages to other relays');
       expect(relayTalksWords(HubRelay(id: keys.id, key: key)).$2, contains('hasn\'t switched that on'));
-      expect(relayTalksWords(null), ('Doesn\'t pass messages to other relays', 'This relay is from before relays talked to each other. You reach only people who use it.'));
+      expect(relayTalksWords(null), ('Doesn\'t pass messages to other relays', 'It has that switched off, or is from before relays talked to each other. You reach only people who use it.'), reason: 'a relay with it off says nothing of itself, as one from before');
     });
 
     test('the add-friend screen, an add-me link on a relay of one\'s own, a friend\'s card and a call say what is true', () {
       expect(addFriendWords('matt'), 'Type their username. For someone on another relay, add the relay after it: @name@their.relay. You\'re @matt.');
-      expect(addUnreachedWords('maya@relay.example'), 'Found @maya@relay.example, but your relay doesn\'t pass messages to theirs yet. The request is kept, and goes when it can.');
+      expect(addUnreachedWords('maya@relay.example'), 'Found @maya@relay.example, but your relay doesn\'t pass messages to theirs yet. The request is kept, and sent again by itself for two weeks.');
+      expect(addUnreachedWords('maya@relay.example', 'their relay would not take it'), 'Found @maya@relay.example, but their relay would not take it. The request is kept, and sent again by itself for two weeks.');
       final link = addMeElsewhereWords('wss://relay.example.com/hub', 'maya');
       expect(link, 'You use your own relay, relay.example.com. @maya is looked up there, so this may be someone other than the person who shared the link, or nobody. If they are on another relay, add them as @maya@their.relay in Add a friend instead.');
-      expect(friendRelayWords('relay.example'), 'On relay.example, another relay than yours. What you write to each other goes through your relay to theirs.');
-      expect(callElsewhereWords('Maya', 'relay.example'), 'Calls don\'t reach another relay yet. Maya is on relay.example; you can still write to each other.');
+      expect(friendRelayWords('relay.example'), 'On relay.example, another relay than yours. What you write to each other goes through your relay to theirs, where both pass messages on.');
+      expect(friendRelayWords('relay.example', talks: false), 'On relay.example, another relay than yours, and yours doesn\'t pass messages to other relays: what you write doesn\'t reach them from here.');
+      expect(callElsewhereWords('Maya', 'relay.example'), 'Calls don\'t reach another relay yet. Maya is on relay.example, and your relay doesn\'t pass messages to theirs.', reason: 'no routes are up here: the relay in use is not known to talk');
+      expect(movingWords('wss://gogho.st/hub'), contains('Friends who stay on gogho.st reach you there only where it and the new relay pass messages to each other'));
     });
 
     testWidgets('Settings › Routes shows that the relay in use passes messages to other relays, once the app has signed in to it', (tester) async {
@@ -264,15 +276,16 @@ void main() {
       installSettingsStyles(sheet);
       final model = SettingsModel(state);
       addTearDown(model.dispose);
-      await tester.pumpWidget(AppScope(
-        state: state,
-        child: WidgetsApp(
-          color: const Color(0xFF000000),
-          pageRouteBuilder: <T>(RouteSettings s, WidgetBuilder b) => PageRouteBuilder<T>(settings: s, pageBuilder: (c, _, _) => b(c)),
-          builder: (context, child) => GlacierTheme(sheet: sheet, attrs: ghostAttrs(state, 'mobile'), child: InkOverrides(child: GlacierToastProvider(child: child!))),
-          home: ListenableBuilder(listenable: Net.instance, builder: (context, _) => ListView(children: networkPane(context, model))),
-        ),
-      ));
+      Widget pane() => AppScope(
+            state: state,
+            child: WidgetsApp(
+              color: const Color(0xFF000000),
+              pageRouteBuilder: <T>(RouteSettings s, WidgetBuilder b) => PageRouteBuilder<T>(settings: s, pageBuilder: (c, _, _) => b(c)),
+              builder: (context, child) => GlacierTheme(sheet: sheet, attrs: ghostAttrs(state, 'mobile'), child: InkOverrides(child: GlacierToastProvider(child: child!))),
+              home: ListenableBuilder(listenable: Net.instance, builder: (context, _) => ListView(children: networkPane(context, model))),
+            ),
+          );
+      await tester.pumpWidget(pane());
       await tester.pump(const Duration(milliseconds: 50));
       String talks() => (tester.widget(find.descendant(of: find.byKey(const ValueKey('relay-talks')), matching: find.byType(Text)).first) as Text).data!;
       expect(talks(), 'Passes messages to other relays');
@@ -284,6 +297,14 @@ void main() {
       });
       await tester.pump(const Duration(milliseconds: 50));
       expect(talks(), 'Doesn\'t pass messages to other relays');
+      // A record of where this account lives that couldn't be made is said, not swallowed (found in the review of
+      // relays that talk, 2026-11-23).
+      expect(find.byKey(const ValueKey('relay-home-problem')), findsNothing);
+      Net.instance.homes!.problem = 'Where this account lives could not be signed: no key';
+      await tester.pumpWidget(pane());
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.descendant(of: find.byKey(const ValueKey('relay-home-problem')), matching: find.text('Where this account lives could not be signed: no key')), findsOneWidget);
+      Net.instance.homes!.problem = null;
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 5));
     });

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'crypto.dart';
 import 'hub_carrier.dart';
@@ -14,71 +13,67 @@ class RelayAskError implements Exception {
   String toString() => message;
 }
 
+/// What another relay said of a username there ([whoisAt]): who holds it, their record where that relay gave it, and
+/// whether that relay passes messages to other relays at all (its hub's hello says so).
+typedef FoundThere = ({String id, String key, Object? home, bool talks});
+
 /// Asks the relay at [url] itself who has the username [name] there (docs/OPEN_NETWORK.md, section 4: "where its own
-/// relay doesn't link, the app asks the other relay itself"). A short hub connection, signed in as this install is
-/// to its own relay, hidden (nobody watching this install there is told it came): the same `whois` an app asks its
-/// own relay, then their home record where that relay keeps them (`home?`). Null where nobody has the name; a
-/// [RelayAskError] where the relay could not be asked.
+/// relay doesn't link, the app asks the other relay itself"). A short hub connection under a key made for this one
+/// question and thrown away after it ([stranger], for a test; found in the review of relays that talk, 2026-11-23):
+/// signed in with this account's own key, the relay asked could pass the number of this account's own relay along and
+/// sign in there as this account with the answer. So nothing of this account goes there: not its key, not its device's
+/// name, and nothing that relay hands over is taken. Then `whois`, whose answer carries their home record where that
+/// relay keeps one. Null where nobody has the name; a [RelayAskError] where the relay could not be asked.
 ///
-/// Signing in to a hub takes what it was keeping for this install: each packet handed over is given to [onPacket] as
-/// it comes, with who it is from as that hub vouches, so nothing is lost by having asked.
-///
-/// Nothing here waits on a clock but [timeout] for the whole of it: a relay from before, which says nothing to
-/// `home?`, is known by its answer to the `ping` sent behind it.
-Future<({String id, String key, Object? home})?> whoisAt(String url, String name, {required NetSigner signer, HubDial? dial, Duration timeout = const Duration(seconds: 10), void Function(String from, Uint8List packet)? onPacket}) async {
+/// Nothing here waits on a clock but [timeout] for the whole of it.
+Future<FoundThere?> whoisAt(String url, String name, {HubDial? dial, Duration timeout = const Duration(seconds: 10), NetSigner? stranger}) async {
   final HubLink link;
   try {
     link = await (dial ?? dialHub)(url).timeout(timeout);
   } catch (_) {
     throw RelayAskError('That relay couldn\'t be reached.');
   }
-  final done = Completer<({String id, String key, Object? home})?>();
+  // A key of no account's: all the relay asked can do with its signature is sign in as nobody.
+  final signer = stranger ?? KeysSigner(NetKeys.generate());
+  final done = Completer<FoundThere?>();
   void fail(String why) {
     if (!done.isCompleted) done.completeError(RelayAskError(why));
   }
 
   var signedIn = false;
-  String? id, key;
+  var talks = false;
   final sub = link.said.listen(
     (data) async {
-      if (done.isCompleted) return;
-      if (data is List<int>) {
-        // What that relay kept for this install: `[1][from, 16 bytes][the packet]`.
-        if (data.length > 17 && data[0] == 1) onPacket?.call(NetCrypto.hex(data.sublist(1, 17)), Uint8List.fromList(data.sublist(17)));
-        return;
-      }
+      // Whatever that relay hands over is not this account's, and is not taken.
+      if (done.isCompleted || data is! String) return;
       final Map m;
       try {
-        m = jsonDecode(data as String) as Map;
+        m = jsonDecode(data) as Map;
       } catch (_) {
         return;
       }
       if (m['hello'] is String && !signedIn) {
+        final card = m['relay'];
+        talks = card is Map && card['fed'] == true;
+        final v2 = m['v2'] == true;
+        final host = HubCarrier.hostOf(url);
         final List<int> sig;
         try {
-          sig = await signer.sign([...utf8.encode(HubCarrier.greeting), ...NetCrypto.unhex(m['hello'] as String)]);
+          final nonce = NetCrypto.unhex(m['hello'] as String);
+          sig = await signer.sign(v2 ? HubCarrier.signedV2(host, nonce) : [...utf8.encode(HubCarrier.greeting), ...nonce]);
         } catch (_) {
           return fail('This device couldn\'t sign in there.');
         }
         if (done.isCompleted) return;
-        link.say(jsonEncode({'id': signer.id, 'key': base64Encode(signer.publicKey), 'sig': base64Encode(sig), if (HubCarrier.device.isNotEmpty) 'device': HubCarrier.device, 'mode': 'invisible'}));
+        link.say(jsonEncode({'id': signer.id, 'key': base64Encode(signer.publicKey), 'sig': base64Encode(sig), if (v2) 'v': 2, if (v2) 'host': host, 'mode': 'invisible'}));
       } else if (m.containsKey('ok') && !signedIn) {
         if (m['ok'] != true) return fail('That relay refused this app.');
         signedIn = true;
         link.say(jsonEncode({'dir': 'whois', 'name': name}));
-      } else if (m['dir'] == 'whois' && id == null) {
+      } else if (m['dir'] == 'whois' && m['at'] == null) {
         if (m['none'] == true || m['id'] is! String || m['key'] is! String) return done.complete(null);
-        id = m['id'] as String;
-        key = m['key'] as String;
-        // Their home record, where that relay keeps them; and a ping behind it, whose answer says nothing more comes.
-        link.say(jsonEncode({'dir': 'home?', 'a': id}));
-        link.say(jsonEncode({'ping': 1}));
-      } else if (m['dir'] == 'home?' && id != null && m['a'] == id) {
-        done.complete((id: id!, key: key!, home: m['rec']));
-      } else if (m.containsKey('pong') && id != null) {
-        done.complete((id: id!, key: key!, home: null));
-      } else if (m['dir'] == 'err' && (m['about'] == 'whois' || m['about'] == 'home?')) {
-        if (id != null) return done.complete((id: id!, key: key!, home: null));
+        done.complete((id: m['id'] as String, key: m['key'] as String, home: m['home'], talks: talks));
+      } else if (m['dir'] == 'err' && m['about'] == 'whois') {
         // A relay with no usernames says so; one that has had too many questions says that.
         fail('${m['err'] ?? 'That relay couldn\'t say.'}');
       }

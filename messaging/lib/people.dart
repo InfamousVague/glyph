@@ -40,7 +40,7 @@ void startOwnFriends(AppState app) {
 void _hearBuddies() {
   void hear() {
     Net.instance.want('buddies', Buddies.instance.all.isNotEmpty || Me.instance.username != null);
-    Net.instance.watchToo([for (final b in Buddies.instance.friends) if (!Buddies.instance.elsewhere(b)) b.id]);
+    Net.instance.watchToo([for (final b in Buddies.instance.friends) if (!Buddies.instance.apart(b)) b.id]);
   }
 
   Buddies.instance.start().then((_) {
@@ -68,7 +68,7 @@ void startPeople(AppState app) {
   void hearBuddies() {
     Net.instance.want('buddies', Buddies.instance.all.isNotEmpty || Me.instance.username != null);
     // Friends by username watched on the hub, so their faces say when they are on (lib/presence.dart).
-    Net.instance.watchToo([for (final b in Buddies.instance.friends) if (!Buddies.instance.elsewhere(b)) b.id]);
+    Net.instance.watchToo([for (final b in Buddies.instance.friends) if (!Buddies.instance.apart(b)) b.id]);
   }
 
   Buddies.instance.start().then((_) {

@@ -28,11 +28,12 @@ Future<void> until(bool Function() ok, String what) async {
 
 /// One install: its key, its relay, and everything of the app's that stands on them.
 class RelayApp implements PeerBook, BuddiesPort, BuddiesAcross {
-  /// [keys] and [kept] (its choices) are another run's of the same install where given: the app opened again.
-  RelayApp(this.net, this.name, MemoryHub relay, {NetKeys? keys, Map<String, String>? kept, Duration busyAgain = const Duration(seconds: 3)}) : keys = keys ?? NetKeys.generate() {
+  /// [keys] and [kept] (its choices) are another run's of the same install where given: the app opened again. [now] is
+  /// the clock its home records are made by, where a test moves it itself.
+  RelayApp(this.net, this.name, MemoryHub relay, {NetKeys? keys, Map<String, String>? kept, Duration busyAgain = const Duration(seconds: 3), DateTime Function()? now}) : keys = keys ?? NetKeys.generate() {
     if (kept != null) choices.addAll(kept);
     signer = KeysSigner(this.keys);
-    homes = Homes(signer: signer, read: (k) => choices[k] ?? '', write: (k, v) => choices[k] = v, dial: net.appDial, answerWithin: const Duration(seconds: 2), busyAgain: busyAgain);
+    homes = Homes(signer: signer, read: (k) => choices[k] ?? '', write: (k, v) => choices[k] = v, dial: net.appDial, answerWithin: const Duration(seconds: 2), busyAgain: busyAgain, now: now);
     buddies = Buddies(this, spread: const Duration(hours: 1));
     _use(relay);
   }
@@ -178,6 +179,8 @@ class RelayApp implements PeerBook, BuddiesPort, BuddiesAcross {
   Listenable get homesChanged => homes;
   @override
   bool passedOn(String id) => hub.passedOn(id);
+  @override
+  String? refusedWhy(String id) => hub.refusedWhy[id];
   @override
   String recall(String key) => choices[key] ?? '';
   @override

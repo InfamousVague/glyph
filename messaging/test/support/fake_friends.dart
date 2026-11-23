@@ -28,6 +28,10 @@ class FakePort implements FriendsPort {
   bool refuses = false;
   bool answers = false;
 
+  /// Where set, the relay refuses what is sent with these words, as the hub route says why (their relay can't be
+  /// reached from yours, and the like).
+  String? refusedWhy;
+
   /// The relay server hands what it is given to a connection of the other's that has died: it says it passed it on,
   /// and nothing arrives or answers (what happened in the live test, 2026-11-15).
   bool lost = false;
@@ -80,6 +84,8 @@ class FakePort implements FriendsPort {
     sent.add((to: peer.address!, envelope: envelope, metered: metered, sealed: sealed, only: only));
     // A data text: on its way, and nothing more is known.
     if (only != null && only.contains('sms')) return Delivery(envelope.id, via: 'sms', handed: Handed.passed);
+    final why = refusedWhy;
+    if (why != null) return Delivery(envelope.id, tried: ['hub: $why']);
     if (!up || refuses) {
       if (!metered) return Delivery(envelope.id, tried: const ['hub: not up']);
       other._arrive(me, envelope, sealed);
@@ -153,4 +159,9 @@ class FakePort implements FriendsPort {
   Listenable get changed => _changed;
   @override
   Future<bool> probe() async => answers;
+
+  /// The addresses whose last packet the relay said waits on it for their relay.
+  final Set<String> waiting = {};
+  @override
+  bool waitingAtRelay(String address) => waiting.contains(address);
 }

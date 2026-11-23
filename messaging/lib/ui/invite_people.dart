@@ -280,7 +280,7 @@ class _InvitePeopleSheetState extends State<InvitePeopleSheet> {
     final query = search ?? _query;
     final q = query.trim().toLowerCase();
     final ghost = <InviteCandidate>[];
-    for (final f in _buddies.shownFriends) {
+    for (final f in _buddies.roomFriends) {
       if (q.isNotEmpty && !f.shown.toLowerCase().contains(q) && !f.username.toLowerCase().contains(q.replaceAll('@', ''))) continue;
       ghost.add(InviteCandidate(key: 'b:${f.id}', name: f.shown, friend: f, ghost: true));
     }

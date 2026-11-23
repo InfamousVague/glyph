@@ -32,6 +32,28 @@ object HubPeek {
     const val DEFAULT_HUB = "wss://gogho.st/hub"
     private const val GREETING = "ghost-hub v1 "
 
+    /**
+     * What is signed to a hub that takes it (relay/lib/hub.dart greetingV2, as lib/net/hub_carrier.dart signs it): the
+     * words, the host dialled (its length, then it), then the hub's number. A relay that has seen this account sign in
+     * so takes no v1 signature from it again, so a hub that says `v2` is always answered with v2.
+     */
+    private const val GREETING_V2 = "ghost-hub v2 "
+
+    /** The host a v2 sign-in names for [url]: lower case, with its port where it is not the scheme's own. */
+    fun hostOf(url: String): String {
+        val u = java.net.URI(url)
+        val host = (u.host ?: "").lowercase().removePrefix("[").removeSuffix("]")
+        val shown = if (host.contains(':')) "[$host]" else host
+        val usual = if (u.scheme == "wss") 443 else 80
+        return if (u.port != -1 && u.port != usual) "$shown:${u.port}" else shown
+    }
+
+    /** What is signed with v2 to the hub reached at [host], for its number [nonce]. */
+    fun signedV2(host: String, nonce: ByteArray): ByteArray {
+        val h = host.toByteArray(Charsets.UTF_8).take(255).toByteArray()
+        return GREETING_V2.toByteArray() + byteArrayOf(h.size.toByte()) + h + nonce
+    }
+
     /** Asks Android for the check, once; already asked, it is left as it is so its clock is not reset. */
     fun schedule(context: Context) {
         val js = context.getSystemService(JobScheduler::class.java) ?: return
@@ -77,9 +99,14 @@ object HubPeek {
                     // A hub that does not say it knows a look would hand over what it holds: not signed in to.
                     if (!m.optBoolean("peek")) return ws.close()
                     val nonce = m.getString("hello").chunked(2).map { it.toInt(16).toByte() }.toByteArray()
-                    val sig = runCatching { sign(GREETING.toByteArray() + nonce) }.getOrNull() ?: return ws.close()
-                    ws.sendText(JSONObject().put("id", id).put("key", Base64.getEncoder().encodeToString(key))
-                        .put("sig", Base64.getEncoder().encodeToString(sig)).put("peek", true).toString())
+                    // To a hub that takes it, bound to the host dialled; to one from before, as ever.
+                    val v2 = m.optBoolean("v2")
+                    val host = runCatching { hostOf(url) }.getOrNull() ?: return ws.close()
+                    val sig = runCatching { sign(if (v2) signedV2(host, nonce) else GREETING.toByteArray() + nonce) }.getOrNull() ?: return ws.close()
+                    val hello = JSONObject().put("id", id).put("key", Base64.getEncoder().encodeToString(key))
+                        .put("sig", Base64.getEncoder().encodeToString(sig)).put("peek", true)
+                    if (v2) hello.put("v", 2).put("host", host)
+                    ws.sendText(hello.toString())
                 } else if (m.has("ok")) {
                     // Only an answer that says it was a look is believed.
                     if (m.optBoolean("ok") && m.optBoolean("peek")) held = m.optInt("held", 0)

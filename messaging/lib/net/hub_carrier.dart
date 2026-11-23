@@ -101,6 +101,28 @@ class HubCarrier implements Carrier {
 
   static const greeting = 'ghost-hub v1 ';
 
+  /// What is signed to a hub that takes it (relay/lib/hub.dart greetingV2; found in the review of relays that talk,
+  /// 2026-11-23): these words, the host this app dialled ([hostOf], its length first), then the hub's number. A v1
+  /// signature says nothing of where it was made, so a relay this app was pointed at, or asked a name of, could pass the
+  /// number of this app's own relay along and sign in there as this app with the answer; a v2 one is good only at a
+  /// relay reached by that host, and a relay that has seen this account sign in with v2 takes no v1 from it again.
+  static const greetingV2 = 'ghost-hub v2 ';
+
+  /// The host a v2 sign-in names for [url]: lower case, with its port where it is not the scheme's own.
+  static String hostOf(String url) {
+    final u = Uri.parse(url);
+    final usual = u.scheme == 'wss' ? 443 : 80;
+    final host = u.host.toLowerCase();
+    final shown = host.contains(':') ? '[$host]' : host;
+    return u.hasPort && u.port != usual ? '$shown:${u.port}' : shown;
+  }
+
+  /// What is signed with v2 to the hub reached at [host], for its number [nonce].
+  static List<int> signedV2(String host, List<int> nonce) {
+    final bytes = utf8.encode(host);
+    return [...utf8.encode(greetingV2), bytes.length.clamp(0, 255), ...bytes.take(255), ...nonce];
+  }
+
   @override
   String get id => 'hub';
   @override
@@ -173,6 +195,17 @@ class HubCarrier implements Carrier {
   /// someone who lives on another relay it means the relay no longer holds their home record (lib/net/homes.dart
   /// says it again).
   void Function(String id)? onKeptHere;
+
+  /// Told when the relay passed nothing on because it holds no record of this account's naming it (`nak` `home`):
+  /// lib/net/homes.dart gives it again.
+  void Function()? onNoHome;
+
+  /// The names whose last packet waits on this relay for their relay to be reached (`waiting` in its answer): what is
+  /// written to them is not sent again as often meanwhile (lib/friends/friends.dart).
+  final Set<String> waitingFor = {};
+
+  /// Why the relay refused the last packet to each name it refused, in words to show; gone once one is taken.
+  final Map<String, String> refusedWhy = {};
 
   /// Takes a packet another connection of this install's brought, as though this route had: what another relay was
   /// keeping for this install, handed over while that relay was asked something (lib/net/relay_ask.dart).
@@ -386,10 +419,14 @@ class HubCarrier implements Carrier {
     if (m['hello'] is String && !_ready) {
       takesReactions = m['react'] == true;
       relay = HubRelay.from(m['relay']);
-      // The hub's number, signed: only the holder of this install's key connects under its name.
-      final sig = await signer.sign([...utf8.encode(greeting), ...NetCrypto.unhex(m['hello'] as String)]);
+      // The hub's number, signed: only the holder of this install's key connects under its name. To a hub that takes
+      // it, bound to the host dialled ([greetingV2]); to one from before, as ever.
+      final v2 = m['v2'] == true;
+      final nonce = NetCrypto.unhex(m['hello'] as String);
+      final host = hostOf(url);
+      final sig = await signer.sign(v2 ? signedV2(host, nonce) : [...utf8.encode(greeting), ...nonce]);
       if (!identical(_ws, ws)) return;
-      ws.say(jsonEncode({'id': signer.id, 'key': base64Encode(signer.publicKey), 'sig': base64Encode(sig), if (device.isNotEmpty) 'device': device, if (_hubMode != 'online') 'mode': _hubMode}));
+      ws.say(jsonEncode({'id': signer.id, 'key': base64Encode(signer.publicKey), 'sig': base64Encode(sig), if (v2) 'v': 2, if (v2) 'host': host, if (device.isNotEmpty) 'device': device, if (_hubMode != 'online') 'mode': _hubMode}));
     } else if (m.containsKey('ok') && !_ready) {
       if (m['ok'] != true) {
         _drop('refused');
@@ -429,6 +466,12 @@ class HubCarrier implements Carrier {
     } else if (m.containsKey('ack')) {
       final to = _sentTo.remove(m['ack']);
       if (to != null) {
+        refusedWhy.remove(to);
+        if (m['waiting'] == true) {
+          waitingFor.add(to);
+        } else {
+          waitingFor.remove(to);
+        }
         if (m['fed'] == true) {
           _crossed.add(to);
         } else {
@@ -438,13 +481,24 @@ class HubCarrier implements Carrier {
       }
       _sent.remove(m['ack'])?.complete(m['here'] == true ? Handed.passed : Handed.held);
     } else if (m.containsKey('nak')) {
-      _sentTo.remove(m['nak']);
-      _sent.remove(m['nak'])?.completeError(CarrierError(switch (m['err']) {
-        'full' => 'the relay server is holding too much for them already',
+      final to = _sentTo.remove(m['nak']);
+      if (m['err'] == 'home') onNoHome?.call();
+      final why = switch (m['err']) {
+        'full' => 'their relay, or yours, is holding too much for them already',
         'far' => 'their relay can\'t be reached from yours',
         'refused' => 'their relay would not take it',
+        'home' => 'your relay didn\'t know where you live yet; it has been told, and it goes again',
+        'busy' => 'you have sent a lot to other relays just now; it goes again in a while',
         _ => 'the relay server would not take it',
-      }));
+      };
+      if (to != null) {
+        waitingFor.remove(to);
+        refusedWhy[to] = why;
+        while (refusedWhy.length > 500) {
+          refusedWhy.remove(refusedWhy.keys.first);
+        }
+      }
+      _sent.remove(m['nak'])?.completeError(CarrierError(why));
     } else if (m['room'] is String && m['look'] is List) {
       // Who is in a room this install looks at without being in it.
       final room = m['room'] as String;
