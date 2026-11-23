@@ -22,16 +22,22 @@ import 'p2p.dart';
 /// ever kept. A device that could not be reached is not dialled again for [P2pPolicy.redialAfter], so what is sent
 /// meanwhile is not held up by it.
 ///
-/// **Whose device it is.** A card is an account's word that a node is its device, not the node's own (card.dart). So
-/// the first frame each way on a stream is the device's proof, the one that dialled first:
+/// **Whose device it is.** A card is an account's word that a node is its device, not the node's own (card.dart). So a
+/// stream opens with each end's nonce, then each end's proof, the one that dialled first (once the other's nonce has
+/// come) and the other once that proof checks out:
 ///
-///     [0][1][HMAC-SHA256(link key, "ghost-p2p link v1\n" | the sender's node id (32) | the other's (32))]
+///     [0][2][a nonce: 16 random bytes]
+///     [0][3][HMAC-SHA256(link key, "ghost-p2p link v2\n" | from account (16) | from node (32) | to account (16) |
+///            to node (32) | the other end's nonce (16) | this end's (16))]
 ///
-/// under a key made from what the two accounts seal their packets with ([P2p.linkKey]), which only their devices
-/// hold. The node ids are the ones the core's handshake vouched for. Until it has come, nothing is sent on the stream
-/// and nothing taken from it; one whose proof is not that of an account whose card names the node is closed. So a
-/// packet for someone only ever goes to a device that holds their key, and what arrives is vouched for
-/// ([Arrived.from]) as the hub's stamp is.
+/// under a key made from what the two accounts seal their packets with ([P2p.linkKey]), which only their devices hold.
+/// Both accounts are in it, in the order of who is proving to whom: both ends of a pair hold the pair's key, so a proof
+/// without them showed only "holds the key", and a friend's card naming a device of this account's own made two of its
+/// devices link with each other "as his" (second review, S2). The node ids are the ones the core's handshake vouched
+/// for, and the nonces make each proof good for its own stream alone. Until the proof has come, nothing is sent on the
+/// stream and nothing taken from it; one whose proof is not that of an account whose card names the node is closed. So
+/// a packet for someone only ever goes to a device that holds their key and proved to be theirs, and what arrives is
+/// vouched for ([Arrived.from]) as the hub's stamp is.
 ///
 /// **Arriving.** After the proof every frame is a packet, handed on as it came. A stream from a node no card is held
 /// for is closed, as is one that sends a frame longer than a packet may be, and one with nothing said on it for
@@ -49,8 +55,8 @@ class P2pCarrier implements Carrier, LiveLinks {
   /// The most streams held with one node; a newer one takes the place of the oldest.
   static const mostLines = 2;
 
-  static final _words = utf8.encode('ghost-p2p link v1\n');
-  static const _proofMark = 0, _proofVersion = 1;
+  static final _words = utf8.encode('ghost-p2p link v2\n');
+  static const _mark = 0, _nonceMark = 2, _proofMark = 3, _nonceLength = 16;
 
   @override
   String get id => 'p2p';
@@ -143,38 +149,54 @@ class P2pCarrier implements Carrier, LiveLinks {
     while (node.lines.length >= mostLines) {
       _close(node, node.lines.first);
     }
-    final line = _Line(s, claimed);
+    final line = _Line(s, claimed, dialled: dialled, nonce: NetCrypto.randomBytes(_nonceLength));
     node.lines.add(line);
     // Not proved in the time a dial has, it is closed.
     line.timer = p2p.timer(p2p.policy.dialFor, () => _close(node, line));
     line.sub = s.frames.listen((f) => _frame(node, line, f), onDone: () => _gone(node, line), onError: (Object _) => _gone(node, line));
-    // The one that dialled says whose it is first.
-    if (dialled != null) _prove(node, line, dialled);
+    // Each end's nonce first, whichever opened it.
+    _send(node, line, Uint8List.fromList([_mark, _nonceMark, ...line.nonce]));
     p2p.linesChanged();
     node.bump();
   }
 
-  Uint8List? _proof(String account, {required String from, required String to}) {
+  /// Puts a frame of the handshake on [line]; a stream that won't take it is closed.
+  void _send(_Node node, _Line line, Uint8List frame) {
+    try {
+      line.stream.add(frame).catchError((Object _) => _close(node, line));
+    } catch (_) {
+      _close(node, line);
+    }
+  }
+
+  /// What [fromAccount]'s device at [fromNode] says to [toAccount]'s at [toNode] to prove whose it is, on a stream whose
+  /// nonces are [toNonce] (the other end's) and [fromNonce] (its own); null where no key is held with [account], the
+  /// one of the two that is not this account (or this account's own, for its own devices).
+  Uint8List? _proof(String account, {required String fromAccount, required String fromNode, required String toAccount, required String toNode, required List<int> toNonce, required List<int> fromNonce}) {
     final key = p2p.linkKey(account);
     if (key == null) return null;
-    return Uint8List.fromList([_proofMark, _proofVersion, ...NetCrypto.hmac(key, [..._words, ...NetCrypto.unhex(from), ...NetCrypto.unhex(to)])]);
+    return Uint8List.fromList([
+      _mark,
+      _proofMark,
+      ...NetCrypto.hmac(key, [..._words, ...NetCrypto.unhex(fromAccount), ...NetCrypto.unhex(fromNode), ...NetCrypto.unhex(toAccount), ...NetCrypto.unhex(toNode), ...toNonce, ...fromNonce]),
+    ]);
   }
 
-  /// Says, on [line], that this device is one of the two accounts' whose key [account]'s devices share with it.
+  /// Says, on [line], that this device is this account's and is talking to [account]'s.
   void _prove(_Node node, _Line line, String account) {
-    final proof = _proof(account, from: p2p.nodeId!, to: line.stream.nodeId);
+    final mine = p2p.nodeId, theirs = line.theirs;
+    final proof = mine == null || theirs == null ? null : _proof(account, fromAccount: p2p.me, fromNode: mine, toAccount: account, toNode: line.stream.nodeId, toNonce: theirs, fromNonce: line.nonce);
     if (proof == null) return _close(node, line);
-    line.stream.add(proof).catchError((Object _) => _close(node, line));
+    _send(node, line, proof);
   }
 
-  /// Whose device the other end of [line] has proved to be with [frame], of those its node is said to be; null
-  /// where it is no proof of any.
+  /// Whose device the other end of [line] has proved to be with [frame], of those its node is said to be; null where it
+  /// is no proof of any.
   String? _whose(_Line line, Uint8List frame) {
-    if (frame.length != 34 || frame[0] != _proofMark || frame[1] != _proofVersion) return null;
-    final mine = p2p.nodeId;
-    if (mine == null) return null;
+    final mine = p2p.nodeId, theirs = line.theirs;
+    if (mine == null || theirs == null) return null;
     for (final account in line.claimed) {
-      final want = _proof(account, from: line.stream.nodeId, to: mine);
+      final want = _proof(account, fromAccount: account, fromNode: line.stream.nodeId, toAccount: p2p.me, toNode: mine, toNonce: line.nonce, fromNonce: theirs);
       if (want != null && _same(want, frame)) return account;
     }
     return null;
@@ -195,7 +217,17 @@ class P2pCarrier implements Carrier, LiveLinks {
     // Longer than a packet may be: refused, and whoever sends such is not listened to further.
     if (frame.length > maxPacket) return _close(node, line);
     if (line.account == null) {
-      // The first thing said is the proof, or the stream is closed.
+      // The other end's nonce, then its proof; anything else, and the stream is closed.
+      if (frame.length < 2 || frame[0] != _mark) return _close(node, line);
+      if (line.theirs == null) {
+        if (frame[1] != _nonceMark || frame.length != 2 + _nonceLength) return _close(node, line);
+        line.theirs = Uint8List.fromList(frame.sublist(2));
+        // The end that dialled proves first.
+        final dialled = line.dialled;
+        if (dialled != null) _prove(node, line, dialled);
+        return;
+      }
+      if (frame[1] != _proofMark || frame.length != 2 + 32) return _close(node, line);
       final who = _whose(line, frame);
       if (who == null || !p2p.mayLink(who)) return _close(node, line);
       line.account = who;
@@ -206,7 +238,7 @@ class P2pCarrier implements Carrier, LiveLinks {
       return;
     }
     // A packet's first byte is never 0 (packet.dart): anything else that is not one is passed over.
-    if (frame.isEmpty || frame[0] == _proofMark) return;
+    if (frame.isEmpty || frame[0] == _mark) return;
     _said(node, line);
     _arrived.add(Arrived(id, frame, from: line.account));
   }
@@ -433,11 +465,18 @@ class P2pCarrier implements Carrier, LiveLinks {
 
 /// One stream with a device, and whose the device has proved to be.
 class _Line {
-  _Line(this.stream, this.claimed);
+  _Line(this.stream, this.claimed, {this.dialled, required this.nonce});
   final P2pStream stream;
 
-  /// The accounts whose cards name the node at the other end.
+  /// The accounts whose cards name the node at the other end (for a stream this device dialled, the one it dialled).
   final List<String> claimed;
+
+  /// The account whose device this one dialled; null for a stream the other end opened.
+  final String? dialled;
+
+  /// This end's nonce, and the other end's once it has come.
+  final Uint8List nonce;
+  Uint8List? theirs;
 
   /// Which of them it proved to be; null until its proof has come.
   String? account;

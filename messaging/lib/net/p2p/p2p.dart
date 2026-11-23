@@ -814,8 +814,16 @@ class P2p extends ChangeNotifier {
     looked.add(now);
     final card = DeviceCard.fromJson(body['c'], now: now);
     if (card == null || card.account != from) return null;
-    // Never this device itself, under anyone's name.
+    // Never this device itself, under anyone's name; nor, under a friend's, a device of this account's own.
     if (card.nodeId == _nodeId || (from == me && card.device == device)) return null;
+    if (from != me && devicesOf(me).any((d) => d.nodeId == card.nodeId)) return null;
+    // This account's own word for one of its devices: a friend's that it is his goes.
+    if (from == me) {
+      for (final e in _cards.entries) {
+        if (e.key != me) e.value.removeWhere((d) => d.nodeId == card.nodeId);
+      }
+      _cards.removeWhere((account, list) => list.isEmpty);
+    }
     final list = _cards[from] ?? <P2pDevice>[];
     final at = list.indexWhere((d) => d.card.device == card.device);
     final had = at < 0 ? null : list[at];

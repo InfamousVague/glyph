@@ -712,7 +712,7 @@ void main() {
       expect([done, a.p2p.carrier.lines], [true, 0]);
     });
 
-    test('the proof is held to its bytes, and a friend who names another friend\'s node as their own is sent nothing there', () async {
+    test('the proof is held to its bytes: a nonce from each end, then both accounts and both nodes in role order under the pair\'s key; a friend who names another friend\'s node as their own is sent nothing there', () async {
       final maya = w.account('maya'), xan = w.account('xan'), yara = w.account('yara');
       final a = w.install(maya, computer: true), x = w.install(xan, computer: true), y = w.install(yara, computer: true);
       w.friends(a, x);
@@ -720,14 +720,13 @@ void main() {
       for (final i in [a, x, y]) {
         await i.start();
       }
-      // The first frame each way: [0][1][HMAC(link key, "ghost-p2p link v1\n" | the sender's node | the other's)], the
-      // link key made from what the two accounts seal their packets with.
-      final linkKey = NetCrypto.derive(a.to(yara).key!, 'p2p link');
+      // The link key, made from what the two accounts seal their packets with.
+      final linkKey = LinkWords.linkKey(a.to(yara).key!);
       expect(a.p2p.linkKey(yara.id), linkKey);
       expect(y.p2p.linkKey(maya.id), linkKey, reason: 'both arrive at one key');
       expect(a.p2p.linkKey(xan.id), isNot(linkKey));
-      Uint8List proof(String from, String to) => Uint8List.fromList([0, 1, ...NetCrypto.hmac(linkKey, [...utf8.encode('ghost-p2p link v1\n'), ...NetCrypto.unhex(from), ...NetCrypto.unhex(to)])]);
-      // By hand, as Yara's device: the proof, then a packet. Taken, and vouched for as hers.
+      // By hand, as Yara's device: its nonce and Maya's device's cross, then its proof, then a packet. Taken, and vouched
+      // for as hers.
       final arrived = <Arrived>[];
       a.p2p.carrier.arrived.listen(arrived.add);
       final raw = w.mesh.node();
@@ -735,51 +734,67 @@ void main() {
       final hers = await _cardOf(w, yara, node: raw.nodeId);
       await y.board.send(y.to(maya), _said(w, _telling(a, hers)), only: {'hub'});
       await w.settle();
-      final stream = await raw.open(a.p2p.nodeId!, P2pChannel.packets, hint: a.node.whereabouts.value);
-      final back = <Uint8List>[];
-      stream.frames.listen(back.add);
-      await stream.add(proof(raw.nodeId!, a.p2p.nodeId!));
+      final end = HandEnd(await raw.open(a.p2p.nodeId!, P2pChannel.packets, hint: a.node.whereabouts.value), linkKey: linkKey, account: yara.id, node: raw.nodeId!, them: maya.id);
       await w.settle();
-      expect(back.single, proof(a.p2p.nodeId!, raw.nodeId!), reason: 'answered with this device\'s own, the node ids the other way round');
+      expect(end.heard, hasLength(2), reason: 'its nonce, then its proof');
+      expect([end.heard.first.length, end.heard.first[0], end.heard.first[1]], [18, 0, 2]);
+      expect(end.heard.last, LinkWords.proof(linkKey, fromAccount: maya.id, fromNode: a.p2p.nodeId!, toAccount: yara.id, toNode: raw.nodeId!, toNonce: end.nonce, fromNonce: end.theirs!), reason: 'answered with this device\'s own, the roles the other way round');
+      expect(end.proved, isTrue);
       final packet = Packet.wrap(from: yara.id, sealed: true, payload: NetCrypto.seal(a.to(yara).key!, Envelope(kind: 'text', body: {'t': 'by hand'}, ack: false).encode()));
-      await stream.add(packet);
+      await end.add(packet);
       await w.settle();
       expect([arrived.single.from, arrived.single.carrier, arrived.single.bytes], [yara.id, 'p2p', packet]);
       expect(a.texts, ['by hand']);
-      // The proof said the other way round (a copy of what this device sent back) proves nothing.
-      final mirror = await raw.open(a.p2p.nodeId!, P2pChannel.packets, hint: a.node.whereabouts.value);
-      var closed = false;
-      mirror.frames.listen((_) {}, onDone: () => closed = true);
-      await mirror.add(back.single);
-      await w.settle();
-      expect(closed, isTrue);
+      // What proves nothing: the proof this device sent back, said back to it; one with the accounts the other way round;
+      // one made for a nonce of before (a stream's proof is good on that stream alone); and one that leaves the
+      // accounts out, as the first version did.
+      Uint8List v1(String from, String to) => Uint8List.fromList([0, 1, ...NetCrypto.hmac(linkKey, [...utf8.encode('ghost-p2p link v1\n'), ...NetCrypto.unhex(from), ...NetCrypto.unhex(to)])]);
+      final stale = end;
+      for (final bad in <Uint8List Function(Uint8List mine, Uint8List theirs)>[
+        (mine, theirs) => LinkWords.proof(linkKey, fromAccount: maya.id, fromNode: a.p2p.nodeId!, toAccount: yara.id, toNode: raw.nodeId!, toNonce: mine, fromNonce: theirs),
+        (mine, theirs) => LinkWords.proof(linkKey, fromAccount: maya.id, fromNode: raw.nodeId!, toAccount: yara.id, toNode: a.p2p.nodeId!, toNonce: theirs, fromNonce: mine),
+        (mine, theirs) => LinkWords.proof(linkKey, fromAccount: yara.id, fromNode: raw.nodeId!, toAccount: maya.id, toNode: a.p2p.nodeId!, toNonce: stale.theirs!, fromNonce: stale.nonce),
+        (mine, theirs) => v1(raw.nodeId!, a.p2p.nodeId!),
+      ]) {
+        final s = await raw.open(a.p2p.nodeId!, P2pChannel.packets, hint: a.node.whereabouts.value);
+        final said = <Uint8List>[];
+        var closed = false;
+        s.frames.listen(said.add, onDone: () => closed = true);
+        final mine = NetCrypto.randomBytes(16);
+        await s.add(LinkWords.nonce(mine));
+        await w.settle();
+        await s.add(bad(mine, said.single.sublist(2)));
+        await w.settle();
+        expect([closed, said.length], [true, 1], reason: 'closed on, and never proved to');
+      }
 
       // Xan says Yara's device is his: a card for his account naming her node, and where it is. It is only his word.
       final lie = await _cardOf(w, xan, node: y.p2p.nodeId);
       await x.board.send(x.to(maya), _said(w, _telling(a, lie, where: y.node.whereabouts.value!.toJson())), only: {'hub'});
-      // And another of "his": a device that takes a dial and never says whose it is.
+      // And another of "his": a device that takes a dial, says its nonce, and never proves.
       final mute = w.mesh.node();
       await mute.start(P2pConfig(secret: NetCrypto.randomBytes(32)));
       mute.allow(a.p2p.nodeId!, _packets);
-      final said = <Uint8List>[];
-      mute.opened.listen((s) => s.frames.listen(said.add));
+      final muted = <HandEnd>[];
+      mute.opened.listen((s) => muted.add(HandEnd(s, linkKey: a.p2p.linkKey(xan.id)!, account: xan.id, node: mute.nodeId!, them: maya.id, proves: false)));
       await x.board.send(x.to(maya), _said(w, _telling(a, await _cardOf(w, xan, node: mute.nodeId), where: mute.whereabouts.value!.toJson())), only: {'hub'});
       await w.settle();
       expect(a.p2p.devicesOf(xan.id).map((d) => d.nodeId), containsAll([y.p2p.nodeId, mute.nodeId]));
       await w.relayGone();
-      // His own device is off the network, so the only device of "his" in reach is hers.
+      // His own device is off the network, so the only devices of "his" in reach are hers and the mute one.
       w.mesh.unreachable(x.node);
       final heard = <Arrived>[];
       y.p2p.carrier.arrived.listen(heard.add);
       final frames = w.mesh.frames;
       final sending = a.text(xan, 'for xan alone', only: {'p2p'});
       await w.clock.pass(const Duration(seconds: 5));
-      expect((await sending).sent, isFalse, reason: 'her device could not prove it is his, and nothing was said to it');
+      expect((await sending).sent, isFalse, reason: 'neither could prove it is his, and nothing was said to either');
       expect([w.mesh.dialsTo(y.p2p.nodeId!), w.mesh.dialsTo(mute.nodeId!)], [1, 1], reason: 'each was dialled as his, and let this device in');
-      // Each heard this device's own proof and nothing after it: no packet goes on a stream before the device at the
-      // other end has proved whose it is, however long it takes about it.
-      expect(said, [Uint8List.fromList([0, 1, ...NetCrypto.hmac(a.p2p.linkKey(xan.id)!, [...utf8.encode('ghost-p2p link v1\n'), ...NetCrypto.unhex(a.p2p.nodeId!), ...NetCrypto.unhex(mute.nodeId!)])])]);
-      expect(w.mesh.frames - frames, 2, reason: 'two proofs, and not a packet');
+      // The mute one heard this device's nonce and its proof, made for Xan, and nothing after: no packet goes on a stream
+      // before the device at the other end has proved whose it is, however long it takes about it.
+      final m = muted.single;
+      expect(m.heard, [LinkWords.nonce(m.theirs!), LinkWords.proof(a.p2p.linkKey(xan.id)!, fromAccount: maya.id, fromNode: a.p2p.nodeId!, toAccount: xan.id, toNode: mute.nodeId!, toNonce: m.nonce, fromNonce: m.theirs!)]);
+      expect(w.mesh.frames - frames, 6, reason: 'on each stream the two nonces and Maya\'s proof, made for Xan (Yara\'s device closed on it, and the mute one said nothing): not a packet');
       expect(mute.streams, 0, reason: 'and the stream was let go when the five seconds were up');
       expect(heard, isEmpty);
       expect(y.got.where((r) => r.envelope.kind == 'text'), isEmpty);
@@ -787,6 +802,55 @@ void main() {
       expect((await y.text(maya, 'still me')).acked, isTrue);
       expect((await a.text(yara, 'I know')).acked, isTrue);
       expect(a.p2p.carrier.links.map((l) => l.account).toSet(), {yara.id}, reason: 'no device is linked as his');
+    });
+
+    // The second review, S2 (R2-A): the proof said "holds the pair's key", and both ends of a pair hold it. A friend's
+    // card naming this account's own devices made them link with each other "as his", and a text for him was "passed"
+    // to a device of one's own.
+    test('a friend\'s cards naming this account\'s own devices as his: they do not link with each other as his, and nothing for him is passed to them', () async {
+      final maya = w.account('maya'), xan = w.account('xan');
+      // Two devices of Maya's that have not heard of each other as hers (no account signed in to either yet): the
+      // proof alone stands between them.
+      final a1 = w.install(maya, computer: true)..signedIn = false, a2 = w.install(maya, computer: true)..signedIn = false, x = w.install(xan, computer: true);
+      w.friends(a1, x);
+      w.friends(a2, x);
+      for (final i in [a1, a2, x]) {
+        await i.start();
+      }
+      // Xan tells Maya's account that each of her devices is his, and where it is: each takes the one naming the other.
+      for (final other in [a2, a1]) {
+        final lie = await _cardOf(w, xan, node: other.p2p.nodeId);
+        await x.board.send(x.to(maya), _said(w, {'t': 'card', 'c': lie.toJson(), 'w': {...other.node.whereabouts.value!.toJson(), 't': w.clock.ms}, 'h': [a1.p2p.card!.tag, a2.p2p.card!.tag]}), only: {'hub'});
+      }
+      await w.settle();
+      expect(a1.p2p.devicesOf(xan.id).map((d) => d.nodeId), contains(a2.p2p.nodeId), reason: 'his word is taken as his word');
+      await w.relayGone();
+      w.mesh.unreachable(x.node);
+      final sending = a1.text(xan, 'for xan only', only: {'p2p'});
+      await w.clock.pass(const Duration(seconds: 5));
+      final d = await sending;
+      expect(d.sent, isFalse, reason: 'not "passed" to a device of Maya\'s own');
+      expect(a1.p2p.carrier.linkedTo(xan.id, a2.p2p.nodeId!), isFalse);
+      expect([a1.p2p.carrier.links, a2.p2p.carrier.links], [isEmpty, isEmpty]);
+      expect(a2.got.where((r) => r.envelope.kind == 'text'), isEmpty);
+
+      // Once they know each other as Maya's (an account signed in to both), a friend's word that one of them is his is
+      // not even taken; and one taken before goes when the account's own card for that node comes.
+      final cardsBefore = a1.p2p.devicesOf(xan.id).length;
+      await w.relayBack();
+      for (final i in [a1, a2]) {
+        i.signedIn = true;
+      }
+      await a1.p2p.refresh();
+      await a2.p2p.refresh();
+      await w.settle();
+      expect(a1.p2p.devicesOf(maya.id).map((d) => d.nodeId), [a2.p2p.nodeId]);
+      expect(a1.p2p.devicesOf(xan.id).map((d) => d.nodeId), isNot(contains(a2.p2p.nodeId)), reason: 'dropped as Maya\'s own card for it came');
+      expect(a1.p2p.devicesOf(xan.id), hasLength(cardsBefore - 1));
+      final again = await _cardOf(w, xan, node: a2.p2p.nodeId);
+      await x.board.send(x.to(maya), _said(w, _telling(a1, again)), only: {'hub'});
+      await w.settle();
+      expect(a1.p2p.devicesOf(xan.id).map((d) => d.nodeId), isNot(contains(a2.p2p.nodeId)));
     });
 
     test('a frame longer than the relay\'s packet is refused both ways, and a stream is let go after ninety seconds with nothing said', () async {
@@ -815,16 +879,12 @@ void main() {
       // A device that sends a longer frame on a proved stream is closed on, and nothing of it is passed on.
       final arrived = <Arrived>[];
       b.p2p.carrier.arrived.listen(arrived.add);
-      final linkKey = a.p2p.linkKey(b.account.id)!;
-      final raw = await a.node.open(b.p2p.nodeId!, P2pChannel.packets, hint: b.node.whereabouts.value);
-      var closed = false;
-      raw.frames.listen((_) {}, onDone: () => closed = true);
-      await raw.add(Uint8List.fromList([0, 1, ...NetCrypto.hmac(linkKey, [...utf8.encode('ghost-p2p link v1\n'), ...NetCrypto.unhex(a.p2p.nodeId!), ...NetCrypto.unhex(b.p2p.nodeId!)])]));
+      final raw = HandEnd(await a.node.open(b.p2p.nodeId!, P2pChannel.packets, hint: b.node.whereabouts.value), linkKey: a.p2p.linkKey(b.account.id)!, account: a.account.id, node: a.p2p.nodeId!, them: b.account.id);
       await w.settle();
-      expect(closed, isFalse);
+      expect([raw.proved, raw.done], [true, false]);
       await raw.add(Uint8List(P2pCarrier.maxPacket + 1)..[0] = 0x11);
       await w.settle();
-      expect([closed, arrived], [true, isEmpty]);
+      expect([raw.done, arrived], [true, isEmpty]);
     });
 
     test('no more than two streams are held with one device, and a stream on another channel is not this route\'s to touch', () async {
@@ -833,17 +893,16 @@ void main() {
       await a.start();
       await b.start();
       final linkKey = b.p2p.linkKey(a.account.id)!;
-      final proof = Uint8List.fromList([0, 1, ...NetCrypto.hmac(linkKey, [...utf8.encode('ghost-p2p link v1\n'), ...NetCrypto.unhex(b.p2p.nodeId!), ...NetCrypto.unhex(a.p2p.nodeId!)])]);
       // Sam's device opens stream after stream, each proved: the third takes the place of the first.
-      final closed = <int>[];
+      final ends = <HandEnd>[];
       for (var i = 0; i < 3; i++) {
-        final s = await b.node.open(a.p2p.nodeId!, P2pChannel.packets, hint: a.node.whereabouts.value);
-        s.frames.listen((_) {}, onDone: () => closed.add(i));
-        await s.add(proof);
+        ends.add(HandEnd(await b.node.open(a.p2p.nodeId!, P2pChannel.packets, hint: a.node.whereabouts.value), linkKey: linkKey, account: b.account.id, node: b.p2p.nodeId!, them: a.account.id));
         await w.settle();
+        expect(ends.last.proved, isTrue);
         expect(a.p2p.carrier.lines, i < 2 ? i + 1 : 2);
       }
-      expect(closed, [0]);
+      expect([for (final e in ends) e.done], [true, false, false]);
+      final proof = LinkWords.nonce(NetCrypto.randomBytes(16));
       expect(a.p2p.carrier.links, hasLength(1), reason: 'one device, however many streams');
 
       // A relay hosted on this device would open another channel to anyone. Such a stream is someone else's: the

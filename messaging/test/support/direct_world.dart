@@ -7,6 +7,7 @@ import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/forward_secrecy.dart' show MemoryFsStore;
 import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/net/hub_link.dart';
+import 'package:ghost_messaging/net/p2p/node.dart';
 import 'package:ghost_messaging/net/p2p/p2p.dart';
 import 'package:ghost_messaging/net/packet.dart';
 import 'package:ghost_messaging/net/switchboard.dart';
@@ -340,4 +341,75 @@ class PlainCarrier implements Carrier {
     b.twin = a;
     return (a, b);
   }
+}
+
+/// The handshake that opens a direct stream (lib/net/p2p/p2p_carrier.dart), worked out here apart from the route, so a
+/// test holds the route to its bytes:
+///
+///     [0][2][a nonce: 16 bytes]                    each end, as the stream opens
+///     [0][3][HMAC-SHA256(link key, "ghost-p2p link v2\n" | from account (16) | from node (32) | to account (16) |
+///            to node (32) | the other end's nonce (16) | this end's (16))]
+///
+/// The end that dialled proves first, once the other's nonce has come; the end dialled proves back once that proof
+/// checks out. The link key is made from what the two accounts seal their packets with (P2p.linkKey).
+abstract final class LinkWords {
+  static final _v2 = utf8.encode('ghost-p2p link v2\n');
+
+  static Uint8List linkKey(Uint8List pairKey) => NetCrypto.derive(pairKey, 'p2p link');
+
+  static Uint8List nonce(List<int> n) => Uint8List.fromList([0, 2, ...n]);
+
+  static Uint8List proof(Uint8List linkKey, {required String fromAccount, required String fromNode, required String toAccount, required String toNode, required List<int> toNonce, required List<int> fromNonce}) =>
+      Uint8List.fromList([0, 3, ...NetCrypto.hmac(linkKey, [..._v2, ...NetCrypto.unhex(fromAccount), ...NetCrypto.unhex(fromNode), ...NetCrypto.unhex(toAccount), ...NetCrypto.unhex(toNode), ...toNonce, ...fromNonce])]);
+}
+
+/// One end of a direct stream played by hand ([LinkWords]), as [account]'s device at [node] would play it, toward
+/// [them]: its nonce at once, then its proof when its turn comes. What the other end says is in [heard]; what it says
+/// after the handshake, in [frames]. [proves] false never proves (a device that takes a stream and says nothing more).
+class HandEnd {
+  HandEnd(this.stream, {required this.linkKey, required this.account, required this.node, required this.them, this.proves = true}) : nonce = NetCrypto.randomBytes(16) {
+    stream.frames.listen(_heard, onDone: () => done = true, onError: (Object _) => done = true);
+    unawaited(stream.add(LinkWords.nonce(nonce)).catchError((Object _) {}));
+  }
+
+  final P2pStream stream;
+  final Uint8List linkKey;
+  final String account, node, them;
+  final bool proves;
+  final Uint8List nonce;
+
+  /// The other end's nonce, once it has come.
+  Uint8List? theirs;
+
+  /// Whether the other end's proof has come and is the one its account would make.
+  bool proved = false;
+  bool done = false;
+  final heard = <Uint8List>[];
+  final frames = <Uint8List>[];
+
+  bool get _dialled => !stream.incoming;
+
+  Uint8List _mine() => LinkWords.proof(linkKey, fromAccount: account, fromNode: node, toAccount: them, toNode: stream.nodeId, toNonce: theirs!, fromNonce: nonce);
+  Uint8List _theirs() => LinkWords.proof(linkKey, fromAccount: them, fromNode: stream.nodeId, toAccount: account, toNode: node, toNonce: nonce, fromNonce: theirs!);
+
+  void _heard(Uint8List f) {
+    heard.add(f);
+    if (theirs == null) {
+      if (f.length == 18 && f[0] == 0 && f[1] == 2) {
+        theirs = f.sublist(2);
+        if (_dialled && proves) unawaited(stream.add(_mine()).catchError((Object _) {}));
+      }
+      return;
+    }
+    if (!proved && f.length == 34 && f[0] == 0 && f[1] == 3) {
+      proved = _same(f, _theirs());
+      if (proved && !_dialled && proves) unawaited(stream.add(_mine()).catchError((Object _) {}));
+      return;
+    }
+    frames.add(f);
+  }
+
+  static bool _same(List<int> a, List<int> b) => a.length == b.length && [for (var i = 0; i < a.length; i++) a[i] == b[i]].every((x) => x);
+
+  Future<void> add(Uint8List frame) => stream.add(frame);
 }

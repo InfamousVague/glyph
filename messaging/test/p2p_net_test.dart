@@ -19,7 +19,7 @@ import 'package:ghost_messaging/net/packet.dart';
 import 'package:ghost_relay/hub.dart';
 import 'package:ghost_relay/relay.dart';
 
-import 'support/direct_world.dart' show PlainCarrier;
+import 'support/direct_world.dart' show HandEnd, LinkWords, PlainCarrier;
 import 'support/fake_p2p.dart';
 
 /// The direct route as the app holds it (lib/net/net.dart): there only where the build has the core
@@ -371,28 +371,21 @@ void main() {
     hub.take(Packet.wrap(from: me.id, sealed: true, payload: NetCrypto.seal(mineKey, told.encode())), from: me.id);
     await _until(() => p2p.ownDevices == 1, 'the account\'s other device is known');
     expect(p2p.friendsDevices, 0);
-    // It answers a dial as the app's route does: its proof for this device's, then it takes what comes.
+    // It answers a dial as the app's route does: its nonce, its proof once this device's has checked out, and then it
+    // takes what comes.
     other.allow(p2p.nodeId!, {P2pChannel.packets});
-    final linkKey = NetCrypto.derive(mineKey, 'p2p link');
-    Uint8List proof(String from, String to) => Uint8List.fromList([0, 1, ...NetCrypto.hmac(linkKey, [...utf8.encode('ghost-p2p link v1\n'), ...NetCrypto.unhex(from), ...NetCrypto.unhex(to)])]);
-    final taken = <Uint8List>[];
-    other.opened.listen((s) {
-      var proved = false;
-      s.frames.listen((f) {
-        if (proved) return taken.add(f);
-        proved = true;
-        expect(f, proof(p2p.nodeId!, other.nodeId!), reason: 'this device proves it is the account\'s');
-        s.add(proof(other.nodeId!, p2p.nodeId!));
-      });
-    });
+    final ends = <HandEnd>[];
+    other.opened.listen((s) => ends.add(HandEnd(s, linkKey: LinkWords.linkKey(mineKey), account: me.id, node: other.nodeId!, them: me.id)));
+    List<Uint8List> taken() => [for (final e in ends) ...e.frames];
 
     // The relay can't be reached. A friend's words come all the same (by whatever way), and are copied on.
     hub.state.value = CarrierState.down;
     final byRelay = hub.to.length;
     final words_ = Envelope(kind: 'text', body: {'t': 'see you at 7'}, ack: false);
     hub.take(Packet.wrap(from: sam.id, sealed: true, payload: NetCrypto.seal(keyWith(sam), words_.encode())), from: sam.id);
-    await _until(() => taken.isNotEmpty, 'the copy came straight to the other device');
-    final packet = Packet.parse(taken.single)!;
+    await _until(() => taken().isNotEmpty, 'the copy came straight to the other device');
+    expect(ends.single.proved, isTrue, reason: 'this device proved it is the account\'s');
+    final packet = Packet.parse(taken().single)!;
     expect([packet.from, packet.sealed], [me.id, true]);
     final copy = Envelope.decode(NetCrypto.open(mineKey, packet.payload)!)!;
     expect(copy.kind, Friends.copyKind);
