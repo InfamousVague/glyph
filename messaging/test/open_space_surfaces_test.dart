@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
-import 'package:ghost_messaging/circles/circle.dart';
 import 'package:ghost_messaging/circles/circles.dart';
 import 'package:ghost_messaging/ui/hangout_screen.dart';
 import 'package:ghost_messaging/ui/open_space_view.dart';
