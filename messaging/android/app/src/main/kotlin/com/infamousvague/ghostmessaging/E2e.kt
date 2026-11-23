@@ -146,6 +146,32 @@ object E2e {
 
     fun isOn(context: Context, address: String): Boolean = peer(context, address)?.optString("state") == "on"
 
+    /**
+     * The numbers this phone holds an encryption record for, whatever each stands at, by [norm]: who is at one of them
+     * is that record's to say (its key), never a group's (Groups.peers).
+     */
+    fun held(context: Context): Set<String> =
+        prefs(context).all.keys.filter { it.startsWith("peer:") }.map { it.removePrefix("peer:") }.toSet()
+
+    /**
+     * Each install encryption is on with, by its name (Net.idOf its key), at the number its record is for: who this
+     * phone's own records say an install is (Groups.known). One key on two numbers goes to the lower, as Dart's
+     * Friends.whoIs has it.
+     */
+    fun onIds(context: Context): Map<String, String> {
+        val out = HashMap<String, String>()
+        for (name in prefs(context).all.keys.filter { it.startsWith("peer:") }) {
+            val o = peer(context, name.removePrefix("peer:")) ?: continue
+            if (o.optString("state") != "on") continue
+            val pub = runCatching { Base64.getDecoder().decode(o.optString("pub", "")) }.getOrNull()?.takeIf { it.size == 33 } ?: continue
+            val address = o.optString("address", name.removePrefix("peer:"))
+            val id = Net.idOf(pub)
+            val had = out[id]
+            if (had == null || norm(address) < norm(had)) out[id] = address
+        }
+        return out
+    }
+
     // --- friends (Friends.kt, lib/friends/friends.dart) -----------------------------------------------------------------
 
     /**

@@ -245,20 +245,11 @@ class Net extends ChangeNotifier implements PeerBook {
     final key = _mineKey;
     return key == null ? null : Peer(id: me, key: key);
   }
-  @override
-  Peer? byAddress(String address) {
-    final want = _digits(address);
-    for (final p in _peers.values) {
-      if (_digits(p.address ?? '') == want) return p;
-    }
-    return null;
-  }
 
-  /// A number as two phones agree on it whatever each wrote before it: its last ten digits.
-  static String _digits(String address) {
-    final d = address.replaceAll(RegExp(r'[^0-9]'), '');
-    return d.length >= 7 ? (d.length > 10 ? d.substring(d.length - 10) : d) : address.trim().toLowerCase();
-  }
+  // No one is found here by an address (found in review, 2026-11-23). The people come from more than one list, and on
+  // Android a member of a group is among them under whatever address the group's admin wrote: a friend's number, or
+  // "@friend". The first address that matched sent a friend's words to that member. Who an address is, is the record
+  // for it to say (Friends.idOf, by the id its key makes), and the routes are asked by that id ([byId]).
 
   void _note(String words, {String? via}) {
     recent.insert(0, NetEvent(words, via: via));
@@ -645,8 +636,15 @@ class Net extends ChangeNotifier implements PeerBook {
     notifyListeners();
   }
 
+  /// What [p] is called in what the routes did ([recent]): their name, else their address, else the start of their
+  /// install's name. An empty address is none: a member of a group known here only by the group has one.
+  static String _who(Peer p) {
+    final name = p.name ?? '', address = p.address ?? '';
+    return name.isNotEmpty ? name : (address.isNotEmpty ? address : p.id.substring(0, p.id.length < 6 ? p.id.length : 6));
+  }
+
   void _received(Received r) {
-    final who = r.peer.name ?? r.peer.address ?? r.peer.id.substring(0, 6);
+    final who = _who(r.peer);
     if (r.envelope.kind == 'ping') _note('A test came from $who', via: r.via);
     for (final l in _listeners.toList()) {
       l(r);
@@ -673,7 +671,7 @@ class Net extends ChangeNotifier implements PeerBook {
     final began = DateTime.now();
     final d = await send(peer, Envelope(kind: 'ping'), metered: only == 'sms', only: only == null ? null : {only});
     final took = DateTime.now().difference(began);
-    final who = peer.name ?? peer.address ?? peer.id.substring(0, 6);
+    final who = _who(peer);
     _note(
       d.sent ? (d.acked ? 'A test reached $who in ${took.inMilliseconds} ms' : d.handed == Handed.held ? 'A test is kept for $who, who is away' : 'A test was sent to $who') : 'A test to $who could not be sent: ${d.tried.join('; ')}',
       via: d.via,

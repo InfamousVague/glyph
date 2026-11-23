@@ -231,7 +231,7 @@ class DeskOwnCalls extends UsernameOverlay implements CapableCalls, OwnNetworkCa
       case 'e2eList':
         List<Object?> phone;
         try {
-          phone = [...?(await inner.invokeMethod<List>('e2eList'))];
+          phone = UsernameChats.phoneRecords(await inner.invokeMethod<List>('e2eList'));
         } catch (_) {
           phone = const [];
         }

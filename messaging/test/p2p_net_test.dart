@@ -364,7 +364,8 @@ void main() {
     final words = AccountCrypto.newWords();
     secrets['account_words'] = words.join(' ');
     final mineKey = Me.mineKeyOf(words);
-    e2e.add({'address': '@sam', 'state': 'on', 'friend': 'yes'});
+    // Sam as a friend by username, as the phone's records say (UsernameChats.states): by the install his key makes.
+    e2e.add({'address': '@sam', 'state': 'on', 'friend': 'yes', 'id': sam.id});
     Net.p2pNode = () => node;
     final hub = PlainCarrier('hub');
     final app = AppState();

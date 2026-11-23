@@ -23,6 +23,10 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.15', '2026-11-23', [
+    'Friends are told apart by their keys: who a message is from, and where yours go, now come only from the key your records hold for that friend, never from the address someone else wrote. A group\'s admin could list a member under one of your friends\' numbers or usernames; their messages no longer land in your friend\'s conversation, and yours no longer go to them.',
+    'Friend requests by username are checked with the relay\'s directory before they can be accepted, so a request can\'t borrow someone else\'s name; group members show under who your phone knows them to be.',
+  ]),
   ReleaseNotes('0.12.14', '2026-11-23', [
     'Friends by username: when a message to one can\'t go (no connection, or a picture, which can\'t be sent to a friend by username yet), the conversation now says why and keeps what you wrote. Before, on Android, it was handed to texting, which kept the words unsealed with your texts and couldn\'t deliver them.',
     'Steadier connections: the relay no longer takes compressed messages, which closes a way one message could have stopped it.',

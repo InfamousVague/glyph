@@ -216,9 +216,6 @@ class Install implements PeerBook {
     return null;
   }
 
-  @override
-  Peer? byAddress(String address) => null;
-
   /// The app opens: its node made (not started), its routes set up and started, and what the direct network keeps
   /// read.
   Future<void> start() async {

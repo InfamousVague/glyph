@@ -63,6 +63,8 @@ class Store(private val context: Context) {
 
     /** The contact for [address]: their name and photo's URI where the phone has them. */
     fun contact(address: String): Map<String, Any?> {
+        // A member of a group shown under a stand-in (Groups.shownAddress): "Someone", never anyone's contact.
+        Groups.memberName(address)?.let { return mapOf("address" to address, "name" to it, "photo" to null) }
         nameCache[address]?.let { return it }
         // A sender's name or an email address is nobody's phone number; a number is found among the contacts by its
         // last digits and then compared whole, as Android compares two numbers.

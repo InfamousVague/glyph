@@ -55,6 +55,53 @@ object Groups {
     /** A group's id: 32 hex digits, made by whoever made the group. */
     fun isId(id: String) = id.length == 32 && id.all { it in '0'..'9' || it in 'a'..'f' }
 
+    // A name for a member's stand-in address, as [DOMAIN] is for a group's: nobody's, never sent anywhere.
+    private const val MEMBER = "@member.ghost-sms.com"
+
+    /**
+     * What a member of a group is shown and kept under where this phone knows no address for them that is theirs
+     * ([shown]): an address that is nobody's, made from their install's name [id] as a group's is ([address]), with no
+     * digit, so no contact is ever found by it.
+     */
+    fun memberAddress(id: String) = id.map { if (it in '0'..'9') 'g' + (it - '0') else it }.joinToString("") + MEMBER
+
+    /** What a stand-in from [memberAddress] is called: "Someone" and the start of their install's name; null for any other address. */
+    fun memberName(address: String?): String? {
+        val name = address?.takeIf { it.endsWith(MEMBER) }?.removeSuffix(MEMBER) ?: return null
+        if (name.length != 32 || !name.all { it in 'a'..'p' }) return null
+        return "Someone · " + name.take(4).map { if (it in 'g'..'p') '0' + (it - 'g') else it }.joinToString("")
+    }
+
+    /**
+     * The address a member of a group is shown under, kept under and woken at here (found in review, 2026-11-23): the
+     * one this phone's own record gives their key ([known]: the number encryption is on with them at, or a friend by
+     * username's @name); else the one the group lists ([written], its admin's word), where it is nobody's here
+     * ([listed]); else a stand-in that is nobody's ([memberAddress]). Never a number this phone holds a record for, nor
+     * an @name, unless it is theirs: a stranger listed under Mom's number was shown as Mom, with her photo, in the
+     * group's conversation and its notifications.
+     */
+    fun shownAddress(id: String, written: String, known: Map<String, String>, held: Set<String>): String =
+        known[id] ?: listed(written, held).ifEmpty { memberAddress(id) }
+
+    /**
+     * Who this phone's own records say each install is, by its name: those encryption is on with, at their number, and
+     * friends by username who said yes, as @name. A number before a username for one key.
+     */
+    fun known(context: Context): Map<String, String> {
+        val out = HashMap<String, String>()
+        runCatching {
+            val list = JSONArray(Buddies.kept(context))
+            for (i in 0 until list.length()) {
+                val b = list.optJSONObject(i) ?: continue
+                val id = b.optString("i")
+                val u = b.optString("u")
+                if (id.isNotEmpty() && u.isNotEmpty() && b.optString("s") == "yes") out[id] = "@$u"
+            }
+        }
+        for ((id, address) in E2e.onIds(context)) out[id] = address
+        return out
+    }
+
     // --- the records ----------------------------------------------------------------------------------------------------
 
     fun get(context: Context, id: String): JSONObject? =
@@ -102,12 +149,16 @@ object Groups {
 
     /**
      * A group for the screens: its record, and each member with whether they are this phone, whether an admin, and
-     * who they are in the phone's contacts.
+     * who they are: the address the record lists them under (`address`, which goes back into the record as it is
+     * changed), and the one they are shown under here (`shown`, [shownAddress]) with the name and photo the phone's
+     * contacts give that one.
      */
     fun view(context: Context, o: JSONObject): Map<String, Any?> {
         val mine = me(context)
         val admins = o.optJSONArray("admins")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList()
         val store = Store(context)
+        val known = known(context)
+        val held = E2e.held(context)
         return mapOf(
             "id" to o.getString("id"),
             "name" to o.optString("name"),
@@ -116,16 +167,19 @@ object Groups {
             "gone" to o.optBoolean("gone", false),
             "me" to mine,
             "members" to members(o).map { m ->
+                val id = m.getString("i")
                 val address = m.optString("a")
-                val person = if (address.isNotEmpty()) store.contact(address) else emptyMap()
+                val shown = if (id == mine) "" else shownAddress(id, address, known, held)
+                val person = if (shown.isNotEmpty()) store.contact(shown) else emptyMap()
                 mapOf(
-                    "id" to m.getString("i"),
+                    "id" to id,
                     "key" to m.optString("k"),
                     "address" to address,
+                    "shown" to shown,
                     "name" to person["name"],
                     "photo" to person["photo"],
-                    "admin" to (m.getString("i") in admins),
-                    "me" to (m.getString("i") == mine),
+                    "admin" to (id in admins),
+                    "me" to (id == mine),
                 )
             },
         )
@@ -159,19 +213,24 @@ object Groups {
 
     // --- its members, for the conversation and for the routes ----------------------------------------------------------
 
-    /** Who a group's conversation is with, for the screens: every member but this phone. */
+    /** Who a group's conversation is with, for the screens: every member but this phone, each as [shownAddress] has them. */
     fun people(context: Context, o: JSONObject): List<String> {
         val mine = me(context)
-        return members(o).filter { it.getString("i") != mine }.map { it.optString("a") }.filter { it.isNotEmpty() }
+        val known = known(context)
+        val held = E2e.held(context)
+        return members(o).filter { it.getString("i") != mine }.map { shownAddress(it.getString("i"), it.optString("a"), known, held) }
     }
 
     /**
-     * The members of this phone's groups as people the routes reach (Net.peers has those encryption is on with):
-     * their name, number, and the key packets to and from them are sealed with, made from their key and this
-     * phone's as a conversation's is. Members of a group this phone has left are not among them.
+     * The members of this phone's groups as people the routes reach (Net.peers has those encryption is on with, and
+     * Buddies.peers friends by username: each comes before these, under their own record's address): their name, the
+     * address their group lists them under where it is no one else's ([listed]), and the key packets to and from them
+     * are sealed with, made from their key and this phone's as a conversation's is. Members of a group this phone has
+     * left are not among them.
      */
     fun peers(context: Context, already: Set<String>): List<Map<String, Any?>> {
         val mine = me(context)
+        val held = E2e.held(context)
         val out = LinkedHashMap<String, Map<String, Any?>>()
         for (o in all(context)) {
             if (o.optBoolean("gone", false)) continue
@@ -180,16 +239,33 @@ object Groups {
                 if (id == mine || id in already || id in out) continue
                 val pub = runCatching { Base64.getDecoder().decode(m.optString("k")) }.getOrNull()?.takeIf { it.size == 33 && Net.idOf(it) == id } ?: continue
                 val pair = E2e.pairKey(context, pub) ?: continue
-                out[id] = mapOf("id" to id, "address" to m.optString("a"), "key" to Net.netKey(pair))
+                out[id] = mapOf("id" to id, "address" to listed(m.optString("a"), held), "key" to Net.netKey(pair))
             }
         }
         return out.values.toList()
     }
 
-    /** Whether [address] is someone this phone is in a group with, and that group's conversation: for the wake. */
+    /**
+     * The address a member of a group is reached under on the routes: the one the group lists them under ([written],
+     * whatever its admin wrote), unless it belongs to a record of this phone's own: a number it holds an encryption
+     * record for ([held], by [E2e.norm]), or any `@username`, which only a friend by username's record gives. Then it
+     * is nobody's to them, and they are reached by their key alone (found in review, 2026-11-23: an admin could list a
+     * stranger under a friend's number, or as "@friend", and the routes found the stranger by it). What the group's
+     * screens show is the record as it is ([view]).
+     */
+    fun listed(written: String, held: Set<String>): String =
+        if (written.isEmpty() || written.startsWith("@") || E2e.norm(written) in held) "" else written
+
+    /**
+     * Whether [address] is someone this phone is in a group with, and that group's conversation: for the wake. By the
+     * address each member is shown under ([shownAddress]): a group that lists someone under a friend's number doesn't
+     * take that friend's wake.
+     */
     fun threadWith(context: Context, address: String): Long? {
         val want = E2e.norm(address)
-        return all(context).firstOrNull { o -> !o.optBoolean("gone", false) && members(o).any { E2e.norm(it.optString("a")) == want } }?.optLong("thread", -1)?.takeIf { it > 0 }
+        val known = known(context)
+        val held = E2e.held(context)
+        return all(context).firstOrNull { o -> !o.optBoolean("gone", false) && members(o).any { E2e.norm(shownAddress(it.getString("i"), it.optString("a"), known, held)) == want } }?.optLong("thread", -1)?.takeIf { it > 0 }
     }
 
     // --- what is written in it -----------------------------------------------------------------------------------------
@@ -238,10 +314,15 @@ object Groups {
         Bus.changed(-1)
     }
 
-    /** Words that came to a group from the member named [from]: kept as a group message that arrived, and said. */
+    /**
+     * Words that came to a group from the member named [from]: kept as a group message that arrived, and said, from the
+     * address they are shown under ([shownAddress]). One the group listed under no address of theirs is kept too, under
+     * a stand-in (it was dropped).
+     */
     fun storeIn(context: Context, id: String, from: String, words: String, sentAt: Long) {
         val o = get(context, id) ?: return
-        val sender = members(o).firstOrNull { it.getString("i") == from }?.optString("a")?.takeIf { it.isNotEmpty() } ?: return
+        val m = members(o).firstOrNull { it.getString("i") == from } ?: return
+        val sender = shownAddress(from, m.optString("a"), known(context), E2e.held(context))
         val row = insert(context, o, Telephony.Mms.MESSAGE_BOX_INBOX, sender, words, System.currentTimeMillis()) ?: return
         mark(context, "net", ContentUris.parseId(row))
         val thread = o.getLong("thread")

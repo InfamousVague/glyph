@@ -341,7 +341,7 @@ void main() {
     buddies.dispose();
   });
 
-  test('PROBE 4 at its root: a friend request is said yes to only where the relay says its username is its sender\'s; one that isn\'t is forgotten, one that can\'t be checked waits, and one that is gives the watch what to hold the relay to', () async {
+  test('PROBE 4 at its root: a friend request is said yes to only where the relay says its username is its sender\'s; one that isn\'t never is, and stays until declined; one that can\'t be checked waits; and one that is gives the watch what to hold the relay to', () async {
     final clock = FakeClock();
     final dir = _Directory(clock);
     final me = NetKeys.generate(), alice = NetKeys.generate(), mallory = NetKeys.generate();
@@ -353,16 +353,23 @@ void main() {
     addTearDown(() => NameWatch.instance = null);
     buddies.addListener(watch.friendsChanged);
     Envelope ask(String u, NetKeys k) => Envelope(kind: 'hello', body: {'buddy': 'ask', 'u': u, 'k': base64Encode(k.public), 'n': u});
-    // Mallory asks, calling herself @alice.
+    // Mallory asks, calling herself @alice: the directory gives @alice to someone else, so it isn't kept.
     port.hellos.add((from: mallory.id, envelope: ask('alice', mallory)));
     await clock.settle();
-    final fake = buddies.requests.single;
-    await expectLater(buddies.accept(fake), throwsA(isA<MeError>().having((e) => e.message, 'message', contains('didn\'t come from @alice'))));
-    expect([buddies.requests, buddies.friends], [isEmpty, isEmpty], reason: 'forgotten, and nobody made a friend');
-    // Alice asks; the relay can't be asked just now: it waits, and says why.
+    expect(buddies.requests, isEmpty);
+    // She asks again within the hour (not looked up again of the phone's own accord): kept, not checked. Accept asks,
+    // and it is someone else's: not said yes to, and it stays, saying so, until declined.
+    port.hellos.add((from: mallory.id, envelope: ask('alice', mallory)));
+    await clock.settle();
+    expect(buddies.requests.single.checked, isFalse);
+    await expectLater(buddies.accept(buddies.requests.single), throwsA(isA<MeError>().having((e) => e.message, 'message', contains('someone else'))));
+    expect(buddies.friends, isEmpty);
+    expect(buddies.requests.single.check, 'other');
+    await buddies.decline(buddies.requests.single);
+    // Alice asks while the relay can't be asked: it waits, and Accept says why.
+    dir.down = true;
     port.hellos.add((from: alice.id, envelope: ask('alice', alice)));
     await clock.settle();
-    dir.down = true;
     await expectLater(buddies.accept(buddies.requests.single), throwsA(isA<MeError>().having((e) => e.message, 'message', contains('can\'t be checked'))));
     expect(buddies.requests, hasLength(1));
     // It can now: a friend, and the watch holds the relay to @alice being hers.
@@ -372,6 +379,42 @@ void main() {
     dir.names['alice'] = mallory;
     await clock.pass(const Duration(hours: 25));
     expect(watch.changeFor(alice.id)?.other, mallory.id);
+    watch.dispose();
+    buddies.dispose();
+  });
+
+  test('PROBE 12, fixed: a real friend\'s request whose username nobody holds now (she changed it since asking) is not said to be someone else\'s, nor removed: it waits, saying the relay doesn\'t know the name', () async {
+    final clock = FakeClock();
+    final dir = _Directory(clock);
+    final me = NetKeys.generate(), maya = NetKeys.generate();
+    final port = _Port(dir, me)..list = jsonEncode([Buddy(username: 'maya', id: maya.id, key: base64Encode(maya.public), state: 'invited', at: clock.ms).toJson()]);
+    final buddies = Buddies(port);
+    await buddies.start();
+    dir.names['maya.k'] = maya;
+    await expectLater(buddies.accept(buddies.all.single), throwsA(isA<MeError>().having((e) => e.message, 'message', allOf(contains('doesn\'t know'), isNot(contains('someone else'))))));
+    expect(buddies.requests.map((r) => (r.username, r.check)).toList(), [('maya', 'nobody')]);
+    buddies.dispose();
+  });
+
+  test('PROBE 13, fixed: adding her by her new username while her request under the old one waits makes her a friend under the new one, the request being hers by the key the relay names', () async {
+    final clock = FakeClock();
+    final dir = _Directory(clock);
+    final me = NetKeys.generate(), maya = NetKeys.generate();
+    final port = _Port(dir, me)..list = jsonEncode([Buddy(username: 'maya', id: maya.id, key: base64Encode(maya.public), state: 'invited', at: clock.ms).toJson()]);
+    final buddies = Buddies(port);
+    await buddies.start();
+    dir.names['maya.k'] = maya;
+    final watch = NameWatch.instance = _bare(clock, dir, me: me.id, username: () => 'sam', friends: () => [for (final b in buddies.friends) WatchedName(b.username, b.id, b.key)]);
+    addTearDown(() => NameWatch.instance = null);
+    buddies.addListener(watch.friendsChanged);
+    final added = await buddies.add('maya.k');
+    expect([added.username, added.state], ['maya.k', 'yes']);
+    expect(buddies.friends.map((b) => (b.username, b.id)).toList(), [('maya.k', maya.id)]);
+    expect(buddies.requests, isEmpty);
+    // And the watch holds the relay to @maya.k being hers.
+    dir.names['maya.k'] = NetKeys.generate();
+    await clock.pass(const Duration(hours: 25));
+    expect(watch.changeFor(maya.id)?.username, 'maya.k');
     watch.dispose();
     buddies.dispose();
   });
