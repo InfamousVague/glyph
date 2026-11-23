@@ -35,9 +35,13 @@
  *  13. The third signs out: everything deleted, the welcome saying so; the next person signs up there and finds nothing
  *      of the one before. Signed in once more (from an address naming a page after its #), the account lists that
  *      browser alone: the removed one and the one that signed out (by its own number) are gone.
+ *  12b. Another browser of the account, removed while it was closed and the backup brought up to date after (as every
+ *      phone and computer does once a day), opened again: it deletes everything of the account and opens at the welcome.
  *  13b. (Chromium) In a profile on disk, after signing out, the profile's IndexedDB files hold none of the account's
  *      records' bytes and not the deleted store's key; first searched with the page's Clear-Site-Data answer withheld,
  *      to show what the search finds without it.
+ *  13c. Another site sending the browser to /app/clear-site-data (a picture, a navigation), or the address typed, clears
+ *      nothing of what the app keeps; the page's own asking does.
  *  14. Every answer from the app's address carries the headers in tool/web/headers.json, the page's own policy among
  *      them with frame-ancestors 'none'.
  *  15. Nothing was asked of any address but the relay's own, the pages logged no error, and the relay wrote nothing to
@@ -877,6 +881,58 @@ async function run(engine) {
       await m.page.waitForTimeout(2000);
       if ((await m.words()).includes(afterRemoval) || (await m.words()).includes(hello)) throw new Problem('the removed browser still reads what is written to Maya.');
     });
+    // Third review, A1: a browser removed while it was closed, after which another of the account's devices brought the
+    // backup up to date (every phone and computer does once a day; a browser when asked), stayed the account when it was
+    // opened again, its conversations there and new messages coming in.
+    await step('a browser of Maya\'s removed while it was closed, then her backup brought up to date: opened again, it deletes everything of her', async () => {
+      const shut = await person();
+      const closed = await Seat.open(shut, 'Maya (closed)', origin);
+      seats.push(closed);
+      await closed.sees('Already have an account?');
+      await closed.press('Sign in', { role: 'button', last: true });
+      await closed.type('Username', maya.username);
+      await closed.type('Password', maya.password);
+      const signedIn = closed.page.waitForEvent('load', { timeout: 120000 });
+      await closed.press('Sign in', { role: 'button', last: true });
+      await signedIn;
+      await closed.ready();
+      await closed.sees('Messages', { within: 60000 });
+      await closed.page.waitForTimeout(1500);
+      // Its tab shut; what the browser keeps for it stays.
+      await closed.page.close();
+      await elsewhere.press('Settings', { role: 'button' });
+      await elsewhere.press('Signed in on these devices');
+      await elsewhere.sees('Your password first');
+      await elsewhere.type('Password', maya.password);
+      await elsewhere.press('Show my devices', { role: 'button' });
+      await elsewhere.press('A browser. Last seen today, signed in today', { within: 30000 });
+      await elsewhere.press('Remove', { role: 'button', last: true });
+      await elsewhere.gone('A browser. Last seen today, signed in today', { within: 30000 });
+      await elsewhere.press('Messages', { role: 'button' });
+      await elsewhere.press('Settings', { role: 'button' });
+      await elsewhere.wheelTo('Change password', 'Update your backup');
+      await elsewhere.press('Update your backup');
+      await elsewhere.type('Password', maya.password);
+      await elsewhere.press('Update my backup', { role: 'button' });
+      await elsewhere.sees('Backup up to date', { within: 60000 });
+      // Opened again: it asks, deletes everything of her, and loads itself again at the welcome saying why. Two loads:
+      // the one asked for, and the one after.
+      const reopened = new Seat('Maya (closed, opened again)', await shut.newPage(), origin);
+      seats.push(reopened);
+      let loads = 0;
+      reopened.page.on('load', () => loads++);
+      await reopened.page.goto(`${origin}/app/`);
+      for (const until = Date.now() + 90000; loads < 2;) {
+        if (Date.now() > until) throw new Problem('the browser removed while closed, opened again after the backup was brought up to date, never noticed it was removed.');
+        await reopened.page.waitForTimeout(200);
+      }
+      await reopened.ready();
+      await reopened.sees('This browser was removed from your account from another device', { within: 60000 });
+      await reopened.sees('Pick a username and a password.');
+      const kept = Object.keys(await reopened.kept());
+      if (kept.includes('secret:account_mine')) throw new Problem(`the browser removed while closed still keeps the account's key: ${kept.join(', ')}`);
+      await reopened.shot(`${engine}-Maya-20b-removed-while-closed`);
+    });
     await step('Maya signs out of her other browser: everything of her is deleted from it, and it opens at the welcome saying so', async () => {
       await elsewhere.press('Settings', { role: 'button' });
       await elsewhere.wheelTo('Change password', 'Sign out of this browser');
@@ -980,6 +1036,51 @@ async function run(engine) {
         else say(`  with the clearing withheld, the search found: ${found.withheld.join('; ')}; as the app does it, nothing`);
       });
     }
+    // Third review, A2: the person sent to /app/clear-site-data from another site (a link in a message, a redirect, a
+    // picture) cleared what the app keeps, in Chromium and in WebKit. The relay answers the page's own asking alone.
+    await step('another site can\'t make the browser clear what the app keeps: only the page\'s own asking does', async () => {
+      const context = await browser.newContext();
+      try {
+        const page = await context.newPage();
+        await page.goto(`${origin}/app/version.json`);
+        const make = () => new Promise((done, fail) => {
+          const r = indexedDB.open('e2e-probe', 1);
+          r.onupgradeneeded = () => r.result.createObjectStore('s');
+          r.onsuccess = () => {
+            const tx = r.result.transaction('s', 'readwrite');
+            tx.objectStore('s').put('kept', 'k');
+            tx.oncomplete = () => { r.result.close(); done(true); };
+            tx.onerror = () => fail(tx.error);
+          };
+          r.onerror = () => fail(r.error);
+        });
+        const count = () => new Promise((done) => {
+          const r = indexedDB.open('e2e-probe', 1);
+          r.onupgradeneeded = () => r.result.createObjectStore('s');
+          r.onsuccess = () => {
+            const q = r.result.transaction('s').objectStore('s').count();
+            q.onsuccess = () => { r.result.close(); done(q.result); };
+          };
+        });
+        await page.evaluate(make);
+        // From another site (localhost is another site than 127.0.0.1): a picture asked for, then the person sent there.
+        const other = await context.newPage();
+        await other.goto(`http://localhost:${relay.port}/app/version.json`);
+        await other.evaluate((u) => new Promise((done) => { const i = new Image(); i.onload = i.onerror = () => done(); i.src = u; }), `${origin}/app/clear-site-data`);
+        await other.evaluate((u) => { location.href = u; }, `${origin}/app/clear-site-data`);
+        await other.waitForTimeout(2000);
+        // The address typed into the browser's own bar: nothing either.
+        await page.goto(`${origin}/app/clear-site-data`).catch(() => {});
+        await page.goto(`${origin}/app/version.json`);
+        if ((await page.evaluate(count)) !== 1) throw new Problem('a request that wasn\'t the page\'s own made the browser clear what the app keeps.');
+        // The page's own asking, as it signs out: cleared.
+        await page.evaluate(() => fetch('clear-site-data', { cache: 'no-store', credentials: 'same-origin' }));
+        await page.waitForTimeout(1500);
+        if ((await page.evaluate(count)) !== 0) throw new Problem('the page\'s own asking did not make the browser clear what the app keeps.');
+      } finally {
+        await context.close();
+      }
+    });
     await step('every answer from the app\'s address says what the app may do: the page\'s policy as a header, and the rest of the list', async () => {
       const list = JSON.parse(readFileSync(join(root, 'tool', 'web', 'headers.json'), 'utf8'));
       const page = readFileSync(join(webDir, 'index.html'), 'utf8');
