@@ -20,6 +20,7 @@ import '../net/relay_choice.dart';
 import 'common.dart';
 import 'compose.dart';
 import 'relay_host_section.dart';
+import '../relay_host/words.dart' show joinHostedWords;
 import 'settings.dart';
 import 'shell.dart';
 
@@ -367,9 +368,13 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
           SettingRow(
             key: const ValueKey('relay-in-use'),
             icon: icon(Lucide.globe),
-            label: relayInUseWords(net.hubUrl),
+            label: relayInUseLabel(net),
             hint: Text('In use · ${_hubLine(net)}'),
           ),
+          // A relay that runs in someone else's app (it said so in its hello; lib/relay_host): what its keeper sees, said
+          // for as long as this app is on it, not only as it joined.
+          if (net.hub!.hosted && !(net.relayHost?.isMine(net.hubUrl) ?? false))
+            SettingRow(key: const ValueKey('relay-hosted'), icon: icon(Lucide.info), label: 'It runs in someone\'s app', hint: const Text(joinHostedWords)),
           // Whether this relay passes messages to other relays, as it said itself the last time the app signed in.
           if (net.hub!.state.value == CarrierState.up)
             SettingRow(
@@ -503,6 +508,15 @@ String movingWords(String from) {
     : relay.fed
         ? ('Passes messages to other relays', 'A friend on another relay, added as @name@their.relay, is reached through this one.')
         : ('Doesn\'t pass messages to other relays', 'Whoever runs it hasn\'t switched that on. You reach only people who use this relay.');
+
+/// The relay in use, in a line: as [relayInUseWords] names it, but one on a network that said it runs in someone's app
+/// is not "your own".
+String relayInUseLabel(Net net) {
+  final words = relayInUseWords(net.hubUrl);
+  final hub = net.hub;
+  if (hub == null || !hub.hosted || !words.startsWith('Your own relay: ')) return words;
+  return 'A relay in someone\'s app: ${words.substring('Your own relay: '.length)}';
+}
 
 /// How the relay's route stands, in a few words.
 String _hubLine(Net net) {

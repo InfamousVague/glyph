@@ -15,6 +15,7 @@ import 'package:ghost_messaging/relay_host/hosting.dart';
 import 'package:ghost_messaging/relay_host/relay_host_io.dart';
 import 'package:ghost_messaging/relay_host/relay_host_web.dart' as web;
 import 'package:ghost_messaging/relay_host/words.dart';
+import 'package:ghost_messaging/ui/account_screens.dart' show askSignOut;
 import 'package:ghost_messaging/ui/network.dart';
 import 'package:ghost_messaging/ui/settings.dart' show SettingsModel;
 import 'package:glacier/glacier.dart';
@@ -158,6 +159,29 @@ void main() {
     await done(tester);
   });
 
+  testWidgets('signing out, while it hosts one, says the relay on this device stops, and what of it stays', (tester) async {
+    final state = AppState();
+    await open(tester, state);
+    final host = Net.instance.relayHost!;
+    final words = signOutHostWords(everything: false);
+    askSignOut(tester.element(find.byKey(const ValueKey('host-on'))));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.textContaining(words), findsNothing, reason: 'not hosting: nothing of it said');
+    Navigator.of(tester.element(find.byKey(const ValueKey('host-on'))), rootNavigator: true).pop();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.runAsync(() => host.setOn(true));
+    askSignOut(tester.element(find.byKey(const ValueKey('host-on'))));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.textContaining(words), findsOneWidget);
+    expect(words, 'It also stops the relay on this device and switches it off, and forgets its pass phrase: everyone on it sees their relay gone. Its folder (its key, where its people said they live) stays.');
+    expect(signOutHostWords(everything: true), endsWith('stays, unless you delete everything here.'));
+    Navigator.of(tester.element(find.byKey(const ValueKey('host-on'))), rootNavigator: true).pop();
+    await tester.pump(const Duration(milliseconds: 300));
+    await done(tester);
+  });
+
   testWidgets('used for this app: asked first, saying what it means for the account\'s other devices and its friends; then this app is on it, in memory', (tester) async {
     final state = AppState();
     await open(tester, state);
@@ -240,6 +264,10 @@ void main() {
     await tap(tester, find.byKey(const ValueKey('relay-pass-try')));
     await until(tester, () => Net.instance.hub!.state.value == CarrierState.up, 'it never signed in with the right phrase');
     expect(find.byKey(const ValueKey('relay-pass-field')), findsNothing);
+    // On it, what its keeper sees is said for as long as this app is there, and it is nobody's "own relay".
+    await until(tester, () => find.byKey(const ValueKey('relay-hosted')).evaluate().isNotEmpty, 'what its keeper sees was never said');
+    expect(find.text(joinHostedWords), findsOneWidget);
+    expect(textOf(tester, const ValueKey('relay-in-use')), 'A relay in someone\'s app: 127.0.0.1:${Uri.parse(url).port}');
     await tester.runAsync(() => Net.instance.want('test', false));
     await done(tester);
   });

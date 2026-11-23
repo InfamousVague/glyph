@@ -22,7 +22,9 @@ import '../kit/semantic_colors.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart' show Me, tidyHandle;
+import '../net/net.dart' show Net;
 import '../platform_info.dart';
+import '../relay_host/words.dart' show signOutHostWords;
 import '../sms.dart';
 import 'common.dart';
 import 'computers.dart' show PairButton;
@@ -145,6 +147,8 @@ Future<void> askSignOut(BuildContext context) {
     if (!again && context.mounted) await push<void>(context, (_) => const RestartScreen());
   }
 
+  // The relay this device hosts (lib/relay_host) stops with it: said, where it is on.
+  final hosting = Net.instance.relayHost?.on ?? false;
   if (Sms.browser) {
     return showChoices(
       context,
@@ -155,7 +159,7 @@ Future<void> askSignOut(BuildContext context) {
   if (Sms.standalone) {
     return showChoices(
       context,
-      title: 'Sign out of this device? It becomes someone new here, and your friends and circles stay with your account, to come back when you sign in again. Your conversations, your spaces and your choices stay on this device, unless you delete everything here too, which also signs out of your other networks here (Telegram, Signal and the rest) and deletes its call recordings.',
+      title: 'Sign out of this device? It becomes someone new here, and your friends and circles stay with your account, to come back when you sign in again. Your conversations, your spaces and your choices stay on this device, unless you delete everything here too, which also signs out of your other networks here (Telegram, Signal and the rest) and deletes its call recordings.${hosting ? ' ${signOutHostWords(everything: true)}' : ''}',
       choices: [
         Choice('Sign out', Lucide.logOut, out),
         Choice('Sign out and delete everything here', Lucide.trash2, () => out(everything: true), danger: true),
@@ -166,7 +170,7 @@ Future<void> askSignOut(BuildContext context) {
     context,
     title: Sms.paired
         ? 'Sign out of this computer? It goes back to being the same you as your phone. Your friends and circles stay with your account, and come back when you sign in again.'
-        : 'Sign out of this phone? It becomes someone new here: your friends and circles stay with your account, and come back when you sign in again. Your texts and conversations stay on this phone.',
+        : 'Sign out of this phone? It becomes someone new here: your friends and circles stay with your account, and come back when you sign in again. Your texts and conversations stay on this phone.${hosting ? ' ${signOutHostWords(everything: false)}' : ''}',
     choices: [Choice('Sign out', Lucide.logOut, out, danger: true)],
   );
 }

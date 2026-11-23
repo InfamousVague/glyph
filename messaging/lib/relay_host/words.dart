@@ -42,8 +42,10 @@ const hostLimitsWords = 'It holds up to 200 connections at once, and keeps up to
 /// What its folder keeps, said when it is switched off and under the section.
 const keptWords = 'Its folder keeps its key (so it keeps its name, and its people find it again), where its people said they live, and which of them sign in the newer way. Nothing anyone said: that was only in memory.';
 
-/// Said when signing out.
-const signedOutWords = 'Signing out stops the relay on this device and switches it off. $keptWords';
+/// Said where signing out is asked, while this device hosts a relay: where everything here can be deleted too
+/// ([everything]), its folder goes with it.
+String signOutHostWords({required bool everything}) =>
+    'It also stops the relay on this device and switches it off, and forgets its pass phrase: everyone on it sees their relay gone. Its folder (its key, where its people said they live) stays${everything ? ', unless you delete everything here' : ''}.';
 
 /// What moving this app onto its own relay means for the account's other devices and its friends, through [viaHost].
 String moveHereWords(String viaHost) =>
