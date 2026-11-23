@@ -26,6 +26,7 @@ class ReleaseNotes {
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.12.21', '2026-11-23', [
+    'Calls connect faster between people on different versions: two people joining a space at the same moment, or one on 0.12.19, now connect in a couple of seconds instead of up to half a minute, and someone whose connection drops for a moment is connected again by itself.',
     'Open spaces open as their floor everywhere: on a computer, from the call\'s banner and from the Spaces page on a phone, and with any call layout chosen, where they showed as a normal call. The floor is there the moment you join, saying it is connecting until the call is in, and an open space\'s invite link now opens it.',
   ]),
   ReleaseNotes('0.12.20', '2026-11-23', [
