@@ -67,8 +67,13 @@ void main() {
       'lib/web/http.dart',
       'lib/net/p2p/node_ffi.dart',
       'lib/net/kept_files.dart',
+      // A Files space in a browser (docs/OPEN_NETWORK.md, part 6).
+      'lib/net/file_seal_async.dart',
+      'lib/files/files_http.dart',
+      'lib/files/file_sink.dart',
+      'lib/files/browser_files.dart',
     });
-    expect(halves.keys, containsAll(['lib/platform_info_io.dart', 'lib/platform_info_web.dart', 'lib/aside_io.dart', 'lib/aside_web.dart', 'lib/net/fast_gcm_64.dart', 'lib/net/fast_gcm_web.dart', 'lib/account/gzip_io.dart', 'lib/account/gzip_web.dart', 'lib/inbox/td_json_io.dart', 'lib/inbox/td_json_web.dart', 'lib/files/apple_sha_io.dart', 'lib/files/apple_sha_web.dart', 'lib/net/hub_link_io.dart', 'lib/net/hub_link_web.dart', 'lib/voice/mpv_property_io.dart', 'lib/voice/mpv_property_web.dart', 'lib/voice/call_sound_none.dart', 'lib/voice/call_sound_web.dart', 'lib/account/argon2_browser_none.dart', 'lib/account/argon2_browser_web.dart', 'lib/web/browser_none.dart', 'lib/web/browser_web.dart', 'lib/web/http_none.dart', 'lib/web/http_web.dart', 'lib/net/p2p/node_ffi_io.dart', 'lib/net/p2p/node_ffi_web.dart']));
+    expect(halves.keys, containsAll(['lib/platform_info_io.dart', 'lib/platform_info_web.dart', 'lib/aside_io.dart', 'lib/aside_web.dart', 'lib/net/fast_gcm_64.dart', 'lib/net/fast_gcm_web.dart', 'lib/account/gzip_io.dart', 'lib/account/gzip_web.dart', 'lib/inbox/td_json_io.dart', 'lib/inbox/td_json_web.dart', 'lib/files/apple_sha_io.dart', 'lib/files/apple_sha_web.dart', 'lib/net/hub_link_io.dart', 'lib/net/hub_link_web.dart', 'lib/voice/mpv_property_io.dart', 'lib/voice/mpv_property_web.dart', 'lib/voice/call_sound_none.dart', 'lib/voice/call_sound_web.dart', 'lib/account/argon2_browser_none.dart', 'lib/account/argon2_browser_web.dart', 'lib/web/browser_none.dart', 'lib/web/browser_web.dart', 'lib/web/http_none.dart', 'lib/web/http_web.dart', 'lib/net/p2p/node_ffi_io.dart', 'lib/net/p2p/node_ffi_web.dart', 'lib/net/file_seal_async_io.dart', 'lib/net/file_seal_async_web.dart', 'lib/files/files_http_io.dart', 'lib/files/files_http_web.dart', 'lib/files/file_sink_none.dart', 'lib/files/file_sink_web.dart', 'lib/files/browser_files_none.dart', 'lib/files/browser_files_web.dart']));
 
     final found = <String>[];
     for (final path in files) {

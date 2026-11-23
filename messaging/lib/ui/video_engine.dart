@@ -95,7 +95,8 @@ abstract class VideoEngine extends ValueNotifier<VideoNow> {
   Future<void> open(String path);
 
   /// Whether [path] is an http(s) address to stream from, not a file on this device.
-  static bool isAddress(String path) => path.startsWith('http://') || path.startsWith('https://');
+  /// In a browser, a file that came down is held in the tab under a `blob:` one (lib/files/file_sink.dart).
+  static bool isAddress(String path) => path.startsWith('http://') || path.startsWith('https://') || path.startsWith('blob:');
   Future<void> play();
   Future<void> pause();
   Future<void> seek(Duration to);

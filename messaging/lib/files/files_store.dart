@@ -334,6 +334,13 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
 
   static SpaceFile? f0(List<SpaceFile> files) => files.firstOrNull;
 
+  /// For a test of a browser's page: [f] as come down already, held in the tab under [url] (HeldFiles).
+  @visibleForTesting
+  void putHeld(SpaceFile f, String url) {
+    _held[f.id] = url;
+    notifyListeners();
+  }
+
   /// For a picture or a test: a transfer shown as it would be.
   @visibleForTesting
   void putTransfer(Transfer t) {

@@ -42,7 +42,8 @@ bool get playsVideo => true;
 /// file?"), or from the disk where it is here already; anything else in its preview.
 void openSpaceFile(BuildContext context, VoiceChannel c, SpaceFile f, {FilesStore? store, bool chat = false}) {
   final s = store ?? FilesStore.instance;
-  if (f.kind == FileKind.video && playsVideo) {
+  // In a browser a video comes down first, its progress in the preview, then plays from the tab (FilesStore.browser).
+  if (f.kind == FileKind.video && playsVideo && !s.browser) {
     final have = s.cached(f);
     Navigator.of(context).push(videoRoute(have != null ? VideoScreen(path: have, title: f.name, poster: f.thumb) : VideoScreen.stream(stream: s.stream(c, f), title: f.name, poster: f.thumb)));
     return;
@@ -73,6 +74,9 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
   /// Sound played as it comes down: _AudioPlayer holds the stream itself.
   bool _streamed = false;
 
+  /// In a browser: what came down, read back from the tab for a picture or words (a page reads no path).
+  Uint8List? _bytes;
+
   @override
   void initState() {
     super.initState();
@@ -84,17 +88,26 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
   void _bring() {
     _error = null;
     final had = _store.cached(widget.file);
-    if (had != null) {
+    if (had != null && !_store.browser) {
       _path = had;
       return;
     }
-    // Sound plays as it comes down, as a video does, rather than after the whole of it (Matt, 2026-11-18).
-    if (widget.file.kind == FileKind.audio && playsVideo) {
+    // Sound plays as it comes down, as a video does, rather than after the whole of it (Matt, 2026-11-18). Not in a
+    // browser, which has no server to play from.
+    if (widget.file.kind == FileKind.audio && playsVideo && !_store.browser) {
       _streamed = true;
       return;
     }
-    unawaited(_store.fetch(widget.channel, widget.file).then((p) {
-      if (mounted) setState(() => _path = p);
+    unawaited(_store.fetch(widget.channel, widget.file).then((p) async {
+      // A browser's picture or words, read back from where the tab holds them (the first 256 KB of words).
+      final kind = widget.file.kind;
+      final bytes = _store.browser && (kind == FileKind.image || kind == FileKind.text || kind == FileKind.code) ? await HeldFiles.bytes(p) : null;
+      if (mounted) {
+        setState(() {
+          _path = p;
+          _bytes = bytes;
+        });
+      }
     }, onError: (Object e) {
       if (mounted) setState(() => _error = e is FilesError ? e : FilesError(0, '$e'));
     }));
@@ -183,7 +196,9 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
             maxScale: 8,
             child: Center(
               // A picture of a few megabytes is read at once, so it shows on the first frame; a bigger one is streamed.
-              child: f.size <= 8 << 20
+              child: _bytes != null
+                  ? Image.memory(_bytes!, fit: BoxFit.contain, gaplessPlayback: true, cacheWidth: _decodeWidth(context), errorBuilder: (_, _, _) => _other(t, f, path))
+                  : f.size <= 8 << 20
               // Decoded no wider than the screen's pixels (twice, for zooming in): a picture that claims to be tens of
               // thousands across is not unpacked whole.
                   ? Image.memory(fileBytes(path) ?? Uint8List(0), fit: BoxFit.contain, gaplessPlayback: true, cacheWidth: _decodeWidth(context), errorBuilder: (_, _, _) => _other(t, f, path))
@@ -194,7 +209,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
       case FileKind.audio:
         return _AudioPlayer(key: ValueKey(path), path: path, file: f, stream: null);
       case FileKind.text || FileKind.code:
-        return _Words(path: path, code: f.kind == FileKind.code);
+        return _Words(path: path, code: f.kind == FileKind.code, bytes: _bytes);
       case FileKind.video when playsVideo:
         return _other(t, f, path, play: true);
       default:
@@ -236,7 +251,9 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
             Wrap(spacing: t.space(2), runSpacing: t.space(2), alignment: WrapAlignment.center, children: [
               if (play)
                 _Pill(label: 'Play', icon: Lucide.play, strong: true, onPressed: () => Navigator.of(context).push(videoRoute(VideoScreen(path: path, title: f.name, poster: f.thumb))))
-              else if (!runs)
+              // Never in a browser: a file opened in a tab of the app's address could be a page whose script reads
+              // what the app keeps there (docs/OPEN_NETWORK.md, part 6). It is downloaded instead.
+              else if (!runs && FilePlatform.canOpen)
                 _Pill(label: 'Open', icon: Lucide.externalLink, strong: true, onPressed: () => FilePlatform.open(path, f.name)),
               if (FilePlatform.canSave) _Pill(label: FilePlatform.canShare ? 'Save' : 'Download', icon: LucideMore.download, onPressed: () => fileAction(context, widget.channel, f, _store, (p) => FilePlatform.save(p, f.name, f.mime), doneWords: true)),
               if (FilePlatform.canShare) _Pill(label: 'Share', icon: Lucide.share2, onPressed: () => FilePlatform.share(path, f.name, f.mime)),
@@ -281,9 +298,12 @@ class _Pill extends StatelessWidget {
 
 /// A text or code file's words: the first 256 KB, said where there is more.
 class _Words extends StatefulWidget {
-  const _Words({required this.path, required this.code});
+  const _Words({required this.path, required this.code, this.bytes});
   final String path;
   final bool code;
+
+  /// The file's bytes where they are held already (a browser's), in place of reading [path].
+  final Uint8List? bytes;
 
   @override
   State<_Words> createState() => _WordsState();
@@ -297,6 +317,12 @@ class _WordsState extends State<_Words> {
   @override
   void initState() {
     super.initState();
+    final held = widget.bytes;
+    if (held != null) {
+      _text = utf8.decode(held.length > most ? Uint8List.sublistView(held, 0, most) : held, allowMalformed: true);
+      _more = held.length > most;
+      return;
+    }
     unawaited(() async {
       final f = File(widget.path);
       final length = await f.length();

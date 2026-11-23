@@ -791,6 +791,14 @@ class Sms {
   /// no way into a call, as before.
   static bool browserCalls = false;
 
+  /// Files spaces in a browser (GMFB-30; docs/OPEN_NETWORK.md part 6): off unless the build turns them on
+  /// (`tool/build-web.mjs --files`, which says `--dart-define=GHOST_WEB_FILES=true`; lib/web/app.dart sets this as the
+  /// page starts). Off, a browser offers no Files space, as before.
+  static bool browserFiles = false;
+
+  /// Whether a circle's Files spaces open here: on every phone and computer, and in a browser whose build has them.
+  static bool get filesHere => !browser || browserFiles;
+
   /// A page in a browser whose window is wide enough to be laid out as a computer's (lib/web/app.dart, which says so as
   /// the window is sized): read at a computer's sizes then, and at a phone's in a narrow one. False everywhere else.
   static bool browserWide = false;
