@@ -374,10 +374,15 @@ class SmsStatus {
 /// Where Ghost Messaging's own encryption stands with one person (android/.../E2e.kt): none, offered (your key sent,
 /// theirs awaited), pending (theirs here, your yes awaited), on.
 class E2eState {
-  const E2eState({this.address = '', this.state = 'none', this.verified = false, this.changed = false, this.safety, this.person, this.hasGhost = false, this.declined = false, this.plain = 0, this.friend = ''});
+  const E2eState({this.address = '', this.state = 'none', this.verified = false, this.changed = false, this.safety, this.person, this.hasGhost = false, this.declined = false, this.plain = 0, this.friend = '', this.id});
   final String address;
   final String state;
   final bool verified;
+
+  /// Their install's name: the id the key held for them makes (android E2e.state), 32 hex digits; null where no key
+  /// of theirs is held, or the record came from somewhere that does not say. Who is a friend to the direct route is
+  /// decided by this, never by an address (lib/net/net.dart).
+  final String? id;
 
   /// A different key arrived from someone already exchanged with.
   final bool changed;
@@ -421,6 +426,7 @@ class E2eState {
         declined: m['declined'] == true,
         plain: (m['plain'] as num?)?.toInt() ?? 0,
         friend: (m['friend'] as String?) ?? '',
+        id: m['id'] is String && RegExp(r'^[0-9a-f]{32}$').hasMatch(m['id'] as String) ? m['id'] as String : null,
       );
 }
 

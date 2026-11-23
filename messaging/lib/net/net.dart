@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
 import '../app_state.dart';
+import '../friends/buddies.dart' show Buddy;
 import '../me/me.dart' show Me;
 import '../sms.dart';
 import 'carrier.dart';
@@ -71,6 +73,10 @@ class Net extends ChangeNotifier implements PeerBook {
   /// Why the routes could not be set up, in words; null when they were.
   String? error;
 
+  /// Why this build's direct route is not there though it has a core, in words for Settings › Routes; null where it is
+  /// there, or where the build has none.
+  String? directProblem;
+
   /// The last things the routes did, newest first.
   final List<NetEvent> recent = [];
 
@@ -132,7 +138,11 @@ class Net extends ChangeNotifier implements PeerBook {
   bool _away = false;
   final Set<String> _alsoWatch = {};
 
-  void _presenceChanged() => presence.value++;
+  void _presenceChanged() {
+    presence.value++;
+    // Whoever came is told this device's card now, where they had not been while away.
+    _p2p?.presenceChanged();
+  }
 
   HubCarrier _presenceOf(HubCarrier hub) {
     hub.presence.addListener(_presenceChanged);
@@ -235,8 +245,18 @@ class Net extends ChangeNotifier implements PeerBook {
   Future<void> start(AppState app, {List<Carrier>? carriers}) async {
     if ((Sms.paired && !Sms.ownNetwork) || _board != null) return;
     _app = app;
-    // This install's own name among its identity's devices, made once and kept.
+    // This install's own name among its identity's devices, made once and kept. Where the choices it is kept with came
+    // from another device (a backup restored here), a new one: they bring the name with them, so two devices would be
+    // one to the hub, to forward secrecy and to the circles' keys. It is known by the direct network's node key, which is
+    // kept where the install keeps its keys and does not come with a backup, while the node id made from it does.
     var device = app.choice('hub_device', '');
+    if (device.length == 32 && await _restoredHere(app)) {
+      device = '';
+      // What the other device said of its own place on the direct network is not this one's.
+      for (final name in [P2p.idName, P2p.cardName, P2p.toldName]) {
+        app.set(name, '');
+      }
+    }
     if (device.length != 32) {
       device = NetCrypto.hex(NetCrypto.randomBytes(16));
       app.set('hub_device', device);
@@ -257,11 +277,9 @@ class Net extends ChangeNotifier implements PeerBook {
       }
       // The direct route, where this build has the core: its node key in the secret store beside the account's words,
       // never in the account's backup; a computer's node up whenever the route is on, a phone's only while there is
-      // something to say.
-      final node = p2pNode?.call();
-      final p2p = _p2p = node == null
-          ? null
-          : P2p(node: node, signer: signer, device: device, secrets: _SecretFsStore(), plain: _ChoiceFsStore(app), friends: () => friends, mine: mine, policy: Sms.computer ? const P2pPolicy.computer() : const P2pPolicy());
+      // something to say. Made apart from the other routes: a core that fails to load (a library missing, or built for
+      // another machine) costs the direct route alone, and Settings › Routes says why (second review, M3).
+      var p2p = _p2p = _makeDirect(signer, device, app);
       if (p2p != null) routes.add(p2p.carrier);
       // This device's forward secrecy (GMFB-26): its prekeys in the secret store beside the account's words, never in
       // the account's backup. Where that store can't be read, none: everything is sealed the old way, as before.
@@ -275,13 +293,22 @@ class Net extends ChangeNotifier implements PeerBook {
       board.changed.addListener(notifyListeners);
       _subs.add(board.received.listen(_received));
       if (p2p != null) {
-        p2p
-          ..attach(board)
-          ..setMode(_mode)
-          ..setAway(_away)
-          ..addListener(_directChanged);
-        _followHelpers(_hub);
-        _loadDirect(p2p);
+        try {
+          p2p
+            ..attach(board)
+            ..setMode(_mode)
+            ..setAway(_away)
+            ..addListener(_directChanged);
+          _followHelpers(_hub);
+          _loadDirect(p2p);
+        } catch (e) {
+          board.remove(p2p.carrier.id);
+          _followHelpers(null);
+          p2p.removeListener(_directChanged);
+          unawaited(p2p.shutdown().catchError((Object _) {}));
+          p2p = _p2p = null;
+          directProblem = _couldNot(e);
+        }
       }
       // People come and go as keys are exchanged and encryption is turned on and off.
       _subs.add(Sms.instance.prefsChanged.stream.listen((_) => refresh()));
@@ -296,6 +323,45 @@ class Net extends ChangeNotifier implements PeerBook {
     }
     notifyListeners();
   }
+
+  /// Whether the choices came here from another device: they say a node id was made here, and no node key is kept
+  /// here. A secret store that can't be read says nothing either way.
+  static Future<bool> _restoredHere(AppState app) async {
+    if (app.choice(P2p.idName, '').isEmpty) return false;
+    try {
+      return (await Sms.instance.secretRead(P2p.keyName) ?? '').isEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// This device's hold on the direct network, where the build has a core ([p2pNode]); null where it has none, or
+  /// where the core could not be made or held (then [directProblem] says why).
+  P2p? _makeDirect(NetSigner signer, String device, AppState app) {
+    directProblem = null;
+    try {
+      final node = p2pNode?.call();
+      if (node == null) return null;
+      return P2p(
+        node: node,
+        signer: signer,
+        device: device,
+        secrets: _SecretFsStore(),
+        plain: _ChoiceFsStore(app),
+        friends: () => friends,
+        mine: mine,
+        // Whom the relay says is connected now: nothing about the direct network is said to anyone it would only keep it
+        // for. Where there is no relay's route (a test's routes), anyone.
+        present: (id) => _hub == null || _hub!.here.value.contains(id),
+        policy: Sms.computer ? const P2pPolicy.computer() : const P2pPolicy(),
+      );
+    } catch (e) {
+      directProblem = _couldNot(e);
+      return null;
+    }
+  }
+
+  static String _couldNot(Object e) => 'The direct route could not be started on this device ($e). The other routes work as before.';
 
   /// The app has come back after [away] (main.dart): the relay server's connection is made again where it may have
   /// died meanwhile, and what friends were sent and have not answered goes again once it is up (Friends).
@@ -335,25 +401,42 @@ class Net extends ChangeNotifier implements PeerBook {
       } catch (_) {}
       found[p.id] = Peer(id: p.id, key: p.key, address: p.address, name: name);
     }
-    // Who of them is a friend, which is the direct route's question. A friend by username who said yes is addressed
-    // by it (`@name`); one who has only asked or been asked has no address (lib/standalone/chats.dart peersOf,
-    // android Buddies.kt). A friend by number is one the phone's own record says is (E2eState.isFriend), asked only
-    // where there is a direct route to ask for; a group's other members are neither.
-    final friends = <String>{for (final p in found.values) if ((p.address ?? '').startsWith('@')) p.id};
-    bool byNumber(Peer p) => (p.address ?? '').isNotEmpty && !p.address!.startsWith('@');
-    if (p2pNode != null && found.values.any(byNumber)) {
-      try {
-        final yes = {for (final s in await Sms.instance.e2eList()) if (s.isFriend) _digits(s.address)};
-        friends.addAll([for (final p in found.values) if (byNumber(p) && yes.contains(_digits(p.address!))) p.id]);
-      } catch (_) {
-        // Not answered now: whoever was a friend stays one.
-        friends.addAll(_friendIds.where(found.containsKey));
-      }
-    }
+    // Who of them is a friend, which is the direct route's question, asked only where there is a direct route to ask
+    // for: whom the records that say so name, by the id their key makes, and never by an address. On Android the
+    // people come from those encryption is on with, the members of this phone's groups and friends by username
+    // together (MainActivity's netPeers), and a group member's address is whatever the group's admin wrote: "@anything",
+    // or a real friend's number (second review, M1).
+    final friends = p2pNode == null ? <String>{} : await _friendsAmong(found);
     _peers
       ..clear()
       ..addAll(found);
     _friendIds = friends;
+  }
+
+  /// Those of [found] the records say are friends: friends by username in the state `yes` (lib/friends/buddies.dart),
+  /// by their id and only where their key makes it; and friends by number (E2eState.isFriend), by the id the key on
+  /// their record makes (android E2e.state). A record that can't be read now leaves whoever was a friend by it one.
+  Future<Set<String>> _friendsAmong(Map<String, Peer> found) async {
+    final friends = <String>{};
+    try {
+      for (final j in jsonDecode(await Sms.instance.buddiesKept()) as List) {
+        final b = Buddy.fromJson(j);
+        if (b == null || b.state != 'yes') continue;
+        try {
+          if (NetCrypto.idOf(base64Decode(b.key)) == b.id) friends.add(b.id);
+        } catch (_) {}
+      }
+    } catch (_) {
+      friends.addAll(_friendIds);
+    }
+    try {
+      for (final s in await Sms.instance.e2eList()) {
+        if (s.isFriend && s.id != null) friends.add(s.id!);
+      }
+    } catch (_) {
+      friends.addAll(_friendIds);
+    }
+    return friends.where(found.containsKey).toSet();
   }
 
   /// Stops the routes and forgets them: the app is closing, or a test is over.
@@ -385,6 +468,7 @@ class Net extends ChangeNotifier implements PeerBook {
     _friendIds = {};
     recent.clear();
     id = null;
+    directProblem = null;
   }
 
   /// Reads the people again, and starts or stops the routes to suit: after encryption was turned on with someone,

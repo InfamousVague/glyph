@@ -168,7 +168,7 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
       PaneSection(
         title: 'Routes',
         description: const Text('The ways this phone reaches another, tried from the top. One that fails or gets no answer gives way to the next.'),
-        footer: Text(net.p2p == null
+        footer: Text(net.p2p == null && net.directProblem == null
             ? 'A route over the local network and a peer-to-peer one, with no server, are being made: they will be listed here, and the relay server can then be switched off.'
             : 'A route over the local network is being made: it will be listed here.'),
         children: [
@@ -183,6 +183,12 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
         ],
       ),
     if (board != null && net.p2p != null) directSection(context, net.p2p!),
+    // A build with the direct route whose core could not be started (a library missing, or built for another machine):
+    // the other routes go on, and this says why there is no Direct among them.
+    if (board != null && net.p2p == null && net.directProblem != null)
+      PaneSection(title: 'Direct', children: [
+        SettingRow(key: const ValueKey('direct-problem'), icon: icon(Lucide.circleAlert), label: 'Direct isn\'t working on this device', hint: Text(net.directProblem!)),
+      ]),
     if (board != null && net.hub != null)
       PaneSection(
         title: 'Relay server',
