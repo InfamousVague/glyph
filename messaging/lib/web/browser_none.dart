@@ -1,0 +1,27 @@
+import 'browser.dart';
+
+/// Where there is no browser (a phone, a computer, a test that has not put its own in): nothing here can be asked.
+Browser browser() => const _NoBrowser();
+
+class _NoBrowser implements Browser {
+  const _NoBrowser();
+
+  static Never _none() => throw UnsupportedError('This is not a page in a browser.');
+
+  @override
+  Uri get address => _none();
+  @override
+  String get name => _none();
+  @override
+  String? get unfit => 'This is not a page in a browser.';
+  @override
+  Future<BrowserStore> openStore() => _none();
+  @override
+  Future<TabHold?> holdTab({required Future<void> Function() onAsked}) => _none();
+  @override
+  Future<TabHold> takeTab({required Future<void> Function() onAsked}) => _none();
+  @override
+  void reload() => _none();
+  @override
+  bool openTab(String url) => _none();
+}

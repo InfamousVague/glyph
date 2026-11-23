@@ -18,7 +18,8 @@ abstract class FriendsPort {
   /// The install encryption is on with at [address], or null.
   Peer? peer(String address);
 
-  /// Whether a route that costs nothing is up now: the relay server's, later the local network's or a peer's.
+  /// Whether a route that costs nothing is up now: the relay server's, later the local network's; the direct route's
+  /// only while a link to someone's device is open.
   bool get internet;
 
   Future<Delivery> send(Peer peer, Envelope envelope, {bool metered = false, bool sealed = true, Set<String>? only});
@@ -544,12 +545,15 @@ class _AppPort implements FriendsPort {
   @override
   Peer? peer(String address) => Net.instance.byAddress(address);
 
+  /// A route of live links (the direct route) counts only while it reaches someone: a link to a friend's device open
+  /// now. Up and ready to dial is not reaching anyone, and a text then waited five seconds on it before going as SMS
+  /// (second review, S5).
   @override
   bool get internet {
     _follow();
     final board = Net.instance.board;
     if (board == null || !Net.instance.on) return false;
-    return board.carriers.any((c) => !c.traits.metered && c.state.value == CarrierState.up);
+    return board.carriers.any((c) => !c.traits.metered && c.state.value == CarrierState.up && (c is! LiveLinks || (c as LiveLinks).linkedToSomeone));
   }
 
   @override

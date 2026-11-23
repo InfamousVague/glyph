@@ -74,5 +74,11 @@ void main() {
     }
     expect(files, greaterThan(300));
     expect(found, isEmpty, reason: 'A build for a browser stops at dart:ffi wherever it is imported from: split the file as lib/files/apple_sha.dart is.\n${found.join('\n')}');
+    // A pair split for the same build that names no dart:ffi of its own: mpv's properties (lib/voice/mpv_property.dart),
+    // whose `_io` half reaches the library through media_kit's. Nothing above reads which way round it chooses, and
+    // turned round it compiles everywhere and no player plays; so it is read here, as written.
+    expect(File('lib/voice/mpv_property.dart').readAsStringSync(), contains("export 'mpv_property_io.dart' if (dart.library.js_interop) 'mpv_property_web.dart';"));
+    expect(File('lib/voice/mpv_property_io.dart').existsSync(), isTrue);
+    expect(File('lib/voice/mpv_property_web.dart').existsSync(), isTrue);
   });
 }

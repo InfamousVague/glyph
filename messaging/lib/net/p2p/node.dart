@@ -13,6 +13,31 @@ import 'package:flutter/foundation.dart';
 ///
 /// Nothing here knows of accounts, friends or packets: the direct route (p2p_carrier.dart) says who may connect
 /// ([P2pNode.allow]) and what the frames mean.
+///
+/// **What the core must guarantee** (the second review of the direct route, 2026-11-23). The Dart above is safe only
+/// where every sentence below holds; each is said again at the member it is about. In short:
+///
+/// - Who is at the other end of a stream is proved by the core's own handshake ([P2pStream.nodeId]), and nothing of a
+///   node that was not let in reaches the app ([P2pNode.allow], [P2pNode.opened]).
+/// - What it is told takes effect before the call returns: [P2pNode.allow] replaces, [P2pNode.disallow] has closed
+///   every stream with that node, both ways, by the time it returns, and who was let in outlives a stop and a start.
+/// - It never throws where it is not let fail: the getters, [P2pNode.allow], [P2pNode.disallow], [P2pNode.openToAll],
+///   [P2pNode.networkChanged] and [P2pNode.pathTo] never throw; [P2pNode.idOf], [P2pNode.start], [P2pNode.stop],
+///   [P2pNode.open], [P2pStream.add] and [P2pStream.close] fail only through their Futures. [P2pNode.open] ends,
+///   one way or the other, within its timeout. A stop asked for while a start is under way wins.
+/// - Frames are whole and in order, at most [P2pNode.maxFrame] bytes; a longer one resets the stream. Flow control
+///   bounds what is held in memory for a stream, and the core caps how many streams one node may hold open and how
+///   many it may open in a while; handshakes it refuses are refused at a limited rate too.
+/// - Everything between two nodes is encrypted end to end, with no 0-RTT data (nothing that could be replayed).
+/// - Nothing is public: no DNS or pkarr record, no DHT, no mDNS, no relay (link helper) but those in
+///   [P2pConfig.helpers]. With [P2pConfig.helpersOnly] it tells nobody an address of its own. It never dials a
+///   loopback, unspecified, multicast, broadcast or link-local address, whoever names one. Stopped, it holds no
+///   socket and sends nothing.
+/// - What it says is true: [P2pNode.whereabouts] and [P2pNode.paths] say how things are, not how they were meant to be.
+/// - Closing a stream delivers what was sent on it before, then ends the other end's [P2pStream.frames].
+/// - Its events (state, whereabouts, paths, streams opened, frames) never come from within a call into it: never
+///   re-entrant.
+/// - A release build logs no node id, address or anything carried.
 
 /// The channels a stream can be opened on.
 abstract final class P2pChannel {
@@ -115,10 +140,12 @@ class P2pConfig {
 
   /// The link helpers' addresses (`https://…`), as the relay this app is on hands them out. With none, only devices
   /// that can reach each other's addresses as they are link up: on one network, or two nodes on one machine in a test.
-  /// Nothing is ever looked up in, or told to, a public directory.
+  /// Nothing is ever looked up in, or told to, a public directory, and no relay or helper is used but these: not the
+  /// core's own defaults, and not one another node names.
   final List<String> helpers;
 
-  /// Never a straight path: the other device sees a link helper's address, not this one's.
+  /// Never a straight path: the other device sees a link helper's address, not this one's. The core then tells nobody an
+  /// address of its own, in a handshake or anywhere else.
   final bool helpersOnly;
 
   @override
@@ -130,23 +157,33 @@ class P2pConfig {
 
 /// One stream to or from another node: whole frames, in the order they were sent.
 abstract class P2pStream {
-  /// The node at the other end.
+  /// The node at the other end, as the core's handshake proved it: the other end holds that node's key. Never what the
+  /// other end merely said, nor what this end asked to dial.
   String get nodeId;
   int get channel;
 
   /// Whether the other end opened it.
   bool get incoming;
 
-  /// What the other end sends, a frame at a time. Done when the stream has closed, by either end or with the link.
+  /// What the other end sends, a frame at a time: each whole, in the order sent, never more than [P2pNode.maxFrame]
+  /// bytes (a longer one resets the stream, and nothing of it is handed over). What is not yet taken is bounded by flow
+  /// control, not held without end. Done when the stream has closed, by either end or with the link; never delivered
+  /// from within a call into the node.
   Stream<Uint8List> get frames;
 
-  /// Sends a frame of at most [P2pNode.maxFrame] bytes. Throws [P2pError] where the stream has closed.
+  /// Sends a frame of at most [P2pNode.maxFrame] bytes. Fails with [P2pError], through the Future and never by
+  /// throwing, where the stream has closed; a frame the other end's flow control holds back waits, it is not dropped.
   Future<void> add(Uint8List frame);
 
-  /// Closes it; the other end's [frames] is done. Closing twice is nothing.
+  /// Closes it: what was already sent on it is delivered, then the other end's [frames] is done. Closing twice is
+  /// nothing. Fails only through the Future.
   Future<void> close();
 }
 
+/// A device's node. Every getter here, and [allow], [disallow], [openToAll], [networkChanged] and [pathTo], never
+/// throws; [idOf], [start], [stop] and [open] fail only through their Futures. Events (on [state], [whereabouts],
+/// [opened], [paths] and a stream's frames) are never delivered from within a call into the node. A release build logs
+/// no node id, no address and nothing carried.
 abstract class P2pNode {
   /// The longest frame a stream carries.
   static const maxFrame = 1 << 20;
@@ -155,7 +192,7 @@ abstract class P2pNode {
   String? get nodeId;
 
   /// The node id that [secret] (a node key, 32 bytes) makes, worked out without starting anything: a phone makes its
-  /// device card with its node down.
+  /// device card with its node down. Fails only through the Future.
   Future<String> idOf(Uint8List secret);
 
   ValueListenable<P2pState> get state;
@@ -163,44 +200,58 @@ abstract class P2pNode {
   /// Why it is down, in words to show; null while it is not.
   String? get problem;
 
-  /// Where this device can be found now; it changes as the network does. Null until the core knows.
+  /// Where this device can be found now, as it truly is; it changes as the network does. Null until the core knows,
+  /// and while stopped. With [P2pConfig.helpersOnly], no address of its own; never a link helper but one of
+  /// [P2pConfig.helpers].
   ValueListenable<Whereabouts?> get whereabouts;
 
   /// Starts it. Does nothing where it is up already with the same [config]; with another, it is stopped and started
-  /// again. Who was allowed ([allow], [openToAll]) is kept across a stop and a start.
+  /// again. Who was allowed ([allow], [openToAll]) is kept across a stop and a start. Fails only through the Future.
+  ///
+  /// Nothing about it is public: no DNS or pkarr record, no DHT, no mDNS or other asking on the local network, and no
+  /// relay or link helper is used but those in [P2pConfig.helpers]. Everything between two nodes is encrypted end to
+  /// end, with no 0-RTT data.
   Future<void> start(P2pConfig config);
 
-  /// Stops it: every stream closes, and nothing can dial it. A node costs a phone battery while it is up (it keeps
-  /// its paths and its link helper warm every few seconds), so a phone runs one only while there is something to say.
+  /// Stops it: every stream closes, nothing can dial it, and it holds no socket and sends nothing until started again.
+  /// A stop asked for while a start is under way wins: the node ends stopped, not up. A node costs a phone battery while
+  /// it is up (it keeps its paths and its link helper warm every few seconds), so a phone runs one only while there is
+  /// something to say. Fails only through the Future.
   Future<void> stop();
 
   /// The device's network changed (Wi-Fi to mobile data, back from sleep): the core looks at its paths again. Android
-  /// doesn't tell native code by itself.
+  /// doesn't tell native code by itself. Never throws.
   void networkChanged();
 
-  /// Lets [nodeId] open streams to this device on [channels], in place of what it was allowed before. A node that was
-  /// never allowed is turned away before it can say anything, unless the channel is open to all ([openToAll]).
+  /// Lets [nodeId] open streams to this device on [channels], in place of what it was allowed before (it replaces, it
+  /// does not add). A node that was never allowed is turned away during the handshake, before anything it sends
+  /// reaches the app, unless the channel is open to all ([openToAll]); and handshakes it turns away are turned away at
+  /// a limited rate, so turning them away costs little. The core caps how many streams one node may hold open and how
+  /// many it may open in a while, whatever it is allowed. Takes effect before it returns; never throws.
   void allow(String nodeId, Set<int> channels);
 
-  /// Takes back what [allow] gave, and closes every stream with [nodeId].
+  /// Takes back what [allow] gave, and closes every stream with [nodeId], whichever end opened it, before it returns:
+  /// nothing more of that node is handed over after. Never throws.
   void disallow(String nodeId);
 
   /// The channels anyone at all may open: a relay hosted here takes hub connections from devices it never heard of.
-  /// None to begin with.
+  /// None to begin with. Never throws.
   void openToAll(Set<int> channels);
 
   /// Opens a stream to [nodeId] on [channel], dialling it first where no link is up, by [hint] (where it last said it
-  /// is) and by what the core already knows of it. Throws [P2pError] when it can't be reached within [timeout], when
-  /// it turns this device away, or when this node isn't up.
+  /// is) and by what the core already knows of it. Fails with [P2pError], through the Future, when it can't be reached
+  /// within [timeout], when it turns this device away, or when this node isn't up; one way or the other it has ended by
+  /// [timeout]. An address that is loopback, unspecified, multicast, broadcast or link-local (IPv4-mapped or not) is
+  /// never dialled, whatever [hint] says; nor is a link helper not in [P2pConfig.helpers].
   Future<P2pStream> open(String nodeId, int channel, {Whereabouts? hint, Duration timeout = const Duration(seconds: 5)});
 
-  /// The streams other nodes opened to this one, each already allowed.
+  /// The streams other nodes opened to this one, each already allowed, each [P2pStream.nodeId] proved.
   Stream<P2pStream> get opened;
 
-  /// How the path to each linked node stands, each time that changes.
+  /// How the path to each linked node truly stands, each time that changes.
   Stream<P2pPath> get paths;
 
-  /// How it stands with [nodeId] now; null where there is no link.
+  /// How it stands with [nodeId] now; null where there is no link. Never throws.
   P2pPath? pathTo(String nodeId);
 }
 

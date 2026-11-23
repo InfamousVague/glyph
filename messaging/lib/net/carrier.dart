@@ -67,9 +67,13 @@ class CarrierTraits {
 
 /// Something a route brought.
 class Arrived {
-  const Arrived(this.carrier, this.bytes, {this.address, this.from});
+  const Arrived(this.carrier, this.bytes, {this.address, this.from, this.line});
   final String carrier;
   final Uint8List bytes;
+
+  /// The link it came on, where the route holds links of its own ([LiveLinks]): what answers it goes back on that link
+  /// ([LiveLinks.sendOn]), not to every device of the sender. What it is, is the route's own business.
+  final Object? line;
 
   /// Who sent it, as the route itself vouches (the relay's hub checks a signature at hello and stamps each packet with
   /// the sender's name); null where the route can't say.
@@ -119,8 +123,17 @@ abstract class LiveLinks {
   /// Whether a link to one of [peer]'s devices is open now.
   bool linked(Peer peer);
 
+  /// Whether a link to the device of anyone but this install's own account is open now: whether this route reaches
+  /// someone right now, without dialling (Friends asks, lib/friends/friends.dart).
+  bool get linkedToSomeone;
+
   /// Sends [packet] to [peer] by the links open now and by nothing else. Throws [CarrierError] where none took it.
   Future<Handed> sendLinked(Peer peer, Uint8List packet);
+
+  /// Sends [packet], an answer, to [peer] on [line] (where what it answers came by: [Arrived.line]) while that is open
+  /// and [peer]'s, else by the links to [peer] open now; never dials or starts anything. Throws [CarrierError] where
+  /// none took it.
+  Future<Handed> sendOn(Peer peer, Object? line, Uint8List packet);
 }
 
 /// A route that cannot carry a packet says why by throwing this.

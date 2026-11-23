@@ -856,7 +856,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
     }
   }
 
-  static LucideIcon _iconOf(String platform) => platform == 'android' || platform == 'ios' ? Lucide.smartphone : Lucide.laptop;
+  // A page in a browser ("web", lib/account/account.dart) is neither a phone nor a computer: a globe.
+  static LucideIcon _iconOf(String platform) => platform == 'android' || platform == 'ios' ? Lucide.smartphone : platform == 'web' ? Lucide.globe : Lucide.laptop;
 
   @override
   Widget build(BuildContext context) {

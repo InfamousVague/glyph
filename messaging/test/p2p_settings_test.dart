@@ -147,6 +147,18 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
 
+    testWidgets('a core that could not be started: the other routes as ever, and a Direct line that says why', (tester) async {
+      Net.p2pNode = FakeP2pMesh.broken(StateError('libghost_p2p.so could not be loaded'));
+      await open(tester, AppState());
+      expect(find.byKey(const ValueKey('route-hub')), findsOneWidget);
+      expect(find.byKey(const ValueKey('route-p2p')), findsNothing);
+      expect(_words(tester, 'direct-problem'), ['Direct isn\'t working on this device', 'The direct route could not be started on this device (Bad state: libghost_p2p.so could not be loaded). The other routes work as before.']);
+      for (final key in ['direct-known', 'direct-linked', 'direct-helpers-only']) {
+        expect(find.byKey(ValueKey(key)), findsNothing, reason: key);
+      }
+      await tester.pumpWidget(const SizedBox());
+    });
+
     testWidgets('with a core the Direct route is among the others, switched off and on like them, with its lines and its switch under them', (tester) async {
       final mesh = FakeP2pMesh();
       Net.p2pNode = mesh.node;

@@ -13,9 +13,10 @@ import '../../art/lucide.g.dart';
 import '../../circles/circles.dart';
 import '../../files/files_store.dart';
 import '../../voice/channels.dart';
-import '../../sms.dart' show Conversation, Person;
+import '../../sms.dart' show Conversation, Person, Sms;
 import '../../voice/hangout.dart' show HangoutMessage;
 import '../../voice/voice.dart';
+import '../../kit/settings_kit.dart' show SettingsCallout;
 import '../common.dart';
 import '../conversations.dart' show ConversationRow;
 import '../dialup/bevel.dart';
@@ -39,7 +40,26 @@ final openCircleSpaceSeed = ValueNotifier<String?>(null);
 /// What a circle's space opens as: a voice space its chat with a way into its call, a texting space only its chat (no
 /// Join: HangoutScreen leaves it out for a space with no voice), and a Files space its files page. The files page is
 /// lib/ui/files_space/ (FilesSpaceScreen), its chat a press away at its top.
-Widget circleSpacePage(VoiceChannel c, {Key? key}) => c.kind == SpaceKind.files ? FilesSpaceScreen(key: key, channel: c) : HangoutScreen(key: key, channel: c);
+/// In a browser, which has no folder to keep files in, a Files space says so in its page's place ([FilesNotHere]).
+Widget circleSpacePage(VoiceChannel c, {Key? key}) => c.kind == SpaceKind.files ? (Sms.browser ? FilesNotHere(key: key, channel: c) : FilesSpaceScreen(key: key, channel: c)) : HangoutScreen(key: key, channel: c);
+
+/// A Files space, in a browser: where it can be opened, in its page's place.
+class FilesNotHere extends StatelessWidget {
+  const FilesNotHere({super.key, required this.channel});
+  final VoiceChannel channel;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return GhostPage(
+      title: channel.name,
+      body: Padding(
+        padding: EdgeInsets.all(t.space(4)),
+        child: Align(alignment: Alignment.topCenter, child: SettingsCallout(child: const Text('Files spaces aren\'t in the browser yet. This one opens in Ghost Messaging on a phone or a computer.'))),
+      ),
+    );
+  }
+}
 
 /// Opens [c], a space of a circle, in the pane: beside the circle's list in a wide window, over it on a phone.
 void openCircleSpace(BuildContext context, VoiceChannel c) {
@@ -168,7 +188,7 @@ void showCircleSpaceMenu(BuildContext context, Circle c, CircleSpaceView s) {
     if (canEdit) ...[
       Choice('Rename', Lucide.pencil, () => askCircleWords(context, title: 'Rename ${s.name}', initial: s.name, then: (name) => circles.updateSpace(c, s.seed, name: name))),
       Choice('Heading', Lucide.listTree, () => askCircleWords(context, title: 'Heading for ${s.name}', initial: s.section ?? '', hint: 'Spaces with the same heading are listed together. Leave it empty for none.', then: (h) => circles.updateSpace(c, s.seed, section: h.isEmpty ? null : h, clearSection: h.isEmpty))),
-      for (final k in SpaceKind.values)
+      for (final k in spaceKindsOffered)
         if (k != s.kind) Choice('Make it ${spaceKindTitle(k).toLowerCase()}', spaceKindIcon(k), () => circles.updateSpace(c, s.seed, kind: k), hint: spaceKindBlurb(k)),
       Choice('Arrange spaces', Lucide.gripVertical, () => push<void>(context, (_) => ArrangeCircleSpacesScreen(seed: c.seed))),
       Choice('Delete space', Lucide.trash2, () => confirmRemoveCircleSpace(context, c, s.space), danger: true),

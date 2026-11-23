@@ -23,6 +23,7 @@ import '../art/lucide_more.dart';
 import '../backgrounds.dart';
 import '../effects.dart';
 import '../emoji_sets.dart';
+import '../platform_info.dart';
 import '../kit/settings_kit.dart';
 import '../plugins/settings.dart';
 import '../onboarding/onboarding.dart';
@@ -139,7 +140,7 @@ List<SettingsSection> _ownSections() => [
     icon: _icon(LucideMore.smile),
     hue: 'amber',
     group: 'look',
-    summary: (m) => emojiSet(m.app.emoji).name,
+    summary: (m) => emojiSetInUse(m.app.emoji).name,
     page: _emoji,
   ),
   SettingsSection(
@@ -162,6 +163,8 @@ List<SettingsSection> _ownSections() => [
   ),
   SettingsSection(
     id: 'sounds',
+    // Played by the phone or the computer itself: a page in a browser plays none yet.
+    when: (m) => !Sms.browser,
     label: 'Sounds',
     icon: _icon(Lucide.audioLines),
     hue: 'mint',
@@ -206,6 +209,8 @@ List<SettingsSection> _ownSections() => [
   // and sound input devices etc etc"), on the phone and on a computer alike.
   SettingsSection(
     id: 'voice',
+    // Nothing to set where there are no calls (a browser, for now).
+    when: (m) => Sms.callsHere,
     label: 'Voice and video',
     icon: _icon(LucideMore.headphones),
     hue: 'mint',
@@ -517,6 +522,12 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
 
 // --- Emoji ------------------------------------------------------------------------------------------------------------
 
+/// [set], its font asked for where sets are fetched only once wanted (a browser: [ensureEmojiFont]).
+EmojiSet _fetched(EmojiSet set) {
+  if (set.family != null) ensureEmojiFont(set.family!);
+  return set;
+}
+
 List<Widget> _emoji(BuildContext context, SettingsModel m) {
   final t = context.tokens;
   final app = m.app;
@@ -525,7 +536,7 @@ List<Widget> _emoji(BuildContext context, SettingsModel m) {
       title: 'Emoji set',
       footer: const Text('How emoji are drawn in this app. What the other person sees is drawn by their own phone.'),
       children: [
-        for (final set in emojiSets)
+        for (final set in offeredEmojiSets)
           SettingRow(
             label: set.name,
             hint: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -540,7 +551,8 @@ List<Widget> _emoji(BuildContext context, SettingsModel m) {
                   ),
               ]),
             ]),
-            control: Pick(checked: app.emoji == set.id, label: 'Use ${set.name} emoji', onPress: () => app.setEmoji(set.id)),
+            // In a browser each set is fetched as its row is first shown, and the one drawn where none was chosen is ticked.
+            control: Pick(checked: PlatformInfo.isWeb ? emojiFamilyOf(app.emoji) == _fetched(set).family : app.emoji == set.id, label: 'Use ${set.name} emoji', onPress: () => app.setEmoji(set.id)),
           ),
       ],
     ),

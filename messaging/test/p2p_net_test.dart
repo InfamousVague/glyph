@@ -10,6 +10,7 @@ import 'package:ghost_messaging/friends/friends.dart';
 import 'package:ghost_messaging/me/me.dart' show AppMeStore, Me;
 import 'package:ghost_messaging/net/carrier.dart';
 import 'package:ghost_messaging/net/crypto.dart';
+import 'package:ghost_messaging/net/forward_secrecy.dart' show MemoryFsStore;
 import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/net/net.dart';
 import 'package:ghost_messaging/net/p2p/card.dart';
@@ -19,7 +20,7 @@ import 'package:ghost_messaging/net/packet.dart';
 import 'package:ghost_relay/hub.dart';
 import 'package:ghost_relay/relay.dart';
 
-import 'support/direct_world.dart' show PlainCarrier;
+import 'support/direct_world.dart' show HandEnd, LinkWords, PlainCarrier;
 import 'support/fake_p2p.dart';
 
 /// The direct route as the app holds it (lib/net/net.dart): there only where the build has the core
@@ -43,24 +44,37 @@ void main() {
   final sam = NetKeys.generate(), nell = NetKeys.generate(), asker = NetKeys.generate(), member = NetKeys.generate();
   Uint8List keyWith(NetKeys them) => NetCrypto.netKey(NetCrypto.conversationKey(me, them.public)!);
   late Map<String, String> secrets;
+  late List<String> secretWrites;
   late List<Map<String, Object?>> peers;
   late List<Map<String, Object?>> e2e;
+  late List<Map<String, Object?>> buddies;
+  late bool e2eFails, secretsLocked;
   late FakeP2pMesh mesh;
   late FakeP2pNode node;
+
+  /// A friend by username as the phone keeps them (lib/friends/buddies.dart), where they stand with this phone.
+  Map<String, Object?> buddy(String username, NetKeys keys, String state) => {'u': username, 'i': keys.id, 'k': base64Encode(keys.public), 's': state};
 
   setUp(() {
     HttpOverrides.global = null;
     secrets = {};
+    secretWrites = [];
+    // As Android's netPeers has them: those encryption is on with (Net.peers), the members of this phone's groups
+    // (Groups.peers), and friends by username, asked or asking (Buddies.peers).
     peers = [
       {'id': sam.id, 'address': '@sam', 'key': keyWith(sam)},
       {'id': nell.id, 'address': '+1 (555) 000-0001', 'key': keyWith(nell)},
       {'id': asker.id, 'address': '', 'key': keyWith(asker)},
       {'id': member.id, 'address': '+15550000002', 'key': keyWith(member)},
     ];
+    // The phone's own records of who is a friend: each by the id their key makes.
     e2e = [
-      {'address': '+15550000001', 'state': 'on', 'friend': 'yes'},
-      {'address': '+15550000002', 'state': 'on', 'friend': ''},
+      {'address': '+15550000001', 'state': 'on', 'friend': 'yes', 'id': nell.id},
+      {'address': '+15550000002', 'state': 'on', 'friend': '', 'id': member.id},
     ];
+    buddies = [buddy('sam', sam, 'yes'), buddy('asker', asker, 'asked')];
+    e2eFails = false;
+    secretsLocked = false;
     mesh = FakeP2pMesh();
     node = mesh.node();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async {
@@ -73,14 +87,19 @@ void main() {
         case 'netPeers':
           return peers;
         case 'e2eList':
+          if (e2eFails) throw PlatformException(code: 'locked');
           return e2e;
+        case 'buddiesKept':
+          return jsonEncode(buddies);
         case 'netSmsDrain':
           return const <Object>[];
         case 'secretKeep':
           final value = '${a['value'] ?? ''}';
+          secretWrites.add('${a['name']}');
           value.isEmpty ? secrets.remove('${a['name']}') : secrets['${a['name']}'] = value;
           return null;
         case 'secretRead':
+          if (secretsLocked) throw PlatformException(code: 'locked');
           return secrets['${a['name']}'];
       }
       return null;
@@ -112,6 +131,30 @@ void main() {
     expect(Net.instance.board!.carrier('p2p'), isNull);
   });
 
+  // The second review, M3 (R2-K): the node and the direct network were made inside the one try that sets every route
+  // up, so a core that failed to load took the relay's route down with it.
+  test('a core that fails to load leaves the other routes as they are, and Settings is told why there is no Direct', () async {
+    for (final broken in [
+      FakeP2pMesh.broken(StateError('the direct network\'s library could not be loaded')),
+      // One that loads and then breaks node.dart's word at once: its getters throw.
+      () => node..throws.addAll({'state', 'paths', 'opened'}),
+    ]) {
+      Net.p2pNode = broken;
+      final hub = PlainCarrier('hub'), sms = PlainCarrier('sms');
+      await Net.instance.start(AppState(), carriers: [hub, sms]);
+      expect([Net.instance.board, Net.instance.error], [isNotNull, isNull], reason: 'the routes were set up');
+      expect(Net.instance.board!.carriers.map((c) => c.id), ['hub', 'sms']);
+      expect(Net.instance.p2p, isNull);
+      expect(Net.instance.directProblem, contains('could not be started'));
+      // The relay's route carries as ever.
+      await _until(() => hub.state.value == CarrierState.up, 'the relay\'s route started');
+      final d = await Net.instance.send(Peer(id: sam.id, key: keyWith(sam)), Envelope(kind: 'ping', ack: false));
+      expect(d.via, 'hub');
+      await Net.instance.shutdown();
+      expect(Net.instance.directProblem, isNull, reason: 'said of the routes as they were set up, and gone with them');
+    }
+  });
+
   test('with a core: the route comes after the relay\'s, its key is with the secrets, and only friends are told the card', () async {
     Net.p2pNode = () => node;
     final hub = PlainCarrier('hub'), sms = PlainCarrier('sms', traits: const CarrierTraits(maxPacket: 133, maxParts: 6, metered: true, live: false, wakes: true));
@@ -123,10 +166,11 @@ void main() {
     expect(Net.instance.board!.carrier('p2p'), same(p2p.carrier));
     await _until(() => p2p.loaded && p2p.card != null, 'what the direct network keeps was read');
     // The node key where the install keeps its keys; the node id and the card with the app's choices.
-    expect(secrets[P2p.keyName], hasLength(64));
-    expect(p2p.nodeId, FakeP2pNode.idFor(NetCrypto.unhex(secrets[P2p.keyName]!)));
+    final key = (jsonDecode(secrets[P2p.keyName]!) as Map)['k'] as String;
+    expect([key, (jsonDecode(secrets[P2p.keyName]!) as Map)['a']], [hasLength(64), me.id]);
+    expect(p2p.nodeId, FakeP2pNode.idFor(NetCrypto.unhex(key)));
     expect(app.choice(P2p.idName, ''), contains(p2p.nodeId!));
-    expect(app.withPrefix('p2p_').values.join(), isNot(contains(secrets[P2p.keyName]!)));
+    expect(app.withPrefix('p2p_').values.join(), isNot(contains(key)));
     final card = DeviceCard.fromJson(jsonDecode(app.choice(P2p.cardName, '')), now: DateTime.now().millisecondsSinceEpoch)!;
     expect([card.account, card.device, card.nodeId], [me.id, app.choice('hub_device', ''), p2p.nodeId]);
     expect(card, p2p.card, reason: 'signed through the phone, whose key it is');
@@ -155,6 +199,54 @@ void main() {
     expect(p2p.devicesOf(asker.id), isEmpty);
     expect(hub.to.where((id) => id == asker.id), isEmpty, reason: 'nor answered');
     expect(Net.instance.direct.value, greaterThan(0), reason: 'Settings is told to draw again');
+  });
+
+  // The second review, M1: who counted as a friend came from the address the routes have for someone, and on Android
+  // that includes the members of a group, whose addresses are whatever the group's admin wrote.
+  test('friends are those the records say are, by the id their key makes: never a group member, whatever address an admin gave them, nor a pending request', () async {
+    final atMember = NetKeys.generate(), numberMember = NetKeys.generate(), inviter = NetKeys.generate(), stranger = NetKeys.generate();
+    peers.addAll([
+      // Members of a group a friend admins, as Groups.peers has them: one the admin wrote as "@anything", one written
+      // with the number of this phone's real friend, Nell.
+      {'id': atMember.id, 'address': '@anything', 'key': keyWith(atMember)},
+      {'id': numberMember.id, 'address': '+15550000001', 'key': keyWith(numberMember)},
+      // Someone who asked to be a friend by username (Buddies.peers gives them no address).
+      {'id': inviter.id, 'address': '', 'key': keyWith(inviter)},
+    ]);
+    buddies.add(buddy('inviter', inviter, 'invited'));
+    // A record that says yes for someone the routes don't reach: no one to link with.
+    e2e.add({'address': '+15550009999', 'state': 'on', 'friend': 'yes', 'id': stranger.id});
+    Net.p2pNode = () => node;
+    final hub = PlainCarrier('hub');
+    await Net.instance.start(AppState(), carriers: [hub]);
+    final p2p = Net.instance.p2p!;
+    await _until(() => p2p.loaded && p2p.card != null && hub.to.length >= 2, 'read, and the friends told');
+    await pumpEventQueue();
+    expect(Net.instance.people, hasLength(7));
+    expect(Net.instance.friends.map((p) => p.id), unorderedEquals([sam.id, nell.id]));
+    expect(hub.to, unorderedEquals([sam.id, nell.id]), reason: 'only friends are told the card, and where this device is');
+    for (final who in [atMember, numberMember, asker, inviter, member]) {
+      expect(p2p.mayLink(who.id), isFalse);
+    }
+    // What they say of themselves is not looked at: a card, or a meet that would bring the node up.
+    for (final (i, who) in [atMember, numberMember].indexed) {
+      final card = await DeviceCard.make(KeysSigner(who), device: '${i}d' * 16, nodeId: '${i}e' * 32, now: DateTime.now());
+      for (final what in ['card', 'meet']) {
+        hub.take(Packet.wrap(from: who.id, sealed: true, payload: NetCrypto.seal(keyWith(who), Envelope(kind: P2p.kind, body: {'t': what, 'c': card.toJson()}, ack: false).encode())), from: who.id);
+      }
+    }
+    await pumpEventQueue(times: 50);
+    expect([p2p.devicesOf(atMember.id), p2p.devicesOf(numberMember.id), node.allowed, node.starts], [isEmpty, isEmpty, isEmpty, 0]);
+    expect(hub.to, hasLength(2), reason: 'nor answered');
+    // The records change: Nell is a friend no longer, the inviter is one now. Read again, by id.
+    e2e[0]['friend'] = '';
+    buddies[2]['s'] = 'yes';
+    await Net.instance.refresh();
+    expect(Net.instance.friends.map((p) => p.id), unorderedEquals([sam.id, inviter.id]));
+    // A record that can't be read now: whoever was a friend stays one.
+    e2eFails = true;
+    await Net.instance.refresh();
+    expect(Net.instance.friends.map((p) => p.id), unorderedEquals([sam.id, inviter.id]));
   });
 
   test('kept in step: the people, how the person chose to be shown, the app put away and back, and shutting down', () async {
@@ -242,6 +334,11 @@ void main() {
     await _until(() => Net.instance.hub!.state.value == CarrierState.up && p2p.loaded, 'signed in to the first relay');
     expect(Net.instance.hub!.helpers.value, ['https://link.one.example']);
     expect(p2p.helpers, ['https://link.one.example']);
+    // Neither friend is connected to the relay: nothing of the direct network is said to them, so it keeps nothing
+    // for them (second review, S13).
+    await _until(() => p2p.card != null, 'this device\'s card was made');
+    await pumpEventQueue(times: 50);
+    expect([one.hub!.heldFor(sam.id), one.hub!.heldFor(nell.id)], [0, 0]);
     expect(jsonDecode(app.choice(P2p.helpersName, '')), ['https://link.one.example']);
     // Its next start is with them.
     await p2p.up();
@@ -286,34 +383,105 @@ void main() {
     hub.take(Packet.wrap(from: me.id, sealed: true, payload: NetCrypto.seal(mineKey, told.encode())), from: me.id);
     await _until(() => p2p.ownDevices == 1, 'the account\'s other device is known');
     expect(p2p.friendsDevices, 0);
-    // It answers a dial as the app's route does: its proof for this device's, then it takes what comes.
+    // It answers a dial as the app's route does: its nonce, its proof once this device's has checked out, and then it
+    // takes what comes.
     other.allow(p2p.nodeId!, {P2pChannel.packets});
-    final linkKey = NetCrypto.derive(mineKey, 'p2p link');
-    Uint8List proof(String from, String to) => Uint8List.fromList([0, 1, ...NetCrypto.hmac(linkKey, [...utf8.encode('ghost-p2p link v1\n'), ...NetCrypto.unhex(from), ...NetCrypto.unhex(to)])]);
-    final taken = <Uint8List>[];
-    other.opened.listen((s) {
-      var proved = false;
-      s.frames.listen((f) {
-        if (proved) return taken.add(f);
-        proved = true;
-        expect(f, proof(p2p.nodeId!, other.nodeId!), reason: 'this device proves it is the account\'s');
-        s.add(proof(other.nodeId!, p2p.nodeId!));
-      });
-    });
+    final ends = <HandEnd>[];
+    other.opened.listen((s) => ends.add(HandEnd(s, linkKey: LinkWords.linkKey(mineKey), account: me.id, node: other.nodeId!, them: me.id)));
+    List<Uint8List> taken() => [for (final e in ends) ...e.frames];
 
     // The relay can't be reached. A friend's words come all the same (by whatever way), and are copied on.
     hub.state.value = CarrierState.down;
     final byRelay = hub.to.length;
     final words_ = Envelope(kind: 'text', body: {'t': 'see you at 7'}, ack: false);
     hub.take(Packet.wrap(from: sam.id, sealed: true, payload: NetCrypto.seal(keyWith(sam), words_.encode())), from: sam.id);
-    await _until(() => taken.isNotEmpty, 'the copy came straight to the other device');
-    final packet = Packet.parse(taken.single)!;
+    await _until(() => taken().isNotEmpty, 'the copy came straight to the other device');
+    expect(ends.single.proved, isTrue, reason: 'this device proved it is the account\'s');
+    final packet = Packet.parse(taken().single)!;
     expect([packet.from, packet.sealed], [me.id, true]);
     final copy = Envelope.decode(NetCrypto.open(mineKey, packet.payload)!)!;
     expect(copy.kind, Friends.copyKind);
     expect([copy.body['a'], copy.body['t'], copy.body['i'], copy.body['o']], ['@sam', 'see you at 7', words_.id, false]);
     expect(hub.to, hasLength(byRelay), reason: 'nothing went by the relay, which was away');
     expect(node.pathTo(other.nodeId!)!.kind, P2pPathKind.direct);
+  });
+
+  // The second review, S5: Friends' "a route that costs nothing is up" was true whenever Direct was on, even with the
+  // relay down and nothing linked: a text then tried the direct route for five seconds before going as SMS, a group's
+  // message was marked failed rather than refused as offline, and what waited for an answer was sent again every ten
+  // seconds.
+  test('Friends counts the direct route as a way that costs nothing only while it reaches someone: a link to a friend\'s device open', () async {
+    Net.p2pNode = () => node;
+    final hub = PlainCarrier('hub');
+    final app = AppState();
+    await Net.instance.start(app, carriers: [hub]);
+    final p2p = Net.instance.p2p!;
+    await _until(() => p2p.loaded && p2p.card != null, 'what the direct network keeps was read');
+    await Friends.instance.start(app);
+    addTearDown(() async {
+      await Friends.instance.shutdown();
+      Friends.instance = null;
+    });
+    expect(Friends.instance.online, isTrue, reason: 'the relay\'s route is up');
+    await hub.stop();
+    await pumpEventQueue();
+    expect(p2p.carrier.state.value, CarrierState.up, reason: 'Direct is on, and ready to dial');
+    expect(Friends.instance.online, isFalse, reason: 'but it reaches nobody now');
+    // A friend's device linked: it reaches someone.
+    final theirs = mesh.node();
+    await theirs.start(P2pConfig(secret: NetCrypto.randomBytes(32)));
+    final card = await DeviceCard.make(KeysSigner(sam), device: 'ab' * 16, nodeId: theirs.nodeId!, now: DateTime.now());
+    hub.state.value = CarrierState.up;
+    hub.take(Packet.wrap(from: sam.id, sealed: true, payload: NetCrypto.seal(keyWith(sam), Envelope(kind: P2p.kind, body: {'t': 'card', 'c': card.toJson(), 'w': theirs.whereabouts.value!.toJson(), 'h': [p2p.card!.tag]}, ack: false).encode())), from: sam.id);
+    await _until(() => p2p.devicesOf(sam.id).isNotEmpty, 'Sam\'s card was taken');
+    await hub.stop();
+    theirs.allow(p2p.nodeId!, {P2pChannel.packets});
+    final ends = <HandEnd>[];
+    theirs.opened.listen((s) => ends.add(HandEnd(s, linkKey: LinkWords.linkKey(keyWith(sam)), account: sam.id, node: theirs.nodeId!, them: me.id)));
+    expect(await p2p.carrier.send(Peer(id: sam.id, key: keyWith(sam)), Packet.wrap(from: me.id, sealed: true, payload: NetCrypto.seal(keyWith(sam), Envelope(kind: 'ping', ack: false).encode()))), Handed.passed);
+    expect(ends.single.proved, isTrue);
+    expect(Friends.instance.online, isTrue);
+  });
+
+  // The second review: hub_device travels in backed-up choices, so a backup restored onto another device gave the two
+  // one device name (the hub's, forward secrecy's and the circles' keys are all per device).
+  test('choices restored from another device\'s backup are known by the node key that did not come with them, and the device takes a name of its own', () async {
+    Net.p2pNode = () => node;
+    // A device the app ran on, with Direct: its name, and the direct network's word for its node.
+    final first = AppState();
+    await Net.instance.start(first, carriers: [PlainCarrier('hub')]);
+    await _until(() => Net.instance.p2p!.loaded, 'what the direct network keeps was read');
+    final name = first.choice('hub_device', '');
+    expect([name, first.choice(P2p.idName, '')], [hasLength(32), isNotEmpty]);
+    await Net.instance.shutdown();
+    // Started again where it ran: the same name.
+    await Net.instance.start(first, carriers: [PlainCarrier('hub')]);
+    expect(first.choice('hub_device', ''), name);
+    await Net.instance.shutdown();
+    // Its choices restored onto a new device: they come, the node key does not. A name of its own.
+    final restored = AppState();
+    for (final k in ['hub_device', P2p.idName, P2p.cardName, P2p.toldName, P2p.cardsName]) {
+      restored.set(k, first.choice(k, ''));
+    }
+    secrets.clear();
+    node = mesh.node();
+    await Net.instance.start(restored, carriers: [PlainCarrier('hub')]);
+    final own = restored.choice('hub_device', '');
+    expect(own, allOf(hasLength(32), isNot(name)));
+    await _until(() => Net.instance.p2p!.loaded && Net.instance.p2p!.card != null, 'what the direct network keeps was read');
+    expect(Net.instance.p2p!.card!.device, own);
+    await Net.instance.shutdown();
+    // And keeps it from then on.
+    await Net.instance.start(restored, carriers: [PlainCarrier('hub')]);
+    expect(restored.choice('hub_device', ''), own);
+    await Net.instance.shutdown();
+    // A secret store that can't be read yet says nothing either way: the name stays.
+    secretsLocked = true;
+    final locked = AppState()
+      ..set('hub_device', name)
+      ..set(P2p.idName, first.choice(P2p.idName, ''));
+    await Net.instance.start(locked, carriers: [PlainCarrier('hub')]);
+    expect(locked.choice('hub_device', ''), name);
   });
 
   test('a device the account is gone from forgets its place on the direct network: the key, the cards and what was told', () async {
@@ -340,7 +508,7 @@ void main() {
     expect(account.signedIn, isFalse);
     expect(secrets.keys, isNot(contains(P2p.keyName)));
     for (final name in P2p.keptNames) {
-      expect(app.choice(name, 'unset'), isEmpty, reason: name);
+      expect(app.choice(name, ''), isEmpty, reason: name);
     }
     expect([p2p.loaded, p2p.card, p2p.nodeId, p2p.devicesOf(sam.id)], [false, null, null, isEmpty]);
     expect([node.state.value, node.allowed], [P2pState.off, isEmpty]);
@@ -360,9 +528,27 @@ void main() {
     await account.check();
     expect(secrets.keys, isNot(contains(P2p.keyName)));
     for (final name in P2p.keptNames) {
-      expect(app.choice(name, 'unset'), isEmpty, reason: name);
+      expect(app.choice(name, ''), isEmpty, reason: name);
     }
     expect(AccountCrypto.goodAddress('0x52908400098527886E0F7030069857D2E4169EE7'), isTrue);
+  });
+
+  // The second review: with no node, signing out wrote an empty node key to the secret store and five empty choices.
+  test('with nothing of the direct network kept, signing out writes none of it', () async {
+    final app = AppState()..set('acct_address', '0x52908400098527886E0F7030069857D2E4169EE7');
+    expect(Net.instance.p2p, isNull);
+    final account = Account(relay: _Gone(), port: SmsAccountPort(), store: AppMeStore(app), profiles: AppAccountProfiles());
+    await account.check();
+    expect(account.signedIn, isFalse);
+    expect(secretWrites, isNot(contains(P2p.keyName)));
+    expect(app.withPrefix('p2p_'), isEmpty);
+    // And the direct network's own forgetting, where one ran, the same.
+    final plain = MemoryFsStore(), kept = MemoryFsStore();
+    await P2p.forget(kept, plain);
+    expect([kept.writes, plain.writes], [0, 0]);
+    plain.kept[P2p.cardsName] = '{}';
+    await P2p.forget(kept, plain);
+    expect([kept.writes, plain.writes, plain.kept[P2p.cardsName]], [0, 1, '']);
   });
 }
 

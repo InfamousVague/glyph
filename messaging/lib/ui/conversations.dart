@@ -42,7 +42,6 @@ import '../voice/channels.dart';
 import 'update_banner.dart';
 import 'compose.dart';
 import 'dialup/dialup.dart';
-import 'files_space/files_screen.dart';
 import 'settings.dart';
 import 'shell.dart';
 import 'swipe_actions.dart';
@@ -645,7 +644,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
     // A Files space opens its files (lib/ui/files_space/), in the conversation's place.
     if (c.kind == SpaceKind.files) {
       final shell = AppShell.maybeOf(context);
-      final page = FilesSpaceScreen(key: ValueKey('files-space-${c.seed}'), channel: c);
+      final page = circleSpacePage(c, key: ValueKey('files-space-${c.seed}'));
       shell != null ? shell.show(page, showing: 'files:${c.seed}') : push<void>(context, (_) => page);
       return;
     }
@@ -716,7 +715,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
             count: unread,
             onPress: unread > 0 ? () => _markAllRead(_section) : null,
           ),
-          if (!MacChrome.stripEnabled)
+          // Not in a browser: feedback goes up with pictures from the device's files, by a way a page hasn't got.
+          if (!MacChrome.stripEnabled && !Sms.browser)
             QuickRow(key: const ValueKey('share-feedback'), icon: LucideMore.messageSquareWarning, label: 'Share feedback', onPress: () => FeedbackButton.open(context)),
           // An unreviewed pack's rows look like any other's, so the list says while one runs (Matt, 2026-11-20: "a
           // developer setting for users to be able to manually upload plugins for development testing").

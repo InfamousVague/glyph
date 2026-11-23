@@ -374,10 +374,15 @@ class SmsStatus {
 /// Where Ghost Messaging's own encryption stands with one person (android/.../E2e.kt): none, offered (your key sent,
 /// theirs awaited), pending (theirs here, your yes awaited), on.
 class E2eState {
-  const E2eState({this.address = '', this.state = 'none', this.verified = false, this.changed = false, this.safety, this.person, this.hasGhost = false, this.declined = false, this.plain = 0, this.friend = ''});
+  const E2eState({this.address = '', this.state = 'none', this.verified = false, this.changed = false, this.safety, this.person, this.hasGhost = false, this.declined = false, this.plain = 0, this.friend = '', this.id});
   final String address;
   final String state;
   final bool verified;
+
+  /// Their install's name: the id the key held for them makes (android E2e.state), 32 hex digits; null where no key
+  /// of theirs is held, or the record came from somewhere that does not say. Who is a friend to the direct route is
+  /// decided by this, never by an address (lib/net/net.dart).
+  final String? id;
 
   /// A different key arrived from someone already exchanged with.
   final bool changed;
@@ -421,6 +426,7 @@ class E2eState {
         declined: m['declined'] == true,
         plain: (m['plain'] as num?)?.toInt() ?? 0,
         friend: (m['friend'] as String?) ?? '',
+        id: m['id'] is String && RegExp(r'^[0-9a-f]{32}$').hasMatch(m['id'] as String) ? m['id'] as String : null,
       );
 }
 
@@ -723,7 +729,26 @@ class Sms {
   static bool get canRecordVoice => !remote || PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isIOS;
 
   /// A computer's window rather than a phone's screen: the sizes a window is read at (smaller bubbles and dock).
-  static bool get computer => remote && (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux);
+  static bool get computer => remote && (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux || browserWide);
+
+  /// A page in a browser (lib/web; Matt: "the full web client"): a device of its own ([standalone]) that has no folder
+  /// to keep files in, no helper programs, nothing native behind the app's channels and, in this first version, no
+  /// calls. Screens leave out what would need one of those ([callsHere], and each place that asks this). Set before
+  /// anything is drawn; false on every phone and computer.
+  static bool browser = false;
+
+  /// What a page in a browser is called in the account's list of devices (lib/web/browser.dart: "Browser · Safari ·
+  /// Mac"), said by lib/web/app.dart as it starts. A page can't learn the computer's name, and is none of the five
+  /// platforms.
+  static String browserName = 'Browser';
+
+  /// Whether a voice or video call can be made or joined here. Not yet in a browser: the page's own WebRTC is not
+  /// joined to the app's calls yet, so nothing that would start one is offered there.
+  static bool get callsHere => !browser;
+
+  /// A page in a browser whose window is wide enough to be laid out as a computer's (lib/web/app.dart, which says so as
+  /// the window is sized): read at a computer's sizes then, and at a phone's in a narrow one. False everywhere else.
+  static bool browserWide = false;
 
   /// Whether [what] can be done from here: anything on the phone itself; on a computer, what the phone it is paired
   /// with says it does for one (`deleteMessage`, `editMessage`, `sendPictures`, `sendVoice`, `sendSticker`, …).
