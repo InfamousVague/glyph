@@ -33,9 +33,11 @@ abstract class FriendsPort {
   /// Where encryption and friendship stand with everyone something has been exchanged with.
   Future<List<E2eState>> states();
 
-  /// Whether this device's routes carry friends by number: a phone's do. A computer paired with a phone has routes of
-  /// its own for friends by username alone; the phone's records for numbers, which it shows, are the phone's to act on,
-  /// and say nothing here of who an install is ([Friends.whoIs]).
+  /// Whether this device keeps the records for numbers and acts on them: the Android phone. Every other device of an
+  /// account (a computer paired with the phone, an iPhone or a computer of its own, a browser) carries friends by
+  /// username alone, though what is sent to the account reaches it too: the phone's records for numbers, which a paired
+  /// computer shows, are the phone's to act on, say nothing there of who an install is ([Friends.whoIs]), and are never
+  /// asked again or answered for from there.
   bool get numbers;
   Future<void> setFriend(String address, String state);
 
@@ -160,10 +162,13 @@ class Friends extends ChangeNotifier {
     _watchOut();
     await refresh();
     // A request that never got an answer is said again, by a route that costs nothing: either was lost.
-    for (final s in _by.values.where((s) => s.on && s.friend == 'asked')) {
+    for (final s in _by.values.where((s) => s.on && s.friend == 'asked' && _actsOn(s))) {
       _say(s.address, 'ask');
     }
   }
+
+  /// Whether this device acts on [s]: every record on the phone; elsewhere friends by username alone ([FriendsPort.numbers]).
+  bool _actsOn(E2eState s) => _port.numbers || s.address.startsWith('@');
 
   Future<void> shutdown() async {
     for (final s in _subs) {
@@ -178,6 +183,9 @@ class Friends extends ChangeNotifier {
     _byId = {};
     _rows.clear();
     _woke.clear();
+    _ended.clear();
+    _lookedAt = null;
+    _looking = null;
     _out.clear();
     _seen.clear();
   }
@@ -202,10 +210,11 @@ class Friends extends ChangeNotifier {
     _by
       ..clear()
       ..addEntries(all.map((s) => MapEntry(digits(s.address), s)));
-    // On a computer paired with a phone, only friends by username say who an install is: what its own routes bring
-    // is kept with them, as before, never handed to the phone's conversation with the same person's number.
-    _byId = whoIs(_port.numbers ? all : [for (final s in all) if (s.address.startsWith('@')) s]);
-    for (final s in all.where((s) => s.on && s.friend == 'want')) {
+    // Off the phone, only friends by username say who an install is: what a paired computer's own routes bring is kept
+    // with them, as before, never handed to the phone's conversation with the same person's number.
+    _byId = whoIs(all.where(_actsOn));
+    _failForOthers();
+    for (final s in all.where((s) => s.on && s.friend == 'want' && _actsOn(s))) {
       await _ask(s.address);
     }
     if (_port.internet && _answers != true) {
@@ -379,12 +388,15 @@ class Friends extends ChangeNotifier {
     // record that names that id, encryption on with it: a number's, whose key it is, or a friend by username's. Never
     // the address the routes have for them: they also reach the members of a group this phone is in (groups.dart),
     // each under whatever address the group's admin wrote, which may be a real friend's number or "@friend" (found in
-    // review, 2026-11-23). Anyone no such record names is dropped.
+    // review, 2026-11-23). Anyone no such record names is dropped, and told so ([_notAFriend]).
     var who = _whose(r.peer.id);
     if (who == null) {
-      await refresh();
+      await _lookAgain();
       who = _whose(r.peer.id);
-      if (who == null) return;
+      if (who == null) {
+        _notAFriend(r);
+        return;
+      }
     }
     switch (kind) {
       case 'friend':
@@ -392,6 +404,62 @@ class Friends extends ChangeNotifier {
       case 'text':
         await _text(who.address, r.envelope);
     }
+  }
+
+  /// When the records were last read again for something from an install none of them named, and that reading while it
+  /// runs: once in [lookAgainAfter] at most, however many come. Any member of a group can send them, and each read is
+  /// the phone's whole list of encryption records (found in review, 2026-11-23).
+  DateTime? _lookedAt;
+  Future<void>? _looking;
+  static const lookAgainAfter = Duration(seconds: 15);
+
+  /// Reads the records again for an install none of them names (a friend whose keys were just exchanged, before the
+  /// change has been read), unless that was done a moment ago or is being done now.
+  Future<void> _lookAgain() {
+    final running = _looking;
+    if (running != null) return running;
+    final now = DateTime.now(), last = _lookedAt;
+    if (last != null && now.difference(last) < lookAgainAfter) return Future.value();
+    _lookedAt = now;
+    return _looking = refresh().whenComplete(() => _looking = null);
+  }
+
+  /// When each install no record names was last answered `end` ([_notAFriend]).
+  final Map<String, DateTime> _ended = {};
+
+  /// Words, or an ask or a yes, came sealed from an install none of this phone's records names: a member of a group, or
+  /// someone whose record is gone here while theirs still holds this phone a friend. The routes have already answered
+  /// that it arrived, so it is answered `end` too, straight to the install that sealed it (by its id, [Received.peer]):
+  /// their app stops writing to this phone as a friend's, and their words go as texts again rather than showing
+  /// delivered (found in review, 2026-11-23). Only from the phone ([FriendsPort.numbers]): another device of the
+  /// account doesn't hold the records for numbers, and would end a friendship that is the phone's. Never for an end or
+  /// a no (two phones would answer each other for ever), never to an install some record names whatever it stands at,
+  /// and at most every [wakeEvery] an install.
+  void _notAFriend(Received r) {
+    if (!_port.numbers) return;
+    final what = r.envelope.body['do'];
+    if (r.envelope.kind == 'friend' && what != 'ask' && what != 'yes') return;
+    final id = r.peer.id;
+    if (_by.values.any((s) => s.id == id || s.otherIds.contains(id))) return;
+    final last = _ended[id];
+    if (last != null && DateTime.now().difference(last) < wakeEvery) return;
+    _ended[id] = DateTime.now();
+    unawaited(_port.send(r.peer, Envelope(kind: 'friend', body: {'do': 'end'})).catchError((_) => Delivery(r.envelope.id)));
+  }
+
+  /// What waits for an answer from an install the record for its address no longer names (their key changed, and the
+  /// record names the new one, or waits for the person's yes to it): what was sealed for the one it went to can't be read
+  /// by another, and is said to have failed now, not three days on (found in review, 2026-11-23).
+  void _failForOthers() {
+    var changed = false;
+    for (final o in _out.values.toList()) {
+      final to = o.to, s = of(o.address);
+      if (to == null || s == null || s.id == null || s.id == to || s.otherIds.contains(to)) continue;
+      _out.remove(o.id);
+      changed = true;
+      unawaited(_port.rowState(o.row, 'failed').catchError((_) {}));
+    }
+    if (changed) _saveOut();
   }
 
   Future<void> _friend(String address, Object? what) async {
@@ -610,14 +678,22 @@ class Friends extends ChangeNotifier {
   /// One data text, with nothing in it and in the clear, to a friend the relay server is keeping something for:
   /// their phone says a message is waiting (android Friends.woken). It is a text on this phone's plan, so it goes
   /// at most every [wakeEvery] a person.
+  ///
+  /// Only to the number this phone's own record gives that install: the record encryption is on with at that number,
+  /// whose key it is (found in review, 2026-11-23). Someone known only through a group has the number its admin wrote,
+  /// and an admin could list made-up members under anyone's numbers for every member's phone to text on its own plan,
+  /// telling whoever is at each number this phone's own. They are woken by the members whose records do know them (the
+  /// admin who added them does), and have what was written when their app opens. A friend by username has no number to
+  /// text (lib/standalone): the relay server keeps it until they come.
   void _wake(Peer peer) {
-    // A friend by username has no number to text (lib/standalone): the relay server keeps it until they come. Known by
-    // the record that names them as well as by the address the routes have for them, which may be a group's word.
-    if ((peer.address ?? '').startsWith('@') || (addressOf(peer.id)?.startsWith('@') ?? false)) return;
+    final vouched = addressOf(peer.id);
+    if (vouched == null || vouched.startsWith('@')) return;
     final last = _woke[peer.id];
     if (last != null && DateTime.now().difference(last) < wakeEvery) return;
     _woke[peer.id] = DateTime.now();
-    _port.send(peer, Envelope(kind: 'wake', ack: false), metered: true, sealed: false, only: {'sms'}).catchError((_) => const Delivery(''));
+    // To the record's number, whatever address the routes have for them.
+    final to = Peer(id: peer.id, key: peer.key, address: vouched, name: peer.name);
+    _port.send(to, Envelope(kind: 'wake', ack: false), metered: true, sealed: false, only: {'sms'}).catchError((_) => const Delivery(''));
   }
 }
 
@@ -674,9 +750,9 @@ class _AppPort implements FriendsPort {
   @override
   Future<List<E2eState>> states() => Sms.instance.e2eList();
 
-  /// A phone's, an iPhone's and a browser's: everything but a computer paired with a phone (lib/desktop/own_calls.dart).
+  /// The Android phone's alone (Sms.remote: a computer, an iPhone, a browser, paired or not).
   @override
-  bool get numbers => !Sms.paired;
+  bool get numbers => !Sms.remote;
 
   @override
   Future<void> setFriend(String address, String state) => Sms.instance.friendSet(address, state);

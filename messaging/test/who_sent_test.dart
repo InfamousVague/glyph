@@ -42,6 +42,7 @@ void main() {
   late List<Map<String, Object?>> e2e;
   late List<({String address, String words})> textsIn;
   late List<({String address, String state})> friendSets;
+  late Map<int, String> rowStates;
   late List<Map<String, dynamic>> joined;
   late PlainCarrier hub;
   late Friends friends;
@@ -62,6 +63,7 @@ void main() {
     ];
     textsIn = [];
     friendSets = [];
+    rowStates = {};
     joined = [];
     var rows = 0;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async {
@@ -85,6 +87,9 @@ void main() {
           return null;
         case 'netTextOut':
           return ++rows;
+        case 'netTextState':
+          rowStates[(a['id'] as num).toInt()] = '${a['state']}';
+          return null;
         case 'groups':
           return [for (final s in joined) _view(s, me.id)];
         case 'groupSave':
@@ -128,6 +133,15 @@ void main() {
                 if (Envelope.decode(clear) case final e? when e.kind == 'text') '${e.body['t']}',
       ];
 
+  /// What was said about being friends to [who], sealed for them alone.
+  List<String> friendWordsTo(NetKeys who) => [
+        for (final (i, to) in hub.to.indexed)
+          if (to == who.id)
+            if (Packet.parse(hub.carried[i]) case final p? when p.sealed && !p.fs)
+              if (NetCrypto.open(keyWith(who), p.payload) case final clear?)
+                if (Envelope.decode(clear) case final e? when e.kind == 'friend') '${e.body['do']}',
+      ];
+
   test('a member of a group listed under a friend\'s number is not that friend: what they write is not kept as his, and what they say does not change where he stands', () async {
     await open();
     arrive(eve, Envelope(kind: 'text', body: {'t': 'It\'s Ben, on a new phone'}));
@@ -135,10 +149,15 @@ void main() {
     // Ben himself, after: kept as his.
     arrive(ben, Envelope(kind: 'text', body: {'t': 'Ben here'}));
     await until(() => textsIn.isNotEmpty, 'Ben\'s words kept');
+    await until(() => friendWordsTo(eve).isNotEmpty, 'Eve told');
     await pumpEventQueue(times: 50);
     expect(textsIn, [(address: benNumber, words: 'Ben here')], reason: 'Eve\'s words are nobody\'s here');
     expect(friendSets, isEmpty, reason: 'Eve\'s "end" is not Ben\'s');
     expect(friends.isFriend(benNumber), isTrue);
+    // Eve was answered "end", sealed for her key, so her app stops writing as a friend's (the review's follow-up); her
+    // own "end" was not answered, and Ben, a friend, was told nothing.
+    expect(friendWordsTo(eve), ['end']);
+    expect(friendWordsTo(ben), isEmpty);
   });
 
   test('a member of a group listed as "@maya" is not the friend by username Maya', () async {
@@ -181,6 +200,9 @@ void main() {
     }
     expect(textsTo(eve), isEmpty, reason: 'Ben\'s words are never sealed for Eve');
     expect(textsTo(ben), ['Are you there?'], reason: 'sent to Ben once, and to nobody since');
+    // And it is said to have failed now, the record naming another key (the review's follow-up), not three days on.
+    expect(rowStates.values, contains('failed'));
+    expect(friends.unanswered, 0);
   });
 
   test('a group is joined at a friend\'s asking, by the key that sealed it: not at the asking of someone listed under a friend\'s address', () async {

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/friends/friends.dart';
+import 'package:ghost_messaging/net/carrier.dart' show Peer;
 import 'package:ghost_messaging/net/packet.dart';
 import 'package:ghost_messaging/sms.dart' show E2eState;
 
@@ -276,21 +277,97 @@ void main() {
     expect([annsPhone.addressOf('eve'), annsPhone.isFriendId('eve'), annsPhone.isFriendId(FakePort.idAt(ben))], [isNull, isFalse, isTrue]);
   });
 
-  test('what waits for an answer is sent again only to the install it first went to, never sealed again for another key', () async {
+  test('what waits for an answer from an install whose key has changed is said to have failed at once, and never sealed again for the new key', () async {
     await two(annIs: 'yes', benIs: 'yes');
     a.lost = true;
     expect(await annsPhone.sendText(ben, 'first'), isTrue);
     await settle();
     expect(annsPhone.unanswered, 1);
+    expect(a.rows.values.single.state, 'sent');
     // Ben's record names another key now (his phone was reset, and the person said yes to the new one).
     a.book[ben] = E2eState(address: ben, state: 'on', friend: 'yes', hasGhost: true, id: 'another-key');
     await annsPhone.refresh();
+    expect(annsPhone.unanswered, 0, reason: 'not three days on');
+    expect(a.rows.values.single.state, 'failed');
     a.lost = false;
     a.bump();
     await settle();
     await settle();
     expect(a.sent.where((s) => s.envelope.kind == 'text'), hasLength(1));
     expect(b.came, isEmpty);
+  });
+
+  // The review's follow-ups (2026-11-23), each in a test of its own.
+  test('a device that isn\'t the phone never asks, or asks again, for the phone\'s numbers: they are the phone\'s to act on', () async {
+    for (final phone in [true, false]) {
+      final port = FakePort(ann)
+        ..other = FakePort(ben)
+        ..numbers = phone
+        ..stand(ben, friend: 'want')
+        ..stand('+15550003333', friend: 'asked');
+      final friends = Friends(port);
+      await friends.start();
+      await settle();
+      final asks = {for (final s in port.sent) if (s.envelope.kind == 'friend' && s.envelope.body['do'] == 'ask') s.to};
+      expect(asks, phone ? {ben, '+15550003333'} : isEmpty, reason: phone ? 'the phone' : 'a paired computer');
+      expect(port.friendSets.map((s) => '${s.address} ${s.state}'), phone ? ['$ben asked'] : isEmpty);
+      await friends.shutdown();
+    }
+  });
+
+  test('words from an install no record names are answered "end", straight to it, once in a while; never an end for an end, and never from a device that isn\'t the phone', () async {
+    for (final phone in [true, false]) {
+      // Ben a friend by username: both the phone and a computer paired with it act on that record.
+      final port = FakePort(ann)
+        ..other = FakePort('@ben')
+        ..numbers = phone
+        ..stand('@ben', friend: 'yes');
+      final friends = Friends(port);
+      await friends.start();
+      // Eve, in a group with Ann and listed as "@ben" by its admin, writes as a friend would, twice, and says end.
+      port.arriveFrom('eve', '@ben', Envelope(kind: 'text', body: {'t': 'hi'}));
+      port.arriveFrom('eve', '@ben', Envelope(kind: 'text', body: {'t': 'hi again'}));
+      port.arriveFrom('eve', '@ben', Envelope(kind: 'friend', body: {'do': 'end'}));
+      port.arriveFrom('ivy', '@ben', Envelope(kind: 'friend', body: {'do': 'no'}));
+      // Ben writes too: nothing is said back to him.
+      port.arriveFrom(FakePort.idAt('@ben'), '@ben', Envelope(kind: 'text', body: {'t': 'from Ben'}));
+      await until(() => port.came.isNotEmpty);
+      await settle();
+      final ends = [for (final s in port.sent) if (s.envelope.kind == 'friend' && s.envelope.body['do'] == 'end') s.id];
+      expect(ends, phone ? ['eve'] : isEmpty, reason: phone ? 'the phone' : 'a paired computer');
+      expect(port.came.map((c) => c.words), ['from Ben']);
+      await friends.shutdown();
+    }
+  });
+
+  test('installs no record names, however many and however often, have the records read again once in a while, not each time', () async {
+    final port = FakePort(ann)
+      ..other = FakePort(ben)
+      ..stand(ben, friend: 'yes');
+    final friends = Friends(port);
+    await friends.start();
+    final before = port.statesRead;
+    for (var i = 0; i < 20; i++) {
+      port.arriveFrom('member-$i', ben, Envelope(kind: 'text', body: {'t': 'spam $i'}));
+    }
+    await settle();
+    expect(port.statesRead - before, 1);
+    await friends.shutdown();
+  });
+
+  test('the wake goes only to the number this phone\'s own record gives that install, never to one a group lists', () async {
+    final port = FakePort(ann)
+      ..other = FakePort(ben)
+      ..stand(ben, friend: 'yes');
+    final friends = Friends(port);
+    await friends.start();
+    // A member known only through a group, under the number its admin wrote; and Ben, under another address the routes
+    // happen to hold for him.
+    friends.wake(Peer(id: 'eve', address: '+15550009999'));
+    friends.wake(Peer(id: FakePort.idAt(ben), address: '+15550008888'));
+    final wakes = [for (final s in port.sent) if (s.envelope.kind == 'wake') (s.id, s.to)];
+    expect(wakes, [(FakePort.idAt(ben), ben)]);
+    await friends.shutdown();
   });
 
   test('one person, a friend by number and by username with the one key: heard in the number\'s conversation on a phone, as before, and in the username\'s on a computer paired with it, whose routes carry no numbers', () async {

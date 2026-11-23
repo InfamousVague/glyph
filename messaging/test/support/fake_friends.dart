@@ -10,7 +10,8 @@ import 'package:ghost_messaging/sms.dart';
 // A stand-in for what Friends stands on (lib/friends/friends.dart, FriendsPort): the routes and the phone of one
 // install, with what it sends handed to another's. For test/friends_test.dart and the screens' pictures.
 
-typedef Sent = ({String to, Envelope envelope, bool metered, bool sealed, Set<String>? only});
+/// What was sent: to the address the peer was held under ([to]) and to whom by name ([id]).
+typedef Sent = ({String to, String id, Envelope envelope, bool metered, bool sealed, Set<String>? only});
 
 class FakePort implements FriendsPort {
   FakePort(this.me);
@@ -91,9 +92,11 @@ class FakePort implements FriendsPort {
 
   @override
   Future<Delivery> send(Peer peer, Envelope envelope, {bool metered = false, bool sealed = true, Set<String>? only}) async {
-    sent.add((to: peer.address!, envelope: envelope, metered: metered, sealed: sealed, only: only));
+    sent.add((to: peer.address ?? '', id: peer.id, envelope: envelope, metered: metered, sealed: sealed, only: only));
     // A data text: on its way, and nothing more is known.
     if (only != null && only.contains('sms')) return Delivery(envelope.id, via: 'sms', handed: Handed.passed);
+    // Someone who is not the other phone (a member of a group, in a test): the relay takes it, and that is all.
+    if (peer.id != idAt(other.me)) return Delivery(envelope.id, via: 'hub', handed: Handed.passed);
     if (!up || refuses) {
       if (!metered) return Delivery(envelope.id, tried: const ['hub: not up']);
       other._arrive(me, envelope, sealed);
@@ -131,8 +134,14 @@ class FakePort implements FriendsPort {
   Stream<Received> get received => _in.stream;
   @override
   Stream<String> get acked => _acks.stream;
+  /// How many times the records were read.
+  int statesRead = 0;
+
   @override
-  Future<List<E2eState>> states() async => book.values.toList();
+  Future<List<E2eState>> states() async {
+    statesRead++;
+    return book.values.toList();
+  }
 
   /// What [setFriend] was asked, in order.
   final friendSets = <({String address, String state})>[];
