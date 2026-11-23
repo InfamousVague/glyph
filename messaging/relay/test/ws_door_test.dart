@@ -200,9 +200,9 @@ void main() {
       expect(g.take([...frame(1, [1], fin: false), for (var i = 0; i < 10; i++) ...frame(0, [1], fin: false)]), isFalse, reason: 'eleven');
     });
 
-    test('a ping or pong between the pieces of a message is handed on after its last piece, byte by byte or all at once', () {
-      final message = [...frame(1, utf8.encode('hello '), fin: false), ...frame(9, utf8.encode('p')), ...frame(0, utf8.encode('wor'), fin: false), ...frame(10, const []), ...frame(0, utf8.encode('ld'))];
-      final expected = [...frame(1, utf8.encode('hello '), fin: false), ...frame(0, utf8.encode('wor'), fin: false), ...frame(0, utf8.encode('ld')), ...frame(9, utf8.encode('p')), ...frame(10, const [])];
+    test('a ping or pong with something in it, between the pieces of a message, is handed on after its last piece; an empty one, or a Close, at once', () {
+      final message = [...frame(1, utf8.encode('hello '), fin: false), ...frame(9, utf8.encode('p')), ...frame(0, utf8.encode('wor'), fin: false), ...frame(10, const []), ...frame(10, utf8.encode('q')), ...frame(0, utf8.encode('ld'))];
+      final expected = [...frame(1, utf8.encode('hello '), fin: false), ...frame(0, utf8.encode('wor'), fin: false), ...frame(10, const []), ...frame(0, utf8.encode('ld')), ...frame(9, utf8.encode('p')), ...frame(10, utf8.encode('q'))];
       expect(FrameGuard(most: 1000).pass(message), expected);
       final g = FrameGuard(most: 1000);
       final out = <int>[];
@@ -213,8 +213,12 @@ void main() {
       // Outside a message, as they came; and more than a message may hold back ends the connection.
       final plain = [...frame(9, const [1]), ...frame(1, utf8.encode('x'))];
       expect(FrameGuard(most: 1000).pass(plain), plain);
-      final flood = [...frame(1, const [1], fin: false), for (var i = 0; i <= FrameGuard.laterMost; i++) ...frame(9, const [])];
+      final flood = [...frame(1, const [1], fin: false), for (var i = 0; i <= FrameGuard.laterMost; i++) ...frame(9, const [1])];
       expect(FrameGuard(most: 1000).pass(flood), isNull);
+      final empties = [...frame(1, const [1], fin: false), for (var i = 0; i <= FrameGuard.laterMost; i++) ...frame(10, const [])];
+      expect(FrameGuard(most: 1000).pass(empties), empties, reason: 'empty pongs (answers to the relay\'s own pings) go through as they came');
+      final close = [...frame(1, const [1], fin: false), ...frame(8, const [3, 232])];
+      expect(FrameGuard(most: 1000).pass(close), close, reason: 'a Close goes through, to be answered');
     });
 
     test('a byte at a time is read as all at once, masked or not', () {
@@ -270,6 +274,17 @@ void main() {
       expect(got, ['hello world'], reason: 'Dart\'s own parser alone gives "world", and puts "hello " in the pong');
       expect(raw.heard.toBytes(), [0x8a, 1, ...utf8.encode('p')], reason: 'the pong, with the ping\'s own byte');
       raw.destroy();
+    });
+
+    test('a Close between the pieces of a message is answered at once, not held for a message that never ends', () async {
+      final raw = await Raw.open(port, '/hub');
+      await pumpEventQueue();
+      final hello = raw.said().single;
+      await raw.send(utf8.encode(''));
+      await raw.send([...frame(1, utf8.encode('{"id":'), fin: false), ...frame(8, const [3, 232])]);
+      expect(await raw.closes(), isTrue);
+      expect(raw.heard.toBytes().sublist(raw.heard.length - 4, raw.heard.length - 2), [0x88, 2], reason: 'its Close answered with a Close (Dart says which number)');
+      expect(hello.containsKey('hello'), isTrue);
     });
 
     test('a key with a byte past ASCII is refused with a 400, not left hanging (found in the second review, 2026-11-23)', () async {

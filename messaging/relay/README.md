@@ -59,23 +59,30 @@ what every connection holds is counted against one budget for the whole process:
 and isn't finished, and what waits to go out (the answers to a peer's pings included: Dart answers each ping by itself).
 Everything written to a connection waits where it is counted, never inside Dart's own WebSocket.
 
-A connection is ended for what it holds **only once it has stopped moving it**, never for how much it was given at once
-(the second review, 2026-11-23, found the first version ending a phone handed a room's kept messages in one go, though
-it read them as fast as they came, and again each time it came back):
-- what waits to go out has gone past 8 MB and not gone down by 64 KB (or to nothing) for 10 seconds;
+A connection is ended for what it holds only as these say, never for a burst it is being given (the second review,
+2026-11-23, found the first version ending a phone handed a room's kept messages in one go):
+- more than 8 MB waits to go out to it, for 10 seconds on end, whether it reads some of it or not;
 - a message coming in hasn't grown by 16 KB (or been finished) for 20 seconds, signed in or not;
-- all of them together are past 64 MB: those stalled longest go first, until the rest fit, and one stalled less than 2
-  seconds never does (a burst being read goes through, past the budget for a moment).
+- all of them together are past 64 MB: those stalled longest go first (what waits for them hasn't gone down by 64 KB,
+  or what comes in grown by 16 KB, for 2 seconds or more), then those holding most of all, past a megabyte each (or a
+  32nd of the budget), until the rest fit.
 
-And the hub hands over what it keeps (a room's kept messages, what was held for someone) only as fast as the connection
-takes it: a piece at a time while less than 256 KB waits for it and the budget has room. What a connection that goes
-wasn't handed of its held packets is kept for it again. A device that reads what it is sent holds little, but it is not
-true that it can never be ended: one that keeps 8 MB waiting without reading 64 KB of it in 10 seconds is. The numbers
-are settings: `GHOST_WIRE_MB`, `GHOST_WIRE_EACH_MB`, `GHOST_WIRE_STALL_S`, `GHOST_WIRE_IN_STALL_S`.
+An ending is counted at once, and the socket destroyed a moment after, never in the middle of a room's broadcast (the
+third review found the list of members changed under one). A connection whose own answers wait past a megabyte is not
+read from until they are under 256 KB again, so a peer flooding pings, or anything else that is answered, limits
+itself, signed in or not.
 
-A ping or pong that comes between the pieces of a message (a browser may split a long one, and answers the relay's pings
-meanwhile) is handed on after the message's last piece: Dart's parser alone lost the message's first pieces to it, into
-its answer to the ping.
+The hub hands over what it keeps (a room's kept messages, what was held for someone) only as fast as the connection
+takes it: a piece at a time while less than 256 KB waits for it and the budget has room, so a device that reads holds a
+few hundred KB at most. What is said to it meanwhile waits behind the hand-over, in order and counted, so nothing said
+live overtakes what is being handed over (a deletion never comes before the message it deletes). Once the hub closes a
+connection nothing more is written to it, and what it wasn't handed of its held packets is kept again at once, before
+the same device's next connection takes them. The numbers are settings: `GHOST_WIRE_MB`, `GHOST_WIRE_EACH_MB`,
+`GHOST_WIRE_STALL_S`, `GHOST_WIRE_IN_STALL_S`.
+
+A ping or pong with something in it that comes between the pieces of a message (a browser may split a long one) is
+handed on after the message's last piece: Dart's parser alone lost the message's first pieces to it, into its answer
+to the ping. An empty one (the answer to the relay's own pings) goes through at once, as a Close does.
 
 **Signing in.** An app signs the hub's number with its key. Before 2026-11-23 that signature (v1) was the words
 `ghost-hub v1 ` and the number, and said nothing of where it was made, so a relay an app was pointed at, or asked a

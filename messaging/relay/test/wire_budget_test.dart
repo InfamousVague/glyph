@@ -10,6 +10,7 @@ import 'package:ghost_relay/ws_door.dart';
 import 'package:test/test.dart';
 
 import 'fed_support.dart' show MemSocket, someBytes, unhex;
+import 'slow_client.dart';
 import 'ws_door_test.dart' show frame;
 
 /// What every connection together may hold in memory (lib/ws_door.dart, WireBudget). The first version ended a
@@ -236,24 +237,61 @@ void main() {
   });
 
   group('a connection is ended for holding what it has stopped moving, never for a burst', () {
-    test('a peer that pings and never reads: nothing ended for the burst; ended once what waits has passed its share and not gone down for a while', () async {
-      var clock = DateTime(2026, 11, 23, 12);
-      final wire = WireBudget(eachOut: 512 << 10, now: () => clock);
+    test('a peer that floods pings, or pings in words, and never reads: once its answers pass a megabyte it is not read from, so they stop there', () async {
+      final clock = DateTime(2026, 11, 23, 12);
+      final wire = WireBudget(now: () => clock);
       final relay = Relay(hub: Hub(wire: wire));
       final port = await relay.start(port: 0);
       addTearDown(relay.stop);
+      // Twenty megabytes of pings, written without waiting; and on another connection, signed in, pings in words of
+      // 900 KB each, which the hub answers with as much.
       final deaf = await Client.open(port, '/hub', reads: false);
       final ping = frame(9, List.filled(125, 7));
-      final batch = [for (var i = 0; i < 1000; i++) ...ping];
-      expect(await deaf.sendUntilRefused(batch, 160), 160, reason: 'a burst alone ends nothing');
-      await until(() => wire.used > 512 << 10, 'the answers never waited at the door');
-      wire.sweep();
-      expect(wire.ended, 0, reason: 'not stalled long enough yet');
-      clock = clock.add(wire.stallFor);
+      for (var i = 0; i < 160; i++) {
+        deaf.socket.add([for (var k = 0; k < 1000; k++) ...ping]);
+      }
+      final talker = await Slow.open(port, name: 'talker');
+      await talker.signIn(someBytes(32));
+      talker.away();
+      final words = '{"ping":"${'x' * 900000}"}';
+      for (var i = 0; i < 20; i++) {
+        talker.socket.add(frame(1, utf8.encode(words)));
+      }
+      await Future<void>.delayed(const Duration(seconds: 3));
+      var most = 0;
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        if (wire.used > most) most = wire.used;
+      }
+      expect(most, lessThan(8 << 20), reason: 'two connections asking for answers they never read hold a few MB together, not the 20 and 18 they asked for');
+      expect(wire.ended, 0, reason: 'nothing ended for it');
+      deaf.socket.destroy();
+      talker.cut();
+    });
+
+    test('a connection past its 8 MB for 10 seconds is ended, though it reads some of it all the while', () async {
+      var clock = DateTime(2026, 11, 23, 12);
+      final wire = WireBudget(now: () => clock);
+      final ended = <String>[];
+      final h = wire.open(() => ended.add('h'));
+      for (var second = 0; second < 12; second++) {
+        h.queued(4 << 20);
+        clock = clock.add(const Duration(seconds: 1));
+        h.sent(WireBudget.outStep);
+        wire.sweep();
+      }
+      expect(wire.ended, 1, reason: 'over 8 MB for 10 s, reading 64 KB a second');
+      await pumpEventQueue();
+      expect(ended, ['h']);
+      // One that goes past and comes back under within the 10 seconds is not.
+      final g = wire.open(() => ended.add('g'));
+      g.queued(9 << 20);
+      clock = clock.add(const Duration(seconds: 6));
+      g.sent(2 << 20);
+      clock = clock.add(const Duration(seconds: 6));
       wire.sweep();
       expect(wire.ended, 1);
-      expect(await deaf.sendUntilRefused(batch, 40), lessThan(40), reason: 'its connection is gone');
-      await until(() => wire.used == 0, 'what it held is let go');
+      g.close();
     });
 
     test('66 strangers holding 15 KB each of an unfinished first message fill a 1 MB budget; an honest phone handed 80 KB is not the one ended', () async {
@@ -314,9 +352,9 @@ void main() {
       moving.socket.destroy();
     });
 
-    test('a burst of 5 MB through a pairing to a reader, past everyone\'s budget, is let through: it is moving (as a link\'s window of 64 packets is)', () async {
+    test('a burst of 5 MB through a pairing to a reader is let through (as a link\'s window of 64 packets is)', () async {
       final clock = DateTime(2026, 11, 23, 12);
-      final wire = WireBudget(most: 1 << 20, now: () => clock);
+      final wire = WireBudget(now: () => clock);
       final relay = Relay(wire: wire);
       final port = await relay.start(port: 0);
       addTearDown(relay.stop);
@@ -340,7 +378,7 @@ void main() {
         phone.add(Uint8List(1 << 20));
       }
       await until(() => deskGot.length == 5, 'the frames never all crossed', tries: 4000);
-      expect(wire.ended, 0, reason: 'past the budget for a moment, never stalled');
+      expect(wire.ended, 0, reason: 'a burst it reads ends nothing');
       await phone.close();
       await desk.close();
     });
@@ -348,57 +386,108 @@ void main() {
 
   test('the budget by itself, on its own clock', () async {
     var clock = DateTime(2026, 11, 23, 12);
-    final wire = WireBudget(most: 1000000, eachOut: 600000, now: () => clock);
+    final wire = WireBudget(most: 4 << 20, eachOut: 2 << 20, now: () => clock);
     final ended = <String>[];
     WireHold hold(String name) => wire.open(() => ended.add(name));
-    // Past its share at once: nothing ended; ended once it stays there without going down.
+    // Past its share: ended after 10 s past it, not before.
     final a = hold('a');
-    expect(a.queued(700000), isTrue);
+    expect(a.queued(3 << 20), isTrue);
+    clock = clock.add(const Duration(seconds: 9));
     wire.sweep();
-    expect(ended, isEmpty);
-    clock = clock.add(const Duration(seconds: 6));
-    a.sent(WireBudget.outStep);
-    clock = clock.add(const Duration(seconds: 6));
+    expect(wire.ended, 0);
+    clock = clock.add(const Duration(seconds: 1));
     wire.sweep();
-    expect(ended, isEmpty, reason: 'it went down by a step six seconds ago: moving');
-    clock = clock.add(wire.stallFor);
-    wire.sweep();
-    expect(ended, ['a']);
-    // Past everyone's: those stalled longest go first, and one that is moving never does.
-    final b = hold('b'), c = hold('c'), d = hold('d');
-    expect(b.incoming(300000), isTrue);
+    expect([wire.ended, ended], [1, ['a']], reason: 'counted, and told, at once (its socket destroys itself a moment after)');
+    // Past everyone's: those stalled longest go first, then those past the big share (a megabyte here), the most first;
+    // one moving and small never does.
+    final b = hold('b'), c = hold('c'), d = hold('d'), e = hold('e'), small = hold('small');
+    expect(b.incoming(1536 << 10), isTrue);
     clock = clock.add(const Duration(seconds: 5));
-    expect(c.queued(300000), isTrue);
+    expect(c.queued(1 << 20), isTrue);
     clock = clock.add(const Duration(seconds: 3));
-    expect(d.queued(500000), isTrue, reason: 'b stalled 8 s, c 3 s: b goes, and the rest fit');
-    expect([ended, wire.used], [['a', 'b'], 800000]);
-    expect(d.queued(300000), isTrue, reason: 'c is stalled 3 s and goes; d was given its bytes a moment ago');
-    expect(ended, ['a', 'b', 'c']);
-    expect(d.queued(300000), isTrue, reason: 'past everyone\'s, and nobody stalled: let through, as it is moving');
-    expect(ended, ['a', 'b', 'c']);
-    d.close();
+    expect(d.queued(1640 << 10), isTrue, reason: 'past 4 MB: b, stalled 8 s, goes, and the rest fit');
+    expect(wire.ended, 2);
+    expect(e.queued(2 << 20), isTrue, reason: 'past again: c, stalled 3 s, goes');
+    expect(wire.ended, 3);
+    expect(small.queued(300 << 10), isTrue);
+    expect(d.queued(200 << 10), isTrue, reason: 'past again, nobody stalled, nobody past the big share for two seconds: let through');
+    expect(wire.ended, 3);
+    clock = clock.add(const Duration(seconds: 2));
+    wire.sweep();
+    expect(wire.ended, 4, reason: 'two seconds on: e, past the big share and holding the most, goes');
+    expect(ended, ['a', 'b', 'c', 'e']);
+    expect(small.gone, isFalse);
+    for (final x in [d, small]) {
+      x.close();
+    }
     // A message coming in that stops growing.
-    final e = hold('e');
-    e.incoming(1000);
+    final f = hold('f');
+    f.incoming(1000);
     clock = clock.add(const Duration(seconds: 15));
-    e.incoming(1000 + WireBudget.inStep);
+    f.incoming(1000 + WireBudget.inStep);
     clock = clock.add(const Duration(seconds: 15));
     wire.sweep();
-    expect(ended, ['a', 'b', 'c'], reason: 'it grew by a step fifteen seconds ago');
+    expect(wire.ended, 4, reason: 'it grew by a step fifteen seconds ago');
     clock = clock.add(const Duration(seconds: 6));
     wire.sweep();
-    expect(ended, ['a', 'b', 'c', 'e']);
+    expect(wire.ended, 5);
     // Room for a hand-over: called once what waits has gone down.
-    final f = hold('f');
-    f.queued(WireBudget.paceBelow);
+    final g = hold('g');
+    g.queued(WireBudget.paceBelow);
     var called = 0;
-    expect(f.hasRoom, isFalse);
-    f.whenRoom(() => called++);
-    f.sent(WireBudget.paceBelow);
+    expect(g.hasRoom, isFalse);
+    g.whenRoom(() => called++);
+    g.sent(WireBudget.paceBelow);
     await pumpEventQueue();
     expect(called, 1);
-    f.close();
-    expect([wire.ended, wire.used, wire.holders], [4, 0, 0]);
+    g.close();
+    expect([wire.used, wire.holders], [0, 0]);
+  });
+
+  test('past everyone\'s budget, one reading slowly but always some, past the big share for two seconds, is ended: the budget is a ceiling', () async {
+    var clock = DateTime(2026, 11, 23, 12);
+    final wire = WireBudget(most: 2 << 20, now: () => clock);
+    final slow = wire.open(() {}), honest = wire.open(() {});
+    slow.queued(3 << 20);
+    honest.queued(200 << 10);
+    for (var step = 0; step < 3; step++) {
+      clock = clock.add(const Duration(milliseconds: 500));
+      slow.sent(WireBudget.outStep);
+      honest.sent(100 << 10);
+      honest.queued(100 << 10);
+      wire.sweep();
+    }
+    expect(wire.ended, 0, reason: 'a second and a half: not yet');
+    clock = clock.add(const Duration(milliseconds: 600));
+    slow.sent(WireBudget.outStep);
+    wire.sweep();
+    expect([slow.gone, honest.gone], [true, false], reason: 'never stalled, but past a megabyte for two seconds while everyone is past the budget');
+    honest.close();
+  });
+
+  test('hand-overs waiting: one waiting for its own connection is resumed by its own going down, never by looking at everyone; those waiting for the budget, in turn, while it has room', () async {
+    final clock = DateTime(2026, 11, 23, 12);
+    final wire = WireBudget(most: 1 << 20, now: () => clock);
+    final own = wire.open(() {});
+    own.queued(WireBudget.paceBelow);
+    var ownGo = 0;
+    own.whenRoom(() => ownGo++);
+    expect(wire.waitingForRoom, 0, reason: 'it waits for its own connection, not for the budget');
+    final filler = wire.open(() {});
+    filler.incoming(1 << 20);
+    final waiters = [for (var i = 0; i < 3; i++) wire.open(() {})];
+    var went = 0;
+    for (final w in waiters) {
+      w.whenRoom(() => went++);
+    }
+    expect(wire.waitingForRoom, 3);
+    own.sent(WireBudget.paceBelow);
+    await pumpEventQueue();
+    expect(ownGo, 0, reason: 'its connection took what it had, but the budget is full: it waits for the budget now');
+    expect(wire.waitingForRoom, 4);
+    filler.incoming(0);
+    await pumpEventQueue();
+    expect([went, ownGo, wire.waitingForRoom], [3, 1, 0]);
   });
 
   test('the budget\'s numbers are the relay\'s settings; one out of its range keeps the default, and is said', () {

@@ -229,12 +229,12 @@ themselves.
 ### How much the relay holds
 
 What every connection holds together (a message half come in, what waits for a peer to read) is counted against one
-budget, 64 MB unless you set `GHOST_WIRE_MB`. A connection is ended only for holding what it has stopped moving: more
-than 8 MB waiting (`GHOST_WIRE_EACH_MB`) without 64 KB of it read for 10 seconds (`GHOST_WIRE_STALL_S`), or a message
-coming in that hasn't grown for 20 seconds (`GHOST_WIRE_IN_STALL_S`). Past the budget together, those stalled longest go
-first. The hub hands over what it keeps (a room's messages, what was held for someone) only as fast as each device takes
-it. With the 96 MB kept for people who are away, that keeps the relay inside a few hundred megabytes however many
-connect; give it more where your machine has more.
+budget, 64 MB unless you set `GHOST_WIRE_MB`. A connection is ended for it only when more than 8 MB waits for it
+(`GHOST_WIRE_EACH_MB`) for 10 seconds (`GHOST_WIRE_STALL_S`), or a message coming in hasn't grown for 20 seconds
+(`GHOST_WIRE_IN_STALL_S`); past the budget together, those stalled longest go first, then those holding the most. One
+whose own answers pile up is not read from until they go. The hub hands over what it keeps (a room's messages, what was
+held for someone) only as fast as each device takes it. With the 96 MB kept for people who are away, that keeps the
+relay inside a few hundred megabytes however many connect; give it more where your machine has more.
 
 ### Calls through your own TURN server (optional)
 

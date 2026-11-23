@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -57,22 +58,24 @@ class FrameGuard {
 
   int get _ceiling => _messages <= 1 ? first : most;
 
-  /// A control frame that came between the pieces of a message (a ping, a pong) is held back until that message's last
-  /// piece has gone ([pass]): Dart's own parser keeps the pieces of a message where it reads a control frame, so one
-  /// coming between them took the message's first pieces with it, into the answer to the ping (found in the second
-  /// review, 2026-11-23: a browser, which may split a long message, answering the relay's ping meanwhile). Each is at
-  /// most 125 bytes; more than [laterMost] inside one message ends the connection.
+  /// A ping or pong with something in it that came between the pieces of a message is held back until that message's
+  /// last piece has gone ([pass]): Dart's own parser keeps the pieces of a message where it reads a control frame's
+  /// payload, so one coming between them took the message's first pieces with it, into the answer to the ping (found in
+  /// the second review, 2026-11-23: a browser, which may split a long message, answering a ping meanwhile). An empty one
+  /// does the parser no harm and goes through at once (the relay's own pings are empty, and their answers must not wait
+  /// for a long message to end, or Dart's ping timeout would end the connection); so does a Close, which is answered.
+  /// Each held is at most 125 bytes; more than [laterMost] inside one message ends the connection.
   static const laterMost = 32;
-  final BytesBuilder _later = BytesBuilder();
+  final BytesBuilder _later = BytesBuilder(), _cur = BytesBuilder();
   int _laterFrames = 0;
   bool _diverting = false, _ended = false;
 
   /// Reads [bytes], the next that came in; false where the connection must end.
   bool take(List<int> bytes) => _run(bytes, null);
 
-  /// Reads [bytes], the next that came in, and gives back what to hand on to the parser: the same bytes, with a control
-  /// frame that came between the pieces of a message moved to just after its last piece. Null where the connection
-  /// must end.
+  /// Reads [bytes], the next that came in, and gives back what to hand on to the parser: the same bytes, with a ping or
+  /// pong that has something in it, come between the pieces of a message, moved to just after its last piece. Null
+  /// where the connection must end.
   Uint8List? pass(List<int> bytes) {
     final out = BytesBuilder(copy: false);
     return _run(bytes, out) ? out.takeBytes() : null;
@@ -83,21 +86,40 @@ class FrameGuard {
     var i = 0, run = 0;
     final n = bytes.length;
     void flush(int end) {
-      if (out != null && end > run) (_diverting ? _later : out).add(bytes.sublist(run, end));
+      if (out != null && end > run) (_diverting ? _cur : out).add(bytes.sublist(run, end));
       run = end;
     }
 
     while (i < n) {
-      if (out != null && _at == _head) {
-        final divert = bytes[i] & 0x0f >= 8 && _inMessage;
-        if (divert != _diverting) {
+      if (out != null && _at == _head && _inMessage) {
+        final op = bytes[i] & 0x0f;
+        // A ping or pong inside a message: held aside until its length says whether it has anything in it.
+        if (op == 9 || op == 10) {
           flush(i);
-          _diverting = divert;
+          _diverting = true;
         }
-        if (divert && ++_laterFrames > laterMost) return _no('too many control frames inside one message');
       }
+      final lengthRead = _at == _length;
       i = _step(bytes, i);
       if (i < 0) return false;
+      if (out != null && _diverting) {
+        if (lengthRead) {
+          if (_len == 0) {
+            // Empty: through at once.
+            flush(i);
+            out.add(_cur.takeBytes());
+            _diverting = false;
+          } else if (++_laterFrames > laterMost) {
+            return _no('too many control frames inside one message');
+          }
+        }
+        if (_diverting && _at == _head) {
+          // The held one is whole: it waits for the message's last piece.
+          flush(i);
+          _later.add(_cur.takeBytes());
+          _diverting = false;
+        }
+      }
       if (_ended) {
         _ended = false;
         if (out != null) {
@@ -220,19 +242,21 @@ class FrameGuard {
 /// read). One door's ceiling bounds one connection, but twenty thousand connections at a megabyte each would be twenty
 /// gigabytes, where the relay has 300 MB in all.
 ///
-/// A connection is ended for what it holds only when it has stopped moving it, never for how much it was given at one
-/// moment (found in the second review, 2026-11-23: counting a burst, a room's kept messages handed over in one go ended
-/// a phone that read them as fast as they came, and it came back to be ended again):
-/// - **Stalled**: what waits to go out has not gone down by [outStep] (or to nothing) for a while, or the message coming
-///   in has not grown by [inStep] (or been finished). A peer that reads what it is sent, however much, and sends whole
-///   messages is never stalled.
-/// - Past [eachOut] waiting and stalled for [stallFor], a connection is ended (its peer isn't reading).
-/// - A message coming in stalled for [inStallFor] ends its connection, however little it is (signed in or not).
-/// - Where everyone together passes [most], the connections stalled longest are ended first, until the rest fit; one
-///   stalled for less than [minStall] is never ended for it (it is moving what it holds; the hub's own hand-overs wait
-///   for room instead: [WireHold.whenRoom]).
+/// A connection is ended for what it holds only as these say, never for a burst it is being given:
+/// - **Past its share**: more than [eachOut] waiting to go out to it, for [stallFor] on end, whether it reads some of it
+///   or not (the hub hands over what it keeps a piece at a time, so a device that reads holds a few hundred KB at most).
+/// - **A message coming in stalled**: not grown by [inStep] (or finished) for [inStallFor], however little it is.
+/// - **Everyone together past [most]**: those stalled longest go first (stalled: what waits for it has not gone down by
+///   [outStep], or what comes in not grown by [inStep], for [minStall] or more), then those that have held more than
+///   [bigShare] for [minStall] or more, the most first, until the rest fit. A device being handed what is kept, a piece
+///   at a time, is neither, and neither is one reading a burst it is sent as fast as it comes.
+/// - A connection whose own answers wait past [readPauseAbove] is not read from until they go down: a peer flooding pings
+///   or anything else answered limits itself.
 ///
-/// Its numbers are the relay's settings ([WireBudget.fromEnvironment]).
+/// An ending is counted at once, and the socket is destroyed a moment after (a microtask, [GuardedSocket]): never inside
+/// whatever was writing to many connections when the budget filled (found in the third review, 2026-11-23: a room's
+/// broadcast had its list of members changed under it). Its numbers are the relay's settings
+/// ([WireBudget.fromEnvironment]).
 class WireBudget {
   WireBudget({this.most = 64 << 20, this.eachOut = 8 << 20, this.stallFor = const Duration(seconds: 10), this.inStallFor = const Duration(seconds: 20), this.minStall = const Duration(seconds: 2), DateTime Function()? now}) : _now = now ?? DateTime.now;
 
@@ -240,8 +264,8 @@ class WireBudget {
   /// before anything is opened).
   static WireBudget shared = WireBudget();
 
-  /// The settings it is made from: all connections together and one connection's waiting, in megabytes; how long a
-  /// stall is borne going out and coming in, in seconds.
+  /// The settings it is made from: all connections together and one connection's waiting, in megabytes; how long being
+  /// past its share, and a message coming in stalled, are borne, in seconds.
   static const names = ['GHOST_WIRE_MB', 'GHOST_WIRE_EACH_MB', 'GHOST_WIRE_STALL_S', 'GHOST_WIRE_IN_STALL_S'];
 
   /// From the relay's settings ([names]); a setting that isn't a whole number in its range keeps the default, and is
@@ -269,12 +293,12 @@ class WireBudget {
   }
 
   /// All connections together, in bytes: 64 MB of the relay's 300, beside the 96 MB the hub keeps for people who are
-  /// away. And what may wait to go out to one connection, stalled: 8 MB.
+  /// away. And what may wait to go out to one connection: 8 MB.
   final int most;
   final int eachOut;
 
-  /// How long a stall is borne: going out past [eachOut]; coming in; and the least for which, when everyone together
-  /// is past [most], a connection may be ended.
+  /// How long a connection may be past [eachOut]; how long a message coming in may stall; and the least stall for which,
+  /// when everyone together is past [most], a connection is ended for it.
   final Duration stallFor, inStallFor, minStall;
 
   /// How much must move for a connection not to be stalled: what waits going down by this much, or to nothing; the
@@ -284,16 +308,28 @@ class WireBudget {
   /// What waits to go out to a connection before the hub's hand-overs wait for it to go down ([WireHold.whenRoom]).
   static const paceBelow = 256 << 10;
 
+  /// What waits to go out to a connection, its own answers, before nothing more is read from it; and below what it is
+  /// read from again.
+  static const readPauseAbove = 1 << 20, readAgainBelow = 256 << 10;
+
+  /// More than this held by one connection makes it one that may be ended when everyone together is past [most]: a 32nd
+  /// of [most], and never less than a megabyte, past anything a hand-over a piece at a time holds (a few hundred KB).
+  int get bigShare => max(most ~/ 32, 1 << 20);
+
   final DateTime Function() _now;
   int _used = 0;
   final Set<WireHold> _holding = {};
-  final List<WireHold> _waitingForRoom = [];
+  final LinkedHashSet<WireHold> _waitingForRoom = LinkedHashSet();
   Timer? _sweeper;
   bool _resuming = false;
 
   /// What is held now, all connections together; and how many connections hold anything.
   int get used => _used;
   int get holders => _holding.length;
+
+  /// How many hand-overs wait for the budget to have room (one waiting for its own connection to take what it was given
+  /// is not among them: it goes on as that goes down, without anything else being looked at).
+  int get waitingForRoom => _waitingForRoom.length;
 
   /// How many connections were ended for it, for a test and the log.
   int ended = 0;
@@ -304,6 +340,11 @@ class WireBudget {
   void _changed(WireHold h, int before) {
     final now = h.held;
     _used += now - before;
+    if (now > bigShare) {
+      h._bigAt ??= _now();
+    } else {
+      h._bigAt = null;
+    }
     if (now > 0) {
       _holding.add(h);
       _sweeper ??= Timer.periodic(const Duration(seconds: 1), (_) => sweep());
@@ -313,12 +354,12 @@ class WireBudget {
     if (now < before) _roomMade();
   }
 
-  /// Applies the rules (normally once a second while anything is held; a test calls it with its own clock): ends the
-  /// connections stalled past what is borne, then, where everyone together is past [most], the ones stalled longest.
+  /// Applies the rules (normally once a second while anything is held; a test calls it with its own clock).
   void sweep() {
     final now = _now();
     for (final h in _holding.toList()) {
-      if (h._out > eachOut && now.difference(h._outMoved) >= stallFor) {
+      final over = h._overAt;
+      if (over != null && now.difference(over) >= stallFor) {
         _end(h);
       } else if (h._in > 0 && now.difference(h._inMoved) >= inStallFor) {
         _end(h);
@@ -331,15 +372,18 @@ class WireBudget {
     }
   }
 
-  /// Where everyone together is past [most]: the connections stalled longest are ended, those stalled at least
-  /// [minStall], until the rest fit. Whether [h] is still open after.
+  /// Where everyone together is past [most]: those stalled longest are ended, then those holding the most past
+  /// [bigShare], until the rest fit. Whether [h] is still open after.
   bool _fit(DateTime now, [WireHold? h]) {
     if (_used <= most) return true;
-    final stalled = [
+    final may = [
       for (final x in _holding)
-        if (x.stalledFor(now) >= minStall) x,
-    ]..sort((a, b) => b.stalledFor(now).compareTo(a.stalledFor(now)));
-    for (final x in stalled) {
+        if (x.stalledFor(now) >= minStall || (x._bigAt != null && now.difference(x._bigAt!) >= minStall)) x,
+    ]..sort((a, b) {
+        final byStall = b.stalledFor(now).compareTo(a.stalledFor(now));
+        return byStall != 0 ? byStall : b.held.compareTo(a.held);
+      });
+    for (final x in may) {
       if (_used <= most) break;
       _end(x);
     }
@@ -350,12 +394,16 @@ class WireBudget {
     if (h._gone) return;
     final before = h.held;
     h._gone = true;
-    h._in = h._out = 0;
+    h._in = h._out = h._behind = 0;
+    h._overAt = h._bigAt = null;
     _waitingForRoom.remove(h);
     h._then = null;
+    h._waitingOwn = false;
     _changed(h, before);
   }
 
+  /// Counted at once, and its connection told ([GuardedSocket] destroys its socket a moment after, never inside
+  /// whatever is writing to many connections).
   void _end(WireHold h) {
     if (h._gone) return;
     _drop(h);
@@ -363,16 +411,21 @@ class WireBudget {
     h._end();
   }
 
-  /// Something was let go: hand-overs waiting for room go on, the longest waiting first, each that has room (one still
-  /// waiting for its own connection to take what it was given doesn't hold up the others).
+  /// Something was let go: hand-overs waiting for the budget to have room go on, the longest waiting first, while it has.
   void _roomMade() {
-    if (_waitingForRoom.isEmpty || _resuming) return;
+    if (_waitingForRoom.isEmpty || _resuming || _used >= most) return;
     _resuming = true;
     scheduleMicrotask(() {
       _resuming = false;
-      for (final h in _waitingForRoom.toList()) {
-        if (!h._hasRoom) continue;
+      while (_waitingForRoom.isNotEmpty && _used < most) {
+        final h = _waitingForRoom.first;
         _waitingForRoom.remove(h);
+        if (h._gone) continue;
+        if (h._out >= paceBelow) {
+          // Its own connection has yet to take what it was given: it goes on as that goes down.
+          h._waitingOwn = true;
+          continue;
+        }
         final then = h._then;
         h._then = null;
         then?.call();
@@ -386,15 +439,20 @@ class WireHold {
   WireHold._(this.budget, this._end) : _inMoved = budget._now(), _outMoved = budget._now();
   final WireBudget budget;
   final void Function() _end;
-  int _in = 0, _out = 0;
+  int _in = 0, _out = 0, _behind = 0;
   int _inMark = 0, _outGone = 0;
   DateTime _inMoved, _outMoved;
-  bool _gone = false;
+  DateTime? _overAt, _bigAt;
+  bool _gone = false, _waitingOwn = false;
   void Function()? _then;
 
-  /// What it holds now, in bytes; and what of it waits to go out.
-  int get held => _in + _out;
-  int get waiting => _out;
+  /// What it holds now, in bytes; and what of it waits to go out (in the socket's queue, and the hub's own frames queued
+  /// behind a hand-over).
+  int get held => _in + _out + _behind;
+  int get waiting => _out + _behind;
+
+  /// What waits in the socket's own queue.
+  int get queuedHere => _out;
 
   /// Whether it has been ended, or closed.
   bool get gone => _gone;
@@ -403,9 +461,17 @@ class WireHold {
   /// holds anything of.
   Duration stalledFor(DateTime now) {
     var d = Duration.zero;
-    if (_out > 0 && now.difference(_outMoved) > d) d = now.difference(_outMoved);
+    if (_out + _behind > 0 && now.difference(_outMoved) > d) d = now.difference(_outMoved);
     if (_in > 0 && now.difference(_inMoved) > d) d = now.difference(_inMoved);
     return d;
+  }
+
+  void _over() {
+    if (_out + _behind > budget.eachOut) {
+      _overAt ??= budget._now();
+    } else {
+      _overAt = null;
+    }
   }
 
   /// The part of a message that has come in and isn't finished is now [n] bytes: false where the connection is ended.
@@ -421,29 +487,69 @@ class WireHold {
     return !grew || budget._fit(budget._now(), this);
   }
 
-  /// [n] more bytes wait to go out: false where the connection is ended.
+  /// [n] more bytes wait in the socket's queue: false where the connection is ended.
   bool queued(int n) {
     if (_gone) return false;
     final before = held;
-    if (_out == 0) {
+    if (_out + _behind == 0) {
       _outMoved = budget._now();
       _outGone = 0;
     }
     _out += n;
+    _over();
     budget._changed(this, before);
     return budget._fit(budget._now(), this);
   }
 
-  /// [n] bytes have gone to the socket.
+  /// [n] bytes have gone from the socket's queue to the socket.
   void sent(int n) {
     if (_gone) return;
     final before = held;
     _out = max(0, _out - n);
+    _moved(n);
+    _over();
+    budget._changed(this, before);
+    if (_waitingOwn && _out < WireBudget.paceBelow) {
+      _waitingOwn = false;
+      if (budget._used < budget.most) {
+        final then = _then;
+        _then = null;
+        if (then != null) scheduleMicrotask(then);
+      } else {
+        budget._waitingForRoom.add(this);
+      }
+    }
+  }
+
+  void _moved(int n) {
     _outGone += n;
-    if (_out == 0 || _outGone >= WireBudget.outStep) {
+    if (_out + _behind == 0 || _outGone >= WireBudget.outStep) {
       _outMoved = budget._now();
       _outGone = 0;
     }
+  }
+
+  /// The hub's own frames queued behind a hand-over for this connection: [n] more (counted, but not in the socket's
+  /// queue, so hand-overs are paced by what the socket holds alone). False where the connection is ended.
+  bool behind(int n) {
+    if (_gone) return false;
+    final before = held;
+    if (_out + _behind == 0) {
+      _outMoved = budget._now();
+      _outGone = 0;
+    }
+    _behind += n;
+    _over();
+    budget._changed(this, before);
+    return budget._fit(budget._now(), this);
+  }
+
+  /// [n] bytes queued behind a hand-over have gone on to the socket's queue (where they are counted again).
+  void unqueued(int n) {
+    if (_gone) return;
+    final before = held;
+    _behind = max(0, _behind - n);
+    _over();
     budget._changed(this, before);
   }
 
@@ -452,13 +558,19 @@ class WireHold {
   /// Whether the hub may hand this connection more of what it keeps now ([whenRoom] otherwise).
   bool get hasRoom => _hasRoom;
 
-  /// Calls [then] once there is room ([hasRoom]): when what waits for this connection has gone down, or something
-  /// anywhere was let go. One at a time; never once the connection is gone.
+  /// Calls [then] once there is room ([hasRoom]): when what waits for this connection has gone down, and the budget has
+  /// room. One at a time; never once the connection is gone.
   void whenRoom(void Function() then) {
     if (_gone) return;
     _then = then;
-    if (!budget._waitingForRoom.contains(this)) budget._waitingForRoom.add(this);
-    if (_hasRoom) budget._roomMade();
+    if (_out >= WireBudget.paceBelow) {
+      _waitingOwn = true;
+    } else if (budget._used >= budget.most) {
+      budget._waitingForRoom.add(this);
+    } else {
+      _then = null;
+      scheduleMicrotask(then);
+    }
   }
 
   /// The connection is over: nothing of it is held.
@@ -475,7 +587,9 @@ final Expando<WireHold> wireHoldOf = Expando('wireHoldOf');
 /// left waiting where it can't be counted). Everything else is the socket's own.
 class GuardedSocket extends Stream<Uint8List> implements Socket {
   GuardedSocket(this._socket, this.guard, {Stream<Uint8List>? incoming, WireBudget? budget}) : _incoming = incoming ?? _socket {
-    _hold = (budget ?? WireBudget.shared).open(_socket.destroy);
+    // Destroyed a moment after the budget ends it: never in the middle of the hub's loop over a room's members, which
+    // the destroying would change under it (found in the third review, 2026-11-23).
+    _hold = (budget ?? WireBudget.shared).open(() => scheduleMicrotask(_socket.destroy));
     _socket.done.then((_) => _hold.close(), onError: (_) => _hold.close());
   }
 
@@ -487,29 +601,57 @@ class GuardedSocket extends Stream<Uint8List> implements Socket {
   /// Its share of the budget.
   WireHold get hold => _hold;
 
+  /// The subscription to what comes in, and whether it is paused for the answers waiting to go out.
+  StreamSubscription<Uint8List>? _reading;
+  bool _readingHeld = false;
+
   @override
   StreamSubscription<Uint8List> listen(void Function(Uint8List event)? onData, {Function? onError, void Function()? onDone, bool? cancelOnError}) {
     var ended = false;
-    return _incoming
-        .transform(StreamTransformer<Uint8List, Uint8List>.fromHandlers(
-          handleData: (data, sink) {
+    late final StreamController<Uint8List> passed;
+    passed = StreamController<Uint8List>(
+      sync: true,
+      onListen: () {
+        _reading = _incoming.listen(
+          (data) {
             if (ended) return;
-            final passed = guard.pass(data);
-            if (passed != null && _hold.incoming(guard.holding)) {
-              if (passed.isNotEmpty) sink.add(passed);
+            final out = guard.pass(data);
+            if (out != null && _hold.incoming(guard.holding)) {
+              if (out.isNotEmpty) passed.add(out);
               return;
             }
             ended = true;
             _socket.destroy();
-            sink.close();
+            passed.close();
           },
-          handleDone: (sink) {
+          onError: (Object e, StackTrace s) {
+            if (!passed.isClosed) passed.addError(e, s);
+          },
+          onDone: () {
             // Nothing more comes in; what waits to go out is still counted until the socket is done.
             _hold.incoming(0);
-            sink.close();
+            if (!passed.isClosed) passed.close();
           },
-        ))
-        .listen(onData, onError: onError, onDone: onDone, cancelOnError: cancelOnError);
+        );
+      },
+      onPause: () => _reading?.pause(),
+      onResume: () => _reading?.resume(),
+      onCancel: () => _reading?.cancel(),
+    );
+    return passed.stream.listen(onData, onError: onError, onDone: onDone, cancelOnError: cancelOnError);
+  }
+
+  /// Nothing more is read from it while its own answers wait past [WireBudget.readPauseAbove], and it is read from again
+  /// below [WireBudget.readAgainBelow]: a peer flooding pings, or anything else that is answered, limits itself.
+  void _readOrNot() {
+    final waiting = _hold.queuedHere;
+    if (!_readingHeld && waiting > WireBudget.readPauseAbove) {
+      _readingHeld = true;
+      _reading?.pause();
+    } else if (_readingHeld && waiting < WireBudget.readAgainBelow) {
+      _readingHeld = false;
+      _reading?.resume();
+    }
   }
 
   /// What the WebSocket writes (Dart's WebSocket gives its socket one stream of frames, pongs among them). It is read
@@ -522,7 +664,11 @@ class GuardedSocket extends Stream<Uint8List> implements Socket {
     from = stream.listen(
       (chunk) {
         if (waiting.isClosed) return;
-        if (_hold.queued(chunk.length)) return waiting.add(chunk);
+        if (_hold.queued(chunk.length)) {
+          waiting.add(chunk);
+          _readOrNot();
+          return;
+        }
         from.cancel();
         waiting.close();
       },
@@ -535,6 +681,7 @@ class GuardedSocket extends Stream<Uint8List> implements Socket {
     );
     return _socket.addStream(waiting.stream.map((chunk) {
       _hold.sent(chunk.length);
+      _readOrNot();
       return chunk;
     }));
   }

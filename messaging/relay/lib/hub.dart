@@ -414,7 +414,7 @@ class Hub {
     } else {
       _mode[id] = mode;
     }
-    final watchers = _watching[id] ?? const <_End>{};
+    final watchers = [...?_watching[id]];
     final at = _now().millisecondsSinceEpoch;
     if (mode == 'invisible') {
       // Gone, to watchers, as of now; last seen not moved on while hidden.
@@ -664,7 +664,7 @@ class Hub {
       for (final room in e.looks.toList()) {
         _unlook(e, room);
       }
-      for (final id in e.watches) {
+      for (final id in e.watches.toList()) {
         final set = _watching[id];
         set?.remove(e);
         if (set != null && set.isEmpty) _watching.remove(id);
@@ -682,7 +682,7 @@ class Hub {
           } else {
             _awaySince.remove(e.id);
           }
-          for (final w in _watching[e.id] ?? const <_End>{}) {
+          for (final w in [...?_watching[e.id]]) {
             _tell(w.ws, {'away': e.id, 'is': away, 'at': at});
           }
         }
@@ -695,7 +695,7 @@ class Hub {
       final at = _awaySince.remove(e.id) ?? _now().millisecondsSinceEpoch;
       if (hidden) return;
       _keepSeen(e.id, at);
-      for (final w in _watching[e.id] ?? const <_End>{}) {
+      for (final w in [...?_watching[e.id]]) {
         _tell(w.ws, {'went': e.id, 'at': at});
       }
       _say('${e.id.substring(0, 6)} left');
@@ -782,7 +782,7 @@ class Hub {
         list.add(made);
         // Another device coming while the others were put away: back, to whoever watches.
         if (_awaySince.remove(made.id) != null && !first) {
-          for (final w in _watching[made.id] ?? const <_End>{}) {
+          for (final w in [...?_watching[made.id]]) {
             _tell(w.ws, {'away': made.id, 'is': false, 'at': _now().millisecondsSinceEpoch});
           }
         }
@@ -804,7 +804,7 @@ class Hub {
         final asked = hello?['mode'];
         if (first && asked is String && (asked == 'busy' || asked == 'invisible')) _mode[made.id] = asked;
         if (first && _shown(made.id)) {
-          for (final w in _watching[made.id] ?? const <_End>{}) {
+          for (final w in [...?_watching[made.id]]) {
             _tell(w.ws, {'came': made.id});
             if (_mode[made.id] == 'busy') _tell(w.ws, {'busy': made.id, 'is': true});
           }
@@ -890,7 +890,7 @@ class Hub {
           _awaySince.remove(e.id);
         }
         if (!_shown(e.id)) return;
-        for (final w in _watching[e.id] ?? const <_End>{}) {
+        for (final w in [...?_watching[e.id]]) {
           _tell(w.ws, {'away': e.id, 'is': away, 'at': at});
         }
       } else if (said.containsKey('join')) {
@@ -955,7 +955,7 @@ class Hub {
       if (room == null || !(room.members[from.id]?.contains(from) ?? false)) return;
       final frame = Uint8List.fromList([toRoomReaction, ...data.sublist(1, 17), ..._unhex(from.id), ...data.sublist(17)]);
       _keep(key, room.hash, frame);
-      for (final m in room.members.values.expand((d) => d)) {
+      for (final m in room.members.values.expand((d) => d).toList()) {
         if (!identical(m, from) && m.ws.isOpen) m.ws.add(frame);
       }
     } else if ((data[0] == toRoom || data[0] == toRoomKept) && data.length > 17) {
@@ -974,9 +974,9 @@ class Hub {
       }
       if (data[0] == toRoomKept) _keep(key, room.hash, frame);
       // To every device of everyone in it, the sender's other devices too, but not the connection it came from.
-      for (final e in room.members.entries) {
+      for (final e in room.members.entries.toList()) {
         if (reader && !room.writers.contains(e.key)) continue;
-        for (final m in e.value) {
+        for (final m in e.value.toList()) {
           if (!identical(m, from) && m.ws.isOpen) m.ws.add(frame);
         }
       }
@@ -1050,7 +1050,7 @@ class Hub {
     final lookers = _lookers[name];
     if (lookers == null) return;
     final room = _rooms[name];
-    for (final l in lookers.entries) {
+    for (final l in lookers.entries.toList()) {
       if (room != null && room.hash != l.value) continue;
       _tell(l.key.ws, {'room': name, 'look': [...?room?.members.keys]});
     }
@@ -1125,7 +1125,7 @@ class Hub {
     }
     if (first) {
       for (final id in others) {
-        for (final d in room.members[id] ?? const <_End>[]) {
+        for (final d in [...?room.members[id]]) {
           _tell(d.ws, {'room': name, 'came': e.id});
         }
       }
@@ -1148,7 +1148,7 @@ class Hub {
     if (room.members.isEmpty) {
       _rooms.remove(key);
     } else {
-      for (final m in room.members.values.expand((d) => d)) {
+      for (final m in room.members.values.expand((d) => d).toList()) {
         _tell(m.ws, {'room': name, 'went': e.id});
       }
     }
@@ -1204,20 +1204,59 @@ class _WebSocketHubSocket implements HubSocket {
   /// Its share of the relay's budget (ws_door.dart): what waits to go out to it.
   final WireHold? _share;
 
-  /// What the hub is handing it of what it keeps, a batch at a time, in order ([Hub._handOver]).
-  final Queue<({Queue<Uint8List> frames, void Function(int left)? notGiven})> _handing = Queue();
+  /// What the hub is handing it of what it keeps, a batch at a time, in order ([Hub._handOver]); and, behind a hand-over
+  /// under way, the frames said to it meanwhile (`live`), so nothing said live overtakes what it is being handed (found
+  /// in the third review, 2026-11-23: a deletion said live came before the kept message it deleted).
+  final Queue<({Queue<Uint8List> frames, void Function(int left)? notGiven, bool live})> _handing = Queue();
+
+  /// Whether the hub has closed it: Dart says a WebSocket is open until the far end answers its Close, but nothing more
+  /// may be written to it from then on (found in the third review: a hand-over wrote to a connection closed for its
+  /// replacement, and the frame it had taken was lost).
+  bool _closing = false;
 
   @override
   Stream<Object?> get incoming => _ws;
+
   @override
-  void add(Object data) => _ws.add(data);
+  void add(Object data) {
+    if (_closing) return;
+    if (_handing.isNotEmpty && data is List<int>) {
+      // Behind the hand-over under way, in order, and counted.
+      final frame = data is Uint8List ? data : Uint8List.fromList(data);
+      final last = _handing.last;
+      if (last.live) {
+        last.frames.add(frame);
+      } else {
+        _handing.add((frames: Queue.of([frame]), notGiven: null, live: true));
+      }
+      _share?.behind(frame.length);
+      return;
+    }
+    try {
+      _ws.add(data);
+    } catch (_) {}
+  }
+
   @override
-  bool get isOpen => _ws.readyState == WebSocket.open;
+  bool get isOpen => !_closing && _ws.readyState == WebSocket.open;
+
   @override
-  Future<void> close([int? code, String? reason]) => _ws.close(code, reason);
+  Future<void> close([int? code, String? reason]) {
+    if (!_closing) {
+      _closing = true;
+      // What wasn't handed over goes back to whoever handed it (what was held is kept again) before anything replaces
+      // this connection: the hub closes an old connection before a new one takes what is held.
+      _letGo();
+    }
+    return _ws.close(code, reason);
+  }
 
   void handOver(List<Uint8List> frames, void Function(int left)? notGiven) {
-    _handing.add((frames: Queue.of(frames), notGiven: notGiven));
+    if (_closing) {
+      notGiven?.call(frames.length);
+      return;
+    }
+    _handing.add((frames: Queue.of(frames), notGiven: notGiven, live: false));
     if (_handing.length == 1) _go();
   }
 
@@ -1232,16 +1271,34 @@ class _WebSocketHubSocket implements HubSocket {
         continue;
       }
       if (share != null && !share.hasRoom) return share.whenRoom(_go);
-      _ws.add(batch.frames.removeFirst());
+      final frame = batch.frames.removeFirst();
+      if (batch.live) share?.unqueued(frame.length);
+      try {
+        _ws.add(frame);
+      } catch (_) {
+        // Its sink closed under it: the frame goes back with the rest.
+        batch.frames.addFirst(frame);
+        if (batch.live) share?.behind(frame.length);
+        return _letGo();
+      }
     }
   }
 
-  /// The connection is gone: whoever handed something over is told how much wasn't written.
+  /// The connection is gone, or closing: whoever handed something over is told how much wasn't written; what was said
+  /// live behind it goes with the connection, as anything said to a connection that goes does.
   void _letGo() {
     final left = _handing.toList();
     _handing.clear();
     for (final b in left) {
-      if (b.frames.isNotEmpty) b.notGiven?.call(b.frames.length);
+      if (b.live) {
+        var n = 0;
+        for (final f in b.frames) {
+          n += f.length;
+        }
+        _share?.unqueued(n);
+      } else if (b.frames.isNotEmpty) {
+        b.notGiven?.call(b.frames.length);
+      }
     }
   }
 }
