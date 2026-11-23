@@ -182,7 +182,8 @@ object Notifier {
         // A member of a group shown under a stand-in (Groups.memberName) is called "Someone" and is still nobody's contact.
         val strangers = people.all { val a = it["address"] as String; Groups.memberName(a) != null || store.contact(a)["name"] == null }
         if (!inBubble && NotifyHush.hushes(ui.getString(NotifyHush.PREF, null), thread, people.map { it["address"] as String }, people.size > 1, strangers, unread.last()["body"] as String)) return true
-        val previews = ui.getString("notif_preview", "on") != "off"
+        // (Nor while the app's own lock is on: AppLock.kt, GMFB-46.)
+        val previews = ui.getString("notif_preview", "on") != "off" && !AppLock.hidesWords(ui)
         // A group only the bridge has (its people named only as they write): still a group, under the name Google
         // Messages gave it, never titled as the one who wrote (Matt, 2026-11-18: "the notification comes through as a
         // message from jade not from the group chat").
@@ -330,7 +331,7 @@ object Notifier {
      */
     fun chat(context: Context, thread: Long, who: String, body: String) {
         if (MainActivity.openThread == thread && MainActivity.inFront) { Sounds.messageIn(context); return }
-        val previews = context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("notif_preview", "on") != "off"
+        val previews = wordsShown(context)
         val sender = Person.Builder().setName(who).setKey(who).build()
         val style = Notification.MessagingStyle(Person.Builder().setName("You").build())
             .addMessage(Notification.MessagingStyle.Message(if (previews) MarkdownPlain.strip(body) else "New message", System.currentTimeMillis(), sender))
@@ -346,6 +347,15 @@ object Notifier {
         try { manager(context).notify(thread.toInt(), n) } catch (_: SecurityException) {}
     }
 
+    /**
+     * Whether a notification says the message's words: where previews are on, and not while the app's own lock is on
+     * (AppLock.kt, GMFB-46), when it says "New message" and who it is from.
+     */
+    private fun wordsShown(context: Context): Boolean {
+        val ui = context.getSharedPreferences("ui", Context.MODE_PRIVATE)
+        return ui.getString("notif_preview", "on") != "off" && !AppLock.hidesWords(ui)
+    }
+
     /** The tag a Signal or Telegram chat's notification is shown under, apart from the texts' (numbered by thread). */
     private const val INBOX_TAG = "inbox"
     const val EXTRA_INBOX = "inbox"
@@ -356,7 +366,7 @@ object Notifier {
      * whether to notify (not muted, not spam, not on the screen); "New message" where previews are off.
      */
     fun inbox(context: Context, key: String, network: String, title: String, body: String, group: Boolean) {
-        val previews = context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("notif_preview", "on") != "off"
+        val previews = wordsShown(context)
         val who = Person.Builder().setName(title).setKey(key).build()
         val style = Notification.MessagingStyle(Person.Builder().setName("You").build())
             .addMessage(Notification.MessagingStyle.Message(if (previews) MarkdownPlain.strip(body).ifBlank { "New message" } else "New message", System.currentTimeMillis(), who))

@@ -9,6 +9,7 @@ import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
 import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner;
 import 'package:ghost_messaging/plugins/plugin.dart';
 import 'package:ghost_messaging/plugins/record_call.dart';
+import 'package:ghost_messaging/plugins/registry.dart';
 import 'package:ghost_messaging/ui/common.dart' show GhostPage;
 import 'package:ghost_messaging/ui/hangout_screen.dart';
 import 'package:ghost_messaging/ui/plugin_note_card.dart';
@@ -124,6 +125,53 @@ void main() {
       expect(find.text('13 min'), findsOneWidget);
       expect(find.text('3 voices'), findsOneWidget);
       expect(find.textContaining('🔴'), findsNothing, reason: 'the words are under the card, not beside it');
+      await tester.pump(const Duration(seconds: 1));
+    });
+  }
+  // GMFB-43: "use the icons ... for starting and stopping recording in the messages sent to chat instead of emoji".
+  test('Record call\'s line is known by its words, and no other is', () {
+    final started = PluginChatNote.recordingLine('🔴 Maya started recording this call. Only the voices of people who say yes are in it.')!;
+    expect(started.started, isTrue);
+    expect(started.words, startsWith('Maya started recording this call.'));
+    expect(PluginChatNote.recordingLine('⏹ Maya stopped recording.'), (started: false, words: 'Maya stopped recording.'));
+    expect(PluginChatNote.recordingLine('⏹️ Maya stopped recording.')!.words, 'Maya stopped recording.');
+    expect(PluginChatNote.recordingLine('🔴 the light is red'), isNull);
+    expect(PluginChatNote.recordingLine('Maya started recording'), isNull);
+    expect(recordingWordsOf('🔴 M started recording this call.')!.icon, Lucide.circleDot);
+    expect(recordingWordsOf('⏹ M stopped recording.')!.icon, Lucide.circleStop);
+    const m = HangoutMessage(id: 'p', from: _maya, name: 'M', text: '🔴 M started recording this call.', at: 1);
+    expect(m.summary, 'M started recording this call.', reason: 'a list\'s preview has no emoji');
+    expect(m.toJson()['x'], '🔴 M started recording this call.', reason: 'what travels is unchanged: a build from before shows the emoji');
+  });
+
+  test('a shipped plugin draws its card where the registry has none (the browser\'s page)', () {
+    final had = PluginRegistry.instance;
+    PluginRegistry.instance = PluginRegistry(const []);
+    addTearDown(() => PluginRegistry.instance = had);
+    const m = HangoutMessage(id: 'x', from: _maya, name: 'M', text: '🔴 M started recording this call.', at: 1, note: PluginChatNote('recordcall', 'started', {'by': 'M'}));
+    expect(pluginCardOf(m, mine: false)?.card.icon, Lucide.circleDot);
+  });
+
+  for (final circle in [true, false]) {
+    testWidgets('icons, not emoji, where the words are shown: a quote, and a line with no note (${circle ? 'a circle\'s channel' : 'bubbles'})', (tester) async {
+      final h = await SpaceHarness.load(tester);
+      final at = DateTime(2026, 11, 19, 9).millisecondsSinceEpoch;
+      final (:room, route: _) = _room(
+        circle: circle,
+        messages: (me) => [
+          // From a build before the notes: the words alone.
+          HangoutMessage(id: '1', from: _maya, name: 'Maya Chen', text: '🔴 Maya Chen started recording this call.', at: at),
+          HangoutMessage(id: '2', from: _maya, name: 'Maya Chen', text: '⏹ Maya Chen stopped recording.', at: at + 60000),
+          HangoutMessage(id: '3', from: _maya, name: 'Maya Chen', text: 'Got it all', at: at + 120000, reply: const SpaceReply(id: '2', from: _maya, name: 'Maya Chen', text: '⏹ Maya Chen stopped recording.')),
+        ],
+      );
+      await room.open();
+      await h.shoot(tester, GhostPage(title: '# general', body: HangoutChat(room: room)), 'recording-words-${circle ? 'circle' : 'bubbles'}');
+      expect(find.textContaining('🔴', findRichText: true), findsNothing);
+      expect(find.textContaining('⏹', findRichText: true), findsNothing);
+      expect(find.byKey(const ValueKey('note-icon-started')), findsOneWidget);
+      expect(find.byKey(const ValueKey('note-icon-stopped')), findsNWidgets(2), reason: 'the line and its quote');
+      expect(find.textContaining('Maya Chen stopped recording.', findRichText: true), findsNWidgets(2));
       await tester.pump(const Duration(seconds: 1));
     });
   }

@@ -28,6 +28,7 @@ import 'live_changer.dart';
 import 'soundboard.dart';
 import 'watch_together.dart';
 import 'rtc.dart';
+import 'open_space.dart';
 import 'voice.dart';
 import 'voice_settings.dart';
 
@@ -93,6 +94,9 @@ class Voice extends ChangeNotifier {
   /// The channel this device is in, while it is.
   VoiceSession? session;
   RtcMedia? media;
+
+  /// The call that went from this device to another of the person's, until it is brought back or put away (GMFB-50).
+  late final MovedAway movedAway = MovedAway(bring: join);
 
   /// Someone calling a group, or a friend's invite into a space, until it is answered or put away.
   VoiceRing? ringing;
@@ -264,6 +268,7 @@ class Voice extends ChangeNotifier {
     _leaveCall ??= Sms.instance.leaveCall.stream.listen((_) => unawaited(leave()));
     if (_app != null) return;
     _app = app;
+    OpenSpaces.instance.app = app;
     try {
       own = [for (final j in jsonDecode(app.choice('voice_channels', '[]')) as List) ?VoiceChannel.fromJson(j)];
       _seen.addAll((jsonDecode(app.choice('voice_seen', '{}')) as Map).cast<String, int>());
@@ -465,6 +470,7 @@ class Voice extends ChangeNotifier {
     final route = _route = HubVoiceRoute(hub);
     _subs.add(route.looks.listen((l) {
       _in[l.room] = l.members;
+      movedAway.looked(l.room, l.members);
       if (l.members.isNotEmpty) _saw(l.room);
       notifyListeners();
     }));
@@ -871,6 +877,7 @@ class Voice extends ChangeNotifier {
   @visibleForTesting
   void putLook(String room, List<String> members) {
     members.isEmpty ? _in.remove(room) : _in[room] = members;
+    movedAway.looked(room, members);
     notifyListeners();
   }
 
@@ -940,6 +947,8 @@ class Voice extends ChangeNotifier {
     if (!Circles.instance.allows(c, CirclePerm.voice)) throw StateError('Your role in this circle can\'t talk in voice spaces.');
     if (session?.channel.room == c.room) return;
     await leave();
+    // In a call here again, this one or another: the note that one moved away has had its answer (GMFB-50).
+    movedAway.dismiss();
     if (ringing?.channel.room == c.room) {
       // A friend's call answered here: this account's other devices stop ringing (GMFB-28).
       final r = ringing!;
@@ -966,9 +975,12 @@ class Voice extends ChangeNotifier {
     final name = _deskName != null ? bareName(_deskName!) : Me.instance.shownName;
     final s = session = VoiceSession(channel: c, route: route, media: m, name: name, username: _deskName == null ? Me.instance.username : _deskUsername, kbps: settings.sendKbps, stereo: settings.sendStereo);
     // Taken over by another device of this identity coming into the call (VoiceSession.join): this one leaves it, as
-    // Leave does.
+    // Leave does, and says so until the person answers (GMFB-50: "a "would you like to reconnect" notification could
+    // be nice"). It never comes back by itself: only Bring it back here does that.
     s.onMovedAway = () async {
-      if (identical(session, s)) await leave();
+      if (!identical(session, s)) return;
+      await leave();
+      movedAway.moved(c);
     };
     // A hangout's chat and roles while in its call: whoever is banned is not answered, and the roster is done.
     final room = await hold(c);
@@ -1006,6 +1018,8 @@ class Voice extends ChangeNotifier {
       WatchTogether.instance.follow();
       // And its soundboard (soundboard.dart).
       Soundboard.instance.follow();
+      // And its floor, where it is an open space (open_space.dart).
+      OpenSpaces.instance.follow();
       // And the auto leveler (leveler.dart).
       AutoLeveler.instance.follow();
       // And the voice changer, live, where it is on (live_changer.dart).
@@ -1025,16 +1039,19 @@ class Voice extends ChangeNotifier {
     if (m is RtcMedia) await m.applyLive(settings);
   }
 
-  // The microphone and the speaker chosen in Settings: kept, and switched to at once in a call there is.
-  Future<void> useInput(String deviceId) async {
+  // The microphone and the speaker chosen in Settings: kept with the system's name for them (to find one again whose
+  // id has changed), and switched to at once in a call there is. An empty id is the system's own.
+  Future<void> useInput(String deviceId, {String name = ''}) async {
     _app?.set('voice_input', deviceId);
-    await media?.setInput(deviceId);
+    _app?.set('voice_input_name', deviceId.isEmpty ? '' : name);
+    await media?.setInput(deviceId, name: name);
     notifyListeners();
   }
 
-  Future<void> useOutput(String deviceId) async {
+  Future<void> useOutput(String deviceId, {String name = ''}) async {
     _app?.set('voice_output', deviceId);
-    await media?.setOutput(deviceId);
+    _app?.set('voice_output_name', deviceId.isEmpty ? '' : name);
+    await media?.setOutput(deviceId, name: name);
     notifyListeners();
   }
 
@@ -1046,6 +1063,7 @@ class Voice extends ChangeNotifier {
     CallCaptions.instance.follow();
     WatchTogether.instance.follow();
     Soundboard.instance.follow();
+    OpenSpaces.instance.follow();
     Sounds.instance.stopLoop(UiSound.ringOut);
     media = null;
     AutoLeveler.instance.follow();
@@ -1064,6 +1082,56 @@ class Voice extends ChangeNotifier {
       }
     }
     notifyListeners();
+  }
+}
+
+/// A call this device was in until another of the person's devices came into it, and when it went (GMFB-50).
+class MovedCall {
+  const MovedCall(this.channel, this.at);
+  final VoiceChannel channel;
+  final DateTime at;
+}
+
+/// The note that a call moved from this device to another of the person's (GMFB-50, Kevin: "If you are on your pc
+/// talking in a call and switch to your phone a "would you like to reconnect" notification could be nice. Maybe a
+/// sticky toast notification?"). It holds the call from [moved] until the person brings it back ([bringBack]) or puts
+/// the note away ([dismiss]), and lets go of it by itself when the call is over ([looked]: nobody left in its room)
+/// or after [keep], when the offer is stale. The screens only draw what it holds (lib/ui/call_moved_note.dart).
+class MovedAway extends ValueNotifier<MovedCall?> {
+  MovedAway({required this.bring, this.keep = const Duration(minutes: 10)}) : super(null);
+
+  /// Joins the call again from this device, which moves it back here (Voice.join).
+  final Future<void> Function(VoiceChannel channel) bring;
+
+  /// How long the note stays when nobody answers it.
+  final Duration keep;
+  Timer? _ends;
+
+  /// The call in [channel] was taken over by another of this person's devices just now.
+  void moved(VoiceChannel channel) {
+    _ends?.cancel();
+    value = MovedCall(channel, DateTime.now());
+    _ends = Timer(keep, dismiss);
+  }
+
+  /// Puts the note away: it is not shown again for this move.
+  void dismiss() {
+    _ends?.cancel();
+    _ends = null;
+    value = null;
+  }
+
+  /// Who the relay says is in [room] now: with nobody left the call is over, and there is nothing to bring back.
+  void looked(String room, List<String> members) {
+    if (members.isEmpty && value?.channel.room == room) dismiss();
+  }
+
+  /// Bring it back here: the note goes, and this device joins the call again. Whatever stops the join is thrown.
+  Future<void> bringBack() async {
+    final c = value?.channel;
+    if (c == null) return;
+    dismiss();
+    await bring(c);
   }
 }
 

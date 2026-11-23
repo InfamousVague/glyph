@@ -855,11 +855,22 @@ class HangoutRoom extends ChangeNotifier {
     return true;
   }
 
+  /// Whether this device may mute [id] for everyone and unmute them: its role has Mute others, and is above theirs
+  /// (so never oneself: someone muted can't lift it).
+  bool canMuteForAll(String id) => can(Perm.muteOthers) && roster.outranks(me, id);
+
   /// Mutes [id] for everyone, or lets them speak again.
   Future<bool> muteForAll(String id, bool on) async {
-    if (!can(Perm.muteOthers) || !roster.outranks(me, id)) return false;
+    if (!canMuteForAll(id)) return false;
     // A mute stands in the roster when an admin makes it; a moderator's is said to the room and held while they are.
     if (canManage) {
+      // A moderator's mute still held is lifted by whoever is above them too (GMFB-49): an admin's switch only wrote
+      // the roster, which never named them, so it stayed on and they stayed silent. Said as a moderator says it.
+      if (!on && heldMutes.contains(id)) {
+        _say({'t': 'mute', 'who': id, 'on': false});
+        _applyMute(id, false);
+        if (!roster.muted.contains(id)) return true;
+      }
       final muted = {...roster.muted};
       on ? muted.add(id) : muted.remove(id);
       return _publish(roster.next(muted: muted));
@@ -882,6 +893,28 @@ class HangoutRoom extends ChangeNotifier {
 
   /// Whether [id] may be heard: the roster, and any mute a moderator said.
   bool heard(String id) => roster.can(id, Perm.speak) && !heldMutes.contains(id);
+
+  /// Whether [id] is muted for everyone (GMFB-49): by an admin in the roster, or by a moderator while they are here.
+  /// Apart from muting oneself, and from a role that may not speak.
+  bool mutedForAll(String id) => roster.muted.contains(id) || heldMutes.contains(id);
+
+  /// Why this device may not unmute, for its mute button to say (GMFB-49); null where it may.
+  String? get micLockedWhy {
+    if (heard(me)) return null;
+    if (mutedForAll(me)) return 'A moderator muted you for everyone. Only a moderator can unmute you.';
+    if (listens(me)) return 'You\'re listening. Raise your hand to ask to speak.';
+    return 'Your role can\'t speak in this space.';
+  }
+
+  /// Tells the newcomer [to] of the moderators' mutes held here (GMFB-49): they were said once, to whoever was there
+  /// then, so someone who came later heard a muted person whose app let them talk. Said by each device that could
+  /// have made the mute itself, since the newcomer believes it from no one else.
+  void _tellMutes(String to) {
+    if (!can(Perm.muteOthers)) return;
+    for (final id in heldMutes) {
+      if (roster.outranks(me, id)) _say({'t': 'mute', 'to': to, 'who': id, 'on': true});
+    }
+  }
 
   /// Puts [id] out of the hangout now; they can come back.
   bool remove(String id) {
@@ -1117,6 +1150,7 @@ class HangoutRoom extends ChangeNotifier {
       present[e.came!] = HangoutPerson(e.came!);
       // Who is here and what they call themselves, for the newcomer.
       _greet(e.came!);
+      _tellMutes(e.came!);
     } else if (e.went != null) {
       present.remove(e.went);
       heldMutes.remove(e.went);
@@ -1404,7 +1438,8 @@ class HangoutMessage {
   String get fallback => !extras ? text : (text.isEmpty ? what : '$what\n$text');
 
   /// The message in a line, for a list's preview: its words, or what came.
-  String get summary => !extras ? text : (text.isEmpty ? what : '$what · $text');
+  /// Record call's line without its emoji (GMFB-43): the chat draws an icon there, and a preview is words alone.
+  String get summary => !extras ? (PluginChatNote.recordingLine(text)?.words ?? text) : (text.isEmpty ? what : '$what · $text');
 
   /// The same message with its files, or its words, mentions and time of editing, changed.
   HangoutMessage copyWith({List<SpaceFile>? files, String? text, List<Mention>? mentions, int? edited}) => HangoutMessage(

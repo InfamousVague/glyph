@@ -104,14 +104,14 @@ class SpaceHarness {
     return HangoutRoom(channel: channel, route: _NoRoute(keys.id), name: 'Me', signer: KeysSigner(keys), store: store);
   }
 
-  /// A made-up call. [people]: how many besides this device (0 is alone, up to 7). [video]: who has video on (ids:
-  /// `me`, `a` Maya, `b` Sam, `c` Riley, `d` Jordan, `e` Priya, `f` Alex, `g` Noor). Every button's press is written to
+  /// A made-up call. [people]: how many besides this device (0 is alone, up to 8). [video]: who has video on (ids:
+  /// `me`, `a` Maya, `b` Sam, `c` Riley, `d` Jordan, `e` Priya, `f` Alex, `g` Noor, `h` Hana). Every button's press is written to
   /// [log] ("mute", "leave", "person a", ...), so a test can see the buttons do what they say.
   SpaceCall call({int people = 4, Set<String> video = const {'c'}, bool muted = false, bool deafened = false, bool myVideo = false, bool withChat = true, List<String>? log, bool micLocked = false, bool canShare = false, bool sharing = false}) {
     final room = withChat ? this.room() : null;
     final roster = room?.roster;
-    const names = {'a': 'Maya Chen', 'b': 'Sam Ortiz', 'c': 'Riley', 'd': 'Jordan Lee', 'e': 'Priya Natarajan', 'f': 'Alex Kim', 'g': 'Noor Haddad'};
-    final ids = names.keys.take(people.clamp(0, 7)).toList();
+    const names = {'a': 'Maya Chen', 'b': 'Sam Ortiz', 'c': 'Riley', 'd': 'Jordan Lee', 'e': 'Priya Natarajan', 'f': 'Alex Kim', 'g': 'Noor Haddad', 'h': 'Hana Sato'};
+    final ids = names.keys.take(people.clamp(0, 8)).toList();
     final meId = room?.me ?? 'me-id';
     void say(String what) => log?.add(what);
     return SpaceCall(
@@ -156,8 +156,9 @@ class SpaceHarness {
   static const phone = Size(412, 892), computer = Size(1280, 800);
 
   /// Draws [page] at [size] in the app's theme, light or [dark], and keeps its picture as test/shots/[name]-light.png
-  /// or -dark.png when run with --update-goldens (pictures are written, never compared: they hold the time).
-  Future<void> shoot(WidgetTester tester, Widget page, String name, {Size size = phone, bool dark = false}) async {
+  /// or -dark.png when run with --update-goldens (pictures are written, never compared: they hold the time). [dir]: the
+  /// folder beside test/ the picture goes in, for pictures not kept in the repo (`../build/...`).
+  Future<void> shoot(WidgetTester tester, Widget page, String name, {Size size = phone, bool dark = false, String dir = 'shots'}) async {
     tester.view.physicalSize = Size(size.width * 2, size.height * 2);
     tester.view.devicePixelRatio = 2.0;
     tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
@@ -182,7 +183,7 @@ class SpaceHarness {
     }
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
     await tester.pump(const Duration(milliseconds: 500));
-    if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('shots/$name-${dark ? 'dark' : 'light'}.png'));
+    if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('$dir/$name-${dark ? 'dark' : 'light'}.png'));
   }
 
   /// The picture again, as it stands now (after a tap), under the same name with [suffix].

@@ -53,9 +53,13 @@ class HubPair {
   static Object _carried(Object said) => said is String ? said : Uint8List.fromList(said as List<int>);
 }
 
-class _AppEnd implements HubLink {
+class _AppEnd implements HubLink, HubLinkEnd {
   _AppEnd(this._pair);
   final HubPair _pair;
+
+  /// What the hub closed it with, as a WebSocket says (4409 for a newer connection of the same device).
+  @override
+  int? get closeCode => _pair.code;
 
   @override
   Stream<Object> get said => _pair._toApp.stream;

@@ -6,6 +6,7 @@ import 'package:glacier/glacier.dart';
 
 import 'accent.dart';
 import 'app_state.dart';
+import 'app_lock/app_lock.dart';
 import 'backgrounds.dart';
 import 'kit/settings_css.dart';
 import 'kit/settings_type.dart' show pageText;
@@ -46,6 +47,8 @@ Future<void> runBubble(List<String> args) async {
   ]);
   final accents = loaded[0]! as AccentSheets;
   installSettingsStyles(accents.base);
+  // The app's lock (GMFB-46, lib/app_lock): a bubble opens locked too where a PIN is set, and is unlocked by itself.
+  await AppLock.start(state, tell: false);
   // What changed (a message in, one read in the app) and the choices changing, told to this engine too (android
   // MainActivity.configureBubble).
   Sms.instance.listen();

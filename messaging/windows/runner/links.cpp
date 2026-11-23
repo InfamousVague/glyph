@@ -82,6 +82,24 @@ bool HandToRunningCopy(const std::wstring& link) {
   return answer == 1;
 }
 
+bool ShowRunningCopy() {
+  // The other copy may still be making its window: looked for over three seconds, then this one opens as if there
+  // were none (as for a copy that is hung, above).
+  HWND other = nullptr;
+  for (int i = 0; i < 30; i++) {
+    other = FindWindowW(kWindowClassName, kWindowTitle);
+    if (other != nullptr) break;
+    Sleep(100);
+  }
+  if (other == nullptr) return false;
+  // Windows lets the copy the person started bring the other to the front. One not shown yet is still starting, and
+  // shows itself with its first frame.
+  AllowSetForegroundWindow(ASFW_ANY);
+  if (IsIconic(other)) ShowWindow(other, SW_RESTORE);
+  if (IsWindowVisible(other)) SetForegroundWindow(other);
+  return true;
+}
+
 void RegisterLinkScheme() {
   wchar_t exe[MAX_PATH];
   DWORD n = GetModuleFileNameW(nullptr, exe, MAX_PATH);

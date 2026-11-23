@@ -18,6 +18,7 @@ import '../voice/hangout.dart';
 import 'common.dart';
 import 'composer_box.dart';
 import 'mention_field.dart' show mentionStyle;
+import 'plugin_note_card.dart';
 import 'ripple_avatar.dart';
 import 'thread.dart' show LinkedText;
 
@@ -200,7 +201,11 @@ class _ThreadMessage extends StatelessWidget {
               ]),
               SizedBox(height: t.space(1) / 2),
               // Formatted as in the space's chat (GMFB-35).
-              if (m.text.isEmpty)
+              // A plugin's note is its card here too, as in the chat (GMFB-43: Record call's start and stop showed
+              // their emoji in a thread).
+              if (pluginCardOf(m, mine: m.from == room.me) case final pc?)
+                PluginChatCardView(card: pc.card, plugin: pc.plugin)
+              else if (m.text.isEmpty)
                 Text(m.what, style: pageText(t, t.fontSize(big ? 'md' : 'sm'), color: t.color('app-ink'), height: 1.4))
               else
                 LinkedText(m.text, ink: t.color('app-ink'), style: pageText(t, t.fontSize(big ? 'md' : 'sm'), color: t.color('app-ink'), height: 1.4), mentions: m.mentions, mentionStyle: mentionStyle(t)),

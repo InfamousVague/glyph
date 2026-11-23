@@ -769,10 +769,31 @@ class AccountHelper extends InboxNetwork {
             media: [for (final a in (m['media'] as List? ?? const [])) _media(a as Map)],
             reactions: signalReactions(m['reactions'] as Map?, me: _me),
             replyTo: (m['quote'] as Map?)?['id']?.toString(),
-            replyText: (m['quote'] as Map?)?['text'] as String?,
+            replyText: _quoted(chatId, m['quote'])?.text,
+            replySender: _quoted(chatId, m['quote'])?.sender,
             edited: m['edited'] == true,
           ),
       ];
+
+  /// What a reply shows of the message it answers ([quote], a message's `quote`): its words and who wrote it
+  /// (GMFB-44, "They simply say "a message" and you can't tell what message was actually being replied to": a reply
+  /// to a picture had no words to show, and no reply named anyone). Read from the message itself where it is kept
+  /// here, as it reads now; else from what the helper sent along (`text`, `from` or `author`, `name`, and `mime` for
+  /// one with no words), which is all there is for one older than what is loaded.
+  ({String? text, String? sender})? _quoted(String chatId, Object? quote) {
+    if (quote is! Map) return null;
+    final held = _find(chatId, '${quote['id'] ?? ''}');
+    var text = '${quote['text'] ?? ''}'.trim();
+    if (text.isEmpty && held != null) text = _snippet(held);
+    final mime = '${quote['mime'] ?? ''}';
+    if (text.isEmpty && mime.isNotEmpty) {
+      text = _snippet({'media': [{'mime': mime}]});
+    }
+    final who = '${held?['from'] ?? quote['from'] ?? quote['author'] ?? ''}';
+    final mine = held != null ? held['mine'] == true : who.isNotEmpty && who == _me;
+    final name = (_names[who] ?? '').isNotEmpty ? _names[who]! : '${quote['name'] ?? ''}'.trim();
+    return (text: text.isEmpty ? null : text, sender: mine ? 'You' : (name.isEmpty ? null : name));
+  }
 
   /// An attachment as the screens have it. Its number is made from the helper's pointer to it, and the attachment is
   /// remembered under that number for [fileOf] to bring down.

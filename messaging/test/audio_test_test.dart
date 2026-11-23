@@ -132,4 +132,32 @@ void main() {
     expect(find.text('Speaker or headset'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('a microphone chosen that is not connected says the system\'s own is used, and the Mac\'s "default" is offered once', (tester) async {
+    ListPhone(const []).install();
+    RtcMedia.enumerate = () async => [
+          MediaDeviceInfo(kind: 'audioinput', label: 'MacBook Air Microphone', deviceId: 'default'),
+          MediaDeviceInfo(kind: 'audioinput', label: 'MacBook Air Microphone', deviceId: 'BuiltInMicrophoneDevice'),
+          MediaDeviceInfo(kind: 'audiooutput', label: 'Studio Display Speakers', deviceId: 'display-uid'),
+        ];
+    addTearDown(() => RtcMedia.enumerate = null);
+    final sheet = await loadSheet(tester);
+    final app = AppState()
+      ..set('voice_input', 'usb-uid')
+      ..set('voice_input_name', 'USB Microphone')
+      ..set('voice_output', 'display-uid');
+    await pumpScreen(tester, sheet, const SettingsSectionScreen('voice'), app);
+    await settle(tester);
+    expect(find.text('USB Microphone is not connected: using the system\'s own'), findsOneWidget);
+    // The devices are listed after the native half is asked what it runs, which answers outside the test's clock.
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+    await settle(tester);
+    expect(find.text('Studio Display Speakers'), findsOneWidget);
+    await tester.tap(find.text('USB Microphone is not connected: using the system\'s own'));
+    await settle(tester);
+    // The system's own, then the one real microphone: "default" is the system's own, not listed twice.
+    expect(find.text('The system\'s own'), findsWidgets);
+    expect(find.textContaining('MacBook Air Microphone'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -61,13 +61,18 @@ LucideIcon circleIconOf(String name) => circleIcons[name] ?? _olderCircleIcons[n
 
 /// A space's kind in a word or three, as the new-space cards name it.
 /// The kinds of space offered where one is made or changed: all of them, but for Files in a browser whose build has
-/// no Files spaces (Sms.filesHere).
-List<SpaceKind> get spaceKindsOffered => !Sms.filesHere ? [for (final k in SpaceKind.values) if (k != SpaceKind.files) k] : SpaceKind.values;
+/// no Files spaces (Sms.filesHere), and an open space in a browser: it is a call to walk around in, and a browser has
+/// no calls yet (Sms.callsHere).
+List<SpaceKind> get spaceKindsOffered => [
+      for (final k in SpaceKind.values)
+        if (!(k == SpaceKind.files && !Sms.filesHere) && !(k == SpaceKind.open && Sms.browser)) k,
+    ];
 
 String spaceKindTitle(SpaceKind kind) => switch (kind) {
       SpaceKind.voice => 'Chat & voice',
       SpaceKind.text => 'Text',
       SpaceKind.files => 'Files',
+      SpaceKind.open => 'Open space',
     };
 
 /// What a space of [kind] is for, in a line.
@@ -75,6 +80,7 @@ String spaceKindBlurb(SpaceKind kind) => switch (kind) {
       SpaceKind.voice => 'A chat with a call anyone can hop into',
       SpaceKind.text => 'Just messages, no call',
       SpaceKind.files => 'Share files and pictures, with a chat beside them',
+      SpaceKind.open => 'A room you walk around in: hear who is near you',
     };
 
 /// A space's mark for its kind.
@@ -82,6 +88,7 @@ LucideIcon spaceKindIcon(SpaceKind kind) => switch (kind) {
       SpaceKind.voice => LucideMore.headphones,
       SpaceKind.text => Lucide.messageSquare,
       SpaceKind.files => Lucide.folder,
+      SpaceKind.open => Lucide.compass,
     };
 
 /// A circle's face: its picture, or its icon on a wash of its colour; filled with the colour when [selected]. Round,
@@ -187,6 +194,7 @@ class SpaceKindBadge extends StatelessWidget {
         SpaceKind.voice => 'green',
         SpaceKind.text => 'blue',
         SpaceKind.files => 'amber',
+        SpaceKind.open => 'purple',
       };
 
   @override
@@ -201,6 +209,7 @@ class SpaceKindBadge extends StatelessWidget {
             SpaceKind.voice => t.isDark ? 0xFF00FF00 : 0xFF008000,
             SpaceKind.text => t.isDark ? 0xFF8080FF : 0xFF000080,
             SpaceKind.files => t.isDark ? 0xFFFFFF00 : 0xFF808000,
+            SpaceKind.open => t.isDark ? 0xFFFF80FF : 0xFF800080,
           }) : settingsHue(t);
           return Container(
             width: size,

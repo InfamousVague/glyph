@@ -8,6 +8,7 @@ import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
 import '../../kit/settings_type.dart';
+import '../tile_grid.dart';
 import 'space_design.dart';
 
 /// A space's call drawn like Group FaceTime (SpaceDesign.facetime): a dark, full-bleed stage where one other fills the
@@ -32,8 +33,8 @@ const _stageInk = Color(0xFF0B0B0E);
 /// Wider than this is a computer's window: controls in one capsule, the chat beside the stage.
 const _wide = 760.0;
 
-/// Your picture-in-picture in the top corner.
-const _pipPhone = Size(100, 136), _pipWide = Size(212, 132);
+/// Your picture-in-picture in the top corner: upright on a phone, 4:3 on a computer.
+const _pipPhone = Size(100, 136), _pipWide = Size(212, 159);
 
 /// The gap between tiles, and a computer's inset from the window's edges (the side column of tiles and your picture
 /// above it share it, so they line up).
@@ -318,7 +319,7 @@ class _Alone extends StatelessWidget {
     final me = call.me;
     final talking = call.isTalking(me, now);
     final selfView = me.video
-        ? SizedBox(width: wide ? 300 : 220, height: wide ? 220 : 290, child: _Tile(call: call, person: me, talking: talking, radius: 28, faceSize: 96, label: false))
+        ? SizedBox(width: wide ? 300 : 220, height: wide ? 300 / tileAspect : 290, child: _Tile(call: call, person: me, talking: talking, radius: 28, faceSize: 96, label: false))
         : _Monogram(call: call, person: me, size: wide ? 168 : 148, talking: talking);
     return DecoratedBox(
       decoration: BoxDecoration(gradient: _washFor(context, call.channel.name)),
@@ -441,7 +442,7 @@ class _Solo extends StatelessWidget {
               Flexible(child: Text(person.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'semibold', color: _white).copyWith(shadows: shadow))),
               if (person.muted) ...[
                 const SizedBox(width: 8),
-                const AppIcon(LucideMore.micOff, size: 16, wash: false, color: _white),
+                AppIcon(SpaceWords.mutedIcon(person), size: 16, wash: false, color: _white),
               ],
             ]),
           ),
@@ -488,18 +489,20 @@ class _Mosaic extends StatelessWidget {
           final h = math.max(0.0, box.maxHeight - top - bottom);
           final rects = <String, Rect>{};
           if (wide) {
-            // The featured tile on the left, the rest in a grid on the right.
+            // The featured tile on the left, the rest in a grid on the right, every tile 4:3, each centred in its room.
             final side = _sideColumn(w, rest.length);
             final cols = side.cols;
             final rows = math.max(1, (rest.length / cols).ceil());
             final bigW = w - side.width - gap;
-            rects[featured.id] = Rect.fromLTWH(left, top, bigW, h);
-            final cellW = side.cell;
+            final featuredW = math.min(bigW, h * tileAspect), featuredH = featuredW / tileAspect;
+            rects[featured.id] = Rect.fromLTWH(left + (bigW - featuredW) / 2, top + (h - featuredH) / 2, featuredW, featuredH);
             final sideH = math.max(0.0, box.maxHeight - sideTop - bottom);
-            final cellH = math.max(0.0, math.min((sideH - gap * (rows - 1)) / rows, cellW * 0.9));
+            final cellH = math.max(0.0, math.min((sideH - gap * (rows - 1)) / rows, side.cell / tileAspect));
+            final cellW = cellH * tileAspect;
             final used = rows * cellH + (rows - 1) * gap;
+            final across = cols * cellW + (cols - 1) * gap;
             for (var i = 0; i < rest.length; i++) {
-              rects[rest[i].id] = Rect.fromLTWH(left + bigW + gap + (i % cols) * (cellW + gap), sideTop + (sideH - used) / 2 + (i ~/ cols) * (cellH + gap), cellW, cellH);
+              rects[rest[i].id] = Rect.fromLTWH(left + bigW + gap + (side.width - across) / 2 + (i % cols) * (cellW + gap), sideTop + (sideH - used) / 2 + (i ~/ cols) * (cellH + gap), cellW, cellH);
             }
           } else {
             // The featured tile across the top, the rest in rows of two or three below.
@@ -604,7 +607,7 @@ class _Tile extends StatelessWidget {
                   ),
                   if (person.muted) ...[
                     const SizedBox(width: 6),
-                    const AppIcon(LucideMore.micOff, size: 13, wash: false, color: _white),
+                    AppIcon(SpaceWords.mutedIcon(person), size: 13, wash: false, color: _white),
                   ],
                   if (person.video) ...[
                     const SizedBox(width: 6),
@@ -652,7 +655,7 @@ class _Capsule extends StatelessWidget {
       radius: 36,
       padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
       child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        for (final w in [b.chat, b.mute, b.video, ?b.screen, b.deafen, b.invite]) slot(w),
+        for (final w in [b.chat, b.mute, b.video, ?b.flip, ?b.screen, b.deafen, b.invite]) slot(w),
         Container(width: 1, height: 40, margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), color: _white.withValues(alpha: 0.18)),
         for (final w in [b.devices, b.settings, b.minimize]) slot(w),
         const SizedBox(width: 8),
@@ -685,6 +688,11 @@ class _PhoneControls extends StatelessWidget {
         const SizedBox(height: 10),
         // Scaled down rather than clipped on the narrowest phones.
         FittedBox(fit: BoxFit.scaleDown, child: Row(mainAxisSize: MainAxisSize.min, children: [
+          // The other camera, on a phone while video is on (GMFB-57).
+          if (call.onFlip != null) ...[
+            _GlassPill(icon: SpaceWords.flipIcon, label: SpaceWords.flip, small: true, onPressed: call.onFlip),
+            const SizedBox(width: 8),
+          ],
           if (call.onScreen != null) ...[
             _GlassPill(icon: LucideMore.screenShare, label: call.screen ? 'Stop sharing' : 'Share screen', small: true, onPressed: call.videoLocked && !call.screen ? null : () => call.onScreen!(context)),
             const SizedBox(width: 8),
@@ -713,13 +721,15 @@ class _Buttons {
         settings = SpaceButton(icon: Lucide.settings, label: SpaceWords.settings, onPressed: call.onSettings == null ? null : () => call.onSettings!(context), dark: true, size: size),
         minimize = SpaceButton(icon: Lucide.chevronDown, label: SpaceWords.minimize, onPressed: call.onMinimize, dark: true, size: size),
         end = SpaceButton(icon: LucideMore.phoneOff, label: SpaceWords.leave, onPressed: call.onLeave, danger: true, dark: true, size: size),
+        // The other camera, beside Video in a wide layout (an unfolded phone, a tablet) while video is on (GMFB-57).
+        flip = call.onFlip == null ? null : SpaceButton(icon: SpaceWords.flipIcon, label: 'Flip', onPressed: call.onFlip, dark: true, size: size),
         // SharePlay's screen sharing, where this device can (GMFB-27).
         screen = call.onScreen == null
             ? null
             : SpaceButton(icon: LucideMore.screenShare, label: call.screen ? 'Stop sharing' : 'Share screen', onPressed: call.videoLocked && !call.screen ? null : () => call.onScreen!(context), on: call.screen, dark: true, size: size);
 
   final Widget chat, mute, video, deafen, invite, devices, settings, minimize, end;
-  final Widget? screen;
+  final Widget? screen, flip;
 }
 
 /// The chat, as a frosted sheet from the foot (phone) or a frosted panel at the side (computer), in the app's theme.

@@ -45,7 +45,7 @@ All are Discord's own ids (numbers, as strings), passed back unchanged:
 - `message`: `media[].pointer` is `{"url", "chat", "message", "attachment"}`. Discord signs attachment addresses and
   they run out after about a day; `download` then asks Discord for the message again and fetches the fresh address.
   Mentions are written `@name`, a server's own emoji `:name:`. A forwarded message's words follow its own, quoted
-  with `> `. `quote` is `{"id", "text"}` for a reply. `reactions` (in `history`) are the person's own only.
+  with `> `. `quote` is `{"id", "text", "from", "name"}` for a reply (`mime` in place of `text` where the message answered is a file with no words; the id alone where Discord sent nothing of it). `reactions` (in `history`) are the person's own only.
 - `edited`: said when a message's words change (not when Discord adds a link's preview). `deleted`: a message was
   deleted. `reaction`: anyone's, with a server's own emoji as `:name:`. `receipt`: only from the person themselves
   (they read the chat in Discord's own app), `kind` `read`.
