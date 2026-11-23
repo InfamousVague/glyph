@@ -21,12 +21,14 @@ class TdJson implements TdTransport {
     });
   }
 
+  // The library, this client's number in it, and what TDLib says for this client alone.
   final DynamicLibrary _lib;
   final int _id;
   late final StreamSubscription<Map<String, Object?>> _sub;
   final _out = StreamController<Map<String, Object?>>.broadcast();
   late final _send = _lib.lookupFunction<Void Function(Int32, Pointer<Utf8>), void Function(int, Pointer<Utf8>)>('td_send');
 
+  // The library once opened, and where it was found: the receiving isolate opens it again by that path.
   static String? _path;
   static DynamicLibrary? _opened;
 
@@ -85,6 +87,8 @@ class TdJson implements TdTransport {
 class _Receiver {
   static Future<Stream<Map<String, Object?>>>? _started;
 
+  /// Everything TDLib says, for every client: the isolate is started at the first asking and the same stream handed
+  /// back after.
   static Future<Stream<Map<String, Object?>>> start(DynamicLibrary lib, String path) => _started ??= () async {
         final execute = lib.lookupFunction<Pointer<Utf8> Function(Pointer<Utf8>), Pointer<Utf8> Function(Pointer<Utf8>)>('td_execute');
         // TDLib's own log, kept to errors: it writes to stderr otherwise.
@@ -102,6 +106,7 @@ class _Receiver {
         return out.stream;
       }();
 
+  /// The isolate's body: waits up to a second for the next thing TDLib says, reads it and sends it across, for ever.
   static void _loop((SendPort, String) args) {
     final (out, path) = args;
     final lib = DynamicLibrary.open(path);

@@ -57,6 +57,7 @@ const (
 	pageSize = 50
 )
 
+// quote is the message a `send` or `send_media` replies to, as the app names it.
 type quote struct {
 	ID string `json:"id"`
 	// What the app knows of the quoted message. Not needed: Discord wants the message's id alone.
@@ -65,6 +66,7 @@ type quote struct {
 	TS     int64  `json:"ts"`
 }
 
+// request is one line Ghost sends: an op, and whichever of the other fields that op takes.
 type request struct {
 	ID      int64             `json:"id"`
 	Op      string            `json:"op"`
@@ -103,16 +105,20 @@ type account struct {
 }
 
 var (
+	// dir is the folder the session, the log and the cached pictures are kept in (--dir). out is standard output,
+	// written a whole line at a time under outLock.
 	dir     string
 	log     = zerolog.Nop()
 	out     = json.NewEncoder(os.Stdout)
 	outLock sync.Mutex
 
+	// mu guards acct (the session, nil while signed out) and connected (whether its gateway connection is up).
 	mu        sync.Mutex
 	acct      *account
 	connected bool
 	// One sign-in or sign-out at a time.
 	signLock sync.Mutex
+	// The requests being answered, which quitting waits for.
 	inflight sync.WaitGroup
 	// What the helper does beside the requests (spawn).
 	background sync.WaitGroup
@@ -127,6 +133,7 @@ func spawn(f func()) {
 	}()
 }
 
+// say writes [v] to standard output as one JSON line; the lock keeps lines said from different goroutines whole.
 func say(v any) {
 	outLock.Lock()
 	defer outLock.Unlock()
@@ -204,6 +211,8 @@ func serve(in io.Reader) {
 	}
 }
 
+// parseRequest reads one line as a request. A line that is not JSON, or names no op, is an error: serve passes over
+// it without an answer.
 func parseRequest(line []byte) (request, error) {
 	var r request
 	err := json.Unmarshal(line, &r)
@@ -221,17 +230,21 @@ func answer(id int64, result any, err error) map[string]any {
 	return map[string]any{"id": id, "ok": true, "result": result}
 }
 
+// handle does what [r] asks and says its answer.
 func handle(r request) {
 	result, err := do(r)
 	say(answer(r.ID, result, err))
 }
 
+// bg is the context of work no request bounds.
 func bg() context.Context { return context.Background() }
 
 // --- the session ----------------------------------------------------------------------------------------------------
 
+// errNotLinked answers every op but status, sign_in and unlink while no one is signed in.
 var errNotLinked = errors.New("not signed in to Discord")
 
+// current is the signed-in account, or nil.
 func current() *account {
 	mu.Lock()
 	defer mu.Unlock()
@@ -274,6 +287,8 @@ func start(a *account) {
 	})
 }
 
+// setConnected notes whether [a]'s gateway connection is up, and says `connected` or `disconnected` when that
+// changes. Nothing is noted or said for an account that is no longer the session.
 func setConnected(a *account, now bool) {
 	mu.Lock()
 	if acct != a || connected == now {
@@ -316,6 +331,7 @@ func ended(a *account, err error) {
 	event("unlinked", map[string]any{"error": endedWords(err)})
 }
 
+// forgetFiles removes what a session keeps on disk: the saved sign-in, one half written, and the cached pictures.
 func forgetFiles() {
 	_ = os.Remove(sessionPath())
 	_ = os.Remove(sessionPath() + ".new")
@@ -332,14 +348,17 @@ func (a *account) keep() {
 	}
 }
 
+// session is the account as session.json holds it.
 func (a *account) session() session {
 	return session{Me: a.me, Name: a.name, Handle: a.handle, Token: a.token, Heartbeat: a.cli.Heartbeat()}
 }
 
+// identity is who the account is, as sign_in's answer and the `linked` event give it.
 func (a *account) identity() map[string]any {
 	return map[string]any{"me": a.me, "name": a.name, "handle": a.handle}
 }
 
+// status answers `status`: whether a session is held, whether its connection is up, and whose it is.
 func status() map[string]any {
 	mu.Lock()
 	defer mu.Unlock()
@@ -406,6 +425,8 @@ func unlink() {
 
 // --- requests -------------------------------------------------------------------------------------------------------
 
+// do answers one request: status, sign_in and unlink here, the rest by the account. A request has a minute, and one
+// that moves a file nearly three. A failure that means Discord turned the session away also ends it.
 func do(r request) (any, error) {
 	limit := 60 * time.Second
 	if r.Op == "download" || r.Op == "send_media" {
@@ -443,6 +464,7 @@ func do(r request) (any, error) {
 	return result, nil
 }
 
+// do answers the ops that need a session.
 func (a *account) do(ctx context.Context, r request) (any, error) {
 	switch r.Op {
 	case "chats":
@@ -485,6 +507,7 @@ func (a *account) do(ctx context.Context, r request) (any, error) {
 	return nil, fmt.Errorf("the Discord helper does not know %q", r.Op)
 }
 
+// customEmojiTag is a server's own emoji as a message writes it: <:name:id>, or <a:name:id> for a moving one.
 var customEmojiTag = regexp.MustCompile(`^<a?:([A-Za-z0-9_~]+):([0-9]+)>$`)
 
 // reactionEmoji is the emoji as Discord wants it: fully qualified (❤ as ❤️), or a server's own as name:id (given
@@ -508,8 +531,11 @@ func reactionEmoji(e string) string {
 // msgNotes is how many messages are remembered before the oldest are let go.
 const msgNotes = 5000
 
+// memory is what this run has seen, behind its own lock.
 type memory struct {
 	sync.Mutex
+	// chats: the chat ids the app has been told of. msgs: each remembered message's words as Discord wrote them, by
+	// message id; order: those ids, oldest first, the order they are let go in.
 	chats  map[string]bool
 	msgs   map[string]string
 	order  []string
@@ -518,6 +544,7 @@ type memory struct {
 	said map[string]string
 }
 
+// seen is the one memory, emptied when the session is let go.
 var seen = newMemory()
 
 func newMemory() *memory {
@@ -540,6 +567,7 @@ func (m *memory) toldChat(id string) bool {
 	return had
 }
 
+// knowsChat is whether the app has been told of a chat.
 func (m *memory) knowsChat(id string) bool {
 	m.Lock()
 	defer m.Unlock()
@@ -601,6 +629,7 @@ func (m *memory) newsOf(p person) bool {
 
 // --- read marks -----------------------------------------------------------------------------------------------------
 
+// takeReads notes how far each channel had been read when Discord said READY.
 func (a *account) takeReads(rs *discordgo.ReadStateList) {
 	if rs == nil {
 		return
@@ -635,8 +664,10 @@ func (a *account) markRead(channel, upto string) {
 
 // --- people and avatars ---------------------------------------------------------------------------------------------
 
+// avatarDir is where pictures are cached, beside the session.
 func avatarDir() string { return filepath.Join(dir, "avatars") }
 
+// nullable is [s], or JSON's null for "".
 func nullable(s string) any {
 	if s == "" {
 		return nil
@@ -777,6 +808,8 @@ func (a *account) channelOf(c chatRef) *discordgo.Channel {
 	return &discordgo.Channel{ID: c.Channel, Type: discordgo.ChannelTypeDM}
 }
 
+// isGroup is whether a chat is anything but a direct message between two: a server's channel, or a group. A
+// channel the gateway has not described counts as a direct message.
 func (a *account) isGroup(c chatRef) bool {
 	if c.Guild != "" {
 		return true
@@ -838,6 +871,7 @@ func (a *account) history(ctx context.Context, chat, before string) (any, error)
 
 // --- sending --------------------------------------------------------------------------------------------------------
 
+// send posts a message to a chat: words, a file already uploaded ([att]), or both; with a quote, as a reply to it.
 func (a *account) send(ctx context.Context, r request, att *discordgo.MessageAttachment) (any, error) {
 	c, err := parseChat(r.To)
 	if err != nil {
@@ -1005,6 +1039,8 @@ func (a *account) download(ctx context.Context, raw json.RawMessage, path string
 	return err
 }
 
+// fetchTo fetches the file at [from] into [path], by way of path.part so a fetch that fails leaves nothing behind.
+// A file may be up to a gigabyte.
 func (a *account) fetchTo(ctx context.Context, from, path string) error {
 	tmp := path + ".part"
 	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
@@ -1088,6 +1124,7 @@ func (a *account) onEvent(raw any) {
 	}
 }
 
+// resayChat says a group again as the gateway now describes it, after someone joined or left it.
 func (a *account) resayChat(channel string) {
 	if ch := a.cli.Channel(channel); private(ch) {
 		a.sayChat(ch)
@@ -1098,6 +1135,8 @@ func (a *account) resayChat(channel string) {
 // once it has been told of it.
 func passed(c chatRef) bool { return c.Guild == "" || seen.knowsChat(c.id()) }
 
+// onMessage says a new message, after its chat where the app has not been told of it. A message in a server channel
+// the app does not know is passed on only if it is for the person, and from then on so is the rest of that channel.
 func (a *account) onMessage(m *discordgo.Message) {
 	c := chatRef{Guild: m.GuildID, Channel: m.ChannelID}
 	if !snowflake(c.Channel) || m.ID == "" {
@@ -1139,6 +1178,7 @@ func (a *account) onEdit(m *discordgo.Message) {
 	event("edited", map[string]any{"chat": c.id(), "target": m.ID, "text": messageText(m)})
 }
 
+// onDelete says a message deleted, in a chat the app hears of.
 func (a *account) onDelete(guild, channel, id string) {
 	c := chatRef{Guild: guild, Channel: channel}
 	if id == "" || !snowflake(channel) || !passed(c) {
@@ -1147,6 +1187,7 @@ func (a *account) onDelete(guild, channel, id string) {
 	event("deleted", map[string]any{"chat": c.id(), "target": id})
 }
 
+// onReaction says a reaction added or removed, in a chat the app hears of.
 func (a *account) onReaction(r *discordgo.MessageReaction, remove bool) {
 	c := chatRef{Guild: r.GuildID, Channel: r.ChannelID}
 	emoji := emojiText(r.Emoji)

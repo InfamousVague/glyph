@@ -446,11 +446,13 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
     return [...woken, ...rest];
   }
 
+  /// When a snoozed conversation comes back, in words; null where it isn't snoozed.
   String? _snoozedUntil(Conversation c) {
     final u = Snoozed.instance.until(Snoozed.text(c.id));
     return u == null ? null : 'Until ${dayHeading(u)} ${clock(u)}';
   }
 
+  /// Snoozes [c] until a time chosen from a few; one hidden by a snooze already is brought straight back instead.
   Future<void> _snooze(Conversation c) async {
     final key = Snoozed.text(c.id);
     if (Snoozed.instance.hides(key)) {

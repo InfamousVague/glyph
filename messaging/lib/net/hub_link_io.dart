@@ -15,6 +15,7 @@ Future<HubLink> dialHub(String url) async {
 /// [dialProblem] here: a socket's or a WebSocket's own message, without the address and the numbers put around it.
 String dialProblem(Object error) => error is SocketException ? error.message.isEmpty ? '$error' : error.message : error is WebSocketException ? error.message : '$error';
 
+/// [HubLink] over dart:io's WebSocket.
 class _WebSocketLink implements HubLink {
   _WebSocketLink(this._ws);
   final WebSocket _ws;

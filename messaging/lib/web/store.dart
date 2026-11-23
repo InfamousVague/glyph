@@ -30,6 +30,7 @@ class WebStandaloneStore implements StandaloneStore {
   WebStandaloneStore(this.store);
   final BrowserStore store;
 
+  /// The records' names in the browser's store: the JSON, the identity's key, and each secret by its name.
   static const stateName = 'state', identityName = 'identity';
   static String secretName(String name) => 'secret:$name';
 

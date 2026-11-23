@@ -30,6 +30,7 @@ class _NeverOpened implements Exception {
   String toString() => 'the browser could not open a connection there';
 }
 
+/// [HubLink] over the browser's own WebSocket.
 class _BrowserLink implements HubLink {
   _BrowserLink(this._ws) {
     // Frames as array buffers, not blobs: read at once, as dart:io hands them over.

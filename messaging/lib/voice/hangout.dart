@@ -136,6 +136,8 @@ class HangoutRoom extends ChangeNotifier {
   /// What came under a key this device lacks, and what it would have said: both wait for the key.
   final List<({String from, Uint8List bytes, bool reaction})> _unread = [];
   final List<({Map<String, Object?> what, bool keep, bool reaction})> _unsaid = [];
+
+  /// The most kept to be said: past it the oldest goes.
   static const mostUnsaid = 100;
 
   /// What waits is kept with the space's other things (`:u`), so a restart doesn't lose it (B5).
@@ -144,6 +146,7 @@ class HangoutRoom extends ChangeNotifier {
     if (st is HangoutVotesStore) (st as HangoutVotesStore).keepVotes('${channel.chatRoom}:u', jsonEncode([for (final w in _unsaid) {'w': w.what, 'k': w.keep, 'r': w.reaction}]));
   }
 
+  /// Reads back what was waiting to be said when the app last ran.
   void _loadUnsaid() {
     final st = store;
     if (st is! HangoutVotesStore) return;
@@ -1672,6 +1675,7 @@ class SpaceReply {
   /// At most [most] characters of its words (or what it was, where it had none: "Sticker", "Photo").
   final String text;
 
+  /// The longest the quoted words are kept; longer ones end in an ellipsis.
   static const most = 140;
 
   /// The quote of [m].

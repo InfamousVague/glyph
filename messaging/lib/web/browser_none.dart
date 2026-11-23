@@ -3,6 +3,7 @@ import 'browser.dart';
 /// Where there is no browser (a phone, a computer, a test that has not put its own in): nothing here can be asked.
 Browser browser() => const _NoBrowser();
 
+/// A [Browser] whose every member throws [UnsupportedError]: nothing outside a page should be asking.
 class _NoBrowser implements Browser {
   const _NoBrowser();
 

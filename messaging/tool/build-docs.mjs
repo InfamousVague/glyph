@@ -8,7 +8,9 @@
  *   node tool/build-docs.mjs --check  fails if site/docs/ is not what docs-src/ makes (for a test)
  *
  * WHAT IT READS
- *   docs-src/pages.mjs         the sections and their pages, in order: what the sidebar, search and prev/next follow
+ *   docs-src/pages.mjs         the sections and their pages, in order: what the sidebar, search and prev/next follow.
+ *                              Two books, each with a sidebar and a search of its own: the docs (`sections`, at /docs/)
+ *                              and the developer docs (`developer`, at /docs/developer/), never listed among each other
  *   docs-src/pages/<slug>.html each page's body: plain HTML with the mock tags below, `<h2 id>` for its outline
  *   docs-src/docs.css, docs.js the frame's style and behaviour (theme, sidebar, search, outline)
  *   packages/glacier/assets/css/tokens.css  Glacier's own tokens, copied so the mocks are drawn with the app's sizes
@@ -62,8 +64,14 @@ const SRC = join(ROOT, 'docs-src');
 const OUT = join(ROOT, 'site/docs');
 const check = process.argv.includes('--check');
 
-const { sections } = await import(pathToFileURL(join(SRC, 'pages.mjs')).href);
-const pages = sections.flatMap((s) => s.pages.map((p) => ({ ...p, section: s.title })));
+const { sections, developer } = await import(pathToFileURL(join(SRC, 'pages.mjs')).href);
+// The two books. A page knows its book, so its sidebar, its previous and next, and its search stay inside it.
+const books = [
+  { name: 'Docs', home: '/docs/', search: 'search.json', sections, other: { href: '/docs/developer/', label: 'Developer docs' } },
+  { name: 'Developer docs', home: '/docs/developer/', search: 'developer/search.json', sections: developer, other: { href: '/docs/', label: 'Back to the docs' } },
+];
+for (const b of books) b.pages = b.sections.flatMap((s) => s.pages.map((p) => ({ ...p, section: s.title, book: b })));
+const pages = books.flatMap((b) => b.pages);
 
 // --- icons: the app's own, Phosphor's duotone under their Lucide names (tool/phosphor.mjs) ----------------------------
 
@@ -284,13 +292,14 @@ const hrefOf = (p) => (p.slug === 'index' ? '/docs/' : `/docs/${p.slug}/`);
 const strip = (h) => h.replace(/<script\b[\s\S]*?<\/script>/g, ' ').replace(/<svg[\s\S]*?<\/svg>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/g, ' ').replace(/\s+/g, ' ').trim();
 
 function shell(p, body, outline, i) {
-  const prev = pages[i - 1];
-  const next = pages[i + 1];
-  const nav = sections
+  const book = p.book;
+  const prev = book.pages[i - 1];
+  const next = book.pages[i + 1];
+  const nav = book.sections
     .map((s) => `<div class="nav-group"><div class="nav-title">${esc(s.title)}</div>${s.pages.map((q) => `<a href="${hrefOf(q)}"${q.slug === p.slug ? ' aria-current="page"' : ''}>${icon(q.icon)}<span>${esc(q.title)}</span>${q.soon ? ' <span class="badge soon">Soon</span>' : ''}</a>`).join('')}</div>`)
-    .join('');
+    .join('') + `<a class="nav-other" href="${book.other.href}">${icon(book.other.href === '/docs/' ? 'arrow-left' : 'braces')}<span>${esc(book.other.label)}</span></a>`;
   const toc = outline.length > 1 ? `<nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div>${outline.map((h) => `<a href="#${h.id}">${esc(h.text)}</a>`).join('')}</nav>` : '';
-  const title = p.slug === 'index' ? 'Ghost Messaging docs' : `${p.title} · Ghost Messaging docs`;
+  const title = p.slug === 'index' ? 'Ghost Messaging docs' : `${p.title} · Ghost Messaging ${book.name.toLowerCase()}`;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -303,15 +312,15 @@ function shell(p, body, outline, i) {
 <link rel="stylesheet" href="/docs/docs.css">
 <script>try{var t=localStorage.getItem('docs-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
-<body>
+<body data-search="/docs/${book.search}">
 <a class="skip" href="#main">Skip to the page</a>
 <header class="top">
   <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar">${icon('menu')}</button>
   <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
-  <a class="brand-docs" href="/docs/">Docs</a>
+  <a class="brand-docs" href="${book.home}">${esc(book.name)}</a>
   <div class="search">
     ${icon('search')}
-    <input id="search" type="search" placeholder="Search the docs" aria-label="Search the docs" autocomplete="off">
+    <input id="search" type="search" placeholder="Search the ${book.name.toLowerCase()}" aria-label="Search the ${book.name.toLowerCase()}" autocomplete="off">
     <div class="results" id="results" role="listbox" hidden></div>
   </div>
   <button class="theme-btn" type="button" aria-label="Switch between light and dark">${icon('sun-moon')}</button>
@@ -336,8 +345,9 @@ function shell(p, body, outline, i) {
 }
 
 const written = new Map();
-const index = [];
-pages.forEach((p, i) => {
+for (const b of books) b.index = [];
+pages.forEach((p) => {
+  const i = p.book.pages.indexOf(p);
   const file = join(SRC, 'pages', `${p.slug}.html`);
   if (!existsSync(file)) throw new Error(`No page docs-src/pages/${p.slug}.html`);
   const body = expand(readFileSync(file, 'utf8'));
@@ -347,11 +357,11 @@ pages.forEach((p, i) => {
   written.set(p.slug === 'index' ? 'index.html' : `${p.slug}/index.html`, shell(p, body, outline, i));
   // The first 12,000 characters: the plugin reference pages (the file, phrases) are long, and their later parts are what
   // a developer searches for.
-  index.push({ t: p.title, s: p.section, u: hrefOf(p), d: p.summary ?? '', x: strip(body).slice(0, 12000), h: outline.map((h) => [h.id, h.text]) });
+  p.book.index.push({ t: p.title, s: p.section, u: hrefOf(p), d: p.summary ?? '', x: strip(body).slice(0, 12000), h: outline.map((h) => [h.id, h.text]) });
 });
-for (const name of ['menu', 'search', 'sun-moon', 'chevron-right', 'arrow-left']) icon(name);
+for (const name of ['menu', 'search', 'sun-moon', 'chevron-right', 'arrow-left', 'braces']) icon(name);
 written.set('icons.svg', sprite());
-written.set('search.json', JSON.stringify(index));
+for (const b of books) written.set(b.search, JSON.stringify(b.index));
 written.set('docs.css', readFileSync(join(SRC, 'docs.css'), 'utf8'));
 written.set('docs.js', readFileSync(join(SRC, 'docs.js'), 'utf8'));
 written.set('glacier-tokens.css', `/* Copied from packages/glacier/assets/css/tokens.css by tool/build-docs.mjs: the app's own design tokens. */\n${readFileSync(join(ROOT, 'packages/glacier/assets/css/tokens.css'), 'utf8')}`);
@@ -420,7 +430,7 @@ function postmanCollection() {
   return {
     info: {
       name: 'Ghost Messaging',
-      description: 'The app\'s API and the relay server\'s HTTP routes. Made by tool/build-docs.mjs from the app\'s own method registry and docs-src/api/relay-routes.mjs; the reference is at https://gogho.st/docs/dev-api/. The hub and pairing channels are WebSockets and are documented at https://gogho.st/docs/dev-hub/.',
+      description: 'The app\'s API and the relay server\'s HTTP routes. Made by tool/build-docs.mjs from the app\'s own method registry and docs-src/api/relay-routes.mjs; the reference is at https://gogho.st/docs/developer/api/. The hub and pairing channels are WebSockets and are documented at https://gogho.st/docs/developer/hub/.',
       schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
     },
     variable: [
@@ -437,7 +447,7 @@ function postmanCollection() {
     item: [
       {
         name: 'App API',
-        description: `Version ${appApi.version}. POST {{app}}/api/<method> with the parameters as a JSON object and the token. https://gogho.st/docs/developer/`,
+        description: `Version ${appApi.version}. POST {{app}}/api/<method> with the parameters as a JSON object and the token. https://gogho.st/docs/developer/app-api/`,
         auth: { type: 'bearer', bearer: [{ key: 'token', value: '{{token}}', type: 'string' }] },
         item: [
           { name: 'Describe every method', request: { method: 'GET', header: [], url: { raw: '{{app}}/api', host: ['{{app}}'], path: ['api'] }, description: 'Everything the API says of itself, as JSON.' } },
@@ -446,7 +456,7 @@ function postmanCollection() {
       },
       {
         name: 'Relay server API',
-        description: 'Plain HTTP on the relay server. https://gogho.st/docs/dev-relay-api/',
+        description: 'Plain HTTP on the relay server. https://gogho.st/docs/developer/relay-api/',
         auth: { type: 'noauth' },
         item: relayApi.map((g) => ({ name: g.title, description: g.summary ?? '', item: g.routes.map(relayItem) })),
       },

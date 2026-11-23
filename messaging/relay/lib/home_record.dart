@@ -46,6 +46,8 @@ class HomeRecord {
   /// The account's signature over [signedBytes]: r then s, 64 bytes.
   final Uint8List s;
 
+  /// The words every signature begins with; the most addresses a record names, the longest one may be (it is signed
+  /// with a single byte of length), and the highest the count goes (it is signed as four bytes).
   static const words = 'ghost-home v1\n';
   static const maxAddresses = 3;
   static const maxAddress = 200;
@@ -84,6 +86,7 @@ class HomeRecord {
   /// Whether this is believed over [other], a record for the same account.
   bool newerThan(HomeRecord other) => order(this, other) > 0;
 
+  /// An account's name as it is written: 32 lowercase hex digits.
   static final _hex32 = RegExp(r'^[0-9a-f]{32}$');
 
   /// Printable ASCII and nothing else: an address is compared and logged as it is.
@@ -135,6 +138,7 @@ class HomeRecord {
     return (rec: HomeRecord._(a, key, addresses, n, t, sig), err: null);
   }
 
+  /// The record as it is said on the wire and written to `homes.json`: what [read] reads back.
   Map<String, Object> toJson() => {'v': 1, 'a': a, 'k': base64Encode(k), 'h': h, 'n': n, 't': t, 's': base64Encode(s)};
 
   /// The addresses a relay can read, in the record's order; one it can't read is passed over.
@@ -143,6 +147,7 @@ class HomeRecord {
   /// Whether [other] is this very record: the same account, count and signature.
   bool same(HomeRecord other) => a == other.a && n == other.n && _equal(s, other.s);
 
+  /// Whether two lists of bytes are the same, byte for byte.
   static bool _equal(List<int> x, List<int> y) {
     if (x.length != y.length) return false;
     for (var i = 0; i < x.length; i++) {
@@ -154,6 +159,7 @@ class HomeRecord {
 
 /// One address of a home record as a relay reads it: a hub's, or a relay hosted from an app's.
 class HomeAddress {
+  /// A hub's address (`wss://host/hub`), or a relay hosted from an app's (`ghost-relay://<name>?…&via=<hub>`).
   const HomeAddress.hub(String this.url)
       : relay = null,
         via = null;
@@ -232,9 +238,13 @@ class HomeBook {
   /// written on it.
   final File? file;
   final KeptLog? _log;
+
+  /// The most records held of this relay's own people, and of others.
   final int maxOwn;
   final int maxOthers;
 
+  /// The records held, by account: its own people's, the one given by its owner longest ago first; and others', the
+  /// one used longest ago first.
   final LinkedHashMap<String, HomeRecord> _own = LinkedHashMap();
   final LinkedHashMap<String, HomeRecord> _others = LinkedHashMap();
 
@@ -248,6 +258,7 @@ class HomeBook {
   /// Whether anything kept across restarts has changed since it was last written.
   bool dirty = false;
 
+  /// How many records are held of each kind.
   int get own => _own.length;
   int get others => _others.length;
 
@@ -313,11 +324,13 @@ class HomeBook {
   /// [a]'s own record, as it is written: the record, and since when it has been given here.
   Map<String, Object?> _entry(String a) => {..._own[a]!.toJson(), 'since': (_since[a] ?? _now()).millisecondsSinceEpoch};
 
+  /// [a]'s own record is new or newer: put in the log, to be written with the next save.
   void _keptOwn(String a) {
     _log?.set(a, _entry(a));
     dirty = true;
   }
 
+  /// Forgets [a]'s own record (past its end, or pushed out by [maxOwn]), here and in the log.
   void _letGoOwn(String a) {
     if (_own.remove(a) == null) return;
     _since.remove(a);
@@ -325,6 +338,8 @@ class HomeBook {
     dirty = true;
   }
 
+  /// Reads this relay's own people's records from the file, as the relay starts: the newest [maxOwn], each for its
+  /// shape and whether it is still good.
   void load() {
     final log = _log;
     if (log == null) return;
@@ -353,6 +368,7 @@ class HomeBook {
     dirty = log.dirty;
   }
 
+  /// Every record of this relay's own people, as the log writes them when it is written whole.
   Map<String, Object?> _all() => {for (final a in _own.keys) a: _entry(a)};
 
   /// Writes what changed: appended to the log, off the event loop.

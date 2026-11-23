@@ -65,6 +65,7 @@ func passcodeKeys(resp *response.GetPublicKeysResponse) []response.PublicKeyWith
 	return out
 }
 
+// juiceboxClient makes a Juicebox client from the configuration and tokens X gives with a public key.
 func juiceboxClient(m response.KeyStoreTokenMap, log zerolog.Logger) (*juiceboxgo.Client, error) {
 	cfgJSON, tokens := juiceboxConfig(m)
 	cfg, err := juiceboxgo.ConfigurationFromJSON(cfgJSON)

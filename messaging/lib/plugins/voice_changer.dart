@@ -1,9 +1,10 @@
-/// Voice changer: a voice message sent in another voice, by ElevenLabs (Matt, 2026-11-20: "build it as a plugin"). The
-/// work is lib/voice/voice_changer.dart's; its pages are lib/ui/voice_changer_ui.dart. This is the switch, and the
-/// rows of its own section in Settings.
+/// Voice changer: a voice message sent in another voice, by ElevenLabs (Matt, 2026-11-20: "build it as a plugin"), and
+/// since 2026-11-21 a call's voice changed as it is said, on this device or by ElevenLabs
+/// (lib/voice/live_changer.dart). The work is lib/voice/voice_changer.dart's; its pages are
+/// lib/ui/voice_changer_ui.dart. This is the switch, the rows of its own section in Settings, and the line over a call.
 ///
-/// For this device alone: it is a person's own key and their own voice messages. Off until added, and nothing leaves
-/// the device for ElevenLabs until a key is pasted, a voice chosen and a voice message sent.
+/// For this device alone: it is a person's own key and their own voice. Off until added, and nothing leaves the device
+/// for ElevenLabs until a key is pasted and a voice chosen; a call's voice made on the device never leaves it.
 library;
 
 import '../art/app_icon.dart';
@@ -14,6 +15,8 @@ import '../voice/voice_changer.dart';
 import 'plugin.dart';
 import 'registry.dart';
 
+/// The plugin: what the Marketplace says of it, its page in Settings, and the line over a call while the voice is
+/// changed live.
 class VoiceChangerPlugin extends GhostPlugin {
   const VoiceChangerPlugin();
 

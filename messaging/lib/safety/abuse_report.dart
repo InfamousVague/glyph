@@ -31,10 +31,13 @@ enum ReportReason {
   other('other', 'Something else', 'Say what in the note');
 
   const ReportReason(this.wire, this.label, this.hint);
+
+  /// Its name in a report, what the person picks it by, and the line under that.
   final String wire;
   final String label;
   final String hint;
 
+  /// The reason a report names as [wire]; null where it is none of them.
   static ReportReason? of(Object? wire) => values.where((r) => r.wire == wire).firstOrNull;
 }
 
@@ -53,6 +56,7 @@ class ReportedMessage {
 
   Map<String, Object> toJson() => {'f': from, 'n': name, 'a': at, 't': text, if (reported) 'r': true, if (mine) 'm': true};
 
+  /// A message as a report carries it, each part cut to its most; null where [j] isn't one.
   static ReportedMessage? fromJson(Object? j) {
     if (j is! Map) return null;
     final f = j['f'], n = j['n'], a = j['a'], t = j['t'];
@@ -133,6 +137,7 @@ class AbuseReport {
         if (version.isNotEmpty) 'ver': version,
       };
 
+  /// A report as it was written (version 1), each part cut to its most; null where [j] isn't one.
   static AbuseReport? fromJson(Object? j) {
     if (j is! Map || j['v'] != 1) return null;
     final kind = j['k'], why = ReportReason.of(j['why']), who = j['who'], where = j['where'], at = j['at'];
@@ -156,6 +161,7 @@ class AbuseReport {
   }
 }
 
+/// [s], no longer than [most].
 String _cut(String s, int most) => s.length > most ? s.substring(0, most) : s;
 
 /// [all] as a report hands them over: the one at [index] marked reported, with up to [AbuseReport.contextEachSide]
@@ -280,6 +286,7 @@ OpenedReport? openReport(String sealed, NetKeys mine) {
   }
 }
 
+/// Whether [a] and [b] are the same bytes.
 bool _same(List<int> a, List<int> b) {
   if (a.length != b.length) return false;
   for (var i = 0; i < a.length; i++) {
@@ -304,6 +311,7 @@ class MadeReport {
 
   Map<String, Object> toJson() => {'id': id, 'k': kind, 'why': reason.wire, 'who': who, 'where': where, 'at': at, if (blocked) 'b': true};
 
+  /// A report made here, as it was kept; null where [j] isn't one.
   static MadeReport? fromJson(Object? j) {
     if (j is! Map) return null;
     final id = j['id'], k = j['k'], why = ReportReason.of(j['why']), who = j['who'], where = j['where'], at = j['at'];

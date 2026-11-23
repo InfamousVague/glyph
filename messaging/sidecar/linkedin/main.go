@@ -53,6 +53,7 @@ import (
 // pageSize is how many conversations LinkedIn lists at a time, and how many messages a page of history asks for.
 const pageSize = 20
 
+// quote is the message a `send` or `send_media` replies to, as the app names it.
 type quote struct {
 	ID string `json:"id"`
 	// What the quoted message was, for a quote of a message this run has not seen (LinkedIn wants its sender and
@@ -62,6 +63,7 @@ type quote struct {
 	TS     int64  `json:"ts"`
 }
 
+// request is one line Ghost sends: an op, and whichever of the other fields that op takes.
 type request struct {
 	ID      int64             `json:"id"`
 	Op      string            `json:"op"`
@@ -95,6 +97,8 @@ type account struct {
 
 	// The library keeps its place in the conversation list in the client, unguarded: one sync at a time.
 	syncLock sync.Mutex
+	// saved is the cookies as session.json last held them (their JSON), to tell when LinkedIn has changed one;
+	// guarded by saveLock.
 	saveLock sync.Mutex
 	saved    string
 }
@@ -103,19 +107,24 @@ type account struct {
 func (a *account) meID() string { return participantPrefix + a.me }
 
 var (
+	// dir is the folder the session, the log and the cached pictures are kept in (--dir). out is standard output,
+	// written a whole line at a time under outLock.
 	dir     string
 	log     zerolog.Logger
 	out     = json.NewEncoder(os.Stdout)
 	outLock sync.Mutex
 
+	// mu guards acct (the session, nil while signed out) and connected (whether its live stream is up).
 	mu        sync.Mutex
 	acct      *account
 	connected bool
 	// One sign-in or sign-out at a time.
 	signLock sync.Mutex
+	// The requests being answered, which quitting waits for.
 	inflight sync.WaitGroup
 )
 
+// say writes [v] to standard output as one JSON line; the lock keeps lines said from different goroutines whole.
 func say(v any) {
 	outLock.Lock()
 	defer outLock.Unlock()
@@ -131,6 +140,8 @@ func event(name string, fields map[string]any) {
 	say(m)
 }
 
+// main takes up a saved session where there is one, says "ready", then answers each line of standard input until
+// it ends.
 func main() {
 	flag.StringVar(&dir, "dir", "", "where the LinkedIn session is kept")
 	flag.Parse()
@@ -184,6 +195,8 @@ func main() {
 	}
 }
 
+// parseRequest reads one line as a request. A line that is not JSON, or names no op, is an error: main passes over
+// it without an answer.
 func parseRequest(line []byte) (request, error) {
 	var r request
 	err := json.Unmarshal(line, &r)
@@ -201,17 +214,21 @@ func answer(id int64, result any, err error) map[string]any {
 	return map[string]any{"id": id, "ok": true, "result": result}
 }
 
+// handle does what [r] asks and says its answer.
 func handle(r request) {
 	result, err := do(r)
 	say(answer(r.ID, result, err))
 }
 
+// bg is the context of work no request bounds, carrying the log for the library to write to.
 func bg() context.Context { return log.WithContext(context.Background()) }
 
 // --- the session ----------------------------------------------------------------------------------------------------
 
+// errNotLinked answers every op but status, sign_in and unlink while no one is signed in.
 var errNotLinked = errors.New("not signed in to LinkedIn")
 
+// current is the signed-in account, or nil.
 func current() *account {
 	mu.Lock()
 	defer mu.Unlock()
@@ -261,6 +278,8 @@ func start(a *account) {
 	}()
 }
 
+// setConnected notes whether [a]'s live stream is up, and says `connected` or `disconnected` when that changes.
+// Nothing is noted or said for an account that is no longer the session.
 func setConnected(a *account, now bool) {
 	mu.Lock()
 	if acct != a || connected == now {
@@ -302,6 +321,7 @@ func ended(a *account, err error) {
 	event("unlinked", map[string]any{"error": endedWords(err)})
 }
 
+// forgetFiles removes what a session keeps on disk: the saved sign-in, one half written, and the cached pictures.
 func forgetFiles() {
 	_ = os.Remove(sessionPath())
 	_ = os.Remove(sessionPath() + ".new")
@@ -323,10 +343,12 @@ func (a *account) keepCookies() {
 	a.saved = string(b)
 }
 
+// identity is who the account is, as sign_in's answer and the `linked` event give it.
 func (a *account) identity() map[string]any {
 	return map[string]any{"me": a.meID(), "name": a.name, "handle": a.handle}
 }
 
+// status answers `status`: whether a session is held, whether its stream is up, and whose it is.
 func status() map[string]any {
 	mu.Lock()
 	defer mu.Unlock()
@@ -391,6 +413,8 @@ func unlink() {
 
 // --- requests -------------------------------------------------------------------------------------------------------
 
+// do answers one request: status, sign_in and unlink here, the rest by the account. A request has a minute, and one
+// that moves a file nearly three. A failure that means LinkedIn turned the session away also ends it.
 func do(r request) (any, error) {
 	limit := 60 * time.Second
 	if r.Op == "download" || r.Op == "send_media" {
@@ -428,6 +452,7 @@ func do(r request) (any, error) {
 	return result, nil
 }
 
+// do answers the ops that need a session. A chat, a person and a message are each named by LinkedIn's own URN.
 func (a *account) do(ctx context.Context, r request) (any, error) {
 	switch r.Op {
 	case "chats":
@@ -476,12 +501,15 @@ func (a *account) do(ctx context.Context, r request) (any, error) {
 // wants the quoted message's sender and time, history is paged by time. So the helper remembers, in memory only and
 // for this run, the chats, people and newest messages that have passed through it.
 
+// chatNote is what is remembered of one chat.
 type chatNote struct {
 	group bool
 	// A message request not yet answered: answering it accepts it, as the website's reply box does.
 	pending bool
 }
 
+// msgNote is what is remembered of one message: its chat, its sender's id, its words as LinkedIn wrote them, and
+// when it was delivered (ms, 0 where not known).
 type msgNote struct {
 	chat string
 	from string
@@ -492,6 +520,8 @@ type msgNote struct {
 // msgNotes is how many messages are remembered before the oldest are let go.
 const msgNotes = 5000
 
+// memory is what this run has seen, behind its own lock. Everything is kept by LinkedIn's id for it; order is the
+// ids of msgs, oldest first, which is the order they are let go in.
 type memory struct {
 	sync.Mutex
 	chats  map[string]chatNote
@@ -502,6 +532,7 @@ type memory struct {
 	said map[string]string
 }
 
+// seen is the one memory, emptied when the session is let go.
 var seen = newMemory()
 
 func newMemory() *memory {
@@ -593,6 +624,7 @@ func (m *memory) newsOf(p person) bool {
 	return true
 }
 
+// noteMessage remembers a message of [chat], and says whether it was new to this run.
 func (a *account) noteMessage(chat string, msg linkedingo.Message) bool {
 	n := msgNote{chat: chat, from: urnText(msg.Sender.EntityURN), text: msg.Body.Text}
 	if !msg.DeliveredAt.IsZero() {
@@ -614,8 +646,10 @@ func (a *account) chatOfMessage(msg linkedingo.Message) string {
 
 // --- people and avatars ---------------------------------------------------------------------------------------------
 
+// avatarDir is where people's pictures are cached, beside the session.
 func avatarDir() string { return filepath.Join(dir, "avatars") }
 
+// nullable is [s], or JSON's null for "".
 func nullable(s string) any {
 	if s == "" {
 		return nil
@@ -685,6 +719,7 @@ func (a *account) sayName(who person) {
 	event("name", map[string]any{"id": who.ID, "name": who.Name, "handle": who.Handle, "avatar": nullable(a.avatar(bg(), who))})
 }
 
+// who answers `who` from what this run has seen: the person themself, or someone met in a chat or a message.
 func (a *account) who(ctx context.Context, id string) (any, error) {
 	if id == "" {
 		return nil, errors.New("no one was asked for")
@@ -739,6 +774,7 @@ func (a *account) chatsOf(ctx context.Context, convs []linkedingo.Conversation) 
 	return list
 }
 
+// sayChats says the conversations that belong in the inbox as `chat` events, and gives them.
 func (a *account) sayChats(ctx context.Context, convs []linkedingo.Conversation) []chatOut {
 	list := a.chatsOf(ctx, convs)
 	for _, c := range list {
@@ -902,6 +938,7 @@ func (a *account) fillMedia(ctx context.Context, list []mediaOut) {
 	}
 }
 
+// fillAll does fillMedia for every message of a page that carries something, four messages at a time.
 func (a *account) fillAll(ctx context.Context, list []messageOut) {
 	var wg sync.WaitGroup
 	gate := make(chan struct{}, 4)
@@ -939,6 +976,8 @@ func quoted(q quote) *linkedingo.SendRepliedMessage {
 	}
 }
 
+// send posts a message to a chat: words, a file already uploaded ([render]), or both, with the quoted message
+// where it is known. Sending into a message request not yet answered accepts it.
 func (a *account) send(ctx context.Context, r request, render []linkedingo.SendRenderContent) (any, error) {
 	if r.To == "" {
 		return nil, errors.New("no chat to send to")
@@ -1057,6 +1096,8 @@ func (a *account) download(ctx context.Context, raw json.RawMessage, path string
 
 // --- what LinkedIn says, live ---------------------------------------------------------------------------------------
 
+// onEvent takes one thing the live stream said, told apart by its topic: a conversation changed, a message, a read
+// receipt, a reaction. Nothing once [a] is no longer the session.
 func (a *account) onEvent(ctx context.Context, ev *linkedingo.DecoratedEvent) {
 	if ev == nil || current() != a {
 		return
@@ -1089,6 +1130,8 @@ func (a *account) onEvent(ctx context.Context, ev *linkedingo.DecoratedEvent) {
 	}
 }
 
+// onMessage takes a message from the stream, which is also how LinkedIn says one was taken back or edited: its
+// render format tells which. A new message is said as `message`, after its chat where the app has not been told of it.
 func (a *account) onMessage(ctx context.Context, msg linkedingo.Message) {
 	id := urnText(msg.EntityURN)
 	chat := a.chatOfMessage(msg)
@@ -1140,6 +1183,7 @@ func (a *account) onMessage(ctx context.Context, msg linkedingo.Message) {
 	go a.sayName(sender)
 }
 
+// onSeen says that someone has read up to a message, as a `receipt`.
 func (a *account) onSeen(r linkedingo.SeenReceipt) {
 	id, chat := urnText(r.Message.EntityURN), a.chatOfMessage(r.Message)
 	from := urnText(r.SeenByParticipant.EntityURN)
@@ -1149,6 +1193,8 @@ func (a *account) onSeen(r linkedingo.SeenReceipt) {
 	event("receipt", map[string]any{"chat": chat, "from": from, "id": id, "kind": "read"})
 }
 
+// onReaction says a reaction added or removed. LinkedIn names the message and may not name its chat, which
+// chatOfMessage then finds.
 func (a *account) onReaction(r linkedingo.RealtimeReactionSummary) {
 	id, chat := urnText(r.Message.EntityURN), a.chatOfMessage(r.Message)
 	from := urnText(r.Actor.EntityURN)

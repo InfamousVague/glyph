@@ -140,6 +140,7 @@ Widget _accountSection(BuildContext context) {
 /// - **On an Android phone** its texts and conversations stay, as they always have; **a computer paired with a phone**
 ///   goes back to being the same you as the phone.
 Future<void> askSignOut(BuildContext context) {
+  // Signs out; where the app did not start again by itself, the page that asks for a restart.
   Future<void> out({bool everything = false}) async {
     final again = await Account.instance.signOut(everything: everything);
     if (!again && context.mounted) await push<void>(context, (_) => const RestartScreen());
@@ -982,6 +983,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
     super.dispose();
   }
 
+  /// The password typed: the account's keys are made from it and the devices asked for with them.
   Future<void> _open() async {
     setState(() {
       _busy = true;
@@ -1054,9 +1056,6 @@ class _DevicesScreenState extends State<DevicesScreen> {
   }
 }
 
-/// The backup brought up to date from a browser, after the password (Account.refreshWith): the profile, friends and
-/// circles as they are here, put together with what the backup has, and sealed again both ways. Every other device
-/// does this by itself once a day; a browser keeps nothing that could.
 /// Where the relay doesn't hold the account (Account.unknownHere): the account put on it from this device and the device
 /// listed under it (Account.listHereAgain), without signing in again, which would put the backup's friends and circles
 /// in place of this device's. A browser asks the password first.
@@ -1117,6 +1116,9 @@ class _ListHereAgainScreenState extends State<ListHereAgainScreen> {
   }
 }
 
+/// The backup brought up to date from a browser, after the password (Account.refreshWith): the profile, friends and
+/// circles as they are here, put together with what the backup has, and sealed again both ways. Every other device
+/// does this by itself once a day; a browser keeps nothing that could.
 class UpdateBackupScreen extends StatefulWidget {
   const UpdateBackupScreen({super.key});
 

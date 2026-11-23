@@ -32,6 +32,7 @@ class Envelope {
   /// This envelope with [bundle] as its [fs], the same in every other way.
   Envelope withFs(Map<String, dynamic>? bundle) => Envelope(id: id, kind: kind, body: body, at: at, ack: ack, fs: bundle);
 
+  /// The envelope as bytes: JSON, with a key only for what says something (`n` where no answer is asked for).
   Uint8List encode() => Uint8List.fromList(utf8.encode(jsonEncode({'i': id, 'k': kind, 'a': at, if (body.isNotEmpty) 'b': body, if (!ack) 'n': 1, if (fs != null) 'f': fs})));
 
   static Envelope? decode(List<int> bytes) {
@@ -91,6 +92,8 @@ class Packet {
 
   bool get isPart => group != null;
 
+  /// A whole packet's bytes: one byte of version and flags, the sender's id, then [payload]. [fs] counts only with
+  /// [sealed], and [passed] only with both.
   static Uint8List wrap({required String from, required bool sealed, required List<int> payload, bool fs = false, bool passed = false}) =>
       Uint8List.fromList([(version << 4) | (sealed ? _sealed : 0) | (sealed && fs ? _fs : 0) | (sealed && fs && passed ? _passed : 0), ...NetCrypto.unhex(from), ...payload]);
 

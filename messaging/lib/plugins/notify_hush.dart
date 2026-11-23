@@ -24,6 +24,7 @@ import 'plugin.dart';
 import 'registry.dart';
 import 'spam.dart';
 
+/// Writes the rules the phone's side hushes a text's notification by: [export] makes them, [start] keeps them written.
 class NotifyHush {
   NotifyHush._();
 
@@ -101,6 +102,7 @@ class NotifyHush {
     return {'v': 1, 'kinds': kinds, 'spam': spam, 'filed': filed};
   }
 
+  /// A write is waiting to run: further changes in the same run add nothing.
   static bool _due = false;
 
   /// Keeps [key] up to date from here on: written now, and again (once for a run of changes) whenever a choice that

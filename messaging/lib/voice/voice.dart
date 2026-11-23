@@ -248,6 +248,7 @@ abstract class VoicePeer {
 /// and the relay too) (VoiceSession._failed). With no relay handed out it is the other way round: every path first,
 /// then the relay alone if one has been handed out since.
 abstract class FallbackMedia implements VoiceMedia {
+  /// The connection to [id], made anew: [onCandidate] is told each way to connect it finds, to pass on to them.
   VoicePeer peerWith(String id, {required void Function(Map<String, dynamic> candidate) onCandidate, required void Function() onFailed, bool relayOnly = false});
 
   /// Whether a relay for calls was handed out (no point starting over through it otherwise).
@@ -657,6 +658,7 @@ class VoiceSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The connection to [id]: the one there is, or one made now whose candidates are said to them (`ice`).
   VoicePeer _peerFor(String id, {bool relayOnly = false}) {
     final had = _peers[id];
     if (had != null) return had;

@@ -300,6 +300,8 @@ class Handles {
     return k == null ? null : _shown[k];
   }
 
+  /// `{"dir":"souls"}` as [id] is told it: their total, their badges and the one they show; with a gift, how many
+  /// souls ([got]) or which [badge], [why], and the gift's id ([gift]) for the app to say it showed it (`souls-seen`).
   Map<String, Object?> _soulsMessage(String id, {int? got, String? why, String? badge, String? gift}) => {
         'dir': 'souls',
         'n': soulsOf(id),
@@ -695,6 +697,8 @@ class Handles {
         case 'kept':
           tell({'dir': 'kept', 'blob': _kept[id]});
         case 'curl-keep':
+          // Keeps the account's sealed sign-in cookies in its one slot, in place of what was there; an empty one
+          // clears it.
           final blob = said['blob'];
           if (blob is! String || blob.length > maxCurl) return err('That is more than can be kept.');
           if (blob.isEmpty) {
@@ -705,6 +709,7 @@ class Handles {
           _changed();
           tell({'dir': 'curl-keep', 'ok': true});
         case 'curl-kept':
+          // What is kept in that slot, as it was given; null for nothing.
           tell({'dir': 'curl-kept', 'blob': _curl[id]});
         case 'name':
           // Whether this install has a username here; the app keeps the words, this server only their hash.

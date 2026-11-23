@@ -12,6 +12,7 @@ import 'browser.dart';
 /// what it keeps and for being the only tab. Nothing here is fetched from anywhere: it is all the browser's own.
 Browser browser() => _PageBrowser();
 
+/// [Browser] by the page's own window: its address, its storage, the lock between tabs and the channel they speak on.
 class _PageBrowser implements Browser {
   @override
   Uri get address => Uri.parse(web.window.location.href);
@@ -53,6 +54,7 @@ class _PageBrowser implements Browser {
   /// What the tabs of one browser are all asking for, and where they speak to each other.
   static const _name = 'ghost-messaging-tab';
 
+  /// The channel the tabs speak on, opened when first used.
   web.BroadcastChannel? _channel;
   web.BroadcastChannel get _talk => _channel ??= web.BroadcastChannel(_name);
 
@@ -62,6 +64,7 @@ class _PageBrowser implements Browser {
   /// Completing it lets the lock go.
   Completer<JSAny?>? _held;
 
+  /// What the app gave to be run when another tab asks to be the app's, and when one has taken it.
   Future<void> Function()? _onAsked;
   void Function()? _onTaken;
 
@@ -214,6 +217,7 @@ class _PageBrowser implements Browser {
   }
 }
 
+/// This page's being the one tab: it holds nothing itself, the lock is the browser's and goes with the page.
 class _Held implements TabHold {}
 
 /// The page's own IndexedDB: one database, one store of named records, every one sealed: twelve random bytes and then
@@ -242,6 +246,7 @@ class _PageStore implements BrowserStore {
   @override
   void Function(String name)? onLost;
 
+  /// Opens the database, made with its one store of records where it is new, and finds or makes the key.
   static Future<_PageStore> open() async {
     final opening = web.window.indexedDB.open(_dbName, 1);
     opening.onupgradeneeded = ((web.Event _) {
@@ -286,6 +291,7 @@ class _PageStore implements BrowserStore {
     return done.future;
   }
 
+  /// What [request] comes to: its result, or a [StateError] with the browser's reason.
   static Future<JSAny?> _asked(web.IDBRequest request) {
     final done = Completer<JSAny?>();
     request.onsuccess = ((web.Event _) => done.complete(request.result)).toJS;
@@ -293,6 +299,7 @@ class _PageStore implements BrowserStore {
     return done.future;
   }
 
+  /// The record kept under [name], as the database holds it (sealed); null where there is none.
   static Future<JSAny?> _get(web.IDBDatabase db, String name) => _asked(db.transaction(_records.toJS).objectStore(_records).get(name.toJS));
 
   /// Done when the browser says the write is kept, not when it was asked for. Nothing once the store is closed.
@@ -351,6 +358,7 @@ class _PageStore implements BrowserStore {
     return js.toDart;
   }
 
+  /// The record [name] is there and can't be opened: the app is told ([onLost]), and [BrowserStoreLost] is thrown.
   Never _lost(String name) {
     onLost?.call(name);
     throw BrowserStoreLost(name);

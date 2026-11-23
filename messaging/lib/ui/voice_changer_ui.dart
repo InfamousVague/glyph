@@ -27,6 +27,7 @@ abstract class _Row extends StatelessWidget implements PaneRow {
   Widget build(BuildContext context) => ListenableBuilder(listenable: VoiceChanger.instance, builder: (context, _) => row(context, VoiceChanger.instance));
 }
 
+/// The key: how it ends once one is kept, and the page to paste one.
 class VoiceChangerKeyRow extends _Row {
   const VoiceChangerKeyRow({super.key});
 
@@ -41,6 +42,7 @@ class VoiceChangerKeyRow extends _Row {
       );
 }
 
+/// The voice chosen, and the page that lists the account's. Needs a key first.
 class VoiceChangerVoiceRow extends _Row {
   const VoiceChangerVoiceRow({super.key});
 
@@ -56,6 +58,7 @@ class VoiceChangerVoiceRow extends _Row {
       );
 }
 
+/// Whether voice messages are changed. Off pauses it; the key and the voice are kept.
 class VoiceChangerOnRow extends _Row {
   const VoiceChangerOnRow({super.key});
 
@@ -148,6 +151,7 @@ class VoiceChangerCleanRow extends _Row {
       );
 }
 
+/// Takes the key, the voice and the list of voices off this device, after asking.
 class VoiceChangerForgetRow extends _Row {
   const VoiceChangerForgetRow({super.key});
 
@@ -187,6 +191,7 @@ class _VoiceChangerKeyScreenState extends State<VoiceChangerKeyScreen> {
     super.dispose();
   }
 
+  /// Hands the key to the voice changer, which says why where it isn't kept; that is shown under the field.
   Future<void> _save() async {
     if (_busy || _key.text.trim().isEmpty) return;
     setState(() {

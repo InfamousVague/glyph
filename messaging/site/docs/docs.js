@@ -49,7 +49,7 @@
   // { u: address, t: title, d: summary, s: section, x: its words, h: [[id, heading], …] }.
   let index = null;
   let picked = 0;
-  const load = () => index ?? (index = fetch('/docs/search.json').then((r) => r.json()).catch(() => []));
+  const load = () => index ?? (index = fetch(document.body.dataset.search || '/docs/search.json').then((r) => r.json()).catch(() => []));
   const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   // The text made safe for HTML, with each word searched for wrapped in <mark>.
   const mark = (s, words) => words.reduce((t, w) => t.replace(new RegExp(`(${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<mark>$1</mark>'), esc(s));

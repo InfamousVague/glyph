@@ -41,6 +41,7 @@ class GroupMember {
   /// Shown under a stand-in that is nobody's (android Groups.memberAddress): no address of theirs is known here.
   bool get standIn => shown.endsWith('@member.ghost-sms.com');
 
+  /// As the screens draw a person: under the address they are shown by, never the listed one.
   Person get person => Person(address: shown, name: name, photo: photo);
 
   /// A member as the phone gives one (android Groups.view).

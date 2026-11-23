@@ -39,6 +39,7 @@ const (
 	wordsNoIdentity = "Instagram did not say whose account this is: open your messages on instagram.com in the browser, then copy the cookies again"
 )
 
+// What a request is answered with when there is no session, or one whose inbox page has not loaded yet.
 var (
 	errNotLinked = errors.New("not signed in to Instagram")
 	errNotReady  = errors.New("Instagram is still connecting: try again in a moment")
@@ -81,6 +82,8 @@ func fail(what string, err error) error {
 
 // --- what is held while running -------------------------------------------------------------------------------------
 
+// The session in use and its client, all under mu. runCtx lives as long as the session does and outlasts a client
+// replaced by restart; stopRun ends it.
 var (
 	mu        sync.Mutex
 	sess      *session
@@ -110,6 +113,8 @@ type reacted struct {
 	from   int64
 }
 
+// memo is what this run remembers of the account, in memory only: who the person is, the threads and people met,
+// and whose reaction each reaction id stands for. Its lock guards every field.
 var memo struct {
 	sync.Mutex
 	me      int64
@@ -118,6 +123,7 @@ var memo struct {
 	reacts  map[string]reacted
 }
 
+// resetMemo forgets everything remembered and begins again for the person [me] (0 for nobody).
 func resetMemo(me int64) {
 	memo.Lock()
 	defer memo.Unlock()
@@ -127,12 +133,14 @@ func resetMemo(me int64) {
 	memo.reacts = map[string]reacted{}
 }
 
+// myID is the id messages name the signed-in person by; 0 where nobody is.
 func myID() int64 {
 	memo.Lock()
 	defer memo.Unlock()
 	return memo.me
 }
 
+// nameOf is what to call the person [fbid], from what is remembered of them.
 func nameOf(fbid int64) string {
 	memo.Lock()
 	defer memo.Unlock()
@@ -177,6 +185,8 @@ func noteMessages(chat string, list ...*slidetypes.Message) {
 	}
 }
 
+// noteReactionLocked remembers whose reaction on which message [logID] stands for. The memo's lock must be held.
+// Past 20,000 the lot is let go rather than the oldest picked out.
 func noteReactionLocked(logID, target string, from int64) {
 	if len(memo.reacts) > 20000 {
 		memo.reacts = map[string]reacted{}
@@ -197,6 +207,7 @@ func known(chat string) (thread, bool) {
 
 // --- signing in and connecting --------------------------------------------------------------------------------------
 
+// cookieJar puts a browser's cookies, by name, into the library's jar for Instagram.
 func cookieJar(values map[string]string) *cookies.Cookies {
 	jar := &cookies.Cookies{Platform: types.Instagram}
 	named := make(map[cookies.MetaCookieName]string, len(values))
@@ -207,6 +218,7 @@ func cookieJar(values map[string]string) *cookies.Cookies {
 	return jar
 }
 
+// cookieValues is the cookies [c] holds now, by name: Instagram refreshes them as the client is used.
 func cookieValues(c *instameow.Client) map[string]string {
 	values := map[string]string{}
 	for name, value := range c.GetCookies().GetAll() {
@@ -230,6 +242,7 @@ func newClient(values map[string]string) *instameow.Client {
 	return c
 }
 
+// status answers `status`: whether anyone is signed in, whether the live connection is up, and who it is.
 func status() map[string]any {
 	mu.Lock()
 	defer mu.Unlock()
@@ -252,6 +265,7 @@ func client() (*instameow.Client, error) {
 	return cli, nil
 }
 
+// isCurrent is whether [c] is still the client in use: one replaced or signed out is no longer listened to.
 func isCurrent(c *instameow.Client) bool {
 	mu.Lock()
 	defer mu.Unlock()
@@ -466,6 +480,8 @@ func restart(old *instameow.Client) {
 	run(ctx, c)
 }
 
+// shutdown is the app quitting: the newest cookies are kept for the next start and the connection closed. The
+// session stays.
 func shutdown() {
 	mu.Lock()
 	c := cli
@@ -483,6 +499,8 @@ func shutdown() {
 	c.Disconnect()
 }
 
+// setConnected notes whether [c]'s live connection is up, and says `connected` or `disconnected` when that changes.
+// Connecting clears the count of refusals.
 func setConnected(c *instameow.Client, now bool) {
 	mu.Lock()
 	if cli != c || connected == now {
@@ -832,8 +850,11 @@ func history(ctx context.Context, chat, before string) (any, error) {
 	}, nil
 }
 
+// offlineID is a new id of the sender's own for something sent, which Instagram wants with every send.
 func offlineID() string { return strconv.FormatInt(methods.GenerateEpochID(), 10) }
 
+// sent is what a send answers, {"id","ts"}, from what Instagram says of the message it took; the time is now where
+// it gives none. The message is remembered with the thread's, so it can be marked seen up to.
 func sent(chat string, m slidetypes.SentMessage) (any, error) {
 	id := cmp.Or(m.ID, m.MessageID)
 	if id == "" {

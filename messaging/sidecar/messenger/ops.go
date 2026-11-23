@@ -31,6 +31,7 @@ import (
 // The largest file sent or fetched: Messenger's own limit for a file is 25 MB, a video's is larger.
 const maxFile = 100 << 20
 
+// chatKey reads a chat id from the app as a thread's number, or says it is not one.
 func chatKey(s string) (int64, error) {
 	k, ok := parseID(s)
 	if !ok {
@@ -49,6 +50,7 @@ func (b *book) threadCopy(k int64) thread {
 	return thread{Key: k, Type: b.kinds[k]}
 }
 
+// ref is what is remembered of a message, for a caller that does not hold the book's lock.
 func (b *book) ref(id string) (msgRef, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -56,6 +58,7 @@ func (b *book) ref(id string) (msgRef, bool) {
 	return r, ok
 }
 
+// when is sentAt, for a caller that does not hold the book's lock.
 func (b *book) when(id string) int64 {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -75,6 +78,8 @@ func tasks(ctx context.Context, c *conn, list ...socket.Task) (*table.LSTable, e
 	return tbl, nil
 }
 
+// syncGroup is the sync group a thread's tasks name (Messenger keeps its tables in several): the one its rows
+// gave, else 1.
 func syncGroup(t thread) int64 {
 	if t.SyncGroup != 0 {
 		return t.SyncGroup
@@ -84,6 +89,8 @@ func syncGroup(t thread) int64 {
 
 // --- history --------------------------------------------------------------------------------------------------------
 
+// history answers `history`: from the newest stretch kept where that reaches, else by asking Messenger for the
+// thread (no [before]) or for what came before a message, and waiting for the stretch it sends.
 func history(ctx context.Context, c *conn, b *book, chat, before string) (any, error) {
 	k, err := chatKey(chat)
 	if err != nil {
@@ -205,6 +212,8 @@ func sentID(tbl *table.LSTable, otid int64) (string, error) {
 	return "", errors.New("Messenger did not confirm the message. It may or may not have been sent")
 }
 
+// sendMedia answers `send_media`: the file is read whole and uploaded as the website does, then sent as a message
+// with the words beside it. Not in encrypted chats yet.
 func sendMedia(ctx context.Context, c *conn, b *book, r request) (any, error) {
 	k, err := chatKey(r.To)
 	if err != nil {
@@ -249,6 +258,7 @@ func sendMedia(ctx context.Context, c *conn, b *book, r request) (any, error) {
 
 // --- reading, reacting, unsending -----------------------------------------------------------------------------------
 
+// read marks a chat read up to [upto], or up to now where none is named.
 func read(ctx context.Context, c *conn, b *book, to, upto string) error {
 	k, err := chatKey(to)
 	if err != nil {
@@ -276,6 +286,8 @@ func read(ctx context.Context, c *conn, b *book, to, upto string) error {
 	return err
 }
 
+// react puts the person's reaction on a message, or takes it off: Messenger takes an empty reaction as none.
+// Which side the message is on is told by its id.
 func react(ctx context.Context, c *conn, b *book, to, target, emoji string, remove bool) error {
 	k, err := chatKey(to)
 	if err != nil {
@@ -304,6 +316,8 @@ func react(ctx context.Context, c *conn, b *book, to, target, emoji string, remo
 	return err
 }
 
+// unsend takes back the person's own message for everyone. A message known to be someone else's is refused here;
+// one this run has not met is left to Messenger to refuse.
 func unsend(ctx context.Context, c *conn, b *book, to, target string) error {
 	k, err := chatKey(to)
 	if err != nil {
@@ -324,6 +338,8 @@ func unsend(ctx context.Context, c *conn, b *book, to, target string) error {
 
 // --- files ----------------------------------------------------------------------------------------------------------
 
+// pointer is what `download` is handed back for a message's file: an address on Meta's servers and the kind of
+// file it is, or the keys of an encrypted one.
 type pointer struct {
 	URL  string `json:"url"`
 	Mime string `json:"mime"`
@@ -331,6 +347,7 @@ type pointer struct {
 	Keys *sealed `json:"e2ee"`
 }
 
+// metaHosts are the domains Meta serves files from; their subdomains count too.
 var metaHosts = []string{"fbcdn.net", "fbsbx.com", "facebook.com", "messenger.com", "cdninstagram.com"}
 
 // metaAddress is whether an address is one of Meta's own file servers: the helper fetches nothing else, whatever a
@@ -349,6 +366,7 @@ func metaAddress(address string) bool {
 	return false
 }
 
+// fileClient fetches files and pictures, five minutes at most for each. It holds no cookies.
 var fileClient = &http.Client{Timeout: 5 * time.Minute}
 
 // fetch asks one of Meta's file servers for a file, as the website's page would.
@@ -401,6 +419,7 @@ func writeWhole(dest string, from io.Reader) error {
 	return os.Rename(tmp, dest)
 }
 
+// download answers `download`: the file a pointer names is written to [dest], whole or not at all.
 func download(ctx context.Context, c *conn, raw json.RawMessage, dest string) error {
 	var p pointer
 	if len(raw) == 0 || json.Unmarshal(raw, &p) != nil || (p.URL == "" && p.Keys == nil) {
@@ -435,8 +454,11 @@ func download(ctx context.Context, c *conn, raw json.RawMessage, dest string) er
 
 // --- pictures of people and chats -----------------------------------------------------------------------------------
 
+// avatarDir is where the pictures of people and chats are kept once fetched.
 func avatarDir() string { return filepath.Join(dir, "avatars") }
 
+// avatarBusy, under avatarLock, is the pictures being fetched or that could not be; avatarSlots lets four be
+// fetched at a time.
 var (
 	avatarLock  sync.Mutex
 	avatarBusy  = map[string]bool{}
@@ -485,6 +507,7 @@ func avatarFile(owner, address string) string {
 	return ""
 }
 
+// fetchAvatar fetches a picture from one of Meta's servers into [dest]; false where it could not be had.
 func fetchAvatar(ctx context.Context, address, dest string) bool {
 	if !metaAddress(address) {
 		return false
@@ -528,6 +551,7 @@ func sayAgain(owner string) {
 	}
 }
 
+// who answers `who`: a person by id, asked of Messenger where the book has not met them.
 func who(ctx context.Context, c *conn, b *book, id string) (any, error) {
 	n, ok := parseID(id)
 	if !ok {

@@ -103,6 +103,7 @@ abstract final class PluginSyncList {
     };
   }
 
+  /// [list] as it is written, in the blob's `plugins` and in this device's preferences: what [parse] reads.
   static Map<String, Object?> encode(Map<String, SyncedPlugin> list) => {
         'v': version,
         'list': {for (final e in list.entries) e.key: e.value.toJson()},
@@ -128,6 +129,7 @@ abstract final class PluginSyncList {
     return out;
   }
 
+  /// Whether two lists hold the same lines: where they do, nothing is written to the relay.
   static bool same(Map<String, SyncedPlugin> a, Map<String, SyncedPlugin> b) => mapEquals(a, b);
 
   /// The account's blob with [list] in it: everything else in [kept] (the extension's cURL entries) as it was.
@@ -185,6 +187,7 @@ abstract interface class PluginSyncHost {
   /// written over).
   Future<Map<String, Object?>?> kept();
 
+  /// Seals [whole] and keeps it on the relay in place of the account's blob.
   Future<void> keep(Map<String, Object?> whole);
 
   /// Which account this is, so a list kept for another one is not carried into it.
@@ -208,6 +211,7 @@ abstract interface class PluginSyncHost {
   String read(String key);
   void write(String key, String value);
 
+  /// The time, in ms since the epoch: a line's [SyncedPlugin.at]. A test sets its own.
   int now();
 }
 
@@ -229,6 +233,8 @@ class PluginSync {
 
   bool get enabled => _host != null && _host!.read(onKey) != 'off';
 
+  // This device's copy ([stateKey]), read once ([_read]): the list, the mark of each line already applied here, whether
+  // the list has been seeded with this device's choices, and the account it was kept for.
   Map<String, SyncedPlugin> _list = {};
   Map<String, String> _applied = {};
   bool _seeded = false;
@@ -238,6 +244,8 @@ class PluginSync {
   /// Ids a sync is switching right now: what the switches say of them is the sync's doing, not the person's.
   final Set<String> _applying = {};
 
+  // The sync a few seconds after a change, the next try at lines still waiting, the sync running now (and whether to
+  // run once more after it), and when the app last came to the front.
   Timer? _push;
   Timer? _retry;
   Future<void>? _running;
@@ -287,6 +295,7 @@ class PluginSync {
 
   // --- the person's changes -----------------------------------------------------------------------------------------
 
+  /// A plugin's switch moved in the registry: a line for it, with a Marketplace pack's version.
   void _registrySwitched(GhostPlugin plugin, bool on) {
     String? version;
     if (plugin is PackPlugin) {
@@ -404,6 +413,7 @@ class PluginSync {
     return _applyRun = _applyAll(host).whenComplete(() => _applyRun = null);
   }
 
+  /// Applies each line not yet applied here, remembering those done; where any must wait, tries again in a minute.
   Future<void> _applyAll(PluginSyncHost host) async {
     var waiting = false;
     var changed = false;
@@ -459,6 +469,7 @@ class PluginSync {
     if (_list.entries.any((e) => _applied[e.key] != e.value.mark)) unawaited(applyPending());
   }
 
+  /// The app came back to the front: syncs, at most once a minute.
   void _front() {
     final now = DateTime.now();
     if (_lastFront != null && now.difference(_lastFront!) < const Duration(minutes: 1)) return;
@@ -467,6 +478,7 @@ class PluginSync {
   }
 }
 
+/// Tells [PluginSync] when the app is resumed.
 class _Front with WidgetsBindingObserver {
   _Front(this.sync);
   final PluginSync sync;

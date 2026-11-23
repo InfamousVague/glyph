@@ -59,6 +59,7 @@ class ReportTarget {
   /// "@name", else their name.
   String get shown => username.isNotEmpty ? '@$username' : name;
 
+  /// Where it happened, as the list of reports made words it.
   String get whereWords => switch (place) {
         'space' => placeName.isEmpty ? 'A space' : placeName,
         'chat' => placeName.isEmpty ? 'A chat' : 'Chat with $placeName',
@@ -90,6 +91,7 @@ bool reportsGoFromHere({bool? browser, String? hub}) => !(browser ?? Sms.browser
 /// Blocks a Ghost person: Buddies.block in the app; a test gives its own.
 typedef ReportBlock = Future<void> Function(ReportTarget target);
 
+/// The app's own [ReportBlock].
 Future<void> blockLive(ReportTarget t) => Buddies.instance.block(t.id, username: t.username);
 
 /// Where the reports made here are kept with the app's choices (MadeReport).
@@ -103,6 +105,8 @@ Future<void> showReportSheet(BuildContext context, ReportTarget target, {ReportS
       list: (_) => ReportForm(key: const ValueKey('report-drawer'), target: target, send: send, block: block),
     );
 
+/// The sheet's body: why, a note, for a message what goes with it, Also block, and Send. In a page made for another
+/// relay it says where to report from instead ([reportsGoFromHere]).
 class ReportForm extends StatefulWidget {
   const ReportForm({super.key, required this.target, this.send, this.block});
   final ReportTarget target;
@@ -134,6 +138,8 @@ class _ReportFormState extends State<ReportForm> {
 
   bool get _ready => !_sending && _reason != null;
 
+  /// Sends the report, then blocks them where that was asked, and keeps a line of it under [reportsMadeKey]. A block
+  /// that fails leaves the report sent and says so.
   Future<void> _send() async {
     final reason = _reason;
     if (!_ready || reason == null) return;

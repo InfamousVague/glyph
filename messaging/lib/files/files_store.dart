@@ -1496,6 +1496,8 @@ Future<String> shaOfFileAside(String path, {void Function(int read)? told}) asyn
   }
 }
 
+/// The isolate's side of [shaOfFileAside]: sends how many bytes are read, four times a second at most, and ends by
+/// sending the hash.
 void _shaTelling((String, SendPort) job) {
   final (path, port) = job;
   final clock = Stopwatch()..start();
@@ -1512,11 +1514,13 @@ void _shaTelling((String, SendPort) job) {
 /// pointycastle's did (19 MB/s: twenty minutes and more for a 26 GB file); a Mac's and an iPhone's own, on the
 /// processor's SHA instructions, reads faster than the disk gives it.
 abstract class _Sha {
+  // Takes the first [length] bytes of [bytes]; [end] gives the 32 bytes of the hash; [close] frees what it held.
   void add(Uint8List bytes, int length);
   Uint8List end();
   void close() {}
 }
 
+/// package:crypto's, in Dart: what every device has.
 class _DartSha implements _Sha {
   _DartSha() {
     _in = crypto.sha256.startChunkedConversion(_out);
@@ -1536,6 +1540,7 @@ class _DartSha implements _Sha {
   void close() {}
 }
 
+/// Holds the one digest package:crypto hands over as its input is closed.
 class _DigestSink implements Sink<crypto.Digest> {
   crypto.Digest? value;
   @override
@@ -1676,6 +1681,7 @@ class FilesSpace {
     most: const Duration(seconds: 2),
   );
 
+  /// Has the log written soon ([_writer]).
   void _save() => _writer.save();
 
   /// Writes the log now (a test that reads the file after).

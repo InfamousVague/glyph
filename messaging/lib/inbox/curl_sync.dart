@@ -28,6 +28,7 @@ class CurlSync {
   }
   static final CurlSync instance = CurlSync._();
 
+  /// The app's choices, set as the app starts: nothing is read or shared before then.
   AppState? _app;
   AppState? get app => _app;
   set app(AppState? a) {
@@ -39,6 +40,8 @@ class CurlSync {
   }
 
   Timer? _every;
+
+  /// A [pull] is running: another asked for meanwhile is passed over.
   bool _busy = false;
 
   /// What the account keeps: `{v:1, entries:{<serviceId>:{cookies:{name:value}, at:ms, from:'<label>'}}}`.
@@ -104,6 +107,8 @@ class CurlSync {
     }
   }
 
+  /// Signs this device in to [serviceId] with a synced entry's [cookies], kept at [at] (ms), unless it is signed in
+  /// already or this entry was tried before (`curl_applied_<service>` holds the time of the last one applied).
   Future<void> _apply(AppState app, String serviceId, Map<String, String> cookies, int at) async {
     final n = Inbox.instance.named(serviceId);
     if (n is! AccountHelper) return; // only cookie-login helpers can take cURL entries

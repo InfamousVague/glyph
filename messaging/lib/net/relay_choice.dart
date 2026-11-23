@@ -121,11 +121,13 @@ Future<RelayCheck> checkRelay(String url, {Duration timeout = const Duration(sec
   return RelayCheck.answered(DateTime.now().difference(started), relay: relay);
 }
 
+/// Stops listening and closes the connection, waiting two seconds at most; nothing that goes wrong in it matters.
 Future<void> _close(HubLink ws, StreamSubscription<dynamic> sub) async {
   await sub.cancel().catchError((_) {});
   await ws.close().timeout(const Duration(seconds: 2)).catchError((_) {});
 }
 
+/// Why a dial failed, in a line to show: its first line, 120 characters at most.
 String _short(Object e) {
   final line = dialProblem(e).split('\n').first.trim();
   return line.length > 120 ? '${line.substring(0, 120)}…' : line;

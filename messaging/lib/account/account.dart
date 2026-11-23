@@ -456,6 +456,8 @@ class Account extends ChangeNotifier {
     return _reseal(k._words, k._pk, k._keys.address, DateTime.now().toUtc().toIso8601String().substring(0, 10));
   }
 
+  /// Seals the backup again, both ways (under the words and under the password's key), put together with what the
+  /// relay keeps now. False where [words] do not make [address], or nothing could be sealed.
   Future<bool> _reseal(List<String> words, PasswordKey pk, String address, String today) async {
     final keys = _keysOf(words);
     if (keys.address != address) return false;
@@ -507,6 +509,7 @@ class Account extends ChangeNotifier {
     return AccountDevice.list(m['list'], device);
   }
 
+  /// Signs the device [d] out of the account, and answers the devices left; [keys] as [devices]'.
   Future<List<AccountDevice>> removeDevice(String d, {AccountKeys? keys}) async {
     final m = await relay.ask(_signed('acct-devices', 'devices', keys?._keys ?? await _keys(), {'remove': d}));
     return AccountDevice.list(m['list'], device);

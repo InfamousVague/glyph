@@ -45,6 +45,8 @@ Future<void> exportTexts(BuildContext context, int thread, String title, List<Pe
 Future<void> exportSpace(BuildContext context, HangoutRoom room) =>
     _save(context, room.channel.name, spaceLines(room, nameOf: Voice.instance.nameOf), where: 'a space');
 
+/// Writes [lines] as Markdown to a file named from [title] and hands it to this device's way of saving, then says how
+/// many messages went. Says so instead where there is nothing to export or the device can't save files.
 Future<void> _save(BuildContext context, String title, List<ExportLine> lines, {String? where}) async {
   if (lines.isEmpty) {
     toast(context, 'There\'s nothing to export yet');

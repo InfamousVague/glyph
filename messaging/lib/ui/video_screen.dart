@@ -413,9 +413,7 @@ class _VideoScreenState extends State<VideoScreen> {
     await (_fullscreen ? _enterPhoneFullscreen() : _leavePhoneFullscreen());
   }
 
-  /// Full screen on a phone (Matt, 2026-11-21: "add the ability to full screen videos played from files"): the status
-  /// and navigation bars hidden (a swipe from the edge shows them for a moment), and the phone turned the way the
-  /// picture is: on its side for a wide video, upright for a tall one. Going back, or the button again, puts both back.
+  /// Out of full screen on a phone: the bars shown again, and the phone free to turn as it is held.
   static Future<void> _leavePhoneFullscreen() async {
     try {
       await SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: SystemUiOverlay.values);
@@ -423,6 +421,10 @@ class _VideoScreenState extends State<VideoScreen> {
     } catch (_) {}
   }
 
+  /// Full screen on a phone (Matt, 2026-11-21: "add the ability to full screen videos played from files"): the status
+  /// and navigation bars hidden (a swipe from the edge shows them for a moment), and the phone turned the way the
+  /// picture is: on its side for a wide video, upright for a tall one; a picture whose shape isn't known yet counts as
+  /// wide. Going back, or the button again, puts both back ([_leavePhoneFullscreen]).
   Future<void> _enterPhoneFullscreen() async {
     final aspect = _now.aspect;
     try {

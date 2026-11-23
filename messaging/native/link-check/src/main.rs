@@ -48,6 +48,7 @@ use tokio::{
     time::{sleep, timeout},
 };
 
+/// A result whose error is only ever printed, as the line that says what did not hold.
 type Res<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 /// What the two devices speak to each other here. Nothing else speaks it.
@@ -81,6 +82,8 @@ async fn main() -> ExitCode {
     }
 }
 
+/// Reads the arguments and runs the proof they ask for: against the helper at the address given, or with no
+/// address against one started on this machine (`--helper` says which program).
 async fn run(args: Vec<String>) -> Res<()> {
     let mut url = None;
     let mut quic = QUIC;
@@ -120,6 +123,7 @@ async fn run(args: Vec<String>) -> Res<()> {
     }
 }
 
+/// Prints each check that did not hold, and fails if there was one.
 fn done(problems: Vec<String>) -> Res<()> {
     if problems.is_empty() {
         println!("ok all of it held");
@@ -416,12 +420,14 @@ async fn frames(tx: &mut SendStream, rx: &mut RecvStream) -> Res<Duration> {
     Ok(longest)
 }
 
+/// A frame on the stream: its length in four bytes, big-endian, then its bytes.
 async fn write_frame(tx: &mut SendStream, frame: &[u8]) -> Res<()> {
     tx.write_all(&(frame.len() as u32).to_be_bytes()).await?;
     tx.write_all(frame).await?;
     Ok(())
 }
 
+/// The next frame off the stream; one longer than anything sent here is refused before room is made for it.
 async fn read_frame(rx: &mut RecvStream) -> Res<Vec<u8>> {
     let mut length = [0u8; 4];
     rx.read_exact(&mut length).await?;
@@ -459,6 +465,7 @@ struct Seen {
     got: u64,
 }
 
+/// Every open path of a link, as it stands now.
 fn paths(link: &Connection) -> Vec<Seen> {
     link.paths()
         .iter()
@@ -469,6 +476,7 @@ fn paths(link: &Connection) -> Vec<Seen> {
         .collect()
 }
 
+/// The paths in words, for a line of the report.
 fn said(paths: &[Seen]) -> String {
     if paths.is_empty() {
         return "none".into();
@@ -494,6 +502,7 @@ async fn straight(link: &Connection, within: Duration) -> Option<String> {
     chosen.map(|path| path.remote_addr().to_string())
 }
 
+/// A time in milliseconds, with a decimal place under ten.
 fn ms(took: Duration) -> String {
     let ms = took.as_secs_f64() * 1000.0;
     if ms < 10.0 { format!("{ms:.1} ms") } else { format!("{ms:.0} ms") }
@@ -640,6 +649,7 @@ impl Started {
         fs::read_to_string(self.dir.join("helper.log")).unwrap_or_default()
     }
 
+    /// Reads the four counters off the helper's metrics door; an error where one of them is not there.
     async fn counted(&self) -> Res<Counted> {
         let (status, body) = get(self.metrics, "/metrics").await.map_err(|e| format!("the helper's metrics door at {}: {e}", self.metrics))?;
         let count = |name: &str| -> Res<u64> {

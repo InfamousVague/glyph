@@ -38,6 +38,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// quote is the message a `send` answers, by its id.
 type quote struct {
 	ID string `json:"id"`
 }
@@ -64,6 +65,8 @@ type request struct {
 	Who     string            `json:"who"`
 }
 
+// dir is where the session, the log and people's pictures are kept (--dir). out is standard output, written one
+// JSON line at a time under outLock. inflight counts the requests still being answered, waited for at exit.
 var (
 	dir     string
 	log     zerolog.Logger
@@ -73,6 +76,7 @@ var (
 	inflight sync.WaitGroup
 )
 
+// say writes [v] to standard output as one JSON line. Nothing else writes there.
 func say(v any) {
 	outLock.Lock()
 	defer outLock.Unlock()
@@ -88,6 +92,8 @@ func event(name string, fields map[string]any) {
 	say(m)
 }
 
+// main takes up the kept session, if there is one, then answers the requests on standard input, each in its own
+// goroutine, until Ghost closes it.
 func main() {
 	flag.StringVar(&dir, "dir", "", "where the Instagram session is kept")
 	flag.Parse()
@@ -112,6 +118,7 @@ func main() {
 		resume(s)
 	}
 
+	// A request is one line, 8 MB at most.
 	scan := bufio.NewScanner(os.Stdin)
 	scan.Buffer(make([]byte, 1<<20), 8<<20)
 	for scan.Scan() {
@@ -138,6 +145,7 @@ func main() {
 	shutdown()
 }
 
+// parseRequest reads one line as a request. A line that is not JSON, or names no op, is an error (and is skipped).
 func parseRequest(line []byte) (request, error) {
 	var r request
 	err := json.Unmarshal(line, &r)
@@ -155,6 +163,7 @@ func answer(id int64, result any, err error) map[string]any {
 	return map[string]any{"id": id, "ok": true, "result": result}
 }
 
+// handle does what [r] asks and says its answer, even where doing it panicked.
 func handle(r request) {
 	defer func() {
 		// A shape of Instagram's the library did not expect must not take the helper down with the request.
@@ -167,8 +176,10 @@ func handle(r request) {
 	say(answer(r.ID, result, err))
 }
 
+// bg is a context with no end that carries the helper's log.
 func bg() context.Context { return log.WithContext(context.Background()) }
 
+// do runs one request, by its op, with two minutes to finish.
 func do(r request) (any, error) {
 	ctx, cancel := context.WithTimeout(bg(), 2*time.Minute)
 	defer cancel()
@@ -219,6 +230,7 @@ type session struct {
 	Saved   int64             `json:"saved"`  // ms
 }
 
+// sessionPath is where the session is kept, in the helper's folder.
 func sessionPath() string { return filepath.Join(dir, "session.json") }
 
 // saveSession writes [s] where only the person can read it, whole or not at all.
@@ -254,8 +266,11 @@ func loadSession(path string) (*session, error) {
 	return &s, nil
 }
 
+// avatarDir is where people's pictures are kept once fetched.
 func avatarDir() string { return filepath.Join(dir, "avatars") }
 
+// logFile is instagram.log in the session's folder, begun afresh past a megabyte; standard error alone where it
+// can't open.
 func logFile() *os.File {
 	path := filepath.Join(dir, "instagram.log")
 	if st, err := os.Stat(path); err == nil && st.Size() > 1<<20 {

@@ -64,8 +64,8 @@ VOICEFX_EXPORT void voicefx_feed(VoiceFx *fx, const int16_t *pcm, int n, int rat
 VOICEFX_EXPORT int voicefx_queued_ms(VoiceFx *fx);
 
 /* A voice effect made here, as it is said, in a call (Matt, 2026-11-21: "Add support (by default) for the voice
- * changer to use on the fly voice changing the elevenlabs is very slow and not real time"): about 43 ms behind,
- * nothing leaves the device. Applied after the noise suppression and the gain; not while voicefx_live is on. */
+ * changer to use on the fly voice changing the elevenlabs is very slow and not real time"): about 48 ms behind
+ * (the robot 43), nothing leaves the device. Applied after the noise suppression and the gain; not while voicefx_live is on. */
 enum {
   VOICEFX_EFFECT_NONE = 0,
   VOICEFX_EFFECT_DEEPER = 1,    /* a little lower and bigger */

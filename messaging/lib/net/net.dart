@@ -156,6 +156,7 @@ class Net extends ChangeNotifier implements PeerBook {
   /// words are sent again on.
   final ValueNotifier<int> direct = ValueNotifier(0);
 
+  /// Heard from the direct network, the ledger and its check: [direct] goes up.
   void _directChanged() => direct.value++;
 
   /// Goes up whenever the route that last carried something to or from someone changes (Switchboard.used): Settings ›
@@ -178,6 +179,7 @@ class Net extends ChangeNotifier implements PeerBook {
   /// (Friends' list: lib/friends/friends.dart); kept here, so a check made later is given them too.
   final List<Envelope? Function(String peer, String id)> _holders = [];
 
+  /// Adds one of them, once; the check running now is given it too.
   void addHolder(Envelope? Function(String peer, String id) holder) {
     if (_holders.contains(holder)) return;
     _holders.add(holder);
@@ -189,6 +191,7 @@ class Net extends ChangeNotifier implements PeerBook {
   List<Peer> get friends => [for (final p in _peers.values) if (_friendIds.contains(p.id)) p];
   Set<String> _friendIds = {};
 
+  /// The relay's route whose link helpers are listened for ([_followHelpers]).
   HubCarrier? _helpersOf;
 
   /// The relay named its link helpers as the app signed in to it ([HubCarrier.helpers]).
@@ -197,6 +200,7 @@ class Net extends ChangeNotifier implements PeerBook {
     if (hub != null) _p2p?.setHelpers(hub.helpers.value);
   }
 
+  /// Listens for the link helpers [hub] names, in place of the route listened to before.
   void _followHelpers(HubCarrier? hub) {
     _helpersOf?.helpers.removeListener(_helpersSaid);
     _helpersOf = hub;
@@ -229,6 +233,7 @@ class Net extends ChangeNotifier implements PeerBook {
   bool _away = false;
   final Set<String> _alsoWatch = {};
 
+  /// Who the relay says is connected changed.
   void _presenceChanged() {
     presence.value++;
     // Whoever came is told this device's card now, where they had not been while away.
@@ -471,6 +476,7 @@ class Net extends ChangeNotifier implements PeerBook {
     }
   }
 
+  /// Why the direct route is not there, in words to show (Settings › Routes).
   static String _couldNot(Object e) => 'The direct route could not be started on this device ($e). The other routes work as before.';
 
   /// Holds [p2p], whose route is on [board] already: it hears the routes, is told how the person chose to be shown,
@@ -604,6 +610,8 @@ class Net extends ChangeNotifier implements PeerBook {
   static FsStore? Function() ledgerStore = defaultLedgerStore;
   static FsStore? defaultLedgerStore() => PlatformInfo.environment.containsKey('FLUTTER_TEST') ? MemoryFsStore() : ledgerFiles();
 
+  /// Sets up the ledger and its check over [board] and [p2p], where there is somewhere to keep it: the board writes
+  /// what goes and comes in it, and the check compares it over direct links.
   void _startLedger(Switchboard board, P2p p2p, String me, String device) {
     try {
       final store = ledgerStore();

@@ -3,6 +3,10 @@
 /// transcribe and re speak what they say"; "build it as a plugin"). The plugin is lib/plugins/voice_changer.dart; its
 /// pages are lib/ui/voice_changer_ui.dart.
 ///
+/// Since 2026-11-21 a call's voice is changed too, and its choices are kept here: on this device as it is said
+/// ([VoiceEffect], native/voicefx) or by ElevenLabs a phrase behind ([CallVoiceWay]; lib/voice/live_changer.dart does
+/// the work). The rest of this is the voice messages.
+///
 /// ElevenLabs' Voice Changer (POST /v1/voice-changer/{voice}, as its reference gives it on 2026-11-21) is speech to speech: it keeps how the recording was said
 /// (its timing, rise and fall, feeling, a laugh or a whisper) and gives it back in the voice chosen. It wants the whole
 /// recording before it starts, so this is for voice messages, which are whole before they are sent; a live call would
@@ -41,6 +45,7 @@ class ChangerVoice {
   /// A short sample of it, to hear before choosing.
   final String? preview;
 
+  /// What a voice's id may be. It goes into the request's path, so anything else is not taken for a voice.
   static final _idShape = RegExp(r'^[A-Za-z0-9_-]{8,64}$');
 
   Map<String, Object?> toJson() => {'id': id, 'n': name, 'a': about, 'p': ?preview};
@@ -68,10 +73,9 @@ class ChangerVoice {
   int get hashCode => Object.hash(id, name);
 }
 
-/// Why a voice could not be changed or the list not read, in words for the person.
 /// A voice made on this device as it is said, for calls (native/voicefx voicefx_effect; Matt, 2026-11-21: "Add support
 /// (by default) for the voice changer to use on the fly voice changing the elevenlabs is very slow and not real time"):
-/// about a fiftieth of a second behind, free, and nothing leaves the device.
+/// about a twentieth of a second behind, free, and nothing leaves the device.
 ///
 /// Each moves the voice's pitch and its formants (how big the throat and mouth sound) apart, as a real voice of that
 /// kind differs (Matt, 2026-11-21: "work on making them sound more realistic and do feminine masculine and things like
@@ -98,6 +102,7 @@ enum VoiceEffect {
 /// How a call's voice is changed: here, as it is said ([VoiceEffect]), or by ElevenLabs, a phrase behind.
 enum CallVoiceWay { device, elevenlabs }
 
+/// Why ElevenLabs could not change a recording or give its list of voices, in [words] the person is shown.
 class VoiceChangerProblem implements Exception {
   const VoiceChangerProblem(this.words);
   final String words;
@@ -105,6 +110,8 @@ class VoiceChangerProblem implements Exception {
   String toString() => words;
 }
 
+/// The voice changer's choices on this device (the ElevenLabs key, the voice, a call's way and effect), kept in its
+/// one file, and the asking of ElevenLabs. Listeners are told when a choice changes or it starts or stops asking.
 class VoiceChanger extends ChangeNotifier {
   VoiceChanger._();
   static final VoiceChanger instance = VoiceChanger._();
@@ -150,6 +157,7 @@ class VoiceChanger extends ChangeNotifier {
   String get _dir => folder ?? (PlatformInfo.isAndroid ? '${Directory.systemTemp.parent.path}/files/voicechanger' : '${DeskStore.defaultDir().path}/voicechanger');
   File get _file => File('$_dir/elevenlabs.json');
 
+  /// Reads the file, once: every getter calls it first, so nothing is read until something is asked for.
   void _load() {
     if (_loaded) return;
     _loaded = true;
@@ -170,6 +178,7 @@ class VoiceChanger extends ChangeNotifier {
     }
   }
 
+  /// Writes the file, made readable by this account alone before the key goes into it.
   void _save() {
     try {
       final dir = Directory(_dir)..createSync(recursive: true);
@@ -193,6 +202,7 @@ class VoiceChanger extends ChangeNotifier {
 
   String get keyEnd => hasKey && _key.length > 8 ? _key.substring(_key.length - 4) : '';
 
+  /// The voice chosen, and the account's voices as they were last read from ElevenLabs.
   ChangerVoice? get voice {
     _load();
     return _voice;
@@ -341,6 +351,8 @@ class VoiceChanger extends ChangeNotifier {
 
   HttpClient _client() => HttpClient()..connectionTimeout = const Duration(seconds: 15);
 
+  /// The voices of the account [key] opens, as ElevenLabs lists them. Throws a [VoiceChangerProblem] where it could
+  /// not be read, or the account has none.
   Future<List<ChangerVoice>> _list(String key) async {
     _busy(true);
     final client = _client();
@@ -388,6 +400,7 @@ class VoiceChanger extends ChangeNotifier {
     _busy(true);
     final client = _client();
     try {
+      // A multipart form written by hand: the model, the noise choice, then the recording as the `audio` file.
       final boundary = 'ghost-${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}';
       final name = path.split(PlatformInfo.pathSeparator).last.split('/').last.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
       List<int> field(String n, String value) => utf8.encode('--$boundary\r\nContent-Disposition: form-data; name="$n"\r\n\r\n$value\r\n');
@@ -489,6 +502,7 @@ class VoiceChanger extends ChangeNotifier {
     }
   }
 
+  /// Sets [busy] and tells the pages, which show it.
   void _busy(bool on) {
     busy = on;
     notifyListeners();

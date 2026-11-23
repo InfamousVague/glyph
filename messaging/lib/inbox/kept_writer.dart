@@ -22,9 +22,12 @@ class KeptWriter {
   /// What is to be kept, as it stands when asked: maps, lists, strings, numbers, booleans and nulls only (JSON's, and
   /// what one isolate may hand another).
   final Object? Function() snapshot;
+
+  /// How long after the last change it is written, and the longest a first change waits while more keep coming.
   final Duration wait;
   final Duration most;
 
+  // The write to come, when the first change it holds was made, and the last write begun.
   Timer? _timer;
   DateTime? _since;
   Future<void> _last = Future<void>.value();
@@ -38,6 +41,7 @@ class KeptWriter {
     _timer = Timer(left < wait ? (left.isNegative ? Duration.zero : left) : wait, _go);
   }
 
+  /// The wait is over: what is to be kept is taken as it stands now, and written on another isolate.
   void _go() {
     _timer = null;
     _since = null;
@@ -60,6 +64,7 @@ class KeptWriter {
   // A function of its own, so what is handed to the other isolate is the path and the data and nothing of this object.
   static Future<void> _elsewhere(String path, Object? data) => runAside(() => _put(path, data));
 
+  /// Writes [data] as JSON beside [path] and moves it into place.
   static void _put(String path, Object? data) {
     final at = File(path);
     at.parent.createSync(recursive: true);

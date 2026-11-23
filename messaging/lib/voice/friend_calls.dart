@@ -37,9 +37,11 @@ import 'voice.dart';
 
 /// Where a conversation's call lines are kept (the username chats, lib/standalone/chats.dart, through the app's calls).
 abstract class CallNotes {
+  /// Keeps [words] ("Missed call") as a line in the conversation with [address]; [out] where this device made the call.
   void note(String address, String words, {required bool out});
 }
 
+/// The app's: the line is kept by the native half beside the conversation's messages, timed now.
 class _SmsCallNotes implements CallNotes {
   @override
   void note(String address, String words, {required bool out}) =>
@@ -50,10 +52,15 @@ class _SmsCallNotes implements CallNotes {
 abstract class FriendCallsPort {
   String? get myId;
   Peer? peerOf(String id);
+
+  /// Sends to a friend; true where it went.
   Future<bool> send(Peer peer, Envelope envelope, {bool urgent = false});
+
+  /// Sends to this account's own other devices.
   Future<void> sendMine(Envelope envelope);
 }
 
+/// The app's: the routes ([Net]); what goes to this account's own devices goes through the hub alone.
 class _NetPort implements FriendCallsPort {
   @override
   String? get myId => Net.instance.id;
@@ -81,9 +88,13 @@ class _Outgoing {
   final Buddy buddy;
   final bool video;
   final VoiceChannel channel;
+
+  /// Gives up after [FriendCalls.ringFor].
   Timer? gives;
 }
 
+/// Rings a friend and is rung by one: makes the call's channel, says and hears the ringing envelopes, and keeps the
+/// call lines in the conversation.
 class FriendCalls {
   FriendCalls({FriendCallsPort? port, CallNotes? notes})
       : _port = port ?? _NetPort(),
@@ -156,12 +167,14 @@ class FriendCalls {
     _cancel(out, 'cancelled');
   }
 
+  /// Nobody answered in time: the call is called off and this device leaves it.
   void _unanswered(_Outgoing out, String why) {
     if (!identical(_out, out)) return;
     _cancel(out, why);
     if (Voice.instance.session?.channel.room == out.channel.room) unawaited(Voice.instance.leave());
   }
 
+  /// Stops ringing out, tells the friend's devices to stop ringing, and keeps the line in the conversation.
   void _cancel(_Outgoing out, String why) {
     out.gives?.cancel();
     _out = null;
