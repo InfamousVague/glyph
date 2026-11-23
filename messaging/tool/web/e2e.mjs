@@ -29,6 +29,10 @@
  * The page is a canvas: what is on it is found through Flutter's accessibility tree (the fields' and buttons' names),
  * which the script switches on as a screen reader would, and everything is done with it on, messages written too.
  *
+ * GHOST_E2E_LOOK, for finding the way when adding a step: names joined by > ("Settings>About"), pressed in turn once
+ * the run is through, a picture and the page's words after each. "=Label=text" types into a field, "~Name" turns the
+ * wheel over it, "@sam" goes to Sam's page and "@new" opens one in a browser of its own.
+ *
  * NEEDS Playwright with its browsers. It is not one of the app's packages: the script looks for it in npm's npx cache
  * (`npx playwright install chromium webkit` puts it there), or where GHOST_PLAYWRIGHT names its index.mjs.
  * A tool, not part of `flutter test`. Exit code 0 when everything held.
@@ -618,7 +622,7 @@ async function run(engine) {
         } else if (name.startsWith('~')) {
           const at = await x.where(name.slice(1));
           if (at) {
-            await x.page.mouse.move(at.x, at.y);
+            await x.page.mouse.move(at.left + 6, at.top + 6);
             await x.page.mouse.wheel(0, 900);
           }
         } else if (name.startsWith('=')) {
