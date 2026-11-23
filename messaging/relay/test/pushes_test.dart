@@ -31,7 +31,7 @@ class _Install {
   final frames = <List<int>>[];
 
   /// Signs in (or only looks, with [peek]); what the hub answers the hello with.
-  Future<Map> connect(String url, {bool peek = false}) async {
+  Future<Map> connect(String url, {bool peek = false, String? device}) async {
     final socket = await WebSocket.connect(url);
     if (!peek) ws = socket;
     final first = Completer<Map>(), hello = Completer<Map>();
@@ -51,7 +51,7 @@ class _Install {
     });
     final nonce = _unhex((await first.future)['hello'] as String);
     final sig = P256.sign(scalar, [...utf8.encode(Hub.greeting), ...nonce], _bytes(32));
-    socket.add(jsonEncode({'id': id, 'key': base64Encode(key), 'sig': base64Encode(sig), if (peek) 'peek': true}));
+    socket.add(jsonEncode({'id': id, 'key': base64Encode(key), 'sig': base64Encode(sig), if (peek) 'peek': true, 'device': ?device}));
     return hello.future.timeout(const Duration(seconds: 5));
   }
 
@@ -139,6 +139,58 @@ void main() {
     b.ws.add(jsonEncode({'push': null}));
     await forgot.timeout(const Duration(seconds: 3));
     expect(pushes.registered, 0);
+  });
+
+  // Two iPhones signed in to one account are one install to the hub, each with a token of its own: one of them wiped or
+  // signed out says {"push": null}, which took the other's too while there was one token an install (third review).
+  test('two iPhones of one account: each keeps its own token, and one forgetting its own leaves the other\'s', () async {
+    final a = _Install(), b = _Install();
+    await a.connect(url);
+    await b.connect(url, device: 'one');
+    final first = b.ws;
+    var answer = b.said.stream.first;
+    first.add(jsonEncode({'push': {'apns': 'aa' * 32, 'sandbox': false}}));
+    await answer.timeout(const Duration(seconds: 3));
+    await b.connect(url, device: 'two');
+    final second = b.ws;
+    answer = b.said.stream.first;
+    second.add(jsonEncode({'push': {'apns': 'bb' * 32, 'sandbox': false}}));
+    await answer.timeout(const Duration(seconds: 3));
+    expect(pushes.registered, 2);
+    // The first is wiped: it forgets its token, and its alone.
+    answer = b.said.stream.first;
+    first.add(jsonEncode({'push': null}));
+    await answer.timeout(const Duration(seconds: 3));
+    expect(pushes.registered, 1);
+    await first.close();
+    await second.close();
+    await _settle();
+    a.sendTo(b, [1]);
+    await _settle();
+    expect(sent, [('bb' * 32, false)], reason: 'the one still signed in is woken, the wiped one not');
+  });
+
+  test('tokens kept before devices are read as the install\'s, and the same phone saying its device takes that one\'s place', () {
+    final old = Directory.systemTemp.createTempSync('ghost-pushes-old');
+    addTearDown(() => old.deleteSync(recursive: true));
+    File('${old.path}/pushes.json').writeAsStringSync(jsonEncode({'x': {'t': 'cc' * 32, 's': true, 'd': '2026-11-20'}}));
+    final woken = <String>[];
+    final p = Pushes(dataDir: old, send: (t, _) async {
+      woken.add(t);
+      return true;
+    });
+    expect(p.registered, 1);
+    p.held('x');
+    expect(woken, ['cc' * 32]);
+    // The same iPhone, updated, says which device it is: one token, not two.
+    p.said('x', {'apns': 'cc' * 32, 'sandbox': true}, device: 'phone');
+    expect(p.registered, 1);
+    // An app from before devices forgetting its token takes the install's own, as it always did.
+    final q = Pushes(send: (_, _) async => true);
+    q.said('y', {'apns': 'dd' * 32});
+    q.said('y', {'apns': 'ee' * 32}, device: 'other');
+    q.said('y', null);
+    expect(q.registered, 1);
   });
 
   test('no token: held, and nothing sent; a token that is not hex is not kept', () async {
